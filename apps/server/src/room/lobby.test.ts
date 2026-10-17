@@ -1298,6 +1298,48 @@ describe('Lobby.beginSideboarding — the Rematch gesture into a bo1 sideboard s
 		expect(lobby.beginSideboarding('r-000000000000', tableId)).toBe(false);
 		expect(lobby.beginSideboarding(id, 'not-a-table')).toBe(false);
 	});
+
+	/**
+	 * Claw run 39046554773, 2026-10-17: `beginSideboarding` resets `games` to
+	 * `[]`, which used to erase the just-finished game's winner along with
+	 * it — so `http/routes.ts`'s `startFromRoom` could never ask the LOSER
+	 * play-or-draw for this rematch's game (the operator's acceptance). Fixed
+	 * by `rematchOf`, carried past the reset and read exactly once.
+	 */
+	it('rematchOf carries the just-finished game’s winner past the reset, and setTableMatch clears it once the next game starts', async () => {
+		const { lobby, id, tableId } = await doneTable({ matchLength: 'bo1', sideboarding: true, winner: 1 });
+		expect(lobby.rematchOf(id, tableId)).toBeNull(); // nothing carried before the Rematch gesture
+		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+		expect(lobby.rematchOf(id, tableId)).toBe(1); // seat 1 won the game that just ended
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ games: [], phase: 'sideboarding' });
+
+		expect(lobby.setTableMatch(id, tableId, 'm-rematch-game')).toBe(true);
+		expect(lobby.rematchOf(id, tableId)).toBeNull(); // read once, then cleared
+
+		expect(lobby.rematchOf('r-000000000000', tableId)).toBeNull();
+		expect(lobby.rematchOf(id, 'not-a-table')).toBeNull();
+	});
+
+	/**
+	 * The bo3 path this must NOT touch: its OWN mid-series sideboarding step
+	 * goes through `recordGameResult`, never `beginSideboarding` (the test
+	 * above's sibling, "bo3: a FINISHED series' Rematch is never routed
+	 * through here", already covers that `beginSideboarding` itself no-ops)
+	 * — so `rematchOf` stays `null` through a whole bo3 series.
+	 */
+	it('stays null through a bo3 series — recordGameResult never sets it', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.setSettings(id, ALICE.id, { matchLength: 'bo3', sideboarding: true }).ok).toBe(true);
+		expect(lobby.setTableSeats(id, tableId, [ALICE.id, BOB.id])).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-1')).toBe(true);
+		expect(lobby.recordGameResult(id, tableId, { matchId: 'm-1', winner: 0 })).toMatchObject({ phase: 'sideboarding' });
+		expect(lobby.rematchOf(id, tableId)).toBeNull();
+	});
 });
 
 describe('Lobby.addTable / removeTable', () => {

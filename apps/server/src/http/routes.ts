@@ -291,6 +291,16 @@ export interface TablesRooms {
 	 * `sideboarding`. A no-op `false` is not a failure.
 	 */
 	beginSideboarding(roomId: string, tableId: string): boolean;
+	/**
+	 * The winner `beginSideboarding` carried past its own `games` reset — see
+	 * `room/lobby.ts`'s `SeriesRecord` doc (claw run 39046554773, 2026-10-17).
+	 * `startFromRoom` reads this as the chooser source for a bo1-with-
+	 * sideboarding rematch's game, which `games.at(-1)` can no longer answer
+	 * once `beginSideboarding` has reset it to `[]`. `null` once that game has
+	 * started, for a bo3's own mid-series sideboarding, and for no such room
+	 * or table.
+	 */
+	rematchOf(roomId: string, tableId: string): 0 | 1 | null;
 	/** Leader only. Appends an empty table and answers its `RoomTable`. */
 	addTable(roomId: string, callerId: string): { ok: true; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
 	/** Leader only. Removes a table other than the first, when it is empty and idle. */
@@ -1764,7 +1774,17 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// `games.at(-1)` without this guard would rig a brand-new series'
 		// opening game to the PREVIOUS series' loser.
 		const previousGame = newSeries ? undefined : table.series.games.at(-1);
-		const chooser: 0 | 1 | undefined = previousGame?.winner === 0 ? 1 : previousGame?.winner === 1 ? 0 : undefined;
+		// `newSeries && phase === 'sideboarding'` is exactly `beginSideboarding`'s
+		// own reset (claw run 39046554773, 2026-10-17): `games` is already `[]`
+		// (so `previousGame` above is `undefined`), but the game that just
+		// decided this bo1-with-sideboarding rematch still has a loser owed
+		// play-or-draw — `rooms.rematchOf` is where `beginSideboarding` carried
+		// that winner through. A bo3's own mid-series sideboarding step never
+		// reaches here with `newSeries` true (its `games` is never emptied), so
+		// this never touches that path or a sideboarding-OFF rematch.
+		const previousWinner: 0 | 1 | null =
+			newSeries && table.series.phase === 'sideboarding' ? rooms.rematchOf(room.id, table.id) : (previousGame?.winner ?? null);
+		const chooser: 0 | 1 | undefined = previousWinner === 0 ? 1 : previousWinner === 1 ? 0 : undefined;
 
 		// Play answers through `res.json`, below. A response that ends any other way
 		const answer = res.json.bind(res);

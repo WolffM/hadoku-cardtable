@@ -299,6 +299,8 @@ interface FakeRoom {
 	state: Map<string, unknown>;
 	/** Wave 72 §P: `RoomViewLike` carries it now, but no test in this file plays a pod — every fake room is constructed and this stays `null`. */
 	pod: { phase: string } | null;
+	/** `Lobby.rematchOf`'s own carry-through, by table id — mirrors `room/lobby.ts`'s `SeriesRecord.rematchOf`, server-internal and never on the wire `RoomTable.series`. */
+	rematchOf: Map<string, 0 | 1 | null>;
 }
 
 interface FakeLobby extends TablesRooms {
@@ -336,6 +338,7 @@ function fakeLobby(): FakeLobby {
 				matches: [],
 				state: new Map(),
 				pod: null,
+				rematchOf: new Map(),
 			};
 			held.set(id, room);
 			return room;
@@ -373,9 +376,15 @@ function fakeLobby(): FakeLobby {
 			} else if (table.series.phase === 'sideboarding') {
 				table.series = { ...table.series, phase: 'playing' };
 			}
+			// Mirrors the real `Lobby.setTableMatch`: cleared once read into this
+			// game's `chooser`.
+			room.rematchOf.delete(tableId);
 			table.matchId = matchId;
 			if (!room.matches.includes(matchId)) room.matches.push(matchId);
 			return true;
+		},
+		rematchOf(roomId, tableId) {
+			return held.get(roomId)?.rematchOf.get(tableId) ?? null;
 		},
 		releaseTableMatch(roomId, tableId) {
 			const room = held.get(roomId);
@@ -405,6 +414,9 @@ function fakeLobby(): FakeLobby {
 			if (room === undefined || table === undefined || table.series.phase !== 'done') return false;
 			// bo1 with sideboarding on, only — mirrors the real `Lobby.beginSideboarding`.
 			if (room.matchLength !== 1 || !room.sideboarding) return false;
+			// Mirrors the real `Lobby.beginSideboarding`: carry the just-finished
+			// game's winner past the reset below (claw run 39046554773).
+			room.rematchOf.set(tableId, table.series.games.at(-1)?.winner ?? null);
 			table.series = { length: room.matchLength, wins: [0, 0], games: [], phase: 'sideboarding' };
 			return true;
 		},
@@ -2396,7 +2408,7 @@ describe('a room table', () => {
 		 * `Lobby.beginSideboarding` is wired into that same route, called on
 		 * every `ready: true` and deciding for itself whether anything happens.
 		 */
-		it('bo1 + sideboarding on: a done game is followed by a sideboarding step before the NEXT series — the deck gate applies, and the new series leaves chooser unset', async () => {
+		it('bo1 + sideboarding on: a done game is followed by a sideboarding step before the NEXT series — the deck gate applies, and the LOSER of game 1 is asked play-or-draw for game 2 (claw run 39046554773)', async () => {
 			const h = await boot();
 			h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 1, true);
 			await bothLoaded(h); // alice: UG_POLYMORPH, bob: SECOND_DECK
@@ -2433,10 +2445,16 @@ describe('a room table', () => {
 			const game2 = await startAnother(h, 'alice');
 			expect(game2.status).toBe(201);
 			expect(game2.body.matchId).not.toBe(game1.body.matchId);
-			// A NEW series' first game: no previous game in THIS series, so no
-			// chooser — the exact bug a stale `games.at(-1)` would reintroduce.
-			expect(h.specs.at(-1)).not.toHaveProperty('chooser');
+			// `games` is `[]` — a NEW series by `recordGameResult`'s own ledger —
+			// but this IS the operator's "game 2" of the same match, sideboard and
+			// all: alice (seat 0) won game 1, so bob (seat 1) is owed play-or-draw
+			// for it. `Lobby.rematchOf` is what carries that past the reset above.
+			expect(h.specs.at(-1)).toMatchObject({ chooser: 1 });
 			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ wins: [0, 0], games: [], length: 1 });
+			// And spent: a THIRD game of what is now this new series' own
+			// sideboarding (not reachable in bo1 without another full game, so
+			// asserted directly) would have no further winner to carry.
+			expect(h.lobby.rematchOf(ROOM, h.lobby.room(ROOM)!.tables[0]!.id)).toBeNull();
 		});
 
 		it('bo1 + sideboarding off: a done game goes straight to a new series on Rematch — no sideboarding step, chooser unset (the reported bug: a stale games.at(-1) would rig this to the old loser)', async () => {

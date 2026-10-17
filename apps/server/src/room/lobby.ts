@@ -883,6 +883,15 @@ export interface Lobby {
 	 */
 	beginSideboarding(roomId: string, tableId: string): boolean;
 	/**
+	 * The winner `beginSideboarding` carried past its own `games` reset, for
+	 * `http/routes.ts`'s `startFromRoom` to ask play-or-draw of the LOSER when
+	 * it starts this rematch's game (claw run 39046554773, 2026-10-17 — see
+	 * `SeriesRecord`'s own doc). `null` once that game has started
+	 * (`setTableMatch` clears it), for a bo3's own mid-series sideboarding
+	 * step (never set there), and for no such room or table.
+	 */
+	rematchOf(roomId: string, tableId: string): 0 | 1 | null;
+	/**
 	 * Leader only. Appends an empty table — `seating`, no seats, no match —
 	 * sized to the room's current `effectiveMatchLength`. Answers the new
 	 * `RoomTable` (`POST /api/tables/rooms/:roomId/tables`'s own body).
@@ -1068,12 +1077,30 @@ interface SeriesGame {
 	winner: 0 | 1 | null;
 }
 
-/** A table's own series ledger. The live and the on-disk shape are the same — see `RoomTableSeries`. */
+/**
+ * A table's own series ledger. The live and the on-disk shape are the same
+ * for `length`/`wins`/`games`/`phase` — see `RoomTableSeries`. `rematchOf` is
+ * NOT on the wire (never added to `RoomTableSeries`/`tableView`): it is this
+ * file's own carry-through, server-internal only, for one gap — claw run
+ * 39046554773, 2026-10-17: a bo1-with-sideboarding Rematch's `beginSideboarding`
+ * resets `games` to `[]`, so `startFromRoom`'s own `previousGame =
+ * newSeries ? undefined : games.at(-1)` guard (load-bearing for the bo3 case,
+ * see its own comment) also erases the just-finished game's winner for THIS
+ * case — and the operator's acceptance needs it: "the loser of game 1 is
+ * asked play-or-draw" for game 2 of the SAME match, sideboard and all.
+ * `rematchOf` is the previous game's winner, carried past that reset for
+ * exactly as long as it takes `startFromRoom` to read it once; `setTableMatch`
+ * clears it back to `null` the instant the next game actually starts, having
+ * already been read into that game's `chooser`. Null whenever this is not
+ * that one case: `recordGameResult` (the bo3 mid-series path) never touches
+ * it, so the bo3 path and a sideboarding-OFF rematch are both unaffected.
+ */
 interface SeriesRecord {
 	length: 1 | 3;
 	wins: [number, number];
 	games: SeriesGame[];
 	phase: SeriesPhase;
+	rematchOf: 0 | 1 | null;
 }
 
 /**
@@ -1226,6 +1253,10 @@ function isStoredSeries(v: unknown): v is SeriesRecord {
 	if (s.length !== 1 && s.length !== 3) return false;
 	if (!Array.isArray(s.wins) || s.wins.length !== 2 || !s.wins.every((n) => typeof n === 'number')) return false;
 	if (!Array.isArray(s.games) || !s.games.every(isStoredGame)) return false;
+	// Absent is a record written before this field existed — carries nothing,
+	// same as `null`. Present and not `0`/`1`/`null` is a record this build
+	// does not understand.
+	if (s.rematchOf !== undefined && s.rematchOf !== 0 && s.rematchOf !== 1 && s.rematchOf !== null) return false;
 	return isSeriesPhase(s.phase);
 }
 
@@ -1311,6 +1342,7 @@ const appCodec: AppCodec<StoredApp> = {
 								wins: [0, 0],
 								games: [],
 								phase: matchId !== null ? 'playing' : 'seating',
+								rematchOf: null,
 							},
 						},
 					]
@@ -1689,9 +1721,13 @@ class FileLobby implements Lobby {
 		if (table.series.phase === 'seating' || table.series.phase === 'done') {
 			// A new series: snapshot the length NOW, so a settings change mid-series
 			// cannot change a series already under way.
-			table.series = { length: seriesLengthOf(effectiveMatchLength(room)), wins: [0, 0], games: [], phase: 'playing' };
+			table.series = { length: seriesLengthOf(effectiveMatchLength(room)), wins: [0, 0], games: [], phase: 'playing', rematchOf: null };
 		} else if (table.series.phase === 'sideboarding') {
-			table.series = { ...table.series, phase: 'playing' };
+			// `rematchOf` cleared here, having already been read into THIS game's
+			// `chooser` by `startFromRoom` before this call — see `SeriesRecord`'s
+			// own doc. A no-op for a bo3 mid-series sideboarding step, which never
+			// sets it in the first place.
+			table.series = { ...table.series, phase: 'playing', rematchOf: null };
 		}
 		// `phase === 'playing'` already (a replacement match after the previous
 		// one simply vanished, `releaseTableMatch`): nothing about the series changes.
@@ -1808,7 +1844,7 @@ class FileLobby implements Lobby {
 			id: mintTableId(room.tables.map((t) => t.id)),
 			seats: [a, b],
 			matchId: null,
-			series: { length: seriesLengthOf(effectiveMatchLength(room)), wins: [0, 0], games: [], phase: 'seating' },
+			series: { length: seriesLengthOf(effectiveMatchLength(room)), wins: [0, 0], games: [], phase: 'seating', rematchOf: null },
 		};
 		room.tables = [...room.tables, table];
 		for (const id of [a, b]) {
@@ -1830,10 +1866,24 @@ class FileLobby implements Lobby {
 		// (`recordGameResult`), never between two series, so a finished bo3's
 		// Rematch falls through here unchanged, straight to a new series.
 		if (effectiveMatchLength(room) !== 'bo1' || !effectiveSideboarding(room)) return false;
-		table.series = { length: seriesLengthOf(effectiveMatchLength(room)), wins: [0, 0], games: [], phase: 'sideboarding' };
+		// Claw run 39046554773, 2026-10-17: carry the finished series' winner
+		// past the reset below, so `startFromRoom` can still ask the LOSER
+		// play-or-draw for this rematch's game — `games` is about to go empty,
+		// which is what erased it before this fix (see `SeriesRecord`'s doc).
+		// A bo1 series decides on one game, so its last game's winner IS the
+		// series' winner; `null` (a game this room could not attribute to a
+		// seat) carries through as "no chooser", same as it always has.
+		const rematchOf = table.series.games.at(-1)?.winner ?? null;
+		table.series = { length: seriesLengthOf(effectiveMatchLength(room)), wins: [0, 0], games: [], phase: 'sideboarding', rematchOf };
 		this.#persist(room);
-		this.#log({ event: 'table-sideboarding-begun', roomId, tableId });
+		this.#log({ event: 'table-sideboarding-begun', roomId, tableId, rematchOf });
 		return true;
+	}
+
+	/** The winner `beginSideboarding` carried through its own reset, for `startFromRoom` to ask play-or-draw of the loser — see `SeriesRecord`'s doc. `null` once read (`setTableMatch` clears it) or when there was never one to carry. */
+	rematchOf(roomId: string, tableId: string): 0 | 1 | null {
+		const found = this.#table(roomId, tableId);
+		return found === undefined ? null : found.table.series.rematchOf ?? null;
 	}
 
 	addTable(roomId: string, callerId: string): AddTableResult {
@@ -1844,7 +1894,7 @@ class FileLobby implements Lobby {
 			id: mintTableId(room.tables.map((t) => t.id)),
 			seats: [null, null],
 			matchId: null,
-			series: { length: seriesLengthOf(effectiveMatchLength(room)), wins: [0, 0], games: [], phase: 'seating' },
+			series: { length: seriesLengthOf(effectiveMatchLength(room)), wins: [0, 0], games: [], phase: 'seating', rematchOf: null },
 		};
 		room.tables = [...room.tables, table];
 		this.#persist(room);
@@ -1927,6 +1977,7 @@ class FileLobby implements Lobby {
 						wins: [0, 0],
 						games: [],
 						phase: 'seating',
+						rematchOf: null,
 					},
 				},
 			],
