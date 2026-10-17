@@ -178,10 +178,10 @@ function playCard(name: string, press: (row: HTMLElement) => void): void {
 /* ── the data half ───────────────────────────────────────────────────── */
 
 describe('the frozen Standard pools carry what a colour fold needs', () => {
-  // Default 5000ms timeout: wave 48 §T grew FIXTURE_KEYS from 9 fixtures
-  // (1.2 MB) to 31 (16 MB) across three families — reading and parsing all of
-  // them in one test runs past the default under load (contention from the
-  // rest of a full `pnpm run check`, not this test's own logic).
+  // Not the default 5 s: wave 48 §T grew FIXTURE_KEYS from 9 fixtures (1.2 MB)
+  // to 31 (16 MB) across three families, and reading and parsing all of them is
+  // 1.5 s alone on a loaded host (2026-10-16), several times that inside a full
+  // `pnpm run check`.
   it('maps a cost and a colour for its own cards, under the names a decklist uses', { timeout: 20_000 }, () => {
     for (const { family, date } of FIXTURE_KEYS) {
       const fixture = fixtureFor(date, family);
@@ -195,8 +195,10 @@ describe('the frozen Standard pools carry what a colour fold needs', () => {
       // `.dck` line naming `Delver of Secrets` find
       // `Delver of Secrets // Insectile Aberration`.
       const known = new Set(fixture.cards.flatMap(nameKeys));
-      for (const name of Object.keys(fixture.manaCost)) expect(known.has(name), `${label}: ${name}`).toBe(true);
-      for (const name of Object.keys(fixture.colors)) expect(known.has(name), `${label}: ${name}`).toBe(true);
+      // One assertion per map, naming every stray key, not one per name: 31 pools
+      // of some two thousand names each made that 60,000 `expect` calls.
+      expect(Object.keys(fixture.manaCost).filter((name) => !known.has(name)), `${label}: costed names no card has`).toEqual([]);
+      expect(Object.keys(fixture.colors).filter((name) => !known.has(name)), `${label}: coloured names no card has`).toEqual([]);
       // A land has no cost and no colour, so it is absent rather than empty —
       // which is what keeps the two maps to the size of the spells. Measured
       // against the name keys, not the card count: a double-faced card is keyed

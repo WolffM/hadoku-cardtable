@@ -74,15 +74,24 @@ describe('the name picker', () => {
     expect(answers).toEqual([['Llanowar Elves']]);
   });
 
+  /*
+   * The budget is CPU time on this thread, not the wall clock: what it guards is
+   * work done per name, and a wall clock also counts the time a loaded host gave
+   * the core to someone else (251 ms against 200 on a full check at load 22).
+   */
   it('opens at once on 33,659 names and draws none of them until asked', () => {
-    const started = performance.now();
+    const cpuMs = (since: NodeJS.CpuUsage): number => {
+      const { user, system } = process.threadCpuUsage(since);
+      return (user + system) / 1000;
+    };
+    const started = process.threadCpuUsage();
     const { getByTestId, queryAllByTestId } = mountPrompt('getChoices', nameAsk(HUGE));
-    const opened = performance.now() - started;
+    const opened = cpuMs(started);
     expect(queryAllByTestId('prompt-name-option')).toHaveLength(0);
-    const typed = performance.now();
+    const typed = process.threadCpuUsage();
     fireEvent.change(getByTestId('prompt-name-search'), { target: { value: 'griz' } });
-    const searched = performance.now() - typed;
-    console.log(`[gg-name] jsdom: ${HUGE.length} names open in ${opened.toFixed(0)} ms, a search in ${searched.toFixed(0)} ms`);
+    const searched = cpuMs(typed);
+    console.log(`[gg-name] jsdom: ${HUGE.length} names open in ${opened.toFixed(0)} ms of CPU, a search in ${searched.toFixed(0)} ms`);
     expect(queryAllByTestId('prompt-name-option').map((li) => li.textContent)).toEqual(['Grizzly Bears']);
     expect(opened).toBeLessThan(200);
   });
