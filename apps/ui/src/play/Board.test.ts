@@ -4248,6 +4248,25 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     expect(ids(group(board, 0, arranged, 'single'), 'front'), 'nothing new: the arrangement as placed').toEqual([[], [1, 2], [3], [], [4]]);
   });
 
+  it('group: a card nobody placed that carries a placed card is drawn in that card’s column, not the first gap', () => {
+    // Batterskull let go at column 5; its Germ arrives holding it. The pile stays where Batterskull was put.
+    const germ = { id: 70, card: { typeLine: 'Creature — Phyrexian Germ' }, attachedCardIds: [60] } as unknown as BoardCard;
+    const skull = { id: 60, card: { typeLine: 'Artifact — Equipment' }, attachedCardIds: [] } as unknown as BoardCard;
+    const creature = { id: 1, card: { typeLine: 'Creature — Soldier' } } as BoardCard;
+    const ids = (g: Grouped, row: 'front' | 'artifacts' | 'creatures') => g[row].map((pile) => pile.map((c) => c.id));
+    const arranged: Arrangement = { [slotKey(0, 'front')]: [[1], [], [], [], [], [60]] };
+    expect(ids(group([creature, skull, germ], 0, arranged, 'single'), 'front')).toEqual([[1], [], [], [], [], [70, 60]]);
+    // A chain: an unplaced aura on the unplaced Germ follows it into the same column.
+    const aura = { id: 80, card: { typeLine: 'Enchantment — Aura' }, attachedCardIds: [] } as unknown as BoardCard;
+    const wearing = { ...germ, attachedCardIds: [60, 80] } as BoardCard;
+    expect(ids(group([creature, aura, skull, wearing], 0, arranged, 'single'), 'front')).toEqual([[1], [], [], [], [], [70, 60, 80]]);
+    // The type-separated rows: the Germ joins Batterskull's pile in the artifacts row.
+    const lanes: Arrangement = { [slotKey(0, 'artifacts')]: [[], [60]] };
+    const g = group([creature, skull, germ], 0, lanes, 'type-separated');
+    expect(ids(g, 'artifacts')).toEqual([[], [70, 60]]);
+    expect(ids(g, 'creatures')).toEqual([[1]]);
+  });
+
   it('snapTo: an EMPTY slot snaps, the nearest slot wins, and far from every slot is nowhere', () => {
     const empty = snapTo(slots, 200, 250)!;
     expect(empty.slot).toBe('back');

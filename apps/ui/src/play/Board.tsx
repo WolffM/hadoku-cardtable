@@ -952,6 +952,8 @@ export function group(cards: readonly BoardCard[], playerId: number, arranged: A
   const byId = new Map(cards.map((c) => [c.id, c]));
   const rows: Record<BoardRow, BoardCard[][]> = emptyRows();
   const placed = new Set<number>();
+  /** The pile each placed card was drawn in. */
+  const pileOf = new Map<number, BoardCard[]>();
   for (const row of rowsForLayout(layout)) {
     for (const pile of arranged[slotKey(playerId, row)] ?? []) {
       // A gap the player left: an empty column, kept as one.
@@ -965,12 +967,31 @@ export function group(cards: readonly BoardCard[], playerId: number, arranged: A
         if (card === undefined || placed.has(id)) continue;
         placed.add(id);
         members.push(card);
+        pileOf.set(id, members);
       }
       if (members.length > 0) rows[row].push(members);
     }
   }
+  // A card nobody placed that carries one somebody did — a Germ born holding the Batterskull the
+  // player let go, a token an aura was moved onto — is drawn in that card's column: the pile stays
+  // where its placed card was put. Repeated while one joins, for a chain of attachments.
+  for (let joined = true; joined; ) {
+    joined = false;
+    for (const card of cards) {
+      if (placed.has(card.id)) continue;
+      const pile = (card.attachedCardIds ?? []).map((id) => pileOf.get(id)).find((p) => p !== undefined);
+      if (pile === undefined) continue;
+      pile.push(card);
+      placed.add(card.id);
+      pileOf.set(card.id, pile);
+      joined = true;
+    }
+  }
+  // An attachment nobody placed takes no column: `withAttachments` draws it in its host's pile, and a
+  // column it filled here would close up there, moving every column right of it.
+  const attached = new Set(cards.flatMap((c) => (c.attachedCardIds ?? []).filter((id) => id !== c.id && byId.has(id))));
   for (const card of cards) {
-    if (placed.has(card.id)) continue;
+    if (placed.has(card.id) || attached.has(card.id)) continue;
     // A card nobody placed — a token, a card an effect put onto the battlefield, any arrival with no
     // placement of its own — takes the first free column of its row from the left, else the row's end.
     const row = rows[visualRow(card, layout)];
