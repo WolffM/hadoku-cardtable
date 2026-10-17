@@ -115,64 +115,16 @@ import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { lookupFromState, type PromptCardFacts } from '../prompts/lookup.ts';
 import { nameFromForgeLabel } from '../prompts/PromptShell.tsx';
 import { createDriver, drive, type Plan } from './game-driver.ts';
-import { forgeAvailability, liveJvmCount, startLiveScenario, waitUntil, type LiveHarness } from './jvm-harness.ts';
-import { startMatch, type LiveAsk, type LiveMatch, type MatchTransport } from './match.ts';
+import { expectNoDesync, forgeAvailability, liveJvmCount, startLiveScenario, waitUntil, type LiveHarness } from './jvm-harness.ts';
+import type { LiveAsk } from './match.ts';
 
 const available = forgeAvailability();
 const title = available.ok
   ? 'the fifteen prompts against a real Forge match'
   : `the fifteen prompts against a real Forge match — SKIPPED: ${available.reason}`;
 
-/** A late joiner: a fresh client whose whole board comes from the server's snapshot of `seat`. */
-async function freshFold(h: LiveHarness, seat: number): Promise<LiveMatch> {
-  const transport: MatchTransport = {
-    on: () => {},
-    emit: () => {},
-    request: (_e, _p, onAck) => setTimeout(() => onAck(null, h.match.snapshot(seat)), 0),
-    disconnect: () => {},
-  };
-  const fresh = startMatch({ matchId: h.match.id, transport });
-  await waitUntil(() => fresh.stats.snapshots === 1, `a fresh snapshot of seat ${seat}`, 5000);
-  return fresh;
-}
-
 function answered(h: LiveHarness, method: string) {
   return h.asks.filter((a) => a.method === method && a.outcome?.ok === true && a.framesAfter > 0);
-}
-
-function snapshotCursor(h: LiveHarness, seat: number) {
-  const snap = h.match.snapshot(seat);
-  if (!('frames' in snap)) throw new Error(`no snapshot for seat ${seat}: ${snap.error}`);
-  return snap.cursor;
-}
-
-/** Stop acting, let the frames in flight land, then hold each seat to the server's own history. */
-async function expectNoDesync(h: LiveHarness): Promise<void> {
-  /*
-   * QUIESCENCE, not a single equality: with the shortcuts on, the server keeps
-   * talking after the plan is done — every auto-pass is a frame, and the last
-   * one can cross between a poll that matched and the assert that read the
-   * snapshot again (a one-frame race this suite hit the moment lane C's says
-   * made the ending livelier). The equality must HOLD across two polls before
-   * anything is asserted; the game does go quiet, because a seat with a land
-   * in hand has an action and is never auto-passed for it.
-   */
-  let stable = 0;
-  const settleBy = Date.now() + 10_000;
-  while (stable < 2) {
-    if (Date.now() > settleBy) throw new Error('each seat never settled level with the server');
-    const level = h.seats.every((s) => JSON.stringify(s.live.cursor) === JSON.stringify(snapshotCursor(h, s.seat)));
-    stable = level ? stable + 1 : 0;
-    await new Promise((r) => setTimeout(r, 150));
-  }
-  for (const s of h.seats) {
-    expect(s.live.cursor).toEqual(snapshotCursor(h, s.seat));
-    expect(s.live.stats).toMatchObject({ gaps: 0, epochChanges: 0, resyncsRequested: 0, invalid: 0 });
-    expect(s.live.lastError).toBeNull();
-    const fresh = await freshFold(h, s.seat);
-    expect(Object.fromEntries(s.live.state)).toEqual(Object.fromEntries(fresh.state));
-    expect(s.live.view).toEqual(fresh.view);
-  }
 }
 
 /**
