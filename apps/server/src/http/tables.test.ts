@@ -22,6 +22,7 @@ import type { AddressInfo } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
+import { io as ioClient } from 'socket.io-client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { moveToMain } from '@hadoku/deck';
 
@@ -29,6 +30,7 @@ import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import type { MatchReport } from '@wolffm/prefs-client/games';
 import type { JvmRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
 import type { MatchRegistry } from '../play/match.js';
+import { MATCH_EVENTS } from '../play/transport.js';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';
 import { createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../room/draftRooms.js';
 import { draftPoolId } from '../room/lobby.js';
@@ -1795,7 +1797,35 @@ describe('a room table', () => {
 			expect(report.seats[0]!.counters?.cardsInDeck).toBe(60);
 		});
 
-		it('names a player it has not heard from since the restart as a guest, and so ranks nothing', async () => {
+		/**
+		 * A hidden tab makes no /api request, but its match socket reconnects
+		 * after every restart, and the edge stamps the same headers on that
+		 * handshake. The seat it takes back is the proof that the socket names
+		 * bob by the id the room minted for him over /api.
+		 */
+		it('names a player heard from only over the match socket by their key', async () => {
+			const { h, matchId, jvm } = await restarted();
+			await view(h, 'alice');
+			const socket = ioClient(`http://127.0.0.1:${h.port}`, { transports: ['polling'], extraHeaders: edgeHeaders('bob'), forceNew: true, reconnection: false });
+			try {
+				const joined = (await socket.timeout(5000).emitWithAck(MATCH_EVENTS.join, { matchId })) as { seat?: number };
+				expect(joined.seat).toBe(1);
+				const match = h.matches.get(matchId)!;
+				jvm().push({ t: 'gameover', winner: match.spec.seats[0].name });
+
+				await vi.waitFor(() => expect(h.reports).toHaveLength(1));
+				expect(h.reports[0]!.rated).toBe(true);
+				expect(h.reports[0]!.seats.map((s) => [s.kind, s.userKey, s.displayName])).toEqual([
+					['user', 'friend-key-alice', 'user-alice'],
+					['user', 'friend-key-bob', 'user-bob'],
+				]);
+				expect(JSON.stringify(h.statsLogs)).not.toContain('friend-key-');
+			} finally {
+				socket.disconnect();
+			}
+		});
+
+		it('names a player it has heard from nowhere since the restart as a guest, and so ranks nothing', async () => {
 			const { h, matchId, jvm } = await restarted();
 			// Only alice's page has read anything from the new process.
 			await view(h, 'alice');
