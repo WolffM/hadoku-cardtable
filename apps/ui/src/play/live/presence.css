@@ -154,26 +154,6 @@
   outline-offset: 2px;
 }
 
-/*
- * Their hand's row count, carried on the wire as `handRows` (`presence.ts`'s
- * `drawTheirHandRows`, which sets this attribute). `board.css`'s own hidden-hand grid is
- * one row regardless of how many backs it holds; this runs the identical
- * `--rows` arithmetic `board.css` already runs for a lane that earns a
- * second row, aimed at `.card-backs` instead, only when told the sender's own
- * hand drew two. The extra attribute selectors are only to outrank that
- * other rule. The readable-name floor (`--card-min`) is a face's, and a back has
- * no name: two rows of backs at the floor were taller than the strip (44px backs,
- * 135px of rows in a 126px hand), so the floor yields to the height's own
- * `--card-w` here — the hand never overflows its box.
- */
-.zone--hand[data-zone='hand'][data-owner='them'][data-presence-rows='2'] > .card-backs {
-  --rows: 2;
-  --card-w: calc((var(--zone-h) - (var(--rows) - 1) * var(--cards-gap) - var(--card-slack)) / var(--rows) / var(--card-tall));
-
-  grid-template-rows: repeat(var(--rows), auto);
-  grid-auto-columns: minmax(min(var(--card-min), var(--card-w), calc(var(--zone-w) / round(up, var(--cols, 99) / var(--rows), 1))), var(--card-w));
-}
-
 @media (prefers-reduced-motion: reduce) {
   .presence,
   .presence__back {

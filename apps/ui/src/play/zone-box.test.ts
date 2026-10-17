@@ -42,10 +42,10 @@ describe('a zone’s box, measured instead of queried (the operator, 2026-10-10:
     expect(css.match(/contain: [^;]+;/g)).toEqual(['contain: inline-size style;', 'contain: size style;', 'contain: size style;', 'contain: size style;', 'contain: inline-size style;']);
   });
 
-  it('every band the row count steps on has its rule, on the zones the query used to resolve to', () => {
+  it('every band the row count steps on has its rule, on the zones the query used to resolve to — a hand of backs included', () => {
     const css = rules('board.css');
     for (const band of [3, 4, 5, 6, 8, 10]) {
-      expect(css).toContain(`:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='${band}'] > :is(.zone__rows, .zone__cards) {`);
+      expect(css).toContain(`:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='${band}'] > :is(.zone__rows, .zone__cards, .card-backs) {`);
     }
   });
 

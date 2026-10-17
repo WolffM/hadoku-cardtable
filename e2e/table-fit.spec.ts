@@ -1479,6 +1479,8 @@ function fillCrowd(counts: { battlefield: number; hand: number; backs: number })
       back.setAttribute('data-probe', '');
       backs.appendChild(back);
     }
+    // Backs step rows by the same rule as a hand of faces, from `--cols` on the list.
+    backs.style.setProperty('--cols', String(counts.backs));
   }
 
   return new Promise((done) =>

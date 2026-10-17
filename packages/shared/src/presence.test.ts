@@ -1,9 +1,8 @@
 /*
- * The presence wire schema: a spot is board-relative with a zone hint only,
- * and a message carries the sender's own hand row count. A match spans a
- * deploy, so both schemas also have to accept the shape a tab still on the
- * OLD bundle sends — a spot's old `owner` field, a message with no
- * `handRows` at all — without ever reading what they accepted (presence.ts's
+ * The presence wire schema: a spot is board-relative with a zone hint only.
+ * A match spans a deploy, so both schemas also have to accept the shape a
+ * tab still on the OLD bundle sends — a spot's old `owner` field, a
+ * message's old `handRows` — without ever reading what they accepted (presence.ts's
  * header has the full argument). The properties load-bearing enough to need
  * a valid, an invalid, and an old-shape case each.
  */
@@ -59,7 +58,7 @@ describe('PresenceAnchorSchema', () => {
 });
 
 describe('PresenceSchema', () => {
-  const base = { matchId: 'm-1', type: 'presence' as const, pointer: spot('hand'), anchor: null, held: false, from: null, handRows: 1 as const };
+  const base = { matchId: 'm-1', type: 'presence' as const, pointer: spot('hand'), anchor: null, held: false, from: null };
 
   it('a pre-deploy sender (no `anchor`; the old card-anchored `over`) still parses, the anchor defaulted to null', () => {
     const { anchor: _omit, ...oldShape } = base;
@@ -68,21 +67,14 @@ describe('PresenceSchema', () => {
     expect(parsed.success && parsed.data.anchor).toBeNull();
   });
 
-  it('accepts a message with handRows 1 or 2', () => {
+  it('rejects a card id smuggled in anywhere', () => {
     expect(PresenceSchema.safeParse(base).success).toBe(true);
-    expect(PresenceSchema.safeParse({ ...base, handRows: 2 }).success).toBe(true);
-  });
-
-  it('rejects a handRows that is neither 1 nor 2, and a card id smuggled in anywhere', () => {
-    expect(PresenceSchema.safeParse({ ...base, handRows: 3 }).success).toBe(false);
     expect(PresenceSchema.safeParse({ ...base, cardId: 7 }).success).toBe(false);
   });
 
-  it('a pre-deploy sender’s message (no handRows at all, `owner` on its spots) relays as handRows 1 with no owner', () => {
-    const { handRows: _omit, ...oldShape } = base;
-    const parsed = PresenceSchema.safeParse({ ...oldShape, pointer: { ...spot('hand'), owner: 'you' } });
+  it('a pre-deploy sender’s message (its own `handRows`, `owner` on its spots) still parses, with no owner', () => {
+    const parsed = PresenceSchema.safeParse({ ...base, handRows: 2, pointer: { ...spot('hand'), owner: 'you' } });
     expect(parsed.success).toBe(true);
-    expect(parsed.success && parsed.data.handRows).toBe(1);
     expect(parsed.success && parsed.data.pointer).toEqual(spot('hand'));
   });
 
@@ -127,7 +119,7 @@ describe('PresenceSchema', () => {
 
 describe('PresenceEchoSchema', () => {
   it('is the message plus the seat it came from', () => {
-    const base = { matchId: 'm-1', type: 'presence' as const, pointer: spot(), held: false, from: null, handRows: 1 as const };
+    const base = { matchId: 'm-1', type: 'presence' as const, pointer: spot(), held: false, from: null };
     expect(PresenceEchoSchema.safeParse({ ...base, seat: 0 }).success).toBe(true);
     expect(PresenceEchoSchema.safeParse(base).success).toBe(false);
     expect(PresenceEchoSchema.safeParse({ ...base, seat: -1 }).success).toBe(false);

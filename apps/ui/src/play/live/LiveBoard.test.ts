@@ -2438,7 +2438,7 @@ describe('the match settings open from your own face (items 4-7, 2026-10-10)', (
     expect(infos()[0]!.payload).toEqual({
       matchId: s.matchId,
       kind: 'info',
-      data: { fastMode: false, boardLayout: 'type-separated', reducedMotion: false },
+      data: { fastMode: false, boardLayout: 'type-separated', reducedMotion: false, window: `${window.innerWidth}x${window.innerHeight}` },
     });
     // Toggling Fast Mode sends the new settings, nothing else of the panel's.
     fireEvent.click(getByTestId('live-settings-fast-mode'));

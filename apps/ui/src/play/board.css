@@ -1099,7 +1099,8 @@
 .seat > .zone--battlefield .zone__row > .zone__cards,
 .seat > .zone--battlefield > .zone__cards,
 .seat > .zone--battlefield .zone__tiers > .zone__cards,
-.seat[data-viewer] > .zone--hand > .zone__cards {
+.seat[data-viewer] > .zone--hand > .zone__cards,
+.seat > .zone--hand.zone--backs > .card-backs {
   /*
    * Tall enough for `--rows` rows in the container's own height (`--zone-h` — the
    * LANE's height on a battlefield, the whole zone's in your hand, and on a
@@ -1191,7 +1192,8 @@
  * simply never appears in it — so the only ceiling left is the row's own
  * height, exactly the words above.
  */
-.seat[data-viewer] > .zone--hand > .zone__cards {
+.seat[data-viewer] > .zone--hand > .zone__cards,
+.seat > .zone--hand.zone--backs > .card-backs {
   --card-slack: 8px;
   --card-pad: 4px 3px;
   --card-w: calc((var(--zone-h) - (var(--rows) - 1) * var(--cards-gap) - var(--card-slack)) / var(--rows) / var(--card-tall));
@@ -1282,8 +1284,12 @@
  * twice the width it drew — the 27px creatures lane beside a 56px lands lane. The
  * decision moves to `.zone__rows`, whose container is the ZONE, and the value
  * inherits into all four lanes and their lists; `flex-grow` above then divides by
- * it, so the lanes divide the width in the ratio they actually draw. Your HAND is
- * one list and keeps its own decision, from its own zone, unchanged.
+ * it, so the lanes divide the width in the ratio they actually draw. A HAND is
+ * one list and keeps its own decision, from its own zone — a hand of backs the
+ * same as your hand of faces: every screen lays every hand out by ITS OWN room
+ * for it, never by the shape another screen drew it in (the operator,
+ * 2026-10-16, seven backs in two rows of small cards across a 1650px strip:
+ * "i would guess up to 10 cards fit here until we need two rows").
  *
  * `clamp(0, cols - (T - 1), 1)` is "one more row once `--cols` reaches T": the
  * inner subtraction is negative below T, is 1 at T and is clamped to 1 above it.
@@ -1292,41 +1298,41 @@
  */
 
 .zone__rows,
-.zone--hand > .zone__cards,
+.zone--hand > :is(.zone__cards, .card-backs),
 .seat > .zone--battlefield > .zone__cards {
   --rows: calc(1 + clamp(0, var(--cols, 0) - 6, 1) + clamp(0, var(--cols, 0) - 20, 1));
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='3'] > :is(.zone__rows, .zone__cards) {
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='3'] > :is(.zone__rows, .zone__cards, .card-backs) {
   --rows: calc(1 + clamp(0, var(--cols, 0) - 12, 1) + clamp(0, var(--cols, 0) - 39, 1));
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='4'] > :is(.zone__rows, .zone__cards) {
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='4'] > :is(.zone__rows, .zone__cards, .card-backs) {
   --rows: calc(1 + clamp(0, var(--cols, 0) - 16, 1) + clamp(0, var(--cols, 0) - 49, 1));
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='5'] > :is(.zone__rows, .zone__cards) {
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='5'] > :is(.zone__rows, .zone__cards, .card-backs) {
   --rows: calc(1 + clamp(0, var(--cols, 0) - 20, 1) + clamp(0, var(--cols, 0) - 61, 1));
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='6'] > :is(.zone__rows, .zone__cards) {
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='6'] > :is(.zone__rows, .zone__cards, .card-backs) {
   --rows: calc(1 + clamp(0, var(--cols, 0) - 25, 1) + clamp(0, var(--cols, 0) - 77, 1));
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='8'] > :is(.zone__rows, .zone__cards) {
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='8'] > :is(.zone__rows, .zone__cards, .card-backs) {
   --rows: calc(1 + clamp(0, var(--cols, 0) - 33, 1) + clamp(0, var(--cols, 0) - 100, 1));
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='10'] > :is(.zone__rows, .zone__cards) {
+:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='10'] > :is(.zone__rows, .zone__cards, .card-backs) {
   --rows: calc(1 + clamp(0, var(--cols, 0) - 40, 1) + clamp(0, var(--cols, 0) - 123, 1));
 }
 
 /*
  * The opponent's hand is backs, and they are the SAME SIZE as yours (wave 32 Q2:
  * the operator wanted the opponent's hand drawn at the card size of their own,
- * mirrored to the top of the table). So it reads the same tokens the viewer's
- * hand does — `--card-slack`, the `--zone-h`-derived `--card-w` and the grid's
- * `--card-min` floor — rather than a size of its own, and it is a size
+ * mirrored to the top of the table). So its list is in the same rules the viewer's
+ * hand of faces is — `--card-slack`, the `--zone-h`-derived `--card-w`, the grid's
+ * `--card-min` floor and the `--rows` step — rather than a size of its own, and it is a size
  * container for the same reason: the card is sized from the BOX. The row is an
  * `fr` like yours (2.6 against the battlefield's 4), so their first draw moves
  * nothing, and its lit edge is at the foot (the mirror of yours at the top).
@@ -1347,10 +1353,6 @@
  * hand of faces has it.
  */
 .seat > .zone--hand.zone--backs {
-  --card-slack: 8px;
-  --card-pad: 4px 3px;
-  --card-w: calc((var(--zone-h) - var(--card-slack)) / var(--card-tall));
-
   contain: size style;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1376,20 +1378,11 @@
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
-/* Backs in the same grid a hand of faces is in: one row, columns that shrink to
-   the width down to the floor, `--cols` written by `HiddenHand`. */
+/* A back fills its grid column; the grid is the hand's own (above), `--cols` written by `HiddenHand`. */
 .seat > .zone--hand.zone--backs > .card-backs {
   --card-back-w: 100%;
 
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: auto;
-  grid-auto-columns: minmax(min(var(--card-min), calc(var(--zone-w) / var(--cols, 99))), var(--card-w));
-  gap: var(--cards-gap);
-  align-content: start;
-  justify-content: start;
   margin: 0;
-  padding: var(--card-pad);
 }
 
 .seat > .zone--hand.zone--backs > .card-backs > .card-back + .card-back {

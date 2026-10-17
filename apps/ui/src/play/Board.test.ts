@@ -3928,7 +3928,7 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
   it('Q2: the opponent’s hand is drawn at the card size of yours, from the same tokens', () => {
     const css = styled();
     const { zone } = renderBoard(view);
-    const theirs = zone(1, 'hand');
+    const theirs = zone(1, 'hand').querySelector(':scope > .card-backs')!;
     const mine = zone(0, 'hand').querySelector(':scope > .zone__cards')!;
     // T6 (wave 36): neither side caps a hand card below what its own row allows.
     expect(css(theirs, '--card-max'), 'no ceiling on theirs').toBe('');
@@ -3954,7 +3954,7 @@ describe('wave 32 §B — the surface: Q2, Q13, Q1b, Q16, the stack', () => {
     expect(top.getAttribute('data-owner')).toBe('them');
     expect(bottom.classList.contains('zone--backs') && top.classList.contains('zone--backs'), 'both strips are keyed for the stylesheet').toBe(true);
     expect(bottom.querySelectorAll('[data-card-back]')).toHaveLength(7);
-    expect(css(bottom, '--card-slack'), 'the same slack as the top strip').toBe(css(top, '--card-slack'));
+    expect(css(bottom.querySelector(':scope > ul.card-backs')!, '--card-slack'), 'the same slack as the top strip').toBe(css(top.querySelector(':scope > ul.card-backs')!, '--card-slack'));
     expect(css(bottom.querySelector(':scope > ul.card-backs')!, 'display'), 'the same grid as the top strip').toBe(css(top.querySelector(':scope > ul.card-backs')!, 'display'));
   });
 

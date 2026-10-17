@@ -480,7 +480,6 @@ describe('two seats over the socket', () => {
 			pointer: { zone: 'battlefield', x: 0.25, y: 0.5 },
 			held: true,
 			from: { zone: 'hand', x: 0.1, y: 0.9 },
-			handRows: 2,
 		};
 		alice.socket.emit('forge:presence', message);
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(1));
@@ -505,22 +504,20 @@ describe('two seats over the socket', () => {
 		expect(bob.presences[3]).toEqual({ ...message, anchor: { ...handSlot, card: null }, arranging: null, handMove: null, placing: null, seat: 0 });
 
 		// Malformed: dropped and logged, not relayed. A card id would be malformed too — the schema
-		// is strict, and so is a hand row count that is neither 1 nor 2 — and so is an `anchor`
-		// whose card is not an id, or an offset past its bound.
+		// is strict — and so is an `anchor` whose card is not an id, or an offset past its bound.
 		alice.socket.emit('forge:presence', { ...message, cardId: 42 });
-		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'hand', x: 2, y: 0 }, held: false, from: null, handRows: 1 });
-		alice.socket.emit('forge:presence', { ...message, handRows: 3 });
+		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'hand', x: 2, y: 0 }, held: false, from: null });
 		alice.socket.emit('forge:presence', { ...message, handMove: { from: 0, to: -1 } });
 		alice.socket.emit('forge:presence', { ...message, anchor: { ...anchor, card: '42' } });
 		alice.socket.emit('forge:presence', { ...message, anchor: { ...anchor, x: 51 } });
-		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'presence-malformed')).toHaveLength(6));
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'presence-malformed')).toHaveLength(5));
 		expect(bob.presences).toHaveLength(4);
 
-		// A match spans a deploy: a tab still on the OLD bundle sends a spot's old `owner` field,
-		// no `handRows` and no `anchor` at all. That shape still relays — never dropped, never logged
-		// as malformed — with `handRows` defaulted to 1, `anchor` defaulted to null, and `owner` gone,
-		// not merely ignored by the receiver.
-		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'battlefield', owner: 'you', x: 0.25, y: 0.5 }, held: false, from: null });
+		// A match spans a deploy: a tab still on the OLD bundle sends a spot's old `owner` field, its
+		// own `handRows` and no `anchor` at all. That shape still relays — never dropped, never logged
+		// as malformed — with `anchor` defaulted to null, and `owner` and `handRows` gone, not merely
+		// ignored by the receiver.
+		alice.socket.emit('forge:presence', { matchId, type: 'presence', pointer: { zone: 'battlefield', owner: 'you', x: 0.25, y: 0.5 }, held: false, from: null, handRows: 2 });
 		await vi.waitFor(() => expect(bob.presences).toHaveLength(5));
 		expect(bob.presences[4]).toEqual({
 			matchId,
@@ -529,13 +526,13 @@ describe('two seats over the socket', () => {
 			anchor: null,
 			held: false,
 			from: null,
-			handRows: 1,
 			arranging: null,
 			handMove: null,
 			placing: null,
 			seat: 0,
 		});
-		expect(h.logs.filter((l) => l.evt === 'presence-malformed'), 'still 6: the old shape was never malformed').toHaveLength(6);
+		expect(Object.keys(bob.presences[4] as object), 'the old row count never crosses').not.toContain('handRows');
+		expect(h.logs.filter((l) => l.evt === 'presence-malformed'), 'still 5: the old shape was never malformed').toHaveLength(5);
 
 		// A spectator on alice's seat (a second browser) sends, and nobody hears it.
 		const watcher = await connect(h.port, edgeHeaders('alice'));

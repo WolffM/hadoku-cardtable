@@ -2704,7 +2704,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     setFastModeState(next);
     if (isPacedTransport(match.transport)) match.transport.setFast(next);
   }
-  // The seat's settings, in the match's log: once they have been read, and on every change.
+  // The seat's settings, in the match's log: once they have been read, and on every change — with the
+  // window they are laid out in, so a layout report is read from the log rather than guessed.
   const settingsReported = useRef(false);
   useEffect(() => {
     if (spectator || prefs === null) return;
@@ -2715,7 +2716,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       if (boardLayout !== persistedLayout || fastMode !== (prefs.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode)) return;
       settingsReported.current = true;
     }
-    reportClient(match.transport, match.matchId, 'info', { fastMode, boardLayout, reducedMotion: !motionWanted() });
+    reportClient(match.transport, match.matchId, 'info', { fastMode, boardLayout, reducedMotion: !motionWanted(), window: `${window.innerWidth}x${window.innerHeight}` });
   }, [match, spectator, prefs, fastMode, boardLayout]);
   useEffect(() => {
     // `snapshots === 0` is "no join has completed yet" — sending before that

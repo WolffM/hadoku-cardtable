@@ -56,13 +56,11 @@
  * ## A deploy is not a reload
  *
  * A match in progress spans a deploy: a tab still on the OLD bundle keeps
- * sending the old shape (a spot carries `owner`; a message carries no
+ * sending the old shape (a spot carries `owner`; a message carries
  * `handRows`) until its own seat reloads it. That shape still parses: an
- * `owner` key is accepted and dropped (never read, by any receiver, on
- * either shape), and a missing `handRows` defaults to `1` — the one row
- * every build before this one ever drew. Only a shape that is actually
- * wrong (a bad fraction, an `handRows` that is neither `1` nor `2`, any
- * other extra key) is malformed.
+ * `owner` key and a `handRows` are accepted and dropped, never read by any
+ * receiver. Only a shape that is actually wrong (a bad fraction, any other
+ * extra key) is malformed.
  *
  * The same holds for `arranging` (absent before it existed) and for
  * `placing` (wave 59): a message missing either still parses, defaulted to
@@ -152,12 +150,8 @@ export const PresenceSchema = z
      * Never where a back stands (that is `placing`). Null otherwise.
      */
     from: PresenceSpotSchema.nullable(),
-    /**
-     * The rows the sender's own hand drew — their hidden hand, on this wire,
-     * draws the same. Defaults to `1` so a pre-deploy sender's message (which
-     * never had this field) still parses.
-     */
-    handRows: z.union([z.literal(1), z.literal(2)]).default(1),
+    /** A pre-deploy sender's own hand row count: accepted so an old tab still parses, and dropped — each screen lays every hand out by its own room. */
+    handRows: z.unknown().transform(() => undefined).optional(),
     /**
      * A battlefield card of the sender's being rearranged: which (its id is
      * public — it is on the battlefield) and where its lifted copy's centre

@@ -38,9 +38,8 @@
  * WHOLE board top-to-bottom (the shared schema's header has the reason), not
  * by scaling inside whichever zone it names, and smoothed by a short CSS
  * transition. A seat heard nothing from for `PRESENCE_STALE_MS` is drawn no
- * more. Their hidden hand draws in the row count their own message carries
- * (`handRows`) via `[data-presence-rows]`, which `presence.css` reads — kept
- * when their cursor goes: it is their hand's shape, not their pointer's.
+ * more. Nothing they send lays this board out: their hidden hand is drawn by
+ * this screen's own room for it (`board.css`), like every other zone here.
  *
  * ## The handoff
  *
@@ -337,25 +336,6 @@ export function placeSpot(canvas: HTMLElement, spot: PresenceSpot): Point | null
   return { x: board.left + spot.x * board.width, y: board.top + (1 - spot.y) * board.height };
 }
 
-/**
- * This seat's own hand's row count, read off its card list rather than
- * carried as a second channel of state: more than one distinct row of tops
- * among its cards is two rows, otherwise one. The wire only ever says 1 or 2
- * (`PresenceSchema`), which is all `board.css` ever draws a hand in.
- */
-function handRowsOf(canvas: HTMLElement): 1 | 2 {
-  // A lifted, parked or carried card is drawn at the pointer, not in its row: its top is anybody's,
-  // and counting it made the other seat see two rows for exactly as long as a card was held (the
-  // operator, 2026-10-07: "when i pull one out, they suddenly get reorganized into two rows").
-  const cards = canvas.querySelectorAll<HTMLElement>('[data-zone="hand"][data-owner="you"] li:not([data-cast-lift])');
-  if (cards.length < 2) return 1;
-  const first = Math.round(cards[0]!.getBoundingClientRect().top);
-  for (const card of cards) {
-    if (Math.round(card.getBoundingClientRect().top) !== first) return 2;
-  }
-  return 1;
-}
-
 /** What this seat's hands are doing, off the gesture layer's own marks. */
 /**
  * A battlefield card of this seat's being rearranged (`Board.tsx`'s own drag:
@@ -495,7 +475,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       anchor,
       held: hands.held,
       from,
-      handRows: handRowsOf(canvas),
       arranging: arrangingOf(canvas),
       placing: placingOf(hands.parked),
       handMove: null,
@@ -551,28 +530,10 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    */
   const liftWatch = new MutationObserver(() => {
     const state = liftStateOf();
-    if (state !== lastLiftState) {
-      lastLiftState = state;
-      sendNow();
-      return;
-    }
-    rowsChanged();
-  });
-
-  /**
-   * This seat's hand row count, said the moment it changes — a card drawn into a second row, a
-   * window resized — not on the next pointer move, which may never come: the other screen lays
-   * their mirror of this hand out by it, and holding it back until this pointer next entered the
-   * page re-laid that hand out the moment this cursor appeared there. Card changes reach it through
-   * `liftWatch`; a window resize changes no DOM, so `resize` checks it too.
-   */
-  let lastRows = handRowsOf(canvas);
-  function rowsChanged(): void {
-    const rows = handRowsOf(canvas);
-    if (rows === lastRows) return;
-    lastRows = rows;
+    if (state === lastLiftState) return;
+    lastLiftState = state;
     sendNow();
-  }
+  });
 
   /**
    * `./gestures/hand.ts` just committed a reorder: sent at once, outside the
@@ -598,7 +559,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       anchor,
       held: hands.held,
       from: handFrom,
-      handRows: handRowsOf(canvas),
       arranging: null,
       placing: placingOf(hands.parked),
       handMove: { from, to },
@@ -653,7 +613,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       anchor,
       held: false,
       from: null,
-      handRows: handRowsOf(canvas),
       arranging: null,
       placing: spot === null || cancelled ? null : { at: spot },
       handMove: null,
@@ -992,19 +951,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     setTimeout(() => ghost.remove(), GLIDE_MS);
   }
 
-  /**
-   * Their hidden hand in the row count their own screen draws it in. That is a fact about their
-   * hand, not their pointer: every message carries it, the one that says their pointer left too,
-   * and it outlives their cursor — taking it down with the cursor (`takeDown`) re-laid their hand
-   * out every time their pointer entered or left their page (the operator, 2026-10-16: "weird bug
-   * with cards resizing … if cursor is on screen … if cursor is not on screen").
-   */
-  function drawTheirHandRows(rows: 1 | 2): void {
-    const theirHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]');
-    if (rows === 2) theirHand?.setAttribute('data-presence-rows', '2');
-    else theirHand?.removeAttribute('data-presence-rows');
-  }
-
   function draw(echo: PresenceEcho): void {
     const root = overlay();
     if (root === null) return;
@@ -1012,7 +958,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     drawArranging(root, box, echo.arranging);
     glideHandMove(root, box, echo.handMove);
     if (echo.placing !== null) renewWait();
-    drawTheirHandRows(echo.handRows);
     // Anchored to the twin of what their pointer is in (`anchorOf`) — the board fraction drifts off
     // a card the moment the two screens size a row differently; it is the fallback outside every zone.
     const at = echo.pointer === null ? null : placeAnchor(canvas, echo.anchor) ?? placeSpot(canvas, echo.pointer);
@@ -1495,7 +1440,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   canvas.addEventListener('pointercancel', onPointerRelease);
   document.addEventListener('visibilitychange', onVisibility);
   liftWatch.observe(canvas, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-cast-lift'] });
-  window.addEventListener('resize', rowsChanged);
   host.transport.on(PRESENCE_EVENT, onEcho);
   host.transport.on(PLACEMENT_EVENT, onPlacement);
   host.transport.on(PLACED_EVENT, onPlaced);
@@ -1519,14 +1463,12 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       canvas.removeEventListener('pointercancel', onPointerRelease);
       document.removeEventListener('visibilitychange', onVisibility);
       liftWatch.disconnect();
-      window.removeEventListener('resize', rowsChanged);
       if (sendTimer !== null) clearTimeout(sendTimer);
       sendTimer = null;
       armRestate(false);
       if (placedTimer !== null) clearTimeout(placedTimer);
       placedTimer = null;
       takeDown();
-      drawTheirHandRows(1);
     },
   };
 }
