@@ -186,6 +186,42 @@ it. PR-5 is new and exists to serve it.
 | **PR-3** | **Room module** — our P3–P6 contributions to `@wolffm/rooms-protocol` / `-server` (**renamed**: `@wolffm/rooms` never shipped) | **implemented Wave 5, locally.** Designs W1, delivered to watchparty W2/W3, built here W5. Upstream still ships **none** of P4–P6, so ours are our own packages consuming their primitives — `@wolffm/rooms-server@0.38.111` is `RoomRegistry` + seating + emit + rate limiting + `collectGC` and nothing else. The socket wiring is ours |
 | **PR-4** | **Play** — WS/JSON bridge at `IToClient`, headless Forge, the embedded client | **spiked and de-risked** (D). Forge runs headless; 38 of 60 protocol methods required; jUPnP is a config flag. Not greenfield — a 3,919-line headless net harness already exists in-tree |
 
+## Waves 70, 71 and 72 (draft pods) landed and were re-verified by the tracker (2026-10-17)
+
+The operator's plan and rulings: `docs/planning/draft-pods-plan.md`. Each wave's per-lane notes are in its wave file.
+
+| wave | wall clock | lanes | tracker re-ran | mutation (tracker's own) |
+| --- | --- | --- | --- | --- |
+| w71 room core | 1 h 55 m | D tables+series, E chooser, F pairing, G strip+chat | 379/379 across the lanes' suites | recordGameResult → always `done`: 2/189 fail, restored 189/189 |
+| w70 draft glue | 3 h 06 m | A editor, B draft screens, C pod store | 319/319 | `?? completedSeatOf(...)` removed: 1/41 fail, restored 41/41 |
+| w72 pods on screen | 3 h 32 m | P pod rounds + eager series, Q 1v1 series + sideboard step, R pod screens + G's regressions | 764/764 (including R16 on hokon, red there before Q §0) | round advance → return: 1/206 fail, restored 206/206 |
+
+Deployed: ui 0.32.314 / server 0.32.209 (deploy tree `aefb4c0f`, restarted 16:12:55Z, `/health` healthy). Ledger rows
+AF136–AF138 carry the acceptance videos; only the operator writes ✅.
+
+**Reds found and named during the programme:**
+- **w71 G, two regressions** (fixed in w72 R `3b331877`): the strip sat under the watcher's line (w71-boards on run
+  39027167776), and the chat chrome mounted after the board's first layout. The board measured 1216 → 896 px in 15–60 ms.
+  bs-batterskull was bisected on claw-9: green at D (39031259828), red at G (39031261626). Its placement half was another
+  session's fix (`56b046cb`, AF134).
+- **R16 result-screen tests** were red on hokon, green on CI, from `e9b3649d` (another session). test-setup's
+  `asyncUtilTimeout` is 1 s off CI and 5 s on CI, against `END_UNSHOWN_MS` = 2 s. The tests now advance fake timers
+  (w72 Q `43ed9273`); no timeout was raised.
+- **w72-sideboard red on main 7582f2b2** ("a fresh Forge match, not game 1 again"): the spec waited for any match url.
+  Fixed in `cffa7c77`; proof run 39047373363 is green.
+- **af69-searing-blaze** (w72 notes, AF135): another session's path; ×3 green on 8d225b54.
+
+**Left over, next draft wave:**
+- the `cardRequestOf` dedupe (`apps/server/src/http/draftPool.ts` vs `apps/ui/src/draft/deckFromPool.ts` → `@hadoku/deck`);
+- `screens/pod/wire.ts` folds into its two callers;
+- draftRooms' synchronous file store wants a sync API in `@hadoku/room-store`;
+- the AI opponent for a bye (operator ruling 3: "keep the option open");
+- a cube picker (one hard-coded cube).
+
+**Unverified, needs the operator:**
+- a real chat message across boards (the e2e harness has no watchparty backend);
+- a production restart with a live pod (`ls apps/server/data/drafts`, deploy, `GET /api/drafts/<pod>/mine`).
+
 ## 2026-09-30 — deck screen feedback shipped direct; main was red after w30, now green
 
 **Shipped direct, no wave** (operator feedback on the deck picker): Ready and
