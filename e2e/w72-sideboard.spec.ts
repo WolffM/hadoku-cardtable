@@ -110,8 +110,12 @@ test(
       for (const f of [alice, bob]) {
         await expect(f.page.getByTestId('sideboard-step'), `${f.name} sees the sideboard step`).toBeVisible({ timeout: 20_000 });
         await expect(f.page.getByTestId('game-result-rematch'), 'the editor replaces the button').toHaveCount(0);
+        // Ready must sit inside the window with no scrolling at this size
+        // (1280×800) — the defect a real-Forge run found: the editor's own
+        // card grids used to grow the whole dialog past the fold.
+        await expect(f.page.getByTestId('sideboard-ready'), `${f.name}: Ready is in the viewport, no scroll needed`).toBeInViewport();
       }
-      console.log('[w72-sideboard] both pressed Rematch: the sideboard step is open on both screens');
+      console.log('[w72-sideboard] both pressed Rematch: the sideboard step is open on both screens, Ready in view');
 
       /* ── alice swaps a card between her main and her sideboard ───────── */
       const mainCountBefore = await alice.page.getByTestId('sideboard-step').getByTestId('main-count').textContent();
@@ -121,8 +125,12 @@ test(
         .not.toBe(mainCountBefore);
       console.log(`[w72-sideboard] alice swapped a card into her main (${mainCountBefore} -> changed)`);
 
-      /* ── both ready the sideboard step ────────────────────────────────── */
-      for (const f of [alice, bob]) await f.page.getByTestId('sideboard-ready').click();
+      /* ── both ready the sideboard step: Ready is reachable, no scroll ── */
+      for (const f of [alice, bob]) {
+        const readyButton = f.page.getByTestId('sideboard-ready');
+        await expect(readyButton, `${f.name}: Ready is still in the viewport`).toBeInViewport();
+        await readyButton.click();
+      }
       for (const f of [alice, bob]) await expect(f.page.getByTestId('sideboard-ready')).toHaveAttribute('aria-pressed', 'true');
 
       /* ── game 2 starts; bob (game 1's loser) is asked play-or-draw ────── */
@@ -167,8 +175,9 @@ test(
       for (const f of [alice, bob]) {
         await expect(f.page.getByTestId('sideboard-step'), `${f.name}: the sideboard step opens on its own`).toBeVisible({ timeout: 20_000 });
         await expect(f.page.getByTestId('game-result-rematch'), 'no Rematch/Next game press happened').toHaveCount(0);
+        await expect(f.page.getByTestId('sideboard-ready'), `${f.name}: Ready is in the viewport, no scroll needed`).toBeInViewport();
       }
-      console.log('[w72-sideboard] bo3: the sideboard step opened with no Rematch press on either screen');
+      console.log('[w72-sideboard] bo3: the sideboard step opened with no Rematch press on either screen, Ready in view');
     } finally {
       await stack.stop();
     }

@@ -140,3 +140,38 @@
   pointer-events: none;
   z-index: var(--z-zoom, 60);
 }
+
+/*
+ * The sideboard step (wave 72 §Q.4), drawn inside the result screen's own
+ * `.confirm` dialog — `.board__over`'s `align-items: center` sizes that
+ * dialog to its content's natural height, and the full editor's card grids
+ * are easily taller than the window at the table-fit sizes this app is held
+ * to (1280×800, 1366×768 — `e2e/table-fit.spec.ts`). A real-Forge run found
+ * `sideboard-ready` sitting below the fold with no way to reach it.
+ *
+ * The fix is the ordinary sticky-footer-with-scrolling-middle shape: this
+ * section caps its OWN height well under the shorter of the two table-fit
+ * heights, `.sideboard-step__editor` is the one part of it that scrolls, and
+ * the Ready bar is a sibling below that scroller, so it never leaves the
+ * capped box — the title, Ready button and any refusal are always in view;
+ * only the card grids themselves scroll.
+ */
+.sideboard-step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 60vh;
+}
+
+.sideboard-step__editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sideboard-step__bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}

@@ -3696,6 +3696,55 @@ describe('R16 — the result screen, drawn over the board', () => {
       await waitFor(() => expect(tableState.startRoom).toHaveBeenCalledWith('r-1', 't-1'));
     });
 
+    /**
+     * A real-Forge run (bo1 + sideboarding) found game 2 starting the
+     * MOMENT alice pressed Ready on the sideboard editor, before bob had
+     * even opened his — `beginSideboarding` leaves BOTH seats' `ready`
+     * stale-true, so alice's own fresh `ready(true)` alone made
+     * `rematch.agreed` true (bob's stale flag never moved). The fix is
+     * this step clearing ITS OWN seat's flag the moment it mounts, so
+     * "both agreed" can only become true again once each side has
+     * genuinely pressed Ready here — this is that clear, caught directly.
+     */
+    it('clears this seat’s own possibly-stale ready the moment the step mounts, before any press', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
+        pod: null,
+      };
+      tableState.other.ready = true;
+      tableState.me = { ready: true, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      const { getByTestId } = await victoryInRoom();
+      await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
+      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', false, 't-1'));
+      // Bob's seat is untouched by this screen — only mine clears.
+      expect(tableState.other.ready).toBe(true);
+    });
+
+    /**
+     * A real-Forge run found `sideboard-ready` below the fold at 1280×800:
+     * `.confirm`'s dialog sizes to its content, and the full editor's card
+     * grids are easily taller than the window. The fix (`deckEditor.css`'s
+     * own note) is a bounded box with ONE scrolling part; this pins down
+     * the structure that makes it work — `sideboard-ready` a SIBLING of the
+     * scroller, never a descendant of it, so capping the scroller's height
+     * can never also hide the button inside it.
+     */
+    it('Ready sits OUTSIDE the editor’s own scrolling box, never inside it (the fix for the below-the-fold defect)', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
+        pod: null,
+      };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      const { getByTestId } = await victoryInRoom();
+      const ready = await waitFor(() => getByTestId('sideboard-ready'));
+      const scroller = getByTestId('sideboard-step').querySelector('.sideboard-step__editor');
+      expect(scroller, 'the step has a scrolling editor box').not.toBeNull();
+      expect(scroller?.contains(ready), 'Ready is not inside it').toBe(false);
+      expect(ready.closest('.sideboard-step__bar'), 'Ready is in its own, un-scrolled bar').not.toBeNull();
+    });
+
     it('the sideboard editor: Ready submits the current 75 through PUT …/deck, then readies — an unchanged deck is a valid submission', async () => {
       const dck = '[Main]\n4 Lightning Bolt\n56 Island\n[Sideboard]\n2 Abrade\n';
       roomsClientState.room = {
@@ -3734,7 +3783,9 @@ describe('R16 — the result screen, drawn over the board', () => {
 
       fireEvent.click(getByTestId('sideboard-ready'));
       await waitFor(() => expect(getByTestId('sideboard-refusal').textContent).toBe(tableState.loadDeckRefusal));
-      expect(tableState.ready).not.toHaveBeenCalled();
+      // Ready(true) is never sent once `loadDeck` itself refused — only the
+      // step's own on-mount clear of a possibly-stale flag (see its own note).
+      expect(tableState.ready).not.toHaveBeenCalledWith('r-1', true, 't-1');
     });
 
     /**

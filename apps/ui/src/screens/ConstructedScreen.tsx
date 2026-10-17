@@ -1079,6 +1079,8 @@ function RoomTableScreen({
   const [view, setView] = useState<RoomView | null>(warm?.view ?? null);
   /** Bumped when a write of this screen's own resolves; a read that overlapped one is read again. */
   const writes = useRef(0);
+  /** Bumped on every room read issued; a read whose answer is no longer the latest one issued is dropped, not asked again — a newer one is already in flight. */
+  const roomReadSeq = useRef(0);
   const [resolved, setResolved] = useState(warm !== undefined);
   /** Latched on the first read. A room does not change mode under its players. */
   const modeRef = useRef<ClientMode | null>(warm?.view.clientMode ?? null);
@@ -1294,11 +1296,20 @@ function RoomTableScreen({
       // again, so it reads the room as the write left it — and a change somebody else made while the
       // write was in flight is not left waiting for the next ping.
       const issuedAfterWrite = writes.current;
+      // A SEPARATE race from the one above (CI run 39039465853, `e2e/draft.spec.ts`):
+      // two of THIS screen's own reads, issued close together (`rooms/feed.ts`'s "once
+      // when it starts following… once more when the server confirms it is watching"),
+      // can themselves resolve out of order — no local write involved at all, so
+      // `writes.current` never moves and does not catch it. The later-ISSUED read
+      // always wins; an earlier one landing after it is dropped outright, not asked
+      // again, because the newer one already has the answer this one would get anyway.
+      const mySeq = (roomReadSeq.current += 1);
       rooms.get(roomId).then(
         (room) => {
           if (!live) return;
           setResolved(true);
           if (room === null) return;
+          if (mySeq !== roomReadSeq.current) return;
           if (issuedAfterWrite !== writes.current) {
             read();
             return;

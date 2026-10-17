@@ -2025,6 +2025,26 @@ function SideboardStep({
     };
   }, [choice, tables]);
 
+  /**
+   * A real-Forge run found this step opening a NEW GAME on its own mount,
+   * before either player had touched it: `beginSideboarding` (the bo1 door
+   * into this phase) never un-readies either seat, so a seat's `ready` can
+   * already be stale-true the moment this mounts. `GameResultScreen`'s own
+   * `submitted` gate only protects THIS screen from firing on ITS OWN stale
+   * agreement — it does nothing once I press Ready here for the OTHER
+   * seat's stale `true` to also read `agreed`, which starts the match for
+   * BOTH of us before they have looked at their own 75. Clearing my own
+   * flag once, right here, is what makes "both players have pressed Ready
+   * ON the sideboard step" true in fact: an already-false flag clears to
+   * false again, harmlessly.
+   */
+  const clearedStaleReady = useRef(false);
+  useEffect(() => {
+    if (clearedStaleReady.current) return;
+    clearedStaleReady.current = true;
+    (tableId === undefined ? tables.ready(roomId, false) : tables.ready(roomId, false, tableId)).catch(() => undefined);
+  }, [roomId, tableId, tables]);
+
   const parsed = useMemo(
     () => (typeof text === 'string' ? splitBasics(deckFromDeckFile(parseDck(text))) : null),
     [text],
@@ -2082,17 +2102,24 @@ function SideboardStep({
   };
 
   return (
-    <section className="lobby__card" data-testid="sideboard-step">
+    <section className="lobby__card sideboard-step" data-testid="sideboard-step">
       <h2>Sideboard</h2>
-      <DeckEditor mode="sideboard" draftId={roomId} pool={pool} savedDeck={text} onDeckChange={(d) => (deckRef.current = d)} />
-      {refusal !== null && (
-        <p className="live__error" role="alert" data-testid="sideboard-refusal">
-          {refusal}
-        </p>
-      )}
-      <button type="button" className="lobby__go" data-testid="sideboard-ready" aria-pressed={ready} disabled={busy || ready} onClick={onReady}>
-        {ready ? 'Waiting for the other player…' : 'Ready'}
-      </button>
+      {/* The one part of this step that scrolls — see `deckEditor.css`'s own
+          note. The Ready bar below is a sibling, never inside it, so it
+          stays in view at every table-fit size. */}
+      <div className="sideboard-step__editor">
+        <DeckEditor mode="sideboard" draftId={roomId} pool={pool} savedDeck={text} onDeckChange={(d) => (deckRef.current = d)} />
+      </div>
+      <div className="sideboard-step__bar">
+        {refusal !== null && (
+          <p className="live__error" role="alert" data-testid="sideboard-refusal">
+            {refusal}
+          </p>
+        )}
+        <button type="button" className="lobby__go" data-testid="sideboard-ready" aria-pressed={ready} disabled={busy || ready} onClick={onReady}>
+          {ready ? 'Waiting for the other player…' : 'Ready'}
+        </button>
+      </div>
     </section>
   );
 }
@@ -2146,48 +2173,63 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   }, [phase]);
 
   /**
-   * The table id the reads below address — kept in a ref, not state, because
-   * it has to be read synchronously inside the SAME refresh cycle that
-   * learns it: the room answers first, and the table-scoped read right
-   * after has to use what THIS cycle just learned, not last render's. A room
-   * read that fails for a moment leaves it exactly where it was, so the
-   * table read below still asks about the right table rather than falling
-   * back to `tables[0]`.
+   * The table id the reads below address — a ref, not state, because the
+   * table-scoped read inside the SAME refresh cycle that learns it has to
+   * use what THIS cycle just learned, not last render's.
    */
   const myTableIdRef = useRef<string | undefined>(undefined);
+
+  /**
+   * What the table looked like at the last room read — so the next one is
+   * skipped unless something actually moved. `aa-polling.spec.ts`'s idle
+   * budget (`e2e/aa-polling.spec.ts`, "idle result screen reads the room at
+   * most a few times a minute") was written for a screen that read ONE
+   * thing per `roomFeed` tick (the table); reading the ROOM too on every
+   * tick doubled it. `ready`/`matchId`/`locked` are exactly the fields a
+   * change worth re-checking the room for would also move — an agreement
+   * (`beginSideboarding`'s own trigger), a game starting or ending. A
+   * genuinely idle tick (the fallback timer firing with nothing changed)
+   * reads this SAME signature and skips the room — the idle case the spec
+   * measures never pays the extra read.
+   */
+  const lastTableSignature = useRef<string | null>(null);
 
   useEffect(() => {
     if (roomId === null) return;
     let live = true;
-    const readTable = (): void => {
+    const refreshRoom = (): void => {
+      roomsClient()
+        .get(roomId)
+        .then(
+          (answer) => {
+            if (!live || answer === null) return;
+            setRoom(answer);
+            myTableIdRef.current = findMyTable(answer, match.matchId)?.id;
+          },
+          () => undefined,
+        );
+    };
+    const stopFollowing = roomFeed().follow({ room: roomId }, () => {
       tables.table(roomId, myTableIdRef.current).then(
         (answer) => {
           if (!live || !answer.ok) return;
           setTable(answer.table);
           setAlone((was) => was ?? answer.table.players.length === 1);
+          const signature = JSON.stringify({
+            matchId: answer.table.room.matchId,
+            locked: answer.table.room.locked,
+            players: answer.table.players.map((p) => ({ ready: p.ready, legal: p.legal })),
+          });
+          // `lastTableSignature` starts `null`, which no real signature ever
+          // equals, so the very first read always also reads the room.
+          if (signature !== lastTableSignature.current) {
+            lastTableSignature.current = signature;
+            refreshRoom();
+          }
         },
         // Unreachable for a moment: the last answer stays on screen and the next read asks again.
         () => undefined,
       );
-    };
-    const stopFollowing = roomFeed().follow({ room: roomId }, () => {
-      // The room FIRST, so a pod's table id is current before the
-      // table-scoped read right after asks about it.
-      roomsClient()
-        .get(roomId)
-        .then(
-          (answer) => {
-            if (!live) return;
-            if (answer !== null) {
-              setRoom(answer);
-              myTableIdRef.current = findMyTable(answer, match.matchId)?.id;
-            }
-            readTable();
-          },
-          () => {
-            if (live) readTable();
-          },
-        );
     });
     return () => {
       live = false;

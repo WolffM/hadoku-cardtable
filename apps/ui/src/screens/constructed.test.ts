@@ -2339,6 +2339,43 @@ describe('a room read that overlapped the leader’s own write', () => {
     expect(select.value, 'the stale read did not revert the pick').toBe('2011-07-15');
     expect(server.table.format).toBe('2011-07-15');
   });
+
+  /**
+   * Draft e2e, CI run 39039465853 (`e2e/draft.spec.ts`, "the operator's full
+   * sequence…"): bob joined a fresh room the instant alice's own `PUT
+   * …/deck` (choosing HER drafted pool, which also sets the room's format
+   * through `choosePool`'s own write) was landing — so bob's OWN room read,
+   * issued at mount before alice's write, raced a SECOND read of his own
+   * (`rooms/feed.ts`'s "once when it starts following… once more when the
+   * server confirms it is watching" — two of a screen's own reads, close
+   * together, nothing unusual about it). The `writes.current` guard above
+   * only drops a read that overlapped THIS SCREEN's own write; it does
+   * nothing for two of this screen's own READS landing out of order, which
+   * is exactly what let the earlier (stale, pool-less) one win and put
+   * `pod`/`draftedDeck` back to null — the drafted option was never
+   * rendered again, so bob's click (on a now-detached node, or nothing)
+   * never reached `PUT …/deck`.
+   */
+  it('two of its own room reads landing out of order: the later one wins, even with no local write at all', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null }, undefined, everyMs(400));
+    const select = screen.getByTestId('format') as HTMLSelectElement;
+    expect(select.value).toBe(FORMATS[0].id);
+    const reads = () => server.calls.filter((c) => c.method === 'GET' && c.url.endsWith(`/api/rooms/${ROOM}`)).length;
+    const before = reads();
+    const release = server.holdNextRoomRead();
+    // The next read parks holding the OLD record — nobody local wrote anything.
+    await waitFor(() => expect(reads()).toBeGreaterThan(before), { timeout: 2_000 });
+    // Someone ELSE'S write lands on the stub server directly — `writes.current`
+    // (this screen's own write counter) never moves.
+    server.table.format = '2011-07-15';
+    // The feed's own next tick (400ms) issues and resolves a SECOND, fresher
+    // read before the held one is released.
+    await waitFor(() => expect(select.value).toBe('2011-07-15'), { timeout: 2_000 });
+    release();
+    // The held, earlier-issued read's stale answer lands now.
+    for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
+    expect(select.value, 'the stale, earlier-issued read did not win over the newer one').toBe('2011-07-15');
+  });
 });
 
 describe('the room answering before the catalogue', () => {
