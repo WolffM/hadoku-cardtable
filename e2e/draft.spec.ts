@@ -47,12 +47,16 @@
  * position in the list, and never by name alone.
  *
  * What is written to `e2e/.run/` (gitignored): each context's full capture,
- * the server's structured log, and a summary. Text only — `.gitignore`
- * refuses image files and nothing here takes a screenshot.
+ * the server's structured log, and a summary — text only, and nothing here
+ * takes a screenshot. The one exception is a video of alice's pick screen,
+ * `e2e/.run/videos/<spec>/alice.webm` beside `bob.webm`, and only while
+ * `CARDTABLE_E2E_VIDEO=1` (AE20, the operator's own acceptance gate: *"a
+ * recorded video of the thing working must be shown to me before it
+ * passes"*) — off in every other run, including a plain local one.
  */
 
 import { createHash } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
@@ -61,8 +65,8 @@ import { envelopesOf, type RawCapture } from './frames.ts';
 import { EDGE_ORIGIN, FRIENDS, PREFIX, SERVER_PORT, SESSION_COOKIE } from './identities.ts';
 import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
-import { roomIdFromHash, serverLog as readServerLog } from './play/board.ts';
-import { createRoomByApi, openCreateRoom } from './play/rooms.ts';
+import { resizeWindow, roomIdFromHash, serverLog as readServerLog } from './play/board.ts';
+import { openCreateRoom } from './play/rooms.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -81,6 +85,21 @@ const PICK_INTERVAL_MS = 1_600;
 const ART_HOSTS = new Set(['cdn.hadoku.me', 'cards.scryfall.io']);
 /** A room poll or a socket handshake sits between a click and the next screen. */
 const UI_TIMEOUT = 30_000;
+/** The context's own default (no `use.viewport` override in `playwright.config.ts`). Same as `play/browser.ts`'s. */
+const VIDEO_SIZE = { width: 1280, height: 720 };
+
+/**
+ * The running test's own title path, filesystem-safe — one folder per spec
+ * under `<RUN_DIR>/videos/`. The same idea as `play/browser.ts`'s
+ * `specVideoSlug`, kept here rather than imported: that module is for match
+ * recordings and not this lane's to touch, and the function is small.
+ */
+function specVideoSlug(): string {
+  const info = test.info();
+  const title = info.titlePath.filter((p) => p !== '').join(' ');
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return `${slug}${info.repeatEachIndex > 0 ? `-rep${info.repeatEachIndex}` : ''}${info.retry > 0 ? `-retry${info.retry}` : ''}`;
+}
 
 /* ── the shapes read off the wire ────────────────────────────────────── */
 
@@ -135,7 +154,16 @@ function isPolling(url: string): boolean {
 }
 
 async function join(browser: Browser, name: string): Promise<Player> {
-  const context = await browser.newContext();
+  // AE20, the operator's own acceptance gate: "a recorded video of the thing
+  // working must be shown to me before it passes." Off by default; the same
+  // `CARDTABLE_E2E_VIDEO=1` flag `play/browser.ts` reads.
+  const recording = process.env.CARDTABLE_E2E_VIDEO === '1';
+  const videoDir = recording ? resolve(RUN_DIR, 'videos', specVideoSlug()) : null;
+  if (videoDir !== null) mkdirSync(videoDir, { recursive: true });
+  // For the operator's eyes: their game is the dark theme, so the clip is too.
+  const context = await browser.newContext(
+    videoDir === null ? {} : { recordVideo: { dir: videoDir, size: VIDEO_SIZE }, colorScheme: 'dark' },
+  );
   await context.addCookies([
     { name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' },
   ]);
@@ -191,6 +219,29 @@ async function join(browser: Browser, name: string): Promise<Player> {
   });
 
   return player;
+}
+
+/**
+ * Close a player's context and, when recording, name its video `<name>.webm`
+ * beside the other player's — the pair the operator watches for one run.
+ *
+ * `page.video()?.path()` only resolves once the context is closed, so the
+ * close happens first; one page per context here, so there is no "which page
+ * was the match" choice to make (`play/open-friends.ts` has that problem,
+ * this file does not).
+ */
+async function finalizeVideo(p: Player): Promise<void> {
+  await p.context.close();
+  if (process.env.CARDTABLE_E2E_VIDEO !== '1') return;
+  const path = await p.page.video()?.path().catch(() => undefined);
+  if (path === undefined) return;
+  const target = resolve(RUN_DIR, 'videos', specVideoSlug(), `${p.name}.webm`);
+  try {
+    renameSync(path, target);
+  } catch (err) {
+    // A rename failing is not a reason to fail the test over — but it is said, not swallowed.
+    console.warn(`[video] ${p.name}: could not rename ${path}: ${String(err)}`);
+  }
 }
 
 /** Every server→client draft message this context has received so far. */
@@ -253,10 +304,12 @@ async function roomState(p: Player, roomId: string): Promise<RoomWire> {
 
 
 /**
- * Make a draft room. The create form shows Draft as "(Coming Soon)" and will
- * not pick it (2026-10-10), so this checks that, then makes the room through
- * the same `POST /api/rooms` the form sends: the draft itself still works and
- * this spec still proves it.
+ * Make a draft room through the create form itself.
+ *
+ * Draft was "(Coming Soon)" and unpickable from 2026-10-10 to 2026-10-17; w70
+ * unhid it, so this now drives the same form a person uses rather than
+ * reaching around it with the API (`e2e/play/rooms.ts`'s `createRoomByApi`,
+ * which this spec no longer calls).
  */
 async function createDraftRoom(p: Player, name: string): Promise<string> {
   await p.page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
@@ -270,10 +323,11 @@ async function createDraftRoom(p: Player, name: string): Promise<string> {
 
   await openCreateRoom(p.page);
   const draftOption = p.page.locator('[data-testid="room-create-type"] option[value="draft"]');
-  await expect(draftOption).toBeDisabled();
-  await expect(draftOption).toHaveText('Draft (Coming Soon)');
-  await p.page.keyboard.press('Escape');
-  await createRoomByApi(p.page, { name, gameType: 'draft', clientMode: 'builtin' });
+  await expect(draftOption).toBeEnabled();
+  await expect(draftOption).toHaveText('Draft');
+  await p.page.getByTestId('room-create-name').fill(name);
+  await p.page.getByTestId('room-create-type').selectOption('draft');
+  await p.page.getByTestId('room-create-submit').click();
 
   const id = await roomIdFromHash(p.page);
   expect(id, 'the room id is server-minted').toMatch(ROOM_ID);
@@ -565,6 +619,13 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   await Promise.all([
     draftAll(alice, {
       afterPick: async (n) => {
+        // The "before" recording (w70 §B.3): the pick screen, unchanged so
+        // far, at both a desktop width and the mobile one — then back to
+        // desktop for the rest of the run, including the refresh below.
+        // `resizeWindow` works here with no `[data-zone]` boxes to measure:
+        // it waits for the viewport alone once none match.
+        if (n === 2) await resizeWindow(alice.page, { width: 390, height: 844 });
+        if (n === 4) await resizeWindow(alice.page, { width: 1280, height: 720 });
         if (n !== REFRESH_AFTER) return;
         const before = latestView(alice);
         if (before === null) throw new Error('no view before refresh');
@@ -732,6 +793,6 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   // The refresh really did drop a socket, and the server saw it.
   expect(refresh.guarded.length).toBeGreaterThanOrEqual(1);
 
-  await alice.context.close();
-  await bob.context.close();
+  await finalizeVideo(alice);
+  await finalizeVideo(bob);
 });

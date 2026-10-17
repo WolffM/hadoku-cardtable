@@ -132,13 +132,14 @@ export interface RoomView {
 
 /**
  * The types the create form offers, and whether it lets you pick them. Draft
- * is offered but not pickable for now (the operator, 2026-10-10: *"make 'Draft'
- * unselectable … and add a "(Coming Soon)" behind it"*); a draft room still
- * works on the server, and `e2e/draft.spec.ts` makes one through the API.
+ * was offered but not pickable from 2026-10-10 to 2026-10-17 (the operator:
+ * *"make 'Draft' unselectable … and add a "(Coming Soon)" behind it"*); the
+ * glue that was missing — building a deck from the pool and playing it — is
+ * wave 70, so both types are pickable now.
  */
 export const GAME_TYPES: readonly { value: GameType; label: string; ready: boolean }[] = [
   { value: 'constructed-1v1', label: 'Constructed 1v1', ready: true },
-  { value: 'draft', label: 'Draft', ready: false },
+  { value: 'draft', label: 'Draft', ready: true },
 ];
 
 export function gameTypeLabel(gameType: string): string {
@@ -150,6 +151,56 @@ export function gameTypeLabel(gameType: string): string {
 /** The mode in two or three words, for a list row or a header. */
 export function clientModeLabel(mode: ClientMode): string {
   return mode === 'streamed' ? 'streamed Forge' : 'our table';
+}
+
+/* ── the "Play" seam: a pending create preset, across a hash navigation ── */
+
+/**
+ * The deck editor's "Play" button has no room to create from — it can only
+ * send the drafter to the room list and ask it to open the create form. That
+ * ask has to survive the hash navigation between the two screens, which a
+ * plain function argument cannot: the editor calls `presetCreate`, then
+ * `navigate`s away, and the room list reads it back on its own mount.
+ *
+ * Module state is enough for that one hop, in one tab. `sessionStorage` is
+ * kept alongside it only because a reload in between — unlikely, but not
+ * impossible — would otherwise lose it silently; every access is wrapped,
+ * because a private window or a blocked store must cost a remembered preset
+ * and never a thrown page.
+ */
+let pendingCreatePreset: string | null = null;
+const CREATE_PRESET_KEY = 'cardtable.create-preset';
+
+/** Remember a pending create preset. Call this, then navigate to the room list. */
+export function presetCreate(format: string): void {
+  pendingCreatePreset = format;
+  try {
+    globalThis.sessionStorage?.setItem(CREATE_PRESET_KEY, format);
+  } catch {
+    // The module variable above still carries it for this tab's lifetime.
+  }
+}
+
+/** Read the pending preset and clear it — the room list's one-shot read. */
+export function takeCreatePreset(): string | null {
+  const preset = peekCreatePreset();
+  pendingCreatePreset = null;
+  try {
+    globalThis.sessionStorage?.removeItem(CREATE_PRESET_KEY);
+  } catch {
+    // See `presetCreate`.
+  }
+  return preset;
+}
+
+/** Read the pending preset without clearing it — whether to open the form at all. */
+export function peekCreatePreset(): string | null {
+  if (pendingCreatePreset !== null) return pendingCreatePreset;
+  try {
+    return globalThis.sessionStorage?.getItem(CREATE_PRESET_KEY) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

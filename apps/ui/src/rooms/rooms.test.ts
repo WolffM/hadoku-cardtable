@@ -26,10 +26,13 @@ import {
   clientModeLabel,
   GAME_TYPES,
   parseRoomView,
+  peekCreatePreset,
+  presetCreate,
   roomsClient,
   streamPath,
   streamRoot,
   streamReachable,
+  takeCreatePreset,
   type Fetch,
   type RoomView,
 } from './api.ts';
@@ -38,6 +41,8 @@ import type { FeedTarget, RoomFeed } from './feed.ts';
 afterEach(() => {
   cleanup();
   globalThis.location.hash = '';
+  // A preset left pending by one test must not open the dialog in the next.
+  takeCreatePreset();
 });
 
 const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView => ({
@@ -293,9 +298,8 @@ describe('the room’s readiness', () => {
     expect(within(rowFor('r-open')).queryByTestId('room-drafting')).toBeNull();
   });
 
-  it('offers draft as a game type that is Coming Soon, and constructed as the one to pick', () => {
-    // The operator, 2026-10-10: "make 'Draft' unselectable in the create room screen and add a "(Coming Soon)" behind it".
-    expect(GAME_TYPES.find((t) => t.value === 'draft')).toEqual({ value: 'draft', label: 'Draft', ready: false });
+  it('offers draft and constructed as the two pickable game types (w70: the glue landed)', () => {
+    expect(GAME_TYPES.find((t) => t.value === 'draft')).toEqual({ value: 'draft', label: 'Draft', ready: true });
     expect(GAME_TYPES.find((t) => t.value === 'constructed-1v1')?.ready).toBe(true);
   });
 });
@@ -561,15 +565,16 @@ describe('creating a room', () => {
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
-  it('omits an empty password, and shows draft as Coming Soon, not pickable', async () => {
+  it('omits an empty password, and offers Draft as a plain, pickable option', async () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
     openCreate();
 
-    const draft = within(screen.getByTestId('room-create-type')).getByRole('option', { name: 'Draft (Coming Soon)' }) as HTMLOptionElement;
-    expect(draft.disabled).toBe(true);
+    const draft = within(screen.getByTestId('room-create-type')).getByRole('option', { name: 'Draft' }) as HTMLOptionElement;
+    expect(draft.disabled).toBe(false);
     expect(draft.value).toBe('draft');
+    // Constructed is still the one the form opens on.
     expect((screen.getByTestId('room-create-type') as HTMLSelectElement).value).toBe('constructed-1v1');
 
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Open table' } });
@@ -581,6 +586,27 @@ describe('creating a room', () => {
       gameType: 'constructed-1v1',
       clientMode: 'builtin',
     });
+  });
+
+  it('creates a draft room through the form — Draft is pickable, not just the API (w70, unhiding it)', async () => {
+    const { client, calls } = server([]);
+    mount(client);
+    await screen.findByTestId('rooms-empty');
+    openCreate();
+
+    fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Cube night' } });
+    fireEvent.change(screen.getByTestId('room-create-type'), { target: { value: 'draft' } });
+    expect((screen.getByTestId('room-create-type') as HTMLSelectElement).value).toBe('draft');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('room-create-submit'));
+    });
+
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
+      name: 'Cube night',
+      gameType: 'draft',
+      clientMode: 'builtin',
+    });
+    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
   it('a draft room made through the API still lands as a room, not a pod route', async () => {
@@ -907,5 +933,86 @@ describe('a member’s avatar', () => {
       ok: false,
       message: 'Could not set your avatar: no room with that id and password.',
     });
+  });
+});
+
+/* ── the "Play" seam: a pending create preset (w70, manager's decision) ─── */
+
+describe('the create preset', () => {
+  it('is read back by peek without clearing it, and cleared by take', () => {
+    expect(peekCreatePreset()).toBeNull();
+    presetCreate('draft:p-1');
+    expect(peekCreatePreset()).toBe('draft:p-1');
+    expect(peekCreatePreset()).toBe('draft:p-1');
+    expect(takeCreatePreset()).toBe('draft:p-1');
+    expect(peekCreatePreset()).toBeNull();
+    expect(takeCreatePreset()).toBeNull();
+  });
+
+  it('survives losing its module state — the hash navigation it exists for', async () => {
+    presetCreate('draft:p-2');
+    // Simulate the navigation: a fresh import of the module has none of this
+    // module's variables, only whatever reached `sessionStorage`.
+    vi.resetModules();
+    const fresh = await import('./api.ts');
+    expect(fresh.peekCreatePreset()).toBe('draft:p-2');
+    expect(fresh.takeCreatePreset()).toBe('draft:p-2');
+    expect(fresh.peekCreatePreset()).toBeNull();
+  });
+
+  it('falls back to the in-memory value when sessionStorage throws on every call', () => {
+    vi.spyOn(globalThis.sessionStorage, 'setItem').mockImplementation(() => {
+      throw new Error('private window');
+    });
+    vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation(() => {
+      throw new Error('private window');
+    });
+    vi.spyOn(globalThis.sessionStorage, 'removeItem').mockImplementation(() => {
+      throw new Error('private window');
+    });
+    presetCreate('draft:p-3');
+    expect(peekCreatePreset()).toBe('draft:p-3');
+    expect(takeCreatePreset()).toBe('draft:p-3');
+    expect(peekCreatePreset()).toBeNull();
+    vi.restoreAllMocks();
+  });
+
+  it('opens the create dialog, with Constructed 1v1 selected, when a preset is pending on mount', async () => {
+    presetCreate('draft:p-4');
+    const { client } = server([]);
+    mount(client);
+    expect(screen.getByTestId('room-create')).toBeTruthy();
+    expect((screen.getByTestId('room-create-type') as HTMLSelectElement).value).toBe('constructed-1v1');
+    // Unmounting (leaving the list, not closing the dialog) does not consume it.
+    expect(peekCreatePreset()).toBe('draft:p-4');
+  });
+
+  it('opens to the plain list, with no dialog, when nothing is pending', async () => {
+    const { client } = server([]);
+    mount(client);
+    await screen.findByTestId('rooms-empty');
+    expect(screen.queryByTestId('room-create')).toBeNull();
+  });
+
+  it('clears the preset when the dialog is closed without creating a room', async () => {
+    presetCreate('draft:p-5');
+    const { client } = server([]);
+    mount(client);
+    expect(screen.getByTestId('room-create')).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('room-create')).toBeNull();
+    expect(peekCreatePreset()).toBeNull();
+  });
+
+  it('does NOT clear the preset when a room is created — the room screen reads it next', async () => {
+    presetCreate('draft:p-6');
+    const { client, calls } = server([]);
+    mount(client);
+    fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Friday night' } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('room-create-submit'));
+    });
+    expect(calls.find((c) => c.method === 'POST')).toBeDefined();
+    expect(peekCreatePreset()).toBe('draft:p-6');
   });
 });

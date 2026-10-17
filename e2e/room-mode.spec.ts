@@ -121,10 +121,11 @@ async function createRoomChecked(f: Friend, name: string, mode: 'builtin' | 'str
   await expect(f.page.getByTestId('room-create-mode'), 'the form asks no client question').toHaveCount(0);
   await expect(f.page.getByTestId('room-create')).not.toContainText('Forge’s full client');
 
-  // Draft is offered but Coming Soon (2026-10-10): shown, not pickable.
+  // Draft is offered and pickable (w70 unhid it, 2026-10-17); this file never
+  // picks it — it stays on constructed, which `createRoom` below selects.
   const draftOption = f.page.locator('[data-testid="room-create-type"] option[value="draft"]');
-  await expect(draftOption).toBeDisabled();
-  await expect(draftOption).toHaveText('Draft (Coming Soon)');
+  await expect(draftOption).toBeEnabled();
+  await expect(draftOption).toHaveText('Draft');
   if (mode === 'streamed') await f.page.keyboard.press('Escape');
 
   const id = await createRoom(f, name, { mode });
