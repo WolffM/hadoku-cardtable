@@ -754,6 +754,16 @@ export const PrintedTypesSchema = z.array(z.tuple([JavaInt, CardTypeValue]));
 export type PrintedTypes = z.infer<typeof PrintedTypesSchema>;
 
 /**
+ * Beside `printedTypes`: the creatures on a battlefield whose power or toughness is not the printed
+ * one, as `[cardId, printedPower, printedToughness]` (`PlayBridge.java`'s `printedPTJson`: the
+ * face's own base, a copy's being the copied card's; a `*` base is left out). The view's `Power` and
+ * `Toughness` are only ever the current numbers. A full snapshot each time.
+ */
+export const PrintedPTSchema = z.array(z.tuple([JavaInt, JavaInt, JavaInt]));
+
+export type PrintedPT = z.infer<typeof PrintedPTSchema>;
+
+/**
  * The bridge's ninth addition beside the packet, for a payment in progress: the life each player has
  * committed to an open mana payment that Forge has not taken yet (`PlayBridge.java`'s
  * `lifePaying`, the payment input's own `phyLifeToLose`), as `[playerId, life]`. Forge takes that
@@ -830,6 +840,7 @@ export const SetGameViewSchema = z.strictObject({
     tokenSources: TokenSourcesSchema.optional(),
     cantBlock: CantBlockSchema.optional(),
     printedTypes: PrintedTypesSchema.optional(),
+    printedPT: PrintedPTSchema.optional(),
     lifePaying: LifePayingSchema.optional(),
     conditionMet: ConditionMetSchema.optional(),
   }),
@@ -868,6 +879,7 @@ export const ApplyDeltaSchema = z.strictObject({
     tokenSources: TokenSourcesSchema.optional(),
     cantBlock: CantBlockSchema.optional(),
     printedTypes: PrintedTypesSchema.optional(),
+    printedPT: PrintedPTSchema.optional(),
     lifePaying: LifePayingSchema.optional(),
     conditionMet: ConditionMetSchema.optional(),
     damage: DamageSchema.optional(),

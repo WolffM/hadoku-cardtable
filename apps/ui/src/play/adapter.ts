@@ -779,6 +779,12 @@ export interface AdaptOptions {
   /** `PlayBridge.java`'s `printedTypes` (`../fold.ts`): each changed permanent's printed type, read onto its `BoardCard.changedFrom`. */
   printedTypes?: ReadonlyMap<number, Tagged>;
   /**
+   * `PlayBridge.java`'s `printedPT` (`../fold.ts`): each battlefield creature whose numbers are not its
+   * printed ones, with Forge's own printed base — read onto its `BoardCard.printed` over `printedPT`'s
+   * table, which knows only the drafted cube's cards.
+   */
+  printedPTs?: ReadonlyMap<number, { power: number; toughness: number }>;
+  /**
    * `PlayBridge.java`'s `lifePaying` (`../fold.ts`): life a player has committed to an open payment
    * that Forge takes only when the whole cost is paid. Taken off that player's `BoardPlayer.life`
    * now, so each press shows, and a cancelled payment gives it back.
@@ -1571,6 +1577,7 @@ export function toBoardView(
     tokenSources,
     cantBlock,
     printedTypes,
+    printedPTs,
     lifePaying,
     conditionMet,
     hits,
@@ -1597,8 +1604,9 @@ export function toBoardView(
       const createdBy = onBattlefield ? tokenSources?.get(id) : undefined;
       const blockless = onBattlefield && cantBlock?.has(id) === true;
       const met = conditionMet?.has(id) === true;
+      const printed = onBattlefield ? printedPTs?.get(id) : undefined;
       if (c === null) missing.push(id);
-      else if (waiting === undefined && createdBy === undefined && !blockless && !met) out.push(c);
+      else if (waiting === undefined && createdBy === undefined && !blockless && !met && printed === undefined) out.push(c);
       else
         out.push({
           ...c,
@@ -1606,6 +1614,7 @@ export function toBoardView(
           ...(createdBy === undefined ? {} : { createdBy }),
           ...(blockless ? { cantBlock: true as const } : {}),
           ...(met ? { conditionMet: true as const } : {}),
+          ...(printed === undefined ? {} : { printed }),
         });
     }
     return out;

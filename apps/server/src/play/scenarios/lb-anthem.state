@@ -1,0 +1,17 @@
+# e2e/lb-marks.spec.ts — the operator, 2026-10-17: "creature gave +1/0 to enhance a creatures power,
+# it should have shown the number in green" and "when enemy has circle make it color danger, same
+# with the phase counter". Alice's Glorious Anthem makes her Hill Giant (printed 3/3, in no table
+# the browser holds) a 4/4; Bob's Grizzly Bears is untouched. Alice holds priority in her main.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Forest
+humanbattlefield=Glorious Anthem;Hill Giant;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=Forest
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

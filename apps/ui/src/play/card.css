@@ -298,9 +298,9 @@
   color: var(--ink);
 }
 
-/* The operator's "3 (blue) / 1 (red)", in the theme's own primary and danger: blue and red in the default theme, and whatever the theme says elsewhere. */
+/* The operator's "3 (blue) / 1 (red)", since 2026-10-17 green for buffed ("it should have shown the number in green if the stats have been changed"): the theme's own success and danger inks. */
 .board-card__pt-n[data-pt-state='buffed'] {
-  color: var(--accent-ink);
+  color: var(--success-ink);
   font-weight: 700;
 }
 
@@ -419,9 +419,9 @@
  * anything else falls back to its count and its name, clipped here with the whole
  * of it in the list's accessible name.
  *
- * `+1/+1` takes the buffed blue and `-1/-1` the hurt red, which are the two inks
+ * `+1/+1` takes the buffed green and `-1/-1` the hurt red, which are the two inks
  * the P/T badge already uses for the same two directions — a card with three
- * +1/+1 counters has a blue power and a blue badge, and they agree. The SIGN is
+ * +1/+1 counters has a green power and a green badge, and they agree. The SIGN is
  * the signal that does not need the colour.
  *
  * An exile pile's cards draw this layer too (a suspended card's own
@@ -467,8 +467,8 @@
 }
 
 .board-card__counter[data-counter='plus'] {
-  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
-  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--success) 65%, var(--line));
+  color: var(--success-ink);
 }
 
 .board-card__counter[data-counter='minus'] {
@@ -1298,6 +1298,13 @@
   box-shadow:
     0 0 0 2px var(--bg-raised),
     0 0 0 6px var(--accent);
+}
+
+/* The other seat holding priority rings in the theme's danger (the operator, 2026-10-17: "when enemy has circle make it color danger"). */
+.seat[data-priority]:not([data-viewer]) .seat__ring {
+  box-shadow:
+    0 0 0 2px var(--bg-raised),
+    0 0 0 6px var(--danger);
 }
 
 .face[data-lost] .face__plate {

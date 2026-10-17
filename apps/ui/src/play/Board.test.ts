@@ -5405,3 +5405,33 @@ describe('seen — an eye on a card of yours the opponent was shown', () => {
     expect(eye(container, 4242)).not.toBeNull();
   });
 });
+
+/*
+ * The operator, 2026-10-17: "when enemy has circle make it color danger, same with the phase counter"
+ * and "creature gave +1/0 to enhance a creatures power, it should have shown the number in green if
+ * the stats have been changed." Theme tokens only.
+ */
+describe('2026-10-17 — the other seat’s marks in danger, a raised number in green', () => {
+  const LIVE_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'live/live.css'), 'utf8');
+  const rule = (css: string, selector: string): string => {
+    const at = css.indexOf(`${selector} {`);
+    expect(at, `${selector} has a rule`).toBeGreaterThanOrEqual(0);
+    return css.slice(at, css.indexOf('}', at));
+  };
+
+  it('rings the other seat in the theme’s danger while it holds priority, and the viewer’s own in the accent', () => {
+    expect(rule(CARD_CSS, '.seat[data-priority]:not([data-viewer]) .seat__ring')).toMatch(/0 0 0 6px var\(--danger\)/);
+    expect(rule(CARD_CSS, '.seat[data-priority] .seat__ring')).toMatch(/0 0 0 6px var\(--accent\)/);
+  });
+
+  it('marks the current step in danger on the other seat’s turn, a stop on it keeping its warning ink', () => {
+    expect(rule(LIVE_CSS, ".live__phases[data-whose='theirs'] .live__step[data-current]")).toMatch(/inset 3px 0 0 0 var\(--danger\)/);
+    expect(rule(LIVE_CSS, ".live__phases[data-whose='theirs'] .live__step[data-current]:not([data-stop]) .live__step-name")).toMatch(/var\(--danger-ink\)/);
+    expect(rule(LIVE_CSS, ".live__phases[data-whose='theirs'] .live__step[data-stop][data-current]")).toMatch(/inset -3px 0 0 0 var\(--warn\)/);
+  });
+
+  it('draws a buffed number and a +1/+1 counter in the success ink', () => {
+    expect(rule(CARD_CSS, ".board-card__pt-n[data-pt-state='buffed']")).toMatch(/color: var\(--success-ink\)/);
+    expect(rule(CARD_CSS, ".board-card__counter[data-counter='plus']")).toMatch(/color: var\(--success-ink\)/);
+  });
+});

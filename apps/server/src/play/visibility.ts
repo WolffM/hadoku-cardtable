@@ -174,6 +174,8 @@ export type CantBlock = readonly number[];
 
 /** `PlayBridge.java`'s `printedTypes` — `packages/forge-wire/src/tier-c.ts`'s `PrintedTypesSchema`: `[cardId, printedType]`. */
 export type PrintedTypes = readonly (readonly [number, unknown])[];
+/** `PlayBridge.java`'s `printedPT` — `packages/forge-wire/src/tier-c.ts`'s `PrintedPTSchema`: `[cardId, printedPower, printedToughness]`. */
+export type PrintedPT = readonly (readonly [number, number, number])[];
 /** `PlayBridge.java`'s `lifePaying` — `packages/forge-wire/src/tier-c.ts`'s `LifePayingSchema`: `[playerId, life]`. Public: life is. */
 export type LifePaying = readonly (readonly [number, number])[];
 
@@ -191,9 +193,9 @@ export type FaceDamage = readonly (readonly [number, number, number, boolean])[]
 
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying; conditionMet?: ConditionMet } }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; printedPT?: PrintedPT; lifePaying?: LifePaying; conditionMet?: ConditionMet } }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; lifePaying?: LifePaying; conditionMet?: ConditionMet; damage?: Damage; deaths?: Deaths; faceDamage?: FaceDamage } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; printedPT?: PrintedPT; lifePaying?: LifePaying; conditionMet?: ConditionMet; damage?: Damage; deaths?: Deaths; faceDamage?: FaceDamage } };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -823,6 +825,13 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		return { printedTypes: pairs.filter(([id]) => cardVisibility(raw, zones, id, who) !== 'hidden') };
 	}
 
+	/** The printed power and toughness, for the cards this seat is sent at all: a battlefield creature is public, and the bridge never names a face-down one. */
+	function printedPTSeen(rows: PrintedPT | undefined): { printedPT?: PrintedPT } {
+		if (rows === undefined) return {};
+		const zones = indexZones(raw);
+		return { printedPT: rows.filter(([id]) => cardVisibility(raw, zones, id, who) !== 'hidden') };
+	}
+
 	/**
 	 * The cards whose condition is on, for the faces this seat may read: a card in the other seat's
 	 * hand, or a face-down one, says nothing — whether its condition is on would say what it is.
@@ -909,6 +918,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...tokensSeen(frame.payload.tokenSources),
 							...cantBlockSeen(frame.payload.cantBlock),
 							...printedTypesSeen(frame.payload.printedTypes),
+							...printedPTSeen(frame.payload.printedPT),
 							...(frame.payload.lifePaying === undefined ? {} : { lifePaying: frame.payload.lifePaying }),
 							...conditionMetSeen(frame.payload.conditionMet),
 						},
@@ -928,6 +938,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 							...tokensSeen(frame.payload.tokenSources),
 							...cantBlockSeen(frame.payload.cantBlock),
 							...printedTypesSeen(frame.payload.printedTypes),
+							...printedPTSeen(frame.payload.printedPT),
 							...(frame.payload.lifePaying === undefined ? {} : { lifePaying: frame.payload.lifePaying }),
 							...conditionMetSeen(frame.payload.conditionMet),
 							...damageSeen(frame.payload.damage),

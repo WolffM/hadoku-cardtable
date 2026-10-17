@@ -1450,6 +1450,16 @@
   box-shadow: inset 3px 0 0 0 var(--accent);
 }
 
+/* On the other seat's turn the current step is in the theme's danger (the operator, 2026-10-17: "same with the phase counter"). */
+.live__phases[data-whose='theirs'] .live__step[data-current] {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--danger);
+}
+
+.live__phases[data-whose='theirs'] .live__step[data-current]:not([data-stop]) .live__step-name {
+  color: var(--danger-ink);
+}
+
 /*
  * The seat's one-shot stop. A row that can take one is the only part of the
  * rail that takes the pointer; the pending stop is a bar down the row's
@@ -1472,6 +1482,12 @@
 .live__step[data-stop][data-current] {
   box-shadow:
     inset 3px 0 0 0 var(--accent),
+    inset -3px 0 0 0 var(--warn);
+}
+
+.live__phases[data-whose='theirs'] .live__step[data-stop][data-current] {
+  box-shadow:
+    inset 3px 0 0 0 var(--danger),
     inset -3px 0 0 0 var(--warn);
 }
 

@@ -732,6 +732,8 @@ export interface LiveMatch {
   cantBlock: ReadonlySet<number>;
   /** The printed type line of each permanent whose type line is not its printed one (`../fold.ts`'s `printedTypes`), drawn as the type pill. */
   printedTypes: ReadonlyMap<number, Tagged>;
+  /** The printed power and toughness of each creature whose numbers are not its printed ones (`../fold.ts`'s `printedPT`): a number above it is drawn buffed. */
+  printedPT: ReadonlyMap<number, { power: number; toughness: number }>;
   /** The life each player has committed to an open payment and Forge has not taken yet (`../fold.ts`'s `lifePaying`), taken off the life drawn. */
   lifePaying: ReadonlyMap<number, number>;
   /** The hand and battlefield cards whose condition is on (`../fold.ts`'s `conditionMet`), drawn glowing. */
@@ -1014,6 +1016,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     tokenSources: new Map(),
     cantBlock: new Set(),
     printedTypes: new Map(),
+    printedPT: new Map(),
     lifePaying: new Map(),
     conditionMet: new Set(),
     hits: [],
@@ -2664,6 +2667,7 @@ function statePacket(match: LiveMatch): WirePacket & {
   tokenSources: readonly (readonly [number, number])[];
   cantBlock: readonly number[];
   printedTypes: readonly (readonly [number, Tagged])[];
+  printedPT: readonly (readonly [number, number, number])[];
   lifePaying: readonly (readonly [number, number])[];
   conditionMet: readonly number[];
 } {
@@ -2685,6 +2689,7 @@ function statePacket(match: LiveMatch): WirePacket & {
     tokenSources: [...match.tokenSources],
     cantBlock: [...match.cantBlock],
     printedTypes: [...match.printedTypes],
+    printedPT: [...match.printedPT].map(([id, pt]) => [id, pt.power, pt.toughness] as const),
     lifePaying: [...match.lifePaying],
     conditionMet: [...match.conditionMet],
   };
@@ -2703,7 +2708,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   let changed = false;
   for (const frame of frames) {
     if (frame.method === 'setGameView') {
-      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet } = frame.payload;
+      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet } = frame.payload;
       packets = [
         {
           seq: sequenceNumber,
@@ -2718,14 +2723,15 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
           tokenSources,
           cantBlock,
           printedTypes,
+          printedPT,
           lifePaying,
           conditionMet,
         },
       ];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet, damage, deaths, faceDamage } = frame.payload;
-      packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet });
+      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet, damage, deaths, faceDamage } = frame.payload;
+      packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet });
       if (damage !== undefined) noteHits(match, damage);
       if (deaths !== undefined) noteDeaths(match, deaths);
       if (faceDamage !== undefined) noteFaceHits(match, faceDamage);
@@ -2753,6 +2759,7 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
   match.tokenSources = folded.tokenSources;
   match.cantBlock = folded.cantBlock;
   match.printedTypes = folded.printedTypes;
+  match.printedPT = folded.printedPT;
   match.lifePaying = folded.lifePaying;
   match.conditionMet = folded.conditionMet;
   redraw(match);
@@ -2798,6 +2805,7 @@ function redraw(match: LiveMatch): void {
           tokenSources: match.tokenSources,
           cantBlock: match.cantBlock,
           printedTypes: match.printedTypes,
+          printedPTs: match.printedPT,
           lifePaying: match.lifePaying,
           conditionMet: match.conditionMet,
           hits: match.hits,
@@ -3135,6 +3143,7 @@ function discardLocal(match: LiveMatch): void {
   match.tokenSources = new Map();
   match.cantBlock = new Set();
   match.printedTypes = new Map();
+  match.printedPT = new Map();
   match.lifePaying = new Map();
   match.conditionMet = new Set();
   match.hits = [];

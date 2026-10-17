@@ -696,6 +696,8 @@ public final class PlayBridge {
         if (cantBlock != null) { payload.add("cantBlock", cantBlock); }
         final JsonArray printedTypes = printedTypesJson(game);
         if (printedTypes != null) { payload.add("printedTypes", printedTypes); }
+        final JsonArray printedPT = printedPTJson(game);
+        if (printedPT != null) { payload.add("printedPT", printedPT); }
         final JsonArray conditionMet = conditionMetJson(game);
         if (conditionMet != null) { payload.add("conditionMet", conditionMet); }
     }
@@ -731,6 +733,49 @@ public final class PlayBridge {
             System.err.println("[bridge] printedTypes: could not read the battlefields (" + e + ")");
             return null;
         }
+    }
+
+    /**
+     * The creatures on a battlefield whose power or toughness is not the one printed on them, as
+     * {@code [cardId, printedPower, printedToughness]} (the operator, 2026-10-17: "creature gave +1/0
+     * to enhance a creatures power, it should have shown the number in green if the stats have been
+     * changed"). The view carries only the current numbers ({@code Power}, {@code Toughness}); the
+     * printed ones are the face's own base ({@code Card.getBasePowerString}: a copy's is the copied
+     * card's, and an effect that SETS power and toughness leaves it alone). A base that is not a
+     * number — Tarmogoyf's {@code *}, a characteristic-defining ability — has nothing to compare
+     * against and is left out, as are face-down permanents. A full snapshot each time.
+     *
+     * <p>Null when the battlefields cannot be read (the game thread moved them under the read): the
+     * frame then omits the field and the client keeps what it had.
+     */
+    static JsonArray printedPTJson(final Game game) {
+        final JsonArray out = new JsonArray();
+        if (game == null) { return out; }
+        try {
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                for (final forge.game.card.Card c : p.getCardsIn(ZoneType.Battlefield)) {
+                    if (c.isFaceDown() || !c.isCreature()) { continue; }
+                    final Integer power = integerOrNull(c.getBasePowerString());
+                    final Integer toughness = integerOrNull(c.getBaseToughnessString());
+                    if (power == null || toughness == null) { continue; }
+                    if (power == c.getNetPower() && toughness == c.getNetToughness()) { continue; }
+                    final JsonArray row = new JsonArray();
+                    row.add(c.getId());
+                    row.add(power);
+                    row.add(toughness);
+                    out.add(row);
+                }
+            }
+            return out;
+        } catch (final RuntimeException e) {
+            System.err.println("[bridge] printedPT: could not read the battlefields (" + e + ")");
+            return null;
+        }
+    }
+
+    static Integer integerOrNull(final String s) {
+        if (s == null || !s.matches("-?\\d+")) { return null; }
+        return Integer.valueOf(s);
     }
 
     /**

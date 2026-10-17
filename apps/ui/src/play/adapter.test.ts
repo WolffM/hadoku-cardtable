@@ -774,6 +774,22 @@ describe('§A.3 #12/#18 — printed versus current power and toughness', () => {
     expect([at(4, 2).powerState, at(4, 2).toughnessState], 'power only').toEqual(['buffed', 'plain']);
   });
 
+  // 2026-10-17: "creature gave +1/0 to enhance a creatures power, it should have shown the number in
+  // green". A constructed deck's creature is in no table the browser holds, so it drew plain; the
+  // bridge's `printedPT` carries Forge's own printed base for it.
+  it('reads a creature the cube never held as buffed by Forge’s own printed base (the bridge’s printedPT)', () => {
+    const state = baseState();
+    renameCard(state, 21, 'Cardtable Constructed Ogre', 'XYZ');
+    const face = state.get(cardStateKey(21, 0))!;
+    state.set(cardStateKey(21, 0), { ...face, Power: { t: 'int', v: 3 }, Toughness: { t: 'int', v: 2 } } as WireObject);
+    const plain = boardPT(cardsById(adapt(state)).get(21)!)!;
+    expect([plain.powerState, plain.toughnessState], 'no base known: plain, which is the bug').toEqual(['plain', 'plain']);
+    const told = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedPTs: new Map([[21, { power: 2, toughness: 2 }]]) });
+    const pt = boardPT(cardsById(told).get(21)!)!;
+    expect([pt.powerState, pt.toughnessState], 'printed 2/2, now 3/2: power up').toEqual(['buffed', 'plain']);
+    expect(pt.printed).toEqual({ power: 2, toughness: 2 });
+  });
+
   it('is null for anything without both numbers', () => {
     const by = cardsById(adapt(baseState()));
     expect(boardPT(by.get(8)!), 'a land').toBeNull();

@@ -162,6 +162,16 @@ describe('printedTypes', () => {
   });
 });
 
+describe('printedPT', () => {
+  it('is empty before any packet carries it, replaced by each that does, kept by one that does not', () => {
+    expect(foldPackets([opening!]).printedPT.size).toBe(0);
+    const first = { ...opening!, printedPT: [[87, 2, 2]] as const };
+    expect([...foldPackets([first, { ...delta!, printedPT: [[91, 1, 1]] as const }]).printedPT.keys()]).toEqual([91]);
+    expect(foldPackets([first, delta!]).printedPT.get(87)).toEqual({ power: 2, toughness: 2 });
+    expect(foldPackets([first, { ...delta!, printedPT: [] }]).printedPT.size).toBe(0);
+  });
+});
+
 describe('conditionMet', () => {
   it('is empty before any packet carries it, replaced by each that does, kept by one that does not', () => {
     expect(foldPackets([opening!]).conditionMet.size).toBe(0);

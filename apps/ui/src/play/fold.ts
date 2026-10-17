@@ -59,13 +59,16 @@ export type CantBlock = readonly number[];
 /** `PlayBridge.java`'s `printedTypes`, the packet's sixth sibling: `[cardId, printedType]` for each permanent whose type line is not its printed one (`packages/forge-wire`'s `PrintedTypesSchema`). */
 export type PrintedTypes = readonly (readonly [number, Tagged])[];
 
+/** `PlayBridge.java`'s `printedPT`, beside `printedTypes`: `[cardId, printedPower, printedToughness]` for each creature whose numbers are not its printed ones (`packages/forge-wire`'s `PrintedPTSchema`). */
+export type PrintedPT = readonly (readonly [number, number, number])[];
+
 /** `PlayBridge.java`'s `lifePaying`, the packet's seventh sibling: `[playerId, life]`, the life each player has committed to an open payment and Forge has not taken yet (`packages/forge-wire`'s `LifePayingSchema`). */
 export type LifePaying = readonly (readonly [number, number])[];
 
 /** `PlayBridge.java`'s `conditionMet`, the packet's eighth sibling: the hand and battlefield cards whose condition is on (`packages/forge-wire`'s `ConditionMetSchema`). */
 export type ConditionMet = readonly number[];
 
-/** A packet that MAY carry {@link StackTargetSpellPairs}, {@link PendingTriggers}, {@link WaitingEffects}, {@link TokenSources}, {@link CantBlock}, {@link PrintedTypes}, {@link LifePaying} and {@link ConditionMet} as sibling fields. */
+/** A packet that MAY carry {@link StackTargetSpellPairs}, {@link PendingTriggers}, {@link WaitingEffects}, {@link TokenSources}, {@link CantBlock}, {@link PrintedTypes}, {@link PrintedPT}, {@link LifePaying} and {@link ConditionMet} as sibling fields. */
 export interface FoldablePacket extends WirePacket {
   stackTargetSpells?: StackTargetSpellPairs;
   pendingTriggers?: PendingTriggers;
@@ -73,6 +76,7 @@ export interface FoldablePacket extends WirePacket {
   tokenSources?: TokenSources;
   cantBlock?: CantBlock;
   printedTypes?: PrintedTypes;
+  printedPT?: PrintedPT;
   lifePaying?: LifePaying;
   conditionMet?: ConditionMet;
 }
@@ -103,6 +107,8 @@ export interface FoldResult {
   cantBlock: ReadonlySet<number>;
   /** The latest `printedTypes` snapshot folded, as a `cardId → printedType` map — replaced when present. */
   printedTypes: ReadonlyMap<number, Tagged>;
+  /** The latest `printedPT` snapshot folded, as a `cardId → printed power and toughness` map — replaced when present. */
+  printedPT: ReadonlyMap<number, { power: number; toughness: number }>;
   /** The latest `lifePaying` snapshot folded, as a `playerId → life` map — replaced when present. */
   lifePaying: ReadonlyMap<number, number>;
   /** The latest `conditionMet` snapshot folded, as a set of card ids — replaced when present. */
@@ -119,6 +125,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   let tokenSources = new Map<number, number>();
   let cantBlock = new Set<number>();
   let printedTypes = new Map<number, Tagged>();
+  let printedPT = new Map<number, { power: number; toughness: number }>();
   let lifePaying = new Map<number, number>();
   let conditionMet = new Set<number>();
 
@@ -131,6 +138,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     if (packet.tokenSources !== undefined) tokenSources = new Map(packet.tokenSources);
     if (packet.cantBlock !== undefined) cantBlock = new Set(packet.cantBlock);
     if (packet.printedTypes !== undefined) printedTypes = new Map(packet.printedTypes);
+    if (packet.printedPT !== undefined) printedPT = new Map(packet.printedPT.map(([id, power, toughness]) => [id, { power, toughness }]));
     if (packet.lifePaying !== undefined) lifePaying = new Map(packet.lifePaying);
     if (packet.conditionMet !== undefined) conditionMet = new Set(packet.conditionMet);
     for (const [key, obj] of Object.entries(packet.newObjects)) {
@@ -155,7 +163,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     seq = packet.seq;
   }
 
-  return { state, seq, skippedDeltas, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, lifePaying, conditionMet };
+  return { state, seq, skippedDeltas, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet };
 }
 
 function withoutNulls(obj: WireObject): WireObject {
