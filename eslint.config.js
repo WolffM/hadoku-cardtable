@@ -195,6 +195,20 @@ export default [
     },
   },
 
+  {
+    files: ['e2e/**/*.ts'],
+    ignores: ['e2e/play/board.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "MemberExpression[property.name='setViewportSize']",
+          message: "Resize with resizeWindow (e2e/play/board.ts): it waits until the board has measured the new window, so a read after it never sees the old window's card size.",
+        },
+      ],
+    },
+  },
+
   // ── Unit tests: wait on state, assert behaviour ──────────────────────
   {
     files: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
