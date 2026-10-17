@@ -33,7 +33,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Browser, type CDPSession, type Page } from '@playwright/test';
 
-import { clickHandCard, makeTitled, pressPaymentAuto } from './play/board.ts';
+import { clickHandCard, makeTitled, pressPaymentAuto, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -475,8 +475,7 @@ test(titled('dragging a hand card, a battlefield card and an ability chip never 
       { width: 1024, height: 700 },
       { width: 1920, height: 1080 },
     ]) {
-      await alice.page.setViewportSize(size);
-      await alice.page.waitForTimeout(400);
+      await resizeWindow(alice.page, size);
       const sizes = await alice.page.evaluate(() => {
         const w = (sel: string): string =>
           Array.from(document.querySelectorAll(sel)).map((e) => e.getBoundingClientRect().width.toFixed(1)).filter((v, i, a) => a.indexOf(v) === i).join(',') || '-';
@@ -491,8 +490,8 @@ test(titled('dragging a hand card, a battlefield card and an ability chip never 
       });
       console.log(`[w69-perf] sizes ${size.width}x${size.height}: ${sizes}`);
     }
-    await alice.page.setViewportSize({ width: 1600, height: 900 });
-    await bob.page.setViewportSize({ width: 1600, height: 900 });
+    await resizeWindow(alice.page, { width: 1600, height: 900 });
+    await resizeWindow(bob.page, { width: 1600, height: 900 });
     const browserCdp = await browser.newBrowserCDPSession();
     const screens: Screen[] = [
       { name: 'alice', page: alice.page, cdp: await alice.page.context().newCDPSession(alice.page) },

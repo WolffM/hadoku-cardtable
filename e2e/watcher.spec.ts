@@ -15,7 +15,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
-import { enterMatch, serverLog } from './play/board.ts';
+import { enterMatch, resizeWindow, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom } from './play/rooms.ts';
 import { matchUrl, startScenarioMatch } from './play/scenario.ts';
@@ -264,7 +264,7 @@ test('a watcher sees each side as its owner arranged it, from either perspective
     // Three lands each, nobody's turn to do anything (w67's fixture).
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'w67-outlines');
     const carol = await openFriend(browser, 'carol');
-    for (const p of [alice.page, bob.page, carol.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page, carol.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await carol.page.goto(matchUrl(stack.origin, matchId));
     await expect(carol.page.locator('.live[data-role="watcher"]'), 'carol watches').toBeVisible({ timeout: 60_000 });
     const own = (f: Friend) => f.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card');
@@ -311,7 +311,7 @@ test('a watcher sees each side as its owner arranged it, from either perspective
 
     // A watcher arriving now is sent both arrangements on joining.
     const dave = await openFriend(browser, 'carol');
-    await dave.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(dave.page, { width: 1280, height: 800 });
     await dave.page.goto(matchUrl(stack.origin, matchId));
     await expect(dave.page.locator('.live[data-role="watcher"]')).toBeVisible({ timeout: 60_000 });
     await expect.poll(() => fieldOrder(dave.page, 'you'), { timeout: 30_000, message: 'a late watcher: alice’s side as she left it' }).toEqual(again);

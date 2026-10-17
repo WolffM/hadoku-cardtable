@@ -35,7 +35,7 @@ import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
 import { connectHands } from './play/hands.ts';
 import { answerPrompt } from './play/prompts.ts';
-import { enterMatch, enabledOk, makeTitled, offered, says, serverLog } from './play/board.ts';
+import { enterMatch, enabledOk, makeTitled, offered, resizeWindow, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { connectSio } from './play/sio.ts';
 import { TURN_TEXT } from './play/turn.ts';
@@ -336,8 +336,8 @@ test(titled('combat is one rail step outside combat and six inside; the rail GRO
     // two different viewports, not two different row heights — confirmed by
     // `railDiag`'s own `docClientH` field on a failing run (800 outside,
     // 720 inside, same run, same formula).
-    await alice.page.setViewportSize({ width: 1280, height: 800 });
-    await bob.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(alice.page, { width: 1280, height: 800 });
+    await resizeWindow(bob.page, { width: 1280, height: 800 });
     await enterMatch(alice, bob, stack.origin);
     const rows = alice.page.locator('.live__step');
     const names = async (f: Friend): Promise<string[]> => (await f.page.locator('.live__step-name').allTextContents()).map((n) => n.trim());
@@ -830,7 +830,7 @@ test(titled(`the board in the ${theme} theme follows the theme and its text is l
         /* a context that refuses storage is reported by the theme assertion below */
       }
     }, theme);
-    await alice.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(alice.page, { width: 1280, height: 800 });
     await enterMatch(alice, bob, stack.origin);
     // `light` is the package's default and is painted as NO attribute at all
     // (`setTheme` in `@wolffm/themes`), so the attribute is only asserted for the other.

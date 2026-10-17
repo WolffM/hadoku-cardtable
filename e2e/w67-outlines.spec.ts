@@ -11,7 +11,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -68,7 +68,7 @@ test(titled('a card on the move outlines every column of every one of HER rows â
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w67-outlines');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     const hers = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card');
     await expect(hers, 'alice has her three lands').toHaveCount(3, { timeout: 60_000 });
     await expect(bob.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card'), 'bob has his three').toHaveCount(3, { timeout: 30_000 });

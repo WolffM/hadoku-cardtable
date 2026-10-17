@@ -30,7 +30,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom } from './play/rooms.ts';
@@ -128,8 +128,7 @@ async function measure(page: Page, mustShow: string, mayScroll: string[], tilePx
 
 async function fitsAt(page: Page, who: string, where: string, mustShow: string, mayScroll: string[], failures: string[]): Promise<void> {
   for (const size of SIZES) {
-    await page.setViewportSize(size);
-    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await resizeWindow(page, size);
     const fit = await measure(page, mustShow, mayScroll, TILE_PX);
     console.log(`[lobby-fit] ${where} ${who} ${fit.size}: ${fit.evidence.join(' | ')}`);
     for (const f of fit.failures) console.log(`[lobby-fit] ${where} ${who} ${fit.size} FAIL ${f}`);

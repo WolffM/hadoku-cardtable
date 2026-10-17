@@ -10,7 +10,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -90,7 +90,7 @@ test(titled("a transformed card's back face is drawn with its own art on both sc
     const seats = [['alice', alice.page], ['bob', bob.page]] as const;
     const asked = new Map<Page, Map<string, number>>();
     for (const [, page] of seats) {
-      await page.setViewportSize({ width: 1280, height: 800 });
+      await resizeWindow(page, { width: 1280, height: 800 });
       asked.set(page, new Map());
       await serveArt(page, asked.get(page)!);
       // Cold, with the art served: the match's preload runs again on this join.

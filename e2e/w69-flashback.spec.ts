@@ -18,7 +18,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
-import { clickOnce, enabledOk, makeTitled, offeredNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
+import { clickOnce, enabledOk, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerLoneAbility } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -94,7 +94,7 @@ test(titled('a flashback card is picked up from the graveyard like a hand card, 
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w69-flashback');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     let firebolt: number | undefined;
     await expect
       .poll(async () => (firebolt = await offeredNamed(alice.page, 'Firebolt')), { timeout: 60_000, message: "alice is offered Firebolt's flashback from her graveyard" })

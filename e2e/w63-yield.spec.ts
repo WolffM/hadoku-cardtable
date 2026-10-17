@@ -19,7 +19,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castUntilOnStack, makeTitled, serverLog, stackCount } from './play/board.ts';
+import { castUntilOnStack, makeTitled, resizeWindow, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -58,8 +58,8 @@ test(
     try {
       const { alice, bob } = await startScenarioMatch(browser, stack, 'w63-yield');
       const page = alice.page;
-      await page.setViewportSize({ width: 1280, height: 800 });
-      await bob.page.setViewportSize({ width: 1280, height: 800 });
+      await resizeWindow(page, { width: 1280, height: 800 });
+      await resizeWindow(bob.page, { width: 1280, height: 800 });
 
       // Bob's own turn from the scenario, before Forge has sent alice anything
       // at all — the slot is pressable from the instant whose-turn flips.

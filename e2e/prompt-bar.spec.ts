@@ -20,7 +20,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { answerPrompt } from './play/prompts.ts';
-import { clickHandCard, makeTitled, pressPaymentAuto, stackCount } from './play/board.ts';
+import { clickHandCard, makeTitled, pressPaymentAuto, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -127,7 +127,7 @@ test(
     try {
       const { alice, bob } = await startScenarioMatch(browser, stack, 'scapeshift-ten');
       const page = alice.page;
-      await page.setViewportSize(SIZES[0]);
+      await resizeWindow(page, SIZES[0]);
 
       const scapeshift = page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]', { hasText: 'Scapeshift' });
       await expect(scapeshift, 'alice holds Scapeshift').toHaveCount(1);
@@ -140,7 +140,7 @@ test(
       console.log(`[prompt-bar] asked: ${((await sheet.textContent()) ?? '').replace(/\s+/g, ' ').slice(0, 120)}`);
 
       for (const size of SIZES) {
-        await page.setViewportSize(size);
+        await resizeWindow(page, size);
         let facts: BarFacts | undefined;
         await expect
           .poll(

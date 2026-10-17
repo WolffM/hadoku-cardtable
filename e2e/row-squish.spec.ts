@@ -11,7 +11,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { chooseLanes } from './play/w32.ts';
@@ -27,7 +27,7 @@ test(titled('twelve permanents in the four lanes squish into one row before they
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'row-squish');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
     const cards = page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card');
     await expect(cards, 'twelve lone permanents').toHaveCount(12, { timeout: 30_000 });
     await chooseLanes(alice);
@@ -37,7 +37,7 @@ test(titled('twelve permanents in the four lanes squish into one row before they
       [1440, 900],
       [1920, 1080],
     ] as const) {
-      await page.setViewportSize({ width, height });
+      await resizeWindow(page, { width, height });
       await expect(cards).toHaveCount(12);
       const read = () =>
         page.evaluate(() => {

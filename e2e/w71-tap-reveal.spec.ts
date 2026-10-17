@@ -35,7 +35,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, offeredNamed, serverLog } from './play/board.ts';
+import { makeTitled, offeredNamed, resizeWindow, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { closeSettings, openSettings } from './play/w32.ts';
@@ -193,7 +193,7 @@ for (const fast of [false, true]) {
     const say = (line: string) => console.log(`[tapreveal] ${label} ${line}`);
     try {
       const { alice, bob } = await startScenarioMatch(browser, stack, 'w67-bears', { beforeAlice: installFrameClock, beforeBob: installFrameClock });
-      for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+      for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
       if (!fast) {
         for (const p of [alice.page, bob.page]) {
           const toggle = (await openSettings(p)).locator('[data-testid="live-settings-fast-mode"]');

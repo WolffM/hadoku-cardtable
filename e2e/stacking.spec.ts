@@ -21,7 +21,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { messages } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -54,7 +54,7 @@ test(titled('W7 — dropping near a card’s dead centre stacks it; only a thin 
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
 
     const [a, b, c] = await eightLoneLands(page);
     const baseEl = (id: string) => page.locator(`[data-card-id="${id}"]`);
@@ -97,7 +97,7 @@ test(titled('W12 — every card in a pile is the same size, 2 cards to 8, base a
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
 
     const ids = await eightLoneLands(page);
     const base = ids[0]!;
@@ -161,7 +161,7 @@ test(titled('a piled land taps where it shows, and lifting a card off a pile mov
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
     const [a, b, c] = await eightLoneLands(page);
     const card = (id: string) => page.locator(`li.board-card[data-card-id="${id}"]`);
     await pointerDrag(page, card(b!), onTopPoint(await boxOf(card(a!))));
@@ -248,7 +248,7 @@ test(titled('a card piled behind a tapped card is drawn upright: only its own ta
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
     const [a, b] = await eightLoneLands(page);
     const card = (id: string) => page.locator(`li.board-card[data-card-id="${id}"]`);
     await expect(card(a!), 'Forge offers the lands').toHaveAttribute('data-selectable', /.*/, { timeout: 15_000 });
@@ -299,7 +299,7 @@ test(titled('a box drawn over four lands taps those four and no others, and a cl
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
     const lands = await eightLoneLands(page);
     const card = (id: string) => page.locator(`li.board-card[data-card-id="${id}"]`);
     await expect(card(lands[0]!), 'Forge offers the lands for their mana').toHaveAttribute('data-selectable', /.*/, { timeout: 15_000 });
@@ -394,7 +394,7 @@ test(titled('a card let go further right sits in that column, with gaps before i
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
     const lands = await eightLoneLands(page);
     const row = page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-tier="back"]');
     const columns = () =>
@@ -450,8 +450,8 @@ test(titled('a lone card stacked onto the pile to its right leaves its column op
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await bob.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
+    await resizeWindow(bob.page, { width: 1280, height: 800 });
     const lands = await eightLoneLands(page);
     const columnsIn = (row: import('@playwright/test').Locator) =>
       row.locator(':scope > li').evaluateAll((els) => els.map((e) => (e.classList.contains('zone__gap') ? null : e.getAttribute('data-card-id'))));

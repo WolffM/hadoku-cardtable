@@ -18,7 +18,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
@@ -80,9 +80,9 @@ test(titled('the board keeps every box and card size whether either seat’s poi
   try {
     seated = await startScenarioMatch(browser, stack, 'ai-seven-card-hand');
     const { alice, bob } = seated;
-    await alice.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(alice.page, { width: 1280, height: 800 });
     // A very vertical window: bob's own hand draws two rows.
-    await bob.page.setViewportSize({ width: 420, height: 1400 });
+    await resizeWindow(bob.page, { width: 420, height: 1400 });
     const bobOwnRows = () =>
       bob.page.locator('.seat[data-viewer] [data-zone="hand"] .zone__cards > li.board-card').evaluateAll((els) => new Set(els.map((el) => Math.round(el.getBoundingClientRect().top))).size);
     await expect.poll(bobOwnRows, { timeout: 10_000, message: 'bob’s own hand drew two rows on his narrow screen' }).toBe(2);
@@ -141,7 +141,7 @@ test(titled('the board keeps every box and card size whether either seat’s poi
       [{ width: 1600, height: 800 }, 1],
       [{ width: 420, height: 1400 }, 2],
     ] as const) {
-      await bob.page.setViewportSize(size);
+      await resizeWindow(bob.page, size);
       await expect.poll(bobOwnRows, { timeout: 10_000, message: `bob’s own hand drew ${rows} row(s) at ${size.width}x${size.height}` }).toBe(rows);
       await sample(`bob ${size.width}x${size.height}, his pointer off`);
       const now = states.at(-1)!.layout.sizes;

@@ -22,7 +22,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, makeTitled, offered, promptMethod, serverLog } from './play/board.ts';
+import { castCard, makeTitled, offered, promptMethod, resizeWindow, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { dragRowOnto } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -49,7 +49,7 @@ test(
     try {
       const { alice, bob } = await startScenarioMatch(browser, stack, 'scry-one-prompt');
       const page = alice.page;
-      await page.setViewportSize({ width: 1280, height: 800 });
+      await resizeWindow(page, { width: 1280, height: 800 });
 
       await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Foresee' }).not.toEqual([]);
       const [foresee] = await offered(page);

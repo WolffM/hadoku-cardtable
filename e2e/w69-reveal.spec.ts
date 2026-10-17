@@ -13,7 +13,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { enabledOk, makeTitled, says, serverLog } from './play/board.ts';
+import { enabledOk, makeTitled, resizeWindow, says, serverLog } from './play/board.ts';
 import { confirmOpen, confirmYes } from './play/confirm.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -52,7 +52,7 @@ test(titled("Ghost Quarter's fail to find: bob's library reveal fits the window,
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w69-reveal');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
 
     const quarter = await namedOn(alice.page, 'own', 'Ghost Quarter');
     const river = await namedOn(alice.page, 'theirs', 'Underground River');

@@ -17,7 +17,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { castByDrag, clickPermanent, enabledOk, handCardNamed, makeTitled, stackCount } from './play/board.ts';
+import { castByDrag, clickPermanent, enabledOk, handCardNamed, makeTitled, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -64,7 +64,7 @@ test(titled('a delayed effect waits on its source as a tag: Narset’s -2 on Nar
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'st-narset-effect');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     const screens = [
       ['alice', alice.page, 'you'],
       ['bob', bob.page, 'them'],

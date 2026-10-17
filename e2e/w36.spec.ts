@@ -20,7 +20,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickHandCard, enterMatch, makeTitled, offered, stackCount } from './play/board.ts';
+import { castCard, clickHandCard, enterMatch, makeTitled, offered, resizeWindow, stackCount } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmNo, confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -350,7 +350,7 @@ test(titled('T1 — the hover zoom sits against the hovered card: a hand card an
     const stack = await startPlayStack(forge);
     try {
       const { alice } = await startScenarioMatch(browser, stack, 'lone-spell');
-      await alice.page.setViewportSize(size);
+      await resizeWindow(alice.page, size);
 
       const handCard = alice.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').first();
       await handCard.hover();
@@ -398,7 +398,7 @@ test(titled('the hover zoom draws over the phase rail'), async ({ browser }) => 
     const rail = page.getByTestId('live-phases');
     let proved = false;
     for (const width of [1280, 1152, 1024, 960]) {
-      await page.setViewportSize({ width, height: 800 });
+      await resizeWindow(page, { width, height: 800 });
       await expect(rail).toBeVisible();
       for (let i = (await lands.count()) - 1; i >= 0 && !proved; i -= 1) {
         await page.mouse.move(0, 0);

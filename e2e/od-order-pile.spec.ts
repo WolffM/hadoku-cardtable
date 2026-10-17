@@ -31,7 +31,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickPermanent, enabledOk, livePrompt, makeTitled, offered, promptMethod, stackCount } from './play/board.ts';
+import { castCard, clickPermanent, enabledOk, livePrompt, makeTitled, offered, promptMethod, resizeWindow, stackCount } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { dragRowOnto, settle } from './play/order.ts';
@@ -196,7 +196,7 @@ test(
     try {
       const { alice, bob } = await startScenarioMatch(browser, stack, 'od-tezzeret-pile');
       const page = alice.page;
-      await page.setViewportSize(SIZES[0]);
+      await resizeWindow(page, SIZES[0]);
 
       const tezzeret = await ownPermanent(page, 'Tezzeret, Agent of Bolas');
       expect(await clickPermanent(page, tezzeret), 'Tezzeret is offered').toBe(true);
@@ -225,10 +225,10 @@ test(
       await expect.poll(async () => (await rowsIds(source)).length + (await rowsIds(dest)).length, { message: 'all five cards are in the order' }).toBe(5);
 
       for (const size of SIZES) {
-        await page.setViewportSize(size);
+        await resizeWindow(page, size);
         await expectPiles(page, 'tezzeret');
       }
-      await page.setViewportSize(SIZES[0]);
+      await resizeWindow(page, SIZES[0]);
 
       // Every card placed, so the answer is the pile of five.
       for (let guard = 0; guard < 10 && (await rowsIds(source)).length > 0; guard++) await source.locator(':scope > li').first().click();
@@ -238,7 +238,7 @@ test(
       await expect(source, 'the empty Unplaced group is not drawn').toHaveCount(0);
       await expect(prompt.getByRole('heading', { name: /^Unplaced/ }), 'no "Unplaced" heading').toHaveCount(0);
       for (const size of SIZES) {
-        await page.setViewportSize(size);
+        await resizeWindow(page, size);
         const widths = await prompt.evaluate((host) => {
           const dual = host.querySelector('.prompt__dual')!.getBoundingClientRect().width;
           const group = host.querySelector('[data-testid="order-dest"]')!.closest('section')!.getBoundingClientRect().width;
@@ -254,7 +254,7 @@ test(
         expectLibraryGroup(placed, 'tezzeret placed', 'bottom', placed.ids[placed.ids.length - 1]!);
         expect(placed.drawn[placed.drawn.length - 1], 'tezzeret placed: the library’s new bottom card is the lowest, in front').toBe(placed.ids[0]);
       }
-      await page.setViewportSize(SIZES[0]);
+      await resizeWindow(page, SIZES[0]);
 
       const order = await rowsIds(dest);
       const card = (id: number): Locator => prompt.locator(`li[data-card-id="${id}"]`);
@@ -281,7 +281,7 @@ test(
     try {
       const { alice } = await startScenarioMatch(browser, stack, 'scry-one-prompt');
       const page = alice.page;
-      await page.setViewportSize(SIZES[0]);
+      await resizeWindow(page, SIZES[0]);
       await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Foresee' }).not.toEqual([]);
       const [foresee] = await offered(page);
       await castCard(page, foresee!);
@@ -292,7 +292,7 @@ test(
       const bottom = page.getByTestId('order-dest');
       await expect(top.locator(':scope > li'), 'Scry 4: all four start on top').toHaveCount(4);
       for (const size of SIZES) {
-        await page.setViewportSize(size);
+        await resizeWindow(page, size);
         const piles = await expectPiles(page, 'scry');
         const onTop = piles.find((p) => p.list === 'order-source')!;
         // The top group's first card is the library's new top card (`GameAction.scry` reverses it and puts
@@ -302,14 +302,14 @@ test(
         const under = piles.find((p) => p.list === 'order-dest')!;
         expect(under.heading, 'scry: the bottom group says where its cards go').toMatch(/^Bottom of library/);
       }
-      await page.setViewportSize(SIZES[0]);
+      await resizeWindow(page, SIZES[0]);
 
       const [a, b] = (await rowsIds(top)) as [number, number, number, number];
       await dragRowOnto(page, prompt.locator(`li[data-card-id="${b}"]`), bottom);
       await expect.poll(() => rowsIds(bottom), { message: 'the second card went to the bottom' }).toEqual([b]);
       let drawnTop: number[] = [];
       for (const size of SIZES) {
-        await page.setViewportSize(size);
+        await resizeWindow(page, size);
         const piles = await expectPiles(page, 'scry split');
         const onTop = piles.find((p) => p.list === 'order-source')!;
         expectLibraryGroup(onTop, 'scry split', 'top', onTop.ids[onTop.ids.length - 1]!);
@@ -341,7 +341,7 @@ test(
     try {
       const { alice } = await startScenarioMatch(browser, stack, 'order-drag-ponder');
       const page = alice.page;
-      await page.setViewportSize(SIZES[0]);
+      await resizeWindow(page, SIZES[0]);
       await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Ponder' }).not.toEqual([]);
       const [ponder] = await offered(page);
       await castCard(page, ponder!);
@@ -355,14 +355,14 @@ test(
       await expect.poll(() => rowsIds(dest)).toHaveLength(3);
       let drawnDest: number[] = [];
       for (const size of SIZES) {
-        await page.setViewportSize(size);
+        await resizeWindow(page, size);
         const placed = (await expectPiles(page, 'ponder')).find((p) => p.list === 'order-dest')!;
         // Forge reverses the answer and puts each card on top in turn (`RearrangeTopOfLibraryEffect`): the
         // answer's first card ends on top, its last rests on the rest of the library.
         expectLibraryGroup(placed, 'ponder', 'top', placed.ids[placed.ids.length - 1]!);
         drawnDest = placed.drawn;
       }
-      await page.setViewportSize(SIZES[0]);
+      await resizeWindow(page, SIZES[0]);
 
       const handBefore = await handIds(page);
       await page.getByTestId('prompt-submit').click();
@@ -388,7 +388,7 @@ test(
     try {
       const { alice, bob } = await startScenarioMatch(browser, stack, 'ol-relic-exile');
       const page = alice.page;
-      await page.setViewportSize(SIZES[0]);
+      await resizeWindow(page, SIZES[0]);
       const relic = await ownPermanent(page, 'Relic of Progenitus');
       expect(await clickPermanent(page, relic), 'Relic of Progenitus is offered').toBe(true);
       const exileAll = page.locator('section[data-prompt="getAbilityToPlay"] [data-testid="prompt-choice"]').filter({ hasText: /graveyards/i });

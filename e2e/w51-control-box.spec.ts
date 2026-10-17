@@ -29,7 +29,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, clickOnce, enabledOk, makeTitled, says, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickHandCard, clickOnce, enabledOk, makeTitled, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -94,7 +94,7 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'bolt-player');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
     mkdirSync(SHOTS, { recursive: true });
 
     // Full control: alice holds priority with the bolt on the stack (nothing
@@ -160,13 +160,13 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
       { width: 1280, height: 800 },
       { width: 1366, height: 768 },
     ]) {
-      await page.setViewportSize(size);
+      await resizeWindow(page, size);
       const placed = page.locator('[data-placed-spell]');
       await expect(placed, 'the bolt is still drawn, at this size too').toHaveCount(1, { timeout: 10_000 });
       await expect(placed, 'the one thing on the stack flashes as next to resolve').toHaveAttribute('data-placed-next', '');
       await page.screenshot({ path: resolve(SHOTS, `stack-placed-${size.width}x${size.height}.png`) });
     }
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
 
     await page.getByTestId('live-decision-ok').click();
     // Bob holds nothing, so the server passes for him; his pop-up's OK is pressed only if it ever shows.
@@ -193,7 +193,7 @@ test(titled('attackers declared → the pop-up’s OK confirms them; the box kee
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'attackers-declared');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
     const memnite = Number(await page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').first().getAttribute('data-board-card'));
     expect(Number.isInteger(memnite), 'Memnite is on alice’s battlefield').toBe(true);
 

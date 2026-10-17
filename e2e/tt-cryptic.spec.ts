@@ -24,7 +24,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, serverLog, stackCount } from './play/board.ts';
+import { castCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, serverLog, stackCount } from './play/board.ts';
 import { answerLoneAbility } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -136,7 +136,7 @@ test(
       seated = await startScenarioMatch(browser, stack, 'tt-cryptic');
       const { alice, bob } = seated;
       const page = alice.page;
-      await page.setViewportSize({ width: 1600, height: 1000 });
+      await resizeWindow(page, { width: 1600, height: 1000 });
       await page.getByTestId('live-full-control').click();
       await expect(page.getByTestId('live-full-control'), 'full control is on for alice').toHaveAttribute('aria-pressed', 'true');
 

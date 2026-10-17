@@ -8,7 +8,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { boxOf, onTopPoint, pointerDrag } from './play/w32.ts';
@@ -51,7 +51,7 @@ test(titled('a pile of copies wears ×N on both screens; it follows a card leavi
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'xn-copies');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     const a = alice.page;
     const goblins = field(a, 'you').locator('li.board-card', { has: a.locator('.card__name', { hasText: 'Goblin' }) });
     await expect(goblins, 'alice’s three Goblin tokens, each its own pile').toHaveCount(3, { timeout: 30_000 });

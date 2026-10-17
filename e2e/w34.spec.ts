@@ -49,6 +49,7 @@ import {
   makeTitled,
   offered,
   promptMethod,
+  resizeWindow,
   says,
   serverLog,
   stackCount,
@@ -580,7 +581,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1366, height: 768
       // experience counters all non-zero.
       const { alice, bob } = await startScenarioMatch(browser, stack, 'poison');
       void bob;
-      await alice.page.setViewportSize(viewport);
+      await resizeWindow(alice.page, viewport);
 
       const counters = alice.page.locator('.seat__counter');
       await expect.poll(() => counters.count(), { timeout: 90_000, message: 'at least one player counter is drawn — the precondition "poison" sets up' }).toBeGreaterThan(0);

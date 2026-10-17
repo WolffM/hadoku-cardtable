@@ -33,7 +33,7 @@
  */
 import { expect, test, type Browser, type Page, type WebSocketRoute } from '@playwright/test';
 
-import { makeTitled, offeredNamed, serverLog } from './play/board.ts';
+import { makeTitled, offeredNamed, resizeWindow, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -185,7 +185,7 @@ async function measure(browser: Browser, jar: { jar: string; res: string }, run:
         if (run.midGlide) gate = await gateSocket(page);
       },
     });
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     if (run.bobHoldsMs > 0) {
       await bob.page.getByTestId('live-full-control').click();
       await expect(bob.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');

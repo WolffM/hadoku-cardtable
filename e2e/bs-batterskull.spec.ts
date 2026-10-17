@@ -17,7 +17,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, ownNamed, says, stackCount } from './play/board.ts';
+import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, ownNamed, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
@@ -115,7 +115,7 @@ test(titled('Batterskull: the Germ arrives and Batterskull joins its pile withou
   try {
     seated = await startScenarioMatch(browser, stack, 'bs-batterskull');
     const page = seated.alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
     await expect.poll(() => ownNamed(page, 'Plains'), { timeout: 30_000, message: 'alice has her eight Plains out' }).toHaveLength(8);
     const batterskull = await handCardNamed(page, 'Batterskull');
     expect(batterskull, 'Batterskull is in alice’s hand').not.toBeUndefined();

@@ -18,7 +18,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { clickOnce, makeTitled, says } from './play/board.ts';
+import { clickOnce, makeTitled, resizeWindow, says } from './play/board.ts';
 import { passDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -35,7 +35,7 @@ test(titled("Dragonlord Ojutai's combat-damage question: the trigger's words wit
   try {
     seated = await startScenarioMatch(browser, stack, 'pw-ojutai');
     const { alice, bob } = seated;
-    await alice.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(alice.page, { width: 1280, height: 800 });
     await passDeclareAttackers(alice.page);
 
     // Each seat passes whatever priority it is held at (the trigger on the stack) until alice is asked.

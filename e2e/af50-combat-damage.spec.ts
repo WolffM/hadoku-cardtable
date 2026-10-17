@@ -24,7 +24,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { clickOnce, enabledOk, makeTitled, ownNamed, says } from './play/board.ts';
+import { clickOnce, enabledOk, makeTitled, ownNamed, resizeWindow, says } from './play/board.ts';
 import { assignBlock, attackingCards, passDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -180,7 +180,7 @@ test(titled('dividing combat damage: the attacker and every recipient are cards,
   try {
     seated = await startScenarioMatch(browser, stack, 'af50-combat-damage');
     const { alice, bob } = seated;
-    await bob.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(bob.page, { width: 1280, height: 800 });
 
     const wurm = await attackerNamed(alice.page, 'Craw Wurm');
     const kodama = await attackerNamed(alice.page, 'Kodama of the North Tree');

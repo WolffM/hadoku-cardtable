@@ -14,7 +14,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, handCardNamed, makeTitled, offered, pressPaymentAuto, says, stackCount } from './play/board.ts';
+import { clickOnce, handCardNamed, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerLoneAbility } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -71,7 +71,7 @@ test.describe(titled('a modal spell draws its arrows'), () => {
     try {
       seated = await startScenarioMatch(browser, stack, 'modal-charm');
       const { alice, bob } = seated;
-      for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1600, height: 1000 });
+      for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1600, height: 1000 });
 
       // Full control for alice: she holds priority with both spells on the stack, so neither resolves before the read.
       await alice.page.getByTestId('live-full-control').click();
@@ -145,7 +145,7 @@ test.describe(titled('a modal spell draws its arrows'), () => {
     try {
       seated = await startScenarioMatch(browser, stack, 'modal-command');
       const { alice, bob } = seated;
-      for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1600, height: 1000 });
+      for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1600, height: 1000 });
 
       // Full control for bob: he holds priority over alice's Command, so it does not resolve before the read.
       await bob.page.getByTestId('live-full-control').click();

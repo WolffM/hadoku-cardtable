@@ -27,7 +27,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { eventsIn } from './frames.ts';
-import { cancelCast, dragHandCard, handCardNamed, makeTitled, pressPaymentAuto, says } from './play/board.ts';
+import { cancelCast, dragHandCard, handCardNamed, makeTitled, pressPaymentAuto, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -117,7 +117,7 @@ test(titled('a cast cancelled mid-aim flies home to her hand on the opponent’s
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'cancel-hammer');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => handCardNamed(alice.page, 'Volcanic Hammer'), { timeout: 30_000, message: 'alice holds Volcanic Hammer' }).not.toBeUndefined();
     const hammer = (await handCardNamed(alice.page, 'Volcanic Hammer'))!;
     const theirHand = bob.page.locator('[data-zone="hand"][data-owner="them"] li.card-back');
@@ -194,7 +194,7 @@ test(titled('a cast she confirms turns over on the opponent’s screen with its 
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'cancel-hammer');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => handCardNamed(alice.page, 'Volcanic Hammer'), { timeout: 30_000, message: 'alice holds Volcanic Hammer' }).not.toBeUndefined();
     const hammer = (await handCardNamed(alice.page, 'Volcanic Hammer'))!;
     const bearsOnBob = bob.page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card]');

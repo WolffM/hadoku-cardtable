@@ -27,7 +27,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, makeTitled, offered, promptMethod } from './play/board.ts';
+import { castCard, makeTitled, offered, promptMethod, resizeWindow } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { beforePoint, pointIn, settle, stripPoint, type Point } from './play/order.ts';
@@ -222,7 +222,7 @@ test(
     try {
       const { alice } = await startScenarioMatch(browser, stack, 'order-drag-ponder');
       const page = alice.page;
-      await page.setViewportSize({ width: 1280, height: 800 });
+      await resizeWindow(page, { width: 1280, height: 800 });
 
       await expect
         .poll(() => offered(page), {
@@ -291,7 +291,7 @@ test(
     try {
       const { alice } = await startScenarioMatch(browser, stack, 'scry-one-prompt');
       const page = alice.page;
-      await page.setViewportSize({ width: 1280, height: 800 });
+      await resizeWindow(page, { width: 1280, height: 800 });
 
       await expect
         .poll(() => offered(page), {

@@ -20,7 +20,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { enabledOk, makeTitled, says } from './play/board.ts';
+import { enabledOk, makeTitled, resizeWindow, says } from './play/board.ts';
 import { clickCard, passToDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -63,7 +63,7 @@ test(titled('the opponent’s permanents are drawn clickable only while Forge ta
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'st-enemy-clickable');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
 
     await expect.poll(async () => (await theirs(page)).length, { timeout: 30_000, message: 'bob’s four permanents are drawn' }).toBe(4);
     const memnite = Number(await page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').filter({ hasText: 'Memnite' }).first().getAttribute('data-board-card'));

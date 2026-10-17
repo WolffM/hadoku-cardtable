@@ -27,7 +27,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { castCard, makeTitled, offered, promptMethod } from './play/board.ts';
+import { castCard, makeTitled, offered, promptMethod, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { dragRowOnto, stripPoint } from './play/order.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -47,7 +47,7 @@ test(
     try {
       const { alice } = await startScenarioMatch(browser, stack, 'w62-scry');
       const page = alice.page;
-      await page.setViewportSize({ width: 1280, height: 800 });
+      await resizeWindow(page, { width: 1280, height: 800 });
 
       await expect.poll(() => offered(page), { timeout: 30_000, message: 'alice is offered Preordain' }).not.toEqual([]);
       const [preordain] = await offered(page);

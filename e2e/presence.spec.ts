@@ -13,7 +13,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { dragHandCard, enabledOk, handCardNamed, makeTitled, offered, says, stackCount } from './play/board.ts';
+import { dragHandCard, enabledOk, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -50,7 +50,7 @@ test(titled('bob sees alice’s pointer, a card back while she holds a card, her
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).not.toEqual([]);
     const memnite = (await offered(alice.page))[0]!;
     const name = (await alice.page.locator(`[data-board-card="${memnite}"] .card__name`).first().textContent())?.trim() ?? '';
@@ -113,8 +113,8 @@ test(titled('her cursor lands on the exact card she hovers, mirrored, and moves 
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'land-into-middle');
-    await alice.page.setViewportSize({ width: 800, height: 900 });
-    await bob.page.setViewportSize({ width: 1600, height: 600 });
+    await resizeWindow(alice.page, { width: 800, height: 900 });
+    await resizeWindow(bob.page, { width: 1600, height: 600 });
     await expect.poll(() => fieldOrder(alice.page, 'you'), { timeout: 20_000, message: 'alice has her two starting lands' }).toHaveLength(2);
     const [, second] = await fieldOrder(alice.page, 'you');
 
@@ -177,7 +177,7 @@ test(titled('no arrow is ever drawn on the other screen while a no-target card i
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).not.toEqual([]);
     const memnite = (await offered(alice.page))[0]!;
     const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
@@ -214,7 +214,7 @@ test(titled('letting go of a held card with no further pointer move takes the ba
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).not.toEqual([]);
     const memnite = (await offered(alice.page))[0]!;
 
@@ -288,10 +288,10 @@ test(titled('a cast spell is a back at the release point on bob’s screen, then
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'bolt-player');
-    await alice.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(alice.page, { width: 1280, height: 800 });
     // Wider: the full-control banner adds a row that overlaps the hand button at the harness's
     // default size (`w49-counterspell.spec.ts`'s own note).
-    await bob.page.setViewportSize({ width: 1600, height: 1000 });
+    await resizeWindow(bob.page, { width: 1600, height: 1000 });
     // The caster's own priority on her own spell auto-passes by default (`auto.ts`'s
     // `passStackWindows`) — with nothing else, the bolt would resolve before this test ever gets to
     // look at it. Full control for BOB (not the caster) means HIS priority on her spell is a real
@@ -453,8 +453,8 @@ test(titled('each screen lays the other seat’s hidden hand out by its OWN spac
       // And the other way about: alice's own strip is narrow, so seven wrap on HER screen.
       { aliceSize: { width: 420, height: 1400 }, bobSize: { width: 1600, height: 800 }, bobRows: 1, rows: 2 },
     ] as const) {
-      await alice.page.setViewportSize(aliceSize);
-      await bob.page.setViewportSize(bobSize);
+      await resizeWindow(alice.page, aliceSize);
+      await resizeWindow(bob.page, bobSize);
       await expect.poll(bobOwnRows, { timeout: 10_000, message: `bob’s own hand drew ${bobRows} row(s) at ${bobSize.width}x${bobSize.height}` }).toBe(bobRows);
       // His pointer over his board, so his screen is talking to hers.
       const field = await bobField();
@@ -487,7 +487,7 @@ test(titled('where alice puts a card on her battlefield is where bob sees it: he
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'land-into-middle');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => handCardNamed(alice.page, 'Island'), { timeout: 20_000, message: 'alice holds the Island' }).not.toBeUndefined();
     const island = (await handCardNamed(alice.page, 'Island'))!;
     await expect.poll(() => fieldOrder(alice.page, 'you'), { timeout: 20_000 }).toHaveLength(2);
@@ -558,7 +558,7 @@ test(titled('a hand reorder is mirrored: bob sees a back in alice’s hand glide
     // `w60-thirst` is borrowed read-only for its three-card hand — no scenario
     // here deals one big enough to reorder for its own sake.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w60-thirst');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
 
     const before = await handIds(alice.page);
     expect(before.length, 'w60-thirst’s own three-card hand').toBeGreaterThan(2);

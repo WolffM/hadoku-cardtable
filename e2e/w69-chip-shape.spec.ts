@@ -19,7 +19,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { chipOf, triggerOnStack } from './play/chip.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -102,7 +102,7 @@ for (const c of CASES) {
       await triggerOnStack(alice.page, bob.page, c.creature);
 
       for (const size of SIZES) {
-        for (const p of [alice.page, bob.page]) await p.setViewportSize(size);
+        for (const p of [alice.page, bob.page]) await resizeWindow(p, size);
         const a = await settledShape(alice.page);
         const b = await settledShape(bob.page);
         for (const [who, s] of [['alice', a], ['bob', b]] as const) {

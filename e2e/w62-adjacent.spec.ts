@@ -15,7 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { boxOf, pointerDrag } from './play/w32.ts';
@@ -35,8 +35,8 @@ test(titled('a battlefield card dragged one column to the right lands there — 
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
-    await alice.page.setViewportSize({ width: 1280, height: 800 });
-    await bob.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(alice.page, { width: 1280, height: 800 });
+    await resizeWindow(bob.page, { width: 1280, height: 800 });
     await expect.poll(() => columnsOf(ownRow(alice.page)), { timeout: 30_000, message: 'eight lone lands drawn' }).toHaveLength(8);
     const before = (await columnsOf(ownRow(alice.page))) as string[];
     await expect.poll(() => columnsOf(theirRow(bob.page)), { timeout: 30_000, message: 'bob sees the same eight' }).toEqual(before);
@@ -91,8 +91,8 @@ test(titled('AE19: dragging the leftmost card offers every gap to its right, and
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
-    await alice.page.setViewportSize({ width: 1280, height: 800 });
-    await bob.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(alice.page, { width: 1280, height: 800 });
+    await resizeWindow(bob.page, { width: 1280, height: 800 });
     await expect.poll(() => columnsOf(ownRow(alice.page)), { timeout: 30_000, message: 'eight lone lands drawn' }).toHaveLength(8);
     const all = (await columnsOf(ownRow(alice.page))) as string[];
     // The scenario is EIGHT lone lands, not five — the first version of this test built its

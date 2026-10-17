@@ -23,7 +23,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, stackCount } from './play/board.ts';
+import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerLoneAbility } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -120,7 +120,7 @@ test(titled('a countered spell: on the other screen the back at the release turn
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w49-a-counterspell-opponent');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1600, height: 1000 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1600, height: 1000 });
     const memnite = await handCardNamed(alice.page, 'Memnite');
     expect(memnite, 'Memnite is in alice’s hand, as the scenario scripts').not.toBeUndefined();
     await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Memnite' }).toContain(memnite!);

@@ -15,7 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, livePrompt, makeTitled, offeredNamed, pressPaymentAuto, says } from './play/board.ts';
+import { clickHandCard, enabledOk, livePrompt, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -81,7 +81,7 @@ test(titled('a permanent wears what was chosen for it: Prism Ring its colour, Pi
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'ch-choice-tags', { format: FORMAT });
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
 
     // Prism Ring: the colour ask, answered blue.
     const blue = livePrompt(alice.page).getByRole('checkbox', { name: /^blue$/i });

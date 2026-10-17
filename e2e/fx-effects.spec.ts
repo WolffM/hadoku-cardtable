@@ -22,7 +22,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickPermanent, enabledOk, makeTitled, offeredNamed, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickPermanent, enabledOk, makeTitled, offeredNamed, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -126,7 +126,7 @@ test(titled('Kalitas’s Zombie arrives from Kalitas, on both screens'), async (
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'fx-kalitas');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1600, height: 1000 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1600, height: 1000 });
     const kalitas = await battlefieldNamed(alice.page, 'you', 'Kalitas, Traitor of Ghet');
     const bears = await battlefieldNamed(alice.page, 'them', 'Grizzly Bears');
     const kalitasAt = {
@@ -211,7 +211,7 @@ test(titled('Sorin’s +1: the revealed card has its beat, then the hit travels 
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'fx-sorin');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1600, height: 1000 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1600, height: 1000 });
     const sorin = await battlefieldNamed(alice.page, 'you', 'Sorin, Grim Nemesis');
     const bobId = await alice.page.locator('[data-player-face]:not([data-viewer])').first().getAttribute('data-player-id');
     const bobFace = {

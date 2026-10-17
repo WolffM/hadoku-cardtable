@@ -34,7 +34,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { castCard, clickOnce, makeTitled, offered, says, stackCount } from './play/board.ts';
+import { castCard, clickOnce, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts';
 import { answerLoneAbility } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -215,7 +215,7 @@ test.describe(titled('the counterspell arc'), () => {
       // A wider viewport: see `liftAndParkOutsideHand`'s own note — the
       // full-control banner adds a row that overlaps the hand button at the
       // harness's default size, every run, at every narrower size tried.
-      await alice.page.setViewportSize({ width: 1600, height: 1000 });
+      await resizeWindow(alice.page, { width: 1600, height: 1000 });
 
       await alice.page.getByTestId('live-full-control').click();
       await expect(alice.page.getByTestId('live-full-control'), 'full control is on for alice').toHaveAttribute('aria-pressed', 'true');
@@ -298,7 +298,7 @@ test.describe(titled('the counterspell arc'), () => {
     try {
       seated = await startScenarioMatch(browser, stack, 'w49-a-counterspell-opponent');
       const { alice, bob } = seated;
-      await alice.page.setViewportSize({ width: 1600, height: 1000 });
+      await resizeWindow(alice.page, { width: 1600, height: 1000 });
 
       // Full control for ALICE this time: she is the OPPONENT (the victim of
       // the counter, never asked a thing), and it is HER priority stop that

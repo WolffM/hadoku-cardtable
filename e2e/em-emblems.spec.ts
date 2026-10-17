@@ -19,7 +19,7 @@ import { join } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickPermanent, enabledOk, makeTitled, stackCount } from './play/board.ts';
+import { clickPermanent, enabledOk, makeTitled, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -130,7 +130,7 @@ test(titled('emblems ring their owner’s avatar on both screens, clear of the p
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'em-emblems');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     // Alice's seat, from each screen: hers is the viewer's seat, on Bob's it is the opponent's.
     const screens = [
       ['alice', alice.page, 'you'],

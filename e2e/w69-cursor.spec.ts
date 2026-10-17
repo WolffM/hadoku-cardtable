@@ -15,7 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { boxOf, centre, type Box } from './play/w32.ts';
@@ -61,8 +61,8 @@ test(titled('a battlefield card lifted and nudged stands the same fraction of a 
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'land-into-middle');
-    await alice.page.setViewportSize({ width: 1600, height: 900 });
-    await bob.page.setViewportSize({ width: 1150, height: 900 });
+    await resizeWindow(alice.page, { width: 1600, height: 900 });
+    await resizeWindow(bob.page, { width: 1150, height: 900 });
     const lands = () => alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-card-id]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-card-id'))));
     await expect.poll(lands, { timeout: 30_000, message: 'alice has her two lands' }).toHaveLength(2);
     const [, mountain] = (await lands()) as [number, number];

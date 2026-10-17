@@ -28,7 +28,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
 import { foldStream } from './play/isolation.ts';
-import { dragHandCard, enabledOk, grindPriority, handCardNamed, makeTitled, offeredNamed, pressPaymentAuto, says, stackCount } from './play/board.ts';
+import { dragHandCard, enabledOk, grindPriority, handCardNamed, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -118,7 +118,7 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w69-librarytop');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => landsOn(alice.page, 'Courser of Kruphix'), { timeout: 60_000, message: 'Courser of Kruphix is on her battlefield' }).toBe(1);
 
     // ── 1. Mountain is drawn on her library on both screens; bob's library stays hidden on both.
@@ -290,7 +290,7 @@ test(titled('a card Snapcaster Mage gives flashback is drawn as playable in the 
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w69-snapcaster');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     const visions = await snapcasterGivesFlashback(alice.page, bob.page);
     const to = centre((await alice.page.locator(field).boundingBox())!);
     const board = await markOf(alice.page, YARD, visions);
@@ -389,7 +389,7 @@ test(titled('a flashback card buried in a sixty-card graveyard: the pile glows, 
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w69-snapcaster-deep');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     const visions = await snapcasterGivesFlashback(alice.page, bob.page);
     const to = centre((await alice.page.locator(field).boundingBox())!);
     const pile = alice.page.locator(YARD);

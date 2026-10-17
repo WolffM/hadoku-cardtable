@@ -18,7 +18,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
-import { clickHandCard, enabledOk, grindPriority, livePrompt, makeTitled, offeredNamed, says } from './play/board.ts';
+import { clickHandCard, enabledOk, grindPriority, livePrompt, makeTitled, offeredNamed, resizeWindow, says } from './play/board.ts';
 import { passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -91,7 +91,7 @@ test(titled("Goblin Guide's revealed top card sits under bob's avatar on both sc
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'af29-goblin-guide');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
 
     const guide = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').filter({ hasText: 'Goblin Guide' });
     await expect(guide, 'Goblin Guide is on her battlefield').toHaveCount(1, { timeout: 60_000 });

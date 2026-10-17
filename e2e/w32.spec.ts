@@ -45,7 +45,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
-import { enterMatch, grindPriority, makeTitled, says, serverLog } from './play/board.ts';
+import { enterMatch, grindPriority, makeTitled, resizeWindow, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { recordSurface, type Surface } from './play/surface.ts';
@@ -140,7 +140,7 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
     for (const f of [alice, bob]) await installFrameClock(f.page);
-    await alice.page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(alice.page, { width: 1280, height: 800 });
     await enterMatch(alice, bob, stack.origin);
 
     // Q1: before turn 1 the rail says Start, and the name that sat under it is gone.

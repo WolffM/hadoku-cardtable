@@ -9,7 +9,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { boxOf, centre } from './play/w32.ts';
@@ -45,7 +45,7 @@ for (const which of ['untapped Plains', 'tapped Plains'] as const) {
     const stack = await startPlayStack(forge);
     try {
       const { alice } = await startScenarioMatch(browser, stack, 'w70-tapped-drag');
-      await alice.page.setViewportSize({ width: 1280, height: 800 });
+      await resizeWindow(alice.page, { width: 1280, height: 800 });
       const own = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]');
       await expect.poll(async () => Object.keys(await tappedFaces(alice.page)).length, { timeout: 30_000, message: 'five tapped cards drawn' }).toBe(5);
       const card = which === 'untapped Plains'

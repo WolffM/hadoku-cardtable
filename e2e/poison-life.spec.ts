@@ -19,7 +19,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { chooseLanes } from './play/w32.ts';
@@ -115,7 +115,7 @@ test(titled('poison sits beside the life total in two centred columns, as a skul
     for (const layout of ['single', 'lanes'] as const) {
       if (layout === 'lanes') for (const [, f] of screens) await chooseLanes(f);
       for (const size of SIZES) {
-        for (const [, f] of screens) await f.page.setViewportSize(size);
+        for (const [, f] of screens) await resizeWindow(f.page, size);
         for (const [who, f, poisoned, clean] of screens) {
           const where = `${who} ${layout} ${size.width}×${size.height}`;
           await expect

@@ -43,7 +43,7 @@
 
 import { expect, test, type Page, type Locator } from '@playwright/test';
 
-import { castByDrag, castCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, says, stackCount } from './play/board.ts'
+import { castByDrag, castCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts'
 import { answerLoneAbility } from './play/prompts.ts';
 import { turnFastModeOff } from './play/prefs.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -111,7 +111,7 @@ test(
     try {
       seated = await startScenarioMatch(browser, stack, 'w59-keiga');
       const { alice, bob } = seated;
-      for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1600, height: 1000 });
+      for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1600, height: 1000 });
 
       const herField = (await alice.page.locator('[data-zone="battlefield"][data-owner="you"]').boundingBox())!;
       const hisField = (await bob.page.locator('[data-zone="battlefield"][data-owner="you"]').boundingBox())!;

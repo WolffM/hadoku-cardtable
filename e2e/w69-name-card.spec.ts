@@ -11,7 +11,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, enabledOk, livePrompt, makeTitled, offeredNamed, pressPaymentAuto, says, serverLog } from './play/board.ts';
+import { clickHandCard, enabledOk, livePrompt, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says, serverLog } from './play/board.ts';
 import { playMessagesIn } from './play/frames.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -48,7 +48,7 @@ test(titled('Cabal Therapy: the name picker is up at once, offers the format’s
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'w69-name-card', { format: FORMAT });
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await watchForPicker(alice.page);
     const castAt = Date.now();
 

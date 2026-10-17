@@ -21,7 +21,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { dragHandCard, makeTitled, offered, says } from './play/board.ts';
+import { dragHandCard, makeTitled, offered, resizeWindow, says } from './play/board.ts';
 import { confirmOpen, confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -75,7 +75,7 @@ test(titled('a card parked on a question stands still on the opponent’s screen
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w62-parked');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Godless Shrine' }).not.toEqual([]);
     const shrine = (await offered(alice.page))[0]!;
     const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
@@ -271,7 +271,7 @@ test(titled('a plain land drop fires the opponent’s handoff flight exactly onc
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'land-into-middle');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Island' }).not.toEqual([]);
     const island = (await offered(alice.page))[0]!;
     const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
@@ -303,7 +303,7 @@ test(titled('a parked card answered fires the opponent’s handoff flight exactl
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'w62-parked');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => offered(alice.page), { timeout: 30_000, message: 'alice is offered Godless Shrine' }).not.toEqual([]);
     const shrine = (await offered(alice.page))[0]!;
     const herField = (await alice.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;

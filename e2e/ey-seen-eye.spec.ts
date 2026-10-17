@@ -17,7 +17,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
-import { castCard, clickHandCard, clickOnce, enabledOk, grindPriority, livePrompt, makeTitled, offeredNamed, says, stackCount } from './play/board.ts';
+import { castCard, clickHandCard, clickOnce, enabledOk, grindPriority, livePrompt, makeTitled, offeredNamed, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -70,7 +70,7 @@ test(titled("an eye on exactly bob's cards alice saw, on bob's screen only, gone
   const stack = await startPlayStack(forge);
   try {
     const { alice, bob } = await startScenarioMatch(browser, stack, 'ey-seen');
-    for (const p of [alice.page, bob.page]) await p.setViewportSize({ width: 1280, height: 800 });
+    for (const p of [alice.page, bob.page]) await resizeWindow(p, { width: 1280, height: 800 });
     await expect.poll(() => offeredNamed(alice.page, 'Thoughtseize'), { timeout: 45_000, message: 'alice is offered Thoughtseize' }).not.toBeUndefined();
     await expect.poll(async () => (await ownHand(bob.page)).length, { timeout: 10_000, message: "bob's hand is drawn" }).toBe(3);
     expect(await seenNames(bob.page), 'before Thoughtseize nothing of bob has been seen').toEqual([]);

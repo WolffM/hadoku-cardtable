@@ -127,7 +127,7 @@ import { resolve } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { enabledCancel, enabledOk as enabledButtonOne, offered, twoLegalDecks } from './play/board.ts';
+import { enabledCancel, enabledOk as enabledButtonOne, offered, resizeWindow, twoLegalDecks } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { confirmYes } from './play/confirm.ts';
 import { connectHands, type Hands } from './play/hands.ts';
@@ -762,7 +762,7 @@ test(TITLE, async ({ browser }) => {
     const bob = await openFriend(browser, 'bob');
     friends.push(alice, bob);
     for (const f of friends) {
-      await f.page.setViewportSize(SIZES[f.name as keyof typeof SIZES]);
+      await resizeWindow(f.page, SIZES[f.name as keyof typeof SIZES]);
       await f.context.addInitScript(installSampler);
     }
     const origin = stack.origin;
@@ -1222,8 +1222,8 @@ test(TITLE, async ({ browser }) => {
 
     /* ── 4. the other window size, from each seat ──────────────────── */
 
-    await alice.page.setViewportSize(SIZES.bob);
-    await bob.page.setViewportSize(SIZES.alice);
+    await resizeWindow(alice.page, SIZES.bob);
+    await resizeWindow(bob.page, SIZES.alice);
     await new Promise((r) => setTimeout(r, 1_000));
     for (const g of friends) moments.push(await fitsNow(g, 'sizes swapped'));
 
@@ -2025,7 +2025,7 @@ test(CROWD_TITLE, async ({ browser }) => {
     const alice = await openFriend(browser, 'alice');
     const bob = await openFriend(browser, 'bob');
     friends.push(alice, bob);
-    for (const f of friends) await f.page.setViewportSize(SIZES[f.name as keyof typeof SIZES]);
+    for (const f of friends) await resizeWindow(f.page, SIZES[f.name as keyof typeof SIZES]);
     await enterMatch(alice, bob, stack.origin, summary);
 
     // Answer the coin toss on the board, so hands are dealt; then Forge parks
@@ -2054,7 +2054,7 @@ test(CROWD_TITLE, async ({ browser }) => {
     for (const f of friends) await chooseLanes(f);
 
     for (const sizes of [SIZES, { alice: SIZES.bob, bob: SIZES.alice }]) {
-      for (const f of friends) await f.page.setViewportSize(sizes[f.name as keyof typeof SIZES]);
+      for (const f of friends) await resizeWindow(f.page, sizes[f.name as keyof typeof SIZES]);
       for (const f of friends) {
         /* ── the canvas is static: fill the stack, and nothing else may move ── */
         const shots: StaticShot[] = [];
@@ -2477,7 +2477,7 @@ test(W6_TITLE, async ({ browser }) => {
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
 
     const piles = page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-tier="back"] > li.board-card');
     await expect(piles, 'the scenario’s eight Plains, each its own pile').toHaveCount(8);
@@ -2518,7 +2518,7 @@ test(W15_TITLE, async ({ browser }) => {
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w43-planeswalker');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
 
     // The scenario's own precondition: Elspeth is on the board at loyalty 2,
     // read off the SAME badge a creature's P/T draws in — there is no
@@ -2566,7 +2566,7 @@ test(W19_TITLE, async ({ browser }) => {
   try {
     const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
     const page = alice.page;
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await resizeWindow(page, { width: 1280, height: 800 });
 
     // The priority ring is in the markup for both seats at all times
     // (`.seat[data-priority] .seat__ring` is what `card.css` lights); whichever
