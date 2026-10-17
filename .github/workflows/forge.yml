@@ -147,6 +147,7 @@ jobs:
       jvm: ${{ steps.pick.outputs.jvm }}
       jvm_files: ${{ steps.pick.outputs.jvm_files }}
       jvm_full: ${{ steps.pick.outputs.jvm_full }}
+      jvm_shards: ${{ steps.jvm_shards.outputs.jvm_shards }}
       nightly: ${{ steps.pick.outputs.nightly }}
     steps:
       # Full history: the selector reads which specs landed with earlier edits
@@ -213,6 +214,23 @@ jobs:
           jq '.files' <<<"$cmp" > "$RUNNER_TEMP/changes.json"
           node scripts/ci/select-forge-tests.ts "$RUNNER_TEMP/changes.json" $defer --github-output "$GITHUB_OUTPUT" || all "the selection script failed" false
           emit nightly=false
+      # How many forge-jvm shards this run's suites need, by their measured
+      # seconds (`scripts/ci/jvm-shards.ts` has why). Each shard recomputes its
+      # own share from the same file list, so the list is derived the same way
+      # there: the `jvm` override, else the selection, else every tracked suite.
+      - name: Shard the jvm suites
+        id: jvm_shards
+        env:
+          JVM: ${{ steps.pick.outputs.jvm }}
+          SELECTED: ${{ steps.pick.outputs.jvm_files }}
+          JVM_OVERRIDE: ${{ inputs.jvm }}
+        run: |
+          set -euo pipefail
+          if [ "$JVM" != true ]; then echo 'jvm_shards=[1]' >> "$GITHUB_OUTPUT"; exit 0; fi
+          files=${JVM_OVERRIDE:-${SELECTED:-$(git ls-files '*.jvm.test.ts')}}
+          shards=$(node scripts/ci/jvm-shards.ts count $files)
+          echo "jvm: $(wc -w <<<"$files") suites in shards $shards"
+          echo "jvm_shards=$shards" >> "$GITHUB_OUTPUT"
 
   # ── The Forge e2e: run it, and prove it RAN ─────────────────────────────────
   #
@@ -527,8 +545,21 @@ jobs:
   # within ONE job would recreate, inside that job's own CPU budget, the exact
   # contention the old ordering existed to avoid between jobs.
   #
-  # The JSON report goes to a file and is judged by its own step, so a run
-  # that dies before writing it is a red, not a silent pass.
+  # SHARDED, since 2026-10-17. Serial means one job's wall time is the sum of
+  # every suite times ONE core's speed: 1808 s on claw-8 alone (run
+  # 39006155634), and on claw-9 — i7-5930K locked at 3.0 GHz, every suite
+  # 1.3–2.4× slower — the same set ran into the old 50 min ceiling beside one
+  # forge-e2e shard (run 39010330727). `changes` sizes the matrix from each
+  # suite's measured seconds and every shard picks its own share the same way
+  # (`scripts/ci/jvm-shards.ts`): a full run is three ~600 s shards, a short
+  # selection one.
+  #
+  # Each shard's JSON report goes to a file, is judged by its own step (the
+  # shard's red, and its evidence), and is kept as an artifact for
+  # `forge-jvm-judge`, which merges every shard's report and judges the whole
+  # run — the only place a full run can see a pinned test that is gone. A
+  # shard that dies before writing its report is a red in both, not a silent
+  # pass.
   #
   # NIGHTLY-ONLY TESTS. Three things were half of this job's 25 minutes
   # (run 37487474250: 745 of 1483 s) and none of them earns a place on every
@@ -551,19 +582,15 @@ jobs:
     # repeated so this job stays safe if its `needs` ever changes.
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.jvm == 'true' && (inputs.only == '' || inputs.only == 'both' || inputs.only == 'jvm')
     runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21"]') }}
-    # Since 2026-10-06: the 39 suites a push runs took
-    # 457 s (7.6 min). They were 1483 s on run 37487474250, before the
-    # nightly-only split, the harness killing its JVMs instead of waiting
-    # 4.4 s for each to stop, and the bridge being compiled once. SETTLED from
-    # this wave's proof dispatches, all FULL+NIGHTLY (a `workflow_dispatch`
-    # always runs the full nightly set, a ceiling a push never reaches): an
-    # uncontended run took 1579–1676 s (26–28 min) with a 68–100 s cold BUILD
-    # beside it (see the identical measurement note on `forge-e2e` above). The
-    # worst observed, with 3 of 4 proof jobs sharing one claw at once, was
-    # 2249 s (37.5 min) — still a content judge failure, not a timeout. 30 is
-    # the baseline (no lock wait any more); +20 covers that measured
-    # contention case with real headroom, not just the uncontended ceiling.
-    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.changes.outputs.jvm_shards) }}
+    # A shard is ~600 s of suites on claw-8 (`SHARD_SECONDS`). The worst
+    # per-suite slowdown measured is 2.4× (claw-9 beside a forge-e2e shard, run
+    # 39010330727), so ~24 min, plus install and a cold bundle BUILD (68–100 s,
+    # see `forge-e2e`).
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v6
 
@@ -595,13 +622,15 @@ jobs:
       # Not production's run directory: `runner.temp` is wiped per-job by the
       # runner itself, so no boot sweep logic is needed to keep this off
       # `/tmp/cardtable-play`.
-      - name: Run every *.jvm.test.ts, serially
+      - name: Run this shard's *.jvm.test.ts, serially
         env:
           CARDTABLE_PLAY_WORK_DIR: ${{ runner.temp }}/cardtable-jvm-play
           SELECTED: ${{ needs.changes.outputs.jvm_files }}
           CARDTABLE_JVM_NIGHTLY: ${{ needs.changes.outputs.nightly == 'true' && '1' || '0' }}
           # '' on every push/PR/schedule — see the `on:` block above.
           JVM_OVERRIDE: ${{ inputs.jvm }}
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ strategy.job-total }}
         run: |
           # No `heavy.lock` any more — see the job comment above. The host
           # line a flaky red needs first, still worth keeping on a claw.
@@ -609,87 +638,45 @@ jobs:
           mkdir -p "$CARDTABLE_PLAY_WORK_DIR"
           report="${{ runner.temp }}/forge-jvm-report.json"
           rm -f "$report"
+          # The same list `changes` sized the matrix from: a targeted dispatch
+          # (`-f jvm='apps/server/src/play/priority.jvm.test.ts'`) runs exactly
+          # those paths, and the judges drop to their "partial run" mode
+          # automatically since `inputs.jvm` is non-empty there too.
           if [ -n "$JVM_OVERRIDE" ]; then
-            # A targeted dispatch (`-f jvm='apps/server/src/play/priority.jvm.test.ts'`):
-            # run exactly these paths instead of deriving the full set, and the
-            # judge step below drops to its "partial run" (`FULL=false`) mode
-            # automatically since `inputs.jvm` is non-empty there too.
-            files="$JVM_OVERRIDE"
-            echo "forge-jvm: jvm override: $files"
+            all="$JVM_OVERRIDE"; echo "forge-jvm: jvm override"
           elif [ -n "$SELECTED" ]; then
-            files="$SELECTED"
-            echo "forge-jvm: selected by changes"
+            all="$SELECTED"; echo "forge-jvm: selected by changes"
           else
-            files=$(git ls-files '*.jvm.test.ts')
+            all=$(git ls-files '*.jvm.test.ts')
           fi
-          [ -n "$files" ] || { echo "::error::no *.jvm.test.ts tracked — nothing to run"; exit 1; }
-          echo "jvm suites ($(wc -w <<<"$files")):"
+          [ -n "$all" ] || { echo "::error::no *.jvm.test.ts tracked — nothing to run"; exit 1; }
+          files=$(node scripts/ci/jvm-shards.ts pick "$SHARD" "$SHARDS" $all)
+          [ -n "$files" ] || { echo "::error::shard $SHARD of $SHARDS holds no suite"; exit 1; }
+          echo "jvm suites, shard $SHARD of $SHARDS ($(wc -w <<<"$files") of $(wc -w <<<"$all")):"
           echo "$files"
           # vitest's own exit code would red the job on a pinned failure; the
           # next step judges the report by name instead, and reds a missing one.
           pnpm exec vitest run --fileParallelism=false --reporter=default --reporter=json --outputFile="$report" $files \
             || echo "::notice::vitest exited $? — the report is judged in the next step"
 
-      # The report is judged by name, not by count, against two pinned lists,
-      # and either list going stale in EITHER direction is a red:
-      #  - a skip (or todo) that is not on `expected_skips`, or one on it that
-      #    no longer skips. With the jar present no `describe.skipIf` fires,
-      #    so that list is empty.
-      #  - a failure that is not on `known_failing`, or a pinned test that no
-      #    longer fails (it passed, or is gone). So the list can only shrink:
-      #    fixing a pinned test reds the job until its line is deleted.
-      #  - `known_flaky` is for a measured race that passes some runs: it may
-      #    pass or fail, but it must still exist. Each entry names its rate.
-      # Each entry is a test's full name (`describe > it`), with a comment
-      # above it giving the one-line reason and the evidence file.
-      # A report that was never written is a red too, not a silent pass.
-      - name: Every jvm suite ran, and nothing failed or skipped off the pinned lists
+      # This shard alone: always partial, since it holds only its share. The
+      # whole run is judged again, merged, by `forge-jvm-judge`.
+      - name: This shard's suites ran, and nothing failed or skipped off the pinned lists
         if: always()
         env:
-          # A partial run (a selection, or a `jvm` override) judges only the
-          # pinned tests it ran; the full run (every suite, at least every
-          # night, no override) judges all of them. `inputs.jvm != ''` forces
-          # the partial path on a targeted dispatch.
-          FULL: ${{ inputs.jvm == '' && needs.changes.outputs.jvm_full == 'true' }}
+          FULL: false
           # Whether the `[nightly]` tests ran: the same test as CARDTABLE_JVM_NIGHTLY above.
           NIGHTLY: ${{ needs.changes.outputs.nightly == 'true' }}
-        run: |
-          report="${{ runner.temp }}/forge-jvm-report.json"
-          test -s "$report" || { echo "::error::$report is empty or missing — the jvm run did not finish writing its report"; exit 1; }
-          # One full test name per line; `#` lines are the reasons, not entries.
-          # `grep` exits 1 on an empty list, which the runner's pipefail would turn into a red.
-          pinned() { { grep -vE '^[[:space:]]*(#|$)' || true; } | jq -R . | jq -sc 'sort'; }
-          expected_skips=$(pinned <<'LIST'
-          LIST
-          )
-          known_failing=$(pinned <<'LIST'
-          LIST
-          )
-          known_flaky=$(pinned <<'LIST'
-          LIST
-          )
-          jq -e --argjson full "$FULL" --argjson nightly "$NIGHTLY" --argjson skips "$expected_skips" --argjson failing "$known_failing" --argjson flaky "$known_flaky" '
-            [.testResults[].assertionResults[]] as $all
-            | [$all[].fullName] as $ran
-            | def inrun: if $full then . else map(select(. as $n | $ran | index($n) != null)) end;
-              # On a push the `[nightly]` tests gate themselves off: that skip is
-              # expected, and a pin on one of them has nothing to be judged against.
-              def onpush: if $nightly then . else map(select(contains("[nightly]") | not)) end;
-              ($failing | inrun | onpush) as $failing
-            | ($skips | inrun) as $skips
-            | ([$all[] | select(.status == "failed") | .fullName] | sort - $flaky) as $failed
-            | ([$all[] | select(.status != "passed" and .status != "failed") | .fullName] | sort | onpush) as $skipped
-            | {
-                "failed, not pinned": ($failed - $failing),
-                "pinned as failing, did not fail": ($failing - $failed),
-                "skipped, not pinned": ($skipped - $skips),
-                "pinned as skipped, did not skip": ($skips - $skipped),
-                "no tests at all": (if ($all | length) == 0 then ["the report holds no test"] else [] end)
-              }
-            | . + {"pinned as flaky, not in the report": (if $full then ($flaky - $ran) else [] end)}
-            | with_entries(select(.value | length > 0))
-            | if length == 0 then true else (., false) end
-          ' "$report" || { echo "::error::the jvm report does not match the pinned lists (see the object above)"; exit 1; }
+        run: scripts/ci/judge-jvm-report.sh "${{ runner.temp }}/forge-jvm-report.json"
+
+      - name: Keep this shard's report for the whole-run judge
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: forge-jvm-report-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/forge-jvm-report.json
+          if-no-files-found: ignore
+          retention-days: 3
 
       # What a timed-out scenario leaves behind: `waitUntil`'s dump (the seat's
       # last frames, the server's stop decisions, the bridge's stderr tail —
@@ -704,7 +691,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@v6
         with:
-          name: forge-jvm-evidence-${{ github.run_attempt }}
+          name: forge-jvm-evidence-${{ matrix.shard }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/cardtable-jvm-play/*.dump.json
             ${{ runner.temp }}/cardtable-jvm-play/*/bridge.stderr.txt
@@ -712,3 +699,43 @@ jobs:
           if-no-files-found: warn
           include-hidden-files: true
           retention-days: 14
+
+  # Every shard's report, merged, judged once as the whole run: a full run
+  # judges every pinned test, so a pin whose test is gone (in no shard) is a
+  # red here and nowhere else. A shard that timed out or died wrote no report,
+  # and a missing report is a red too. Named so `startswith("forge-jvm")`
+  # helpers still find a shard first, and needs no Forge, so no jdk21 claw.
+  forge-jvm-judge:
+    name: judge forge-jvm
+    needs: [changes, forge-jvm]
+    if: ${{ !cancelled() && needs.forge-jvm.result != 'skipped' }}
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: forge-jvm-report-*-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/jvm-reports
+      - name: Every shard reported; the whole run judged against the pinned lists
+        env:
+          SHARDS: ${{ needs.changes.outputs.jvm_shards }}
+          ATTEMPT: ${{ github.run_attempt }}
+          # A partial run (a selection, or a `jvm` override) judges only the
+          # pinned tests it ran; the full run (every suite, at least every
+          # night, no override) judges all of them. `inputs.jvm != ''` forces
+          # the partial path on a targeted dispatch.
+          FULL: ${{ inputs.jvm == '' && needs.changes.outputs.jvm_full == 'true' }}
+          NIGHTLY: ${{ needs.changes.outputs.nightly == 'true' }}
+        run: |
+          dir="${{ runner.temp }}/jvm-reports"
+          merged="${{ runner.temp }}/forge-jvm-report.json"
+          reports=()
+          for i in $(jq -r '.[]' <<<"$SHARDS"); do
+            r="$dir/forge-jvm-report-$i-$ATTEMPT/forge-jvm-report.json"
+            test -s "$r" || { echo "::error::shard $i wrote no report — it timed out or died before its suites finished"; exit 1; }
+            reports+=("$r")
+          done
+          jq -s '{testResults: [.[].testResults[]]}' "${reports[@]}" > "$merged"
+          echo "merged ${#reports[@]} shard reports: $(jq '[.testResults[].assertionResults[]] | length' "$merged") tests"
+          scripts/ci/judge-jvm-report.sh "$merged"
