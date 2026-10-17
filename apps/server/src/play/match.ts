@@ -1866,17 +1866,26 @@ export class Match {
 	 * killing it, so the next process can take it back. False when the match
 	 * cannot outlive us — the caller then owes its seats `serverStopping`.
 	 *
+	 * A FINISHED match (`over`, inside its `overGraceMs`) is handed over too: its
+	 * players are on its result screen, and the board and the ending they are
+	 * looking at are this match's to answer after a deploy exactly as a running
+	 * game's are (the operator, 2026-10-17, prod m-e055472e0d6e: a deploy turned
+	 * a result screen into "no longer running"). The next process's replay ends
+	 * on the same `gameover`, which re-arms the grace from there.
+	 *
 	 * **Nothing is emitted here, on purpose.** A frame sent now would take a `seq`
 	 * that the next server's replay cannot reproduce, and the seat's cursor would
 	 * be one ahead of a stream that then reuses the number. The seats learn what
 	 * happened from the reconnect, which is what the client is already built for.
 	 */
 	handOver(): boolean {
-		if (this.status !== 'starting' && this.status !== 'running') return false;
+		if (this.status !== 'starting' && this.status !== 'running' && this.status !== 'over') return false;
 		if (this.host?.handOver === undefined) return false;
 		if (!this.host.handOver()) return false;
 		if (this.rejoinTimer !== null) clearTimeout(this.rejoinTimer);
 		this.rejoinTimer = null;
+		if (this.overTimer !== null) clearTimeout(this.overTimer);
+		this.overTimer = null;
 		this.deps.log({ evt: 'match-handed-over', matchId: this.id, epoch: this.epoch });
 		return true;
 	}
@@ -3470,9 +3479,10 @@ export interface MatchRegistry {
 	 */
 	adopt(record: JvmRecord): Match | null;
 	/**
-	 * SIGTERM: leave every live match running for the next process. Returns the
-	 * matches that were handed over and the ones that could NOT be, which the
-	 * caller owes an explanation (`Match.serverStopping`).
+	 * SIGTERM: leave every match that holds a JVM (`active`: starting, running,
+	 * or finished and inside its grace) running for the next process. Returns
+	 * the matches that were handed over and the ones that could NOT be, which
+	 * the caller owes an explanation (`Match.serverStopping`) and a stop.
 	 */
 	handOver(): { handed: Match[]; ending: Match[] };
 }
@@ -3491,6 +3501,7 @@ export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopC
 
 export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 	const matches = new Map<string, Match>();
+	const active = (): Match[] => [...matches.values()].filter((m) => m.status === 'starting' || m.status === 'running' || m.status === 'over');
 	return {
 		create(spec) {
 			const id = newMatchId();
@@ -3506,7 +3517,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 			return match;
 		},
 		get: (id) => matches.get(id),
-		active: () => [...matches.values()].filter((m) => m.status === 'starting' || m.status === 'running' || m.status === 'over'),
+		active,
 		stopAll() {
 			for (const m of matches.values()) m.stop();
 		},
@@ -3532,10 +3543,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 		handOver() {
 			const handed: Match[] = [];
 			const ending: Match[] = [];
-			for (const m of matches.values()) {
-				if (m.status !== 'starting' && m.status !== 'running') continue;
-				(m.handOver() ? handed : ending).push(m);
-			}
+			for (const m of active()) (m.handOver() ? handed : ending).push(m);
 			return { handed, ending };
 		},
 	};

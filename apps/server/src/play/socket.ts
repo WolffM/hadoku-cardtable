@@ -1229,16 +1229,12 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		},
 		shutdown(reason: string): { handed: string[]; ended: string[]; reaped: ReapResult } {
 			draining = reason;
-			const { handed, ending } = matches.handOver();
-			// `MatchRegistry.handOver` only CONSIDERS a match that is `starting` or
-			// `running`, so one that had already finished — status `over`, where it sits
-			// for `overGraceMs`, ten minutes below — was in neither list, and nothing
-			// stopped it. That is the leak lane S found: a Forge JVM outliving the
-			// server with no `orphanedAt`, so no successor would adopt it either.
-			// Whatever we are not handing over we are ending, whatever status it ended
-			// in; the status a match stopped in is not its JVM's business.
-			const kept = new Set<Match>([...handed, ...ending]);
-			const ended = [...ending, ...matches.active().filter((m) => !kept.has(m))];
+			// Every match that holds a JVM is in one list or the other — a finished one
+			// (`over`, inside `overGraceMs`) included. Before 2026-10-17 a finished match
+			// was in neither, and its JVM outlived the server with no `orphanedAt` (lane
+			// S's leak); then it was ended, and its players' result screens turned into
+			// "no longer running" on the deploy. Now it is handed over like a running one.
+			const { handed, ending: ended } = matches.handOver();
 			for (const match of ended) match.serverStopping(reason);
 			for (const match of ended) match.stop();
 			// The spare holds no game, so it is stopped either way.

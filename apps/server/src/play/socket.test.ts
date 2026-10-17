@@ -1399,15 +1399,6 @@ describe('shutdown', () => {
 	});
 
 	/**
-	 * The half lane U found missing. `MatchRegistry.handOver` only CONSIDERS a
-	 * match that is `starting` or `running`, so a game that had already finished —
-	 * status `over`, where it waits out `overGraceMs`, ten minutes — was in
-	 * neither the handed list nor the ending list, and `shutdown` never called
-	 * `stop()` on it. Its Forge JVM was therefore never even TOLD to go, which is
-	 * why the record lane S found carried no `orphanedAt`: the server had neither
-	 * handed it over nor asked it to stop.
-	 */
-	/**
 	 * The operator, 2026-10-17 ~09:50Z: a deploy landed while both players were
 	 * on a finished game's result screen (prod m-e055472e0d6e, `status:"over"` at
 	 * shutdown, `handed:[]`). A finished match was never handed over, so its JVM
@@ -1448,7 +1439,15 @@ describe('shutdown', () => {
 		expect(after.handle.matches.get(matchId)?.status).toBe('over');
 	});
 
-	it("stops a match that had already FINISHED, which handOver() does not even consider — it was the leak's first half", async () => {
+	/**
+	 * The half lane U found missing: a game that had already finished — status
+	 * `over`, where it waits out `overGraceMs`, ten minutes — used to be in
+	 * neither the handed list nor the ending list, so `shutdown` never called
+	 * `stop()` on it and its Forge JVM outlived the server with no `orphanedAt`.
+	 * `handOver` now considers it like any match that holds a JVM; one whose host
+	 * cannot outlive us (the replay host has no `handOver`) is ended and stopped.
+	 */
+	it("stops a FINISHED match whose host cannot be handed over — it was the leak's first half", async () => {
 		const h = await boot();
 		const { body } = await startMatch(h);
 		const matchId = body.matchId as string;
