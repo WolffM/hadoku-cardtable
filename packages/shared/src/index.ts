@@ -108,6 +108,24 @@ export {
 } from './sounds.ts';
 
 export {
+  MUSIC_REVIEW_CODES,
+  MUSIC_RATINGS,
+  MusicReviewBodySchema,
+  MusicReviewEntrySchema,
+  MusicReviewMineSchema,
+  MusicReviewRecordSchema,
+  musicReviewCell,
+  musicReviewProblems,
+  musicReviewSlots,
+  type MusicRating,
+  type MusicReviewBody,
+  type MusicReviewCandidate,
+  type MusicReviewEntry,
+  type MusicReviewRecord,
+  type MusicReviewSlot,
+} from './music-review.ts';
+
+export {
   SeqCursorSchema,
   DRAFT_CHANNEL,
   JoinDraftSchema,

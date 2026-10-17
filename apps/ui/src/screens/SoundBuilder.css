@@ -703,3 +703,123 @@ a.sound-builder__btn {
   gap: 4px;
   margin-bottom: 4px;
 }
+
+/* ── the match-music review (#/sounds/music, 2026-10-17) ─────────────── */
+
+.music-review .sound-builder__main {
+  gap: 20px;
+}
+
+.music-review__slot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 1100px;
+  min-width: 0;
+}
+
+.music-review__code {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+}
+
+.music-review__card .sound-queue__choice {
+  grid-template-rows: auto;
+  align-items: center;
+  padding-bottom: 40px;
+}
+
+.music-review__card .sound-queue__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.music-review__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.music-review__current {
+  flex: none;
+  color: var(--color-primary);
+}
+
+.music-review__ratings {
+  position: absolute;
+  left: 12px;
+  bottom: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.music-review__rate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.music-review__rate:hover,
+.music-review__rate:focus-visible {
+  border-color: var(--color-text-secondary);
+}
+
+.music-review__rate[aria-pressed='true'][data-rating='keep'] {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: var(--color-on-success);
+}
+
+.music-review__rate[aria-pressed='true'][data-rating='maybe'] {
+  border-color: var(--color-text-secondary);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+}
+
+.music-review__rate[aria-pressed='true'][data-rating='no'] {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.music-review__note {
+  font: inherit;
+  font-size: 12.5px;
+  resize: vertical;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.music-review__submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.music-review__submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.music-review__submit[data-state='failed'] {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+}

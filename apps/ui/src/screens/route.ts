@@ -19,8 +19,9 @@
  *   `#/play`             constructed: pick a format and a deck, start a match
  *   `#/match/<matchId>`  a match: the invite link for the other seat, and the board
  *   `#/debug`            the developer harness that used to be the front door
- *   `#/sounds`           the sound builder (wave 50) — admin-gated, no link points at it
- *   `#/sounds/sandbox`   the sound sandbox — scenarios played through the mixer, admin-gated
+ *   `#/sounds`           the sound builder (wave 50) — friend tier and above; editing is admin-only
+ *   `#/sounds/sandbox`   the sound sandbox — scenarios played through the mixer, friend tier and above
+ *   `#/sounds/music`     the match-music review — compare, pick and submit, friend tier and above
  *   `#/stats`            the lobby, with the stats popout over it: your record, history, decks, the boards
  *   `#/stats/<name>`     the same popout for another player, by registry name
  *
@@ -65,9 +66,10 @@ export type Route =
   | { kind: 'match'; matchId: string }
   | { kind: 'room'; roomId: string }
   | { kind: 'debug' }
-  /** Admin-gated (wave 50 §U). `SoundBuilder` itself renders nothing for anyone else. */
+  /** Friend tier and above: each screen renders nothing until the server's `/api/sounds` answers (`canView`). */
   | { kind: 'sounds' }
   | { kind: 'sounds-sandbox' }
+  | { kind: 'sounds-music' }
   /** `player` is a registry name; absent is the viewer. */
   | { kind: 'stats'; player?: string };
 
@@ -86,6 +88,7 @@ export function parseRoute(hash: string): Route {
   if (path === 'play') return { kind: 'play' };
   if (path === 'sounds') return { kind: 'sounds' };
   if (path === 'sounds/sandbox') return { kind: 'sounds-sandbox' };
+  if (path === 'sounds/music') return { kind: 'sounds-music' };
   if (path === 'stats') return { kind: 'stats' };
 
   const parts = path.split('/');
@@ -133,6 +136,8 @@ export function routeHash(route: Route): string {
       return '#/sounds';
     case 'sounds-sandbox':
       return '#/sounds/sandbox';
+    case 'sounds-music':
+      return '#/sounds/music';
     case 'draft':
       return `#/draft/${encodeURIComponent(route.draftId)}`;
     case 'deck':

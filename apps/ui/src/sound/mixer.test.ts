@@ -15,10 +15,13 @@ import { createMixer } from './mixer.ts';
 interface FakeSource {
   buffer: unknown;
   started: boolean;
+  stopped: boolean;
+  loop?: boolean;
   onended: (() => void) | null;
   connect: () => void;
   disconnect: () => void;
   start: () => void;
+  stop: () => void;
 }
 
 let contexts: FakeContext[] = [];
@@ -61,11 +64,15 @@ class FakeContext {
     const s: FakeSource = {
       buffer: null,
       started: false,
+      stopped: false,
       onended: null,
       connect() {},
       disconnect() {},
       start() {
         s.started = true;
+      },
+      stop() {
+        s.stopped = true;
       },
     };
     this.sources.push(s);
@@ -168,6 +175,30 @@ describe('the mixer', () => {
     m.loop(['music.match', 'music.match.G']);
     await flush();
     expect(ctx.sources).toHaveLength(1);
+  });
+
+  it('loopFile loops one take outside any role, switches with a fade, and null stops it', async () => {
+    const m = mixer();
+    m.loopFile('music-w-tavern-jig/take-1.ogg');
+    const ctx = contexts[0]!;
+    ctx.grant();
+    await flush();
+    expect(ctx.sources).toHaveLength(1);
+    expect(ctx.sources[0]!.loop).toBe(true);
+    m.loopFile('music-w-tavern-jig/take-1.ogg');
+    await flush();
+    expect(ctx.sources).toHaveLength(1);
+    m.loopFile('music-dawnlight-sanctum/take-1.ogg');
+    await flush();
+    expect(ctx.sources[0]!.stopped).toBe(true);
+    expect(ctx.sources).toHaveLength(2);
+    expect(ctx.sources[1]!.started).toBe(true);
+    m.loopFile(null);
+    expect(ctx.sources[1]!.stopped).toBe(true);
+    expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toEqual([
+      '/takes/music-w-tavern-jig/take-1.ogg',
+      '/takes/music-dawnlight-sanctum/take-1.ogg',
+    ]);
   });
 
   it('a music list with nothing assigned builds nothing', () => {

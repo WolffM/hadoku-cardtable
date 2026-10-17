@@ -3,8 +3,9 @@
  * The sound builder, driven through its own props — a stub `SoundsClient` and
  * a stub player, never a real fetch or a real `AudioContext`. What this pins:
  *
- *   - a non-admin (`canEdit: false`) gets nothing rendered — the gate is the
- *     server's `canEdit`, and there is no local override;
+ *   - below friend tier (`canView: false`, the server never answered) nothing
+ *     renders; a friend (`canEdit: false`) gets a builder that plays and edits
+ *     nothing — both gates are the server's, with no local override;
  *   - click a bin pill (picks it up) then click a cell → exactly one PUT, with
  *     the cell's new list;
  *   - dragging a placed take to another cell → two PUTs, source then target;
@@ -51,7 +52,7 @@ const TAKE_B = {
 type Saved = { cell: string; files: string[]; gain?: number };
 
 function stubClient(
-  assignments: Omit<Assignments, 'gains'> & { gains?: Record<string, number> },
+  assignments: Omit<Assignments, 'gains' | 'canView'> & { gains?: Record<string, number>; canView?: boolean },
   takes: SoundTake[] = [TAKE_A, TAKE_B],
 ): SoundsClient & { saves: Saved[]; retires: { file: string; reason: string }[]; marked: { file: string; mark: string | null }[] } {
   const saves: Saved[] = [];
@@ -76,7 +77,7 @@ function stubClient(
     },
     async assignments() {
       const cells = Object.fromEntries(Object.entries(assignments.cells).map(([c, fs]) => [c, fs.filter((f) => !out.has(f))]));
-      return { gains: {}, ...assignments, cells };
+      return { gains: {}, canView: true, ...assignments, cells };
     },
     async retire(file, reason) {
       retires.push({ file, reason });
@@ -128,11 +129,11 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
 }
 
 describe('SoundBuilder', () => {
-  it('renders nothing for a non-admin, proven AFTER the load has actually resolved', async () => {
+  it('renders nothing below friend tier, proven AFTER the load has actually resolved', async () => {
     // Nothing renders before the load resolves either — `!loaded` and
-    // `loaded && !canEdit` draw the identical empty page — so asserting an
+    // `loaded && !canView` draw the identical empty page — so asserting an
     // empty container right after `render()` would pass even with the
-    // `canEdit` gate deleted outright. The fix is an out-of-band signal that
+    // `canView` gate deleted outright. The fix is an out-of-band signal that
     // the load genuinely completed, checked BEFORE trusting the empty render:
     // a gate this test controls, plus a flag flipped only once the stub's
     // `assignments()` has actually resolved.
@@ -159,7 +160,7 @@ describe('SoundBuilder', () => {
     expect(assignmentsResolved).toBe(false); // nothing has resolved yet — the render above proves nothing
 
     await act(async () => {
-      gate.resolve({ cells: {}, gains: {}, canEdit: false });
+      gate.resolve({ cells: {}, gains: {}, canEdit: false, canView: false });
       // Flush the whole chain inside `act`: the gate settling, `Promise.all`'s
       // own combinator, the component's `.then` (`setTakes`/`setCells`/
       // `setCanEdit`/`setLoaded`), and the resulting re-render. Two extra
@@ -173,6 +174,40 @@ describe('SoundBuilder', () => {
     expect(assignmentsResolved).toBe(true); // the load DID complete by now
     expect(container.textContent).toBe('');
     expect(container.querySelector('button')).toBeNull();
+  });
+
+  it('a friend gets the builder to listen to, and nothing in it edits', async () => {
+    const client = stubClient({ cells: { 'W|spell': [TAKE_A.file], 'g.draw|play': [TAKE_B.file] }, canEdit: false });
+    const player = stubPlayer();
+    const { container } = render(createElement(SoundBuilder, { client, player }));
+    expect(await screen.findByText('Sound Builder')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Music' }).getAttribute('href')).toBe('#/sounds/music');
+    expect(screen.getByRole('link', { name: 'Sandbox' }).getAttribute('href')).toBe('#/sounds/sandbox');
+    expect(screen.queryByRole('button', { name: 'Queue' })).toBeNull();
+
+    // A bin pill plays and picks nothing up; a cell click then places nothing.
+    const pill = screen.getByRole('button', { name: `${TAKE_A.label}: play` });
+    fireEvent.click(pill);
+    expect(player.playFile).toHaveBeenCalledWith(TAKE_A.file);
+    expect(pill.getAttribute('aria-pressed')).toBeNull();
+    expect(pill.getAttribute('draggable')).toBeNull();
+    fireEvent.contextMenu(pill);
+    expect(client.marked).toEqual([]);
+
+    // A role row: no level, and its placed take plays but cannot be removed or dragged.
+    expect(container.querySelector('input[type="range"]')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Remove / })).toBeNull();
+    showColours();
+    const cell = container.querySelector('[data-cell="U|spell"]')!;
+    fireEvent.click(cell);
+    const placed = container.querySelector('[data-cell="W|spell"] .sound-builder__pill--placed')!;
+    expect(placed.getAttribute('draggable')).toBe('false');
+    fireEvent.click(placed);
+    expect(player.playFile).toHaveBeenLastCalledWith(TAKE_A.file, 1);
+    const dt = dataTransferStub();
+    dt.setData('text/plain', JSON.stringify({ file: TAKE_A.file, from: 'W|spell' }));
+    fireEvent.drop(cell, { dataTransfer: dt });
+    expect(client.saves).toEqual([]);
   });
 
   it('renders the builder once canEdit is true', async () => {

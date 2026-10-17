@@ -1,6 +1,8 @@
 /**
  * The sound builder, end to end, against the REAL built server — admin can
- * place a take and have it survive a reload; a friend gets no editor at all.
+ * place a take and have it survive a reload; a friend gets the screens to
+ * listen to and no editor. Then the match-music review (`#/sounds/music`): a
+ * friend picks, submits, and finds the submission restored and on disk.
  *
  * Operator, 2026-10-05: *"somewhat concerned about this being an artifact
  * rather than a real thing on my site… let's do the server-hosted sounds for
@@ -51,7 +53,7 @@
  * nothing.
  */
 
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
@@ -67,6 +69,10 @@ const TAKES_DIR = resolve(SOUNDS_DIR, 'takes', 'w50-test');
 
 const TAKE_A = 'w50-test/take-a.ogg';
 const TAKE_B = 'w50-test/take-b.ogg';
+/** The W match-music slot: one assigned track and one generated take, named the way the catalogue names them. */
+const MUSIC_CELL = 'music.match.W|play';
+const MUSIC_WEB = 'w50-music/take-web.ogg';
+const MUSIC_GEN = 'w50-music/take-jig.ogg';
 /** A role cell: on the builder's default Roles tab, and played by the sandbox's opening. */
 const CELL = 'g.draw|play';
 
@@ -77,6 +83,9 @@ test.beforeAll(async () => {
   // just enough that two different takes are not byte-identical by accident.
   await writeFile(resolve(TAKES_DIR, 'take-a.ogg'), Buffer.from('w50 placeholder take a'));
   await writeFile(resolve(TAKES_DIR, 'take-b.ogg'), Buffer.from('w50 placeholder take b'));
+  await mkdir(resolve(SOUNDS_DIR, 'takes', 'w50-music'), { recursive: true });
+  await writeFile(resolve(SOUNDS_DIR, 'takes', MUSIC_WEB), Buffer.from('w50 placeholder music web'));
+  await writeFile(resolve(SOUNDS_DIR, 'takes', MUSIC_GEN), Buffer.from('w50 placeholder music jig'));
   const catalogue = {
     takes: [
       {
@@ -99,9 +108,30 @@ test.beforeAll(async () => {
         seconds: 0.3,
         prompt: 'placeholder b (not real audio — see the file header)',
       },
+      {
+        file: MUSIC_WEB,
+        sound: 'w50-music-web',
+        name: 'w50 web track',
+        group: 'Music',
+        section: 'Music',
+        label: 'w50 web track',
+        seconds: 0.3,
+        prompt: 'placeholder music (not real audio — see the file header)',
+      },
+      {
+        file: MUSIC_GEN,
+        sound: 'w50-music-jig',
+        name: 'W · w50 jig',
+        group: 'Music',
+        section: 'Music',
+        label: 'W · w50 jig',
+        seconds: 0.3,
+        prompt: 'placeholder music (not real audio — see the file header)',
+      },
     ],
   };
   await writeFile(resolve(SOUNDS_DIR, 'catalogue.json'), JSON.stringify(catalogue));
+  await writeFile(resolve(SOUNDS_DIR, 'assignments.json'), JSON.stringify({ cells: { [MUSIC_CELL]: [MUSIC_WEB] }, gains: {} }));
 });
 
 interface Friend {
@@ -119,7 +149,7 @@ async function open(browser: Browser, name: string): Promise<Friend> {
   return { context, page };
 }
 
-test('admin can place a take and reload to find it saved; a friend gets no editor', async ({ browser }) => {
+test('admin can place a take and reload to find it saved; a friend listens and edits nothing', async ({ browser }) => {
   const admin = await open(browser, 'admin');
   const friend = await open(browser, 'bob');
 
@@ -132,15 +162,15 @@ test('admin can place a take and reload to find it saved; a friend gets no edito
   admin.page.on('pageerror', (err) => pageErrors.push(err));
 
   try {
-    // ── the friend first: reads are friend tier, writes are not ──────────
+    // ── the friend first: the screens are friend tier, writes are not ────
     await friend.page.goto(`${PREFIX}/#/sounds`);
-    // First, that the app actually rendered at all — `toHaveCount(0)` below
-    // would also pass on a blank tab or a crashed page, which proves nothing.
-    // `AppHeader`'s title is drawn on every route, admin-gated or not.
-    await expect(friend.page.getByRole('heading', { name: 'Card Table' })).toBeVisible();
-    // THEN: "render nothing useful" — no Sound Builder heading, no matrix cell.
-    await expect(friend.page.getByRole('heading', { name: 'Sound Builder' })).toHaveCount(0);
-    await expect(friend.page.locator('[data-cell]')).toHaveCount(0);
+    await expect(friend.page.getByRole('heading', { name: 'Sound Builder' })).toBeVisible();
+    // A pill to hear, and nothing that picks up, removes, levels or queues.
+    await expect(friend.page.getByRole('button', { name: 'w50 test · a: play' })).toBeVisible();
+    await expect(friend.page.getByRole('button', { name: /play and pick up/ })).toHaveCount(0);
+    await expect(friend.page.getByRole('button', { name: 'Queue' })).toHaveCount(0);
+    await expect(friend.page.locator('.sound-builder__pill-remove')).toHaveCount(0);
+    await expect(friend.page.locator('input[type="range"]')).toHaveCount(0);
     // And the gate is the SERVER's, not just the screen's own choice not to
     // render: the friend's own request for the assignments says so too.
     const friendAssignments = await friend.page.request.get(`${PREFIX}/api/sounds/assignments`);
@@ -185,8 +215,8 @@ test('admin can place a take and reload to find it saved; a friend gets no edito
 
     // ── the sandbox: the same assignments, played as a scenario ──────────
     await friend.page.goto(`${PREFIX}/#/sounds/sandbox`);
-    await expect(friend.page.getByRole('heading', { name: 'Card Table' })).toBeVisible();
-    await expect(friend.page.getByRole('heading', { name: 'Sound Sandbox' })).toHaveCount(0);
+    await expect(friend.page.getByRole('heading', { name: 'Sound Sandbox' })).toBeVisible();
+    await expect(friend.page.getByRole('columnheader', { name: 'Gain' })).toHaveCount(0);
 
     await admin.page.getByRole('link', { name: 'Sandbox' }).click();
     await expect(admin.page.getByRole('heading', { name: 'Sound Sandbox' })).toBeVisible();
@@ -202,6 +232,47 @@ test('admin can place a take and reload to find it saved; a friend gets no edito
     expect(pageErrors).toEqual([]);
   } finally {
     await admin.context.close();
+    await friend.context.close();
+  }
+});
+
+test('a friend reviews the match music: picks, submits, and finds it restored and on disk', async ({ browser }) => {
+  const friend = await open(browser, 'bob');
+  const pageErrors: Error[] = [];
+  friend.page.on('pageerror', (err) => pageErrors.push(err));
+  try {
+    await friend.page.goto(`${PREFIX}/#/sounds`);
+    await friend.page.getByRole('link', { name: 'Music' }).click();
+    await expect(friend.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
+    await expect(friend.page.getByTestId('music-review-slot')).toHaveCount(15);
+
+    const slot = friend.page.locator(`[data-testid="music-review-slot"][data-cell="${MUSIC_CELL}"]`);
+    await expect(slot.locator('.music-review__card')).toHaveCount(2);
+    await expect(slot.locator('.music-review__card').first()).toHaveAttribute('data-current', '');
+    // Not real audio: the play has to fail soft, never as a page error.
+    await slot.getByRole('button', { name: 'Play W · w50 jig' }).click();
+    await slot.getByRole('button', { name: 'Pick W · w50 jig' }).click();
+    await slot.getByRole('group', { name: 'Rate w50 web track' }).getByRole('button', { name: 'No' }).click();
+    await slot.getByRole('textbox', { name: 'W note' }).fill('the jig');
+
+    const submit = friend.page.getByTestId('music-review-submit');
+    const stored = friend.page.waitForResponse((r) => r.request().method() === 'POST' && r.url().endsWith('/api/sounds/music-review'));
+    await submit.click();
+    expect((await stored).status(), 'the server stored the review').toBe(200);
+    await expect(submit).toHaveAttribute('data-state', 'saved');
+
+    await friend.page.reload();
+    await expect(friend.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
+    await expect(slot.getByRole('button', { name: 'Pick W · w50 jig' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(slot.getByRole('textbox', { name: 'W note' })).toHaveValue('the jig');
+    await expect(submit).toHaveAttribute('data-state', 'saved');
+
+    const lines = (await readFile(resolve(SOUNDS_DIR, 'music-reviews.jsonl'), 'utf8')).trimEnd().split('\n');
+    const last = JSON.parse(lines.at(-1)!) as { userId: string; slots: Record<string, unknown> };
+    expect(last.userId).toBe('e2e-bob-id');
+    expect(last.slots).toEqual({ [MUSIC_CELL]: { pick: MUSIC_GEN, ratings: { [MUSIC_WEB]: 'no' }, note: 'the jig' } });
+    expect(pageErrors).toEqual([]);
+  } finally {
     await friend.context.close();
   }
 });

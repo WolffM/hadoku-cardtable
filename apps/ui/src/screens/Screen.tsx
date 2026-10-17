@@ -12,6 +12,7 @@ import { DebugHarness } from './DebugHarness.tsx';
 import { DeckScreen } from './DeckScreen.tsx';
 import { LobbyScreen } from './LobbyScreen.tsx';
 import { MatchScreen } from './MatchScreen.tsx';
+import { MusicReview } from './MusicReview.tsx';
 import { SoundBuilder } from './SoundBuilder.tsx';
 import { SoundSandbox } from './SoundSandbox.tsx';
 import { navigate, useRoute } from './route.ts';
@@ -53,6 +54,8 @@ export function Screen({ transport }: ScreenProps) {
       return <SoundBuilder />;
     case 'sounds-sandbox':
       return <SoundSandbox />;
+    case 'sounds-music':
+      return <MusicReview />;
     case 'draft':
       return <LegacyDraftRedirect draftId={route.draftId} />;
     case 'deck':

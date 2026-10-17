@@ -20,8 +20,9 @@
  *   `#/play`             `ConstructedScreen` — pick a format and a deck
  *   `#/match/<matchId>`  `MatchScreen` — the invite link and the live board
  *   `#/debug`            `DebugHarness` — the old front door
- *   `#/sounds`           `SoundBuilder` — admin-gated (wave 50 §U), renders nothing for anyone else
- *   `#/sounds/sandbox`   `SoundSandbox` — admin-gated the same way
+ *   `#/sounds`           `SoundBuilder` — friend tier and above; its editing is admin-only
+ *   `#/sounds/sandbox`   `SoundSandbox` — friend tier and above; its gain saves are admin-only
+ *   `#/sounds/music`     `MusicReview` — friend tier and above: compare the match music, submit picks
  *   `#/stats[/<name>]`   the lobby with `StatsPopout` over it — a player's record, history and the boards
  *
  * An unknown hash renders the lobby, which is a screen that explains itself.
@@ -172,7 +173,7 @@ export function App({ transport }: AppProps) {
 
   // The lobby's music everywhere a player is, silence on the tools. A match
   // swaps in its own (`LiveBoard` → `setMatchMusic`).
-  const silent = route.kind === 'debug' || route.kind === 'sounds' || route.kind === 'sounds-sandbox';
+  const silent = route.kind === 'debug' || route.kind === 'sounds' || route.kind === 'sounds-sandbox' || route.kind === 'sounds-music';
   useEffect(() => setScreenMusic(silent ? null : 'music.lobby'), [silent]);
 
   // The fleet's identity, read once here and threaded down. `RoomShell` reads

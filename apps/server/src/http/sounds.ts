@@ -12,13 +12,16 @@
  *   GET /api/sounds/audio/:folder/:file   → 200 audio/ogg | 304 | 400 | 404
  *   GET /api/sounds/assignments           → 200 { cells, gains, canEdit }
  *   PUT /api/sounds/assignments/:cell     { files: string[], gain?: number } → 200 { cell, files, gain } | 400 | 403
+ *   POST /api/sounds/music-review         MusicReviewBody → 200 MusicReviewRecord | 400   (friend tier)
+ *   GET /api/sounds/music-review/mine     → 200 { review: MusicReviewRecord | null }      (friend tier)
  *
  * ## Storage, and what a missing directory means
  *
  * Everything lives under one directory (`CARDTABLE_SOUNDS_DIR`, resolved by
  * `index.ts`): `catalogue.json` (written by `scripts/sfx/import.py`, never by
  * this server), `takes/<folder>/<file>.ogg` (the audio bytes), and
- * `assignments.json` (written here, by an admin PUT). A directory, or any one
+ * `assignments.json` (written here, by an admin PUT), and `music-reviews.jsonl`
+ * (appended here, by any friend's music review). A directory, or any one
  * of those files, that does not exist yet is not an error — a fresh install
  * with no import run has an empty catalogue and an empty assignment map, not
  * a 500. `assignments.json` is written atomically (temp file, then rename),
@@ -54,6 +57,8 @@ import {
 	CatalogueSchema,
 	GainSchema,
 	MarksSchema,
+	MusicReviewBodySchema,
+	MusicReviewRecordSchema,
 	PutAssignmentBodySchema,
 	PutMarkBodySchema,
 	RestoreBodySchema,
@@ -61,10 +66,13 @@ import {
 	SoundTakeSchema,
 	TAKE_FILE_RE,
 	isCellId,
+	musicReviewProblems,
+	musicReviewSlots,
 	type Catalogue,
+	type MusicReviewRecord,
 	type SoundTake,
 } from '@hadoku/shared';
-import { rankOf, tierOf } from '../edge-auth.js';
+import { rankOf, tierOf, userIdOf, userNameOf } from '../edge-auth.js';
 
 export interface SoundsDeps {
 	/** The sounds data directory (`CARDTABLE_SOUNDS_DIR`). Created on first write, never on a read. */
@@ -249,6 +257,42 @@ async function lastRetirement(dir: string, file: string): Promise<RetiredLine | 
 		open = line.action === 'retire' ? line : null;
 	}
 	return open;
+}
+
+/**
+ * `music-reviews.jsonl`: one line per submitted match-music review, append-only, never rewritten. Each
+ * line is a whole `MusicReviewRecord` written by ONE `appendFile` call under the write lock, so lines
+ * never interleave. A process killed mid-append can leave a torn last line; the reader skips (and logs)
+ * any line that does not parse, and the next append starts on a fresh line, so one torn line costs that
+ * one review, never the file or the next one.
+ */
+const MUSIC_REVIEWS_FILE = 'music-reviews.jsonl';
+
+async function readMusicReviews(dir: string, log: Log): Promise<MusicReviewRecord[]> {
+	let raw: string;
+	try {
+		raw = await readFile(join(dir, MUSIC_REVIEWS_FILE), 'utf8');
+	} catch (err) {
+		if (isEnoent(err)) return [];
+		throw err;
+	}
+	const out: MusicReviewRecord[] = [];
+	let bad = 0;
+	for (const text of raw.split('\n')) {
+		if (text.trim() === '') continue;
+		let json: unknown;
+		try {
+			json = JSON.parse(text);
+		} catch {
+			bad += 1;
+			continue;
+		}
+		const parsed = MusicReviewRecordSchema.safeParse(json);
+		if (parsed.success) out.push(parsed.data);
+		else bad += 1;
+	}
+	if (bad > 0) log({ event: 'sounds-file-corrupt', file: MUSIC_REVIEWS_FILE, reason: 'lines skipped', count: bad });
+	return out;
 }
 
 export function attachSounds(api: Router, deps: SoundsDeps): void {
@@ -461,6 +505,46 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 		});
 		log({ event: 'sounds-take-marked', file, mark });
 		res.json({ file, mark });
+	});
+
+	/*
+	 * The match-music review: any friend may submit, because listening and choosing is the whole job; the
+	 * assignments themselves stay admin-only and are set from the submissions by hand. Every pick and
+	 * rating must name a take its slot offers right now (`musicReviewSlots`, the same grouping the page
+	 * draws from).
+	 */
+	sounds.post('/music-review', async (req: Request, res: Response) => {
+		const parsed = MusicReviewBodySchema.safeParse(req.body);
+		if (!parsed.success) return badRequest(res, parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
+		const [catalogue, { cells }] = await Promise.all([readCatalogue(dir, log), readAssignments(dir, log)]);
+		const problems = musicReviewProblems(parsed.data, musicReviewSlots(catalogue.takes, cells));
+		if (problems.length > 0) return badRequest(res, problems.join('; '));
+		const record: MusicReviewRecord = {
+			at: new Date().toISOString(),
+			userId: userIdOf(req),
+			name: userNameOf(req),
+			slots: parsed.data.slots,
+		};
+		await withWriteLock(async () => {
+			const target = join(dir, MUSIC_REVIEWS_FILE);
+			let prev = '';
+			try {
+				prev = await readFile(target, 'utf8');
+			} catch (err) {
+				if (!isEnoent(err)) throw err;
+			}
+			await mkdir(dir, { recursive: true });
+			const lead = prev === '' || prev.endsWith('\n') ? '' : '\n';
+			await appendFile(target, `${lead}${JSON.stringify(record)}\n`);
+		});
+		log({ event: 'sounds-music-review-saved', userId: record.userId, slots: Object.keys(record.slots).length });
+		res.json(record);
+	});
+
+	sounds.get('/music-review/mine', async (req: Request, res: Response) => {
+		const me = userIdOf(req);
+		const mine = (await readMusicReviews(dir, log)).filter((r) => r.userId === me);
+		res.json({ review: mine.at(-1) ?? null });
 	});
 
 	api.use('/sounds', sounds);

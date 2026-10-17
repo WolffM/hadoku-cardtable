@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { pickRandom, soundsClient, type Fetch } from './builderClient.ts';
+import { musicReviewClient, pickRandom, soundsClient, type Fetch } from './builderClient.ts';
 
 const TAKE = {
   file: 'lib-water/take-001.ogg',
@@ -57,7 +57,7 @@ describe('soundsClient.catalogue', () => {
 });
 
 describe('soundsClient.assignments', () => {
-  it('parses cells and canEdit', async () => {
+  it('parses cells and canEdit, and an answer at all is canView', async () => {
     const client = soundsClient(
       vi.fn(async () => okJson({ cells: { 'W|spell': ['lib-water/take-001.ogg'] }, canEdit: true })),
       '/api/',
@@ -66,18 +66,24 @@ describe('soundsClient.assignments', () => {
       cells: { 'W|spell': ['lib-water/take-001.ogg'] },
       gains: {},
       canEdit: true,
+      canView: true,
     });
   });
 
   it('refuses a cell key that is not a valid CellId', async () => {
     const client = soundsClient(vi.fn(async () => okJson({ cells: { bogus: ['x'] }, canEdit: true })), '/api/');
     // The superRefine fails the whole parse; the client's fallback is the empty case.
-    expect(await client.assignments()).toEqual({ cells: {}, gains: {}, canEdit: false });
+    expect(await client.assignments()).toEqual({ cells: {}, gains: {}, canEdit: false, canView: false });
   });
 
   it('is the empty, read-only case on a 403 or an unreachable server', async () => {
     const refused = soundsClient(vi.fn(async () => failed(403)), '/api/');
-    expect(await refused.assignments()).toEqual({ cells: {}, gains: {}, canEdit: false });
+    expect(await refused.assignments()).toEqual({ cells: {}, gains: {}, canEdit: false, canView: false });
+  });
+
+  it('is not viewable below friend: the gate answers 404', async () => {
+    const below = soundsClient(vi.fn(async () => failed(404, 'not found')), '/api/');
+    expect((await below.assignments()).canView).toBe(false);
   });
 });
 
@@ -154,5 +160,37 @@ describe('pickRandom', () => {
     expect(pickRandom(['a', 'b', 'c'], null, () => 0.999)).toBe('c');
     // excludes 'a' (the last pick), so rng=0 lands on the first of the remainder
     expect(pickRandom(['a', 'b', 'c'], 'a', () => 0)).toBe('b');
+  });
+});
+
+describe('musicReviewClient', () => {
+  const RECORD = {
+    at: '2026-10-17T12:00:00.000Z',
+    userId: 'bob',
+    name: 'Bob',
+    slots: { 'music.match.W|play': { pick: 'music-w-tavern-jig/take-1.ogg', ratings: {}, note: '' } },
+  };
+
+  it('mine reads the latest review, and null for none or a failure', async () => {
+    const fetchImpl = vi.fn(async () => okJson({ review: RECORD }));
+    expect(await musicReviewClient(fetchImpl, '/api/').mine()).toEqual(RECORD);
+    expect(fetchImpl).toHaveBeenCalledWith('/api/sounds/music-review/mine', { credentials: 'same-origin' });
+    expect(await musicReviewClient(vi.fn(async () => okJson({ review: null })), '/api/').mine()).toBeNull();
+    expect(await musicReviewClient(vi.fn(async () => failed(404)), '/api/').mine()).toBeNull();
+    const down: Fetch = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    expect(await musicReviewClient(down, '/api/').mine()).toBeNull();
+  });
+
+  it('submit POSTs the body and returns the stored record; null when refused', async () => {
+    const fetchImpl = vi.fn<Fetch>(async () => okJson(RECORD));
+    const body = { slots: RECORD.slots };
+    expect(await musicReviewClient(fetchImpl, '/api/').submit(body)).toEqual(RECORD);
+    const [path, init] = fetchImpl.mock.calls[0]!;
+    expect(path).toBe('/api/sounds/music-review');
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(String(init?.body))).toEqual(body);
+    expect(await musicReviewClient(vi.fn(async () => failed(400)), '/api/').submit(body)).toBeNull();
   });
 });

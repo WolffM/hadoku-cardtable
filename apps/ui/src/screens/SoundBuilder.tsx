@@ -1,5 +1,5 @@
 /*
- * `#/sounds` — the sound builder, admin-gated, server-hosted.
+ * `#/sounds` — the sound builder, server-hosted: friend tier and above may look and listen, an admin edits.
  *
  * A React port of the operator-approved artifact
  * (`docs/handoff/snapshot/builder.html`), kept behaviourally identical (wave
@@ -21,15 +21,16 @@
  * tuned once and the game and the sandbox both hear it. Scenarios live in the
  * sandbox (`#/sounds/sandbox`), which replaced the old "sample turn".
  *
- * ## The gate is the server's, not a client guess
+ * ## The gates are the server's, not a client guess
  *
- * `GET /api/sounds/assignments` answers `{ cells, canEdit }`, and `canEdit` is
- * `rankOf(tier) >= rankOf('admin')` computed server-side from the edge-stamped
- * tier — never a header this client could set. Reads are friend tier, so a
- * non-admin's request still succeeds; this screen renders nothing useful
- * either way until it has seen `canEdit === true`. There is no link to this
- * route from anywhere else in the app, so a friend only ever lands here by
- * typing the hash.
+ * The operator, 2026-10-17: *"make sure /sounds/ is friendtier+ gated"*. Every
+ * `/api/sounds` route sits behind `requireMinTier`, so the assignments read
+ * answering at all (`canView`) is the friend gate, and nothing renders until it
+ * has. `canEdit` is `rankOf(tier) >= rankOf('admin')`, computed server-side
+ * from the edge-stamped tier — never a header this client could set — and
+ * every write route refuses anyone else. A friend gets the builder to listen
+ * to: pills play, cells play, and nothing picks up, drops, removes, marks,
+ * retires, levels or queues.
  *
  * ## Saving is per cell, optimistic, and silent on failure
  *
@@ -118,6 +119,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
 
   const [loaded, setLoaded] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [canView, setCanView] = useState(false);
   const [takes, setTakes] = useState<SoundTake[]>([]);
   const [cells, setCells] = useState<Record<string, string[]>>({});
   const [gains, setGains] = useState<Record<string, number>>({});
@@ -137,6 +139,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
     setCells(a.cells);
     setGains(a.gains);
     setCanEdit(a.canEdit);
+    setCanView(a.canView);
     setLoaded(true);
   }, [client]);
 
@@ -200,6 +203,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
       setCells(a.cells);
       setGains(a.gains);
       setCanEdit(a.canEdit);
+      setCanView(a.canView);
       setLoaded(true);
     });
     return () => {
@@ -312,7 +316,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
     void persist(cell, cells[cell] ?? [], gain);
   }
 
-  if (!loaded || !canEdit) return null;
+  if (!loaded || !canView) return null;
 
   const colourCells = SOUND_MATRIX.colour.reduce((n, row) => n + SOUND_MATRIX.paradigms.filter((p) => rowHasParadigm(row.id, p.id)).length, 0);
   const total = colourCells + SOUND_ROLES.size;
@@ -362,7 +366,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
           </p>
         )}
         <nav className="sound-builder__tabs" aria-label="Builder view">
-          {(['roles', 'colours', 'queue'] as const).map((t) => (
+          {(canEdit ? (['roles', 'colours', 'queue'] as const) : (['roles', 'colours'] as const)).map((t) => (
             <button
               key={t}
               type="button"
@@ -379,6 +383,9 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
           ))}
           <a className="sound-builder__btn sound-builder__btn--primary" href="#/sounds/sandbox">
             Sandbox
+          </a>
+          <a className="sound-builder__btn sound-builder__btn--primary" href="#/sounds/music">
+            Music
           </a>
         </nav>
       </header>
@@ -417,7 +424,20 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
                     {n}
                   </span>
                   <div className="sound-builder__pills">
-                    {list.map((t) => (
+                    {list.map((t) =>
+                      !canEdit ? (
+                        <button
+                          key={t.file}
+                          type="button"
+                          className="sound-builder__pill"
+                          data-placed={placed.has(t.file) ? '' : undefined}
+                          aria-label={`${t.label}: play`}
+                          title={t.prompt}
+                          onClick={() => player.playFile(t.file)}
+                        >
+                          {shortLabel(t)}
+                        </button>
+                      ) : (
                       <button
                         key={t.file}
                         type="button"
@@ -438,7 +458,8 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
                       >
                         {shortLabel(t)}
                       </button>
-                    ))}
+                      ),
+                    )}
                   </div>
                 </div>
               </div>
@@ -447,7 +468,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
         </aside>
 
         <main className="sound-builder__main">
-          {tab === 'queue' && (
+          {tab === 'queue' && canEdit && (
             <SoundQueue
               takes={takes}
               cells={cells}
@@ -483,6 +504,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
                         <ColourRowEl
                           key={row.id}
                           row={row}
+                          canEdit={canEdit}
                           famHeader={famHeader}
                           cells={cells}
                           byFile={byFile}
@@ -534,6 +556,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
                               <td>
                                 <Cell
                                   cellId={cellId}
+                                  canEdit={canEdit}
                                   files={files}
                                   byFile={byFile}
                                   holding={holding}
@@ -546,6 +569,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
                                 {files.length > 0 && (
                                   <CellControls
                                     cellId={cellId}
+                                    canEdit={canEdit}
                                     files={files}
                                     label={role.name}
                                     gain={gainOf(cellId)}
@@ -572,6 +596,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
 
 interface ColourRowProps {
   row: (typeof SOUND_MATRIX.colour)[number];
+  canEdit: boolean;
   famHeader: boolean;
   cells: Record<string, string[]>;
   byFile: Map<string, SoundTake>;
@@ -588,6 +613,7 @@ interface ColourRowProps {
 
 function ColourRowEl({
   row,
+  canEdit,
   famHeader,
   cells,
   byFile,
@@ -628,6 +654,7 @@ function ColourRowEl({
             <td key={p.id}>
               <Cell
                 cellId={cellId}
+                canEdit={canEdit}
                 files={files}
                 hint={hint}
                 byFile={byFile}
@@ -641,6 +668,7 @@ function ColourRowEl({
               {files.length > 0 && (
                 <CellControls
                   cellId={cellId}
+                  canEdit={canEdit}
                   files={files}
                   label={`${row.name} ${p.name}`}
                   gain={gains[cellId] ?? 1}
@@ -663,6 +691,7 @@ function ColourRowEl({
  */
 function CellControls({
   cellId,
+  canEdit,
   files,
   label,
   gain,
@@ -670,6 +699,7 @@ function CellControls({
   onGain,
 }: {
   cellId: string;
+  canEdit: boolean;
   files: string[];
   label: string;
   gain: number;
@@ -687,13 +717,15 @@ function CellControls({
       >
         ▶
       </button>
-      <GainSlider label={label} value={gain} onCommit={(v) => onGain(cellId, v)} />
+      {canEdit && <GainSlider label={label} value={gain} onCommit={(v) => onGain(cellId, v)} />}
     </div>
   );
 }
 
 interface CellProps {
   cellId: string;
+  /** False for a friend: the cell plays its takes and nothing in it moves. */
+  canEdit: boolean;
   files: string[];
   hint?: string;
   byFile: Map<string, SoundTake>;
@@ -707,6 +739,7 @@ interface CellProps {
 
 function Cell({
   cellId,
+  canEdit,
   files,
   hint,
   byFile,
@@ -723,10 +756,10 @@ function Cell({
       data-cell={cellId}
       data-unsaved={unsaved ? '' : undefined}
       onClick={() => {
-        if (holding !== null) onAddTo(cellId, holding);
+        if (canEdit && holding !== null) onAddTo(cellId, holding);
       }}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => onDrop(cellId, e)}
+      onDragOver={canEdit ? (e) => e.preventDefault() : undefined}
+      onDrop={canEdit ? (e) => onDrop(cellId, e) : undefined}
     >
       {files.length > 0 ? (
         <>
@@ -738,7 +771,7 @@ function Cell({
                 key={f}
                 className="sound-builder__pill sound-builder__pill--placed"
                 title={take.prompt}
-                draggable
+                draggable={canEdit}
                 onDragStart={(e) =>
                   e.dataTransfer.setData('text/plain', JSON.stringify({ file: f, from: cellId }))
                 }
@@ -751,17 +784,19 @@ function Cell({
                 }}
               >
                 {take.label}
-                <button
-                  type="button"
-                  className="sound-builder__pill-remove"
-                  aria-label={`Remove ${take.label}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveFrom(cellId, f);
-                  }}
-                >
-                  ×
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="sound-builder__pill-remove"
+                    aria-label={`Remove ${take.label}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveFrom(cellId, f);
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
               </span>
             );
           })}

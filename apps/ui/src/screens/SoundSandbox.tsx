@@ -12,8 +12,9 @@
  * Mixer levels (bus volumes, the opponent level) are this browser's own, kept
  * in localStorage: they are the listener's preference, not the assignment.
  *
- * Admin-gated the same way as the builder: nothing renders until the server's
- * `canEdit` says so.
+ * Friend tier and above, the same way as the builder: nothing renders until the
+ * server's `/api/sounds` has answered (`canView`). Anyone may play a scenario;
+ * the gain column, which saves to the assignments, is an admin's (`canEdit`).
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -71,6 +72,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
 
   const [loaded, setLoaded] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [canView, setCanView] = useState(false);
   const [takes, setTakes] = useState<SoundTake[]>([]);
   const [cells, setCells] = useState<Record<string, string[]>>({});
   const [gains, setGains] = useState<Record<string, number>>({});
@@ -97,6 +99,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
       setCells(a.cells);
       setGains(a.gains);
       setCanEdit(a.canEdit);
+      setCanView(a.canView);
       setLoaded(true);
     });
     return () => {
@@ -151,7 +154,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
     await client.save(cell as CellId, cells[cell] ?? [], gain);
   }
 
-  if (!loaded || !canEdit) return null;
+  if (!loaded || !canView) return null;
 
   const setBus = (bus: SoundBus, v: number): void => setMix((m) => ({ ...m, bus: { ...m.bus, [bus]: v } }));
 
@@ -162,6 +165,9 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
         <nav className="sound-builder__tabs" aria-label="Sound screens">
           <a className="sound-builder__btn" href="#/sounds">
             Builder
+          </a>
+          <a className="sound-builder__btn" href="#/sounds/music">
+            Music
           </a>
         </nav>
         <div className="sound-sandbox__controls">
@@ -259,7 +265,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
                   <th>Time</th>
                   <th>Beat</th>
                   <th>Heard</th>
-                  <th>Gain</th>
+                  {canEdit && <th>Gain</th>}
                 </tr>
               </thead>
               <tbody>
@@ -304,18 +310,20 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
                               );
                             })}
                       </td>
-                      <td>
-                        {layerCells.map((cell) =>
-                          (cells[cell] ?? []).length > 0 ? (
-                            <GainSlider
-                              key={cell}
-                              label={cell}
-                              value={gains[cell] ?? 1}
-                              onCommit={(v) => void commitGain(cell, v)}
-                            />
-                          ) : null,
-                        )}
-                      </td>
+                      {canEdit && (
+                        <td>
+                          {layerCells.map((cell) =>
+                            (cells[cell] ?? []).length > 0 ? (
+                              <GainSlider
+                                key={cell}
+                                label={cell}
+                                value={gains[cell] ?? 1}
+                                onCommit={(v) => void commitGain(cell, v)}
+                              />
+                            ) : null,
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

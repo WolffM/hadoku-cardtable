@@ -57,6 +57,11 @@ export interface Mixer {
    * dropped: it is meant to be playing whenever the page can play.
    */
   loop(role: MusicChoice): void;
+  /**
+   * Loop one take on the music bus, outside any role, crossfading from whatever loops now; `null`
+   * fades it out. The music review's audition (`#/sounds/music`): the same bus and fade a match uses.
+   */
+  loopFile(file: string | null): void;
   /** The player's levels (`./mute.ts`), 0..1, applied at once — music too, mid-loop. */
   setLevels(levels: { volume: number; music: number }): void;
 }
@@ -202,6 +207,26 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     };
   };
 
+  /** Loop `file` under `key` once it decodes, unless the loop asked for has changed by then. */
+  const startLoop = (key: string, file: string, gain: number): void => {
+    const ac = context();
+    if (ac === null) return;
+    const ready = ac.state === 'suspended' ? ac.resume().catch(() => undefined) : Promise.resolve();
+    void Promise.all([load(file), ready]).then(([buf]) => {
+      if (buf === null || musicNode === null || loopRole !== key || loopVoice !== null) return;
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const env = ac.createGain();
+      env.gain.setValueAtTime(0, ac.currentTime);
+      env.gain.linearRampToValueAtTime(gain, ac.currentTime + MUSIC_FADE_S);
+      src.connect(env);
+      env.connect(musicNode);
+      src.start();
+      loopVoice = { src, env };
+    });
+  };
+
   const mixer: Mixer = {
     planner,
     settings: DEFAULT_MIX,
@@ -230,22 +255,15 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
         loopRole = null;
         return;
       }
-      const ac = context();
-      if (ac === null) return;
-      const ready = ac.state === 'suspended' ? ac.resume().catch(() => undefined) : Promise.resolve();
-      void Promise.all([load(voice.file), ready]).then(([buf]) => {
-        if (buf === null || musicNode === null || loopRole !== role || loopVoice !== null) return;
-        const src = ac.createBufferSource();
-        src.buffer = buf;
-        src.loop = true;
-        const env = ac.createGain();
-        env.gain.setValueAtTime(0, ac.currentTime);
-        env.gain.linearRampToValueAtTime(voice.gain, ac.currentTime + MUSIC_FADE_S);
-        src.connect(env);
-        env.connect(musicNode);
-        src.start();
-        loopVoice = { src, env };
-      });
+      startLoop(role, voice.file, voice.gain);
+    },
+    loopFile(file) {
+      const key = file === null ? null : `file:${file}`;
+      if (key === loopRole) return;
+      loopRole = key;
+      if (ctx !== null) fadeOutLoop(ctx);
+      if (key === null || file === null) return;
+      startLoop(key, file, 1);
     },
     setLevels(next) {
       levels = next;

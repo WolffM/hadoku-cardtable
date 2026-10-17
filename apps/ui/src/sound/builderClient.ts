@@ -12,11 +12,11 @@
  *
  * A read that cannot reach the server, or that the server answers with
  * something that does not parse, comes back as the EMPTY case — `[]` for the
- * catalogue, `{ cells: {}, gains: {}, canEdit: false }` for assignments — rather than a
- * thrown error. `SoundBuilder.tsx` renders nothing useful for a non-admin
- * already, and "the server is unreachable" is not a fact worth a different
- * screen from "you are not an admin": both mean there is nothing to edit here
- * right now.
+ * catalogue, `{ cells: {}, gains: {}, canEdit: false, canView: false }` for
+ * assignments — rather than a thrown error. `canView` is the friend gate as the
+ * server answered it: `/api/sounds/*` sits behind `requireMinTier`, so a 200
+ * means the viewer is friend tier or above, and anything else — a 404 below
+ * friend, an unreachable server — draws the same nothing.
  *
  * `save` is the one call that DOES say when it failed (`null`), because the
  * screen needs to mark that one cell unsaved rather than silently keep an
@@ -28,6 +28,10 @@ import {
   CatalogueSchema,
   type CellId,
   MarksSchema,
+  MusicReviewMineSchema,
+  MusicReviewRecordSchema,
+  type MusicReviewBody,
+  type MusicReviewRecord,
   type RetireReason,
   type SoundMark,
   type SoundTake,
@@ -42,6 +46,8 @@ export interface Assignments {
   /** A cell's level relative to the others; a missing entry is 1. */
   gains: Record<string, number>;
   canEdit: boolean;
+  /** The server answered at all: the viewer is friend tier or above. */
+  canView: boolean;
 }
 
 /** What a save stored: the cell's file list and its gain. */
@@ -119,15 +125,16 @@ export function soundsClient(
     },
 
     async assignments() {
+      const none = { cells: {}, gains: {}, canEdit: false, canView: false };
       let res: Response;
       try {
         res = await fetchImpl(url('/assignments'), { credentials: 'same-origin' });
       } catch {
-        return { cells: {}, gains: {}, canEdit: false };
+        return none;
       }
-      if (!res.ok) return { cells: {}, gains: {}, canEdit: false };
+      if (!res.ok) return none;
       const parsed = AssignmentsSchema.safeParse(await bodyOf(res));
-      return parsed.success ? parsed.data : { cells: {}, gains: {}, canEdit: false };
+      return parsed.success ? { ...parsed.data, canView: true } : none;
     },
 
     async save(cell, files, gain) {
@@ -215,6 +222,48 @@ export function soundsClient(
       const folder = i < 0 ? file : file.slice(0, i);
       const name = i < 0 ? '' : file.slice(i + 1);
       return url(`/audio/${encodeURIComponent(folder)}/${encodeURIComponent(name)}`);
+    },
+  };
+}
+
+/** The match-music review's two calls (`#/sounds/music`). */
+export interface MusicReviewClient {
+  /** `GET /api/sounds/music-review/mine`: the viewer's latest submission; null for none or a failure. */
+  mine(): Promise<MusicReviewRecord | null>;
+  /** `POST /api/sounds/music-review`: the stored record, or null when it was refused or unreachable. */
+  submit(body: MusicReviewBody): Promise<MusicReviewRecord | null>;
+}
+
+export function musicReviewClient(
+  fetchImpl: Fetch = (i, init) => fetch(i, init),
+  base: string = defaultApiBase(),
+): MusicReviewClient {
+  const url = `${base}sounds/music-review`;
+  return {
+    async mine() {
+      try {
+        const res = await fetchImpl(`${url}/mine`, { credentials: 'same-origin' });
+        if (!res.ok) return null;
+        const parsed = MusicReviewMineSchema.safeParse(await bodyOf(res));
+        return parsed.success ? parsed.data.review : null;
+      } catch {
+        return null;
+      }
+    },
+    async submit(body) {
+      try {
+        const res = await fetchImpl(url, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: JSON_HEADERS,
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) return null;
+        const parsed = MusicReviewRecordSchema.safeParse(await bodyOf(res));
+        return parsed.success ? parsed.data : null;
+      } catch {
+        return null;
+      }
     },
   };
 }

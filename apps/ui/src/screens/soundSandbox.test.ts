@@ -32,11 +32,11 @@ const TAKE = {
   prompt: 'a brook',
 };
 
-function stubClient(canEdit: boolean, cells: Record<string, string[]> = {}) {
+function stubClient(canEdit: boolean, cells: Record<string, string[]> = {}, canView = true) {
   const saves: { cell: string; files: string[]; gain?: number }[] = [];
   const client: SoundsClient = {
     catalogue: async () => [TAKE],
-    assignments: async () => ({ cells, gains: {}, canEdit }),
+    assignments: async () => ({ cells, gains: {}, canEdit, canView }),
     save: async (cell, files, gain) => {
       saves.push({ cell, files: [...files], gain });
       return { files: [...files], gain: gain ?? 1 };
@@ -64,6 +64,7 @@ function stubMixer() {
     preload: vi.fn(),
     setLevels: vi.fn(),
     loop: vi.fn(),
+    loopFile: vi.fn(),
   };
   return { mixer, events };
 }
@@ -76,11 +77,24 @@ async function flush(): Promise<void> {
 }
 
 describe('SoundSandbox', () => {
-  it('renders nothing for a non-admin', async () => {
-    const { client } = stubClient(false);
+  it('renders nothing below friend tier: the server never answered', async () => {
+    const { client } = stubClient(false, {}, false);
     const { container } = render(createElement(SoundSandbox, { client, mixer: stubMixer().mixer }));
     await flush();
     expect(container.innerHTML).toBe('');
+  });
+
+  it('a friend plays scenarios, with no gain column to save from', async () => {
+    const { client, saves } = stubClient(false, { 'g.draw|play': [TAKE.file] });
+    const { mixer, events } = stubMixer();
+    const { container } = render(createElement(SoundSandbox, { client, mixer }));
+    expect(await screen.findByText('Sound Sandbox')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Music' }).getAttribute('href')).toBe('#/sounds/music');
+    expect(screen.queryByRole('columnheader', { name: 'Gain' })).toBeNull();
+    expect(container.querySelector('input[type="range"][aria-label$=" gain"]')).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: /^Fire / })[0]!);
+    expect(events).toHaveLength(1);
+    expect(saves).toEqual([]);
   });
 
   it('plays every beat of the chosen scenario through the mixer, layered with the seat identities', async () => {

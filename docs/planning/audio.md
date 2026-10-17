@@ -41,6 +41,7 @@ Later directions, verbatim, in order:
 | 2. playing at the right times | wave B ✔ (`play/live/sound-events.ts`, live from 2026-10-10) |
 | 3. assigning + testing single sounds | `#/sounds` (wave A) |
 | 4. the scenario sandbox | `#/sounds/sandbox` (wave A); the captured game replays there (wave C) |
+| (music review) | `#/sounds/music` (2026-10-17): compare the 15 match-music slots' candidates, pick, rate, submit; read back from `music-reviews.jsonl` |
 
 ## Operator decisions (2026-10-09)
 
@@ -64,7 +65,10 @@ wiring → gap generation.**
 
 - `apps/ui/src/sound/`: five synthesised cues (`hover select drag drop deny`),
   wired only in draft tiles and the room list. `cue-manifest.json` is empty.
-- `#/sounds` (w50): admin-gated builder. The grid is 27 colour identities × 5
+- `#/sounds` (w50): the builder. Since 2026-10-17 every `#/sounds` screen is
+  friend tier and above (the operator: *"make sure /sounds/ is friendtier+
+  gated"*): a friend listens, only an admin edits, and every `/api/sounds`
+  route sits behind `requireMinTier`. The grid is 27 colour identities × 5
   card types, plus 13 `m-*` moments. Takes live in `CARDTABLE_SOUNDS_DIR`,
   served by `/api/sounds`.
 - **The two systems never meet.** No game event plays a builder assignment.
@@ -206,7 +210,25 @@ colour layer.
 - Catalogue side panel: search and filter by section/group, length, and
   "unassigned only". Drag a take onto a role. Writes stay admin-gated.
 
-## Sandbox (`#/sounds/sandbox`, admin-gated)
+## Match-music review (`#/sounds/music`, friend tier)
+
+The operator, 2026-10-17: *"post it as a new route under /sounds/ i want to be
+able to go there, test, then send the results for review later. make sure
+/sounds/ is friendtier+ gated"*. One section per `MATCH_MUSIC_ROLES` cell,
+monos then pairs. Candidates come from data, in one place
+(`musicReviewSlots`, `packages/shared/src/music-review.ts`): the cell's current
+assignment (badged) and every Music take named `<code> · `. Each card loops its
+take on the music bus at the player's levels, one at a time; a check picks it
+(one per slot); keep / maybe / no rate it; a note goes with the slot. Submit
+is `POST /api/sounds/music-review`, validated against the same grouping and
+appended to **`<sounds dir>/music-reviews.jsonl`** — in production
+`apps/server/data/sounds/music-reviews.jsonl` in the deploy tree — as
+`{at, userId, name, slots: {<cell>: {pick, ratings, note}}}`. Re-opening
+restores the browser's unsent draft, else the viewer's latest line
+(`GET /api/sounds/music-review/mine`). Nothing writes the assignments: a later
+session reads the file and sets them (`scripts/sfx/README.md`, Music review).
+
+## Sandbox (`#/sounds/sandbox`, friend tier; gain saves admin-only)
 
 **Scripted timelines.** Each beat is `{at, role, colour?, cardType?, seat}`,
 played through the real mixer. Controls: play, stop, loop, speed (0.5×–2×), a
