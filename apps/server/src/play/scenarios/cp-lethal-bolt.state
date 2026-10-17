@@ -1,0 +1,15 @@
+# e2e/cp-lethal-blow.spec.ts — the bolt that ends the game lands before the game ends.
+# bolt-player.state with bob (ai, seat 1) at 3 life: seat 0's Lightning Bolt at bob is lethal.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=3
+humanhand=Lightning Bolt
+humanbattlefield=Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

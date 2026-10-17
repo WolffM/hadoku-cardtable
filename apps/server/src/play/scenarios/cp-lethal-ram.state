@@ -1,0 +1,20 @@
+# e2e/cp-lethal-blow.spec.ts — the blow that ends the game is drawn before the game ends.
+# bob (ai, seat 1) is the active player with Hill Giant (3/3) already attacking alice (human,
+# seat 0), who is at 3 life with nothing to block with: the Giant's combat damage is lethal.
+# `activephase` lands on Declare ATTACKERS Step, never Declare Blockers itself (README: "Combat,
+# specifically"): bob passes that priority stop through the ordinary main loop. bob holds a Lightning Bolt
+# he can cast, so each of his priority stops on the way to combat damage is kept for the spec to press
+# (the play-stop rule) rather than auto-passed before both screens are even dealt in.
+turn=1
+activeplayer=ai
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=3
+ailife=20
+humanhand=
+humanbattlefield=Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Lightning Bolt
+aibattlefield=Hill Giant|Attacking;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
