@@ -38,9 +38,13 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { getConfig } from '@testing-library/react';
+import { onTestFailed } from 'vitest';
+
 import { isTierC, parseServerFrame, safeParseClientFrame, type ServerFrame } from '@hadoku/forge-wire';
 
 import game1 from '../fixtures/tierc-game1-seq1-27.json';
+import { subscribe, type LiveMatch } from './match.ts';
 import { MATCH_EVENTS, type MatchSnapshot, type ServerEnvelope, type WireCursor } from './transport.ts';
 
 interface IoSocket {
@@ -85,6 +89,9 @@ export function confirmAsk(callId: string, defaultYes = true): ServerFrame {
   });
 }
 
+/** The event `caughtUp` sends its marker on. */
+const CAUGHT_UP = 'replay:caught-up';
+
 export interface Received {
   event: string;
   payload: unknown;
@@ -98,6 +105,20 @@ export interface ReplayServer {
   received: Received[];
   /** `received`, `forge:c2s` only, each frame parsed by forge-wire. */
   clientFrames(): ReturnType<typeof safeParseClientFrame>[];
+  /**
+   * Resolves on the arrival of the `n`th `forge:c2s` frame, and rejects at once
+   * if more than `n` have already arrived. It has no deadline of its own: the
+   * test's timeout is the bound. A `waitFor` polling `clientFrames()` gave the
+   * client-to-server hop RTL's one second, and a loaded host outlasted that
+   * with the frame already sent.
+   */
+  untilClientFrames(n: number): Promise<void>;
+  /**
+   * Resolves once everything `match` has sent so far has arrived: a marker sent
+   * behind it on the same socket, which delivers in order. For a test that
+   * reads `received` once the client has done its sending.
+   */
+  caughtUp(match: LiveMatch): Promise<void>;
   joins: number;
   resyncs: number;
   /** Send one frame to every joined client, stamped with the next cursor. */
@@ -149,6 +170,11 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
   let history: ServerFrame[] = [];
   const openAsks = new Map<string, ServerFrame>();
   const sentLog = new Map<string, ServerEnvelope>();
+  // `untilClientFrames` waiters, each told of every `forge:c2s` arrival.
+  const onClientFrame = new Set<() => void>();
+  // `caughtUp` markers in flight, by id.
+  const markers = new Map<number, () => void>();
+  let lastMarker = 0;
   // The open input, kept the way `Match` keeps it per seat (wave 31 §S, P10):
   // a reload's snapshot starts from nothing and the server re-sends these.
   const input: { selection: ServerFrame | null; highlighted: Map<string, unknown>; weakly: ServerFrame | null } = {
@@ -170,6 +196,24 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
       server.received
         .filter((r) => r.event === MATCH_EVENTS.clientToServer)
         .map((r) => safeParseClientFrame((r.payload as { frame?: unknown }).frame)),
+    untilClientFrames: (n) =>
+      new Promise<void>((resolve, reject) => {
+        const check = (): void => {
+          const count = server.clientFrames().length;
+          if (count < n) return;
+          onClientFrame.delete(check);
+          if (count === n) resolve();
+          else reject(new Error(`expected ${String(n)} client frames, ${String(count)} arrived: ${JSON.stringify(server.clientFrames())}`));
+        };
+        onClientFrame.add(check);
+        check();
+      }),
+    caughtUp: (match) =>
+      new Promise<void>((resolve) => {
+        const id = (lastMarker += 1);
+        markers.set(id, resolve);
+        match.transport.emit(CAUGHT_UP, id);
+      }),
     send: (frame) => stamp(frame, true),
     lose: (frame) => stamp(frame, false),
     sendRaw: (payload) => {
@@ -272,6 +316,7 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     socket.on(MATCH_EVENTS.resync, answer(MATCH_EVENTS.resync));
     socket.on(MATCH_EVENTS.clientToServer, (payload) => {
       server.received.push({ event: MATCH_EVENTS.clientToServer, payload });
+      for (const check of [...onClientFrame]) check();
       const parsed = safeParseClientFrame((payload as { frame?: unknown }).frame);
       if (!parsed.ok || (parsed.value.kind !== 'reply' && parsed.value.kind !== 'abort')) return;
       openAsks.delete(parsed.value.callId);
@@ -302,6 +347,11 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
     socket.on(MATCH_EVENTS.triggerDecision, (payload) => {
       server.received.push({ event: MATCH_EVENTS.triggerDecision, payload });
     });
+    // Not a client event: `caughtUp`'s marker, answered and never recorded.
+    socket.on(CAUGHT_UP, (id) => {
+      markers.get(id as number)?.();
+      markers.delete(id as number);
+    });
     // Client telemetry: the real handler writes it to the log; this double records what was sent.
     socket.on(CLIENT_EVENT, (payload) => {
       server.received.push({ event: CLIENT_EVENT, payload });
@@ -311,6 +361,50 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
   await new Promise<void>((ready) => http.listen(0, '127.0.0.1', ready));
   server.url = `http://127.0.0.1:${(http.address() as AddressInfo).port}`;
   return server;
+}
+
+/**
+ * Resolves once `assertion` passes, tried now and again on every change `match`
+ * announces — the moment a frame from the socket did what it was waited for.
+ * It has no deadline of its own: the test's timeout is the bound, and the
+ * assertion's last failure is printed if that runs out. A `waitFor` gave the
+ * server-to-client hop RTL's one second, which a loaded host outlasted.
+ */
+export function untilMatch(match: LiveMatch, assertion: () => void): Promise<void> {
+  return settled(() => new Promise<void>((resolve) => {
+    let last: unknown = null;
+    const passes = (): boolean => {
+      try {
+        assertion();
+        return true;
+      } catch (error) {
+        last = error;
+        return false;
+      }
+    };
+    if (passes()) {
+      resolve();
+      return;
+    }
+    onTestFailed(() => {
+      if (last !== null) console.error('untilMatch was still waiting on:', last);
+    });
+    const unsubscribe = subscribe(match, () => {
+      if (!passes()) return;
+      last = null;
+      unsubscribe();
+      resolve();
+    });
+  }));
+}
+
+/**
+ * Wait as RTL's `waitFor` waits, minus its deadline: through the async wrapper
+ * `@testing-library/react` installs, so React has drawn what the awaited change
+ * set off by the time the test reads the page.
+ */
+function settled(wait: () => Promise<void>): Promise<void> {
+  return getConfig().asyncWrapper(wait) as Promise<void>;
 }
 
 /** Poll until `check` holds, or fail naming what was being waited for. */

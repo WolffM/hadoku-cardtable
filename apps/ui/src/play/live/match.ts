@@ -2312,12 +2312,15 @@ export function isMarked(match: LiveMatch, target: { kind: 'card' | 'player'; id
  * first click, and the second is not sent: sending it would act on whatever was
  * current before.
  */
-export function afterMarked(match: LiveMatch, target: { kind: 'card' | 'player'; id: number }, then: () => void, timeoutMs = 2000): void {
-  afterState(match, () => isMarked(match, target), then, timeoutMs);
+export function afterMarked(match: LiveMatch, target: { kind: 'card' | 'player'; id: number }, then: () => void): void {
+  afterState(match, () => isMarked(match, target), then);
 }
 
-/** Run `then` once `ready()` holds — at once if it already does — and never if it has not within `timeoutMs`. */
-function afterState(match: LiveMatch, ready: () => boolean, then: () => void, timeoutMs = 2000): void {
+/** How long a second click waits for Forge to show it applied the first (`afterMarked`, `removeBlock`). */
+export const MARK_WAIT_MS = 2000;
+
+/** Run `then` once `ready()` holds — at once if it already does — and never if it has not within `MARK_WAIT_MS`. */
+function afterState(match: LiveMatch, ready: () => boolean, then: () => void): void {
   if (ready()) { then(); return; }
   let done = false;
   const finish = (go: boolean): void => {
@@ -2328,7 +2331,7 @@ function afterState(match: LiveMatch, ready: () => boolean, then: () => void, ti
     if (go) then();
   };
   const unsubscribe = subscribe(match, () => { if (ready()) finish(true); });
-  const timer = setTimeout(() => finish(false), timeoutMs);
+  const timer = setTimeout(() => finish(false), MARK_WAIT_MS);
 }
 
 /** Whether `attacker` is one this seat can drag a blocker onto while `InputBlock` runs, and `blocker` is its own. */

@@ -33,6 +33,8 @@
  * away from it can reach. `e2e/arrow.spec.ts` is where real boxes are measured.
  */
 
+import { setTimeout as sleep } from 'node:timers/promises';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement, useSyncExternalStore } from 'react';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
@@ -53,6 +55,7 @@ import {
   clickCard,
   closeMatch,
   declaringBlockers,
+  MARK_WAIT_MS,
   selectCard,
   selectPlayer,
   socketIoMatchTransport,
@@ -61,7 +64,7 @@ import {
   type LiveMatch,
 } from '../match.ts';
 import { forgetPlacements, onSpellMoved } from '../placed.ts';
-import { fixtureFrames, startReplayServer, type ReplayServer } from '../replay-server.ts';
+import { fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from '../replay-server.ts';
 import { needsTarget } from './cast.ts';
 import { GLIDE_MS } from '../../motion.ts';
 import { TAPPED_PENDING_ATTR } from './commit.ts';
@@ -74,6 +77,7 @@ let match: LiveMatch | null = null;
 let gestures: GestureHandle | null = null;
 
 afterEach(async () => {
+  vi.useRealTimers();
   gestures?.dispose();
   gestures = null;
   cleanup();
@@ -85,6 +89,19 @@ afterEach(async () => {
   forgetPlacements();
   vi.restoreAllMocks();
 });
+
+/**
+ * The board's own clock, held still from here to the end of the test. A second
+ * click waits `MARK_WAIT_MS` for Forge's mark on what the first made current
+ * (`afterMarked`); here Forge is the test, marking over a real socket once the
+ * first click has arrived, and on a loaded host that round trip has outlasted
+ * the window. Held, the window closes only when a test moves the clock past it.
+ * Only `setTimeout` and `clearTimeout` are faked: the sockets took theirs when
+ * they were made, and a held test's settle sleeps on `node:timers/promises`.
+ */
+function holdBoardClock(): void {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+}
 
 /**
  * Lane A's board, subscribed to the handle — everything `LiveBoard` puts around
@@ -120,11 +137,11 @@ async function gestureBoard(playerId = 0) {
   canvas.className = 'live';
   document.body.append(canvas);
   render(createElement(Canvas, { match: m }), { container: canvas });
-  await waitFor(() => expect(m.stats.snapshots).toBe(1));
+  await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
   const frames = fixtureFrames();
   for (const f of frames) s.send(f);
   // Delivery first, on the counter that says so, then what the delivery draws.
-  await waitFor(() => expect(m.stats.applied).toBe(frames.length), { timeout: 10_000 });
+  await untilMatch(m, () => expect(m.stats.applied).toBe(frames.length));
   await waitFor(() => expect(canvas.querySelector('[data-board-overlay]')).not.toBeNull());
   gestures = installGestures({
     canvas,
@@ -301,10 +318,10 @@ describe('dragging a card, and the targeter arrow', () => {
     const [source, other] = [mine[0]!, mine[1]!];
     // A selection Forge wants TWO of, so the source is sent as well as the drop.
     for (const f of notify([prompt('Choose two'), selectables([source, other], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     drag(cardEl(canvas, source), faceEl(canvas, 1));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([
       ['selectCard', source],
       ['selectPlayer', 1],
@@ -316,10 +333,10 @@ describe('dragging a card, and the targeter arrow', () => {
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const [source, target] = [mine[0]!, mine[1]!];
     for (const f of notify([prompt('Choose two'), selectables([source, target], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     drag(cardEl(canvas, source), cardEl(canvas, target));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([
       ['selectCard', source],
       ['selectCard', target],
@@ -331,10 +348,10 @@ describe('dragging a card, and the targeter arrow', () => {
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const [source, target] = [mine[0]!, mine[1]!];
     for (const f of notify([prompt('Choose a target'), selectables([source, target], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables!.max).toBe(1));
+    await untilMatch(m, () => expect(m.selectables!.max).toBe(1));
 
     drag(cardEl(canvas, source), cardEl(canvas, target));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', target]]);
   });
 
@@ -343,7 +360,7 @@ describe('dragging a card, and the targeter arrow', () => {
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose a target'), selectables([mine[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     // The opponent's card is not offered — dragged to the stack (the one zone
     // no seat owns) or off the board entirely, it sends nothing.
@@ -356,7 +373,7 @@ describe('dragging a card, and the targeter arrow', () => {
     // Proven against a barrier: the next legitimate act must be the FIRST
     // frame the server sees, so a refused drag cannot be hiding behind a wire.
     fireEvent.click(cardEl(canvas, mine[0]!).querySelector('button')!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
   });
 
@@ -365,10 +382,10 @@ describe('dragging a card, and the targeter arrow', () => {
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose a target'), selectables([mine[0]!, mine[1]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     drag(cardEl(canvas, mine[0]!), cardEl(canvas, theirs[0]!));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
 
     // And a drop outside every zone still does nothing and says nothing.
@@ -391,7 +408,7 @@ describe('dragging a card, and the targeter arrow', () => {
     const hand = mineOf(m).hand!.map((c) => c.id);
     expect(hand.length).toBeGreaterThan(0);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     expect(cardEl(canvas, hand[0]!).hasAttribute('data-arrange-card')).toBe(false);
 
     // R7: a hand card only casts by crossing into the VIEWER'S OWN
@@ -400,7 +417,7 @@ describe('dragging a card, and the targeter arrow', () => {
     // is load-bearing here, not incidental.
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     drag(cardEl(canvas, hand[0]!), zone);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
   });
 
@@ -408,14 +425,14 @@ describe('dragging a card, and the targeter arrow', () => {
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
 
     const face = cardEl(canvas, mine[0]!).querySelector<HTMLButtonElement>('button')!;
     fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(face, { clientX: 12, clientY: 11 });
     fireEvent.pointerUp(face, { clientX: 12, clientY: 11 });
     fireEvent.click(face);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
   });
 
@@ -443,7 +460,7 @@ describe('dragging a card, and the targeter arrow', () => {
      * assertion.
      */
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const arrangeable = cardEl(canvas, hand.at(-1)!);
     expect(arrangeable.hasAttribute('data-arrange-card'), 'never the arrangement’s to begin with').toBe(false);
     expect(
@@ -457,7 +474,7 @@ describe('dragging a card, and the targeter arrow', () => {
     // And Forge ASKING about a permanent: this layer claims that press, so the
     // browser's default — a text selection — is refused at the press itself.
     for (const f of notify([prompt('Choose a target'), selectables([mine[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     expect(
       fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 }),
       'a claimed press selects no text',
@@ -473,7 +490,7 @@ describe('dragging a card, and the targeter arrow', () => {
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose a target'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull();
     fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
@@ -509,7 +526,7 @@ describe('dragging a card, and the targeter arrow', () => {
     const overlay = overlayOf(canvas);
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose a target'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     boxAt(overlay, 0, 0, 800, 600);
     boxAt(cardEl(canvas, mine[0]!), 0, 0); // tail: centre (20, 28)
 
@@ -546,13 +563,13 @@ describe('dragging a card, and the targeter arrow', () => {
     expect(canvas.querySelector('[data-board-overlay]')).toBeNull();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose two'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
     expect(document.querySelector('[data-testid="targeter"]')).toBeNull();
     fireEvent.pointerUp(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([
       ['selectCard', mine[0]!],
       ['selectCard', mine[1]!],
@@ -565,13 +582,13 @@ describe('dragging a card, and the targeter arrow', () => {
     // Forge offers only the opponent's creature — nothing of the viewer's to
     // drag from, which is the ordinary shape of a targeting input.
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     const stack = canvas.querySelector<HTMLElement>('[data-zone="stack"]') ?? canvas.querySelector<HTMLElement>('.board')!;
     fireEvent.pointerDown(stack, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectPlayer', 1]]);
   });
 
@@ -594,7 +611,7 @@ describe('dragging a card, and the targeter arrow', () => {
       const theirs = theirsOf(m).battlefield.map((c) => c.id);
       for (const f of notify([prompt('Choose a target')])) s.send(f);
       s.send(withPlayers([theirs[0]!], players));
-      await waitFor(() => expect(m.selectables).not.toBeNull());
+      await untilMatch(m, () => expect(m.selectables).not.toBeNull());
       const stack = canvas.querySelector<HTMLElement>('[data-zone="stack"]') ?? canvas.querySelector<HTMLElement>('.board')!;
       fireEvent.pointerDown(stack, { button: 0, clientX: 10, clientY: 10 });
       fireEvent.pointerMove(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
@@ -628,7 +645,7 @@ describe('dragging a card, and the targeter arrow', () => {
     const overlay = overlayOf(canvas);
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose two'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
@@ -643,7 +660,7 @@ describe('dragging a card, and the targeter arrow', () => {
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose two'), selectables([mine[0]!, mine[1]!], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     gestures!.dispose();
     gestures = null;
 
@@ -678,9 +695,9 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const blocker = mineOf(m).battlefield[0]!.id;
     s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', theirsOf(m).id));
     s.send(attackingDelta([theirs[0]!]));
-    await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
     for (const f of notify([prompt('Select a blocker'), actionable([blocker]), highlight([theirs[0]!], true)])) s.send(f);
-    await waitFor(() => expect(m.highlighted!.size).toBe(1));
+    await untilMatch(m, () => expect(m.highlighted!.size).toBe(1));
     // Forge publishes NO selection in combat declaration, so lane A's rule
     // (`!selectionOpen`) leaves the blocker arrangeable. This layer must still win.
     cardEl(canvas, blocker).setAttribute('data-arrange-card', 'creatures');
@@ -689,7 +706,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     expect(fireEvent.pointerDown(cardEl(canvas, blocker), { button: 0, clientX: 10, clientY: 10 }), 'claimed').toBe(false);
     fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', blocker]]);
   });
 
@@ -697,7 +714,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([mine[0]!, mine[1]!])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(2));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(2));
     // At priority Forge's ACTIONABLE set names most of the viewer's own
     // permanents — "you could", not "I am asking" — and lane A keeps those
     // arrangeable. Claiming the press is what turned `e2e/table-fit.spec.ts` red.
@@ -713,7 +730,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
 
     // The affordance is not lost, only the drag: the card's own face still plays it.
     fireEvent.click(cardEl(canvas, mine[0]!).querySelector('button')!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
   });
 
@@ -724,7 +741,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     // A selection is open and names only the OPPONENT's creature, so the
     // viewer's own battlefield is all un-offered — and all arrangeable.
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     for (const id of mine) cardEl(canvas, id).setAttribute('data-arrange-card', 'creatures');
     expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(false);
 
@@ -740,7 +757,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     // Proven against a barrier: the next legitimate act is the FIRST frame the
     // server sees, so a refused gesture cannot be hiding behind a slow wire.
     fireEvent.click(cardEl(canvas, theirs[0]!).querySelector('button')!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', theirs[0]!]]);
   });
 
@@ -799,7 +816,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const [offered, from] = [mine[0]!, mine[1]!];
     for (const f of notify([prompt('Declare attackers'), actionable([offered])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(1));
     cardEl(canvas, from).setAttribute('data-arrange-card', 'creatures');
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(cardEl(canvas, offered), 120, 120);
@@ -809,7 +826,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     fireEvent.pointerMove(cardEl(canvas, offered), { clientX: 400, clientY: 400 });
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).not.toBeNull();
     fireEvent.pointerUp(cardEl(canvas, offered), { clientX: 400, clientY: 400 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', offered]]);
   });
 
@@ -828,14 +845,14 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     // Forge's payment input: the bar first (it is emitted before the prompt), then
     // the prompt naming the ability paid for, then what can pay.
     for (const f of [autoBar(true), promptFor('Pay {1}{U}', land), actionable([land])]) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(land)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(land)).toBe(true));
     expect(cardEl(canvas, land).hasAttribute('data-arrange-card')).toBe(true);
 
     expect(fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 }), 'claimed').toBe(false);
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
     fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', land]]);
   });
 
@@ -845,10 +862,10 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     // `InputPayMana.java:391` — the input's FIRST bar, Auto present and disabled.
     // Tapping sources by hand is exactly what this window is for.
     for (const f of [autoBar(false), promptFor('Pay {7}', land), actionable([land])]) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(land)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(land)).toBe(true));
 
     drag(cardEl(canvas, land), canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', land]]);
   });
 
@@ -862,12 +879,12 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const { s, m, canvas } = await gestureBoard();
     const land = mineOf(m).battlefield[0]!.id;
     for (const f of [autoBar(true), promptFor('Pay {1}{U}', land), actionable([land])]) s.send(f);
-    await waitFor(() => expect(m.promptCard).toBe(land));
+    await untilMatch(m, () => expect(m.promptCard).toBe(land));
 
     // The payment ends and priority comes back. Forge's next PROMPT names no
     // card; the Auto bar has not been replaced yet.
     s.send(prompt('Priority'));
-    await waitFor(() => expect(m.promptCard).toBeNull());
+    await untilMatch(m, () => expect(m.promptCard).toBeNull());
     expect(m.buttons!.label1).toBe('Auto'); // still stale, and still enabled
     expect(m.buttons!.enable1).toBe(true);
     expect(boardInteraction(m).selectable.has(land)).toBe(true);
@@ -882,7 +899,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
 
     // A barrier: the click still works, so the refusal was the gesture's and not the wire's.
     fireEvent.click(cardEl(canvas, land).querySelector('button')!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', land]]);
   });
 
@@ -890,7 +907,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const { s, m, canvas } = await gestureBoard();
     const land = mineOf(m).battlefield[0]!.id;
     for (const f of [okBar(), prompt('Priority'), actionable([land])]) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(land)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(land)).toBe(true));
 
     expect(fireEvent.pointerDown(cardEl(canvas, land), { button: 0, clientX: 10, clientY: 10 })).toBe(true);
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
@@ -904,7 +921,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(1));
     cardEl(canvas, mine[1]!).setAttribute('data-arrange-card', 'creatures');
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(cardEl(canvas, mine[0]!), 120, 120);
@@ -922,7 +939,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const { s, m, canvas } = await declaringAttackersBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Declare attackers'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(1));
     // Every card arrangeable — the ZONE is not.
     for (const id of mine) cardEl(canvas, id).setAttribute('data-arrange-card', 'creatures');
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
@@ -933,7 +950,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     fireEvent.pointerMove(zone, { clientX: 300, clientY: 300 });
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).not.toBeNull();
     fireEvent.pointerUp(zone, { clientX: 300, clientY: 300 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
   });
 
@@ -942,14 +959,14 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     for (const id of mine) cardEl(canvas, id).setAttribute('data-arrange-card', 'creatures');
 
     const stack = canvas.querySelector<HTMLElement>('[data-zone="stack"]') ?? canvas.querySelector<HTMLElement>('.board')!;
     fireEvent.pointerDown(stack, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectPlayer', 1]]);
   });
 });
@@ -966,7 +983,7 @@ async function declaringAttackersBoard() {
   const ctx = await gestureBoard();
   const me = mineOf(ctx.m);
   ctx.s.send(phaseDelta('COMBAT_DECLARE_ATTACKERS', me.id));
-  await waitFor(() => expect(ctx.m.view!.phase).toBe('COMBAT_DECLARE_ATTACKERS'));
+  await untilMatch(ctx.m, () => expect(ctx.m.view!.phase).toBe('COMBAT_DECLARE_ATTACKERS'));
   expect(ctx.m.view!.activePlayerId).toBe(me.id);
   return ctx;
 }
@@ -976,7 +993,7 @@ describe('§B.1 — an attacker is marked at SELECTION, and the mark is not Forg
     const { s, m, canvas } = await declaringAttackersBoard();
     const attacker = mineOf(m).battlefield.find((c) => !c.tapped)!.id;
     for (const f of notify([prompt('Declare attackers'), actionable([attacker])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
 
     const li = cardEl(canvas, attacker);
     expect(li.hasAttribute('data-attack-intent')).toBe(false);
@@ -990,7 +1007,7 @@ describe('§B.1 — an attacker is marked at SELECTION, and the mark is not Forg
     const { s, m, canvas } = await declaringAttackersBoard();
     const card = mineOf(m).battlefield.find((c) => !c.tapped)!;
     for (const f of notify([prompt('Declare attackers'), actionable([card.id])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(card.id)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(card.id)).toBe(true));
 
     fireEvent.click(cardEl(canvas, card.id).querySelector('button')!);
     await waitFor(() => expect(cardEl(canvas, card.id).dataset.attackIntent).toBe('sent'));
@@ -1007,7 +1024,7 @@ describe('§B.1 — an attacker is marked at SELECTION, and the mark is not Forg
     const { s, m, canvas } = await declaringAttackersBoard();
     const attacker = mineOf(m).battlefield.find((c) => !c.tapped)!.id;
     for (const f of notify([prompt('Declare attackers'), actionable([attacker])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
     fireEvent.click(cardEl(canvas, attacker).querySelector('button')!);
     await waitFor(() => expect(cardEl(canvas, attacker).dataset.attackIntent).toBe('sent'));
 
@@ -1019,7 +1036,7 @@ describe('§B.1 — an attacker is marked at SELECTION, and the mark is not Forg
     const { s, m, canvas } = await declaringAttackersBoard();
     const attacker = mineOf(m).battlefield.find((c) => !c.tapped)!.id;
     for (const f of notify([prompt('Declare attackers'), actionable([attacker])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
     fireEvent.click(cardEl(canvas, attacker).querySelector('button')!);
     await waitFor(() => expect(cardEl(canvas, attacker).dataset.attackIntent).toBe('sent'));
 
@@ -1035,9 +1052,9 @@ describe('§B.1 — an attacker is marked at SELECTION, and the mark is not Forg
     const { s, m, canvas } = await gestureBoard();
     const card = mineOf(m).battlefield[0]!.id;
     for (const f of notify([prompt('Priority'), actionable([card])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(card)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(card)).toBe(true));
     fireEvent.click(cardEl(canvas, card).querySelector('button')!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(canvas.querySelector('[data-attack-intent]')).toBeNull();
   });
 });
@@ -1050,7 +1067,7 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const [a, b, far] = [mine[0]!, mine[1]!, mine[2]!];
     for (const f of notify([prompt('Declare attackers'), actionable([a, b, far])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(3));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(3));
 
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(cardEl(canvas, a), 120, 120);
@@ -1064,7 +1081,7 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).not.toBeNull();
     fireEvent.pointerUp(zone, { clientX: 300, clientY: 300 });
 
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([
       ['selectCard', a],
       ['selectCard', b],
@@ -1081,7 +1098,7 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     // Forge names ONE of the two creatures under the box, and the opponent's
     // creature is under it too.
     for (const f of notify([prompt('Declare attackers'), actionable([offered])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(1));
 
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(cardEl(canvas, offered), 120, 120);
@@ -1093,7 +1110,7 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     fireEvent.pointerMove(zone, { clientX: 400, clientY: 400 });
     fireEvent.pointerUp(zone, { clientX: 400, clientY: 400 });
 
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     // Exactly one frame, and it is the one Forge named. A barrier follows, so a
     // second frame cannot be merely late.
     expect(sent(s)).toEqual([['selectCard', offered]]);
@@ -1105,7 +1122,7 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     const { s, m, canvas } = await declaringAttackersBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Declare attackers'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(1));
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(cardEl(canvas, mine[0]!), 100, 100);
 
@@ -1121,7 +1138,7 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(1));
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(cardEl(canvas, mine[0]!), 120, 120);
 
@@ -1146,7 +1163,7 @@ describe('the London mulligan’s bottom pick: a hand card is a click, never an 
     for (const f of notify([prompt('Return 1 card(s) to the bottom of your library'), okBar()])) s.send(f);
     s.send(stateDelta({ [GAME_KEY]: { _type: 3, _id: 1, Mulligan: { t: 'bool', v: true } } }));
     const hand = mineOf(m).hand!.map((c) => c.id);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(hand[0]!), 'Forge’s flag offers the hand').toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(hand[0]!), 'Forge’s flag offers the hand').toBe(true));
     const card = cardEl(canvas, hand[0]!);
     const press = fireEvent.pointerDown(card, { button: 0, clientX: 10, clientY: 10 });
     expect(press, 'the press is left to the click').toBe(true);
@@ -1177,7 +1194,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     const untap = mineOf(m).battlefield.filter((c) => c.tapped).map((c) => c.id);
     if (untap.length > 0) {
       s.send(stateDelta(Object.fromEntries(untap.map((id) => [String(id), { _type: 0, _id: id, Tapped: { t: 'bool', v: false } }]))));
-      await waitFor(() => expect(mineOf(m).battlefield.some((c) => c.tapped)).toBe(false));
+      await untilMatch(m, () => expect(mineOf(m).battlefield.some((c) => c.tapped)).toBe(false));
     }
     const mine = mineOf(m).battlefield;
     const lands = mine.filter((c) => c.card.typeLine.includes('Land')).map((c) => c.id);
@@ -1185,7 +1202,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     expect(lands.length, 'the fixture gives this seat two lands').toBeGreaterThanOrEqual(2);
     const offered = other === undefined ? lands : [...lands, other];
     for (const f of notify([prompt('Priority'), actionable(offered), okBar()])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(offered.length));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(offered.length));
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     lands.forEach((id, i) => boxAt(cardEl(canvas, id), 120 + i * 60, 120));
     if (other !== undefined) boxAt(cardEl(canvas, other), 150, 200);
@@ -1203,7 +1220,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
   it('the first land goes out at the release, and each next one only after the board shows the one before it tapped', async () => {
     const { s, lands, offered, sweep } = await landsOffered();
     sweep(700, 300);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', lands[0]]]);
     await new Promise((r) => setTimeout(r, 80));
     expect(s.clientFrames(), 'the second waits for Forge').toHaveLength(1);
@@ -1214,7 +1231,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     await new Promise((r) => setTimeout(r, 80));
     expect(s.clientFrames(), 'tapped, but not offered again yet: still waiting').toHaveLength(1);
     for (const f of notify([prompt('Priority'), actionable(offered.filter((id) => id !== lands[0])), okBar()])) s.send(f);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)[1]).toEqual(['selectCard', lands[1]]);
   });
 
@@ -1228,7 +1245,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     const { s, canvas, lands, sweep } = await landsOffered();
     sweep(700, 300);
     // Only the first land has gone out on the wire…
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', lands[0]]]);
     // …but every land the box touched is already drawn tapped.
     for (const id of lands) {
@@ -1240,7 +1257,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     const { s, lands, other, sweep } = await landsOffered();
     // A box that covers the first land and the creature below it, and stops short of the second land.
     sweep(170, 300);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', lands[0]]]);
     expect(other, 'the fixture has an offered non-land in the box').toBeDefined();
     await new Promise((r) => setTimeout(r, 80));
@@ -1250,7 +1267,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
   it('the ability question Forge asks about the land in flight does not end the sweep', async () => {
     const { s, m, lands, offered, sweep } = await landsOffered();
     sweep(700, 300);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     // What real Forge sends for every land click (wire recorded 2026-10-06): which ability? One is on offer.
     s.send(
       parseServerFrame({
@@ -1262,7 +1279,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
         triggerEvent: null,
       }),
     );
-    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await untilMatch(m, () => expect(m.asks).toHaveLength(1));
     // Answered (the prompt layer does it for a one-ability ask; here, by hand), then the tap lands and the board is offered again.
     expect(answerAsk(m, 's0-1', 'getAbilityToPlay', { kind: 'spellAbility', id: 249, label: '{T}: Add {W}.' })).toBe(true);
     s.send(offerWithdrawn());
@@ -1279,11 +1296,11 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
   it('a question from Forge ends the sweep: nothing more is sent', async () => {
     const { s, m, canvas, lands, sweep } = await landsOffered();
     sweep(700, 300);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     s.send(offerWithdrawn());
     s.send(tappedDelta(lands[0]!));
     for (const f of notify([prompt('Choose a target'), selectables([lands[1]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     for (const f of notify([prompt('Priority'), actionable([lands[1]!]), okBar()])) s.send(f);
     await new Promise((r) => setTimeout(r, 120));
     expect(sent(s), 'the land a selection named was not tapped by a sweep that had ended').toEqual([['selectCard', lands[0]]]);
@@ -1295,7 +1312,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     const { s, m, canvas } = await gestureBoard();
     const creature = mineOf(m).battlefield.find((c) => !c.card.typeLine.includes('Land'))!.id;
     for (const f of notify([prompt('Priority'), actionable([creature]), okBar()])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.size).toBe(1));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(1));
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     fireEvent.pointerDown(zone, { button: 0, clientX: 100, clientY: 100 });
     fireEvent.pointerMove(zone, { clientX: 300, clientY: 300 });
@@ -1323,8 +1340,8 @@ describe('Q14 — a click or a box pulls declared attackers back', () => {
     const [a, b, free] = [mine[0]!, mine[1]!, mine[2]!];
     ctx.s.send(attackingDelta([a, b]));
     for (const f of notify([prompt('Declare attackers'), actionable([a, b, free])])) ctx.s.send(f);
-    await waitFor(() => expect(boardInteraction(ctx.m).selectable.size).toBe(3));
-    await waitFor(() => expect(mineOf(ctx.m).battlefield.find((c) => c.id === a)!.attacking).toBe(true));
+    await untilMatch(ctx.m, () => expect(boardInteraction(ctx.m).selectable.size).toBe(3));
+    await untilMatch(ctx.m, () => expect(mineOf(ctx.m).battlefield.find((c) => c.id === a)!.attacking).toBe(true));
     boxAt(overlayOf(ctx.canvas), 0, 0, 800, 600);
     boxAt(cardEl(ctx.canvas, a), 120, 120);
     boxAt(cardEl(ctx.canvas, b), 180, 120);
@@ -1342,14 +1359,14 @@ describe('Q14 — a click or a box pulls declared attackers back', () => {
   it('a click on a declared attacker sends the one selectCard that undeclares it', async () => {
     const { s, canvas, a } = await declared();
     fireEvent.click(cardEl(canvas, a).querySelector('button')!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', a]]);
   });
 
   it('a box over only declared attackers pulls every one of them back', async () => {
     const { s, a, b, canvas } = await declared();
     sweep(canvas, 230); // touches a and b, not the free creature
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([
       ['selectCard', a],
       ['selectCard', b],
@@ -1359,7 +1376,7 @@ describe('Q14 — a click or a box pulls declared attackers back', () => {
   it('a box over declared AND undeclared creatures declares the undeclared and leaves the declared alone', async () => {
     const { s, free, canvas } = await declared();
     sweep(canvas, 400); // touches a, b and the free creature
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     await new Promise((r) => setTimeout(r, 50));
     expect(sent(s)).toEqual([['selectCard', free]]);
   });
@@ -1380,26 +1397,27 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
     const blocker = mineOf(m).battlefield[0]!.id;
     s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', theirsOf(m).id));
     s.send(attackingDelta([theirs[0]!, theirs[1]!]));
-    await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
     for (const f of notify([prompt('Select a blocker'), actionable([blocker]), highlight([theirs[0]!], true)])) s.send(f);
-    await waitFor(() => expect(m.highlighted!.size).toBe(1));
+    await untilMatch(m, () => expect(m.highlighted!.size).toBe(1));
     return { ...ctx, blocker, attackers: [theirs[0]!, theirs[1]!] as const };
   }
 
   it('the two frames go out ATTACKER first, which is the order InputBlock needs', async () => {
     const { s, canvas, blocker, attackers } = await blockingBoard();
+    holdBoardClock();
     // The SECOND attacker: it is not the one Forge highlighted, so it reaches
     // the offered set only through `blockTargets`.
     drag(cardEl(canvas, blocker), cardEl(canvas, attackers[1]));
     // The attacker's click goes out alone: the blocker's waits until Forge has made that attacker the
     // current one, because Forge may apply two quick clicks in either order (`afterMarked`).
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    await new Promise((r) => setTimeout(r, 50));
+    await s.untilClientFrames(1);
+    await sleep(50);
     expect(sent(s)).toEqual([['selectCard', attackers[1]]]);
     // `InputBlock.setCurrentAttacker`: the old one unmarked, the new one marked.
     s.send(highlight([attackers[0]!], false));
     s.send(highlight([attackers[1]!], true));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([
       ['selectCard', attackers[1]],
       ['selectCard', blocker],
@@ -1414,7 +1432,7 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
     // real engine.
     expect(m.highlighted!.has(attackers[0])).toBe(true);
     drag(cardEl(canvas, blocker), cardEl(canvas, attackers[0]));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     await new Promise((r) => setTimeout(r, 50));
     expect(sent(s)).toEqual([['selectCard', blocker]]);
   });
@@ -1446,15 +1464,15 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
     const blocker = mineOf(m).battlefield[0]!.id;
     s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', theirsOf(m).id));
     s.send(attackingDelta([theirs[0]!]));
-    await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
     for (const f of notify([prompt('Priority'), actionable([blocker])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(blocker)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(blocker)).toBe(true));
     expect(boardInteraction(m).selectable.has(theirs[0]!)).toBe(false);
 
     // The drop lands on an inert card inside a zone, which is the plain
     // "the card is being used" frame — one, not two, and not the attacker's.
     drag(cardEl(canvas, blocker), cardEl(canvas, theirs[0]!));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', blocker]]);
   });
 });
@@ -1492,35 +1510,36 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
       });
     s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', theirsOf(m).id));
     s.send(attackingDelta([theirs[0]!, theirs[1]!]));
-    await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
     // `pushBlockerCandidates` has dropped it (it is assigned, not a candidate
     // any more); only the wire's planned map still names it. The attacker it
     // blocks is `InputBlock`'s current one.
     for (const f of notify([prompt('Select a blocker'), actionable([]), highlight([theirs[0]!], true)])) s.send(f);
     s.send(combat([blocker]));
-    await waitFor(() => expect(boardInteraction(m).selectable.has(blocker)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(blocker)).toBe(true));
     return { ...ctx, blocker, attacker: theirs[0]!, other: theirs[1]!, combat };
   }
 
   it('is offered off the planned map alone, and dropping it back on its own spot is Forge’s own undo', async () => {
     const { s, canvas, blocker } = await alreadyBlocking();
     drag(cardEl(canvas, blocker), cardEl(canvas, blocker));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', blocker]]);
   });
 
   it('dragged onto a different attacker it MOVES: the undo, then the new attacker, then the blocker', async () => {
     const { s, canvas, blocker, attacker, other, combat } = await alreadyBlocking();
+    holdBoardClock();
     drag(cardEl(canvas, blocker), cardEl(canvas, other));
     // The undo first, on the attacker it blocks (already current): one frame.
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    await new Promise((r) => setTimeout(r, 50));
+    await s.untilClientFrames(1);
+    await sleep(50);
     expect(sent(s)).toEqual([['selectCard', blocker]]);
     // Forge undoes it and offers it again as a candidate.
     s.send(combat([]));
     for (const f of notify([actionable([blocker])])) s.send(f);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
-    await new Promise((r) => setTimeout(r, 50));
+    await s.untilClientFrames(2);
+    await sleep(50);
     expect(sent(s)).toEqual([
       ['selectCard', blocker],
       ['selectCard', other],
@@ -1528,7 +1547,7 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
     // `setCurrentAttacker`: the other attacker is current now, and the blocker's click follows.
     s.send(highlight([attacker], false));
     s.send(highlight([other], true));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(3));
+    await s.untilClientFrames(3);
     expect(sent(s)).toEqual([
       ['selectCard', blocker],
       ['selectCard', other],
@@ -1541,7 +1560,7 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
     for (const f of notify([actionable([blocker])])) s.send(f);
     await new Promise((r) => setTimeout(r, 50));
     drag(cardEl(canvas, blocker), cardEl(canvas, other));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     await new Promise((r) => setTimeout(r, 50));
     expect(sent(s)).toEqual([['selectCard', other]]);
   });
@@ -1587,7 +1606,7 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
         },
       }),
     );
-    await waitFor(() => expect(declaringBlockers(m)).toBe(false));
+    await untilMatch(m, () => expect(declaringBlockers(m)).toBe(false));
     await waitFor(() =>
       expect(
         overlayOf(canvas).querySelector(`[data-testid="stack-target-arrow"][data-key="block:${blocker}:${attacker}"]`),
@@ -1613,7 +1632,7 @@ describe('on the attacking screen, the defender’s blocks draw as they are assi
       });
     s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', mineOf(m).id));
     s.send(attackingDelta([attacker]));
-    await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
     expect(declaringBlockers(m)).toBe(false);
     const arrow = () => overlayOf(canvas).querySelector(`[data-testid="stack-target-arrow"][data-key="block:${blocker}:${attacker}"]`);
 
@@ -1650,26 +1669,27 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
     const attacker = mineOf(m).battlefield.find((c) => !c.tapped)!.id;
     const pw = theirsOf(m).battlefield[0]!.id;
     s.send(retypeDelta(pw, ['Planeswalker'], ['Jace']));
-    await waitFor(() => expect(theirsOf(m).battlefield.find((c) => c.id === pw)!.card.typeLine).toContain('Planeswalker'));
+    await untilMatch(m, () => expect(theirsOf(m).battlefield.find((c) => c.id === pw)!.card.typeLine).toContain('Planeswalker'));
     // The live window itself, bar included — a defender (card or player) is
     // only ever offered while Forge's own bar for this exact window is live,
     // never merely because the phase changed and the actionable set named
     // this seat's own creatures.
     for (const f of notify([prompt('Declare attackers'), attackBar(), actionable([attacker])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
     return { ...ctx, attacker, pw };
   }
 
   it('a drop on the opponent’s planeswalker sends selectCard(pw), then selectCard(attacker)', async () => {
     const { s, m, canvas, attacker, pw } = await attackingBoard();
-    await waitFor(() => expect(boardInteraction(m).selectable.has(pw)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(pw)).toBe(true));
+    holdBoardClock();
     drag(cardEl(canvas, attacker), cardEl(canvas, pw));
     // Only the defender's click until Forge marks the planeswalker current (`InputAttack.setCurrentDefender`).
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
-    await new Promise((r) => setTimeout(r, 50));
+    await s.untilClientFrames(1);
+    await sleep(50);
     expect(sent(s)).toEqual([['selectCard', pw]]);
     s.send(highlight([pw], true));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([
       ['selectCard', pw],
       ['selectCard', attacker],
@@ -1678,21 +1698,24 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
 
   it('if Forge never marks the planeswalker, the attacker’s click is never sent', async () => {
     const { s, m, canvas, attacker, pw } = await attackingBoard();
-    await waitFor(() => expect(boardInteraction(m).selectable.has(pw)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(pw)).toBe(true));
+    holdBoardClock();
     drag(cardEl(canvas, attacker), cardEl(canvas, pw));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     // Past the wait: sending the attacker now would declare it against whatever was current before.
-    await new Promise((r) => setTimeout(r, 2300));
+    vi.advanceTimersByTime(MARK_WAIT_MS);
+    await sleep(50);
     expect(sent(s)).toEqual([['selectCard', pw]]);
   });
 
   it('a drop on the opponent’s face sends selectPlayer, then selectCard once Forge marks them', async () => {
     const { s, m, canvas, attacker } = await attackingBoard();
     const opponent = theirsOf(m).id;
+    holdBoardClock();
     drag(cardEl(canvas, attacker), faceEl(canvas, opponent));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     s.send(highlightPlayers([opponent], true));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([
       ['selectPlayer', opponent],
       ['selectCard', attacker],
@@ -1703,9 +1726,9 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
     const { s, m, canvas, attacker } = await attackingBoard();
     const opponent = theirsOf(m).id;
     s.send(highlightPlayers([opponent], true));
-    await waitFor(() => expect(m.highlightedPlayers?.has(opponent)).toBe(true));
+    await untilMatch(m, () => expect(m.highlightedPlayers?.has(opponent)).toBe(true));
     drag(cardEl(canvas, attacker), faceEl(canvas, opponent));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     await new Promise((r) => setTimeout(r, 50));
     expect(sent(s)).toEqual([['selectCard', attacker]]);
   });
@@ -1723,7 +1746,7 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
         },
       }),
     );
-    await waitFor(() => expect(attackAssignment(m, attacker, { kind: 'player', id: opponent })).toBe('already'));
+    await untilMatch(m, () => expect(attackAssignment(m, attacker, { kind: 'player', id: opponent })).toBe('already'));
     drag(cardEl(canvas, attacker), faceEl(canvas, opponent));
     await new Promise((r) => setTimeout(r, 50));
     expect(s.clientFrames()).toHaveLength(0);
@@ -1750,7 +1773,7 @@ describe('the arrow snaps only to a target the release would send', () => {
     const { s, m, canvas } = ctx;
     const [attacker, other] = mineOf(m).battlefield.filter((c) => !c.tapped).map((c) => c.id) as [number, number];
     for (const f of notify([prompt('Declare attackers'), attackBar(), actionable([attacker, other])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(other)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(other)).toBe(true));
     const overlay = overlayOf(canvas);
     boxAt(overlay, 0, 0, 800, 600);
     boxAt(cardEl(canvas, attacker), 100, 300, 80, 112);
@@ -1778,7 +1801,7 @@ describe('the arrow snaps only to a target the release would send', () => {
     expect(arrow.dataset.snapped).toBeUndefined();
     expect(tipOf(overlay)).toEqual({ x: 330, y: 350 });
     fireEvent.pointerUp(cardEl(canvas, other), { clientX: 330, clientY: 350 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     await new Promise((r) => setTimeout(r, 50));
     expect(sent(s)).toEqual([['selectCard', attacker]]);
   });
@@ -1788,7 +1811,7 @@ describe('the arrow snaps only to a target the release would send', () => {
     const overlay = overlayOf(canvas);
     const [source, target] = mineOf(m).battlefield.map((c) => c.id) as [number, number];
     for (const f of notify([prompt('Choose two'), selectables([source, target], 1, 2)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     boxAt(overlay, 0, 0, 800, 600);
     boxAt(cardEl(canvas, source), 100, 300, 80, 112);
     boxAt(cardEl(canvas, target), 300, 300, 80, 112);
@@ -1805,7 +1828,7 @@ describe('the arrow snaps only to a target the release would send', () => {
     fireEvent.pointerMove(cardEl(canvas, source), { clientX: 150, clientY: 330 });
     await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
     fireEvent.pointerUp(cardEl(canvas, source), { clientX: 150, clientY: 330 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', source]]);
   });
 
@@ -1815,12 +1838,12 @@ describe('the arrow snaps only to a target the release would send', () => {
     const spell = mineOf(m).battlefield[0]!.id;
     const theirs = theirsOf(m).battlefield[0]!.id;
     for (const f of notify([prompt('Priority'), actionable([spell])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(spell)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(spell)).toBe(true));
     fireEvent.click(cardEl(canvas, spell).querySelector('button')!);
-    await waitFor(() => expect(m.lastSelectedCard).toBe(spell));
+    await untilMatch(m, () => expect(m.lastSelectedCard).toBe(spell));
     // A selection that may take the source itself.
     for (const f of notify([prompt('Choose a target'), selectables([spell, theirs], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     boxAt(overlay, 0, 0, 800, 600);
     boxAt(cardEl(canvas, spell), 100, 300, 80, 112);
     boxAt(cardEl(canvas, theirs), 300, 40, 80, 112);
@@ -1843,12 +1866,12 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     const spell = mine[0]!;
     // The player clicks the card to cast it…
     for (const f of notify([prompt('Priority'), actionable([spell])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(spell)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(spell)).toBe(true));
     fireEvent.click(cardEl(canvas, spell).querySelector('button')!);
-    await waitFor(() => expect(m.lastSelectedCard).toBe(spell));
+    await untilMatch(m, () => expect(m.lastSelectedCard).toBe(spell));
     // …and Forge answers with the target selection. No drag: just the pointer.
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     const overlay = overlayOf(canvas);
     expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull();
@@ -1887,11 +1910,11 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     const { s, m, canvas } = await gestureBoard();
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(true));
     fireEvent.click(cardEl(canvas, mine[0]!).querySelector('button')!);
     // No cards named at all — Forge is asking for a PLAYER.
     for (const f of notify([prompt('Choose a target'), selectables([], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     expect(boardInteraction(m).selectablePlayers.size, 'both seats are legal targets throughout the selection').toBeGreaterThan(0);
 
     // Their SEAT's own furniture — the name beside their face — never their
@@ -1918,10 +1941,10 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     const mine = mineOf(m).battlefield.map((c) => c.id);
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(true));
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(mine[0]!)).toBe(true));
     fireEvent.click(cardEl(canvas, mine[0]!).querySelector('button')!);
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 220, clientY: 180 });
     const overlay = overlayOf(canvas);
     await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).not.toBeNull());
@@ -1935,7 +1958,7 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 220, clientY: 180 });
     await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).not.toBeNull());
     s.send(parseServerFrame({ kind: 'notify', method: 'clearSelectables' }));
-    await waitFor(() => expect(m.selectables).toBeNull());
+    await untilMatch(m, () => expect(m.selectables).toBeNull());
     fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 222, clientY: 182 });
     await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
     expect(m.lastSelectedCard).toBeNull();
@@ -1947,7 +1970,7 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     // A selection with no preceding click of ours: the ability put itself on
     // the stack, so its source card is the only sensible tail.
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     expect(m.lastSelectedCard).toBeNull();
     const origin = stackOrigin(m, canvas);
     expect(origin).not.toBeNull();
@@ -1998,14 +2021,14 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
       }),
     );
     s.send(stateDelta({ [GAME_KEY]: { _type: 3, _id: 1, Stack: { t: 'list', v: [{ t: 'int', v: STACK_ID }] } } }));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
     expect(m.view!.stack[0]!.sourceCardId, 'the synthetic stack item carries its source id').toBe(SOURCE_ID);
     expect(canvas.querySelector(`[data-board-card="${SOURCE_ID}"]`), 'the source has no board element').toBeNull();
     const stackEl = await waitFor(() => canvas.querySelector<HTMLElement>(`[data-stack-id="${STACK_ID}"]`)!);
     boxAt(stackEl, 500, 10, 120, 40); // centre (560, 30) — jsdom has no layout otherwise.
 
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     expect(m.lastSelectedCard).toBeNull();
 
     fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 220, clientY: 180 });
@@ -2024,7 +2047,7 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     // A click of this seat's own, turns ago: on record, and nothing to do with what comes next.
     for (const f of notify([prompt('Priority'), actionable([clicked])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     selectCard(m, clicked);
     expect(m.lastSelectedCard).toBe(clicked);
     boxAt(cardEl(canvas, clicked), 100, 400);
@@ -2057,7 +2080,7 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     boxAt(item, 500, 10, 120, 40); // centre (560, 30)
     // The spell's own question, as Forge announces it: the prompt names the spell.
     for (const f of notify([promptFor('Sacrifice a land', SPELL), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 220, clientY: 180 });
     const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
@@ -2071,13 +2094,13 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     const clicked = hand[0]!;
     // Her own click, earlier: a land drop or a cast. On record until Forge asks about something else.
     for (const f of notify([prompt('Priority'), actionable([clicked])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     selectCard(m, clicked);
     expect(m.lastSelectedCard).toBe(clicked);
     for (const id of hand) boxAt(cardEl(canvas, id), 100 + 50 * hand.indexOf(id), 400);
     // Forge's cleanup discard: `InputSelectCardsFromList` with no spell ability, so its prompt names no card.
     for (const f of notify([prompt('Cleanup Phase\nSelect 1 card(s) to discard to bring your hand down to the maximum of 7 cards.'), selectables(hand, 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     expect(m.promptCard).toBeNull();
     // Both tails `clickOrigin` could reach are on record — the last click and the fixture's stack
     // source — and neither is drawn: a pick among her own hand is not aiming.
@@ -2094,7 +2117,7 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     const { s, m, canvas } = await gestureBoard();
     const theirs = theirsOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     expect(m.lastSelectedCard).toBeNull();
     // Every stack source's own card AND its stack item taken out of the DOM
     // (W17's fallback reaches the stack item itself, so both have to be gone
@@ -2170,7 +2193,7 @@ describe('Q7 — a "select target spell" question takes an arrow to the stack it
     const [wanted, other] = [701, 702];
     const items = stackItems(canvas, [wanted, other]);
     s.send(spellAsk('c-leak', [wanted, other]));
-    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await untilMatch(m, () => expect(m.asks).toHaveLength(1));
 
     boxAt(overlayOf(canvas), 0, 0, 800, 600);
     boxAt(items[wanted]!, 300, 100, 200, 60);
@@ -2182,7 +2205,7 @@ describe('Q7 — a "select target spell" question takes an arrow to the stack it
     expect(arrow.dataset.snapped).toBe('true');
     fireEvent.pointerUp(items[wanted]!, { clientX: 320, clientY: 120 });
 
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(replies(s)).toEqual([['getChoices', [`si-${wanted}`]]]);
   });
 
@@ -2190,11 +2213,11 @@ describe('Q7 — a "select target spell" question takes an arrow to the stack it
     const { s, m, canvas } = await gestureBoard();
     const items = stackItems(canvas, [701, 702]);
     s.send(spellAsk('c-leak', [701, 702]));
-    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await untilMatch(m, () => expect(m.asks).toHaveLength(1));
 
     fireEvent.pointerDown(items[702]!, { button: 0, clientX: 300, clientY: 100 });
     fireEvent.pointerUp(items[702]!, { clientX: 300, clientY: 100 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(replies(s)).toEqual([['getChoices', ['si-702']]]);
   });
 
@@ -2202,7 +2225,7 @@ describe('Q7 — a "select target spell" question takes an arrow to the stack it
     const { s, m, canvas } = await gestureBoard();
     const items = stackItems(canvas, [701, 999]);
     s.send(spellAsk('c-leak', [701, 702]));
-    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await untilMatch(m, () => expect(m.asks).toHaveLength(1));
 
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
     fireEvent.pointerDown(zone, { button: 0, clientX: 40, clientY: 400 });
@@ -2236,7 +2259,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const overlay = overlayOf(canvas);
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!, hand[1]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
@@ -2250,7 +2273,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(s.clientFrames(), 'nothing sent while merely lifted').toHaveLength(0);
 
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1)); // the first card's own release
+    await s.untilClientFrames(1); // the first card's own release
 
     fireEvent.pointerDown(cardEl(canvas, hand[1]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerUp(cardEl(canvas, hand[1]!), { clientX: 10, clientY: 10 }); // click-arms
@@ -2270,7 +2293,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     // The battlefield's own card size, and the hand's own (bigger) one the lifted card starts with.
     myBattlefield.style.setProperty('--card-w', '64px');
@@ -2289,7 +2312,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
     myBattlefield.style.setProperty('--card-w', '64px');
@@ -2316,7 +2339,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
@@ -2327,7 +2350,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(cardEl(canvas, hand[0]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
 
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
     expect(noteSpy).toHaveBeenCalledTimes(1);
     expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 });
@@ -2343,7 +2366,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const board = canvas.querySelector<HTMLElement>('.board')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
@@ -2371,7 +2394,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!, hand[2]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
 
     for (const id of [hand[0]!, hand[2]!]) {
@@ -2389,7 +2412,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[2]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
 
@@ -2401,7 +2424,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
 
     fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
     fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', hand[2]!]]);
     expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBe('parked');
     expect(cardEl(canvas, hand[2]!).hasAttribute('data-cast-verdict'), 'no verdict once parked').toBe(false);
@@ -2413,16 +2436,16 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const overlay = overlayOf(canvas);
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[2]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
     fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
 
     s.send(selectables([], 0, 1)); // every player legal, same shape every other click-target case uses
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     fireEvent.pointerMove(faceEl(canvas, 1), { clientX: 500, clientY: 50 });
     const arrow = await waitFor(() => overlay.querySelector<SVGElement>('[data-testid="targeter"]')!);
@@ -2436,7 +2459,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerDown(faceButton, { button: 0, clientX: 500, clientY: 50 });
     fireEvent.pointerUp(faceButton, { clientX: 500, clientY: 50 });
     fireEvent.click(faceButton);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([
       ['selectCard', hand[2]!],
       ['selectPlayer', 1],
@@ -2448,7 +2471,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
 
@@ -2465,7 +2488,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
 
     // The NEXT press is the release — plays here, not wherever the click let go.
     fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 600, clientY: 480 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
     expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 600, y: 480 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('carried');
@@ -2491,7 +2514,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
@@ -2520,7 +2543,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const overlay = overlayOf(canvas);
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(document.body, { clientX: 300, clientY: 300 });
@@ -2541,18 +2564,18 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[2]!]), okBar()])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
     fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     fireEvent.keyDown(window, { key: 'Escape' });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
     expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBe('returning');
   });
@@ -2578,7 +2601,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
       focus1: true,
     });
     for (const f of notify([prompt('Priority'), actionable([hand[0]!]), endTurnBar])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
@@ -2593,19 +2616,19 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[2]!]), okBar()])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
     fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 });
     fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 }); // a second right-click: nothing left to cancel
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
   });
 
@@ -2613,19 +2636,19 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[2]!]), okBar()])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
     fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     // The zone itself, not a card inside it: nothing Forge's selection names.
     fireEvent.pointerDown(theirBattlefield, { button: 0, clientX: 999, clientY: 999 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
   });
 
@@ -2640,26 +2663,26 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = board;
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[2]!]), okBar()])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
     fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
 
     s.send(handDelta(hand.filter((id) => id !== hand[2])));
     s.send(prompt('Select any target'));
     await waitFor(() => expect(canvas.querySelector(`[data-board-card="${hand[2]}"]`)).toBeNull());
     s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     return { ...board, cast: hand[2]!, theirBattlefield };
   }
 
   it('a parked cast whose card the board no longer draws still answers a right-click with Forge’s Cancel', async () => {
     const { s, canvas, theirBattlefield } = await parkLikeForge();
     fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s).at(-1)).toEqual(['selectButtonCancel']);
     expect(canvas.querySelector('[data-cast-ghost]')?.getAttribute('data-cast-lift'), 'the stand-in floats home').toBe('returning');
   });
@@ -2667,14 +2690,14 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
   it('a parked cast whose card the board no longer draws still answers Escape with Forge’s Cancel', async () => {
     const { s } = await parkLikeForge();
     fireEvent.keyDown(window, { key: 'Escape' });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s).at(-1)).toEqual(['selectButtonCancel']);
   });
 
   it('a pointercancel while a cast is parked and Forge is asking sends Forge’s Cancel', async () => {
     const { s } = await parkLikeForge();
     fireEvent.pointerCancel(window);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(sent(s).at(-1)).toEqual(['selectButtonCancel']);
   });
 
@@ -2700,13 +2723,13 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[2]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
     fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBe('parked');
 
     // Forge never opened a selection for this cast: it left the hand, resolved, and is in the graveyard.
@@ -2723,7 +2746,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     // A battlefield permanent Forge offers (a land, for its mana ability, say)
     // must not be treated as a hand card to cast, whatever Forge offers it for.
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
 
     fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(document.body, { clientX: 300, clientY: 300 });
@@ -2750,7 +2773,7 @@ describe('a card Forge offers from the graveyard is picked up like a hand card',
     s.send(handDelta(hand.slice(1)));
     for (const f of notify([prompt('Priority'), actionable([card])])) s.send(f);
     await waitFor(() => expect(canvas.querySelector(`[data-zone="graveyard"][data-owner="you"] [data-board-card="${card}"]`)).not.toBeNull());
-    await waitFor(() => expect(m.weaklySelectable?.has(card)).toBe(true));
+    await untilMatch(m, () => expect(m.weaklySelectable?.has(card)).toBe(true));
     const pile = canvas.querySelector<HTMLElement>('[data-zone="graveyard"][data-owner="you"]')!;
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     return { ...board, card, pile, myBattlefield };
@@ -2806,7 +2829,7 @@ describe('the top card of the library, offered while the board draws it, is pick
     s.send(handDelta(hand.slice(1)));
     for (const f of notify([prompt('Priority'), actionable([card])])) s.send(f);
     await waitFor(() => expect(canvas.querySelector(`[data-zone="library"][data-owner="you"] [data-library-top][data-board-card="${card}"]`)).not.toBeNull());
-    await waitFor(() => expect(m.weaklySelectable?.has(card)).toBe(true));
+    await untilMatch(m, () => expect(m.weaklySelectable?.has(card)).toBe(true));
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     return { ...board, card, myBattlefield };
   }
@@ -2938,12 +2961,12 @@ describe('a played card waits where it was let go until Forge has it on the batt
     const battlefield = mineOf(m).battlefield.map((c) => c.id);
     const card = hand[0]!;
     for (const f of notify([prompt('Priority'), actionable([card]), okBar()])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     const rest = hand.filter((id) => id !== card);
     /** Forge moves it: out of the hand, onto the battlefield. */
     const arrive = () => s.send(zones({ Hand: rest, Battlefield: [...battlefield, card] }));
@@ -3013,7 +3036,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     const land = mineOf(m).battlefield[0]!.id;
     const card = hand[0]!;
     for (const f of notify([prompt('Priority'), actionable([card, land]), okBar()])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     // The hand card is clicked, not dragged: lifted, following the pointer, resolved by the next press.
     fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerUp(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
@@ -3024,7 +3047,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     fireEvent.pointerDown(pile, { button: 0, clientX: 400, clientY: 300 });
     fireEvent.pointerUp(pile, { button: 0, clientX: 400, clientY: 300 });
     fireEvent.click(pile.querySelector('button') ?? pile);
-    await waitFor(() => expect(s.clientFrames().length).toBeGreaterThanOrEqual(1));
+    await s.untilClientFrames(1);
     expect(sent(s), 'the hand card went out, the land under the release did not').toEqual([['selectCard', card]]);
   });
 
@@ -3032,7 +3055,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     const { s, m, canvas, card, arrive } = await play();
     // The shockland's "pay 2 life?": an ask, with the card still in the hand.
     s.send(parseServerFrame({ kind: 'ask', callId: 's0-1', method: 'showConfirmDialog', message: 'Pay 2 life?', title: 'Steam Vents', yesButtonText: 'Yes', noButtonText: 'No', defaultYes: true }));
-    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await untilMatch(m, () => expect(m.asks).toHaveLength(1));
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     expect(standIn.getAttribute('data-cast-lift'), 'over the board, not back in the hand, while the question is up').toBe('parked');
     expect(standIn.style.left).toBe('400px');
@@ -3087,7 +3110,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
       s.send(zones({ Hand: rest, Battlefield: battlefield }));
       s.send(stackItem(9101, card));
       s.send(stackIs([9101]));
-      await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+      await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
       const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
       expect(placed.style.left, 'drawn where the stand-in comes to rest').toBe('530px');
       expect(placed.hasAttribute('data-placed-pending'), 'but hidden while the stand-in is still on its way').toBe(true);
@@ -3106,7 +3129,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
     expect(stackEl(canvas).getAttribute('data-count'), 'Forge has one thing on the stack').toBe('1');
     expect(stackEl(canvas).getAttribute('data-carried'), 'the bookkeeping is unchanged, even though placed.ts now draws it too').toBe('1');
     // The handoff: the ghost retires the moment a matching stack item exists
@@ -3129,13 +3152,13 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
     await waitFor(() => expect(canvas.querySelector('[data-placed-spell="9101"]')).not.toBeNull());
     expect(stackEl(canvas).getAttribute('data-carried'), 'the stack says a played card is also standing in for it').toBe('1');
     // The opponent holds priority a long while, then Forge asks this seat something about the resolving spell.
     await new Promise((r) => setTimeout(r, 2500));
     for (const f of notify([prompt('Choose a creature'), selectables([battlefield[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     const placed = canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!;
     expect(placed, 'still drawn, still at the park point').not.toBeNull();
     expect(placed.style.left).toBe('400px');
@@ -3148,7 +3171,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
     await waitFor(() => expect(canvas.querySelector('[data-placed-spell="9101"]')).not.toBeNull());
     // Its own cast trigger, above it.
     s.send(stackItem(9102, card, true));
@@ -3162,11 +3185,11 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
     const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
     boxAt(placed, 370, 270, 60, 60); // centre (400, 300) — jsdom has no layout otherwise.
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     // The played card, waiting at its park point, is the spell — `live/placed.ts`'s own element now, not the ghost.
     expect(canvas.querySelector(`[data-cast-ghost="${card}"]`)).toBeNull();
     fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 220, clientY: 180 });
@@ -3186,11 +3209,11 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
     const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
     boxAt(placed, 370, 270, 60, 60); // centre (400, 300)
     for (const f of notify([prompt('Choose a target'), selectables([theirs[0]!], 1, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     for (const [x, y] of [
       [220, 180],
@@ -3210,7 +3233,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
     const placed = await waitFor(() => canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!);
     expect(placed.hasAttribute('data-mine'), 'the viewer’s own spell — only these are draggable').toBe(true);
     const moved: Array<[number, { x: number; y: number }]> = [];
@@ -3236,7 +3259,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(1));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
     s.send(stackIs([]));
     s.send(zones({ Graveyard: [card] }));
     await waitFor(() => expect(canvas.querySelector('[data-cast-ghost]')).toBeNull());
@@ -3268,7 +3291,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     // The cleanup discard: a selection over the whole hand, the parked card among it. Not about the play.
     s.send(prompt('Cleanup Phase\nSelect 1 card(s) to discard to bring your hand down to the maximum of 7 cards.'));
     s.send(selectables([card, ...rest], 1, 1));
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: GLIDE_MS + 1000 });
     expect(sent(s), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
@@ -3282,14 +3305,14 @@ describe('a played card waits where it was let go until Forge has it on the batt
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     // Forge moves it out of the hand (not yet on the battlefield)…
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
-    await waitFor(() => expect(mineOf(m).hand!.some((c) => c.id === card)).toBe(false));
+    await untilMatch(m, () => expect(mineOf(m).hand!.some((c) => c.id === card)).toBe(false));
     // …the cleanup discard opens…
     s.send(prompt('Cleanup Phase\nSelect 1 card(s) to discard to bring your hand down to the maximum of 7 cards.'));
     s.send(selectables([card, ...rest], 1, 1));
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     // …and the card is back in the hand, offered for the discard, with the selection still open.
     s.send(zones({ Hand: [card, ...rest], Battlefield: battlefield }));
-    await waitFor(() => expect(mineOf(m).hand!.some((c) => c.id === card)).toBe(true));
+    await untilMatch(m, () => expect(mineOf(m).hand!.some((c) => c.id === card)).toBe(true));
     await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: 1500 });
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: GLIDE_MS + 1000 });
   }, 20_000);
@@ -3308,7 +3331,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
         triggerEvent: null,
       }),
     );
-    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await untilMatch(m, () => expect(m.asks).toHaveLength(1));
     await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS + 500));
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
   }, 20_000);
@@ -3334,7 +3357,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
         modes: { min: 2, max: 2, card: { kind: 'card', id: card } },
       }),
     );
-    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await untilMatch(m, () => expect(m.asks).toHaveLength(1));
     await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS + 500));
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
   }, 20_000);
@@ -3363,7 +3386,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
         selected: [],
       }),
     );
-    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await untilMatch(m, () => expect(m.asks).toHaveLength(1));
     await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS * 2 + 500));
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
     expect(cardEl(canvas, card).getAttribute('data-cast-lift'), 'and not drawn in the hand').toBe('carried');
@@ -3374,7 +3397,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     s.send(prompt('Select a card to put on top of your library'));
     s.send(selectables(rest, 1, 1));
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS + 500));
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
   }, 20_000);
@@ -3394,7 +3417,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
         selected: [],
       }),
     );
-    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await untilMatch(m, () => expect(m.asks).toHaveLength(1));
     await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: 1500 });
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: GLIDE_MS + 1000 });
   }, 20_000);
@@ -3403,12 +3426,12 @@ describe('a played card waits where it was let go until Forge has it on the batt
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     s.send(actionable([]));
-    await waitFor(() => expect(m.weaklySelectable?.size ?? 0).toBe(0));
+    await untilMatch(m, () => expect(m.weaklySelectable?.size ?? 0).toBe(0));
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('returning');
     expect(s.clientFrames()).toHaveLength(0);
@@ -3421,7 +3444,7 @@ describe('a hand card named by an open selection or ask is an ordinary click, ne
     const hand = mineOf(m).hand!.map((c) => c.id);
     // The selection names the hand card directly, not Forge's priority-time actionable set.
     for (const f of notify([prompt('Reveal a Faerie?'), selectables([hand[0]!], 0, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
     const face = cardEl(canvas, hand[0]!).querySelector<HTMLButtonElement>('button')!;
     fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
@@ -3429,7 +3452,7 @@ describe('a hand card named by an open selection or ask is an ordinary click, ne
     fireEvent.pointerUp(face, { clientX: 10, clientY: 10 });
     // Not suppressed this time — this press was never claimed as a lift.
     expect(fireEvent.click(face), 'the native click reaches Board, unclaimed').toBe(true);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
   });
@@ -3438,7 +3461,7 @@ describe('a hand card named by an open selection or ask is an ordinary click, ne
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Reveal a Faerie?'), selectables([hand[0]!], 0, 1)])) s.send(f);
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
@@ -3446,7 +3469,7 @@ describe('a hand card named by an open selection or ask is an ordinary click, ne
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'never lifted — this was never a cast').toBeNull();
     expect(s.clientFrames(), 'the ordinary drag sends nothing until release').toHaveLength(0);
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
   });
 
@@ -3467,7 +3490,7 @@ describe('a hand card named by an open selection or ask is an ordinary click, ne
       defaultOption: 0,
     });
     for (const f of notify([prompt('Priority'), actionable([hand[0]!]), dialogAsk])) s.send(f);
-    await waitFor(() => expect(m.asks).toHaveLength(1));
+    await untilMatch(m, () => expect(m.asks).toHaveLength(1));
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'an open ask outranks the actionable set').toBeNull();
@@ -3480,7 +3503,7 @@ describe('a hand card named by an open selection or ask is an ordinary click, ne
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
@@ -3501,7 +3524,7 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
     const noteSpy = vi.spyOn(BoardModule, 'notePlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
@@ -3518,7 +3541,7 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
     const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     const myHand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!;
 
@@ -3542,7 +3565,7 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
     const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     previewSpy.mockClear();
@@ -3560,7 +3583,7 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
     const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[2]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
@@ -3574,7 +3597,7 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
     const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
     const hand = mineOf(m).hand!.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([hand[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
@@ -3592,7 +3615,7 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
     const previewSpy = vi.spyOn(BoardModule, 'previewPlayedTo');
     const mine = mineOf(m).battlefield.map((c) => c.id);
     for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await waitFor(() => expect(m.weaklySelectable).not.toBeNull());
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
 
     fireEvent.pointerDown(cardEl(canvas, mine[0]!), { button: 0, clientX: 10, clientY: 10 });

@@ -73,7 +73,7 @@ import {
 } from './match.ts';
 import { FLIP_MS } from './CoinToss.tsx';
 import type { PlayPrefs } from './prefs.ts';
-import { confirmAsk, fixtureFrames, startReplayServer, type ReplayServer } from './replay-server.ts';
+import { confirmAsk, fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from './replay-server.ts';
 import { parseMatchAck } from './transport.ts';
 import { PHASE_SETTLE_MS } from './phase-sound.ts';
 
@@ -249,7 +249,7 @@ async function liveBoard(playerId = 0, menu = false) {
     transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
   }));
   const utils = render(createElement(LiveBoard, { match: m }));
-  await waitFor(() => expect(m.stats.snapshots).toBe(1));
+  await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
   const frames = fixtureFrames();
   for (const f of frames) s.send(f);
   // Wait for DELIVERY first, on the counter that says so, and only then for
@@ -263,7 +263,7 @@ async function liveBoard(playerId = 0, menu = false) {
   // reproducible locally (45/45, three runs). Waiting on `stats.applied` is
   // waiting for the right thing: the assertion below is then about rendering,
   // not about how fast a websocket drained.
-  await waitFor(() => expect(m.stats.applied).toBe(frames.length), { timeout: 10_000 });
+  await untilMatch(m, () => expect(m.stats.applied).toBe(frames.length));
   // The turn number is the RAIL's: §A deleted `.board__bar`, which carried
   // `turn`, and `live-turn-n` is Forge's own counter on its own (wave 26 §B.2).
   await waitFor(() => expect(utils.getByTestId('live-turn-n').textContent).toBe('14'));
@@ -288,7 +288,7 @@ async function sendTheirWaitingOn(
     { seat: 0, claimed: true, playerId: null },
     { seat: 1, claimed: true, playerId: null, ...(fact === null ? {} : { waitingOn: fact }) },
   ]);
-  await waitFor(() => expect(m.waitingOn?.has(1) ?? false).toBe(fact !== null));
+  await untilMatch(m, () => expect(m.waitingOn?.has(1) ?? false).toBe(fact !== null));
 }
 
 /**
@@ -326,6 +326,7 @@ describe('the board follows the stream', () => {
     const { container, getByTestId, queryByTestId } = render(createElement(LiveBoard, { match: m }));
     // Seated, with no state yet: ONE line says exactly that, and it is the
     // line — there is no second "waiting" row under it any more (§F.2).
+    await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
     await waitFor(() => expect(getByTestId('live-status').textContent).toBe('Seat 1, waiting for the state.'));
     expect(lines(container)).toEqual(['Seat 1, waiting for the state.']);
     // No state, so no rail: the turn indicator arrives with the board.
@@ -361,7 +362,7 @@ describe('showConfirmDialog', () => {
     expect(document.activeElement).toBe(keep);
 
     fireEvent.click(mulligan);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(s.clientFrames()[0]).toEqual({
       ok: true,
       value: { kind: 'reply', callId: 'c-1', method: 'showConfirmDialog', result: false },
@@ -378,7 +379,7 @@ describe('showConfirmDialog', () => {
     expect(document.activeElement).toBe(dialog.querySelector('[data-answer="no"]'));
     fireEvent.click(keep);
     fireEvent.click(keep);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { callId: 'c-2', result: true } });
   });
 });
@@ -430,7 +431,7 @@ describe('the other fourteen prompts, on the live board', () => {
     async (method) => {
       const { s, m, queryByTestId } = await liveBoard();
       s.send(askFor(method));
-      await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+      await s.untilClientFrames(1);
       expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'reply', callId: `fx-${method}`, method } });
       await waitFor(() => expect(queryByTestId('live-prompt')).toBeNull());
       expect(m.stats.replies).toBe(1);
@@ -444,7 +445,7 @@ describe('the other fourteen prompts, on the live board', () => {
       transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
     }));
     const { getByTestId, container } = render(createElement(LiveBoard, { match: m }));
-    await waitFor(() => expect(m.stats.snapshots).toBe(1));
+    await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
     const frames = fixtureFrames();
     for (const f of frames.slice(0, 8)) s.send(f);
     await waitFor(() => expect(getByTestId('live-turn-n')).toBeTruthy());
@@ -464,7 +465,7 @@ describe('the other fourteen prompts, on the live board', () => {
     expect(getByTestId('live-prompt').dataset.callId).toBe('fx-getChoices');
 
     fireEvent.click(getByTestId('prompt-submit'));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(s.clientFrames()[0]).toEqual({
       ok: true,
       value: { kind: 'reply', callId: 'fx-getChoices', method: 'getChoices', result: ['red'] },
@@ -483,7 +484,7 @@ describe('the other fourteen prompts, on the live board', () => {
     const dialog = await waitFor(() => getByTestId('confirm-dialog'));
     expect(dialog.dataset.callId).toBe('c-next');
     fireEvent.click(dialog.querySelector('[data-answer="yes"]')!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(2));
+    await s.untilClientFrames(2);
     expect(s.clientFrames().map((f) => (f.ok && f.value.kind === 'reply' ? [f.value.callId, f.value.result] : null))).toEqual([
       ['fx-getChoices', ['blue']],
       ['c-next', true],
@@ -501,7 +502,7 @@ describe('the other fourteen prompts, on the live board', () => {
     try {
       const { s, m, getByTestId, queryByTestId } = await liveBoard();
       s.send(askFor('showOptionDialog'));
-      await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+      await s.untilClientFrames(1);
       expect(s.clientFrames()[0]).toMatchObject({
         ok: true,
         value: { kind: 'abort', callId: 'fx-showOptionDialog', reason: 'unsupported' },
@@ -579,21 +580,16 @@ describe('Forge asks with buttons, not only with asks', () => {
     const before = m.stats.replies;
     fireEvent.click(getByTestId('live-play-or-draw-play'));
 
-    await waitFor(() => expect(m.stats.replies).toBe(before + 1));
-    await waitFor(() =>
-      expect(
-        s
-          .clientFrames()
-          .some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonOk'),
-      ).toBe(true),
-    );
+    await untilMatch(m, () => expect(m.stats.replies).toBe(before + 1));
+    await s.caughtUp(m);
+    expect(s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonOk')).toBe(true);
   });
 
   it('a bar Forge has disabled is not pressable, so a stale click cannot answer the NEXT question', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
 
     s.send(stackDelta(m));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(0));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
     for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
     await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
 
@@ -607,7 +603,7 @@ describe('Forge asks with buttons, not only with asks', () => {
 
     fireEvent.click(getByTestId('live-button-next-phase'));
     expect(pressButton(m, 'ok')).toBe(false);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(m.stats.replies).toBe(1);
   });
 
@@ -623,7 +619,7 @@ describe('Forge asks with buttons, not only with asks', () => {
   it('the bar stays while a question is open, disabled, and a press sends nothing', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     s.send(stackDelta(m));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(0));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
     for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
     await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
     expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled, 'Forge’s End Turn, enabled').toBe(false);
@@ -685,7 +681,7 @@ describe('clicking a card on the live board', () => {
     expect(selectableCard(other)).toBeNull();
 
     fireEvent.click(selectableCard(target)!.querySelector('button')!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(s.clientFrames()[0]).toEqual({
       ok: true,
       value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: target }, otherCardViewsToSelect: [], triggerEvent: null },
@@ -695,7 +691,7 @@ describe('clicking a card on the live board', () => {
     await waitFor(() => expect(selectableCard(target)).toBeNull());
 
     s.send(parseServerFrame({ kind: 'notify', method: 'clearSelectables' }));
-    await waitFor(() => expect(m.selectables).toBeNull());
+    await untilMatch(m, () => expect(m.selectables).toBeNull());
     expect(selectableCard(target)).toBeNull();
     expect(selectableCard(other)).toBeNull();
     expect(selectCard(m, target)).toBe(false);
@@ -797,7 +793,7 @@ describe('the says, the toggle, and the ability label', () => {
     expect(sheet.textContent).not.toMatch(/ability #/);
 
     fireEvent.click(offered[1]!);
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(s.clientFrames()[0]).toMatchObject({
       ok: true,
       value: { kind: 'reply', callId: 'fx-labelled', method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9002 } },
@@ -840,7 +836,7 @@ describe('the says, the toggle, and the ability label', () => {
         triggerEvent: null,
       }),
     );
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(s.clientFrames()[0]).toMatchObject({
       ok: true,
       value: { kind: 'reply', callId: 'fx-only-one', method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9001 } },
@@ -855,7 +851,7 @@ describe('the says, the toggle, and the ability label', () => {
   it('full control makes that same one-ability offer a question again', async () => {
     const { s, m, getByTestId } = await liveBoard();
     fireEvent.click(getByTestId('live-full-control'));
-    await waitFor(() => expect(m.fullControl).toBe(true));
+    await untilMatch(m, () => expect(m.fullControl).toBe(true));
     const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
     s.send(
       parseServerFrame({
@@ -1054,7 +1050,7 @@ describe('one state, one line', () => {
     const { m, container, queryByTestId } = await liveBoard();
     expect(liveStatus(m)).toBe('live');
     act(() => m.transport.disconnect());
-    await waitFor(() => expect(m.connected).toBe(false));
+    await untilMatch(m, () => expect(m.connected).toBe(false));
     only(container, m, 'reconnecting', 'Reconnecting…');
     expect(container.querySelector('.board'), 'the table stays drawn under it').not.toBeNull();
     expect(queryByTestId('live-status')!.dataset.perch).toBe('corner');
@@ -1772,7 +1768,7 @@ describe('a mana payment pops out of the corner', () => {
     for (const f of [payBar(enable1), payPrompt('Mana Leak - Counter target spell.\n\nPay Mana Cost: {3}', mine[0]!), actionable(mine)]) {
       live.s.send(f);
     }
-    await waitFor(() => expect(live.m.promptCard).toBe(mine[0]!));
+    await untilMatch(live.m, () => expect(live.m.promptCard).toBe(mine[0]!));
     return live;
   }
 
@@ -1820,7 +1816,7 @@ describe('a mana payment pops out of the corner', () => {
     expect(life.hasAttribute('disabled')).toBe(false);
     const before = live.s.clientFrames().length;
     fireEvent.click(life);
-    await waitFor(() => expect(live.s.clientFrames()).toHaveLength(before + 1));
+    await live.s.untilClientFrames(before + 1);
     expect(live.s.clientFrames().at(-1)).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: mine.id } } });
     // Refused until Forge answers the press.
     await waitFor(() => expect(getByTestId('live-payment-life').hasAttribute('disabled')).toBe(true));
@@ -1849,7 +1845,8 @@ describe('a mana payment pops out of the corner', () => {
     const { s, m, getByTestId, queryByTestId } = await payment();
     await waitFor(() => getByTestId('live-payment'));
     fireEvent.click(getByTestId('live-payment-ok'));
-    await waitFor(() => expect(m.stats.replies).toBe(1));
+    await untilMatch(m, () => expect(m.stats.replies).toBe(1));
+    await s.caughtUp(m);
     expect(s.clientFrames().map((f) => (f.ok && f.value.kind === 'act' ? f.value.method : null))).toEqual(['selectButtonOk']);
     // `pressButton` ends the input as well as answering it, so the payment state
     // is over and the window goes with it — there is nothing left to press twice.
@@ -1863,7 +1860,8 @@ describe('a mana payment pops out of the corner', () => {
     const { s, m, getByTestId, queryByTestId } = await payment();
     await waitFor(() => getByTestId('live-payment'));
     fireEvent.click(getByTestId('live-payment-cancel'));
-    await waitFor(() => expect(m.stats.replies).toBe(1));
+    await untilMatch(m, () => expect(m.stats.replies).toBe(1));
+    await s.caughtUp(m);
     expect(s.clientFrames().map((f) => (f.ok && f.value.kind === 'act' ? f.value.method : null))).toEqual(['selectButtonCancel']);
     await waitFor(() => expect(queryByTestId('live-payment')).toBeNull());
   });
@@ -1956,7 +1954,7 @@ describe('Concede asks first', () => {
     fireEvent.click(getByTestId('live-concede'));
     await waitFor(() => getByTestId('live-concede-ask'));
     fireEvent.click(getByTestId('live-concede-yes'));
-    await waitFor(() => expect(s.clientFrames()).toHaveLength(1));
+    await s.untilClientFrames(1);
     expect(s.clientFrames()[0]).toEqual({ ok: true, value: { kind: 'act', method: 'concede' } });
     // And it closes, so it cannot be conceded twice.
     await waitFor(() => expect(queryByTestId('live-concede-ask')).toBeNull());
@@ -2027,7 +2025,7 @@ describe('what the board is told about Forge’s input', () => {
     // a `waitFor` on the assertion itself passes on any transient that happens to
     // satisfy it, which is how an inverted field got past an earlier version of
     // the case below.
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"][data-selectable]`)).not.toBeNull());
     expect(captured.interaction!.selectionOpen).toBe(true);
     // Exactly `match.selectables !== null`, which is also what `boardInteraction`
@@ -2037,7 +2035,7 @@ describe('what the board is told about Forge’s input', () => {
     expect(captured.interaction!.declaringAttackers).toBe(false);
 
     s.send(notify({ kind: 'notify', method: 'clearSelectables' }));
-    await waitFor(() => expect(m.selectables).toBeNull());
+    await untilMatch(m, () => expect(m.selectables).toBeNull());
     await waitFor(() => expect(container.querySelector(`[data-board-card="${mine[0]}"][data-selectable]`)).toBeNull());
     expect(captured.interaction!.selectionOpen).toBe(false);
   });
@@ -2077,7 +2075,7 @@ describe('what the board is told about Forge’s input', () => {
     for (const f of [phase(m, 'COMBAT_DECLARE_ATTACKERS', me.id), prompt('Declare attackers'), actionable(mine)]) {
       s.send(f);
     }
-    await waitFor(() => expect(m.view!.phase).toBe('COMBAT_DECLARE_ATTACKERS'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_DECLARE_ATTACKERS'));
     await waitFor(() => expect(getByTestId('live-phases').dataset.phase).toBe('COMBAT_DECLARE_ATTACKERS'));
     expect(getByTestId('live-phases').dataset.whose).toBe('yours');
     expect(captured.interaction!.declaringAttackers).toBe(true);
@@ -2087,7 +2085,7 @@ describe('what the board is told about Forge’s input', () => {
 
     // The same step, but the OTHER seat is the one declaring.
     s.send(phase(m, 'COMBAT_DECLARE_ATTACKERS', them.id));
-    await waitFor(() => expect(m.view!.activePlayerId).toBe(them.id));
+    await untilMatch(m, () => expect(m.view!.activePlayerId).toBe(them.id));
     await waitFor(() => expect(getByTestId('live-phases').dataset.whose).toBe('theirs'));
     expect(getByTestId('live-phases').dataset.phase).toBe('COMBAT_DECLARE_ATTACKERS');
     expect(captured.interaction!.declaringAttackers).toBe(false);
@@ -2191,7 +2189,7 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
     //    own instruction, so the button stays absent instead of becoming Forge's undo.
     s.send(attacking(m, [me.battlefield.find((c) => !c.tapped)!.id]));
     s.send(bar('Call Back'));
-    await waitFor(() => expect(m.buttons!.label2).toBe('Call Back'));
+    await untilMatch(m, () => expect(m.buttons!.label2).toBe('Call Back'));
     expect(cancel(), 'Call Back is refused too (item 16)').toBeNull();
     expect(getByTestId('live-buttons').textContent).not.toContain('Call Back');
     expect(getByTestId('live-decision').textContent).not.toContain('Call Back');
@@ -2402,7 +2400,8 @@ describe('the match settings open from your own face (items 4-7, 2026-10-10)', (
     expect(checkbox.checked).toBe(true);
 
     fireEvent.click(checkbox);
-    await waitFor(() => expect(m.stopAtEndStep).toBe(false));
+    await untilMatch(m, () => expect(m.stopAtEndStep).toBe(false));
+    await s.caughtUp(m);
     const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
     expect(sent).toHaveLength(1);
     expect(sent[0]!.payload).toEqual({ matchId: s.matchId, type: 'stopPreference', stopAtEndStep: false });
@@ -2410,7 +2409,8 @@ describe('the match settings open from your own face (items 4-7, 2026-10-10)', (
     expect(checkbox.checked).toBe(false);
 
     fireEvent.click(checkbox);
-    await waitFor(() => expect(m.stopAtEndStep).toBe(true));
+    await untilMatch(m, () => expect(m.stopAtEndStep).toBe(true));
+    await s.caughtUp(m);
     expect(s.received.filter((r) => r.event === 'forge:stop-preference')).toHaveLength(2);
     // A preference, not a Forge frame: none of it crossed forge:c2s.
     expect(s.clientFrames()).toEqual([]);
@@ -2419,7 +2419,8 @@ describe('the match settings open from your own face (items 4-7, 2026-10-10)', (
   it('a persisted preference is sent to the server on join, without the panel ever opening — the manager’s own instruction', async () => {
     prefsState.prefs = { boardLayout: 'type-separated', endStepStop: false };
     const { s, m } = await liveBoard();
-    await waitFor(() => expect(m.stopAtEndStep).toBe(false));
+    await untilMatch(m, () => expect(m.stopAtEndStep).toBe(false));
+    await s.caughtUp(m);
     expect(captured.boardLayout).toBe('type-separated');
     const sent = s.received.filter((r) => r.event === 'forge:stop-preference');
     expect(sent).toHaveLength(1);
@@ -2527,8 +2528,8 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     const offeredId = m.view!.players.find((p) => p.isViewer)!.battlefield[0]!.id;
     s.send(selectables([offeredId]));
     s.send(buttons());
-    await waitFor(() => expect(m.selectables).not.toBeNull());
-    await waitFor(() => expect(m.buttons?.enable1).toBe(true));
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.buttons?.enable1).toBe(true));
     expect(queryByTestId('live-spectator')).toBeNull();
     const frames = s.clientFrames().length;
 
@@ -2569,7 +2570,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
   it('watcher (2026-10-12): no control box at all, a Watching line with a flip, and the flip turns the table around', async () => {
     const { s, m, getByTestId, queryByTestId, rerender } = await liveBoard();
     s.send(buttons());
-    await waitFor(() => expect(m.buttons?.enable1).toBe(true));
+    await untilMatch(m, () => expect(m.buttons?.enable1).toBe(true));
     const bottom = m.view!.players.find((p) => p.isViewer)!.id;
     const frames = s.clientFrames().length;
 
@@ -2600,7 +2601,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     const { s, m, rerender } = await liveBoard();
     const offeredId = m.view!.players.find((p) => p.isViewer)!.battlefield[0]!.id;
     s.send(selectables([offeredId]));
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     const replies = m.stats.replies;
 
     flag(m, { spectator: true }, rerender);
@@ -2909,14 +2910,14 @@ describe('End Turn goes straight to the other turn', () => {
     fireEvent.click(getByTestId('live-button-end-turn'));
     soundCalls.length = 0;
     s.send(phaseDelta(m, 'MAIN2', me.id));
-    await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('MAIN2'));
     s.send(phaseDelta(m, 'END_OF_TURN', me.id));
-    await waitFor(() => expect(m.view!.phase).toBe('END_OF_TURN'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('END_OF_TURN'));
     expect(soundCalls.map((e) => e.role)).not.toContain('g.phase');
 
     const theirTurn = m.view!.turn + 1;
     s.send(turnDelta(m, them.id, theirTurn));
-    await waitFor(() => expect(m.view!.turn).toBe(theirTurn));
+    await untilMatch(m, () => expect(m.view!.turn).toBe(theirTurn));
     const endTurnLine = () =>
       s.received.find((r) => r.event === 'forge:client' && (r.payload as { data: Record<string, unknown> }).data.what === 'end-turn')?.payload as
         | { data: Record<string, unknown> }
@@ -2938,10 +2939,10 @@ describe('a phase passed straight through makes no sound', () => {
     soundCalls.length = 0;
     for (const step of ['COMBAT_BEGIN', 'COMBAT_DECLARE_ATTACKERS', 'COMBAT_END']) {
       s.send(phaseDelta(m, step, me.id));
-      await waitFor(() => expect(m.view!.phase).toBe(step));
+      await untilMatch(m, () => expect(m.view!.phase).toBe(step));
     }
     s.send(phaseDelta(m, 'MAIN2', me.id));
-    await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('MAIN2'));
     expect(soundCalls.map((e) => e.role), 'no step so far has held').not.toContain('g.phase');
 
     s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Priority', card: null }));
@@ -2969,7 +2970,7 @@ describe('Auto Yield / Cancel Yield (the End Turn slot, on the other seat’s tu
     const { s, m, getByTestId } = await liveBoard();
     const them = m.view!.players.find((p) => !p.isViewer)!;
     s.send(turnDelta(m, them.id, m.view!.turn + 1));
-    await waitFor(() => expect(m.view!.activePlayerId).toBe(them.id));
+    await untilMatch(m, () => expect(m.view!.activePlayerId).toBe(them.id));
 
     const button = getByTestId('live-button-end-turn') as HTMLButtonElement;
     expect(button.textContent).toBe('Auto Yield');
@@ -2981,7 +2982,7 @@ describe('Auto Yield / Cancel Yield (the End Turn slot, on the other seat’s tu
     const { s, m, getByTestId } = await liveBoard();
     const them = m.view!.players.find((p) => !p.isViewer)!;
     s.send(turnDelta(m, them.id, m.view!.turn + 1));
-    await waitFor(() => expect(m.view!.activePlayerId).toBe(them.id));
+    await untilMatch(m, () => expect(m.view!.activePlayerId).toBe(them.id));
 
     fireEvent.click(getByTestId('live-button-end-turn'));
     const button = getByTestId('live-button-end-turn') as HTMLButtonElement;
@@ -3008,7 +3009,7 @@ describe('Auto Yield / Cancel Yield (the End Turn slot, on the other seat’s tu
     await waitFor(() => expect(getByTestId('live-button-end-turn').textContent).toBe('Cancel Yield'));
 
     s.send(turnDelta(m, me.id, m.view!.turn + 1));
-    await waitFor(() => expect(m.view!.activePlayerId).toBe(me.id));
+    await untilMatch(m, () => expect(m.view!.activePlayerId).toBe(me.id));
     const button = getByTestId('live-button-end-turn') as HTMLButtonElement;
     expect(button.textContent).toBe('End Turn');
     expect(button.hasAttribute('data-yield')).toBe(false);
@@ -3043,7 +3044,7 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
   it('highlights End Turn (Forge’s label2, never Next Phase) exactly when nothingToDecide is true', async () => {
     const { s, m, getByTestId } = await liveBoard();
     s.send(pastAttackers(m));
-    await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('MAIN2'));
     s.send(clearSelectables());
     s.send(bar2('End Turn'));
     await waitFor(() => expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false));
@@ -3051,7 +3052,7 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     expect(getByTestId('live-button-next-phase').hasAttribute('data-highlight'), 'the highlight is never on Next Phase').toBe(false);
 
     s.send(weaklySelectable([]));
-    await waitFor(() => expect(nothingToDecide(m)).toBe(true));
+    await untilMatch(m, () => expect(nothingToDecide(m)).toBe(true));
     await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(true));
     expect(getByTestId('live-button-next-phase').hasAttribute('data-highlight')).toBe(false);
 
@@ -3062,14 +3063,14 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     const viewerBattlefield = m.view!.players.find((p) => p.isViewer)!.battlefield;
     const nonLand = viewerBattlefield.find((c) => !c.card.typeLine.includes('Land'))!.id;
     s.send(weaklySelectable([nonLand]));
-    await waitFor(() => expect(nothingToDecide(m)).toBe(false));
+    await untilMatch(m, () => expect(nothingToDecide(m)).toBe(false));
     await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(false));
   });
 
   it('an actionable set naming only the viewer’s own battlefield LAND keeps End Turn highlighted (lane F’s land-tapping fix)', async () => {
     const { s, m, getByTestId } = await liveBoard();
     s.send(pastAttackers(m));
-    await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('MAIN2'));
     s.send(clearSelectables());
     s.send(bar2('End Turn'));
     await waitFor(() => expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false));
@@ -3077,7 +3078,7 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     const viewerBattlefield = m.view!.players.find((p) => p.isViewer)!.battlefield;
     const land = viewerBattlefield.find((c) => c.card.typeLine.includes('Land'))!.id;
     s.send(weaklySelectable([land]));
-    await waitFor(() => expect(nothingToDecide(m)).toBe(true));
+    await untilMatch(m, () => expect(nothingToDecide(m)).toBe(true));
     await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(true));
     expect(getByTestId('live-button-next-phase').hasAttribute('data-highlight')).toBe(false);
   });
@@ -3090,7 +3091,7 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     const { s, m, getByTestId } = await liveBoard();
     const endTurn = () => getByTestId('live-button-end-turn');
     s.send(pastAttackers(m));
-    await waitFor(() => expect(m.view!.phase).toBe('MAIN2'));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('MAIN2'));
     s.send(clearSelectables());
     s.send(bar2('End Turn'));
     s.send(weaklySelectable([]));
@@ -3104,7 +3105,7 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     expect(endTurn().hasAttribute('data-nudge'), 'not while a decision is open').toBe(false);
 
     s.send(stackDelta(m));
-    await waitFor(() => expect(m.view!.stack).toEqual([]));
+    await untilMatch(m, () => expect(m.view!.stack).toEqual([]));
     await waitFor(() => expect(endTurn().hasAttribute('data-highlight')).toBe(true));
     expect(endTurn().hasAttribute('data-nudge'), 'not straight away').toBe(false);
 
@@ -3397,7 +3398,7 @@ describe('R16 — the result screen, drawn over the board', () => {
       },
     });
     s.send(outcomeOnly);
-    await waitFor(() => expect(m.view!.players.find((p) => p.id === loserId)!.hasLost).toBe(true));
+    await untilMatch(m, () => expect(m.view!.players.find((p) => p.id === loserId)!.hasLost).toBe(true));
     expect(queryByTestId('game-result'), 'the loser is drawn as lost, but nothing yet says the game is over').toBeNull();
 
     s.send(parseServerFrame({ kind: 'notify', method: 'finishGame' }));
@@ -3452,10 +3453,10 @@ describe('R16 — the result screen, drawn over the board', () => {
       transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
     }));
     const utils = render(createElement(LiveBoard, { match: m, roomId: 'r-1' }));
-    await waitFor(() => expect(m.stats.snapshots).toBe(1));
+    await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
     const frames = fixtureFrames();
     for (const f of frames) s.send(f);
-    await waitFor(() => expect(m.stats.applied).toBe(frames.length), { timeout: 10_000 });
+    await untilMatch(m, () => expect(m.stats.applied).toBe(frames.length));
     await waitFor(() => expect(utils.getByTestId('live-turn-n').textContent).toBe('14'));
 
     const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
@@ -3635,7 +3636,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
       { seat: 0, claimed: true, playerId: m.playerId, coinToss: { winner: 1, at: Date.now() } },
       { seat: 1, claimed: true, playerId: them.id, name: them.name, avatarId: 'herald', coinToss: { winner: 1, at: Date.now() } },
     ]);
-    await waitFor(() => expect(m.coinToss?.winner).toBe(1));
+    await untilMatch(m, () => expect(m.coinToss?.winner).toBe(1));
     // This fixture is mid-game (turn 14): a toss arriving now is a rejoin's, and stays silent.
     expect(soundCalls.map((e) => e.role)).not.toContain('g.game-start');
     const coin = await waitFor(() => getByTestId('coin-toss'));
@@ -3650,7 +3651,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
       { seat: 0, claimed: true, playerId: m.playerId },
       { seat: 1, claimed: true, playerId: them.id, name: them.name, avatarId: 'herald' },
     ]);
-    await waitFor(() => expect(m.coinToss).toBeNull());
+    await untilMatch(m, () => expect(m.coinToss).toBeNull());
     expect(queryByTestId('coin-toss')).toBeNull();
   });
 
@@ -3680,7 +3681,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
       { seat: 0, claimed: true, playerId: m.playerId, coinToss: { winner: 0, at: Date.now() } },
       { seat: 1, claimed: true, playerId: null, coinToss: { winner: 0, at: Date.now() } },
     ]);
-    await waitFor(() => expect(m.coinToss?.winner).toBe(0));
+    await untilMatch(m, () => expect(m.coinToss?.winner).toBe(0));
     const host = await waitFor(() => getByTestId('live-play-or-draw-host'));
     expect(host.querySelector('[data-testid="coin-toss"]')?.getAttribute('data-winner')).toBe('0');
     expect(queryByTestId('live-play-or-draw-play'), 'no question while the coin is in the air').toBeNull();
@@ -3705,7 +3706,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
       { seat: 0, claimed: true, playerId: m.playerId, coinToss: { winner: 0, at } },
       { seat: 1, claimed: true, playerId: null, coinToss: { winner: 0, at } },
     ]);
-    await waitFor(() => expect(m.coinToss?.winner).toBe(0));
+    await untilMatch(m, () => expect(m.coinToss?.winner).toBe(0));
     expect((await waitFor(() => getByTestId('live-play-or-draw-play'))).textContent).toBe('Play');
   });
 
@@ -3715,7 +3716,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     // waiting on them."
     const { s, m, queryByTestId } = await liveBoard();
     s.send(stackDelta(m));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(0));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
     await sendTheirWaitingOn(s, m, { method: 'priority', hostCard: null });
     await new Promise((r) => setTimeout(r, 50));
     expect(queryByTestId('live-waiting-pop')).toBeNull();
@@ -3764,7 +3765,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     const hand = m.view!.players.find((p) => p.isViewer)!.hand!.map((c) => c.id);
     s.send(updateButtons(false));
     s.send(parseServerFrame({ kind: 'notify', method: 'setSelectables', cards: [{ kind: 'card', id: hand[0]! }], min: 1, max: 1 }));
-    await waitFor(() => expect(m.selectables).not.toBeNull());
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     expect(isWaitingForOpponent(m)).toBe(false);
     expect(queryByTestId('live-waiting-pop')).toBeNull();
   });
@@ -3777,7 +3778,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Return 1 card(s) to the bottom of your library', card: null }));
     s.send(updateButtons(false, 'OK', 'Cancel'));
     s.send(parseServerFrame({ kind: 'notify', method: 'applyDelta', payload: { packet: { seq: 900, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [GAME]: { _type: WireType.Game, _id: 1, Mulligan: { t: 'bool', v: true } } }, events: [] } } }));
-    await waitFor(() => expect(choosingMulligan(m)).toBe(true));
+    await untilMatch(m, () => expect(choosingMulligan(m)).toBe(true));
     expect(isWaitingForOpponent(m), 'the pick is this seat’s move').toBe(false);
     expect(queryByTestId('live-waiting-pop'), 'no waiting pop-out either').toBeNull();
     const decision = getByTestId('live-decision');
@@ -3808,7 +3809,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     prompt('Return 1 card(s) to the bottom of your library');
     s.send(updateButtons(false, 'OK', 'Cancel'));
     setMulligan(true);
-    await waitFor(() => expect(choosingMulligan(m)).toBe(true));
+    await untilMatch(m, () => expect(choosingMulligan(m)).toBe(true));
     expect(getByTestId('live-decision').textContent).toContain('Return 1 card(s) to the bottom of your library');
     expect((getByTestId('live-decision-ok') as HTMLButtonElement).disabled, 'OK off until a card is set aside').toBe(true);
     expect(queryByTestId('live-decision-cancel'), 'no second button during the pick').toBeNull();
@@ -3824,11 +3825,11 @@ describe('T2 — a calm "waiting for the other player"', () => {
 
     // the pick ends; the next one gets its own fresh FIRST sentence — proof the hold let go.
     setMulligan(false);
-    await waitFor(() => expect(choosingMulligan(m)).toBe(false));
+    await untilMatch(m, () => expect(choosingMulligan(m)).toBe(false));
     prompt('Return 2 card(s) to the bottom of your library');
     s.send(updateButtons(false, 'OK', 'Cancel'));
     setMulligan(true);
-    await waitFor(() => expect(choosingMulligan(m)).toBe(true));
+    await untilMatch(m, () => expect(choosingMulligan(m)).toBe(true));
     expect(getByTestId('live-decision').textContent).toContain('Return 2 card(s) to the bottom of your library');
   });
 
@@ -3838,7 +3839,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     const { s, m, queryByTestId } = await liveBoard();
     s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Yielding until end of turn.\nYou may cancel this yield at any time.', card: null }));
     s.send(updateButtons(false, 'OK', 'Cancel'));
-    await waitFor(() => expect(m.prompt).toMatch(/^Yielding until/));
+    await untilMatch(m, () => expect(m.prompt).toMatch(/^Yielding until/));
     await new Promise((r) => setTimeout(r, 30));
     expect(queryByTestId('live-decision-host'), 'no pop-up').toBeNull();
     expect(queryByTestId('live-decision-cancel'), 'and nothing to cancel with').toBeNull();
@@ -3847,7 +3848,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
   it('is gone the instant Forge enables the viewer’s own OK — that is "my move"', async () => {
     const { s, m, queryByTestId } = await liveBoard();
     s.send(updateButtons(true));
-    await waitFor(() => expect(m.buttons?.enable1).toBe(true));
+    await untilMatch(m, () => expect(m.buttons?.enable1).toBe(true));
     expect(isWaitingForOpponent(m)).toBe(false);
     expect(queryByTestId('live-waiting-pop')).toBeNull();
   });
@@ -3868,7 +3869,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
     await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
     s.send(updateButtons(true));
     s.send(confirmAsk('c-wait'));
-    await waitFor(() => expect(currentAsk(m)).not.toBeNull());
+    await untilMatch(m, () => expect(currentAsk(m)).not.toBeNull());
     // The viewer's own stale bar and open ask change nothing about the fact
     // the server reported for the OTHER seat — unlike the old `!myMoveNow`
     // inference, which would have read this as "my move" and hidden it.
@@ -3887,10 +3888,10 @@ describe('T2 — a calm "waiting for the other player"', () => {
   it('never draws over the viewer’s OWN open ask, even with a stale theirWaitingOn fact', async () => {
     const { s, m, queryByTestId } = await liveBoard();
     await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
-    await waitFor(() => expect(isWaitingForOpponent(m)).toBe(true));
+    await untilMatch(m, () => expect(isWaitingForOpponent(m)).toBe(true));
     s.send(updateButtons(true));
     s.send(confirmAsk('c-wait'));
-    await waitFor(() => expect(currentAsk(m)).not.toBeNull());
+    await untilMatch(m, () => expect(currentAsk(m)).not.toBeNull());
     expect(isWaitingForOpponent(m), 'the fact itself is unchanged — this is a render rule, not a fact change').toBe(true);
     expect(queryByTestId('live-waiting-pop'), 'the pop-out does not draw over the viewer’s own open ask').toBeNull();
     expect(queryByTestId('live-prompt'), 'the viewer’s own ask is what draws instead').not.toBeNull();
@@ -3916,7 +3917,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
         cards: mine.map((id) => ({ kind: 'card', id })),
       }),
     );
-    await waitFor(() => expect(m.promptCard).toBe(mine[0]!));
+    await untilMatch(m, () => expect(m.promptCard).toBe(mine[0]!));
     expect(isWaitingForOpponent(m)).toBe(false);
   });
 
@@ -3943,7 +3944,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
       transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
     }));
     const { queryByTestId } = render(createElement(LiveBoard, { match: m }));
-    await waitFor(() => expect(m.stats.snapshots).toBe(1));
+    await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
     expect(m.view).toBeNull();
     expect(isWaitingForOpponent(m)).toBe(false);
     expect(queryByTestId('live-waiting-pop')).toBeNull();
@@ -3986,7 +3987,7 @@ describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’
     const { s, m } = await liveBoard();
     const them = m.view!.players.find((p) => !p.isViewer)!;
     s.send(setTurn(m, 0));
-    await waitFor(() => expect(m.view!.turn).toBe(0));
+    await untilMatch(m, () => expect(m.view!.turn).toBe(0));
     const at = Date.now();
     s.sendSeats([
       { seat: 0, claimed: true, playerId: m.playerId, coinToss: { winner: 1, at } },
@@ -4016,7 +4017,7 @@ describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’
       await sendTheirWaitingOn(s, m, { method: 'confirm', hostCard: null });
       expect(isWaitingForOpponent(m)).toBe(true);
       s.send(setTurn(m, 0));
-      await waitFor(() => expect(m.view!.turn).toBe(0));
+      await untilMatch(m, () => expect(m.view!.turn).toBe(0));
 
       const waiting = await waitFor(() => getByTestId('live-waiting-pop'));
       // Pregame has no Forge text for this moment at all (see
@@ -4053,7 +4054,7 @@ describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’
         focus1: true,
       }),
     );
-    await waitFor(() => expect(m.buttons?.enable1).toBe(true));
+    await untilMatch(m, () => expect(m.buttons?.enable1).toBe(true));
     expect(isWaitingForPregameDecision(m)).toBe(false);
     expect(queryByTestId('live-waiting-pop')).toBeNull();
   });
@@ -4136,7 +4137,7 @@ describe("an optional trigger's confirm has an Always box", () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard(0, true);
     expect(queryByTestId('live-settings-trigger')).toBeNull();
     s.sendTriggerDecisions([{ key: KEY, name: "Soul's Attendant", decision: 'ACCEPT' }]);
-    await waitFor(() => expect(m.triggerDecisions).toHaveLength(1));
+    await untilMatch(m, () => expect(m.triggerDecisions).toHaveLength(1));
     expect(getByTestId('live-settings-trigger').textContent).toBe("Soul's Attendant — always yes");
     fireEvent.click(getByTestId('live-settings-trigger-clear'));
     await waitFor(() => expect(decisionsSent(s)).toEqual([{ matchId: s.matchId, key: KEY, decision: 'ASK' }]));
@@ -4176,7 +4177,8 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
 
     const before = m.stats.replies;
     fireEvent.click(getByTestId('prompt-confirm-yes'));
-    await waitFor(() => expect(m.stats.replies).toBe(before + 1));
+    await untilMatch(m, () => expect(m.stats.replies).toBe(before + 1));
+    await s.caughtUp(m);
     expect(
       s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonOk'),
     ).toBe(true);
@@ -4188,7 +4190,8 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     await waitFor(() => getByTestId('prompt-confirm-no'));
 
     fireEvent.click(getByTestId('prompt-confirm-no'));
-    await waitFor(() => expect(m.stats.replies).toBe(1));
+    await untilMatch(m, () => expect(m.stats.replies).toBe(1));
+    await s.caughtUp(m);
     expect(
       s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonCancel'),
     ).toBe(true);
@@ -4206,7 +4209,7 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
   it('an ordinary priority pass (OK/End Turn) with nothing on the stack is the control box’s — no pop-up opens for it', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     s.send(stackDelta(m));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(0));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
     for (const f of buttonFrames('Priority: you', 'OK', 'End Turn')) s.send(f);
 
     await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
@@ -4351,7 +4354,7 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
   it('Next Phase presses Forge’s button one at the empty-stack pass, and no pop-up opens', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     s.send(stackDelta(m));
-    await waitFor(() => expect(m.view!.stack).toHaveLength(0));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
     for (const f of [prompt('Priority: you'), bar('OK', 'End Turn')]) s.send(f);
     await waitFor(() => expect(box(getByTestId).nextPhase).toBe(true));
     expect(queryByTestId('live-decision')).toBeNull();
@@ -4529,7 +4532,8 @@ describe('W18/W16 — a selection that is an off-board target or a silent on-boa
     await waitFor(() => getByTestId(`live-selection-host`));
 
     fireEvent.click(getByTestId('prompt-choice'));
-    await waitFor(() => expect(m.stats.replies).toBe(1));
+    await untilMatch(m, () => expect(m.stats.replies).toBe(1));
+    await s.caughtUp(m);
     const sent = s.clientFrames().find((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectCard');
     expect(sent?.ok && sent.value.kind === 'act' && sent.value.method === 'selectCard' ? sent.value.card.id : null).toBe(HAND_CARD);
   });
@@ -4711,19 +4715,19 @@ describe('the priority ring is gated on a real decision, not drawn from Forge’
       let seq = m.view!.seq + 1;
       expect(seatFlag(container, 'opp'), 'nothing open for the opponent yet').toBeNull();
       s.send(priorityDelta(seq++, opponentId, true));
-      await waitFor(() => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(true));
+      await untilMatch(m, () => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(true));
       expect(seatFlag(container, 'opp'), 'Forge\'s own raw fact flipped, with no server fact behind it').toBeNull();
       s.send(priorityDelta(seq++, opponentId, false));
-      await waitFor(() => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(false));
+      await untilMatch(m, () => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(false));
       s.send(priorityDelta(seq, opponentId, true));
-      await waitFor(() => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(true));
+      await untilMatch(m, () => expect(m.view!.players.find((p) => !p.isViewer)!.hasPriority).toBe(true));
       expect(seatFlag(container, 'opp'), 'still nothing — the ping-pong alone never moves the drawn flag').toBeNull();
     });
 
     it('lights for a plain priority hold too — the pop-out ignores `priority` over an empty stack, the flag must not (the 0670a98 regression AE16 found)', async () => {
       const { s, m, container } = await liveBoard();
       s.send(stackDelta(m));
-      await waitFor(() => expect(m.view!.stack).toHaveLength(0));
+      await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
       expect(seatFlag(container, 'opp')).toBeNull();
       await sendTheirWaitingOn(s, m, { method: 'priority', hostCard: null });
       await waitFor(() => expect(seatFlag(container, 'opp')).not.toBeNull());
@@ -4744,7 +4748,7 @@ describe('the priority ring is gated on a real decision, not drawn from Forge’
 
       // A late raw delta does not move it either way…
       s.send(priorityDelta(seq, opponentId, false));
-      await waitFor(() => expect(m.view!.seq).toBe(seq));
+      await untilMatch(m, () => expect(m.view!.seq).toBe(seq));
       expect(seatFlag(container, 'opp')).not.toBeNull();
 
       // …the server clearing its fact does.
