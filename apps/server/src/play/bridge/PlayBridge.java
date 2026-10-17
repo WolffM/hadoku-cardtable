@@ -740,10 +740,14 @@ public final class PlayBridge {
      * {@code [cardId, printedPower, printedToughness]} (the operator, 2026-10-17: "creature gave +1/0
      * to enhance a creatures power, it should have shown the number in green if the stats have been
      * changed"). The view carries only the current numbers ({@code Power}, {@code Toughness}); the
-     * printed ones are the face's own base ({@code Card.getBasePowerString}: a copy's is the copied
-     * card's, and an effect that SETS power and toughness leaves it alone). A base that is not a
-     * number — Tarmogoyf's {@code *}, a characteristic-defining ability — has nothing to compare
-     * against and is left out, as are face-down permanents. A full snapshot each time.
+     * printed ones are the face's own base ({@code CardState.getBasePowerString}: a copy's is the
+     * copied card's, and an effect that SETS power and toughness leaves it alone). It is the state's
+     * string, not {@code Card.getBasePowerString}, because the card's falls back to "0" for a face
+     * with nothing printed — a planeswalker or a land that is a creature only by an effect (Gideon
+     * Blackblade on his turn, a manland) would read as printed 0/0 and draw as buffed. A face with no
+     * printed number, or one that is not a number — Tarmogoyf's {@code *}, a characteristic-defining
+     * ability — has nothing to compare against and is left out, as are face-down permanents. A full
+     * snapshot each time.
      *
      * <p>Null when the battlefields cannot be read (the game thread moved them under the read): the
      * frame then omits the field and the client keeps what it had.
@@ -755,8 +759,8 @@ public final class PlayBridge {
             for (final forge.game.player.Player p : game.getPlayers()) {
                 for (final forge.game.card.Card c : p.getCardsIn(ZoneType.Battlefield)) {
                     if (c.isFaceDown() || !c.isCreature()) { continue; }
-                    final Integer power = integerOrNull(c.getBasePowerString());
-                    final Integer toughness = integerOrNull(c.getBaseToughnessString());
+                    final Integer power = integerOrNull(c.getCurrentState().getBasePowerString());
+                    final Integer toughness = integerOrNull(c.getCurrentState().getBaseToughnessString());
                     if (power == null || toughness == null) { continue; }
                     if (power == c.getNetPower() && toughness == c.getNetToughness()) { continue; }
                     final JsonArray row = new JsonArray();
