@@ -254,3 +254,54 @@ clean mid-weight hit that still reads pitched down.
 ~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 12000 --only g.crash,g.crumble,g.charge --out finished-r9
 python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r9 --to apps/server/data/sounds --add
 ```
+
+## Match music, generated locally (2026-10-17)
+
+The operator: *"we can use local models to generate better stuff … keep the variance high. not everything should
+sound the same"*, then *"3 variations for each color"*, compared in `#/sounds` against the track already on the cell.
+The model is **ACE-Step 1.5 XL-sft** (4B DiT, 50 steps, CFG 7) planned by its 1.7B LM: code and weights both MIT,
+released Jan 2026 (XL April 2026). MusicGen was the alternative (weights CC-BY-NC, 30 s native, older and
+duller) and YuE is built for songs with vocals. Runtime, beside Stable Audio, no host mutation:
+
+```sh
+git clone https://github.com/ACE-Step/ACE-Step-1.5.git ~/.local/opt/ace-step-1.5
+cd ~/.local/opt/ace-step-1.5 && uv sync --python 3.12
+uv pip install --python .venv/bin/python pyloudnorm
+C=~/.cache/ace-step/checkpoints
+.venv/bin/hf download ACE-Step/Ace-Step1.5 --local-dir $C            # VAE, text encoder, 1.7B LM
+.venv/bin/hf download ACE-Step/acestep-v15-xl-sft --local-dir $C/acestep-v15-xl-sft
+```
+
+A 190 s take renders in about 45 s on the 4090 and peaks around 18.5 GB of VRAM (`--offload` if the GPU is busy).
+
+```sh
+export ACESTEP_CHECKPOINTS_DIR=~/.cache/ace-step/checkpoints ACESTEP_DISABLE_TQDM=1
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/music-beds.py --spec scripts/sfx/music-round1.json
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-generate.py --spec scripts/sfx/music-round1.json
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-generate.py --spec scripts/sfx/music-round1-pairs.json --seed 30000
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-finish.py --report finished.json
+python3 scripts/sfx/add-track.py <finished wav> --name "W · heraldic fanfare" --credit "<model + prompt>" --to apps/server/data/sounds
+```
+
+- `music-round1.json` (monos) and `music-round1-pairs.json` hold the prompts. Each colour owns an instrument family,
+  a tempo band, a mode and a production; only one prompt per colour is chiptune. Black has all three of the
+  operator's directions (gothic court, noir bargain, crypt and decay). Each pair takes distinct elements from both
+  parents. Tempo, key and meter go in ACE-Step's own fields, not in the caption.
+- Takes are saved as float with ACE-Step's normalisation off; its VAE decode divides by the peak when it
+  overshoots, so a raw take never clips (one sample at 1.0).
+- `music-finish.py` cuts each take into a seamless loop body (the builder loops a whole file sample-accurately):
+  the loop start and end are the pair of points whose next 6 s sound most alike, snapped to an onset and refined
+  on the waveform, with a 0.75 s crossfade at the wrap; then −18 LUFS integrated, turned down (never limited) to
+  a −1 dBTP true peak. It writes measurements (tempo, centroid, onset density, band balance, dropouts, seam
+  novelty as a percentile of the take's own) and a spectrogram with the seam beside every cut.
+- A prompt with a `bed` also gets a cut with a Stable Audio Open ambience 14 dB under it (birdsong, rainforest,
+  shore, ocean), tiled seamlessly.
+- Audio stays under `~/.local/share/cardtable-sfx/music/`; imports go to the server's sounds dir. Nothing here
+  writes `assignments.json`: the operator places picks in `#/sounds`.
+- Picking: a take passes if its loop seam is under the 90th percentile of its own novelty, its stereo correlation
+  is above −0.15 (round 1 had takes at −0.53: they cancel on a phone), it has under 2.5 s of gaps (everything
+  above 150 Hz 20 dB under its median) and its loop ends match at 0.4 or better. 27 of 33 mono takes passed and
+  27 of 40 pair takes; a second seed (`--takes 2 --only …`) brought 5 of 9 failures through. Two passing monos
+  were dropped by eye on the spectrogram (47 % of the energy under 60 Hz with holes above it; a 236 Hz centroid),
+  and one import sits just under the bar (WU · clockwork senate, 0.396). Of the rest, the three per colour that
+  differ the most were imported, named `<colour> · <description>`.
