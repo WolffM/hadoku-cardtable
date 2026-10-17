@@ -15,3 +15,4 @@ export {
 	type MatchHostFactory,
 } from './host.js';
 export { roomFormatNames } from './names.js';
+export { roomDeckCosts } from './deck-colors.js';

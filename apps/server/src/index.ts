@@ -79,7 +79,7 @@ import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
-import { attachPlay, jvmHostConfig, jvmHostFactory, roomFormatNames, type PlayHandle } from './play/index.js';
+import { attachPlay, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, type PlayHandle } from './play/index.js';
 import { attachStream, attachStreamRoutes, streamLayout, STREAM_BASE_PORT } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
@@ -453,6 +453,8 @@ play = attachPlay(io, api, {
 	formatNames: roomFormatNames(tables.library, poolLoad.ok ? poolLoad.pool.cards : null),
 	// A seat's face is its holder's avatar in the room that started the match.
 	seatAvatar: tables.seatAvatar,
+	// A seat's deck colours pick the match's music (`play/deck-colors.ts`).
+	deckCosts: roomDeckCosts(tables.library, poolLoad.ok ? poolLoad.pool.cards : null),
 });
 // `attachPlay` has adopted every match an earlier server left running, so a
 // room still pointing at one that did not come back can let go of it now.

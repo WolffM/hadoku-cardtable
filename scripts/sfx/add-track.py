@@ -7,7 +7,7 @@
 Transcodes the file to Opus (stereo, 128 kbit/s) at
 `<sounds dir>/takes/music-<slug>/take-1.ogg` (served at `/api/sounds/audio/…`) and merges one catalogue entry in
 the Music section, so it shows up in `#/sounds` ready to place on
-`music.lobby` or `music.match`. The credit is stored as the entry's prompt (the
+`music.lobby`, `music.match` or a colour's `music.match.<W|U|B|R|G>`. The credit is stored as the entry's prompt (the
 builder shows it on hover) and MUST also go in `NOTICE.md`: a track is only
 usable under a licence that allows it (CC0, CC-BY or similar), with its
 attribution. Audio never enters this repo: the sounds dir is the server's data

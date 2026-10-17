@@ -76,7 +76,9 @@ re-finishes every folder under `generated/`, rejected rounds included.
 
 Found tracks, not generated ones: each needs a licence that allows this use (CC0, CC-BY or similar) and
 its credit in `NOTICE.md`. `add-track.py` transcodes one into the server's sounds dir and adds it to the
-catalogue's Music section; then place it on `music.lobby` or `music.match` in `#/sounds`.
+catalogue's Music section; then place it on `music.lobby`, `music.match` or a colour's `music.match.<W|U|B|R|G>`
+in `#/sounds`. A match plays one of the viewer's deck colours (`apps/ui/src/sound/match-music.ts`). The
+operator drops new tracks in `ingest/` at the repo root (gitignored).
 
 ```sh
 python3 scripts/sfx/add-track.py tavern.mp3 --name "Tavern loop" --credit "Tavern loop by …, CC-BY 4.0, https://…" --to apps/server/data/sounds

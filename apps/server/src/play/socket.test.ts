@@ -803,6 +803,32 @@ describe('forge:seats: item 4’s server half', () => {
 	});
 });
 
+/*
+ * The match's music plays one of the viewer's own deck colours, so each seat is
+ * told its own deck's, before its role; a watcher, holding no deck, is told none.
+ */
+describe('forge:deck-colors', () => {
+	it("tells each seat its own deck's colours before its role, and a watcher null", async () => {
+		const h = await boot();
+		const red = '[metadata]\nName=Red\n[main]\n4 Lightning Bolt\n20 Mountain\n';
+		const gruul = '[metadata]\nName=Gruul\n[main]\n4 Lightning Bolt\n4 Giant Growth\n16 Forest\n';
+		const { body } = await startMatch(h, 'alice', { opponent: 'human', decks: [red, gruul] });
+		const matchId = body.matchId as string;
+		const told = async (user: string): Promise<string[]> => {
+			const peer = await connect(h.port, edgeHeaders(user));
+			const order: string[] = [];
+			peer.socket.on('forge:deck-colors', (p: unknown) => order.push(JSON.stringify(p)));
+			peer.socket.on('forge:role', () => order.push('role'));
+			await peer.request('forge:join', { matchId });
+			await waitUntil(() => order.includes('role'), `${user}'s role`);
+			return order;
+		};
+		expect(await told('alice')).toEqual([JSON.stringify({ matchId, colors: ['R'] }), 'role']);
+		expect(await told('bob')).toEqual([JSON.stringify({ matchId, colors: ['R', 'G'] }), 'role']);
+		expect(await told('carol')).toEqual([JSON.stringify({ matchId, colors: null }), 'role']);
+	});
+});
+
 /* ── Wave 10: crash and reconnect, over the real socket ─────────────── */
 
 type Envelope = { cursor: { seq: number; epoch: string }; frame: { kind: string; method: string; callId?: string; title?: string } };

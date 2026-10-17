@@ -149,7 +149,7 @@ describe('playSoundEvents', () => {
 
 describe('music', () => {
   function looper() {
-    const loops: (string | null)[] = [];
+    const loops: unknown[] = [];
     setRolePlayer({ play: () => undefined, loop: (role) => void loops.push(role) });
     return loops;
   }
@@ -157,17 +157,24 @@ describe('music', () => {
   it("loops the screen's music, the match's while a match is on it, and nothing on a silent screen", () => {
     const loops = looper();
     setScreenMusic('music.lobby');
-    setMatchMusic(true);
-    setMatchMusic(false);
+    setMatchMusic(['music.match.R', 'music.match']);
+    setMatchMusic(null);
     setScreenMusic(null);
-    expect(loops).toEqual(['music.lobby', 'music.match', 'music.lobby', null]);
+    expect(loops).toEqual(['music.lobby', ['music.match.R', 'music.match'], 'music.lobby', null]);
   });
 
   it('a match mounted before the screen sets its music still plays the match music', () => {
     const loops = looper();
-    setMatchMusic(true);
+    setMatchMusic(['music.match']);
     setScreenMusic('music.lobby');
-    expect(loops.at(-1)).toBe('music.match');
+    expect(loops.at(-1)).toEqual(['music.match']);
+  });
+
+  it('a match whose music is not known yet plays none, not the screen music', () => {
+    const loops = looper();
+    setScreenMusic('music.lobby');
+    setMatchMusic([]);
+    expect(loops.at(-1)).toEqual([]);
   });
 
   it('muting fades it out and unmuting brings it back', () => {

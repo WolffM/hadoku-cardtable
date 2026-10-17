@@ -38,6 +38,9 @@ const MUSIC_FADE_S = 1.5;
 /** The level everything else drops to under a ducking voice. */
 const DUCK_LEVEL = 0.35;
 
+/** What loops: one music role, the first of several that has a take, or nothing. */
+export type MusicChoice = string | readonly string[] | null;
+
 export interface Mixer {
   readonly planner: MixPlanner;
   settings: MixSettings;
@@ -49,11 +52,11 @@ export interface Mixer {
   preload(files: Iterable<string>): void;
   /**
    * Loop a music role on the music bus, crossfading from whatever loops now;
-   * `null` fades the music out. Unlike a cue, music waits for the first
-   * gesture rather than being dropped: it is meant to be playing whenever the
-   * page can play.
+   * `null` fades the music out. A list loops the first of its roles that has
+   * a take. Unlike a cue, music waits for the first gesture rather than being
+   * dropped: it is meant to be playing whenever the page can play.
    */
-  loop(role: string | null): void;
+  loop(role: MusicChoice): void;
   /** The player's levels (`./mute.ts`), 0..1, applied at once — music too, mid-loop. */
   setLevels(levels: { volume: number; music: number }): void;
 }
@@ -213,15 +216,17 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     preload(files) {
       for (const f of files) void load(f);
     },
-    loop(role) {
+    loop(choice) {
+      const roles = choice === null ? [] : typeof choice === 'string' ? [choice] : choice;
+      const role = roles.find((r) => planner.has(`${r}|play`)) ?? null;
       if (role === loopRole) return;
       loopRole = role;
       if (ctx !== null) fadeOutLoop(ctx);
       if (role === null) return;
       const voice = planner.plan({ role }, performance.now(), mixer.settings).voices[0];
       if (voice === undefined) {
-        // Nothing assigned (or not loaded yet): asking again later must try again,
-        // and nothing is built for a role with no music.
+        // Planned nothing (asked again within the collapse window): asking again
+        // later must try again, and nothing is built for it.
         loopRole = null;
         return;
       }

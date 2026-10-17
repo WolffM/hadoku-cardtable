@@ -133,6 +133,22 @@ const music = (id: string, name: string, sub: string): SoundRole => ({ id, name,
 const game = (id: string, name: string, sub: string, duck?: boolean): SoundRole =>
 	duck === true ? { id, name, sub, bus: 'game', duck } : { id, name, sub, bus: 'game' };
 
+const MONO_COLOURS = [
+	{ colour: 'W', name: 'white' },
+	{ colour: 'U', name: 'blue' },
+	{ colour: 'B', name: 'black' },
+	{ colour: 'R', name: 'red' },
+	{ colour: 'G', name: 'green' },
+] as const;
+
+/**
+ * The music a match plays for one of its viewer's deck colours — the operator, 2026-10-16: a match plays one
+ * of its own deck's colours, picked at random when the deck has more than one (`apps/ui/src/sound/match-music.ts`).
+ */
+export function matchMusicRole(colour: Exclude<ManaPip, 'C'>): `music.match.${Exclude<ManaPip, 'C'>}` {
+	return `music.match.${colour}`;
+}
+
 /** Every role, grouped the way the builder lists them. */
 export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 	{
@@ -234,6 +250,9 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 		roles: [
 			music('music.lobby', 'Lobby and draft', 'Loops on the room list, in a draft and while building a deck.'),
 			music('music.match', 'In a match', 'Loops for the length of a game.'),
+			...MONO_COLOURS.map(({ colour, name }) =>
+				music(matchMusicRole(colour), `In a match: ${name}`, `Loops for a game played with a ${name} deck.`),
+			),
 		],
 	},
 ];

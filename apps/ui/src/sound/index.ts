@@ -8,7 +8,7 @@
  *     playRole('ui.select');                              // make a noise, now
  *     <div onMouseEnter={roleHandler('ui.hover-card')} /> // a stable listener
  *     playSoundEvents(deriveSoundEvents(prev, next));     // a board moment
- *     setScreenMusic('music.lobby'); setMatchMusic(true); // what loops underneath
+ *     setScreenMusic('music.lobby'); setMatchMusic(roles); // what loops underneath
  *
  * A role is a name from `@hadoku/shared`'s `SOUND_ROLES`. Which take it plays,
  * how loud, and whether a colour layer sits on top is the operator's
@@ -31,12 +31,12 @@
 
 import { soundsClient } from './builderClient.ts';
 import type { SoundEvent } from './mix.ts';
-import { createMixer, type Mixer } from './mixer.ts';
+import { createMixer, type Mixer, type MusicChoice } from './mixer.ts';
 import { getLevel, isMuted, subscribeSound } from './mute.ts';
 
 export interface RolePlayer {
   play(event: SoundEvent): unknown;
-  loop?(role: string | null): void;
+  loop?(role: MusicChoice): void;
 }
 
 /** A sound event that starts a little after the moment it belongs to. */
@@ -46,9 +46,9 @@ export interface DelayedSoundEvent extends SoundEvent {
 
 let injected: RolePlayer | null = null;
 let production: Mixer | null = null;
-/** The screen's music (`null`: a silent screen), and whether a match is on it. */
+/** The screen's music (`null`: a silent screen), and the match's while one is on it. */
 let screenMusic: string | null = null;
-let inMatch = false;
+let matchMusic: readonly string[] | null = null;
 let unsubscribeSound: (() => void) | null = null;
 
 /** Replace the player. `null` restores the real mixer. For tests. */
@@ -61,7 +61,7 @@ export function resetRolePlayerForTests(): void {
   injected = null;
   production = null;
   screenMusic = null;
-  inMatch = false;
+  matchMusic = null;
   unsubscribeSound?.();
   unsubscribeSound = null;
 }
@@ -145,7 +145,7 @@ function applyPrefs(): void {
 
 function applyMusic(): void {
   try {
-    const wanted = screenMusic === null ? null : inMatch ? 'music.match' : screenMusic;
+    const wanted = screenMusic === null ? null : (matchMusic ?? screenMusic);
     player().loop?.(isMuted() ? null : wanted);
   } catch {
     // Music is decoration too.
@@ -164,13 +164,15 @@ export function setScreenMusic(role: string | null): void {
 }
 
 /**
- * A match is on screen: `music.match` replaces the screen's music while it
- * is. Separate from the route because a room hosts its match in place, and
- * because React runs a child's effect before its parent's: two inputs make the
- * order not matter.
+ * A match is on screen: the first of `roles` that has a take replaces the
+ * screen's music while it is (`./match-music.ts` picks them; an empty list is a
+ * match whose music is not known yet, and plays nothing). `null`: no match.
+ * Separate from the route because a room hosts its match in place, and because
+ * React runs a child's effect before its parent's: two inputs make the order
+ * not matter.
  */
-export function setMatchMusic(on: boolean): void {
-  inMatch = on;
+export function setMatchMusic(roles: readonly string[] | null): void {
+  matchMusic = roles;
   applyMusic();
 }
 

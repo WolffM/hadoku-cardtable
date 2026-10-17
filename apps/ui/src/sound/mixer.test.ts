@@ -155,6 +155,27 @@ describe('the mixer', () => {
     expect(tap).toEqual([1, 2, 3]);
   });
 
+  it('loops the first music role of a list that has a take, and keeps it while that stays the first', async () => {
+    const planner = createMixPlanner(() => 0);
+    planner.setAssignments({ 'music.match.G|play': ['music-g/take-1.ogg'] }, {});
+    const m = createMixer((f) => `/takes/${f}`, planner);
+    m.loop(['music.match.R', 'music.match', 'music.match.G']);
+    const ctx = contexts[0]!;
+    ctx.grant();
+    await flush();
+    expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toEqual(['/takes/music-g/take-1.ogg']);
+    expect(ctx.sources.filter((s) => s.started)).toHaveLength(1);
+    m.loop(['music.match', 'music.match.G']);
+    await flush();
+    expect(ctx.sources).toHaveLength(1);
+  });
+
+  it('a music list with nothing assigned builds nothing', () => {
+    const m = mixer();
+    m.loop(['music.match.R', 'music.match']);
+    expect(contexts).toHaveLength(0);
+  });
+
   it('a sound asked for while locked is dropped, not played when the gesture finally comes', async () => {
     vi.useFakeTimers({ toFake: ['performance'] });
     const m = mixer();

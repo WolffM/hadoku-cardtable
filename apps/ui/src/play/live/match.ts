@@ -235,8 +235,8 @@
  * hand can be drawn before the client knows whose hand it is.
  */
 
-import type { Placement, RememberedTrigger } from '@hadoku/shared';
-import { ART_EVENT, asSeqCursor, selfAnswer } from '@hadoku/shared';
+import type { ManaColor, Placement, RememberedTrigger } from '@hadoku/shared';
+import { ART_EVENT, asSeqCursor, DECK_COLORS_EVENT, DeckColorsSchema, selfAnswer } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
   safeParseServerFrame,
@@ -565,6 +565,12 @@ export interface LiveMatch {
   promptTrigger: { key: string; name: string } | null;
   /** The optional triggers Forge answers for this seat, from the server's `forge:trigger-decisions`. */
   triggerDecisions: readonly RememberedTrigger[];
+  /**
+   * Your deck's colours, from the server's `forge:deck-colors`: what the match's
+   * music is picked from (`../../sound/match-music.ts`). `undefined` until the
+   * server has said; `null` when you hold no deck it knows (a watcher).
+   */
+  deckColors: readonly ManaColor[] | null | undefined;
   buttons: LiveButtons | null;
   /**
    * The one client-side hold on {@link LiveMatch.buttons} (`./bar-hold.ts`): set by
@@ -983,6 +989,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     promptCard: null,
     promptTrigger: null,
     triggerDecisions: [],
+    deckColors: undefined,
     buttons: null,
     barHold: null,
     windowHalf: null,
@@ -1073,6 +1080,13 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
 
   match.transport.on(MATCH_EVENTS.role, (payload) => {
     adoptRole(match, payload);
+  });
+
+  match.transport.on(DECK_COLORS_EVENT, (payload) => {
+    const parsed = DeckColorsSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.matchId !== match.matchId) return;
+    match.deckColors = parsed.data.colors;
+    notify(match);
   });
 
   match.transport.on(ART_EVENT, (payload) => {

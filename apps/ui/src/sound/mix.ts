@@ -88,6 +88,8 @@ export interface MixPlanner {
   plan(event: SoundEvent, nowMs: number, settings: MixSettings): PlanResult;
   /** One cell's level as stored, 1 when unset. */
   gainOf(cell: string): number;
+  /** Whether a cell has any take to play. Plans nothing. */
+  has(cell: string): boolean;
 }
 
 export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
@@ -104,6 +106,7 @@ export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
       gains = g;
     },
     gainOf,
+    has: (cell) => (cells[cell]?.length ?? 0) > 0,
     plan(event, nowMs, settings) {
       const seat = event.seat ?? 'me';
       const reversedFrom = REVERSED_ROLES[event.role];

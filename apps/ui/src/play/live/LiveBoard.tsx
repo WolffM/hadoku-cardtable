@@ -286,6 +286,7 @@ import { phaseSoundGate } from './phase-sound.ts';
 import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-cue.ts';
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
 import { hoverControl, isMuted, playRole, playSoundEvents, setMatchMusic, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
+import { matchMusicRoles } from '../../sound/match-music.ts';
 import { boardBusyUntil, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt } from '../motion.ts';
 import {
   abortAsk,
@@ -2126,10 +2127,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * before it (`./sound-events.ts`), so a sound starts with the change on screen.
    * A watching window stays silent: the seat's own window is already playing it.
    */
+  // The match's music: one of your deck's colours, once the server has said which (`../../sound/match-music.ts`).
+  const musicRoles = matchMusicRoles(match.matchId, match.deckColors).join(' ');
   useEffect(() => {
-    setMatchMusic(true);
-    return () => setMatchMusic(false);
-  }, []);
+    setMatchMusic(musicRoles === '' ? [] : musicRoles.split(' '));
+  }, [musicRoles]);
+  useEffect(() => () => setMatchMusic(null), []);
   const soundView = match.view;
   // The result screen waits for the board to finish drawing what ended the game.
   const resultShown = useAfterTheBoard(match.view !== null && (match.view.gameOver || match.finished));

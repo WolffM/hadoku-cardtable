@@ -82,6 +82,7 @@ import {
 	CLIENT_EVENT,
 	CLIENT_EVENT_MAX_PER_SECOND,
 	ClientEventSchema,
+	DECK_COLORS_EVENT,
 	PLACED_EVENT,
 	type PlacedEcho,
 	PlacedSchema,
@@ -96,7 +97,9 @@ import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { CONFIG } from '../config.js';
 import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
+import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { artOf } from './art.js';
+import { seatDeckColors, type DeckCosts } from './deck-colors.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
@@ -162,6 +165,8 @@ export interface PlayDeps {
 	formatNames?(format: string): ReadonlySet<string> | null;
 	/** See {@link MatchDeps.seatAvatar}. */
 	seatAvatar?(matchId: string, owner: string): string | undefined;
+	/** What a seat's deck colours fold against (`./deck-colors.ts`). Absent: the library's costs alone. */
+	deckCosts?: DeckCosts;
 }
 
 export interface PlayHandle {
@@ -439,6 +444,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	const policy = playEmitPolicy(log);
 	const rooms = new RoomRegistry<PlayApp, PlayClient>(() => ({ match: null }));
 	const joinWaitMs = deps.joinWaitMs ?? 8000;
+	const deckCosts: DeckCosts = deps.deckCosts ?? (() => LIBRARY_CARD_COSTS);
 	const devIdentity = deps.devIdentity === true && CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '';
 	if (deps.devIdentity === true && !devIdentity) {
 		log({ evt: 'dev-identity-refused', reason: 'the insecure edge hatch is not open' });
@@ -773,6 +779,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						if (joined.get(result.matchId) === WATCHER_SEAT) {
 							socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() });
 							socket.emit(ART_EVENT, { matchId: result.matchId, cards: artOf(match.spec) });
+							socket.emit(DECK_COLORS_EVENT, { matchId: result.matchId, colors: null });
 							tellRole(socket, result.matchId, 'watcher');
 							return;
 						}
@@ -819,6 +826,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() });
 						// Every card either seat could show, so this browser decodes the art before any of it is drawn (`@hadoku/shared`'s `art.ts`).
 						socket.emit(ART_EVENT, { matchId: result.matchId, cards: artOf(match.spec) });
+						// This seat's deck colours, before its role, for the match's music (`@hadoku/shared`'s `deck-colors.ts`).
+						socket.emit(DECK_COLORS_EVENT, { matchId: result.matchId, colors: seatDeckColors(match.spec, result.seat, deckCosts) });
 						// Wave 31 §S: and whether THIS socket controls the seat, every time.
 						tellRole(socket, result.matchId, isController(result.matchId, result.seat, socket.id) ? 'player' : 'spectator');
 					}

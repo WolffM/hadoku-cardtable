@@ -18,6 +18,7 @@ import {
 	SoundTakeSchema,
 	TAKE_FILE_RE,
 	isCellId,
+	matchMusicRole,
 	parseCellId,
 } from './sounds.ts';
 
@@ -177,6 +178,16 @@ describe('SOUND_MATRIX', () => {
 		const all = SOUND_ROLE_GROUPS.flatMap((g) => g.roles);
 		expect(SOUND_ROLES.size).toBe(all.length);
 		for (const r of all) expect(r.bus).toBe(r.id.startsWith('ui.') ? 'ui' : r.id.startsWith('music.') ? 'music' : 'game');
+	});
+
+	it('the Music section carries a match role for each of the five colours, each a cell the builder can fill', () => {
+		const music = SOUND_ROLE_GROUPS.find((g) => g.id === 'music')!.roles.map((r) => r.id);
+		expect(music).toEqual(['music.lobby', 'music.match', 'music.match.W', 'music.match.U', 'music.match.B', 'music.match.R', 'music.match.G']);
+		for (const colour of ['W', 'U', 'B', 'R', 'G'] as const) {
+			const role = matchMusicRole(colour);
+			expect(SOUND_ROLES.get(role)?.bus).toBe('music');
+			expect(isCellId(`${role}|play`)).toBe(true);
+		}
 	});
 
 	it('SOUND_SECTIONS has exactly the five sections every SoundTake.section must be one of', () => {

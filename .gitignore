@@ -49,6 +49,8 @@ card-images/
 *.wav
 *.mp3
 *.flac
+# The operator's drop folder for new audio (scripts/sfx/add-track.py reads it). Never committed.
+ingest/
 
 # wave handoffs (per-wave, not tracked)
 docs/handoff/

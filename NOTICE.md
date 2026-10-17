@@ -108,6 +108,18 @@ Audio bytes are never committed to this repository. They are served from the car
 data directory (`CARDTABLE_SOUNDS_DIR`) and never bundled into the UI — see
 `apps/server/src/http/sounds.ts` and `scripts/sfx/import.py`.
 
+## Music
+
+The match music, one track per colour, is the operator's own (added with `scripts/sfx/add-track.py`):
+
+- Dawnlight Sanctum (white), the operator's own track
+- Tidewatch Archive (blue), the operator's own track
+- Ossuary of Ambition (black), the operator's own track
+- Emberfall Warpath (red), the operator's own track
+- Heartwood Hollow (green), the operator's own track
+
+Like the sound effects, the audio lives in `CARDTABLE_SOUNDS_DIR` and never in this repository.
+
 ## hadoku-watchparty
 
 The room, chat and presence layer derives from `hadoku-watchparty` (MIT).
