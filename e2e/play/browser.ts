@@ -29,7 +29,7 @@ const VIDEO_SIZE = { width: 1280, height: 720 };
  * repetition and retry: a `--repeat-each=3` proof ran each spec three times into the same folder and kept only the
  * last pair of videos.
  */
-function specVideoSlug(): string {
+export function specVideoSlug(): string {
   const info = test.info();
   const title = info.titlePath.filter((p) => p !== '').join(' ');
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');

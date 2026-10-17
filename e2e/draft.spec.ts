@@ -67,6 +67,7 @@ import { checkIsolation, draftEnvelopes, type SeatLog } from './isolation.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { makeTitled, resizeWindow, roomIdFromHash, serverLog as readServerLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
+import { specVideoSlug } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom } from './play/rooms.ts';
 import { turnNumber } from './play/turn.ts';
@@ -100,19 +101,6 @@ const ART_HOSTS = new Set(['cdn.hadoku.me', 'cards.scryfall.io']);
 const UI_TIMEOUT = 30_000;
 /** The context's own default (no `use.viewport` override in `playwright.config.ts`). Same as `play/browser.ts`'s. */
 const VIDEO_SIZE = { width: 1280, height: 720 };
-
-/**
- * The running test's own title path, filesystem-safe — one folder per spec
- * under `<RUN_DIR>/videos/`. The same idea as `play/browser.ts`'s
- * `specVideoSlug`, kept here rather than imported: that module is for match
- * recordings and not this lane's to touch, and the function is small.
- */
-function specVideoSlug(): string {
-  const info = test.info();
-  const title = info.titlePath.filter((p) => p !== '').join(' ');
-  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  return `${slug}${info.repeatEachIndex > 0 ? `-rep${info.repeatEachIndex}` : ''}${info.retry > 0 ? `-retry${info.retry}` : ''}`;
-}
 
 /* ── the shapes read off the wire ────────────────────────────────────── */
 
