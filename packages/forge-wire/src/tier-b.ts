@@ -519,6 +519,12 @@ export const TempShowZonesReplySchema = PlayerZoneUpdatesSchema;
 export const OfferedAbilitySchema = z.strictObject({
   ...SpellAbilityRefSchema.shape,
   label: z.string().optional(),
+  /**
+   * Ours, never Forge's: the name of the face the ability is on, when an offer's abilities come from
+   * more than one face — an adventure, a modal double-faced card, a split card (`PlayBridge.java`'s
+   * `faceAbilities`). The seat draws those faces side by side to pick from.
+   */
+  face: z.string().optional(),
 });
 
 export type OfferedAbility = z.infer<typeof OfferedAbilitySchema>;

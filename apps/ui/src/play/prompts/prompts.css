@@ -239,6 +239,46 @@
   border-radius: var(--radius);
 }
 
+/* ── a card's faces, side by side (an adventure, a modal double-faced card, a split card) ── */
+
+.prompt__faces {
+  --card-w: 11rem;
+
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.prompt__faces > li {
+  flex: 0 1 var(--card-w);
+  min-width: 0;
+  margin: 0;
+}
+
+.prompt__face {
+  display: block;
+  width: 100%;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 2px solid var(--line-soft);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.prompt__face:hover,
+.prompt__face:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.prompt__face .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+}
+
 /* ── card grids: a prompt's cards are tiles, the board's card look ────── */
 
 /*

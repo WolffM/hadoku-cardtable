@@ -619,3 +619,45 @@ describe('a card name elsewhere on the page (the log)', () => {
   });
 });
 
+
+/*
+ * The operator, 2026-10-17: "show transformed cards with mousewheel (Fable of the Mirror-Breaker)
+ * mousewheel up/down lets you cycle between other relevant cards."
+ */
+describe('the wheel turns a card to its other faces', () => {
+  const fable: BoardCard = {
+    ...card(3, 'Fable of the Mirror-Breaker'),
+    faces: [{ ...card(3, 'Reflection of Kiki-Jiki').card, typeLine: 'Enchantment Creature — Goblin Shaman' }],
+  };
+  const view: BoardView = { ...VIEW, players: [YOU, { ...THEM, battlefield: [fable] }] };
+  const shown = (panel: HTMLElement | null) => panel?.querySelector('.card__name')?.textContent;
+  const wheel = (el: Element, deltaY: number): boolean => fireEvent.wheel(el, { deltaY });
+
+  it('down shows the next face, up the one before, round and back; the page does not scroll meanwhile', () => {
+    const { theirCard, panel } = mountBoard(undefined, view);
+    hover(theirCard());
+    expect(shown(panel())).toBe('Fable of the Mirror-Breaker');
+    expect(wheel(theirCard(), 100), 'the wheel is taken').toBe(false);
+    expect(shown(panel())).toBe('Reflection of Kiki-Jiki');
+    wheel(theirCard(), 100);
+    expect(shown(panel()), 'round to the face it opened on').toBe('Fable of the Mirror-Breaker');
+    wheel(theirCard(), -100);
+    expect(shown(panel())).toBe('Reflection of Kiki-Jiki');
+  });
+
+  it('leaves the wheel alone over a card with one face, and with no panel open', () => {
+    const { yourHandCard, theirCard, panel } = mountBoard(undefined, view);
+    expect(wheel(theirCard(), 100), 'nothing open').toBe(true);
+    hover(yourHandCard());
+    expect(panel()).not.toBeNull();
+    expect(wheel(yourHandCard(), 100), 'one face').toBe(true);
+    expect(shown(panel())).toBe('Your Hand Card');
+  });
+
+  it('draws the other faces nowhere a zone’s cards are read', () => {
+    const { board } = mountBoard(undefined, view);
+    const names = [...board.querySelectorAll('[data-zone] .card__name')].map((n) => n.textContent);
+    expect(names).not.toContain('Reflection of Kiki-Jiki');
+    expect(board.querySelector('[data-faces-of="3"]')?.closest('[hidden]'), 'hidden').not.toBeNull();
+  });
+});

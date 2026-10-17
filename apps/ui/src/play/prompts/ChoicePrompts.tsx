@@ -39,6 +39,7 @@ import {
 } from './rules.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
 import type { CardRef, EntityRef } from '@hadoku/forge-wire';
+import type { DraftCard } from '@hadoku/shared';
 
 /** The card an option stands for, when it stands for one. */
 function cardOfOption(ref: EntityRef | null): CardRef | null {
@@ -422,6 +423,48 @@ export function GetAbilityToPlayPrompt({ ask, onAnswer, lookup }: PromptProps<'g
     assertAnswerable('getAbilityToPlay', abilityProblems(ask, reply));
     onAnswer(checkedReply('getAbilityToPlay', reply));
   };
+  const faces = facedAbilities(ask, lookup);
+  if (faces !== null) {
+    // Left and right move between the faces; Enter or a click plays the one in focus.
+    const step = (event: KeyboardEvent<HTMLUListElement>) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button')];
+      const at = buttons.findIndex((b) => b === document.activeElement);
+      const next = event.key === 'ArrowLeft' ? Math.max(0, at - 1) : Math.min(buttons.length - 1, at + 1);
+      buttons[next]?.focus();
+      event.preventDefault();
+    };
+    return (
+      <PromptShell
+        method="getAbilityToPlay"
+        title="Choose a face"
+        message={refName(lookup, ask.hostCard)}
+        actions={
+          <button type="button" data-testid="prompt-cancel" onClick={() => answer(null)}>
+            None
+          </button>
+        }
+      >
+        <ul className="prompt__faces" data-testid="prompt-faces" onKeyDown={step}>
+          {faces.map(({ ability, card }, i) => (
+            <li key={ability.id}>
+              <button
+                type="button"
+                className="prompt__face"
+                data-testid="prompt-face"
+                data-face={card.name}
+                aria-label={card.name}
+                autoFocus={i === 0}
+                onClick={() => answer(ability)}
+              >
+                <CardTile card={card} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </PromptShell>
+    );
+  }
   return (
     <PromptShell
       method="getAbilityToPlay"
@@ -449,6 +492,22 @@ export function GetAbilityToPlayPrompt({ ask, onAnswer, lookup }: PromptProps<'g
       </ul>
     </PromptShell>
   );
+}
+
+/**
+ * The offer as faces to pick from — each ability with the card face it is on — when the bridge named
+ * a face for every ability (`PlayBridge.java`'s `faceAbilities`), each face has exactly one, and this
+ * seat holds every one of those faces. Null otherwise: the offer is drawn as its list of abilities.
+ */
+export function facedAbilities(
+  ask: PromptProps<'getAbilityToPlay'>['ask'],
+  lookup: PromptLookup,
+): { ability: (typeof ask.abilities)[number]; card: DraftCard }[] | null {
+  const named = ask.abilities.map((a) => a.face);
+  if (named.some((f) => f === undefined) || new Set(named).size !== named.length) return null;
+  const faces = lookup.faces?.(ask.hostCard.id) ?? [];
+  const out = ask.abilities.map((ability) => ({ ability, card: faces.find((c) => c.name === ability.face) }));
+  return out.every((x): x is { ability: (typeof ask.abilities)[number]; card: DraftCard } => x.card !== undefined) ? out : null;
 }
 
 /**

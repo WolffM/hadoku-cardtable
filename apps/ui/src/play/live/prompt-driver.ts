@@ -65,7 +65,8 @@ export function answerOpenPrompt(root: Element, prefs: PromptPreferences = {}): 
     case 'choice-or-cancel':
       // Forge can offer an empty list; "None" is then the only answer.
       click(
-        sheet.querySelector(`[data-testid="${ANSWER_TESTID.choice}"]`) ?? sheet.querySelector(`[data-testid="${ANSWER_TESTID.cancel}"]`),
+        sheet.querySelector(`[data-testid="${ANSWER_TESTID.choice}"], [data-testid="${ANSWER_TESTID.face}"]`) ??
+          sheet.querySelector(`[data-testid="${ANSWER_TESTID.cancel}"]`),
         'ability or None',
       );
       return method;

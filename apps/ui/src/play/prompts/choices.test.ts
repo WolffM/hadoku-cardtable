@@ -274,6 +274,68 @@ describe('chooseEntitiesForEffect', () => {
   });
 });
 
+describe('getAbilityToPlay: a card’s faces', () => {
+  // The operator, 2026-10-17: "flip cards should show both art and let you pick left/right".
+  const card = (name: string, scryfallId?: string) => ({
+    cardId: 'w82', name, manaCost: [], manaValue: 0, colors: [], typeLine: '', oracleText: '', setCode: 'ZNR', collectorNumber: '', rarity: 'mythic' as const,
+    ...(scryfallId === undefined ? {} : { scryfallId }),
+  });
+  const smashing = scryfallIdFor(KNOWN_ART_IDS, 'Shatterskull Smashing', 'ZNR');
+  const pass = scryfallIdFor(KNOWN_ART_IDS, 'Shatterskull, the Hammer Pass', 'ZNR');
+  const lookup: PromptLookup = {
+    ...EMPTY_LOOKUP,
+    card: (id) => (id === 82 ? { name: 'Shatterskull Smashing', setCode: 'ZNR', lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false } : undefined),
+    faces: (id) => (id === 82 ? [card('Shatterskull Smashing', smashing), card('Shatterskull, the Hammer Pass', pass)] : []),
+  };
+  const ask = {
+    kind: 'ask' as const,
+    callId: 'c1',
+    method: 'getAbilityToPlay' as const,
+    hostCard: { kind: 'card' as const, id: 82 },
+    abilities: [
+      { kind: 'spellAbility' as const, id: 195, label: 'Shatterskull Smashing deals X damage …', face: 'Shatterskull Smashing' },
+      { kind: 'spellAbility' as const, id: 198, label: 'Play land (Shatterskull, the Hammer Pass)', face: 'Shatterskull, the Hammer Pass' },
+    ],
+    triggerEvent: null,
+  };
+
+  it('draws both faces side by side, each with its own art, and answers the one clicked', () => {
+    expect(parseServerFrame(ask).kind, 'the face names are on the wire’s own shape').toBe('ask');
+    const { getAllByTestId, queryAllByTestId, answers } = mountPrompt('getAbilityToPlay', ask, lookup);
+    const faces = getAllByTestId('prompt-face');
+    expect(faces.map((f) => f.getAttribute('data-face'))).toEqual(['Shatterskull Smashing', 'Shatterskull, the Hammer Pass']);
+    expect(faces.map((f) => f.querySelector('img')?.getAttribute('src'))).toEqual([
+      cardImageUrl(smashing!),
+      cardImageUrl(pass!),
+    ]);
+    expect(queryAllByTestId('prompt-choice'), 'no list of words beside them').toHaveLength(0);
+    fireEvent.click(faces[1]!);
+    expect(answers).toEqual([ask.abilities[1]]);
+    expectWireReply('getAbilityToPlay', answers[0]);
+  });
+
+  it('moves between the faces with left and right, and plays the one in focus', () => {
+    const { getAllByTestId, getByTestId, answers } = mountPrompt('getAbilityToPlay', ask, lookup);
+    const faces = getAllByTestId('prompt-face');
+    expect(document.activeElement, 'the left face is in focus').toBe(faces[0]);
+    fireEvent.keyDown(getByTestId('prompt-faces'), { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(faces[1]);
+    fireEvent.keyDown(getByTestId('prompt-faces'), { key: 'ArrowRight' });
+    expect(document.activeElement, 'and stays at the right edge').toBe(faces[1]);
+    fireEvent.keyDown(getByTestId('prompt-faces'), { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(faces[0]);
+    fireEvent.click(document.activeElement!);
+    expect(answers).toEqual([ask.abilities[0]]);
+  });
+
+  it('is the list of abilities when an ability names no face, or the seat holds no such face', () => {
+    const bare = { ...ask, abilities: ask.abilities.map(({ face: _face, ...a }) => a) };
+    expect(mountPrompt('getAbilityToPlay', bare, lookup).queryAllByTestId('prompt-face')).toHaveLength(0);
+    cleanup();
+    expect(mountPrompt('getAbilityToPlay', ask, { ...lookup, faces: () => [] }).getAllByTestId('prompt-choice')).toHaveLength(2);
+  });
+});
+
 describe('getAbilityToPlay', () => {
   it('draws each ability in words — no tap symbol, no braces — and answers the one clicked', () => {
     const { getAllByTestId, answers, getByRole } = mountPrompt('getAbilityToPlay', askFor('getAbilityToPlay'));

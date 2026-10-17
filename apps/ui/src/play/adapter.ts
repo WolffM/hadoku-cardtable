@@ -295,6 +295,14 @@ export interface BoardCard {
    * `readAbilityText`'s own note for why this is never raw HTML.
    */
   abilityText?: string | null;
+  /**
+   * The card's OTHER faces, as cards: a transformed card's front (Fable of the Mirror-Breaker under
+   * Reflection of Kiki-Jiki), a modal double-faced card's back, a split card's halves, an adventure.
+   * Read off the face states Forge sends beside the current one (`AlternateState`, `LeftSplitState`,
+   * `RightSplitState`); never for a face-down card, whose other face is what is hidden. Absent for a
+   * card with one face, which is most of them.
+   */
+  faces?: DraftCard[];
 }
 
 /**
@@ -1400,22 +1408,8 @@ function readAbilityText(face: WireObject | undefined): string | null {
   return text === '' ? null : text;
 }
 
-function toBoardCard(
-  state: WireState,
-  id: number,
-  artIds: ArtIdIndex,
-  printedPT: PrintedPTIndex,
-  onBattlefield = false,
-  printedType?: Tagged,
-  playerName: (pid: number) => string = (pid) => wirePlayerName(state, pid),
-): BoardCard | null {
-  const view = state.get(deltaKey(WireType.Card, id));
-  if (view === undefined) return null;
-  const face = shownFace(state, id, view, onBattlefield);
-
-  const known = wireName(view, face);
-  const hidden = known === null;
-  const name = known ?? HIDDEN_CARD_NAME;
+/** One face state as a card: what `CardTile` draws for it. `hidden` withholds its art. */
+function faceCard(id: number, face: WireObject | undefined, name: string, artIds: ArtIdIndex, hidden: boolean): DraftCard {
   const cost = prop(face, 'ManaCost');
   const { tokens, manaValue } =
     cost !== undefined && cost.t === 'manacost' && typeof cost.v === 'string'
@@ -1423,9 +1417,6 @@ function toBoardCard(
       : { tokens: [], manaValue: 0 };
   const type = prop(face, 'Type');
   const core = coreTypes(type);
-  const counters = countersOf(view);
-  const loyaltyCounter = counters.find((c) => c.name === 'Loyalty');
-
   const card: DraftCard = {
     cardId: `w${id}`,
     name,
@@ -1445,9 +1436,72 @@ function toBoardCard(
     card.power = String(readInt(face, 'Power'));
     card.toughness = String(readInt(face, 'Toughness'));
   }
-  if (core.includes('Planeswalker')) {
-    card.loyalty = loyaltyCounter !== undefined ? String(loyaltyCounter.count) : (readStr(face, 'Loyalty') ?? '0');
+  if (core.includes('Planeswalker')) card.loyalty = readStr(face, 'Loyalty') ?? '0';
+  return card;
+}
+
+/** The face states Forge sends beside a card's current one, in its order: the other side, then a split card's halves. */
+const OTHER_FACE_STATES = ['AlternateState', 'LeftSplitState', 'RightSplitState'] as const;
+
+/**
+ * A card's faces other than `shown`, as cards — {@link BoardCard.faces}. A face with no name on this
+ * seat's wire is one it may not see and is left out; a face-down card has none to show at all. A face
+ * whose own art the table lacks (a split half, an adventure) is drawn with the card's art.
+ */
+function otherFaces(state: WireState, id: number, view: WireObject, shown: DraftCard, artIds: ArtIdIndex): DraftCard[] {
+  if (readBool(view, 'Facedown')) return [];
+  const out: DraftCard[] = [];
+  const seen = new Set([shown.name]);
+  for (const key of OTHER_FACE_STATES) {
+    const v = readInt(view, key, -1);
+    if (v < 0) continue;
+    const face = state.get(cardStateKey(id, v));
+    const name = readStr(face, 'Name');
+    if (name === null || name.trim() === '' || seen.has(name)) continue;
+    seen.add(name);
+    const card = faceCard(id, face, name, artIds, false);
+    if (card.scryfallId === undefined && shown.scryfallId !== undefined) card.scryfallId = shown.scryfallId;
+    out.push(card);
   }
+  return out;
+}
+
+/**
+ * Every face of card `id` this seat may see, the one on show first — for a choice between them
+ * (`prompts/lookup.ts`'s `faces`). Empty for a card this seat was sent nothing for.
+ */
+export function cardFaces(state: WireState, id: number, artIds: ArtIdIndex = KNOWN_ART_IDS): DraftCard[] {
+  const view = state.get(deltaKey(WireType.Card, id));
+  if (view === undefined) return [];
+  const face = shownFace(state, id, view, false);
+  const name = wireName(view, face);
+  if (name === null) return [];
+  const shown = faceCard(id, face, name, artIds, false);
+  return [shown, ...otherFaces(state, id, view, shown, artIds)];
+}
+
+function toBoardCard(
+  state: WireState,
+  id: number,
+  artIds: ArtIdIndex,
+  printedPT: PrintedPTIndex,
+  onBattlefield = false,
+  printedType?: Tagged,
+  playerName: (pid: number) => string = (pid) => wirePlayerName(state, pid),
+): BoardCard | null {
+  const view = state.get(deltaKey(WireType.Card, id));
+  if (view === undefined) return null;
+  const face = shownFace(state, id, view, onBattlefield);
+
+  const known = wireName(view, face);
+  const hidden = known === null;
+  const name = known ?? HIDDEN_CARD_NAME;
+  const type = prop(face, 'Type');
+  const core = coreTypes(type);
+  const counters = countersOf(view);
+  const loyaltyCounter = counters.find((c) => c.name === 'Loyalty');
+  const card = faceCard(id, face, name, artIds, hidden);
+  if (core.includes('Planeswalker') && loyaltyCounter !== undefined) card.loyalty = String(loyaltyCounter.count);
 
   const keywords = readKeywords(face);
   // Forge sets `Sickness` on cards in every zone; it only means something on
@@ -1484,6 +1538,10 @@ function toBoardCard(
     choices,
     relations,
     abilityText,
+    ...((): { faces?: DraftCard[] } => {
+      const faces = hidden ? [] : otherFaces(state, id, view, card, artIds);
+      return faces.length > 0 ? { faces } : {};
+    })(),
   };
 }
 

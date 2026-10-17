@@ -33,7 +33,9 @@ async function record(page: Page): Promise<void> {
     (window as unknown as { __faces: () => Frame[] }).__faces = () => frames;
     let last = '';
     const tick = (): void => {
+      // Not the board's hidden other faces (`Board.tsx`'s `BoardFaces`): never drawn, so never loaded.
       const faces = Array.from(document.querySelectorAll('.card'))
+        .filter((card) => card.closest('[data-board-faces]') === null)
         .filter((card) => names.includes(card.querySelector('.card__name')?.textContent?.trim() ?? ''))
         .map((card) => {
           const img = card.querySelector('img.card__art') as HTMLImageElement | null;

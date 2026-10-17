@@ -76,7 +76,7 @@ export async function answerPrompt(
       break;
     }
     case 'choice-or-cancel': {
-      const choice = sheet.getByTestId(ANSWER_TESTID.choice);
+      const choice = sheet.locator(`[data-testid="${ANSWER_TESTID.choice}"], [data-testid="${ANSWER_TESTID.face}"]`);
       await ((await choice.count()) > 0 ? choice.first() : sheet.getByTestId(ANSWER_TESTID.cancel)).click();
       break;
     }

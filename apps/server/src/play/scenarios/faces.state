@@ -1,0 +1,17 @@
+# apps/server/src/play/faces.jvm.test.ts — the operator, 2026-10-17: "flip cards should show both art and
+# let you pick left/right". Alice holds a card of each kind whose faces Forge offers as one ability choice:
+# an adventure (Bonecrusher Giant), a modal double-faced card (Shatterskull Smashing), a split card
+# (Fire // Ice) — and Fable of the Mirror-Breaker, whose back face is on the wire from her hand.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Bonecrusher Giant;Shatterskull Smashing;Fire // Ice;Fable of the Mirror-Breaker
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Island;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Grizzly Bears
+aibattlefield=Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

@@ -3306,10 +3306,48 @@ public final class PlayBridge {
             final PendingAsk ask = open("getAbilityToPlay", f);
             offer(ask, abilities);
             f.add("hostCard", ref("card", hostCard.getId()));
-            f.add("abilities", labelledAbilities(abilities));
+            final JsonArray offered = labelledAbilities(abilities);
+            faceAbilities(hostCard, offered);
+            f.add("abilities", offered);
             f.add("triggerEvent", JsonNull.INSTANCE);
             final JsonElement r = await(ask, f);
             return r == ABORTED ? null : (SpellAbilityView) lookup(ask, r);
+        }
+
+        /**
+         * Names each offered ability's face ({@code face}) when they come from more than one: an
+         * adventure (Bonecrusher Giant or Stomp), a modal double-faced card (Shatterskull Smashing or
+         * its land), a split card (Fire or Ice). Forge offers these as one {@code getAbilityToPlay}
+         * whose labels do not say which face is which, so the seat could not draw the faces to pick
+         * from (the operator, 2026-10-17: "flip cards should show both art and let you pick
+         * left/right"). Read off each of the card's abilities, by id, from its own face; left out when any
+         * offered ability is on none of them, or all are on one face.
+         */
+        private void faceAbilities(final CardView hostCard, final JsonArray offered) {
+            final Game game = liveGame();
+            if (game == null) { return; }
+            try {
+                final forge.game.card.Card host = game.findById(hostCard.getId());
+                if (host == null) { return; }
+                final Map<Integer, String> faceOf = new HashMap<>();
+                // An ability's own face: a split card's halves are on its combined face too.
+                for (final forge.card.CardStateName name : host.getStates()) {
+                    for (final SpellAbility sa : host.getState(name).getSpellAbilities()) {
+                        final forge.game.card.CardState own = sa.getCardState();
+                        if (own != null) { faceOf.putIfAbsent(sa.getId(), own.getName()); }
+                    }
+                }
+                final List<String> faces = new ArrayList<>();
+                for (final JsonElement e : offered) {
+                    final String face = faceOf.get(e.getAsJsonObject().get("id").getAsInt());
+                    if (face == null) { return; }
+                    faces.add(face);
+                }
+                if (new java.util.HashSet<>(faces).size() < 2) { return; }
+                for (int i = 0; i < offered.size(); i++) { offered.get(i).getAsJsonObject().addProperty("face", faces.get(i)); }
+            } catch (final RuntimeException ex) {
+                System.err.println("[bridge] faceAbilities: could not read the card's faces (" + ex + ")");
+            }
         }
 
         @Override

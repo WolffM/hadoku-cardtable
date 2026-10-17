@@ -555,6 +555,16 @@
 }
 
 /*
+ * A card's faces side by side (`../prompts/ChoicePrompts.tsx`'s `facedAbilities`) want two cards'
+ * width: half a column wider, grown to the left, so its right edge stays clear of the phase rail.
+ * Out of flow like the column itself, so nothing on the table moves.
+ */
+.live__prompt:has(.prompt__faces) {
+  left: calc(var(--live-col-x) - var(--live-col-w) * 0.5);
+  width: calc(var(--live-col-w) * 1.5);
+}
+
+/*
  * Wave 51: a played card staged for its target (`board.css`'s `.staging`) is
  * centred in this same column, so the decision pop-up that holds Forge's
  * `Cancel` for that target draws at the column's foot, under the card.

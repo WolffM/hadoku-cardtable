@@ -66,6 +66,8 @@ export const SELF_ANSWERING: ReadonlySet<string> = new Set(
 export const ANSWER_TESTID = {
   option: 'prompt-option',
   choice: 'prompt-choice',
+  /** One face of a card whose faces are offered side by side (`ChoicePrompts.tsx`'s `facedAbilities`): one press answers. */
+  face: 'prompt-face',
   /** A mana combination's whole answer (`AssignPrompts.tsx`'s `ManaComboPrompt`): one press answers. */
   combo: 'prompt-combo',
   input: 'prompt-input',

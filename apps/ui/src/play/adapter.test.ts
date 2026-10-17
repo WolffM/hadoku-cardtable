@@ -29,6 +29,7 @@ import poolData from '../draft/pool.json';
 import {
   abilityTextOf,
   boardPT,
+  cardFaces,
   CUBE_ART_IDS,
   HIDDEN_CARD_NAME,
   keywordTags,
@@ -1381,5 +1382,58 @@ describe('view.combat — Forge’s CombatView, read off the state channel (X1)'
     const key = gameKey(state);
     state.set(key, { ...state.get(key)!, CombatView: { t: 'bool', v: true } } as WireObject);
     expect(adapt(state).combat).toEqual([]);
+  });
+});
+
+/*
+ * The operator, 2026-10-17: "show transformed cards with mousewheel (Fable of the Mirror-Breaker)" and
+ * "flip cards should show both art". A card's other faces come off the face states Forge sends beside
+ * its current one: `AlternateState` for a transformed or modal double-faced card, the split states for
+ * a split card. Card 21 is turned into each, in place.
+ */
+describe('a card’s other faces', () => {
+  /** Give card 21 a face state at `v`, named `name`, typed `core`. */
+  function addFace(state: Map<string, WireObject>, v: number, name: string, core: string[], setCode = 'NEO'): void {
+    const front = state.get(cardStateKey(21, 0))!;
+    state.set(cardStateKey(21, v), {
+      ...front,
+      _id: 21 * 16 + v,
+      Name: { t: 'str', v: name },
+      SetCode: { t: 'str', v: setCode },
+      Type: { t: 'cardtype', sup: [], core, sub: [], all: false, exc: [] },
+    } as WireObject);
+  }
+
+  it('carries a transformed card’s other face, with that face’s own art', () => {
+    const state = baseState();
+    renameCard(state, 21, 'Fable of the Mirror-Breaker', 'NEO');
+    addFace(state, 3, 'Reflection of Kiki-Jiki', ['Enchantment', 'Creature']);
+    setCard(state, 21, 'AlternateState', { t: 'int', v: 3 });
+    const card = cardsById(adapt(state)).get(21)!;
+    expect(card.faces?.map((f) => f.name)).toEqual(['Reflection of Kiki-Jiki']);
+    expect(card.faces?.[0]?.scryfallId, 'the back face’s own art').toBe(scryfallIdFor(KNOWN_ART_IDS, 'Reflection of Kiki-Jiki', 'NEO'));
+    expect(card.faces?.[0]?.scryfallId).not.toBe(card.card.scryfallId);
+    expect(cardFaces(state, 21).map((f) => f.name), 'the face on show first').toEqual(['Fable of the Mirror-Breaker', 'Reflection of Kiki-Jiki']);
+  });
+
+  it('carries a split card’s halves, drawn with the card’s art where a half has none of its own', () => {
+    const state = baseState();
+    renameCard(state, 21, 'Fire // Ice', 'DMR');
+    addFace(state, 5, 'Fire', ['Instant'], 'DMR');
+    addFace(state, 6, 'Ice', ['Instant'], 'DMR');
+    setCard(state, 21, 'LeftSplitState', { t: 'int', v: 5 });
+    setCard(state, 21, 'RightSplitState', { t: 'int', v: 6 });
+    const card = cardsById(adapt(state)).get(21)!;
+    expect(card.faces?.map((f) => f.name)).toEqual(['Fire', 'Ice']);
+    expect(card.faces?.every((f) => f.scryfallId === card.card.scryfallId)).toBe(true);
+  });
+
+  it('carries none for a face-down card — its other face is what is hidden — nor for a card with one face', () => {
+    const state = baseState();
+    addFace(state, 3, 'Reflection of Kiki-Jiki', ['Enchantment', 'Creature']);
+    setCard(state, 21, 'AlternateState', { t: 'int', v: 3 });
+    setCard(state, 21, 'Facedown', { t: 'bool', v: true });
+    expect(cardsById(adapt(state)).get(21)!.faces).toBeUndefined();
+    expect(cardsById(adapt(baseState())).get(21)!.faces).toBeUndefined();
   });
 });

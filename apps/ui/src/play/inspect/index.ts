@@ -104,6 +104,15 @@
  * stands beside it by the same rule, never over the cards it lists — and so
  * is a deck's list in the room's picker, whose lines enlarge through here.
  *
+ * ## The other faces, on the wheel
+ *
+ * A card with more than one face — transformed (Fable of the Mirror-Breaker and Reflection of
+ * Kiki-Jiki), modal double-faced, split, an adventure — has its other faces drawn as hidden tiles by
+ * the board (`../Board.tsx`'s `BoardFaces`, `data-faces-of="<id>"`). While the panel is open on such
+ * a card, the mouse wheel turns it to the next face down, or back up, and round again (the operator,
+ * 2026-10-17: *"mousewheel up/down lets you cycle between other relevant cards"*). The wheel scrolls
+ * nothing else meanwhile; on a card with one face it is left alone.
+ *
  * ## Staleness, on purpose
  *
  * The clone is a snapshot taken when the gesture opened. If the game moves
@@ -433,6 +442,20 @@ export function placeBesideModal(hover: Rect, modal: Rect, area: Rect): { left: 
 }
 
 /**
+ * The enlargement: a clone of a tile the seat already drew. Stripped of the ids other code queries by
+ * value (`live/LiveBoard.tsx`'s `cardBox`, the e2e suites) — it is presentation, not a card the DOM
+ * can address.
+ */
+function enlarged(tile: Element): HTMLElement {
+  const clone = tile.cloneNode(true) as HTMLElement;
+  clone.removeAttribute('data-card-id');
+  clone.removeAttribute('data-testid');
+  const art = clone.querySelector('img');
+  if (art !== null) art.setAttribute('loading', 'eager');
+  return clone;
+}
+
+/**
  * One live instance per root: mounting the same `root` again tears the prior
  * instance down FIRST (its listeners off, its panel gone) before the new one
  * attaches. Without this, two mounts on one root stack independent
@@ -461,6 +484,9 @@ export function mountInspector(root: ParentNode): () => void {
 
   let current: InspectTarget | null = null;
   let panel: HTMLElement | null = null;
+  /** The faces the open panel can show — the hovered tile first — and which one it shows. */
+  let faces: Element[] = [];
+  let faceAt = 0;
   let watcher: MutationObserver | null = null;
 
   let pressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -483,6 +509,8 @@ export function mountInspector(root: ParentNode): () => void {
     if (panel !== null) panel.remove();
     panel = null;
     current = null;
+    faces = [];
+    faceAt = 0;
     watcher?.disconnect();
     watcher = null;
   }
@@ -504,14 +532,8 @@ export function mountInspector(root: ParentNode): () => void {
     dismiss();
     current = target;
 
-    // The enlargement: a clone of the tile the seat already drew. Stripped of
-    // the ids other code queries by value (`live/LiveBoard.tsx`'s `cardBox`,
-    // the e2e suites) — it is presentation, not a card the DOM can address.
-    const clone = target.tile.cloneNode(true) as HTMLElement;
-    clone.removeAttribute('data-card-id');
-    clone.removeAttribute('data-testid');
-    const art = clone.querySelector('img');
-    if (art !== null) art.setAttribute('loading', 'eager');
+    const clone = enlarged(target.tile);
+    faces = [target.tile, ...otherFacesOf(target.tile)];
 
     const hoverR = rectOf((target.trigger ?? target.tile).getBoundingClientRect());
     // A window is open: the panel stands beside it, never on it — the hovered
@@ -544,6 +566,22 @@ export function mountInspector(root: ParentNode): () => void {
       if (current !== null && (!current.card.isConnected || current.trigger?.isConnected === false)) dismiss();
     });
     watcher.observe(scope, { childList: true, subtree: true });
+  }
+
+  /** The wheel over an open panel with faces to turn: the next face down, or back up, and round. */
+  function onWheel(event: WheelEvent): void {
+    if (panel === null || faces.length < 2 || event.deltaY === 0) return;
+    event.preventDefault();
+    faceAt = (faceAt + (event.deltaY > 0 ? 1 : -1) + faces.length) % faces.length;
+    panel.replaceChildren(enlarged(faces[faceAt]!));
+  }
+
+  /** A card's other faces, as the board drew them (`BoardFaces`), by the board id in its tile's own `w<id>`. */
+  function otherFacesOf(tile: Element): Element[] {
+    const id = tile.getAttribute('data-card-id');
+    if (id === null || !TILE_ID.test(id)) return [];
+    const drawn = root.querySelector(`[data-faces-of="${id.slice(1)}"]`);
+    return drawn === null ? [] : [...drawn.querySelectorAll('.card')];
   }
 
   function onPointerOver(event: PointerEvent): void {
@@ -676,11 +714,14 @@ export function mountInspector(root: ParentNode): () => void {
     ['keydown', onKeyDown as EventListener, false],
   ];
   for (const [type, listener, capture] of listeners) scope.addEventListener(type, listener, capture);
+  // Not passive: the wheel that turns a face must not also scroll the page under it.
+  scope.addEventListener('wheel', onWheel as EventListener, { passive: false });
 
   const dispose = (): void => {
     cancelPress();
     dismiss();
     for (const [type, listener, capture] of listeners) scope.removeEventListener(type, listener, capture);
+    scope.removeEventListener('wheel', onWheel as EventListener);
     // Only clear the registry if nothing has re-mounted this root since:
     // a superseded instance's own (stale) dispose must stay a harmless no-op.
     if (activeMounts.get(root) === dispose) activeMounts.delete(root);

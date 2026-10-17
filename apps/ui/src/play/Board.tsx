@@ -4139,6 +4139,39 @@ export function Board({
         )}
       </div>
       <div className="board__zoom" data-board-zoom="" />
+      <BoardFaces players={view.players} />
     </section>
+  );
+}
+
+/**
+ * Every drawn card's other faces, as tiles nobody sees — the ones the inspector turns to when the
+ * mouse wheel turns over a card it is enlarging (the operator, 2026-10-17: "show transformed cards
+ * with mousewheel (Fable of the Mirror-Breaker) mousewheel up/down lets you cycle between other
+ * relevant cards"). Out of every zone, so nothing that reads a zone's cards reads these; keyed by the
+ * card's board id (`data-faces-of`), and their own tile ids are not a card's (`f<id>`), so nothing
+ * that finds a card by its tile finds one of these.
+ */
+function BoardFaces({ players }: { players: readonly BoardPlayer[] }) {
+  const cards = players.flatMap((p) => [
+    ...(p.hand ?? []),
+    ...(p.handShown ?? []).filter((c): c is BoardCard => c !== null),
+    ...p.battlefield,
+    ...p.graveyard,
+    ...p.exile,
+    ...(p.libraryTop === undefined ? [] : [p.libraryTop]),
+  ]);
+  const faced = [...new Map(cards.filter((c) => c.faces !== undefined && c.faces.length > 0).map((c) => [c.id, c])).values()];
+  if (faced.length === 0) return null;
+  return (
+    <div className="board__faces" data-board-faces="" hidden>
+      {faced.map((c) => (
+        <div key={c.id} data-faces-of={c.id}>
+          {c.faces!.map((face) => (
+            <CardTile key={face.name} card={{ ...face, cardId: `f${c.id}` }} />
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
