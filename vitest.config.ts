@@ -1,3 +1,5 @@
+import { availableParallelism } from 'node:os';
+
 import { defineConfig } from 'vitest/config';
 
 import { APP_NAME } from './apps/ui/app-name.js';
@@ -31,7 +33,11 @@ export default defineConfig({
     // `[vitest-worker]: Timeout calling "onTaskUpdate"` after every test passed
     // (51d7d22 and 69ee77b, 2026-10-08, the deploy gate both times). The turn
     // itself is `test-setup.ts`'s; four workers keep the run under five minutes.
-    maxWorkers: process.env.CI ? 4 : undefined,
+    // Locally, half the cores rather than vitest's all-but-one: this host also
+    // carries CI, Forge and other agents, and against the same twelve busy loops
+    // (2026-10-16) eleven workers took 596 s with four first-in-file server cases
+    // timing out, six took 392 s with none.
+    maxWorkers: process.env.CI ? 4 : Math.max(1, Math.floor(availableParallelism() / 2)),
     setupFiles: ['./apps/ui/src/test-setup.ts'],
   },
 });
