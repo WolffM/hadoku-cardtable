@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@hadoku/forge-wire": "workspace:*",
-    "@wolffm/rooms-protocol": "0.41.18",
+    "@wolffm/rooms-protocol": "0.41.19",
     "zod": "4.5.4"
   }
 }
