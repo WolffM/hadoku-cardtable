@@ -129,32 +129,6 @@ export const SHIMMER_MS = 1100;
  */
 export const PLACED_PENDING_MS = 300;
 
-/**
- * The haze a spell on the stack is seen through (`placed.css`): fractal noise, slowly breathing, that
- * displaces the face by a pixel or two — a card held in the air shimmers like a road in the heat (the
- * operator, 2026-10-15: "a visual distortion shimmer") — inside its own outline, over the face itself,
- * so its edge stays crisp and nothing shows through. One filter for the overlay; a reduced-motion
- * screen never references it.
- */
-export const HAZE_FILTER_ID = 'placed-haze';
-const HAZE_FILTER = `<filter id="${HAZE_FILTER_ID}" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
-  <feTurbulence type="fractalNoise" baseFrequency="0.007 0.024" numOctaves="2" seed="7" result="noise">
-    <animate attributeName="baseFrequency" dur="5.2s" values="0.007 0.024;0.009 0.034;0.007 0.024" calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" repeatCount="indefinite" />
-  </feTurbulence>
-  <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G" result="haze" />
-  <feComposite in="haze" in2="SourceAlpha" operator="in" result="inside" />
-  <feMerge><feMergeNode in="SourceGraphic" /><feMergeNode in="inside" /></feMerge>
-</filter>`;
-
-function ensureHaze(root: HTMLElement): void {
-  if (root.querySelector(`#${HAZE_FILTER_ID}`) !== null) return;
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('class', 'placed__defs');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.innerHTML = HAZE_FILTER;
-  root.append(svg);
-}
-
 /** How far a card sits to the right of its source's own box (the ephemeral tile, Settled). */
 const BESIDE_GAP = 6;
 
@@ -1063,7 +1037,6 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       return;
     }
     promote(view.stack);
-    ensureHaze(root);
     const overlayBox = root.getBoundingClientRect();
     // A spell is a hand card's size, an ability's chip squared off a battlefield card's (`card-size.ts`, the one source) — measured once per paint.
     const cardWidth = battlefieldCardWidth(canvas, 'you') ?? battlefieldCardWidth(canvas, 'them');
@@ -1161,7 +1134,6 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
       for (const id of [...drawn.keys()]) removeNow(id);
-      overlay()?.querySelector('.placed__defs')?.remove();
       undrawn.clear();
     },
   };

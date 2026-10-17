@@ -273,19 +273,40 @@ describe('players', () => {
    * §A.10: *"can we get symbols to display hand/deck size instead of words?"* So
    * the count IS the number, the word is the accessible name, and the mark beside
    * it is a drawn `<svg>` — both halves asserted, because a count that lost its
-   * word entirely would be a symbol nobody can name.
+   * word entirely would be a symbol nobody can name. The hand's count is gone
+   * (2026-10-17): a hand is drawn card by card, so it counts itself.
    */
-  it('draws each count as a symbol and a number, with the word in its accessible name', () => {
+  it('draws the library count as a symbol and a number, with the word in its accessible name, and no hand count', () => {
     const { seat } = renderBoard();
     const library = within(seat(0)).getByTestId('library-count');
     expect(library.textContent, 'the number, and no word').toBe('46');
     expect(library.getAttribute('aria-label')).toBe('library 46');
     expect(library.querySelector('svg.seat__count-art'), 'a drawn mark beside it').toBeTruthy();
     expect(within(seat(1)).getByTestId('library-count').textContent).toBe('47');
-    const hand = within(seat(0)).getByTestId('hand-count');
-    expect(hand.textContent).toBe('5');
-    expect(hand.getAttribute('aria-label')).toBe('hand 5');
-    expect(hand.querySelector('svg.seat__count-art')).toBeTruthy();
+    expect(library.querySelectorAll('svg.seat__count-art path'), 'three stacked trapezoids').toHaveLength(3);
+    expect(within(seat(0)).queryByTestId('hand-count')).toBeNull();
+    expect(within(seat(1)).queryByTestId('hand-count')).toBeNull();
+  });
+
+  // 2026-10-17: *"Clicking on deck icon should let you open your deck list."* Your own only.
+  it('makes the viewer’s own library count a button that opens their deck list, and nobody else’s', () => {
+    const view = boardFromFixture(fixture);
+    const opened: Element[] = [];
+    const utils = render(createElement(Board, { view, boardLayout: 'type-separated', onOpenDeck: (from: Element) => opened.push(from) }));
+    const seatEl = (id: number) => utils.container.querySelector<HTMLElement>(`[data-testid="player"][data-player-id="${id}"]`)!;
+    const viewer = view.players.find((p) => p.isViewer)!;
+    const other = view.players.find((p) => !p.isViewer)!;
+    const mine = within(seatEl(viewer.id)).getByTestId('library-count');
+    expect(mine.tagName).toBe('BUTTON');
+    expect(mine.getAttribute('aria-label')).toBe(`library ${viewer.libraryCount}`);
+    fireEvent.click(mine);
+    expect(opened).toEqual([mine]);
+    expect(within(seatEl(other.id)).getByTestId('library-count').tagName, 'the other seat’s list is hidden').toBe('SPAN');
+  });
+
+  it('draws the library count as no button when nothing opens a list (a watcher, a test board)', () => {
+    const { seat } = renderBoard();
+    expect(within(seat(0)).getByTestId('library-count').tagName).toBe('SPAN');
   });
 });
 
@@ -1442,10 +1463,8 @@ describe('the seat’s vertical bar (#9)', () => {
       expect(face.querySelector('img')).toBeNull();
       expect(within(bar).getByTestId('life').textContent).toBe(String(p.life));
       expect(bar.querySelector('.seat__name')!.textContent).toContain(p.name);
-      // Symbols and numbers since §A.10; the words are the accessible names.
-      expect(within(bar).getByTestId('hand-count').getAttribute('aria-label')).toBe(`hand ${p.handCount}`);
+      // A symbol and a number since §A.10; the word is the accessible name.
       expect(within(bar).getByTestId('library-count').getAttribute('aria-label')).toBe(`library ${p.libraryCount}`);
-      expect(within(bar).getByTestId('hand-count').textContent).toBe(String(p.handCount));
       expect(within(bar).getByTestId('library-count').textContent).toBe(String(p.libraryCount));
       // One life total per seat, and it is the one on the avatar: the header
       // used to carry a second copy beside it.
@@ -3898,9 +3917,9 @@ describe('wave 31 §A: the seat, the left column and the stack', () => {
   });
 
   it('P2 / Q9: no share of the column is written for the graveyard — it takes what the avatar and counts leave', () => {
-    // The counts spend none of it: they are in the bar, in their own track.
+    // The count spends none of it: it is in the bar, in its own track.
     const { seat } = renderBoard();
-    expect(seat(0).querySelector('.seat__piles [data-testid="hand-count"]')).toBeNull();
+    expect(seat(0).querySelector('.seat__piles [data-testid="library-count"]')).toBeNull();
   });
 
   it('P5: Regroup is gone from the board', () => {
@@ -4961,7 +4980,6 @@ describe('wave 34 §B', () => {
     const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
     const { seat } = renderBoard(adapted);
     const theirBar = seat(1).querySelector<HTMLElement>('[data-player-bar]')!;
-    expect(theirBar.querySelector('[data-testid="hand-count"]')).not.toBeNull();
     expect(theirBar.querySelector('[data-testid="library-count"]')).not.toBeNull();
     const counters = [...theirBar.querySelectorAll<HTMLElement>('.seat__counter')];
     expect(counters.map((c) => c.textContent).sort()).toEqual(['E3', 'XP5']);
@@ -4970,11 +4988,11 @@ describe('wave 34 §B', () => {
     const poison = theirBar.querySelector<HTMLElement>('.seat__ident [data-testid="poison"]')!;
     expect(poison.getAttribute('data-tip')).toBe('7 poison');
     expect(poison.getAttribute('aria-label')).toBe('7 poison');
-    // Still inside the SAME box as the hand/library counts (item 1's brief:
+    // Still inside the SAME box as the library count (item 1's brief:
     // "stay inside their column") — not promoted to a track of its own.
     expect(theirBar.querySelectorAll('.seat__counts').length).toBe(1);
     const counts = theirBar.querySelector('.seat__counts')!;
-    for (const el of [...counts.querySelectorAll('[data-testid="hand-count"], [data-testid="library-count"], .seat__counter')]) {
+    for (const el of [...counts.querySelectorAll('[data-testid="library-count"], .seat__counter')]) {
       expect(counts.contains(el)).toBe(true);
     }
   });

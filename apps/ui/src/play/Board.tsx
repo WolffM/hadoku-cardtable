@@ -3275,6 +3275,7 @@ function PlayerArea({
   held,
   onOpenPile,
   onOpenSettings,
+  onOpenDeck,
 }: {
   player: BoardPlayer;
   interaction: BoardInteraction | undefined;
@@ -3286,8 +3287,19 @@ function PlayerArea({
   held: ReadonlySet<number>;
   onOpenPile: (zone: PileZone) => void;
   onOpenSettings?: (from: Element) => void;
+  onOpenDeck?: (from: Element) => void;
 }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
+  const libraryMark = (
+    <>
+      <svg className="seat__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M4.6 1.6h6.8l2.4 3.4H2.2Z" />
+        <path d="M4.6 6.2h6.8l2.4 3.4H2.2Z" />
+        <path d="M4.6 10.8h6.8l2.4 3.4H2.2Z" />
+      </svg>
+      <span aria-hidden="true">{player.libraryCount}</span>
+    </>
+  );
   const side: ZoneOwner = player.isViewer ? 'you' : 'them';
   /*
    * No visible `(you)` (wave 31 §A.1, the operator's P3): the seat's own name is
@@ -3345,36 +3357,36 @@ function PlayerArea({
           </div>
           <ManaPool player={player} />
           {/*
-           * The counts, as MARKS rather than words (item 10): *"can we get symbols
-           * to display hand/deck size instead of words?"* Two drawn symbols —
-           * a fanned hand and a stacked library — each with its number beside it,
-           * in a column 72px wide where `hand 7` and `library 46` were most of the
-           * ink. They are ours, drawn here as geometry like the player mark and the
-           * state marks: no font to miss the glyph, no WotC symbol anywhere near it.
+           * The library's count, as a MARK rather than a word (item 10: *"can we get
+           * symbols to display hand/deck size instead of words?"*). The hand's count is
+           * gone (the operator, 2026-10-17: *"Hand count should be gone, instead let's
+           * allow the deck count number to be slightly bigger and the deck icon to be
+           * three stacked trapazoids"*) — a hand is drawn card by card, backs included,
+           * so it counts itself. Ours, drawn here as geometry like the player mark: no
+           * font to miss the glyph, no WotC symbol anywhere near it.
            *
-           * The test ids do not move — `hand-count` and `library-count` are read by
-           * `Board.test.ts` and are the only handle anything has on these two
-           * numbers — and each carries the words in its accessible name, so the
-           * symbol is for the eye and the label is for everything else.
+           * `library-count` is the one handle anything has on the number, and it carries
+           * the word in its accessible name: the mark is for the eye, the label for
+           * everything else.
            */}
           <div className="seat__counts">
-            <span className="seat__count" data-testid="hand-count" aria-label={`hand ${player.handCount}`}>
-              <svg className="seat__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                <path d="M3.4 5.6 6 13.4l3.1-1-2.6-7.8Z" />
-                <path d="M7.2 4.4h3.1v9H7.2Z" />
-                <path d="m11.1 4.6 2.9.9-2.2 7.6-2.4-.8Z" />
-              </svg>
-              <span aria-hidden="true">{player.handCount}</span>
-            </span>
-            <span className="seat__count" data-testid="library-count" aria-label={`library ${player.libraryCount}`}>
-              <svg className="seat__count-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                <path d="M2.8 11.4h10.4v1.9H2.8Z" />
-                <path d="M2.8 8.1h10.4V10H2.8Z" />
-                <path d="M2.8 4.8h10.4v1.9H2.8Z" />
-                <path d="M2.8 2.4h10.4v1.5H2.8Z" />
-              </svg>
-              <span aria-hidden="true">{player.libraryCount}</span>
-            </span>
+            {player.isViewer && onOpenDeck !== undefined ? (
+              /* Your own opens your deck list (the operator, 2026-10-17: "Clicking on deck icon should let you open your deck list"). */
+              <button
+                type="button"
+                className="seat__count seat__count--open"
+                data-testid="library-count"
+                aria-label={`library ${player.libraryCount}`}
+                aria-haspopup="dialog"
+                onClick={(event) => onOpenDeck(event.currentTarget)}
+              >
+                {libraryMark}
+              </button>
+            ) : (
+              <span className="seat__count" data-testid="library-count" aria-label={`library ${player.libraryCount}`}>
+                {libraryMark}
+              </span>
+            )}
             <PlayerCounters player={player} />
             {player.hasLost && <span className="seat__flag seat__flag--lost">lost</span>}
           </div>
@@ -3726,6 +3738,7 @@ export function Board({
   interaction,
   boardLayout = 'single',
   onOpenSettings,
+  onOpenDeck,
   onEffect,
   fastMode = false,
 }: {
@@ -3737,6 +3750,8 @@ export function Board({
   onEffect?: (data: Record<string, string | number | boolean>) => void;
   /** The viewer's own face opens the game's settings: `LiveBoard` owns them. */
   onOpenSettings?: (from: Element) => void;
+  /** The viewer's own library count opens their deck list: `LiveBoard` fetches it. */
+  onOpenDeck?: (from: Element) => void;
   /**
    * Item 11. `single` — one undivided battlefield — is the default; the
    * settings panel is the only place that reads a stored preference and
@@ -4082,6 +4097,7 @@ export function Board({
           held={held}
           onOpenPile={openPileOf(viewer.id)}
           onOpenSettings={onOpenSettings}
+          onOpenDeck={onOpenDeck}
         />
       )}
 

@@ -1032,7 +1032,7 @@
   color: var(--accent-ink);
 }
 
-/* R8: the button is an icon now — three bars, read as "lines of text". `fill`
+/* R8: the button is an icon now — three equal blocks (the operator, 2026-10-17). `fill`
    rather than `stroke` so it stays crisp at 16px; `currentColor` so the open
    state's colour change (above) recolours the glyph with no rule of its own. */
 .live__log-icon {

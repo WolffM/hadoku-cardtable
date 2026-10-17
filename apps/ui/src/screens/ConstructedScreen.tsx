@@ -289,7 +289,7 @@ function namedPeekLine({ name, count }: DeckLine): PeekLine {
 }
 
 /** A library deck's lines: the wire sends names. */
-function libraryPeekList(main: readonly DeckLine[], sideboard: readonly DeckLine[]): PeekList {
+export function libraryPeekList(main: readonly DeckLine[], sideboard: readonly DeckLine[]): PeekList {
   return { main: main.map(namedPeekLine), sideboard: sideboard.map(namedPeekLine) };
 }
 

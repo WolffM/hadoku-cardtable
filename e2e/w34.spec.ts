@@ -210,9 +210,9 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
     // (e-findings.md §E2 measured it making the symptom WORSE, 5/5).
     const { alice, bob, matchId } = await startScenarioMatch(browser, stack, 'ponder');
 
-    const myHandCount = alice.page.locator('.seat[data-viewer] [data-testid="hand-count"]');
+    const myHandCount = alice.page.locator('.seat[data-viewer] [data-zone="hand"]');
     await expect.poll(() => offered(alice.page), { timeout: 90_000, message: 'alice is offered Ponder — the precondition "ponder" sets up' }).not.toEqual([]);
-    const handBefore = Number((await myHandCount.getAttribute('aria-label'))?.match(/\d+/)?.[0] ?? '-1');
+    const handBefore = Number((await myHandCount.getAttribute('data-count')) ?? '-1');
     const card = (await offered(alice.page))[0]!;
     await castCard(alice.page, card);
 
@@ -267,7 +267,7 @@ test(titled('§E2 — Ponder\'s look/reorder decision reaches the browser as a r
     // the look/reorder/shuffle decision went — the hand gained exactly one.
     await expect
       .poll(
-        async () => Number((await myHandCount.getAttribute('aria-label'))?.match(/\d+/)?.[0] ?? '-1'),
+        async () => Number((await myHandCount.getAttribute('data-count')) ?? '-1'),
         { timeout: 10_000, message: 'Ponder\'s draw landed in alice\'s hand after the click answered it' },
       )
       .toBe(handBefore - 1 /* Ponder itself left the hand */ + 1 /* its own draw */);

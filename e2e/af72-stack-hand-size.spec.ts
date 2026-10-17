@@ -10,8 +10,8 @@
  * `st-stack-resolve`, at 1280×800). What this pins, on BOTH screens:
  *
  *  - on the stack the spell is drawn at the size that screen's own hand draws its cards — bigger
- *    than a battlefield card — and its face is seen through the haze (an SVG displacement filter)
- *    and a little more saturated;
+ *    than a battlefield card — and its face is sharp (no SVG displacement haze since 2026-10-17: it
+ *    blurred the card) and a little more saturated;
  *  - resolving, the one landing stand-in (the caster's parked copy; bob's flight copy) starts at
  *    that hand size and shrinks, frame by frame, to the permanent's slot, which ends as a plain
  *    battlefield card.
@@ -89,7 +89,7 @@ async function landing(page: Page): Promise<{ t: number; ghost: number | null; f
   return page.evaluate(() => (window as unknown as { __af72: { t: number; ghost: number | null; field: number | null }[] }).__af72);
 }
 
-test(titled('a spell on the stack is a hand card’s size, seen through a haze, and shrinks into its slot as it resolves — on both screens'), async ({ browser }) => {
+test(titled('a spell on the stack is a hand card’s size, sharp and a little more saturated, and shrinks into its slot as it resolves — on both screens'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -119,7 +119,7 @@ test(titled('a spell on the stack is a hand card’s size, seen through a haze, 
       }
       const l = look as OnStack | null;
       expect(l!.stack, `${who}: bigger than a battlefield card`).toBeGreaterThan(l!.field + 4);
-      expect(l!.faceFilter, `${who}: its face is seen through the haze`).toMatch(/url\(.*placed-haze/);
+      expect(l!.faceFilter, `${who}: its face is sharp — no displacing haze over it`).not.toMatch(/url\(/);
       const saturate = /saturate\(([\d.]+)\)/.exec(l!.faceFilter);
       expect(Number(saturate?.[1] ?? 1), `${who}: and a little more saturated`).toBeGreaterThan(1.05);
     }

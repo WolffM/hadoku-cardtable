@@ -1656,7 +1656,6 @@ function ptCorners(): { checked: number; misplaced: string[] } {
 interface SeatColumn {
   seat: Box4;
   face: Box4;
-  handCount: Box4;
   libraryCount: Box4;
   /** R3: the mana pool's own track, between the counts and the graveyard. */
   manaPool: Box4;
@@ -1709,7 +1708,6 @@ function measureColumns(): { you: SeatColumn; them: SeatColumn } {
     return {
       seat: box(seat),
       face: box(find('[data-player-face]')),
-      handCount: box(find('[data-testid="hand-count"]')),
       libraryCount: box(find('[data-testid="library-count"]')),
       manaPool: box(find('[data-mana-pool]')),
       graveyard: box(find('[data-zone="graveyard"]')),
@@ -2193,11 +2191,11 @@ test(CROWD_TITLE, async ({ browser }) => {
             const c = cols[side];
             const w = `${where}, ${side}'s column`;
             // One column: the avatar, the counts and the graveyard share horizontal space.
-            for (const [name, b] of [['hand count', c.handCount], ['library count', c.libraryCount], ['graveyard', c.graveyard]] as const) {
+            for (const [name, b] of [['library count', c.libraryCount], ['graveyard', c.graveyard]] as const) {
               expect(overlapX(c.face, b), `${w}: the avatar and the ${name} share a column`).toBe(true);
             }
             // Order along the column: yours reads down (avatar, counts, mana pool, graveyard), theirs is the vertical mirror.
-            const counts = { top: Math.min(c.handCount.top, c.libraryCount.top), bottom: Math.max(c.handCount.bottom, c.libraryCount.bottom) };
+            const counts = c.libraryCount;
             if (side === 'you') {
               expect(c.face.bottom, `${w}: the avatar is above the counts`).toBeLessThanOrEqual(counts.top + tol);
               expect(counts.bottom, `${w}: the counts are above the mana pool`).toBeLessThanOrEqual(c.manaPool.top + tol);

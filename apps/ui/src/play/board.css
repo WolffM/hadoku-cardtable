@@ -695,16 +695,31 @@
 .board .seat__count {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   color: var(--ink);
-  font-size: 11px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
+}
+
+.board .seat__count--open {
+  padding: 1px 3px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.board .seat__count--open:hover,
+.board .seat__count--open:focus-visible {
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
 }
 
 .board .seat__count-art {
   flex: none;
-  width: 11px;
-  height: 11px;
+  width: 14px;
+  height: 14px;
   fill: var(--ink-dim);
 }
 

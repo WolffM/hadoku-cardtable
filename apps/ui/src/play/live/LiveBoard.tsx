@@ -339,6 +339,7 @@ import {
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs.ts';
 import { StopPhaseSchema, stopStep, type StopPhase } from './transport.ts';
 import { SettingsPanel } from './SettingsPanel.tsx';
+import { fetchOwnDeck, OwnDeckPeek, type OwnDeck } from './own-deck.tsx';
 import { SettingsPopover, useSettingsPopover } from '../../settings/Settings.tsx';
 import { eventTarget } from '../../dom.ts';
 import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
@@ -2656,6 +2657,18 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   ]);
   const [boardLayout, setBoardLayout] = useState<BoardLayout>(PLAY_PREFS_DEFAULTS.boardLayout);
   const settings = useSettingsPopover();
+  const [ownDeck, setOwnDeck] = useState<{ deck: OwnDeck; from: Element } | null>(null);
+  const closeOwnDeck = useMemo(() => () => setOwnDeck(null), []);
+  const toggleOwnDeck = (from: Element): void => {
+    if (ownDeck !== null) {
+      setOwnDeck(null);
+      return;
+    }
+    fetchOwnDeck(match.matchId).then(
+      (deck) => setOwnDeck(deck === null ? null : { deck, from }),
+      (error: unknown) => reportClient(match.transport, match.matchId, 'info', { what: 'own-deck', error: String(error) }),
+    );
+  };
   /*
    * Item 6's persistence, and item 2/6's wire message.
    *
@@ -3023,6 +3036,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           boardLayout={boardLayout}
           fastMode={fastMode}
           onOpenSettings={settings.toggle}
+          onOpenDeck={spectator ? undefined : toggleOwnDeck}
           // A watcher sends none (`reportClient`'s own rule).
           onEffect={spectator ? undefined : (data) => reportClient(match.transport, match.matchId, 'effect', data)}
         />
@@ -3123,10 +3137,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         title="The log"
         onClick={() => setLogOpen(!logOpen)}
       >
+        {/* Three equal blocks (the operator, 2026-10-17: "Log icon is ugly, should be three equally sized blockes"). */}
         <svg className="live__log-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M2.5 3.5h11v1.6h-11Z" />
-          <path d="M2.5 7.2h11v1.6h-11Z" />
-          <path d="M2.5 10.9h7.4v1.6h-7.4Z" />
+          <rect x="2.5" y="2.5" width="11" height="2.6" rx="0.6" />
+          <rect x="2.5" y="6.7" width="11" height="2.6" rx="0.6" />
+          <rect x="2.5" y="10.9" width="11" height="2.6" rx="0.6" />
         </svg>
       </button>
       {/*
@@ -3372,6 +3387,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           />
         </SettingsPopover>
       )}
+      {ownDeck !== null && <OwnDeckPeek deck={ownDeck.deck} from={ownDeck.from} onClose={closeOwnDeck} />}
     </div>
   );
 }

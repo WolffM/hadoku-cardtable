@@ -39,9 +39,9 @@ const handNames = (page: Page, owner: Owner): Promise<string[]> =>
 /** How many cards `page` says `owner`'s hand holds. */
 const handCount = (page: Page, owner: Owner): Promise<number> =>
   page
-    .locator(`.seat${owner === 'you' ? '[data-viewer]' : ':not([data-viewer])'} [data-testid="hand-count"]`)
-    .getAttribute('aria-label')
-    .then((l) => Number(/\d+/.exec(l ?? '')?.[0] ?? -1));
+    .locator(`.seat${owner === 'you' ? '[data-viewer]' : ':not([data-viewer])'} [data-zone="hand"]`)
+    .getAttribute('data-count')
+    .then((n) => Number(n ?? -1));
 
 /** The revealed top of `owner`'s library as `page` draws it: its name, and where it sits against that seat's avatar. */
 async function libraryTop(page: Page, owner: Owner): Promise<{ name: string | null; underAvatar: boolean | null }> {

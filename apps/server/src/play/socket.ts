@@ -63,6 +63,7 @@
  */
 
 import express, { type Request, type Response, type Router } from 'express';
+import { randomUUID } from 'node:crypto';
 import type { IncomingHttpHeaders } from 'node:http';
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import {
@@ -93,6 +94,7 @@ import {
 	PresenceSchema,
 } from '@hadoku/shared';
 import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
+import { parseDck } from '@hadoku/carddata/dck';
 
 import { CONFIG } from '../config.js';
 import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
@@ -592,6 +594,25 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				claimedBy: s.owner === null ? null : participantHandle(s.owner),
 			})),
 		});
+	});
+
+	/*
+	 * The caller's own deck list — the operator, 2026-10-17: *"Clicking on deck icon should let you
+	 * open your deck list."* Only the seat the caller holds: the other seat's list is hidden
+	 * information, so a watcher, the other player and anyone else get the same 404 as a match that
+	 * does not exist. Names and counts, as the room's deck peek draws them.
+	 */
+	router.get('/matches/:id/deck', (req: Request, res: Response) => {
+		const match = matches.get(String(req.params.id));
+		const seat = match?.seatOf(identityFromHeaders(req.headers, `http-${randomUUID()}`)) ?? null;
+		const deck = seat === null ? null : (match?.spec.seats[seat]?.deck ?? null);
+		if (deck === null) {
+			res.status(404).json({ error: 'no deck of yours in that match' });
+			return;
+		}
+		const parsed = parseDck(deck);
+		const lines = (section: string) => (parsed.sections.get(section) ?? []).map((e) => ({ name: e.card.name, count: e.count }));
+		res.json({ name: parsed.metadata.get('name') ?? '', main: lines('main'), sideboard: lines('sideboard') });
 	});
 
 	if (deps.probe === true) {

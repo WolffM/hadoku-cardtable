@@ -200,7 +200,7 @@ test('a third person watches the match from either side with no controls, and no
     // keep question stays open, which is fine: a dealt hand is a count already.
     await alice.page.getByTestId('live-play-or-draw-play').click();
     await expect
-      .poll(async () => (await carol.page.getByTestId('hand-count').allTextContents()).map((t) => Number(t.trim())), { timeout: 60_000, message: 'both hands dealt on the watcher’s board' })
+      .poll(async () => (await carol.page.locator('[data-zone="hand"]').evaluateAll((zs) => zs.map((z) => Number(z.getAttribute('data-count'))))), { timeout: 60_000, message: 'both hands dealt on the watcher’s board' })
       .toEqual([7, 7]);
 
     // The wire, with fourteen faces in play: a watcher's socket still carries

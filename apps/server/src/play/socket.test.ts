@@ -326,6 +326,36 @@ describe('POST /api/play/matches', () => {
 	});
 });
 
+describe('GET /api/play/matches/:id/deck', () => {
+	const ALICE_DECK = `[metadata]\nName=Mono White\n[main]\n4 Savannah Lions\n16 Plains\n[sideboard]\n2 Disenchant\n`;
+	const BOB_DECK = `[metadata]\nName=Mono Green\n[main]\n20 Forest\n`;
+	const deckOf = (h: Harness, matchId: string, user: string) =>
+		fetch(`http://127.0.0.1:${h.port}/api/play/matches/${matchId}/deck`, { headers: edgeHeaders(user) });
+
+	it('answers the caller its own seat’s list, and the other seat’s to nobody', async () => {
+		const h = await boot();
+		const matchId = (await startMatch(h, 'alice', { opponent: 'human', decks: [ALICE_DECK, BOB_DECK] })).body.matchId as string;
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		// The first to join takes seat 0, which plays the first deck.
+		const mine = await deckOf(h, matchId, 'alice');
+		expect(mine.status).toBe(200);
+		expect(await mine.json()).toEqual({
+			name: 'Mono White',
+			main: [
+				{ name: 'Savannah Lions', count: 4 },
+				{ name: 'Plains', count: 16 },
+			],
+			sideboard: [{ name: 'Disenchant', count: 2 }],
+		});
+		expect(await (await deckOf(h, matchId, 'bob')).json()).toEqual({ name: 'Mono Green', main: [{ name: 'Forest', count: 20 }], sideboard: [] });
+		expect((await deckOf(h, matchId, 'carol')).status, 'a caller at no seat is told nothing').toBe(404);
+		expect((await deckOf(h, 'm-nope', 'alice')).status, 'nor about a match that is not there').toBe(404);
+	});
+});
+
 /*
  * Wave 33 §S, shape 1 — "a scenario is a TEST facility, never a production one.
  * It is honoured only when the server runs with CARDTABLE_PLAY_PROBE=1 …

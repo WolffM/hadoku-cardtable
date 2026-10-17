@@ -1875,13 +1875,15 @@ test(LIVE_TITLE, async ({ browser }) => {
          * that string is what the seat communicates, and comparing it to the
          * accessible name keeps this a check that the page says the same thing the
          * server does. Comparing digits instead would quietly stop testing whether
-         * the seat says WHICH count it is drawing.
+         * the seat says WHICH count it is drawing. The hand has no count of its
+         * own since 2026-10-17 — its cards are drawn, backs included — so its
+         * side reads the hand zone's `data-count`, said the same way.
          */
         const label = (el: Element | null) => el?.getAttribute('aria-label') ?? null;
         const players = Array.from(document.querySelectorAll('[data-testid="player"]')).map((p) => ({
           id: Number(p.getAttribute('data-player-id')),
           life: text(p.querySelector('[data-testid="life"]')),
-          hand: label(p.querySelector('[data-testid="hand-count"]')),
+          hand: `hand ${p.querySelector('[data-zone="hand"]')?.getAttribute('data-count') ?? '?'}`,
           library: label(p.querySelector('[data-testid="library-count"]')),
           zones: Object.fromEntries(
             ['battlefield', 'graveyard', 'exile', 'hand'].map((z) => [
