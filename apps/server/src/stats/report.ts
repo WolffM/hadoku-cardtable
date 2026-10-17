@@ -75,6 +75,21 @@ export function summarizeDeck(
 
 const clip = (s: string): string => s.slice(0, STAT_LIMITS.stringLength);
 
+/**
+ * The accounts that are not players: `Bella` and every `wp-` name are test
+ * identities. The operator, 2026-10-16: *"leaderboard does not count games
+ * against Bella, wp-, or Forge-AI. we should keep the logs, but they should
+ * not impact the leaderboard"*.
+ */
+const TEST_ACCOUNT = /^(Bella$|wp-)/;
+
+/**
+ * A match ranks only when every seat is a signed-in player: one with Forge's
+ * AI, a guest or a test account in it is reported unrated, so the store keeps
+ * it in every history and moves no rating or board with it.
+ */
+const ranks = (seat: MatchSeatReport): boolean => seat.kind === 'user' && !TEST_ACCOUNT.test(seat.displayName ?? '');
+
 function seatAttrs(start: SeatStart | undefined, facts: SeatFacts): StatAttrs {
 	const attrs: StatAttrs = {};
 	const deck = start?.deck;
@@ -141,6 +156,7 @@ export function buildMatchReport(facts: MatchFacts, start: MatchStart): MatchRep
 	return {
 		matchId: facts.matchId,
 		mode: start.mode,
+		rated: seats.every(ranks),
 		...(start.roomId === undefined ? {} : { roomId: start.roomId }),
 		startedAt: start.startedAt,
 		endedAt: facts.endedAt,

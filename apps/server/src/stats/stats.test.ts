@@ -195,6 +195,18 @@ describe('the report', () => {
 		for (const key of keys) expect(key).toMatch(/^[a-zA-Z][a-zA-Z0-9_]{0,47}$/);
 	});
 
+	it('ranks only a match between signed-in players, none of them a test account', () => {
+		const facts = matchFacts(finished().match)!;
+		const user = (displayName: string) => ({ ...START.seats[0]!, displayName });
+		const rated = (seats: MatchStart['seats']) => buildMatchReport(facts, { ...START, seats })!.rated;
+		expect(rated([user('Alice'), user('Carol')])).toBe(true);
+		expect(rated(START.seats)).toBe(false);
+		expect(rated([user('Alice'), { kind: 'bot', deck: null }])).toBe(false);
+		expect(rated([user('Alice'), user('Bella')])).toBe(false);
+		expect(rated([user('wp-ada'), user('Alice')])).toBe(false);
+		expect(rated([user('Alice'), user('Bellamy')])).toBe(true);
+	});
+
 	it('is refused for an id the store would refuse', () => {
 		const facts = matchFacts(finished().match)!;
 		expect(buildMatchReport({ ...facts, matchId: 'short' }, START)).toBeNull();
