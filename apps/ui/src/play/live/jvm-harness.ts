@@ -81,6 +81,19 @@ export interface AskRecord {
   stateWhileOpen: number;
 }
 
+/**
+ * Put a reply on its ask's record. The record keeps the reply Forge took: a
+ * refused reply after an accepted one (a second answer, `stale-reply`) never
+ * overwrites it — that refusal is in {@link LiveHarness.refused} — while an
+ * accepted reply replaces a refused one before it.
+ */
+export function recordReply(asks: AskRecord[], frame: Exclude<ClientFrame, { kind: 'act' }>, outcome: NonNullable<AskRecord['outcome']>): void {
+  const record = asks.find((a) => a.callId === frame.callId);
+  if (record === undefined || record.outcome?.ok === true) return;
+  record.answer = frame;
+  record.outcome = outcome;
+}
+
 export interface SeatClient {
   seat: number;
   live: LiveMatch;
@@ -244,13 +257,7 @@ export async function startLiveMatch(spec: MatchSpec): Promise<LiveHarness> {
     if (!parsed.ok) throw new Error(`seat ${seat} sent a frame forge-wire refuses: ${JSON.stringify(parsed.errors)}`);
     const frame = parsed.value;
     const outcome = match.fromClient(seat, frame);
-    if (frame.kind !== 'act') {
-      const record = asks.find((a) => a.callId === frame.callId);
-      if (record !== undefined) {
-        record.answer = frame;
-        record.outcome = outcome;
-      }
-    }
+    if (frame.kind !== 'act') recordReply(asks, frame, outcome);
     if (!outcome.ok) refused.push({ seat, frame, error: outcome.error });
   }
 

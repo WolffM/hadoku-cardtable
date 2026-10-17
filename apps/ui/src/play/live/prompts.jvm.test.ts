@@ -405,7 +405,8 @@ function summary(label: string, h: LiveHarness): void {
   const underPrompts = h.asks.reduce((n, a) => n + a.stateWhileOpen, 0);
   console.log(
     `[prompts.jvm] ${label}: answered ${[...counts].map(([m, n]) => `${m}×${n}`).join(', ')}; ` +
-      `${underPrompts} state frames arrived while an ask was open`,
+      `${underPrompts} state frames arrived while an ask was open; ` +
+      h.seats.map((s) => `seat ${s.seat}: ${s.live.stats.joins} joins, ${s.live.stats.resyncsRequested} resyncs, ${s.live.stats.reasksDropped} answered asks re-sent`).join('; '),
   );
 }
 

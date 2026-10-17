@@ -432,6 +432,8 @@ export interface MatchStats {
   replies: number;
   /** `ClientAbort`s sent. */
   aborts: number;
+  /** Asks re-sent after this client had already answered them, dropped ({@link LiveMatch.settled}). */
+  reasksDropped: number;
 }
 
 /**
@@ -519,6 +521,18 @@ export interface LiveMatch {
    * a queue, because the server may hold more than one.
    */
   asks: LiveAsk[];
+  /**
+   * Every callId this client has replied to or aborted, on this connection to
+   * this match process. A snapshot's re-send of the open asks can leave the
+   * server after an answer did but before the server read it; the ask it
+   * re-sends is one this client has settled, and drawing it again would offer
+   * a second answer the server refuses (`stale-reply`). Kept across a resync
+   * (one live connection delivers the answer in order), emptied by a join (an
+   * answer sent around a reconnect may never have arrived, and the server's
+   * re-send is then the question still open) and by an epoch change (a new
+   * process numbers its asks afresh).
+   */
+  settled: Set<string>;
   /**
    * The last reveal Forge was already answered for (an envelope marked
    * `displayOnly`, `@hadoku/shared`'s `ServerEnvelope`): cards to show, never a
@@ -939,6 +953,7 @@ function emptyStats(): MatchStats {
     buffered: 0,
     replies: 0,
     aborts: 0,
+    reasksDropped: 0,
   };
 }
 
@@ -968,6 +983,8 @@ export function subscribe(match: LiveMatch, listener: () => void): () => void {
 }
 
 function send(match: LiveMatch, frame: ClientEnvelope['frame'], placement?: Placement): void {
+  // A reply or an abort settles its ask: one answer per callId leaves this client.
+  if (frame.kind !== 'act') match.settled.add(frame.callId);
   const envelope: ClientEnvelope = { matchId: match.matchId, frame, ...(placement === undefined ? {} : { placement }) };
   match.transport.emit(MATCH_EVENTS.clientToServer, envelope);
 }
@@ -991,6 +1008,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     skippedDeltas: 0,
     view: null,
     asks: [],
+    settled: new Set(),
     reveal: null,
     damagePreview: null,
     prompt: null,
@@ -2602,6 +2620,7 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
       snapshotFailed(match, `${event} was refused: ${ack.value.error}`);
       return;
     }
+    if (kind === 'join') match.settled.clear();
     adoptSnapshot(match, ack.value);
   });
 }
@@ -3001,6 +3020,10 @@ function heldChange(h: NonNullable<Extract<ServerFrame, { method: 'setWeaklySele
 
 function applyFrame(match: LiveMatch, frame: ServerFrame): void {
   if (frame.kind === 'ask') {
+    if (match.settled.has(frame.callId)) {
+      match.stats.reasksDropped += 1;
+      return;
+    }
     // Queued, never replacing another: see the module header. The same callId
     // twice (a re-send) updates its entry in place rather than queueing twice.
     const i = match.asks.findIndex((a) => a.callId === frame.callId);
@@ -3149,6 +3172,7 @@ function discardLocal(match: LiveMatch): void {
   match.skippedDeltas = 0;
   match.view = null;
   match.asks = [];
+  match.settled.clear();
   match.reveal = null;
   match.prompt = null;
   match.promptCard = null;

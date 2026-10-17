@@ -79,6 +79,8 @@ export function createDriver(h: LiveHarness, plan: Plan): Driver {
   const idleSince = [Date.now(), Date.now()];
   const done = [new Set<string>(), new Set<string>()];
   const picks = [new Map<string, number[]>(), new Map<string, number[]>()];
+  /** The callIds each seat's press actually answered — an answer left the client. */
+  const answered = [new Set<string>(), new Set<string>()];
 
   function decide(s: SeatClient, v: BoardView, me: BoardPlayer, opp: BoardPlayer): [string, Act] | null {
     const msg = s.notes.prompt?.message ?? '';
@@ -165,9 +167,17 @@ export function createDriver(h: LiveHarness, plan: Plan): Driver {
     for (const s of h.seats) {
       const ask = currentAsk(s.live);
       if (ask !== null) {
+        // A question this seat already answered is never answered again: the client drops a
+        // re-send of it, so one still showing is a client that broke "one ask, one answer".
+        if (answered[s.seat]!.has(ask.callId)) throw new Error(`seat ${s.seat} was shown ${ask.method} ${ask.callId} again after answering it`);
         const shown = roots[s.seat]!.querySelector('[data-testid="live-prompt"]')?.textContent ?? '';
-        log.push(`seat ${s.seat} answers ${ask.method} ${ask.callId}: ${shown.slice(0, 200)}`);
+        const sent = s.live.stats.replies + s.live.stats.aborts;
         answerOpenPrompt(roots[s.seat]!, plan.prompts);
+        // Logged and remembered only when the press answered: a prompt not drawn yet takes no click.
+        if (s.live.stats.replies + s.live.stats.aborts > sent) {
+          answered[s.seat]!.add(ask.callId);
+          log.push(`seat ${s.seat} answers ${ask.method} ${ask.callId}: ${shown.slice(0, 200)}`);
+        }
         idleSince[s.seat] = Date.now();
         continue;
       }
