@@ -31,16 +31,7 @@ const decisionOk = (page: Page): Locator => page.locator('[data-testid="live-dec
 async function bobBolts(bob: Page, stack: { serverLogFile: string }): Promise<void> {
   let bolt: number | undefined;
   await expect.poll(async () => (bolt = await offeredNamed(bob, 'Lightning Bolt')), { timeout: 45_000, message: 'bob is offered Lightning Bolt' }).not.toBeUndefined();
-  await castUntilOnStack(
-    bob,
-    stack,
-    bolt!,
-    async () => {
-      const ready = (await opponentFace(bob).getAttribute('data-selectable')) === 'true';
-      if (ready) await opponentFace(bob).click();
-      return ready;
-    },
-  );
+  await castUntilOnStack(bob, stack, bolt!, [opponentFace(bob)]);
 }
 
 test(titled("under Full Control, Auto Yield pressed over bob's Bolt passes that window and every later one in his turn"), async ({ browser }) => {

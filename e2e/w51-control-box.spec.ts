@@ -133,11 +133,7 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
     await expectFour(page, 'after backing out');
 
     /* ── the bolt on the stack: Forge's OK is the pop-up's ────────────── */
-    await castUntilOnStack(page, stack, await offeredNamed(page, 'Lightning Bolt'), async () => {
-      const ready = (await opponentFace(page).getAttribute('data-selectable')) === 'true';
-      if (ready) await opponentFace(page).click();
-      return ready;
-    });
+    await castUntilOnStack(page, stack, await offeredNamed(page, 'Lightning Bolt'), [opponentFace(page)]);
     expect(await stackCount(page), 'exactly the one bolt').toBe(1);
     await expect(page.getByTestId('live-decision-ok'), 'a spell on the stack: Forge’s OK is in the pop-up').toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('live-decision-ok')).toHaveText('OK');

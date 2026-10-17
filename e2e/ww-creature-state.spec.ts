@@ -123,13 +123,7 @@ test(titled('an aura that grants flying tags the creature and floats it, on both
     let aura: number | undefined;
     await expect.poll(async () => (aura = await offeredNamed(alice.page, 'Arcane Flight')), { timeout: 30_000, message: 'Arcane Flight is offered' }).not.toBeUndefined();
     const target = alice.page.locator(`[data-board-card="${bears}"]`);
-    await castUntilOnStack(alice.page, stack, aura!, async () => {
-      if ((await target.getAttribute('data-selectable')) === null) return false;
-      const box = await target.boundingBox();
-      if (box === null) return false;
-      await alice.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-      return true;
-    });
+    await castUntilOnStack(alice.page, stack, aura!, [target]);
     const resolvedBy = Date.now() + 20_000;
     while ((await stackCount(alice.page)) > 0 && Date.now() < resolvedBy) {
       for (const page of [alice.page, bob.page]) {

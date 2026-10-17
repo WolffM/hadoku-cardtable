@@ -285,11 +285,7 @@ test(
       let bolt: number | undefined;
       await expect.poll(async () => (bolt = await offeredNamed(alice.page, 'Lightning Bolt')), { timeout: 30_000, message: 'Lightning Bolt is offered' }).not.toBeUndefined();
       const bobsFace = alice.page.locator('[data-player-face]:not([data-viewer])');
-      await castUntilOnStack(alice.page, stack, bolt!, async () => {
-        const ready = (await bobsFace.getAttribute('data-selectable')) === 'true';
-        if (ready) await bobsFace.click();
-        return ready;
-      });
+      await castUntilOnStack(alice.page, stack, bolt!, [bobsFace]);
       expect(await stackCount(alice.page), 'the bolt is on the stack, aimed at bob').toBe(1);
 
       await expect

@@ -66,7 +66,28 @@ export function drawnOfferOf(real: LiveClickables, hold: OfferHold | null, facts
   return hold.offer;
 }
 
-/** A frame arrived while the hold stands: a non-empty offer from Forge is the one to keep drawing. */
-export function followOffer(hold: OfferHold, real: LiveClickables): void {
-  if (!isEmpty(real)) hold.offer = real;
+/** What Forge has marked (`setHighlighted`): cards and players. */
+export interface Marked {
+  readonly cards: ReadonlySet<number> | null;
+  readonly players: ReadonlySet<number> | null;
+}
+
+/**
+ * A frame arrived while the hold stands: a non-empty offer from Forge is the one to keep drawing —
+ * less, while it is a selection, whatever Forge has marked in it. A mark inside an open selection is
+ * a choice already made (`InputSelectManyBase`'s chosen targets), and Forge marks the target a click
+ * chose BEFORE it closes the selection: kept, the chosen target would be drawn as offered through the
+ * whole turnaround to the next question, and a press on it there cancels the cast (af69's Searing
+ * Blaze, run 39032975298: bob's face, held after he was chosen, pressed once the creature step was
+ * open).
+ */
+export function followOffer(hold: OfferHold, real: LiveClickables, marked: Marked): void {
+  if (isEmpty(real)) return;
+  if (!real.selectionOpen) {
+    hold.offer = real;
+    return;
+  }
+  const unmarked = (ids: ReadonlySet<number>, marks: ReadonlySet<number> | null): ReadonlySet<number> =>
+    marks === null ? ids : new Set([...ids].filter((id) => !marks.has(id)));
+  hold.offer = { ...real, selectable: unmarked(real.selectable, marked.cards), selectablePlayers: unmarked(real.selectablePlayers, marked.players) };
 }

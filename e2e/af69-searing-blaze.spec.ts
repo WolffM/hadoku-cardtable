@@ -44,25 +44,7 @@ test(titled('Searing Blaze is offered with a creature to hit, and hits bob and h
 
     const bobFace = page.locator('[data-player-face]:not([data-viewer])');
     const bears = page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card]');
-    await castUntilOnStack(
-      page,
-      stack,
-      blaze,
-      async () => {
-        if ((await bobFace.getAttribute('data-selectable')) === 'true') {
-          console.log(`[af69] ${new Date().toISOString()} press bob's face`);
-          await bobFace.locator('.face__hit').click({ timeout: 1_000 }).catch(() => undefined);
-          return true;
-        }
-        const creature = bears.and(page.locator('[data-selectable]'));
-        if ((await creature.count()) > 0) {
-          console.log(`[af69] ${new Date().toISOString()} press the Bears`);
-          await creature.first().locator('button').first().click({ timeout: 1_000 }).catch(() => undefined);
-          return true;
-        }
-        return false;
-      },
-    );
+    await castUntilOnStack(page, stack, blaze, [bobFace, bears]);
     await expect.poll(() => bobLife.textContent(), { timeout: 20_000, message: 'Searing Blaze resolved: bob took 3' }).toBe('17');
     await expect.poll(() => bobGraveyard.getAttribute('data-count'), { timeout: 15_000, message: 'the Grizzly Bears took 3 and died' }).toBe('1');
     console.log(`[af69] resolved: bob life=${await bobLife.textContent()} bob graveyard=${await bobGraveyard.getAttribute('data-count')}`);

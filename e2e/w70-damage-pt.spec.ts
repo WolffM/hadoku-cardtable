@@ -151,13 +151,7 @@ test(titled('a damaged creature reads power / toughness-left in the danger ink, 
     const boltAt = async (target: number): Promise<void> => {
       const bolt = await offeredNamed(alice.page, 'Lightning Bolt');
       const card = alice.page.locator(`[data-board-card="${target}"]`);
-      await castUntilOnStack(alice.page, stack, bolt, async () => {
-        if ((await card.getAttribute('data-selectable')) === null) return false;
-        const box = await card.boundingBox();
-        if (box === null) return false;
-        await alice.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-        return true;
-      });
+      await castUntilOnStack(alice.page, stack, bolt, [card]);
       expect(await stackCount(alice.page), 'the Bolt is on the stack').toBe(1);
       const resolvedBy = Date.now() + 20_000;
       while ((await stackCount(alice.page)) > 0 && Date.now() < resolvedBy) {

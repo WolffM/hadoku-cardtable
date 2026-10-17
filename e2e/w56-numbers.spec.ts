@@ -98,11 +98,7 @@ test(
       // Drain whatever Forge asks next — the ability choice, the target, the payment — until
       // the bolt is on the stack (T6: `board.ts`'s own `castUntilOnStack`, the loop
       // `w51-control-box.spec.ts` already proved against this same scenario, under full control).
-      await castUntilOnStack(alice.page, stack, bolt, async () => {
-        const ready = (await opponentFace.getAttribute('data-selectable')) === 'true';
-        if (ready) await opponentFace.click();
-        return ready;
-      });
+      await castUntilOnStack(alice.page, stack, bolt, [opponentFace]);
       expect(await stackCount(alice.page), 'the bolt is on the stack, aimed at bob').toBe(1);
 
       // Watch BOTH screens for the number BEFORE resolving, so neither poll starts late and

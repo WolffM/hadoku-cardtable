@@ -611,11 +611,7 @@ test(titled('a stack item carries its target, and the board draws an arrow to it
     // rows: payment forwarded, 177 ms later priority, bob's pass withheld, priority again; the same
     // race as w51/w56's bolt — T6: `board.ts`'s own `castUntilOnStack` now owns this loop).
     const theirCreature = alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] li.board-card[data-selectable]');
-    await castUntilOnStack(alice.page, stack, card, async () => {
-      const has = (await theirCreature.count()) > 0;
-      if (has) await theirCreature.first().locator('button').first().click();
-      return has;
-    });
+    await castUntilOnStack(alice.page, stack, card, [theirCreature]);
     expect(await stackCount(alice.page), 'Doom Blade reached the stack, targeting the lone legal creature').toBeGreaterThan(0);
 
     // bob's one creature — Memnite, the only legal target — and the stack

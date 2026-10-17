@@ -45,16 +45,7 @@ for (const { scenario, board } of [
     const bolt = (await handCardNamed(alice.page, 'Chain Lightning'))!;
     await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'Chain Lightning is offered' }).toContain(bolt);
     const bobFace = alice.page.locator('[data-player-face]:not([data-viewer])');
-    await castUntilOnStack(
-      alice.page,
-      stack,
-      bolt,
-      async () => {
-        const ready = (await bobFace.getAttribute('data-selectable')) === 'true';
-        if (ready) await bobFace.locator('.face__hit').click({ timeout: 1_000 }).catch(() => undefined);
-        return ready;
-      },
-    );
+    await castUntilOnStack(alice.page, stack, bolt, [bobFace]);
 
     // Nothing of bob's is pressed from here on: the copy offer must settle without him.
     await expect.poll(() => bobLife.textContent(), { timeout: 20_000, message: 'Chain Lightning resolved: bob took 3' }).toBe('17');

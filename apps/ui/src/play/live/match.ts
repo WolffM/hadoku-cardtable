@@ -2941,7 +2941,7 @@ export function ingest(match: LiveMatch, raw: unknown): void {
   if (envelope.value.pairsWithNext === true) match.windowHalf = parsed.value;
   else if (envelope.value.displayOnly === true) showReveal(match, parsed.value);
   else applyFrame(match, parsed.value);
-  if (match.offerHold !== null) followOffer(match.offerHold, boardInteraction(match));
+  if (match.offerHold !== null) followOffer(match.offerHold, boardInteraction(match), { cards: match.highlighted, players: match.highlightedPlayers });
   sendDeferredSelect(match);
   notify(match);
 }

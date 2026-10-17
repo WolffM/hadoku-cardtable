@@ -498,30 +498,51 @@ export async function castByDrag(
 }
 
 /**
+ * Press the target `target` names — a player's face or a board card — only while the board draws it
+ * as offered, through a locator that itself requires the mark (`[data-selectable]`), so the press can
+ * never land on the same element once it is no longer a target. A separate "is it selectable?" read
+ * followed by a press on the plain element lets the press land up to a click's length later on a
+ * target Forge has since closed, and a press on nothing an open selection names cancels a parked cast
+ * (`gestures/install.ts`'s own stray-press rule; af69, run 39032975298: bob's face read as offered,
+ * pressed once the creature step was open). `false`, nothing pressed, when it is not offered.
+ */
+export async function pressOffered(target: Locator): Promise<boolean> {
+  const press = target
+    .and(target.page().locator('[data-selectable]'))
+    .locator(':scope > button.face__hit, :scope > button.board-card__face')
+    .first();
+  if ((await press.count()) === 0) return false;
+  await press.click({ timeout: 1_000 }).catch(() => undefined);
+  return true;
+}
+
+/**
  * Lift `cardId` out of the hand, release it over the battlefield, then drain
- * whatever Forge asks next (`answerPrompt` while the stack is unchanged,
- * `clickTargetIfReady`, or `pressPaymentAuto` — never `clickOnce(…, 'ok')`,
- * which can land on the stack's own OK the instant the spell lands) until
- * `castWatch` says the cast happened. T6: the one cast-wait loop
- * w51/w56-numbers/w33 wrote by hand; w63-yield's own copy skipped the payment
- * fallback and reddened twice for it (bob's Bolt costs `{R}`, runs
- * 37859797421, 37870730678).
+ * whatever Forge asks next (`answerPrompt` while the stack is unchanged, the
+ * first of `targets` the board offers — `pressOffered`, in the caller's order —
+ * or `pressPaymentAuto` — never `clickOnce(…, 'ok')`, which can land on the
+ * stack's own OK the instant the spell lands) until `castWatch` says the cast
+ * happened. T6: the one cast-wait loop w51/w56-numbers/w33 wrote by hand;
+ * w63-yield's own copy skipped the payment fallback and reddened twice for it
+ * (bob's Bolt costs `{R}`, runs 37859797421, 37870730678).
  */
 export async function castUntilOnStack(
   page: Page,
   stack: { serverLogFile: string },
   cardId: number,
-  clickTargetIfReady: () => Promise<boolean>,
+  targets: readonly Locator[],
   opts: { timeoutMs?: number } = {},
 ): Promise<void> {
   const watch = await castWatch(page, cardId);
   expect(await clickHandCard(page, cardId), `card ${cardId} lifted out of the hand`).toBe(true);
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
+  const pressTarget = async (): Promise<boolean> => {
+    for (const target of targets) if (await pressOffered(target)) return true;
+    return false;
+  };
   while (!(await watch.cast()) && Date.now() < deadline) {
-    const answered = await answerPrompt(page, { stack: watch.stack });
-    const targeted = await clickTargetIfReady();
-    const paid = targeted ? false : await pressPaymentAuto(page);
-    if (answered !== null || targeted || paid) console.log(`[cast ${cardId}] ${new Date().toISOString()} prompt=${answered?.method ?? '-'} target=${targeted} pay=${paid}`);
+    await answerPrompt(page, { stack: watch.stack });
+    if (!(await pressTarget())) await pressPaymentAuto(page);
     await page.waitForTimeout(40);
   }
   const asks = serverLog(stack)

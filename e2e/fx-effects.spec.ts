@@ -140,11 +140,7 @@ test(titled('Kalitas’s Zombie arrives from Kalitas, on both screens'), async (
     const bolt = await offeredNamed(alice.page, 'Lightning Bolt');
     expect(bolt, 'Lightning Bolt is offered').not.toBeUndefined();
     const target = alice.page.locator(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${bears}"]`);
-    await castUntilOnStack(alice.page, stack, bolt!, async () => {
-      const ready = (await target.getAttribute('data-selectable')) !== null;
-      if (ready) await target.locator('button').first().click();
-      return ready;
-    });
+    await castUntilOnStack(alice.page, stack, bolt!, [target]);
     expect(await stackCount(alice.page), 'the Bolt is on the stack, aimed at the Bears').toBe(1);
 
     const before = await ownIds(alice.page);

@@ -102,12 +102,7 @@ test(titled("the defender holding Swords to Plowshares gets priority once attack
     expect(swords, 'Swords to Plowshares is in alice’s hand').toBeDefined();
     const giantId = await m.alice.page.locator('li.board-card[data-attacking="true"]').first().getAttribute('data-board-card');
     const giant = m.alice.page.locator(`[data-board-card="${giantId}"]`);
-    await castUntilOnStack(m.alice.page, stack, swords!, async () => {
-      // The board marks a legal target with a bare `data-selectable`; the card's own button takes the click.
-      const ready = (await giant.getAttribute('data-selectable')) !== null;
-      if (ready) await giant.locator('button').first().click();
-      return ready;
-    });
+    await castUntilOnStack(m.alice.page, stack, swords!, [giant]);
     const until = Date.now() + 60_000;
     while (Date.now() < until) {
       const now = await at(m.alice.page);

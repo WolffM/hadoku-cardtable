@@ -15,6 +15,7 @@ const offer = (cards: number[], players: number[] = []): LiveClickables => ({
 });
 const NOTHING = offer([]);
 const hold = (): OfferHold => ({ offer: offer([1, 2]), since: 1_000, turn: 3, phase: 'MAIN1' });
+const UNMARKED = { cards: null, players: null };
 const silent: OfferFacts = { now: 1_100, turn: 3, phase: 'MAIN1', forgeNamedASet: false, askedByHand: false, waitingOnAnother: false };
 
 describe('drawnOfferOf', () => {
@@ -50,9 +51,22 @@ describe('drawnOfferOf', () => {
 describe('followOffer', () => {
   it('keeps the newest non-empty offer, and ignores an empty one', () => {
     const h = hold();
-    followOffer(h, offer([5]));
+    followOffer(h, offer([5]), UNMARKED);
     expect(h.offer.selectable).toEqual(new Set([5]));
-    followOffer(h, NOTHING);
+    followOffer(h, NOTHING, UNMARKED);
     expect(h.offer.selectable).toEqual(new Set([5]));
+  });
+
+  it('keeps a selection less what Forge has marked in it: a chosen target is not offered again', () => {
+    const h = hold();
+    followOffer(h, { ...offer([5, 6], [1, 2]), selectionOpen: true }, { cards: new Set([6]), players: new Set([2]) });
+    expect(h.offer.selectable).toEqual(new Set([5]));
+    expect(h.offer.selectablePlayers).toEqual(new Set([1]));
+  });
+
+  it('keeps an actionable set whole: a mark outside a selection is no choice', () => {
+    const h = hold();
+    followOffer(h, offer([5, 6]), { cards: new Set([6]), players: null });
+    expect(h.offer.selectable).toEqual(new Set([5, 6]));
   });
 });

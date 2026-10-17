@@ -76,16 +76,7 @@ test(
       // passed (`passOwnSpell`) and alice yields.
       const bolt = await offeredNamed(bob.page, 'Lightning Bolt');
       const hit = async (): Promise<boolean> => (await ownLife(page).textContent()) === '17';
-      await castUntilOnStack(
-        bob.page,
-        stack,
-        bolt,
-        async () => {
-          const ready = (await opponentFace(bob.page).getAttribute('data-selectable')) === 'true';
-          if (ready) await opponentFace(bob.page).click();
-          return ready;
-        },
-      );
+      await castUntilOnStack(bob.page, stack, bolt, [opponentFace(bob.page)]);
 
       // The claim: alice's own bar never enables for it, the whole time it
       // resolves — polled, by STATE (enabled), never by watching for text.
