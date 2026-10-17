@@ -25,6 +25,8 @@ import { createElement, type ComponentType } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame, type GameLogLine } from '@hadoku/forge-wire';
 import { ClientEventSchema } from '@hadoku/shared';
+import { parseDck } from '@hadoku/carddata/dck';
+import { deckFromDeckFile } from '@hadoku/deck';
 import { setRolePlayer } from '../../sound/index.ts';
 import type { SoundEvent } from '../../sound/mix.ts';
 
@@ -87,9 +89,18 @@ import { PHASE_SETTLE_MS } from './phase-sound.ts';
  */
 const roomsClientState = vi.hoisted(() => ({
   leave: vi.fn(async (_roomId: string) => ({ ok: true as const, room: {} as never })),
+  /**
+   * `get`'s answer — null by default (every R16 case here is a plain bo1,
+   * non-pod room, and that is exactly what a null room reads as,
+   * `GameResultScreen`'s own defaults; the same direction a room that cannot
+   * be reached falls back). Wave 72 §Q's own tests set this to a real
+   * `RoomView`-shaped record to drive `settings.matchLength`/`.sideboarding`,
+   * `tables[0].series.phase` and `pod`.
+   */
+  room: null as Record<string, unknown> | null,
 }));
 vi.mock('../../rooms/api.ts', () => ({
-  roomsClient: () => ({ leave: roomsClientState.leave }),
+  roomsClient: () => ({ leave: roomsClientState.leave, get: async () => roomsClientState.room }),
 }));
 
 /*
@@ -119,12 +130,16 @@ const roomPing = (): void => {
  * row, which a test moves by hand to stand in for their screen.
  */
 const tableState = vi.hoisted(() => ({
-  me: { ready: false, present: true },
+  me: { ready: false, present: true, choice: null as { deck: { dck: string } | { library: string } } | null },
   other: { ready: false, present: true },
   matchId: null as string | null,
   startRoom: vi.fn(async (_roomId: string) => ({ ok: true as const, matchId: 'm-next00000000' })),
   startVsBot: vi.fn(async (_roomId: string) => ({ ok: true as const, matchId: 'm-bot000000000' })),
-  ready: vi.fn((_roomId: string, _ready: boolean) => undefined),
+  ready: vi.fn((_roomId: string, _ready: boolean, _tableId?: string) => undefined),
+  loadDeck: vi.fn((_roomId: string, _deck: unknown, _tableId?: string) => undefined),
+  decks: vi.fn(() => [] as { id: string; main: { name: string; count: number }[]; sideboard: { name: string; count: number }[] }[]),
+  /** The server's 409 from `PUT …/deck`'s sideboard check — null answers `{ok: true}` as usual. */
+  loadDeckRefusal: null as string | null,
 }));
 vi.mock('../../screens/tables.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../screens/tables.ts')>();
@@ -137,7 +152,7 @@ vi.mock('../../screens/tables.ts', async (importOriginal) => {
     legal: true,
     issueCount: 0,
     ready,
-    choice: null,
+    choice: you ? tableState.me.choice : null,
   });
   const table = () => ({
     room: { id: 'r-1', name: 'Room', gameType: 'constructed-1v1', matchId: tableState.matchId, seats: 2 },
@@ -151,8 +166,18 @@ vi.mock('../../screens/tables.ts', async (importOriginal) => {
     ...actual,
     tablesClient: () => ({
       table: async () => ({ ok: true as const, table: table() }),
-      ready: async (roomId: string, ready: boolean) => {
-        tableState.ready(roomId, ready);
+      decks: async () => tableState.decks(),
+      loadDeck: async (roomId: string, deck: unknown, tableId?: string) => {
+        // Forwarded the same discipline `tables.ts`'s own `withTable` keeps on
+        // the wire: an absent id is a 2-arg call, never a 3rd arg of `undefined`.
+        if (tableId === undefined) tableState.loadDeck(roomId, deck);
+        else tableState.loadDeck(roomId, deck, tableId);
+        if (tableState.loadDeckRefusal !== null) return { ok: false as const, error: tableState.loadDeckRefusal, status: 409 };
+        return { ok: true as const, table: table() };
+      },
+      ready: async (roomId: string, ready: boolean, tableId?: string) => {
+        if (tableId === undefined) tableState.ready(roomId, ready);
+        else tableState.ready(roomId, ready, tableId);
         tableState.me.ready = ready;
         return { ok: true as const, table: table() };
       },
@@ -231,12 +256,16 @@ afterEach(async () => {
   prefsState.prefs = null;
   prefsState.saved = [];
   roomsClientState.leave.mockClear();
-  tableState.me = { ready: false, present: true };
+  roomsClientState.room = null;
+  tableState.me = { ready: false, present: true, choice: null };
   tableState.other = { ready: false, present: true };
   tableState.matchId = null;
   tableState.startRoom.mockClear();
   tableState.startVsBot.mockClear();
   tableState.ready.mockClear();
+  tableState.loadDeck.mockClear();
+  tableState.decks.mockClear();
+  tableState.loadDeckRefusal = null;
 });
 
 /**
@@ -3606,6 +3635,157 @@ describe('R16 — the result screen, drawn over the board', () => {
     );
     await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('draw'));
     expect(getByTestId('game-result').textContent).toContain('Draw');
+  });
+
+  /* ── wave 72 §Q.3/§Q.4: series on screen, and the sideboard step ────────── */
+
+  describe('series on screen (wave 72 §Q)', () => {
+    it('bo3: the button reads "Next game", not "Rematch" — the series is forced, not an agreement', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [1, 0], games: [], phase: 'done' } }],
+        pod: null,
+      };
+      const { rematch } = await victoryInRoom();
+      await waitFor(() => expect(rematch().textContent).toBe('Next game'));
+    });
+
+    it('a pod room has no Rematch at all — Back to room already opens the pod', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'done' } }],
+        pod: { phase: 'rounds', seats: [], round: 1, rounds: 2, results: [], standings: [], pairings: [], bye: null, built: [] },
+      };
+      const { queryByTestId, getByTestId } = await victoryInRoom();
+      await waitFor(() => expect(getByTestId('game-result-room')).toBeTruthy());
+      expect(queryByTestId('game-result-rematch')).toBeNull();
+    });
+
+    /**
+     * The auto-start gate's own test (wave 72 §Q's "Done when": "reverting
+     * the auto-start gate fails a unit test"). Reverting the
+     * `if (sideboarding && phase === 'sideboarding' && !proceeded) return;`
+     * line in `LiveBoard.tsx`'s auto-start effect makes the FIRST assertion
+     * below fail: `tables.startRoom` would already have been called the
+     * instant the screen mounted, purely from the stale `ready: true` both
+     * seats carry straight through `beginSideboarding` (which never
+     * un-readies either — `lobby.ts`'s own doc on that call).
+     */
+    it('the auto-start gate: a stale agreement during sideboarding waits for THIS screen’s own fresh Ready on the sideboard editor', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
+        pod: null,
+      };
+      // Both seats already read `ready: true` — a stale agreement carried
+      // straight through `beginSideboarding`'s phase flip (that call never
+      // un-readies either seat; see `lobby.ts`'s own doc on it) — and the
+      // table already reads `sideboarding`. A bare `rematch.agreed` would
+      // fire `startRoom` right away.
+      tableState.other.ready = true;
+      tableState.me = { ready: true, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      const { queryByTestId, getByTestId } = await victoryInRoom();
+      // The sideboard step opens on its own — no Rematch press, matching a
+      // forced bo3's own "goes there on its own" (§Q.3), which this table's
+      // stale agreement already reached the same phase through.
+      await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
+      expect(queryByTestId('game-result-rematch'), 'the editor replaces the button').toBeNull();
+      expect(tableState.startRoom).not.toHaveBeenCalled();
+
+      fireEvent.click(getByTestId('sideboard-ready'));
+      await waitFor(() => expect(tableState.startRoom).toHaveBeenCalledWith('r-1', 't-1'));
+    });
+
+    it('the sideboard editor: Ready submits the current 75 through PUT …/deck, then readies — an unchanged deck is a valid submission', async () => {
+      const dck = '[Main]\n4 Lightning Bolt\n56 Island\n[Sideboard]\n2 Abrade\n';
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
+        pod: null,
+      };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck } } };
+      const { getByTestId, queryByTestId } = await victoryInRoom();
+      // No Rematch press: the step opens on its own once `phase` says so.
+      await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
+      expect(queryByTestId('game-result-rematch'), 'the editor replaces the button, not beside it').toBeNull();
+
+      fireEvent.click(getByTestId('sideboard-ready'));
+      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', true, 't-1'));
+      expect(tableState.loadDeck).toHaveBeenCalledTimes(1);
+      const [calledRoomId, sent] = tableState.loadDeck.mock.calls[0]!;
+      expect(calledRoomId).toBe('r-1');
+      const roundTripped = deckFromDeckFile(parseDck((sent as { dck: string }).dck));
+      expect(roundTripped.main.find((e) => e.card.name === 'Lightning Bolt')?.count).toBe(4);
+      expect(roundTripped.main.find((e) => e.card.name === 'Island')?.count).toBe(56);
+      expect(roundTripped.sideboard.find((e) => e.card.name === 'Abrade')?.count).toBe(2);
+      await waitFor(() => expect(getByTestId('sideboard-ready').getAttribute('aria-pressed')).toBe('true'));
+    });
+
+    it('a 409 from the server’s 75 check shows its own sentence', async () => {
+      tableState.loadDeckRefusal = 'during sideboarding you may only move cards between your main deck and sideboard';
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
+        pod: null,
+      };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      const { getByTestId } = await victoryInRoom();
+      await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
+
+      fireEvent.click(getByTestId('sideboard-ready'));
+      await waitFor(() => expect(getByTestId('sideboard-refusal').textContent).toBe(tableState.loadDeckRefusal));
+      expect(tableState.ready).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A pod room holds several tables (wave 72 §P); this match's OWN table
+     * can be any of them, never assumed to be `tables[0]`. Built directly
+     * (not through `victoryInRoom`, which always addresses `'r-1'`'s single
+     * table) because the room has to be set up with the real match id this
+     * screen is showing BEFORE it is rendered: `findMyTable` matches a
+     * table by `series.games[].matchId` — the shape a game reaches it in
+     * once it has actually ended (`recordGameResult` clears `table.matchId`
+     * at that same moment, wave 72 §P's eager series).
+     */
+    it('a room with several tables: the sideboard step addresses THIS match’s own table, never tables[0]', async () => {
+      const s = (server = await startReplayServer());
+      const m = (match = startMatch({
+        matchId: s.matchId,
+        transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
+      }));
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
+        tables: [
+          {
+            id: 't-other0000',
+            players: [],
+            matchId: null,
+            series: { length: 3, wins: [2, 0], games: [{ matchId: 'm-someoneelse', winner: 0 }], phase: 'done' },
+          },
+          {
+            id: 't-mine00000',
+            players: [],
+            matchId: null,
+            series: { length: 3, wins: [0, 1], games: [{ matchId: s.matchId, winner: 1 }], phase: 'sideboarding' },
+          },
+        ],
+        pod: { phase: 'rounds', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, built: [] },
+      };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      const utils = render(createElement(LiveBoard, { match: m, roomId: 'r-1' }));
+      await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
+      const frames = fixtureFrames();
+      for (const f of frames) s.send(f);
+      await untilMatch(m, () => expect(m.stats.applied).toBe(frames.length));
+      await waitFor(() => expect(utils.getByTestId('live-turn-n').textContent).toBe('14'));
+      const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
+      s.send(gameOverDelta(m.view!.seq + 1, opponentId));
+      await waitFor(() => expect(utils.getByTestId('sideboard-step')).toBeTruthy());
+
+      fireEvent.click(utils.getByTestId('sideboard-ready'));
+      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', true, 't-mine00000'));
+      expect(tableState.loadDeck).toHaveBeenCalledWith('r-1', { dck: expect.any(String) }, 't-mine00000');
+    });
   });
 });
 

@@ -157,6 +157,13 @@ import {
   type DeckColor,
 } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku/deck/library';
+/**
+ * Aliased on import: `./tables.ts` separately exports its own, unrelated
+ * `RoomTable` (a seat's whole state at one table), and the two would clash by
+ * name if both were imported bare into this file. `BoardStrip.tsx` notes the
+ * same two names (wave 71 §G); this file is the one that now needs both.
+ */
+import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
 
 import { navigate } from './route.ts';
 import { deckStoreClient, type DeckStoreClient } from '../deck/deckStore.ts';
@@ -828,6 +835,18 @@ function DeckChooser({
     return () => document.removeEventListener('scroll', onScroll, { capture: true });
   }, []);
 
+  /**
+   * Which decks are offered, and in what order — content, not the array's own
+   * identity. `byWinRate` (`stats/deckOrder.ts`) returns a FRESH array on every
+   * records update even when nothing reordered (every deck still unplayed
+   * sorts back to its own index), so keying this effect on `options` itself
+   * closed an open or opening peek the instant the win-rate fetch resolved,
+   * for a list that had not actually changed — `constructed.test.ts`'s "a
+   * peeked list the pointer can reach" caught it as a race, timing-dependent
+   * on which settled first (the server run that found it: CI job 117402002655
+   * on `a4a4a7c3`, red once locally in 50 runs the same shape).
+   */
+  const optionKey = options.map((o) => o.value).join('\u0000');
   // A filter changes which tiles there are, so an index into the old list means
   // nothing: Tab goes back to following the choice, and an open list closes.
   useEffect(() => {
@@ -836,7 +855,7 @@ function DeckChooser({
     clearTimeout(leaveTimer.current);
     peekPending.current = null;
     setPeek(null);
-  }, [options]);
+  }, [optionKey]);
 
   const chosen = options.findIndex((o) => o.value === value);
   const stop = focus !== null && focus < options.length ? focus : chosen >= 0 ? chosen : 0;
@@ -1123,6 +1142,10 @@ function RoomTableScreen({
   /** Free pick: every library deck, whatever its era. No tab is the table's while it is on. */
   const freePick = poolId === FREE_PICK;
   const handSmoothing = view?.settings.handSmoothing ?? true;
+  /** `bo1` (default) or forced-rematch `bo3`. The leader's to change (`setSettings`). */
+  const matchLength = view?.settings.matchLength ?? 'bo1';
+  /** A `bo3` room always reads this true, regardless of what is stored (the server's own rule). */
+  const sideboarding = view?.settings.sideboarding ?? false;
   /** Which tab the table is actually on — a pod's own tab, or its era's family. */
   const tabOfPool = pod !== null ? 'draft' : poolFormat?.family ?? 'standard';
   /**
@@ -1403,6 +1426,14 @@ function RoomTableScreen({
   const bothReady = players.length === 2 && players.every((p) => p.ready && p.legal);
   /** A start asked for or a match running: the table is no longer anyone's to change. */
   const underway = starting || matchId !== null;
+  /**
+   * The room's own table record (wave 71 §D's wire shape, via `@hadoku/shared`),
+   * for the SERIES it carries — `wins`, `games`, `phase` — none of which
+   * `./tables.ts`'s own `RoomTable` (`table`, above) has. A constructed 1v1
+   * room is the one-table case, so this is always `tables[0]`.
+   */
+  const myTable: SharedRoomTable | null = view?.tables[0] ?? null;
+  const seriesScore = seriesScoreText(players, myTable);
   const streamed = modeRef.current === 'streamed';
   /** The room's name as soon as either read has it; the id is never a title. */
   const roomTitle = streamed ? view?.name : (table?.room.name ?? view?.name);
@@ -1889,6 +1920,45 @@ function RoomTableScreen({
       .finally(() => setBusy(false));
   };
 
+  /** The LEADER flipped the series length: `bo1` ⇄ `bo3`, the same write shape as hand smoothing. */
+  const toggleMatchLength = (): void => {
+    setBusy(true);
+    setActionError(null);
+    rooms
+      .setSettings(roomId, { matchLength: matchLength === 'bo3' ? 'bo1' : 'bo3' })
+      .then((outcome) => {
+        if (!outcome.ok) {
+          setActionError(outcome.message);
+          return;
+        }
+        writes.current += 1;
+        setView(outcome.room);
+      })
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setBusy(false));
+  };
+
+  /**
+   * The LEADER flipped sideboarding. Only reachable under `bo1` — the control is
+   * disabled under `bo3` (it is a settled `true` there, not a choice).
+   */
+  const toggleSideboarding = (): void => {
+    setBusy(true);
+    setActionError(null);
+    rooms
+      .setSettings(roomId, { sideboarding: !sideboarding })
+      .then((outcome) => {
+        if (!outcome.ok) {
+          setActionError(outcome.message);
+          return;
+        }
+        writes.current += 1;
+        setView(outcome.room);
+      })
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setBusy(false));
+  };
+
   /*
    * The pool moved under a deck we are holding, so the hold is re-sent.
    *
@@ -2109,6 +2179,11 @@ function RoomTableScreen({
                   width to spare: a line added under the seats comes off the room's height. */}
               <div className="lobby__deckhead">
                 <h2>At the table</h2>
+                {seriesScore !== null && (
+                  <p className="lobby__note" data-testid="series-score">
+                    {seriesScore}
+                  </p>
+                )}
                 <p className="lobby__note" data-testid="start-state">
                   {startStateText(players, bothReady, starting, matchId)}
                 </p>
@@ -2382,6 +2457,29 @@ function RoomTableScreen({
                         >
                           Hand smoothing
                         </button>
+                        {/* Best-of-one (default) or forced-rematch best-of-three (wave 72 §Q). */}
+                        <button
+                          type="button"
+                          className="lobby__free-pick"
+                          aria-pressed={matchLength === 'bo3'}
+                          data-testid="match-length"
+                          disabled={busy || underway}
+                          onClick={toggleMatchLength}
+                        >
+                          {matchLength === 'bo3' ? 'Best of 3' : 'Best of 1'}
+                        </button>
+                        {/* Sideboarding between games. A `bo3` room reads this on and
+                            locked — it is `bo3`'s own rule, not a choice there. */}
+                        <button
+                          type="button"
+                          className="lobby__free-pick"
+                          aria-pressed={sideboarding}
+                          data-testid="sideboarding"
+                          disabled={busy || underway || matchLength === 'bo3'}
+                          onClick={toggleSideboarding}
+                        >
+                          Sideboarding
+                        </button>
                       </span>
                     )}
 
@@ -2606,6 +2704,21 @@ function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boo
   if (bothReady) return 'Both ready.';
   const waiting = players.filter((p) => !p.ready).map((p) => (p.you ? 'you' : p.name));
   return `Waiting for ${waiting.join(' and ')}.`;
+}
+
+/**
+ * The series score while it is running (wave 72 §Q), or null before there is
+ * one to show: a `bo3` table always has a running score once a game of it is
+ * under way, and a `bo1` table only once a sideboarded Rematch has made it
+ * worth one. "Alice 1–0 Bob", from whichever seats are filled — the same
+ * shape `BoardStrip.tsx`'s own `label` draws for the strip.
+ */
+function seriesScoreText(players: RoomPlayer[], table: SharedRoomTable | null): string | null {
+  if (table === null) return null;
+  const { series } = table;
+  if (series.length !== 3 && series.games.length === 0) return null;
+  const [p0, p1] = players;
+  return `${p0?.name ?? ''} ${series.wins[0]}–${series.wins[1]} ${p1?.name ?? ''}`.trim();
 }
 
 /** The leader's mark, our own five-point outline, on a 12-unit square. */

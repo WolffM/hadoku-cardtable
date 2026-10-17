@@ -480,11 +480,26 @@ describe('RoomView.tables and RoomView.pod', () => {
     expect(parseRoomView({ ...OPEN, tables: [{ id: 't-1' }] })?.tables).toEqual([]);
   });
 
-  it('pod is passed through as-is, and an absent one reads as null (P’s schema is not asserted here yet)', () => {
-    expect(parseRoomView({ ...OPEN, pod: { phase: 'lobby' } })?.pod).toEqual({ phase: 'lobby' });
+  it('parses a well-formed pod, through @hadoku/shared’s own RoomPodSchema', () => {
+    const POD = {
+      phase: 'lobby' as const,
+      seats: Array(8).fill(null) as null[],
+      round: 0,
+      rounds: 0,
+      results: [],
+      standings: [],
+      pairings: [],
+      bye: null,
+      built: [],
+    };
+    expect(parseRoomView({ ...OPEN, pod: POD })?.pod).toEqual(POD);
+  });
+
+  it('reads no pod rather than throwing when the body is absent, null, or malformed', () => {
     const { pod: _gone, ...older } = OPEN;
     expect(parseRoomView(older)?.pod).toBeNull();
     expect(parseRoomView({ ...OPEN, pod: null })?.pod).toBeNull();
+    expect(parseRoomView({ ...OPEN, pod: { phase: 'lobby' } })?.pod).toBeNull();
   });
 });
 

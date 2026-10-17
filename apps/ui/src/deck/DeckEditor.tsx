@@ -121,6 +121,15 @@ export interface DeckEditorProps {
   onPlay?: () => void;
   /** The basics widget. Defaults to `mode === 'limited'`; a sideboard step on a drafted pool sets it true. */
   allowBasics?: boolean;
+  /**
+   * The current split, un-debounced — on mount and on every move. Wave 72
+   * §Q's sideboard step reads this to submit on its own explicit Ready press,
+   * which `onSave`'s debounce (built for autosave, not a one-shot submit)
+   * would otherwise race: a Ready pressed inside `saveDelayMs` of the last
+   * move could submit the move BEFORE it, or never see it at all if nothing
+   * was ever touched (`onSave` skips the first render on purpose).
+   */
+  onDeckChange?: (deck: Deck) => void;
 }
 
 /** Which pip a basic land shows. Never WotC's mana symbol. */
@@ -191,6 +200,7 @@ export function DeckEditor({
   saveDelayMs = 600,
   onPlay,
   allowBasics = mode === 'limited',
+  onDeckChange,
 }: DeckEditorProps) {
   const [deck, setDeck] = useState<Deck>(() => {
     if (typeof savedDeck === 'string') {
@@ -310,6 +320,13 @@ export function DeckEditor({
   }, [deck, onSave, saveDelayMs]);
 
   const change = (next: Deck): void => setDeck(next);
+
+  // `onDeckChange` is deliberately not a dependency: it is a per-render
+  // closure, and the caller's own effect is keyed on the DECK it receives,
+  // not on being called a particular number of times.
+  useEffect(() => {
+    onDeckChange?.(deck);
+  }, [deck]);
 
   const main = mainDeckSize(deck);
   const summary = mainSummary(deck, poolIndex);

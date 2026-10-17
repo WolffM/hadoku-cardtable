@@ -35,12 +35,17 @@
  * it split for, one level up.
  */
 
-import { cardKey, isBasicLand, type Deck } from '@hadoku/deck';
-import type { DeckEntry } from '@hadoku/carddata/dck';
+import { cardKey, isBasicLand, manaTokensOf, type Deck } from '@hadoku/deck';
+import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
+import { parseCardRequest, type DeckEntry } from '@hadoku/carddata/dck';
+import { artIdIndexFromTable, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
 
 import { cardRequestOf, dckTextOf } from '../draft/deckFromPool.ts';
 import type { DraftCard } from '../draft/types.ts';
-import type { SeatChoice } from '../screens/tables.ts';
+import type { SeatChoice, DeckLine } from '../screens/tables.ts';
+import { namedFace } from '../screens/DeckPeek.tsx';
+import { manaValueOf } from '../screens/ConstructedScreen.tsx';
+import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 
 /** The drafted seat, in the gate's shape: this deck's text, checked against your own pool. */
 export function draftedSeat(draftId: string, deck: Deck): SeatChoice {
@@ -56,6 +61,49 @@ export function splitBasics(deck: Deck): Deck {
     else main.push(entry);
   }
   return { ...deck, main, basics };
+}
+
+/**
+ * A library deck's two halves (`screens/tables.ts`'s `TableDeck.main`/
+ * `.sideboard`, or the server's `GET /api/tables/decks` answer for one), as a
+ * `sideboard`-mode `DeckEditor` pool — wave 72 §Q.4's "first commit measures
+ * what card data the browser has": the wire sends names, and the browser
+ * holds a cost per name (`LIBRARY_CARD_COSTS`) and this app's committed art
+ * ids (`LIBRARY_ART_IDS`), nothing else — no type line, no oracle text. That
+ * is the SAME path `ConstructedScreen.tsx`'s own deck peek already draws a
+ * library card through (`namedPeekLine` → `namedFace`), reused here rather
+ * than built a second time. One `DraftCard` per distinct name; `DeckEditor`'s
+ * own tile-building multiplies it by each entry's count.
+ */
+const LIBRARY_ART_IDS = artIdIndexFromTable(artIdsData as ArtIdTableFile);
+
+function namedLibraryFace(name: string): DraftCard {
+  const cost = LIBRARY_CARD_COSTS[name] ?? '';
+  return namedFace(name, manaTokensOf(cost), manaValueOf(cost), scryfallIdFor(LIBRARY_ART_IDS, name, ''));
+}
+
+/** One `DraftCard` per distinct name — the same degrade `libraryDeckPool` uses, for names from anywhere (a drafted sideboard's parsed text, not only a `TableDeck`'s own lines). */
+export function namedCardPool(names: Iterable<string>): DraftCard[] {
+  return [...new Set(names)].map(namedLibraryFace);
+}
+
+export function libraryDeckPool(main: readonly DeckLine[], sideboard: readonly DeckLine[]): DraftCard[] {
+  return namedCardPool([...main, ...sideboard].map((l) => l.name));
+}
+
+/**
+ * The same two halves, as the `.dck` text `DeckEditor`'s own `savedDeck` load
+ * already knows how to open (`deckFromDeckFile(parseDck(text))`) — the one
+ * load path for both a drafted save and a library one, rather than a second
+ * loader that could read the format differently. `parseCardRequest` is the
+ * exact function `parseDck` itself calls per line, so a bare name round-trips
+ * through this the same way a line with no set or collector number already
+ * does.
+ */
+export function libraryDeckText(main: readonly DeckLine[], sideboard: readonly DeckLine[]): string {
+  const entryOf = (line: DeckLine): DeckEntry => ({ count: line.count, card: parseCardRequest(line.name) });
+  const deck: Deck = { name: '', main: main.map(entryOf), sideboard: sideboard.map(entryOf), basics: [] };
+  return dckTextOf(deck);
 }
 
 /** Pool cards by the key a deck entry carries, so a row can show cost and type. */

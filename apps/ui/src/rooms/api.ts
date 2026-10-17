@@ -56,7 +56,7 @@
  * one.
  */
 
-import { RoomTablesSchema, DEFAULT_MATCH_LENGTH, type MatchLength, type RoomTable } from '@hadoku/shared';
+import { RoomTablesSchema, RoomPodSchema, DEFAULT_MATCH_LENGTH, type MatchLength, type RoomPod, type RoomTable } from '@hadoku/shared';
 
 import { apiBase } from '../screens/tables.ts';
 import { normalizeAvatarId } from '../room/avatar.ts';
@@ -143,13 +143,12 @@ export interface RoomView {
    */
   tables: RoomTable[];
   /**
-   * The room's pod, or null for a constructed room (wave 72's wire contract,
-   * `packages/shared/src/pod.ts`). Parsed loosely — `undefined` reads as
-   * `null` and anything else is passed through as-is — because that package
-   * is still landing as this parses it; `undefined` ⇒ `null` is the only
-   * shape asserted here. Lane R narrows it once `pod.ts` is on `main`.
+   * The room's pod, or null for a constructed room (`@hadoku/shared`'s own
+   * `RoomPod` — `packages/shared/src/pod.ts`, landed wave 72 §P). Parsed
+   * through `RoomPodSchema`, so a body that fails to parse (an old server,
+   * a malformed one) reads as `null` rather than a guessed phase.
    */
-  pod: unknown;
+  pod: RoomPod;
 }
 
 /**
@@ -383,9 +382,10 @@ function parseTables(v: unknown): RoomTable[] {
   return parsed.success ? parsed.data : [];
 }
 
-/** `RoomView.pod` — see the field's own note on why this stays loose for now. */
-function parsePod(v: unknown): unknown {
-  return v === undefined ? null : v;
+/** `RoomView.pod`, or none when the body does not carry a parseable one — see the field's own note. */
+function parsePod(v: unknown): RoomPod {
+  const parsed = RoomPodSchema.safeParse(v ?? null);
+  return parsed.success ? parsed.data : null;
 }
 
 /** A RoomView, or null when the body is not one. */

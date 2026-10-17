@@ -29,7 +29,7 @@ import { peekCreatePreset } from '../rooms/api.ts';
 import { parseRoute } from '../screens/route.ts';
 import { tablesClient, type Fetch, type Verdict } from '../screens/tables.ts';
 import type { DeckStoreClient, Mine } from './deckStore.ts';
-import { draftedSeat, cardIndex, mainSummary, splitBasics } from './build.ts';
+import { draftedSeat, cardIndex, mainSummary, splitBasics, libraryDeckPool, libraryDeckText } from './build.ts';
 
 afterEach(() => {
   cleanup();
@@ -132,6 +132,41 @@ describe('build.ts', () => {
     expect(restored.basics.find((e) => e.card.name === 'Island')?.count).toBe(9);
     expect(restored.main.reduce((n, e) => n + e.count, 0)).toBe(1);
     expect(restored.main.some((e) => e.card.name === 'Island')).toBe(false);
+  });
+
+  /* ── wave 72 §Q.4: a library deck's two halves, as a `sideboard` pool ──── */
+
+  describe('libraryDeckPool and libraryDeckText', () => {
+    const MAIN = [{ name: 'Lightning Bolt', count: 4 }, { name: 'Tarmogoyf', count: 4 }, { name: 'Forest', count: 17 }];
+    const SIDE = [{ name: 'Lightning Bolt', count: 1 }, { name: 'Abrade', count: 2 }];
+
+    it('is one DraftCard per distinct name, costed and coloured from the browser’s own library cost table', () => {
+      const pool = libraryDeckPool(MAIN, SIDE);
+      // Distinct names, not one per copy: Lightning Bolt appears in both halves.
+      expect(pool.map((c) => c.name).sort()).toEqual(['Abrade', 'Forest', 'Lightning Bolt', 'Tarmogoyf'].sort());
+      const bolt = pool.find((c) => c.name === 'Lightning Bolt')!;
+      expect(bolt.manaCost).toEqual(['R']);
+      expect(bolt.manaValue).toBe(1);
+      expect(bolt.colors).toEqual(['R']);
+      // No type line or oracle text: that is the whole finding — the browser
+      // does not hold them for an arbitrary library card.
+      expect(bolt.typeLine).toBe('');
+      expect(bolt.oracleText).toBe('');
+      // Forest has no entry in `LIBRARY_CARD_COSTS` (lands carry no cost): it
+      // still gets a face, with an empty cost rather than a thrown error.
+      const forest = pool.find((c) => c.name === 'Forest')!;
+      expect(forest.manaCost).toEqual([]);
+      expect(forest.colors).toEqual([]);
+    });
+
+    it('round-trips through the SAME .dck load path DeckEditor already uses for a saved build', () => {
+      const text = libraryDeckText(MAIN, SIDE);
+      const back = deckFromDeckFile(parseDck(text));
+      expect(back.main.find((e) => e.card.name === 'Lightning Bolt')?.count).toBe(4);
+      expect(back.main.find((e) => e.card.name === 'Forest')?.count).toBe(17);
+      expect(back.sideboard.find((e) => e.card.name === 'Abrade')?.count).toBe(2);
+      expect(back.sideboard.find((e) => e.card.name === 'Lightning Bolt')?.count).toBe(1);
+    });
   });
 });
 

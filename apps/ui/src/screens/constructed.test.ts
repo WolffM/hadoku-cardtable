@@ -65,6 +65,7 @@ import DECK_ART_TRAITS from '../draft/deck-art-traits.json';
 import { artScore, assignDeckArt, rankDeckArt, traitsOfDraftCard } from './deckArt.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from './DeckPeek.tsx';
+import type { DeckRecords } from '../stats/deckOrder.ts';
 import { parseRoute } from './route.ts';
 import poolJson from '../draft/pool.json';
 import { dckTextOf, deckFromPool } from '../draft/deckFromPool.ts';
@@ -223,8 +224,13 @@ interface Table {
   format?: string;
   /** Whether the CALLER is the leader. Absent ⇒ true: alice made the room. */
   leader?: boolean;
-  /** `RoomView.settings`. Absent ⇒ the server's default, hand smoothing on. */
-  settings?: { handSmoothing: boolean };
+  /** `RoomView.settings`. Absent ⇒ the server's defaults: hand smoothing on, bo1, sideboarding off. */
+  settings?: { handSmoothing?: boolean; matchLength?: 'bo1' | 'bo3'; sideboarding?: boolean };
+  /**
+   * The room's own table record (wave 71 §D's wire shape) — `@hadoku/shared`'s
+   * `RoomView.tables[0]`. Absent ⇒ a fresh `seating` series, no games yet.
+   */
+  series?: { length: 1 | 3; wins: [number, number]; games: { matchId: string; winner: 0 | 1 | null }[]; phase: 'seating' | 'playing' | 'sideboarding' | 'done' };
   /** `PATCH /api/rooms/:id` refuses with this, as it does for a non-leader. */
   refusePatch?: { status: number; error: string };
   /** What `GET /api/rooms/:id` says this room is. Absent ⇒ the field is not sent at all. */
@@ -329,6 +335,14 @@ function stubServer(table: Table) {
     matchId: table.matchId,
     draftStartedAt: table.draftStartedAt ?? null,
     createdAt: '2026-09-19T00:00:00.000Z',
+    tables: [
+      {
+        id: 't-stub0001',
+        players: [],
+        matchId: table.matchId,
+        series: table.series ?? { length: 1, wins: [0, 0], games: [], phase: 'seating' },
+      },
+    ],
   });
   /** One deck against one pool, which is the only question the gate answers. */
   const verdictOf = (deckId: string, formatId: string): Verdict => {
@@ -369,7 +383,7 @@ function stubServer(table: Table) {
        */
       if ((init?.method ?? 'GET') === 'PATCH') {
         if (table.refusePatch !== undefined) return json(table.refusePatch.status, { error: table.refusePatch.error });
-        const asked = body as { format?: unknown; settings?: { handSmoothing: boolean } };
+        const asked = body as { format?: unknown; settings?: { handSmoothing?: boolean; matchLength?: 'bo1' | 'bo3'; sideboarding?: boolean } };
         // A setting is not a deck question: nobody's readiness or verdict moves.
         if (asked.settings !== undefined) {
           table.settings = { ...(table.settings ?? { handSmoothing: true }), ...asked.settings };
@@ -1419,6 +1433,45 @@ describe('the deck picker', () => {
       fireEvent.pointerOut(island, { pointerType: 'mouse', relatedTarget: list });
       expect(document.querySelector('[data-inspect]')).toBeNull();
     });
+
+    // Regression for a CI-only red (run 117402002655 on `a4a4a7c3`, "enlarges a
+    // line's card…" above lost its peek 1/9520). The win-rate fetch resolving
+    // DURING the peek's own open delay used to close it, even with no games
+    // played by anyone — `byWinRate`'s own fallback leaves every deck at its
+    // library index, so nothing about the list actually changed; only its
+    // array's own identity did (`ConstructedScreen.tsx`'s `DeckChooser`, the
+    // effect that used to key on `[options]`).
+    it('a win-rate fetch that resolves mid-open does not close the peek when nothing reordered', async () => {
+      const server = stubServer({ players: [opponent()], matchId: null });
+      let resolveRecords: (() => void) | undefined;
+      const delayed = (): Promise<DeckRecords> => new Promise((resolve) => (resolveRecords = () => resolve(new Map())));
+      render(
+        createElement(ConstructedScreen, {
+          client: server.client,
+          deckRecords: delayed,
+          rooms: server.rooms,
+          roomId: ROOM,
+          feed: everyMs(10),
+        }),
+      );
+      await screen.findByTestId('room-players');
+      await deckPicker();
+      const tile = screen.getByTestId('deck-mine').querySelector<HTMLElement>(`[data-deck-id="${SECOND_DECK}"]`)!;
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
+        // Queued, not yet run: resolving here lands the win-rate update's
+        // re-render inside the SAME flush as the peek timer below, the exact
+        // interleaving the CI run hit.
+        resolveRecords?.();
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(PEEK_DELAY_MS);
+        });
+        expect(screen.getByTestId('deck-peek').querySelector('.peek__title')?.textContent).toBe('Jund');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it('narrows the deck list to the decks the ROOM’s pool says are legal, asking the gate once per pool', async () => {
@@ -1731,6 +1784,84 @@ describe('the table’s pool', () => {
     await mountRoom({ players: [opponent()], matchId: null, leader: false });
     await waitFor(() => expect(screen.getByTestId('format-fixed')).toBeTruthy());
     expect(screen.queryByTestId('hand-smoothing')).toBeNull();
+  });
+
+  /* ── wave 72 §Q: match length and sideboarding, beside hand smoothing ──── */
+
+  it('Match length: bo1 by default, and the leader’s toggle moves the room to bo3', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null });
+    const toggle = await screen.findByTestId('match-length');
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(toggle.textContent).toBe('Best of 1');
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('true'));
+    expect(toggle.textContent).toBe('Best of 3');
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ settings: { matchLength: 'bo3' } }]);
+  });
+
+  it('Sideboarding: off by default under bo1, and the leader’s toggle turns it on', async () => {
+    const server = await mountRoom({ players: [opponent()], matchId: null });
+    const toggle = await screen.findByTestId('sideboarding');
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect((toggle as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('true'));
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ settings: { sideboarding: true } }]);
+  });
+
+  it('Sideboarding reads on and is locked once the room is bo3 — not a choice there', async () => {
+    await mountRoom({ players: [opponent()], matchId: null, settings: { matchLength: 'bo3', sideboarding: false } });
+    const toggle = await screen.findByTestId('sideboarding');
+    // The room's own rule (`rooms/api.ts`'s `parseSettings`): bo3 reads sideboarding
+    // true regardless of what is stored, and this screen locks the control rather
+    // than offering a choice that never takes.
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect((toggle as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Match length and sideboarding are disabled while a game is underway, like hand smoothing', async () => {
+    await mountRoom({ players: [opponent({ ready: true })], matchId: 'm-1' });
+    expect((await screen.findByTestId('hand-smoothing') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('match-length') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('sideboarding') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Match length and sideboarding are the leader’s: a non-leader gets neither toggle', async () => {
+    await mountRoom({ players: [opponent()], matchId: null, leader: false });
+    await waitFor(() => expect(screen.getByTestId('format-fixed')).toBeTruthy());
+    expect(screen.queryByTestId('match-length')).toBeNull();
+    expect(screen.queryByTestId('sideboarding')).toBeNull();
+  });
+
+  /* ── wave 72 §Q: the series score while it is running ──────────────────── */
+
+  it('a fresh table — no game played, not bo3 — shows no series score', async () => {
+    await mountRoom({ players: [opponent()], matchId: null });
+    await screen.findByTestId('room-players');
+    expect(screen.queryByTestId('series-score')).toBeNull();
+  });
+
+  it('a bo3 table shows the running score from the first game, 0–0 included', async () => {
+    await mountRoom({
+      players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: true }), opponent({ seat: 1, ready: true })],
+      matchId: 'm-1',
+      settings: { matchLength: 'bo3', sideboarding: true },
+      series: { length: 3, wins: [0, 0], games: [], phase: 'playing' },
+    });
+    expect((await screen.findByTestId('series-score')).textContent).toBe('user-alice 0–0 user-bob');
+  });
+
+  it('a bo1 table with a sideboarded rematch shows the score its history earned', async () => {
+    await mountRoom({
+      players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false }), opponent({ seat: 1, ready: false })],
+      matchId: null,
+      series: { length: 1, wins: [1, 0], games: [{ matchId: 'm-0', winner: 0 }], phase: 'sideboarding' },
+    });
+    expect((await screen.findByTestId('series-score')).textContent).toBe('user-alice 1–0 user-bob');
   });
 
   it('Free pick reads as its name to a non-leader, who gets no toggle', async () => {

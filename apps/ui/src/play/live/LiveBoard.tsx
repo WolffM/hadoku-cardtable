@@ -257,13 +257,19 @@
 import { Component, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { CLIENT_EVENT, selfAnswer, type ClientEvent, type DraftCard } from '@hadoku/shared';
+import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
 import { YIELDING, type GameLogLine } from '@hadoku/forge-wire';
 import { usePrefs } from '@wolffm/prefs-client/react';
+import { parseDck } from '@hadoku/carddata/dck';
+import { deckFromDeckFile, type Deck } from '@hadoku/deck';
 
 import { navigate, routeHash } from '../../screens/route.ts';
-import { roomsClient } from '../../rooms/api.ts';
+import { roomsClient, type RoomView } from '../../rooms/api.ts';
 import { roomFeed } from '../../rooms/feed.ts';
-import { tablesClient, type RoomTable, type StartOutcome } from '../../screens/tables.ts';
+import { tablesClient, type RoomTable, type SeatChoice, type StartOutcome, type TablesClient } from '../../screens/tables.ts';
+import { DeckEditor } from '../../deck/DeckEditor.tsx';
+import { dckTextOf } from '../../draft/deckFromPool.ts';
+import { libraryDeckText, namedCardPool, splitBasics } from '../../deck/build.ts';
 import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardCard, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
@@ -1843,6 +1849,21 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * see `MatchScreen.tsx`'s own comment on the same fact), there is no table to
  * ready at: Rematch and Back to room are
  * disabled and Main menu goes straight to the lobby.
+ *
+ * **Series on screen, wave 72 §Q.** The button's label is the room's own
+ * `matchLength`: `Rematch` for `bo1`, `Next game` for `bo3` (the operator's
+ * `draft-pods-plan.md`: *"bo3 just means that rematch is forced after a
+ * round ends"*) — otherwise unchanged, still an agreement, still the table's
+ * `ready`. The agreement itself is what MOVES the table to `sideboarding`
+ * when `sideboarding` is on (`lobby.ts`'s `beginSideboarding`, from `done`)
+ * — `bo3` reaches `sideboarding` on its own instead, the instant an
+ * undecided game ends (`recordGameResult`). Either way `showSideboard`
+ * tracks `phase === 'sideboarding'` alone, so the sideboard step appears
+ * with no second press: "Rematch goes to the sideboard step", and a forced
+ * `bo3` "goes there on its own". **In a pod room there is no Rematch at
+ * all** (`room.pod !== null`) — Back to room already opens the pod
+ * (`#/room/<id>` renders `PodScreen` for a draft room), so there is nothing
+ * else for this button to do.
  */
 /** The sounds of a permanent leaving the battlefield: each waits for the first exit drawn. */
 const EXIT_ROLES: ReadonlySet<string> = new Set(['g.dies', 'g.destroy', 'g.exile', 'g.bounce']);
@@ -1919,6 +1940,163 @@ function useAfterTheBoard(over: boolean): boolean {
   return shown;
 }
 
+/** The viewer's own held choice at this table — the editor's starting point. */
+function myChoice(table: RoomTable | null): SeatChoice | null {
+  return table?.players.find((p) => p.you)?.choice ?? null;
+}
+
+/**
+ * THIS match's own table, in a room that may hold several (a pod). Matched
+ * by `matchId` while the game is live, or by `series.games[].matchId` once it
+ * has ended — `recordGameResult` clears `table.matchId` the instant a game is
+ * recorded (wave 72 §P's eager series), so by the time this screen is even
+ * drawn the table it belongs to no longer says so directly. Falls back to
+ * `tables[0]` only when neither matches (a constructed 1v1 room never has a
+ * second table to confuse this with; the fallback is for a room this screen
+ * has not yet read, not for a real ambiguity).
+ */
+function findMyTable(room: RoomView | null, matchId: string): SharedRoomTable | null {
+  if (room === null) return null;
+  const found = room.tables.find((t) => t.matchId === matchId || t.series.games.some((g) => g.matchId === matchId));
+  return found ?? room.tables[0] ?? null;
+}
+
+/**
+ * The player's current 75, as `.dck` text. The wire only ever hands this
+ * screen a REFERENCE to a library pick (`choice.deck.library`, an id), never
+ * the deck's own lines, so that half resolves through the catalogue
+ * (`GET /tables/decks`) and `libraryDeckText` — the same two-step `DeckScreen`
+ * and the room's own picker already take. A drafted pick already carries its
+ * text directly.
+ */
+async function my75Text(choice: SeatChoice, tables: TablesClient): Promise<string | null> {
+  const ref = choice.deck;
+  if ('dck' in ref) return ref.dck;
+  const decks = await tables.decks();
+  const found = decks.find((d) => d.id === ref.library);
+  return found === undefined ? null : libraryDeckText(found.main, found.sideboard);
+}
+
+/**
+ * The sideboard step between two games of a series (wave 72 §Q.4):
+ * `DeckEditor` in `sideboard` mode over the player's own 75 — the drafted
+ * pool, or a library deck's main plus `[Sideboard]`, resolved by
+ * {@link my75Text} either way into the SAME `.dck` text `DeckEditor`'s own
+ * `savedDeck` load already knows how to open.
+ *
+ * **The card data is the browser's own, measured first (step 4's "first
+ * commit"):** a library name resolves through `LIBRARY_CARD_COSTS` (a cost,
+ * for colour and mana value) and this app's committed art ids — no type line,
+ * no oracle text, the same degrade `ConstructedScreen.tsx`'s own deck peek
+ * already draws a library card through (`namedFace`). `namedCardPool` is that
+ * exact path, reused rather than built a second time, and it covers a
+ * drafted card's name too: nothing here needs the original cube pool, only
+ * the 75's own list of names.
+ *
+ * **Ready submits the CURRENT split explicitly** — `onDeckChange` (not
+ * `onSave`'s debounce, built for autosave rather than a one-shot submit)
+ * keeps `deckRef` current on every move, and an unchanged deck still submits
+ * what it opened with. `PUT …/deck` first, then `ready(true)`; a 409 from the
+ * server's 75 check (the same cards, only re-split) shows its own sentence.
+ */
+function SideboardStep({
+  roomId,
+  tableId,
+  tables,
+  choice,
+  onReady: submittedFreshly,
+}: {
+  roomId: string;
+  /** This match's own table (`GameResultScreen`'s `findMyTable`) — a pod's table 2+, never `tables[0]` by default. */
+  tableId: string | undefined;
+  tables: TablesClient;
+  choice: SeatChoice;
+  /** This screen's own fresh submission landed — the auto-start effect's gate. */
+  onReady: () => void;
+}) {
+  const [text, setText] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    my75Text(choice, tables).then((t) => {
+      if (live) setText(t);
+    });
+    return () => {
+      live = false;
+    };
+  }, [choice, tables]);
+
+  const parsed = useMemo(
+    () => (typeof text === 'string' ? splitBasics(deckFromDeckFile(parseDck(text))) : null),
+    [text],
+  );
+  const pool = useMemo(
+    () => (parsed === null ? [] : namedCardPool([...parsed.main, ...parsed.sideboard, ...parsed.basics].map((e) => e.card.name))),
+    [parsed],
+  );
+  const deckRef = useRef<Deck | null>(null);
+  deckRef.current ??= parsed;
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  if (text === undefined) {
+    return (
+      <p className="lobby__note" data-testid="sideboard-loading">
+        Loading your 75…
+      </p>
+    );
+  }
+  if (text === null || parsed === null) {
+    return (
+      <p className="live__error" role="alert" data-testid="sideboard-unavailable">
+        Could not find your deck to sideboard.
+      </p>
+    );
+  }
+
+  const onReady = (): void => {
+    setBusy(true);
+    setRefusal(null);
+    const current = deckRef.current ?? parsed;
+    const onFailure = (err: unknown): void => {
+      setBusy(false);
+      setRefusal(err instanceof Error ? err.message : String(err));
+    };
+    const deckBody = { dck: dckTextOf(current) };
+    (tableId === undefined ? tables.loadDeck(roomId, deckBody) : tables.loadDeck(roomId, deckBody, tableId)).then((loaded) => {
+      if (!loaded.ok) {
+        setBusy(false);
+        setRefusal(loaded.error);
+        return;
+      }
+      (tableId === undefined ? tables.ready(roomId, true) : tables.ready(roomId, true, tableId)).then((answer) => {
+        setBusy(false);
+        if (answer.ok) {
+          setReady(true);
+          submittedFreshly();
+        } else {
+          setRefusal(answer.error);
+        }
+      }, onFailure);
+    }, onFailure);
+  };
+
+  return (
+    <section className="lobby__card" data-testid="sideboard-step">
+      <h2>Sideboard</h2>
+      <DeckEditor mode="sideboard" draftId={roomId} pool={pool} savedDeck={text} onDeckChange={(d) => (deckRef.current = d)} />
+      {refusal !== null && (
+        <p className="live__error" role="alert" data-testid="sideboard-refusal">
+          {refusal}
+        </p>
+      )}
+      <button type="button" className="lobby__go" data-testid="sideboard-ready" aria-pressed={ready} disabled={busy || ready} onClick={onReady}>
+        {ready ? 'Waiting for the other player…' : 'Ready'}
+      </button>
+    </section>
+  );
+}
+
 function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string | null }) {
   const view = match.view!;
   const outcome = gameOutcome(match)!;
@@ -1930,17 +2108,59 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [table, setTable] = useState<RoomTable | null>(null);
+  const [room, setRoom] = useState<RoomView | null>(null);
   const [alone, setAlone] = useState<boolean | null>(null);
   const [tables] = useState(tablesClient);
   /** A start is in flight: not asked again on every read. */
   const asked = useRef(false);
   const rematch = rematchOf(table, alone === true);
 
+  /**
+   * THIS match's own table (wave 71 §D's wire shape, via `@hadoku/shared`) —
+   * for `series.phase`, `settings.matchLength`/`.sideboarding` and `pod`,
+   * none of which `./tables.ts`'s own `RoomTable` (`table`, above) carries,
+   * and — in a pod — for the table id every `tables.ts` call below now
+   * passes, so a pod player's table 2+ is never addressed as `tables[0]`.
+   * See {@link findMyTable}.
+   */
+  const myTable = findMyTable(room, match.matchId);
+  const tableId = myTable?.id;
+  const phase = myTable?.series.phase ?? null;
+  const matchLength = room?.settings.matchLength ?? 'bo1';
+  const sideboarding = room?.settings.sideboarding ?? false;
+  /** No Rematch at all in a pod room (wave 72 §Q.3): Back to room already opens the pod. */
+  const inPod = room !== null && room.pod !== null;
+  /**
+   * THIS screen's own fresh submission through the sideboard editor's Ready
+   * — not the server's `ready`. See the auto-start effect's own note for why
+   * a bare `rematch.agreed` is not enough once `sideboarding` is on: `ready`
+   * can already be stale-true the instant `phase` becomes `'sideboarding'`
+   * (`lobby.ts`'s `beginSideboarding`, the bo1-Rematch door into it, never
+   * un-readies either seat — only a game actually ending does). Resets
+   * whenever the table is not mid-sideboarding, so the next cycle starts
+   * fresh.
+   */
+  const [submitted, setSubmitted] = useState(false);
+  useEffect(() => {
+    if (phase !== 'sideboarding') setSubmitted(false);
+  }, [phase]);
+
+  /**
+   * The table id the reads below address — kept in a ref, not state, because
+   * it has to be read synchronously inside the SAME refresh cycle that
+   * learns it: the room answers first, and the table-scoped read right
+   * after has to use what THIS cycle just learned, not last render's. A room
+   * read that fails for a moment leaves it exactly where it was, so the
+   * table read below still asks about the right table rather than falling
+   * back to `tables[0]`.
+   */
+  const myTableIdRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
     if (roomId === null) return;
     let live = true;
-    const stopFollowing = roomFeed().follow({ room: roomId }, () => {
-      tables.table(roomId).then(
+    const readTable = (): void => {
+      tables.table(roomId, myTableIdRef.current).then(
         (answer) => {
           if (!live || !answer.ok) return;
           setTable(answer.table);
@@ -1949,12 +2169,31 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
         // Unreachable for a moment: the last answer stays on screen and the next read asks again.
         () => undefined,
       );
+    };
+    const stopFollowing = roomFeed().follow({ room: roomId }, () => {
+      // The room FIRST, so a pod's table id is current before the
+      // table-scoped read right after asks about it.
+      roomsClient()
+        .get(roomId)
+        .then(
+          (answer) => {
+            if (!live) return;
+            if (answer !== null) {
+              setRoom(answer);
+              myTableIdRef.current = findMyTable(answer, match.matchId)?.id;
+            }
+            readTable();
+          },
+          () => {
+            if (live) readTable();
+          },
+        );
     });
     return () => {
       live = false;
       stopFollowing();
     };
-  }, [roomId, tables]);
+  }, [roomId, tables, match.matchId]);
 
   // The room's next match, whichever screen asked for it.
   const next = table?.room.matchId ?? null;
@@ -1975,9 +2214,21 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
 
   useEffect(() => {
     if (!rematch.agreed || roomId === null || asked.current) return;
+    /**
+     * The auto-start gate (wave 72 §Q.3's "Done when"): once `sideboarding`
+     * is on, `rematch.agreed` alone is not the server's agreement to START —
+     * it can be two STALE `ready: true`s carried straight through
+     * `beginSideboarding`'s phase flip (that call never un-readies either
+     * seat; only a game actually ending does, via `recordGameResult`'s
+     * `#unreadyTable`). `submitted` is THIS screen's own fresh submission
+     * through the editor's Ready on THIS mount; reverting the next line
+     * starts the next game on whatever `ready` happened to already say,
+     * skipping the editor.
+     */
+    if (sideboarding && phase === 'sideboarding' && !submitted) return;
     asked.current = true;
-    tables.startRoom(roomId).then(started, unreachable);
-  }, [rematch.agreed, roomId, tables]);
+    (tableId === undefined ? tables.startRoom(roomId) : tables.startRoom(roomId, tableId)).then(started, unreachable);
+  }, [rematch.agreed, roomId, tables, sideboarding, phase, submitted, tableId]);
 
   const onRematch = (): void => {
     if (roomId === null) return;
@@ -1985,10 +2236,15 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
     setBusy(true);
     if (alone === true) {
       asked.current = true;
-      tables.startVsBot(roomId).then(started, unreachable);
+      (tableId === undefined ? tables.startVsBot(roomId) : tables.startVsBot(roomId, tableId)).then(started, unreachable);
       return;
     }
-    tables.ready(roomId, !rematch.mine).then((answer) => {
+    // Unchanged whether sideboarding is on or off: this still is the
+    // agreement (`beginSideboarding`'s own door, server-side). Once both
+    // have pressed it the table itself moves to `sideboarding` (if it is
+    // on) or straight to the next match, and the sideboard step below
+    // appears on its own the moment `phase` says so — no second press.
+    (tableId === undefined ? tables.ready(roomId, !rematch.mine) : tables.ready(roomId, !rematch.mine, tableId)).then((answer) => {
       setBusy(false);
       if (answer.ok) setTable(answer.table);
       else setRefusal(answer.error);
@@ -2005,6 +2261,9 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
     const left: Promise<unknown> = roomId === null ? Promise.resolve() : roomsClient().leave(roomId);
     void left.finally(() => navigate({ kind: 'lobby' }));
   };
+
+  const showSideboard = sideboarding && phase === 'sideboarding';
+  const choice = myChoice(table);
 
   return (
     <section className="board__over" data-testid="game-result" data-result={outcome} role="dialog" aria-labelledby={titleId}>
@@ -2023,17 +2282,19 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
           </p>
         )}
         <div className="confirm__actions">
-          <button
-            type="button"
-            className="button"
-            data-testid="game-result-rematch"
-            aria-pressed={rematch.mine}
-            data-highlight={rematch.highlight ? 'true' : undefined}
-            disabled={!rematch.possible || busy || leaving}
-            onClick={onRematch}
-          >
-            Rematch
-          </button>
+          {!inPod && !showSideboard && (
+            <button
+              type="button"
+              className="button"
+              data-testid="game-result-rematch"
+              aria-pressed={rematch.mine}
+              data-highlight={rematch.highlight ? 'true' : undefined}
+              disabled={!rematch.possible || busy || leaving}
+              onClick={onRematch}
+            >
+              {matchLength === 'bo3' ? 'Next game' : 'Rematch'}
+            </button>
+          )}
           <button type="button" className="button" data-testid="game-result-room" disabled={roomId === null || leaving} onClick={onBackToRoom}>
             Back to room
           </button>
@@ -2041,6 +2302,9 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
             Main menu
           </button>
         </div>
+        {showSideboard && roomId !== null && choice !== null && (
+          <SideboardStep roomId={roomId} tableId={tableId} tables={tables} choice={choice} onReady={() => setSubmitted(true)} />
+        )}
       </div>
     </section>
   );
