@@ -240,14 +240,9 @@ test(
           for (const p of seated) {
             await expect(p.page.getByTestId('sideboard-step'), `${p.name}: the sideboard step opens`).toBeVisible({ timeout: UI_TIMEOUT });
           }
-          // `dispatchEvent`, not `click`: the sideboard step's own layout
-          // (Q's, not this lane's) keeps the Ready button positioned
-          // outside the viewport at this width even once scrolled — Playwright
-          // refuses a real pointer click there (`force: true` still refuses
-          // it, since the element genuinely has no in-viewport box to click
-          // at). Dispatching the click event directly still exercises the
-          // real button and its real handler, not a stand-in for one.
-          for (const p of seated) await p.page.getByTestId('sideboard-ready').dispatchEvent('click');
+          // Q's sideboard layout fix (`8fc0f75f`) put the Ready button back
+          // in the viewport — a real click again, not `dispatchEvent`.
+          for (const p of seated) await p.page.getByTestId('sideboard-ready').click();
         }
       }
 
