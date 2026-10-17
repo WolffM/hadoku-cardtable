@@ -133,21 +133,38 @@ const music = (id: string, name: string, sub: string): SoundRole => ({ id, name,
 const game = (id: string, name: string, sub: string, duck?: boolean): SoundRole =>
 	duck === true ? { id, name, sub, bus: 'game', duck } : { id, name, sub, bus: 'game' };
 
-const MONO_COLOURS = [
-	{ colour: 'W', name: 'white' },
-	{ colour: 'U', name: 'blue' },
-	{ colour: 'B', name: 'black' },
-	{ colour: 'R', name: 'red' },
-	{ colour: 'G', name: 'green' },
-] as const;
+type ManaColour = Exclude<ManaPip, 'C'>;
+const MONO_COLOURS: readonly ManaColour[] = ['W', 'U', 'B', 'R', 'G'];
 
 /**
- * The music a match plays for one of its viewer's deck colours — the operator, 2026-10-16: a match plays one
- * of its own deck's colours, picked at random when the deck has more than one (`apps/ui/src/sound/match-music.ts`).
+ * The ten colour pairs, in the order (and spelling) of `COLOUR_IDS`'s guild rows: each pair written the way
+ * Magic writes it, allied pairs clockwise round the wheel (WU UB BR RG GW), then enemy pairs (WB UR BG RW GU).
+ * `colourPair` turns any two colours, in either order, into this spelling.
  */
-export function matchMusicRole(colour: Exclude<ManaPip, 'C'>): `music.match.${Exclude<ManaPip, 'C'>}` {
-	return `music.match.${colour}`;
+export const COLOUR_PAIRS = ['WU', 'UB', 'BR', 'RG', 'GW', 'WB', 'UR', 'BG', 'RW', 'GU'] as const;
+export type ColourPair = (typeof COLOUR_PAIRS)[number];
+
+/** The canonical spelling of the pair `a` and `b` make; `null` for one colour twice. */
+export function colourPair(a: ManaColour, b: ManaColour): ColourPair | null {
+	return COLOUR_PAIRS.find((p) => p === `${a}${b}` || p === `${b}${a}`) ?? null;
 }
+
+/**
+ * The music a match plays for its viewer's deck colours — the operator, 2026-10-16 and 2026-10-17: a mono
+ * deck plays its colour, a two-colour deck its pair, a three-colour deck one of the three pairs inside it,
+ * and four or more any of them (`apps/ui/src/sound/match-music.ts`). A pair is spelled as in `COLOUR_PAIRS`.
+ */
+export function matchMusicRole<K extends ManaColour | ColourPair>(colours: K): `music.match.${K}` {
+	return `music.match.${colours}`;
+}
+
+/** Every per-colour match music role: the five mono, then the ten pairs. */
+export const MATCH_MUSIC_ROLES: readonly string[] = [
+	...MONO_COLOURS.map((c) => matchMusicRole(c)),
+	...COLOUR_PAIRS.map((p) => matchMusicRole(p)),
+];
+
+const COLOUR_NAME: Readonly<Record<ManaColour, string>> = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' };
 
 /** Every role, grouped the way the builder lists them. */
 export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
@@ -250,9 +267,18 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 		roles: [
 			music('music.lobby', 'Lobby and draft', 'Loops on the room list, in a draft and while building a deck.'),
 			music('music.match', 'In a match', 'Loops for the length of a game.'),
-			...MONO_COLOURS.map(({ colour, name }) =>
-				music(matchMusicRole(colour), `In a match: ${name}`, `Loops for a game played with a ${name} deck.`),
-			),
+			...MONO_COLOURS.map((colour) => {
+				const name = COLOUR_NAME[colour];
+				return music(matchMusicRole(colour), `In a match: ${name}`, `Loops for a game played with a ${name} deck.`);
+			}),
+			...COLOUR_PAIRS.map((pair) => {
+				const name = `${COLOUR_NAME[pair[0] as ManaColour]}-${COLOUR_NAME[pair[1] as ManaColour]}`;
+				return music(
+					matchMusicRole(pair),
+					`In a match: ${name}`,
+					`Loops for a game played with a ${name} deck, and sometimes with a three-colour deck that holds both.`,
+				);
+			}),
 		],
 	},
 ];

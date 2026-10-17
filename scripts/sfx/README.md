@@ -76,8 +76,10 @@ re-finishes every folder under `generated/`, rejected rounds included.
 
 Found tracks, not generated ones: each needs a licence that allows this use (CC0, CC-BY or similar) and
 its credit in `NOTICE.md`. `add-track.py` transcodes one into the server's sounds dir and adds it to the
-catalogue's Music section; then place it on `music.lobby`, `music.match` or a colour's `music.match.<W|U|B|R|G>`
-in `#/sounds`. A match plays one of the viewer's deck colours (`apps/ui/src/sound/match-music.ts`). The
+catalogue's Music section; then place it on `music.lobby`, `music.match`, a colour's `music.match.<W|U|B|R|G>`
+or a pair's `music.match.<pair>` (the ten pairs spelled as `COLOUR_PAIRS`: WU UB BR RG GW WB UR BG RW GU)
+in `#/sounds`. A match plays the viewer's colour, their pair, one of the three pairs in a three-colour deck,
+or any of the fifteen for four or more (`apps/ui/src/sound/match-music.ts`). The
 operator drops new tracks in `ingest/` at the repo root (gitignored).
 
 ```sh

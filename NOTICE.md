@@ -110,13 +110,23 @@ data directory (`CARDTABLE_SOUNDS_DIR`) and never bundled into the UI — see
 
 ## Music
 
-The match music, one track per colour, is the operator's own (added with `scripts/sfx/add-track.py`):
+The match music, one track per colour and one per colour pair, is the operator's own (added with `scripts/sfx/add-track.py`):
 
 - Dawnlight Sanctum (white), the operator's own track
 - Tidewatch Archive (blue), the operator's own track
 - Ossuary of Ambition (black), the operator's own track
 - Emberfall Warpath (red), the operator's own track
 - Heartwood Hollow (green), the operator's own track
+- Statute of Gears (white-blue), the operator's own track
+- Cipher in the Fog (blue-black), the operator's own track
+- Carnival of Cinders (black-red), the operator's own track
+- Stampede Rites (red-green), the operator's own track
+- Conclave Bloom (green-white), the operator's own track
+- Gilded Toccata (white-black), the operator's own track
+- Stormforge Circuit (blue-red), the operator's own track
+- Rotgarden Undercity (black-green), the operator's own track
+- Legions Advance (red-white), the operator's own track
+- Tidal Genesis (green-blue), the operator's own track
 
 Like the sound effects, the audio lives in `CARDTABLE_SOUNDS_DIR` and never in this repository.
 

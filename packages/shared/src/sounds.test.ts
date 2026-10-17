@@ -17,8 +17,12 @@ import {
 	SOUND_SECTIONS,
 	SoundTakeSchema,
 	TAKE_FILE_RE,
+	COLOUR_IDS,
 	isCellId,
 	matchMusicRole,
+	colourPair,
+	COLOUR_PAIRS,
+	MATCH_MUSIC_ROLES,
 	parseCellId,
 } from './sounds.ts';
 
@@ -180,14 +184,36 @@ describe('SOUND_MATRIX', () => {
 		for (const r of all) expect(r.bus).toBe(r.id.startsWith('ui.') ? 'ui' : r.id.startsWith('music.') ? 'music' : 'game');
 	});
 
-	it('the Music section carries a match role for each of the five colours, each a cell the builder can fill', () => {
+	it('the Music section carries a match role for each of the five colours and the ten pairs, each a cell the builder can fill', () => {
 		const music = SOUND_ROLE_GROUPS.find((g) => g.id === 'music')!.roles.map((r) => r.id);
-		expect(music).toEqual(['music.lobby', 'music.match', 'music.match.W', 'music.match.U', 'music.match.B', 'music.match.R', 'music.match.G']);
-		for (const colour of ['W', 'U', 'B', 'R', 'G'] as const) {
-			const role = matchMusicRole(colour);
+		expect(music).toEqual(['music.lobby', 'music.match', ...MATCH_MUSIC_ROLES]);
+		expect(MATCH_MUSIC_ROLES).toEqual([
+			'music.match.W',
+			'music.match.U',
+			'music.match.B',
+			'music.match.R',
+			'music.match.G',
+			...['WU', 'UB', 'BR', 'RG', 'GW', 'WB', 'UR', 'BG', 'RW', 'GU'].map((p) => `music.match.${p}`),
+		]);
+		for (const role of MATCH_MUSIC_ROLES) {
 			expect(SOUND_ROLES.get(role)?.bus).toBe('music');
 			expect(isCellId(`${role}|play`)).toBe(true);
 		}
+		expect(SOUND_ROLES.get('music.match.WB')?.name).toBe('In a match: white-black');
+	});
+
+	it('the pairs are the guild rows of COLOUR_IDS, and colourPair spells any two colours that way', () => {
+		expect([...COLOUR_PAIRS]).toEqual(COLOUR_IDS.filter((c) => c.length === 2));
+		const five = ['W', 'U', 'B', 'R', 'G'] as const;
+		for (const a of five) {
+			for (const b of five) {
+				const p = colourPair(a, b);
+				if (a === b) expect(p).toBeNull();
+				else expect(COLOUR_PAIRS.filter((q) => q.includes(a) && q.includes(b))).toEqual([p]);
+			}
+		}
+		expect(colourPair('U', 'W')).toBe('WU');
+		expect(matchMusicRole(colourPair('W', 'G')!)).toBe('music.match.GW');
 	});
 
 	it('SOUND_SECTIONS has exactly the five sections every SoundTake.section must be one of', () => {
