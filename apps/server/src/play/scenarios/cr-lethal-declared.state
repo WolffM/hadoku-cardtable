@@ -1,0 +1,18 @@
+# e2e/cp-lethal-blow.spec.ts — the operator's own last attack (2026-10-17): the viewer declares a pack
+# of attackers by hand, they tap, and their combat damage ends the game. alice (human, seat 0) is in
+# her own Main Phase 1 with Hill Giant (3/3) and Grizzly Bears (2/2) untapped and non-sick; bob (ai,
+# seat 1) is at 5 life with nothing to block with. Lands on Main 1, never a combat step, so Forge's own
+# live declare-attackers window opens (README: "do NOT set activephase=COMBAT_DECLARE_ATTACKERS at all").
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=5
+humanhand=
+humanbattlefield=Hill Giant;Grizzly Bears;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

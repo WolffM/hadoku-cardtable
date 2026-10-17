@@ -5,9 +5,11 @@
  * animation is complete. at the moment, the final creature doesn't even get to attack because the
  * game ends immediately."* Paced (Fast Mode off, as the operator plays), on both screens:
  *
- * - `cp-lethal-ram`: bob's Hill Giant attacks alice at 3 life. The Giant charges alice's avatar
- *   (`.board-ram`), the blow lands (`.effect-crash`), and only then does alice's life drop; the
- *   result screen comes once the charge is over — never before the Giant has moved.
+ * - `cp-lethal-ram`: bob's Hill Giant and Grizzly Bears attack alice at 5 life. They charge alice's
+ *   avatar (`.board-ram`), the blow lands (`.effect-crash`), and only then does alice's life drop; the
+ *   result screen comes once the charge is over — never before the Giant has moved. While a copy
+ *   charges, the attacker's own card is not drawn in its row; no "lost" is drawn anywhere; and each
+ *   screen hears the charge, the blow, the life lost and the end.
  * - `cp-lethal-bolt`: alice bolts bob at 3 life. The bolt flies (`.effect-hit`), lands
  *   (`.effect-impact`), bob's life drops, and only then the result screen.
  *
@@ -15,12 +17,12 @@
  * MutationObserver, wall clock) and when its socket received the end (`finishGame`) and the frame
  * carrying `GameOver`. `[cp]` lines are the evidence.
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
-import { castUntilOnStack, enabledOk, makeTitled, offeredNamed, stackCount } from './play/board.ts';
-import { passDeclareAttackers } from './play/combat.ts';
-import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { castUntilOnStack, enabledOk, makeTitled, offeredNamed, serverLog, stackCount } from './play/board.ts';
+import { passDeclareAttackers, passToDeclareAttackers } from './play/combat.ts';
+import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { turnFastModeOff } from './play/prefs.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -38,6 +40,12 @@ interface Marks {
   life?: number;
   lifeNow?: string;
   result?: number;
+  /** The first moment a rammer's own element was drawn while its copy was out: the duplicate. */
+  dupe?: number;
+  dupeAt?: string;
+  /** The first moment a "lost" word was drawn anywhere on the page. */
+  lostText?: number;
+  lostAt?: string;
 }
 
 /** Start recording, on `page`, when each mark first appears and when the life of `playerSide` first moves off `lifeFrom`. */
@@ -65,6 +73,43 @@ async function recordMarks(page: Page, playerSide: 'viewer' | 'opponent', lifeFr
       };
       new MutationObserver(look).observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
       look();
+      /*
+       * Every painted frame while a ram's copy is out: each copy past its first moment (the original is
+       * hidden on the next task) has its rammer's own element undrawn — a live element with
+       * `data-ramming` — else that element is drawn beside its copy. And no word "lost" anywhere.
+       */
+      const born = new WeakMap<Element, number>();
+      const visible = (el: Element): boolean => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+      };
+      const frame = (): void => {
+        const now = Date.now();
+        const copies = [...document.querySelectorAll('.board-ram')];
+        for (const c of copies) if (!born.has(c)) born.set(c, now);
+        const settled = copies.filter((c) => now - born.get(c)! > 100).length;
+        const hidden = [...document.querySelectorAll('[data-ramming]')].filter((el) => el.isConnected && !visible(el)).length;
+        if (settled > 0 && hidden < settled && marks.dupe === undefined) {
+          marks.dupe = now;
+          const shown = [...document.querySelectorAll('[data-zone="battlefield"] [data-board-card][data-attacking]')]
+            .filter(visible)
+            .map((el) => `${el.getAttribute('data-board-card')}${el.hasAttribute('data-ramming') ? ':ramming' : ''}`);
+          marks.dupeAt = `copies=${copies.length} settled=${settled} hidden=${hidden} drawnAttackers=${shown.join(',')}`;
+        }
+        if (marks.lostText === undefined) {
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          for (let n = walker.nextNode(); n !== null; n = walker.nextNode()) {
+            const word = (n.textContent ?? '').trim().toLowerCase().replace(/^\[|\]$/g, '');
+            if (word === 'lost' && n.parentElement !== null && visible(n.parentElement)) {
+              marks.lostText = now;
+              marks.lostAt = n.parentElement.className;
+              break;
+            }
+          }
+        }
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
     },
     [playerSide, lifeFrom] as const,
   );
@@ -99,9 +144,101 @@ function endFrames(friend: Friend): { finishGame?: number; gameOverFrame?: numbe
   return out;
 }
 
+/** Every sound role `seat` reported playing (its client's `kind:"sound"` rows), seat suffixes and overflow counts dropped. */
+function soundRoles(stack: PlayStack, seat: number): Set<string> {
+  const roles = serverLog(stack)
+    .filter((r) => r.evt === 'client' && r.kind === 'sound' && r.seat === seat && typeof r.roles === 'string')
+    .flatMap((r) => (r.roles as string).split(','))
+    .map((role) => role.replace(/ \+\d+$/, '').replace(/@opp$/, '').trim());
+  return new Set(roles);
+}
+
+/** How many times this friend's screen asked the server for a resync: each one rebuilds the board's view and redraws what it ended on. */
+function resyncs(friend: Friend): number {
+  return friend.captures.filter((c) => c.dir === 'out' && c.text.includes('"forge:resync"')).length;
+}
+
 /** Every recorded moment as ms after `zero`, for the evidence line. */
 function relative(zero: number, at: Record<string, number | string | undefined>): Record<string, number | string | null> {
   return Object.fromEntries(Object.entries(at).map(([k, v]) => [k, typeof v === 'number' ? v - zero : (v ?? null)]));
+}
+
+/**
+ * A pack of attackers charges the avatar of the seat at 5 life: on `cp-lethal-ram` bob's were declared by
+ * the scenario; on `cr-lethal-declared` alice, the viewer, declares hers by hand — they tap, as the
+ * operator's own last attack did — and bob has nothing to block with.
+ */
+async function lethalCharge(browser: Browser, jar: { jar: string; res: string }, scenario: string, attacker: 'alice' | 'bob'): Promise<void> {
+  const stack = await startPlayStack(jar);
+  let seated: Awaited<ReturnType<typeof startScenarioMatch>> | null = null;
+  try {
+    seated = await startScenarioMatch(browser, stack, scenario);
+    const { alice, bob } = seated;
+    await turnFastModeOff(alice.page, stack, 0);
+    await turnFastModeOff(bob.page, stack, 1);
+    const defender = attacker === 'bob' ? 'alice' : 'bob';
+    await recordMarks(alice.page, defender === 'alice' ? 'viewer' : 'opponent', '5');
+    await recordMarks(bob.page, defender === 'bob' ? 'viewer' : 'opponent', '5');
+    const zero = Date.now();
+
+    if (attacker === 'bob') await passDeclareAttackers(bob.page);
+    else {
+      await passToDeclareAttackers(alice.page);
+      const creatures = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-selectable]');
+      await expect(creatures, 'both creatures are offered to attack').toHaveCount(2, { timeout: 10_000 });
+      for (const id of await creatures.evaluateAll((els) => els.map((el) => Number(el.getAttribute('data-board-card'))))) {
+        const card = alice.page.locator(`[data-board-card="${id}"]`);
+        const box = (await card.boundingBox())!;
+        await alice.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        await expect(card, `Forge declared ${id} attacking`).toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
+      }
+      await alice.page.locator('[data-testid="live-decision-ok"]:enabled').click();
+    }
+    // Whatever stop either seat is held at on the way to combat damage, pressed through.
+    await expect
+      .poll(
+        async () => {
+          for (const page of [alice.page, bob.page]) if ((await enabledOk(page).count()) > 0) await enabledOk(page).click().catch(() => undefined);
+          return (await Promise.all([alice.page, bob.page].map((p) => p.getByTestId('game-result').count()))).every((n) => n > 0);
+        },
+        { timeout: 60_000, intervals: [100], message: 'the result screen on both screens' },
+      )
+      .toBe(true);
+    await lifeSettled([alice.page, bob.page], zero, [alice, bob]);
+
+    for (const [who, friend] of [['alice', alice], ['bob', bob]] as const) {
+      const marks = await marksOf(friend.page);
+      console.log(`[cp] ram ${scenario} ${who} ${JSON.stringify(relative(zero, { ...marks, ...endFrames(friend) }))} resyncs=${resyncs(friend)}`);
+      expect(marks.ram, `${who}: the pack charged`).toBeDefined();
+      expect(marks.crash, `${who}: its blow landed`).toBeDefined();
+      expect(marks.life, `${who}: ${defender}'s life moved`).toBeDefined();
+      expect(marks.lifeNow, `${who}: to 0`).toBe('0');
+      expect(marks.ram!, `${who}: the pack set off before the result screen`).toBeLessThan(marks.result!);
+      expect(marks.crash!, `${who}: the blow landed before the result screen`).toBeLessThan(marks.result!);
+      expect(marks.life!, `${who}: ${defender}'s life held until the pack set off`).toBeGreaterThan(marks.ram!);
+      expect(marks.life! + 20, `${who}: ${defender}'s life dropped at the blow, not before it`).toBeGreaterThanOrEqual(marks.crash!);
+      expect(marks.ramGone, `${who}: the charge was over`).toBeDefined();
+      expect(marks.result!, `${who}: the result screen once the charge was over`).toBeGreaterThanOrEqual(marks.ramGone!);
+      // The operator, 2026-10-17: "a duplicate copy of the tapped attacking creatures remains on the board while the attacks go through".
+      expect.soft(marks.dupe, `${who}: no attacker drawn in its row while its copy charges (${marks.dupeAt ?? ''})`).toBeUndefined();
+      // The end reaches the screen in the server's own order: a resync rebuilds the view and draws the killing blow a second time.
+      expect.soft(resyncs(friend), `${who}: the end never sends the screen back for a resync`).toBe(0);
+      // "weird [lost] text appears, we dont need that".
+      expect.soft(marks.lostText, `${who}: no "lost" drawn (${marks.lostAt ?? ''})`).toBeUndefined();
+    }
+    // "sound effects didn't trigger as expected": the charge, the blow, the life lost, and the end, on each screen.
+    for (const [who, seat] of [['alice', 0], ['bob', 1]] as const) {
+      const want = ['g.charge', 'g.crash', 'g.damage-player', who === defender ? 'g.lose' : 'g.win'];
+      await expect.soft
+        .poll(() => want.filter((role) => !soundRoles(stack, seat).has(role)), { timeout: 10_000, message: `${who}: every sound of the killing blow` })
+        .toEqual([])
+        .finally(() => console.log(`[cp] sounds ${scenario} ${who} ${[...soundRoles(stack, seat)].sort().join(',')}`));
+    }
+  } finally {
+    await seated?.alice.context.close();
+    await seated?.bob.context.close();
+    await stack.stop();
+  }
 }
 
 test(
@@ -110,50 +247,17 @@ test(
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
     test.setTimeout(3 * 60_000);
+    await lethalCharge(browser, forge, 'cp-lethal-ram', 'bob');
+  },
+);
 
-    const stack = await startPlayStack(forge);
-    let seated: Awaited<ReturnType<typeof startScenarioMatch>> | null = null;
-    try {
-      seated = await startScenarioMatch(browser, stack, 'cp-lethal-ram');
-      const { alice, bob } = seated;
-      await turnFastModeOff(alice.page, stack, 0);
-      await turnFastModeOff(bob.page, stack, 1);
-      await recordMarks(alice.page, 'viewer', '3');
-      await recordMarks(bob.page, 'opponent', '3');
-      const zero = Date.now();
-
-      await passDeclareAttackers(bob.page);
-      // Whatever stop either seat is held at on the way to combat damage, pressed through.
-      await expect
-        .poll(
-          async () => {
-            for (const page of [alice.page, bob.page]) if ((await enabledOk(page).count()) > 0) await enabledOk(page).click().catch(() => undefined);
-            return (await Promise.all([alice.page, bob.page].map((p) => p.getByTestId('game-result').count()))).every((n) => n > 0);
-          },
-          { timeout: 60_000, intervals: [100], message: 'the result screen on both screens' },
-        )
-        .toBe(true);
-      await lifeSettled([alice.page, bob.page], zero, [alice, bob]);
-
-      for (const [who, friend] of [['alice', alice], ['bob', bob]] as const) {
-        const marks = await marksOf(friend.page);
-        console.log(`[cp] ram ${who} ${JSON.stringify(relative(zero, { ...marks, ...endFrames(friend) }))}`);
-        expect(marks.ram, `${who}: the Giant charged`).toBeDefined();
-        expect(marks.crash, `${who}: its blow landed`).toBeDefined();
-        expect(marks.life, `${who}: alice's life moved`).toBeDefined();
-        expect(marks.lifeNow, `${who}: to 0`).toBe('0');
-        expect(marks.ram!, `${who}: the Giant set off before the result screen`).toBeLessThan(marks.result!);
-        expect(marks.crash!, `${who}: the blow landed before the result screen`).toBeLessThan(marks.result!);
-        expect(marks.life!, `${who}: alice's life held until the Giant set off`).toBeGreaterThan(marks.ram!);
-        expect(marks.life! + 20, `${who}: alice's life dropped at the blow, not before it`).toBeGreaterThanOrEqual(marks.crash!);
-        expect(marks.ramGone, `${who}: the charge was over`).toBeDefined();
-        expect(marks.result!, `${who}: the result screen once the charge was over`).toBeGreaterThanOrEqual(marks.ramGone!);
-      }
-    } finally {
-      await seated?.alice.context.close();
-      await seated?.bob.context.close();
-      await stack.stop();
-    }
+test(
+  titled('a pack the viewer declared by hand charges for the kill with no copy of it left in its row, no "lost", and every sound'),
+  async ({ browser }) => {
+    test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+    if (!forge.ok) return;
+    test.setTimeout(3 * 60_000);
+    await lethalCharge(browser, forge, 'cr-lethal-declared', 'alice');
   },
 );
 
