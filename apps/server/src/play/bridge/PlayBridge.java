@@ -239,6 +239,16 @@ public final class PlayBridge {
      */
     static boolean handSmoothing = false;
 
+    /**
+     * Wave 71 §E. Optional. Names the seat ({@code 0} or {@code 1}) the room wants
+     * asked play-or-draw. {@code null} (the room sent no {@code chooser}): the
+     * match's coin toss is untouched, byte-identical to before this wave.
+     * {@link #startMatch} applies it by rigging the shared {@link MyRandom}, since
+     * {@code forge/} always tosses a fresh coin for the first game of its own
+     * {@code Match} — see {@link RiggedCoinToss}'s doc for why that is enough.
+     */
+    static Integer chooser = null;
+
     static synchronized void emit(final JsonObject line) {
         line.addProperty("match", matchId);
         protocol.println(GSON.toJson(line));
@@ -276,6 +286,7 @@ public final class PlayBridge {
         seed = root.has("seed") && !root.get("seed").isJsonNull() ? root.get("seed").getAsLong() : null;
         scenario = root.has("scenario") && !root.get("scenario").isJsonNull() ? root.get("scenario").getAsString() : null;
         handSmoothing = root.has("handSmoothing") && root.get("handSmoothing").getAsBoolean();
+        chooser = root.has("chooser") && !root.get("chooser").isJsonNull() ? root.get("chooser").getAsInt() : null;
         final List<SeatConfig> seats = new ArrayList<>();
         for (final JsonElement e : root.getAsJsonArray("seats")) {
             final JsonObject s = e.getAsJsonObject();
@@ -4707,6 +4718,81 @@ public final class PlayBridge {
     }
 
     /**
+     * Wave 71 §E. Names the seat Forge's coin toss hands the choice to, without
+     * touching {@code forge/}.
+     *
+     * <p><b>What the toss actually is.</b> {@code GameAction.determineFirstTurnPlayer}
+     * (only reached because every game we host is the first game of a fresh
+     * {@code Match}: {@code isFirstGame = lastGameOutcome == null}) does
+     * {@code goesFirst = Aggregates.random(game.getPlayers())}, then asks THAT
+     * player's controller {@code chooseStartingPlayer}. {@code game.getPlayers()} is
+     * a two-element {@code List<Player>} in seat order (seats connect in order in
+     * {@link #startMatch}, and {@code GameLobby.startGame}/{@code Game}'s constructor
+     * never reorder them), and {@code Aggregates.random(List)} is exactly
+     * {@code list.get(MyRandom.getRandom().nextInt(list.size()))}
+     * ({@code forge/forge-core/src/main/java/forge/util/Aggregates.java:131-140}). So
+     * forcing that one {@code nextInt(2)} call to return {@link #chooser} makes
+     * {@code goesFirst} the named seat — exactly the seat asked play-or-draw, and so
+     * the seat {@code match.ts}'s {@code noteCoinToss} records as {@code coinToss.winner}.
+     *
+     * <p><b>Why "the first {@code nextInt(2)} call from {@code Aggregates.random}"
+     * is unambiguous.</b> A plain {@code nextInt(2)} is not: {@code Collections.shuffle}
+     * calls it too, as the last swap of ANY shuffle of 2+ elements (the Fisher-Yates
+     * loop's {@code i} reaches 2 before it reaches 1) — and both library shuffles run
+     * before the toss, in {@code Match.prepareAllZones}, ahead of
+     * {@code GameAction.startGame}. Gating on the caller being
+     * {@code forge.util.Aggregates.random} (checked by walking the stack, since
+     * {@code forge/} gives us no other seam) excludes those. Consuming the rig only
+     * ONCE then matters for the opposite reason: {@code Aggregates.random} also backs
+     * random-target card effects during real play (e.g. "target a random player"),
+     * which must roll honestly — {@code consumed} stops the rig from reaching them.
+     * Ante and "Power Play" are the only other callers {@code determineFirstTurnPlayer}
+     * itself has ahead of the toss, and neither applies to a pod or constructed 1v1.
+     *
+     * <p>Every other {@code Random} method some other caller of {@code MyRandom.getRandom()}
+     * might use is delegated to {@code real} untouched, so a seeded run
+     * ({@code seed.jvm.test.ts}) stays exactly as reproducible as before this wave.
+     */
+    static final class RiggedCoinToss extends Random {
+        private static final long serialVersionUID = 1L;
+        private final Random real;
+        private final int chooser;
+        private final AtomicBoolean consumed = new AtomicBoolean(false);
+
+        RiggedCoinToss(final Random real, final int chooser) {
+            this.real = real;
+            this.chooser = chooser;
+        }
+
+        private static boolean fromAggregatesRandom() {
+            for (final StackTraceElement f : Thread.currentThread().getStackTrace()) {
+                if ("forge.util.Aggregates".equals(f.getClassName()) && "random".equals(f.getMethodName())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override public int nextInt(final int bound) {
+            // Order matters: a shuffle's own nextInt(2) (its last swap) must NOT consume
+            // this, or the real toss right after it would go unrigged. Only a hit on
+            // BOTH the bound and the caller spends it.
+            if (bound == 2 && !consumed.get() && fromAggregatesRandom() && consumed.compareAndSet(false, true)) {
+                return chooser;
+            }
+            return real.nextInt(bound);
+        }
+
+        @Override public int nextInt() { return real.nextInt(); }
+        @Override public long nextLong() { return real.nextLong(); }
+        @Override public boolean nextBoolean() { return real.nextBoolean(); }
+        @Override public double nextDouble() { return real.nextDouble(); }
+        @Override public float nextFloat() { return real.nextFloat(); }
+        @Override public double nextGaussian() { return real.nextGaussian(); }
+        @Override public void nextBytes(final byte[] bytes) { real.nextBytes(bytes); }
+    }
+
+    /**
      * The match: decks, seats, clients, go. {@code startAt} is when the match was
      * handed to this JVM (the config file read, or the spare's {@code start}); the
      * {@code ready} line's {@code startMs} is measured from it, and its {@code bootMs}
@@ -4720,6 +4806,9 @@ public final class PlayBridge {
         final Random random = seed == null ? new Random() : new Random(seed);
         if (seed != null) {
             forge.util.MyRandom.setRandom(new Random(seed));
+        }
+        if (chooser != null) {
+            forge.util.MyRandom.setRandom(new RiggedCoinToss(forge.util.MyRandom.getRandom(), chooser));
         }
         // Read when the opening hands are dealt (GameAction.startGame) and on every
         // mulligan, so it is set here, after FModel.initialize set it from preferences.

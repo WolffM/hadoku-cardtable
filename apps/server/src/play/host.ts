@@ -307,6 +307,20 @@ export interface MatchSpec {
 	 * spec built directly, as the jvm suites build theirs, deals what it always did.
 	 */
 	handSmoothing?: boolean;
+	/**
+	 * Wave 71 §E — names the seat Forge asks to choose play or draw. Every game we
+	 * host is a fresh Forge `Match`, so Forge always treats it as the FIRST game of
+	 * that match and tosses a coin (`GameAction.determineFirstTurnPlayer`,
+	 * `forge/forge-game/src/main/java/forge/game/GameAction.java:2364-2416`) rather
+	 * than asking the previous loser — this field is how the room still names that
+	 * player. `PlayBridge.java`'s `startMatch` rigs the coin toss so the named seat
+	 * is the one Forge asks (`SeatGui`'s `updateButtons` with `label1:'Play',
+	 * label2:'Draw'`), which makes the published `coinToss.winner` (`match.ts:1055`)
+	 * that seat too — the client's existing flip/notice needs no change. Omitted:
+	 * byte-identical to today, an unrigged coin toss. Never set alongside a change
+	 * to `forge/` — a fork change is a jar switch, and that switch is the operator's.
+	 */
+	chooser?: 0 | 1;
 }
 
 type AbortReason = (typeof AbortReasonSchema)['_zod']['output'];
