@@ -109,7 +109,9 @@ A draft room runs in phases: **lobby → drafting → building → rounds → do
   a walk-away does not lose them.
 - **Rounds:** `ceil(log2(humans))` rounds, each a bo3.
   - **Round 1: across the table.** Humans are ordered by pod seat, and human
-    *i* plays human *i + ⌈H/2⌉*. With an odd *H*, the last one gets the bye.
+    *i* plays human *i + ⌈H/2⌉*. With an odd *H*, the one that formula leaves
+    unpaired (position ⌈H/2⌉, the middle seat) gets the bye
+    (`packages/draft/src/pairing.ts`).
   - **Later rounds: by score.** Match points (win 3, draw 1), and no repeat
     pairing while another is possible.
   - **A bye** goes to the lowest-ranked player who has not had one. It counts
