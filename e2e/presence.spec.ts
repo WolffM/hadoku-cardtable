@@ -413,30 +413,60 @@ test(titled('a cast spell is a back at the release point on bob’s screen, then
   }
 });
 
-test(titled('a hand that draws in two rows on one screen draws the same two rows as the OTHER seat’s hidden hand'), async ({ browser }) => {
+/**
+ * The other seat's hidden hand, measured on alice's board: its row count, the drawn height of a
+ * back, and the content height of the strip it sits in.
+ */
+async function theirHand(page: Page): Promise<{ rows: number; backH: number; zoneH: number; zone: string; aspect: string | null }> {
+  return page.locator('.seat:not([data-viewer]) > [data-zone="hand"]').evaluate((zone) => {
+    const lis = Array.from(zone.querySelectorAll<HTMLElement>('.card-backs > li'));
+    const r = zone.getBoundingClientRect();
+    return {
+      rows: new Set(lis.map((li) => Math.round(li.getBoundingClientRect().top))).size,
+      backH: Math.round(Math.max(0, ...lis.map((li) => li.getBoundingClientRect().height))),
+      zoneH: zone.clientHeight,
+      zone: `${Math.round(r.width)}x${Math.round(r.height)}`,
+      aspect: zone.getAttribute('data-zone-aspect'),
+    };
+  });
+}
+
+test(titled('each screen lays the other seat’s hidden hand out by its OWN space: seven backs are one full-height row on a wide window, two rows on a narrow one, whatever the other window is'), async ({ browser }) => {
+  // The operator, 2026-10-16, on a ~2000px window: "why is the hand showing reduced size here? i would
+  // think we have space for a lot more than just 6 cards. i would guess up to 10 cards fit here until
+  // we need two rows" — their seven-card hand was two rows of small backs because THEIR narrower
+  // screen drew their own hand in two.
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
-    // `ai-seven-card-hand`: bob (`ai…`) needs a hand big enough to wrap into two rows, which no
-    // other scenario's scripted hand is.
+    // `ai-seven-card-hand`: bob (`ai…`) holds seven cards, alice one.
     const { alice, bob } = await startScenarioMatch(browser, stack, 'ai-seven-card-hand');
-    await alice.page.setViewportSize({ width: 1280, height: 800 });
-    // A very vertical window (the operator's own report): bob's own hand now draws two rows.
-    await bob.page.setViewportSize({ width: 420, height: 1400 });
     const bobOwnRows = () =>
-      bob.page.locator('.seat[data-viewer] [data-zone="hand"] .zone__cards > li.board-card').evaluateAll((els) => new Set(els.map((el) => el.getBoundingClientRect().top)).size);
-    await expect.poll(bobOwnRows, { timeout: 10_000, message: 'bob’s own hand drew two rows on his narrow screen' }).toBe(2);
+      bob.page.locator('.seat[data-viewer] [data-zone="hand"] .zone__cards > li.board-card').evaluateAll((els) => new Set(els.map((el) => Math.round(el.getBoundingClientRect().top))).size);
+    const bobField = async () => (await bob.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
 
-    // Nothing is sent until bob's own pointer moves over his board at least once.
-    const bobField = (await bob.page.locator('.seat[data-viewer] [data-zone="battlefield"]').boundingBox())!;
-    await bob.page.mouse.move(bobField.x + bobField.width * 0.4, bobField.y + bobField.height * 0.4, { steps: 4 });
-
-    // Alice's screen is ordinary width, and draws bob (not herself) as the hidden hand up top.
-    const aliceSeesBobRows = () =>
-      alice.page.locator('.seat:not([data-viewer]) [data-zone="hand"] .card-backs > li').evaluateAll((els) => new Set(els.map((el) => el.getBoundingClientRect().top)).size);
-    await expect.poll(aliceSeesBobRows, { timeout: 10_000, message: 'alice sees bob’s hidden hand in two rows too' }).toBe(2);
+    for (const { aliceSize, bobSize, bobRows, rows } of [
+      // The operator's case: alice wide, bob's own window narrow enough that his own hand wraps.
+      { aliceSize: { width: 2000, height: 1140 }, bobSize: { width: 420, height: 1400 }, bobRows: 2, rows: 1 },
+      // And the other way about: alice's own strip is narrow, so seven wrap on HER screen.
+      { aliceSize: { width: 420, height: 1400 }, bobSize: { width: 1600, height: 800 }, bobRows: 1, rows: 2 },
+    ] as const) {
+      await alice.page.setViewportSize(aliceSize);
+      await bob.page.setViewportSize(bobSize);
+      await expect.poll(bobOwnRows, { timeout: 10_000, message: `bob’s own hand drew ${bobRows} row(s) at ${bobSize.width}x${bobSize.height}` }).toBe(bobRows);
+      // His pointer over his board, so his screen is talking to hers.
+      const field = await bobField();
+      await bob.page.mouse.move(field.x + field.width * 0.4, field.y + field.height * 0.4, { steps: 4 });
+      await expect(alice.page.locator('[data-board-overlay] .presence'), 'bob’s cursor is drawn on alice’s board').toHaveCount(1, { timeout: 10_000 });
+      await alice.page.waitForTimeout(600);
+      const seen = await theirHand(alice.page);
+      console.log(`[hr] alice ${aliceSize.width}x${aliceSize.height}, bob ${bobSize.width}x${bobSize.height} (his own ${bobRows} row(s)): alice draws his hand in ${seen.rows} row(s), back ${seen.backH}px in a ${seen.zone} strip (content ${seen.zoneH}px, aspect ${seen.aspect})`);
+      expect(seen.rows, `alice’s ${aliceSize.width}x${aliceSize.height} screen draws bob’s seven backs in ${rows} row(s), by her own strip`).toBe(rows);
+      if (rows === 1) expect(seen.backH, 'one row of backs is as tall as the strip allows').toBeGreaterThan(seen.zoneH * 0.85);
+      await bob.page.mouse.move(2, 2, { steps: 2 });
+    }
   } finally {
     await stack.stop();
   }

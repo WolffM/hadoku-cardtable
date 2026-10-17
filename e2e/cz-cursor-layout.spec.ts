@@ -5,17 +5,16 @@
  * of smaller backs; with it gone, one row at full size.
  *
  * `ai-seven-card-hand`: bob holds seven cards on a very vertical window, so his own hand draws two
- * rows, which his presence messages carry (`handRows`) for alice's mirror of his hand. Alice's
- * window is ordinary width. Her board is measured — the board, every zone of both seats, the first
+ * rows. Alice's window is ordinary width, and her board draws his hand by her own space. Her board
+ * is measured — the board, every zone of both seats, the first
  * card's drawn width in each, each card list's measured `--zone-w`/`--zone-h`, the row count of
  * bob's hidden hand, and any box that has to scroll — in five states: bob's pointer on his board
  * (his cursor drawn on hers) with her own pointer on and then off her page, bob's pointer off his
  * board (his cursor gone) with hers on and off, and bob's pointer back. Every state must measure
  * the same as the first. Each state is printed as a `[cz]` line.
  *
- * Then, with bob's pointer off his board, his window is resized wide (one row) and back (two):
- * alice's mirror of his hand follows each change with his cursor never drawn — so the row count
- * never waits for his pointer to come back, and his cursor appearing can never be what re-lays it.
+ * Then, with bob's pointer off his board, his window is resized wide (one row of his own) and back
+ * (two): nothing on alice's board changes — his screen's shape is his, never hers.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -121,7 +120,7 @@ test(titled('the board keeps every box and card size whether either seat’s poi
     await sample('their cursor back, own pointer on');
 
     const first = states[0]!;
-    expect(first.layout.sizes['them.hand.rows'], 'alice draws bob’s hidden hand the way his own screen does: two rows').toBe('2');
+    expect(first.layout.sizes['them.hand.rows'], 'alice draws bob’s seven backs by her own wide strip: one row, though his own screen draws two').toBe('1');
     const changed: string[] = [];
     for (const s of states.slice(1)) {
       for (const k of new Set([...Object.keys(first.layout.sizes), ...Object.keys(s.layout.sizes)])) {
@@ -135,19 +134,19 @@ test(titled('the board keeps every box and card size whether either seat’s poi
     ).toEqual([]);
     expect(changed, 'every box and card size on alice’s board holds in every pointer state').toEqual([]);
 
-    /* ── bob's hand changes shape with his pointer off his board: alice follows, no cursor drawn ── */
+    /* ── bob's window changes shape with his pointer off his board: alice's board does not ── */
     await bob.page.mouse.move(OFF_BOARD.x, OFF_BOARD.y, { steps: 4 });
     await expect(cursor, 'bob’s cursor is gone again').toHaveCount(0, { timeout: 10_000 });
-    const aliceSeesBobRows = async () => (await layoutOf(alice.page)).sizes['them.hand.rows'];
     for (const [size, rows] of [
       [{ width: 1600, height: 800 }, 1],
       [{ width: 420, height: 1400 }, 2],
     ] as const) {
       await bob.page.setViewportSize(size);
       await expect.poll(bobOwnRows, { timeout: 10_000, message: `bob’s own hand drew ${rows} row(s) at ${size.width}x${size.height}` }).toBe(rows);
-      await expect.poll(aliceSeesBobRows, { timeout: 10_000, message: `alice sees bob’s hidden hand in ${rows} row(s) with his pointer off his board` }).toBe(String(rows));
-      console.log(`[cz] bob ${size.width}x${size.height}, pointer off: alice draws his hand in ${await aliceSeesBobRows()} row(s), cursors ${await cursor.count()}`);
-      expect(await cursor.count(), 'bob’s cursor never came back to say it').toBe(0);
+      await sample(`bob ${size.width}x${size.height}, his pointer off`);
+      const now = states.at(-1)!.layout.sizes;
+      const moved = Object.keys(first.layout.sizes).filter((k) => now[k] !== first.layout.sizes[k]).map((k) => `${k}: ${first.layout.sizes[k]} -> ${now[k]}`);
+      expect(moved, `bob’s ${size.width}x${size.height} window changes nothing on alice’s board`).toEqual([]);
     }
   } finally {
     await seated?.alice.context.close();
