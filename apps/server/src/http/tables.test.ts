@@ -2287,6 +2287,62 @@ describe('a room table', () => {
 			expect(different.body.error).toContain('sideboard');
 		});
 
+		/**
+		 * Lane Q's report, 2026-10-17: a library-deck seat's sideboard step
+		 * 409'd EVERY resubmission, even an untouched deck. The baseline
+		 * (`seriesDeck`) is the library `.dck` text WITH a set code per card
+		 * ("4 Mana Leak|8E"); `GET /tables/decks` sends the browser only
+		 * `{count, name}` (never a set code), so the browser's own
+		 * resubmission is bare names. `multisetOf` keyed by `cardKey`
+		 * (set/collector/art included), so every one of its cards read as a
+		 * DIFFERENT card from the baseline's. The rule is "the same cards,
+		 * only re-split" and printing never mattered to it — the fix
+		 * keys by name alone.
+		 */
+		it('sideboarding: a library-deck resubmission in BARE NAMES (no set code — exactly what GET /tables/decks gives the browser) is accepted untouched and re-split, but adding a card is still refused', async () => {
+			const h = await boot();
+			openRoom(h);
+			await bothLoaded(h); // alice: UG_POLYMORPH, bob: SECOND_DECK
+			await setReady(h, 'alice');
+			await setReady(h, 'bob');
+			h.lobby.room(ROOM)!.tables[0]!.series.phase = 'sideboarding';
+			const canonicalText = library.deck(UG_POLYMORPH)!.text;
+			const aliceState = h.lobby.playerState(ROOM, ALICE) as Record<string, unknown>;
+			h.lobby.setPlayerState(ROOM, ALICE, { ...aliceState, seriesDeck: canonicalText });
+
+			// The browser's own reconstruction: strip every "|SET" segment, the
+			// same information loss `GET /tables/decks`'s `{count, name}` rows
+			// already have.
+			const bareText = canonicalText.replace(/\|\S+/g, '');
+			expect(bareText).not.toContain('|');
+			expect(bareText).toContain('1 Scalding Tarn\n');
+
+			const untouched = await putDeck(h, 'alice', { deck: { dck: bareText } });
+			expect(untouched.status).toBe(200);
+
+			// Re-split: move ONE card, Scalding Tarn, from the main deck to the
+			// sideboard — the same 75, only re-split.
+			const resplit = bareText.replace('1 Scalding Tarn\n', '').replace('[Sideboard]\n', '[Sideboard]\n1 Scalding Tarn\n');
+			expect(resplit.split('[Sideboard]')[0]).not.toContain('Scalding Tarn');
+			expect(resplit).toContain('1 Scalding Tarn');
+			const moved = await putDeck(h, 'alice', { deck: { dck: resplit } });
+			expect(moved.status).toBe(200);
+
+			// A second copy of a card already in the 75 (still within the 4-copy
+			// limit, so legality alone would accept it) changes the TOTAL for
+			// that name — refused, same as before.
+			const added = resplit.replace('1 Scalding Tarn\n', '2 Scalding Tarn\n');
+			const refused = await putDeck(h, 'alice', { deck: { dck: added } });
+			expect(refused.status).toBe(409);
+			expect(refused.body.error).toContain('sideboard');
+
+			// Reverted (key `multisetOf` by `cardKey(e.card)` instead of
+			// `e.card.name`): `untouched` above 409s — the baseline's
+			// "Scalding Tarn|ZEN" and the bare resubmission's "Scalding Tarn"
+			// are different keys though they are the same card. 1 failed.
+			// Restored: passes, 200. 1 passed.
+		});
+
 		it("sets chooser to the previous game's loser seat on the second game of a series; the first game leaves it unset", async () => {
 			const h = await boot();
 			h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 3);

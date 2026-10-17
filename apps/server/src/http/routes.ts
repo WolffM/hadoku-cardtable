@@ -176,7 +176,7 @@
 
 import { randomUUID } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response, type Router } from 'express';
-import { cardKey, deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
+import { deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
@@ -1182,12 +1182,21 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return true;
 	}
 
-	/** `entries`' cards, by identity (`cardKey`), basics folded in UNLESS `excludeBasics`. */
+	/**
+	 * `entries`' cards, by NAME — never `cardKey` (set/collector/art), because
+	 * the sideboard rule is "the same cards, only re-split" and printing does
+	 * not matter to it. A library-deck seat's baseline is the `.dck` text,
+	 * which carries a set code ("4 Mana Leak|8E"); the browser never sees one
+	 * back (`GET /tables/decks` sends only `{count, name}`), so its own
+	 * resubmission is bare names — keying by `cardKey` made every one of its
+	 * cards a different key from the baseline's and 409'd an UNTOUCHED deck
+	 * every time. Basics folded in UNLESS `excludeBasics`.
+	 */
 	function multisetOf(entries: readonly DeckEntry[], excludeBasics: boolean): Map<string, number> {
 		const m = new Map<string, number>();
 		for (const e of entries) {
 			if (excludeBasics && isBasicLand(e.card)) continue;
-			const key = cardKey(e.card);
+			const key = e.card.name;
 			m.set(key, (m.get(key) ?? 0) + e.count);
 		}
 		return m;
