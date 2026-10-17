@@ -41,6 +41,9 @@ function registry(live: Record<string, { owners: string[]; status?: string }>): 
 				},
 				seatAvatarChanged: (seat) => void calls.push([id, seat]),
 				stop: () => undefined,
+				winner: null,
+				concededBy: null,
+				seats: [],
 			};
 		},
 	};
@@ -48,8 +51,14 @@ function registry(live: Record<string, { owners: string[]; status?: string }>): 
 
 function fixture(opts: { matchId?: string | null; owners?: string[]; status?: string } = {}) {
 	let listener: ((c: Change) => void) | null = null;
+	const matchId = opts.matchId === undefined ? 'm-1' : opts.matchId;
 	const rooms = {
-		get: () => ({ id: 'r-1', matchId: opts.matchId === undefined ? 'm-1' : opts.matchId }),
+		get: () => ({
+			id: 'r-1',
+			tables: [
+				{ id: 't-1', players: [], matchId, series: { length: 1, wins: [0, 0], games: [], phase: matchId !== null ? 'playing' : 'seating' } },
+			],
+		}),
 		onAvatarChange: (l: (c: Change) => void) => {
 			listener = l;
 			return () => undefined;
@@ -106,7 +115,11 @@ describe('a room and its match across a restart', () => {
 			first.setAvatar(made.room.id, ALICE.id, 'sage');
 			first.setAvatar(made.room.id, BOB.id, 'herald');
 			first.setReady(made.room.id, ALICE.id, true);
-			first.setMatch(made.room.id, matchId);
+			// A real HTTP read keeps this mirror in sync (`routes.ts`'s `tableView`);
+			// asserted directly so `releaseTableMatch`'s per-table un-ready has
+			// someone to un-ready, as it would after any real table read.
+			first.setTableSeats(made.room.id, made.room.tables[0]!.id, [ALICE.id, BOB.id]);
+			first.setTableMatch(made.room.id, made.room.tables[0]!.id, matchId);
 			rooms.push(made.room.id);
 		}
 		return { dir, adoptedRoom: rooms[0]!, diedRoom: rooms[1]! };
