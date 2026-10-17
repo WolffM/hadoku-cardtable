@@ -733,6 +733,11 @@ jobs:
           reports=()
           for i in $(jq -r '.[]' <<<"$SHARDS"); do
             r="$dir/forge-jvm-report-$i-$ATTEMPT/forge-jvm-report.json"
+            # download-artifact extracts a pattern that matched ONE artifact
+            # straight into `path`, with no per-artifact directory, so a
+            # one-shard run's report lands at the top (verify/w71-E, run
+            # 39021316373: the shard passed, the judge found nothing).
+            [ "$(jq length <<<"$SHARDS")" = 1 ] && [ ! -e "$r" ] && r="$dir/forge-jvm-report.json"
             test -s "$r" || { echo "::error::shard $i wrote no report — it timed out or died before its suites finished"; exit 1; }
             reports+=("$r")
           done
