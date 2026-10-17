@@ -336,6 +336,21 @@ interface Parked {
  * battlefield, or `offered` it as an answer to a new decision; it `floated-unanswered` home after
  * the clock ran out on silence; a `cancel`; a `next-play` taking over; the layer `disposed`.
  */
+/** Which input cancelled a live gesture — reported with a parked cast's `cancel`. */
+type CancelInput = 'right-click' | 'stray-click' | 'pointercancel' | 'escape';
+
+/** What a press landed on, for a cancel's report: the nearest card, face or testid, else the tag. */
+function describeNode(node: EventTarget | null): string {
+  if (!(node instanceof Element)) return '-';
+  const card = node.closest('[data-board-card]');
+  if (card !== null) return `card:${card.getAttribute('data-board-card') ?? ''}`;
+  const face = node.closest('[data-player-face]');
+  if (face !== null) return `face:${face.getAttribute('data-player-id') ?? ''}`;
+  const tagged = node.closest('[data-testid]');
+  if (tagged !== null) return `testid:${tagged.getAttribute('data-testid') ?? ''}`;
+  return `${node.tagName.toLowerCase()}.${node.getAttribute('class') ?? ''}`;
+}
+
 type ParkEnd = 'landed' | 'settled' | 'elsewhere' | 'offered' | 'floated-unanswered' | 'cancel' | 'next-play' | 'disposed';
 
 /** Where Forge's state holds the card now: still in the zone it was lifted out of, another zone the board draws, or nowhere it draws (mid-cast). */
@@ -866,10 +881,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * waited and the question open at its end, if any): its clock stops and the stack draws
    * everything again.
    */
-  function endPark(how: ParkEnd): Parked | null {
+  function endPark(how: ParkEnd, cause: Record<string, string> = {}): Parked | null {
     const p = parked;
     parked = null;
-    if (p !== null) options.report?.('park', { how, card: p.source, ms: Date.now() - p.releasedAt, played: p.played, ask: match.asks[0]?.method ?? '-', selection: match.selectables !== null, paying: payingMana(match) });
+    if (p !== null) options.report?.('park', { how, card: p.source, ms: Date.now() - p.releasedAt, played: p.played, ask: match.asks[0]?.method ?? '-', selection: match.selectables !== null, paying: payingMana(match), ...cause });
     stopGlide?.();
     stopGlide = null;
     if (p !== null && p.gliding) {
@@ -994,7 +1009,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * header's own section — this is the one function either input calls, for
    * both a parked cast and a bare lift.
    */
-  function cancelLive(): void {
+  function cancelLive(by: CancelInput, node: EventTarget | null = null): void {
     if (parked !== null) {
       // Forge is asking about THIS cast only if a selection or a payment is
       // open now — a land, or a spell that needed neither, is already done,
@@ -1005,7 +1020,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // battlefield: there is nothing to cancel, and floating it back to a
       // hand it is about to leave would show something that is not true.
       if (parked.played && !asking) return;
-      const p = endPark('cancel')!;
+      const offer = boardInteraction(match);
+      const p = endPark('cancel', { by, under: describeNode(node), offered: `cards ${[...offer.selectable].join(' ')}; players ${[...offer.selectablePlayers].join(' ')}`.slice(0, 80) })!;
       if (asking) pressButton(match, 'cancel');
       releaseParked(p, true);
       paint();
@@ -1179,7 +1195,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
      */
     if (event.button === 2 && (parked !== null || (drag !== null && drag.lifted))) {
       claim(event);
-      cancelLive();
+      cancelLive('right-click', eventTarget(event));
       return;
     }
     /*
@@ -1191,7 +1207,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
      */
     if (parked !== null && event.button === 0 && match.selectables !== null && inside(eventTarget(event)) && targetAt(eventTarget(event), null) === null) {
       claim(event);
-      cancelLive();
+      cancelLive('stray-click', eventTarget(event));
       return;
     }
     /*
@@ -1525,7 +1541,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // The browser took the pointer away mid-aim: the same as letting go of
     // the cast with right-click or Escape.
     if (parked !== null && drag === null) {
-      cancelLive();
+      cancelLive('pointercancel');
       return;
     }
     if (drag !== null && drag.lifted) {
@@ -1546,7 +1562,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function onKeyDown(event: KeyboardEvent): void {
     if (event.key !== 'Escape') return;
     if (parked === null && !(drag !== null && drag.lifted)) return;
-    cancelLive();
+    cancelLive('escape');
   }
 
   /** The browser's own context menu is suppressed only while a gesture or cast is live — never otherwise. */

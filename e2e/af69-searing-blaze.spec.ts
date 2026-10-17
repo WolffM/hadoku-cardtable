@@ -50,11 +50,13 @@ test(titled('Searing Blaze is offered with a creature to hit, and hits bob and h
       blaze,
       async () => {
         if ((await bobFace.getAttribute('data-selectable')) === 'true') {
+          console.log(`[af69] ${new Date().toISOString()} press bob's face`);
           await bobFace.locator('.face__hit').click({ timeout: 1_000 }).catch(() => undefined);
           return true;
         }
         const creature = bears.and(page.locator('[data-selectable]'));
         if ((await creature.count()) > 0) {
+          console.log(`[af69] ${new Date().toISOString()} press the Bears`);
           await creature.first().locator('button').first().click({ timeout: 1_000 }).catch(() => undefined);
           return true;
         }

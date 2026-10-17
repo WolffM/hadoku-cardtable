@@ -518,8 +518,10 @@ export async function castUntilOnStack(
   expect(await clickHandCard(page, cardId), `card ${cardId} lifted out of the hand`).toBe(true);
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
   while (!(await watch.cast()) && Date.now() < deadline) {
-    await answerPrompt(page, { stack: watch.stack });
-    if (!(await clickTargetIfReady())) await pressPaymentAuto(page);
+    const answered = await answerPrompt(page, { stack: watch.stack });
+    const targeted = await clickTargetIfReady();
+    const paid = targeted ? false : await pressPaymentAuto(page);
+    if (answered !== null || targeted || paid) console.log(`[cast ${cardId}] ${new Date().toISOString()} prompt=${answered?.method ?? '-'} target=${targeted} pay=${paid}`);
     await page.waitForTimeout(40);
   }
   const asks = serverLog(stack)
