@@ -1579,6 +1579,32 @@ describe('a match that outlives its server', () => {
 		expect(r.sent.length).toBe(before);
 	});
 
+	it("comes back wearing each seat holder's avatar as it is now, not as it was when the match started", () => {
+		// The operator, 2026-10-17: "i noticed a reconnecting, and then i noticed
+		// our avatars reverted". Whatever the record kept from the start, a seat's
+		// face is its owner's, answered by whoever holds avatars.
+		const { factory, attach, state } = survivable();
+		const faces = new Map<string, string>([
+			[ALICE, 'sage'],
+			[BOB, 'herald'],
+		]);
+		const deps = { host: factory, attach, log: () => undefined, overGraceMs: 60_000, emit: () => undefined, seatAvatar: (_matchId: string, owner: string) => faces.get(owner) };
+		const first = createMatchRegistry(deps).create({
+			seats: [
+				{ ...TWO_HUMANS.seats[0], avatarId: 'stale' },
+				{ ...TWO_HUMANS.seats[1], avatarId: 'stale' },
+			],
+		} as MatchSpecWithIdentity);
+		first.claim(ALICE);
+		first.claim(BOB);
+		state.push(...OPENING);
+		first.handOver();
+		faces.set(BOB, 'rogue');
+
+		const resumed = createMatchRegistry(deps).adopt({ ...recordFor(first, state), spec: { seats: [{ ...TWO_HUMANS.seats[0], avatarId: 'stale' }, { ...TWO_HUMANS.seats[1], avatarId: 'stale' }] } as JvmRecord['spec'] });
+		expect(resumed?.seatIdentities().map((s) => s.avatarId)).toEqual(['sage', 'rogue']);
+	});
+
 	it('comes back on the same epoch, at the same seats, with a snapshot identical to the one it had', () => {
 		const r = running();
 		const before = [r.first.snapshot(0), r.first.snapshot(1)];

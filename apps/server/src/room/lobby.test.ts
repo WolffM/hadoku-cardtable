@@ -197,11 +197,11 @@ describe('a room stored before clientMode existed', () => {
 
 		const second = await openLobby({ dir });
 		expect(second.get('r-bbbbbbbbbbbb')?.clientMode).toBe('builtin');
-		// But NOT across the restart. A match is a child JVM this process owns;
-		// it dies with the process, so a restored room that kept its match id
-		// advertised "playing" about a game that no longer exists. This used to
-		// assert 'match-1' and that was the bug, not the contract.
-		expect(second.get('r-bbbbbbbbbbbb')?.matchId).toBeNull();
+		// And across the restart: a match outlives the process that started it
+		// (play adopts it), so the room's pointer to it does too. Whether that
+		// match came back is play's registry's answer, not the lobby's — see
+		// `http/routes.ts`'s `releaseGoneMatches`.
+		expect(second.get('r-bbbbbbbbbbbb')?.matchId).toBe('match-1');
 	});
 
 	it('quarantines a record whose clientMode is present and unknown, rather than defaulting it away', async () => {
@@ -626,20 +626,18 @@ describe('Lobby.sweep', () => {
 	});
 });
 
-/* ── a match never outlives the process that ran it ──────────────────── */
+/* ── a match outlives the process that started it ───────────────────── */
 
-describe('a restored room is never still playing', () => {
-	it('drops a matchId written before the restart', async () => {
+describe("a restored room keeps its match", () => {
+	it('restores the matchId written before the restart', async () => {
 		const dir = await tempDir();
-		// Exactly the shape the operator's stale room had on disk: a live-looking
-		// match id, pointing at a child JVM that died with the process.
+		// The operator's room at 01:49Z on 2026-10-17: mid-game when the deploy
+		// restarted the server, and play adopted the match a moment later.
 		writeFixtureRoom(dir, 'r-played0000001', legacyApp({ name: 'test 1v1', matchId: 'm-b2853c882395' }));
 
 		const lobby = await openLobby({ dir });
-		const room = lobby.get('r-played0000001');
-		expect(room?.matchId, 'a room claimed to be playing a match that cannot exist').toBeNull();
-		// The list is what the front page reads, so assert it there too.
-		expect(lobby.list()[0]?.matchId).toBeNull();
+		expect(lobby.get('r-played0000001')?.matchId).toBe('m-b2853c882395');
+		expect(lobby.list()[0]?.matchId).toBe('m-b2853c882395');
 	});
 });
 
@@ -1252,7 +1250,7 @@ describe('Lobby.offered', () => {
 		expect(lobby.roomOfMatch('m-first0000001')?.id, 'after the rematch started').toBe(made.room.id);
 
 		const rebooted = await openLobby({ dir });
-		expect(rebooted.get(made.room.id)?.matchId, 'a restart still restores no match').toBeNull();
+		expect(rebooted.get(made.room.id)?.matchId, 'a restart restores the current match').toBe('m-second000001');
 		expect(rebooted.roomOfMatch('m-first0000001')?.id, 'after a restart').toBe(made.room.id);
 		expect(rebooted.roomOfMatch('m-second000001')?.id).toBe(made.room.id);
 	});

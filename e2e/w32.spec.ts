@@ -17,6 +17,12 @@
  *     (`prefs-cache:<user>:watchparty`); the page writes that row the way the SDK
  *     does, and BOTH boards must redraw that seat's face within a few seconds, with
  *     no reload.
+ *  3. **…and still does after a deploy mid-match.** The operator, 2026-10-17:
+ *     *"i noticed a reconnecting, and then i noticed our avatars reverted. And now,
+ *     when we try to change avatars it doesn't work in the game."* Alice changes her
+ *     avatar, the server restarts and adopts the match, her face must still be the
+ *     one she picked, and a change after the restart must reach both boards
+ *     (`[w32 restart]` lines).
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`) like
  * `play.spec.ts`; without one each test SKIPS and its title says why. Serves the
@@ -211,6 +217,34 @@ const SPRITE = `<svg xmlns="http://www.w3.org/2000/svg" width="84" height="84" v
 const ownFace = (f: Friend): Locator => f.page.locator('[data-player-face][data-viewer]');
 const theirFace = (f: Friend): Locator => f.page.locator('[data-player-face]:not([data-viewer])');
 
+/**
+ * The watchparty picker's save, as the prefs SDK writes it. The chrome keys the SDK's
+ * cache by the userId it was handed. In this harness the page's chrome runs as `anon`
+ * (measured: the only prefs-cache row on the page is `prefs-cache:anon:watchparty`),
+ * so the pick is saved under both keys.
+ */
+const saveSprite = (page: Page, sprite: string) =>
+  page.evaluate(
+    (id) => {
+      const row = JSON.stringify({ blob: { sprite: id }, userVersion: 1, deviceVersion: 1, cachedAt: Date.now() });
+      for (const k of ['prefs-cache:anon:watchparty', 'prefs-cache:e2e-alice-id:watchparty']) localStorage.setItem(k, row);
+    },
+    sprite,
+  );
+
+/** Alice's face, on her own board and on bob's. */
+const aliceFaceOn = (alice: Friend, f: Friend): Locator => (f === alice ? ownFace(f) : theirFace(f));
+
+/** Both boards draw alice's face with `sprite`. */
+async function aliceWears(alice: Friend, bob: Friend, sprite: string, when: string): Promise<void> {
+  for (const f of [alice, bob]) {
+    const face = aliceFaceOn(alice, f);
+    console.log(`[w32 restart] ${when}: ${f.name}'s board draws alice as ${(await face.getAttribute('data-avatar', { timeout: 30_000 }).catch(() => null)) ?? '(none)'}`);
+    await expect(face, `${f.name}: alice's face is ${sprite} ${when}`).toHaveAttribute('data-avatar', sprite, { timeout: 20_000 });
+    await expect(face.getByTestId('seat-avatar'), `${f.name}: the face draws that avatar's image`).toHaveAttribute('src', new RegExp(`square_${sprite}\\.png$`));
+  }
+}
+
 
 test(titled('a player with no saved avatar is given one on joining a room, two such players get different ones, and changing the saved avatar mid-match redraws that seat\'s face on both boards, with no reload (Q6)'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -257,31 +291,44 @@ test(titled('a player with no saved avatar is given one on joining a room, two s
     }
     expect(faces[0], "alice's and bob's faces differ").not.toBe(faces[1]);
 
-    // The chrome keys the SDK's cache by the userId it was handed. In this harness the page's
-    // chrome runs as `anon` (measured: the only prefs-cache row on the page is
-    // `prefs-cache:anon:watchparty`), so the pick is saved under both keys.
-    const save = (page: Page, sprite: string) =>
-      page.evaluate(
-        (id) => {
-          const row = JSON.stringify({ blob: { sprite: id }, userVersion: 1, deviceVersion: 1, cachedAt: Date.now() });
-          for (const k of ['prefs-cache:anon:watchparty', 'prefs-cache:e2e-alice-id:watchparty']) localStorage.setItem(k, row);
-        },
-        sprite,
-      );
-    // Alice's face, on her own board and on bob's.
-    const faceOf = (f: Friend) => (f === alice ? f.page.locator('[data-player-face][data-viewer]') : f.page.locator('[data-player-face]:not([data-viewer])'));
     const navigations: string[] = [];
     for (const f of [alice, bob]) f.page.on('framenavigated', (fr) => fr === f.page.mainFrame() && navigations.push(`${f.name}: ${fr.url()}`));
     const before = navigations.length;
 
     for (const sprite of ['e2e-sprite-one', 'e2e-sprite-two']) {
-      await save(alice.page, sprite);
-      for (const f of [alice, bob]) {
-        await expect(faceOf(f), `${f.name}: alice's face is redrawn with ${sprite}`).toHaveAttribute('data-avatar', sprite, { timeout: 20_000 });
-        await expect(faceOf(f).getByTestId('seat-avatar'), `${f.name}: the face draws that avatar's image`).toHaveAttribute('src', new RegExp(`square_${sprite}\\.png$`));
-      }
+      await saveSprite(alice.page, sprite);
+      await aliceWears(alice, bob, sprite, 'redrawn');
     }
     expect(navigations.length, 'the pages were not reloaded to show it').toBe(before);
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled("after a deploy mid-match, a seat keeps the avatar its player picked, and a change after it still redraws that seat's face on both boards"), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const alice = await openFriend(browser, 'alice');
+    const bob = await openFriend(browser, 'bob');
+    for (const f of [alice, bob]) {
+      await f.context.route('**/watchparty/media/sprites/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SPRITE }));
+    }
+    const { matchId } = await enterMatch(alice, bob, stack.origin);
+    await saveSprite(alice.page, 'e2e-sprite-one');
+    await aliceWears(alice, bob, 'e2e-sprite-one', 'before the deploy');
+
+    await stack.restart();
+    for (const f of [alice, bob]) {
+      await expect(f.page.getByTestId('live-status'), `${f.name} is back in the match after the deploy`).toHaveCount(0, { timeout: 60_000 });
+    }
+    console.log(`[w32 restart] deployed mid-match; ${matchId} carried on`);
+    await aliceWears(alice, bob, 'e2e-sprite-one', 'after the deploy');
+
+    await saveSprite(alice.page, 'e2e-sprite-two');
+    await aliceWears(alice, bob, 'e2e-sprite-two', 'changed after the deploy');
   } finally {
     await stack.stop();
   }
