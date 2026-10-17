@@ -1101,7 +1101,7 @@ describe('a room’s table', () => {
                   leader: 'p-alice',
                   gameType: 'constructed-1v1',
                   format: '2010-07-16',
-                  settings: { handSmoothing: true },
+                  settings: { handSmoothing: true, matchLength: 'bo1' as const, sideboarding: false },
                   you: { leader: true, ready: false },
                   clientMode: 'builtin' as const,
                   locked: false,
@@ -1109,6 +1109,8 @@ describe('a room’s table', () => {
                   matchId: null,
                   draftStartedAt: null,
                   createdAt: '2026-09-19T00:00:00.000Z',
+                  tables: [],
+                  pod: null,
                 },
               }
             : { ok: false as const, reason: outcome };

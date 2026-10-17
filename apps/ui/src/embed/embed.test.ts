@@ -35,7 +35,7 @@ const ROOM: RoomView = {
   leader: 'fk:alice',
   gameType: 'constructed-1v1',
   format: 'unavailable',
-  settings: { handSmoothing: true },
+  settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: false },
   you: { leader: true, ready: false },
   clientMode: 'builtin',
   locked: false,
@@ -43,6 +43,8 @@ const ROOM: RoomView = {
   matchId: null,
   draftStartedAt: null,
   createdAt: '',
+  tables: [],
+  pod: null,
 };
 
 function ctx(over: Partial<GameBundleContext> = {}): GameBundleContext {

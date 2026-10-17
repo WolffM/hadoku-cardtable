@@ -56,6 +56,8 @@
  * one.
  */
 
+import { RoomTablesSchema, DEFAULT_MATCH_LENGTH, type MatchLength, type RoomTable } from '@hadoku/shared';
+
 import { apiBase } from '../screens/tables.ts';
 import { normalizeAvatarId } from '../room/avatar.ts';
 
@@ -128,6 +130,26 @@ export interface RoomView {
    */
   draftStartedAt: string | null;
   createdAt: string;
+  /**
+   * The room's tables (wave 71 §D's wire contract), parsed through
+   * `@hadoku/shared`'s own `RoomTablesSchema` rather than a hand-written
+   * stand-in — a room always carries at least one, so a body this fails to
+   * parse (an old server, a malformed one) reads as none rather than a
+   * guessed single table nobody asked for.
+   *
+   * `MatchScreen.tsx` used to read this off the room's raw body a second
+   * time, past this parser, because it did not carry the field yet (wave 71
+   * §G's own note); wave 72 §Q closes that gap here.
+   */
+  tables: RoomTable[];
+  /**
+   * The room's pod, or null for a constructed room (wave 72's wire contract,
+   * `packages/shared/src/pod.ts`). Parsed loosely — `undefined` reads as
+   * `null` and anything else is passed through as-is — because that package
+   * is still landing as this parses it; `undefined` ⇒ `null` is the only
+   * shape asserted here. Lane R narrows it once `pod.ts` is on `main`.
+   */
+  pod: unknown;
 }
 
 /**
@@ -334,17 +356,42 @@ function parseYou(v: unknown): RoomYou {
 export interface RoomSettings {
   /** The opening hand nearer the deck's land ratio, and each mulligan weighted toward it. On by default. */
   handSmoothing: boolean;
+  /** Best-of-one (default) or forced-rematch best-of-three. The leader's to change (`setSettings`). */
+  matchLength: MatchLength;
+  /**
+   * Sideboarding between games. The server's own rule (`lobby.ts`'s
+   * `effectiveSideboarding`): a `bo3` room reads `true` here no matter what
+   * is stored, because bo3 implies it; `bo1` reads whatever was set, off by
+   * default.
+   */
+  sideboarding: boolean;
 }
 
 function parseSettings(v: unknown): RoomSettings {
   const o = isRecord(v) ? v : {};
-  return { handSmoothing: o.handSmoothing !== false };
+  const matchLength: MatchLength = o.matchLength === 'bo3' ? 'bo3' : DEFAULT_MATCH_LENGTH;
+  return {
+    handSmoothing: o.handSmoothing !== false,
+    matchLength,
+    sideboarding: matchLength === 'bo3' ? true : o.sideboarding === true,
+  };
+}
+
+/** `RoomView.tables`, or none when the body does not carry a parseable list — see the field's own note. */
+function parseTables(v: unknown): RoomTable[] {
+  const parsed = RoomTablesSchema.safeParse(v);
+  return parsed.success ? parsed.data : [];
+}
+
+/** `RoomView.pod` — see the field's own note on why this stays loose for now. */
+function parsePod(v: unknown): unknown {
+  return v === undefined ? null : v;
 }
 
 /** A RoomView, or null when the body is not one. */
 export function parseRoomView(v: unknown): RoomView | null {
   if (!isRecord(v)) return null;
-  const { id, name, creator, leader, gameType, format, settings, you, clientMode, locked, members, matchId, draftStartedAt, createdAt } = v;
+  const { id, name, creator, leader, gameType, format, settings, you, clientMode, locked, members, matchId, draftStartedAt, createdAt, tables, pod } = v;
   if (typeof id !== 'string' || !ROOM_ID.test(id)) return null;
   if (typeof name !== 'string' || typeof gameType !== 'string' || typeof locked !== 'boolean') return null;
   if (!Array.isArray(members)) return null;
@@ -363,6 +410,8 @@ export function parseRoomView(v: unknown): RoomView | null {
     matchId: typeof matchId === 'string' ? matchId : null,
     draftStartedAt: typeof draftStartedAt === 'string' ? draftStartedAt : null,
     createdAt: typeof createdAt === 'string' ? createdAt : '',
+    tables: parseTables(tables),
+    pod: parsePod(pod),
   };
 }
 

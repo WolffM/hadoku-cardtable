@@ -192,21 +192,26 @@ export interface TablesClient {
   legal(formatId: string): Promise<string[]>;
   /** Against Forge's AI only. A match against a person starts from a room. */
   start(opponent: 'human' | 'ai', seats: [SeatChoice, SeatChoice]): Promise<StartOutcome>;
-  /** Both players' state at a room's table. */
-  table(roomId: string): Promise<TableOutcome>;
+  /**
+   * Both players' state at a room's table. `tableId` names one of the room's
+   * tables (`RoomView.tables`, `@hadoku/shared`'s `RoomTable.id`); absent
+   * means the room's first table, same as every caller before wave 72's
+   * multi-table rooms (`routes.ts`'s `resolveTable`).
+   */
+  table(roomId: string, tableId?: string): Promise<TableOutcome>;
   /**
    * Load MY deck. There is no call that names anybody else's, and none that
    * names a format either: the ROOM's pool is the rules for both seats, and a
    * body carrying `rules` is refused with 400.
    */
-  loadDeck(roomId: string, deck: DeckRef): Promise<TableOutcome>;
-  ready(roomId: string, ready: boolean): Promise<TableOutcome>;
+  loadDeck(roomId: string, deck: DeckRef, tableId?: string): Promise<TableOutcome>;
+  ready(roomId: string, ready: boolean, tableId?: string): Promise<TableOutcome>;
   /** `POST …/sit`: take a free seat, before choosing a deck. 409 when the table is full or locked. */
-  sit(roomId: string): Promise<TableOutcome>;
+  sit(roomId: string, tableId?: string): Promise<TableOutcome>;
   /** `POST …/stand`: give the seat back. 409 once both are ready or the match is live. */
-  stand(roomId: string): Promise<TableOutcome>;
+  stand(roomId: string, tableId?: string): Promise<TableOutcome>;
   /** Start the room's match. Either player may; the server answers one match. */
-  startRoom(roomId: string): Promise<StartOutcome>;
+  startRoom(roomId: string, tableId?: string): Promise<StartOutcome>;
   /**
    * Start a match against Forge's AI from a room where you are the only
    * member — the server picks a random library deck legal in the room's pool
@@ -214,7 +219,7 @@ export interface TablesClient {
    * `vsBot` arm). Refused with a second member in the room, before a deck is
    * loaded, or for a drafted pool (no library deck is legal in one).
    */
-  startVsBot(roomId: string): Promise<StartOutcome>;
+  startVsBot(roomId: string, tableId?: string): Promise<StartOutcome>;
 }
 
 async function readJson(res: Response): Promise<Record<string, unknown>> {
@@ -233,6 +238,16 @@ async function readJson(res: Response): Promise<Record<string, unknown>> {
 
 function errorOf(body: Record<string, unknown>, status: number): string {
   return typeof body.error === 'string' ? body.error : `the server answered ${status}`;
+}
+
+/**
+ * `payload` with `table` set ONLY when `tableId` is given — an absent key, not
+ * an explicit `undefined`, so a pre-wave-72 body (every call made before a
+ * table id existed to pass) still serialises exactly as it always did and the
+ * server's `resolveTable` still reads "named no table" as `tables[0]`.
+ */
+function withTable<T extends Record<string, unknown>>(payload: T, tableId: string | undefined): T & { table?: string } {
+  return tableId === undefined ? payload : { ...payload, table: tableId };
 }
 
 export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, init), base = defaultApiBase()): TablesClient {
@@ -284,26 +299,29 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       const verdicts = Array.isArray(body.seats) ? (body.seats as Verdict[]) : null;
       return { ok: false, error: errorOf(body, status), seats: verdicts };
     },
-    table: async (roomId) => {
-      const res = await fetchImpl(`${base}tables/rooms/${encodeURIComponent(roomId)}`, {
+    table: async (roomId, tableId) => {
+      const query = tableId === undefined ? '' : `?table=${encodeURIComponent(tableId)}`;
+      const res = await fetchImpl(`${base}tables/rooms/${encodeURIComponent(roomId)}${query}`, {
         headers: { accept: 'application/json' },
       });
       return table({ status: res.status, body: await readJson(res) });
     },
-    loadDeck: async (roomId, deck) => table(await send('PUT', `tables/rooms/${encodeURIComponent(roomId)}/deck`, { deck })),
-    ready: async (roomId, ready) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/ready`, { ready })),
-    sit: async (roomId) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/sit`, {})),
-    stand: async (roomId) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/stand`, {})),
-    startRoom: async (roomId) => {
+    loadDeck: async (roomId, deck, tableId) =>
+      table(await send('PUT', `tables/rooms/${encodeURIComponent(roomId)}/deck`, withTable({ deck }, tableId))),
+    ready: async (roomId, ready, tableId) =>
+      table(await post(`tables/rooms/${encodeURIComponent(roomId)}/ready`, withTable({ ready }, tableId))),
+    sit: async (roomId, tableId) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/sit`, withTable({}, tableId))),
+    stand: async (roomId, tableId) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/stand`, withTable({}, tableId))),
+    startRoom: async (roomId, tableId) => {
       // 201 started it; 200 is the match the other player already started.
-      const { status, body } = await post('play/matches', { room: roomId });
+      const { status, body } = await post('play/matches', withTable({ room: roomId }, tableId));
       if ((status === 201 || status === 200) && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
       return { ok: false, error: errorOf(body, status), seats: null };
     },
-    startVsBot: async (roomId) => {
+    startVsBot: async (roomId, tableId) => {
       // Always 201: a bot match is yours alone to start, so there is no other
       // player's already-started match to catch up to, unlike `startRoom`.
-      const { status, body } = await post('play/matches', { room: roomId, bot: true });
+      const { status, body } = await post('play/matches', withTable({ room: roomId, bot: true }, tableId));
       if (status === 201 && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
       return { ok: false, error: errorOf(body, status), seats: null };
     },

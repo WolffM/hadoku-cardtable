@@ -37,6 +37,7 @@ import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 import {
   decisionMessage,
   END_TURN_NUDGE_MS,
+  END_UNSHOWN_MS,
   endingSentence,
   gameOutcome,
   isMatchGone,
@@ -3378,6 +3379,13 @@ describe('R16 — the result screen, drawn over the board', () => {
     });
 
   it("Victory from Forge's finishGame alone, when the view's GameOver delta never comes (w35 R16, 2026-10-08)", async () => {
+    // No GameOver delta ever arrives, so the result screen only shows once `useGameEnded`'s
+    // END_UNSHOWN_MS fallback fires. Real timers would need END_UNSHOWN_MS (2s) of wall clock,
+    // longer than waitFor's default budget on a fast host; advance the fake clock instead.
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     const loserId = m.view!.players.find((p) => !p.isViewer)!.id;
     // Forge's last flush carried only the loser's outcome: no `GameOver` on the game.
@@ -3402,26 +3410,48 @@ describe('R16 — the result screen, drawn over the board', () => {
     expect(queryByTestId('game-result'), 'the loser is drawn as lost, but nothing yet says the game is over').toBeNull();
 
     s.send(parseServerFrame({ kind: 'notify', method: 'finishGame' }));
+    await untilMatch(m, () => expect(m.finished).toBe(true));
+    act(() => {
+      vi.advanceTimersByTime(END_UNSHOWN_MS);
+    });
     await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('victory'));
     expect(getByTestId('game-result').textContent).toContain('Victory');
   });
 
   it('Victory from the end notice alone, when this view never caught up with the end (a concede during the deal)', async () => {
+    // Same fallback as above: this view's `GameOver` delta never comes, only the notice.
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const { s, m, getByTestId } = await liveBoard();
     const loserId = m.view!.players.find((p) => !p.isViewer)!.id;
     expect(m.view!.players.some((p) => p.hasLost), 'nobody is drawn as lost').toBe(false);
     expect((getByTestId('live-concede') as HTMLButtonElement).disabled).toBe(false);
 
     s.send(parseServerFrame({ kind: 'notify', method: 'finishGame', losers: [loserId] }));
+    await untilMatch(m, () => expect(m.finished).toBe(true));
+    act(() => {
+      vi.advanceTimersByTime(END_UNSHOWN_MS);
+    });
     await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('victory'));
     expect(getByTestId('game-result').textContent).toContain('conceded');
     expect((getByTestId('live-concede') as HTMLButtonElement).disabled, 'a finished game cannot be conceded').toBe(true);
   });
 
   it("the end notice's own reason is the one the result screen words: a decked player had to draw", async () => {
+    // Same fallback again: the notice carries the reason, but no `GameOver` delta ever shows it.
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const { s, m, getByTestId } = await liveBoard();
     const viewerId = m.view!.players.find((p) => p.isViewer)!.id;
     s.send(parseServerFrame({ kind: 'notify', method: 'finishGame', losers: [viewerId], lost: [{ player: viewerId, reason: 'Milled' }] }));
+    await untilMatch(m, () => expect(m.finished).toBe(true));
+    act(() => {
+      vi.advanceTimersByTime(END_UNSHOWN_MS);
+    });
     await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('defeat'));
     expect(getByTestId('game-result').textContent).toContain('had to draw from an empty library');
   });

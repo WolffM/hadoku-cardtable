@@ -53,7 +53,7 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   // always on the wire; `parseRoomView`'s defaults for a body that lost them
   // are asserted in "the pool and the caller" below.
   format: '2011-02-13',
-  settings: { handSmoothing: true },
+  settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: false },
   you: { leader: true, ready: false },
   clientMode: 'builtin',
   locked: false,
@@ -61,6 +61,8 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   matchId: null,
   draftStartedAt: null,
   createdAt: '2026-09-19T00:00:00.000Z',
+  tables: [],
+  pod: null,
   ...over,
 });
 
@@ -409,10 +411,10 @@ describe('the room writes', () => {
   });
 
   it('changes a room setting with the same PATCH, carrying `settings` and nothing else', async () => {
-    const moved = room({ id: 'r-open', name: 'Friday night', settings: { handSmoothing: false } });
+    const moved = room({ id: 'r-open', name: 'Friday night', settings: { handSmoothing: false, matchLength: 'bo1', sideboarding: false } });
     const { calls, client } = writes(() => json(200, moved));
     const outcome = await client.setSettings('r-open', { handSmoothing: false });
-    expect(outcome.ok && outcome.room.settings).toEqual({ handSmoothing: false });
+    expect(outcome.ok && outcome.room.settings).toEqual({ handSmoothing: false, matchLength: 'bo1', sideboarding: false });
     expect(calls).toEqual([{ url: '/cardtable/api/rooms/r-open', method: 'PATCH', body: { settings: { handSmoothing: false } } }]);
   });
 
@@ -429,10 +431,60 @@ describe('the room writes', () => {
 
 describe('the room settings', () => {
   it('reads hand smoothing off only when the body says so, and on when it is absent', () => {
-    expect(parseRoomView({ ...OPEN, settings: { handSmoothing: false } })?.settings).toEqual({ handSmoothing: false });
-    expect(parseRoomView({ ...OPEN, settings: { handSmoothing: true } })?.settings).toEqual({ handSmoothing: true });
+    expect(parseRoomView({ ...OPEN, settings: { handSmoothing: false } })?.settings.handSmoothing).toBe(false);
+    expect(parseRoomView({ ...OPEN, settings: { handSmoothing: true } })?.settings.handSmoothing).toBe(true);
     const { settings: _gone, ...older } = OPEN;
-    expect(parseRoomView(older)?.settings).toEqual({ handSmoothing: true });
+    expect(parseRoomView(older)?.settings.handSmoothing).toBe(true);
+  });
+
+  /* ── wave 72 §Q: matchLength and sideboarding join handSmoothing ──────── */
+
+  it('reads matchLength as bo3 only when the body says so, bo1 for anything else', () => {
+    expect(parseRoomView({ ...OPEN, settings: { matchLength: 'bo3' } })?.settings.matchLength).toBe('bo3');
+    for (const near of [undefined, 'bo1', 'BO3', 1, null]) {
+      expect(parseRoomView({ ...OPEN, settings: { matchLength: near } })?.settings.matchLength).toBe('bo1');
+    }
+    const { settings: _gone, ...older } = OPEN;
+    expect(parseRoomView(older)?.settings.matchLength).toBe('bo1');
+  });
+
+  it('a bo3 room reads sideboarding true no matter what is stored; a bo1 room reads the stored flag', () => {
+    expect(parseRoomView({ ...OPEN, settings: { matchLength: 'bo3', sideboarding: false } })?.settings.sideboarding).toBe(true);
+    expect(parseRoomView({ ...OPEN, settings: { matchLength: 'bo1', sideboarding: true } })?.settings.sideboarding).toBe(true);
+    expect(parseRoomView({ ...OPEN, settings: { matchLength: 'bo1', sideboarding: false } })?.settings.sideboarding).toBe(false);
+    // Absent reads as off, same default `DEFAULT_SIDEBOARDING` states.
+    expect(parseRoomView({ ...OPEN, settings: { matchLength: 'bo1' } })?.settings.sideboarding).toBe(false);
+    const { settings: _gone, ...older } = OPEN;
+    expect(parseRoomView(older)?.settings.sideboarding).toBe(false);
+  });
+});
+
+/* ── wave 72 §Q: the room's tables and pod ──────────────────────────────── */
+
+describe('RoomView.tables and RoomView.pod', () => {
+  const TABLE = {
+    id: 't-aaaa1111',
+    players: [],
+    matchId: null,
+    series: { length: 1 as const, wins: [0, 0] as [number, number], games: [], phase: 'seating' as const },
+  };
+
+  it('parses a well-formed tables array, through @hadoku/shared’s own schema', () => {
+    expect(parseRoomView({ ...OPEN, tables: [TABLE] })?.tables).toEqual([TABLE]);
+  });
+
+  it('reads no tables rather than throwing when the body is absent or malformed', () => {
+    const { tables: _gone, ...older } = OPEN;
+    expect(parseRoomView(older)?.tables).toEqual([]);
+    expect(parseRoomView({ ...OPEN, tables: 'not an array' })?.tables).toEqual([]);
+    expect(parseRoomView({ ...OPEN, tables: [{ id: 't-1' }] })?.tables).toEqual([]);
+  });
+
+  it('pod is passed through as-is, and an absent one reads as null (P’s schema is not asserted here yet)', () => {
+    expect(parseRoomView({ ...OPEN, pod: { phase: 'lobby' } })?.pod).toEqual({ phase: 'lobby' });
+    const { pod: _gone, ...older } = OPEN;
+    expect(parseRoomView(older)?.pod).toBeNull();
+    expect(parseRoomView({ ...OPEN, pod: null })?.pod).toBeNull();
   });
 });
 
