@@ -1,0 +1,18 @@
+# The operator, 2026-10-17: a permanent that enters without being placed by hand should take "the
+# first available slot from top left onward", not the column past the furthest card placed.
+# Seat 0 (human), turn-1 Main Phase 1: three creatures in the front row, two untapped Plains and
+# Raise the Alarm (two 1/1 Soldier tokens). e2e/fs-token-slot.spec.ts stacks the first creature
+# onto the second (a gap at column 0), then casts it: one token fills the gap, the other joins the end.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Raise the Alarm
+humanbattlefield=Grizzly Bears;Savannah Lions;Llanowar Elves;Plains;Plains
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
