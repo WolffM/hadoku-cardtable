@@ -439,6 +439,7 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 		startTimeoutMs: 5000,
 		seatAvatar: tables.seatAvatar,
 		onGameOver: stats.gameOver,
+		keys,
 	});
 	attached = play;
 

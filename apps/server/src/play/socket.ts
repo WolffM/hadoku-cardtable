@@ -99,6 +99,7 @@ import { parseDck } from '@hadoku/carddata/dck';
 import { CONFIG } from '../config.js';
 import { edgeProvenance, rankOf, tierOf } from '../edge-auth.js';
 import { identityFromHeaders, participantHandle } from '../room/identity.js';
+import type { KeyBook } from '../stats/keys.js';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { artOf } from './art.js';
 import { seatDeckColors, type DeckCosts } from './deck-colors.js';
@@ -161,6 +162,12 @@ export interface PlayDeps {
 	 * Default {@link DEFAULT_REJOIN_GRACE_MS}.
 	 */
 	rejoinGraceMs?: number;
+	/**
+	 * The stats key book: every connection that passed the gate leaves its key there, from the same
+	 * sanitized handshake headers its identity is derived from. After a restart a hidden tab makes no
+	 * api request, but its match socket reconnects, so this is how its player is still named by key.
+	 */
+	keys?: Pick<KeyBook, 'learn'>;
 	/** A match's game ended: Forge's verdict and every seat's history are final. The stats reporter listens. */
 	onGameOver?(match: Match): void;
 	/** See {@link MatchDeps.formatNames}. */
@@ -717,6 +724,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 
 	io.on('connection', (socket) => {
 		const participantId = identityOf(socket);
+		deps.keys?.learn(socket.request.headers);
 		/** matchId → seat, for this connection. */
 		const joined = new Map<string, number>();
 

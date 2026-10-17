@@ -181,8 +181,9 @@ const api = express.Router();
 api.use(express.json({ limit: '1mb' }));
 
 // ── Match stats' keys ────────────────────────────────────────────────────────
-// Every api request leaves its player's key in an in-memory book, so a finished
-// room match can name BOTH players to the game-stats store by their own keys
+// Every api request and every play-socket handshake leaves its player's key in
+// an in-memory book (play is handed it below), so a finished room match can
+// name BOTH players to the game-stats store by their own keys
 // (the store resolves and discards them). The stats themselves are built once
 // the table routes exist, below. See src/stats/.
 const statsKeys = createKeyBook();
@@ -455,6 +456,7 @@ play = attachPlay(io, api, {
 	probe: process.env.CARDTABLE_PLAY_PROBE === '1',
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
 	onGameOver: matchStats.gameOver,
+	keys: statsKeys,
 	// A card-name ask offers the names of the room's pool (`play/names.ts`).
 	formatNames: roomFormatNames(tables.library, poolLoad.ok ? poolLoad.pool.cards : null),
 	// A seat's face is its holder's avatar in the room that started the match.
