@@ -1,0 +1,853 @@
+{
+ "about": "Match music round 3 (2026-10-18): two lanes per slot. The operator: \"eventually i want to have 2 tracks for every slot. one 'normal' and one 16-bit.\" 16-bit prompts name a real SNES or Mega Drive palette per colour and avoid steady snare loops (round 1's grotto complaint); normal prompts follow the friend references (Frutiger Aero, Boost-style heavy metal, swamp rock-blues, string-fusion djent) as style guides only. `lane` is \"16-bit\" or \"normal\"; names are \"<CODE> · 16-bit <description>\" or \"<CODE> · <description>\". `soundscapes` lay Stable Audio ambience under finished takes (music-soundscape.py).",
+ "defaults": {
+  "duration": 200,
+  "steps": 50,
+  "cfg": 7.0,
+  "shift": 1.0
+ },
+ "prompts": [
+  {
+   "id": "w-r3-chip-overworld",
+   "colour": "W",
+   "lane": "16-bit",
+   "name": "W · 16-bit heroic overworld",
+   "takes": 2,
+   "caption": "16-bit SNES JRPG overworld theme, SPC700 sampled orchestra, bright synth trumpet melody, sampled french horns, pizzicato strings, timpani rolls, varied tom fills instead of a steady snare, heroic and hopeful, setting out on an adventure across sunny fields",
+   "structure": "[Intro - synth trumpet fanfare]\n\n[Main Theme - synth trumpet melody]\n\n[Variation - horns and pizzicato strings]\n\n[Bridge - soft strings and harp, no drums]\n\n[Main Theme - synth trumpet melody]",
+   "bpm": 132,
+   "key": "C Major",
+   "meter": "4"
+  },
+  {
+   "id": "w-r3-chip-town",
+   "colour": "W",
+   "lane": "16-bit",
+   "name": "W · 16-bit market town",
+   "takes": 2,
+   "caption": "16-bit SNES village town theme, chiptune lute and recorder samples, accordion, sampled tambourine, warm and cheerful, a bustling market square with a tavern, retro console RPG, light swinging rhythm",
+   "structure": "[Intro - recorder]\n\n[Main Theme - lute and recorder melody]\n\n[Variation - accordion and tambourine]\n\n[Bridge - music box and harp]\n\n[Main Theme - lute and recorder melody]",
+   "bpm": 112,
+   "key": "G Major",
+   "meter": "6"
+  },
+  {
+   "id": "u-r3-chip-aquatic",
+   "colour": "U",
+   "lane": "16-bit",
+   "name": "U · 16-bit sunken lagoon",
+   "takes": 2,
+   "caption": "16-bit SNES underwater level music, lush sampled synth pads, slow sine wave lead with long echo, gentle harp arpeggios, deep soft bass, no drums, no snare, floating and ethereal, a sunlit lagoon seen from below the surface",
+   "structure": "[Intro - pad swell]\n\n[Main Theme - echoing sine lead]\n\n[Variation - harp arpeggios and pads]\n\n[Bridge - pads only]\n\n[Main Theme - echoing sine lead]",
+   "bpm": 72,
+   "key": "Eb Major",
+   "meter": "4"
+  },
+  {
+   "id": "u-r3-chip-crystal",
+   "colour": "U",
+   "lane": "16-bit",
+   "name": "U · 16-bit crystal cavern",
+   "takes": 2,
+   "caption": "16-bit Sega Genesis cave music, glassy FM electric piano, slow flowing arpeggios, soft FM flute lead, wide reverb, no drums, mysterious and cold, a crystal cave with an underground river, retro console game",
+   "structure": "[Intro - FM electric piano]\n\n[Main Theme - FM flute lead over arpeggios]\n\n[Variation - arpeggios rising]\n\n[Bridge - sparse electric piano]\n\n[Main Theme - FM flute lead over arpeggios]",
+   "bpm": 84,
+   "key": "F# Minor",
+   "meter": "3"
+  },
+  {
+   "id": "b-r3-chip-castle",
+   "colour": "B",
+   "lane": "16-bit",
+   "name": "B · 16-bit haunted castle",
+   "takes": 2,
+   "caption": "16-bit SNES gothic castle music, chiptune pipe organ, sampled harpsichord, minor key, low square wave bass, sparse timpani, sinister and elegant, a vampire count's castle at midnight, retro console game",
+   "structure": "[Intro - chip organ]\n\n[Main Theme - harpsichord and organ melody]\n\n[Variation - low strings and timpani]\n\n[Bridge - organ alone]\n\n[Main Theme - harpsichord and organ melody]",
+   "bpm": 96,
+   "key": "D Minor",
+   "meter": "3"
+  },
+  {
+   "id": "b-r3-chip-crypt",
+   "colour": "B",
+   "lane": "16-bit",
+   "name": "B · 16-bit crypt descent",
+   "takes": 2,
+   "caption": "16-bit dungeon music, slow ominous chiptune organ chords, low pulse-wave bass drone, eerie triangle wave lead, dripping echo, no snare, uncertain and dreadful, descending into a crypt, retro console RPG",
+   "structure": "[Intro - low drone]\n\n[Main Theme - eerie triangle lead]\n\n[Variation - organ chords]\n\n[Bridge - drone and drips]\n\n[Main Theme - eerie triangle lead]",
+   "bpm": 66,
+   "key": "C# Minor",
+   "meter": "4"
+  },
+  {
+   "id": "r-r3-chip-fmmetal",
+   "colour": "R",
+   "lane": "16-bit",
+   "name": "R · 16-bit FM metal riffs",
+   "takes": 2,
+   "caption": "16-bit Sega Mega Drive YM2612 FM synthesis heavy metal, distorted FM guitar riffs, palm-muted chugging, fast FM slap bass, punchy sampled drums with fills, screaming FM lead solo, aggressive and fiery, retro console battle",
+   "structure": "[Intro - FM guitar riff]\n\n[Main Theme - FM guitar riffs]\n\n[Variation - FM lead solo]\n\n[Bridge - breakdown riff]\n\n[Main Theme - FM guitar riffs]",
+   "bpm": 168,
+   "key": "E Minor",
+   "meter": "4"
+  },
+  {
+   "id": "r-r3-chip-volcano",
+   "colour": "R",
+   "lane": "16-bit",
+   "name": "R · 16-bit volcano assault",
+   "takes": 2,
+   "caption": "16-bit SNES action stage music, sampled overdriven guitar riffs, orchestra hits, fast synth brass stabs, driving toms and kick, urgent and visceral, storming a volcano fortress, retro console game",
+   "structure": "[Intro - orchestra hits]\n\n[Main Theme - guitar riffs and brass stabs]\n\n[Variation - fast arpeggios]\n\n[Bridge - toms and orchestra hits]\n\n[Main Theme - guitar riffs and brass stabs]",
+   "bpm": 150,
+   "key": "D Minor",
+   "meter": "4"
+  },
+  {
+   "id": "g-r3-minstrel",
+   "colour": "G",
+   "lane": "normal",
+   "name": "G · enchanted forest minstrel",
+   "takes": 2,
+   "caption": "whimsical medieval instrumental, lute, recorder, hammered dulcimer, soft frame drum, gentle and playful, a fairy-tale enchanted forest, acoustic and warm, light and airy",
+   "structure": "[Intro - lute]\n\n[Main Theme - recorder melody over lute]\n\n[Variation - hammered dulcimer]\n\n[Bridge - lute and soft recorder]\n\n[Main Theme - recorder melody over lute]",
+   "bpm": 92,
+   "key": "D Major",
+   "meter": "6"
+  },
+  {
+   "id": "g-r3-harpglade",
+   "colour": "G",
+   "lane": "normal",
+   "name": "G · woodland harp glade",
+   "takes": 2,
+   "caption": "gentle medieval folk instrumental, celtic harp, tin whistle, bowed fiddle drone, soft and whimsical, a sunlit glade in an old forest, peaceful, acoustic, no drums",
+   "structure": "[Intro - harp]\n\n[Main Theme - tin whistle melody]\n\n[Variation - fiddle and harp]\n\n[Bridge - harp alone]\n\n[Main Theme - tin whistle melody]",
+   "bpm": 76,
+   "key": "G Major",
+   "meter": "3"
+  },
+  {
+   "id": "w-r3-tavernroad",
+   "colour": "W",
+   "lane": "normal",
+   "name": "W · tavern road",
+   "takes": 2,
+   "caption": "upbeat medieval adventure folk instrumental, fiddle, lute, hurdy-gurdy, bright trumpet calls, tambourine, bodhran, lively and warm, a merry band leaving the tavern for the road, fast jig",
+   "structure": "[Intro - fiddle]\n\n[Main Theme - fiddle and lute melody]\n\n[Variation - trumpet call]\n\n[Bridge - hurdy-gurdy and bodhran]\n\n[Main Theme - fiddle and lute melody]",
+   "bpm": 138,
+   "key": "D Major",
+   "meter": "6"
+  },
+  {
+   "id": "w-r3-banners",
+   "colour": "W",
+   "lane": "normal",
+   "name": "W · banners on the road",
+   "takes": 2,
+   "caption": "uplifting adventure instrumental, bright trumpets, french horns, mandolin, acoustic guitar strumming, snare rolls, soaring strings, optimistic and brisk, a company of heroes marching out of a sunny town",
+   "structure": "[Intro - trumpet call]\n\n[Main Theme - trumpets and strings]\n\n[Variation - mandolin and guitar]\n\n[Bridge - horns]\n\n[Main Theme - trumpets and strings]",
+   "bpm": 126,
+   "key": "Bb Major",
+   "meter": "4"
+  },
+  {
+   "id": "u-r3-aero",
+   "colour": "U",
+   "lane": "normal",
+   "name": "U · aero bubble lagoon",
+   "takes": 2,
+   "caption": "Frutiger Aero ambient electronic instrumental, glossy bright synth pads, bubbly synth plucks, gloopy water drops, crystal clear marimba, chill soft beat, airy and optimistic, early 2000s computer aesthetic, aquarium glass and clear blue water",
+   "structure": "[Intro - bubbly plucks]\n\n[Main Theme - glossy pads and marimba]\n\n[Variation - gloopy synth bubbles]\n\n[Bridge - pads only]\n\n[Main Theme - glossy pads and marimba]",
+   "bpm": 96,
+   "key": "E Major",
+   "meter": "4"
+  },
+  {
+   "id": "u-r3-aeroaquarium",
+   "colour": "U",
+   "lane": "normal",
+   "name": "U · glass aquarium",
+   "takes": 2,
+   "caption": "glossy aquatic electronica instrumental, shimmering vibraphone, bright FM electric piano, bubbling synth arpeggios, water droplets, soft clean beat, fresh and dreamy, a sunny glass aquarium, Frutiger Aero",
+   "structure": "[Intro - vibraphone]\n\n[Main Theme - electric piano melody]\n\n[Variation - bubbling arpeggios]\n\n[Bridge - pads and droplets]\n\n[Main Theme - electric piano melody]",
+   "bpm": 104,
+   "key": "A Major",
+   "meter": "4"
+  },
+  {
+   "id": "r-r3-boost",
+   "colour": "R",
+   "lane": "normal",
+   "name": "R · heavy riff boost",
+   "takes": 2,
+   "caption": "modern heavy metal instrumental, drop-tuned distorted electric guitars, tight riff-driven palm-muted chugs, galloping rhythm, pounding double kick drums, heavy bass guitar, melodic guitar lead, aggressive and energetic, high gain",
+   "structure": "[Intro - guitar riff]\n\n[Main Theme - heavy riffs and double kick]\n\n[Variation - melodic guitar lead]\n\n[Bridge - half-time breakdown]\n\n[Main Theme - heavy riffs and double kick]",
+   "bpm": 150,
+   "key": "E Minor",
+   "meter": "4"
+  },
+  {
+   "id": "r-r3-hardrock",
+   "colour": "R",
+   "lane": "normal",
+   "name": "R · hard rock overdrive",
+   "takes": 2,
+   "caption": "driving hard rock instrumental, overdriven electric guitar riffs, heavy rock drums, punchy bass guitar, wailing guitar solo, energetic and loud, arena rock, powerful",
+   "structure": "[Intro - drum fill and riff]\n\n[Main Theme - guitar riffs]\n\n[Variation - guitar solo]\n\n[Bridge - riff and drums]\n\n[Main Theme - guitar riffs]",
+   "bpm": 138,
+   "key": "A Minor",
+   "meter": "4"
+  },
+  {
+   "id": "wu-r3-chip-chorale",
+   "colour": "WU",
+   "lane": "16-bit",
+   "name": "WU · 16-bit sky temple hymn",
+   "takes": 2,
+   "caption": "16-bit SNES temple music, chiptune pipe organ, soft sampled choir pad, slow solemn hymn melody, harp, no drums, reverent and luminous, a temple above the clouds, retro console RPG",
+   "structure": "[Intro - choir pad]\n\n[Main Theme - organ hymn melody]\n\n[Variation - harp and choir]\n\n[Bridge - organ alone]\n\n[Main Theme - organ hymn melody]",
+   "bpm": 76,
+   "key": "F Major",
+   "meter": "3"
+  },
+  {
+   "id": "wu-r3-chip-citadel",
+   "colour": "WU",
+   "lane": "16-bit",
+   "name": "WU · 16-bit floating citadel",
+   "takes": 2,
+   "caption": "16-bit floating castle music, echoing sine wave arpeggios, soft synth brass melody, harp, sampled flute, gentle and noble, no snare, a citadel drifting on the wind, retro console game",
+   "structure": "[Intro - sine arpeggios]\n\n[Main Theme - synth brass melody]\n\n[Variation - flute and harp]\n\n[Bridge - arpeggios]\n\n[Main Theme - synth brass melody]",
+   "bpm": 88,
+   "key": "Bb Major",
+   "meter": "4"
+  },
+  {
+   "id": "ub-r3-chip-abyss",
+   "colour": "UB",
+   "lane": "16-bit",
+   "name": "UB · 16-bit abyssal sewer",
+   "takes": 2,
+   "caption": "16-bit dark stealth music, low FM bass drone, sparse eerie square wave lead with long echo, slow heartbeat kick, dripping water, no snare, cold menacing and secretive, a black sewer beneath the city, retro console horror",
+   "structure": "[Intro - drone and drips]\n\n[Main Theme - eerie square lead]\n\n[Variation - low FM bass pulse]\n\n[Bridge - drone]\n\n[Main Theme - eerie square lead]",
+   "bpm": 70,
+   "key": "B Minor",
+   "meter": "4"
+  },
+  {
+   "id": "br-r3-chip-hellmetal",
+   "colour": "BR",
+   "lane": "16-bit",
+   "name": "BR · 16-bit infernal speed metal",
+   "takes": 2,
+   "caption": "16-bit Sega Genesis FM speed metal, chiptune pipe organ riff, distorted FM guitars, blazing fast arpeggios, sampled double kick drums with fills, evil and furious, demon castle final boss, retro console",
+   "structure": "[Intro - chip organ riff]\n\n[Main Theme - FM guitar riffs and organ]\n\n[Variation - shred arpeggios]\n\n[Bridge - organ breakdown]\n\n[Main Theme - FM guitar riffs and organ]",
+   "bpm": 176,
+   "key": "B Minor",
+   "meter": "4"
+  },
+  {
+   "id": "br-r3-chip-cinder",
+   "colour": "BR",
+   "lane": "16-bit",
+   "name": "BR · 16-bit cinder cathedral",
+   "takes": 2,
+   "caption": "16-bit SNES gothic battle music, harpsichord ostinato, sampled overdriven guitar, chip organ stabs, tom rolls, minor key, frantic and sinister, a burning cathedral, retro console game",
+   "structure": "[Intro - harpsichord]\n\n[Main Theme - harpsichord and guitar]\n\n[Variation - organ stabs]\n\n[Bridge - toms]\n\n[Main Theme - harpsichord and guitar]",
+   "bpm": 140,
+   "key": "C Minor",
+   "meter": "3"
+  },
+  {
+   "id": "rg-r3-chip-stampede",
+   "colour": "RG",
+   "lane": "16-bit",
+   "name": "RG · 16-bit jungle stampede",
+   "takes": 2,
+   "caption": "16-bit Sega Genesis jungle stage music, FM slap bass, tribal tom drums, distorted FM guitar, marimba riff, animal roar samples, savage and fast, a beast stampede, retro console",
+   "structure": "[Intro - tribal toms]\n\n[Main Theme - FM bass and marimba riff]\n\n[Variation - FM guitar]\n\n[Bridge - toms]\n\n[Main Theme - FM bass and marimba riff]",
+   "bpm": 140,
+   "key": "E Minor",
+   "meter": "4"
+  },
+  {
+   "id": "rg-r3-chip-swamprock",
+   "colour": "RG",
+   "lane": "16-bit",
+   "name": "RG · 16-bit swamp rock",
+   "takes": 2,
+   "caption": "16-bit swamp level music, chiptune slide guitar bends, FM fuzz bass, bluesy shuffle groove, croaking frog samples, humid and mystic, a bayou at dusk, retro console game",
+   "structure": "[Intro - frog samples and bass]\n\n[Main Theme - slide guitar melody]\n\n[Variation - fuzz bass groove]\n\n[Bridge - bass and frogs]\n\n[Main Theme - slide guitar melody]",
+   "bpm": 96,
+   "key": "E Minor",
+   "meter": "4"
+  },
+  {
+   "id": "gw-r3-chip-harvest",
+   "colour": "GW",
+   "lane": "16-bit",
+   "name": "GW · 16-bit harvest festival",
+   "takes": 2,
+   "caption": "16-bit SNES village festival theme, sampled pan flute, accordion, marimba, light hand percussion, joyful and warm, a harvest dance in a meadow, retro console RPG",
+   "structure": "[Intro - pan flute]\n\n[Main Theme - pan flute and accordion]\n\n[Variation - marimba]\n\n[Bridge - flute]\n\n[Main Theme - pan flute and accordion]",
+   "bpm": 120,
+   "key": "D Major",
+   "meter": "6"
+  },
+  {
+   "id": "gw-r3-chip-sanctuary",
+   "colour": "GW",
+   "lane": "16-bit",
+   "name": "GW · 16-bit elven sanctuary",
+   "takes": 2,
+   "caption": "16-bit SNES elven sanctuary theme, harp arpeggios, soft synth strings, wooden flute lead, no drums, serene and sacred, a temple grown from living trees, retro console RPG",
+   "structure": "[Intro - harp]\n\n[Main Theme - wooden flute melody]\n\n[Variation - strings]\n\n[Bridge - harp alone]\n\n[Main Theme - wooden flute melody]",
+   "bpm": 80,
+   "key": "F Major",
+   "meter": "3"
+  },
+  {
+   "id": "wb-r3-chip-vault",
+   "colour": "WB",
+   "lane": "16-bit",
+   "name": "WB · 16-bit gilded vault",
+   "takes": 2,
+   "caption": "16-bit SNES royal vault music, chiptune harpsichord, synth brass, sampled strings, stately minor key, timpani accents, cold and wealthy, a marble treasury of a corrupt church, retro console RPG",
+   "structure": "[Intro - harpsichord]\n\n[Main Theme - brass and harpsichord]\n\n[Variation - strings]\n\n[Bridge - harpsichord]\n\n[Main Theme - brass and harpsichord]",
+   "bpm": 100,
+   "key": "G Minor",
+   "meter": "4"
+  },
+  {
+   "id": "wb-r3-chip-toccata",
+   "colour": "WB",
+   "lane": "16-bit",
+   "name": "WB · 16-bit cathedral toccata",
+   "takes": 2,
+   "caption": "16-bit chiptune organ toccata, fast pipe organ arpeggios, low pulse bass pedals, dramatic minor key, imposing and gilded, a dark cathedral, retro console boss",
+   "structure": "[Intro - organ flourish]\n\n[Main Theme - organ toccata]\n\n[Variation - pedal bass]\n\n[Bridge - organ chords]\n\n[Main Theme - organ toccata]",
+   "bpm": 120,
+   "key": "D Minor",
+   "meter": "4"
+  },
+  {
+   "id": "ur-r3-chip-storm",
+   "colour": "UR",
+   "lane": "16-bit",
+   "name": "UR · 16-bit storm circuit",
+   "takes": 2,
+   "caption": "16-bit Sega Genesis FM synthesis, fast electric arpeggios, FM bass sequence, crisp sampled drums with fills, bright FM lead, electric and clever, a storm-powered machine city, retro console",
+   "structure": "[Intro - arpeggios]\n\n[Main Theme - FM lead over bass sequence]\n\n[Variation - arpeggio breakdown]\n\n[Bridge - drums and bass]\n\n[Main Theme - FM lead over bass sequence]",
+   "bpm": 160,
+   "key": "F# Minor",
+   "meter": "4"
+  },
+  {
+   "id": "ur-r3-chip-aqueduct",
+   "colour": "UR",
+   "lane": "16-bit",
+   "name": "UR · 16-bit neon aqueduct",
+   "takes": 2,
+   "caption": "16-bit SNES techno stage music, bright synth arpeggios, glossy FM electric piano, water drop samples, punchy sampled drums, energetic and fresh, a neon aqueduct, retro console",
+   "structure": "[Intro - electric piano]\n\n[Main Theme - synth lead]\n\n[Variation - arpeggios and drops]\n\n[Bridge - drums]\n\n[Main Theme - synth lead]",
+   "bpm": 138,
+   "key": "A Minor",
+   "meter": "4"
+  },
+  {
+   "id": "bg-r3-chip-bog",
+   "colour": "BG",
+   "lane": "16-bit",
+   "name": "BG · 16-bit fungal bog",
+   "takes": 2,
+   "caption": "16-bit swamp dungeon music, croaky FM bass, wooden marimba, eerie whistle lead, dripping water, slow and murky, no snare, a fungal bog, retro console RPG",
+   "structure": "[Intro - drips and bass]\n\n[Main Theme - marimba and whistle]\n\n[Variation - FM bass]\n\n[Bridge - marimba]\n\n[Main Theme - marimba and whistle]",
+   "bpm": 84,
+   "key": "G Minor",
+   "meter": "4"
+  },
+  {
+   "id": "bg-r3-chip-undercity",
+   "colour": "BG",
+   "lane": "16-bit",
+   "name": "BG · 16-bit rotting undercity",
+   "takes": 2,
+   "caption": "16-bit SNES dark town music, chiptune harpsichord, low string drone, crooked minor waltz, sparse bass, decaying and strange, an overgrown undercity, retro console",
+   "structure": "[Intro - harpsichord]\n\n[Main Theme - harpsichord waltz]\n\n[Variation - strings]\n\n[Bridge - drone]\n\n[Main Theme - harpsichord waltz]",
+   "bpm": 100,
+   "key": "Bb Minor",
+   "meter": "3"
+  },
+  {
+   "id": "rw-r3-chip-charge",
+   "colour": "RW",
+   "lane": "16-bit",
+   "name": "RW · 16-bit knights charge",
+   "takes": 2,
+   "caption": "16-bit Sega Genesis FM heroic battle, FM guitar riffs, synth trumpet fanfare melody, galloping bass, punchy sampled drums with fills, brave and blazing, cavalry charge, retro console",
+   "structure": "[Intro - trumpet fanfare]\n\n[Main Theme - trumpet melody over guitar riffs]\n\n[Variation - galloping bass]\n\n[Bridge - fanfare]\n\n[Main Theme - trumpet melody over guitar riffs]",
+   "bpm": 156,
+   "key": "D Major",
+   "meter": "4"
+  },
+  {
+   "id": "rw-r3-chip-arena",
+   "colour": "RW",
+   "lane": "16-bit",
+   "name": "RW · 16-bit gladiator arena",
+   "takes": 2,
+   "caption": "16-bit SNES arena battle music, sampled taiko drums, synth trumpets, overdriven guitar, orchestra hits, fierce and triumphant, a gladiator arena, retro console",
+   "structure": "[Intro - taiko]\n\n[Main Theme - trumpets and guitar]\n\n[Variation - orchestra hits]\n\n[Bridge - taiko]\n\n[Main Theme - trumpets and guitar]",
+   "bpm": 132,
+   "key": "A Minor",
+   "meter": "4"
+  },
+  {
+   "id": "gu-r3-chip-lagoon",
+   "colour": "GU",
+   "lane": "16-bit",
+   "name": "GU · 16-bit kelp lagoon",
+   "takes": 2,
+   "caption": "16-bit SNES lagoon music, warm marimba, soft flute lead, harp, gentle swaying rhythm, no snare, bubbly and calm, a kelp forest lagoon, retro console",
+   "structure": "[Intro - marimba]\n\n[Main Theme - flute melody]\n\n[Variation - harp]\n\n[Bridge - marimba]\n\n[Main Theme - flute melody]",
+   "bpm": 96,
+   "key": "Eb Major",
+   "meter": "3"
+  },
+  {
+   "id": "gu-r3-chip-glowcave",
+   "colour": "GU",
+   "lane": "16-bit",
+   "name": "GU · 16-bit glowing grotto",
+   "takes": 2,
+   "caption": "16-bit bioluminescent cave music, glassy synth pads, kalimba, slow sine lead, deep soft bass, no drums, curious and alive, glowing mushrooms by an underground lake, retro console",
+   "structure": "[Intro - pads]\n\n[Main Theme - kalimba and sine lead]\n\n[Variation - pads]\n\n[Bridge - kalimba]\n\n[Main Theme - kalimba and sine lead]",
+   "bpm": 76,
+   "key": "A Minor",
+   "meter": "4"
+  },
+  {
+   "id": "ub-r3-abyss",
+   "colour": "UB",
+   "lane": "normal",
+   "name": "UB · abyssal espionage",
+   "takes": 2,
+   "caption": "dark cinematic ambient instrumental, deep sub-bass drones, distant sonar pings, slow heavy trip-hop beat, detuned piano, low bowed contrabass, cold and menacing, an assassin deep under black water",
+   "structure": "[Intro - drones and sonar]\n\n[Main Theme - detuned piano over heavy beat]\n\n[Variation - bowed contrabass]\n\n[Bridge - drones]\n\n[Main Theme - detuned piano over heavy beat]",
+   "bpm": 70,
+   "key": "C Minor",
+   "meter": "4"
+  },
+  {
+   "id": "ub-r3-drowned",
+   "colour": "UB",
+   "lane": "normal",
+   "name": "UB · drowned dread",
+   "takes": 2,
+   "caption": "dark ambient horror instrumental, low cello, glass harmonica, slow heartbeat pulse, bowed metal, distant whispers, very dark and claustrophobic, a drowned crypt",
+   "structure": "[Intro - cello drone]\n\n[Main Theme - glass harmonica]\n\n[Variation - heartbeat pulse]\n\n[Bridge - bowed metal]\n\n[Main Theme - glass harmonica]",
+   "bpm": 60,
+   "key": "G Minor",
+   "meter": "4"
+  },
+  {
+   "id": "br-r3-symphonic",
+   "colour": "BR",
+   "lane": "normal",
+   "name": "BR · cathedral of blades",
+   "takes": 2,
+   "caption": "symphonic gothic speed metal instrumental, pipe organ, choir pads, blast beats and double kick, tremolo-picked distorted guitars, harpsichord, fast and evil, a burning cathedral",
+   "structure": "[Intro - pipe organ]\n\n[Main Theme - tremolo guitars and organ]\n\n[Variation - harpsichord and choir]\n\n[Bridge - guitar riff]\n\n[Main Theme - tremolo guitars and organ]",
+   "bpm": 190,
+   "key": "B Minor",
+   "meter": "4"
+  },
+  {
+   "id": "br-r3-organthrash",
+   "colour": "BR",
+   "lane": "normal",
+   "name": "BR · infernal organ thrash",
+   "takes": 2,
+   "caption": "gothic thrash metal instrumental, pipe organ riffs, harpsichord, fast palm-muted distorted guitars, double kick drums, shredding solo, sinister and furious",
+   "structure": "[Intro - organ riff]\n\n[Main Theme - guitar and organ riffs]\n\n[Variation - shred solo]\n\n[Bridge - organ breakdown]\n\n[Main Theme - guitar and organ riffs]",
+   "bpm": 168,
+   "key": "D Minor",
+   "meter": "4"
+  },
+  {
+   "id": "rg-r3-bayoufuzz",
+   "colour": "RG",
+   "lane": "normal",
+   "name": "RG · bayou fuzz trip",
+   "takes": 2,
+   "caption": "psychedelic swamp rock blues instrumental, fuzzy slide guitar, tremolo guitar, swampy bass, slow heavy groove, hand drums, croaking frogs, dark mystic and humid, a bayou at night",
+   "structure": "[Intro - tremolo guitar and frogs]\n\n[Main Theme - slide guitar groove]\n\n[Variation - fuzz guitar solo]\n\n[Bridge - bass and hand drums]\n\n[Main Theme - slide guitar groove]",
+   "bpm": 80,
+   "key": "E Minor",
+   "meter": "4"
+  },
+  {
+   "id": "rg-r3-mysticgroove",
+   "colour": "RG",
+   "lane": "normal",
+   "name": "RG · mystic swamp groove",
+   "takes": 2,
+   "caption": "dark psychedelic blues rock instrumental, wah-wah guitar, hammond organ, deep groove bass, tribal tom groove, hypnotic and smoky, a mystic swamp ritual",
+   "structure": "[Intro - organ]\n\n[Main Theme - wah guitar groove]\n\n[Variation - organ solo]\n\n[Bridge - toms]\n\n[Main Theme - wah guitar groove]",
+   "bpm": 92,
+   "key": "A Minor",
+   "meter": "4"
+  },
+  {
+   "id": "wb-r3-requiem",
+   "colour": "WB",
+   "lane": "normal",
+   "name": "WB · requiem of gold",
+   "takes": 2,
+   "caption": "dark orchestral requiem instrumental, choir oohs, deep brass chorale, low strings, timpani, solemn gilded and ominous, a cathedral of wealth",
+   "structure": "[Intro - low strings]\n\n[Main Theme - brass chorale with choir]\n\n[Variation - strings]\n\n[Bridge - timpani and choir]\n\n[Main Theme - brass chorale with choir]",
+   "bpm": 72,
+   "key": "D Minor",
+   "meter": "4"
+  },
+  {
+   "id": "wb-r3-salon",
+   "colour": "WB",
+   "lane": "normal",
+   "name": "WB · aristocrat salon",
+   "takes": 2,
+   "caption": "dark neoclassical instrumental, grand piano, string quartet, elegant minor waltz, aristocratic, cold and refined, a candlelit salon of nobles",
+   "structure": "[Intro - piano]\n\n[Main Theme - piano and strings]\n\n[Variation - cello solo]\n\n[Bridge - piano]\n\n[Main Theme - piano and strings]",
+   "bpm": 84,
+   "key": "G Minor",
+   "meter": "3"
+  },
+  {
+   "id": "ur-r3-aerodjent",
+   "colour": "UR",
+   "lane": "normal",
+   "name": "UR · aero djent",
+   "takes": 2,
+   "caption": "Frutiger Aero djent instrumental, glossy bright synth pads, crystal synth plucks, polyrhythmic djent guitars, 8-string, progressive metal drums, shiny and futuristic, clear water and sky",
+   "structure": "[Intro - synth plucks]\n\n[Main Theme - djent riffs and pads]\n\n[Variation - clean shimmering guitar]\n\n[Bridge - djent breakdown]\n\n[Main Theme - djent riffs and pads]",
+   "bpm": 128,
+   "key": "F# Minor",
+   "meter": "4"
+  },
+  {
+   "id": "ur-r3-aerometalcore",
+   "colour": "UR",
+   "lane": "normal",
+   "name": "UR · glass storm progressive",
+   "takes": 2,
+   "caption": "ambient progressive metalcore instrumental, clean shimmering guitars, glossy synth arpeggios, water droplets, heavy syncopated djent breakdowns, electric and bright",
+   "structure": "[Intro - arpeggios]\n\n[Main Theme - clean guitars and arpeggios]\n\n[Variation - djent breakdown]\n\n[Bridge - arpeggios]\n\n[Main Theme - clean guitars and arpeggios]",
+   "bpm": 140,
+   "key": "B Minor",
+   "meter": "4"
+  },
+  {
+   "id": "bg-r3-bayoublues",
+   "colour": "BG",
+   "lane": "normal",
+   "name": "BG · bayou rot blues",
+   "takes": 2,
+   "caption": "slow dark delta blues instrumental, slide resonator guitar, upright bass, slow stomp, harmonica, croaking frogs, menacing and humid, rot in the bayou",
+   "structure": "[Intro - frogs and slide]\n\n[Main Theme - slide guitar]\n\n[Variation - harmonica]\n\n[Bridge - stomp]\n\n[Main Theme - slide guitar]",
+   "bpm": 68,
+   "key": "E Minor",
+   "meter": "4"
+  },
+  {
+   "id": "bg-r3-graveblues",
+   "colour": "BG",
+   "lane": "normal",
+   "name": "BG · graveyard swamp blues",
+   "takes": 2,
+   "caption": "dark swamp blues instrumental, baritone guitar, low cello, washboard, slow kick, dark and heavy, a graveyard in a swamp",
+   "structure": "[Intro - baritone guitar]\n\n[Main Theme - guitar and cello]\n\n[Variation - washboard]\n\n[Bridge - guitar]\n\n[Main Theme - guitar and cello]",
+   "bpm": 76,
+   "key": "D Minor",
+   "meter": "4"
+  },
+  {
+   "id": "rw-r3-stringdjent",
+   "colour": "RW",
+   "lane": "normal",
+   "name": "RW · string djent charge",
+   "takes": 2,
+   "caption": "string fusion djent metalcore instrumental, violin and cello ostinatos, djent guitars, syncopated breakdowns, double kick, soaring violin lead, intense and heroic",
+   "structure": "[Intro - violins]\n\n[Main Theme - djent riffs and strings]\n\n[Variation - violin lead]\n\n[Bridge - breakdown]\n\n[Main Theme - djent riffs and strings]",
+   "bpm": 145,
+   "key": "D Minor",
+   "meter": "4"
+  },
+  {
+   "id": "rw-r3-violinmetalcore",
+   "colour": "RW",
+   "lane": "normal",
+   "name": "RW · violin metalcore",
+   "takes": 2,
+   "caption": "melodic metalcore instrumental, soaring violin lead, string section, fast djent guitars, double kick, uplifting and fierce",
+   "structure": "[Intro - strings]\n\n[Main Theme - violin lead over guitars]\n\n[Variation - string section]\n\n[Bridge - breakdown]\n\n[Main Theme - violin lead over guitars]",
+   "bpm": 160,
+   "key": "E Major",
+   "meter": "4"
+  }
+ ],
+ "soundscapes": [
+  {
+   "id": "g-r3-minstrel-forest",
+   "colour": "G",
+   "lane": "normal",
+   "name": "G · enchanted forest minstrel",
+   "music": {
+    "take": "g-r3-minstrel-5",
+    "db": 3
+   },
+   "beds": [
+    {
+     "prompt": "a temperate forest at morning, gentle breeze in the leaves, many songbirds far away, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a small forest stream trickling gently over stones, field recording",
+     "db": -9
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a single blackbird singing a melodic phrase close by in a forest, field recording",
+     "every": 16,
+     "db": 2
+    },
+    {
+     "prompt": "a great spotted woodpecker drumming on a dead tree trunk in a forest, field recording",
+     "every": 45,
+     "db": -1
+    },
+    {
+     "prompt": "a red squirrel chattering in a tree, field recording",
+     "every": 55,
+     "db": -3
+    },
+    {
+     "prompt": "a common cuckoo calling far away in a forest, field recording",
+     "every": 75,
+     "db": -5
+    },
+    {
+     "prompt": "a red deer stepping through leaves and snorting softly in a forest, field recording",
+     "every": 70,
+     "db": -5
+    }
+   ]
+  },
+  {
+   "id": "g-r3-harpglade-forest",
+   "colour": "G",
+   "lane": "normal",
+   "name": "G · woodland harp glade",
+   "music": {
+    "take": "g-r3-harpglade-4",
+    "db": 3
+   },
+   "beds": [
+    {
+     "prompt": "a sunny forest glade at midday, warm breeze in tall grass, insects buzzing softly, songbirds, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "leaves rustling gently in a light wind in a deciduous forest, field recording",
+     "db": -7
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a song thrush singing a melodic phrase in a forest, field recording",
+     "every": 18,
+     "db": 1
+    },
+    {
+     "prompt": "a wood pigeon cooing softly in a forest, field recording",
+     "every": 40,
+     "db": -3
+    },
+    {
+     "prompt": "a frog croaking a few times by a forest pond, field recording",
+     "every": 50,
+     "db": -4
+    },
+    {
+     "prompt": "a fox barking far away across a forest, field recording",
+     "every": 90,
+     "db": -7
+    },
+    {
+     "prompt": "a tawny owl hooting once far away in a forest, field recording",
+     "every": 110,
+     "db": -7
+    }
+   ]
+  },
+  {
+   "id": "w-r3-tavernroad-inn",
+   "colour": "W",
+   "lane": "normal",
+   "name": "W · tavern road",
+   "music": {
+    "take": "w-r3-tavernroad-2",
+    "db": 1
+   },
+   "beds": [
+    {
+     "prompt": "a busy medieval tavern full of people murmuring and laughing, indistinct crowd chatter, no clear words, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a crackling hearth fire in a wooden inn, field recording",
+     "db": -8
+    }
+   ],
+   "events": [
+    {
+     "prompt": "wooden tankards clinking together and a cheer from a small group in a tavern, field recording",
+     "every": 30,
+     "db": -1
+    },
+    {
+     "prompt": "a group of people laughing loudly in a crowded tavern, field recording",
+     "every": 25,
+     "db": -2
+    },
+    {
+     "prompt": "a wooden chair scraping on a wooden floor in a busy inn, field recording",
+     "every": 40,
+     "db": -5
+    },
+    {
+     "prompt": "a heavy wooden tavern door opening and closing, field recording",
+     "every": 60,
+     "db": -5
+    }
+   ]
+  },
+  {
+   "id": "w-r3-banners-town",
+   "colour": "W",
+   "lane": "normal",
+   "name": "W · banners on the road",
+   "music": {
+    "take": "w-r3-banners-1",
+    "db": 3
+   },
+   "beds": [
+    {
+     "prompt": "a lively medieval market square, crowd murmuring, indistinct chatter, no clear words, outdoors, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "flags and banners flapping in a fresh wind on a sunny day, field recording",
+     "db": -8
+    }
+   ],
+   "events": [
+    {
+     "prompt": "horses trotting on cobblestones past a crowd, field recording",
+     "every": 35,
+     "db": -3
+    },
+    {
+     "prompt": "a small crowd cheering and clapping outdoors, field recording",
+     "every": 50,
+     "db": -3
+    },
+    {
+     "prompt": "a rooster crowing in a village, field recording",
+     "every": 80,
+     "db": -6
+    }
+   ]
+  },
+  {
+   "id": "u-r3-aero-lagoon",
+   "colour": "U",
+   "lane": "normal",
+   "name": "U · aero bubble lagoon",
+   "music": {
+    "take": "u-r3-aero-3",
+    "db": 4
+   },
+   "beds": [
+    {
+     "prompt": "gentle clear water lapping in a shallow lagoon, calm and bright, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "soft bubbling water in an aquarium tank, an air pump bubbling gently, field recording",
+     "db": -8
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a stream of bubbles rising and popping underwater, field recording",
+     "every": 20,
+     "db": -2
+    },
+    {
+     "prompt": "a single large water drop falling into a still pool, a deep plop, field recording",
+     "every": 25,
+     "db": -3
+    },
+    {
+     "prompt": "a dolphin clicking and whistling underwater, field recording",
+     "every": 70,
+     "db": -5
+    },
+    {
+     "prompt": "a fish splashing at the surface of calm water, field recording",
+     "every": 45,
+     "db": -5
+    }
+   ]
+  },
+  {
+   "id": "u-r3-aeroaquarium-glass",
+   "colour": "U",
+   "lane": "normal",
+   "name": "U · glass aquarium",
+   "music": {
+    "take": "u-r3-aeroaquarium-5",
+    "db": 4
+   },
+   "beds": [
+    {
+     "prompt": "underwater ambience, gentle muffled water movement, soft bubbles, calm, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a small indoor fountain trickling and splashing softly, field recording",
+     "db": -9
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a stream of bubbles rising and popping underwater, field recording",
+     "every": 22,
+     "db": -2
+    },
+    {
+     "prompt": "water droplets dripping into a pool in a cave, with echo, field recording",
+     "every": 30,
+     "db": -3
+    },
+    {
+     "prompt": "a humpback whale singing far away underwater, field recording",
+     "every": 90,
+     "db": -6
+    }
+   ]
+  }
+ ]
+}

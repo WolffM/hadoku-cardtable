@@ -10,7 +10,8 @@ hard-clipped on save) with ACE-Step's own loudness normalisation off, so `music-
 render, plus a `.json` sidecar holding everything needed to render it again: model, version, prompt, seed,
 steps, cfg, shift, duration, licence. Output: `~/.local/share/cardtable-sfx/music/generated/<colour>/`.
 A prompt may set `"instrumental": false` for a wordless vocal layer (round 2's humming choir): its structure tags
-are the only lyrics, so there are no words to sing. A rerun resumes (existing takes are skipped). The GPU is shared: an out-of-memory take waits 30 s and retries.
+are the only lyrics, so there are no words to sing. A rerun resumes (existing takes are skipped). The GPU is shared: a take that runs out of memory, or that ACE-Step's pre-flight refuses for lack of free VRAM,
+waits 30 s and retries (up to 20 times).
 """
 import argparse
 import json
@@ -102,7 +103,7 @@ def main() -> None:
 			use_cot_metas=False, use_cot_caption=False, use_cot_language=False, enable_normalization=False,
 		)
 		config = GenerationConfig(batch_size=1, use_random_seed=False, seeds=[seed], audio_format='wav32')
-		for attempt in range(6):
+		for attempt in range(20):
 			started = time.time()
 			try:
 				result = generate_music(dit, llm, params, config, save_dir=os.path.join(os.path.dirname(out), '.ace'))
@@ -113,14 +114,15 @@ def main() -> None:
 				continue
 			if result.success:
 				break
-			if 'out of memory' in str(result.error).lower():
+			# ACE-Step's own pre-flight refuses a take when another process (a game, Stable Audio) holds the VRAM.
+			if any(m in str(result.error).lower() for m in ('out of memory', 'insufficient free vram')):
 				torch.cuda.empty_cache()
 				print(f'{p["id"]}-{t + 1}: out of memory, retrying in 30 s', flush=True)
 				time.sleep(30)
 				continue
 			raise SystemExit(f'{p["id"]}-{t + 1}: {result.error}')
 		else:
-			raise SystemExit(f'{p["id"]}-{t + 1}: out of memory six times')
+			raise SystemExit(f'{p["id"]}-{t + 1}: out of memory twenty times')
 		audio = result.audios[0]
 		wave = audio['tensor'].numpy().T
 		sf.write(out, wave, audio.get('sample_rate', 48000), subtype='FLOAT')

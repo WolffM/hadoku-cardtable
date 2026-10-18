@@ -358,3 +358,29 @@ export ACESTEP_CHECKPOINTS_DIR=~/.cache/ace-step/checkpoints ACESTEP_DISABLE_TQD
 - The music layers rendered while the GPU was shared with a game: XL plus the 1.7B LM ran out of memory, so they
   are the 2B sft DiT with no LM (`--lm none`, about 5 GB). The humming choir is `"instrumental": false` with
   structure tags as its only lyrics.
+
+### Round 3: a normal and a 16-bit track per slot (2026-10-18)
+
+The operator: *"eventually i want to have 2 tracks for every slot. one 'normal' and one 16-bit."* `music-round3.json`
+gives every prompt a `lane` and names it `"<CODE> · 16-bit <description>"` or `"<CODE> · <description>"`, so the
+review page can group both lanes per slot. The 16-bit prompts each name a console palette (SNES SPC700 samples or
+Mega Drive YM2612 FM) and, where the colour allows, ask for no drums or for varied fills instead of a steady snare
+(round 1's grotto). The normal prompts follow the reviewers' style references (Frutiger Aero, riff-driven heavy
+metal, psychedelic swamp blues, string-fusion djent) as directions only. The G, W and U normal takes are
+soundscapes: `music-soundscape.py` lays forest, tavern, market or water beds and scattered events under the music.
+
+```sh
+export ACESTEP_CHECKPOINTS_DIR=~/.cache/ace-step/checkpoints ACESTEP_DISABLE_TQDM=1
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-generate.py --spec scripts/sfx/music-round3.json --seed 60000 [--only w-r3,u-r3] [--takes 5]
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-finish.py --only w-r3,u-r3
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/music-soundscape.py --spec scripts/sfx/music-round3.json --seed 61000
+```
+
+- **Stereo phase was the main failure.** ACE-Step pans some instruments out of phase between 150 Hz and 8 kHz
+  (band correlations down to −0.75). That is not a polarity flip, so it cannot be repaired, and in mono those
+  instruments disappear. Sparse acoustic prompts (lute, harp, chiptune lute) failed most often; dense metal and FM
+  takes seldom did. `--takes 5` adds seeds 3–5 without re-rendering 1–2.
+- **Never run Stable Audio beside the XL model and its LM.** XL with the LM holds about 18 GB; Stable Audio's
+  3 GB made ACE-Step's own VRAM pre-flight refuse takes, and then made model loading fail. `music-generate.py` now
+  waits and retries on a pre-flight refusal as it does on out-of-memory (which also covers a game starting
+  mid-batch), but run soundscapes between ACE-Step batches, not during them.
