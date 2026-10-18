@@ -229,7 +229,7 @@ function NamePickPrompt({ ask, onAnswer }: PromptProps<'getChoices'>) {
   );
 }
 
-function ListChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>) {
+function ListChoicesPrompt({ ask, onAnswer, lookup, onCancel }: PromptProps<'getChoices'>) {
   const bounds = choiceBounds(ask.min, ask.max);
   const known = new Set(ask.choices.map((c) => c.key));
   const range = bounds.max > 0 ? numericChoiceRange(ask) : null;
@@ -268,9 +268,15 @@ function ListChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>)
   }
 
   const anyCards = ask.choices.some((c) => cardOfOption(c.ref) !== null);
+  const cancel =
+    onCancel === undefined ? undefined : (
+      <button type="button" data-testid="prompt-cancel" onClick={onCancel}>
+        Cancel
+      </button>
+    );
 
   return (
-    <PromptShell method="getChoices" title={promptText(ask.message)} problems={problems} onSubmit={submit}>
+    <PromptShell method="getChoices" title={promptText(ask.message)} problems={problems} onSubmit={submit} actions={cancel}>
       <p className="prompt__hint">{boundsText(bounds.min, bounds.max)}</p>
       <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
         {ask.choices.map((c) => {

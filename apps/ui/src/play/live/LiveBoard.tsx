@@ -299,6 +299,7 @@ import {
   answerAsk,
   answerConfirm,
   blockFocusOf,
+  cancelManaChoice,
   damagePreviewOf,
   previewDamage,
   combatCandidates,
@@ -310,6 +311,7 @@ import {
   declaringCombat,
   dismissReveal,
   genuinelyAsked,
+  manaChoiceSource,
   isAutoYieldOn,
   liveBar,
   LIFE_PER_SHARD,
@@ -848,6 +850,7 @@ function LivePrompt({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
     // would land here, and throwing makes the boundary abort it.
     throw new Error(`no prompt component for ${ask.method}`);
   }
+  const manaSource = manaChoiceSource(match, ask);
   return (
     <PromptFor
       ask={ask as AskOf<PromptMethod>}
@@ -858,6 +861,7 @@ function LivePrompt({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
       lookup={withAbilityLabels(lookupFromState(match.state), abilityLabelsOf(ask))}
       onAnswer={(reply) => answerAsk(match, ask.callId, ask.method, reply)}
       onPreview={(amounts) => previewDamage(match, ask.callId, amounts)}
+      onCancel={manaSource === null || ask.method !== 'getChoices' ? undefined : () => cancelManaChoice(match, ask, manaSource)}
     />
   );
 }

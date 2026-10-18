@@ -66,6 +66,8 @@ export interface AnyPromptProps {
    * answer calls it (`AssignCombatDamagePrompt`).
    */
   onPreview?: (amounts: ReadonlyMap<number, number>) => void;
+  /** Cancel on a question Forge gives no way out of (`PromptProps.onCancel`). */
+  onCancel?: () => void;
 }
 
 /**

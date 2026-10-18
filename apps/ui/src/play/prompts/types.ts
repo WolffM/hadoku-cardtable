@@ -65,6 +65,11 @@ export interface PromptProps<M extends PromptMethod> {
    * answer calls it (`AssignCombatDamagePrompt`).
    */
   onPreview?: (amounts: ReadonlyMap<number, number>) => void;
+  /**
+   * A way out of a question Forge itself gives none for, drawn as Cancel: a mana ability's colour
+   * question, whose Cancel untaps the source (`../live/match.ts`'s `cancelManaChoice`).
+   */
+  onCancel?: () => void;
 }
 
 /** Thrown when a component builds an answer the wire schema rejects — a bug in the component. */
