@@ -75,6 +75,7 @@ import {
   type MatchTransport,
 } from './match.ts';
 import { FLIP_MS } from './CoinToss.tsx';
+import { whenBoardStill } from '../motion.ts';
 import type { PlayPrefs } from './prefs.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from './replay-server.ts';
 import { parseMatchAck } from './transport.ts';
@@ -3505,6 +3506,15 @@ describe('R16 — the result screen, drawn over the board', () => {
   });
 
   /** A finished game in room `r-1`: the opponent lost, so the viewer sees Victory. */
+  /**
+   * The end's last beats (`noteBoardDrawing`) run on real timers, and the result screen waits for them
+   * (`useAfterTheBoard`); this waits on the board itself, with no deadline, so a `waitFor` after it covers
+   * only the screen's own draw — on a loaded host the beats alone outlasted its second.
+   */
+  async function untilBoardStill(): Promise<void> {
+    await act(() => new Promise<void>((resolve) => whenBoardStill(resolve)));
+  }
+
   async function victoryInRoom() {
     const s = (server = await startReplayServer());
     const m = (match = startMatch({
@@ -3521,6 +3531,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
     s.send(gameOverDelta(m.view!.seq + 1, opponentId));
     await untilMatch(m, () => expect(m.over).toBe(true));
+    await untilBoardStill();
     await waitFor(() => expect(utils.getByTestId('game-result').dataset.result).toBe('victory'));
     const rematch = () => utils.getByTestId('game-result-rematch') as HTMLButtonElement;
     const check = (you: boolean) =>
@@ -3833,6 +3844,7 @@ describe('R16 — the result screen, drawn over the board', () => {
       const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
       s.send(gameOverDelta(m.view!.seq + 1, opponentId));
       await untilMatch(m, () => expect(m.over).toBe(true));
+      await untilBoardStill();
       await waitFor(() => expect(utils.getByTestId('sideboard-step')).toBeTruthy());
 
       fireEvent.click(utils.getByTestId('sideboard-ready'));
