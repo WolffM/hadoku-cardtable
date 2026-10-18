@@ -393,7 +393,7 @@ async function draftAll(p: Player, hooks: { afterPick?: (n: number) => Promise<v
   for (;;) {
     const next = await p.page.waitForFunction(
       (sel) => {
-        if (document.querySelector('.pod__done') !== null) return 'done';
+        if (window.location.hash.startsWith('#/deck/')) return 'done';
         return document.querySelectorAll(sel).length > 0 ? 'pick' : null;
       },
       ENABLED_CARDS,
@@ -690,7 +690,13 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   /* ── finish ──────────────────────────────────────────────────────── */
 
   for (const p of [alice, bob]) {
-    await expect(p.page.locator('.pod__done h1')).toHaveText('Draft complete');
+    // The last pick lands the drafter in the room's deck builder: no screen
+    // in between, nothing to press.
+    await expect
+      .poll(() => p.page.evaluate(() => window.location.hash), {
+        message: `${p.name}: the finished draft goes straight to the deck builder`,
+      })
+      .toBe(`#/deck/${roomId}`);
     await Promise.all(p.pending);
     expect(p.captureErrors, `${p.name}: every polling body was readable`).toEqual([]);
 
@@ -700,23 +706,11 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
     expect(pool).toHaveLength(PICKS);
     // The server's pool is exactly what this browser clicked, in click order.
     expect(pool.map((c) => c.cardId)).toEqual(p.picks);
-    // The finished screen draws that pool as cards (`PoolView`, by colour —
-    // grouping reorders them, so this checks the SET, not the pick order) and
-    // nothing else; `pool-count` is PoolView's own running total.
-    await expect(p.page.getByTestId('pool-count')).toHaveText(String(PICKS));
-    const shown = await p.page.locator('[data-testid="pool"] [data-testid="card"] .card__name').allTextContents();
-    expect(shown.slice().sort()).toEqual(pool.map((c) => c.name).slice().sort());
-    // Its one action: on to the deck editor, no sentence explaining either
-    // step — no narration `<p>` at all (a card name's own punctuation, like
-    // Forth Eorlingas!, is not explanatory text and would make a text-pattern
-    // check here lie).
-    expect(await p.page.locator('.pod__done p').count()).toBe(0);
-    await p.page.getByTestId('pod-build').click();
-    await expect
-      .poll(() => p.page.evaluate(() => window.location.hash), {
-        message: `${p.name}: Build your deck goes to the room's deck editor`,
-      })
-      .toBe(`#/deck/${roomId}`);
+    // The builder opens on exactly that pool: every pick in the sideboard,
+    // nothing in the main deck yet.
+    await expect(p.page.getByTestId('deck-editor')).toBeVisible({ timeout: UI_TIMEOUT });
+    await expect(p.page.getByTestId('side-count')).toHaveText(String(PICKS));
+    await expect(p.page.getByTestId('main-count')).toHaveText('0');
 
     // No pick was refused — not rate-limited, not stale, not out of turn.
     const errors = received(p).filter((m) => m.type === 'error');
@@ -951,13 +945,9 @@ test(
       await expect(bob.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
 
       await Promise.all([draftAll(alice), draftAll(bob)]);
-      for (const p of [alice, bob]) {
-        await expect(p.page.locator('.pod__done h1')).toHaveText('Draft complete');
-      }
 
-      /* ── both build and save a 40-card deck ───────────────────────── */
+      /* ── both land in the builder, and build and save a 40-card deck ── */
       for (const p of [alice, bob]) {
-        await p.page.getByTestId('pod-build').click();
         await expect(p.page.getByTestId('deck-editor'), `${p.name}: the editor opens`).toBeVisible({ timeout: UI_TIMEOUT });
         await buildMainDeck(p, 40);
       }

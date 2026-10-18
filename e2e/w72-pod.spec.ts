@@ -36,7 +36,7 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 const UI_TIMEOUT = 30_000;
 
-/** Clicks the lowest-indexed enabled card over and over, until the pod says "Draft complete". */
+/** Clicks the lowest-indexed enabled card over and over, until the finished draft lands in the deck builder. */
 async function draftUntilDone(p: Player): Promise<void> {
   // The grid, not the fan: the fan overlaps its cards on purpose (`draft.spec.ts`'s
   // own note), so a click at a card's centre can land outside the viewport
@@ -46,7 +46,7 @@ async function draftUntilDone(p: Player): Promise<void> {
   for (;;) {
     const next = await p.page.waitForFunction(
       () => {
-        if (document.querySelector('.pod__done') !== null) return 'done';
+        if (window.location.hash.startsWith('#/deck/')) return 'done';
         return document.querySelector('[data-testid="pack"] button[data-testid="card"]:not([disabled])') !== null ? 'pick' : null;
       },
       null,
@@ -154,16 +154,12 @@ test(
       for (const p of players) await p.page.getByTestId('ready-toggle').click();
       for (const p of players) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
       await Promise.all(players.map((p) => draftUntilDone(p)));
-      for (const p of players) await expect(p.page.locator('.pod__done h1')).toHaveText('Draft complete');
-
       for (const p of players) {
-        await p.page.getByTestId('pod-build').click();
-        await expect(p.page.getByTestId('deck-editor'), `${p.name}: the editor opens`).toBeVisible({ timeout: UI_TIMEOUT });
+        await expect(p.page.getByTestId('deck-editor'), `${p.name}: the finished draft opens the editor`).toBeVisible({ timeout: UI_TIMEOUT });
         await buildMainDeck(p, 40);
-        await p.page.goto(roomUrl);
       }
 
-      /* ── everyone shows built; alice (the leader) starts round 1 ─────── */
+      /* ── everyone shows built in the builder; alice (the leader) starts round 1 ── */
       await expect.poll(() => alice!.page.getByTestId('pod-built').locator('[data-built]').count(), { timeout: UI_TIMEOUT, message: 'every drafter shows built' }).toBe(3);
       await alice.page.getByTestId('pod-start-rounds').click();
 
