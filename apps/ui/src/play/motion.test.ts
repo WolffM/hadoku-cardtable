@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { afterGlide, animationsSettled, GLIDE_MS, noteBoardDrawing, whenBoardStill } from './motion.ts';
+import { afterGlide, animationsSettled, damagePower, GLIDE_MS, MAX_DAMAGE, noteBoardDrawing, powerSize, whenBoardStill } from './motion.ts';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -152,5 +152,25 @@ describe('the board’s stillness', () => {
     crash.end();
     await settle();
     expect(settled).toBe(true);
+  });
+});
+
+describe('how heavy a hit is', () => {
+  // The operator, 2026-10-17 (ledger AF149): "we should escalate the effects a bit faster then. our
+  // escalation is too linear" — full weight at ten, the p99 creature power across every loaded deck,
+  // where it used to take twenty.
+  it('a point is the lightest, a ten and anything above the heaviest, and the middle climbs fast', () => {
+    expect(MAX_DAMAGE).toBe(10);
+    expect(damagePower(1)).toBe(0);
+    expect(damagePower(2)).toBeCloseTo(1 / 3, 5);
+    expect(damagePower(5)).toBeCloseTo(2 / 3, 5);
+    expect(damagePower(10)).toBe(1);
+    expect(damagePower(20)).toBe(1);
+    expect(damagePower(0)).toBe(0);
+  });
+  it('an effect is four fifths for a point and about one and a half at five', () => {
+    expect(powerSize(damagePower(1))).toBeCloseTo(0.8, 5);
+    expect(powerSize(damagePower(5))).toBeCloseTo(1.533, 2);
+    expect(powerSize(damagePower(10))).toBeCloseTo(1.9, 5);
   });
 });

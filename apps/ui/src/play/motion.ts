@@ -62,13 +62,20 @@ export const REVEAL_BEAT_MS = 450;
 /** A hit (damage, life lost or gained) travelling from its source to the player or creature it changes — on its arc, speeding up (`live/projectile.ts`). */
 export const HIT_MS = 850;
 
-/** The damage at which every effect is at its heaviest (the operator, 2026-10-16: "let's allow it to scale up to 20"). */
-export const MAX_DAMAGE = 20;
+/**
+ * The damage at which every effect is at its heaviest. It was 20 (the operator, 2026-10-16: "let's allow
+ * it to scale up to 20"); re-anchored 2026-10-17 on a survey of every loaded deck (ledger AF149: 1,459
+ * decks, 21,361 creature copies — median power 2, p90 5, p99 10) after the operator found the growth
+ * "too linear": "we should escalate the effects a bit faster". A ten is now the full blow; the shake
+ * (`crash.ts`'s table) still climbs by amount past it.
+ */
+export const MAX_DAMAGE = 10;
 
 /**
  * How much a hit of `amount` damage weighs, 0 to 1: one point is the lightest, `MAX_DAMAGE` and more
  * the heaviest, on a square-root curve so the first few points each count and the top still climbs
- * (a log curve flattened out near its cap, and 9 looked no lighter than 10). Every damage effect
+ * (a log curve flattened out near its cap, and 9 looked no lighter than 10): a two is a third of the
+ * way, a three nearly half, a five two thirds, a seven over four fifths. Every damage effect
  * scales with it — its size, its pace and its sound (the operator, 2026-10-16: "any animation
  * involving damage (spell or combat) must scale with how much damage it is").
  */
@@ -76,7 +83,7 @@ export function damagePower(amount: number): number {
   return Math.sqrt(Math.min(1, Math.max(0, (amount - 1) / (MAX_DAMAGE - 1))));
 }
 
-/** An effect's size at `power`: four fifths for a point, about one and a half at ten, 1.9 times at twenty. */
+/** An effect's size at `power`: four fifths for a point, about one and a half at five, 1.9 times at ten and beyond. */
 export function powerSize(power: number): number {
   return 0.8 + 1.1 * power;
 }
