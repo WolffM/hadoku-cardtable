@@ -841,7 +841,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
  * Move cards from the sideboard into the maindeck, one click per card (the
  * editor's own gesture — `DeckEditor.tsx`'s header), until the maindeck
  * reaches `n`; then wait for the debounced save to actually land
- * (`save-status`'s own "Saved.", not a sleep — the save fires `saveDelayMs`
+ * (the editor's own `data-save` state, not a sleep — the save fires `saveDelayMs`
  * after the LAST move, not after each one).
  */
 async function buildMainDeck(p: Player, n: number): Promise<void> {
@@ -849,7 +849,7 @@ async function buildMainDeck(p: Player, n: number): Promise<void> {
   const sideCard = p.page.locator('[data-testid="side-grid"] button[data-testid="card"]').first();
   for (let i = 0; i < n; i++) await sideCard.click();
   await expect(mainCount, `${p.name}: the maindeck reaches ${n}`).toHaveText(String(n));
-  await expect(p.page.getByTestId('save-status'), `${p.name}: the build is saved`).toHaveText('Saved.', { timeout: UI_TIMEOUT });
+  await expect(p.page.getByTestId('deck-editor'), `${p.name}: the build is saved`).toHaveAttribute('data-save', 'saved', { timeout: UI_TIMEOUT });
 }
 
 /**

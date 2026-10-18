@@ -8,6 +8,16 @@
  *   GET /api/drafts/:podId/mine   → 200 { pool, deck } | 404 — no seat in that pod
  *   PUT /api/drafts/:podId/deck   { dck } → 200 { deck } | 400 { issues } | 404
  *
+ * ## Saving is not playing
+ *
+ * The PUT stores any build made of the caller's own pool plus basics, finished
+ * or not: the builder autosaves every move, and a build on its way to forty is
+ * work a reload must not lose. So it refuses what can never become a legal
+ * deck — a card the caller did not draft, a malformed `.dck` — and nothing
+ * else. Deck size is not a save condition. The table is where a build is
+ * judged as a deck: `checkSeat` at `POST …/rooms/:id/ready` and at a start
+ * refuses one under forty, whatever this route stored.
+ *
  * Both routes resolve the caller the same way `http/routes.ts`'s
  * `draftPoolForMember` does: `identityFromHeaders`, never a body field — a
  * drafted pool is the caller's own hidden information, so there is no way to
@@ -37,7 +47,7 @@ import express, { type NextFunction, type Request, type Response, type Router } 
 
 import { builtDeckOf, saveBuiltDeck, viewForParticipant, type DraftRooms } from '../room/draftRooms.js';
 import { identityFromHeaders } from '../room/identity.js';
-import { checkSeat, MAX_DCK_BYTES, type DraftPoolLookup, type GateContext } from './gate.js';
+import { checkSeat, MAX_DCK_BYTES, type DraftPoolLookup, type GateContext, type WireIssue } from './gate.js';
 import type { TablesLibrary } from './library.js';
 
 export interface DraftsDeps {
@@ -54,6 +64,9 @@ const EMPTY_LIBRARY: TablesLibrary = {
 	format: () => undefined,
 	deck: () => undefined,
 };
+
+/** What a table refuses and a save does not: an unfinished build is still a build. */
+const UNFINISHED: ReadonlySet<WireIssue['kind']> = new Set(['under-minimum-size']);
 
 function callerIdOf(req: Request): string {
 	return identityFromHeaders(req.headers, `http-${randomUUID()}`);
@@ -137,16 +150,18 @@ export function attachDrafts(api: Router, deps: DraftsDeps): void {
 			return;
 		}
 
-		// The gate's own draft rule — the same check a table start will make —
-		// so a save that lands here is exactly what will be accepted there.
+		// The gate's own draft rule, minus what only a finished deck must meet
+		// (this module's header): a save refuses a card from outside the pool
+		// and a malformed file, never a build that is merely short.
 		const ctx: GateContext = { library: EMPTY_LIBRARY, draftPool: draftPoolLookup(draftRooms, caller) };
 		const verdict = checkSeat({ deck: { dck: body.dck }, rules: { kind: 'draft', draftId: podId } }, ctx);
 		if ('error' in verdict) {
 			res.status(400).json({ issues: [verdict.error] });
 			return;
 		}
-		if (!verdict.legal) {
-			res.status(400).json({ issues: verdict.issues.map((issue) => issue.message) });
+		const refused = verdict.issues.filter((issue) => !UNFINISHED.has(issue.kind));
+		if (refused.length > 0) {
+			res.status(400).json({ issues: refused.map((issue) => issue.message) });
 			return;
 		}
 

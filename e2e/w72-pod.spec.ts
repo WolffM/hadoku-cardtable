@@ -68,7 +68,7 @@ async function buildMainDeck(p: Player, n: number): Promise<void> {
   const sideCard = p.page.locator('[data-testid="side-grid"] button[data-testid="card"]').first();
   for (let i = 0; i < n; i++) await sideCard.click();
   await expect(mainCount, `${p.name}: the maindeck reaches ${n}`).toHaveText(String(n));
-  await expect(p.page.getByTestId('save-status'), `${p.name}: the build is saved`).toHaveText('Saved.', { timeout: UI_TIMEOUT });
+  await expect(p.page.getByTestId('deck-editor'), `${p.name}: the build is saved`).toHaveAttribute('data-save', 'saved', { timeout: UI_TIMEOUT });
 }
 
 test(

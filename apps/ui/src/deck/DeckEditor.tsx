@@ -20,18 +20,20 @@
  * deck is actually played (wave 13 §C said so for the drafted case specifically:
  * two decks against a person is the gate's own 400).
  *
- * The server still says whether the build is legal, over the same
- * `POST /api/tables/check` the old builder used, debounced as you move cards —
- * **and it is still not what gates `onPlay`**, for the same reason as before: a
- * button a client-side opinion can grey out is a control that can disagree with
- * the server, and the room's own gate is what actually refuses a short deck at
- * a start.
+ * The server says whether the build is legal, over the same
+ * `POST /api/tables/check` the old builder used, debounced as you move cards.
+ * Its answer is never shown as text while you build: an unfinished deck is not
+ * a fault. It is the count, `24/40`, drawn incomplete or complete, and the
+ * Play button, which stays disabled until the server's own verdict is legal.
+ * The room's gate still refuses an illegal deck at ready and at start whatever
+ * this screen shows.
  *
- * What is new this wave: every move also schedules a debounced
- * `PUT /api/drafts/:podId/deck` (`onSave`, C's contract) — `DeckScreen` supplies
- * it over `deck/deckStore.ts`. The built deck opens from `savedDeck` when there
- * is one, so a reload (or the room screen's own picker, over the same `.dck`
- * text) finds the same build you left.
+ * Every move also schedules a debounced `PUT /api/drafts/:podId/deck`
+ * (`onSave`) — `DeckScreen` supplies it over `deck/deckStore.ts`. A save stores
+ * any build of the pool, finished or not, so a reload (or the room screen's
+ * own picker, over the same `.dck` text) finds the build you left. The save's
+ * progress is the root's `data-save` state; only a save that failed (the
+ * network, or a card the pool does not hold) shows a line, quietly.
  *
  * ## `sideboard` — wave 72's shape, built and unit-tested here, mounted there
  *
@@ -117,7 +119,7 @@ export interface DeckEditorProps {
   /** Debounced save through C's contract. Absent saves nothing (every `sideboard` use this wave). */
   onSave?: (dck: string) => Promise<SaveOutcome>;
   saveDelayMs?: number;
-  /** "Play": the room create flow, preset to this pod. `limited` only. */
+  /** "Play": the room create flow, preset to this pod. `limited` only, enabled once the server calls the build legal. */
   onPlay?: () => void;
   /** The basics widget. Defaults to `mode === 'limited'`; a sideboard step on a drafted pool sets it true. */
   allowBasics?: boolean;
@@ -328,25 +330,30 @@ export function DeckEditor({
     onDeckChange?.(deck);
   }, [deck]);
 
+  // A save that failed, or a check that could not be asked. Never a verdict:
+  // what the server thinks of the deck is the count and the Play button.
+  const fault = saveState === 'error' ? saveIssues.join(', ') : checkError;
+
   const main = mainDeckSize(deck);
+  const complete = main >= LIMITED_MIN_MAIN_DECK_SIZE;
   const summary = mainSummary(deck, poolIndex);
   const colors = mainDeckColors(deck, poolIndex);
   const basics = deck.basics.reduce((n, e) => n + e.count, 0);
 
   return (
-    <div className="deck-editor" data-testid="deck-editor" data-mode={mode} ref={host}>
+    <div className="deck-editor" data-testid="deck-editor" data-mode={mode} data-save={saveState} ref={host}>
       <section className="deck-editor__bar lobby__card">
         <div className="deck-editor__counts">
           {mode === 'limited' ? (
             <>
               <span
-                className={main >= LIMITED_MIN_MAIN_DECK_SIZE ? 'deck-editor__n' : 'deck-editor__n deck-editor__n--short'}
-                data-testid="main-count"
+                className={`deck-editor__n ${complete ? 'deck-editor__n--complete' : 'deck-editor__n--short'}`}
+                data-complete={complete}
               >
-                {main}
+                <span data-testid="main-count">{main}</span>/{LIMITED_MIN_MAIN_DECK_SIZE}
               </span>
               <span className="deck-editor__of">
-                in the maindeck, {LIMITED_MIN_MAIN_DECK_SIZE} minimum — {main - basics} drafted, {basics} basic
+                maindeck — {main - basics} drafted, {basics} basic
               </span>
               <span className="deck-editor__n deck-editor__n--quiet" data-testid="side-count">
                 {sideboardSize(deck)}
@@ -415,12 +422,12 @@ export function DeckEditor({
           </div>
         )}
 
-        {mode === 'limited' ? (
-          <ServerVerdict verdict={verdict} error={checkError} />
-        ) : (
-          <SideboardVerdict problems={sideboardProblems} />
+        {mode === 'sideboard' && <SideboardVerdict problems={sideboardProblems} />}
+        {fault !== null && (
+          <p className="deck-editor__fault" data-testid="deck-fault">
+            {fault}
+          </p>
         )}
-        {onSave !== undefined && <SaveStatus state={saveState} issues={saveIssues} />}
       </section>
 
       <div className="deck-editor__piles">
@@ -475,7 +482,13 @@ export function DeckEditor({
 
       {mode === 'limited' && (
         <section className="lobby__card" data-testid="play-panel">
-          <button type="button" className="lobby__go" data-testid="play-deck" onClick={() => onPlay?.()}>
+          <button
+            type="button"
+            className="lobby__go"
+            data-testid="play-deck"
+            disabled={verdict?.legal !== true}
+            onClick={() => onPlay?.()}
+          >
             Play
           </button>
         </section>
@@ -483,29 +496,6 @@ export function DeckEditor({
 
       <div className="deck-editor__zoom" data-board-zoom="" />
     </div>
-  );
-}
-
-function SaveStatus({ state, issues }: { state: 'idle' | 'saving' | 'saved' | 'error'; issues: string[] }) {
-  if (state === 'idle') return null;
-  if (state === 'saving') {
-    return (
-      <p className="lobby__note" data-testid="save-status">
-        Saving…
-      </p>
-    );
-  }
-  if (state === 'error') {
-    return (
-      <p className="lobby__error" role="alert" data-testid="save-status">
-        Could not save: {issues.join(', ')}
-      </p>
-    );
-  }
-  return (
-    <p className="lobby__note" data-testid="save-status">
-      Saved.
-    </p>
   );
 }
 
@@ -523,42 +513,5 @@ function SideboardVerdict({ problems }: { problems: string[] }) {
         <li key={p}>{p}</li>
       ))}
     </ul>
-  );
-}
-
-function ServerVerdict({ verdict, error }: { verdict: Verdict | null; error: string | null }) {
-  if (error !== null) {
-    return (
-      <p className="lobby__error" role="alert" data-testid="deck-verdict-error">
-        Could not check the deck: {error}
-      </p>
-    );
-  }
-  if (verdict === null) {
-    return (
-      <p className="lobby__note" data-testid="deck-verdict-pending">
-        Checking with the server…
-      </p>
-    );
-  }
-  return (
-    <div className={verdict.legal ? 'tables__legal' : 'tables__illegal'} data-testid="deck-verdict">
-      <p>
-        {verdict.legal
-          ? `The server says: legal against ${verdict.rulesName}.`
-          : `The server says: not legal against ${verdict.rulesName} — ${verdict.issues.length} ${verdict.issues.length === 1 ? 'problem' : 'problems'}:`}
-      </p>
-      {verdict.issues.length > 0 && (
-        <ul className="tables__issues">
-          {verdict.issues.map((issue, i) => (
-            <li key={i}>
-              {issue.cardName !== null && <strong className="tables__card">{issue.cardName}</strong>}
-              {issue.cardName !== null && ' — '}
-              {issue.message}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   );
 }

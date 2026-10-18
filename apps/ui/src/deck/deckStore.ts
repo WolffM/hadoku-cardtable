@@ -5,9 +5,10 @@
  * contract (`packages/shared/src/draft.ts`'s "deck HTTP contract" section).
  * `mine` answers the DRAFTER's own pool and last saved build, resolved by the
  * same participant id the gate's draft arm uses, whether or not the drafter
- * still holds a seat in the pod; `save` checks the `.dck` text against that
- * same pool before it is stored, so a build accepted here is a build the
- * table gate will accept at a start.
+ * still holds a seat in the pod; `save` stores any build of that same pool,
+ * finished or not, and refuses only a card from outside it or a malformed
+ * `.dck`. Whether the build is a playable deck is the table's question, asked
+ * at ready and at start.
  *
  * Every shape here — the outgoing `PUT` body, the `mine` answer, the save's
  * success and its refusal — is C's own Zod schema (`DraftMineSchema`,

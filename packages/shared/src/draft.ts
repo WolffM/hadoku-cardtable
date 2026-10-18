@@ -246,7 +246,10 @@ export function safeParseDraftView(
  * the shape.
  *
  *   GET  …/mine   → 200 { pool, deck }            404 — caller drafted no seat
- *   PUT  …/deck   { dck }  → 200 { deck }          400 { issues } — gate refused
+ *   PUT  …/deck   { dck }  → 200 { deck }          400 { issues } — not from your pool
+ *
+ * A save stores any build of the caller's own pool plus basics, finished or
+ * not; deck size is the table's check, at ready and at start, never the save's.
  *
  * `issues` is a flat `string[]` — refusal MESSAGES, not `WireIssue` objects.
  * The editor has nothing to do with a card-shaped issue object beyond
@@ -270,7 +273,7 @@ export type SaveDraftDeckBody = z.infer<typeof SaveDraftDeckBodySchema>;
 export const SaveDraftDeckResponseSchema = z.object({ deck: z.string() });
 export type SaveDraftDeckResponse = z.infer<typeof SaveDraftDeckResponseSchema>;
 
-/** `PUT /api/drafts/:podId/deck`, 400: the gate's draft rule refused it. */
+/** `PUT /api/drafts/:podId/deck`, 400: a card outside the pool, or a malformed `.dck`. */
 export const SaveDraftDeckRefusalSchema = z.object({ issues: z.array(z.string()) });
 export type SaveDraftDeckRefusal = z.infer<typeof SaveDraftDeckRefusalSchema>;
 

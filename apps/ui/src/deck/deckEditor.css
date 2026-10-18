@@ -30,8 +30,13 @@
   font-size: 1.1rem;
 }
 
+/* An unfinished build is not a fault: dimmed until it reaches the floor. */
 .deck-editor__n--short {
-  color: var(--danger);
+  opacity: 0.6;
+}
+
+.deck-editor__n--complete {
+  color: var(--success);
 }
 
 .deck-editor__n--quiet {
@@ -72,6 +77,12 @@
 .deck-editor__basic-n {
   min-width: 1.4em;
   text-align: center;
+}
+
+.deck-editor__fault {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--danger-ink);
 }
 
 .deck-editor__problems {

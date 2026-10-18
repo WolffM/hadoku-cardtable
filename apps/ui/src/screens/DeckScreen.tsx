@@ -23,7 +23,7 @@
  *
  * ## What is not here
  *
- * The grid, the basics, the legality panel and the Play button are
+ * The grid, the basics, the count and the Play button are
  * `deck/DeckEditor.tsx`; the pool→deck model is `deck/build.ts`. This file only
  * decides whether there is a pool to build from, and says so in words when
  * there is not.
