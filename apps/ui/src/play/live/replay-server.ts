@@ -119,6 +119,13 @@ export interface ReplayServer {
    * reads `received` once the client has done its sending.
    */
   caughtUp(match: LiveMatch): Promise<void>;
+  /**
+   * `clientFrames()` once {@link caughtUp}: everything `match` has sent so far,
+   * arrived. The read for a claim about what the client sent — or did not —
+   * right after it acted: the hop to this server is a socket, and a loaded host
+   * holds a frame on it while the client has long since sent it.
+   */
+  framesFrom(match: LiveMatch): Promise<ReturnType<typeof safeParseClientFrame>[]>;
   joins: number;
   resyncs: number;
   /** Send one frame to every joined client, stamped with the next cursor. */
@@ -214,6 +221,10 @@ export async function startReplayServer(options: { matchId?: string; playerId?: 
         markers.set(id, resolve);
         match.transport.emit(CAUGHT_UP, id);
       }),
+    framesFrom: async (match) => {
+      await server.caughtUp(match);
+      return server.clientFrames();
+    },
     send: (frame) => stamp(frame, true),
     lose: (frame) => stamp(frame, false),
     sendRaw: (payload) => {

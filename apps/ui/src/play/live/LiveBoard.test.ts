@@ -673,7 +673,7 @@ describe('Forge asks with buttons, not only with asks', () => {
 
     fireEvent.click(getByTestId('confirm-dialog').querySelector('[data-answer="yes"]')!);
     await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
-    expect(s.clientFrames().map((f) => (f.ok ? f.value.kind : null))).toEqual(['reply']);
+    expect((await s.framesFrom(m)).map((f) => (f.ok ? f.value.kind : null))).toEqual(['reply']);
   });
 });
 
@@ -779,7 +779,7 @@ describe('the says, the toggle, and the ability label', () => {
   });
 
   it('the toggle: off by default, a click sends forge:full-control and the button says on, and back', async () => {
-    const { s, getByTestId } = await liveBoard();
+    const { s, m, getByTestId } = await liveBoard();
     const toggle = getByTestId('live-full-control') as HTMLButtonElement;
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
     expect(s.received.filter((r) => r.event === 'forge:full-control')).toEqual([]);
@@ -800,7 +800,7 @@ describe('the says, the toggle, and the ability label', () => {
       on: false,
     });
     // A preference, not a frame: none of it crossed forge:c2s.
-    expect(s.clientFrames()).toEqual([]);
+    expect(await s.framesFrom(m)).toEqual([]);
   });
 
   it('the ability picker shows the LABEL the bridge sent, braces in words, and the reply still names the ability', async () => {
@@ -900,7 +900,7 @@ describe('the says, the toggle, and the ability label', () => {
       }),
     );
     await waitFor(() => expect(getByTestId('live-prompt').dataset.callId).toBe('fx-full-control'));
-    expect(s.clientFrames()).toEqual([]);
+    expect(await s.framesFrom(m)).toEqual([]);
   });
 });
 
@@ -1226,7 +1226,7 @@ describe('one state, one line', () => {
       'refused to send an answer to showConfirmDialog that fails its wire schema',
     ]);
     expect(getByTestId('live-error')).toBeTruthy();
-    expect(s.clientFrames()).toEqual([]);
+    expect(await s.framesFrom(m)).toEqual([]);
   });
 });
 
@@ -1957,7 +1957,7 @@ describe('Concede asks first', () => {
     fireEvent.click(button);
     const ask = await waitFor(() => getByTestId('live-concede-ask'));
     // The claim: pressing Concede put nothing on the wire.
-    expect(s.clientFrames()).toEqual([]);
+    expect(await s.framesFrom(m)).toEqual([]);
     expect(m.stats.replies).toBe(0);
     expect(ask.querySelector('[role="alertdialog"]')).not.toBeNull();
     expect(ask.textContent).toContain('You lose this game.');
@@ -1972,21 +1972,21 @@ describe('Concede asks first', () => {
     await waitFor(() => getByTestId('live-concede-ask'));
     fireEvent.click(getByTestId('live-concede-no'));
     await waitFor(() => expect(queryByTestId('live-concede-ask')).toBeNull());
-    expect(s.clientFrames()).toEqual([]);
+    expect(await s.framesFrom(m)).toEqual([]);
     expect(m.stats.replies).toBe(0);
   });
 
   it('escape is cancel, and sends nothing', async () => {
-    const { s, getByTestId, queryByTestId } = await liveBoard();
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
     fireEvent.click(getByTestId('live-concede'));
     const ask = await waitFor(() => getByTestId('live-concede-ask'));
     fireEvent.keyDown(ask, { key: 'Escape' });
     await waitFor(() => expect(queryByTestId('live-concede-ask')).toBeNull());
-    expect(s.clientFrames()).toEqual([]);
+    expect(await s.framesFrom(m)).toEqual([]);
   });
 
   it('the confirmation’s own yes is the one thing that reaches the wire, exactly once', async () => {
-    const { s, getByTestId, queryByTestId } = await liveBoard();
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
     fireEvent.click(getByTestId('live-concede'));
     await waitFor(() => getByTestId('live-concede-ask'));
     fireEvent.click(getByTestId('live-concede-yes'));
@@ -1994,7 +1994,7 @@ describe('Concede asks first', () => {
     expect(s.clientFrames()[0]).toEqual({ ok: true, value: { kind: 'act', method: 'concede' } });
     // And it closes, so it cannot be conceded twice.
     await waitFor(() => expect(queryByTestId('live-concede-ask')).toBeNull());
-    expect(s.clientFrames()).toHaveLength(1);
+    expect(await s.framesFrom(m)).toHaveLength(1);
   });
 
   it('is pressable with a question open — giving up is not an answer to it', async () => {
@@ -2571,7 +2571,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     await untilMatch(m, () => expect(m.buttons?.enable1).toBe(true));
     expect(queryByTestId('live-spectator')).toBeNull();
-    const frames = s.clientFrames().length;
+    const frames = (await s.framesFrom(m)).length;
 
     flag(m, { spectator: true }, rerender);
     expect(getByTestId('live-spectator').textContent).toBe('Watching: this seat is being played in another window');
@@ -2596,7 +2596,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     // Reading still works: the log opens.
     fireEvent.click(getByTestId('live-log-toggle'));
     expect(getByTestId('live-logbook').hidden).toBe(false);
-    expect(s.clientFrames()).toHaveLength(frames);
+    expect(await s.framesFrom(m)).toHaveLength(frames);
 
     // Promotion: no reload, the prompt comes back and the controls live.
     flag(m, { spectator: false }, rerender);
@@ -2612,7 +2612,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     s.send(buttons());
     await untilMatch(m, () => expect(m.buttons?.enable1).toBe(true));
     const bottom = m.view!.players.find((p) => p.isViewer)!.id;
-    const frames = s.clientFrames().length;
+    const frames = (await s.framesFrom(m)).length;
 
     flag(m, { spectator: true, watcher: true }, rerender);
     expect(queryByTestId('live-buttons'), 'nothing to grey: the box is not drawn').toBeNull();
@@ -2629,7 +2629,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(m.view!.players.every((p) => p.hand === null), 'both hands are backs').toBe(true);
     rerender(createElement(LiveBoard, { match: m }));
     expect(document.querySelectorAll('.board .card-backs').length, 'two backs strips, no hand rail').toBeGreaterThanOrEqual(2);
-    expect(s.clientFrames(), 'the flip is the client’s alone').toHaveLength(frames);
+    expect(await s.framesFrom(m), 'the flip is the client’s alone').toHaveLength(frames);
 
     // Promotion to a seat: the box is back and the table is the seat’s way round.
     flag(m, { spectator: false, watcher: false }, rerender);
@@ -3032,7 +3032,7 @@ describe('Auto Yield / Cancel Yield (the End Turn slot, on the other seat’s tu
     expect(s.received.filter((r) => r.event === 'forge:auto-yield').map((r) => r.payload)).toEqual([
       { matchId: s.matchId, on: true },
     ]);
-    expect(s.clientFrames()).toEqual([]);
+    expect(await s.framesFrom(m)).toEqual([]);
 
     fireEvent.click(button);
     await waitFor(() => expect(button.textContent).toBe('Auto Yield'));
@@ -4502,9 +4502,8 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     const before = m.stats.replies;
     fireEvent.click(getByTestId('prompt-confirm-yes'));
     await untilMatch(m, () => expect(m.stats.replies).toBe(before + 1));
-    await s.caughtUp(m);
     expect(
-      s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonOk'),
+      (await s.framesFrom(m)).some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonOk'),
     ).toBe(true);
   });
 
@@ -4515,9 +4514,8 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
 
     fireEvent.click(getByTestId('prompt-confirm-no'));
     await untilMatch(m, () => expect(m.stats.replies).toBe(1));
-    await s.caughtUp(m);
     expect(
-      s.clientFrames().some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonCancel'),
+      (await s.framesFrom(m)).some((f) => f.ok && f.value.kind === 'act' && f.value.method === 'selectButtonCancel'),
     ).toBe(true);
   });
 
@@ -5178,7 +5176,7 @@ describe('a stop on the phase rail', () => {
     fireEvent.click(rowOf(container, 'END_OF_TURN'));
     await waitFor(() => expect(stopsSent(s)).toEqual(['END_OF_TURN', null]));
     expect(rowOf(container, 'END_OF_TURN').hasAttribute('data-stop')).toBe(false);
-    expect(s.clientFrames()).toEqual([]);
+    expect(await s.framesFrom(m)).toEqual([]);
   });
 
   it('Untap and Cleanup take no stop: Forge opens no window there', async () => {

@@ -267,8 +267,7 @@ describe('showConfirmDialog, end to end', () => {
     expect(answerConfirm(m, 'c-2', true)).toBe(true);
     expect(answerConfirm(m, 'c-2', false)).toBe(false);
     expect(answerConfirm(m, 'c-other', true)).toBe(false);
-    await sendAndApply(s, m, [sentinel()]);
-    expect(s.clientFrames()).toHaveLength(1);
+    expect(await s.framesFrom(m)).toHaveLength(1);
     expect(m.stats.replies).toBe(1);
   });
 
@@ -283,7 +282,7 @@ describe('showConfirmDialog, end to end', () => {
     await sendAndApply(s, m, [sentinel()]);
     expect(currentAsk(m)).toBeNull();
     expect(answerConfirm(m, 'c-4', true)).toBe(false);
-    expect(s.clientFrames()).toHaveLength(1);
+    expect(await s.framesFrom(m)).toHaveLength(1);
     expect(m.stats).toMatchObject({ replies: 1, reasksDropped: 1 });
   });
 
@@ -325,7 +324,7 @@ describe('the other fourteen asks: held open for their prompt, answered through 
     s.send(optionAsk('c-9'));
     await until('the ask', () => currentAsk(m)?.callId === 'c-9');
     await sendAndApply(s, m, [sentinel()]);
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
     expect(m.stats.aborts).toBe(0);
 
     expect(answerAsk(m, 'c-9', 'showOptionDialog', 1)).toBe(true);
@@ -345,8 +344,7 @@ describe('the other fourteen asks: held open for their prompt, answered through 
     expect(answerConfirm(m, 'c-10', true)).toBe(false);
     expect(answerAsk(m, 'c-10', 'showOptionDialog', 'the first one')).toBe(false);
     expect(m.lastError).toMatch(/fails its wire schema/);
-    await sendAndApply(s, m, [sentinel()]);
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
     expect(currentAsk(m)?.callId).toBe('c-10');
   });
 
@@ -359,7 +357,7 @@ describe('the other fourteen asks: held open for their prompt, answered through 
     });
     await until('the resync', () => m.stats.snapshots === 2);
     expect(m.stats.invalid).toBe(1);
-    expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'abort', callId: 'c-bad', reason: 'unsupported' } });
+    expect((await s.framesFrom(m))[0]).toMatchObject({ ok: true, value: { kind: 'abort', callId: 'c-bad', reason: 'unsupported' } });
     expect(m.view).toEqual(FIXTURE_VIEW);
   });
 
@@ -467,7 +465,7 @@ describe('an open prompt never desyncs the board', () => {
     await until('the new epoch at seq 27', () => m.cursor?.epoch === 'epoch-b' && m.cursor.seq === 27);
     expect(currentAsk(m)).toBeNull();
     expect(answerAsk(m, 'c-old', 'showOptionDialog', 0)).toBe(false);
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
     expect(m.view).toEqual(FIXTURE_VIEW);
   });
 });
@@ -967,8 +965,8 @@ describe('the offer through a click’s turnaround', () => {
     drawnThrough('getAbilityToPlay');
     // A held outline is not refused, and not sent either: the press waits for Forge's word.
     expect(selectCard(m, land)).toBe(true);
-    const selects = () => s.clientFrames().filter((f) => f.ok && 'method' in f.value && f.value.method === 'selectCard').length;
-    expect(selects(), 'only the Nomads went out').toBe(1);
+    const selects = async () => (await s.framesFrom(m)).filter((f) => f.ok && 'method' in f.value && f.value.method === 'selectCard').length;
+    expect(await selects(), 'only the Nomads went out').toBe(1);
     expect(answerAsk(m, 's0-1', 'getAbilityToPlay', { kind: 'spellAbility', id: 9001 })).toBe(true);
     await sendAndApply(s, m, [openZones('s0-2')]);
     drawnThrough('openZones');
@@ -978,9 +976,9 @@ describe('the offer through a click’s turnaround', () => {
     expect(drawnOffer(m).selectable).toEqual(new Set([nomads, bears]));
     expect(drawnOffer(m).selectionOpen).toBe(true);
     // The press waiting on the held land is a play, never an answer to the target question: dropped.
-    expect(selects(), 'the kept press never answers a selection').toBe(1);
+    expect(await selects(), 'the kept press never answers a selection').toBe(1);
     await sendAndApply(s, m, [clear(), prompt('Priority'), bar(true), actionable([land])]);
-    expect(selects(), 'nor goes out later, once dropped').toBe(1);
+    expect(await selects(), 'nor goes out later, once dropped').toBe(1);
   });
 
   /*
@@ -993,29 +991,29 @@ describe('the offer through a click’s turnaround', () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
     const [first, second] = [mine[0]!, mine[1]!];
-    const selected = () => s.clientFrames().flatMap((f) => (f.ok && 'method' in f.value && f.value.method === 'selectCard' ? [f.value.card.id] : []));
+    const selected = async () => (await s.framesFrom(m)).flatMap((f) => (f.ok && 'method' in f.value && f.value.method === 'selectCard' ? [f.value.card.id] : []));
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([first, second])]);
     expect(selectCard(m, first)).toBe(true);
     await sendAndApply(s, m, [clearActionable()]);
     expect(drawnOffer(m).selectable).toEqual(new Set([second]));
     expect(selectCard(m, second), 'the held outline takes the press').toBe(true);
-    expect(selected(), 'not sent while Forge has not offered it').toEqual([first]);
+    expect(await selected(), 'not sent while Forge has not offered it').toEqual([first]);
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([second])]);
-    expect(selected(), 'sent once Forge offers it').toEqual([first, second]);
+    expect(await selected(), 'sent once Forge offers it').toEqual([first, second]);
   });
 
   it('a press on a held outline is dropped when the hold ends without that card', async () => {
     const { s, m } = await fullGame();
     const { mine } = ids(m);
     const [first, second] = [mine[0]!, mine[1]!];
-    const selected = () => s.clientFrames().flatMap((f) => (f.ok && 'method' in f.value && f.value.method === 'selectCard' ? [f.value.card.id] : []));
+    const selected = async () => (await s.framesFrom(m)).flatMap((f) => (f.ok && 'method' in f.value && f.value.method === 'selectCard' ? [f.value.card.id] : []));
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([first, second])]);
     expect(selectCard(m, first)).toBe(true);
     await sendAndApply(s, m, [clearActionable()]);
     expect(selectCard(m, second)).toBe(true);
     await sendAndApply(s, m, [actionable([])]);
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([second])]);
-    expect(selected(), 'Forge named a set without it: the press was dropped there').toEqual([first]);
+    expect(await selected(), 'Forge named a set without it: the press was dropped there').toEqual([first]);
   });
 
   it('choose the target → Forge stops the selection and the ability resolves: still drawn, until priority names its set', async () => {
@@ -1755,7 +1753,7 @@ describe('the says, and full control', () => {
       { event: MATCH_EVENTS.fullControl, payload: { matchId: s.matchId, on: false } },
     ]);
     // It is a preference, not a frame: nothing of it crossed forge:c2s.
-    expect(s.clientFrames()).toEqual([]);
+    expect(await s.framesFrom(m)).toEqual([]);
   });
 });
 
@@ -1785,7 +1783,7 @@ describe('the auto-yield toggle (opponent’s-turn only, one turn)', () => {
       { event: MATCH_EVENTS.autoYield, payload: { matchId: s.matchId, on: true } },
     ]);
     // A preference, not a frame: nothing of it crossed forge:c2s.
-    expect(s.clientFrames()).toEqual([]);
+    expect(await s.framesFrom(m)).toEqual([]);
   });
 
   it('Cancel Yield (on=false) sent mid-turn reads off at once, the same turn', async () => {
@@ -2692,7 +2690,7 @@ describe('a tapped permanent is clicked to untap exactly when Forge offers it', 
     await sendAndApply(s, m, [actionable([b])]);
     expect(boardInteraction(m).selectable.has(a)).toBe(false);
     expect(selectCard(m, a)).toBe(false);
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 });
 
@@ -3285,7 +3283,7 @@ describe('a display-only reveal is a notice, never a question', () => {
     expect(m.reveal?.callId).toBe('r1');
     expect(m.asks).toEqual([]);
     expect(currentAsk(m)).toBeNull();
-    expect(s.clientFrames().filter((f) => f.ok && f.value.kind !== 'act')).toEqual([]);
+    expect((await s.framesFrom(m)).filter((f) => f.ok && f.value.kind !== 'act')).toEqual([]);
   });
 
   it("the seat's next real question takes its place", async () => {
