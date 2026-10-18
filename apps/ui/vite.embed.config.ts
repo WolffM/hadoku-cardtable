@@ -1,7 +1,7 @@
 import { defineConfig, type Plugin as VitePlugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
-import { APP_NAME } from './app-name.ts';
+import { BUILD_DEFINES } from './build-defines.ts';
 
 /**
  * The second build: the game bundle a watchparty room imports (D21).
@@ -75,9 +75,7 @@ const requireOneStylesheet: VitePlugin = {
 
 export default defineConfig({
   base: '/cardtable/',
-  define: {
-    __HADOKU_APP_NAME__: JSON.stringify(APP_NAME),
-  },
+  define: BUILD_DEFINES,
   plugins: [react(), requireOneStylesheet],
   css: { postcss: { plugins: [shadowRootSelectors] } },
   build: {

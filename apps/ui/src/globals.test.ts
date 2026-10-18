@@ -11,12 +11,14 @@ import { describe, expect, it } from 'vitest';
 
 import appConfig from '../vite.config.ts';
 import embedConfig from '../vite.embed.config.ts';
+import { BUILD_DEFINES } from '../build-defines.ts';
 
 const declared = [...readFileSync(new URL('./globals.d.ts', import.meta.url), 'utf8').matchAll(/^declare const (\w+)\b/gm)].map((m) => m[1]).sort();
 
 describe('build-time globals', () => {
-  it('globals.d.ts declares at least one', () => {
+  it('globals.d.ts declares exactly the names build-defines.ts defines', () => {
     expect(declared.length).toBeGreaterThan(0);
+    expect(Object.keys(BUILD_DEFINES).sort()).toEqual(declared);
   });
 
   it.each([
@@ -24,5 +26,9 @@ describe('build-time globals', () => {
     ['the embed build', embedConfig],
   ])('%s defines every declared global', (_name, config) => {
     expect(Object.keys(config.define ?? {}).sort()).toEqual(declared);
+  });
+
+  it('each define is a JSON string literal', () => {
+    for (const value of Object.values(BUILD_DEFINES)) expect(typeof JSON.parse(value)).toBe('string');
   });
 });

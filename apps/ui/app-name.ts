@@ -10,11 +10,11 @@ export const APP_ID = 'cardtable';
 /**
  * The display name, resolved at CONFIG TIME (this runs in node).
  *
- * Shared by vite.config.ts and the root vitest.config.ts. Both need it:
- * `define` is a build-time substitution, so a test run that does not declare
- * it hits a bare ReferenceError and the component renders NOTHING — which
- * surfaces as an unrelated-looking "unable to find element" failure, not as a
- * missing constant. That is exactly how craft found this.
+ * Reaches the bundle through build-defines.ts, which every build and the root
+ * vitest.config.ts share: `define` is a build-time substitution, so a run that
+ * does not declare it hits a bare ReferenceError and the component renders
+ * NOTHING — an unrelated-looking "unable to find element" failure, not a
+ * missing constant.
  *
  * The `?? APP_ID` fallback is for a catalogue release that does not know this
  * app yet; it is a lowercase id, visibly wrong, on purpose.

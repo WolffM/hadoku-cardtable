@@ -1,21 +1,16 @@
-import { readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 
 import { defineConfig } from 'vitest/config';
 
-import { APP_NAME } from './apps/ui/app-name.js';
+import { BUILD_DEFINES } from './apps/ui/build-defines.js';
 
 // Root config for the whole workspace. Individual packages may add their own
 // vitest.config.ts; this one is what `pnpm test` runs from the repo root, and
 // it deliberately passes with no tests so the gate is green on an empty tree.
 export default defineConfig({
-  define: {
-    // Must mirror apps/ui's vite.config.ts: `define` is a build-time
-    // substitution, so without this a test that renders the app hits a bare
-    // ReferenceError and fails looking like anything else.
-    __HADOKU_APP_NAME__: JSON.stringify(APP_NAME),
-    __HADOKU_UI_VERSION__: JSON.stringify((JSON.parse(readFileSync(new URL('./apps/ui/package.json', import.meta.url), 'utf8')) as { version: string }).version),
-  },
+  // The UI's build-time globals, the same object the app and embed builds use:
+  // without them a test that renders the app hits a bare ReferenceError.
+  define: BUILD_DEFINES,
   test: {
     environment: 'node',
     include: ['apps/*/src/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'scripts/**/*.test.ts'],
