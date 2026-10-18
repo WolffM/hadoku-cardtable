@@ -177,7 +177,7 @@
  * two in the same order against the real `attachPlay`.
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response, type Router } from 'express';
 import { deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
@@ -536,12 +536,26 @@ interface TablePlayerState {
 	/** When this member first took a seat: the order the two players are in. */
 	seatedAt: number;
 	/**
-	 * The deck (main+sideboard multiset) this seat started the CURRENT series
-	 * with — the sideboard-legality baseline `PUT …/deck` checks a resubmission
-	 * against during `sideboarding` (`sideboardIssue`). Null before the series'
-	 * first game has started, and reset whenever a new series does.
+	 * The seat's REGISTERED deck: the load it held when its series began, kept
+	 * whole (choice, verdict, text) so it can be put back. Two jobs:
+	 *
+	 *   - the sideboard-legality baseline `PUT …/deck` checks a resubmission
+	 *     against during `sideboarding` (`sideboardIssue`, on its `text`);
+	 *   - MTG's rule that sideboarding lasts one match: once the table's series
+	 *     is `done`, the seat goes back to this load (`recordGame`), a library
+	 *     deck as that library deck and a drafted one as the drafted one.
+	 *
+	 * Taken when a series' first game starts and kept through a bo1 Rematch's
+	 * sideboarding step, so the sideboarded 75 never becomes the registered
+	 * deck. A row persisted before this held the `.dck` text alone: it still
+	 * serves as the baseline, and there is nothing to put back.
 	 */
-	seriesDeck: string | null;
+	seriesDeck: TableDeck | string | null;
+}
+
+/** The registered deck's text, whichever shape the row holds it in. */
+function seriesTextOf(state: TablePlayerState): string | null {
+	return typeof state.seriesDeck === 'string' ? state.seriesDeck : (state.seriesDeck?.text ?? null);
 }
 
 /** A seated player whose seat holds a deck: what a start needs. */
@@ -600,7 +614,7 @@ function readPlayerState(raw: unknown): TablePlayerState | null {
 	if (s.v !== 1 || typeof s.seatedAt !== 'number') return null;
 	const ready = s.ready === true;
 	const table = typeof s.table === 'string' ? s.table : undefined;
-	const seriesDeck = typeof s.seriesDeck === 'string' ? s.seriesDeck : null;
+	const seriesDeck = typeof s.seriesDeck === 'string' ? s.seriesDeck : readDeck(s.seriesDeck);
 	// A row written before seats were their own act: the deck's fields sit flat
 	// beside `ready`. It still reads as a seat that holds that deck.
 	if (!('deck' in s)) {
@@ -991,6 +1005,27 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * — and nobody is ready, because the start that made this match spent both
 	 * Readys.
 	 */
+	/**
+	 * A table's game ACTUALLY ended: the ledger records it, and once that
+	 * makes the series `done`, every seat goes back to its registered deck
+	 * (`TablePlayerState.seriesDeck`). MTG's own rule: sideboarding lasts for
+	 * one match. A row with nothing to put back (a registered deck persisted
+	 * as text alone, or none) keeps whatever it holds.
+	 */
+	function recordGame(room: RoomViewLike, table: RoomTable, matchId: string, winner: 0 | 1 | null): void {
+		if (rooms === null) return;
+		rooms.recordGameResult(room.id, table.id, { matchId, winner });
+		log({ evt: 'table-game-over', room: room.id, table: table.id, matchId, winner });
+		const after = rooms.get(room.id);
+		if (after?.tables.find((t) => t.id === table.id)?.series.phase !== 'done') return;
+		for (const p of playersOf(rooms, after, table.id)) {
+			const registered = p.state.seriesDeck;
+			if (registered === null || typeof registered === 'string') continue;
+			rooms.setPlayerState(room.id, p.member.id, { ...p.state, deck: registered, ready: false });
+			log({ evt: 'room-deck-restored', room: room.id, table: table.id, deck: registered.verdict.deckName });
+		}
+	}
+
 	function liveMatchId(room: RoomViewLike, table: RoomTable): string | null {
 		if (table.matchId === null) return null;
 		const registry = deps.matches?.() ?? null;
@@ -1004,9 +1039,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		}
 		if (match.status !== 'over' && match.status !== 'stopped' && match.status !== 'failed') return table.matchId;
 		if (match.status === 'over') {
-			const winner = winnerSeatOf(match);
-			rooms.recordGameResult(room.id, table.id, { matchId: table.matchId, winner });
-			log({ evt: 'table-game-over', room: room.id, table: table.id, matchId: table.matchId, winner });
+			recordGame(room, table, table.matchId, winnerSeatOf(match));
 		} else {
 			rooms.releaseTableMatch(room.id, table.id);
 			log({ evt: 'table-match-cleared', room: room.id, table: table.id, matchId: table.matchId, reason: match.status });
@@ -1292,8 +1325,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// Sideboarding (§D bullet 3): a resubmission is accepted only when it is
 		// the SAME 75(ish) the series started with, differently split — never a
 		// different deck wearing the room's legality check.
-		if (table.series.phase === 'sideboarding' && mine !== undefined && mine.state.seriesDeck !== null) {
-			const issue = sideboardIssue(room, mine.state.seriesDeck, verdict.text);
+		const registered = mine === undefined ? null : seriesTextOf(mine.state);
+		if (table.series.phase === 'sideboarding' && registered !== null) {
+			const issue = sideboardIssue(room, registered, verdict.text);
 			if (issue !== null) {
 				res.status(409).json({ error: issue });
 				return;
@@ -1754,20 +1788,20 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// launching a second JVM.
 		res.on('finish', () => settle(res.statusCode, { error: 'the match could not be started' }));
 
-		// A new series (`seating`/`done` — the series that is about to start has
-		// no game of its own yet — OR `series.games` is already empty, which is
-		// what `Lobby.beginSideboarding` leaves a bo1-Rematch's sideboarding
-		// step in) snapshots each seat's CURRENT deck as the sideboard-legality
-		// baseline for every game of it (`sideboardIssue`); continuing one
-		// (`sideboarding` mid-bo3, or `playing` with no live match — a
-		// replacement after the previous one simply vanished, with at least one
-		// game already recorded) keeps whatever baseline is already stored.
-		// **Both halves of this OR matter**: `phase` alone misses a bo1
-		// Rematch's reset-but-still-`sideboarding` table; `games.length` alone
-		// misses a `done` table whose OLD series' games are still sitting there
-		// (not yet reset by `setTableMatch`) — that second miss is also why
-		// `chooser`, below, must not read `series.games` without this same guard.
+		// A new series by the ledger: `seating`/`done` (the series about to
+		// start has no game of its own yet), OR `series.games` already empty,
+		// which is what `Lobby.beginSideboarding` leaves a bo1 Rematch's
+		// sideboarding step in. **Both halves of this OR matter** for `chooser`
+		// below: `phase` alone misses a bo1 Rematch's reset-but-still-
+		// `sideboarding` table; `games.length` alone misses a `done` table whose
+		// OLD series' games are still sitting there (not yet reset by
+		// `setTableMatch`).
 		const newSeries = table.series.phase === 'seating' || table.series.phase === 'done' || table.series.games.length === 0;
+		// The registered deck (`seriesDeck`) is taken only when a series begins
+		// from the room — `seating` or `done` — never on a bo1 Rematch's
+		// sideboarding step, whose own load is the sideboarded 75: the deck a
+		// seat goes back to once the series is over is the one it registered.
+		const registers = table.series.phase === 'seating' || table.series.phase === 'done';
 		// The next game of a series is asked play-or-draw by the LOSER of the
 		// previous one (`draft-pods-plan.md`, "The loser of the previous game
 		// chooses play or draw"). The first game of a series has no previous
@@ -1813,7 +1847,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					rooms.setPlayerState(room.id, p.member.id, {
 						...p.state,
 						ready: false,
-						seriesDeck: newSeries ? (p.state.deck?.text ?? null) : p.state.seriesDeck,
+						seriesDeck: registers || p.state.seriesDeck === null ? p.state.deck : p.state.seriesDeck,
 					});
 				}
 				log({
@@ -1822,6 +1856,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					table: table.id,
 					matchId,
 					decks: loaded.map((p) => p.deck.verdict.deckName),
+					// Which exact 75 each seat played, without the list: a name does
+					// not tell a sideboarded deck from the one it came from.
+					deckTexts: loaded.map((p) => createHash('sha256').update(p.deck.text).digest('hex').slice(0, 12)),
 					...(vsBot ? { opponent: 'ai' } : {}),
 					...(chooser === undefined ? {} : { chooser }),
 				});
@@ -1976,9 +2013,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			if (room === undefined) return;
 			const table = room.tables.find((t) => t.matchId === match.id);
 			if (table === undefined) return;
-			const winner = winnerSeatOf(match);
-			rooms.recordGameResult(room.id, table.id, { matchId: match.id, winner });
-			log({ evt: 'table-game-over', room: room.id, table: table.id, matchId: match.id, winner });
+			recordGame(room, table, match.id, winnerSeatOf(match));
 		},
 	};
 }
