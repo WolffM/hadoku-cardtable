@@ -33,8 +33,6 @@
  * away from it can reach. `e2e/arrow.spec.ts` is where real boxes are measured.
  */
 
-import { setTimeout as sleep } from 'node:timers/promises';
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement, useSyncExternalStore } from 'react';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
@@ -78,6 +76,7 @@ let gestures: GestureHandle | null = null;
 
 afterEach(async () => {
   vi.useRealTimers();
+  delete (globalThis as { jest?: unknown }).jest;
   gestures?.dispose();
   gestures = null;
   cleanup();
@@ -95,12 +94,16 @@ afterEach(async () => {
  * click waits `MARK_WAIT_MS` for Forge's mark on what the first made current
  * (`afterMarked`); here Forge is the test, marking over a real socket once the
  * first click has arrived, and on a loaded host that round trip has outlasted
- * the window. Held, the window closes only when a test moves the clock past it.
+ * the window. Held, the window closes only when a test moves the clock past it —
+ * and so do a float home's `GLIDE_MS` and a park's `PARK_UNANSWERED_MS`.
  * Only `setTimeout` and `clearTimeout` are faked: the sockets took theirs when
- * they were made, and a held test's settle sleeps on `node:timers/promises`.
+ * they were made, so `framesFrom` and `untilClientFrames` still arrive.
  */
 function holdBoardClock(): void {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  // `untilMatch` settles through RTL's `asyncWrapper`, which drains on a `setTimeout(0)` and moves
+  // a held clock for it only through Jest's API: lend it vitest's, which it calls for 0 ms.
+  (globalThis as { jest?: unknown }).jest = { advanceTimersByTime: (ms: number) => vi.advanceTimersByTime(ms) };
 }
 
 /**
@@ -154,6 +157,13 @@ async function gestureBoard(playerId = 0) {
 }
 
 const notify = (raw: unknown[]): ServerFrame[] => raw.map((r) => parseServerFrame(r));
+
+/** Send `frames` and wait until the client has applied every one — and so sent whatever they make it send. */
+async function deliver(s: ReplayServer, m: LiveMatch, frames: readonly ServerFrame[]): Promise<void> {
+  const target = m.stats.applied + frames.length;
+  for (const f of frames) s.send(f);
+  await untilMatch(m, () => expect(m.stats.applied).toBeGreaterThanOrEqual(target));
+}
 
 const prompt = (message: string) =>
   parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null });
@@ -261,9 +271,14 @@ const handDelta = (ids: number[]): ServerFrame =>
     [String((1 << 28) | 0)]: { _type: 1, _id: 0, Hand: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } },
   });
 
-/** What actually left this client, as `[method, id]` pairs. The whole point of these tests. */
-const sent = (s: ReplayServer): unknown[] =>
-  s.clientFrames().map((f) => {
+/**
+ * What actually left this client, as `[method, id]` pairs — the whole point of these tests — read
+ * once everything `m` has sent so far has reached the server (`framesFrom`). The client sends only
+ * from an event a test fires or a frame it applies, both synchronous, so "nothing sent" read here
+ * is the claim itself, not a hope that the socket hop was quicker than a sleep.
+ */
+const sent = async (s: ReplayServer, m: LiveMatch): Promise<unknown[]> =>
+  (await s.framesFrom(m)).map((f) => {
     if (!f.ok || f.value.kind !== 'act') return f;
     const act = f.value;
     if (act.method === 'selectCard') return ['selectCard', act.card.id];
@@ -322,7 +337,7 @@ describe('dragging a card, and the targeter arrow', () => {
 
     drag(cardEl(canvas, source), faceEl(canvas, 1));
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', source],
       ['selectPlayer', 1],
     ]);
@@ -337,7 +352,7 @@ describe('dragging a card, and the targeter arrow', () => {
 
     drag(cardEl(canvas, source), cardEl(canvas, target));
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', source],
       ['selectCard', target],
     ]);
@@ -352,7 +367,7 @@ describe('dragging a card, and the targeter arrow', () => {
 
     drag(cardEl(canvas, source), cardEl(canvas, target));
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', target]]);
+    expect(await sent(s, m)).toEqual([['selectCard', target]]);
   });
 
   it('a drag of a card Forge did not offer does nothing and says nothing', async () => {
@@ -368,13 +383,13 @@ describe('dragging a card, and the targeter arrow', () => {
     drag(cardEl(canvas, theirs[0]!), stack);
     drag(cardEl(canvas, theirs[0]!), document.body);
     expect(m.lastError).toBeNull();
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
 
     // Proven against a barrier: the next legitimate act must be the FIRST
     // frame the server sees, so a refused drag cannot be hiding behind a wire.
     fireEvent.click(cardEl(canvas, mine[0]!).querySelector('button')!);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', mine[0]!]]);
   });
 
   it('inside a selection, an offered card dropped where nothing is offered is used — a spell drags out of its own target ask', async () => {
@@ -386,12 +401,11 @@ describe('dragging a card, and the targeter arrow', () => {
 
     drag(cardEl(canvas, mine[0]!), cardEl(canvas, theirs[0]!));
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', mine[0]!]]);
 
     // And a drop outside every zone still does nothing and says nothing.
     drag(cardEl(canvas, mine[1]!), document.body);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(1);
+    expect(await s.framesFrom(m)).toHaveLength(1);
   });
 
   /*
@@ -418,7 +432,7 @@ describe('dragging a card, and the targeter arrow', () => {
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
     drag(cardEl(canvas, hand[0]!), zone);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
   });
 
   it('a press that does not move is still a click, and sends exactly once', async () => {
@@ -433,7 +447,7 @@ describe('dragging a card, and the targeter arrow', () => {
     fireEvent.pointerUp(face, { clientX: 12, clientY: 11 });
     fireEvent.click(face);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', mine[0]!]]);
   });
 
   /**
@@ -469,7 +483,7 @@ describe('dragging a card, and the targeter arrow', () => {
     ).toBe(false);
     fireEvent.pointerUp(arrangeable, { clientX: 10, clientY: 10 });
     fireEvent.pointerDown(arrangeable, { button: 2, clientX: 10, clientY: 10 });
-    expect(s.clientFrames(), 'the cancelled lift sent nothing').toHaveLength(0);
+    expect(await s.framesFrom(m), 'the cancelled lift sent nothing').toHaveLength(0);
 
     // And Forge ASKING about a permanent: this layer claims that press, so the
     // browser's default — a text selection — is refused at the press itself.
@@ -481,7 +495,7 @@ describe('dragging a card, and the targeter arrow', () => {
     ).toBe(false);
     fireEvent.pointerUp(cardEl(canvas, mine[0]!), { clientX: 10, clientY: 10 });
     // A press that never moved is a click, not a drag, so neither sent anything.
-    expect(s.clientFrames(), 'and neither press sent anything').toHaveLength(0);
+    expect(await s.framesFrom(m), 'and neither press sent anything').toHaveLength(0);
   });
 
   it('the arrow is drawn into lane A’s overlay and snaps to the legal target under the pointer', async () => {
@@ -513,7 +527,7 @@ describe('dragging a card, and the targeter arrow', () => {
 
     fireEvent.pointerUp(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
     await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', mine[0]!],
       ['selectCard', mine[1]!],
     ]);
@@ -552,7 +566,7 @@ describe('dragging a card, and the targeter arrow', () => {
     // Directly below the tail: the nearest point is the top MIDPOINT.
     expect(await tipAfterMovingOver(0, 300)).toEqual({ x: 20, y: 300 });
     // Never the centre, in either case.
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('with no overlay root the arrow is not drawn, and the drag still sends', async () => {
@@ -570,7 +584,7 @@ describe('dragging a card, and the targeter arrow', () => {
     expect(document.querySelector('[data-testid="targeter"]')).toBeNull();
     fireEvent.pointerUp(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', mine[0]!],
       ['selectCard', mine[1]!],
     ]);
@@ -589,7 +603,7 @@ describe('dragging a card, and the targeter arrow', () => {
     fireEvent.pointerMove(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectPlayer', 1]]);
+    expect(await sent(s, m)).toEqual([['selectPlayer', 1]]);
   });
 
   // The operator, 2026-10-04: "the arrow for 'graps of darkness' should not snap to player
@@ -616,28 +630,27 @@ describe('dragging a card, and the targeter arrow', () => {
       fireEvent.pointerDown(stack, { button: 0, clientX: 10, clientY: 10 });
       fireEvent.pointerMove(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
       fireEvent.pointerUp(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
-      await new Promise((r) => setTimeout(r, 50));
-      return s;
+      return { s, m };
     }
 
     it('no player named (Doom Blade, Grasp of Darkness): a release on a face sends nothing', async () => {
-      const s = await pointAtFace([]);
-      expect(sent(s)).toEqual([]);
+      const { s, m } = await pointAtFace([]);
+      expect(await sent(s, m)).toEqual([]);
     });
 
     it('the player named: a release on that face answers it', async () => {
-      const s = await pointAtFace([1]);
-      expect(sent(s)).toEqual([['selectPlayer', 1]]);
+      const { s, m } = await pointAtFace([1]);
+      expect(await sent(s, m)).toEqual([['selectPlayer', 1]]);
     });
   });
 
   // The operator, 2026-10-04: "right-click shouldn't bring up the chrome context menu on the board."
   it('a right-click on the board never opens the browser menu, with or without a gesture', async () => {
-    const { s, canvas } = await gestureBoard();
+    const { s, m, canvas } = await gestureBoard();
     const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
     canvas.dispatchEvent(ev);
     expect(ev.defaultPrevented).toBe(true);
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('a pointercancel drops the gesture: the arrow goes and nothing is sent', async () => {
@@ -653,7 +666,7 @@ describe('dragging a card, and the targeter arrow', () => {
     // `e2e/arrow.spec.ts` cancels exactly this way, on `window`.
     fireEvent.pointerCancel(window, {});
     await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('dispose takes the layer away: no arrow, no marks, and a drag sends nothing', async () => {
@@ -665,8 +678,7 @@ describe('dragging a card, and the targeter arrow', () => {
     gestures = null;
 
     drag(cardEl(canvas, mine[0]!), cardEl(canvas, mine[1]!));
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
     expect(canvas.querySelector('[data-testid="targeter"]')).toBeNull();
     expect(canvas.querySelector('[data-attack-intent]')).toBeNull();
   });
@@ -707,7 +719,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     fireEvent.pointerMove(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', blocker]]);
+    expect(await sent(s, m)).toEqual([['selectCard', blocker]]);
   });
 
   it('outside combat declaration, arranging wins even on a card Forge offered — and a CLICK still plays it', async () => {
@@ -725,13 +737,12 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     fireEvent.pointerMove(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
     expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).toBeNull();
     fireEvent.pointerUp(cardEl(canvas, mine[1]!), { clientX: 200, clientY: 140 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
 
     // The affordance is not lost, only the drag: the card's own face still plays it.
     fireEvent.click(cardEl(canvas, mine[0]!).querySelector('button')!);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', mine[0]!]]);
   });
 
   it('a NON-offered arrangeable card starts no gesture and sends nothing on release', async () => {
@@ -749,8 +760,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     // pointing gesture, the release lands on Forge's one legal target, and one
     // press both rearranges the battlefield and sends `selectCard`.
     drag(cardEl(canvas, mine[0]!), cardEl(canvas, theirs[0]!));
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
     expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).toBeNull();
     expect(canvas.hasAttribute('data-dragging')).toBe(false);
 
@@ -758,7 +768,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     // server sees, so a refused gesture cannot be hiding behind a slow wire.
     fireEvent.click(cardEl(canvas, theirs[0]!).querySelector('button')!);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', theirs[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', theirs[0]!]]);
   });
 
   /**
@@ -804,8 +814,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     expect(overlayOf(canvas).querySelector('[data-testid="targeter"]'), 'and drew no arrow').toBeNull();
     fireEvent.pointerUp(cardEl(canvas, theirs[0]!), { clientX: 200, clientY: 140 });
 
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames(), 'an arrangement puts nothing on the wire').toHaveLength(0);
+    expect(await s.framesFrom(m), 'an arrangement puts nothing on the wire').toHaveLength(0);
     // The offer is still empty afterwards — the press was not bought by widening it.
     expect(m.selectables).toBeNull();
     expect(boardInteraction(m).selectable.size).toBe(0);
@@ -827,7 +836,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).not.toBeNull();
     fireEvent.pointerUp(cardEl(canvas, offered), { clientX: 400, clientY: 400 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', offered]]);
+    expect(await sent(s, m)).toEqual([['selectCard', offered]]);
   });
 
   /*
@@ -853,7 +862,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', land]]);
+    expect(await sent(s, m)).toEqual([['selectCard', land]]);
   });
 
   it('a payment whose cost cannot be auto-paid is still a payment — the Auto bar is disabled and the drag still pays', async () => {
@@ -866,7 +875,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
 
     drag(cardEl(canvas, land), canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', land]]);
+    expect(await sent(s, m)).toEqual([['selectCard', land]]);
   });
 
   /**
@@ -894,13 +903,12 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
     fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
 
     // A barrier: the click still works, so the refusal was the gesture's and not the wire's.
     fireEvent.click(cardEl(canvas, land).querySelector('button')!);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', land]]);
+    expect(await sent(s, m)).toEqual([['selectCard', land]]);
   });
 
   it('an ordinary priority window with its own bar is arranging’s, land and all', async () => {
@@ -913,8 +921,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
     fireEvent.pointerMove(zone, { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(zone, { clientX: 200, clientY: 140 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('outside declare-attackers an arrangeable permanent starts no box-draw at all', async () => {
@@ -931,8 +938,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     fireEvent.pointerMove(cardEl(canvas, mine[0]!), { clientX: 400, clientY: 400 });
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).toBeNull();
     fireEvent.pointerUp(cardEl(canvas, mine[0]!), { clientX: 400, clientY: 400 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('empty table space is unchanged: the box-draw still starts there', async () => {
@@ -951,7 +957,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).not.toBeNull();
     fireEvent.pointerUp(zone, { clientX: 300, clientY: 300 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', mine[0]!]]);
   });
 
   it('empty table space is unchanged: the source-less pointing gesture still starts there', async () => {
@@ -967,7 +973,7 @@ describe('the press is partitioned with lane A’s arrange gesture', () => {
     fireEvent.pointerMove(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
     fireEvent.pointerUp(faceEl(canvas, 1), { clientX: 200, clientY: 140 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectPlayer', 1]]);
+    expect(await sent(s, m)).toEqual([['selectPlayer', 1]]);
   });
 });
 
@@ -1000,7 +1006,7 @@ describe('§B.1 — an attacker is marked at SELECTION, and the mark is not Forg
     fireEvent.click(li.querySelector('button')!);
 
     await waitFor(() => expect(cardEl(canvas, attacker).dataset.attackIntent).toBe('sent'));
-    expect(sent(s)).toEqual([['selectCard', attacker]]);
+    expect(await sent(s, m)).toEqual([['selectCard', attacker]]);
   });
 
   it('the mark never claims Forge’s tapped state: an untapped attacker stays untapped', async () => {
@@ -1082,7 +1088,7 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     fireEvent.pointerUp(zone, { clientX: 300, clientY: 300 });
 
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', a],
       ['selectCard', b],
     ]);
@@ -1111,11 +1117,9 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     fireEvent.pointerUp(zone, { clientX: 400, clientY: 400 });
 
     await s.untilClientFrames(1);
-    // Exactly one frame, and it is the one Forge named. A barrier follows, so a
-    // second frame cannot be merely late.
-    expect(sent(s)).toEqual([['selectCard', offered]]);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(sent(s)).toEqual([['selectCard', offered]]);
+    // Exactly one frame, and it is the one Forge named: read once everything the
+    // client sent has arrived, so a second frame cannot be merely late.
+    expect(await sent(s, m)).toEqual([['selectCard', offered]]);
   });
 
   it('a box that never passes the slop is a click, and sends nothing of its own', async () => {
@@ -1130,8 +1134,7 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     fireEvent.pointerDown(zone, { button: 0, clientX: 100, clientY: 100 });
     fireEvent.pointerMove(zone, { clientX: 102, clientY: 101 });
     fireEvent.pointerUp(zone, { clientX: 102, clientY: 101 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('outside declare-attackers a press on the table starts no box at all', async () => {
@@ -1147,8 +1150,7 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     fireEvent.pointerMove(zone, { clientX: 300, clientY: 300 });
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).toBeNull();
     fireEvent.pointerUp(zone, { clientX: 300, clientY: 300 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 });
 
@@ -1172,8 +1174,7 @@ describe('the London mulligan’s bottom pick: a hand card is a click, never an 
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     expect(overlayOf(canvas).querySelector('[data-testid="targeter"]'), 'no arrow').toBeNull();
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames(), 'and the drag sent nothing').toHaveLength(0);
+    expect(await s.framesFrom(m), 'and the drag sent nothing').toHaveLength(0);
   });
 });
 
@@ -1218,21 +1219,18 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
   }
 
   it('the first land goes out at the release, and each next one only after the board shows the one before it tapped', async () => {
-    const { s, lands, offered, sweep } = await landsOffered();
+    const { s, m, lands, offered, sweep } = await landsOffered();
     sweep(700, 300);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', lands[0]]]);
-    await new Promise((r) => setTimeout(r, 80));
-    expect(s.clientFrames(), 'the second waits for Forge').toHaveLength(1);
+    expect(await sent(s, m)).toEqual([['selectCard', lands[0]]]);
+    expect(await s.framesFrom(m), 'the second waits for Forge').toHaveLength(1);
 
     // Forge takes the click, taps the land, and only then offers the board again.
-    s.send(offerWithdrawn());
-    s.send(tappedDelta(lands[0]!));
-    await new Promise((r) => setTimeout(r, 80));
-    expect(s.clientFrames(), 'tapped, but not offered again yet: still waiting').toHaveLength(1);
+    await deliver(s, m, [offerWithdrawn(), tappedDelta(lands[0]!)]);
+    expect(await s.framesFrom(m), 'tapped, but not offered again yet: still waiting').toHaveLength(1);
     for (const f of notify([prompt('Priority'), actionable(offered.filter((id) => id !== lands[0])), okBar()])) s.send(f);
     await s.untilClientFrames(2);
-    expect(sent(s)[1]).toEqual(['selectCard', lands[1]]);
+    expect((await sent(s, m))[1]).toEqual(['selectCard', lands[1]]);
   });
 
   /*
@@ -1242,11 +1240,11 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
    * state, which no longer waits on it.
    */
   it('the release draws every boxed land tapped at once, before Forge has confirmed any of them', async () => {
-    const { s, canvas, lands, sweep } = await landsOffered();
+    const { s, m, canvas, lands, sweep } = await landsOffered();
     sweep(700, 300);
     // Only the first land has gone out on the wire…
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', lands[0]]]);
+    expect(await sent(s, m)).toEqual([['selectCard', lands[0]]]);
     // …but every land the box touched is already drawn tapped.
     for (const id of lands) {
       expect(cardEl(canvas, id!).hasAttribute(TAPPED_PENDING_ATTR), `land ${id} is drawn tapped-pending at the release`).toBe(true);
@@ -1254,14 +1252,13 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
   });
 
   it('only lands: an offered creature inside the box is not activated, and a land outside it is not tapped', async () => {
-    const { s, lands, other, sweep } = await landsOffered();
+    const { s, m, lands, other, sweep } = await landsOffered();
     // A box that covers the first land and the creature below it, and stops short of the second land.
     sweep(170, 300);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', lands[0]]]);
+    expect(await sent(s, m)).toEqual([['selectCard', lands[0]]]);
     expect(other, 'the fixture has an offered non-land in the box').toBeDefined();
-    await new Promise((r) => setTimeout(r, 80));
-    expect(s.clientFrames()).toHaveLength(1);
+    expect(await s.framesFrom(m)).toHaveLength(1);
   });
 
   it('the ability question Forge asks about the land in flight does not end the sweep', async () => {
@@ -1285,12 +1282,12 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     s.send(offerWithdrawn());
     s.send(tappedDelta(lands[0]!));
     for (const f of notify([prompt('Priority'), actionable(offered.filter((id) => id !== lands[0])), okBar()])) s.send(f);
-    await waitFor(() =>
-      expect(sent(s).filter((f) => Array.isArray(f) && f[0] === 'selectCard')).toEqual([
-        ['selectCard', lands[0]],
-        ['selectCard', lands[1]],
-      ]),
-    );
+    // The first land, the ability answered by hand, the second land.
+    await s.untilClientFrames(3);
+    expect((await sent(s, m)).filter((f) => Array.isArray(f) && f[0] === 'selectCard')).toEqual([
+      ['selectCard', lands[0]],
+      ['selectCard', lands[1]],
+    ]);
   });
 
   it('a question from Forge ends the sweep: nothing more is sent', async () => {
@@ -1301,9 +1298,8 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     s.send(tappedDelta(lands[0]!));
     for (const f of notify([prompt('Choose a target'), selectables([lands[1]!], 1, 1)])) s.send(f);
     await untilMatch(m, () => expect(m.selectables).not.toBeNull());
-    for (const f of notify([prompt('Priority'), actionable([lands[1]!]), okBar()])) s.send(f);
-    await new Promise((r) => setTimeout(r, 120));
-    expect(sent(s), 'the land a selection named was not tapped by a sweep that had ended').toEqual([['selectCard', lands[0]]]);
+    await deliver(s, m, notify([prompt('Priority'), actionable([lands[1]!]), okBar()]));
+    expect((await sent(s, m)), 'the land a selection named was not tapped by a sweep that had ended').toEqual([['selectCard', lands[0]]]);
     // The land the sweep never reached is no longer drawn pending once the sweep ends.
     expect(cardEl(canvas, lands[1]!).hasAttribute(TAPPED_PENDING_ATTR)).toBe(false);
   });
@@ -1318,7 +1314,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     fireEvent.pointerMove(zone, { clientX: 300, clientY: 300 });
     expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).toBeNull();
     fireEvent.pointerUp(zone, { clientX: 300, clientY: 300 });
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 });
 
@@ -1357,28 +1353,27 @@ describe('Q14 — a click or a box pulls declared attackers back', () => {
   };
 
   it('a click on a declared attacker sends the one selectCard that undeclares it', async () => {
-    const { s, canvas, a } = await declared();
+    const { s, m, canvas, a } = await declared();
     fireEvent.click(cardEl(canvas, a).querySelector('button')!);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', a]]);
+    expect(await sent(s, m)).toEqual([['selectCard', a]]);
   });
 
   it('a box over only declared attackers pulls every one of them back', async () => {
-    const { s, a, b, canvas } = await declared();
+    const { s, m, a, b, canvas } = await declared();
     sweep(canvas, 230); // touches a and b, not the free creature
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', a],
       ['selectCard', b],
     ]);
   });
 
   it('a box over declared AND undeclared creatures declares the undeclared and leaves the declared alone', async () => {
-    const { s, free, canvas } = await declared();
+    const { s, m, free, canvas } = await declared();
     sweep(canvas, 400); // touches a, b and the free creature
     await s.untilClientFrames(1);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(sent(s)).toEqual([['selectCard', free]]);
+    expect(await sent(s, m)).toEqual([['selectCard', free]]);
   });
 });
 
@@ -1404,7 +1399,7 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
   }
 
   it('the two frames go out ATTACKER first, which is the order InputBlock needs', async () => {
-    const { s, canvas, blocker, attackers } = await blockingBoard();
+    const { s, m, canvas, blocker, attackers } = await blockingBoard();
     holdBoardClock();
     // The SECOND attacker: it is not the one Forge highlighted, so it reaches
     // the offered set only through `blockTargets`.
@@ -1412,13 +1407,12 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
     // The attacker's click goes out alone: the blocker's waits until Forge has made that attacker the
     // current one, because Forge may apply two quick clicks in either order (`afterMarked`).
     await s.untilClientFrames(1);
-    await sleep(50);
-    expect(sent(s)).toEqual([['selectCard', attackers[1]]]);
+    expect(await sent(s, m)).toEqual([['selectCard', attackers[1]]]);
     // `InputBlock.setCurrentAttacker`: the old one unmarked, the new one marked.
     s.send(highlight([attackers[0]!], false));
     s.send(highlight([attackers[1]!], true));
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', attackers[1]],
       ['selectCard', blocker],
     ]);
@@ -1433,29 +1427,25 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
     expect(m.highlighted!.has(attackers[0])).toBe(true);
     drag(cardEl(canvas, blocker), cardEl(canvas, attackers[0]));
     await s.untilClientFrames(1);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(sent(s)).toEqual([['selectCard', blocker]]);
+    expect(await sent(s, m)).toEqual([['selectCard', blocker]]);
   });
 
   it('a click on the creature blocks nothing: blocking is by drag only', async () => {
-    const { s, canvas, blocker } = await blockingBoard();
+    const { s, m, canvas, blocker } = await blockingBoard();
     fireEvent.click(cardEl(canvas, blocker).querySelector('button')!);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('dropped back on its own spot, an unassigned creature sends nothing', async () => {
-    const { s, canvas, blocker } = await blockingBoard();
+    const { s, m, canvas, blocker } = await blockingBoard();
     drag(cardEl(canvas, blocker), cardEl(canvas, blocker));
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('a drop on nothing legal sends nothing — the blocker dragged off the table', async () => {
-    const { s, canvas, blocker } = await blockingBoard();
+    const { s, m, canvas, blocker } = await blockingBoard();
     drag(cardEl(canvas, blocker), document.body);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('no attacker is offered while nothing is highlighted — that is not InputBlock', async () => {
@@ -1473,7 +1463,7 @@ describe('§B.3 — a blocker is assigned by dragging it onto an attacker', () =
     // "the card is being used" frame — one, not two, and not the attacker's.
     drag(cardEl(canvas, blocker), cardEl(canvas, theirs[0]!));
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', blocker]]);
+    expect(await sent(s, m)).toEqual([['selectCard', blocker]]);
   });
 });
 
@@ -1521,26 +1511,24 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
   }
 
   it('is offered off the planned map alone, and dropping it back on its own spot is Forge’s own undo', async () => {
-    const { s, canvas, blocker } = await alreadyBlocking();
+    const { s, m, canvas, blocker } = await alreadyBlocking();
     drag(cardEl(canvas, blocker), cardEl(canvas, blocker));
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', blocker]]);
+    expect(await sent(s, m)).toEqual([['selectCard', blocker]]);
   });
 
   it('dragged onto a different attacker it MOVES: the undo, then the new attacker, then the blocker', async () => {
-    const { s, canvas, blocker, attacker, other, combat } = await alreadyBlocking();
+    const { s, m, canvas, blocker, attacker, other, combat } = await alreadyBlocking();
     holdBoardClock();
     drag(cardEl(canvas, blocker), cardEl(canvas, other));
     // The undo first, on the attacker it blocks (already current): one frame.
     await s.untilClientFrames(1);
-    await sleep(50);
-    expect(sent(s)).toEqual([['selectCard', blocker]]);
+    expect(await sent(s, m)).toEqual([['selectCard', blocker]]);
     // Forge undoes it and offers it again as a candidate.
     s.send(combat([]));
     for (const f of notify([actionable([blocker])])) s.send(f);
     await s.untilClientFrames(2);
-    await sleep(50);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', blocker],
       ['selectCard', other],
     ]);
@@ -1548,7 +1536,7 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
     s.send(highlight([attacker], false));
     s.send(highlight([other], true));
     await s.untilClientFrames(3);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', blocker],
       ['selectCard', other],
       ['selectCard', blocker],
@@ -1556,20 +1544,17 @@ describe('a block already assigned stays clickable, and draws its own arrow', ()
   });
 
   it('a creature Forge still offers as a candidate (it can block one more) keeps its first block', async () => {
-    const { s, canvas, blocker, other } = await alreadyBlocking();
-    for (const f of notify([actionable([blocker])])) s.send(f);
-    await new Promise((r) => setTimeout(r, 50));
+    const { s, m, canvas, blocker, other } = await alreadyBlocking();
+    await deliver(s, m, notify([actionable([blocker])]));
     drag(cardEl(canvas, blocker), cardEl(canvas, other));
     await s.untilClientFrames(1);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(sent(s)).toEqual([['selectCard', other]]);
+    expect(await sent(s, m)).toEqual([['selectCard', other]]);
   });
 
   it('dropped on the attacker it already blocks, nothing is sent', async () => {
-    const { s, canvas, blocker, attacker } = await alreadyBlocking();
+    const { s, m, canvas, blocker, attacker } = await alreadyBlocking();
     drag(cardEl(canvas, blocker), cardEl(canvas, attacker));
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('draws a lasting arrow from the blocker to its attacker while declaring, off the PLANNED map', async () => {
@@ -1686,11 +1671,10 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
     drag(cardEl(canvas, attacker), cardEl(canvas, pw));
     // Only the defender's click until Forge marks the planeswalker current (`InputAttack.setCurrentDefender`).
     await s.untilClientFrames(1);
-    await sleep(50);
-    expect(sent(s)).toEqual([['selectCard', pw]]);
+    expect(await sent(s, m)).toEqual([['selectCard', pw]]);
     s.send(highlight([pw], true));
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', pw],
       ['selectCard', attacker],
     ]);
@@ -1704,8 +1688,7 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
     await s.untilClientFrames(1);
     // Past the wait: sending the attacker now would declare it against whatever was current before.
     vi.advanceTimersByTime(MARK_WAIT_MS);
-    await sleep(50);
-    expect(sent(s)).toEqual([['selectCard', pw]]);
+    expect(await sent(s, m)).toEqual([['selectCard', pw]]);
   });
 
   it('a drop on the opponent’s face sends selectPlayer, then selectCard once Forge marks them', async () => {
@@ -1716,7 +1699,7 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
     await s.untilClientFrames(1);
     s.send(highlightPlayers([opponent], true));
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectPlayer', opponent],
       ['selectCard', attacker],
     ]);
@@ -1729,8 +1712,7 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
     await untilMatch(m, () => expect(m.highlightedPlayers?.has(opponent)).toBe(true));
     drag(cardEl(canvas, attacker), faceEl(canvas, opponent));
     await s.untilClientFrames(1);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(sent(s)).toEqual([['selectCard', attacker]]);
+    expect(await sent(s, m)).toEqual([['selectCard', attacker]]);
   });
 
   it('a drop on the defender it already attacks sends nothing — Forge would toggle it off', async () => {
@@ -1748,8 +1730,7 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
     );
     await untilMatch(m, () => expect(attackAssignment(m, attacker, { kind: 'player', id: opponent })).toBe('already'));
     drag(cardEl(canvas, attacker), faceEl(canvas, opponent));
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 });
 
@@ -1782,18 +1763,18 @@ describe('the arrow snaps only to a target the release would send', () => {
   }
 
   it('an attacker dragged and still over itself draws no arrow — never one into its own top edge', async () => {
-    const { s, canvas, overlay, attacker } = await attackers();
+    const { s, m, canvas, overlay, attacker } = await attackers();
     fireEvent.pointerDown(cardEl(canvas, attacker), { button: 0, clientX: 140, clientY: 400 });
     fireEvent.pointerMove(cardEl(canvas, attacker), { clientX: 150, clientY: 330 });
     await frame();
     const arrow = overlay.querySelector<SVGElement>('[data-testid="targeter"]');
     expect(arrow === null ? null : { target: arrow.dataset.target, snapped: arrow.dataset.snapped, tip: tipOf(overlay) }).toBeNull();
     fireEvent.pointerCancel(window);
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('another of this seat’s attackers is no target: the tip follows the pointer, and the drop declares the dragged one only', async () => {
-    const { s, canvas, overlay, attacker, other } = await attackers();
+    const { s, m, canvas, overlay, attacker, other } = await attackers();
     fireEvent.pointerDown(cardEl(canvas, attacker), { button: 0, clientX: 140, clientY: 400 });
     fireEvent.pointerMove(cardEl(canvas, other), { clientX: 330, clientY: 350 });
     const arrow = await waitFor(() => overlay.querySelector<SVGElement>('[data-testid="targeter"]')!);
@@ -1802,8 +1783,7 @@ describe('the arrow snaps only to a target the release would send', () => {
     expect(tipOf(overlay)).toEqual({ x: 330, y: 350 });
     fireEvent.pointerUp(cardEl(canvas, other), { clientX: 330, clientY: 350 });
     await s.untilClientFrames(1);
-    await new Promise((r) => setTimeout(r, 50));
-    expect(sent(s)).toEqual([['selectCard', attacker]]);
+    expect(await sent(s, m)).toEqual([['selectCard', attacker]]);
   });
 
   it('inside a selection that offers the source too, the source is never its own target; the other offered card is', async () => {
@@ -1829,7 +1809,7 @@ describe('the arrow snaps only to a target the release would send', () => {
     await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
     fireEvent.pointerUp(cardEl(canvas, source), { clientX: 150, clientY: 330 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', source]]);
+    expect(await sent(s, m)).toEqual([['selectCard', source]]);
   });
 
   it('click targeting: the pointer over the card the arrow leaves from draws no arrow', async () => {
@@ -1852,7 +1832,7 @@ describe('the arrow snaps only to a target the release would send', () => {
     await waitFor(() => expect(overlay.querySelector<SVGElement>('[data-testid="targeter"]')?.dataset.target).toBe(`card:${theirs}`));
     fireEvent.pointerMove(cardEl(canvas, spell), { clientX: 150, clientY: 330 });
     await waitFor(() => expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull());
-    expect(sent(s)).toEqual([['selectCard', spell]]);
+    expect(await sent(s, m)).toEqual([['selectCard', spell]]);
   });
 });
 
@@ -1889,7 +1869,7 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     expect(overlay.querySelector<SVGElement>('[data-testid="targeter"]')!.dataset.snapped).toBe('true');
 
     // Pointing is not acting: exactly the one frame the click sent.
-    expect(sent(s)).toEqual([['selectCard', spell]]);
+    expect(await sent(s, m)).toEqual([['selectCard', spell]]);
   });
 
   /**
@@ -1933,7 +1913,7 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     await waitFor(() =>
       expect(overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!.dataset.target).toBe(`player:${them}`),
     );
-    expect(sent(s)).toEqual([['selectCard', mine[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', mine[0]!]]);
   });
 
   it('the click arrow goes when the selection does, and the pointer leaving the canvas takes it too', async () => {
@@ -1979,7 +1959,7 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
     expect(arrow.dataset.mode).toBe('click');
     expect(arrow.dataset.source).toBe(String(origin));
-    expect(sent(s)).toEqual([]);
+    expect(await sent(s, m)).toEqual([]);
   });
 
   /**
@@ -2038,7 +2018,7 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     // The tail sits at the stack item's own box centre — never (0,0), never
     // the overlay's own corner.
     expect(arrow.querySelector('path')!.getAttribute('d')).toMatch(/^M 560 30 Q /);
-    expect(sent(s)).toEqual([]);
+    expect(await sent(s, m)).toEqual([]);
   });
 
   it('an opponent’s spell asks this seat to choose: the tail is that spell’s stack item, not the card this seat clicked last', async () => {
@@ -2108,9 +2088,9 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     expect(stackOrigin(m, canvas)).not.toBeNull();
 
     fireEvent.pointerMove(cardEl(canvas, hand[1]!), { clientX: 170, clientY: 420 });
-    await new Promise((r) => setTimeout(r, 30));
+    await frame();
     expect(overlayOf(canvas).querySelector('[data-testid="targeter"]'), 'nothing is being aimed: no arrow').toBeNull();
-    expect(s.clientFrames()).toHaveLength(1); // the one click, nothing from the hover
+    expect(await s.framesFrom(m)).toHaveLength(1); // the one click, nothing from the hover
   });
 
   it('with nothing to draw from, the pointer draws no arrow', async () => {
@@ -2133,9 +2113,9 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
       clientX: 220,
       clientY: 180,
     });
-    await new Promise((r) => setTimeout(r, 30));
+    await frame();
     expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).toBeNull();
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 });
 
@@ -2185,8 +2165,8 @@ describe('Q7 — a "select target spell" question takes an arrow to the stack it
     return out;
   }
 
-  const replies = (s: ReplayServer) =>
-    s.clientFrames().map((f) => (f.ok && f.value.kind === 'reply' ? [f.value.method, f.value.result] : f));
+  const replies = async (s: ReplayServer, m: LiveMatch) =>
+    (await s.framesFrom(m)).map((f) => (f.ok && f.value.kind === 'reply' ? [f.value.method, f.value.result] : f));
 
   it('a drag from the table onto the stack item answers the question with that item, and the arrow snaps to it', async () => {
     const { s, m, canvas } = await gestureBoard();
@@ -2206,7 +2186,7 @@ describe('Q7 — a "select target spell" question takes an arrow to the stack it
     fireEvent.pointerUp(items[wanted]!, { clientX: 320, clientY: 120 });
 
     await s.untilClientFrames(1);
-    expect(replies(s)).toEqual([['getChoices', [`si-${wanted}`]]]);
+    expect(await replies(s, m)).toEqual([['getChoices', [`si-${wanted}`]]]);
   });
 
   it('a plain click on the stack item answers it too', async () => {
@@ -2218,7 +2198,7 @@ describe('Q7 — a "select target spell" question takes an arrow to the stack it
     fireEvent.pointerDown(items[702]!, { button: 0, clientX: 300, clientY: 100 });
     fireEvent.pointerUp(items[702]!, { clientX: 300, clientY: 100 });
     await s.untilClientFrames(1);
-    expect(replies(s)).toEqual([['getChoices', ['si-702']]]);
+    expect(await replies(s, m)).toEqual([['getChoices', ['si-702']]]);
   });
 
   it('a release on a stack item the question did NOT name sends nothing', async () => {
@@ -2231,18 +2211,16 @@ describe('Q7 — a "select target spell" question takes an arrow to the stack it
     fireEvent.pointerDown(zone, { button: 0, clientX: 40, clientY: 400 });
     fireEvent.pointerMove(items[999]!, { clientX: 320, clientY: 120 });
     fireEvent.pointerUp(items[999]!, { clientX: 320, clientY: 120 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
     expect(m.asks).toHaveLength(1);
   });
 
   it('with no question open, a press on a stack item starts and sends nothing', async () => {
-    const { s, canvas } = await gestureBoard();
+    const { s, m, canvas } = await gestureBoard();
     const items = stackItems(canvas, [701]);
     fireEvent.pointerDown(items[701]!, { button: 0, clientX: 300, clientY: 100 });
     fireEvent.pointerUp(items[701]!, { clientX: 300, clientY: 100 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 });
 
@@ -2270,7 +2248,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'still lifted — no settle any more').toBe('lifted');
     expect(cardEl(canvas, hand[0]!).style.left).toBe('400px');
-    expect(s.clientFrames(), 'nothing sent while merely lifted').toHaveLength(0);
+    expect(await s.framesFrom(m), 'nothing sent while merely lifted').toHaveLength(0);
 
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
     await s.untilClientFrames(1); // the first card's own release
@@ -2278,7 +2256,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerDown(cardEl(canvas, hand[1]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerUp(cardEl(canvas, hand[1]!), { clientX: 10, clientY: 10 }); // click-arms
     expect(cardEl(canvas, hand[1]!).getAttribute('data-cast-lift'), 'click-armed — still nothing sent').toBe('lifted');
-    expect(s.clientFrames()).toHaveLength(1); // unchanged — the second card is only click-armed
+    expect(await s.framesFrom(m)).toHaveLength(1); // unchanged — the second card is only click-armed
   });
 
   /*
@@ -2305,7 +2283,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
       cardEl(canvas, hand[0]!).style.getPropertyValue('--card-w'),
       'the battlefield’s size, from the lift — not the hand’s',
     ).toBe('64px');
-    expect(s.clientFrames(), 'nothing sent yet — the lift alone').toHaveLength(0);
+    expect(await s.framesFrom(m), 'nothing sent yet — the lift alone').toHaveLength(0);
   });
 
   it('stays the battlefield’s size once the press leaves the hand — it does not shrink back on the way out', async () => {
@@ -2351,7 +2329,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
 
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
     expect(noteSpy).toHaveBeenCalledTimes(1);
     expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 400, y: 300 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'out of the hand’s row, and not drawn: its stand-in is').toBe('carried');
@@ -2375,11 +2353,12 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(board.hasAttribute('data-placing'), 'out of the hand, the same columns wherever it is carried').toBe(true);
     expect(cardEl(canvas, hand[0]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
 
+    holdBoardClock();
     fireEvent.pointerUp(document.body, { clientX: 900, clientY: 900 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'floating back').toBe('returning');
     expect(board.hasAttribute('data-placing'), 'and the columns are gone').toBe(false);
-    await new Promise((r) => setTimeout(r, 350));
-    expect(s.clientFrames()).toHaveLength(0);
+    vi.advanceTimersByTime(GLIDE_MS);
+    expect(await s.framesFrom(m)).toHaveLength(0);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
   });
 
@@ -2404,8 +2383,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
       expect(cardEl(canvas, id).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
       fireEvent.pointerUp(myHand, { clientX: 30, clientY: 20 });
     }
-    await new Promise((r) => setTimeout(r, 350));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('a card that needs a target is cast at the release, wherever it was released outside the hand, and parks there', async () => {
@@ -2420,12 +2398,12 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     expect(canvas.querySelector('.board')!.hasAttribute('data-placing'), 'a targeted card never lands in a row — no columns').toBe(false);
     expect(cardEl(canvas, hand[2]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
 
     fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
     fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', hand[2]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[2]!]]);
     expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBe('parked');
     expect(cardEl(canvas, hand[2]!).hasAttribute('data-cast-verdict'), 'no verdict once parked').toBe(false);
     expect(cardEl(canvas, hand[2]!).style.left).toBe('500px');
@@ -2460,7 +2438,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerUp(faceButton, { clientX: 500, clientY: 50 });
     fireEvent.click(faceButton);
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([
+    expect(await sent(s, m)).toEqual([
       ['selectCard', hand[2]!],
       ['selectPlayer', 1],
     ]);
@@ -2479,17 +2457,17 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
     fireEvent.pointerUp(face, { clientX: 10, clientY: 10 }); // the click — arms, does not resolve
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'still lifted after the click').toBe('lifted');
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
     expect(fireEvent.click(face), 'the native click is swallowed, not answered').toBe(false);
 
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 }); // no button held: still tracked
     expect(cardEl(canvas, hand[0]!).hasAttribute('data-cast-verdict'), 'no text on a lifted card').toBe(false);
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
 
     // The NEXT press is the release — plays here, not wherever the click let go.
     fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 600, clientY: 480 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
     expect(noteSpy).toHaveBeenCalledWith(hand[0], { x: 600, y: 480 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('carried');
     expect(canvas.querySelector<HTMLElement>(`[data-cast-ghost="${hand[0]}"]`)!.style.left).toBe('600px');
@@ -2524,16 +2502,17 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     // it back over the viewer's own hand, with no button held throughout.
     fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerUp(face, { clientX: 10, clientY: 10 });
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 });
     expect(myHand.hasAttribute('data-cancel-hint'), 'no cast cue over the hand any more').toBe(false);
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
 
     // The next press is the "left click" that ends the gesture, over the hand.
+    holdBoardClock();
     fireEvent.pointerDown(myHand, { button: 0, clientX: 20, clientY: 20 });
-    await new Promise((r) => setTimeout(r, 350));
-    expect(s.clientFrames(), 'nothing reached Forge').toHaveLength(0);
+    vi.advanceTimersByTime(GLIDE_MS);
+    expect(await s.framesFrom(m), 'nothing reached Forge').toHaveLength(0);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'settled, not mid-cast').toBeNull();
     expect(myHand.hasAttribute('data-cancel-hint'), 'the cue clears with the release').toBe(false);
   });
@@ -2549,14 +2528,14 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerMove(document.body, { clientX: 300, clientY: 300 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('lifted');
 
+    holdBoardClock();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('returning');
     expect(overlay.querySelector('[data-testid="targeter"]')).toBeNull();
 
     fireEvent.pointerUp(document.body, { clientX: 300, clientY: 300 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
-    await new Promise((r) => setTimeout(r, 300));
+    expect(await s.framesFrom(m)).toHaveLength(0);
+    vi.advanceTimersByTime(GLIDE_MS);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
   });
 
@@ -2576,7 +2555,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' });
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
     expect(cardEl(canvas, hand[2]!).getAttribute('data-cast-lift')).toBe('returning');
   });
 
@@ -2607,8 +2586,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 });
     fireEvent.pointerDown(myHand, { button: 2, clientX: 20, clientY: 20 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(sent(s), 'nothing sent — not even the bar’s own End Turn').toEqual([]);
+    expect((await sent(s, m)), 'nothing sent — not even the bar’s own End Turn').toEqual([]);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'floats back, same as any other cancel').toBe('returning');
   });
 
@@ -2629,7 +2607,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 });
     fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 }); // a second right-click: nothing left to cancel
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
   });
 
   it('a left click on nothing Forge’s selection names, while a cast is parked, cancels the same way', async () => {
@@ -2649,7 +2627,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     // The zone itself, not a card inside it: nothing Forge's selection names.
     fireEvent.pointerDown(theirBattlefield, { button: 0, clientX: 999, clientY: 999 });
     await s.untilClientFrames(2);
-    expect(sent(s)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
   });
 
   /*
@@ -2680,25 +2658,25 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
   }
 
   it('a parked cast whose card the board no longer draws still answers a right-click with Forge’s Cancel', async () => {
-    const { s, canvas, theirBattlefield } = await parkLikeForge();
+    const { s, m, canvas, theirBattlefield } = await parkLikeForge();
     fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 });
     await s.untilClientFrames(2);
-    expect(sent(s).at(-1)).toEqual(['selectButtonCancel']);
+    expect((await sent(s, m)).at(-1)).toEqual(['selectButtonCancel']);
     expect(canvas.querySelector('[data-cast-ghost]')?.getAttribute('data-cast-lift'), 'the stand-in floats home').toBe('returning');
   });
 
   it('a parked cast whose card the board no longer draws still answers Escape with Forge’s Cancel', async () => {
-    const { s } = await parkLikeForge();
+    const { s, m } = await parkLikeForge();
     fireEvent.keyDown(window, { key: 'Escape' });
     await s.untilClientFrames(2);
-    expect(sent(s).at(-1)).toEqual(['selectButtonCancel']);
+    expect((await sent(s, m)).at(-1)).toEqual(['selectButtonCancel']);
   });
 
   it('a pointercancel while a cast is parked and Forge is asking sends Forge’s Cancel', async () => {
-    const { s } = await parkLikeForge();
+    const { s, m } = await parkLikeForge();
     fireEvent.pointerCancel(window);
     await s.untilClientFrames(2);
-    expect(sent(s).at(-1)).toEqual(['selectButtonCancel']);
+    expect((await sent(s, m)).at(-1)).toEqual(['selectButtonCancel']);
   });
 
   it('a parked cast whose card the board no longer draws stays visible at the park point, and the arrow leaves from it', async () => {
@@ -2752,8 +2730,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerMove(document.body, { clientX: 300, clientY: 300 });
     expect(cardEl(canvas, mine[0]!).getAttribute('data-cast-lift')).toBeNull();
     fireEvent.pointerUp(document.body, { clientX: 300, clientY: 300 });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 });
 
@@ -2780,19 +2757,20 @@ describe('a card Forge offers from the graveyard is picked up like a hand card',
   }
 
   it('the press lifts it, no arrow is drawn while it is carried, and the release over the table casts it', async () => {
-    const { s, canvas, card, myBattlefield } = await inGraveyard();
+    const { s, m, canvas, card, myBattlefield } = await inGraveyard();
     fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
     expect(cardEl(canvas, card).getAttribute('data-cast-lift')).toBe('lifted');
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     expect(cardEl(canvas, card).style.left, 'it follows the pointer').toBe('400px');
     expect(overlayOf(canvas).querySelector('[data-testid="targeter"]'), 'no arrow while it is carried').toBeNull();
-    expect(s.clientFrames(), 'nothing sent while it is carried').toHaveLength(0);
+    expect(await s.framesFrom(m), 'nothing sent while it is carried').toHaveLength(0);
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
-    await waitFor(() => expect(sent(s)).toEqual([['selectCard', card]]));
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', card]]);
   });
 
   it('let go back over its graveyard, it goes home and nothing is sent', async () => {
-    const { s, canvas, card, pile, myBattlefield } = await inGraveyard();
+    const { s, m, canvas, card, pile, myBattlefield } = await inGraveyard();
     fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     expect(pile.hasAttribute('data-cancel-hint'), 'no cancel cue over the table').toBe(false);
@@ -2801,7 +2779,7 @@ describe('a card Forge offers from the graveyard is picked up like a hand card',
     fireEvent.pointerUp(pile, { clientX: 20, clientY: 20 });
     expect(pile.hasAttribute('data-cancel-hint')).toBe(false);
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull(), { timeout: GLIDE_MS + 1000 });
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 
   it('a selection that names the graveyard card is answered as before, never lifted', async () => {
@@ -2835,15 +2813,16 @@ describe('the top card of the library, offered while the board draws it, is pick
   }
 
   it('a click lifts it and a click on the table plays it', async () => {
-    const { s, canvas, card, myBattlefield } = await onLibrary();
+    const { s, m, canvas, card, myBattlefield } = await onLibrary();
     fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerUp(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
     expect(cardEl(canvas, card).getAttribute('data-cast-lift')).toBe('lifted');
-    expect(s.clientFrames(), 'nothing sent while it is carried').toHaveLength(0);
+    expect(await s.framesFrom(m), 'nothing sent while it is carried').toHaveLength(0);
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     fireEvent.pointerDown(myBattlefield, { button: 0, clientX: 400, clientY: 300 });
     fireEvent.pointerUp(myBattlefield, { button: 0, clientX: 400, clientY: 300 });
-    await waitFor(() => expect(sent(s)).toEqual([['selectCard', card]]));
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', card]]);
   });
 
   it('the next top card is drawn fresh under the avatar: nothing of the last one\'s lift stays on it', async () => {
@@ -2950,7 +2929,8 @@ describe('a played card waits where it was let go until Forge has it on the batt
   const stackEl = (c: HTMLElement) => c.querySelector<HTMLElement>('[data-zone="stack"]')!;
 
   /** Lift the first hand card and let it go over the viewer's own battlefield, at (400, 300). */
-  async function play(motion?: () => boolean) {
+  /** `holdClock`: the board's clock is held from just before the release, so the park's own timers move only when the test moves them. */
+  async function play(motion?: () => boolean, { holdClock = false } = {}) {
     const board = await gestureBoard();
     const { s, m, canvas } = board;
     if (motion !== undefined) {
@@ -2963,6 +2943,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     for (const f of notify([prompt('Priority'), actionable([card]), okBar()])) s.send(f);
     await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
     const myBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="you"]')!;
+    if (holdClock) holdBoardClock();
     fireEvent.pointerDown(cardEl(canvas, card), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
@@ -3048,7 +3029,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     fireEvent.pointerUp(pile, { button: 0, clientX: 400, clientY: 300 });
     fireEvent.click(pile.querySelector('button') ?? pile);
     await s.untilClientFrames(1);
-    expect(sent(s), 'the hand card went out, the land under the release did not').toEqual([['selectCard', card]]);
+    expect((await sent(s, m)), 'the hand card went out, the land under the release did not').toEqual([['selectCard', card]]);
   });
 
   it('a land Forge asks a question about stays parked for the whole question, and lands when it is answered', async () => {
@@ -3064,7 +3045,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(standIn.isConnected, 'there is nothing to cancel: it stays').toBe(true);
     expect(cardEl(canvas, card).getAttribute('data-cast-lift')).toBe('carried');
-    expect(sent(s), 'and nothing more went out').toEqual([['selectCard', card]]);
+    expect((await sent(s, m)), 'and nothing more went out').toEqual([['selectCard', card]]);
 
     arrive();
     await waitFor(() => expect(onMyBattlefield(canvas, card)).not.toBeNull());
@@ -3148,15 +3129,15 @@ describe('a played card waits where it was let go until Forge has it on the batt
   });
 
   it('a spell alone on the stack stays drawn at its park point however long the opponent takes, and through a question', async () => {
-    const { s, m, canvas, card, rest, battlefield } = await play();
+    const { s, m, canvas, card, rest, battlefield } = await play(undefined, { holdClock: true });
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));
     await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
     await waitFor(() => expect(canvas.querySelector('[data-placed-spell="9101"]')).not.toBeNull());
     expect(stackEl(canvas).getAttribute('data-carried'), 'the stack says a played card is also standing in for it').toBe('1');
-    // The opponent holds priority a long while, then Forge asks this seat something about the resolving spell.
-    await new Promise((r) => setTimeout(r, 2500));
+    // The opponent holds priority past the park’s own clock, twice, then Forge asks this seat something about the resolving spell.
+    vi.advanceTimersByTime(PARK_UNANSWERED_MS * 2);
     for (const f of notify([prompt('Choose a creature'), selectables([battlefield[0]!], 1, 1)])) s.send(f);
     await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     const placed = canvas.querySelector<HTMLElement>('[data-placed-spell="9101"]')!;
@@ -3238,7 +3219,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(placed.hasAttribute('data-mine'), 'the viewer’s own spell — only these are draggable').toBe(true);
     const moved: Array<[number, { x: number; y: number }]> = [];
     const unsub = onSpellMoved((id, at) => moved.push([id, at]));
-    const before = sent(s).length; // the park itself already sent its own selectCard — the drag must send nothing MORE
+    const before = (await sent(s, m)).length; // the park itself already sent its own selectCard — the drag must send nothing MORE
     try {
       fireEvent.pointerDown(placed, { button: 0, clientX: 400, clientY: 300 });
       fireEvent.pointerMove(window, { clientX: 500, clientY: 350 }); // past DRAG_SLOP_PX
@@ -3247,7 +3228,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
       fireEvent.pointerUp(window, { clientX: 520, clientY: 360 });
       expect(placed.style.left, 'settles at the release point').toBe('520px');
       expect(placed.style.top).toBe('360px');
-      expect(sent(s).length, 'no cast, no target — nothing new reaches Forge').toBe(before);
+      expect((await sent(s, m)).length, 'no cast, no target — nothing new reaches Forge').toBe(before);
       expect(moved.some(([id]) => id === 9101), 'lane W hears every move, by the stack item’s own id').toBe(true);
     } finally {
       unsub();
@@ -3268,13 +3249,13 @@ describe('a played card waits where it was let go until Forge has it on the batt
   });
 
   it('a play Forge never answers floats back to the hand after PARK_UNANSWERED_MS', async () => {
-    const { s, canvas, card } = await play();
+    const { s, m, canvas, card } = await play();
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     expect(standIn.getAttribute('data-cast-lift')).toBe('parked');
     await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull(), { timeout: GLIDE_MS + 1000 });
     expect(canvas.querySelector('[data-cast-ghost]'), 'and the stand-in goes with it').toBeNull();
-    expect(sent(s), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
+    expect((await sent(s, m)), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
   }, 20_000);
 
   /*
@@ -3294,7 +3275,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: GLIDE_MS + 1000 });
-    expect(sent(s), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
+    expect((await sent(s, m)), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
   }, 20_000);
 
   it('a play Forge took and gave back, then offered in a selection, goes home at once', async () => {
@@ -3318,7 +3299,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
   }, 20_000);
 
   it('a play Forge IS asking about keeps waiting past PARK_UNANSWERED_MS', async () => {
-    const { s, m, canvas, card } = await play();
+    const { s, m, canvas, card } = await play(undefined, { holdClock: true });
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     // Forge's question names the card: its own getAbilityToPlay, as every land click gets.
     s.send(
@@ -3332,13 +3313,13 @@ describe('a played card waits where it was let go until Forge has it on the batt
       }),
     );
     await untilMatch(m, () => expect(m.asks).toHaveLength(1));
-    await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS + 500));
+    vi.advanceTimersByTime(PARK_UNANSWERED_MS + 500);
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
   }, 20_000);
 
   it('a modal spell keeps waiting past PARK_UNANSWERED_MS while its modes are chosen, the card still in the hand', async () => {
     // The operator on Cryptic Command, 2026-10-11: "it seems to go back to hand after doing the first selection".
-    const { s, m, canvas, card } = await play();
+    const { s, m, canvas, card } = await play(undefined, { holdClock: true });
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     s.send(
       parseServerFrame({
@@ -3358,7 +3339,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
       }),
     );
     await untilMatch(m, () => expect(m.asks).toHaveLength(1));
-    await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS + 500));
+    vi.advanceTimersByTime(PARK_UNANSWERED_MS + 500);
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
   }, 20_000);
 
@@ -3369,7 +3350,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
    * and return to hand while decisions like this are on the screen."
    */
   it('a play keeps waiting past PARK_UNANSWERED_MS while any question is open, even one that names no card', async () => {
-    const { s, m, canvas, card } = await play();
+    const { s, m, canvas, card } = await play(undefined, { holdClock: true });
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     s.send(
       parseServerFrame({
@@ -3387,18 +3368,18 @@ describe('a played card waits where it was let go until Forge has it on the batt
       }),
     );
     await untilMatch(m, () => expect(m.asks).toHaveLength(1));
-    await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS * 2 + 500));
+    vi.advanceTimersByTime(PARK_UNANSWERED_MS * 2 + 500);
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
     expect(cardEl(canvas, card).getAttribute('data-cast-lift'), 'and not drawn in the hand').toBe('carried');
   }, 20_000);
 
   it('a play keeps waiting past PARK_UNANSWERED_MS while a selection that does not offer it is open', async () => {
-    const { s, m, canvas, card, rest } = await play();
+    const { s, m, canvas, card, rest } = await play(undefined, { holdClock: true });
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     s.send(prompt('Select a card to put on top of your library'));
     s.send(selectables(rest, 1, 1));
     await untilMatch(m, () => expect(m.selectables).not.toBeNull());
-    await new Promise((r) => setTimeout(r, PARK_UNANSWERED_MS + 500));
+    vi.advanceTimersByTime(PARK_UNANSWERED_MS + 500);
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
   }, 20_000);
 
@@ -3434,7 +3415,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await untilMatch(m, () => expect(m.weaklySelectable?.size ?? 0).toBe(0));
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBe('returning');
-    expect(s.clientFrames()).toHaveLength(0);
+    expect(await s.framesFrom(m)).toHaveLength(0);
   });
 });
 
@@ -3453,7 +3434,7 @@ describe('a hand card named by an open selection or ask is an ordinary click, ne
     // Not suppressed this time — this press was never claimed as a lift.
     expect(fireEvent.click(face), 'the native click reaches Board, unclaimed').toBe(true);
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift')).toBeNull();
   });
 
@@ -3467,10 +3448,10 @@ describe('a hand card named by an open selection or ask is an ordinary click, ne
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myBattlefield, { clientX: 400, clientY: 300 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'never lifted — this was never a cast').toBeNull();
-    expect(s.clientFrames(), 'the ordinary drag sends nothing until release').toHaveLength(0);
+    expect(await s.framesFrom(m), 'the ordinary drag sends nothing until release').toHaveLength(0);
     fireEvent.pointerUp(myBattlefield, { clientX: 400, clientY: 300 });
     await s.untilClientFrames(1);
-    expect(sent(s)).toEqual([['selectCard', hand[0]!]]);
+    expect(await sent(s, m)).toEqual([['selectCard', hand[0]!]]);
   });
 
   it('an open ASK naming nothing offered: a hand card otherwise actionable still does not lift', async () => {
@@ -3495,8 +3476,7 @@ describe('a hand card named by an open selection or ask is an ordinary click, ne
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'an open ask outranks the actionable set').toBeNull();
     fireEvent.pointerUp(cardEl(canvas, hand[0]!), { clientX: 10, clientY: 10 });
-    await new Promise((r) => setTimeout(r, 30));
-    expect(s.clientFrames(), 'nothing sent — this press claimed no gesture of ours').toHaveLength(0);
+    expect(await s.framesFrom(m), 'nothing sent — this press claimed no gesture of ours').toHaveLength(0);
   });
 
   it('no selection, no ask, the card IS in the actionable set: lifts exactly as before', async () => {
