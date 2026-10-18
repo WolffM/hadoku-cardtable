@@ -419,7 +419,12 @@ button {
     flex-direction: column;
   }
 
+  /* Stacked, each is as tall as its cards. The side-by-side `flex: N 1 0`
+     would size the pack's HEIGHT from 0 here — its min-height, 308 px — and
+     the rest of its grid ran on underneath the pool, which took the clicks. */
+  .draft__main > .pack,
   .draft__main > .pool {
+    flex: none;
     width: 100%;
   }
 }
@@ -852,6 +857,9 @@ button {
 .pool__tile--enter {
   display: block;
   transition: transform 280ms ease;
+  /* In flight it is drawn over the pack it came from: the next pick's click
+     goes through it to the card underneath, never to the card on its way. */
+  pointer-events: none;
 }
 
 /* ── seats ─────────────────────────────────────────────────────────── */
