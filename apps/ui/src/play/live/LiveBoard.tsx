@@ -2004,15 +2004,12 @@ function SideboardStep({
   tableId,
   tables,
   choice,
-  onReady: submittedFreshly,
 }: {
   roomId: string;
   /** This match's own table (`GameResultScreen`'s `findMyTable`) — a pod's table 2+, never `tables[0]` by default. */
   tableId: string | undefined;
   tables: TablesClient;
   choice: SeatChoice;
-  /** This screen's own fresh submission landed — the auto-start effect's gate. */
-  onReady: () => void;
 }) {
   const [text, setText] = useState<string | null | undefined>(undefined);
   useEffect(() => {
@@ -2024,26 +2021,6 @@ function SideboardStep({
       live = false;
     };
   }, [choice, tables]);
-
-  /**
-   * A real-Forge run found this step opening a NEW GAME on its own mount,
-   * before either player had touched it: `beginSideboarding` (the bo1 door
-   * into this phase) never un-readies either seat, so a seat's `ready` can
-   * already be stale-true the moment this mounts. `GameResultScreen`'s own
-   * `submitted` gate only protects THIS screen from firing on ITS OWN stale
-   * agreement — it does nothing once I press Ready here for the OTHER
-   * seat's stale `true` to also read `agreed`, which starts the match for
-   * BOTH of us before they have looked at their own 75. Clearing my own
-   * flag once, right here, is what makes "both players have pressed Ready
-   * ON the sideboard step" true in fact: an already-false flag clears to
-   * false again, harmlessly.
-   */
-  const clearedStaleReady = useRef(false);
-  useEffect(() => {
-    if (clearedStaleReady.current) return;
-    clearedStaleReady.current = true;
-    (tableId === undefined ? tables.ready(roomId, false) : tables.ready(roomId, false, tableId)).catch(() => undefined);
-  }, [roomId, tableId, tables]);
 
   const parsed = useMemo(
     () => (typeof text === 'string' ? splitBasics(deckFromDeckFile(parseDck(text))) : null),
@@ -2091,12 +2068,8 @@ function SideboardStep({
       }
       (tableId === undefined ? tables.ready(roomId, true) : tables.ready(roomId, true, tableId)).then((answer) => {
         setBusy(false);
-        if (answer.ok) {
-          setReady(true);
-          submittedFreshly();
-        } else {
-          setRefusal(answer.error);
-        }
+        if (answer.ok) setReady(true);
+        else setRefusal(answer.error);
       }, onFailure);
     }, onFailure);
   };
@@ -2157,21 +2130,6 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const sideboarding = room?.settings.sideboarding ?? false;
   /** No Rematch at all in a pod room (wave 72 §Q.3): Back to room already opens the pod. */
   const inPod = room !== null && room.pod !== null;
-  /**
-   * THIS screen's own fresh submission through the sideboard editor's Ready
-   * — not the server's `ready`. See the auto-start effect's own note for why
-   * a bare `rematch.agreed` is not enough once `sideboarding` is on: `ready`
-   * can already be stale-true the instant `phase` becomes `'sideboarding'`
-   * (`lobby.ts`'s `beginSideboarding`, the bo1-Rematch door into it, never
-   * un-readies either seat — only a game actually ending does). Resets
-   * whenever the table is not mid-sideboarding, so the next cycle starts
-   * fresh.
-   */
-  const [submitted, setSubmitted] = useState(false);
-  useEffect(() => {
-    if (phase !== 'sideboarding') setSubmitted(false);
-  }, [phase]);
-
   /**
    * The table id the reads below address — a ref, not state, because the
    * table-scoped read inside the SAME refresh cycle that learns it has to
@@ -2256,21 +2214,9 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
 
   useEffect(() => {
     if (!rematch.agreed || roomId === null || asked.current) return;
-    /**
-     * The auto-start gate (wave 72 §Q.3's "Done when"): once `sideboarding`
-     * is on, `rematch.agreed` alone is not the server's agreement to START —
-     * it can be two STALE `ready: true`s carried straight through
-     * `beginSideboarding`'s phase flip (that call never un-readies either
-     * seat; only a game actually ending does, via `recordGameResult`'s
-     * `#unreadyTable`). `submitted` is THIS screen's own fresh submission
-     * through the editor's Ready on THIS mount; reverting the next line
-     * starts the next game on whatever `ready` happened to already say,
-     * skipping the editor.
-     */
-    if (sideboarding && phase === 'sideboarding' && !submitted) return;
     asked.current = true;
     (tableId === undefined ? tables.startRoom(roomId) : tables.startRoom(roomId, tableId)).then(started, unreachable);
-  }, [rematch.agreed, roomId, tables, sideboarding, phase, submitted, tableId]);
+  }, [rematch.agreed, roomId, tables, tableId]);
 
   const onRematch = (): void => {
     if (roomId === null) return;
@@ -2345,7 +2291,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
           </button>
         </div>
         {showSideboard && roomId !== null && choice !== null && (
-          <SideboardStep roomId={roomId} tableId={tableId} tables={tables} choice={choice} onReady={() => setSubmitted(true)} />
+          <SideboardStep roomId={roomId} tableId={tableId} tables={tables} choice={choice} />
         )}
       </div>
     </section>

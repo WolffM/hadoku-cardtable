@@ -58,7 +58,10 @@
  * (`lobby.ts`'s `beginSideboarding`, called from `POST …/ready` on every
  * `ready: true`, unconditionally; the lobby decides whether anything
  * happens). It is a NEW series from the moment it begins: `wins`/`games`
- * reset there, not later. A `done` bo3 table's Rematch, and a `done`
+ * reset there, not later. Beginning it spends both Readys, as a start does:
+ * agreeing to sideboard is not agreeing to the next game, so every way into
+ * `sideboarding` starts with nobody ready, and each seat readies again from
+ * the sideboard step itself. A `done` bo3 table's Rematch, and a `done`
  * bo1-without-sideboarding table's, both skip it and start a new series
  * directly — bo3's own sideboarding happens BETWEEN a series' games, never
  * between two series.
@@ -1370,11 +1373,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// `ready: true` leaves BOTH of this table's seats ready, offer the
 		// lobby the chance to begin a sideboarding step. It is a no-op unless
 		// the table is a just-finished bo1-with-sideboarding series — see
-		// `Lobby.beginSideboarding`'s own doc.
+		// `Lobby.beginSideboarding`'s own doc. When it does begin one, the
+		// step spends both Readys, the same as a start does (`startFromRoom`):
+		// the answer below, and every read after it, shows nobody ready.
 		if (body.ready) {
 			const nowPlayers = playersOf(rooms, room, table.id);
-			if (nowPlayers.length === TABLE_SEATS && nowPlayers.every((p) => p.state.ready)) {
-				rooms.beginSideboarding(room.id, table.id);
+			if (nowPlayers.length === TABLE_SEATS && nowPlayers.every((p) => p.state.ready) && rooms.beginSideboarding(room.id, table.id)) {
+				for (const p of nowPlayers) rooms.setPlayerState(room.id, p.member.id, { ...p.state, ready: false });
 			}
 		}
 		log({ evt: 'room-ready', room: room.id, table: table.id, ready: body.ready });
