@@ -226,6 +226,31 @@ describe('the draft screen, on committed fixtures', () => {
     }
   });
 
+  it('a pick whose frame never comes before the arrival clears is not left inverted over the pack', () => {
+    // A loaded browser can run DraftScreen's own POOL_ENTER_MS timer (which
+    // clears the arrival) before the FLIP's requestAnimationFrame. The tile
+    // must still end at its own place with its class dropped — a tile left
+    // `display: block` at the pack slot's offset takes the next pick's click
+    // (draft.spec.ts:518 on CI, 120e763e: "pool subtree intercepts pointer events").
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 0);
+    try {
+      mount();
+      fireEvent.click(packCards()[4]);
+      expect(poolCards()[0].closest('.pool__tile')?.classList.contains('pool__tile--enter')).toBe(true);
+
+      act(() => {
+        vi.advanceTimersByTime(POOL_ENTER_MS);
+      });
+      const tile = poolCards()[0].closest('.pool__tile') as HTMLElement | null;
+      expect(tile?.classList.contains('pool__tile--enter')).toBe(false);
+      expect(tile?.style.transform).toBe('');
+    } finally {
+      raf.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('the colour counters on the pool follow the pick', () => {
     mount();
     const wrath = packCards().find((el) => within(el).queryByText('Wrath of God'));

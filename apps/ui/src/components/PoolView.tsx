@@ -206,9 +206,16 @@ function PoolTile({ card, tileId, enterFrom }: { card: DraftCard; tileId: string
       el.style.transform = '';
     });
     const timer = setTimeout(() => setEntering(false), POOL_ENTER_MS);
+    // Cut short (the arrival cleared before this frame or timer ran — a
+    // loaded browser, or a remount late in the window), the tile still ends
+    // at its own place as `display: contents`: left inverted and `display:
+    // block`, it sits over the pack slot and takes the next pick's click.
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(timer);
+      el.style.transition = '';
+      el.style.transform = '';
+      setEntering(false);
     };
   }, [enterFrom]);
 
