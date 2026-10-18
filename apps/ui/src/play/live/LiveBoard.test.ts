@@ -3520,6 +3520,7 @@ describe('R16 — the result screen, drawn over the board', () => {
 
     const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
     s.send(gameOverDelta(m.view!.seq + 1, opponentId));
+    await untilMatch(m, () => expect(m.over).toBe(true));
     await waitFor(() => expect(utils.getByTestId('game-result').dataset.result).toBe('victory'));
     const rematch = () => utils.getByTestId('game-result-rematch') as HTMLButtonElement;
     const check = (you: boolean) =>
@@ -3831,6 +3832,7 @@ describe('R16 — the result screen, drawn over the board', () => {
       await waitFor(() => expect(utils.getByTestId('live-turn-n').textContent).toBe('14'));
       const opponentId = m.view!.players.find((p) => !p.isViewer)!.id;
       s.send(gameOverDelta(m.view!.seq + 1, opponentId));
+      await untilMatch(m, () => expect(m.over).toBe(true));
       await waitFor(() => expect(utils.getByTestId('sideboard-step')).toBeTruthy());
 
       fireEvent.click(utils.getByTestId('sideboard-ready'));
