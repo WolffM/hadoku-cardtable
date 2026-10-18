@@ -80,6 +80,10 @@ import type { PlayPrefs } from './prefs.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from './replay-server.ts';
 import { parseMatchAck } from './transport.ts';
 import { PHASE_SETTLE_MS } from './phase-sound.ts';
+import type { DeckRules, SeatChoice } from '../../screens/tables.ts';
+
+/** A constructed seat's rules, as the server sends them with every choice. */
+const CONSTRUCTED_RULES: DeckRules = { kind: 'standard', format: 'free' };
 
 /*
  * `../../rooms/api.ts` (lane R) is mocked here so R16's "Main menu" path can
@@ -131,7 +135,7 @@ const roomPing = (): void => {
  * row, which a test moves by hand to stand in for their screen.
  */
 const tableState = vi.hoisted(() => ({
-  me: { ready: false, present: true, choice: null as { deck: { dck: string } | { library: string } } | null },
+  me: { ready: false, present: true, choice: null as SeatChoice | null },
   other: { ready: false, present: true },
   matchId: null as string | null,
   /** The table's series phase, as the table read reports it beside `matchId`. */
@@ -3700,7 +3704,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [1, 0], games: [], phase: 'done' } }],
       };
       tableState.other.ready = true;
-      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       tableState.ready.mockImplementationOnce(() => {
         tableState.me.ready = false;
         tableState.other.ready = false;
@@ -3713,7 +3717,8 @@ describe('R16 — the result screen, drawn over the board', () => {
       roomPing();
       const ready = await waitFor(() => getByTestId('sideboard-ready'));
       expect(ready.getAttribute('aria-pressed')).toBe('false');
-      expect(ready.textContent).toBe('Ready');
+      expect(ready.textContent).toContain('Ready');
+      expect(ready.textContent).not.toContain('✓');
       roomPing();
       await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
       expect(tableState.ready).toHaveBeenCalledTimes(1);
@@ -3737,7 +3742,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         ...sideboardingRoom,
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [1, 0], games: [], phase: 'done' } }],
       };
-      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       tableState.ready.mockImplementationOnce(() => {
         tableState.me.ready = false;
         tableState.phase = 'sideboarding';
@@ -3773,7 +3778,7 @@ describe('R16 — the result screen, drawn over the board', () => {
       };
       tableState.phase = 'sideboarding';
       tableState.other = { ready: false, present: false };
-      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n40 Island\n[Sideboard]\n' } } };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n40 Island\n[Sideboard]\n' }, rules: { kind: 'draft', draftId: 'r-1' } } };
       const { getByTestId } = await victoryInRoom();
       await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
       expect(tableState.startVsBot).not.toHaveBeenCalled();
@@ -3790,12 +3795,43 @@ describe('R16 — the result screen, drawn over the board', () => {
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
-      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const { getByTestId } = await victoryInRoom();
       await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
       roomPing();
       await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
       expect(tableState.ready).not.toHaveBeenCalled();
+    });
+
+    it('a drafted 75 sideboards with the basics counters and a floor of 40; a constructed one with neither', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
+        pod: null,
+      };
+      tableState.me = {
+        ready: false,
+        present: true,
+        choice: { deck: { dck: '[Main]\n23 Lightning Bolt\n17 Mountain\n[Sideboard]\n2 Abrade\n' }, rules: { kind: 'draft', draftId: 'pod-1' } },
+      };
+      const { getByTestId } = await victoryInRoom();
+      await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
+      expect(getByTestId('sideboard-step').querySelector('[data-testid="basics"]'), 'basics are free on a drafted pool').not.toBeNull();
+      expect(getByTestId('basic-Mountain-count').textContent).toBe('17');
+      fireEvent.click(getByTestId('basic-Mountain-less'));
+      expect(getByTestId('deck-meter').textContent).toBe('39/40');
+    });
+
+    it('a constructed 75 has no basics counters on its sideboard step', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
+        pod: null,
+      };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
+      const { getByTestId } = await victoryInRoom();
+      await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
+      expect(getByTestId('sideboard-step').querySelector('[data-testid="basics"]')).toBeNull();
     });
 
     it('both Ready on the sideboard step: the other seat readied first, mine completes the agreement and starts the next game on this table', async () => {
@@ -3805,7 +3841,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         pod: null,
       };
       tableState.other.ready = true;
-      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const { getByTestId } = await victoryInRoom();
       await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
       expect(tableState.startRoom).not.toHaveBeenCalled();
@@ -3824,19 +3860,21 @@ describe('R16 — the result screen, drawn over the board', () => {
      * scroller, never a descendant of it, so capping the scroller's height
      * can never also hide the button inside it.
      */
-    it('Ready sits OUTSIDE the editor’s own scrolling box, never inside it (the fix for the below-the-fold defect)', async () => {
+    it('Ready sits OUTSIDE the editor’s scrolling areas, in the deck’s own bar (the fix for the below-the-fold defect)', async () => {
       roomsClientState.room = {
         settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
-      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const { getByTestId } = await victoryInRoom();
       const ready = await waitFor(() => getByTestId('sideboard-ready'));
-      const scroller = getByTestId('sideboard-step').querySelector('.sideboard-step__editor');
-      expect(scroller, 'the step has a scrolling editor box').not.toBeNull();
-      expect(scroller?.contains(ready), 'Ready is not inside it').toBe(false);
-      expect(ready.closest('.sideboard-step__bar'), 'Ready is in its own, un-scrolled bar').not.toBeNull();
+      const step = getByTestId('sideboard-step');
+      for (const scroller of [getByTestId('side-grid'), getByTestId('main-grid')]) {
+        expect(step.contains(scroller), 'the step holds the editor’s scrolling areas').toBe(true);
+        expect(scroller.contains(ready), 'Ready is not inside one').toBe(false);
+      }
+      expect(ready.closest('.deck-editor__bar'), 'Ready is in the deck’s bar, which never scrolls').not.toBeNull();
     });
 
     it('the sideboard editor: Ready submits the current 75 through PUT …/deck, then readies — an unchanged deck is a valid submission', async () => {
@@ -3846,7 +3884,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
-      tableState.me = { ready: false, present: true, choice: { deck: { dck } } };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck }, rules: CONSTRUCTED_RULES } };
       const { getByTestId, queryByTestId } = await victoryInRoom();
       // No Rematch press: the step opens on its own once `phase` says so.
       await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
@@ -3871,7 +3909,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
-      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const { getByTestId } = await victoryInRoom();
       await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
 
@@ -3915,7 +3953,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         ],
         pod: { phase: 'rounds', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [] },
       };
-      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const utils = render(createElement(LiveBoard, { match: m, roomId: 'r-1' }));
       await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
       const frames = fixtureFrames();

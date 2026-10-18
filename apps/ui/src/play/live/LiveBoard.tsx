@@ -261,15 +261,16 @@ import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
 import { YIELDING, type GameLogLine } from '@hadoku/forge-wire';
 import { usePrefs } from '@wolffm/prefs-client/react';
 import { parseDck } from '@hadoku/carddata/dck';
-import { deckFromDeckFile, type Deck } from '@hadoku/deck';
+import { CONSTRUCTED_LIMITS, LIMITED_MIN_MAIN_DECK_SIZE, deckFromDeckFile, type Deck } from '@hadoku/deck';
 
 import { navigate, routeHash } from '../../screens/route.ts';
 import { roomsClient, type RoomView } from '../../rooms/api.ts';
 import { roomFeed } from '../../rooms/feed.ts';
 import { tablesClient, type RoomTable, type SeatChoice, type StartOutcome, type TablesClient } from '../../screens/tables.ts';
-import { DeckEditor } from '../../deck/DeckEditor.tsx';
+import { DeckEditor, type ReadyState } from '../../deck/DeckEditor.tsx';
+import { deckStoreClient } from '../../deck/deckStore.ts';
 import { dckTextOf } from '../../draft/deckFromPool.ts';
-import { libraryDeckText, namedCardPool, splitBasics } from '../../deck/build.ts';
+import { libraryDeckText, namedCardPool } from '../../deck/build.ts';
 import { avatarSquareUrl } from '../../room/avatar.ts';
 import { PHASE_LABEL, type BoardCard, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
@@ -1982,22 +1983,24 @@ async function my75Text(choice: SeatChoice, tables: TablesClient): Promise<strin
  * `DeckEditor` in `sideboard` mode over the player's own 75 — the drafted
  * pool, or a library deck's main plus `[Sideboard]`, resolved by
  * {@link my75Text} either way into the SAME `.dck` text `DeckEditor`'s own
- * `savedDeck` load already knows how to open.
+ * `savedDeck` load already knows how to open. It takes the whole match box,
+ * not a dialog: it is the same editor a build uses, piles and all.
  *
- * **The card data is the browser's own, measured first (step 4's "first
- * commit"):** a library name resolves through `LIBRARY_CARD_COSTS` (a cost,
- * for colour and mana value) and this app's committed art ids — no type line,
- * no oracle text, the same degrade `ConstructedScreen.tsx`'s own deck peek
- * already draws a library card through (`namedFace`). `namedCardPool` is that
- * exact path, reused rather than built a second time, and it covers a
- * drafted card's name too: nothing here needs the original cube pool, only
- * the 75's own list of names.
+ * **Faces:** a drafted 75 draws from the drafter's own pool
+ * (`GET /api/drafts/:podId/mine`, the cards with their type lines and costs);
+ * a library 75, or a pool that read fails, degrades to `namedCardPool` — a
+ * cost and art per name from the browser's own tables, the same path
+ * `ConstructedScreen.tsx`'s deck peek draws a library card through.
  *
- * **Ready submits the CURRENT split explicitly** — `onDeckChange` (not
- * `onSave`'s debounce, built for autosave rather than a one-shot submit)
- * keeps `deckRef` current on every move, and an unchanged deck still submits
- * what it opened with. `PUT …/deck` first, then `ready(true)`; a 409 from the
- * server's 75 check (the same cards, only re-split) shows its own sentence.
+ * **The floor:** a drafted deck's is 40, and basics are free (the server's
+ * own sideboard check excludes them on a drafted pool). A constructed 75 has
+ * no counters, and its floor is its own opening main deck, up to 60 — the
+ * step only re-splits, so it can never ask for more than the deck began with.
+ *
+ * **Ready is the editor's own way onward**, offered once the deck is at its
+ * floor, and it submits the split the editor hands it: `PUT …/deck`, then
+ * `ready(true)`. A refusal (the server's 75 check, or the start gate) shows
+ * as its own sentence above the editor.
  */
 function SideboardStep({
   roomId,
@@ -2022,26 +2025,36 @@ function SideboardStep({
     };
   }, [choice, tables]);
 
-  const parsed = useMemo(
-    () => (typeof text === 'string' ? splitBasics(deckFromDeckFile(parseDck(text))) : null),
-    [text],
-  );
+  const draftId = choice.rules.kind === 'draft' ? choice.rules.draftId : null;
+  const [draftPool, setDraftPool] = useState<DraftCard[] | null>(null);
+  useEffect(() => {
+    if (draftId === null) return;
+    let live = true;
+    deckStoreClient()
+      .mine(draftId)
+      .then(
+        (mine) => {
+          if (live) setDraftPool(mine?.pool ?? null);
+        },
+        () => {
+          if (live) setDraftPool(null);
+        },
+      );
+    return () => {
+      live = false;
+    };
+  }, [draftId]);
+
+  const parsed = useMemo(() => (typeof text === 'string' ? deckFromDeckFile(parseDck(text)) : null), [text]);
   const pool = useMemo(
-    () => (parsed === null ? [] : namedCardPool([...parsed.main, ...parsed.sideboard, ...parsed.basics].map((e) => e.card.name))),
-    [parsed],
+    () => draftPool ?? (parsed === null ? [] : namedCardPool([...parsed.main, ...parsed.sideboard].map((e) => e.card.name))),
+    [draftPool, parsed],
   );
-  const deckRef = useRef<Deck | null>(null);
-  deckRef.current ??= parsed;
-  const [busy, setBusy] = useState(false);
+  const [readyState, setReadyState] = useState<ReadyState>('idle');
   const [refusal, setRefusal] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
 
   if (text === undefined) {
-    return (
-      <p className="lobby__note" data-testid="sideboard-loading">
-        Loading your 75…
-      </p>
-    );
+    return <section className="sideboard-step" data-testid="sideboard-loading" aria-busy="true" />;
   }
   if (text === null || parsed === null) {
     return (
@@ -2051,48 +2064,45 @@ function SideboardStep({
     );
   }
 
-  const onReady = (): void => {
-    setBusy(true);
+  const onReady = (deck: Deck): void => {
+    setReadyState('busy');
     setRefusal(null);
-    const current = deckRef.current ?? parsed;
-    const onFailure = (err: unknown): void => {
-      setBusy(false);
-      setRefusal(err instanceof Error ? err.message : String(err));
+    const refuse = (reason: string): void => {
+      setReadyState('idle');
+      setRefusal(reason);
     };
-    const deckBody = { dck: dckTextOf(current) };
+    const onFailure = (err: unknown): void => refuse(err instanceof Error ? err.message : String(err));
+    const deckBody = { dck: dckTextOf(deck) };
     (tableId === undefined ? tables.loadDeck(roomId, deckBody) : tables.loadDeck(roomId, deckBody, tableId)).then((loaded) => {
       if (!loaded.ok) {
-        setBusy(false);
-        setRefusal(loaded.error);
+        refuse(loaded.error);
         return;
       }
       (tableId === undefined ? tables.ready(roomId, true) : tables.ready(roomId, true, tableId)).then((answer) => {
-        setBusy(false);
-        if (answer.ok) setReady(true);
-        else setRefusal(answer.error);
+        if (answer.ok) setReadyState('ready');
+        else refuse(answer.error);
       }, onFailure);
     }, onFailure);
   };
 
+  const openingMain = parsed.main.reduce((n, e) => n + e.count, 0);
   return (
-    <section className="lobby__card sideboard-step" data-testid="sideboard-step">
-      <h2>Sideboard</h2>
-      {/* The one part of this step that scrolls — see `deckEditor.css`'s own
-          note. The Ready bar below is a sibling, never inside it, so it
-          stays in view at every table-fit size. */}
-      <div className="sideboard-step__editor">
-        <DeckEditor mode="sideboard" draftId={roomId} pool={pool} savedDeck={text} onDeckChange={(d) => (deckRef.current = d)} />
-      </div>
-      <div className="sideboard-step__bar">
-        {refusal !== null && (
-          <p className="live__error" role="alert" data-testid="sideboard-refusal">
-            {refusal}
-          </p>
-        )}
-        <button type="button" className="lobby__go" data-testid="sideboard-ready" aria-pressed={ready} disabled={busy || ready} onClick={onReady}>
-          {ready ? 'Waiting for the other player…' : 'Ready'}
-        </button>
-      </div>
+    <section className="sideboard-step" data-testid="sideboard-step">
+      {refusal !== null && (
+        <p className="live__error" role="alert" data-testid="sideboard-refusal">
+          {refusal}
+        </p>
+      )}
+      <DeckEditor
+        mode="sideboard"
+        draftId={roomId}
+        pool={pool}
+        savedDeck={text}
+        allowBasics={draftId !== null}
+        minMain={draftId !== null ? LIMITED_MIN_MAIN_DECK_SIZE : Math.min(CONSTRUCTED_LIMITS.minMainDeckSize, openingMain)}
+        onReady={onReady}
+        readyState={readyState}
+      />
     </section>
   );
 }
@@ -2265,6 +2275,47 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const showSideboard = sideboarding && phase === 'sideboarding';
   const choice = myChoice(table);
 
+  const backButtons = (
+    <>
+      <button type="button" className="button" data-testid="game-result-room" disabled={roomId === null || leaving} onClick={onBackToRoom}>
+        Back to room
+      </button>
+      <button type="button" className="button" data-testid="game-result-menu" disabled={leaving} onClick={onMainMenu}>
+        Main menu
+      </button>
+    </>
+  );
+
+  // Between games the result gives way to the sideboard step, which takes
+  // the whole match box: the outcome shrinks to a line above the editor.
+  if (showSideboard && roomId !== null && choice !== null) {
+    return (
+      <section
+        className="board__over board__over--sideboard"
+        data-testid="game-result"
+        data-result={outcome}
+        role="dialog"
+        aria-labelledby={titleId}
+      >
+        <div className="live__sideboard">
+          <div className="live__sideboard-head">
+            <h2 className="confirm__title" id={titleId}>
+              {OUTCOME_TITLE[outcome]}
+            </h2>
+            {refusal !== null && (
+              <p className="live__error" role="alert">
+                {refusal}
+              </p>
+            )}
+            <span className="live__sideboard-spacer" />
+            {backButtons}
+          </div>
+          <SideboardStep roomId={roomId} tableId={tableId} tables={tables} choice={choice} />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="board__over" data-testid="game-result" data-result={outcome} role="dialog" aria-labelledby={titleId}>
       <div className="confirm live__result">
@@ -2295,16 +2346,8 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
               {matchLength === 'bo3' ? 'Next game' : 'Rematch'}
             </button>
           )}
-          <button type="button" className="button" data-testid="game-result-room" disabled={roomId === null || leaving} onClick={onBackToRoom}>
-            Back to room
-          </button>
-          <button type="button" className="button" data-testid="game-result-menu" disabled={leaving} onClick={onMainMenu}>
-            Main menu
-          </button>
+          {backButtons}
         </div>
-        {showSideboard && roomId !== null && choice !== null && (
-          <SideboardStep roomId={roomId} tableId={tableId} tables={tables} choice={choice} />
-        )}
       </div>
     </section>
   );

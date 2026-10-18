@@ -1108,6 +1108,53 @@
   background: var(--scrim);
 }
 
+/*
+ * The sideboard step between games takes the whole match box rather than a
+ * dialog: `DeckEditor` fills `.sideboard-step`, and the outcome and the two
+ * ways out sit on one line above it.
+ */
+.board__over--sideboard {
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 10px;
+}
+
+.live__sideboard {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.live__sideboard-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.live__sideboard-head .confirm__title {
+  margin: 0;
+}
+
+.live__sideboard-spacer {
+  flex: 1 1 auto;
+}
+
+.sideboard-step {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .live__result {
   align-items: center;
   min-width: 18rem;

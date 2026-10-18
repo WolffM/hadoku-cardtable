@@ -1,148 +1,599 @@
 /*
- * `DeckEditor.tsx` — both modes, one stylesheet. Replaces the `.builder*`
- * rules `screens.css` carried for the deleted limited-only builder this
- * component replaces (`screens.css` is not this lane's to edit; see the
- * wave's note on it).
+ * `DeckEditor.tsx` — the pool grid on top, the deck's piles below, a strip of
+ * curve and basics at the right. The editor fills the box its caller gives it
+ * and never grows past it: the pool grid and the piles scroll inside.
+ *
+ * Card width is one custom property per area, `--cw`, sized from the window's
+ * height and the editor's own width (a container query unit), so the same
+ * layout fits 1280×720, a 1920 screen, and the width left beside the room's
+ * chat. A pile overlaps its cards to show each one's name bar: the overlap is
+ * the card's height (488:680) less a fifth of its width.
  */
 
 .deck-editor {
   position: relative;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 8px;
+  container-type: inline-size;
 }
+
+.deck-editor *,
+.deck-editor *::before,
+.deck-editor *::after {
+  box-sizing: border-box;
+}
+
+.deck-editor__pool,
+.deck-editor__deck {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  outline: 2px dashed transparent;
+  outline-offset: -4px;
+  transition:
+    outline-color 120ms,
+    background-color 120ms;
+}
+
+.deck-editor__pool[data-drop-over],
+.deck-editor__deck[data-drop-over] {
+  outline-color: var(--accent);
+  background-color: color-mix(in srgb, var(--accent) 8%, var(--bg-raised));
+}
+
+.deck-editor__pool {
+  flex: 0 0 38%;
+  --cw: clamp(76px, min(12.5vh, (100cqi - 40px) / 9 - 6px), 140px);
+}
+
+.deck-editor__deck {
+  flex: 1 1 auto;
+  --cw: clamp(72px, min(13.6vh, (100cqi - 196px) / 8 - 8px), 150px);
+}
+
+/* ── the bars ── */
 
 .deck-editor__bar {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+  flex: 0 0 auto;
 }
 
-.deck-editor__counts {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+.deck-editor__spacer {
+  flex: 1 1 auto;
 }
 
 .deck-editor__n {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 1.6em;
 }
 
-/* An unfinished build is not a fault: dimmed until it reaches the floor. */
-.deck-editor__n--short {
-  opacity: 0.6;
-}
-
-.deck-editor__n--complete {
-  color: var(--success);
-}
-
-.deck-editor__n--quiet {
-  opacity: 0.7;
-}
-
-.deck-editor__of {
-  opacity: 0.8;
-  font-size: 0.9rem;
-}
-
-.deck-editor__h2 {
-  font-size: 1rem;
-  margin: 0 0 0.4rem;
-  display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-}
-
-.deck-editor__pile-n {
-  opacity: 0.7;
-  font-weight: 400;
-}
-
-.deck-editor__basics {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.deck-editor__basic {
+.deck-editor__chips {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 3px;
 }
 
-.deck-editor__basic-n {
-  min-width: 1.4em;
-  text-align: center;
+.deck-editor__chip {
+  font: inherit;
+  line-height: 1;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.deck-editor__chip:hover {
+  border-color: var(--accent);
+}
+
+.deck-editor__chip[aria-pressed='true'] {
+  color: var(--ink);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.deck-editor__chip--num,
+.deck-editor__sortglyph {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.deck-editor__chips--seg {
+  gap: 0;
+}
+
+.deck-editor__chips--seg .deck-editor__chip {
+  border-radius: 0;
+}
+
+.deck-editor__chips--seg .deck-editor__chip:first-child {
+  border-radius: 999px 0 0 999px;
+}
+
+.deck-editor__chips--seg .deck-editor__chip:last-child {
+  border-radius: 0 999px 999px 0;
+}
+
+.deck-editor .ms {
+  font-size: 15px;
+}
+
+/* At a narrow width the bar's chips wrap rather than push the sort off-screen. */
+@container (max-width: 900px) {
+  .deck-editor__pool > .deck-editor__bar {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+}
+
+/* A phone: the deck's bar wraps, and the curve and basics go under the piles. */
+@container (max-width: 600px) {
+  .deck-editor__deck > .deck-editor__bar {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .deck-editor .deck-editor__body {
+    flex-direction: column;
+  }
+
+  .deck-editor .deck-editor__strip {
+    flex: 0 0 auto;
+    flex-flow: row wrap;
+    align-items: flex-end;
+    padding: 8px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .deck-editor .deck-editor__curve {
+    width: 150px;
+  }
+
+  .deck-editor .deck-editor__basics {
+    flex-flow: row wrap;
+  }
+}
+
+/* ── a card ── */
+
+.deck-editor__card {
+  width: var(--cw);
+  flex: 0 0 auto;
+  cursor: grab;
+  border-radius: calc(var(--cw) * 0.05);
+  transition:
+    transform 140ms ease,
+    opacity 140ms;
+}
+
+.deck-editor__card .card {
+  border-radius: calc(var(--cw) * 0.05);
+  box-shadow: 0 1px 2px var(--shadow);
+}
+
+/* A tile whose art has not arrived is the text card underneath: at these widths, small type. */
+.deck-editor__card .card:not(:has(.card__art)) {
+  aspect-ratio: 488 / 680;
+  height: auto;
+  padding: 6px 6px 6px 10px;
+  gap: 3px;
+  font-size: 10px;
+}
+
+.deck-editor__card .card--pickable:hover:not(:disabled) {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.deck-editor__card[data-lifted] {
+  opacity: 0.35;
+}
+
+.deck-editor__card[data-flash='0'] {
+  animation: deck-editor-land-a 260ms ease-out;
+}
+
+.deck-editor__card[data-flash='1'] {
+  animation: deck-editor-land-b 260ms ease-out;
+}
+
+@keyframes deck-editor-land-a {
+  from {
+    transform: translateY(-12px) scale(1.06);
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+}
+
+@keyframes deck-editor-land-b {
+  from {
+    transform: translateY(-12px) scale(1.06);
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deck-editor__card[data-flash] {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+}
+
+/* ── the pool ── */
+
+.deck-editor__grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 6px;
+  padding: 4px 2px;
+}
+
+.deck-editor__grid > .deck-editor__card:hover {
+  transform: translateY(-2px);
+}
+
+/* ── the deck ── */
+
+.deck-editor__types {
+  display: inline-flex;
+  gap: 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.deck-editor__types > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.deck-editor__colours {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 110px;
+}
+
+.deck-editor__colourbar {
+  display: flex;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.deck-editor__colourseg {
+  flex-basis: 0;
+}
+
+.deck-editor__colourseg[data-c='W'] { background: var(--c-white); }
+.deck-editor__colourseg[data-c='U'] { background: var(--c-blue); }
+.deck-editor__colourseg[data-c='B'] { background: var(--c-black); }
+.deck-editor__colourseg[data-c='R'] { background: var(--c-red); }
+.deck-editor__colourseg[data-c='G'] { background: var(--c-green); }
+
+.deck-editor__colourpips {
+  display: inline-flex;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  min-height: 16px;
+}
+
+.deck-editor__colourpip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .deck-editor__fault {
   margin: 0;
+  max-width: 40%;
   font-size: 0.85rem;
   color: var(--danger-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.deck-editor__problems {
-  margin: 0;
-  padding-left: 1.2rem;
+.deck-editor__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
 }
 
 .deck-editor__piles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-@media (max-width: 640px) {
-  .deck-editor__piles {
-    grid-template-columns: 1fr;
-  }
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  display: flex;
+  gap: 8px;
+  padding-top: 2px;
 }
 
 .deck-editor__pile {
-  min-width: 0;
+  flex: 0 0 var(--cw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.deck-editor__pile[data-empty] .deck-editor__pilehead {
+  opacity: 0.45;
+}
+
+.deck-editor__pilehead {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 2px 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.deck-editor__pilemv {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.deck-editor__stack {
+  --peek: calc(var(--cw) * 0.205);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 4px;
+}
+
+.deck-editor__stack > * + * {
+  margin-top: calc(var(--cw) * -1.3934 + var(--peek));
+}
+
+/* Hovering a card in a pile slides the ones below it down, so its face shows. */
+.deck-editor__stack > :hover + *,
+.deck-editor__stack > :hover + * ~ * {
+  transform: translateY(calc(var(--cw) * 0.6));
+}
+
+.deck-editor__stack > * {
+  transition: transform 140ms ease;
+}
+
+.deck-editor__landcard {
+  position: relative;
+}
+
+.deck-editor__badge {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  z-index: 3;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* ── the strip: curve, basics ── */
+
+.deck-editor__strip {
+  flex: 0 0 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .deck-editor__curve {
   display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+  align-items: stretch;
+  gap: 3px;
+  height: 64px;
+  flex: 0 0 auto;
 }
 
-.deck-editor__bucket-title {
-  margin: 0 0 0.3rem;
-  font-size: 0.85rem;
+.deck-editor__curvecol {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  color: var(--ink-dim);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.deck-editor__curvebar {
+  border-radius: 3px 3px 0 0;
+  background: color-mix(in srgb, var(--accent) 55%, var(--ink-dim));
+  min-height: 1px;
+  max-height: calc(100% - 26px);
+  transition: height 220ms ease;
+}
+
+.deck-editor__curven {
+  line-height: 12px;
+}
+
+.deck-editor__curvemv {
+  line-height: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.deck-editor__basics {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.deck-editor__basic {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+.deck-editor__step {
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: 0;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.deck-editor__step:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.deck-editor__step:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.deck-editor__basic-n {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.deck-editor__basic-n[data-zero] {
+  opacity: 0.45;
+}
+
+.deck-editor__auto {
+  font: inherit;
+  font-size: 13px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.deck-editor__auto:hover {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ── the meter, and the way onward it becomes ── */
+
+.deck-editor__meter,
+.deck-editor__go {
+  position: relative;
+  flex: 0 0 auto;
+  width: 168px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deck-editor__meter {
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+}
+
+.deck-editor__meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: width 220ms ease;
+}
+
+.deck-editor__meter-text {
+  position: relative;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.deck-editor__meter-text strong {
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+.deck-editor__go {
+  font: inherit;
+  font-weight: 700;
+  gap: 8px;
+  color: var(--bg);
+  background: var(--success);
+  border: 1px solid var(--success);
+  cursor: pointer;
+  animation: deck-editor-go-in 260ms ease-out;
+}
+
+.deck-editor__go:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Ready, pressed: held, but not faded like a Play still waiting on the server. */
+.deck-editor__go[aria-pressed='true'] {
   opacity: 0.85;
 }
 
-.deck-editor__bucket-n {
-  opacity: 0.7;
+.deck-editor__go-n {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
 }
 
-.deck-editor__bucket-cards,
-.deck-editor__grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.deck-editor__filters {
-  display: flex;
-  gap: 0.25rem;
-  margin-bottom: 0.4rem;
-}
-
-.deck-editor__filter {
-  border-radius: 999px;
-  padding: 0.1rem 0.4rem;
-  line-height: 1;
-}
-
-.deck-editor__filter[aria-pressed='true'] {
-  outline: 2px solid currentColor;
+@keyframes deck-editor-go-in {
+  from {
+    transform: scale(0.92);
+    opacity: 0.4;
+  }
 }
 
 .deck-editor__zoom {
@@ -152,37 +603,35 @@
   z-index: var(--z-zoom, 60);
 }
 
-/*
- * The sideboard step (wave 72 §Q.4), drawn inside the result screen's own
- * `.confirm` dialog — `.board__over`'s `align-items: center` sizes that
- * dialog to its content's natural height, and the full editor's card grids
- * are easily taller than the window at the table-fit sizes this app is held
- * to (1280×800, 1366×768 — `e2e/table-fit.spec.ts`). A real-Forge run found
- * `sideboard-ready` sitting below the fold with no way to reach it.
- *
- * The fix is the ordinary sticky-footer-with-scrolling-middle shape: this
- * section caps its OWN height well under the shorter of the two table-fit
- * heights, `.sideboard-step__editor` is the one part of it that scrolls, and
- * the Ready bar is a sibling below that scroller, so it never leaves the
- * capped box — the title, Ready button and any refusal are always in view;
- * only the card grids themselves scroll.
- */
-.sideboard-step {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: 60vh;
+/* ── `#/deck/<podId>`: the editor takes the whole fitted screen ── */
+
+.shell.deck-screen {
+  max-width: none;
+  padding: 10px 16px 12px;
+  gap: 8px;
+  overflow: hidden;
 }
 
-.sideboard-step__editor {
+.deck-screen > .deck-editor {
   flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
+  height: auto;
 }
 
-.sideboard-step__bar {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+/* The pod's building strip (`pod/PodBuilding.tsx`): one row over the editor, never a panel. */
+.deck-screen > .pod-building {
   flex: 0 0 auto;
+  flex-wrap: nowrap;
+  margin: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.deck-screen > .pod-building .pod-building__built {
+  flex-wrap: nowrap;
+}
+
+/* A Play the pod refused: one line over the editor, never a panel. */
+.deck-screen > .deck-screen__error {
+  flex: 0 0 auto;
+  margin: 0;
 }

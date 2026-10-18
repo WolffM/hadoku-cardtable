@@ -23,25 +23,26 @@
  *
  * ## What is not here
  *
- * The grid, the basics, the count and the Play button are
- * `deck/DeckEditor.tsx`; the pool→deck model is `deck/build.ts`. This file only
- * decides whether there is a pool to build from, and says so in words when
- * there is not.
+ * The piles, the basics and the way onward are `deck/DeckEditor.tsx`; the
+ * pool→deck model is `deck/build.ts`. This file only decides whether there is
+ * a pool to build from, and says so when there is not. It is a fitted screen
+ * (`shell--fit`): the editor takes the whole window under the header and
+ * scrolls inside itself, never the page.
  *
  * ## Play
  *
  * Play saves the build as it stands, says this drafter is done building
  * (`pod/client.ts`'s `playPod`) and goes to the room. The last drafter's press
- * deals round 1, and
- * the pod screen starts each table's game by itself — a pod of one plays the
- * AI. Draft, build, Play, the game: no room to make and nothing to choose (the
- * operator, 2026-10-18).
+ * deals round 1, and the pod screen starts each table's game by itself — a pod
+ * of one plays the AI. Draft, build, Play, the game: no room to make and
+ * nothing to choose (the operator, 2026-10-18). A refusal stays on the build
+ * and says why.
  *
  * ## The pod
  *
  * A finished draft lands here with no screen in between (`PodScreen.tsx`), so
- * the pod's `building` phase is drawn here too: who has pressed Play
- * (`pod/PodBuilding.tsx`). Once the pod is in `rounds`
+ * the pod's `building` phase is drawn here too, as one strip over the editor:
+ * who has pressed Play (`pod/PodBuilding.tsx`). Once the pod is in `rounds`
  * this hands the drafter back to the room, whose pod screen seats them at
  * their table.
  *
@@ -57,8 +58,6 @@ import { navigate } from './route.ts';
 import { livePodSource, playPod, usePodContext, type PodSource } from './pod/client.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
-import { SettingsGear } from '../settings/Settings.tsx';
-import { Disclaimer } from '../components/Disclaimer.tsx';
 
 export interface DeckScreenProps {
   draftId: string;
@@ -125,10 +124,9 @@ export function DeckScreen({
           setPlayError(saved.issues.join(' '));
           return;
         }
-        // Done building: to the room, which (re)joins it — a drafter who
-        // left the room is not seated at a table otherwise. While others are
-        // still building, the pod screen hands this one back here, showing
-        // who is ready; once rounds start it starts their table.
+        // Done building: to the room, which (re)joins it. While others are
+        // still building, the pod screen hands this one back here; once rounds
+        // start it starts their table.
         return playPod(draftId).then((r) => {
           if (r.ok) navigate({ kind: 'room', roomId: draftId });
           else setPlayError(r.message);
@@ -138,15 +136,7 @@ export function DeckScreen({
   };
 
   return (
-    <div className="shell" data-testid="deck">
-      <header className="shell__head">
-        <h1 className="shell__title">Your deck</h1>
-        <p className="shell__sub">
-          Pod <strong>{draftId}</strong>
-        </p>
-        <SettingsGear />
-      </header>
-
+    <div className="shell shell--fit deck-screen" data-testid="deck">
       {ctx !== null && pod !== null && pod.phase === 'building' && (
         <PodBuilding pod={pod} nameOf={(id) => ctx.names[id] ?? id} />
       )}
@@ -158,7 +148,7 @@ export function DeckScreen({
       )}
 
       {playError !== null && (
-        <p className="lobby__error" role="alert" data-testid="deck-play-error">
+        <p className="lobby__error deck-screen__error" role="alert" data-testid="deck-play-error">
           {playError}
         </p>
       )}
@@ -181,12 +171,7 @@ export function DeckScreen({
         loadError === null && (
           <main className="lobby">
             <section className="lobby__card" data-testid={loaded === null ? 'deck-joining' : 'deck-no-seat'}>
-              {loaded === null && (
-                <>
-                  <h2>Fetching your pool</h2>
-                  <p className="lobby__note">Asking pod {draftId} for the cards you drafted.</p>
-                </>
-              )}
+              {loaded === null && <h2>Fetching your pool</h2>}
               {loaded !== null && loaded.kind === 'no-seat' && <h2>You have no seat in this pod</h2>}
               <button
                 type="button"
@@ -200,22 +185,6 @@ export function DeckScreen({
           </main>
         )
       )}
-
-      <footer className="shell__foot">
-        <Disclaimer />
-        <p>
-          <a
-            className="shell__link"
-            href="#/"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate({ kind: 'lobby' });
-            }}
-          >
-            Back to the lobby
-          </a>
-        </p>
-      </footer>
     </div>
   );
 }

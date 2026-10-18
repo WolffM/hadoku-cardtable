@@ -48,7 +48,6 @@ import { LIBRARY, deckPath, poolFixturePath, type FormatFamily, type LibraryColl
 
 import type { DraftCard } from '../draft/types.ts';
 import { DeckEditor } from '../deck/DeckEditor.tsx';
-import type { SeatChoice, TableDeck, TableFormat, TablesClient, Verdict } from '../screens/tables.ts';
 import { deckColorsByName, foldDeckColors, manaTokensOf, type DeckColor } from '@hadoku/deck';
 import { DeckColors, DeckView } from './DeckView.tsx';
 
@@ -396,44 +395,6 @@ describe('DeckView follows the maindeck, not the pool', () => {
 });
 
 describe('DeckEditor shows the same colours over the same model', () => {
-  const FORMATS: TableFormat[] = [
-    {
-      id: '2012-07-13',
-      name: 'Standard (M13)',
-      effective: '2012-07-13',
-      sets: ['SOM', 'MBS', 'NPH', 'M12', 'ISD', 'DKA', 'AVR', 'M13'],
-      banned: [],
-      cardCount: 1592,
-      source: 'Archived/Standard/2012-07-13.txt',
-      family: 'standard',
-    },
-  ];
-
-  const LEGAL: Verdict = {
-    legal: true,
-    rulesName: 'Standard (M13)',
-    deckName: 'a drafted deck',
-    issues: [],
-    note: null,
-  };
-
-  /** Enough of the client for the bar to render; every call answers at once. */
-  function client(): TablesClient {
-    const refuse = (): never => {
-      throw new Error('the colour bar asks the server for nothing');
-    };
-    return {
-      formats: () => Promise.resolve(FORMATS),
-      decks: () => Promise.resolve([] as TableDeck[]),
-      check: (_seat: SeatChoice) => Promise.resolve(LEGAL),
-      start: refuse,
-      table: refuse,
-      loadDeck: refuse,
-      ready: refuse,
-      startRoom: refuse,
-    } as unknown as TablesClient;
-  }
-
   /** The editor draws every card as a `CardTile`; a click on one moves it. */
   function pickCard(name: string): void {
     const tile = screen.getAllByTestId('card').find((el) => el.querySelector('.card__name')?.textContent === name);
@@ -448,9 +409,6 @@ describe('DeckEditor shows the same colours over the same model', () => {
         mode: 'limited',
         draftId: 'uw-delver-as-a-pool',
         pool: poolOfLibraryDeck(deck, fixture),
-        client: client(),
-        // The server's verdict is not what is under test; keep it out of the way.
-        checkDelayMs: 1_000_000,
       }),
     );
     expect(screen.getByTestId('deck-editor')).toBeTruthy();

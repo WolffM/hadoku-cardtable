@@ -1,24 +1,18 @@
 /*
- * The pure half of `#/deck/<draftId>`: what a drafted deck is on the wire.
+ * The pure half of the deck editor: what a drafted deck is on the wire, and the land suggestion.
  *
  * ## No rules here
  *
- * Legality belongs to two places and neither is this file. The count on screen
- * is `@hadoku/deck`'s `mainDeckSize` against `LIMITED_MIN_MAIN_DECK_SIZE` —
- * the same functions the server's gate calls. The verdict that refuses a match
- * is the server's (`apps/server/src/http/gate.ts`, the `draft` arm of
- * `checkSeat`), reached by `POST /api/tables/check` while you build and by
- * `POST /api/play/matches` when you press Start. A client-side validator here
- * would be a third opinion that could disagree with the one that counts.
+ * The count on screen is `@hadoku/deck`'s `mainDeckSize` against the deck's
+ * floor (`LIMITED_MIN_MAIN_DECK_SIZE` for a drafted pool). The verdict is the
+ * server's: `POST /api/tables/check` once the build reaches its floor (it is
+ * what enables Play), and the room's gate at ready and start.
  *
  * ## One seat shape for a drafted deck
  *
- * `draftedSeat` is the only place a drafted deck becomes a request. It is the
- * gate's own `{ deck: { dck }, rules: { kind: 'draft', draftId } }` — the arm
- * that checks the text against the CALLER's pool and forwards that same text to
- * Forge — and the text is `dckTextOf`, the writer `tables.test.ts` already
- * proves the gate accepts. Nothing else in the UI writes a drafted `.dck` for
- * play, so there is no second reader to disagree with.
+ * `draftedSeat` is the only place a drafted deck becomes a request: the gate's
+ * own `{ deck: { dck }, rules: { kind: 'draft', draftId } }`, the arm that
+ * checks the text against the CALLER's pool, with the text from `dckTextOf`.
  *
  * ## `splitBasics` — the one thing a `.dck` round trip loses
  *
@@ -138,4 +132,57 @@ export function mainSummary(deck: Deck, index: ReadonlyMap<string, DraftCard>): 
   }
   for (const entry of deck.basics) summary.lands += entry.count;
   return summary;
+}
+
+export type BasicCounts = Record<'W' | 'U' | 'B' | 'R' | 'G', number>;
+
+/**
+ * How many of each basic the maindeck wants — Forge's
+ * `DeckgenUtil.suggestBasicLandCount` (`forge-gui/src/main/java/forge/deck/DeckgenUtil.java`),
+ * ported with its order and rounding, over the deck WITHOUT its current
+ * basics (the editor's Auto replaces them rather than adding to them).
+ *
+ * Forge's steps: the target size comes from the non-land count (under 30 is
+ * limited's 40, over 60 is 100, else 60); the lands to add are the target less
+ * the main deck; each colour in W, U, B, R, G order takes its rounded share of
+ * what is left by its count of pure coloured symbols, at least one if it has
+ * any. Forge's last step, a rounding leftover handed to the first colour that
+ * got lands, is not ported: the last colour with symbols always takes exactly
+ * what is left (its share of the remaining total is the whole of it), so no
+ * leftover can reach it.
+ *
+ * Two edges Forge leaves open are closed here: a deck already at or over its
+ * target adds nothing (Forge would hand back negative counts), and a deck
+ * with no coloured symbols adds nothing (Forge divides by zero).
+ */
+export function suggestBasics(deck: Deck, index: ReadonlyMap<string, DraftCard>): BasicCounts {
+  const none: BasicCounts = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  let size = 0;
+  let lands = 0;
+  const shards: BasicCounts = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  for (const entry of deck.main) {
+    if (isBasicLand(entry.card)) continue;
+    const card = index.get(cardKey(entry.card));
+    size += entry.count;
+    if (card !== undefined && /\bLand\b/.test(card.typeLine)) lands += entry.count;
+    for (const token of card?.manaCost ?? []) {
+      if (token === 'W' || token === 'U' || token === 'B' || token === 'R' || token === 'G') shards[token] += entry.count;
+    }
+  }
+  const nonLand = size - lands;
+  const target = nonLand < 30 ? 40 : nonLand > 60 ? 100 : 60;
+  let toAdd = target - size;
+  let total = shards.W + shards.U + shards.B + shards.R + shards.G;
+  if (toAdd <= 0 || total === 0) return none;
+
+  const out: BasicCounts = { ...none };
+  for (const c of ['W', 'U', 'B', 'R', 'G'] as const) {
+    // A colour with no symbols takes none (Forge's share of 0, without its 0/0
+    // once every coloured colour has been served); one with any takes at least one.
+    const n = shards[c] === 0 ? 0 : Math.max(1, Math.round((toAdd * shards[c]) / total));
+    out[c] = n;
+    toAdd -= n;
+    total -= shards[c];
+  }
+  return out;
 }

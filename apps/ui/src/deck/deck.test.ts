@@ -2,13 +2,11 @@
 /*
  * `DeckEditor` (both modes) and `#/deck/<podId>`, driven.
  *
- * `DeckEditor` is tested directly for its two modes — a fresh limited build
- * against a stub `TablesClient`, and a sideboard swap against a fixed 75 — and
- * `DeckScreen` is tested over a stub `deck/deckStore.ts` client, which is the
- * one thing that changed shape this wave: the screen used to open a live pod
- * SOCKET and build the deck itself; it now reads `GET …/mine` once and hands
- * both the pool and the last saved build to the editor, which is what makes
- * the pool still reachable after the drafter has left the pod (C's contract).
+ * `DeckEditor` is tested directly for its two modes — a limited build from a
+ * pool, and a sideboard swap against a fixed 75 — by the gestures a player
+ * uses (a click, a drag, the basics counters and Auto), and `DeckScreen` over
+ * a stub `deck/deckStore.ts` client: it reads `GET …/mine` once and hands the
+ * pool and the last saved build to the editor.
  *
  * The pool is 45 (limited) or 75 (sideboard) cards off the committed cube
  * (`draft/pool.json`), not invented ones.
@@ -26,9 +24,9 @@ import { cardRequestOf, deckFromPool, dckTextOf } from '../draft/deckFromPool.ts
 import { DeckEditor, type SaveOutcome } from './DeckEditor.tsx';
 import { DeckScreen } from '../screens/DeckScreen.tsx';
 import { parseRoute } from '../screens/route.ts';
-import { tablesClient, type Fetch, type Verdict } from '../screens/tables.ts';
 import type { DeckStoreClient, Mine } from './deckStore.ts';
-import { draftedSeat, cardIndex, mainSummary, splitBasics, libraryDeckPool, libraryDeckText } from './build.ts';
+import { tablesClient, type Fetch, type Verdict } from '../screens/tables.ts';
+import { draftedSeat, cardIndex, mainSummary, splitBasics, libraryDeckPool, libraryDeckText, suggestBasics } from './build.ts';
 
 afterEach(() => {
   cleanup();
@@ -54,7 +52,7 @@ const POOL_MIXED: DraftCard[] = [
   ...(poolData as { cards: DraftCard[] }).cards.slice(90, 100),
 ].map((card, i) => ({ ...card, cardId: `mix:${i}` }));
 
-/* ── the stub `/tables` API, for `limited`'s live check ─────────────────── */
+/* ── the stub `/tables` API, for `limited`'s check ─────────────────────── */
 
 interface Call {
   url: string;
@@ -74,38 +72,163 @@ function stubApi(answers: { check: (body: { deck: { dck: string } }) => Verdict 
   return { calls, client: tablesClient(fetchImpl, '/cardtable/api/') };
 }
 
-const RULES = `your pool from ${DRAFT_ID}`;
-const legal: Verdict = { deckName: `Cube draft ${DRAFT_ID}`, rulesName: RULES, legal: true, issues: [], note: null };
-function shortVerdict(size: number): Verdict {
-  return {
-    ...legal,
-    legal: false,
-    issues: [{ kind: 'under-minimum-size', message: `maindeck has ${size} cards, needs at least 40`, cardName: null, count: size, limit: 40 }],
-  };
-}
+const legal: Verdict = { deckName: `Cube draft ${DRAFT_ID}`, rulesName: `your pool from ${DRAFT_ID}`, legal: true, issues: [], note: null };
+const illegal: Verdict = {
+  ...legal,
+  legal: false,
+  issues: [{ kind: 'not-in-pool', message: 'a card is not in your pool', cardName: null, count: null, limit: null }],
+};
+const checks = (calls: Call[]) => calls.filter((c) => c.url === '/cardtable/api/tables/check');
 
-const lastPost = (calls: Call[], path: string) => [...calls].reverse().find((c) => c.url === `/cardtable/api/${path}`);
-
-/** Every `CardTile` button inside a pile, in current DOM order. Re-query after every click. */
+/** Every `CardTile` button inside an area, in current DOM order. Re-query after every click. */
 const cardsIn = (testId: string): HTMLElement[] => within(screen.getByTestId(testId)).getAllByTestId('card');
 
-/** Click `n` cards out of the side grid, one at a time (each click changes the DOM). */
+/** Click `n` cards out of the pool grid, one at a time (each click changes the DOM). */
 function promote(n: number): void {
   for (let i = 0; i < n; i += 1) fireEvent.click(cardsIn('side-grid')[0]!);
 }
 
-/* ── the pure half: unchanged by this wave, `librarySeat`/`sortPile`/`poolReadiness` are gone with it ── */
+type TablesClientLike = ReturnType<typeof tablesClient>;
+const mainDeckSizeOf = (dck: string): number => deckFromDeckFile(parseDck(dck)).main.reduce((n, e) => n + e.count, 0);
+
+const isLand = (c: DraftCard): boolean => /\bLand\b/.test(c.typeLine);
+
+/** A saved build: the first `n` non-land cards of `pool` in the main deck, plus any basics. */
+function savedWith(pool: readonly DraftCard[], n: number, basics: Record<string, number> = {}): string {
+  let deck = deckFromPool(DRAFT_ID, pool);
+  for (const card of pool.filter((c) => !isLand(c)).slice(0, n)) deck = moveToMain(deck, cardRequestOf(card));
+  for (const [name, count] of Object.entries(basics)) deck = setBasicLand(deck, basicLand(name), count);
+  return dckTextOf(deck);
+}
+
+/** A stand-in `DataTransfer`: jsdom has none, and the editor's drag reads only these members. */
+function dataTransfer() {
+  const data = new Map<string, string>();
+  return {
+    effectAllowed: '',
+    dropEffect: '',
+    setData: (type: string, value: string) => void data.set(type, value),
+    getData: (type: string) => data.get(type) ?? '',
+    get types() {
+      return [...data.keys()];
+    },
+  };
+}
+
+/** Drag a tile (its draggable wrapper) and drop it on an area. */
+function drag(tile: HTMLElement, onto: string): void {
+  const dt = dataTransfer();
+  const source = tile.closest('[draggable]')!;
+  fireEvent.dragStart(source, { dataTransfer: dt });
+  const area = screen.getByTestId(onto);
+  fireEvent.dragOver(area, { dataTransfer: dt });
+  fireEvent.drop(area, { dataTransfer: dt });
+  fireEvent.dragEnd(source, { dataTransfer: dt });
+}
+
+/* ── the pure half ── */
+
+/** A card with only what `suggestBasics` reads: a cost and a type line. */
+function costed(i: number, manaCost: string[], typeLine = 'Creature — Test'): DraftCard {
+  return {
+    cardId: `t${i}`,
+    name: `Test ${i}`,
+    manaCost,
+    manaValue: manaCost.length,
+    colors: [],
+    typeLine,
+    oracleText: '',
+    setCode: 'TST',
+    collectorNumber: String(i),
+    rarity: 'common',
+  };
+}
+
+function playing(cards: readonly DraftCard[]): { deck: Deck; index: ReturnType<typeof cardIndex> } {
+  let deck = deckFromPool(DRAFT_ID, cards);
+  for (const card of cards) deck = moveToMain(deck, cardRequestOf(card));
+  return { deck, index: cardIndex(cards) };
+}
 
 describe('build.ts', () => {
   it('a drafted seat is the gate’s draft arm, carrying the deck’s own .dck text', () => {
     let deck = deckFromPool(DRAFT_ID, POOL);
     deck = moveToMain(deck, deck.sideboard[0]!.card);
     deck = setBasicLand(deck, basicLand('Island'), 17);
-    const seat = draftedSeat(DRAFT_ID, deck);
-    expect(seat).toEqual({ deck: { dck: dckTextOf(deck) }, rules: { kind: 'draft', draftId: DRAFT_ID } });
-    const back = deckFromDeckFile(parseDck(dckTextOf(deck)));
-    expect(back.main.reduce((n, e) => n + e.count, 0)).toBe(18);
-    expect(back.main.find((e) => e.card.name === 'Island')?.count).toBe(17);
+    expect(draftedSeat(DRAFT_ID, deck)).toEqual({ deck: { dck: dckTextOf(deck) }, rules: { kind: 'draft', draftId: DRAFT_ID } });
+  });
+
+  describe('suggestBasics — Forge’s DeckgenUtil.suggestBasicLandCount', () => {
+    it('fills 23 spells to 40, splitting by pure coloured symbols in W U B R G order', () => {
+      // 15 × {1}{W} and 8 × {U}{U}: W 15, U 16, 31 symbols, 17 lands to add.
+      // W first: round(17 × 15/31) = 8; then U: round(9 × 16/16) = 9.
+      const cards = [...Array.from({ length: 15 }, (_, i) => costed(i, ['1', 'W'])), ...Array.from({ length: 8 }, (_, i) => costed(100 + i, ['U', 'U']))];
+      const { deck, index } = playing(cards);
+      expect(suggestBasics(deck, index)).toEqual({ W: 8, U: 9, B: 0, R: 0, G: 0 });
+    });
+
+    it('gives a colour with any symbol at least one land', () => {
+      const cards = [...Array.from({ length: 22 }, (_, i) => costed(i, ['G', 'G'])), costed(50, ['1', 'R'])];
+      const { deck, index } = playing(cards);
+      const want = suggestBasics(deck, index);
+      expect(want.R).toBe(1);
+      expect(want.G).toBe(16);
+    });
+
+    it('counts only pure symbols: a hybrid or Phyrexian one asks for nothing', () => {
+      const cards = [...Array.from({ length: 22 }, (_, i) => costed(i, ['B'])), costed(50, ['W/U']), costed(51, ['R/P'])];
+      const { deck, index } = playing(cards);
+      expect(suggestBasics(deck, index)).toEqual({ W: 0, U: 0, B: 16, R: 0, G: 0 });
+    });
+
+    it('replaces the deck’s basics rather than adding to them', () => {
+      const cards = Array.from({ length: 23 }, (_, i) => costed(i, ['W']));
+      const { deck, index } = playing(cards);
+      const withBasics = setBasicLand(setBasicLand(deck, basicLand('Plains'), 9), basicLand('Island'), 4);
+      expect(suggestBasics(withBasics, index)).toEqual(suggestBasics(deck, index));
+      expect(suggestBasics(deck, index).W).toBe(17);
+    });
+
+    it('ignores basics in the main deck itself too, as a round-tripped save carries them', () => {
+      const cards = Array.from({ length: 23 }, (_, i) => costed(i, ['W']));
+      const { deck, index } = playing(cards);
+      const merged: Deck = { ...deck, main: [...deck.main, { count: 9, card: basicLand('Plains') }] };
+      expect(suggestBasics(merged, index)).toEqual(suggestBasics(deck, index));
+    });
+
+    it('counts a non-basic land toward the deck, as Forge does', () => {
+      const cards = [...Array.from({ length: 22 }, (_, i) => costed(i, ['W'])), costed(60, [], 'Land')];
+      const { deck, index } = playing(cards);
+      expect(suggestBasics(deck, index).W).toBe(17);
+    });
+
+    it('aims at 60 for a constructed-sized deck and 100 past 60 non-lands', () => {
+      const sixty = playing(Array.from({ length: 36 }, (_, i) => costed(i, ['R'])));
+      expect(suggestBasics(sixty.deck, sixty.index).R).toBe(24);
+      const hundred = playing(Array.from({ length: 61 }, (_, i) => costed(i, ['G'])));
+      expect(suggestBasics(hundred.deck, hundred.index).G).toBe(39);
+    });
+
+    it('adds nothing to a deck already at or over its target (Forge would return negative counts)', () => {
+      const at = playing([...Array.from({ length: 29 }, (_, i) => costed(i, ['W'])), ...Array.from({ length: 11 }, (_, i) => costed(100 + i, [], 'Land'))]);
+      expect(suggestBasics(at.deck, at.index)).toEqual({ W: 0, U: 0, B: 0, R: 0, G: 0 });
+      const over = playing([...Array.from({ length: 29 }, (_, i) => costed(i, ['W'])), ...Array.from({ length: 13 }, (_, i) => costed(100 + i, [], 'Land'))]);
+      expect(suggestBasics(over.deck, over.index)).toEqual({ W: 0, U: 0, B: 0, R: 0, G: 0 });
+    });
+
+    it('adds nothing to a deck with no coloured symbols (Forge would divide by zero)', () => {
+      const { deck, index } = playing(Array.from({ length: 23 }, (_, i) => costed(i, ['3'], 'Artifact')));
+      expect(suggestBasics(deck, index)).toEqual({ W: 0, U: 0, B: 0, R: 0, G: 0 });
+    });
+
+    it('never hands out a share past the last coloured colour', () => {
+      // W and G only: the colours between them and after them get exactly 0, not NaN.
+      const cards = [...Array.from({ length: 12 }, (_, i) => costed(i, ['W'])), ...Array.from({ length: 11 }, (_, i) => costed(100 + i, ['G']))];
+      const { deck, index } = playing(cards);
+      const want = suggestBasics(deck, index);
+      expect(want).toEqual({ W: 9, U: 0, B: 0, R: 0, G: 8 });
+      expect(Object.values(want).reduce((a, b) => a + b, 0)).toBe(17);
+    });
   });
 
   it('folds the maindeck into creatures/spells/lands and the colours it asks for', () => {
@@ -170,160 +293,269 @@ describe('build.ts', () => {
   });
 });
 
+
 /* ── `DeckEditor` — `limited` ────────────────────────────────────────────── */
 
 describe('DeckEditor — limited', () => {
-  it('opens with the whole pool in the sideboard and nothing played', () => {
-    const api = stubApi({ check: () => legal });
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0 }));
+  it('opens with the whole pool in the pool grid, nothing played, and a meter rather than Play', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
     expect(screen.getByTestId('main-count').textContent).toBe('0');
     expect(screen.getByTestId('side-count').textContent).toBe('45');
-    expect(cardsIn('side-grid')).toHaveLength(45);
+    expect(screen.getByTestId('deck-meter').textContent).toBe('0/40');
+    expect(screen.queryByTestId('play-deck')).toBeNull();
   });
 
-  it('opens from a saved build instead of a fresh one', () => {
-    let saved = deckFromPool(DRAFT_ID, POOL);
-    saved = moveToMain(saved, saved.sideboard[0]!.card);
-    saved = moveToMain(saved, saved.sideboard[0]!.card);
-    saved = setBasicLand(saved, basicLand('Forest'), 5);
-    const api = stubApi({ check: () => legal });
-    render(
-      createElement(DeckEditor, {
-        mode: 'limited',
-        draftId: DRAFT_ID,
-        pool: POOL,
-        savedDeck: dckTextOf(saved),
-        client: api.client,
-        checkDelayMs: 0,
-      }),
-    );
+  it('opens from a saved build instead of a fresh one, basics on their counters', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: savedWith(POOL, 2, { Forest: 5 }) }));
     expect(screen.getByTestId('main-count').textContent).toBe('7');
     expect(screen.getByTestId('side-count').textContent).toBe('43');
     expect(screen.getByTestId('basic-Forest-count').textContent).toBe('5');
   });
 
-  // 20_000, not the 5 s default: this builds a 40-card deck out of the real
-  // 534-card pool and re-renders the grid for every promotion — see
-  // `deck.test.ts`'s pre-wave-70 history for the measured cost.
-  it('builds 23 drafted cards and 17 basics into a 40-card deck, and checks exactly that text', { timeout: 20_000 }, async () => {
-    const api = stubApi({ check: () => legal });
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0 }));
+  it('moves a card by a click, pool → deck and back', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    const name = cardsIn('side-grid')[0]!.querySelector('.card__name')!.textContent;
+    fireEvent.click(cardsIn('side-grid')[0]!);
+    expect(screen.getByTestId('main-count').textContent).toBe('1');
+    expect(screen.getByTestId('side-count').textContent).toBe('44');
+    const inDeck = within(screen.getByTestId('main-grid')).getAllByTestId('card');
+    expect(inDeck.map((c) => c.querySelector('.card__name')!.textContent)).toEqual([name]);
+    // The card that landed flashes there.
+    expect(inDeck[0]!.closest('[data-flash]')).not.toBeNull();
 
-    promote(23);
-    for (let i = 0; i < 9; i += 1) fireEvent.click(screen.getByTestId('basic-Island-more'));
-    for (let i = 0; i < 8; i += 1) fireEvent.click(screen.getByTestId('basic-Mountain-more'));
-
-    expect(screen.getByTestId('main-count').textContent).toBe('40');
-    expect(screen.getByTestId('main-count').parentElement?.dataset['complete']).toBe('true');
-    expect(screen.getByTestId('side-count').textContent).toBe('22');
-
-    await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
-    const check = lastPost(api.calls, 'tables/check')?.body as { deck: { dck: string }; rules: unknown };
-    expect(check.rules).toEqual({ kind: 'draft', draftId: DRAFT_ID });
-    const deck = deckFromDeckFile(parseDck(check.deck.dck));
-    expect(deck.main.reduce((n, e) => n + e.count, 0)).toBe(40);
-    expect(deck.main.find((e) => e.card.name === 'Island')?.count).toBe(9);
-    expect(deck.sideboard.reduce((n, e) => n + e.count, 0)).toBe(22);
+    fireEvent.click(inDeck[0]!);
+    expect(screen.getByTestId('main-count').textContent).toBe('0');
+    expect(screen.getByTestId('side-count').textContent).toBe('45');
   });
 
-  it('reads an unfinished build as a count and a disabled Play, with no text and no alert', async () => {
-    const api = stubApi({ check: (b) => shortVerdict(deckFromDeckFile(parseDck(b.deck.dck)).main.length) });
-    const onSave = vi.fn<(dck: string) => Promise<SaveOutcome>>(() => Promise.resolve({ ok: true }));
-    render(
-      createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0, saveDelayMs: 0, onSave }),
-    );
-    promote(10);
-    await waitFor(() => expect(lastPost(api.calls, 'tables/check')).toBeDefined());
-    await waitFor(() => expect(screen.getByTestId('deck-editor').dataset['save']).toBe('saved'));
+  it('moves a card by a drag onto the other area, and only onto the other area', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    // Dropped back onto its own area: nothing moves.
+    drag(cardsIn('side-grid')[0]!, 'pool-area');
+    expect(screen.getByTestId('main-count').textContent).toBe('0');
 
-    expect(screen.getByTestId('main-count').textContent).toBe('10');
-    const count = screen.getByTestId('main-count').parentElement!;
-    expect(count.dataset['complete']).toBe('false');
-    expect(count.textContent).toBe('10/40');
-    expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.queryByTestId('deck-fault')).toBeNull();
-    expect(screen.getByTestId('deck-editor').textContent).not.toContain('maindeck has 10 cards');
+    drag(cardsIn('side-grid')[0]!, 'deck-area');
+    expect(screen.getByTestId('main-count').textContent).toBe('1');
+    drag(cardsIn('side-grid')[0]!, 'deck-area');
+    expect(screen.getByTestId('main-count').textContent).toBe('2');
+
+    drag(within(screen.getByTestId('main-grid')).getAllByTestId('card')[0]!, 'deck-area');
+    expect(screen.getByTestId('main-count').textContent).toBe('2');
+    drag(within(screen.getByTestId('main-grid')).getAllByTestId('card')[0]!, 'pool-area');
+    expect(screen.getByTestId('main-count').textContent).toBe('1');
+    expect(screen.getByTestId('side-count').textContent).toBe('44');
   });
 
-  it('shows a save that genuinely failed as one quiet line, never an alert', async () => {
-    const api = stubApi({ check: () => legal });
-    const onSave = vi.fn<(dck: string) => Promise<SaveOutcome>>(() => Promise.resolve({ ok: false, issues: ['Could not reach the server.'] }));
-    render(
-      createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0, saveDelayMs: 0, onSave }),
-    );
-    promote(1);
-    expect((await screen.findByTestId('deck-fault')).textContent).toBe('Could not reach the server.');
-    expect(screen.getByTestId('deck-editor').dataset['save']).toBe('error');
-    expect(screen.queryByRole('alert')).toBeNull();
+  it('highlights the area a drag can drop on, and only while it is over it', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    const dt = dataTransfer();
+    fireEvent.dragStart(cardsIn('side-grid')[0]!.closest('[draggable]')!, { dataTransfer: dt });
+    fireEvent.dragOver(screen.getByTestId('pool-area'), { dataTransfer: dt });
+    expect(screen.getByTestId('pool-area').hasAttribute('data-drop-over')).toBe(false);
+    fireEvent.dragOver(screen.getByTestId('deck-area'), { dataTransfer: dt });
+    expect(screen.getByTestId('deck-area').hasAttribute('data-drop-over')).toBe(true);
+    fireEvent.dragLeave(screen.getByTestId('deck-area'), { dataTransfer: dt, relatedTarget: document.body });
+    expect(screen.getByTestId('deck-area').hasAttribute('data-drop-over')).toBe(false);
   });
 
-  it('groups the maindeck by mana value, with a curve count per bucket', () => {
-    const api = stubApi({ check: () => legal });
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0 }));
-    promote(10);
-    const buckets = within(screen.getByTestId('main-grid')).getAllByTestId('curve-bucket');
-    expect(buckets.length).toBeGreaterThan(0);
-    const totalInBuckets = buckets.reduce((n, b) => n + within(b).getAllByTestId('card').length, 0);
-    expect(totalInBuckets).toBe(10);
-    for (const bucket of buckets) {
-      const mv = bucket.dataset['mv'];
-      const n = within(bucket).getAllByTestId('card').length;
-      expect(bucket.textContent).toContain(`(${n})`);
-      expect(mv).not.toBeUndefined();
+  it('piles the deck by mana value, lands last, each pile counting its cards', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: savedWith(POOL, 12, { Plains: 6 }) }));
+    const piles = within(screen.getByTestId('main-grid')).getAllByTestId('curve-bucket');
+    expect(piles.map((p) => p.dataset['mv'])).toEqual(['0', '1', '2', '3', '4', '5', '6']);
+    expect(piles.reduce((n, p) => n + within(p).queryAllByTestId('card').length, 0)).toBe(12);
+    for (const pile of piles) {
+      const n = within(pile).queryAllByTestId('card').length;
+      expect(pile.querySelector('.deck-editor__pilen')!.textContent).toBe(String(n));
     }
+    // Six Plains are one card with a ×6 badge, in the lands pile after the curve.
+    const lands = screen.getByTestId('land-pile');
+    expect(within(lands).getAllByTestId('card')).toHaveLength(1);
+    expect(within(lands).getByTestId('land-count').textContent).toBe('×6');
+    // Clicking it takes one Plains off.
+    fireEvent.click(within(lands).getByTestId('card'));
+    expect(screen.getByTestId('basic-Plains-count').textContent).toBe('5');
   });
 
-  it('gives every tile a distinct synthetic id when both piles are on screen, so the inspector never finds the wrong one', () => {
-    const api = stubApi({ check: () => legal });
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0 }));
+  it('gives every tile a distinct synthetic id when both areas are on screen, so the inspector never finds the wrong one', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
     promote(10);
     const ids = screen.getAllByTestId('card').map((el) => el.getAttribute('data-card-id'));
-    expect(ids).toHaveLength(45);
     expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.every((id) => /^w\d+$/.test(id ?? ''))).toBe(true);
   });
 
   it('filters the pool by colour', () => {
-    const api = stubApi({ check: () => legal });
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL_MIXED, client: api.client, checkDelayMs: 0 }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL_MIXED }));
     const before = cardsIn('side-grid').length;
     fireEvent.click(screen.getByTestId('filter-W'));
     const afterWhite = cardsIn('side-grid');
     expect(afterWhite.length).toBeGreaterThan(0);
     expect(afterWhite.length).toBeLessThan(before);
     for (const tile of afterWhite) {
-      const identity = tile.querySelector('.card__stripe')?.getAttribute('data-identity') ?? '';
-      expect(identity).toContain('w');
+      expect(tile.querySelector('.card__stripe')?.getAttribute('data-identity') ?? '').toContain('w');
     }
-    // Toggling it back off restores the whole pool.
     fireEvent.click(screen.getByTestId('filter-W'));
     expect(cardsIn('side-grid')).toHaveLength(before);
   });
 
-  it('calls onPlay from the Play button, with the build as it stands, once the server calls it legal', async () => {
-    const api = stubApi({ check: () => legal });
-    const onPlay = vi.fn();
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0, onPlay }));
-    await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(screen.getByTestId('play-deck'));
-    expect(onPlay).toHaveBeenCalledTimes(1);
-    expect(onPlay).toHaveBeenCalledWith(dckTextOf(deckFromPool(DRAFT_ID, POOL)));
+  it('filters the pool by type and by mana value', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    const all = cardsIn('side-grid').length;
+    fireEvent.click(screen.getByTestId('type-creature'));
+    const creatures = cardsIn('side-grid');
+    expect(creatures.length).toBe(POOL.filter((c) => /\bCreature\b/.test(c.typeLine)).length);
+    fireEvent.click(screen.getByTestId('type-creature'));
+    expect(cardsIn('side-grid')).toHaveLength(all);
+
+    fireEvent.click(screen.getByTestId('mv-2'));
+    expect(within(screen.getByTestId('side-grid')).queryAllByTestId('card')).toHaveLength(POOL.filter((c) => c.manaValue === 2).length);
   });
 
-  it('debounces a save through onSave as cards move — reverting the wiring is what the mutation check catches', async () => {
+  it('sorts the pool by mana value by default, and by colour or type on request', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL_MIXED }));
+    const values = (): number[] =>
+      cardsIn('side-grid').map((t) => POOL_MIXED.find((c) => c.name === t.querySelector('.card__name')!.textContent)!.manaValue);
+    const mvs = values();
+    expect(mvs).toEqual([...mvs].sort((a, b) => a - b));
+    fireEvent.click(screen.getByTestId('sort-color'));
+    const identities = cardsIn('side-grid').map((t) => t.querySelector('.card__stripe')!.getAttribute('data-identity'));
+    // White's section first, then blue's: one change of colour, never back.
+    const firstBlue = identities.indexOf('u');
+    expect(firstBlue).toBeGreaterThan(0);
+    expect(identities.slice(firstBlue).includes('w')).toBe(false);
+  });
+
+  it('Auto sets the basics Forge would suggest, and the deck reaches 40', () => {
+    const spells = POOL.filter((c) => !isLand(c)).slice(0, 23);
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: savedWith(POOL, 23, { Island: 3 }) }));
+    expect(screen.getByTestId('main-count').textContent).toBe('26');
+    fireEvent.click(screen.getByTestId('basics-auto'));
+
+    let deck = deckFromPool(DRAFT_ID, POOL);
+    for (const card of spells) deck = moveToMain(deck, cardRequestOf(card));
+    const want = suggestBasics(deck, cardIndex(POOL));
+    const names = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' } as const;
+    for (const [c, name] of Object.entries(names)) {
+      expect(screen.getByTestId(`basic-${name}-count`).textContent).toBe(String(want[c as keyof typeof names]));
+    }
+    expect(screen.getByTestId('main-count').textContent).toBe('40');
+  });
+
+  it('the basics counters add and remove one land at a time', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    expect((screen.getByTestId('basic-Island-less') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId('basic-Island-more'));
+    fireEvent.click(screen.getByTestId('basic-Island-more'));
+    expect(screen.getByTestId('basic-Island-count').textContent).toBe('2');
+    fireEvent.click(screen.getByTestId('basic-Island-less'));
+    expect(screen.getByTestId('basic-Island-count').textContent).toBe('1');
+    expect(screen.getByTestId('main-count').textContent).toBe('1');
+  });
+
+  it('the meter becomes Play at 40 and not before; Play waits for the server’s legal verdict, then calls onPlay', async () => {
     const api = stubApi({ check: () => legal });
+    const onPlay = vi.fn();
     const onSave = vi.fn<(dck: string) => Promise<SaveOutcome>>(() => Promise.resolve({ ok: true }));
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0, saveDelayMs: 0, onSave }));
+    render(
+      createElement(DeckEditor, {
+        mode: 'limited',
+        draftId: DRAFT_ID,
+        pool: POOL,
+        savedDeck: savedWith(POOL, 23, { Plains: 15 }),
+        client: api.client,
+        checkDelayMs: 0,
+        saveDelayMs: 0,
+        onSave,
+        onPlay,
+      }),
+    );
+    fireEvent.click(screen.getByTestId('basic-Plains-more'));
+    expect(screen.getByTestId('deck-meter').textContent).toBe('39/40');
+    expect(screen.getByTestId('main-count').parentElement!.dataset['complete']).toBe('false');
+    expect(screen.queryByTestId('play-deck')).toBeNull();
+    // A short deck is not worth asking about: its move saved (a timer that
+    // fires after the check's would have), and no check went out.
+    await waitFor(() => expect(screen.getByTestId('deck-editor').dataset['save']).toBe('saved'));
+    expect(checks(api.calls)).toHaveLength(0);
+
+    fireEvent.click(screen.getByTestId('basic-Plains-more'));
+    expect(screen.queryByTestId('deck-meter')).toBeNull();
+    expect(screen.getByTestId('main-count').textContent).toBe('40');
+    expect(screen.getByTestId('main-count').parentElement!.dataset['complete']).toBe('true');
+    await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
+    const sent = checks(api.calls).at(-1)!.body as { deck: { dck: string }; rules: unknown };
+    expect(sent.rules).toEqual({ kind: 'draft', draftId: DRAFT_ID });
+    expect(mainDeckSizeOf(sent.deck.dck)).toBe(40);
+    fireEvent.click(screen.getByTestId('play-deck'));
+    expect(onPlay).toHaveBeenCalledTimes(1);
+    // The build as it stands, not whatever the debounced save last sent.
+    expect(mainDeckSizeOf(onPlay.mock.calls[0]![0] as string)).toBe(40);
+
+    fireEvent.click(screen.getByTestId('basic-Plains-less'));
+    expect(screen.queryByTestId('play-deck')).toBeNull();
+    expect(screen.getByTestId('deck-meter').textContent).toBe('39/40');
+  });
+
+  it('keeps Play disabled at 40 while the server says the build is not legal, and says nothing about it', async () => {
+    const api = stubApi({ check: () => illegal });
+    render(
+      createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: savedWith(POOL, 23, { Plains: 17 }), client: api.client, checkDelayMs: 0 }),
+    );
+    await waitFor(() => expect(screen.getByTestId('play-deck').dataset['verdict']).toBe('illegal'));
+    expect(checks(api.calls)).toHaveLength(1);
+    expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('deck-editor').textContent).not.toContain('not in your pool');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a check that cannot be asked is a quiet fault line', async () => {
+    const client = { check: () => Promise.reject(new Error('Could not reach the server.')) } as unknown as TablesClientLike;
+    render(
+      createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: savedWith(POOL, 23, { Plains: 17 }), client, checkDelayMs: 0 }),
+    );
+    expect((await screen.findByTestId('deck-fault')).textContent).toBe('Could not reach the server.');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('says nothing about a short deck: no verdict, no problem list', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: savedWith(POOL, 10) }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByTestId('deck-editor').textContent).not.toMatch(/needs at least|not legal|problem/i);
+  });
+
+  it('saves silently as cards move, only what changed, and marks the editor’s root', async () => {
+    const onSave = vi.fn<(dck: string) => Promise<SaveOutcome>>(() => Promise.resolve({ ok: true }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, saveDelayMs: 0, onSave }));
+    const root = screen.getByTestId('deck-editor');
+    expect(root.dataset['save']).toBe('idle');
     expect(onSave).not.toHaveBeenCalled();
+
     promote(1);
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    const [sentText] = onSave.mock.calls[0]!;
-    const sent = deckFromDeckFile(parseDck(sentText));
+    await waitFor(() => expect(root.dataset['save']).toBe('saved'));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const sent = deckFromDeckFile(parseDck(onSave.mock.calls[0]![0]));
     expect(sent.main.reduce((n, e) => n + e.count, 0)).toBe(1);
+    expect(root.textContent).not.toMatch(/sav/i);
+
+    // Back to the saved build: nothing new to save.
+    fireEvent.click(within(screen.getByTestId('main-grid')).getAllByTestId('card')[0]!);
+    fireEvent.click(cardsIn('side-grid')[0]!);
+    await waitFor(() => expect(root.dataset['save']).toBe('saved'));
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed save is one quiet line, never an alert', async () => {
+    const onSave = vi.fn<(dck: string) => Promise<SaveOutcome>>(() => Promise.resolve({ ok: false, issues: ['Could not reach the server.'] }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, saveDelayMs: 0, onSave }));
+    expect(screen.queryByTestId('deck-fault')).toBeNull();
+    promote(1);
+    expect((await screen.findByTestId('deck-fault')).textContent).toBe('Could not reach the server.');
+    expect(screen.getByTestId('deck-editor').dataset['save']).toBe('error');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 
-/* ── `DeckEditor` — `sideboard` (wave 72 mounts it; this wave unit-tests it) ── */
+/* ── `DeckEditor` — `sideboard` ─────────────────────────────────────────── */
 
 describe('DeckEditor — sideboard', () => {
   const POD = 'amber-lantern-k7q4';
@@ -336,48 +568,81 @@ describe('DeckEditor — sideboard', () => {
     return deck;
   }
 
+  const sideboard = (extra: Record<string, unknown> = {}) =>
+    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(split60()), minMain: 60, ...extra }));
+
   it('keeps the 75-card multiset when a swap moves a card main ⇄ side', () => {
-    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(split60()) }));
-    const mainBefore = Number(screen.getByTestId('main-count').textContent);
-    const sideBefore = Number(screen.getByTestId('side-count').textContent);
-    expect(mainBefore).toBe(60);
-    expect(sideBefore).toBe(15);
-    expect(mainBefore + sideBefore).toBe(75);
+    sideboard();
+    expect(Number(screen.getByTestId('main-count').textContent)).toBe(60);
+    expect(Number(screen.getByTestId('side-count').textContent)).toBe(15);
 
     fireEvent.click(cardsIn('side-grid')[0]!);
     expect(Number(screen.getByTestId('main-count').textContent)).toBe(61);
     expect(Number(screen.getByTestId('side-count').textContent)).toBe(14);
 
-    fireEvent.click(cardsIn('main-grid')[0]!);
+    drag(within(screen.getByTestId('main-grid')).getAllByTestId('card')[0]!, 'pool-area');
     expect(Number(screen.getByTestId('main-count').textContent)).toBe(60);
     expect(Number(screen.getByTestId('side-count').textContent)).toBe(15);
   });
 
-  it('says every card is in the 75 when nothing has been added', () => {
-    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(split60()) }));
-    expect(screen.getByTestId('sideboard-problems-ok')).toBeTruthy();
-    expect(screen.queryByTestId('sideboard-problems')).toBeNull();
-  });
-
-  it('refuses a card from outside the 75', () => {
-    const outsider = (poolData as { cards: DraftCard[] }).cards[400]!;
-    expect(POOL75.some((c) => c.name === outsider.name)).toBe(false);
-    const base = split60();
-    const withOutsider: Deck = { ...base, main: [...base.main, { count: 1, card: cardRequestOf(outsider) }] };
-    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(withOutsider) }));
-    const problems = screen.getByTestId('sideboard-problems');
-    expect(problems.textContent).toContain(outsider.name);
-    expect(problems.textContent).toContain('drafted 0');
-  });
-
-  it('has no Play button and no basics widget by default', () => {
-    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(split60()) }));
+  it('has no Play button and no basics counters by default; its way onward is Ready', () => {
+    sideboard();
     expect(screen.queryByTestId('play-deck')).toBeNull();
     expect(screen.queryByTestId('basics')).toBeNull();
+    expect(screen.getByTestId('sideboard-ready').textContent).toContain('Ready');
   });
 
-  it('shows the basics widget when the deck came from a drafted pool', () => {
-    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(split60()), allowBasics: true }));
+  it('Ready hands over the current split', () => {
+    const onReady = vi.fn<(deck: Deck) => void>();
+    sideboard({ onReady });
+    fireEvent.click(cardsIn('side-grid')[0]!);
+    fireEvent.click(screen.getByTestId('sideboard-ready'));
+    expect(onReady).toHaveBeenCalledTimes(1);
+    const deck = onReady.mock.calls[0]![0];
+    expect(deck.main.reduce((n, e) => n + e.count, 0)).toBe(61);
+    expect(deck.sideboard.reduce((n, e) => n + e.count, 0)).toBe(14);
+  });
+
+  it('shows Ready pressed and held once ready, and busy while it is being sent', () => {
+    const { rerender } = sideboard({ readyState: 'busy' });
+    expect((screen.getByTestId('sideboard-ready') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('sideboard-ready').getAttribute('aria-pressed')).toBe('false');
+    rerender(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: POOL75, savedDeck: dckTextOf(split60()), minMain: 60, readyState: 'ready' }));
+    expect(screen.getByTestId('sideboard-ready').getAttribute('aria-pressed')).toBe('true');
+    expect((screen.getByTestId('sideboard-ready') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('takes Ready away below the floor, as a meter', () => {
+    sideboard();
+    fireEvent.click(within(screen.getByTestId('main-grid')).getAllByTestId('card')[0]!);
+    expect(screen.queryByTestId('sideboard-ready')).toBeNull();
+    expect(screen.getByTestId('deck-meter').textContent).toBe('59/60');
+  });
+
+  it('keeps a constructed 75’s basics as cards of the 75, moved like any other', () => {
+    let deck = split60();
+    deck = { ...deck, main: [...deck.main, { count: 4, card: basicLand('Island') }], sideboard: [...deck.sideboard, { count: 1, card: basicLand('Island') }] };
+    sideboard({ savedDeck: dckTextOf(deck) });
+    const lands = screen.getByTestId('land-pile');
+    expect(within(lands).getByTestId('land-count').textContent).toBe('×4');
+    fireEvent.click(within(lands).getAllByTestId('card').find((c) => c.querySelector('.card__name')!.textContent === 'Island')!);
+    expect(within(screen.getByTestId('land-pile')).getByTestId('land-count').textContent).toBe('×3');
+    expect(Number(screen.getByTestId('side-count').textContent)).toBe(17);
+  });
+
+  it('draws a card by its name when the pool knows it only by name (a library 75), not as a blank face', () => {
+    const byName = POOL75.map((c) => ({ ...c, setCode: '', collectorNumber: '' }));
+    render(createElement(DeckEditor, { mode: 'sideboard', draftId: POD, pool: byName, savedDeck: dckTextOf(split60()), minMain: 60 }));
+    const main = POOL75.slice(0, 60);
+    for (const pile of within(screen.getByTestId('main-grid')).getAllByTestId('curve-bucket')) {
+      const mv = Number(pile.dataset['mv']);
+      const want = main.filter((c) => !/\bLand\b/.test(c.typeLine) && Math.min(6, c.manaValue) === mv).length;
+      expect(within(pile).queryAllByTestId('card'), `pile ${mv}`).toHaveLength(want);
+    }
+  });
+
+  it('shows the basics counters when the deck came from a drafted pool', () => {
+    sideboard({ allowBasics: true, minMain: 40 });
     expect(screen.getByTestId('basics')).toBeTruthy();
   });
 });
@@ -402,8 +667,7 @@ function stubStore(mine: Mine | null): { calls: { podId: string; dck: string }[]
 describe('DeckScreen', () => {
   it('shows "no seat" on the server’s 404', async () => {
     const { store } = stubStore(null);
-    const api = stubApi({ check: () => legal });
-    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client }));
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store }));
     expect((await screen.findByTestId('deck-no-seat')).textContent).toContain('no seat');
     fireEvent.click(screen.getByTestId('back-to-pod'));
     expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'draft', draftId: DRAFT_ID });
@@ -411,8 +675,7 @@ describe('DeckScreen', () => {
 
   it('opens a fresh build when GET …/mine has no save, and saves as cards move', async () => {
     const { store, calls } = stubStore({ pool: POOL, deck: null });
-    const api = stubApi({ check: () => legal });
-    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client, checkDelayMs: 0, saveDelayMs: 0 }));
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: stubApi({ check: () => legal }).client, checkDelayMs: 0, saveDelayMs: 0 }));
     await screen.findByTestId('deck-editor');
     expect(screen.getByTestId('main-count').textContent).toBe('0');
 
@@ -432,34 +695,42 @@ describe('DeckScreen', () => {
     let saved = deckFromPool(DRAFT_ID, POOL);
     saved = moveToMain(saved, saved.sideboard[0]!.card);
     const { store } = stubStore({ pool: POOL, deck: dckTextOf(saved) });
-    const api = stubApi({ check: () => legal });
-    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client, checkDelayMs: 0 }));
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store }));
     await screen.findByTestId('deck-editor');
     expect(screen.getByTestId('main-count').textContent).toBe('1');
   });
 
+  it('is a fitted screen with no title block or footer of its own', async () => {
+    const { store } = stubStore({ pool: POOL, deck: null });
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store }));
+    await screen.findByTestId('deck-editor');
+    const shell = screen.getByTestId('deck');
+    expect(shell.classList.contains('shell--fit')).toBe(true);
+    expect(shell.querySelector('header, footer, h1')).toBeNull();
+  });
+
   it('Play saves the build as it stands, says I am done, and goes to the room — no room to make', async () => {
-    const { calls, store } = stubStore({ pool: POOL, deck: null });
-    const api = stubApi({ check: () => legal });
+    const built = savedWith(POOL, 23, { Plains: 17 });
+    const { calls, store } = stubStore({ pool: POOL, deck: built });
     const posted: string[] = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
       posted.push(String(input));
       return Promise.resolve(new Response('{}', { status: 200 }));
     });
-    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client, checkDelayMs: 0 }));
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: stubApi({ check: () => legal }).client, checkDelayMs: 0 }));
     await screen.findByTestId('deck-editor');
     await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('play-deck'));
     await vi.waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: DRAFT_ID }));
-    expect(calls).toEqual([{ podId: DRAFT_ID, dck: dckTextOf(deckFromPool(DRAFT_ID, POOL)) }]);
+    expect(calls).toHaveLength(1);
+    expect(mainDeckSizeOf(calls[0]!.dck)).toBe(40);
     expect(posted.filter((u) => u.endsWith(`/rooms/${DRAFT_ID}/pod/play`))).toHaveLength(1);
   });
 
   it('Play stays on the build and says why when the pod refuses it', async () => {
-    const { store } = stubStore({ pool: POOL, deck: null });
-    const api = stubApi({ check: () => legal });
+    const { store } = stubStore({ pool: POOL, deck: savedWith(POOL, 23, { Plains: 17 }) });
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'your deck is not saved and legal yet' }), { status: 409 }));
-    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client, checkDelayMs: 0 }));
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: stubApi({ check: () => legal }).client, checkDelayMs: 0 }));
     await screen.findByTestId('deck-editor');
     await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('play-deck'));

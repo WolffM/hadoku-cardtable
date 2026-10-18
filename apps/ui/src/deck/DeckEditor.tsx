@@ -1,77 +1,54 @@
 /*
- * Build a deck out of a finished pool. Two shapes on one component.
+ * Build a deck out of a finished pool — the one deck editor, for a drafted
+ * build (`limited`) and for the sideboard step between games (`sideboard`).
  *
- * ## `limited` — what this screen's old limited-only builder used to be, wired
- * to C's store instead of a library opponent
+ * ## The layout (the operator's pick, 2026-10-17: "A · Arena-style")
  *
- * `deckFromPool` opens the builder the way Forge's limited editor does — the
- * whole pool in the sideboard, nothing played — and `moveToMain` /
- * `moveToSideboard` only ever move a card between the two piles, so a card you
- * did not draft has no way in. Basic lands are `setBasicLand`: they come from
- * the table, and they are part of the maindeck count `mainDeckSize` reports
- * against `LIMITED_MIN_MAIN_DECK_SIZE` (40, Forge's `DeckFormat.Limited` floor).
- * This component holds a `Deck` and calls those functions; it has no rules of
- * its own.
+ * The pool is a grid across the top, filterable by colour, type and mana
+ * value and sortable. The deck is piles by mana value along the bottom, lands
+ * last, with a bar of counts and colours over it and a strip at its right for
+ * the curve and the basics. The whole editor fits its box; the pool and the
+ * piles scroll inside it, the page never does.
  *
- * The old builder's Start button played Forge's AI with a library deck in the
- * other seat. That is gone: `onPlay` is the only way out now, and `DeckScreen`
- * wires it to the pod — save this build, say I am done, go to my table.
+ * A card moves by a click, or by dragging it onto the other area. The move is
+ * always `moveToMain`/`moveToSideboard` (or `setBasicLand` for a basic), which
+ * only ever shuffle the SAME pool between two piles — so "you may only play
+ * what you drafted" and "you may only sideboard what was in your 75" both hold
+ * by construction, with no rule of this component's own.
  *
- * The server says whether the build is legal, over the same
- * `POST /api/tables/check` the old builder used, debounced as you move cards.
- * Its answer is never shown as text while you build: an unfinished deck is not
- * a fault. It is the count, `24/40`, drawn incomplete or complete, and the
- * Play button, which stays disabled until the server's own verdict is legal.
- * The room's gate still refuses an illegal deck at ready and at start whatever
- * this screen shows.
+ * ## An unfinished deck is not an error
  *
- * Every move also schedules a debounced `PUT /api/drafts/:podId/deck`
- * (`onSave`) — `DeckScreen` supplies it over `deck/deckStore.ts`. A save stores
- * any build of the pool, finished or not, so a reload (or the room screen's
- * own picker, over the same `.dck` text) finds the build you left. The save's
- * progress is the root's `data-save` state; only a save that failed (the
- * network, or a card the pool does not hold) shows a line, quietly.
+ * The deck's size is a meter, `n/floor`. At the floor the meter becomes the
+ * way onward: Play for a build, Ready for a sideboard step. A build's Play
+ * stays disabled until the server calls it legal (`POST /api/tables/check`,
+ * asked once the deck reaches its floor and again as it changes, debounced);
+ * the verdict itself is never text on screen. The room's gate still refuses
+ * an illegal deck at ready and start, and that refusal is the caller's to
+ * show. Saving is silent: the root carries `data-save` for anything that needs
+ * to know, and only a real failure — a save that failed, a check that could
+ * not be asked — shows, as one quiet `deck-fault` line.
  *
- * ## `sideboard` — wave 72's shape, built and unit-tested here, mounted there
+ * ## Basics
  *
- * A bo3 sideboard step swaps between an already-legal 75 (main plus side) and
- * nothing else: there is no 40-card floor to reach and no fresh pool to open
- * from, so `onPlay` and the server check are both absent. The structural
- * invariant that makes "you may only play what you drafted" true for `limited`
- * — `moveToMain`/`moveToSideboard` only ever shuffle the SAME pool between two
- * piles — is exactly what also makes "you may only sideboard what was in your
- * 75" true here, with no extra code: the legality panel is
- * `deckProblems(deck, pool)`, run against the fixed 75 rather than against a
- * server, and it names a card the SAME way the draft arm does when a saved
- * `.dck` was hand-edited to add one.
+ * `allowBasics` (a drafted pool, in either mode) gives the per-colour
+ * counters and Auto (`build.ts`'s `suggestBasics`, Forge's own suggestion).
+ * A constructed 75 has no counters: its basics are ordinary cards of the 75.
+ * Either way the lands pile draws one card per land with a ×N badge, so
+ * seventeen basics never make a seventeen-card pile.
  *
- * `allowBasics` is separate from the mode: a sideboard step on a drafted pool
- * still has basics to move around (the pool itself does not carry them), a
- * sideboard step on a constructed 75 does not.
+ * ## The shared inspector
  *
- * ## One grid, `CardTile` faces, the shared inspector
- *
- * Both piles are drawn with the board's own `CardTile` — no text rows, no
- * second card renderer — and this mounts `play/inspect/index.ts`'s inspector
- * over its own root exactly as `DeckPeek.tsx` does, with its own
- * `[data-board-zoom]` layer. The inspector matches a tile by its OWN
- * `data-card-id` against `w<digits>` (`play/inspect/index.ts`'s `TILE_ID`) —
- * the convention the BOARD uses for a live Forge card id, never this screen's.
- * A drafted card's real id (`c0`, `c1`, …) does not match it, and nothing here
- * may edit `play/inspect/*` to teach it a second vocabulary (this wave's
- * ground rule), so the faces handed to `CardTile` below carry a synthetic
- * `w<n>` id of this grid's own numbering — display-only, never the id a pick or
- * a save keys on; `moveToMain`/`moveToSideboard` always take the entry's own
- * `CardRequest`, not this id.
- *
- * The maindeck is grouped by mana value with a curve count, the way
- * `components/PoolView.tsx` already groups a seat's pool; the sideboard/pool is
- * a flat grid filterable by colour. Clicking a tile moves it to the other pile,
- * one copy at a time — the gesture the old builder's text rows used, carried
- * over to a tile's click.
+ * Every tile is the board's `CardTile`, and this mounts
+ * `play/inspect/index.ts`'s inspector over its own root, with its own
+ * `[data-board-zoom]` layer, as `DeckPeek.tsx` does. The inspector finds a
+ * tile by `data-card-id` matching `w<digits>` (the board's convention), so the
+ * faces handed to `CardTile` carry a synthetic `w<n>` id from ONE counter
+ * across both areas — two tiles sharing an id would let a hover open the
+ * wrong card. It is display-only; a move always keys on the entry's own
+ * `CardRequest`.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 
 import { parseDck, type CardRequest, type DeckEntry } from '@hadoku/carddata/dck';
 import {
@@ -80,7 +57,7 @@ import {
   basicLand,
   cardKey,
   deckFromDeckFile,
-  deckProblems,
+  isBasicLand,
   mainDeckSize,
   moveToMain,
   moveToSideboard,
@@ -90,18 +67,20 @@ import {
 } from '@hadoku/deck';
 
 import { CardTile } from '../components/CardTile.tsx';
-import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
+import { mainDeckColors } from '../components/DeckView.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
-import { cardRequestOf, deckFromPool, dckTextOf, poolEntries } from '../draft/deckFromPool.ts';
+import { cardRequestOf, deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
 import type { DraftCard, ManaColor } from '../draft/types.ts';
-import { draftedSeat, mainSummary, cardIndex, splitBasics } from './build.ts';
+import { cardIndex, draftedSeat, mainSummary, namedCardPool, splitBasics, suggestBasics } from './build.ts';
 import type { TablesClient, Verdict } from '../screens/tables.ts';
 import './deckEditor.css';
 
 export type DeckEditorMode = 'limited' | 'sideboard';
 
 export type SaveOutcome = { ok: true } | { ok: false; issues: string[] };
+
+export type ReadyState = 'idle' | 'busy' | 'ready';
 
 export interface DeckEditorProps {
   mode: DeckEditorMode;
@@ -110,49 +89,50 @@ export interface DeckEditorProps {
   pool: readonly DraftCard[];
   /** The caller's last saved build. Undefined or null opens fresh from `pool`. */
   savedDeck?: string | null;
-  /** `limited`'s live legality check against `pool`. Unused in `sideboard`. */
+  /** `limited`'s server check, which enables Play. Absent: Play is never enabled. */
   client?: TablesClient;
   checkDelayMs?: number;
-  /** Debounced save through C's contract. Absent saves nothing (every `sideboard` use this wave). */
+  /** Silent autosave, debounced. Absent saves nothing. */
   onSave?: (dck: string) => Promise<SaveOutcome>;
   saveDelayMs?: number;
-  /** "Play", with the build as it stands — not the debounced save, which may still be pending. `limited` only, enabled once the server calls the build legal. */
+  /** `limited`'s way onward, offered at the floor: Play with the build as it stands, not the debounced save, which may still be pending. */
   onPlay?: (dck: string) => void;
-  /** The basics widget. Defaults to `mode === 'limited'`; a sideboard step on a drafted pool sets it true. */
+  /** `sideboard`'s way onward: submit THIS split. Offered once the deck reaches its floor. */
+  onReady?: (deck: Deck) => void;
+  readyState?: ReadyState;
+  /** The basics counters and Auto. Defaults to `mode === 'limited'`; a sideboard step on a drafted pool sets it. */
   allowBasics?: boolean;
-  /**
-   * The current split, un-debounced — on mount and on every move. Wave 72
-   * §Q's sideboard step reads this to submit on its own explicit Ready press,
-   * which `onSave`'s debounce (built for autosave, not a one-shot submit)
-   * would otherwise race: a Ready pressed inside `saveDelayMs` of the last
-   * move could submit the move BEFORE it, or never see it at all if nothing
-   * was ever touched (`onSave` skips the first render on purpose).
-   */
-  onDeckChange?: (deck: Deck) => void;
+  /** The main deck's floor: 40 for a drafted pool, the format's for a constructed 75. */
+  minMain?: number;
 }
-
-/** Which pip a basic land shows. Never WotC's mana symbol. */
-const BASIC_PIP: Record<string, string> = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
 
 const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
+const BASIC_OF: Record<ManaColor, string> = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
+const PIP_OF: Record<string, ManaColor> = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
 
-/** A card whose printing has no copy in `pool` — a stale save, or a basic. Enough to draw, never to pick from. */
+/** A basic land's face: the library art, a land's type line, and no colour of its own. */
+const BASIC_FACES: ReadonlyMap<string, DraftCard> = new Map(
+  namedCardPool(BASIC_LAND_NAMES).map((f) => [f.name, { ...f, typeLine: `Basic Land — ${f.name}`, colors: [], manaValue: 0 }]),
+);
+
+/** A card with no copy of its name in `pool` — a stale save. Enough to draw, never to pick from. */
 function fallbackFace(card: CardRequest): DraftCard {
-  return {
-    cardId: 'fallback',
-    name: card.name,
-    manaCost: [],
-    manaValue: 0,
-    colors: [],
-    typeLine: '',
-    oracleText: '',
-    setCode: card.set ?? '',
-    collectorNumber: card.collectorNumber ?? '',
-    rarity: 'common',
-  };
+  return (
+    BASIC_FACES.get(card.name) ?? {
+      cardId: 'fallback',
+      name: card.name,
+      manaCost: [],
+      manaValue: 0,
+      colors: [],
+      typeLine: '',
+      oracleText: '',
+      setCode: card.set ?? '',
+      collectorNumber: card.collectorNumber ?? '',
+      rarity: 'common',
+    }
+  );
 }
 
-/** Every pool card, by the printing a deck entry names — one bucket per printing, in pick order. */
 function facesByKey(pool: readonly DraftCard[]): Map<string, DraftCard[]> {
   const index = new Map<string, DraftCard[]>();
   for (const card of pool) {
@@ -164,28 +144,84 @@ function facesByKey(pool: readonly DraftCard[]): Map<string, DraftCard[]> {
   return index;
 }
 
-/** One entry, expanded to one tile per copy. */
+/** One copy of one entry, as drawn. */
 interface Tile {
+  /** `cardKey` of the entry — what a move and a drag carry. */
   key: string;
+  copy: number;
   face: DraftCard;
   request: CardRequest;
+  /** From `deck.basics` (a counter), not from the pool. */
+  basic: boolean;
 }
 
-function byManaValue(tiles: readonly Tile[]): Array<[number, Tile[]]> {
-  const buckets = new Map<number, Tile[]>();
-  for (const tile of tiles) {
-    const mv = tile.face.manaValue;
-    const bucket = buckets.get(mv);
-    if (bucket) bucket.push(tile);
-    else buckets.set(mv, [tile]);
+const isLandFace = (card: DraftCard): boolean => /\bLand\b/.test(card.typeLine);
+const isCreatureFace = (card: DraftCard): boolean => /\bCreature\b/.test(card.typeLine);
+
+type ColorGroup = ManaColor | 'M' | 'C' | 'L';
+const GROUP_RANK: readonly ColorGroup[] = ['W', 'U', 'B', 'R', 'G', 'M', 'C', 'L'];
+function colorGroupOf(card: DraftCard): ColorGroup {
+  if (isLandFace(card)) return 'L';
+  if (card.colors.length === 0) return 'C';
+  if (card.colors.length > 1) return 'M';
+  return card.colors[0]!;
+}
+const colorRank = (card: DraftCard): number => GROUP_RANK.indexOf(colorGroupOf(card));
+const typeRank = (card: DraftCard): number => (isCreatureFace(card) ? 0 : isLandFace(card) ? 2 : 1);
+
+export type SortKey = 'mv' | 'color' | 'type';
+type TypeFilter = 'creature' | 'spell' | 'land';
+interface PoolFilter {
+  colors: ReadonlySet<ManaColor | 'C'>;
+  type: TypeFilter | null;
+  mv: number | null;
+}
+
+/** The highest pile; higher mana values join it. */
+const MV_CAP = 6;
+
+function matchesFilter(card: DraftCard, f: PoolFilter): boolean {
+  if (f.colors.size > 0) {
+    if (card.colors.length === 0 ? !f.colors.has('C') : !card.colors.some((c) => f.colors.has(c))) return false;
   }
-  return [...buckets.entries()].sort((a, b) => a[0] - b[0]);
+  if (f.type === 'creature' && !isCreatureFace(card)) return false;
+  if (f.type === 'spell' && (isCreatureFace(card) || isLandFace(card))) return false;
+  if (f.type === 'land' && !isLandFace(card)) return false;
+  if (f.mv !== null && Math.min(MV_CAP, card.manaValue) !== f.mv) return false;
+  return true;
 }
 
-function matchesFilter(tile: Tile, active: ReadonlySet<ManaColor | 'C'>): boolean {
-  if (active.size === 0) return true;
-  if (tile.face.colors.length === 0) return active.has('C');
-  return tile.face.colors.some((c) => active.has(c));
+function sortTiles(tiles: readonly Tile[], key: SortKey): Tile[] {
+  const byName = (a: Tile, b: Tile): number => a.face.name.localeCompare(b.face.name);
+  const mv = (a: Tile, b: Tile): number => a.face.manaValue - b.face.manaValue;
+  const col = (a: Tile, b: Tile): number => colorRank(a.face) - colorRank(b.face);
+  const ty = (a: Tile, b: Tile): number => typeRank(a.face) - typeRank(b.face);
+  const order = key === 'mv' ? [mv, col, byName] : key === 'color' ? [col, mv, byName] : [ty, mv, col, byName];
+  return [...tiles].sort((a, b) => {
+    for (const f of order) {
+      const r = f(a, b);
+      if (r !== 0) return r;
+    }
+    return 0;
+  });
+}
+
+/** Drag payloads name the area a card left, so a drop target can accept only the other one's. */
+const DRAG_FROM_POOL = 'application/x-cardtable-from-pool';
+const DRAG_FROM_DECK = 'application/x-cardtable-from-deck';
+type Area = 'pool' | 'deck';
+const dragType = (from: Area): string => (from === 'pool' ? DRAG_FROM_POOL : DRAG_FROM_DECK);
+
+function openDeck(savedDeck: string | null | undefined, draftId: string, pool: readonly DraftCard[], allowBasics: boolean): Deck {
+  if (typeof savedDeck === 'string') {
+    try {
+      const deck = deckFromDeckFile(parseDck(savedDeck));
+      return allowBasics ? splitBasics(deck) : deck;
+    } catch {
+      // A corrupt save opens a fresh build rather than crashing the editor.
+    }
+  }
+  return deckFromPool(draftId, pool);
 }
 
 export function DeckEditor({
@@ -198,112 +234,150 @@ export function DeckEditor({
   onSave,
   saveDelayMs = 600,
   onPlay,
+  onReady,
+  readyState = 'idle',
   allowBasics = mode === 'limited',
-  onDeckChange,
+  minMain = LIMITED_MIN_MAIN_DECK_SIZE,
 }: DeckEditorProps) {
-  const [deck, setDeck] = useState<Deck>(() => {
-    if (typeof savedDeck === 'string') {
-      try {
-        return splitBasics(deckFromDeckFile(parseDck(savedDeck)));
-      } catch {
-        // A corrupt save opens a fresh build rather than crashing the editor.
-      }
-    }
-    return deckFromPool(draftId, pool);
-  });
+  const [deck, setDeck] = useState<Deck>(() => openDeck(savedDeck, draftId, pool, allowBasics));
+  /** The card that last moved, and where to — its tiles there flash once. */
+  const [landed, setLanded] = useState<{ key: string; to: Area; n: number } | null>(null);
 
-  const index = useMemo(() => facesByKey(pool), [pool]);
-  const poolRef = useMemo(() => poolEntries(pool), [pool]);
+  const faces = useMemo(() => facesByKey(pool), [pool]);
+  // A deck line naming a printing the pool does not (a library 75's faces are
+  // by name alone) still draws that card's face, by its name.
+  const facesByName = useMemo(() => {
+    const byName = new Map<string, DraftCard>();
+    for (const card of pool) if (!byName.has(card.name)) byName.set(card.name, card);
+    return byName;
+  }, [pool]);
   const poolIndex = useMemo(() => cardIndex(pool), [pool]);
 
-  // ONE counter for both piles — not one per pile — because both are on
-  // screen together and `play/inspect/index.ts` finds a tile by
-  // `document.querySelector('[data-card-id="w<n>"]')` (`inspectedCardFrom`):
-  // the first element in DOM order with that id wins. Two tiles sharing an id
-  // — main's first card and side's first card both minted as `w0` — would
-  // have hovering the SIDE tile open the MAIN tile's enlargement instead,
-  // silently, since the query has no way to tell the caller it matched the
-  // wrong one. `n` is declared once, outside `build`, and `build(deck.main)`
-  // runs to completion (consuming its whole range of `n`) before
-  // `build(deck.sideboard)` starts — JS evaluates object-literal properties
-  // left to right — so the two piles' ids never overlap.
-  const { main: mainTiles, side: sideTiles } = useMemo(() => {
+  // ONE counter across both areas — see the header.
+  const { mainTiles, sideTiles } = useMemo(() => {
     let n = 0;
-    const build = (entries: readonly DeckEntry[]): Tile[] => {
+    const build = (entries: readonly DeckEntry[], basic: boolean): Tile[] => {
       const out: Tile[] = [];
       for (const entry of entries) {
         const key = cardKey(entry.card);
-        const faces = index.get(key) ?? [];
+        const known = faces.get(key) ?? [];
         for (let i = 0; i < entry.count; i += 1) {
-          const base = faces.length > 0 ? faces[i % faces.length]! : fallbackFace(entry.card);
-          out.push({ key: `${key}#${i}`, face: { ...base, cardId: `w${n++}` }, request: entry.card });
+          const base = known.length > 0 ? known[i % known.length]! : (facesByName.get(entry.card.name) ?? fallbackFace(entry.card));
+          out.push({ key, copy: i, face: { ...base, cardId: `w${n++}` }, request: entry.card, basic });
         }
       }
       return out;
     };
-    return { main: build(deck.main), side: build(deck.sideboard) };
-  }, [deck.main, deck.sideboard, index]);
+    const main = build(deck.main, false);
+    const basics = build(deck.basics, true);
+    return { mainTiles: [...main, ...basics], sideTiles: build(deck.sideboard, false) };
+  }, [deck, faces, facesByName]);
 
-  const [activeColors, setActiveColors] = useState<ReadonlySet<ManaColor | 'C'>>(new Set());
-  const toggleColor = (c: ManaColor | 'C'): void => {
-    const next = new Set(activeColors);
-    if (next.has(c)) next.delete(c);
-    else next.add(c);
-    setActiveColors(next);
+  /* ── moves ── */
+  const toMain = (tile: Tile): void => {
+    setDeck((d) => moveToMain(d, tile.request));
+    setLanded((l) => ({ key: tile.key, to: 'deck', n: (l?.n ?? 0) + 1 }));
   };
+  const toSide = (tile: Tile): void => {
+    if (tile.basic) {
+      const left = (deck.basics.find((e) => cardKey(e.card) === tile.key)?.count ?? 1) - 1;
+      setDeck((d) => setBasicLand(d, tile.request, Math.max(0, left)));
+      return;
+    }
+    setDeck((d) => moveToSideboard(d, tile.request));
+    setLanded((l) => ({ key: tile.key, to: 'pool', n: (l?.n ?? 0) + 1 }));
+  };
+  const dropOnto = (to: Area, key: string): void => {
+    const tile = (to === 'deck' ? sideTiles : mainTiles).find((t) => t.key === key);
+    if (tile === undefined) return;
+    if (to === 'deck') toMain(tile);
+    else toSide(tile);
+  };
+  const setBasic = (c: ManaColor, count: number): void => setDeck((d) => setBasicLand(d, basicLand(BASIC_OF[c]), Math.max(0, count)));
+  const autoBasics = (): void =>
+    setDeck((d) => {
+      const want = suggestBasics(d, poolIndex);
+      let next = d;
+      for (const c of COLORS) next = setBasicLand(next, basicLand(BASIC_OF[c]), want[c]);
+      return next;
+    });
 
-  /* ── the inspector, mounted over this editor's own root (`DeckPeek.tsx`'s pattern) ── */
+  /* ── the pool's filter and sort ── */
+  const [filter, setFilter] = useState<PoolFilter>({ colors: new Set(), type: null, mv: null });
+  const [sort, setSort] = useState<SortKey>('mv');
+  const toggleColor = (c: ManaColor | 'C'): void =>
+    setFilter((f) => {
+      const colors = new Set(f.colors);
+      if (colors.has(c)) colors.delete(c);
+      else colors.add(c);
+      return { ...f, colors };
+    });
+  const shownPool = useMemo(() => sortTiles(sideTiles.filter((t) => matchesFilter(t.face, filter)), sort), [sideTiles, filter, sort]);
+
+  /* ── the deck's piles ── */
+  const { piles, lands } = useMemo(() => {
+    const byMv: Tile[][] = Array.from({ length: MV_CAP + 1 }, () => []);
+    const landTiles: Tile[] = [];
+    for (const t of mainTiles) {
+      if (t.basic || isBasicLand(t.request) || isLandFace(t.face)) landTiles.push(t);
+      else byMv[Math.min(MV_CAP, t.face.manaValue)]!.push(t);
+    }
+    for (const pile of byMv) pile.sort((a, b) => colorRank(a.face) - colorRank(b.face) || a.face.name.localeCompare(b.face.name));
+    return { piles: byMv, lands: landTiles };
+  }, [mainTiles]);
+
+  /* ── the inspector, over this editor's own root (`DeckPeek.tsx`'s pattern) ── */
   const host = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = host.current;
     return el === null ? undefined : mountInspector(el);
   }, []);
 
-  /* ── limited: the server's verdict, asked once the deck stops moving ── */
+  const count = mainDeckSize(deck);
+  const complete = count >= minMain;
+
+  /* ── limited: the server's verdict, asked once the deck is at its floor and has stopped moving ── */
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [checkError, setCheckError] = useState<string | null>(null);
   useEffect(() => {
-    if (mode !== 'limited' || client === undefined) return;
-    let live = true;
     setVerdict(null);
     setCheckError(null);
+    if (mode !== 'limited' || client === undefined || !complete) return;
+    let live = true;
     const timer = setTimeout(() => {
-      client
-        .check(draftedSeat(draftId, deck))
-        .then((v) => {
+      client.check(draftedSeat(draftId, deck)).then(
+        (v) => {
           if (live) setVerdict(v);
-        })
-        .catch((err: unknown) => {
+        },
+        (err: unknown) => {
           if (live) setCheckError(err instanceof Error ? err.message : String(err));
-        });
+        },
+      );
     }, checkDelayMs);
     return () => {
       live = false;
       clearTimeout(timer);
     };
-  }, [mode, client, deck, draftId, checkDelayMs]);
+  }, [mode, client, deck, draftId, checkDelayMs, complete]);
 
-  /* ── sideboard: the same question, answered locally against the fixed pool ── */
-  const sideboardProblems = useMemo(() => (mode === 'sideboard' ? deckProblems(deck, poolRef) : []), [mode, deck, poolRef]);
-
-  /* ── the debounced save, through C's contract ── */
+  /* ── silent autosave: only a build that differs from the last one saved ── */
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveIssues, setSaveIssues] = useState<string[]>([]);
-  const skipNextSave = useRef(true);
+  const lastSaved = useRef<string>(dckTextOf(deck));
   useEffect(() => {
     if (onSave === undefined) return;
-    if (skipNextSave.current) {
-      // Not on mount: that would PUT back exactly what was just loaded (the
-      // saved build, or a fresh one nobody has touched yet).
-      skipNextSave.current = false;
+    const text = dckTextOf(deck);
+    if (text === lastSaved.current) {
+      setSaveState((s) => (s === 'saving' ? 'saved' : s));
       return;
     }
     let live = true;
     setSaveState('saving');
     const timer = setTimeout(() => {
-      onSave(dckTextOf(deck)).then((outcome) => {
+      onSave(text).then((outcome) => {
         if (!live) return;
         if (outcome.ok) {
+          lastSaved.current = text;
           setSaveState('saved');
           setSaveIssues([]);
         } else {
@@ -318,197 +392,352 @@ export function DeckEditor({
     };
   }, [deck, onSave, saveDelayMs]);
 
-  const change = (next: Deck): void => setDeck(next);
-
-  // `onDeckChange` is deliberately not a dependency: it is a per-render
-  // closure, and the caller's own effect is keyed on the DECK it receives,
-  // not on being called a particular number of times.
-  useEffect(() => {
-    onDeckChange?.(deck);
-  }, [deck]);
-
-  // A save that failed, or a check that could not be asked. Never a verdict:
-  // what the server thinks of the deck is the count and the Play button.
-  const fault = saveState === 'error' ? saveIssues.join(', ') : checkError;
-
-  const main = mainDeckSize(deck);
-  const complete = main >= LIMITED_MIN_MAIN_DECK_SIZE;
   const summary = mainSummary(deck, poolIndex);
   const colors = mainDeckColors(deck, poolIndex);
-  const basics = deck.basics.reduce((n, e) => n + e.count, 0);
+  const curve = Array.from({ length: MV_CAP + 1 }, (_, mv) => piles[mv]!.length);
+  const basics: Record<ManaColor, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  for (const e of deck.basics) {
+    const c = PIP_OF[e.card.name];
+    if (c !== undefined) basics[c] += e.count;
+  }
+  // A save that failed, or a check that could not be asked. Never a verdict.
+  const fault = saveState === 'error' ? saveIssues.join(', ') : checkError;
+  const flash = (t: Tile, area: Area): boolean => landed !== null && landed.to === area && landed.key === t.key;
 
   return (
     <div className="deck-editor" data-testid="deck-editor" data-mode={mode} data-save={saveState} ref={host}>
-      <section className="deck-editor__bar lobby__card">
-        <div className="deck-editor__counts">
-          {mode === 'limited' ? (
-            <>
-              <span
-                className={`deck-editor__n ${complete ? 'deck-editor__n--complete' : 'deck-editor__n--short'}`}
-                data-complete={complete}
-              >
-                <span data-testid="main-count">{main}</span>/{LIMITED_MIN_MAIN_DECK_SIZE}
-              </span>
-              <span className="deck-editor__of">
-                maindeck — {main - basics} drafted, {basics} basic
-              </span>
-              <span className="deck-editor__n deck-editor__n--quiet" data-testid="side-count">
-                {sideboardSize(deck)}
-              </span>
-              <span className="deck-editor__of">left in the sideboard</span>
-            </>
-          ) : (
-            <>
-              <span className="deck-editor__n" data-testid="main-count">
-                {deck.main.reduce((n, e) => n + e.count, 0)}
-              </span>
-              <span className="deck-editor__of">in the main</span>
-              <span className="deck-editor__n deck-editor__n--quiet" data-testid="side-count">
-                {deck.sideboard.reduce((n, e) => n + e.count, 0)}
-              </span>
-              <span className="deck-editor__of">in the side, {pool.length} total</span>
-            </>
-          )}
-          <DeckColors colors={colors} label={`maindeck colours: ${colors.join(' ') || 'colourless'}`} />
-        </div>
-        {mode === 'limited' && (
-          <p className="lobby__note" data-testid="main-summary">
-            {summary.creatures} creatures · {summary.spells} other spells · {summary.lands} lands. Coloured pips:{' '}
-            {(['W', 'U', 'B', 'R', 'G'] as const)
-              .filter((c) => summary.pips[c] > 0)
-              .map((c) => `${summary.pips[c]} ${c}`)
-              .join(', ') || 'none'}
-            .
-          </p>
-        )}
-
-        {allowBasics && (
-          <div className="deck-editor__basics" data-testid="basics">
-            <h2 className="deck-editor__h2">Basic lands</h2>
-            {BASIC_LAND_NAMES.map((name) => {
-              const request = basicLand(name);
-              const key = cardKey(request);
-              const count = deck.basics.find((e) => cardKey(e.card) === key)?.count ?? 0;
-              return (
-                <span key={name} className="deck-editor__basic" data-testid={`basic-${name}`}>
-                  <ManaPip token={BASIC_PIP[name] ?? 'C'} />
-                  <span className="deck-editor__basic-name">{name}</span>
-                  <button
-                    type="button"
-                    aria-label={`one fewer ${name}`}
-                    data-testid={`basic-${name}-less`}
-                    disabled={count === 0}
-                    onClick={() => change(setBasicLand(deck, request, Math.max(0, count - 1)))}
-                  >
-                    −
-                  </button>
-                  <span className="deck-editor__basic-n" data-testid={`basic-${name}-count`}>
-                    {count}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`one more ${name}`}
-                    data-testid={`basic-${name}-more`}
-                    onClick={() => change(setBasicLand(deck, request, count + 1))}
-                  >
-                    +
-                  </button>
-                </span>
-              );
-            })}
+      <DropArea accept="deck" onDropKey={(k) => dropOnto('pool', k)} className="deck-editor__pool" testid="pool-area">
+        <div className="deck-editor__bar">
+          <span className="deck-editor__n" data-testid="side-count" title="pool">
+            {sideboardSize(deck)}
+          </span>
+          <div className="deck-editor__chips" role="group" aria-label="colour">
+            {[...COLORS, 'C' as const].map((c) => (
+              <button key={c} type="button" className="deck-editor__chip" data-testid={`filter-${c}`} aria-pressed={filter.colors.has(c)} onClick={() => toggleColor(c)}>
+                <ManaPip token={c} />
+              </button>
+            ))}
           </div>
-        )}
+          <div className="deck-editor__chips" role="group" aria-label="type">
+            {(
+              [
+                ['creature', 'ms-creature', 'creatures'],
+                ['spell', 'ms-instant', 'other spells'],
+                ['land', 'ms-land', 'lands'],
+              ] as const
+            ).map(([t, icon, label]) => (
+              <button
+                key={t}
+                type="button"
+                className="deck-editor__chip"
+                data-testid={`type-${t}`}
+                aria-pressed={filter.type === t}
+                title={label}
+                aria-label={label}
+                onClick={() => setFilter((f) => ({ ...f, type: f.type === t ? null : t }))}
+              >
+                <i className={`ms ${icon}`} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+          <div className="deck-editor__chips" role="group" aria-label="mana value">
+            {curve.map((_, mv) => (
+              <button
+                key={mv}
+                type="button"
+                className="deck-editor__chip deck-editor__chip--num"
+                data-testid={`mv-${mv}`}
+                aria-pressed={filter.mv === mv}
+                onClick={() => setFilter((f) => ({ ...f, mv: f.mv === mv ? null : mv }))}
+              >
+                {mv === MV_CAP ? `${mv}+` : mv}
+              </button>
+            ))}
+          </div>
+          <span className="deck-editor__spacer" />
+          <div className="deck-editor__chips deck-editor__chips--seg" role="group" aria-label="sort">
+            {(
+              [
+                ['mv', <span key="mv" className="deck-editor__sortglyph">0–{MV_CAP}</span>, 'by mana value'],
+                ['color', <ManaPip key="c" token="W/U" />, 'by colour'],
+                ['type', <i key="t" className="ms ms-creature" aria-hidden="true" />, 'by type'],
+              ] as Array<[SortKey, ReactNode, string]>
+            ).map(([k, glyph, label]) => (
+              <button key={k} type="button" className="deck-editor__chip" data-testid={`sort-${k}`} aria-pressed={sort === k} title={label} aria-label={label} onClick={() => setSort(k)}>
+                {glyph}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="deck-editor__grid" data-testid="side-grid">
+          {shownPool.map((t) => (
+            <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="pool" onMove={toMain} flash={flash(t, 'pool') ? landed!.n : 0} />
+          ))}
+        </div>
+      </DropArea>
 
-        {mode === 'sideboard' && <SideboardVerdict problems={sideboardProblems} />}
-        {fault !== null && (
-          <p className="deck-editor__fault" data-testid="deck-fault">
-            {fault}
-          </p>
-        )}
-      </section>
-
-      <div className="deck-editor__piles">
-        <section className="deck-editor__pile">
-          <h2 className="deck-editor__h2">
-            {mode === 'limited' ? 'Maindeck' : 'Main'} <span className="deck-editor__pile-n">{mainTiles.length}</span>
-          </h2>
-          <div className="deck-editor__curve" data-testid="main-grid">
-            {byManaValue(mainTiles).map(([mv, bucket]) => (
-              <div key={mv} className="deck-editor__bucket" data-testid="curve-bucket" data-mv={mv}>
-                <h3 className="deck-editor__bucket-title">
-                  {mv} <span className="deck-editor__bucket-n">({bucket.length})</span>
-                </h3>
-                <div className="deck-editor__bucket-cards">
-                  {bucket.map((tile) => (
-                    <CardTile key={tile.key} card={tile.face} onPick={() => change(moveToSideboard(deck, tile.request))} />
+      <DropArea accept="pool" onDropKey={(k) => dropOnto('deck', k)} className="deck-editor__deck" testid="deck-area">
+        <div className="deck-editor__bar">
+          <span className="deck-editor__types">
+            <span title="creatures" data-testid="count-creatures">
+              <i className="ms ms-creature" aria-hidden="true" /> {summary.creatures}
+            </span>
+            <span title="other spells" data-testid="count-spells">
+              <i className="ms ms-instant" aria-hidden="true" /> {summary.spells}
+            </span>
+            <span title="lands" data-testid="count-lands">
+              <i className="ms ms-land" aria-hidden="true" /> {summary.lands}
+            </span>
+          </span>
+          <ColourBar colors={colors} pips={summary.pips} />
+          <span className="deck-editor__spacer" />
+          {fault !== null && (
+            <p className="deck-editor__fault" data-testid="deck-fault">
+              {fault}
+            </p>
+          )}
+          <Onward
+            count={count}
+            min={minMain}
+            mode={mode}
+            readyState={readyState}
+            verdict={verdict === null ? 'pending' : verdict.legal ? 'legal' : 'illegal'}
+            onAct={() => {
+              if (mode === 'limited') onPlay?.(dckTextOf(deck));
+              else onReady?.(deck);
+            }}
+          />
+        </div>
+        <div className="deck-editor__body">
+          <div className="deck-editor__piles" data-testid="main-grid">
+            {piles.map((pile, mv) => (
+              <div key={mv} className="deck-editor__pile" data-testid="curve-bucket" data-mv={mv} data-empty={pile.length === 0 ? '' : undefined}>
+                <PileHead label={mv === MV_CAP ? `${mv}+` : String(mv)} n={pile.length} />
+                <div className="deck-editor__stack">
+                  {pile.map((t) => (
+                    <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="deck" onMove={toSide} flash={flash(t, 'deck') ? landed!.n : 0} />
                   ))}
                 </div>
               </div>
             ))}
+            <div className="deck-editor__pile" data-testid="land-pile" data-empty={lands.length === 0 ? '' : undefined}>
+              <PileHead label={<i className="ms ms-land" aria-label="lands" />} n={lands.length} />
+              <div className="deck-editor__stack">
+                {groupLands(lands).map(({ tile, n }) => (
+                  <div key={`${tile.key}#${tile.basic ? 'b' : 'm'}`} className="deck-editor__landcard">
+                    <EditorCard tile={tile} from="deck" onMove={toSide} flash={flash(tile, 'deck') ? landed!.n : 0} />
+                    {n > 1 && (
+                      <span className="deck-editor__badge" data-testid="land-count">
+                        ×{n}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </section>
-
-        <section className="deck-editor__pile">
-          <h2 className="deck-editor__h2">
-            {mode === 'limited' ? 'Sideboard — your drafted pool' : 'Side'}{' '}
-            <span className="deck-editor__pile-n">{sideTiles.length}</span>
-          </h2>
-          <div className="deck-editor__filters" role="group" aria-label="Filter by colour">
-            {[...COLORS, 'C' as const].map((c) => (
-              <button
-                key={c}
-                type="button"
-                className="deck-editor__filter"
-                data-testid={`filter-${c}`}
-                aria-pressed={activeColors.has(c)}
-                onClick={() => toggleColor(c)}
-              >
-                {c === 'C' ? 'C' : <ManaPip token={c} />}
-              </button>
-            ))}
-          </div>
-          <div className="deck-editor__grid" data-testid="side-grid">
-            {sideTiles
-              .filter((tile) => matchesFilter(tile, activeColors))
-              .map((tile) => (
-                <CardTile key={tile.key} card={tile.face} onPick={() => change(moveToMain(deck, tile.request))} />
-              ))}
-          </div>
-        </section>
-      </div>
-
-      {mode === 'limited' && (
-        <section className="lobby__card" data-testid="play-panel">
-          <button
-            type="button"
-            className="lobby__go"
-            data-testid="play-deck"
-            disabled={verdict?.legal !== true}
-            onClick={() => onPlay?.(dckTextOf(deck))}
-          >
-            Play
-          </button>
-        </section>
-      )}
+          <aside className="deck-editor__strip">
+            <Curve curve={curve} />
+            {allowBasics && (
+              <div className="deck-editor__basics" data-testid="basics">
+                {COLORS.map((c) => {
+                  const name = BASIC_OF[c];
+                  return (
+                    <div key={c} className="deck-editor__basic" data-testid={`basic-${name}`}>
+                      <button type="button" className="deck-editor__step" aria-label={`one fewer ${name}`} data-testid={`basic-${name}-less`} disabled={basics[c] === 0} onClick={() => setBasic(c, basics[c] - 1)}>
+                        −
+                      </button>
+                      <span className="deck-editor__basic-n" data-zero={basics[c] === 0 ? '' : undefined}>
+                        <ManaPip token={c} />
+                        <span data-testid={`basic-${name}-count`}>{basics[c]}</span>
+                      </span>
+                      <button type="button" className="deck-editor__step" aria-label={`one more ${name}`} data-testid={`basic-${name}-more`} onClick={() => setBasic(c, basics[c] + 1)}>
+                        +
+                      </button>
+                    </div>
+                  );
+                })}
+                <button type="button" className="deck-editor__auto" data-testid="basics-auto" title="suggest basic lands" onClick={autoBasics}>
+                  <i className="ms ms-land" aria-hidden="true" /> Auto
+                </button>
+              </div>
+            )}
+          </aside>
+        </div>
+      </DropArea>
 
       <div className="deck-editor__zoom" data-board-zoom="" />
     </div>
   );
 }
 
-function SideboardVerdict({ problems }: { problems: string[] }) {
-  if (problems.length === 0) {
+/** One tile per land in the lands pile, with how many copies it stands for. */
+function groupLands(lands: readonly Tile[]): Array<{ tile: Tile; n: number }> {
+  const groups = new Map<string, { tile: Tile; n: number }>();
+  for (const t of lands) {
+    const id = `${t.key}#${t.basic ? 'b' : 'm'}`;
+    const g = groups.get(id);
+    if (g === undefined) groups.set(id, { tile: t, n: 1 });
+    else g.n += 1;
+  }
+  return [...groups.values()];
+}
+
+/** A tile in either area: click moves it, and it drags to the other area. */
+function EditorCard({ tile, from, onMove, flash }: { tile: Tile; from: Area; onMove: (t: Tile) => void; flash: number }) {
+  return (
+    <div
+      className="deck-editor__card"
+      // Re-keyed by the move counter so the landing flash replays on every move of the same card.
+      data-flash={flash > 0 ? flash % 2 : undefined}
+      draggable
+      data-name={tile.face.name}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData(dragType(from), tile.key);
+        e.currentTarget.setAttribute('data-lifted', '');
+      }}
+      onDragEnd={(e) => e.currentTarget.removeAttribute('data-lifted')}
+    >
+      <CardTile card={tile.face} onPick={() => onMove(tile)} />
+    </div>
+  );
+}
+
+/** A drop target that takes a card from the OTHER area only. */
+function DropArea({
+  accept,
+  onDropKey,
+  className,
+  testid,
+  children,
+}: {
+  accept: Area;
+  onDropKey: (key: string) => void;
+  className: string;
+  testid: string;
+  children: ReactNode;
+}) {
+  const [over, setOver] = useState(false);
+  const carries = (e: DragEvent): boolean => [...(e.dataTransfer?.types ?? [])].includes(dragType(accept));
+  return (
+    <section
+      className={className}
+      data-testid={testid}
+      data-drop-over={over ? '' : undefined}
+      onDragOver={(e) => {
+        if (!carries(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
+      }}
+      onDrop={(e) => {
+        setOver(false);
+        e.preventDefault();
+        // Only a drag from the other area carries this type; anything else reads ''.
+        const key = e.dataTransfer.getData(dragType(accept));
+        if (key !== '') onDropKey(key);
+      }}
+    >
+      {children}
+    </section>
+  );
+}
+
+function PileHead({ label, n }: { label: ReactNode; n: number }) {
+  return (
+    <div className="deck-editor__pilehead">
+      <span className="deck-editor__pilemv">{label}</span>
+      <span className="deck-editor__pilen">{n}</span>
+    </div>
+  );
+}
+
+/** The deck's colours: a bar in proportion to its coloured symbols, and each colour's pip with its count. */
+function ColourBar({ colors, pips }: { colors: readonly string[]; pips: Record<ManaColor, number> }) {
+  const total = COLORS.reduce((n, c) => n + pips[c], 0);
+  return (
+    <span className="deck-editor__colours" data-testid="deck-colors" data-colors={colors.join('')}>
+      <span className="deck-editor__colourbar" aria-hidden="true">
+        {total > 0 &&
+          COLORS.filter((c) => pips[c] > 0).map((c) => <span key={c} className="deck-editor__colourseg" data-c={c} style={{ flexGrow: pips[c] }} />)}
+      </span>
+      <span className="deck-editor__colourpips">
+        {colors.map((c) => (
+          <span key={c} className="deck-editor__colourpip" data-color={c}>
+            <ManaPip token={c} />
+            {pips[c as ManaColor] > 0 && <span>{pips[c as ManaColor]}</span>}
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
+function Curve({ curve }: { curve: readonly number[] }) {
+  const max = Math.max(4, ...curve);
+  return (
+    <div className="deck-editor__curve" data-testid="curve" aria-label={`curve ${curve.join(' ')}`}>
+      {curve.map((n, mv) => (
+        <span key={mv} className="deck-editor__curvecol" title={`${n} at ${mv === MV_CAP ? `${mv}+` : mv}`}>
+          <span className="deck-editor__curven">{n > 0 ? n : ''}</span>
+          <span className="deck-editor__curvebar" style={{ height: `${(n / max) * 100}%` }} />
+          <span className="deck-editor__curvemv">{mv === MV_CAP ? `${mv}+` : mv}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * `n/min` while the deck is short; the way onward once it is not. The count is
+ * `main-count` in both shapes, so a reader never has to know which is showing.
+ */
+function Onward({
+  count,
+  min,
+  mode,
+  readyState,
+  verdict,
+  onAct,
+}: {
+  count: number;
+  min: number;
+  mode: DeckEditorMode;
+  readyState: ReadyState;
+  /** `limited`: what the server has said of the build. Play is enabled by `legal` alone. */
+  verdict: 'pending' | 'legal' | 'illegal';
+  onAct: () => void;
+}) {
+  if (count < min) {
     return (
-      <p className="lobby__note" data-testid="sideboard-problems-ok">
-        Every card is in your 75.
-      </p>
+      <span className="deck-editor__meter" role="meter" aria-valuenow={count} aria-valuemin={0} aria-valuemax={min} data-testid="deck-meter">
+        <span className="deck-editor__meter-fill" style={{ width: `${(count / min) * 100}%` }} />
+        <span className="deck-editor__meter-text" data-complete="false">
+          <strong data-testid="main-count">{count}</strong>/{min}
+        </span>
+      </span>
     );
   }
+  const limited = mode === 'limited';
   return (
-    <ul className="deck-editor__problems" data-testid="sideboard-problems">
-      {problems.map((p) => (
-        <li key={p}>{p}</li>
-      ))}
-    </ul>
+    <button
+      type="button"
+      className="deck-editor__go"
+      data-testid={limited ? 'play-deck' : 'sideboard-ready'}
+      data-complete="true"
+      data-verdict={limited ? verdict : undefined}
+      aria-pressed={limited ? undefined : readyState === 'ready'}
+      disabled={limited ? verdict !== 'legal' : readyState !== 'idle'}
+      onClick={onAct}
+    >
+      <span className="deck-editor__go-n" data-testid="main-count">
+        {count}
+      </span>
+      <span>{limited ? 'Play' : readyState === 'ready' ? 'Ready ✓' : 'Ready'}</span>
+    </button>
   );
 }
