@@ -479,10 +479,13 @@
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
   font-size: inherit;
-  /* Whose turn it is: the edge light along the seat's own table edge (see below). */
+  /* Whose turn it is: the edge light along the seat's own table edge (see below), which edge and what colour per seat. */
+  --turn-y: -1;
+  --turn-line: var(--turn-edge);
+  --turn-glow: var(--accent);
   box-shadow:
-    inset 0 -3px 0 color-mix(in srgb, var(--turn-edge) calc(var(--turn-lit) * 100%), transparent),
-    inset 0 -22px 18px -12px color-mix(in srgb, var(--accent) calc(var(--turn-lit) * 45%), transparent);
+    inset 0 calc(var(--turn-y) * 3px) 0 color-mix(in srgb, var(--turn-line) calc(var(--turn-lit) * 100%), transparent),
+    inset 0 calc(var(--turn-y) * 22px) 18px -12px color-mix(in srgb, var(--turn-glow) calc(var(--turn-lit) * 45%), transparent);
   transition:
     --turn-lit 0.9s ease-in-out,
     --turn-shade 0.9s ease-in-out;
@@ -493,9 +496,9 @@
   grid-template-areas:
     'side hand'
     'side field';
-  box-shadow:
-    inset 0 3px 0 color-mix(in srgb, var(--turn-edge) calc(var(--turn-lit) * 100%), transparent),
-    inset 0 22px 18px -12px color-mix(in srgb, var(--accent) calc(var(--turn-lit) * 45%), transparent);
+  --turn-y: 1;
+  --turn-line: var(--danger-ink);
+  --turn-glow: var(--danger);
 }
 
 .board .seat[data-viewer] {
@@ -508,10 +511,14 @@
  * think instead we should consider having some kind of ambient effect on their board"* — and of
  * five prototypes, the edge light with a subtle spotlight. One source: the section's `data-active`.
  *
- * - The EDGE LIGHT: a `--turn-edge` line along the active side's own table edge — the bottom of
- *   your seat, the top of theirs — with a soft accent glow inward from it. Inset shadows on the
+ * - The EDGE LIGHT: a `--turn-line` along the active side's own table edge — the bottom of
+ *   your seat, the top of theirs — with a soft `--turn-glow` inward from it. Inset shadows on the
  *   seat (`.board .seat`, above): they paint in the seat's own padding, under every child, and
- *   add no size.
+ *   add no size. Your turn is the accent; theirs is the theme's danger, like their priority ring
+ *   and the phase rail (the operator, 2026-10-17: "make sure the curved board outline for the
+ *   active player matches who's turn it is (danger for enemy)"). The line is `--danger-ink`, the
+ *   danger mixed toward the ink: raw `--danger` is under 3:1 on the seat in some themes, and the
+ *   ink clears 4.5:1 in all of them (`screens/tokens.test.ts`).
  * - The SPOTLIGHT: while someone is active, the OTHER side's surfaces — the seat, its battlefield,
  *   its hand tray — sit `--turn-step` darker. Surface colours, not a filter and not a layer: a
  *   filter would make the seat the containing block of a lifted card's `position: fixed`, and the
