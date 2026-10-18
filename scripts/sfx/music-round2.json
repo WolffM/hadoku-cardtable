@@ -1,0 +1,84 @@
+{
+ "about": "Match music round 2 (2026-10-18), from the operator's review of round 1: \"tavern had too much music, not enough ambiance\", \"grotto had too much repetitive snare\", \"tidewatch had too much repetitive water\". Green: \"something more normal forest ambiance with forest creature sounds\". WU: \"an echo-y council hall with background chatter or maybe choir humming ... something german christian like\". So: ambience first, no drum loops, long loop bodies, and creature and hall events scattered at random so nothing repeats on a short cycle. `prompts` are ACE-Step music layers (music-generate.py); `soundscapes` are built by music-soundscape.py from Stable Audio Open beds and events, with an optional finished music layer.",
+ "defaults": {"duration": 190, "steps": 50, "cfg": 7.0, "shift": 1.0},
+ "prompts": [
+  {"id": "wu-hum", "colour": "WU", "name": "WU · humming chorale", "takes": 1, "instrumental": false,
+   "caption": "wordless mixed choir humming a slow Lutheran chorale with closed mouths, four-part harmony, solemn and warm, German Protestant hymn, sung far away in a huge reverberant stone church, no words",
+   "structure": "[Intro - humming choir]\n\n[Chorale - humming]\n\n[Chorale - humming, softer]\n\n[Chorale - humming]",
+   "bpm": 60, "key": "F Major", "meter": "4"},
+  {"id": "wu-organ", "colour": "WU", "name": "WU · organ chorale", "takes": 1,
+   "caption": "Bach-style organ chorale prelude, pipe organ, flowing counterpoint over a slow chorale melody, luminous and devout, German baroque church music, reverberant stone cathedral",
+   "structure": "[Intro - pipe organ]\n\n[Chorale - pipe organ]\n\n[Variation - flowing counterpoint]\n\n[Chorale - pipe organ]",
+   "bpm": 72, "key": "D Major", "meter": "4"},
+  {"id": "wu-softorgan", "colour": "WU", "name": "WU · council hall", "takes": 1,
+   "caption": "soft distant pipe organ playing slow quiet chorale chords, gentle flute stops, very calm, heard from the far end of a large reverberant stone hall",
+   "structure": "[Intro - soft organ]\n\n[Chorale - soft organ]\n\n[Chorale - soft organ]\n\n[Chorale - soft organ]",
+   "bpm": 56, "key": "G Major", "meter": "4"},
+  {"id": "g-flute", "colour": "G", "name": "G · woodland with a distant flute", "takes": 1,
+   "caption": "very sparse ambient music, a lone wooden flute playing a few soft phrases with long pauses between them, distant and gentle, lots of space and silence, no percussion",
+   "structure": "[Intro - silence and air]\n\n[Phrase - wooden flute]\n\n[Pause]\n\n[Phrase - wooden flute]",
+   "bpm": 66, "key": "D Major", "meter": "4"}
+ ],
+ "soundscapes": [
+  {"id": "g-morning", "colour": "G", "name": "G · forest morning", "seconds": 240,
+   "beds": [
+    {"prompt": "a temperate forest at morning, gentle breeze in the leaves, many songbirds far away, field recording", "db": 0},
+    {"prompt": "a small forest stream trickling gently over stones, field recording", "db": -9}
+   ],
+   "events": [
+    {"prompt": "a single blackbird singing a melodic phrase close by in a forest, field recording", "every": 14, "db": 3},
+    {"prompt": "a wren trilling loudly in a forest, field recording", "every": 22, "db": 1},
+    {"prompt": "a great spotted woodpecker drumming on a dead tree trunk in a forest, field recording", "every": 40, "db": 0},
+    {"prompt": "a red squirrel chattering in a tree, field recording", "every": 55, "db": -2},
+    {"prompt": "a common cuckoo calling far away in a forest, field recording", "every": 70, "db": -4},
+    {"prompt": "a crow cawing in the distance over a forest, field recording", "every": 60, "db": -5}
+   ]},
+  {"id": "g-dusk", "colour": "G", "name": "G · forest at dusk", "seconds": 240,
+   "beds": [
+    {"prompt": "a forest at dusk, crickets and evening insects chirping, a soft breeze, field recording", "db": -5},
+    {"prompt": "leaves rustling in a light wind in a deep forest, field recording", "db": -6}
+   ],
+   "events": [
+    {"prompt": "a tawny owl hooting in a dark forest, field recording", "every": 30, "db": 2},
+    {"prompt": "frogs croaking by a forest pond at night, field recording", "every": 35, "db": -1},
+    {"prompt": "a small animal rustling and stepping through dry leaves in undergrowth, field recording", "every": 28, "db": -3},
+    {"prompt": "a red deer stag roaring far away in a forest, field recording", "every": 80, "db": -6},
+    {"prompt": "a nightjar churring in a forest clearing at dusk, field recording", "every": 50, "db": -3},
+    {"prompt": "a single wolf howling far away across a forest valley, field recording", "every": 120, "db": -8}
+   ]},
+  {"id": "g-flute", "colour": "G", "name": "G · woodland with a distant flute", "music": {"take": "g-flute-1", "db": -4},
+   "beds": [
+    {"prompt": "a temperate forest at midday, gentle breeze in the leaves, songbirds, field recording", "db": 0},
+    {"prompt": "insects humming softly in a sunny forest glade, field recording", "db": -8}
+   ],
+   "events": [
+    {"prompt": "a song thrush singing a melodic phrase in a forest, field recording", "every": 18, "db": 2},
+    {"prompt": "a great spotted woodpecker drumming on a dead tree trunk in a forest, field recording", "every": 45, "db": -1},
+    {"prompt": "a wood pigeon cooing softly in a forest, field recording", "every": 40, "db": -3}
+   ]},
+  {"id": "wu-hall", "colour": "WU", "name": "WU · council hall", "music": {"take": "wu-softorgan-1", "db": -7},
+   "beds": [
+    {"prompt": "a large reverberant stone hall full of people murmuring quietly, indistinct low chatter, no clear words, field recording", "db": 0},
+    {"prompt": "footsteps and shuffling on a stone floor in a large echoing hall, distant murmur, field recording", "db": -8}
+   ],
+   "events": [
+    {"prompt": "a heavy wooden door closing far away in a large echoing stone hall, field recording", "every": 50, "db": -2},
+    {"prompt": "footsteps of one person walking slowly across an echoing stone floor, field recording", "every": 35, "db": -4},
+    {"prompt": "a large church bell tolling once far away, heard from inside a stone building, field recording", "every": 110, "db": -8, "bell": true}
+   ]},
+  {"id": "wu-hum", "colour": "WU", "name": "WU · humming chorale", "music": {"take": "wu-hum-1", "db": 8},
+   "beds": [
+    {"prompt": "a large reverberant stone church with a congregation murmuring quietly, indistinct low chatter, no clear words, field recording", "db": 0}
+   ],
+   "events": [
+    {"prompt": "a wooden pew creaking in a large echoing stone church, field recording", "every": 45, "db": -4}
+   ]},
+  {"id": "wu-organ", "colour": "WU", "name": "WU · organ chorale", "music": {"take": "wu-organ-1", "db": 10},
+   "beds": [
+    {"prompt": "a large reverberant stone hall full of people murmuring quietly, indistinct low chatter, no clear words, field recording", "db": 0}
+   ],
+   "events": [
+    {"prompt": "a large church bell tolling once far away, heard from inside a stone building, field recording", "every": 120, "db": -6, "bell": true}
+   ]}
+ ]
+}

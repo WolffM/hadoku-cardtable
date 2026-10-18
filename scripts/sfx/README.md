@@ -323,3 +323,28 @@ tree), one JSON object per line, never rewritten:
 A slot left out was not reviewed; `pick: null` with ratings or a note is a slot reviewed without a choice. A
 viewer's latest line is their current answer (`GET /api/sounds/music-review/mine`). To act on it, read the
 file and set each picked cell with the admin `PUT /api/sounds/assignments/<cell>` (the builder does the same).
+
+### Round 2: ambience first (2026-10-18)
+
+The operator on round 1: *"tavern had too much music, not enough ambiance"*, *"grotto had too much repetitive
+snare"*, *"tidewatch had too much repetitive water"*; for green *"more normal forest ambiance with forest creature
+sounds"*, for WU *"an echo-y council hall with background chatter or maybe choir humming … something german
+christian like"*. `music-round2.json` holds both kinds of layer, and `music-soundscape.py` assembles them:
+
+```sh
+export ACESTEP_CHECKPOINTS_DIR=~/.cache/ace-step/checkpoints ACESTEP_DISABLE_TQDM=1
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-generate.py --spec scripts/sfx/music-round2.json --seed 50000 --offload --model acestep-v15-sft --lm none
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-finish.py --only wu-hum,wu-organ,wu-softorgan,g-flute-
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/music-soundscape.py --spec scripts/sfx/music-round2.json
+```
+
+- Beds are chains of different 47 s renders, overlapped and wrapped onto the loop, so nothing repeats inside one
+  loop (240 s for pure ambience, the music's length when there is music). Events (bird phrases, an owl, a door in a
+  hall, a distant bell) land at random intervals, in random variants, levels and pans.
+- Stable Audio renders vary wildly: one bed prompt's renders spanned −40 to −15 LUFS, and a rustle peaked 28 dB over
+  its loudness. Each bed render is levelled on its own, every layer is peak-capped (beds 18 dB, events 14 dB over
+  their level) and high-passed at 70 Hz (the first forest had 67 % of its energy under 60 Hz). Before those three
+  fixes the dusk forest came out at −35 LUFS.
+- The music layers rendered while the GPU was shared with a game: XL plus the 1.7B LM ran out of memory, so they
+  are the 2B sft DiT with no LM (`--lm none`, about 5 GB). The humming choir is `"instrumental": false` with
+  structure tags as its only lyrics.

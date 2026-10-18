@@ -9,7 +9,8 @@ Each take is written as 32-bit float WAV (never 16-bit: a raw take that overshoo
 hard-clipped on save) with ACE-Step's own loudness normalisation off, so `music-finish.py` sees the raw
 render, plus a `.json` sidecar holding everything needed to render it again: model, version, prompt, seed,
 steps, cfg, shift, duration, licence. Output: `~/.local/share/cardtable-sfx/music/generated/<colour>/`.
-A rerun resumes (existing takes are skipped). The GPU is shared: an out-of-memory take waits 30 s and retries.
+A prompt may set `"instrumental": false` for a wordless vocal layer (round 2's humming choir): its structure tags
+are the only lyrics, so there are no words to sing. A rerun resumes (existing takes are skipped). The GPU is shared: an out-of-memory take waits 30 s and retries.
 """
 import argparse
 import json
@@ -42,7 +43,7 @@ def main() -> None:
 	ap.add_argument('--seed', type=int, default=20000, help='seed of the first take of the first prompt')
 	ap.add_argument('--takes', type=int, default=0, help='override every prompt\'s take count')
 	ap.add_argument('--model', default='acestep-v15-xl-sft')
-	ap.add_argument('--lm', default='acestep-5Hz-lm-1.7B')
+	ap.add_argument('--lm', default='acestep-5Hz-lm-1.7B', help='"none" renders with the DiT alone (about 5 GB on the 2B model)')
 	ap.add_argument('--offload', action='store_true', help='keep idle components on the CPU')
 	args = ap.parse_args()
 
@@ -79,10 +80,12 @@ def main() -> None:
 		offload_to_cpu=args.offload, offload_dit_to_cpu=False)
 	if not ok:
 		raise SystemExit(f'DiT init failed: {status}')
-	llm = LLMHandler()
-	status, ok = llm.initialize(checkpoint_dir=ckpt, lm_model_path=args.lm, backend='pt', device='cuda', offload_to_cpu=args.offload)
-	if not ok:
-		raise SystemExit(f'LM init failed: {status}')
+	llm = None
+	if args.lm != 'none':
+		llm = LLMHandler()
+		status, ok = llm.initialize(checkpoint_dir=ckpt, lm_model_path=args.lm, backend='pt', device='cuda', offload_to_cpu=args.offload)
+		if not ok:
+			raise SystemExit(f'LM init failed: {status}')
 	version = ace_version()
 
 	for p, t, out in todo:
@@ -93,9 +96,9 @@ def main() -> None:
 		cfg = p.get('cfg', defaults['cfg'])
 		shift = p.get('shift', defaults['shift'])
 		params = GenerationParams(
-			task_type='text2music', caption=p['caption'], lyrics=p.get('structure', '[Instrumental]'), instrumental=True,
+			task_type='text2music', caption=p['caption'], lyrics=p.get('structure', '[Instrumental]'), instrumental=p.get('instrumental', True),
 			bpm=p.get('bpm'), keyscale=p.get('key', ''), timesignature=p.get('meter', ''), duration=duration,
-			inference_steps=steps, guidance_scale=cfg, shift=shift, seed=seed, thinking=True,
+			inference_steps=steps, guidance_scale=cfg, shift=shift, seed=seed, thinking=llm is not None,
 			use_cot_metas=False, use_cot_caption=False, use_cot_language=False, enable_normalization=False,
 		)
 		config = GenerationConfig(batch_size=1, use_random_seed=False, seeds=[seed], audio_format='wav32')
@@ -124,9 +127,9 @@ def main() -> None:
 		if audio.get('path') and os.path.exists(audio['path']):
 			os.remove(audio['path'])
 		sidecar = {
-			'model': f'ACE-Step 1.5 {args.model} + {args.lm}', 'version': version, 'licence': LICENCE,
+			'model': f'ACE-Step 1.5 {args.model}' + (f' + {args.lm}' if llm else ' (no LM)'), 'version': version, 'licence': LICENCE,
 			'id': p['id'], 'colour': p['colour'], 'direction': p.get('direction'), 'name': p['name'],
-			'caption': p['caption'], 'structure': p.get('structure'), 'bpm': p.get('bpm'), 'key': p.get('key'),
+			'caption': p['caption'], 'structure': p.get('structure'), 'instrumental': p.get('instrumental', True), 'bpm': p.get('bpm'), 'key': p.get('key'),
 			'meter': p.get('meter'), 'seed': seed, 'steps': steps, 'cfg': cfg, 'shift': shift, 'duration': duration,
 			'seconds_to_render': round(time.time() - started, 1), 'peak': float(abs(wave).max()),
 		}
