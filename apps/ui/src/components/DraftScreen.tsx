@@ -175,9 +175,9 @@ export function DraftScreen({
   const emptyNote = spectating
     ? 'Spectating.'
     : stalled
-      ? 'Reconnecting &mdash; seat held.'
+      ? 'Reconnecting — seat held.'
       : awaiting
-        ? 'Picked &mdash; waiting for the next pack.'
+        ? 'Picked — waiting for the next pack.'
         : 'This pack is empty.';
 
   return (

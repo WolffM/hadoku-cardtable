@@ -123,15 +123,18 @@ import type { Lobby } from './lobby.js';
 /**
  * Picks per participant, not per socket.
  *
- * A human drafting takes a card every few seconds at most; this allows a burst
- * of eight and then one every 1.5s, which no real drafter reaches and a script
- * does immediately. Keyed by `ParticipantId` so a reconnect does not hand
- * somebody a fresh budget — that is the whole reason the key is not a socket id.
+ * Against bots the next pack arrives at once, so a human late in a pack clicks
+ * a card every 150 ms or so (2026-10-18 05:41Z: eleven picks in 3.5 s, and the
+ * old 8-then-one-per-1.5 s budget refused the ninth). This allows a whole pack
+ * as a burst and then four a second, which no clicking human outruns and a
+ * script still does immediately. Keyed by `ParticipantId` so a reconnect does
+ * not hand somebody a fresh budget — that is the whole reason the key is not a
+ * socket id.
  */
 export const PICK_RATE_LIMIT: RateLimitConfig = {
-	capacity: 8,
+	capacity: 15,
 	refillAmount: 1,
-	refillIntervalMs: 1500,
+	refillIntervalMs: 250,
 };
 
 /**

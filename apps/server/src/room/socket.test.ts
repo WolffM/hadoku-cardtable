@@ -45,6 +45,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import { roleOf, seatOf } from '@wolffm/rooms-protocol';
+import { MultiRateLimiter } from '@wolffm/rooms-server';
 import {
 	DRAFT_CHANNEL,
 	joinDraft,
@@ -827,6 +828,22 @@ describe('a browser refresh', () => {
 /* ── Rate limiting ───────────────────────────────────────────────────── */
 
 describe('picks are rate limited per participant', () => {
+	it('never refuses a human clicking through a pack against bots', () => {
+		// The pick times of the draft that was refused on 2026-10-18 (05:41:32Z
+		// onwards, ms from the first pick): the next pack arrived at once, and
+		// the old budget refused the eleventh click.
+		const at = [0, 1703, 2104, 2448, 2691, 2865, 3043, 3195, 3339, 3481, 3623, 15977, 18066, 18217, 18585, 18946, 19839, 20150, 20450, 20713, 21043, 21353, 21646];
+		const limiter = new MultiRateLimiter<string>(socketMod.PICK_RATE_LIMIT);
+		try {
+			expect(at.map((t) => limiter.allow('p', 1, 1_000_000 + t))).not.toContain(false);
+			// A script is still stopped: a pack's worth at once, then nothing.
+			const burst = Array.from({ length: 20 }, () => limiter.allow('s', 1, 5_000_000));
+			expect(burst.filter(Boolean)).toHaveLength(socketMod.PICK_RATE_LIMIT.capacity);
+		} finally {
+			limiter.deregister();
+		}
+	});
+
 	it('answers over-budget picks with rate-limited, ahead of any engine verdict', async () => {
 		await harness?.close();
 		harness = await boot({ rateLimit: { capacity: 1, refillAmount: 1, refillIntervalMs: 600_000 } });
