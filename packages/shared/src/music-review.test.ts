@@ -11,6 +11,8 @@ import { describe, expect, it } from 'vitest';
 import {
 	MUSIC_REVIEW_CODES,
 	MusicReviewBodySchema,
+	MusicReviewRecordSchema,
+	isChiptuneName,
 	musicReviewCell,
 	musicReviewProblems,
 	musicReviewSlots,
@@ -104,7 +106,7 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 	const W = musicReviewCell('W');
 
 	it('fills a slot’s defaults', () => {
-		expect(MusicReviewBodySchema.parse({ slots: { [W]: {} } })).toEqual({ slots: { [W]: { pick: null, ratings: {}, note: '' } } });
+		expect(MusicReviewBodySchema.parse({ slots: { [W]: {} } })).toEqual({ slots: { [W]: { picks: { normal: null, chiptune: null }, ratings: {}, note: '' } } });
 	});
 
 	it('refuses a slot that is not a match-music cell', () => {
@@ -117,20 +119,61 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 		expect(MusicReviewBodySchema.safeParse({ slots: { [W]: { note: 'x'.repeat(1001) } } }).success).toBe(false);
 	});
 
-	it('accepts picks and ratings among the slot’s candidates', () => {
+	it('accepts a pick per lane and ratings among the slot’s candidates; one take may hold both lanes', () => {
 		const body = MusicReviewBodySchema.parse({
-			slots: { [W]: { pick: 'music-w-tavern-jig/take-1.ogg', ratings: { 'music-dawnlight-sanctum/take-1.ogg': 'no' }, note: 'jig' } },
+			slots: {
+				[W]: {
+					picks: { normal: 'music-w-tavern-jig/take-1.ogg', chiptune: 'music-w-heraldic-fanfare/take-1.ogg' },
+					ratings: { 'music-dawnlight-sanctum/take-1.ogg': 'no' },
+					note: 'jig',
+				},
+			},
 		});
 		expect(musicReviewProblems(body, slots)).toEqual([]);
+		const both = MusicReviewBodySchema.parse({
+			slots: { [W]: { picks: { normal: 'music-w-tavern-jig/take-1.ogg', chiptune: 'music-w-tavern-jig/take-1.ogg' } } },
+		});
+		expect(musicReviewProblems(both, slots)).toEqual([]);
+		expect(MusicReviewBodySchema.parse({ slots: { [W]: { picks: { chiptune: 'music-w-tavern-jig/take-1.ogg' } } } }).slots[W]!.picks).toEqual({
+			normal: null,
+			chiptune: 'music-w-tavern-jig/take-1.ogg',
+		});
 	});
 
-	it('names a pick or a rating its slot never offered', () => {
+	it('names a lane pick or a rating its slot never offered', () => {
 		const body = MusicReviewBodySchema.parse({
-			slots: { [W]: { pick: 'music-wu-clockwork-senate/take-1.ogg', ratings: { 'wu/take-v1-4000.ogg': 'keep' } } },
+			slots: {
+				[W]: {
+					picks: { normal: 'music-wu-clockwork-senate/take-1.ogg', chiptune: 'music-wu-lighthouse-march/take-1.ogg' },
+					ratings: { 'wu/take-v1-4000.ogg': 'keep' },
+				},
+			},
 		});
 		expect(musicReviewProblems(body, slots)).toEqual([
-			`${W}: pick music-wu-clockwork-senate/take-1.ogg was not offered`,
+			`${W}: normal pick music-wu-clockwork-senate/take-1.ogg was not offered`,
+			`${W}: chiptune pick music-wu-lighthouse-march/take-1.ogg was not offered`,
 			`${W}: rating for wu/take-v1-4000.ogg, which was not offered`,
 		]);
+	});
+
+	it('reads a line written before the two lanes: its one pick is the normal lane', () => {
+		// The first line of production's music-reviews.jsonl shape, 2026-10-17.
+		const old = MusicReviewRecordSchema.parse({
+			at: '2026-10-17T20:00:00.000Z',
+			userId: 'u1',
+			name: 'Op',
+			slots: { [W]: { pick: 'music-w-tavern-jig/take-1.ogg', ratings: {}, note: '' }, [musicReviewCell('U')]: { pick: null, ratings: {}, note: 'meh' } },
+		});
+		expect(old.slots[W]!.picks).toEqual({ normal: 'music-w-tavern-jig/take-1.ogg', chiptune: null });
+		expect(old.slots[musicReviewCell('U')]!.picks).toEqual({ normal: null, chiptune: null });
+		expect(old.slots[W]).not.toHaveProperty('pick');
+		expect(MusicReviewBodySchema.safeParse({ slots: { [W]: { pick: '../../etc/passwd' } } }).success).toBe(false);
+	});
+});
+
+describe('isChiptuneName', () => {
+	it('marks a name that says 16-bit, however it is spelled, and nothing else', () => {
+		expect(['WU · 16-bit sky kingdom', 'W · 16 bit castle', 'B · 16BIT crypt'].map(isChiptuneName)).toEqual([true, true, true]);
+		expect(['W · tavern jig', 'Statute of Gears', 'R · 160 bpm'].map(isChiptuneName)).toEqual([false, false, false]);
 	});
 });

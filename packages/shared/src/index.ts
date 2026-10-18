@@ -108,15 +108,19 @@ export {
 } from './sounds.ts';
 
 export {
+  MUSIC_LANES,
   MUSIC_REVIEW_CODES,
   MUSIC_RATINGS,
   MusicReviewBodySchema,
   MusicReviewEntrySchema,
   MusicReviewMineSchema,
   MusicReviewRecordSchema,
+  isChiptuneName,
   musicReviewCell,
   musicReviewProblems,
   musicReviewSlots,
+  type MusicLane,
+  type MusicPicks,
   type MusicRating,
   type MusicReviewBody,
   type MusicReviewCandidate,

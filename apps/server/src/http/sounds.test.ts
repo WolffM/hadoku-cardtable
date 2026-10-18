@@ -603,22 +603,22 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		const first = await call(h, 'POST', '/api/sounds/music-review', {
 			tier: 'friend',
 			user: 'bob',
-			body: { slots: { [W]: { pick: JIG.file, ratings: { [WEB.file]: 'maybe', [FANFARE.file]: 'no' }, note: 'the jig' } } },
+			body: { slots: { [W]: { picks: { normal: JIG.file, chiptune: FANFARE.file }, ratings: { [WEB.file]: 'maybe', [FANFARE.file]: 'no' }, note: 'the jig' } } },
 		});
 		expect(first.status).toBe(200);
 		const rec = first.json() as { at: string; userId: string; name: string | null; slots: unknown };
 		expect(rec).toMatchObject({
 			userId: 'bob',
 			name: 'bob',
-			slots: { [W]: { pick: JIG.file, ratings: { [WEB.file]: 'maybe', [FANFARE.file]: 'no' }, note: 'the jig' } },
+			slots: { [W]: { picks: { normal: JIG.file, chiptune: FANFARE.file }, ratings: { [WEB.file]: 'maybe', [FANFARE.file]: 'no' }, note: 'the jig' } },
 		});
 		expect(Number.isNaN(Date.parse(rec.at))).toBe(false);
 
-		await call(h, 'POST', '/api/sounds/music-review', { tier: 'admin', user: 'alice', body: { slots: { [WU]: { pick: SENATE.file } } } });
+		await call(h, 'POST', '/api/sounds/music-review', { tier: 'admin', user: 'alice', body: { slots: { [WU]: { picks: { normal: SENATE.file } } } } });
 		const second = await call(h, 'POST', '/api/sounds/music-review', {
 			tier: 'friend',
 			user: 'bob',
-			body: { slots: { [W]: { pick: WEB.file }, [WU]: { note: 'none of these' } } },
+			body: { slots: { [W]: { picks: { normal: WEB.file } }, [WU]: { note: 'none of these' } } },
 		});
 		expect(second.status).toBe(200);
 
@@ -627,7 +627,10 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		expect(await lines(dir)).toContainEqual(rec);
 
 		const bob = (await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'bob' })).json() as { review: { slots: unknown } };
-		expect(bob.review.slots).toEqual({ [W]: { pick: WEB.file, ratings: {}, note: '' }, [WU]: { pick: null, ratings: {}, note: 'none of these' } });
+		expect(bob.review.slots).toEqual({
+			[W]: { picks: { normal: WEB.file, chiptune: null }, ratings: {}, note: '' },
+			[WU]: { picks: { normal: null, chiptune: null }, ratings: {}, note: 'none of these' },
+		});
 		const alice = (await call(h, 'GET', '/api/sounds/music-review/mine', { tier: 'admin', user: 'alice' })).json() as { review: { userId: string } };
 		expect(alice.review.userId).toBe('alice');
 		const carol = (await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'carol' })).json();
@@ -639,12 +642,13 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		const dir = await reviewDir();
 		const h = await openApp(dir);
 		const refused = [
-			{ slots: { 'music.lobby|play': { pick: WEB.file } } },
-			{ slots: { [W]: { pick: SENATE.file } } },
+			{ slots: { 'music.lobby|play': { picks: { normal: WEB.file } } } },
+			{ slots: { [W]: { picks: { normal: SENATE.file } } } },
+			{ slots: { [W]: { picks: { chiptune: SENATE.file } } } },
 			{ slots: { [WU]: { ratings: { [JIG.file]: 'keep' } } } },
-			{ slots: { [W]: { pick: TAKE.file } } },
+			{ slots: { [W]: { picks: { chiptune: TAKE.file } } } },
 			{ slots: { [W]: { ratings: { [JIG.file]: 'love' } } } },
-			{ slots: { [W]: { pick: '../../etc/passwd' } } },
+			{ slots: { [W]: { picks: { normal: '../../etc/passwd' } } } },
 			{ picks: {} },
 		];
 		for (const body of refused) {
@@ -660,9 +664,19 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		const h = await openApp(dir);
 		expect((await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'bob' })).json()).toEqual({ review: null });
 		expect(logged).toContainEqual(expect.objectContaining({ event: 'sounds-file-corrupt', file: 'music-reviews.jsonl', count: 1 }));
-		expect((await call(h, 'POST', '/api/sounds/music-review', { user: 'bob', body: { slots: { [W]: { pick: JIG.file } } } })).status).toBe(200);
+		expect((await call(h, 'POST', '/api/sounds/music-review', { user: 'bob', body: { slots: { [W]: { picks: { normal: JIG.file } } } } })).status).toBe(200);
 		const mine = (await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'bob' })).json() as { review: { slots: unknown } };
-		expect(mine.review.slots).toEqual({ [W]: { pick: JIG.file, ratings: {}, note: '' } });
+		expect(mine.review.slots).toEqual({ [W]: { picks: { normal: JIG.file, chiptune: null }, ratings: {}, note: '' } });
+	});
+
+	it('reads a line written before the two lanes as a normal pick, and leaves the line as it was', async () => {
+		const dir = await reviewDir();
+		const old = `{"at":"2026-10-17T20:00:00.000Z","userId":"bob","name":"bob","slots":{"${W}":{"pick":"${JIG.file}","ratings":{},"note":"jig"}}}\n`;
+		await writeFile(join(dir, 'music-reviews.jsonl'), old, 'utf8');
+		const h = await openApp(dir);
+		const mine = (await call(h, 'GET', '/api/sounds/music-review/mine', { user: 'bob' })).json() as { review: { slots: unknown } };
+		expect(mine.review.slots).toEqual({ [W]: { picks: { normal: JIG.file, chiptune: null }, ratings: {}, note: 'jig' } });
+		expect(await readFile(join(dir, 'music-reviews.jsonl'), 'utf8')).toBe(old);
 	});
 
 	it('concurrent submissions each land as a whole line', async () => {
@@ -670,7 +684,7 @@ describe('POST /api/sounds/music-review and GET /mine', () => {
 		const h = await openApp(dir);
 		const users = Array.from({ length: 8 }, (_, i) => `u${i}`);
 		const results = await Promise.all(
-			users.map((user) => call(h, 'POST', '/api/sounds/music-review', { user, body: { slots: { [W]: { pick: JIG.file, note: user.repeat(200) } } } })),
+			users.map((user) => call(h, 'POST', '/api/sounds/music-review', { user, body: { slots: { [W]: { picks: { normal: JIG.file }, note: user.repeat(200) } } } })),
 		);
 		expect(results.map((r) => r.status)).toEqual(users.map(() => 200));
 		expect((await lines(dir)).map((l) => (l as { userId: string }).userId).sort()).toEqual(users);

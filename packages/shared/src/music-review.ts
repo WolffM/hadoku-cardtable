@@ -4,8 +4,9 @@
  * The operator, 2026-10-17: *"post it as a new route under /sounds/ i want to be able to go there, test,
  * then send the results for review later."* Fifteen slots, one per `MATCH_MUSIC_ROLES` cell; each offers
  * the take the cell plays today plus the generated Music takes named `<code> · <description>`. A viewer
- * picks one per slot, rates any of them, notes the slot, and submits; a later session reads the submissions
- * and sets the assignments by hand.
+ * picks up to two per slot — one per lane, `normal` and `chiptune` (the operator, 2026-10-18: *"2 tracks
+ * for every slot. one 'normal' and one 16-bit"*) — rates any of them, notes the slot, and submits; a later
+ * session reads the submissions and sets the assignments by hand.
  *
  * `musicReviewSlots` is the one place a slot's candidates are worked out. The page draws from it and the
  * server validates a submission against it, so the two can never disagree on what was offered.
@@ -69,13 +70,39 @@ export function musicReviewSlots(takes: readonly SoundTake[], cells: Readonly<Re
 export const MUSIC_RATINGS = ['keep', 'maybe', 'no'] as const;
 export type MusicRating = (typeof MUSIC_RATINGS)[number];
 
+/** A slot's two lanes. Any candidate may go in either; each lane holds at most one. */
+export const MUSIC_LANES = ['normal', 'chiptune'] as const;
+export type MusicLane = (typeof MUSIC_LANES)[number];
+
+/** Whether a take is named as a 16-bit one, so the page can mark it. */
+export function isChiptuneName(name: string): boolean {
+	return /16[-\s]?bit/i.test(name);
+}
+
 const TakeFileSchema = z.string().regex(TAKE_FILE_RE, 'file must be <folder>/take-<suffix>.ogg');
 
-export const MusicReviewEntrySchema = z.object({
-	pick: TakeFileSchema.nullable().default(null),
-	ratings: z.record(TakeFileSchema, z.enum(MUSIC_RATINGS)).default({}),
-	note: z.string().max(1000).default(''),
+const PicksSchema = z.object({
+	normal: TakeFileSchema.nullable().default(null),
+	chiptune: TakeFileSchema.nullable().default(null),
 });
+export type MusicPicks = z.output<typeof PicksSchema>;
+
+/**
+ * One slot's verdict. Lines written before the two lanes carry a single `pick`; it reads as the normal
+ * lane, so `music-reviews.jsonl` is never rewritten to keep up.
+ */
+export const MusicReviewEntrySchema = z.preprocess(
+	(v) => {
+		if (typeof v !== 'object' || v === null || Array.isArray(v) || !('pick' in v)) return v;
+		const { pick, ...rest } = v as Record<string, unknown>;
+		return 'picks' in rest ? rest : { ...rest, picks: { normal: pick } };
+	},
+	z.object({
+		picks: PicksSchema.default({ normal: null, chiptune: null }),
+		ratings: z.record(TakeFileSchema, z.enum(MUSIC_RATINGS)).default({}),
+		note: z.string().max(1000).default(''),
+	}),
+);
 export type MusicReviewEntry = z.output<typeof MusicReviewEntrySchema>;
 
 /** `POST /api/sounds/music-review`. A slot left out is a slot not reviewed. */
@@ -109,7 +136,10 @@ export function musicReviewProblems(body: MusicReviewBody, slots: readonly Music
 	const problems: string[] = [];
 	for (const [cell, entry] of Object.entries(body.slots)) {
 		const files = offered.get(cell) ?? new Set<string>();
-		if (entry.pick !== null && !files.has(entry.pick)) problems.push(`${cell}: pick ${entry.pick} was not offered`);
+		for (const lane of MUSIC_LANES) {
+			const file = entry.picks[lane];
+			if (file !== null && !files.has(file)) problems.push(`${cell}: ${lane} pick ${file} was not offered`);
+		}
 		for (const file of Object.keys(entry.ratings)) {
 			if (!files.has(file)) problems.push(`${cell}: rating for ${file}, which was not offered`);
 		}

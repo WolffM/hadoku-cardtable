@@ -5,12 +5,17 @@
  * then send the results for review later. make sure /sounds/ is friendtier+ gated"*. One section per
  * match-music slot (`musicReviewSlots`, the grouping the server validates against), each with its
  * candidates: the take the cell plays today (badged) and the generated ones. A card plays its take on a
- * loop through the mixer's music bus, one at a time; its check is the slot's pick (one per slot); three
- * small verdicts rate it; a note goes with the slot. Submit appends the whole review server-side.
+ * loop through the mixer's music bus, one at a time; its two lane buttons put it in the slot's normal or
+ * 16-bit lane (one take per lane, any take in either); three small verdicts rate it; a note goes with the
+ * slot. Submit appends the whole review server-side.
  *
  * Friend tier and above, the same server-answered gate as the builder (`canView`). Re-opening restores
  * this browser's unsent draft, or else the viewer's latest submission; the submit button shows saved
  * while what is on screen is what was sent.
+ *
+ * Reset (pressed twice) starts a fresh round: it drops the draft and remembers, in this browser, the `at`
+ * of the submission on screen (`FRESH_KEY`), so a re-open no longer restores that one or anything older.
+ * The server's file is untouched; the next submission is simply a later line.
  *
  * Built from the queue's own card (`.sound-queue__card`, `.sound-queue__choice`, `.sound-queue__pick`)
  * and the builder's header and buttons, so it reads as one of the sound screens.
@@ -20,8 +25,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@wolffm/themes';
 
 import {
+  MUSIC_LANES,
   MUSIC_RATINGS,
+  isChiptuneName,
   musicReviewSlots,
+  type MusicLane,
   type MusicRating,
   type MusicReviewEntry,
   type MusicReviewRecord,
@@ -44,9 +52,19 @@ export interface MusicReviewProps {
 /** This browser's unsent review. Per browser on purpose: a draft, not a record. */
 export const DRAFT_KEY = 'cardtable.sound.music-review.draft';
 
+/** The `at` of the last submission a reset set aside: one at or before it is not restored. */
+export const FRESH_KEY = 'cardtable.sound.music-review.fresh-since';
+
+/** How long a first press of reset waits for the second. */
+export const RESET_ARM_MS = 4000;
+
 type Review = Record<string, MusicReviewEntry>;
 
-const EMPTY: MusicReviewEntry = { pick: null, ratings: {}, note: '' };
+const NO_PICKS: MusicReviewEntry['picks'] = { normal: null, chiptune: null };
+const EMPTY: MusicReviewEntry = { picks: NO_PICKS, ratings: {}, note: '' };
+
+const LANE_ICON: Record<MusicLane, 'music' | 'gamepad'> = { normal: 'music', chiptune: 'gamepad' };
+const LANE_LABEL: Record<MusicLane, string> = { normal: 'Normal', chiptune: '16-bit' };
 
 const RATING_ICON: Record<MusicRating, 'thumbs-up' | 'circle' | 'thumbs-down'> = {
   keep: 'thumbs-up',
@@ -60,8 +78,8 @@ export function normalizeReview(review: Review): Review {
   const out: Review = {};
   for (const [cell, e] of Object.entries(review)) {
     const note = e.note.trim();
-    if (e.pick === null && Object.keys(e.ratings).length === 0 && note === '') continue;
-    out[cell] = { pick: e.pick, ratings: e.ratings, note };
+    if (e.picks.normal === null && e.picks.chiptune === null && Object.keys(e.ratings).length === 0 && note === '') continue;
+    out[cell] = { picks: { normal: e.picks.normal, chiptune: e.picks.chiptune }, ratings: e.ratings, note };
   }
   return out;
 }
@@ -74,7 +92,7 @@ function sameReview(a: Review, b: Review): boolean {
   return keys.every((k) => {
     const p = x[k]!;
     const q = y[k];
-    if (q === undefined || p.pick !== q.pick || p.note !== q.note) return false;
+    if (q === undefined || p.note !== q.note || MUSIC_LANES.some((l) => p.picks[l] !== q.picks[l])) return false;
     const r = Object.keys(p.ratings);
     return r.length === Object.keys(q.ratings).length && r.every((f) => p.ratings[f] === q.ratings[f]);
   });
@@ -90,6 +108,29 @@ function loadDraft(): Review | null {
     // Unreadable or blocked: no draft, and the latest submission stands.
     return null;
   }
+}
+
+function loadFreshSince(): string | null {
+  try {
+    return globalThis.localStorage?.getItem(FRESH_KEY) ?? null;
+  } catch {
+    // Blocked: no reset remembered, and the latest submission is restored as before.
+    return null;
+  }
+}
+
+function saveFreshSince(at: string): void {
+  try {
+    globalThis.localStorage?.setItem(FRESH_KEY, at);
+  } catch {
+    // A blocked store costs the reset surviving a reload, nothing on this page.
+  }
+}
+
+/** The submission to restore: none when a reset set it (or a later one's predecessor) aside. */
+function sinceReset(mine: MusicReviewRecord | null): MusicReviewRecord | null {
+  const since = loadFreshSince();
+  return mine !== null && since !== null && mine.at <= since ? null : mine;
 }
 
 function saveDraft(review: Review | null): void {
@@ -110,8 +151,15 @@ function fitToSlots(review: Review, slots: readonly MusicReviewSlot[]): Review {
     const offered = new Set(slot.candidates.map((c) => c.file));
     const ratings: Record<string, MusicRating> = {};
     for (const [f, r] of Object.entries(e.ratings ?? {})) if (offered.has(f) && MUSIC_RATINGS.includes(r)) ratings[f] = r;
+    // A draft saved before the two lanes carries one `pick`: it is the normal lane's.
+    const legacy = (e as { pick?: unknown }).pick;
+    const picks: Partial<Record<MusicLane, unknown>> = e.picks ?? { normal: legacy };
+    const lane = (l: MusicLane): string | null => {
+      const f = picks[l];
+      return typeof f === 'string' && offered.has(f) ? f : null;
+    };
     out[slot.cell] = {
-      pick: typeof e.pick === 'string' && offered.has(e.pick) ? e.pick : null,
+      picks: { normal: lane('normal'), chiptune: lane('chiptune') },
       ratings,
       note: typeof e.note === 'string' ? e.note : '',
     };
@@ -133,6 +181,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
   const [submitted, setSubmitted] = useState<MusicReviewRecord | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
   const [send, setSend] = useState<SendState>('idle');
+  const [resetArmed, setResetArmed] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -140,8 +189,9 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
       if (!alive) return;
       const s = musicReviewSlots(takes, a.cells);
       setSlots(s);
-      setSubmitted(mine);
-      setReview(fitToSlots(loadDraft() ?? mine?.slots ?? {}, s));
+      const restored = sinceReset(mine);
+      setSubmitted(restored);
+      setReview(fitToSlots(loadDraft() ?? restored?.slots ?? {}, s));
       setCanView(a.canView);
       setLoaded(true);
     });
@@ -161,10 +211,18 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
     };
   }, [player]);
 
+  // An armed reset waits a few seconds for its second press, then stands down.
+  useEffect(() => {
+    if (!resetArmed) return;
+    const t = setTimeout(() => setResetArmed(false), RESET_ARM_MS);
+    return () => clearTimeout(t);
+  }, [resetArmed]);
+
   const saved = submitted !== null && sameReview(review, submitted.slots);
 
   function edit(cell: string, change: (e: MusicReviewEntry) => MusicReviewEntry): void {
     setSend('idle');
+    setResetArmed(false);
     setReview((r) => {
       const next = { ...r, [cell]: change(r[cell] ?? EMPTY) };
       saveDraft(next);
@@ -178,7 +236,21 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
     player.loopFile(next);
   }
 
+  function reset(): void {
+    if (!resetArmed) {
+      setResetArmed(true);
+      return;
+    }
+    setResetArmed(false);
+    if (submitted !== null) saveFreshSince(submitted.at);
+    saveDraft(null);
+    setSubmitted(null);
+    setReview({});
+    setSend('idle');
+  }
+
   async function submit(): Promise<void> {
+    setResetArmed(false);
     setSend('sending');
     const record = await reviews.submit({ slots: normalizeReview(review) });
     if (record === null) {
@@ -208,6 +280,17 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
           </a>
           <button
             type="button"
+            className="sound-builder__btn music-review__reset"
+            data-testid="music-review-reset"
+            data-armed={resetArmed ? '' : undefined}
+            disabled={nothing}
+            onClick={reset}
+          >
+            <Icon name={resetArmed ? 'warning' : 'refresh'} />
+            Reset
+          </button>
+          <button
+            type="button"
             className="sound-builder__btn sound-builder__btn--primary music-review__submit"
             data-testid="music-review-submit"
             data-state={sendState}
@@ -234,12 +317,13 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                 {slot.candidates.map((c) => {
                   const on = playing === c.file;
                   const rating = entry.ratings[c.file];
+                  const lanes = MUSIC_LANES.filter((l) => entry.picks[l] === c.file);
                   return (
                     <li
                       key={c.file}
                       className="sound-queue__card music-review__card"
                       data-file={c.file}
-                      data-picked={entry.pick === c.file ? '' : undefined}
+                      data-picked={lanes.length > 0 ? lanes.join(' ') : undefined}
                       data-current={c.current ? '' : undefined}
                     >
                       <button
@@ -256,19 +340,33 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                         </span>
                         <span className="sound-queue__label">
                           {c.current && <Icon name="globe" size="0.9rem" title="Current" className="music-review__current" />}
+                          {isChiptuneName(c.label) && (
+                            <span className="music-review__chip" data-testid="music-review-chiptune">
+                              <Icon name={LANE_ICON.chiptune} size="0.8rem" title="16-bit" />
+                            </span>
+                          )}
                           <span className="music-review__name">{c.label}</span>
                         </span>
                       </button>
-                      <button
-                        type="button"
-                        className="sound-queue__pick"
-                        data-testid="music-review-pick"
-                        aria-label={`Pick ${c.label}`}
-                        aria-pressed={entry.pick === c.file}
-                        onClick={() => edit(slot.cell, (e) => ({ ...e, pick: e.pick === c.file ? null : c.file }))}
-                      >
-                        <Icon name="check" size="1rem" />
-                      </button>
+                      <div className="music-review__lanes" role="group" aria-label={`Lanes for ${c.label}`}>
+                        {MUSIC_LANES.map((l) => (
+                          <button
+                            key={l}
+                            type="button"
+                            className="music-review__lane"
+                            data-testid="music-review-pick"
+                            data-lane={l}
+                            aria-label={`${LANE_LABEL[l]} pick ${c.label}`}
+                            title={LANE_LABEL[l]}
+                            aria-pressed={entry.picks[l] === c.file}
+                            onClick={() =>
+                              edit(slot.cell, (e) => ({ ...e, picks: { ...e.picks, [l]: e.picks[l] === c.file ? null : c.file } }))
+                            }
+                          >
+                            <Icon name={LANE_ICON[l]} size="0.9rem" />
+                          </button>
+                        ))}
+                      </div>
                       <div className="music-review__ratings" role="group" aria-label={`Rate ${c.label}`}>
                         {MUSIC_RATINGS.map((r) => (
                           <button

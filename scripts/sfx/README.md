@@ -310,17 +310,20 @@ python3 scripts/sfx/add-track.py <finished wav> --name "W · heraldic fanfare" -
 
 The operator: *"post it as a new route under /sounds/ i want to be able to go there, test, then send the results
 for review later"*. Each of the 15 match-music slots offers the take its cell plays today (badged) and the Music
-takes named `<code> · ` (`musicReviewSlots`, `packages/shared/src/music-review.ts`). Any friend may submit a
-pick, a keep / maybe / no per take and a note per slot; nothing writes `assignments.json`.
+takes named `<code> · ` (`musicReviewSlots`, `packages/shared/src/music-review.ts`). Any friend may submit two
+picks per slot — a **normal** lane and a **16-bit** (`chiptune`) lane, any take in either — a keep / maybe / no per
+take and a note per slot; nothing writes `assignments.json`. Reset (pressed twice) starts a blank round in that
+browser and writes nothing to the server.
 
 Submissions append to **`<sounds dir>/music-reviews.jsonl`** (production: `apps/server/data/sounds/` in the deploy
 tree), one JSON object per line, never rewritten:
 
 ```json
-{"at":"2026-10-17T23:59:00.000Z","userId":"…","name":"Bob","slots":{"music.match.W|play":{"pick":"music-w-tavern-jig/take-1.ogg","ratings":{"music-dawnlight-sanctum/take-1.ogg":"no"},"note":""}}}
+{"at":"2026-10-18T23:59:00.000Z","userId":"…","name":"Bob","slots":{"music.match.W|play":{"picks":{"normal":"music-w-tavern-jig/take-1.ogg","chiptune":null},"ratings":{"music-dawnlight-sanctum/take-1.ogg":"no"},"note":""}}}
 ```
 
-A slot left out was not reviewed; `pick: null` with ratings or a note is a slot reviewed without a choice. A
+Lines written before 2026-10-18 carry a single `"pick"`; `MusicReviewRecordSchema` reads it as `picks.normal`.
+A slot left out was not reviewed; both picks null with ratings or a note is a slot reviewed without a choice. A
 viewer's latest line is their current answer (`GET /api/sounds/music-review/mine`). To act on it, read the
 file and set each picked cell with the admin `PUT /api/sounds/assignments/<cell>` (the builder does the same).
 

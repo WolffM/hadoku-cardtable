@@ -218,15 +218,31 @@ able to go there, test, then send the results for review later. make sure
 monos then pairs. Candidates come from data, in one place
 (`musicReviewSlots`, `packages/shared/src/music-review.ts`): the cell's current
 assignment (badged) and every Music take named `<code> · `. Each card loops its
-take on the music bus at the player's levels, one at a time; a check picks it
-(one per slot); keep / maybe / no rate it; a note goes with the slot. Submit
-is `POST /api/sounds/music-review`, validated against the same grouping and
-appended to **`<sounds dir>/music-reviews.jsonl`** — in production
+take on the music bus at the player's levels, one at a time; two lane buttons
+put it in the slot's **normal** or **16-bit** lane (2026-10-18: *"2 tracks for
+every slot. one 'normal' and one 16-bit"*; one take per lane, any take in
+either); keep / maybe / no rate it; a note goes with the slot. A take named
+16-bit carries a small chip. Submit is `POST /api/sounds/music-review`,
+validated against the same grouping and appended to
+**`<sounds dir>/music-reviews.jsonl`** — in production
 `apps/server/data/sounds/music-reviews.jsonl` in the deploy tree — as
-`{at, userId, name, slots: {<cell>: {pick, ratings, note}}}`. Re-opening
-restores the browser's unsent draft, else the viewer's latest line
-(`GET /api/sounds/music-review/mine`). Nothing writes the assignments: a later
-session reads the file and sets them (`scripts/sfx/README.md`, Music review).
+`{at, userId, name, slots: {<cell>: {picks: {normal, chiptune}, ratings, note}}}`.
+Lines from before the lanes carry one `pick`; they read as `picks.normal`, and
+the file is never rewritten. Re-opening restores the browser's unsent draft,
+else the viewer's latest line (`GET /api/sounds/music-review/mine`).
+
+**Reset** (pressed twice; *"a 'reset' button so i can give a fresh round of
+feedback"*) blanks the form and drops the draft. It writes nothing to the
+server: the browser remembers the `at` of the submission it set aside
+(`cardtable.sound.music-review.fresh-since`), and a re-open restores nothing at
+or before it. The next submission is simply a later line, so "latest line per
+viewer" stays the answer. The marker is per browser: another device still
+restores the old line until it is reset there too.
+
+Nothing writes the assignments: a later session reads the file and sets them
+(`scripts/sfx/README.md`, Music review). **Next step: two-lane playback** — a
+16-bit role per slot and a player setting choosing the lane, so the review's
+`chiptune` picks have somewhere to go.
 
 ## Sandbox (`#/sounds/sandbox`, friend tier; gain saves admin-only)
 

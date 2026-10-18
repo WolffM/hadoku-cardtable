@@ -236,7 +236,7 @@ test('admin can place a take and reload to find it saved; a friend listens and e
   }
 });
 
-test('a friend reviews the match music: picks, submits, and finds it restored and on disk', async ({ browser }) => {
+test('a friend reviews the match music: picks both lanes, submits, finds it restored and on disk, then resets to a blank round', async ({ browser }) => {
   const friend = await open(browser, 'bob');
   const pageErrors: Error[] = [];
   friend.page.on('pageerror', (err) => pageErrors.push(err));
@@ -251,7 +251,8 @@ test('a friend reviews the match music: picks, submits, and finds it restored an
     await expect(slot.locator('.music-review__card').first()).toHaveAttribute('data-current', '');
     // Not real audio: the play has to fail soft, never as a page error.
     await slot.getByRole('button', { name: 'Play W · w50 jig' }).click();
-    await slot.getByRole('button', { name: 'Pick W · w50 jig' }).click();
+    await slot.getByRole('button', { name: 'Normal pick W · w50 jig' }).click();
+    await slot.getByRole('button', { name: '16-bit pick w50 web track' }).click();
     await slot.getByRole('group', { name: 'Rate w50 web track' }).getByRole('button', { name: 'No' }).click();
     await slot.getByRole('textbox', { name: 'W note' }).fill('the jig');
 
@@ -263,14 +264,31 @@ test('a friend reviews the match music: picks, submits, and finds it restored an
 
     await friend.page.reload();
     await expect(friend.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
-    await expect(slot.getByRole('button', { name: 'Pick W · w50 jig' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(slot.getByRole('button', { name: 'Normal pick W · w50 jig' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(slot.getByRole('button', { name: '16-bit pick w50 web track' })).toHaveAttribute('aria-pressed', 'true');
     await expect(slot.getByRole('textbox', { name: 'W note' })).toHaveValue('the jig');
     await expect(submit).toHaveAttribute('data-state', 'saved');
 
     const lines = (await readFile(resolve(SOUNDS_DIR, 'music-reviews.jsonl'), 'utf8')).trimEnd().split('\n');
     const last = JSON.parse(lines.at(-1)!) as { userId: string; slots: Record<string, unknown> };
     expect(last.userId).toBe('e2e-bob-id');
-    expect(last.slots).toEqual({ [MUSIC_CELL]: { pick: MUSIC_GEN, ratings: { [MUSIC_WEB]: 'no' }, note: 'the jig' } });
+    expect(last.slots).toEqual({
+      [MUSIC_CELL]: { picks: { normal: MUSIC_GEN, chiptune: MUSIC_WEB }, ratings: { [MUSIC_WEB]: 'no' }, note: 'the jig' },
+    });
+
+    // Reset, pressed twice: a blank form that a reload does not fill back in, and the file as it was.
+    const reset = friend.page.getByTestId('music-review-reset');
+    await reset.click();
+    await expect(reset).toHaveAttribute('data-armed', '');
+    await reset.click();
+    const said = '[data-testid="music-review-pick"][aria-pressed="true"], .music-review__rate[aria-pressed="true"]';
+    await expect(slot.locator(said)).toHaveCount(0);
+    await expect(slot.getByRole('textbox', { name: 'W note' })).toHaveValue('');
+    await friend.page.reload();
+    await expect(friend.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
+    await expect(friend.page.locator(said)).toHaveCount(0);
+    await expect(submit).toBeDisabled();
+    expect((await readFile(resolve(SOUNDS_DIR, 'music-reviews.jsonl'), 'utf8')).trimEnd().split('\n')).toEqual(lines);
     expect(pageErrors).toEqual([]);
   } finally {
     await friend.context.close();
