@@ -2484,6 +2484,7 @@ describe('a room table', () => {
 			expect(agreed.status).toBe(200);
 			expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('sideboarding');
 			expect(players(agreed.body).map((p) => p.ready), "the agreeing press's own answer").toEqual([false, false]);
+			expect((agreed.body.room as { phase: string }).phase, 'and the table read says where the series is').toBe('sideboarding');
 			expect(players((await view(h, 'alice')).body).map((p) => p.ready), 'every read after it').toEqual([false, false]);
 
 			const refused = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));

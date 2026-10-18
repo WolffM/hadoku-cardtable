@@ -134,6 +134,8 @@ const tableState = vi.hoisted(() => ({
   me: { ready: false, present: true, choice: null as { deck: { dck: string } | { library: string } } | null },
   other: { ready: false, present: true },
   matchId: null as string | null,
+  /** The table's series phase, as the table read reports it beside `matchId`. */
+  phase: 'done' as string,
   startRoom: vi.fn(async (_roomId: string) => ({ ok: true as const, matchId: 'm-next00000000' })),
   startVsBot: vi.fn(async (_roomId: string) => ({ ok: true as const, matchId: 'm-bot000000000' })),
   ready: vi.fn((_roomId: string, _ready: boolean, _tableId?: string) => undefined),
@@ -156,7 +158,7 @@ vi.mock('../../screens/tables.ts', async (importOriginal) => {
     choice: you ? tableState.me.choice : null,
   });
   const table = () => ({
-    room: { id: 'r-1', name: 'Room', gameType: 'constructed-1v1', matchId: tableState.matchId, seats: 2 },
+    room: { id: 'r-1', name: 'Room', gameType: 'constructed-1v1', matchId: tableState.matchId, seats: 2, phase: tableState.phase },
     you: { player: true, leader: true },
     players: [
       ...(tableState.me.present ? [row(true, tableState.me.ready)] : []),
@@ -263,6 +265,7 @@ afterEach(async () => {
   tableState.me = { ready: false, present: true, choice: null };
   tableState.other = { ready: false, present: true };
   tableState.matchId = null;
+  tableState.phase = 'done';
   tableState.startRoom.mockClear();
   tableState.startVsBot.mockClear();
   tableState.ready.mockClear();
@@ -3710,6 +3713,38 @@ describe('R16 — the result screen, drawn over the board', () => {
       roomPing();
       await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
       expect(tableState.ready).toHaveBeenCalledTimes(1);
+      expect(tableState.startRoom).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Claw run 39093583786: bob's screen never read alice's press (it landed
+     * between two of his table reads), so his own agreeing press took the
+     * table from "nobody ready" to "nobody ready" — the agreement spends both
+     * Readys. Only the table's `phase` moved, and the screen must still notice
+     * and read the room, or the sideboard step never opens for him.
+     */
+    it('Rematch that begins sideboarding when the other press was never seen: the phase alone opens the step', async () => {
+      const sideboardingRoom = {
+        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
+        pod: null,
+      };
+      roomsClientState.room = {
+        ...sideboardingRoom,
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [1, 0], games: [], phase: 'done' } }],
+      };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      tableState.ready.mockImplementationOnce(() => {
+        tableState.me.ready = false;
+        tableState.phase = 'sideboarding';
+        roomsClientState.room = sideboardingRoom;
+      });
+      const { getByTestId, rematch } = await victoryInRoom();
+      await waitFor(() => expect(rematch().disabled).toBe(false));
+      fireEvent.click(rematch());
+      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', true, 't-1'));
+      roomPing();
+      await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
       expect(tableState.startRoom).not.toHaveBeenCalled();
     });
 
