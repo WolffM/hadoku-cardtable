@@ -102,6 +102,12 @@ export const PodViewSchema = z.strictObject({
   pairings: z.array(PodPairingSchema),
   /** The CURRENT round's bye, or `null` (an even round, or outside `rounds`). */
   bye: z.string().min(1).nullable(),
+  /**
+   * Every human drafting this pod, in pod seat order — the list `built` is a
+   * subset of, and the one the server's own gate for starting `rounds` checks.
+   * Empty in `lobby`, where `seats` says who is sitting.
+   */
+  drafters: z.array(z.string().min(1)),
   /** Drafters whose deck is saved and legal — `building`'s own gate for starting `rounds`. */
   built: z.array(z.string().min(1)),
 });

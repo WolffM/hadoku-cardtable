@@ -35,6 +35,7 @@ const LOBBY_VIEW = {
   standings: [],
   pairings: [],
   bye: null,
+  drafters: [],
   built: [],
 } as const;
 
@@ -47,6 +48,7 @@ const ROUNDS_VIEW = {
   standings: [STANDING],
   pairings: [PAIRING],
   bye: 'fk:carol',
+  drafters: ['fk:alice', 'fk:bob', 'fk:carol'],
   built: ['fk:alice', 'fk:bob', 'fk:carol'],
 } as const;
 

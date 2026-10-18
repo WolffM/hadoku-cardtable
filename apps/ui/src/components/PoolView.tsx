@@ -1,9 +1,8 @@
 /**
  * The picked pool — everything this seat has taken, and only this seat.
  *
- * Grouped by colour, because the question a drafter asks of their own pool —
- * mid-pack, or at "Draft complete" deciding which colours to build — is "what
- * am I actually in", and a flat list in pick order answers a question nobody
+ * Grouped by colour, because the question a drafter asks of their own pool
+ * mid-pack is "what am I actually in", and a flat list in pick order answers a question nobody
  * asks. Colour counts sit above it for the same reason. Within a colour, cards
  * sort by mana value then name, so each group still reads as a mini curve.
  *
@@ -92,13 +91,12 @@ export interface PoolViewProps {
   /**
    * The card that just arrived, and where its pack slot was — `null` turns
    * the FLIP off entirely (a snapshot restore, a reduced-motion viewer; see
-   * `DraftScreen.tsx`). Absent on the "Draft complete" screen, where nothing
-   * is arriving.
+   * `DraftScreen.tsx`).
    */
-  recentlyAdded?: { cardId: string; from: PoolEnterRect } | null;
+  recentlyAdded: { cardId: string; from: PoolEnterRect } | null;
 }
 
-export function PoolView({ cards, recentlyAdded = null }: PoolViewProps) {
+export function PoolView({ cards, recentlyAdded }: PoolViewProps) {
   const counts = COLORS.map(
     (c) => [c, cards.filter((card) => card.colors.includes(c)).length] as const,
   );

@@ -490,6 +490,7 @@ describe('RoomView.tables and RoomView.pod', () => {
       standings: [],
       pairings: [],
       bye: null,
+      drafters: [],
       built: [],
     };
     expect(parseRoomView({ ...OPEN, pod: POD })?.pod).toEqual(POD);

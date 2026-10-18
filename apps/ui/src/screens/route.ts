@@ -248,11 +248,18 @@ export function appLocation(): { origin: string; pathname: string } {
  * a task rather than dispatched synchronously, so this tells the subscribers
  * itself; the event that arrives a moment later finds the same hash and is a
  * no-op, because `useSyncExternalStore` compares the snapshot by value.
+ *
+ * `replace` swaps the current history entry instead of adding one, for a
+ * screen that forwards on its own: Back from where it forwarded to must not
+ * land on it again and be forwarded straight back.
  */
-export function navigate(route: Route): void {
+export function navigate(route: Route, { replace = false }: { replace?: boolean } = {}): void {
   const next = routeHash(route);
   if (inMemory !== null) inMemory.hash = next;
-  else if (currentHash() !== next) globalThis.location.hash = next;
+  else if (currentHash() !== next) {
+    if (replace) globalThis.location.replace(next);
+    else globalThis.location.hash = next;
+  }
   notify();
 }
 

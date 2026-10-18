@@ -659,17 +659,20 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// `startPodRounds`'s `PodRecord.humans`/`pairings` are what `rounds`/`done`
 	// answer from — this field is not a second source for either.
 	const seats = phase === 'lobby' ? podSeatsView(room) : EMPTY_POD_SEATS;
-	if (phase === 'lobby' || phase === 'drafting') {
-		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, built: [] };
+	if (phase === 'lobby') {
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [] };
 	}
 	// Seated at `draftStartedAt` and fixed from there (`startPodRounds`'s own
 	// `humans`), falling back to the CURRENT seats for a pod whose rounds have
-	// not started yet (`building`) — there is no fixed list to fall back to
-	// before `startPodRounds` has run.
+	// not started yet (`drafting`/`building`) — there is no fixed list to fall
+	// back to before `startPodRounds` has run.
 	const humans = room.pod?.humans ?? room.podSeats.filter((id): id is string => id !== null);
+	if (phase === 'drafting') {
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: humans, built: [] };
+	}
 	const built = humans.filter((id) => checks.built(room.id, id));
 	if (phase === 'building') {
-		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, built };
+		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, drafters: humans, built };
 	}
 	const pod = room.pod as PodRecord; // `podPhaseOf` answers `rounds`/`done` only when `room.pod !== null`.
 	const ranked = standings(humans.map((id) => ({ id })), pod.results).map((row, i) => ({ ...row, rank: i + 1 }));
@@ -682,6 +685,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 		standings: ranked,
 		pairings: pod.pairings,
 		bye: pod.bye,
+		drafters: humans,
 		built,
 	};
 }

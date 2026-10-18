@@ -18,8 +18,10 @@
  * of a second, hand-rolled copy of them.
  */
 
+import { useEffect, useState } from 'react';
 import { RoomTablesSchema, type RoomTable } from '@hadoku/shared';
 
+import { roomFeed } from '../../rooms/feed.ts';
 import { tablesClient } from '../tables.ts';
 import { parsePodView, type PodView } from './wire.ts';
 
@@ -61,12 +63,12 @@ export interface PodContext {
   tables: RoomTable[];
   /** Every member's display name, by id — for resolving `pod.built`/`pod.bye`/`pod.standings[].id`. */
   names: Record<string, string>;
-  /** `RoomView.leader` — the one member who may call `startPodRounds` below. `''` while unknown. */
-  leaderId: string;
+  /** `RoomView.you.leader` — whether this caller may call `startPodRounds` below. False while unknown. */
+  youLead: boolean;
 }
 
 /**
- * Everything `PodScreen.tsx` needs for `building`/`rounds`/`done`, in one
+ * Everything the pod's screens need for `building`/`rounds`/`done`, in one
  * read of the room's raw body — `pod`, `tables` (already landed, imported
  * directly) and a plain id→name map built from `members`, since neither
  * `PodView` nor `RoomTable.players` names everyone (a built-but-unpaired
@@ -74,15 +76,43 @@ export interface PodContext {
  */
 export async function fetchPodContext(roomId: string): Promise<PodContext> {
   const body = await fetchRoomRaw(roomId);
-  if (body === null) return { pod: null, tables: [], names: {}, leaderId: '' };
+  if (body === null) return { pod: null, tables: [], names: {}, youLead: false };
   const tables = RoomTablesSchema.safeParse(body.tables);
   const members = Array.isArray(body.members) ? body.members.filter(isNamed) : [];
   return {
     pod: parsePodView(body.pod),
     tables: tables.success ? tables.data : [],
     names: Object.fromEntries(members.map((m) => [m.id, m.name])),
-    leaderId: typeof body.leader === 'string' ? body.leader : '',
+    youLead: typeof body.you === 'object' && body.you !== null && (body.you as { leader?: unknown }).leader === true,
   };
+}
+
+/** Where a screen's `PodContext` comes from. Tests pass a stub; production gets `livePodSource`. */
+export interface PodSource {
+  /** Calls `onRead` with a fresh read every time the room changes (and once at the start). Returns the stop. */
+  follow(roomId: string, onRead: (ctx: PodContext) => void): () => void;
+}
+
+/** The room feed's pings, each answered with one `fetchPodContext`. */
+export const livePodSource: PodSource = {
+  follow: (roomId, onRead) => roomFeed().follow({ room: roomId }, () => void fetchPodContext(roomId).then(onRead)),
+};
+
+/** The room's pod context, kept current. `null` until the first read has answered. */
+export function usePodContext(roomId: string, source: PodSource = livePodSource): PodContext | null {
+  const [ctx, setCtx] = useState<PodContext | null>(null);
+  useEffect(() => {
+    let live = true;
+    setCtx(null);
+    const stop = source.follow(roomId, (c) => {
+      if (live) setCtx(c);
+    });
+    return () => {
+      live = false;
+      stop();
+    };
+  }, [roomId, source]);
+  return ctx;
 }
 
 export interface PodActionOutcome {

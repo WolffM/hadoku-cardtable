@@ -3675,7 +3675,7 @@ describe('R16 — the result screen, drawn over the board', () => {
       roomsClientState.room = {
         settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'done' } }],
-        pod: { phase: 'rounds', seats: [], round: 1, rounds: 2, results: [], standings: [], pairings: [], bye: null, built: [] },
+        pod: { phase: 'rounds', seats: [], round: 1, rounds: 2, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [] },
       };
       const { queryByTestId, getByTestId } = await victoryInRoom();
       await waitFor(() => expect(getByTestId('game-result-room')).toBeTruthy());
@@ -3881,7 +3881,7 @@ describe('R16 — the result screen, drawn over the board', () => {
             series: { length: 3, wins: [0, 1], games: [{ matchId: s.matchId, winner: 1 }], phase: 'sideboarding' },
           },
         ],
-        pod: { phase: 'rounds', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, built: [] },
+        pod: { phase: 'rounds', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [] },
       };
       tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
       const utils = render(createElement(LiveBoard, { match: m, roomId: 'r-1' }));

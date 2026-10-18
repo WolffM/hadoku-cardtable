@@ -22,6 +22,7 @@ const podFixture = (): PodView => ({
   standings: [],
   pairings: [],
   bye: null,
+  drafters: [],
   built: [],
 });
 
@@ -73,14 +74,19 @@ describe('fetchPodContext', () => {
     expect(ctx.names).toEqual({ 'u-alice': 'Alice', 'u-bob': 'Bob' });
   });
 
-  it('reads the room’s leader too', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ id: 'r-cube', pod: null, leader: 'u-alice' }), { status: 200 }));
-    expect((await fetchPodContext('r-cube')).leaderId).toBe('u-alice');
+  it('reads whether the caller leads the room', async () => {
+    const lead = (you: unknown) => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ id: 'r-cube', pod: null, leader: 'u-alice', you }), { status: 200 }));
+      return fetchPodContext('r-cube').then((c) => c.youLead);
+    };
+    expect(await lead({ leader: true, ready: false })).toBe(true);
+    expect(await lead({ leader: false, ready: true })).toBe(false);
+    expect(await lead(undefined)).toBe(false);
   });
 
   it('answers empty rather than throwing on a failed read', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
-    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {}, leaderId: '' });
+    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {}, youLead: false });
   });
 
   it('drops a malformed tables array rather than guessing', async () => {

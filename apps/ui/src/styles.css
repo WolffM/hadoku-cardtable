@@ -234,14 +234,9 @@ button {
 /*
  * ── pod ───────────────────────────────────────────────────────────────
  * Most of `.pod__*` is `screens/screens.css`'s (the bar, the invite, the
- * waiting/done frame — nobody's to touch this wave). These two are new and
- * specific to the inspector and the "Draft complete" action, so they live
- * beside `.pack`/`.pool`/`.draft` instead.
+ * waiting frame). This one is specific to the inspector, so it lives beside
+ * `.pack`/`.pool`/`.draft` instead.
  */
-
-.pod__build {
-  margin-top: 4px;
-}
 
 /* Fixed, the same as `screens.css`'s `.peek__zoom`: no live board canvas here
    to be `position: absolute` inside. */
@@ -741,11 +736,6 @@ button {
 .pool {
   border-top: 1px solid var(--line);
   padding-top: 14px;
-  /* Beside the pack (`.draft__main > .pool`) its own flex-basis decides the
-     width; inside "Draft complete" (`screens.css`'s `.pod__done`, a column
-     flex with `align-items: flex-start`) nothing else would, so this is the
-     one declaration both contexts need. */
-  width: 100%;
 }
 
 .pool__head {

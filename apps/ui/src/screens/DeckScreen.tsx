@@ -37,8 +37,16 @@
  * (`RoomList.tsx`, lane B) — a friend room on this pod is where the deck is
  * actually played.
  *
- * `store` and `client` exist for tests. `App.tsx` passes neither, so
- * production gets the real API.
+ * ## The pod
+ *
+ * A finished draft lands here with no screen in between (`PodScreen.tsx`), so
+ * the pod's `building` phase is drawn here too: who has built, and the
+ * leader's Start round 1 (`pod/PodBuilding.tsx`). Once the pod is in `rounds`
+ * this hands the drafter back to the room, whose pod screen seats them at
+ * their table.
+ *
+ * `store`, `client` and `podSource` exist for tests. `App.tsx` passes none of
+ * them, so production gets the real API.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -47,6 +55,8 @@ import { DeckEditor } from '../deck/DeckEditor.tsx';
 import { deckStoreClient, type DeckStoreClient, type Mine } from '../deck/deckStore.ts';
 import { presetCreate } from '../rooms/api.ts';
 import { navigate } from './route.ts';
+import { livePodSource, usePodContext, type PodSource } from './pod/client.ts';
+import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { Disclaimer } from '../components/Disclaimer.tsx';
@@ -60,11 +70,20 @@ export interface DeckScreenProps {
   /** Passed through to the editor; tests set 0. */
   checkDelayMs?: number;
   saveDelayMs?: number;
+  /** Tests pass a stub. Production leaves it undefined and reads the room over the feed. */
+  podSource?: PodSource;
 }
 
 type Loaded = { kind: 'no-seat' } | { kind: 'ready'; mine: Mine };
 
-export function DeckScreen({ draftId, store: givenStore, client: givenClient, checkDelayMs, saveDelayMs }: DeckScreenProps) {
+export function DeckScreen({
+  draftId,
+  store: givenStore,
+  client: givenClient,
+  checkDelayMs,
+  saveDelayMs,
+  podSource = livePodSource,
+}: DeckScreenProps) {
   const store = useMemo(() => givenStore ?? deckStoreClient(), [givenStore]);
   const client = useMemo(() => givenClient ?? tablesClient(), [givenClient]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -88,6 +107,13 @@ export function DeckScreen({ draftId, store: givenStore, client: givenClient, ch
     };
   }, [draftId, store]);
 
+  const ctx = usePodContext(draftId, podSource);
+  const pod = ctx?.pod ?? null;
+  const rounds = pod?.phase === 'rounds';
+  useEffect(() => {
+    if (rounds) navigate({ kind: 'room', roomId: draftId }, { replace: true });
+  }, [rounds, draftId]);
+
   const play = (): void => {
     presetCreate(`draft:${draftId}`);
     navigate({ kind: 'lobby' });
@@ -102,6 +128,10 @@ export function DeckScreen({ draftId, store: givenStore, client: givenClient, ch
         </p>
         <SettingsGear />
       </header>
+
+      {ctx !== null && pod !== null && pod.phase === 'building' && (
+        <PodBuilding roomId={draftId} pod={pod} nameOf={(id) => ctx.names[id] ?? id} youLead={ctx.youLead} />
+      )}
 
       {loadError !== null && (
         <p className="lobby__error" role="alert" data-testid="deck-load-error">

@@ -20,6 +20,7 @@ const fixture = (over: Partial<PodView> = {}): PodView => ({
   standings: [],
   pairings: [],
   bye: null,
+  drafters: [],
   built: [],
   ...over,
 });
@@ -36,6 +37,7 @@ describe('parsePodView', () => {
       round: 2,
       rounds: 3,
       bye: 'u-carol',
+      drafters: ['u-alice', 'u-bob', 'u-carol'],
       built: ['u-alice', 'u-bob', 'u-carol'],
       standings: [
         { id: 'u-alice', matchPoints: 3, opponentMatchWinPct: 0.5, gameWinPct: 1, opponentGameWinPct: 0.5, rank: 1 },

@@ -62,6 +62,7 @@ const podFixture = (over: Partial<PodView> = {}): PodView => ({
   standings: [],
   pairings: [],
   bye: null,
+  drafters: [],
   built: [],
   ...over,
 });

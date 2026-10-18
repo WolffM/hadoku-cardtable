@@ -460,8 +460,7 @@
   color: var(--color-warning);
 }
 
-.pod__waiting,
-.pod__done {
+.pod__waiting {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-light);
   border-radius: var(--hdk-radius);
@@ -472,8 +471,7 @@
   align-items: flex-start;
 }
 
-.pod__waiting p,
-.pod__done p {
+.pod__waiting p {
   margin: 0;
   color: var(--color-text-secondary);
   max-width: 60ch;

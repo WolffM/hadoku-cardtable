@@ -1787,6 +1787,7 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		const id = made.room.id;
 		expect(lobby.get(id)?.pod?.phase).toBe('lobby');
 		expect(lobby.get(id)?.pod?.seats[0]).toBeNull();
+		expect(lobby.get(id)?.pod?.drafters).toEqual([]);
 
 		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 		expect(lobby.get(id)?.pod?.seats[0]).toEqual({ memberId: ALICE.id, name: ALICE.name });
@@ -1801,11 +1802,14 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		// the 8 pod seats"): once drafting starts, who is where is the draft
 		// engine's business, not this field's.
 		expect(lobby.get(id)?.pod?.seats.every((s) => s === null)).toBe(true);
+		// Who is drafting is still the room's to say: the list `built` and the rounds gate are checked against.
+		expect(lobby.get(id)?.pod?.drafters).toEqual([ALICE.id]);
 		lobby.setPodChecks(fakeChecks({ draftComplete: false }));
 		expect(lobby.get(id)?.pod?.phase).toBe('drafting');
 
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set() }));
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
+		expect(lobby.get(id)?.pod?.drafters).toEqual([ALICE.id]);
 		expect(lobby.get(id)?.pod?.built).toEqual([]);
 
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
@@ -1819,6 +1823,7 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		expect(started.room.pod?.rounds).toBe(0);
 		expect(started.room.pod?.results).toEqual([]);
 		expect(started.room.pod?.pairings).toEqual([]);
+		expect(started.room.pod?.drafters).toEqual([ALICE.id]);
 	});
 });
 
