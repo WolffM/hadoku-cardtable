@@ -19,7 +19,7 @@ export default defineConfig({
   retries: 0,
   forbidOnly: true,
   // A whole draft is 45 picks per seat, paced under the server's pick rate
-  // limit (8 burst, then 1 per 1.5 s) — about 75 s of picking per run.
+  // limit (15 burst, then 4 a second) — about 20 s of picking per run.
   timeout: 6 * 60_000,
   expect: { timeout: 15_000 },
   reporter: [['list']],

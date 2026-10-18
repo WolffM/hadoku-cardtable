@@ -186,7 +186,8 @@ import type { DeckEntry } from '@hadoku/carddata/dck';
 import type { RoomTable } from '@hadoku/shared';
 
 import type { DraftRooms } from '../room/draftRooms.js';
-import { builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
+import { botPoolAcross, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
+import { botDeckText } from '../room/botDeck.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { FREE_PICK, draftIdOfPool, draftPoolId, type PodChecks } from '../room/lobby.js';
 import type { MatchSpec } from '../play/host.js';
@@ -1180,14 +1181,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	/**
 	 * A table is a constructed 1v1 table, OR a pod table once the pod's
 	 * rounds have started (wave 72 §P — pod tables are made and seated by the
-	 * server, `room/lobby.ts`'s `startPodRounds`; players don't sit at them
+	 * server, `room/lobby.ts`'s `playPod`; players don't sit at them
 	 * themselves, but every OTHER table route — ready, deck, start — works
-	 * exactly as it does for a constructed room's table).
+	 * exactly as it does for a constructed room's table). Still a table once
+	 * the pod is `done`: the one drafter of a pod of bots plays the AI again
+	 * from it.
 	 */
 	function wrongGameType(room: RoomViewLike, res: Response): boolean {
 		if (room.gameType === CONSTRUCTED) return false;
-		if (room.gameType === 'draft' && room.pod?.phase === 'rounds') return false;
-		res.status(409).json({ error: `this room plays ${room.gameType}, not ${CONSTRUCTED} or a pod in rounds` });
+		if (room.gameType === 'draft' && (room.pod?.phase === 'rounds' || room.pod?.phase === 'done')) return false;
+		res.status(409).json({ error: `this room plays ${room.gameType}, not ${CONSTRUCTED} or a pod at its tables` });
 		return true;
 	}
 
@@ -1753,18 +1756,29 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// The bot's deck: a random one of the decks the room's pool offers a player
 		// (`legalLibraryDecks` — the era's own, or the whole library on Free pick),
 		// checked by the same gate as the player's. A drafted pool offers no library
-		// deck, so a drafted room cannot have a bot.
+		// deck, so there the bot plays what a bot at that draft took (`botDeck.ts`).
 		let botDeck: string | null = null;
 		if (vsBot) {
 			const owner = loaded[0]!.member.id;
 			const pool = effectivePoolOf(room);
-			const swept = draftIdOfPool(pool) === null ? legalLibraryDecks(pool, contextFor(owner)) : { ids: [] };
-			const offered = 'error' in swept ? [] : swept.ids;
-			if (offered.length === 0) {
-				res.status(409).json({ error: `no deck in the library is legal in ${poolName(room)}, so the bot has nothing to play` });
-				return;
+			const draftId = draftIdOfPool(pool);
+			if (draftId !== null) {
+				const draftRoom = deps.draftRooms?.find(draftId);
+				const botPool = draftRoom === undefined ? null : botPoolAcross(draftRoom, owner);
+				if (botPool === null || botPool.length === 0) {
+					res.status(409).json({ error: 'no bot drafted in this pod, so the AI has nothing to play' });
+					return;
+				}
+				botDeck = botDeckText(botPool, 'Bot draft');
+			} else {
+				const swept = legalLibraryDecks(pool, contextFor(owner));
+				const offered = 'error' in swept ? [] : swept.ids;
+				if (offered.length === 0) {
+					res.status(409).json({ error: `no deck in the library is legal in ${poolName(room)}, so the bot has nothing to play` });
+					return;
+				}
+				botDeck = library.deck(offered[Math.floor(Math.random() * offered.length)]!)!.text;
 			}
-			botDeck = library.deck(offered[Math.floor(Math.random() * offered.length)]!)!.text;
 		}
 		const registry = deps.matches?.() ?? null;
 		if (registry === null) {

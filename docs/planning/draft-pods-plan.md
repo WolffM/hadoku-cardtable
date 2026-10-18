@@ -45,6 +45,18 @@ not.
 > default still bo1. bo1+sideboarding can still be enabled and triggered via
 > rematch. bo3 just means that rematch is forced after a round ends.
 
+## Ruling (2026-10-18, verbatim)
+
+> i really dislike the 'create a room, enter name' flow for the cube creation
+> room. this should be automatically handled for all draft players
+>
+> also i dont even think we should be taking people to the room lobby, it
+> should just go immediately inot a game. theres no need to go to a room with
+> 'format' selection or any of that. it should be:
+>
+> drafting room -> deck building -> inside game room already ready to play ->
+> sideboard -> repeat...
+
 ## What existed on 2026-10-17
 
 - **Draft:** the engine is ours (`packages/draft`, O2), 8 × 3 × 15, bots fill
@@ -106,7 +118,15 @@ A draft room runs in phases: **lobby → drafting → building → rounds → do
 - **Drafting:** as today.
 - **Building:** each drafter builds in the deck editor. Pools and built decks
   are stored on the server per pod member, not in the pod seat, so a reload or
-  a walk-away does not lose them.
+  a walk-away does not lose them. The editor's **Play** saves the build, says
+  that drafter is done (`POST …/pod/play`) and returns them to the pod. The
+  last drafter's Play deals round 1; nobody presses a start button.
+- **Into the game:** the pod screen readies and starts each player's table by
+  itself, and carries them to it (2026-10-18 ruling). Between games of a bo3
+  the result screen opens the sideboard step.
+- **One human, seven bots:** one bo3 table against Forge's AI, whose deck is
+  built from the pool of the bot that drafted across the table
+  (`apps/server/src/room/botDeck.ts`). Rematch stays on the result screen.
 - **Rounds:** `ceil(log2(humans))` rounds, each a bo3.
   - **Round 1: across the table.** Humans are ordered by pod seat, and human
     *i* plays human *i + ⌈H/2⌉*. With an odd *H*, the one that formula leaves
@@ -115,8 +135,8 @@ A draft room runs in phases: **lobby → drafting → building → rounds → do
   - **Later rounds: by score.** Match points (win 3, draw 1), and no repeat
     pairing while another is possible.
   - **A bye** goes to the lowest-ranked player who has not had one. It counts
-    as a match win (2–0). The AI-opponent option stays open but is not built
-    (ruling 3).
+    as a match win (2–0). An AI opponent for the bye is still not built
+    (ruling 3); the AI only plays a pod of one.
 - **Standings** are shown in the room between rounds and at the end.
 
 ### Watching

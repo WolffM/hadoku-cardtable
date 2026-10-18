@@ -184,7 +184,6 @@ import {
   roomsClient,
   streamPath,
   streamReachable,
-  takeCreatePreset,
   type ClientMode,
   type Fetch,
   type RoomMember,
@@ -1892,26 +1891,6 @@ function RoomTableScreen({
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
   };
-
-  /*
-   * The deck editor's "Play" seam (the wave 70 manager decision): its Play
-   * button remembers a pending create preset (`rooms/api.ts`'s `presetCreate`,
-   * format `draft:<podId>`) and sends the drafter to the room list, which opens
-   * its create form on it. Once the room this screen is now showing exists and
-   * the caller is its leader, `takeCreatePreset()` consumes that preset — once,
-   * ever, for this mount — and sets it as the room's pool through the exact
-   * path the leader's own format control uses. A non-leader never reaches this:
-   * the preset was theirs to spend by creating the room, and `choosePool` would
-   * refuse a non-leader's write anyway.
-   */
-  const appliedCreatePreset = useRef(false);
-  useEffect(() => {
-    if (appliedCreatePreset.current || draftRoom || !iAmLeader) return;
-    const preset = takeCreatePreset();
-    if (preset === null) return;
-    appliedCreatePreset.current = true;
-    choosePool(preset);
-  }, [draftRoom, iAmLeader]);
 
   /** The LEADER flipped hand smoothing: a room write, answered like `choosePool`. */
   const toggleHandSmoothing = (): void => {

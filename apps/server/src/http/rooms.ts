@@ -18,7 +18,7 @@
  *   PATCH /api/rooms/:id        { gameType } | { format } | { settings } → 200 RoomView | 403 | 404 | 409
  *   POST  /api/rooms/:id/pod/sit    {} or { seat }               → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
  *   POST  /api/rooms/:id/pod/stand  {} or no body                → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
- *   POST  /api/rooms/:id/pod/rounds {} or no body                → 200 RoomView | 403 | 404 | 409 (wave 72 §P, leader only, from `building`)
+ *   POST  /api/rooms/:id/pod/play   {} or no body                → 200 RoomView | 403 | 404 | 409 (done building; the last drafter's press deals round 1)
  *
  * `format` is a frozen Standard era's date or `draft:<podId>` — a room's pool is
  * either a frozen era or a drafted pool (wave 26 §F, `room/lobby.ts`).
@@ -685,28 +685,22 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	});
 
 	/**
-	 * Leader only, from `building` — refused until every seated human's deck
-	 * is saved and legal. Pairs and seats round 1; every later round starts
-	 * by itself (`room/lobby.ts`'s `recordGameResult`).
+	 * Done building — the deck editor's Play. Refused until the caller's deck
+	 * is saved and legal; the last drafter's press deals round 1
+	 * (`room/lobby.ts`'s `playPod`).
 	 */
-	rooms.post('/:id/pod/rounds', (req: Request, res: Response) => {
+	rooms.post('/:id/pod/play', (req: Request, res: Response) => {
 		const parsed = parseStart(req.body);
 		if (!parsed.ok) return badRequest(res, parsed.error);
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.startPodRounds(id, caller.id);
+		const result = lobby.playPod(id, caller.id);
 		if (!result.ok) {
 			if (result.reason === 'no-room') return noMatch(res);
-			if (result.reason === 'not-leader') return res.status(403).json({ error: 'only the room leader can start the pod’s rounds' });
-			const error =
-				result.reason === 'not-building'
-					? 'this pod is not ready to start its rounds'
-					: result.reason === 'not-built'
-						? 'every seated drafter needs a saved, legal deck first'
-						: 'nobody sat in the pod';
-			return res.status(409).json({ error });
+			if (result.reason === 'not-drafter') return res.status(403).json({ error: 'you did not draft in this pod' });
+			return res.status(409).json({ error: 'your deck is not saved and legal yet' });
 		}
 		res.json(roomBody(result.room, caller.id));
 	});

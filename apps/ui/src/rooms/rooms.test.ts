@@ -26,13 +26,10 @@ import {
   clientModeLabel,
   GAME_TYPES,
   parseRoomView,
-  peekCreatePreset,
-  presetCreate,
   roomsClient,
   streamPath,
   streamRoot,
   streamReachable,
-  takeCreatePreset,
   type Fetch,
   type RoomView,
 } from './api.ts';
@@ -41,8 +38,6 @@ import type { FeedTarget, RoomFeed } from './feed.ts';
 afterEach(() => {
   cleanup();
   globalThis.location.hash = '';
-  // A preset left pending by one test must not open the dialog in the next.
-  takeCreatePreset();
 });
 
 const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView => ({
@@ -1004,83 +999,11 @@ describe('a member’s avatar', () => {
   });
 });
 
-/* ── the "Play" seam: a pending create preset ────────────────────────── */
-
-describe('the create preset', () => {
-  it('is read back by peek without clearing it, and cleared by take', () => {
-    expect(peekCreatePreset()).toBeNull();
-    presetCreate('draft:p-1');
-    expect(peekCreatePreset()).toBe('draft:p-1');
-    expect(peekCreatePreset()).toBe('draft:p-1');
-    expect(takeCreatePreset()).toBe('draft:p-1');
-    expect(peekCreatePreset()).toBeNull();
-    expect(takeCreatePreset()).toBeNull();
-  });
-
-  it('survives losing its module state — the hash navigation it exists for', async () => {
-    presetCreate('draft:p-2');
-    // Simulate the navigation: a fresh import of the module has none of this
-    // module's variables, only whatever reached `sessionStorage`.
-    vi.resetModules();
-    const fresh = await import('./api.ts');
-    expect(fresh.peekCreatePreset()).toBe('draft:p-2');
-    expect(fresh.takeCreatePreset()).toBe('draft:p-2');
-    expect(fresh.peekCreatePreset()).toBeNull();
-  });
-
-  it('falls back to the in-memory value when sessionStorage throws on every call', () => {
-    vi.spyOn(globalThis.sessionStorage, 'setItem').mockImplementation(() => {
-      throw new Error('private window');
-    });
-    vi.spyOn(globalThis.sessionStorage, 'getItem').mockImplementation(() => {
-      throw new Error('private window');
-    });
-    vi.spyOn(globalThis.sessionStorage, 'removeItem').mockImplementation(() => {
-      throw new Error('private window');
-    });
-    presetCreate('draft:p-3');
-    expect(peekCreatePreset()).toBe('draft:p-3');
-    expect(takeCreatePreset()).toBe('draft:p-3');
-    expect(peekCreatePreset()).toBeNull();
-    vi.restoreAllMocks();
-  });
-
-  it('opens the create dialog, with Constructed 1v1 selected, when a preset is pending on mount', async () => {
-    presetCreate('draft:p-4');
-    const { client } = server([]);
-    mount(client);
-    expect(screen.getByTestId('room-create')).toBeTruthy();
-    expect((screen.getByTestId('room-create-type') as HTMLSelectElement).value).toBe('constructed-1v1');
-    // Unmounting (leaving the list, not closing the dialog) does not consume it.
-    expect(peekCreatePreset()).toBe('draft:p-4');
-  });
-
+describe('the room list on mount', () => {
   it('opens to the plain list, with no dialog, when nothing is pending', async () => {
     const { client } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
     expect(screen.queryByTestId('room-create')).toBeNull();
-  });
-
-  it('clears the preset when the dialog is closed without creating a room', async () => {
-    presetCreate('draft:p-5');
-    const { client } = server([]);
-    mount(client);
-    expect(screen.getByTestId('room-create')).toBeTruthy();
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByTestId('room-create')).toBeNull();
-    expect(peekCreatePreset()).toBeNull();
-  });
-
-  it('does NOT clear the preset when a room is created — the room screen reads it next', async () => {
-    presetCreate('draft:p-6');
-    const { client, calls } = server([]);
-    mount(client);
-    fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Friday night' } });
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('room-create-submit'));
-    });
-    expect(calls.find((c) => c.method === 'POST')).toBeDefined();
-    expect(peekCreatePreset()).toBe('draft:p-6');
   });
 });

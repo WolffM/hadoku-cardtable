@@ -14,11 +14,8 @@
  * its own.
  *
  * The old builder's Start button played Forge's AI with a library deck in the
- * other seat. That is gone: `onPlay` is the only way out now, and it is wired
- * by `DeckScreen` to the room list's create flow, preset to this pod
- * (`rooms/api.ts`'s `presetCreate`) — a friend room on the pod is where this
- * deck is actually played (wave 13 §C said so for the drafted case specifically:
- * two decks against a person is the gate's own 400).
+ * other seat. That is gone: `onPlay` is the only way out now, and `DeckScreen`
+ * wires it to the pod — save this build, say I am done, go to my table.
  *
  * The server says whether the build is legal, over the same
  * `POST /api/tables/check` the old builder used, debounced as you move cards.
@@ -119,8 +116,8 @@ export interface DeckEditorProps {
   /** Debounced save through C's contract. Absent saves nothing (every `sideboard` use this wave). */
   onSave?: (dck: string) => Promise<SaveOutcome>;
   saveDelayMs?: number;
-  /** "Play": the room create flow, preset to this pod. `limited` only, enabled once the server calls the build legal. */
-  onPlay?: () => void;
+  /** "Play", with the build as it stands — not the debounced save, which may still be pending. `limited` only, enabled once the server calls the build legal. */
+  onPlay?: (dck: string) => void;
   /** The basics widget. Defaults to `mode === 'limited'`; a sideboard step on a drafted pool sets it true. */
   allowBasics?: boolean;
   /**
@@ -487,7 +484,7 @@ export function DeckEditor({
             className="lobby__go"
             data-testid="play-deck"
             disabled={verdict?.legal !== true}
-            onClick={() => onPlay?.()}
+            onClick={() => onPlay?.(dckTextOf(deck))}
           >
             Play
           </button>

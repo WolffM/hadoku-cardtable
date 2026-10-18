@@ -32,7 +32,9 @@ import type { JvmRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
 import type { MatchRegistry } from '../play/match.js';
 import { MATCH_EVENTS } from '../play/transport.js';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';
-import { createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../room/draftRooms.js';
+import { botPoolAcross, createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../room/draftRooms.js';
+import { botDeckText } from '../room/botDeck.js';
+import { isBotSeat } from '@hadoku/draft';
 import { draftPoolId } from '../room/lobby.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
@@ -2788,6 +2790,38 @@ describe('a room on a drafted pool', () => {
 	});
 
 	/**
+	 * One drafter against Forge's AI, from a drafted room: the AI plays a deck
+	 * built from the pool of the bot that drafted across the table from her —
+	 * a drafted pool offers no library deck to fall back on.
+	 */
+	it("starts a drafted room against the AI with the deck of the bot across the table", async () => {
+		const h = await boot();
+		const pools = pod(h);
+		const room = h.rooms.find(POD)!;
+		const state = stateOf(room);
+		const across = (state.table.seats.findIndex((s) => s.occupant?.kind === 'human' && s.occupant.participantId === ALICE) + 4) % 8;
+		expect(isBotSeat(state, across)).toBe(true);
+		state.pools[across] = state.packs.flat().slice(90, 135);
+		openRoom(h);
+		expect((await putDeck(h, 'alice', built(pools.alice))).status).toBe(200);
+
+		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+		expect(res.status).toBe(201);
+		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([built(pools.alice), botDeckText(state.pools[across]!, 'Bot draft')]);
+		expect(botPoolAcross(room, ALICE)).toEqual(state.pools[across]);
+	});
+
+	it('refuses a drafted room against the AI while no bot has drafted anything', async () => {
+		const h = await boot();
+		const pools = pod(h);
+		openRoom(h);
+		expect((await putDeck(h, 'alice', built(pools.alice))).status).toBe(200);
+		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+		expect(res.status).toBe(409);
+		expect(res.body.error).toMatch(/AI has nothing to play/);
+	});
+
+	/**
 	 * The same table, started by the OTHER player. Both directions, because "the
 	 * room's drafted pool resolves to the leader's" and "…to the requester's" are
 	 * two different wrong answers and only one of them is caught by starting as
@@ -3037,15 +3071,16 @@ describe('a room on a drafted pool', () => {
 		// nothing past it runs. 1 failed. Restored: passes, 201. 1 passed.
 	});
 
-	it('refuses a table WRITE the same as before once the pod is NOT in rounds', async () => {
+	it('refuses a table WRITE the same as before while the pod has no tables yet', async () => {
 		const h = await boot();
 		h.lobby.open(PODTABLE, [...MEMBERS], 'draft', POWER_2010);
 		const room = h.lobby.room(PODTABLE)!;
-		for (const phase of ['lobby', 'drafting', 'building', 'done'] as const) {
+		// `done` keeps its tables: the one drafter of a pod of bots plays the AI again from hers.
+		for (const phase of ['lobby', 'drafting', 'building'] as const) {
 			room.pod = { phase };
 			const res = await call(h, 'PUT', `/api/tables/rooms/${PODTABLE}/deck`, { deck: { dck: 'anything' } }, edgeHeaders('alice'));
 			expect(res.status).toBe(409);
-			expect(res.body.error).toContain('not constructed-1v1 or a pod in rounds');
+			expect(res.body.error).toContain('not constructed-1v1 or a pod at its tables');
 		}
 	});
 });

@@ -63,8 +63,6 @@ export interface PodContext {
   tables: RoomTable[];
   /** Every member's display name, by id — for resolving `pod.built`/`pod.bye`/`pod.standings[].id`. */
   names: Record<string, string>;
-  /** `RoomView.you.leader` — whether this caller may call `startPodRounds` below. False while unknown. */
-  youLead: boolean;
 }
 
 /**
@@ -76,14 +74,13 @@ export interface PodContext {
  */
 export async function fetchPodContext(roomId: string): Promise<PodContext> {
   const body = await fetchRoomRaw(roomId);
-  if (body === null) return { pod: null, tables: [], names: {}, youLead: false };
+  if (body === null) return { pod: null, tables: [], names: {} };
   const tables = RoomTablesSchema.safeParse(body.tables);
   const members = Array.isArray(body.members) ? body.members.filter(isNamed) : [];
   return {
     pod: parsePodView(body.pod),
     tables: tables.success ? tables.data : [],
     names: Object.fromEntries(members.map((m) => [m.id, m.name])),
-    youLead: typeof body.you === 'object' && body.you !== null && (body.you as { leader?: unknown }).leader === true,
   };
 }
 
@@ -121,7 +118,7 @@ export interface PodActionOutcome {
   message: string | null;
 }
 
-async function postPod(roomId: string, action: 'sit' | 'stand' | 'rounds', body: Record<string, unknown>): Promise<PodActionOutcome> {
+async function postPod(roomId: string, action: 'sit' | 'stand' | 'play', body: Record<string, unknown>): Promise<PodActionOutcome> {
   try {
     const res = await fetch(`${podApiBase()}rooms/${encodeURIComponent(roomId)}/pod/${action}`, {
       method: 'POST',
@@ -149,11 +146,11 @@ export function standPod(roomId: string): Promise<PodActionOutcome> {
 }
 
 /**
- * The leader's move from `building` to `rounds` — refused until every human
- * drafter is in `built` (the wire contract's own wording).
+ * Done building — the deck editor's Play. Refused until my saved deck is
+ * legal; the last drafter's press deals round 1 (`room/lobby.ts`'s `playPod`).
  */
-export function startPodRounds(roomId: string): Promise<PodActionOutcome> {
-  return postPod(roomId, 'rounds', {});
+export function playPod(roomId: string): Promise<PodActionOutcome> {
+  return postPod(roomId, 'play', {});
 }
 
 export type StartTableMatchOutcome = { ok: true; matchId: string | null } | { ok: false; message: string };
@@ -183,4 +180,15 @@ export async function startTableMatch(roomId: string, tableId: string): Promise<
   // table-watching effect carries both to the match once it exists).
   if (/not ready/i.test(started.error)) return { ok: true, matchId: null };
   return { ok: false, message: started.error };
+}
+
+/**
+ * Starts the next game at my pod table, whoever is at it: the AI's table (one
+ * player — the one drafter of a pod of bots) starts against the bot; a table of
+ * two readies me and starts once the other has too (`startTableMatch`).
+ */
+export async function startMyTable(roomId: string, table: RoomTable): Promise<StartTableMatchOutcome> {
+  if (table.players.length !== 1) return startTableMatch(roomId, table.id);
+  const started = await tableClient.startVsBot(roomId, table.id);
+  return started.ok ? { ok: true, matchId: started.matchId } : { ok: false, message: started.error };
 }

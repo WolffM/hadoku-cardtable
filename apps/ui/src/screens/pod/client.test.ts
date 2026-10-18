@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchPodContext, fetchPodView, sitPod, standPod, startPodRounds, startTableMatch } from './client.ts';
+import { fetchPodContext, fetchPodView, playPod, sitPod, standPod, startTableMatch } from './client.ts';
 import { POD_SEATS, type PodView } from './wire.ts';
 
 afterEach(() => {
@@ -74,19 +74,9 @@ describe('fetchPodContext', () => {
     expect(ctx.names).toEqual({ 'u-alice': 'Alice', 'u-bob': 'Bob' });
   });
 
-  it('reads whether the caller leads the room', async () => {
-    const lead = (you: unknown) => {
-      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ id: 'r-cube', pod: null, leader: 'u-alice', you }), { status: 200 }));
-      return fetchPodContext('r-cube').then((c) => c.youLead);
-    };
-    expect(await lead({ leader: true, ready: false })).toBe(true);
-    expect(await lead({ leader: false, ready: true })).toBe(false);
-    expect(await lead(undefined)).toBe(false);
-  });
-
   it('answers empty rather than throwing on a failed read', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
-    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {}, youLead: false });
+    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {} });
   });
 
   it('drops a malformed tables array rather than guessing', async () => {
@@ -128,24 +118,24 @@ describe('sitPod / standPod', () => {
   });
 });
 
-describe('startPodRounds', () => {
-  it('posts to the room’s own rounds route, no body fields', async () => {
+describe('playPod', () => {
+  it('posts to the room’s own play route, no body fields', async () => {
     const calls: { url: string; body: unknown }[] = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       calls.push({ url: String(input), body: init?.body });
       return Promise.resolve(new Response('{}', { status: 200 }));
     });
-    const outcome = await startPodRounds('r-cube');
+    const outcome = await playPod('r-cube');
     expect(outcome.ok).toBe(true);
-    expect(calls[0]?.url).toContain('/rooms/r-cube/pod/rounds');
+    expect(calls[0]?.url).toContain('/rooms/r-cube/pod/play');
     expect(calls[0]?.body).toBe('{}');
   });
 
-  it('surfaces a refusal — not every human drafter has built yet', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'not every drafter has a built deck' }), { status: 409 }));
-    const outcome = await startPodRounds('r-cube');
+  it('surfaces a refusal — my deck is not legal yet', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'your deck is not saved and legal yet' }), { status: 409 }));
+    const outcome = await playPod('r-cube');
     expect(outcome.ok).toBe(false);
-    expect(outcome.message).toBe('not every drafter has a built deck');
+    expect(outcome.message).toBe('your deck is not saved and legal yet');
   });
 });
 

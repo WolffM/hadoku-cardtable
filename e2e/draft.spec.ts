@@ -93,8 +93,8 @@ const PICKS = PACKS * PACK_SIZE;
 const SEATS = 8;
 /** Picks after which alice's browser is refreshed. Mid pack 2, mid round. */
 const REFRESH_AFTER = 20;
-/** Per-participant pacing: the limiter refills one pick per 1.5 s. */
-const PICK_INTERVAL_MS = 1_600;
+/** Per-participant pacing: the limiter refills one pick per 250 ms (`PICK_RATE_LIMIT`). */
+const PICK_INTERVAL_MS = 400;
 /** Hosts a card image may come from (CLAUDE.md, D15). Blocked in the test. */
 const ART_HOSTS = new Set(['cdn.hadoku.me', 'cards.scryfall.io']);
 /** A room poll or a socket handshake sits between a click and the next screen. */
@@ -647,6 +647,17 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
             () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
           );
           expect(overflow, 'no horizontal page scroll at 390px').toBeLessThanOrEqual(1);
+          // Stacked at this width: the pack's last card ends above the pool,
+          // never underneath it (the pool used to cover the pack's lower rows).
+          const stacked = await alice.page.evaluate(() => {
+            const cards = [...document.querySelectorAll('[data-testid="pack"] [data-testid="card"]')];
+            const pool = document.querySelector('[data-testid="pool"]');
+            return {
+              packBottom: Math.max(...cards.map((c) => c.getBoundingClientRect().bottom)),
+              poolTop: pool === null ? Infinity : pool.getBoundingClientRect().top,
+            };
+          });
+          expect(stacked.packBottom, 'the pack ends above the pool at 390px').toBeLessThanOrEqual(stacked.poolTop);
         }
         if (n === 4) await resizeWindow(alice.page, { width: 1280, height: 720 });
         if (n !== REFRESH_AFTER) return;
@@ -847,6 +858,25 @@ async function buildMainDeck(p: Player, n: number): Promise<void> {
 }
 
 /**
+ * Answer `/session/whoami` with this player's REAL member id, read off the room,
+ * then reload so `useWhoami()` re-reads it. The harness's own whoami answers the
+ * device-tier `e2e-<name>-id`, not the `fk:` id the room knows them by, and the
+ * pod screen finds "my table" by that id (`w72-pod.spec.ts` has the full note).
+ */
+async function routeWhoami(p: Player, roomId: string): Promise<void> {
+  const room = (await p.page.evaluate(
+    (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+    roomId,
+  )) as { members: { id: string; name: string }[] };
+  const me = room.members.find((m) => m.name === `e2e-${p.name}`);
+  if (me === undefined) throw new Error(`${p.name}: not found among the room’s own members`);
+  await p.context.route('**/session/whoami', (route) =>
+    route.fulfill({ json: { valid: true, userId: me.id, userType: 'friend', name: `e2e-${p.name}` } }),
+  );
+  await p.page.reload();
+}
+
+/**
  * The room leave the UI has no button for (`PodScreen`'s "← Lobby" only
  * navigates away; it never calls this) — the same route `rooms/api.ts`'s
  * `leave()` sends, by the caller's own page so the identity is theirs. This
@@ -917,7 +947,7 @@ async function pressIntoTurnOne(pages: readonly Page[]): Promise<void> {
 
 test(
   titled(
-    'the operator’s full sequence: draft a pod, build and save decks, leave and return, play the drafted pool, and reach turn 1 in real Forge',
+    'the operator’s full sequence: draft a pod, build and save decks, leave and return, press Play, and land in turn 1 in real Forge',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -938,6 +968,10 @@ test(
       await expectLobbyNotPod(alice);
       await enterFromList(bob, podId, podName, { origin });
       await expectLobbyNotPod(bob);
+      for (const p of [alice, bob]) {
+        await routeWhoami(p, podId);
+        await expectLobbyNotPod(p);
+      }
 
       await alice.page.getByTestId('ready-toggle').click();
       await bob.page.getByTestId('ready-toggle').click();
@@ -959,36 +993,14 @@ test(
       await expect(alice.page.getByTestId('deck-editor')).toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('main-count'), 'the build alice left is the build she finds').toHaveText('40');
 
-      /* ── alice plays: Play opens the room list on the preset ─────── */
+      /* ── Play, and straight into the game: no room to make, no Ready ── */
+      // alice is done first: back in the room (she had left it), and handed
+      // back to the builder, which shows her ready. bob's Play deals round 1,
+      // and the pod screen starts their table by itself.
       await alice.page.getByTestId('play-deck').click();
-      await expect(alice.page.getByTestId('room-create')).toBeVisible({ timeout: UI_TIMEOUT });
-      await expect(alice.page.getByTestId('room-create-type')).toHaveValue('constructed-1v1');
-      const matchRoomName = `e2e full match ${Date.now()}`;
-      await alice.page.getByTestId('room-create-name').fill(matchRoomName);
-      await alice.page.getByTestId('room-create-submit').click();
-      const matchRoomId = await roomIdFromHash(alice.page);
+      await expect(alice.page.getByTestId('pod-built').locator('[data-built]'), 'alice waits, shown as ready').toHaveCount(1, { timeout: UI_TIMEOUT });
+      await bob.page.getByTestId('play-deck').click();
 
-      // The leader's own write: the preset becomes the room's pool.
-      const draftedOption = (p: Player) => p.page.locator('[data-testid="deck-option"][data-deck-id="__drafted__"]');
-      await expect(draftedOption(alice), 'the preset set the room’s pool to this pod').toBeVisible({ timeout: UI_TIMEOUT });
-
-      /* ── bob finds that room from the list and enters it ──────────── */
-      await enterFromList(bob, matchRoomId, matchRoomName, { origin, gameType: 'Constructed 1v1' });
-
-      /* ── both load THEIR OWN saved build — not draftedDeckOf's 45+basics ── */
-      for (const p of [alice, bob]) {
-        const option = draftedOption(p);
-        await expect(option, `${p.name}: the drafted-pool option appears`).toBeVisible({ timeout: UI_TIMEOUT });
-        await expect(option, `${p.name}: the room offers the SAVED 40-card build, not the auto-built 45+basics`).toContainText(
-          '40 cards',
-        );
-        await option.click();
-        await expect(p.page.getByTestId('ready-toggle'), `${p.name}: their saved build is legal`).toBeEnabled();
-      }
-
-      /* ── ready, start, and reach turn 1 in real Forge ─────────────── */
-      await alice.page.getByTestId('ready-toggle').click();
-      await bob.page.getByTestId('ready-toggle').click();
       const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
       await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
       await bob.page.waitForURL(matchUrl, { timeout: 120_000 });
@@ -999,6 +1011,40 @@ test(
     } finally {
       if (alice) await finalizeVideo(alice);
       if (bob) await finalizeVideo(bob);
+      await stack.stop();
+    }
+  },
+);
+
+test(
+  titled('one drafter and seven bots: draft, build, press Play, and land in turn 1 against the AI — no room to make'),
+  async ({ browser }) => {
+    test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+    if (!forge.ok) return;
+    test.setTimeout(6 * 60_000);
+
+    const stack = await startPlayStack(forge);
+    let alice: Player | undefined;
+    try {
+      alice = await join(browser, 'alice');
+      const podId = await createDraftRoom(alice, `e2e solo ${Date.now()}`, stack.origin);
+      await expectLobbyNotPod(alice);
+      await routeWhoami(alice, podId);
+      await expectLobbyNotPod(alice);
+      await alice.page.getByTestId('ready-toggle').click();
+      await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+      await draftAll(alice);
+      await expect(alice.page.getByTestId('deck-editor'), 'the finished draft opens the editor').toBeVisible({ timeout: UI_TIMEOUT });
+      await buildMainDeck(alice, 40);
+      await alice.page.getByTestId('play-deck').click();
+
+      // Play → the pod → its one table, against the AI, started by itself.
+      await alice.page.waitForURL(/#\/match\/(m-[0-9a-f]{12})$/, { timeout: 120_000 });
+      await expect(alice.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
+      await expect(alice.page.getByTestId('room-create'), 'no create-room form on the way').toHaveCount(0);
+      await pressIntoTurnOne([alice.page]);
+    } finally {
+      if (alice) await finalizeVideo(alice);
       await stack.stop();
     }
   },

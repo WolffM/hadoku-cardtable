@@ -39,17 +39,6 @@
  * This does not mount a `RoomChrome`: `App` mounts exactly one, and a second
  * would share and then tear down the first's socket.
  *
- * ## The deck editor's "Play" opens this form
- *
- * The editor has no room to put a built deck in front of, so its "Play"
- * button calls `presetCreate` and sends the drafter here. On mount, a pending
- * preset (`peekCreatePreset`) opens the create dialog with Constructed 1v1
- * already selected — the only type the preset is for — rather than leaving
- * the drafter to find the button themselves. Closing the dialog without
- * creating a room clears the preset (`takeCreatePreset`); creating one does
- * not, because the room screen (not this file) is what reads it and sets the
- * table's pool.
- *
  * ## Sound
  *
  * Buttons on this screen play `ui.select` and a refusal plays `ui.deny`. Every
@@ -68,9 +57,7 @@ import {
   clientModeLabel,
   GAME_TYPES,
   gameTypeLabel,
-  peekCreatePreset,
   roomsClient,
-  takeCreatePreset,
   type GameType,
   type RoomView,
   type RoomsClient,
@@ -93,18 +80,8 @@ export interface RoomListProps {
 export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
   const client = useRef(given ?? roomsClient()).current;
   const [state, setState] = useState<ListState>({ kind: 'loading' });
-  // A pending preset from the deck editor's "Play" opens the dialog once, on
-  // the mount that follows the navigation here — read with `useState`'s
-  // initializer so it is checked exactly once, not on every render.
-  const [creating, setCreating] = useState(() => peekCreatePreset() !== null);
-
-  // Closing the dialog without creating a room clears the preset: it would
-  // otherwise reopen the form on every later visit to the list. Creating a
-  // room does NOT clear it here — the room screen reads it once it is there.
-  const closeCreate = useCallback((): void => {
-    takeCreatePreset();
-    setCreating(false);
-  }, []);
+  const [creating, setCreating] = useState(false);
+  const closeCreate = useCallback((): void => setCreating(false), []);
 
   const refresh = useCallback(async (): Promise<void> => {
     try {

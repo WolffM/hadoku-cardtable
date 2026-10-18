@@ -32,9 +32,9 @@ If it is not in `~/.cache/ms-playwright`, install it once:
 `pnpm --filter @hadoku/e2e exec playwright install chromium`. Don't use
 `--with-deps`: it calls `apt` through sudo, and D14 rules out host mutation.
 
-A run takes about 75 seconds. Most of that is pacing: the driver picks every
-1.6 s. The server allows a burst of 15 picks, then one every 250 ms per
-participant (`PICK_RATE_LIMIT`), so the driver never comes near that limit.
+The driver picks every 400 ms. The server allows a burst of 15 picks, then one
+every 250 ms per participant (`PICK_RATE_LIMIT`), so the driver never comes
+near that limit.
 
 Ports are 19108 (edge) and 19008 (server). Override them with
 `CARDTABLE_E2E_EDGE_PORT` and `CARDTABLE_E2E_SERVER_PORT` if two runs share a

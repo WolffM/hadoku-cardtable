@@ -128,7 +128,7 @@ import {
 	type SeatId,
 	type SeatTable,
 } from '@wolffm/rooms-protocol';
-import { createDraft, spectatorView, viewFor, type DraftState, type HumanSeat } from '@hadoku/draft';
+import { createDraft, isBotSeat, spectatorView, viewFor, type DraftState, type HumanSeat } from '@hadoku/draft';
 import { cursorOf, type CubeMeta, type DraftCard, type DraftView, type WireCursor } from '@hadoku/shared';
 import {
 	applySnapshot,
@@ -591,6 +591,22 @@ export function viewForParticipant(room: DraftRoom, participantId: ParticipantId
 	const state = stateOf(room);
 	const seat = seatOf(room.seats, participantId) ?? finishedSeatOf(state, room.seats, participantId);
 	return seat === null ? spectatorView(state) : viewFor(state, seat);
+}
+
+/**
+ * The pool of the bot that drafted across the table from this participant (or,
+ * with no bot there, the first bot seat) — what the AI plays at a pod table
+ * (`botDeck.ts`). Null when the participant drafted no seat here, or no seat
+ * was a bot.
+ */
+export function botPoolAcross(room: DraftRoom, participantId: ParticipantId): DraftCard[] | null {
+	const state = stateOf(room);
+	const seat = seatOf(room.seats, participantId) ?? finishedSeatOf(state, room.seats, participantId);
+	if (seat === null) return null;
+	const across = (seat + Math.floor(state.seatCount / 2)) % state.seatCount;
+	const bots = state.pools.map((_, i) => i).filter((i) => isBotSeat(state, i));
+	const chosen = bots.includes(across) ? across : bots[0];
+	return chosen === undefined ? null : [...state.pools[chosen]!];
 }
 
 /**

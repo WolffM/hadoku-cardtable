@@ -30,18 +30,18 @@
  *
  * ## Play
  *
- * The old builder's Start button used to launch Forge's AI with a library deck
- * in the other seat. That seam is gone: Play remembers a create-room preset
- * (`rooms/api.ts`'s `presetCreate`, format `draft:<podId>`) and sends the
- * drafter to the room list, which opens its create form on that preset
- * (`RoomList.tsx`, lane B) — a friend room on this pod is where the deck is
- * actually played.
+ * Play saves the build as it stands, says this drafter is done building
+ * (`pod/client.ts`'s `playPod`) and goes to the room. The last drafter's press
+ * deals round 1, and
+ * the pod screen starts each table's game by itself — a pod of one plays the
+ * AI. Draft, build, Play, the game: no room to make and nothing to choose (the
+ * operator, 2026-10-18).
  *
  * ## The pod
  *
  * A finished draft lands here with no screen in between (`PodScreen.tsx`), so
- * the pod's `building` phase is drawn here too: who has built, and the
- * leader's Start round 1 (`pod/PodBuilding.tsx`). Once the pod is in `rounds`
+ * the pod's `building` phase is drawn here too: who has pressed Play
+ * (`pod/PodBuilding.tsx`). Once the pod is in `rounds`
  * this hands the drafter back to the room, whose pod screen seats them at
  * their table.
  *
@@ -53,9 +53,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { DeckEditor } from '../deck/DeckEditor.tsx';
 import { deckStoreClient, type DeckStoreClient, type Mine } from '../deck/deckStore.ts';
-import { presetCreate } from '../rooms/api.ts';
 import { navigate } from './route.ts';
-import { livePodSource, usePodContext, type PodSource } from './pod/client.ts';
+import { livePodSource, playPod, usePodContext, type PodSource } from './pod/client.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
@@ -114,9 +113,28 @@ export function DeckScreen({
     if (rounds) navigate({ kind: 'room', roomId: draftId }, { replace: true });
   }, [rounds, draftId]);
 
-  const play = (): void => {
-    presetCreate(`draft:${draftId}`);
-    navigate({ kind: 'lobby' });
+  const [playError, setPlayError] = useState<string | null>(null);
+  // The build as it stands is saved first: the editor's own save is debounced,
+  // and the pod seats whatever was saved last.
+  const play = (dck: string): void => {
+    setPlayError(null);
+    store
+      .save(draftId, dck)
+      .then((saved) => {
+        if (!saved.ok) {
+          setPlayError(saved.issues.join(' '));
+          return;
+        }
+        // Done building: to the room, which (re)joins it — a drafter who
+        // left the room is not seated at a table otherwise. While others are
+        // still building, the pod screen hands this one back here, showing
+        // who is ready; once rounds start it starts their table.
+        return playPod(draftId).then((r) => {
+          if (r.ok) navigate({ kind: 'room', roomId: draftId });
+          else setPlayError(r.message);
+        });
+      })
+      .catch((err: unknown) => setPlayError(err instanceof Error ? err.message : String(err)));
   };
 
   return (
@@ -130,12 +148,18 @@ export function DeckScreen({
       </header>
 
       {ctx !== null && pod !== null && pod.phase === 'building' && (
-        <PodBuilding roomId={draftId} pod={pod} nameOf={(id) => ctx.names[id] ?? id} youLead={ctx.youLead} />
+        <PodBuilding pod={pod} nameOf={(id) => ctx.names[id] ?? id} />
       )}
 
       {loadError !== null && (
         <p className="lobby__error" role="alert" data-testid="deck-load-error">
           Could not load your pool: {loadError}
+        </p>
+      )}
+
+      {playError !== null && (
+        <p className="lobby__error" role="alert" data-testid="deck-play-error">
+          {playError}
         </p>
       )}
 

@@ -38,6 +38,7 @@ import {
 	newestFormat,
 	NO_FORMAT,
 	openLobby,
+	POD_AI,
 	randomFormat,
 	ROOM_IDLE_MS,
 	ROOM_MATCHES_KEPT,
@@ -1780,7 +1781,7 @@ describe('Lobby.startDraft — the pod’s seated-only ready gate', () => {
 });
 
 describe("a draft room's pod — phase, wave 72 §P", () => {
-	it('moves lobby → drafting → building → done for a single drafter (roundsFor(1) === 0)', async () => {
+	it('moves lobby → drafting → building → a bo3 against the AI → done for a single drafter', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
@@ -1813,21 +1814,41 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		expect(lobby.get(id)?.pod?.built).toEqual([]);
 
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
-		expect(lobby.get(id)?.pod?.built).toEqual([ALICE.id]);
+		// A legal saved deck is not "done building": that is the editor's Play.
+		expect(lobby.get(id)?.pod?.built).toEqual([]);
 
-		const started = lobby.startPodRounds(id, ALICE.id);
+		const started = lobby.playPod(id, ALICE.id);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
-		// One drafter: nothing to pair, nobody to play — done at once.
-		expect(started.room.pod?.phase).toBe('done');
-		expect(started.room.pod?.rounds).toBe(0);
-		expect(started.room.pod?.results).toEqual([]);
-		expect(started.room.pod?.pairings).toEqual([]);
+		// One drafter, seven bots: one table, against the AI, dealt by her own Play.
+		expect(started.room.pod?.built).toEqual([ALICE.id]);
 		expect(started.room.pod?.drafters).toEqual([ALICE.id]);
+		expect(started.room.pod?.phase).toBe('rounds');
+		expect(started.room.pod?.rounds).toBe(1);
+		const pairing = started.room.pod!.pairings[0]!;
+		expect(started.room.pod?.pairings).toHaveLength(1);
+		expect(pairing.players).toEqual([ALICE.id, POD_AI]);
+		expect(lobby.playerState(id, ALICE.id)).toEqual({ seatedFor: ALICE.id, table: pairing.tableId });
+
+		lobby.recordGameResult(id, pairing.tableId, { matchId: 'm-ai-g1', winner: 1 });
+		expect(lobby.get(id)?.pod?.phase).toBe('rounds');
+		lobby.recordGameResult(id, pairing.tableId, { matchId: 'm-ai-g2', winner: 0 });
+		lobby.recordGameResult(id, pairing.tableId, { matchId: 'm-ai-g3', winner: 0 });
+		const done = lobby.get(id)!;
+		expect(done.pod?.phase).toBe('done');
+		// The AI is nobody to rank against.
+		expect(done.pod?.results).toEqual([]);
 	});
 });
 
-describe('Lobby.startPodRounds — refusals', () => {
+/** Every drafter presses Play; the last press is what deals round 1. */
+function playAll(lobby: Lobby, id: string, members: readonly { id: string }[]): ReturnType<Lobby['playPod']> {
+	let last: ReturnType<Lobby['playPod']> = { ok: false, reason: 'no-room' };
+	for (const m of members) last = lobby.playPod(id, m.id);
+	return last;
+}
+
+describe('Lobby.playPod', () => {
 	async function buildingPod(): Promise<{ lobby: Lobby; id: string }> {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
@@ -1843,20 +1864,28 @@ describe('Lobby.startPodRounds — refusals', () => {
 		return { lobby, id };
 	}
 
-	it('refuses no room, a non-leader, not yet building, and an unbuilt drafter', async () => {
+	it('refuses no room, a non-drafter, still drafting, and an unbuilt deck', async () => {
 		const { lobby, id } = await buildingPod();
-		expect(lobby.startPodRounds('r-000000000000', ALICE.id)).toEqual({ ok: false, reason: 'no-room' });
-		expect(lobby.startPodRounds(id, BOB.id)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.playPod('r-000000000000', ALICE.id)).toEqual({ ok: false, reason: 'no-room' });
 
 		// Still drafting: the default PodChecks has never been wired.
-		expect(lobby.startPodRounds(id, ALICE.id)).toEqual({ ok: false, reason: 'not-building' });
+		expect(lobby.playPod(id, ALICE.id)).toEqual({ ok: false, reason: 'not-drafter' });
 
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
-		expect(lobby.startPodRounds(id, ALICE.id)).toEqual({ ok: false, reason: 'not-built' });
+		expect(lobby.playPod(id, 'fk:0000000000000000')).toEqual({ ok: false, reason: 'not-drafter' });
+		expect(lobby.playPod(id, CAROL.id)).toEqual({ ok: false, reason: 'not-built' });
+	});
 
+	it('deals round 1 on the LAST drafter’s press, with nobody else’s say, and answers a late press ok', async () => {
+		const { lobby, id } = await buildingPod();
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
-		expect(lobby.startPodRounds(id, ALICE.id)).toMatchObject({ ok: true });
+		expect(lobby.playPod(id, BOB.id)).toMatchObject({ ok: true, room: { pod: { phase: 'building', built: [BOB.id] } } });
+		expect(lobby.playPod(id, CAROL.id)).toMatchObject({ ok: true, room: { pod: { phase: 'building' } } });
+		// Pressing twice changes nothing.
+		expect(lobby.playPod(id, CAROL.id)).toMatchObject({ ok: true, room: { pod: { phase: 'building' } } });
+		expect(lobby.playPod(id, ALICE.id)).toMatchObject({ ok: true, room: { pod: { phase: 'rounds', round: 1 } } });
+		expect(lobby.playPod(id, BOB.id)).toMatchObject({ ok: true, room: { pod: { phase: 'rounds', round: 1 } } });
 	});
 
 	/**
@@ -1868,15 +1897,15 @@ describe('Lobby.startPodRounds — refusals', () => {
 	 * reaches `building` through `startedDraft`'s own helper always has at
 	 * least one seated human from here on.
 	 */
-	it('a member who never sat is auto-seated by startDraft, so startPodRounds succeeds (roundsFor(1) === 0, done at once)', async () => {
+	it('a member who never sat is auto-seated by startDraft, so playPod deals her a table against the AI', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const id = await startedDraft(lobby, [ALICE]);
 		expect(lobby.podHumans(id).map((h) => h.id)).toEqual([ALICE.id]);
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
-		const started = lobby.startPodRounds(id, ALICE.id);
+		const started = lobby.playPod(id, ALICE.id);
 		expect(started.ok).toBe(true);
-		if (started.ok) expect(started.room.pod?.phase).toBe('done');
+		if (started.ok) expect(started.room.pod?.pairings[0]?.players).toEqual([ALICE.id, POD_AI]);
 	});
 });
 
@@ -1899,7 +1928,7 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 
 	it('pairs round 1 across the table, gives the middle seat the bye, and seats both players with their built deck', async () => {
 		const { lobby, id } = await threeHumanPod();
-		const started = lobby.startPodRounds(id, ALICE.id);
+		const started = playAll(lobby, id, [ALICE, BOB, CAROL]);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
 		expect(started.room.pod?.phase).toBe('rounds');
@@ -1918,7 +1947,7 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 
 	it("plays round 1, advances BY ITSELF to round 2 paired by score with a NEW bye, then finishes done with standings ranked", async () => {
 		const { lobby, id } = await threeHumanPod();
-		const started = lobby.startPodRounds(id, ALICE.id);
+		const started = playAll(lobby, id, [ALICE, BOB, CAROL]);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
 		const table1 = started.room.pod!.pairings[0]!.tableId;
@@ -1977,15 +2006,15 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 	 * The gap the manager caught in review: the fallback ready gate ("nobody
 	 * sat → every member") lets `startDraft` succeed with `podSeats` all
 	 * null — and every LATER reader of `podSeats` (`podHumans`, `built`,
-	 * `startPodRounds`) would then see nobody seated, so a room that never
+	 * `playPod`) would then see nobody seated, so a room that never
 	 * pressed Sit could draft but could never reach `rounds`. `startDraft`
 	 * now seats the fallback's own members, in join order, at the moment it
 	 * sets `draftStartedAt` — this proves the WHOLE chain agrees from
-	 * there: `podHumans`, `startPodRounds`'s pairing, AND a REAL `DraftRooms`
+	 * there: `podHumans`, `playPod`'s pairing, AND a REAL `DraftRooms`
 	 * wired to `podHumans` exactly as `http/routes.ts`'s `attachTables` wires
 	 * it (`setHumansLookup`), with the actual shipped cube.
 	 */
-	it("auto-seats every member at startDraft, so startPodRounds pairs them and a REAL DraftRooms deals to exactly those three", async () => {
+	it("auto-seats every member at startDraft, so playPod pairs them and a REAL DraftRooms deals to exactly those three", async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
@@ -2003,7 +2032,7 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
 
-		const started = lobby.startPodRounds(id, ALICE.id);
+		const started = playAll(lobby, id, [ALICE, BOB, CAROL]);
 		expect(started.ok).toBe(true);
 		if (!started.ok) return;
 		expect(started.room.pod?.phase).toBe('rounds');
@@ -2032,7 +2061,7 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 
 		// Reverted (comment out the `if (seated.length === 0) { ... }` auto-seat
 		// block in `Lobby.startDraft`): `podHumans(id)` above comes back `[]`,
-		// `startPodRounds` refuses `no-players`, and the `DraftRooms` deals to
+		// `playPod` refuses `not-drafter`, and the `DraftRooms` deals to
 		// nobody (every seat a bot). 3 failed (the three assertions after the
 		// gap would first bite). Restored: passes, all assertions above hold.
 	});

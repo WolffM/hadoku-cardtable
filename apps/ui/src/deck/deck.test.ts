@@ -25,7 +25,6 @@ import poolData from '../draft/pool.json';
 import { cardRequestOf, deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
 import { DeckEditor, type SaveOutcome } from './DeckEditor.tsx';
 import { DeckScreen } from '../screens/DeckScreen.tsx';
-import { peekCreatePreset } from '../rooms/api.ts';
 import { parseRoute } from '../screens/route.ts';
 import { tablesClient, type Fetch, type Verdict } from '../screens/tables.ts';
 import type { DeckStoreClient, Mine } from './deckStore.ts';
@@ -33,6 +32,7 @@ import { draftedSeat, cardIndex, mainSummary, splitBasics, libraryDeckPool, libr
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   globalThis.location.hash = '';
   try {
     globalThis.sessionStorage?.clear();
@@ -300,13 +300,14 @@ describe('DeckEditor — limited', () => {
     expect(cardsIn('side-grid')).toHaveLength(before);
   });
 
-  it('calls onPlay from the Play button once the server calls the build legal', async () => {
+  it('calls onPlay from the Play button, with the build as it stands, once the server calls it legal', async () => {
     const api = stubApi({ check: () => legal });
     const onPlay = vi.fn();
     render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0, onPlay }));
     await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('play-deck'));
     expect(onPlay).toHaveBeenCalledTimes(1);
+    expect(onPlay).toHaveBeenCalledWith(dckTextOf(deckFromPool(DRAFT_ID, POOL)));
   });
 
   it('debounces a save through onSave as cards move — reverting the wiring is what the mutation check catches', async () => {
@@ -437,14 +438,32 @@ describe('DeckScreen', () => {
     expect(screen.getByTestId('main-count').textContent).toBe('1');
   });
 
-  it('Play remembers the create preset, format `draft:<podId>`, and returns to the lobby', async () => {
-    const { store } = stubStore({ pool: POOL, deck: null });
+  it('Play saves the build as it stands, says I am done, and goes to the room — no room to make', async () => {
+    const { calls, store } = stubStore({ pool: POOL, deck: null });
     const api = stubApi({ check: () => legal });
+    const posted: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      posted.push(String(input));
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
     render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client, checkDelayMs: 0 }));
     await screen.findByTestId('deck-editor');
     await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('play-deck'));
-    expect(peekCreatePreset()).toBe(`draft:${DRAFT_ID}`);
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+    await vi.waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: DRAFT_ID }));
+    expect(calls).toEqual([{ podId: DRAFT_ID, dck: dckTextOf(deckFromPool(DRAFT_ID, POOL)) }]);
+    expect(posted.filter((u) => u.endsWith(`/rooms/${DRAFT_ID}/pod/play`))).toHaveLength(1);
+  });
+
+  it('Play stays on the build and says why when the pod refuses it', async () => {
+    const { store } = stubStore({ pool: POOL, deck: null });
+    const api = stubApi({ check: () => legal });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'your deck is not saved and legal yet' }), { status: 409 }));
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client, checkDelayMs: 0 }));
+    await screen.findByTestId('deck-editor');
+    await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId('play-deck'));
+    expect((await screen.findByTestId('deck-play-error')).textContent).toBe('your deck is not saved and legal yet');
+    expect(parseRoute(globalThis.location.hash)).not.toEqual({ kind: 'room', roomId: DRAFT_ID });
   });
 });

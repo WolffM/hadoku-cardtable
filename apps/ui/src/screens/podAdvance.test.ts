@@ -12,7 +12,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { DRAFT_CHANNEL, stateMessage, type DraftView } from '@hadoku/shared';
 
 import { loadFixtures } from '../draft/fixtures.ts';
@@ -96,11 +96,10 @@ function pod(over: Partial<PodView>): PodView {
   };
 }
 
-const ctxOf = (p: PodView | null, youLead = false): PodContext => ({
+const ctxOf = (p: PodView | null): PodContext => ({
   pod: p,
   tables: [],
   names: { 'u-alice': 'Alice', 'u-bob': 'Bob' },
-  youLead,
 });
 
 /* ── PodScreen ───────────────────────────────────────────────────────── */
@@ -211,36 +210,13 @@ describe('the builder carries the pod’s building phase', () => {
     room.read(ctxOf(pod({ drafters: ['u-alice', 'u-bob'], built: ['u-alice'] })));
     expect(screen.getByTestId('pod-built-u-alice').dataset.built).toBe('');
     expect(screen.getByTestId('pod-built-u-bob').dataset.built).toBeUndefined();
-    expect(screen.getByTestId('pod-built-u-alice-pill').textContent).toContain('Alice — built');
+    expect(screen.getByTestId('pod-built-u-alice-pill').textContent).toContain('Alice — ready');
     expect(screen.getByTestId('pod-built-u-bob-pill').textContent).toContain('Bob — building');
   });
 
-  it('gives the leader Start round 1, enabled once every drafter has built', () => {
+  it('has no Start round 1 for anyone — the last drafter’s Play deals it', () => {
     const room = mountDeck();
-    room.read(ctxOf(pod({ drafters: ['u-alice', 'u-bob'], built: ['u-alice'] }), true));
-    const start = () => screen.getByTestId('pod-start-rounds') as HTMLButtonElement;
-    expect(start().disabled).toBe(true);
-    room.read(ctxOf(pod({ drafters: ['u-alice', 'u-bob'], built: ['u-alice', 'u-bob'] }), true));
-    expect(start().disabled).toBe(false);
-  });
-
-  it('starts the rounds through the pod route', async () => {
-    const posts: string[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      posts.push(String(input));
-      return Promise.resolve(new Response('{}', { status: 200 }));
-    });
-    const room = mountDeck();
-    room.read(ctxOf(pod({ drafters: ['u-alice'], built: ['u-alice'] }), true));
-    await act(async () => {
-      fireEvent.click(screen.getByTestId('pod-start-rounds'));
-    });
-    expect(posts.filter((u) => u.endsWith(`/rooms/${ROOM}/pod/rounds`))).toHaveLength(1);
-  });
-
-  it('gives nobody else the button', () => {
-    const room = mountDeck();
-    room.read(ctxOf(pod({ drafters: ['u-alice'], built: ['u-alice'] }), false));
+    room.read(ctxOf(pod({ drafters: ['u-alice', 'u-bob'], built: ['u-alice', 'u-bob'] })));
     expect(screen.getByTestId('pod-building')).toBeTruthy();
     expect(screen.queryByTestId('pod-start-rounds')).toBeNull();
   });

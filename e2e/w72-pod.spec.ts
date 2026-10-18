@@ -4,18 +4,12 @@
  * pairs across the table with a bye, a watcher switches boards with the
  * strip, standings show, and round 2 pairs by score.
  *
- * Written against the wire contract (§P's routes: `…/pod/sit`,
- * `…/pod/stand`, `…/pod/rounds`), then run and fixed against the real
- * server once lane P landed (`98f45240`) — two gaps the contract's wording
- * did not spell out, both confirmed by reading the room back rather than
- * assumed:
- *
- *   - `pod/rounds` only SEATS round 1's pairing; nothing else starts its
- *     first game. `PodTables`' own "Play" button does
- *     (`PodScreen.tsx`'s `startTableMatch`).
- *   - A pod table is gated the SAME way a constructed one is: both seats
- *     have to ready (`POST tables/rooms/:id/ready`) before
- *     `POST /api/play/matches` succeeds — `startTableMatch` does both.
+ * Nobody presses anything between the editor and the game (the operator,
+ * 2026-10-18: draft → deck building → inside a game already ready to play).
+ * Each drafter's Play in the editor says they are done (`…/pod/play`); the
+ * last one's deals round 1, and the pod screen readies and starts each table
+ * by itself (`PodScreen.tsx`'s `startMyTable`) — the second of a table's two
+ * players to land on the pod is the one whose start succeeds.
  *
  * The run for `-f video=true` ×1 still needs the claw dispatch per the
  * wave file; this file's own local run (jar, no video) is what found and
@@ -54,11 +48,9 @@ async function draftUntilDone(p: Player): Promise<void> {
     );
     if ((await next.jsonValue()) === 'done') return;
     await p.page.locator('[data-testid="pack"] button[data-testid="card"]:not([disabled])').first().click();
-    // Paced under the server's own pick rate limit (8 burst, then 1 per
-    // 1.5 s — `draft.spec.ts`'s own header note). Clicking as fast as
-    // Playwright can outruns that limit with no visible error (the pack
-    // just never advances), which reads as a hang rather than a refusal.
-    await p.page.waitForTimeout(1_600);
+    // Paced under the server's own pick rate limit (15 burst, then one per
+    // 250 ms — `PICK_RATE_LIMIT`).
+    await p.page.waitForTimeout(400);
   }
 }
 
@@ -157,25 +149,12 @@ test(
       for (const p of players) {
         await expect(p.page.getByTestId('deck-editor'), `${p.name}: the finished draft opens the editor`).toBeVisible({ timeout: UI_TIMEOUT });
         await buildMainDeck(p, 40);
+        // Play: done building. The builder stays up, showing who else is.
+        await p.page.getByTestId('play-deck').click();
       }
-
-      /* ── everyone shows built in the builder; alice (the leader) starts round 1 ── */
-      await expect.poll(() => alice!.page.getByTestId('pod-built').locator('[data-built]').count(), { timeout: UI_TIMEOUT, message: 'every drafter shows built' }).toBe(3);
-      await alice.page.getByTestId('pod-start-rounds').click();
-
-      /*
-       * `pod/rounds` only seats round 1's pairing. `PodTables`' own "Play"
-       * button both readies and starts the game (see the header); either
-       * of the pairing's two clicking first readies them and gets back
-       * "the other seat isn't ready" with no error shown, and the second
-       * click succeeds for both. The bye has no table of their own, so
-       * this is a no-op for them.
-       */
-      for (const p of players) {
-        await expect(p.page.getByTestId('pod-rounds'), `${p.name}: round 1 is up`).toBeVisible({ timeout: UI_TIMEOUT });
-        const play = p.page.getByTestId('pod-tables-play');
-        if (await play.isVisible().catch(() => false)) await play.click();
-      }
+      // The first two wait in the builder, shown as ready; the third's Play
+      // dealt round 1, and every builder hands its drafter to the room, whose
+      // pod screen starts their table.
 
       /*
        * Round 1: two play, one has the bye. `pod-tables-bye` is drawn for

@@ -541,9 +541,16 @@ export type StandPodResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' };
 
-export type StartPodRoundsResult =
+export type PlayPodResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-building' | 'not-built' | 'no-players' };
+	| { ok: false; reason: 'no-room' | 'not-drafter' | 'not-built' };
+
+/**
+ * The opponent at a pod table that has one human: the one drafter of a pod of
+ * bots plays Forge's AI. Stands in `PodRecord.pairings` where a member id would,
+ * and is never a member — `#finishPodTable` records no result for it.
+ */
+export const POD_AI = 'ai';
 
 /**
  * What `RoomView.pod` needs that this file cannot answer on its own: whether
@@ -576,7 +583,7 @@ const NO_POD_CHECKS: PodChecks = {
 };
 
 /**
- * A draft room's rounds, once `startPodRounds` has dealt round 1. Null before
+ * A draft room's rounds, once `playPod` has dealt round 1. Null before
  * that (still `lobby`, `drafting` or `building` — see `podPhaseOf`).
  */
 interface PodRecord {
@@ -662,15 +669,16 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	if (phase === 'lobby') {
 		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [] };
 	}
-	// Seated at `draftStartedAt` and fixed from there (`startPodRounds`'s own
+	// Seated at `draftStartedAt` and fixed from there (`#dealPodRounds`'s own
 	// `humans`), falling back to the CURRENT seats for a pod whose rounds have
 	// not started yet (`drafting`/`building`) — there is no fixed list to fall
-	// back to before `startPodRounds` has run.
+	// back to before `#dealPodRounds` has run.
 	const humans = room.pod?.humans ?? room.podSeats.filter((id): id is string => id !== null);
 	if (phase === 'drafting') {
 		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: humans, built: [] };
 	}
-	const built = humans.filter((id) => checks.built(room.id, id));
+	// Done building: pressed Play (`playPod`) with a deck that is still legal.
+	const built = humans.filter((id) => room.podPlaying.includes(id) && checks.built(room.id, id));
 	if (phase === 'building') {
 		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, drafters: humans, built };
 	}
@@ -1003,15 +1011,16 @@ export interface Lobby {
 	/** Give up a pod seat, in the `lobby` phase only. Idempotent: not seated is not a failure. */
 	standPod(roomId: string, memberId: string): StandPodResult;
 	/**
-	 * Leader only, from `building` — refused until every seated human's deck
-	 * is saved and legal (`PodChecks.built`). Pairs round 1 (`pairRound`,
-	 * `@hadoku/draft`), makes one bo3-with-sideboarding table per pairing,
-	 * seats both players with their saved built deck (`PodChecks.seatState`),
-	 * and records the bye as a `MatchResult`. Every later round starts BY
-	 * ITSELF, from `recordGameResult`, the instant every one of the current
-	 * round's tables is `done`.
+	 * A drafter is done building — the deck editor's Play. Refused unless their
+	 * saved deck is legal (`PodChecks.built`). Once EVERY human drafter has
+	 * pressed it, round 1 is dealt with nobody else's say: one bo3-with-sideboarding
+	 * table per pairing (`pairRound`, `@hadoku/draft`), both players seated with
+	 * their saved deck (`PodChecks.seatState`), the bye recorded as a
+	 * `MatchResult`. A pod with one human gets one table against the AI
+	 * (`POD_AI`). Every later round starts by itself, from `recordGameResult`.
+	 * Answered `ok` once the rounds have started, so a late press is harmless.
 	 */
-	startPodRounds(roomId: string, callerId: string): StartPodRoundsResult;
+	playPod(roomId: string, memberId: string): PlayPodResult;
 }
 
 /** Structured, and never carries a password, hash or salt. */
@@ -1152,10 +1161,12 @@ interface RoomRecord {
 	matches: string[];
 	/** ms since epoch once the draft was dealt; null in the lobby phase. */
 	draftStartedAt: number | null;
-	/** The 8 pod seats (wave 72 §P), by member id. Meaningful only while `draftStartedAt === null`; frozen from there — `startPodRounds`'s own `PodRecord.humans` is what the pod plays. */
+	/** The 8 pod seats (wave 72 §P), by member id. Meaningful only while `draftStartedAt === null`; frozen from there — `#dealPodRounds`'s own `PodRecord.humans` is what the pod plays. */
 	podSeats: (string | null)[];
-	/** The pod's rounds, once dealt. Null before `startPodRounds`. */
+	/** The pod's rounds, once dealt. Null until every drafter has pressed Play (`playPod`). */
 	pod: PodRecord | null;
+	/** Who has pressed Play in `building` (`playPod`). In memory only, like `pod`: a restart puts the room back in its lobby. */
+	podPlaying: string[];
 	createdAt: number;
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
 	updatedAt: number;
@@ -1802,7 +1813,8 @@ class FileLobby implements Lobby {
 		const pairing = pod.pairings.find((p) => p.tableId === table.id);
 		if (pairing === undefined) return;
 		const [a, b] = pairing.players;
-		pod.results = [...pod.results, { round: pod.round, playerA: a, playerB: b, gamesA: table.series.wins[0], gamesB: table.series.wins[1] }];
+		// A game against the AI is not a pod result: there is nobody to rank it against.
+		if (b !== POD_AI) pod.results = [...pod.results, { round: pod.round, playerA: a, playerB: b, gamesA: table.series.wins[0], gamesB: table.series.wins[1] }];
 		const stillPlaying = pod.pairings.some((p) => {
 			if (p.tableId === table.id) return false;
 			const t = room.tables.find((x) => x.id === p.tableId);
@@ -1840,10 +1852,10 @@ class FileLobby implements Lobby {
 	 * regardless of the stored setting — `draft-pods-plan.md` ruling 1).
 	 * Seats both players with their saved built deck (`PodChecks.seatState`);
 	 * a player `seatState` answers `null` for (should not happen —
-	 * `startPodRounds` already checked `built` for everyone) is left to load
+	 * `playPod` already checked `built` for everyone) is left to load
 	 * one the ordinary way rather than crash the round.
 	 */
-	#newPodTable(room: RoomRecord, a: string, b: string): string {
+	#newPodTable(room: RoomRecord, a: string, b: string | null): string {
 		const table: TableRecord = {
 			id: mintTableId(room.tables.map((t) => t.id)),
 			seats: [a, b],
@@ -1851,7 +1863,7 @@ class FileLobby implements Lobby {
 			series: { length: seriesLengthOf(effectiveMatchLength(room)), wins: [0, 0], games: [], phase: 'seating', rematchOf: null },
 		};
 		room.tables = [...room.tables, table];
-		for (const id of [a, b]) {
+		for (const id of b === null ? [a] : [a, b]) {
 			const member = room.members.find((m) => m.id === id);
 			if (member === undefined) continue;
 			const state = this.#podChecks.seatState(room.id, id, table.id);
@@ -1989,6 +2001,7 @@ class FileLobby implements Lobby {
 			draftStartedAt: null,
 			podSeats: new Array<string | null>(POD_SEATS).fill(null),
 			pod: null,
+			podPlaying: [],
 			createdAt: now,
 			updatedAt: now,
 			members: [newMember([], caller, now)],
@@ -2112,7 +2125,7 @@ class FileLobby implements Lobby {
 		// join order, up to POD_SEATS. Without this a room that never pressed
 		// Sit would deal (the fallback above lets it start), but every LATER
 		// reader of `podSeats` — `draftRooms.ts`'s humans lookup, `built`,
-		// `startPodRounds` — would see nobody seated and the pod could never
+		// `playPod` — would see nobody seated and the pod could never
 		// reach `rounds`. A room that DID seat somebody is left exactly as the
 		// pod lobby set it; this only fills the gap the fallback itself opened.
 		if (seated.length === 0) {
@@ -2271,22 +2284,31 @@ class FileLobby implements Lobby {
 		return { ok: true, room: this.#view(room) };
 	}
 
-	startPodRounds(roomId: string, callerId: string): StartPodRoundsResult {
+	playPod(roomId: string, memberId: string): PlayPodResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-		if (podPhaseOf(room, this.#podChecks) !== 'building') return { ok: false, reason: 'not-building' };
+		const phase = room.gameType === 'draft' ? podPhaseOf(room, this.#podChecks) : 'lobby';
+		if (phase === 'rounds' || phase === 'done') return { ok: true, room: this.#view(room) };
 		const humans = room.podSeats.filter((id): id is string => id !== null);
-		if (humans.length === 0) return { ok: false, reason: 'no-players' };
-		if (humans.some((id) => !this.#podChecks.built(roomId, id))) return { ok: false, reason: 'not-built' };
-		const rounds = roundsFor(humans.length);
-		if (rounds === 0) {
-			// One drafter: nothing to pair, nobody to play. Done at once.
-			room.pod = { humans, round: 1, rounds: 0, results: [], pairings: [], bye: null };
-			this.#persist(room);
-			this.#log({ event: 'pod-rounds-started', roomId, rounds: 0 });
-			return { ok: true, room: this.#view(room) };
+		if (phase !== 'building' || !humans.includes(memberId)) return { ok: false, reason: 'not-drafter' };
+		if (!this.#podChecks.built(roomId, memberId)) return { ok: false, reason: 'not-built' };
+		if (!room.podPlaying.includes(memberId)) room.podPlaying = [...room.podPlaying, memberId];
+		this.#log({ event: 'pod-play', roomId, memberId });
+		if (humans.every((id) => room.podPlaying.includes(id) && this.#podChecks.built(roomId, id))) this.#dealPodRounds(room, humans);
+		this.#persist(room);
+		return { ok: true, room: this.#view(room) };
+	}
+
+	/** Round 1, once every drafter is done building — see `playPod`. */
+	#dealPodRounds(room: RoomRecord, humans: string[]): void {
+		if (humans.length === 1) {
+			// One drafter, the rest bots: one table, against the AI.
+			const tableId = this.#newPodTable(room, humans[0]!, null);
+			room.pod = { humans, round: 1, rounds: 1, results: [], pairings: [{ tableId, players: [humans[0]!, POD_AI] }], bye: null };
+			this.#log({ event: 'pod-rounds-started', roomId: room.id, rounds: 1, tables: 1, opponent: 'ai' });
+			return;
 		}
+		const rounds = roundsFor(humans.length);
 		const players: PodPlayer[] = room.podSeats
 			.map((id, i) => (id === null ? null : { id, podSeat: i }))
 			.filter((p): p is PodPlayer => p !== null);
@@ -2300,9 +2322,7 @@ class FileLobby implements Lobby {
 			pairings,
 			bye: paired.bye,
 		};
-		this.#persist(room);
-		this.#log({ event: 'pod-rounds-started', roomId, rounds, tables: pairings.length, bye: paired.bye });
-		return { ok: true, room: this.#view(room) };
+		this.#log({ event: 'pod-rounds-started', roomId: room.id, rounds, tables: pairings.length, bye: paired.bye });
 	}
 }
 
@@ -2406,6 +2426,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// meaningless without the live draft they were dealt against; a
 					// restart's room comes back in `lobby`, same as before this wave.
 					pod: null,
+					podPlaying: [],
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.

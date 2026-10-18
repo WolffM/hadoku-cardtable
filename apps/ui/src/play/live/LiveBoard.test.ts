@@ -3752,6 +3752,38 @@ describe('R16 — the result screen, drawn over the board', () => {
       expect(tableState.startRoom).not.toHaveBeenCalled();
     });
 
+    it('a pod of one keeps Rematch — its one drafter plays the AI again from here', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [2, 0], games: [], phase: 'done' } }],
+        pod: { phase: 'done', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, built: [] },
+      };
+      tableState.other = { ready: false, present: false };
+      const { rematch } = await victoryInRoom();
+      await waitFor(() => expect(rematch().textContent).toBe('Next game'));
+      fireEvent.click(rematch());
+      await waitFor(() => expect(tableState.startVsBot).toHaveBeenCalledWith('r-1', 't-1'));
+    });
+
+    it('against the AI, my sideboard Ready alone starts the next game — the bot’s, not a two-player start', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [0, 1], games: [], phase: 'sideboarding' } }],
+        pod: { phase: 'rounds', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, built: [] },
+      };
+      tableState.phase = 'sideboarding';
+      tableState.other = { ready: false, present: false };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n40 Island\n[Sideboard]\n' } } };
+      const { getByTestId } = await victoryInRoom();
+      await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
+      expect(tableState.startVsBot).not.toHaveBeenCalled();
+      fireEvent.click(getByTestId('sideboard-ready'));
+      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', true, 't-1'));
+      roomPing(); // the server's push of my own write
+      await waitFor(() => expect(tableState.startVsBot).toHaveBeenCalledWith('r-1', 't-1'));
+      expect(tableState.startRoom).not.toHaveBeenCalled();
+    });
+
     it('mounting the sideboard step sends no ready request — the server already began it with nobody ready', async () => {
       roomsClientState.room = {
         settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },

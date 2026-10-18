@@ -72,7 +72,8 @@ import { mountInspector } from '../play/inspect/index.ts';
 import { appLocation, navigate, routeUrl } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { useWhoami } from '../room/whoami.ts';
-import { livePodSource, startTableMatch, usePodContext, type PodSource } from './pod/client.ts';
+import type { RoomTable } from '@hadoku/shared';
+import { livePodSource, startMyTable, usePodContext, type PodSource } from './pod/client.ts';
 import { PodStandings } from './pod/PodStandings.tsx';
 import { PodTables } from './pod/PodTables.tsx';
 import './PodScreen.css';
@@ -181,26 +182,33 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   }, [phase, ctx, myMemberId]);
 
   /**
-   * Starts round 1's first game at my own seated table. Confirmed against
-   * the real server (not a guess from the wire contract's wording):
-   * `pod/rounds` only seats the pairing, and a pod table is gated the SAME
-   * way a constructed one is — both seats have to ready before
-   * `POST /api/play/matches` succeeds. `pod/client.ts`'s `startTableMatch`
-   * does both in one call and reports the first player's "other seat not
-   * ready yet" as success with no match yet, not an error. The auto-
-   * navigate effect above carries me once the table's own `matchId` lands.
+   * My table's next series starts with nobody pressing anything: draft →
+   * build → Play → the game (the operator, 2026-10-18: *"it should just go
+   * immediately into a game"*). Being on this screen in `rounds` with a table
+   * that has no game is the whole signal — I readied my table by being here,
+   * the other player by being on theirs, and the second of us starts it
+   * (`startMyTable`; against the AI there is no second). Asked once per table;
+   * a refusal shows Play at the table to ask again.
    */
-  const [startingTable, setStartingTable] = useState(false);
   const [startTableError, setStartTableError] = useState<string | null>(null);
-  const playTable = (tableId: string): void => {
-    setStartingTable(true);
+  const asked = useRef<string | null>(null);
+  const startTable = (table: RoomTable): void => {
+    asked.current = table.id;
     setStartTableError(null);
-    startTableMatch(draftId, tableId)
-      .then((r) => {
-        if (!r.ok) setStartTableError(r.message);
-      })
-      .finally(() => setStartingTable(false));
+    startMyTable(draftId, table).then((r) => {
+      if (!r.ok) setStartTableError(r.message);
+    });
   };
+  const retryTable = (tableId: string): void => {
+    const table = ctx?.tables.find((t) => t.id === tableId);
+    if (table !== undefined) startTable(table);
+  };
+  useEffect(() => {
+    if (myMemberId === null || ctx === null || phase !== 'rounds') return;
+    const mine = ctx.tables.find((t) => t.players.some((p) => p.memberId === myMemberId));
+    if (mine === undefined || mine.matchId !== null || mine.series.phase !== 'seating' || asked.current === mine.id) return;
+    startTable(mine);
+  }, [phase, ctx, myMemberId]);
 
   return (
     <div className="shell" data-testid="pod" ref={host}>
@@ -251,7 +259,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           <h2 data-testid="pod-round">
             Round {ctx.pod.round} of {ctx.pod.rounds}
           </h2>
-          <PodTables tables={ctx.tables} myMemberId={myMemberId} byeId={ctx.pod.bye} nameOf={nameOf} onPlay={playTable} starting={startingTable} />
+          <PodTables tables={ctx.tables} myMemberId={myMemberId} byeId={ctx.pod.bye} nameOf={nameOf} onPlay={startTableError === null ? undefined : retryTable} />
           {startTableError !== null && (
             <p className="pod__error" role="alert" data-testid="pod-table-start-error">
               {startTableError}

@@ -2128,8 +2128,12 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const phase = myTable?.series.phase ?? null;
   const matchLength = room?.settings.matchLength ?? 'bo1';
   const sideboarding = room?.settings.sideboarding ?? false;
-  /** No Rematch at all in a pod room (wave 72 §Q.3): Back to room already opens the pod. */
-  const inPod = room !== null && room.pod !== null;
+  /**
+   * No Rematch in a pod of people (wave 72 §Q.3): Back to room already opens
+   * the pod, and its rounds decide who plays whom. The one drafter of a pod of
+   * bots plays the AI again from here, the same as any game against the bot.
+   */
+  const inPod = room !== null && room.pod !== null && alone !== true;
   /**
    * The table id the reads below address — a ref, not state, because the
    * table-scoped read inside the SAME refresh cycle that learns it has to
@@ -2216,11 +2220,15 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   };
   const unreachable = (err: unknown): void => refused(err instanceof Error ? err.message : String(err));
 
+  // Against the AI there is nobody to agree with: my sideboard step's Ready
+  // is the whole agreement, and the next game is the bot's.
+  const soloNext = alone === true && rematch.mine && phase === 'sideboarding';
   useEffect(() => {
-    if (!rematch.agreed || roomId === null || asked.current) return;
+    if ((!rematch.agreed && !soloNext) || roomId === null || asked.current) return;
     asked.current = true;
-    (tableId === undefined ? tables.startRoom(roomId) : tables.startRoom(roomId, tableId)).then(started, unreachable);
-  }, [rematch.agreed, roomId, tables, tableId]);
+    const start = soloNext ? tables.startVsBot : tables.startRoom;
+    (tableId === undefined ? start(roomId) : start(roomId, tableId)).then(started, unreachable);
+  }, [rematch.agreed, soloNext, roomId, tables, tableId]);
 
   const onRematch = (): void => {
     if (roomId === null) return;
