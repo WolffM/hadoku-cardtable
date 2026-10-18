@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 
 import { defineConfig } from 'vitest/config';
@@ -13,6 +14,7 @@ export default defineConfig({
     // substitution, so without this a test that renders the app hits a bare
     // ReferenceError and fails looking like anything else.
     __HADOKU_APP_NAME__: JSON.stringify(APP_NAME),
+    __HADOKU_UI_VERSION__: JSON.stringify((JSON.parse(readFileSync(new URL('./apps/ui/package.json', import.meta.url), 'utf8')) as { version: string }).version),
   },
   test: {
     environment: 'node',

@@ -2471,10 +2471,14 @@ describe('the match settings open from your own face (items 4-7, 2026-10-10)', (
     const { s, getByTestId } = await liveBoard(0, true);
     const infos = () => s.received.filter((r) => r.event === 'forge:client' && (r.payload as { kind: string }).kind === 'info');
     await waitFor(() => expect(infos()).toHaveLength(1));
+    // `ui` is the bundle's version: a report of an animation the deploy had replaced is read as a stale tab
+    // or a regression from this field (the operator, 2026-10-17: "i played a game a few hrs ago and the
+    // animation was still bad" — the log of those matches could not say which build the tab ran).
+    expect(__HADOKU_UI_VERSION__).toMatch(/^\d+\.\d+\.\d+$/);
     expect(infos()[0]!.payload).toEqual({
       matchId: s.matchId,
       kind: 'info',
-      data: { fastMode: false, boardLayout: 'type-separated', reducedMotion: false, window: `${window.innerWidth}x${window.innerHeight}` },
+      data: { ui: __HADOKU_UI_VERSION__, fastMode: false, boardLayout: 'type-separated', reducedMotion: false, window: `${window.innerWidth}x${window.innerHeight}` },
     });
     // Toggling Fast Mode sends the new settings, nothing else of the panel's.
     fireEvent.click(getByTestId('live-settings-fast-mode'));

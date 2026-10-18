@@ -5,3 +5,5 @@
  * renders the app hits a bare ReferenceError that looks like anything but.
  */
 declare const __HADOKU_APP_NAME__: string;
+/** apps/ui/package.json's version at build time (vite.config.ts), reported in a seat's `info` telemetry. */
+declare const __HADOKU_UI_VERSION__: string;

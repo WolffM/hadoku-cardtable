@@ -3017,7 +3017,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       if (boardLayout !== persistedLayout || fastMode !== (prefs.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode)) return;
       settingsReported.current = true;
     }
-    reportClient(match.transport, match.matchId, 'info', { fastMode, boardLayout, reducedMotion: !motionWanted(), window: `${window.innerWidth}x${window.innerHeight}` });
+    reportClient(match.transport, match.matchId, 'info', { ui: __HADOKU_UI_VERSION__, fastMode, boardLayout, reducedMotion: !motionWanted(), window: `${window.innerWidth}x${window.innerHeight}` });
   }, [match, spectator, prefs, fastMode, boardLayout]);
   useEffect(() => {
     // `snapshots === 0` is "no join has completed yet" — sending before that
