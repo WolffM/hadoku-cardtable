@@ -199,6 +199,23 @@ describe('PUT /api/drafts/:podId/deck', () => {
 		expect(mine.json.deck).toBe(dck);
 	});
 
+	it('saves an unfinished build — 24 cards of the pool — and GET …/mine reads it back', async () => {
+		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: null });
+		const { pool } = finishPodFor(draftRooms, 'pod-h', 'alice', 'sock-a');
+		const h = await openApp(draftRooms);
+		let deck = deckFromPool('pod-h', pool);
+		for (const card of pool.slice(0, 24)) {
+			const entry = deck.sideboard.find((e) => e.card.name === card.name && e.card.set === (card.setCode || null));
+			if (entry !== undefined) deck = moveToMain(deck, entry.card, 1);
+		}
+		expect(deck.main.reduce((n, e) => n + e.count, 0)).toBe(24);
+		const dck = dckTextOf(deck);
+		const put = await call(h, 'PUT', '/api/drafts/pod-h/deck', { as: 'alice', body: { dck } });
+		expect(put.status).toBe(200);
+		expect(put.json.deck).toBe(dck);
+		expect((await call(h, 'GET', '/api/drafts/pod-h/mine', { as: 'alice' })).json.deck).toBe(dck);
+	});
+
 	it('400s with issues — never saves — a build that plays a card outside the pool', async () => {
 		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: null });
 		finishPodFor(draftRooms, 'pod-d', 'alice', 'sock-a');

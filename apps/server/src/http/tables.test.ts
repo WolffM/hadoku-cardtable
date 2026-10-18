@@ -853,6 +853,26 @@ describe('a drafted deck', () => {
 		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([text, library.deck(SECOND_DECK)?.text]);
 	});
 
+	it('refuses to start a drafted build under forty', async () => {
+		const h = await boot();
+		const pool = draftedPool(h, 'amber-lantern-k7q4');
+		let deck = deckFromPool('amber-lantern-k7q4', pool);
+		for (const card of pool.slice(0, 24)) {
+			const entry = deck.sideboard.find((e) => e.card.name === card.name && e.card.set === (card.setCode || null));
+			if (entry !== undefined) deck = moveToMain(deck, entry.card, 1);
+		}
+		const res = await start(h, {
+			opponent: 'ai',
+			seats: [
+				{ deck: { dck: dckTextOf(deck) }, rules: { kind: 'draft', draftId: 'amber-lantern-k7q4' } },
+				standard(SECOND_DECK, POWER_2010),
+			],
+		});
+		expect(res.status).toBe(422);
+		expect(res.body.error).toContain('maindeck has 24 cards, needs at least 40');
+		expect(h.specs).toEqual([]);
+	});
+
 	it('refuses a card the caller did not draft, by name', async () => {
 		const h = await boot();
 		const pool = draftedPool(h, 'amber-lantern-k7q4');
@@ -2735,6 +2755,36 @@ describe('a room on a drafted pool', () => {
 		expect(h.specs[0]?.seats.map((s) => s.deck)).toEqual([built(pools.alice), built(pools.bob)]);
 		expect(h.matches.get(matchId)?.seatOf(ALICE)).toBe(0);
 		expect(h.matches.get(matchId)?.seatOf(BOB)).toBe(1);
+	});
+
+	/**
+	 * A save stores an unfinished build (`drafts.ts`), so the table is the
+	 * only place a short one is stopped: it loads, reads illegal, cannot be
+	 * readied, and the start is refused with nothing launched.
+	 */
+	it('will not ready or start a drafted build under forty', async () => {
+		const h = await boot();
+		const pools = pod(h);
+		openRoom(h);
+		let deck = deckFromPool(POD, pools.alice);
+		for (const card of pools.alice.slice(0, 24)) {
+			const entry = deck.sideboard.find((e) => e.card.name === card.name && e.card.set === (card.setCode || null));
+			if (entry !== undefined) deck = moveToMain(deck, entry.card, 1);
+		}
+		const short = dckTextOf(deck);
+
+		const loaded = await putDeck(h, 'alice', short);
+		expect(loaded.status).toBe(200);
+		expect(players(loaded.body)[0]).toMatchObject({ legal: false, issueCount: 1 });
+		const refused = await setReady(h, 'alice');
+		expect(refused.status).toBe(422);
+		expect(refused.body.error).toContain('maindeck has 24 cards, needs at least 40');
+
+		await putDeck(h, 'bob', built(pools.bob));
+		expect((await setReady(h, 'bob')).status).toBe(200);
+		const res = await start(h, { room: ROOM }, '/api/play/matches', 'application/json', edgeHeaders('bob'));
+		expect(res).toMatchObject({ status: 409, body: { error: 'user-alice is not ready yet' } });
+		expect(h.specs).toEqual([]);
 	});
 
 	/**

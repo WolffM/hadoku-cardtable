@@ -214,9 +214,10 @@ describe('DeckEditor — limited', () => {
     for (let i = 0; i < 8; i += 1) fireEvent.click(screen.getByTestId('basic-Mountain-more'));
 
     expect(screen.getByTestId('main-count').textContent).toBe('40');
+    expect(screen.getByTestId('main-count').parentElement?.dataset['complete']).toBe('true');
     expect(screen.getByTestId('side-count').textContent).toBe('22');
 
-    await waitFor(() => expect(screen.getByTestId('deck-verdict').textContent).toContain('legal against'));
+    await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
     const check = lastPost(api.calls, 'tables/check')?.body as { deck: { dck: string }; rules: unknown };
     expect(check.rules).toEqual({ kind: 'draft', draftId: DRAFT_ID });
     const deck = deckFromDeckFile(parseDck(check.deck.dck));
@@ -225,13 +226,36 @@ describe('DeckEditor — limited', () => {
     expect(deck.sideboard.reduce((n, e) => n + e.count, 0)).toBe(22);
   });
 
-  it('does not stop a short deck itself: it shows the server’s verdict either way', async () => {
+  it('reads an unfinished build as a count and a disabled Play, with no text and no alert', async () => {
     const api = stubApi({ check: (b) => shortVerdict(deckFromDeckFile(parseDck(b.deck.dck)).main.length) });
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0 }));
+    const onSave = vi.fn<(dck: string) => Promise<SaveOutcome>>(() => Promise.resolve({ ok: true }));
+    render(
+      createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0, saveDelayMs: 0, onSave }),
+    );
     promote(10);
-    await waitFor(() => expect(screen.getByTestId('deck-verdict').textContent).toContain('maindeck has 10 cards'));
-    // Play is never gated on the count — the room's own gate is the control.
-    expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false);
+    await waitFor(() => expect(lastPost(api.calls, 'tables/check')).toBeDefined());
+    await waitFor(() => expect(screen.getByTestId('deck-editor').dataset['save']).toBe('saved'));
+
+    expect(screen.getByTestId('main-count').textContent).toBe('10');
+    const count = screen.getByTestId('main-count').parentElement!;
+    expect(count.dataset['complete']).toBe('false');
+    expect(count.textContent).toBe('10/40');
+    expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByTestId('deck-fault')).toBeNull();
+    expect(screen.getByTestId('deck-editor').textContent).not.toContain('maindeck has 10 cards');
+  });
+
+  it('shows a save that genuinely failed as one quiet line, never an alert', async () => {
+    const api = stubApi({ check: () => legal });
+    const onSave = vi.fn<(dck: string) => Promise<SaveOutcome>>(() => Promise.resolve({ ok: false, issues: ['Could not reach the server.'] }));
+    render(
+      createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0, saveDelayMs: 0, onSave }),
+    );
+    promote(1);
+    expect((await screen.findByTestId('deck-fault')).textContent).toBe('Could not reach the server.');
+    expect(screen.getByTestId('deck-editor').dataset['save']).toBe('error');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('groups the maindeck by mana value, with a curve count per bucket', () => {
@@ -276,10 +300,11 @@ describe('DeckEditor — limited', () => {
     expect(cardsIn('side-grid')).toHaveLength(before);
   });
 
-  it('calls onPlay from the Play button, ungated by legality', () => {
+  it('calls onPlay from the Play button once the server calls the build legal', async () => {
     const api = stubApi({ check: () => legal });
     const onPlay = vi.fn();
     render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, client: api.client, checkDelayMs: 0, onPlay }));
+    await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('play-deck'));
     expect(onPlay).toHaveBeenCalledTimes(1);
   });
@@ -395,6 +420,11 @@ describe('DeckScreen', () => {
     expect(calls[0]!.podId).toBe(DRAFT_ID);
     const sent = deckFromDeckFile(parseDck(calls[0]!.dck));
     expect(sent.main.reduce((n, e) => n + e.count, 0)).toBe(1);
+    // One card of forty, saved: nothing to say about it but the count.
+    await waitFor(() => expect(screen.getByTestId('deck-editor').dataset['save']).toBe('saved'));
+    expect(screen.getByTestId('main-count').parentElement?.dataset['complete']).toBe('false');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByTestId('deck-fault')).toBeNull();
   });
 
   it('opens from the saved build when GET …/mine has one', async () => {
@@ -412,6 +442,7 @@ describe('DeckScreen', () => {
     const api = stubApi({ check: () => legal });
     render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: api.client, checkDelayMs: 0 }));
     await screen.findByTestId('deck-editor');
+    await waitFor(() => expect((screen.getByTestId('play-deck') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('play-deck'));
     expect(peekCreatePreset()).toBe(`draft:${DRAFT_ID}`);
     expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
