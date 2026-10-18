@@ -1,6 +1,7 @@
 /*
- * The player's say over sound: mute, overall volume, and how loud the music
- * sits under the rest. Drawn in cardtable's own settings
+ * The player's say over sound: mute, overall volume, how loud the music
+ * sits under the rest, and which style of match music plays (`MusicStyle`:
+ * normal by default, or 16-bit; `./match-music.ts` turns it into roles). Drawn in cardtable's own settings
  * (`../settings/SoundSettings.tsx`); read by `./index.ts`, which applies them
  * to the mixer.
  *
@@ -32,15 +33,19 @@
  * origin is shared with whatever else is served from it.
  */
 
+import { MUSIC_STYLES, type MusicStyle } from '@hadoku/shared';
+
 /** The `localStorage` keys. Namespaced; the origin is shared. */
 export const MUTE_KEY = 'cardtable.sound.muted';
 export const LEVEL_KEYS = { volume: 'cardtable.sound.volume', music: 'cardtable.sound.music' } as const;
+export const MUSIC_STYLE_KEY = 'cardtable.sound.music-style';
 
 /** `volume` scales everything; `music` scales the music bus under it. Both 0..1, full by default. */
 export type LevelName = keyof typeof LEVEL_KEYS;
 
 /** `true` when the player has muted. Authoritative once loaded. */
 let muted: boolean | null = null;
+let musicStyle: MusicStyle | null = null;
 const levels: Partial<Record<LevelName, number>> = {};
 
 type Listener = () => void;
@@ -120,6 +125,32 @@ export function setLevel(name: LevelName, value: number): void {
   notify();
 }
 
+/** The match music's style. Reads the store once, then memoises; anything unreadable is normal. */
+export function getMusicStyle(): MusicStyle {
+  if (musicStyle !== null) return musicStyle;
+  let value: MusicStyle = 'normal';
+  try {
+    const raw = globalThis.localStorage?.getItem(MUSIC_STYLE_KEY);
+    if ((MUSIC_STYLES as readonly (string | null | undefined)[]).includes(raw)) value = raw as MusicStyle;
+  } catch {
+    // A blocked store: normal, the default.
+  }
+  musicStyle = value;
+  return value;
+}
+
+/** Set the style, persist it best-effort, and tell every subscriber. */
+export function setMusicStyle(value: MusicStyle): void {
+  if (getMusicStyle() === value) return;
+  musicStyle = value;
+  try {
+    globalThis.localStorage?.setItem(MUSIC_STYLE_KEY, value);
+  } catch {
+    // Held for this page, not remembered for the next.
+  }
+  notify();
+}
+
 function clamp(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
@@ -148,6 +179,7 @@ export function subscribeSound(fn: Listener): () => void {
  */
 export function resetMutedForTests(): void {
   muted = null;
+  musicStyle = null;
   delete levels.volume;
   delete levels.music;
   listeners.clear();

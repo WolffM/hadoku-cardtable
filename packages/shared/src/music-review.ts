@@ -14,14 +14,30 @@
 
 import { z } from 'zod';
 
-import { COLOUR_PAIRS, MONO_COLOUR_IDS, TAKE_FILE_RE, type SoundTake } from './sounds.ts';
+import {
+	COLOUR_PAIRS,
+	MONO_COLOUR_IDS,
+	MUSIC_STYLES,
+	TAKE_FILE_RE,
+	matchMusicStyleRole,
+	type MusicStyle,
+	type SoundTake,
+} from './sounds.ts';
 
 /** The fifteen slot codes: the five mono colours, then the ten pairs in `COLOUR_PAIRS` order. */
 export const MUSIC_REVIEW_CODES: readonly string[] = [...MONO_COLOUR_IDS, ...COLOUR_PAIRS];
 
-/** `W` → `music.match.W|play`. */
+/** `W` → `music.match.W|play`: the slot's key in a review, and its normal lane's cell. */
 export function musicReviewCell(code: string): string {
-	return `music.match.${code}|play`;
+	return musicReviewLaneCell(code, 'normal');
+}
+
+/**
+ * The cell a lane's pick is for: `normal` → `music.match.W|play`, `chiptune` → `music.match.W.16bit|play`.
+ * A later session applies a review with exactly this mapping.
+ */
+export function musicReviewLaneCell(code: string, lane: MusicStyle): string {
+	return `${matchMusicStyleRole(`music.match.${code}`, lane)}|play`;
 }
 
 const REVIEW_CELLS: ReadonlySet<string> = new Set(MUSIC_REVIEW_CODES.map(musicReviewCell));
@@ -40,8 +56,8 @@ export interface MusicReviewSlot {
 }
 
 /**
- * Every slot with its candidates: the cell's current assignment first (only takes still in the
- * catalogue), then the catalogue's Music takes whose name starts `<code> · `, in catalogue order.
+ * Every slot with its candidates: what its two lanes' cells hold today first, normal then 16-bit (only
+ * takes still in the catalogue), then the catalogue's Music takes whose name starts `<code> · `, in catalogue order.
  * `W · ` never matches `WU · `, so a mono slot never collects a pair's takes.
  */
 export function musicReviewSlots(takes: readonly SoundTake[], cells: Readonly<Record<string, readonly string[]>>): MusicReviewSlot[] {
@@ -50,7 +66,7 @@ export function musicReviewSlots(takes: readonly SoundTake[], cells: Readonly<Re
 		const cell = musicReviewCell(code);
 		const candidates: MusicReviewCandidate[] = [];
 		const seen = new Set<string>();
-		for (const file of cells[cell] ?? []) {
+		for (const file of MUSIC_STYLES.flatMap((lane) => cells[musicReviewLaneCell(code, lane)] ?? [])) {
 			const take = byFile.get(file);
 			if (take === undefined || seen.has(file)) continue;
 			seen.add(file);
@@ -69,10 +85,6 @@ export function musicReviewSlots(takes: readonly SoundTake[], cells: Readonly<Re
 /** A quick verdict on one candidate. */
 export const MUSIC_RATINGS = ['keep', 'maybe', 'no'] as const;
 export type MusicRating = (typeof MUSIC_RATINGS)[number];
-
-/** A slot's two lanes. Any candidate may go in either; each lane holds at most one. */
-export const MUSIC_LANES = ['normal', 'chiptune'] as const;
-export type MusicLane = (typeof MUSIC_LANES)[number];
 
 /** Whether a take is named as a 16-bit one, so the page can mark it. */
 export function isChiptuneName(name: string): boolean {
@@ -136,7 +148,7 @@ export function musicReviewProblems(body: MusicReviewBody, slots: readonly Music
 	const problems: string[] = [];
 	for (const [cell, entry] of Object.entries(body.slots)) {
 		const files = offered.get(cell) ?? new Set<string>();
-		for (const lane of MUSIC_LANES) {
+		for (const lane of MUSIC_STYLES) {
 			const file = entry.picks[lane];
 			if (file !== null && !files.has(file)) problems.push(`${cell}: ${lane} pick ${file} was not offered`);
 		}

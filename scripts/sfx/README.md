@@ -325,7 +325,14 @@ tree), one JSON object per line, never rewritten:
 Lines written before 2026-10-18 carry a single `"pick"`; `MusicReviewRecordSchema` reads it as `picks.normal`.
 A slot left out was not reviewed; both picks null with ratings or a note is a slot reviewed without a choice. A
 viewer's latest line is their current answer (`GET /api/sounds/music-review/mine`). To act on it, read the
-file and set each picked cell with the admin `PUT /api/sounds/assignments/<cell>` (the builder does the same).
+file and set each picked cell with the admin `PUT /api/sounds/assignments/<cell>` (the builder does the same),
+lane by lane (`musicReviewLaneCell`):
+
+- `picks.normal` of slot `music.match.<code>|play` → `music.match.<code>|play`
+- `picks.chiptune` of slot `music.match.<code>|play` → `music.match.<code>.16bit|play`
+
+A player hears the 16-bit cell when they pick Style: 16-bit in sound settings, and the normal cell when that one
+is empty; normal players hear the normal cell, then the 16-bit one (`apps/ui/src/sound/match-music.ts`).
 
 ### Round 2: ambience first (2026-10-18)
 

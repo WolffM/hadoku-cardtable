@@ -14,10 +14,11 @@ import {
 	MusicReviewRecordSchema,
 	isChiptuneName,
 	musicReviewCell,
+	musicReviewLaneCell,
 	musicReviewProblems,
 	musicReviewSlots,
 } from './music-review.ts';
-import { CatalogueSchema, MATCH_MUSIC_ROLES } from './sounds.ts';
+import { CatalogueSchema, MATCH_MUSIC_ROLES, SOUND_ROLES, isCellId } from './sounds.ts';
 
 const music = (slug: string, name: string, prompt: string) => ({
 	file: `music-${slug}/take-1.ogg`,
@@ -92,6 +93,32 @@ describe('musicReviewSlots', () => {
 			['W · tavern jig', true],
 			['W · heraldic fanfare', false],
 			['W · baroque trumpet', false],
+		]);
+	});
+
+	it('a lane’s pick is for its own role’s cell: normal the slot’s, 16-bit the slot’s 16-bit role', () => {
+		expect(musicReviewLaneCell('W', 'normal')).toBe('music.match.W|play');
+		expect(musicReviewLaneCell('W', 'normal')).toBe(musicReviewCell('W'));
+		expect(musicReviewLaneCell('WU', 'chiptune')).toBe('music.match.WU.16bit|play');
+		for (const code of MUSIC_REVIEW_CODES) {
+			for (const lane of ['normal', 'chiptune'] as const) {
+				const cell = musicReviewLaneCell(code, lane);
+				expect(isCellId(cell)).toBe(true);
+				expect(SOUND_ROLES.get(cell.replace(/\|play$/, ''))?.bus).toBe('music');
+			}
+		}
+	});
+
+	it('offers what the 16-bit cell holds today as current too, after the normal cell’s', () => {
+		const slot = musicReviewSlots(CATALOGUE, {
+			'music.match.WU|play': ['music-statute-of-gears/take-1.ogg'],
+			'music.match.WU.16bit|play': ['music-wu-16-bit-sky-kingdom/take-1.ogg'],
+		}).find((s) => s.code === 'WU')!;
+		expect(slot.candidates.map((c) => [c.label, c.current])).toEqual([
+			['Statute of Gears', true],
+			['WU · 16-bit sky kingdom', true],
+			['WU · lighthouse march', false],
+			['WU · clockwork senate', false],
 		]);
 	});
 

@@ -1,6 +1,7 @@
 /*
  * The sound section of cardtable's settings (`./Settings.tsx`): mute, overall
- * volume, and the music's level under everything else. The values live in
+ * volume, the music's level under everything else, and the match music's style
+ * (normal or 16-bit; a switch mid-match plays the same slot's other track). The values live in
  * `../sound/mute.ts`; `../sound/index.ts` applies a change to the mixer at
  * once, music included, so a slider is heard as it moves.
  */
@@ -8,7 +9,45 @@
 import { useSyncExternalStore } from 'react';
 import { Icon } from '@wolffm/themes';
 
-import { getLevel, isMuted, playRole, setLevel, setMuted, subscribeSound, type LevelName } from '../sound/index.ts';
+import { MUSIC_STYLES, type MusicStyle } from '@hadoku/shared';
+
+import {
+  getLevel,
+  getMusicStyle,
+  isMuted,
+  playRole,
+  setLevel,
+  setMusicStyle,
+  setMuted,
+  subscribeSound,
+  type LevelName,
+} from '../sound/index.ts';
+
+const STYLE_LABEL: Record<MusicStyle, string> = { normal: 'Normal', chiptune: '16-bit' };
+
+function MusicStylePicker({ disabled }: { disabled: boolean }) {
+  const style = useSyncExternalStore(subscribeSound, getMusicStyle, () => 'normal' as const);
+  return (
+    <div className="ct-settings__level">
+      <span id="ct-settings-music-style">Style</span>
+      <div className="segmented" role="group" aria-labelledby="ct-settings-music-style" data-testid="settings-music-style">
+        {MUSIC_STYLES.map((s) => (
+          <button
+            key={s}
+            type="button"
+            className={style === s ? 'segmented__on' : ''}
+            aria-pressed={style === s}
+            data-style={s}
+            disabled={disabled}
+            onClick={() => setMusicStyle(s)}
+          >
+            {STYLE_LABEL[s]}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function LevelSlider({ name, label, disabled }: { name: LevelName; label: string; disabled: boolean }) {
   const value = useSyncExternalStore(subscribeSound, () => getLevel(name), () => 1);
@@ -54,6 +93,7 @@ export function SoundSettings() {
       </label>
       <LevelSlider name="volume" label="Volume" disabled={muted} />
       <LevelSlider name="music" label="Music" disabled={muted} />
+      <MusicStylePicker disabled={muted} />
     </fieldset>
   );
 }

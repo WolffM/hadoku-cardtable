@@ -202,5 +202,17 @@ export function roleHandler(role: string): () => void {
   return fn;
 }
 
-export { MUTE_KEY, getLevel, isMuted, resetMutedForTests, setLevel, setMuted, subscribeSound, type LevelName } from './mute.ts';
+export {
+  MUSIC_STYLE_KEY,
+  MUTE_KEY,
+  getLevel,
+  getMusicStyle,
+  isMuted,
+  resetMutedForTests,
+  setLevel,
+  setMusicStyle,
+  setMuted,
+  subscribeSound,
+  type LevelName,
+} from './mute.ts';
 

@@ -240,9 +240,30 @@ viewer" stays the answer. The marker is per browser: another device still
 restores the old line until it is reset there too.
 
 Nothing writes the assignments: a later session reads the file and sets them
-(`scripts/sfx/README.md`, Music review). **Next step: two-lane playback** — a
-16-bit role per slot and a player setting choosing the lane, so the review's
-`chiptune` picks have somewhere to go.
+(`scripts/sfx/README.md`, Music review), lane by lane:
+
+| Review pick | Cell it is for |
+| --- | --- |
+| `picks.normal` of slot `music.match.<code>\|play` | `music.match.<code>\|play` |
+| `picks.chiptune` of slot `music.match.<code>\|play` | `music.match.<code>.16bit\|play` |
+
+(`musicReviewLaneCell`, `packages/shared/src/music-review.ts`.)
+
+### Two-lane playback (2026-10-18)
+
+The operator: *"by default normal, and players can select 16-bit from the
+options if they want"*. Each of the fifteen match slots has a 16-bit role,
+`music.match.<code>.16bit`, listed in the builder under Music right after its
+normal role (`MUSIC_STYLES`, `matchMusicStyleRole`,
+`packages/shared/src/sounds.ts`). Sound settings carry **Style: Normal |
+16-bit** (`cardtable.sound.music-style`, `apps/ui/src/sound/mute.ts`; normal
+by default; the same panel as the Music slider, so it is reachable mid-match).
+`matchMusicRoles` (`apps/ui/src/sound/match-music.ts`) keeps the colour rules
+that choose the slot and expands each of the fifteen slots into its style's
+role then the other style's: 16-bit falls back to the slot's normal track,
+normal to its 16-bit one, before the existing fallbacks. The slot comes from
+the match id alone, so a style switch mid-match crossfades to the same slot's
+other lane (`useMatchMusic`). `music.match` and `music.lobby` have one lane.
 
 ## Sandbox (`#/sounds/sandbox`, friend tier; gain saves admin-only)
 

@@ -23,6 +23,8 @@ import {
 	colourPair,
 	COLOUR_PAIRS,
 	MATCH_MUSIC_ROLES,
+	MUSIC_STYLES,
+	matchMusicStyleRole,
 	parseCellId,
 } from './sounds.ts';
 
@@ -186,7 +188,7 @@ describe('SOUND_MATRIX', () => {
 
 	it('the Music section carries a match role for each of the five colours and the ten pairs, each a cell the builder can fill', () => {
 		const music = SOUND_ROLE_GROUPS.find((g) => g.id === 'music')!.roles.map((r) => r.id);
-		expect(music).toEqual(['music.lobby', 'music.match', ...MATCH_MUSIC_ROLES]);
+		expect(music).toEqual(['music.lobby', 'music.match', ...MATCH_MUSIC_ROLES.flatMap((r) => [r, `${r}.16bit`])]);
 		expect(MATCH_MUSIC_ROLES).toEqual([
 			'music.match.W',
 			'music.match.U',
@@ -200,6 +202,21 @@ describe('SOUND_MATRIX', () => {
 			expect(isCellId(`${role}|play`)).toBe(true);
 		}
 		expect(SOUND_ROLES.get('music.match.WB')?.name).toBe('In a match: white-black');
+	});
+
+	it('every match slot has a 16-bit role next to it, a music cell the builder can fill', () => {
+		expect(MUSIC_STYLES).toEqual(['normal', 'chiptune']);
+		for (const role of MATCH_MUSIC_ROLES) {
+			expect(matchMusicStyleRole(role, 'normal')).toBe(role);
+			const chip = matchMusicStyleRole(role, 'chiptune');
+			expect(chip).toBe(`${role}.16bit`);
+			expect(SOUND_ROLES.get(chip)?.bus).toBe('music');
+			expect(isCellId(`${chip}|play`)).toBe(true);
+			expect(isCellId(`${chip}|W`)).toBe(false);
+		}
+		expect(SOUND_ROLES.get('music.match.WB.16bit')?.name).toBe('In a match: white-black, 16-bit');
+		expect(SOUND_ROLES.has('music.match.16bit')).toBe(false);
+		expect(SOUND_ROLES.has('music.lobby.16bit')).toBe(false);
 	});
 
 	it('the pairs are the guild rows of COLOUR_IDS, and colourPair spells any two colours that way', () => {

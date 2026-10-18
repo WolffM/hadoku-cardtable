@@ -25,11 +25,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@wolffm/themes';
 
 import {
-  MUSIC_LANES,
+  MUSIC_STYLES,
   MUSIC_RATINGS,
   isChiptuneName,
   musicReviewSlots,
-  type MusicLane,
+  type MusicStyle,
   type MusicRating,
   type MusicReviewEntry,
   type MusicReviewRecord,
@@ -63,8 +63,8 @@ type Review = Record<string, MusicReviewEntry>;
 const NO_PICKS: MusicReviewEntry['picks'] = { normal: null, chiptune: null };
 const EMPTY: MusicReviewEntry = { picks: NO_PICKS, ratings: {}, note: '' };
 
-const LANE_ICON: Record<MusicLane, 'music' | 'gamepad'> = { normal: 'music', chiptune: 'gamepad' };
-const LANE_LABEL: Record<MusicLane, string> = { normal: 'Normal', chiptune: '16-bit' };
+const LANE_ICON: Record<MusicStyle, 'music' | 'gamepad'> = { normal: 'music', chiptune: 'gamepad' };
+const LANE_LABEL: Record<MusicStyle, string> = { normal: 'Normal', chiptune: '16-bit' };
 
 const RATING_ICON: Record<MusicRating, 'thumbs-up' | 'circle' | 'thumbs-down'> = {
   keep: 'thumbs-up',
@@ -92,7 +92,7 @@ function sameReview(a: Review, b: Review): boolean {
   return keys.every((k) => {
     const p = x[k]!;
     const q = y[k];
-    if (q === undefined || p.note !== q.note || MUSIC_LANES.some((l) => p.picks[l] !== q.picks[l])) return false;
+    if (q === undefined || p.note !== q.note || MUSIC_STYLES.some((l) => p.picks[l] !== q.picks[l])) return false;
     const r = Object.keys(p.ratings);
     return r.length === Object.keys(q.ratings).length && r.every((f) => p.ratings[f] === q.ratings[f]);
   });
@@ -153,8 +153,8 @@ function fitToSlots(review: Review, slots: readonly MusicReviewSlot[]): Review {
     for (const [f, r] of Object.entries(e.ratings ?? {})) if (offered.has(f) && MUSIC_RATINGS.includes(r)) ratings[f] = r;
     // A draft saved before the two lanes carries one `pick`: it is the normal lane's.
     const legacy = (e as { pick?: unknown }).pick;
-    const picks: Partial<Record<MusicLane, unknown>> = e.picks ?? { normal: legacy };
-    const lane = (l: MusicLane): string | null => {
+    const picks: Partial<Record<MusicStyle, unknown>> = e.picks ?? { normal: legacy };
+    const lane = (l: MusicStyle): string | null => {
       const f = picks[l];
       return typeof f === 'string' && offered.has(f) ? f : null;
     };
@@ -317,7 +317,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                 {slot.candidates.map((c) => {
                   const on = playing === c.file;
                   const rating = entry.ratings[c.file];
-                  const lanes = MUSIC_LANES.filter((l) => entry.picks[l] === c.file);
+                  const lanes = MUSIC_STYLES.filter((l) => entry.picks[l] === c.file);
                   return (
                     <li
                       key={c.file}
@@ -349,7 +349,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                         </span>
                       </button>
                       <div className="music-review__lanes" role="group" aria-label={`Lanes for ${c.label}`}>
-                        {MUSIC_LANES.map((l) => (
+                        {MUSIC_STYLES.map((l) => (
                           <button
                             key={l}
                             type="button"

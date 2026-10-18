@@ -14,13 +14,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import type { DraftCard } from '../draft/types.ts';
 import type { SoundEvent } from './mix.ts';
 import { SoundSettings } from '../settings/SoundSettings.tsx';
-import { LEVEL_KEYS, MUTE_KEY, getLevel, isMuted, resetMutedForTests, setMuted } from './mute.ts';
+import { LEVEL_KEYS, MUSIC_STYLE_KEY, MUTE_KEY, getLevel, getMusicStyle, isMuted, resetMutedForTests, setMusicStyle, setMuted } from './mute.ts';
+import { matchMusicRoles, useMatchMusic } from './match-music.ts';
 import {
   hoverControl,
   playRole,
@@ -177,6 +178,24 @@ describe('music', () => {
     expect(loops.at(-1)).toEqual([]);
   });
 
+  it('a match plays its slot in the player’s style; switching mid-match keeps the slot and swaps the lane; leaving silences it', () => {
+    const loops = looper();
+    setScreenMusic('music.lobby');
+    const { unmount } = renderHook(() => useMatchMusic('m-style', ['B', 'R', 'G']));
+    const normal = loops.at(-1) as string[];
+    expect(normal).toEqual(matchMusicRoles('m-style', ['B', 'R', 'G'], 'normal'));
+    expect(normal[0]).toMatch(/^music\.match\.(BR|RG|BG)$/);
+
+    act(() => setMusicStyle('chiptune'));
+    const chip = loops.at(-1) as string[];
+    expect(chip.slice(0, 2)).toEqual([`${normal[0]}.16bit`, normal[0]]);
+
+    act(() => setMusicStyle('normal'));
+    expect(loops.at(-1)).toEqual(normal);
+    unmount();
+    expect(loops.at(-1)).toBe('music.lobby');
+  });
+
   it('muting fades it out and unmuting brings it back', () => {
     const loops = looper();
     setScreenMusic('music.lobby');
@@ -318,6 +337,40 @@ describe('the sound settings', () => {
 
     fireEvent.pointerUp(volume);
     expect(rolesOf(events)).toEqual(['ui.select']);
+  });
+
+  it('music style is normal by default; 16-bit is pressed, persisted and read back', () => {
+    const { unmount } = render(createElement(SoundSettings));
+    const group = screen.getByTestId('settings-music-style');
+    const button = (style: string) => group.querySelector(`[data-style="${style}"]`) as HTMLButtonElement;
+    expect(getMusicStyle()).toBe('normal');
+    expect(button('normal').getAttribute('aria-pressed')).toBe('true');
+    expect(button('chiptune').textContent).toBe('16-bit');
+
+    fireEvent.click(button('chiptune'));
+    expect(getMusicStyle()).toBe('chiptune');
+    expect(globalThis.localStorage.getItem(MUSIC_STYLE_KEY)).toBe('chiptune');
+    expect(button('chiptune').getAttribute('aria-pressed')).toBe('true');
+    expect(button('normal').getAttribute('aria-pressed')).toBe('false');
+    unmount();
+
+    resetMutedForTests();
+    expect(getMusicStyle()).toBe('chiptune');
+    resetMutedForTests();
+    globalThis.localStorage.setItem(MUSIC_STYLE_KEY, 'jazz');
+    expect(getMusicStyle()).toBe('normal');
+  });
+
+  it('music style survives a blocked store: normal on read, held for the page on write', () => {
+    vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    expect(getMusicStyle()).toBe('normal');
+    setMusicStyle('chiptune');
+    expect(getMusicStyle()).toBe('chiptune');
   });
 
   it('reads the stored levels back, and the sliders rest while sound is off', () => {

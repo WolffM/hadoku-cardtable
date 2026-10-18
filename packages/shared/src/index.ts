@@ -85,6 +85,9 @@ export {
   colourPair,
   COLOUR_PAIRS,
   MATCH_MUSIC_ROLES,
+  MUSIC_STYLES,
+  matchMusicStyleRole,
+  type MusicStyle,
   type ColourPair,
   parseCellId,
   type ColourId,
@@ -108,7 +111,6 @@ export {
 } from './sounds.ts';
 
 export {
-  MUSIC_LANES,
   MUSIC_REVIEW_CODES,
   MUSIC_RATINGS,
   MusicReviewBodySchema,
@@ -117,9 +119,9 @@ export {
   MusicReviewRecordSchema,
   isChiptuneName,
   musicReviewCell,
+  musicReviewLaneCell,
   musicReviewProblems,
   musicReviewSlots,
-  type MusicLane,
   type MusicPicks,
   type MusicRating,
   type MusicReviewBody,
