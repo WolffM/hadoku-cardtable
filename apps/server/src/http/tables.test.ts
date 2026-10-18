@@ -2424,10 +2424,11 @@ describe('a room table', () => {
 			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ phase: 'done', wins: [1, 0] });
 
 			// Both ready — the Rematch gesture — moves the table to `sideboarding`
-			// AT ONCE: a NEW series, wins/games reset, no Rematch-start needed to see it.
+			// AT ONCE: a NEW series, wins/games reset, no Rematch-start needed to
+			// see it, and both Readys spent by it.
 			await setReady(h, 'alice');
 			const bothReady = await setReady(h, 'bob');
-			expect(players(bothReady.body).map((p) => p.ready)).toEqual([true, true]);
+			expect(players(bothReady.body).map((p) => p.ready)).toEqual([false, false]);
 			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ phase: 'sideboarding', wins: [0, 0], games: [] });
 
 			// The deck gate runs during this step: the SAME deck is accepted; a
@@ -2455,6 +2456,42 @@ describe('a room table', () => {
 			// sideboarding (not reachable in bo1 without another full game, so
 			// asserted directly) would have no further winner to carry.
 			expect(h.lobby.rematchOf(ROOM, h.lobby.room(ROOM)!.tables[0]!.id)).toBeNull();
+		});
+
+		/**
+		 * Full Forge run 39086503872: a client-side "clear my stale ready" on
+		 * the sideboard step raced a Ready that had already landed, and game 2
+		 * started 409 "not ready yet". The step's own ready flags are the
+		 * server's to reset: the agreement that begins sideboarding spends both
+		 * Readys, so nothing stale can start the next game, and only a fresh
+		 * Ready from each seat does.
+		 */
+		it('bo1 + sideboarding on: the Rematch agreement that begins sideboarding spends both Readys — no start until both ready again', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 1, true);
+			await bothLoaded(h);
+			await setReady(h, 'alice');
+			await setReady(h, 'bob');
+			const game1 = await startRoom(h, 'alice');
+			expect(game1.status).toBe(201);
+			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-bob' });
+			await view(h, 'alice');
+			expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('done');
+
+			const first = await setReady(h, 'alice');
+			expect(players(first.body).map((p) => p.ready), 'one press is not an agreement').toEqual([true, false]);
+			const agreed = await setReady(h, 'bob');
+			expect(agreed.status).toBe(200);
+			expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('sideboarding');
+			expect(players(agreed.body).map((p) => p.ready), "the agreeing press's own answer").toEqual([false, false]);
+			expect(players((await view(h, 'alice')).body).map((p) => p.ready), 'every read after it').toEqual([false, false]);
+
+			const refused = await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
+			expect(refused.status).toBe(409);
+			await setReady(h, 'alice');
+			expect((await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'))).status, 'one fresh Ready is not both').toBe(409);
+			await setReady(h, 'bob');
+			expect((await startAnother(h, 'alice')).status).toBe(201);
 		});
 
 		it('bo1 + sideboarding off: a done game goes straight to a new series on Rematch — no sideboarding step, chooser unset (the reported bug: a stale games.at(-1) would rig this to the old loser)', async () => {

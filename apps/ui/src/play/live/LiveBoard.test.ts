@@ -177,9 +177,11 @@ vi.mock('../../screens/tables.ts', async (importOriginal) => {
         return { ok: true as const, table: table() };
       },
       ready: async (roomId: string, ready: boolean, tableId?: string) => {
+        // The row first, then the spy: a test's own implementation runs after
+        // the write, the way the server's own side effects follow it.
+        tableState.me.ready = ready;
         if (tableId === undefined) tableState.ready(roomId, ready);
         else tableState.ready(roomId, ready, tableId);
-        tableState.me.ready = ready;
         return { ok: true as const, table: table() };
       },
       startRoom: tableState.startRoom,
@@ -3674,63 +3676,72 @@ describe('R16 — the result screen, drawn over the board', () => {
     });
 
     /**
-     * The auto-start gate's own test (wave 72 §Q's "Done when": "reverting
-     * the auto-start gate fails a unit test"). Reverting the
-     * `if (sideboarding && phase === 'sideboarding' && !proceeded) return;`
-     * line in `LiveBoard.tsx`'s auto-start effect makes the FIRST assertion
-     * below fail: `tables.startRoom` would already have been called the
-     * instant the screen mounted, purely from the stale `ready: true` both
-     * seats carry straight through `beginSideboarding` (which never
-     * un-readies either — `lobby.ts`'s own doc on that call).
+     * The agreeing press, with sideboarding on: the server begins the step and
+     * spends both Readys in the same `POST …/ready` (`routes.ts`), so its
+     * answer reads both seats unready. The screen must take that as "the step
+     * has begun": no second press, no start, and a sideboard Ready that reads
+     * unpressed, never "Waiting for the other player…".
      */
-    it('the auto-start gate: a stale agreement during sideboarding waits for THIS screen’s own fresh Ready on the sideboard editor', async () => {
-      roomsClientState.room = {
+    it('Rematch that begins sideboarding: the answer reads both unready — no re-press, no start, the step opens unpressed', async () => {
+      const sideboardingRoom = {
         settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
-      // Both seats already read `ready: true` — a stale agreement carried
-      // straight through `beginSideboarding`'s phase flip (that call never
-      // un-readies either seat; see `lobby.ts`'s own doc on it) — and the
-      // table already reads `sideboarding`. A bare `rematch.agreed` would
-      // fire `startRoom` right away.
+      roomsClientState.room = {
+        ...sideboardingRoom,
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [1, 0], games: [], phase: 'done' } }],
+      };
       tableState.other.ready = true;
-      tableState.me = { ready: true, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
-      const { queryByTestId, getByTestId } = await victoryInRoom();
-      // The sideboard step opens on its own — no Rematch press, matching a
-      // forced bo3's own "goes there on its own" (§Q.3), which this table's
-      // stale agreement already reached the same phase through.
-      await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
-      expect(queryByTestId('game-result-rematch'), 'the editor replaces the button').toBeNull();
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      tableState.ready.mockImplementationOnce(() => {
+        tableState.me.ready = false;
+        tableState.other.ready = false;
+        roomsClientState.room = sideboardingRoom;
+      });
+      const { getByTestId, rematch } = await victoryInRoom();
+      await waitFor(() => expect(rematch().disabled).toBe(false));
+      fireEvent.click(rematch());
+      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', true, 't-1'));
+      roomPing();
+      const ready = await waitFor(() => getByTestId('sideboard-ready'));
+      expect(ready.getAttribute('aria-pressed')).toBe('false');
+      expect(ready.textContent).toBe('Ready');
+      roomPing();
+      await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
+      expect(tableState.ready).toHaveBeenCalledTimes(1);
       expect(tableState.startRoom).not.toHaveBeenCalled();
-
-      fireEvent.click(getByTestId('sideboard-ready'));
-      await waitFor(() => expect(tableState.startRoom).toHaveBeenCalledWith('r-1', 't-1'));
     });
 
-    /**
-     * A real-Forge run (bo1 + sideboarding) found game 2 starting the
-     * MOMENT alice pressed Ready on the sideboard editor, before bob had
-     * even opened his — `beginSideboarding` leaves BOTH seats' `ready`
-     * stale-true, so alice's own fresh `ready(true)` alone made
-     * `rematch.agreed` true (bob's stale flag never moved). The fix is
-     * this step clearing ITS OWN seat's flag the moment it mounts, so
-     * "both agreed" can only become true again once each side has
-     * genuinely pressed Ready here — this is that clear, caught directly.
-     */
-    it('clears this seat’s own possibly-stale ready the moment the step mounts, before any press', async () => {
+    it('mounting the sideboard step sends no ready request — the server already began it with nobody ready', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
+        pod: null,
+      };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      const { getByTestId } = await victoryInRoom();
+      await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
+      roomPing();
+      await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
+      expect(tableState.ready).not.toHaveBeenCalled();
+    });
+
+    it('both Ready on the sideboard step: the other seat readied first, mine completes the agreement and starts the next game on this table', async () => {
       roomsClientState.room = {
         settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
       tableState.other.ready = true;
-      tableState.me = { ready: true, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' } } };
       const { getByTestId } = await victoryInRoom();
       await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
-      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', false, 't-1'));
-      // Bob's seat is untouched by this screen — only mine clears.
-      expect(tableState.other.ready).toBe(true);
+      expect(tableState.startRoom).not.toHaveBeenCalled();
+      fireEvent.click(getByTestId('sideboard-ready'));
+      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', true, 't-1'));
+      roomPing(); // the server's push of my own write
+      await waitFor(() => expect(tableState.startRoom).toHaveBeenCalledWith('r-1', 't-1'));
     });
 
     /**
@@ -3795,9 +3806,8 @@ describe('R16 — the result screen, drawn over the board', () => {
 
       fireEvent.click(getByTestId('sideboard-ready'));
       await waitFor(() => expect(getByTestId('sideboard-refusal').textContent).toBe(tableState.loadDeckRefusal));
-      // Ready(true) is never sent once `loadDeck` itself refused — only the
-      // step's own on-mount clear of a possibly-stale flag (see its own note).
-      expect(tableState.ready).not.toHaveBeenCalledWith('r-1', true, 't-1');
+      // No ready at all is sent once `loadDeck` itself refused.
+      expect(tableState.ready).not.toHaveBeenCalled();
     });
 
     /**
