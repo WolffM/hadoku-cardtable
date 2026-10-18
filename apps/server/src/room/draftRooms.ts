@@ -119,6 +119,7 @@ import {
 	type CoreRoomState,
 } from '@wolffm/rooms-server';
 import {
+	occupantOf,
 	roleOf,
 	seatOf,
 	seatParticipant,
@@ -588,19 +589,21 @@ export function cursorFor(room: DraftRoom): WireCursor {
  */
 export function viewForParticipant(room: DraftRoom, participantId: ParticipantId): DraftView {
 	const state = stateOf(room);
-	const seat = seatOf(room.seats, participantId) ?? completedSeatOf(state, room.seats, participantId);
+	const seat = seatOf(room.seats, participantId) ?? finishedSeatOf(state, room.seats, participantId);
 	return seat === null ? spectatorView(state) : viewFor(state, seat);
 }
 
 /**
- * The seat this participant drafted, once the pod is DONE — even though they
- * may no longer hold it: left, the 120 s hold ran out, or the process
- * restarted since. Once a pod's draft is complete, each drafter owns their
- * seat's pool for good.
+ * The seat this participant drafted, once its picks are all made — even though
+ * they may no longer hold it: left, the 120 s hold ran out, or the process
+ * restarted since. A finished seat's pool cannot change, so its drafter owns
+ * it for good.
  *
- * Before completion this returns null and nothing above changes — mid-draft,
- * an unseated participant is still a spectator, exactly as before this
- * function existed.
+ * That holds before the whole pod is done, too: a finished draft goes straight
+ * to the deck builder, which leaves the pod while the other humans may still
+ * be making their last pick. Mid-draft it yields to anyone who now sits in
+ * that seat, and an unseated participant whose seat is NOT finished is still a
+ * spectator.
  *
  * `table.remembered` is `@wolffm/rooms-protocol`'s own durable record of "the
  * seat this participant last held" (`seats.ts`'s header: "Outlives their
@@ -612,9 +615,12 @@ export function viewForParticipant(room: DraftRoom, participantId: ParticipantId
  * ever sat in — a bot's — has no participant pointing at it here, so it stays
  * unowned by construction rather than by a check.
  */
-function completedSeatOf(state: DraftState, table: SeatTable, participantId: ParticipantId): SeatId | null {
-	if (state.status !== 'complete') return null;
-	return table.remembered[participantId] ?? null;
+function finishedSeatOf(state: DraftState, table: SeatTable, participantId: ParticipantId): SeatId | null {
+	const seat = table.remembered[participantId];
+	if (seat === undefined) return null;
+	if (state.status === 'complete') return seat;
+	const finished = (state.pools[seat]?.length ?? 0) >= state.packCount * state.packSize;
+	return finished && occupantOf(table, seat) === null ? seat : null;
 }
 
 /** Advance the stream. Called when something changed that a payload shows. */

@@ -284,7 +284,7 @@ describe('a finished pod survives leave, hold-expiry and a restart', () => {
 
 		// The blast-radius proof: `POST /api/tables/check`'s `draftPool` lookup
 		// is `routes.ts`'s own, untouched `draftPoolForMember`. A 400 "no seat"
-		// here is exactly what reverting `completedSeatOf` reproduces.
+		// here is exactly what reverting `finishedSeatOf` reproduces.
 		const check = await call(h, 'POST', '/api/tables/check', {
 			as: 'alice',
 			body: { deck: { dck: legalDeckFor('pod-e', pool) }, rules: { kind: 'draft', draftId: 'pod-e' } },
@@ -296,6 +296,33 @@ describe('a finished pod survives leave, hold-expiry and a restart', () => {
 		const dck = legalDeckFor('pod-e', pool);
 		const put = await call(h, 'PUT', '/api/drafts/pod-e/deck', { as: 'alice', body: { dck } });
 		expect(put.status).toBe(200);
+	});
+
+	it('a seat whose picks are all made is owned before the rest of the pod finishes', async () => {
+		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, params: { reservationTtlMs: 20 }, storeDir: null });
+		const { room, seat, pool } = finishPodFor(draftRooms, 'pod-h', 'alice', 'sock-a');
+		const state = stateOf(room);
+		state.status = 'drafting';
+		const alice = identityFromHeaders(edgeHeaders('alice'), 'sock-a');
+		const h = await openApp(draftRooms);
+
+		// Alice's last pick sends her to the builder, which leaves the pod
+		// while the others are still picking.
+		expect(releaseSeat(room, alice)).toBe(true);
+		const mine = await call(h, 'GET', '/api/drafts/pod-h/mine', { as: 'alice' });
+		expect(mine.status).toBe(200);
+		expect((mine.json.pool as unknown[]).length).toBe(pool.length);
+
+		// One pick short is not finished: she is a spectator until she comes back.
+		state.pools[seat] = pool.slice(0, -1);
+		expect((await call(h, 'GET', '/api/drafts/pod-h/mine', { as: 'alice' })).status).toBe(404);
+
+		// A finished seat someone else now sits in is theirs, not hers.
+		state.pools[seat] = pool;
+		await vi.waitFor(() => expect(reservationFor(room.seats, seat, Date.now())).toBeNull());
+		const bob = identityFromHeaders(edgeHeaders('bob'), 'sock-b');
+		expect(joinDraftRoom(room, 'sock-b', bob, 'friend').seat).toBe(seat);
+		expect((await call(h, 'GET', '/api/drafts/pod-h/mine', { as: 'alice' })).status).toBe(404);
 	});
 
 	it('a seat nobody drafted stays unowned — bob was never seated in pod-e', async () => {
