@@ -124,6 +124,12 @@ export interface SeatTurnMark {
   lit: boolean;
   /** Its battlefield is darker than the theme's own ground: the other player's turn. */
   shaded: boolean;
+  /**
+   * The theme colour its edge light and glow are drawn in (`board.css`'s `--turn-line` and
+   * `--turn-glow`): the accent on the viewer's own seat, the danger on the other's; `other` when
+   * neither pair matches.
+   */
+  hue: 'accent' | 'danger' | 'other';
 }
 
 /**
@@ -150,15 +156,24 @@ export function turnMarks(page: Page): Promise<SeatTurnMark[]> {
     probe.style.backgroundColor = 'var(--bg)';
     board.append(probe);
     const ground = light(getComputedStyle(probe).backgroundColor);
+    const token = (name: string): [number, number, number, number] => {
+      probe.style.backgroundColor = `var(${name})`;
+      return rgba(getComputedStyle(probe).backgroundColor);
+    };
+    const pairs = { accent: [token('--turn-edge'), token('--accent')], danger: [token('--danger-ink'), token('--danger')] } as const;
     probe.remove();
+    const near = (a: readonly number[], b: readonly number[]): boolean => [0, 1, 2].every((i) => Math.abs(a[i]! - b[i]!) <= 6);
     return Array.from(document.querySelectorAll<HTMLElement>('[data-testid="player"]')).map((seat) => {
-      const edge = /(?:rgba?|color|oklch|oklab|lab|lch)\([^()]*\)/.exec(getComputedStyle(seat).boxShadow)?.[0];
+      const [edge, glow] = getComputedStyle(seat).boxShadow.match(/(?:rgba?|color|oklch|oklab|lab|lch)\([^()]*\)/g) ?? [];
       const field = seat.querySelector<HTMLElement>(':scope > [data-zone="battlefield"]');
+      const drawn = edge === undefined || glow === undefined ? null : [rgba(edge), rgba(glow)];
+      const hue = (['accent', 'danger'] as const).find((h) => drawn !== null && near(drawn[0]!, pairs[h][0]) && near(drawn[1]!, pairs[h][1])) ?? ('other' as const);
       return {
         id: seat.getAttribute('data-player-id') ?? '?',
         who: seat.hasAttribute('data-viewer') ? ('you' as const) : ('them' as const),
         lit: edge !== undefined && rgba(edge)[3] >= 0.9,
         shaded: field !== null && light(getComputedStyle(field).backgroundColor) < ground - 2,
+        hue,
       };
     });
   });
@@ -560,7 +575,7 @@ export async function castUntilOnStack(
     .toBe(true);
 }
 
-/** Press whichever page's OK is enabled until `until()` is true — the "let the main loop run forward" pump w46-attack/w32/w56-numbers each wrote by hand (T6). `press` defaults to `enabledOk`'s own OK; w33's own `passWhatever` (OK-or-Cancel) is its own. */
+/** Press whichever page's OK is enabled until `until()` is true — the "let the main loop run forward" pump w46-attack/w32/w56-numbers each wrote by hand (T6). `press` defaults to `enabledOk`'s own OK; `turn-edge.spec.ts`'s own `passWhatever` (OK-or-Cancel) is its own. */
 export async function grindPriority(
   pages: readonly Page[],
   until: () => Promise<boolean>,

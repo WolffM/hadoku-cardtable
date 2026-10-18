@@ -5468,6 +5468,26 @@ describe('2026-10-17 — the other seat’s marks in danger, a raised number in 
     expect(rule(LIVE_CSS, ".live__phases[data-whose='theirs'] .live__step[data-stop][data-current]")).toMatch(/inset -3px 0 0 0 var\(--warn\)/);
   });
 
+  it('lights the active seat’s edge in the theme’s danger on the other seat’s turn, and in the accent on the viewer’s — one shadow, coloured per seat', () => {
+    const css = styled();
+    const view = boardFromFixture(fixture);
+    for (const activeIsViewer of [true, false]) {
+      const turn: BoardView = { ...view, players: view.players.map((p) => ({ ...p, isActive: p.isViewer === activeIsViewer })) };
+      const { seat } = renderBoard(turn);
+      const active = turn.players.find((p) => p.isActive)!;
+      const whose = activeIsViewer ? 'the viewer’s turn' : 'the other seat’s turn';
+      expect(seat(active.id).dataset.active, whose).toBe('true');
+      expect(css(seat(active.id), '--turn-lit'), `${whose}: the active seat is lit`).toBe('1');
+      expect([css(seat(active.id), '--turn-line'), css(seat(active.id), '--turn-glow')], `${whose}: the edge and its glow`).toEqual(
+        activeIsViewer ? ['var(--turn-edge)', 'var(--accent)'] : ['var(--danger-ink)', 'var(--danger)'],
+      );
+      cleanup();
+    }
+    expect(rule(BOARD_CSS, '.board .seat')).toMatch(/inset 0 calc\(var\(--turn-y\) \* 3px\) 0 color-mix\(in srgb, var\(--turn-line\)/);
+    expect(rule(BOARD_CSS, '.board .seat')).toMatch(/color-mix\(in srgb, var\(--turn-glow\)/);
+    expect(rule(BOARD_CSS, '.board .seat:not([data-viewer])'), 'the other seat restates no shadow, only its colours and edge').not.toMatch(/box-shadow/);
+  });
+
   it('draws a buffed number and a +1/+1 counter in the success ink', () => {
     expect(rule(CARD_CSS, ".board-card__pt-n[data-pt-state='buffed']")).toMatch(/color: var\(--success-ink\)/);
     expect(rule(CARD_CSS, ".board-card__counter[data-counter='plus']")).toMatch(/color: var\(--success-ink\)/);

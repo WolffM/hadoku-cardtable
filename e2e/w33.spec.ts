@@ -16,11 +16,10 @@
  * Serves the prebuilt `apps/ui/dist`: rebuild before running.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-import { BUTTON_ONE, castCard, castUntilOnStack, clickHandCard, clickOnce, grindPriority, makeTitled, offered, pressOffered, stackCount, turnMarks } from './play/board.ts';
+import { BUTTON_ONE, castCard, castUntilOnStack, clickHandCard, clickOnce, makeTitled, offered, pressOffered, stackCount } from './play/board.ts';
 import { assignBlock, passDeclareAttackers, phaseOf } from './play/combat.ts';
-import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { enabledOk, says, startScenarioMatch } from './play/scenario.ts';
 
@@ -33,15 +32,6 @@ const titled = makeTitled(forge);
 
 // `phaseOf` and `passDeclareAttackers` (T6): the identical pair
 // `play/combat.ts` already exports for `w54-blockers.spec.ts` — one copy.
-
-/** Press OK (or, failing that, Cancel/"End Turn") to keep a match moving with no particular goal but to advance it. */
-async function passWhatever(page: Page): Promise<void> {
-  await answerPrompt(page);
-  if ((await page.getByTestId('live-prompt').count()) > 0) return;
-  const text = await says(page);
-  if (await clickOnce(page, text, 'ok')) return;
-  await clickOnce(page, text, 'cancel');
-}
 
 /* ── 1. Q7 — a lone spell on the stack answers its own counter ──────────── */
 
@@ -431,48 +421,6 @@ test(titled('Q18 — a stack ability is never selectable merely because its sour
     // is the only button for that action, so the Q18 regression (a SECOND
     // button for the same activation) cannot exist.
     await expect(ephemeral, 'never selectable — only a SPELL entry may be (Q18)').not.toHaveAttribute('data-selectable', '');
-  } finally {
-    await stack.stop();
-  }
-});
-
-/* ── 8. the active player's side is lit, and the light moves with the turn ── */
-
-test(titled('the active player\'s side wears the edge light and the other sits in shade, and both move when the turn does'), async ({ browser }) => {
-  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
-  if (!forge.ok) return;
-  test.setTimeout(3 * 60_000);
-  const stack = await startPlayStack(forge);
-  try {
-    const { alice, bob } = await startScenarioMatch(browser, stack, 'own-spell');
-    const page = alice.page;
-    // Which seats the screen paints lit and shaded (`board.css`'s `--turn-lit`, `--turn-shade`).
-    const marked = async () => {
-      const marks = await turnMarks(page);
-      console.log(`[w33-turn] ${JSON.stringify(marks)}`);
-      return { lit: marks.filter((m) => m.lit).map((m) => m.id), shaded: marks.filter((m) => m.shaded).map((m) => m.id) };
-    };
-    const others = async (id: string | null) =>
-      (await page.locator('[data-testid="player"]').evaluateAll((seats) => seats.map((s) => s.getAttribute('data-player-id')))).filter((x) => x !== id);
-
-    const activeSections = page.locator('[data-testid="player"][data-active]');
-    await expect(activeSections, 'exactly one seat section carries data-active').toHaveCount(1, { timeout: 15_000 });
-    const firstActive = await activeSections.getAttribute('data-player-id');
-    await expect.poll(marked, { message: 'the active seat, and only it, is lit; the other sits in shade' }).toEqual({ lit: [firstActive], shaded: await others(firstActive) });
-
-    // Pass the turn along until the OTHER seat becomes active. T6: `board.ts`'s own
-    // `grindPriority`, with `passWhatever` (OK-or-Cancel) as its own per-page press.
-    await grindPriority(
-      [alice.page, bob.page],
-      async () => {
-        const now = await page.locator('[data-testid="player"][data-active]').getAttribute('data-player-id');
-        return now !== null && now !== firstActive;
-      },
-      { timeoutMs: 2 * 60_000, press: (p) => passWhatever(p) },
-    );
-    await expect(page.locator('[data-testid="player"][data-active]'), 'still exactly one active seat after it moved').toHaveCount(1);
-    const nowActive = await page.locator('[data-testid="player"][data-active]').getAttribute('data-player-id');
-    await expect.poll(marked, { message: 'the light and the shade moved with the turn' }).toEqual({ lit: [nowActive], shaded: await others(nowActive) });
   } finally {
     await stack.stop();
   }
