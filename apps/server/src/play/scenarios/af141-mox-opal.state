@@ -1,0 +1,18 @@
+# AF141 — "mox opal: should be able to 'cancel' choosing a color to untap it."
+# Seat 0 (human) has Mox Opal with metalcraft on (two Ornithopters make three
+# artifacts) in an uncontested Main Phase 1. Tapping the Mox asks which colour
+# ("Select Mana to Produce", five colours). The test taps it and cancels that
+# choice; and taps it, picks a colour, and clicks it again to untap it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Island
+humanbattlefield=Mox Opal;Ornithopter;Ornithopter
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
