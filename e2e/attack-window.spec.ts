@@ -20,7 +20,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boardCard, clickOnce, enabledOk, isTapped, makeTitled, ownNamed, says, serverLog } from './play/board.ts';
+import { boardCard, clickCombat, clickOnce, enabledOk, isTapped, makeTitled, ownNamed, says, serverLog } from './play/board.ts';
 import { passToDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -42,7 +42,7 @@ async function attackWithBears(alice: Page): Promise<void> {
   await passToDeclareAttackers(alice);
   const bears = (await ownNamed(alice, 'Grizzly Bears'))[0];
   expect(bears, 'alice controls Grizzly Bears').toBeDefined();
-  await boardCard(alice, bears!).locator('button').first().click();
+  expect(await clickCombat(boardCard(alice, bears!)), 'the Bears pressed').toBe(true);
   await expect(boardCard(alice, bears!), 'the Bears are declared').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
   await expect
     .poll(

@@ -36,7 +36,9 @@
  *     Forge's choices, so there is often no offered card to drag FROM.
  *
  * A press that never passes `DRAG_SLOP_PX` is a plain click and this layer
- * stays out of it — no click is suppressed. What a claimed press DOES refuse,
+ * stays out of it — no click is suppressed — except on the seat's own
+ * attacker or blocker while it declares them: that click ARMS the same aim a
+ * drag draws, and the next click lets go of it (AF140, `onPointerUp`). What a claimed press DOES refuse,
  * from the press itself, is the browser's default: a drag on the table may
  * not highlight the words it crosses (`claim`).
  *
@@ -211,6 +213,7 @@
 import {
   boardInteraction,
   choosingMulligan,
+  combatAimer,
   declaringAttackers,
   declaringCombat,
   landsToTap,
@@ -646,7 +649,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function paint(): void {
     const overlay = overlayOf();
     flag(CANVAS_ATTR, '');
-    flag('data-dragging', drag !== null && drag.moved ? '' : null);
+    flag('data-dragging', drag !== null && (drag.moved || !drag.held) ? '' : null);
     flag('data-marquee', marquee !== null && marquee.moved ? '' : null);
     applyIntents(canvas, match);
 
@@ -662,7 +665,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearArrow(overlay);
       clearMarquee(overlay);
       next = `lift:${drag.source ?? ''}`;
-    } else if (drag !== null && drag.moved) {
+    } else if (drag !== null && (drag.moved || !drag.held)) {
       const snap = drag.target === null ? null : boxOf(canvas, drag.target);
       const tail = drag.source === null ? (clickOrigin()?.box ?? null) : cardBox(canvas, drag.source);
       drawArrow(overlay, { from: drag.from, to: drag.at, source: drag.source, target: drag.target, snap, tail, mode: 'drag' });
@@ -1231,6 +1234,22 @@ export function installGestures(options: GestureOptions): GestureHandle {
       paint();
       return;
     }
+    /*
+     * An armed combat aim (`onPointerUp`) ends at this press, wherever it
+     * lands, meaning exactly what letting go of the drag there means
+     * (`commitDrag`). Any other button lets it go with nothing sent.
+     */
+    if (drag !== null && !drag.lifted && !drag.held) {
+      claim(event);
+      const aimed = drag;
+      drag = null;
+      paint();
+      if (event.button === 0) {
+        clicks.arm();
+        commitDrag(match, aimed, eventTarget(event));
+      }
+      return;
+    }
     // Left button only from here: a right-click is Forge's own menu on the
     // desktop and is not this gesture's to take.
     if (event.button !== 0) return;
@@ -1494,6 +1513,19 @@ export function installGestures(options: GestureOptions): GestureHandle {
       paint();
       return;
     }
+    /*
+     * The operator, 2026-10-17 (AF140): "can we make attacker/blocker
+     * asigning be click to 'enter drag state' and click to 'assign
+     * attacker/blocker'". A plain click on the seat's own attacker or blocker
+     * arms the same aim a drag draws, and sends nothing: the card's own click
+     * is swallowed, and the next press resolves it (`onPointerDown`).
+     */
+    if (drag !== null && !drag.lifted && !drag.moved && drag.held && drag.source !== null && combatAimer(match, drag.source)) {
+      clicks.arm();
+      drag = { ...drag, held: false };
+      paint();
+      return;
+    }
     const heldDrag = drag;
     const heldMarquee = marquee;
     drag = null;
@@ -1561,6 +1593,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
   /** Escape cancels cleanly, from either phase — see `cancelLive`. */
   function onKeyDown(event: KeyboardEvent): void {
     if (event.key !== 'Escape') return;
+    if (drag !== null && !drag.lifted && !drag.held) {
+      drag = null;
+      paint();
+      return;
+    }
     if (parked === null && !(drag !== null && drag.lifted)) return;
     cancelLive('escape');
   }
@@ -1588,6 +1625,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   const unsubscribe = subscribe(match, () => {
     if (!live) return;
+    // Forge left the attack or block input under an armed aim: nothing is left for it to aim.
+    if (drag !== null && !drag.lifted && !drag.held && (drag.source === null || !combatAimer(match, drag.source))) drag = null;
     pumpTaps();
     settleParkedIfResolved();
     syncStackStandIn();

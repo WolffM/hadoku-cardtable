@@ -34,7 +34,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { enabledOk, makeTitled, offered, says } from './play/board.ts';
 import type { Friend } from './play/browser.ts';
-import { assignBlock, attackingCards, blockArrow, blockArrowKey, clickCard, dragBlockHome, ownBattlefieldCards, passDeclareAttackers, phaseOf, undoBlock } from './play/combat.ts';
+import { assignBlock, attackingCards, blockArrow, blockArrowKey, dragBlockHome, ownBattlefieldCards, passDeclareAttackers, phaseOf, undoBlock } from './play/combat.ts';
 import { playMessagesOf } from './play/frames.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -252,15 +252,16 @@ test(titled('blocking: a click blocks nothing, a drag blocks, a second drag move
     console.log(`[block-focus] focus on ${focus} (attackers ${attackerA}, ${attackerB})`);
     await step('before any block', UNASSIGNED, 'bob sees no block before alice assigns one');
 
-    // A plain click on the wall: no block, on either screen.
-    await clickCard(alice.page, blockerX);
+    // A plain click on the wall aims it (AF140): no block, on either screen, until a second click lets go.
+    await alice.page.locator(`[data-board-card="${blockerX}"] button`).first().click();
     // Forge answers a block click within a frame or two; give it far longer than that to be sure nothing came.
     await alice.page.waitForTimeout(2_000);
+    await alice.page.keyboard.press('Escape');
     await log('clicked the wall');
     expect.soft(await blocks(alice.page), 'a click on alice’s own creature blocks nothing').toEqual([]);
     // On a board where the click DID block, clear it the way the operator had to, so the drags below start clean.
     if ((await blocks(alice.page)).length > 0) {
-      await clickCard(alice.page, blockerX);
+      await undoBlock(alice.page, blockerX);
       await expect.poll(() => blocks(alice.page), { timeout: 10_000 }).toEqual([]);
     }
 

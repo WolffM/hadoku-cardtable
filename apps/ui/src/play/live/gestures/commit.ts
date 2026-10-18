@@ -61,7 +61,7 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
   const target = aimedTarget(match, source, node);
 
   /*
-   * Blocking is a drag and only a drag. Dropped on an attacker, the creature
+   * Blocking is an aim — a drag, or a click and a click (AF140). Let go on an attacker, the creature
    * blocks it — moved off whatever it blocked before (`assignBlock`). Dropped
    * anywhere else, its own spot included, it is out of combat (`removeBlock`).
    */

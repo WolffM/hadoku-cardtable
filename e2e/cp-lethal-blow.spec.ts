@@ -189,6 +189,8 @@ async function lethalCharge(browser: Browser, jar: { jar: string; res: string },
       for (const id of await creatures.evaluateAll((els) => els.map((el) => Number(el.getAttribute('data-board-card'))))) {
         const card = alice.page.locator(`[data-board-card="${id}"]`);
         const box = (await card.boundingBox())!;
+        // AF140: the first click aims the attacker, the second, on itself, declares it.
+        await alice.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
         await alice.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
         await expect(card, `Forge declared ${id} attacking`).toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
       }

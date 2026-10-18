@@ -532,6 +532,17 @@ export async function pressOffered(target: Locator): Promise<boolean> {
 }
 
 /**
+ * A combat click since AF140: a click on the seat's own attacker or blocker aims it, and a second
+ * click lets go — on `at`, or on the creature itself, which is what one click used to be (an
+ * attacker declared against the current defender or called back, a blocker taken out of combat).
+ * Both presses go through {@link pressOffered}. `false`, nothing pressed, when `source` is not offered.
+ */
+export async function clickCombat(source: Locator, at: Locator = source): Promise<boolean> {
+  if (!(await pressOffered(source))) return false;
+  return pressOffered(at);
+}
+
+/**
  * Lift `cardId` out of the hand, release it over the battlefield, then drain
  * whatever Forge asks next (`answerPrompt` while the stack is unchanged, the
  * first of `targets` the board offers — `pressOffered`, in the caller's order —

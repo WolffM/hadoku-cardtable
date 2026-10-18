@@ -11,7 +11,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, enabledOk, makeTitled, pressOffered, says } from './play/board.ts';
+import { clickCombat, clickOnce, enabledOk, makeTitled, says } from './play/board.ts';
 import { messages } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -78,7 +78,7 @@ test(titled('the attack pop-up never comes back after its OK is pressed'), async
 
     // Memnite attacks: a real click on its face.
     await expect(memnite, 'Memnite is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
-    expect(await pressOffered(memnite), 'Memnite pressed').toBe(true);
+    expect(await clickCombat(memnite), 'Memnite pressed').toBe(true);
     await expect(alice.page.locator(`[data-board-card="${memniteId}"]`), 'Forge declared Memnite attacking').toHaveAttribute('data-attacking', 'true', {
       timeout: 10_000,
     });

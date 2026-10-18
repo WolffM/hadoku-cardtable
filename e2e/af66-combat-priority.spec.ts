@@ -15,7 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boardCard, castUntilOnStack, clickOnce, enabledOk, handCardNamed, makeTitled, ownNamed, pressOffered, says, serverLog } from './play/board.ts';
+import { boardCard, castUntilOnStack, clickCombat, clickOnce, enabledOk, handCardNamed, makeTitled, ownNamed, says, serverLog } from './play/board.ts';
 import { passToDeclareAttackers, railAt, type RailAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -57,7 +57,7 @@ async function bobsCombat({ alice, bob }: ScenarioMatch, attack: boolean, until:
       await enabledOk(bob.page).first().click();
     }
     if (!declared && ATTACK.test(line)) {
-      if (attack && (await pressOffered(giant))) {
+      if (attack && (await clickCombat(giant))) {
         await expect(bob.page.locator(`[data-board-card="${giantId}"]`), 'Forge declared the Giant attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
       }
       if (attack || (await enabledOk(bob.page).count()) > 0) {
@@ -145,7 +145,7 @@ test(titled("the attacker with Quirion Ranger's ability gets priority after bloc
     const ranger = (await ownNamed(a, 'Quirion Ranger'))[0];
     expect(ranger, 'alice controls Quirion Ranger').toBeDefined();
     const logFrom = serverLog(stack).length;
-    await boardCard(a, ranger!).locator('button').first().click();
+    expect(await clickCombat(boardCard(a, ranger!)), 'the Ranger pressed').toBe(true);
     await expect(boardCard(a, ranger!), 'the Ranger is declared').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
     // Alice presses on through her own Declare attackers window; her Declare blockers window is the claim.
     let blockers: RailAt | null = null;

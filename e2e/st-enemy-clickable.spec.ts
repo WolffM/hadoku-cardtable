@@ -20,8 +20,8 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { enabledOk, makeTitled, resizeWindow, says } from './play/board.ts';
-import { clickCard, passToDeclareAttackers, phaseOf } from './play/combat.ts';
+import { clickCombat, clickRecords, enabledOk, makeTitled, resizeWindow, says } from './play/board.ts';
+import { passToDeclareAttackers, phaseOf } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -75,8 +75,10 @@ test(titled('the opponent’s permanents are drawn clickable only while Forge ta
     await expect(page.locator(`[data-board-card="${jace}"]`), 'Jace is offered while InputAttack runs').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
     log('input-attack', { theirs: await theirs(page) });
 
-    await clickCard(page, memnite);
+    // AF140: a click aims Memnite, a click on Jace attacks him.
+    expect(await clickCombat(page.locator(`[data-board-card="${memnite}"]`), page.locator(`[data-board-card="${jace}"]`)), 'Memnite aimed at Jace').toBe(true);
     await expect(page.locator(`[data-board-card="${memnite}"]`), 'Memnite is declared attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
+    expect(clickRecords(stack, jace), 'the second click went to Forge on Jace, making him the defender').not.toBe('none');
     await enabledOk(page).first().click();
 
     // The attacker's own priority stop in declare attackers: Forge's bar is OK / End Turn now.

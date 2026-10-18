@@ -3625,3 +3625,88 @@ describe('a cast tells Board where it landed, through the seam Board provides', 
     expect(previewSpy).not.toHaveBeenCalled();
   });
 });
+
+/* ── AF140 — a click aims an attacker or a blocker; the next click lets go ── */
+
+describe('AF140 — a click on an attacker or blocker aims it, and the next click assigns it', () => {
+  /** A press and release with no travel, then the click the browser follows them with. */
+  function click(el: HTMLElement): void {
+    fireEvent.pointerDown(el, { button: 0, clientX: 20, clientY: 20 });
+    fireEvent.pointerUp(el, { button: 0, clientX: 20, clientY: 20 });
+    fireEvent.click(el.querySelector('button') ?? el);
+  }
+
+  async function attackingBoard() {
+    const ctx = await declaringAttackersBoard();
+    const attacker = mineOf(ctx.m).battlefield.find((c) => !c.tapped)!.id;
+    for (const f of notify([prompt('Declare attackers'), attackBar(), actionable([attacker])])) ctx.s.send(f);
+    await untilMatch(ctx.m, () => expect(boardInteraction(ctx.m).selectable.has(attacker)).toBe(true));
+    return { ...ctx, attacker };
+  }
+
+  it('the first click sends nothing and draws the arrow from the attacker', async () => {
+    const { s, canvas, attacker } = await attackingBoard();
+    click(cardEl(canvas, attacker));
+    fireEvent.pointerMove(document.body, { clientX: 200, clientY: 140 });
+    await waitFor(() => expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).not.toBeNull());
+    await sleep(50);
+    expect(s.clientFrames()).toHaveLength(0);
+  });
+
+  it('the second click on the opponent attacks them: selectPlayer, then the attacker once Forge marks them', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    const opponent = theirsOf(m).id;
+    holdBoardClock();
+    click(cardEl(canvas, attacker));
+    fireEvent.pointerMove(faceEl(canvas, opponent), { clientX: 200, clientY: 140 });
+    click(faceEl(canvas, opponent));
+    await s.untilClientFrames(1);
+    s.send(highlightPlayers([opponent], true));
+    await s.untilClientFrames(2);
+    expect(sent(s)).toEqual([
+      ['selectPlayer', opponent],
+      ['selectCard', attacker],
+    ]);
+  });
+
+  it('a second click on the attacker itself is what one click used to be: it attacks the current defender', async () => {
+    const { s, canvas, attacker } = await attackingBoard();
+    click(cardEl(canvas, attacker));
+    click(cardEl(canvas, attacker));
+    await s.untilClientFrames(1);
+    await sleep(50);
+    expect(sent(s)).toEqual([['selectCard', attacker]]);
+  });
+
+  it('Escape lets the aim go: a click on the opponent after it only picks the defender, and no attacker follows', async () => {
+    const { s, m, canvas, attacker } = await attackingBoard();
+    const opponent = theirsOf(m).id;
+    click(cardEl(canvas, attacker));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).toBeNull());
+    click(faceEl(canvas, opponent));
+    await s.untilClientFrames(1);
+    s.send(highlightPlayers([opponent], true));
+    await sleep(50);
+    expect(sent(s)).toEqual([['selectPlayer', opponent]]);
+  });
+
+  it('a blocker: click it, click the attacker Forge has current, and it blocks — one frame', async () => {
+    const ctx = await gestureBoard();
+    const { s, m, canvas } = ctx;
+    const attacker = theirsOf(m).battlefield[0]!.id;
+    const blocker = mineOf(m).battlefield[0]!.id;
+    s.send(phaseDelta('COMBAT_DECLARE_BLOCKERS', theirsOf(m).id));
+    s.send(attackingDelta([attacker]));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_DECLARE_BLOCKERS'));
+    for (const f of notify([prompt('Select a blocker'), actionable([blocker]), highlight([attacker], true)])) s.send(f);
+    await untilMatch(m, () => expect(m.highlighted!.size).toBe(1));
+    click(cardEl(canvas, blocker));
+    await sleep(50);
+    expect(s.clientFrames()).toHaveLength(0);
+    click(cardEl(canvas, attacker));
+    await s.untilClientFrames(1);
+    await sleep(50);
+    expect(sent(s)).toEqual([['selectCard', blocker]]);
+  });
+});

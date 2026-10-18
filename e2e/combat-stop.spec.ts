@@ -14,7 +14,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickOnce, enabledOk, handCardNamed, makeTitled, pressOffered, says, serverLog } from './play/board.ts';
+import { castCard, clickCombat, clickOnce, enabledOk, handCardNamed, makeTitled, says, serverLog } from './play/board.ts';
 import { railAt, type RailAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -64,7 +64,7 @@ test(titled("the Combat stop on the opponent's turn holds priority once attacker
         passedMain = true;
         await enabledOk(bob.page).first().click();
       }
-      if (!declared && ATTACK.test(await decisionText(bob.page)) && (await pressOffered(giant))) {
+      if (!declared && ATTACK.test(await decisionText(bob.page)) && (await clickCombat(giant))) {
         await expect(bob.page.locator(`[data-board-card="${giantId}"]`), 'Forge declared the Giant attacking').toHaveAttribute('data-attacking', 'true', {
           timeout: 10_000,
         });

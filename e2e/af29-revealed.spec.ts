@@ -18,7 +18,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
-import { clickHandCard, enabledOk, grindPriority, livePrompt, makeTitled, offeredNamed, pressOffered, resizeWindow, says } from './play/board.ts';
+import { clickCombat, clickHandCard, enabledOk, grindPriority, livePrompt, makeTitled, offeredNamed, resizeWindow, says } from './play/board.ts';
 import { passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -97,7 +97,7 @@ test(titled("Goblin Guide's revealed top card sits under bob's avatar on both sc
     await expect(guide, 'Goblin Guide is on her battlefield').toHaveCount(1, { timeout: 60_000 });
     await passToDeclareAttackers(alice.page);
     await expect(guide, 'Goblin Guide is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
-    expect(await pressOffered(guide), 'Goblin Guide pressed').toBe(true);
+    expect(await clickCombat(guide), 'Goblin Guide pressed').toBe(true);
     await expect(guide, 'Forge declared it attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
 
     // The trigger resolves: bob reveals Lightning Bolt, and it stays on top of his library.

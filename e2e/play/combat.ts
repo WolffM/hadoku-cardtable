@@ -3,15 +3,16 @@
  * seat's priority out of the way and then block, re-block or unblock, kept
  * here so the gestures are not copied into the specs.
  *
- * A block is a DRAG — press on the blocker, carry it onto the attacker, let
- * go — the only way the board assigns one: a plain click on an unassigned
- * creature blocks nothing. A click on a creature already blocking takes it out
- * of combat. Nothing here asserts anything; the specs read the board itself.
+ * A block is an AIM — press on the blocker, carry it onto the attacker, let
+ * go; or click it and click the attacker (AF140). One click on a creature
+ * blocks nothing: it only aims. A click and a second click on a creature
+ * already blocking take it out of combat. Nothing here asserts anything; the
+ * specs read the board itself.
  */
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-import { clickOnce, enabledOk, says } from './board.ts';
+import { clickCombat, clickOnce, enabledOk, says } from './board.ts';
 
 /** Where the game is on one screen: the rail's phase, whose turn and turn number, and whether Next Phase is pressable. */
 export interface RailAt {
@@ -101,15 +102,6 @@ export function ownBattlefieldCards(page: Page): Locator {
   return page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card');
 }
 
-/**
- * Click a card's own clickable face — the same element `Board.tsx` renders
- * `onClick`/`onSelectCard` on for every offered card, never a raw `click()`
- * on the `<li>` itself (which carries no handler).
- */
-export async function clickCard(page: Page, cardId: number): Promise<void> {
-  await page.locator(`[data-board-card="${cardId}"] button`).first().click();
-}
-
 /** Press on `fromId`, carry it to `to` with real pointer moves, let go. */
 async function dragFrom(page: Page, fromId: number, to: { x: number; y: number }): Promise<void> {
   const from = await centreOf(page, fromId);
@@ -137,7 +129,7 @@ export async function assignBlock(page: Page, blockerId: number, attackerId: num
 
 /**
  * Take a blocking creature out of combat: drag it away and back onto its own
- * spot. A click on it does the same (`clickCard`).
+ * spot. A click and a second click do the same (`undoBlock`).
  */
 export async function dragBlockHome(page: Page, blockerId: number): Promise<void> {
   const home = await centreOf(page, blockerId);
@@ -148,9 +140,9 @@ export async function dragBlockHome(page: Page, blockerId: number): Promise<void
   await page.mouse.up();
 }
 
-/** A click on a creature already blocking: it leaves combat. */
+/** A click and a second click on a creature already blocking: it leaves combat. */
 export async function undoBlock(page: Page, blockerId: number): Promise<void> {
-  await clickCard(page, blockerId);
+  await clickCombat(page.locator(`[data-board-card="${blockerId}"]`));
 }
 
 /** The key `install.ts`'s `blockArrows` gives the lasting blocker→attacker arrow — read here so neither side drifts from the other. */

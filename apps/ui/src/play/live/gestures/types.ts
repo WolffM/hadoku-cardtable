@@ -123,8 +123,10 @@ export interface DragState {
    */
   lifted: CastZone | null;
   /**
-   * Always `true` for every kind of drag that is not a lifted hand card,
-   * which still ends at its own `pointerup` exactly as before. For a lifted
+   * Always `true` for every kind of drag that is not a lifted hand card or
+   * an armed combat aim (a plain click on the seat's own attacker or
+   * blocker, which the next press lets go of the same way), which still ends
+   * at its own `pointerup` exactly as before. For a lifted
    * hand card, `false` from the moment a PLAIN CLICK's `pointerup` fires
    * (zero `moved`): a click lifts the card with no button held, the same as
    * a drag, until a LATER press resolves it (`install.ts`'s `onPointerDown`,

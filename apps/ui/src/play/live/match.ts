@@ -1871,6 +1871,17 @@ export function combatCandidates(match: LiveMatch): ReadonlySet<number> {
   return live && match.weaklySelectable !== null ? match.weaklySelectable : NO_PICKS;
 }
 
+/**
+ * `card` is this seat's own creature, Forge would take a click on it, and `InputAttack` or
+ * `InputBlock` is the input running — the creature a click AIMS rather than sends
+ * (`gestures/install.ts`, AF140): the arrow follows the pointer until the next click.
+ */
+export function combatAimer(match: LiveMatch, card: number): boolean {
+  if (!attackInputLive(match) && !blockInputLive(match)) return false;
+  if (!boardInteraction(match).selectable.has(card)) return false;
+  return match.view?.players.some((p) => p.isViewer && p.battlefield.some((c) => c.id === card)) === true;
+}
+
 /** Forge's highlighted cards drawn as PICKED: every one, except the block step's current attacker (`blockFocusOf`). */
 export function pickedOf(match: LiveMatch): ReadonlySet<number> {
   return declaringBlockers(match) ? NO_PICKS : (match.highlighted ?? NO_PICKS);
