@@ -162,8 +162,11 @@ export interface RoomTableYou {
 }
 
 export interface RoomTable {
-  /** `locked`: a match is live, or both players are ready — nobody stands up (the operator's ruling, 2026-10-12). */
-  room: { id: string; name: string; gameType: string; matchId: string | null; seats: number; locked?: boolean };
+  /**
+   * `locked`: a match is live, or both players are ready — nobody stands up (the operator's ruling, 2026-10-12).
+   * `phase`: the table's series phase (`seating`/`playing`/`sideboarding`/`done`).
+   */
+  room: { id: string; name: string; gameType: string; matchId: string | null; seats: number; locked?: boolean; phase?: string };
   you: RoomTableYou;
   players: RoomPlayer[];
 }

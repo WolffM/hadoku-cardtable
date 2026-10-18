@@ -2143,9 +2143,12 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
    * budget (`e2e/aa-polling.spec.ts`, "idle result screen reads the room at
    * most a few times a minute") was written for a screen that read ONE
    * thing per `roomFeed` tick (the table); reading the ROOM too on every
-   * tick doubled it. `ready`/`matchId`/`locked` are exactly the fields a
-   * change worth re-checking the room for would also move — an agreement
-   * (`beginSideboarding`'s own trigger), a game starting or ending. A
+   * tick doubled it. `ready`/`matchId`/`locked`/`phase` are exactly the
+   * fields a change worth re-checking the room for would also move — an
+   * agreement, a game starting or ending, the table moving into
+   * `sideboarding`. `phase` is not optional here: the agreement that begins
+   * sideboarding spends both Readys, so a screen that never saw the other
+   * press reads the same flags before and after it. A
    * genuinely idle tick (the fallback timer firing with nothing changed)
    * reads this SAME signature and skips the room — the idle case the spec
    * measures never pays the extra read.
@@ -2176,6 +2179,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
           const signature = JSON.stringify({
             matchId: answer.table.room.matchId,
             locked: answer.table.room.locked,
+            phase: answer.table.room.phase,
             players: answer.table.players.map((p) => ({ ready: p.ready, legal: p.legal })),
           });
           // `lastTableSignature` starts `null`, which no real signature ever

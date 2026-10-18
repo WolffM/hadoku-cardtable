@@ -1135,6 +1135,12 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// so the screen draws Stand up disabled from the same bit the server
 				// refuses on (`tableLocked`).
 				locked: tableLocked(players, matchId),
+				// The table's series phase, read AFTER `liveMatchId`'s own write, so a
+				// table read that just recorded a game already says where it led. A
+				// screen that follows the table learns of a move into `sideboarding`
+				// here even when nobody's ready flag changed: the agreement that
+				// begins it spends both Readys, so the flags read as they did before.
+				phase: rooms?.get(room.id)?.tables.find((t) => t.id === table.id)?.series.phase ?? table.series.phase,
 			},
 			// `player` is "I have a deck at this table"; `leader` is "this room's
 			// settings are mine to change". A member can be either, both or neither,
