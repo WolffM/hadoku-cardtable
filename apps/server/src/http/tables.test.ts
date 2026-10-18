@@ -2494,6 +2494,87 @@ describe('a room table', () => {
 			expect((await startAnother(h, 'alice')).status).toBe(201);
 		});
 
+		/**
+		 * MTG's rule, the operator's ruling: sideboarding lasts for one match.
+		 * Once a series is `done`, each seat goes back to the deck it registered
+		 * when the series began — a library deck as that library deck, name and
+		 * all — not the sideboarded 75 it played the last game with.
+		 */
+		describe('a finished series puts each seat back on its registered deck', () => {
+			/** The game on the newest host ends, `winner` taking it; a read records it. */
+			async function finish(h: Harness, winner: 'alice' | 'bob'): Promise<void> {
+				(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: `user-${winner}` });
+				await view(h, 'alice');
+			}
+			/** Alice's sideboarded 75: the same cards, but sent as `.dck` text rather than her library id. */
+			const sideboarded = () => ({ deck: { dck: library.deck(UG_POLYMORPH)!.text } });
+			const aliceDeck = (h: Harness) => (h.lobby.playerState(ROOM, ALICE) as { deck: { choice: { deck: unknown } } }).deck.choice.deck;
+
+			it('bo1 + sideboarding: after the Rematch game, alice holds her library deck again, by name, and nobody is ready', async () => {
+				const h = await boot();
+				h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 1, true);
+				await bothLoaded(h);
+				const registeredName = players((await view(h, 'alice')).body)[0]!.deckName;
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				expect((await startRoom(h, 'alice')).status).toBe(201);
+				await finish(h, 'alice');
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('sideboarding');
+				expect((await putDeck(h, 'alice', sideboarded())).status).toBe(200);
+				expect(aliceDeck(h), 'the sideboarded load').toEqual({ dck: expect.any(String) });
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				expect((await startAnother(h, 'alice')).status).toBe(201);
+				await finish(h, 'bob');
+
+				expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('done');
+				expect(aliceDeck(h)).toEqual({ library: UG_POLYMORPH });
+				const rows = players((await view(h, 'alice')).body);
+				expect(rows[0]).toMatchObject({ deckName: registeredName, legal: true, ready: false });
+				expect(rows[1]).toMatchObject({ ready: false });
+			});
+
+			it('bo3: a series decided 2-0 puts alice back on her library deck after a sideboarded game 2', async () => {
+				const h = await boot();
+				h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 3);
+				await bothLoaded(h);
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				expect((await startRoom(h, 'alice')).status).toBe(201);
+				await finish(h, 'alice');
+				expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('sideboarding');
+				expect((await putDeck(h, 'alice', sideboarded())).status).toBe(200);
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				expect((await startAnother(h, 'alice')).status).toBe(201);
+				expect(aliceDeck(h), 'game 2 holds the sideboarded load').toEqual({ dck: expect.any(String) });
+				await finish(h, 'alice');
+
+				expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ phase: 'done', wins: [2, 0] });
+				expect(aliceDeck(h)).toEqual({ library: UG_POLYMORPH });
+			});
+
+			it('a row persisted with the registered deck as text alone: the series still finishes, and the seat keeps what it holds', async () => {
+				const h = await boot();
+				h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 1, true);
+				await bothLoaded(h);
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				expect((await startRoom(h, 'alice')).status).toBe(201);
+				const aliceState = h.lobby.playerState(ROOM, ALICE) as Record<string, unknown>;
+				h.lobby.setPlayerState(ROOM, ALICE, { ...aliceState, seriesDeck: library.deck(UG_POLYMORPH)!.text });
+				await finish(h, 'bob');
+
+				expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('done');
+				expect(aliceDeck(h)).toEqual({ library: UG_POLYMORPH });
+				const read = await view(h, 'alice');
+				expect(read.status).toBe(200);
+				expect(players(read.body).map((p) => p.ready)).toEqual([false, false]);
+			});
+		});
+
 		it('bo1 + sideboarding off: a done game goes straight to a new series on Rematch — no sideboarding step, chooser unset (the reported bug: a stale games.at(-1) would rig this to the old loser)', async () => {
 			const h = await boot();
 			openRoom(h); // default settings: bo1, sideboarding off

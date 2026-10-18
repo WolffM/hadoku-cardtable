@@ -12,7 +12,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, twoLegalDecks } from './play/board.ts';
+import { makeTitled, serverLog, twoLegalDecks } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { openCreateRoom } from './play/rooms.ts';
@@ -38,7 +38,11 @@ async function press(page: Page, testId: string): Promise<void> {
  * `bo1` is the default, `sideboarding` is a separate toggle), bob joins, each
  * loads a legal deck, and both ready — the server starts the match.
  */
-async function enterSideboardedMatch(alice: Friend, bob: Friend, origin: string): Promise<{ matchId: string; roomUrl: string }> {
+async function enterSideboardedMatch(
+  alice: Friend,
+  bob: Friend,
+  origin: string,
+): Promise<{ matchId: string; roomUrl: string; decks: readonly [string, string] }> {
   const choice = await twoLegalDecks(alice.context.request, origin);
   await alice.page.goto(`${origin}${PREFIX}/`);
   await openCreateRoom(alice.page);
@@ -75,7 +79,7 @@ async function enterSideboardedMatch(alice: Friend, bob: Friend, origin: string)
   if (matchId === undefined) throw new Error(`no match id in ${alice.page.url()}`);
   for (const f of [alice, bob]) await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 60_000 });
   console.log(`[w72-sideboard] game 1 live: ${matchId}, alice=${choice.decks[0]} bob=${choice.decks[1]}`);
-  return { matchId, roomUrl };
+  return { matchId, roomUrl, decks: choice.decks };
 }
 
 /** `loser` concedes; both screens show the result. Returns who won. */
@@ -98,7 +102,7 @@ test(
     try {
       const alice = await openFriend(browser, 'alice'); // the room's leader
       const bob = await openFriend(browser, 'bob');
-      const { matchId: match1, roomUrl } = await enterSideboardedMatch(alice, bob, stack.origin);
+      const { matchId: match1, roomUrl, decks } = await enterSideboardedMatch(alice, bob, stack.origin);
 
       /* ── game 1 ends; bob is the loser ───────────────────────────────── */
       await concede(alice, bob, bob);
@@ -150,6 +154,13 @@ test(
       expect(match2, 'a fresh Forge match, not game 1 again').not.toBe(match1);
       expect(matchUrl.exec(bob.page.url())?.[1]).toBe(match2);
       console.log(`[w72-sideboard] game 2 live: ${match2}`);
+      // Game 2 plays the 75 alice submitted on the sideboard step, not the deck
+      // she played game 1 with: the server's own record of each start says.
+      const started = (id: string | undefined) =>
+        serverLog(stack).find((r) => r.evt === 'room-match-started' && r.matchId === id) as { decks: string[]; deckTexts: string[] } | undefined;
+      const [game1, game2] = [started(match1), started(match2)];
+      console.log(`[w72-sideboard] alice's deck: game 1 ${game1?.decks[0]} ${game1?.deckTexts[0]}, game 2 ${game2?.decks[0]} ${game2?.deckTexts[0]}`);
+      expect(game2?.deckTexts[0], 'game 2 plays alice’s sideboarded 75').not.toBe(game1?.deckTexts[0]);
       await expect(bob.page.getByTestId('live-play-or-draw-host'), "bob (game 1's loser) is asked play-or-draw").toBeVisible({ timeout: 30_000 });
       await bob.page.getByTestId('live-play-or-draw-play').click();
       for (const f of [alice, bob]) await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 60_000 });
@@ -159,6 +170,15 @@ test(
       console.log('[w72-sideboard] game 2 ended: alice conceded');
       await press(alice.page, 'game-result-room');
       await expect(alice.page.getByTestId('constructed'), 'alice is back at the room').toBeVisible({ timeout: 15_000 });
+      // Sideboarding lasted one match: the series is over, so alice holds the
+      // deck she registered again — her own library deck, chosen in the picker.
+      await expect(alice.page.getByTestId('deck-mine').locator(`[data-deck-id="${decks[0]}"]`), 'alice’s registered deck is chosen again').toHaveAttribute(
+        'aria-checked',
+        'true',
+        { timeout: 15_000 },
+      );
+      await expect(alice.page.getByTestId('ready-toggle'), 'and Ready works').toBeEnabled({ timeout: 15_000 });
+      console.log(`[w72-sideboard] back in the room: alice holds ${decks[0]} again, Ready enabled`);
       await expect(alice.page.getByTestId('match-length')).toHaveAttribute('aria-pressed', 'false');
       await alice.page.getByTestId('match-length').click();
       await expect(alice.page.getByTestId('match-length'), 'bo3 now').toHaveAttribute('aria-pressed', 'true');
