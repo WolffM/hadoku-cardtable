@@ -135,11 +135,18 @@ def main() -> None:
 
 	manifest = json.load(open(os.path.join(args.src, 'manifest.json'), encoding='utf-8'))
 
+	# Every round's manifest names its folders; a later round overrides an earlier one. This used to be
+	# a hand-kept tuple that stopped at round 8, so round 9's three combat roles (Charge at a player,
+	# Creatures collide, Cracks and crumbles) imported under their ids in a group called "Moments" and
+	# the operator could not find them in the bin (ledger AF148, 2026-10-18).
 	lib_names: dict = {}
-	for spec in ('round3.json', 'round4.json', 'round5.json', 'round8.json'):
-		spec_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), spec)
-		if os.path.exists(spec_path):
-			lib_names.update(json.load(open(spec_path, encoding='utf-8'))['sounds'])
+	here = os.path.dirname(os.path.abspath(__file__))
+	rounds = sorted(
+		(f for f in os.listdir(here) if re.fullmatch(r'round\d+[a-z]?\.json', f)),
+		key=lambda f: (int(re.match(r'round(\d+)', f).group(1)), f),
+	)
+	for spec in rounds:
+		lib_names.update(json.load(open(os.path.join(here, spec), encoding='utf-8'))['sounds'])
 
 	takes = []
 	for folder, items in manifest.items():
