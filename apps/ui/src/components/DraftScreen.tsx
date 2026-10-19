@@ -98,6 +98,8 @@ export interface DraftScreenProps {
    * it, which is what production wants; a test passes one to read the bytes.
    */
   onDownloadDeck?: (filename: string, text: string) => void;
+  /** The room's name. A screen with no room (the debug harness) says Draft. */
+  title?: string;
 }
 
 export function DraftScreen({
@@ -110,6 +112,7 @@ export function DraftScreen({
   onLayoutChange,
   connection = null,
   onDownloadDeck,
+  title = 'Draft',
 }: DraftScreenProps) {
   const [localLayout, setLocalLayout] = useState<PackLayout>('fan');
   const layout = layoutProp ?? localLayout;
@@ -172,6 +175,30 @@ export function DraftScreen({
     [onChange, onPick],
   );
 
+  // The body is exactly as tall as the window below it, so the two halves fill
+  // the screen and the page itself never scrolls (`styles.css`, layout).
+  const fitToWindow = useCallback((el: HTMLDivElement | null) => {
+    if (el === null || typeof window === 'undefined') return;
+    const fit = (): void => {
+      // Everything from the body's top to the window's bottom, less whatever
+      // that pushes off the page (the shell's padding, anything after the
+      // body): set, measure the overflow, take it back. Always from the full
+      // height, so a window that grows gets the room back.
+      const full = Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY));
+      el.style.setProperty('--draft-h', `${Math.max(300, full)}px`);
+      const over = document.documentElement.scrollHeight - window.innerHeight;
+      if (over > 0) el.style.setProperty('--draft-h', `${Math.max(300, full - over)}px`);
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
+    observer?.observe(document.body);
+    return () => {
+      window.removeEventListener('resize', fit);
+      observer?.disconnect();
+    };
+  }, []);
+
   const emptyNote = spectating
     ? 'Spectating.'
     : stalled
@@ -189,10 +216,7 @@ export function DraftScreen({
       data-complete={complete ? 'true' : 'false'}
     >
       <header className="draft__bar">
-        <div className="draft__ident">
-          <h1 className="draft__title">Draft</h1>
-          <code className="draft__id">{view.draftId}</code>
-        </div>
+        <h1 className="draft__title" data-testid="draft-title">{title}</h1>
         <DraftCounters view={view} />
         <div className="draft__controls">
           <div className="segmented" role="group" aria-label="Pack layout">
@@ -236,7 +260,7 @@ export function DraftScreen({
         {message && <span className="draft__error"> {message}</span>}
       </p>
 
-      <div className="draft__body">
+      <div className={complete ? 'draft__body draft__body--complete' : 'draft__body'} ref={fitToWindow}>
         <main className="draft__main" ref={mainRef}>
           {complete ? (
             <DeckView

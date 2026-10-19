@@ -387,12 +387,7 @@
   flex-wrap: wrap;
 }
 
-.pod__id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
 .pod__cube,
-.pod__conn,
 .pod__tally {
   color: var(--color-text-secondary);
   font-size: 13px;
@@ -423,13 +418,6 @@
   flex: 1 1 340px;
   min-width: 0;
   flex-wrap: wrap;
-}
-
-.pod__invite-label {
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .pod__invite-url {

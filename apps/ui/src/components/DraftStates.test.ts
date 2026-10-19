@@ -91,7 +91,6 @@ describe('a spectator payload renders the table and says it is a spectator', () 
     expect(within(screen.getByTestId('seat-bar')).getAllByRole('listitem')).toHaveLength(
       view.seats.length,
     );
-    expect(screen.getByTestId('seq').textContent).toBe(String(view.seq));
     expect(screen.getByTestId('pack-number').textContent).toBe(String(view.packNumber));
   });
 
@@ -191,7 +190,6 @@ describe('the connection banner', () => {
     // Everything the player could already see stays on screen. The banner says
     // it is not moving; it does not take the draft away.
     expect(screen.getAllByTestId('card').length).toBeGreaterThan(0);
-    expect(screen.getByTestId('seq').textContent).toBe(String(view.seq));
   });
 });
 

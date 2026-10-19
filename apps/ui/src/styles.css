@@ -258,20 +258,9 @@ button {
   flex-wrap: wrap;
 }
 
-.draft__ident {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
 .draft__title {
   font-size: 16px;
   letter-spacing: 0.02em;
-}
-
-.draft__id {
-  color: var(--ink-faint);
-  font-size: 11px;
 }
 
 .counters {
@@ -301,12 +290,6 @@ button {
 .counter__of {
   color: var(--ink-faint);
   font-size: 11px;
-}
-
-.counter--quiet .counter__value {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--ink-dim);
 }
 
 .draft__controls {
@@ -364,68 +347,81 @@ button {
 
 /* ── layout ────────────────────────────────────────────────────────── */
 
+/*
+ * Two halves of the window (the operator, 2026-10-19): the pack fanned across
+ * the top with the seats beside it, the picks across the bottom. The body is
+ * exactly as tall as the window below it (`--draft-h`, measured by
+ * `DraftScreen`), each half scrolls inside itself, and the page does not
+ * scroll at all — sideways or down.
+ *
+ * `.draft__main` is `display: contents`, so the pack and the pool are grid
+ * items of the body beside the seats.
+ */
 .draft__body {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'pack seats'
+    'pool pool';
+  gap: 12px 16px;
+  padding: 12px 16px;
+  height: var(--draft-h, auto);
 }
 
-/*
- * The pack and the pool, side by side — the pool is what the next pick is
- * decided against, so it sits beside the thing being decided, not under it.
- * Both are direct children of this element (`DraftScreen.tsx` renders no
- * wrapper between them), so the row is built on the child combinator rather
- * than a new box.
- */
 .draft__main {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
+  display: contents;
 }
 
 .draft__main > .pack {
-  flex: 3 1 0;
+  grid-area: pack;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden auto;
+}
+
+/* The fan is sized to the half it is drawn in, and its lifted card may rise
+   above its slot: nothing to scroll, nothing to clip. */
+.draft__main > .pack--fan {
+  overflow: visible;
 }
 
 .draft__main > .pool {
-  flex: 2 1 0;
+  grid-area: pool;
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
 }
 
 .draft__aside {
-  flex: 0 0 236px;
-  /* Its own stacking context, above the fan: a rotated card must never end up
-     drawn across the seat list. */
-  position: relative;
-  z-index: 2;
+  grid-area: seats;
+  min-height: 0;
+  overflow: auto;
 }
 
-@media (max-width: 900px) {
+/* A finished draft's deck view has the whole body. */
+.draft__body--complete {
+  display: block;
+  height: auto;
+}
+
+/* A phone has no room for halves: pack, then picks, then seats, as tall as they are. */
+@media (max-width: 700px) {
   .draft__body {
-    flex-direction: column-reverse;
-  }
-
-  .draft__aside {
-    flex: 1 1 auto;
-    width: 100%;
-  }
-
-  /* Below this, a side-by-side pack and pool are both too narrow to read. */
-  .draft__main {
+    display: flex;
     flex-direction: column;
+    height: auto;
   }
 
-  /* Stacked, each is as tall as its cards. The side-by-side `flex: N 1 0`
-     would size the pack's HEIGHT from 0 here — its min-height, 308 px — and
-     the rest of its grid ran on underneath the pool, which took the clicks. */
+  .draft__main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
   .draft__main > .pack,
   .draft__main > .pool {
-    flex: none;
-    width: 100%;
+    overflow: visible;
   }
 }
 
@@ -443,89 +439,47 @@ button {
 }
 
 /*
- * The fan. Each slot is absolutely placed on the container's centre line and
- * rotated about a pivot below itself, so the arc comes out of the rotation and
- * the row stays centred whatever the card count.
- *
- * The container reserves its own height (card + the arc's drop + room for the
- * hover lift). Without that the outer cards sit on top of the pool, which is
- * what the first version did.
+ * The fan. `PackView`'s `fanGeometry` measures the box and hands each slot its
+ * offset, drop and angle, and the card its size; this only places them. Each
+ * slot sits on the box's centre line and pivots at its own bottom edge, so a
+ * rotation tilts the card without swinging it outward — every corner stays
+ * inside the box, which is what `fanGeometry` sized it to.
  */
 .pack--fan {
   position: relative;
-  height: calc(var(--card-h) + 104px);
-  margin-bottom: 8px;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
 }
 
 .pack--fan .pack__slot {
   position: absolute;
-  top: 26px;
+  top: 30px;
   left: 50%;
-  width: var(--card-w);
-  margin-left: calc(var(--card-w) / -2);
-  transform-origin: 50% 165%;
-  transform: translateX(var(--fan-x, 0)) rotate(var(--fan-a, 0deg));
+  width: var(--fan-w);
+  margin-left: calc(var(--fan-w) / -2);
+  --card-w: var(--fan-w);
+  --card-h: var(--fan-h);
+  transform-origin: 50% 100%;
+  transform: translate(var(--fan-x, 0), var(--fan-y, 0)) rotate(var(--fan-a, 0deg));
   /*
-   * Transition ONLY transform. The hover lift used to transition `filter` too,
-   * and `filter: drop-shadow()` is not a cheap property: it forces the browser
-   * to rasterize the element and re-derive a shadow from its alpha channel,
-   * every frame of the 120ms, for a tile that holds ~22 nodes. Fifteen of those
-   * in an arc under a moving cursor is the lag you could feel.
-   *
-   * `transform` alone is compositor-driven, so the lift costs no repaint.
+   * Transition ONLY transform: compositor-driven, so the lift costs no
+   * repaint. (`filter: drop-shadow()` here was the lag you could feel.)
    */
   transition: transform 120ms ease;
-  /*
-   * Promote to its own layer so the lift never repaints the cards behind it.
-   * Scoped to the slot rather than the card, so the promoted layer is the thing
-   * that actually moves.
-   */
   will-change: transform;
 }
 
 /*
- * Lift clear of the neighbours so the whole card can be read and clicked.
- *
- * The rotation is KEPT. Un-rotating it looked better and was unusable: the
- * pivot is below the card, so straightening a card at the end of the arc slides
- * it ~70px sideways — out from under the cursor that is hovering it, which
- * drops the hover, which drops it back down. It flickers, and only the narrow
- * sliver ever stays clickable. Fourteen degrees of tilt is a much smaller price.
+ * Lift clear of the neighbours so the whole card can be read and clicked. The
+ * rotation is kept: straightening a tilted card slides it out from under the
+ * cursor, which drops the hover, which drops it back down.
  */
 .pack--fan .pack__slot:hover,
 .pack--fan .pack__slot:focus-within {
-  transform: translateX(var(--fan-x, 0)) translateY(-26px) scale(1.06)
-    rotate(var(--fan-a, 0deg));
+  transform: translate(var(--fan-x, 0), calc(var(--fan-y, 0px) - 24px)) scale(1.05) rotate(var(--fan-a, 0deg));
   z-index: 999 !important;
-  /*
-   * `box-shadow`, not `filter: drop-shadow()`. A card is a rectangle, so the
-   * two are visually equivalent here — and box-shadow is drawn directly rather
-   * than rasterize-then-reshadow. drop-shadow only earns its cost on a shape
-   * with a real alpha silhouette, which this is not.
-   */
   box-shadow: 0 14px 26px var(--shadow);
-}
-
-/*
- * Below this width the fan cannot show a readable sliver of every card, so it
- * becomes the grid. The control still says "fan"; what it cannot do is make a
- * 15-card arc fit on a phone.
- */
-@media (max-width: 1180px) {
-  .pack--fan {
-    position: static;
-    height: auto;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
-    gap: 12px;
-  }
-
-  .pack--fan .pack__slot {
-    position: static;
-    width: auto;
-    margin-left: 0;
-    transform: none !important;
-  }
 }
 
 .pack--empty {
@@ -788,9 +742,8 @@ button {
 
 .pool__curve {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: flex-start;
-  overflow-x: auto;
   padding-bottom: 8px;
 }
 
@@ -809,21 +762,49 @@ button {
   color: var(--ink-faint);
 }
 
+/*
+ * A column of picks, overlapped the way a deck builder stacks them: every
+ * card shows its name strip, the last shows whole, and hovering any of them
+ * opens the shared inspector at full size. One size for every tile, art or
+ * not, so the columns line up.
+ */
 .pool__bucket-cards {
+  --pool-w: 140px;
+  --pool-h: calc(var(--pool-w) / 0.7176);
+  --pool-show: 30px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 168px;
+  width: var(--pool-w);
 }
 
 .pool__bucket-cards .card {
-  height: auto;
+  width: var(--pool-w);
+  height: var(--pool-h);
   min-height: 0;
-  --card-h: auto;
-  padding: 6px 8px 6px 12px;
+  --card-h: var(--pool-h);
+  padding: 5px 7px 5px 11px;
+  font-size: 11px;
+  flex: none;
 }
 
-/* A pool card is a reference, not a decision: name, cost and stat only. */
+.pool__bucket-cards .card:has(.card__art) {
+  height: var(--pool-h);
+}
+
+.pool__bucket-cards > :not(:first-child) .card,
+.pool__bucket-cards > .card:not(:first-child) {
+  margin-top: calc(var(--pool-show) - var(--pool-h));
+}
+
+/* The strip each card shows: its name on one line. */
+.pool__bucket-cards .card__name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* A pool card is a reference, not a decision: its name strip, cost and stat. */
 .pool__bucket-cards .card__rules,
 .pool__bucket-cards .card__print {
   display: none;

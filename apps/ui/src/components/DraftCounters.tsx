@@ -27,12 +27,6 @@ export function DraftCounters({ view }: { view: DraftView }) {
         </span>
         <span className="counter__of">of {view.packSize}</span>
       </div>
-      <div className="counter counter--quiet">
-        <span className="counter__label">seq</span>
-        <span className="counter__value" data-testid="seq">
-          {view.seq}
-        </span>
-      </div>
     </div>
   );
 }

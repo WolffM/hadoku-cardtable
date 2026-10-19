@@ -101,6 +101,7 @@ const ctxOf = (p: PodView | null, tables: PodContext['tables'] = []): PodContext
   tables,
   names: { 'u-alice': 'Alice', 'u-bob': 'Bob' },
   me: 'u-alice',
+  name: 'Cube night',
 });
 
 /* ── PodScreen ───────────────────────────────────────────────────────── */

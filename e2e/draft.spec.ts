@@ -575,14 +575,8 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   const bobSeat = await seatFromWire(bob);
   expect(aliceSeat).not.toBe(bobSeat);
 
-  await expect(alice.page.getByTestId('pod-tally')).toContainText(
-    `2 people · 6 bots of 8 seats · you are seat ${aliceSeat}`,
-    { timeout: UI_TIMEOUT },
-  );
-  await expect(bob.page.getByTestId('pod-tally')).toContainText(
-    `2 people · 6 bots of 8 seats · you are seat ${bobSeat}`,
-    { timeout: UI_TIMEOUT },
-  );
+  await expect(alice.page.getByTestId('pod-tally')).toHaveText('2 people · 6 bots', { timeout: UI_TIMEOUT });
+  await expect(bob.page.getByTestId('pod-tally')).toHaveText('2 people · 6 bots', { timeout: UI_TIMEOUT });
 
   // §C's "an invite link still works": the pod's invite is the ROOM's url —
   // the same url alice's mid-draft refresh reloads below, which is the
@@ -690,9 +684,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
         expect(refresh.after.pool).toEqual(refresh.before.pool);
         expect(occupantAt(v, aliceSeat)).toEqual(aliceId);
         await expect(alice.page.getByTestId('pool-count')).toHaveText(String(REFRESH_AFTER));
-        await expect(alice.page.getByTestId('pod-tally')).toContainText(
-          `2 people · 6 bots of 8 seats · you are seat ${aliceSeat}`,
-        );
+        await expect(alice.page.getByTestId('pod-tally')).toHaveText('2 people · 6 bots');
       },
     }),
     draftAll(bob),
@@ -1008,6 +1000,21 @@ test(
       await expectLobbyNotPod(alice);
       await alice.page.getByTestId('ready-toggle').click();
       await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+
+      // The fan, as it opens: drawn as a fan, inside its half, and the page
+      // does not scroll either way (the operator's screenshot, 2026-10-19).
+      await expect(alice.page.locator('[data-testid="pack"].pack--fan')).toBeVisible({ timeout: UI_TIMEOUT });
+      const fit = await alice.page.evaluate(() => {
+        const pack = document.querySelector('[data-testid="pack"]')!.getBoundingClientRect();
+        const cards = [...document.querySelectorAll('[data-testid="pack"] .pack__slot')].map((c) => c.getBoundingClientRect());
+        return {
+          x: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          y: document.documentElement.scrollHeight - document.documentElement.clientHeight,
+          outside: cards.filter((c) => c.left < pack.left - 1 || c.right > pack.right + 1 || c.bottom > pack.bottom + 1).length,
+        };
+      });
+      expect(fit, 'no page scroll, every fanned card inside the pack').toEqual({ x: 0, y: 0, outside: 0 });
+
       await draftAll(alice);
       await expect(alice.page.getByTestId('deck-editor'), 'the finished draft opens the editor').toBeVisible({ timeout: UI_TIMEOUT });
       await buildMainDeck(alice, 40);

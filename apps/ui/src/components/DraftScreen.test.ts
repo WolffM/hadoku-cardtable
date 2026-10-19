@@ -129,11 +129,10 @@ describe('the draft screen, on committed fixtures', () => {
     expect(container.querySelectorAll('[data-testid="card"]').length).toBeGreaterThan(0);
   });
 
-  it('shows the pack and pick counters and the payload seq', () => {
+  it('shows the pack and pick counters', () => {
     mount();
     expect(screen.getByTestId('pack-number').textContent).toBe('1');
     expect(screen.getByTestId('pick-number').textContent).toBe('1');
-    expect(screen.getByTestId('seq').textContent).toBe('1');
   });
 
   it('shows whose turn it is, by seat', () => {
@@ -276,8 +275,6 @@ describe('the draft screen, on committed fixtures', () => {
     const advance = screen.getByTestId('advance');
     expect(advance.textContent).toContain('seq 2');
     fireEvent.click(advance);
-
-    expect(screen.getByTestId('seq').textContent).toBe('2');
     expect(screen.getByTestId('pick-number').textContent).toBe('2');
     // A fresh pack of 14 — the payload's, not the one this client guessed.
     expect(packCards()).toHaveLength(14);
@@ -310,7 +307,6 @@ describe('the draft screen, on committed fixtures', () => {
     // The public half is all still there.
     expect(within(screen.getByTestId('seat-bar')).getAllByRole('listitem')).toHaveLength(8);
     expect(screen.getByTestId('seat-3-picked').textContent).toBe('19');
-    expect(screen.getByTestId('seq').textContent).toBe('20');
 
     // And not one card name from anybody's pool reached the DOM.
     expect(screen.queryAllByTestId('card')).toHaveLength(0);

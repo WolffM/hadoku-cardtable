@@ -69,6 +69,8 @@ export interface PodContext {
    * differ, and "my table" was never found (2026-10-19, r-25e3eb4baa00).
    */
   me: string | null;
+  /** The room's own name, what the pod's header calls it. `''` while unknown. */
+  name: string;
 }
 
 /**
@@ -80,13 +82,14 @@ export interface PodContext {
  */
 export async function fetchPodContext(roomId: string): Promise<PodContext> {
   const body = await fetchRoomRaw(roomId);
-  if (body === null) return { pod: null, tables: [], names: {}, me: null };
+  if (body === null) return { pod: null, tables: [], names: {}, me: null, name: '' };
   const tables = RoomTablesSchema.safeParse(body.tables);
   const members = Array.isArray(body.members) ? body.members.filter(isNamed) : [];
   return {
     pod: parsePodView(body.pod),
     tables: tables.success ? tables.data : [],
     names: Object.fromEntries(members.map((m) => [m.id, m.name])),
+    name: typeof body.name === 'string' ? body.name : '',
     me: typeof body.you === 'object' && body.you !== null && typeof (body.you as { id?: unknown }).id === 'string' ? (body.you as { id: string }).id : null,
   };
 }

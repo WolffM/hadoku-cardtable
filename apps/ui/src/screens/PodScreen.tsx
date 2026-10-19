@@ -58,8 +58,6 @@ import {
   applyPick as socketPick,
   closeDraft,
   cubeName,
-  cubeSize,
-  mySeat,
   isComplete,
   startDraft,
   type DraftTransport,
@@ -151,7 +149,6 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   const humans = seats.filter((s) => s.occupant?.kind === 'human').length;
   const bots = seats.filter((s) => s.occupant?.kind === 'bot').length;
   const open = seats.filter((s) => s.occupant === null).length;
-  const seatId = draft === null ? null : mySeat(draft);
   const done = draft !== null && isComplete(draft);
 
   /** The ROOM's own pod state — `null` until the first read answers. */
@@ -222,23 +219,17 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           >
             ← Lobby
           </a>
-          <strong className="pod__id">{draftId}</strong>
-          <span className="pod__cube">
-            {draft === null || cubeName(draft) === null
-              ? 'waiting for the table'
-              : `${cubeName(draft)}${cubeSize(draft) === null ? '' : ` · ${cubeSize(draft)} cards`}`}
-          </span>
+          {ctx !== null && ctx.name !== '' && <strong className="pod__name" data-testid="pod-name">{ctx.name}</strong>}
+          {draft !== null && cubeName(draft) !== null && <span className="pod__cube">{cubeName(draft)}</span>}
         </div>
 
         <PodSeats
           connected={draft?.connected === true}
           everConnected={draft?.everConnected === true}
           seated={seats.length}
-          capacity={view?.capacity ?? null}
           humans={humans}
           bots={bots}
           open={open}
-          seatId={seatId}
         />
 
         <Invite url={link} />
@@ -284,6 +275,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           nextPayload={null}
           layout={layout}
           onLayoutChange={setLayout}
+          title={ctx !== null && ctx.name !== '' ? ctx.name : undefined}
         />
       )}
       <div className="pod__zoom" data-board-zoom="" />
@@ -297,36 +289,31 @@ interface PodSeatsProps {
   connected: boolean;
   everConnected: boolean;
   seated: number;
-  capacity: number | null;
   humans: number;
   bots: number;
   open: number;
-  seatId: number | null;
 }
 
 /**
- * The seat count, from the server's snapshot and from nothing else.
- *
- * Before the first payload there are no seats to report, and it says so rather
- * than showing a plausible `0 / 8` that the server has not confirmed.
+ * The connection, as a dot, and who is at the table, from the server's
+ * snapshot and from nothing else — nothing at all before the first payload.
  */
 function PodSeats(props: PodSeatsProps) {
-  const { connected, everConnected, seated, capacity, humans, bots, open, seatId } = props;
-  const size = capacity ?? seated;
+  const { connected, everConnected, seated, humans, bots, open } = props;
 
   return (
     <div className="pod__seats" data-testid="pod-seats">
-      <span className={connected ? 'pod__dot pod__dot--on' : 'pod__dot'} aria-hidden="true" />
-      <span className="pod__conn">
-        {connected ? 'connected' : everConnected ? 'reconnecting' : 'connecting'}
-      </span>
-      {seated === 0 ? (
-        <span className="pod__tally">no seats yet</span>
-      ) : (
+      <span
+        className={connected ? 'pod__dot pod__dot--on' : 'pod__dot'}
+        data-testid="pod-conn"
+        data-state={connected ? 'connected' : everConnected ? 'reconnecting' : 'connecting'}
+        role="img"
+        aria-label={connected ? 'connected' : everConnected ? 'reconnecting' : 'connecting'}
+      />
+      {seated > 0 && (
         <span className="pod__tally" data-testid="pod-tally">
           {humans} {humans === 1 ? 'person' : 'people'} · {bots} {bots === 1 ? 'bot' : 'bots'}
-          {open === 0 ? '' : ` · ${open} open`} of {size} seats
-          {seatId === null ? ' · no seat yet' : ` · you are seat ${seatId}`}
+          {open === 0 ? '' : ` · ${open} open`}
         </span>
       )}
     </div>
@@ -360,13 +347,11 @@ function Invite({ url }: { url: string }) {
 
   return (
     <div className="pod__invite">
-      <label className="pod__invite-label" htmlFor="invite-url">
-        Send this link
-      </label>
       <input
         id="invite-url"
         data-testid="invite-url"
         className="pod__invite-url"
+        aria-label="Invite link"
         readOnly
         value={url}
         onFocus={(e) => e.currentTarget.select()}
