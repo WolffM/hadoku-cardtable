@@ -1805,7 +1805,7 @@ export interface Rematch {
 /**
  * The table's next game, once its players have agreed: against the AI the one
  * player's Ready is the agreement. The result screen and the pod room's own
- * sideboard step (`screens/pod/PodSideboard.tsx`) both ask; the server joins
+ * sideboard step (`screens/TableSideboard.tsx`) both ask; the server joins
  * two asks for one table into one start.
  */
 export function startNextGame(tables: TablesClient, roomId: string, tableId: string | undefined, solo: boolean): Promise<StartOutcome> {

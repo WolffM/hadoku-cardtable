@@ -1,14 +1,15 @@
 /*
- * The sideboard step between games of a pod series, in the pod room itself.
+ * The sideboard step between games of a series, in the room itself — a pod's
+ * (`PodScreen.tsx`) or a 1v1 room's (`ConstructedScreen.tsx`).
  *
  * The result screen draws it over the game that just ended — but only while
  * that page is open. A player who closed the tab and came back through the
- * room (or the front page) landed on the round screen with no way into it,
- * while their opponent waited on theirs (the rejoin audit, 2026-10-19). So
- * the room draws the same step (`LiveBoard.tsx`'s `SideboardStep`) for the
- * player's own table whenever it is `sideboarding`, and asks for the next
- * game once both have readied, as the result screen does — the server joins
- * the two asks into one start, and the pod screen follows the new match.
+ * room (or the front page) landed on the room with no way into it, while
+ * their opponent waited on theirs (the rejoin audit, 2026-10-19). So the room
+ * draws the same step (`LiveBoard.tsx`'s `SideboardStep`) for the player's
+ * own table whenever it is `sideboarding`, and asks for the next game once
+ * both have readied, as the result screen does — the server joins the two
+ * asks into one start, and the room follows the new match.
  *
  * Nothing is drawn until the table, the 75 and the drafted pool have all
  * answered: the step opens whole, never empty-then-filled.
@@ -16,23 +17,23 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { myChoice, rematchOf, SideboardStep, startNextGame, useSideboardInputs } from '../../play/live/LiveBoard.tsx';
-import { tablesClient, type RoomTable, type SeatChoice, type TablesClient } from '../tables.ts';
+import { myChoice, rematchOf, SideboardStep, startNextGame, useSideboardInputs } from '../play/live/LiveBoard.tsx';
+import { tablesClient, type RoomTable, type SeatChoice, type TablesClient } from './tables.ts';
 
-export interface PodSideboardProps {
+export interface TableSideboardProps {
   roomId: string;
   tableId: string;
   /**
-   * The pod screen's last read of the room (`usePodContext`, which follows the
-   * room's feed): a new one means the room moved — a Ready, a game starting —
-   * so the table is read again. No second feed of its own.
+   * The room screen's last read of the room (which follows the room's feed):
+   * a new one means the room moved — a Ready, a game starting — so the table
+   * is read again. No second feed of its own.
    */
   refresh: unknown;
   /** Tests pass a client over a stub fetch. Production passes nothing. */
   tables?: TablesClient;
 }
 
-export function PodSideboard({ roomId, tableId, refresh, tables: given }: PodSideboardProps) {
+export function TableSideboard({ roomId, tableId, refresh, tables: given }: TableSideboardProps) {
   const tables = useMemo(() => given ?? tablesClient(), [given]);
   const [table, setTable] = useState<RoomTable | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -78,9 +79,9 @@ export function PodSideboard({ roomId, tableId, refresh, tables: given }: PodSid
 
   if (table === null || choice === null || inputs === undefined) return null;
   return (
-    <div className="pod__sideboard" data-testid="pod-sideboard">
+    <div className="table-sideboard" data-testid="table-sideboard">
       {refusal !== null && (
-        <p className="pod__error" role="alert" data-testid="pod-sideboard-refusal">
+        <p className="lobby__error" role="alert" data-testid="table-sideboard-refusal">
           {refusal}
         </p>
       )}

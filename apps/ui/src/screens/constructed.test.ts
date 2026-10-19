@@ -479,7 +479,8 @@ function stubServer(table: Table) {
       return json(200, verdictFor(body as SeatChoice));
     }
     if (table.missing === true && url.includes('/tables/rooms/')) return json(404, { error: 'no such room' });
-    if (url.endsWith(`/tables/rooms/${ROOM}`)) return json(200, view());
+    // `?table=` names one of the room's tables; this stub room has one.
+    if (url.split('?')[0]!.endsWith(`/tables/rooms/${ROOM}`)) return json(200, view());
     if (url.endsWith(`/tables/rooms/${ROOM}/deck`)) {
       if (table.deckFails === true) return json(503, { error: 'the room is restarting' });
       /*
@@ -1906,6 +1907,21 @@ describe('the table’s pool', () => {
       series: { length: 1, wins: [1, 0], games: [{ matchId: 'm-0', winner: 0 }], phase: 'sideboarding' },
     });
     expect((await screen.findByTestId('series-score')).textContent).toBe('user-alice 1–0 user-bob');
+  });
+
+  // The rejoin audit, 2026-10-19: a player back in the room between games of a
+  // series had no sideboard step there, and readying skipped sideboarding.
+  it('between games of a series, the room opens my sideboard step in place of the deck card', async () => {
+    const mine = { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } } as SeatChoice;
+    await mountRoom({
+      players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false, choice: mine }), opponent({ seat: 1, ready: false })],
+      matchId: null,
+      settings: { matchLength: 'bo3' },
+      series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-0', winner: 0 }], phase: 'sideboarding' },
+    });
+    expect(await screen.findByTestId('table-sideboard')).toBeTruthy();
+    expect(screen.getByTestId('sideboard-step')).toBeTruthy();
+    expect(screen.queryByTestId('deck-mine')).toBeNull();
   });
 
   it('Free pick reads as its name to a non-leader, who gets no toggle', async () => {

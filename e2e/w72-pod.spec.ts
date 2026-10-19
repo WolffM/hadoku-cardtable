@@ -213,7 +213,7 @@ test(
           // room itself opens their sideboard step (the rejoin audit, 2026-10-19,
           // stranded them on the round screen while the winner waited).
           await loser.page.goto(roomUrl);
-          await expect(loser.page.getByTestId('pod-sideboard'), 'the room opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
+          await expect(loser.page.getByTestId('table-sideboard'), 'the room opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
           // Q's sideboard layout fix (`8fc0f75f`) put the Ready button back
           // in the viewport — a real click again, not `dispatchEvent`.
           for (const p of seated) await p.page.getByTestId('sideboard-ready').click();
