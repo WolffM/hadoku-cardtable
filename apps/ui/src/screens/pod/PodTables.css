@@ -1,6 +1,6 @@
 /*
  * The pod's tables, as a row of cards along the bottom of the pod room.
- * Colour from `@wolffm/themes` only, same discipline as `BoardStrip.css`.
+ * Colour from `@wolffm/themes` only, one discipline across the pod screens.
  */
 
 .pod-tables__list {

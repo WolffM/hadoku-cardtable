@@ -32,6 +32,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { forgetMatchesFollowed } from '../play/live/matchStart.ts';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
@@ -90,6 +91,7 @@ import {
 } from './tables.ts';
 
 afterEach(() => {
+  forgetMatchesFollowed();
   cleanup();
   globalThis.location.hash = '';
 });
@@ -1077,6 +1079,20 @@ describe('a room’s table', () => {
     server.table.matchId = MATCH;
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
     expect(lastCall(server.calls, '/play/matches')).toBeUndefined();
+  });
+
+  // The operator, 2026-10-19: "the initial force into the game should only happen once when the game starts".
+  it('carries a player into the match once; back in the room by choice, they stay, with the way back in', async () => {
+    const server = await mountRoom({ players: [opponent({ ready: true }), opponent({ you: true, name: 'user-alice', seat: 1 })], matchId: null });
+    server.table.matchId = MATCH;
+    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+    cleanup();
+    globalThis.location.hash = `#/room/${ROOM}`;
+    await mountRoom({ players: [opponent({ ready: true }), opponent({ you: true, name: 'user-alice', seat: 1 })], matchId: MATCH });
+    const link = await screen.findByTestId('room-match-link');
+    expect(link.getAttribute('href')).toBe(`#/match/${MATCH}`);
+    expect(link.textContent).toBe('Play');
+    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: ROOM });
   });
 
   /*

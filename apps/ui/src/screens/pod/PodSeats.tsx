@@ -21,8 +21,7 @@
  *
  * Purely presentational: a parent (`DraftLobby.tsx`) owns the fetch and the
  * sit/stand calls, which is what makes this unit-testable with fixtures
- * (`PodSeats.test.ts`) instead of a mocked server — the same discipline
- * `BoardStrip.tsx` already keeps.
+ * (`PodSeats.test.ts`) instead of a mocked server.
  */
 
 import { StatusPill } from '../ConstructedScreen.tsx';

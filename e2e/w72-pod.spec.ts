@@ -182,12 +182,11 @@ test(
       expect(bye, 'the third has the bye').not.toBeUndefined();
       for (const p of seated) await expect(p.page.locator('[aria-label="Game board"]'), `${p.name}: carried to their own table`).toBeVisible({ timeout: UI_TIMEOUT });
 
-      /* ── the bye watches via the pod's table list, then the strip back ── */
+      /* ── the bye watches via the pod's table cards, then back to the room ── */
       await bye!.page.goto(roomUrl);
       await bye!.page.getByTestId('pod-tables-watch').click();
       await expect(bye!.page.locator('[aria-label="Game board"]'), 'the bye is watching round 1’s table').toBeVisible({ timeout: UI_TIMEOUT });
-      await expect(bye!.page.getByTestId('board-strip-back'), 'the strip offers a way back to the pod').toBeVisible({ timeout: UI_TIMEOUT });
-      await bye!.page.getByTestId('board-strip-back').click();
+      await bye!.page.evaluate((hash) => (window.location.hash = hash), new URL(roomUrl).hash);
       await expect(bye!.page.getByTestId('pod-tables'), 'back on the pod').toBeVisible({ timeout: UI_TIMEOUT });
 
       /*

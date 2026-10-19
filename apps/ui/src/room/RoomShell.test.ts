@@ -75,7 +75,7 @@ import { THEMES } from '@wolffm/themes';
 
 import { RoomShell, roomKeyFor, watchpartyTheme } from './RoomShell.tsx';
 import { watchpartyPrefsCacheKey } from './avatar.ts';
-import { roomIdFor } from '../App.tsx';
+import { roomIdFor, tableChatId } from '../App.tsx';
 import { parseRoute } from '../screens/route.ts';
 
 afterEach(() => {
@@ -327,5 +327,22 @@ describe('the room a match route puts the chat in', () => {
     expect(roomIdFor(parseRoute('#/deck/pod-1'), 'r-should-be-ignored')).toBe('pod-1');
     expect(roomIdFor(parseRoute('#/'), 'r-should-be-ignored')).toBeNull();
     expect(roomIdFor(parseRoute('#/debug'), 'r-should-be-ignored')).toBeNull();
+  });
+});
+
+// The operator, 2026-10-19: "can we make sure the game-chat is seperate from the lobby chat?"
+describe('a game’s chat', () => {
+  const room = {
+    id: 'r-cube-night',
+    tables: [
+      { id: 't-11111111', matchId: 'm-000000000002', series: { games: [{ matchId: 'm-000000000001' }] } },
+      { id: 't-22222222', matchId: null, series: { games: [] } },
+    ],
+  };
+  it('is its table’s, apart from the room’s lobby chat, and the same across the games of one series', () => {
+    expect(tableChatId(room, 'm-000000000002')).toBe('r-cube-night-t-11111111');
+    expect(tableChatId(room, 'm-000000000001')).toBe('r-cube-night-t-11111111');
+    expect(tableChatId(room, 'm-000000000002')).not.toBe(room.id);
+    expect(roomKeyFor(tableChatId(room, 'm-000000000002'))).not.toBeNull();
   });
 });

@@ -1,9 +1,8 @@
 /*
  * The pod's `rounds`/`done` phases — wave 72 §R.2.
  *
- * A dedicated file rather than an addition to `screens.css` (shared, not
- * this lane's to edit) — the same move `BoardStrip.css` already makes for
- * its own component. Colour from `@wolffm/themes` only, same discipline.
+ * A dedicated file rather than an addition to `screens.css`. Colour from
+ * `@wolffm/themes` only.
  */
 
 .pod__rounds {

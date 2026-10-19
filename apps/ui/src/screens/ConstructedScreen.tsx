@@ -161,15 +161,14 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
 /**
  * Aliased on import: `./tables.ts` separately exports its own, unrelated
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
- * name if both were imported bare into this file. `BoardStrip.tsx` notes the
- * same two names (wave 71 §G); this file is the one that now needs both.
+ * name if both were imported bare into this file.
  */
 import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
 
-import { navigate } from './route.ts';
+import { navigate, routeHash } from './route.ts';
 import { deckStoreClient, type DeckStoreClient } from '../deck/deckStore.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
-import { openNewMatch } from '../play/live/matchStart.ts';
+import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
@@ -1782,9 +1781,7 @@ function RoomTableScreen({
   const sawNoMatch = useRef(false);
   if (table !== null && matchId === null) sawNoMatch.current = true;
   useEffect(() => {
-    if (matchId === null) return;
-    if (sawNoMatch.current) openNewMatch(matchId);
-    else navigate({ kind: 'match', matchId });
+    if (matchId !== null) followMatchOnce(matchId, sawNoMatch.current);
   }, [matchId]);
 
   const startVsBot = (): void => {
@@ -2251,6 +2248,12 @@ function RoomTableScreen({
                 <p className="lobby__note" data-testid="start-state">
                   {startStateText(players, bothReady, starting, matchId)}
                 </p>
+                {/* Back in the room by choice while the game goes on: the way into it again. */}
+                {matchId !== null && (
+                  <a className="lobby__go" data-testid="room-match-link" href={routeHash({ kind: 'match', matchId })}>
+                    {players.some((p) => p.you) ? 'Play' : 'Watch'}
+                  </a>
+                )}
               </div>
               <ul className="tables__players" data-testid="room-players">
                 {[0, 1].map((seat) => {
@@ -2778,7 +2781,7 @@ function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boo
  * one to show: a `bo3` table always has a running score once a game of it is
  * under way, and a `bo1` table only once a sideboarded Rematch has made it
  * worth one. "Alice 1–0 Bob", from whichever seats are filled — the same
- * shape `BoardStrip.tsx`'s own `label` draws for the strip.
+ * shape the pod's table cards draw (`pod/PodTables.tsx`).
  */
 function seriesScoreText(players: RoomPlayer[], table: SharedRoomTable | null): string | null {
   if (table === null) return null;
