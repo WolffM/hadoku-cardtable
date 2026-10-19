@@ -74,21 +74,36 @@ describe('SelectionPrompt', () => {
     expect(getAllByTestId('prompt-choice')).toHaveLength(1);
   });
 
-  it('a real on-board message (host line, blank line, then the instruction) splits into a title and a separate instruction line, like every other prompt', () => {
-    const { getByText } = render(
+  it('the question is the title, the ability’s text a line of its own under it, and the source card beside them', () => {
+    const { container, getByTestId } = render(
       createElement(SelectionPrompt, {
-        message:
-          'World Breaker (81) - When you cast this spell, exile target artifact, enchantment, or land.\n\nSelect target artifact, enchantment or land',
+        message: 'Select target artifact, enchantment or land',
+        context: 'When you cast this spell, exile target artifact, enchantment, or land. […]',
+        source: BOARD_CARD,
         cards: [BOARD_CARD],
         lookup: fixtureLookup(),
         picked: new Set<number>(),
         onPick: () => {},
       }),
     );
-    // Forge's "(81)" is its card id: the seat reads the name alone (2026-10-08).
-    expect(getByText('World Breaker')).toBeDefined();
-    expect(getByText('When you cast this spell, exile target artifact, enchantment, or land.')).toBeDefined();
-    expect(getByText('Select target artifact, enchantment or land')).toBeDefined();
+    expect(container.querySelector('.prompt__title')?.textContent).toBe('Select target artifact, enchantment or land');
+    expect(getByTestId('prompt-source-text').textContent).toBe('When you cast this spell, exile target artifact, enchantment, or land. […]');
+    expect(getByTestId('prompt-source').getAttribute('data-card-id')).toBe(String(BOARD_CARD));
+  });
+
+  it('a question that stands alone draws nothing under it — Bone Shards’ sacrifice is the sacrifice', () => {
+    const { container, queryByTestId } = render(
+      createElement(SelectionPrompt, {
+        message: 'Select creature to sacrifice (1 left)',
+        cards: [BOARD_CARD],
+        lookup: fixtureLookup(),
+        picked: new Set<number>(),
+        onPick: () => {},
+      }),
+    );
+    expect(container.querySelector('.prompt__title')?.textContent).toBe('Select creature to sacrifice (1 left)');
+    expect(queryByTestId('prompt-source-text')).toBeNull();
+    expect(container.textContent).not.toMatch(/Destroy/);
   });
 
   it('a card the lookup knows nothing about still draws, named by its id, never invented text', () => {

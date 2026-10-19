@@ -1845,6 +1845,20 @@ describe('a mana payment pops out of the corner', () => {
     return live;
   }
 
+  it('a split payment says the mana first, and what it pays for as its own line under it', async () => {
+    const live = await liveBoard();
+    const mine = live.m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    const parts = { question: 'Pay Mana Cost: {3}', context: 'Mana Leak - Counter target spell.', input: 'pay' };
+    for (const f of [payBar(true), parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Mana Leak - Counter target spell.\n\nPay Mana Cost: {3}', card: { kind: 'card', id: mine[0]! }, parts }), actionable(mine)])
+      live.s.send(f);
+    const sheet = await waitFor(() => live.getByTestId('live-payment'));
+    expect(sheet.querySelector('.confirm__message')?.textContent).toBe('Pay Mana Cost: ');
+    expect(sheet.querySelector('.confirm__message i.ms.ms-3')).not.toBeNull();
+    const context = live.getByTestId('prompt-source-text');
+    expect(context.textContent).toBe('Mana Leak - Counter target spell.');
+    expect(sheet.querySelector('.confirm__message')!.compareDocumentPosition(context) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('renders the sheet, with Forge’s own text and Forge’s own two labels', async () => {
     const { getByTestId, queryByTestId } = await payment();
     const sheet = await waitFor(() => getByTestId('live-payment'));
@@ -5060,6 +5074,52 @@ describe('W18/W16 — a selection that is an off-board target or a silent on-boa
     expect(getByTestId('live-selection-host').textContent).toContain('Choose a mode');
     // The board's own highlighted ring is untouched — still a real board click target.
     expect(container.querySelector(`[data-board-card="${mine[0]}"][data-selectable]`)).not.toBeNull();
+  });
+
+  /*
+   * The operator, 2026-10-19, on Bone Shards: the sacrifice sheet read "Destroy target creature or
+   * planeswalker. (Additional cost: Sacrifice a creature) Select creature to sacrifice (1 left)".
+   * Forge's two real prompts for the cast, with the bridge's split of each (`parts`).
+   */
+  const BONE_SHARDS = 'Destroy target creature or planeswalker. (Additional cost: Sacrifice a creature)';
+  const splitPrompt = (message: string, cardId: number, parts: { question: string; context: string; input: string }) =>
+    notify({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: { kind: 'card', id: cardId }, parts });
+  const sheetOf = (host: HTMLElement) => ({
+    question: host.querySelector('.prompt__title')?.textContent ?? null,
+    context: host.querySelector('[data-testid="prompt-source-text"]')?.textContent ?? null,
+    source: host.querySelector('[data-testid="prompt-source"]')?.getAttribute('data-card-id') ?? null,
+  });
+
+  it('Bone Shards’ sacrifice sheet asks the sacrifice alone, beside the spell’s card', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!;
+    const shards = mine.hand![0]!.id;
+    const creature = mine.battlefield[0]!.id;
+    for (const f of [
+      splitPrompt(`Bone Shards (${shards})\n - ${BONE_SHARDS}\nSelect creature to sacrifice (1 left)`, shards, { question: 'Select creature to sacrifice (1 left)', context: BONE_SHARDS, input: 'select' }),
+      selectables([creature], 1, 1),
+    ])
+      s.send(f);
+    await waitFor(() => getByTestId('live-selection-host'));
+    const host = getByTestId('live-selection-host');
+    expect(sheetOf(host)).toEqual({ question: 'Select creature to sacrifice (1 left)', context: null, source: String(shards) });
+    expect(host.textContent).not.toMatch(/Destroy|Additional cost/);
+    // The line keeps Forge's whole words.
+    expect(getByTestId('live-says').textContent).toContain('Destroy target creature or planeswalker.');
+  });
+
+  it('Bone Shards’ target sheet asks for the target, with what the spell does as its own line under it', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!;
+    const shards = mine.hand![0]!.id;
+    const creature = mine.battlefield[0]!.id;
+    for (const f of [
+      splitPrompt(`Bone Shards (${shards}) - ${BONE_SHARDS}\n\nSelect target creature or planeswalker`, shards, { question: 'Select target creature or planeswalker', context: BONE_SHARDS, input: 'target' }),
+      selectables([creature], 1, 1),
+    ])
+      s.send(f);
+    await waitFor(() => getByTestId('live-selection-host'));
+    expect(sheetOf(getByTestId('live-selection-host'))).toEqual({ question: 'Select target creature or planeswalker', context: BONE_SHARDS, source: String(shards) });
   });
 
   it('clicking a tile in the picker sends the same act a board click would, for an off-board card the board never drew', async () => {

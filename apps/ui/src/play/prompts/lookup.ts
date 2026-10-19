@@ -23,6 +23,7 @@
  * recorded in the lane report). Until then an ability draws as "ability #id".
  */
 
+import type { ServerFrame } from '@hadoku/forge-wire';
 import type { TileCard } from '../../components/faceCrop.ts';
 
 import { cardFaces } from '../adapter.ts';
@@ -165,6 +166,32 @@ export function refName(lookup: PromptLookup, ref: { kind: string; id: number })
 export function selectionText(text: string, selection: { min: number; max: number } | null): string {
   if (selection === null || selection.min === 0 || selection.min !== selection.max) return text;
   return text.replace(/\bup to (\d+)\b/gi, (said: string, n: string) => (Number(n) === selection.max ? n : said));
+}
+
+/** The bridge's split of one prompt (`showPromptMessage.parts`): the decision, and the ability text Forge wrote before it. */
+export type PromptParts = NonNullable<Extract<ServerFrame, { method: 'showPromptMessage' }>['parts']>;
+
+/**
+ * What a sheet says for Forge's open prompt: the decision (`question`), and under it, as a line
+ * of its own, the ability's text (`context`) only where the decision cannot be read without it.
+ *
+ * The operator, 2026-10-19, on Bone Shards' sacrifice: *"ideally the text here is just for the
+ * decision that has to be made. and if we have to show both can we put a line break between the
+ * effect and what is actually being asked?"* Forge writes the ability's text into the prompt ahead
+ * of every question an ability asks; the bridge hands the two over apart (`parts`). The source card
+ * is drawn beside the question and the inspector reads its whole text, so most questions stand
+ * alone: a cost's sacrifice, discard, exile or tap, an effect's card choice, a cost's yes/no. Three
+ * do not, and keep the ability's text under the question:
+ *  - a target (`target`): "Select target creature" does not say what happens to it;
+ *  - a mana payment (`pay`): "Pay Mana Cost: 1B" does not say what it pays for, and its window
+ *    draws no card;
+ *  - an optional trigger's yes/no (`trigger`): "Use triggered ability of X?" does not say what it does.
+ * A prompt the bridge did not split (no ability in it) is its own question.
+ */
+export function promptLines(message: string, parts: PromptParts | null, trigger: boolean): { question: string; context: string | null } {
+  if (parts === null) return { question: message, context: null };
+  const needed = parts.input === 'target' || parts.input === 'pay' || (parts.input === 'confirm' && trigger);
+  return { question: parts.question, context: needed ? parts.context : null };
 }
 
 /** Forge writes a card as "Dragonskull Summit (31)" — its own id. The seat reads the name (the operator, 2026-10-08). */

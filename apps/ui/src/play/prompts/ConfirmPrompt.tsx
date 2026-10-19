@@ -212,8 +212,10 @@ export interface ConfirmPromptProps {
   role?: 'dialog' | 'alertdialog';
   /** `showConfirmDialog` only — Forge's own dialog title. */
   title?: string;
-  /** Forge's own prompt line verbatim. */
+  /** Forge's own prompt line verbatim: the question. */
   message: string;
+  /** The ability text the question needs under it, on its own line (`promptLines`); omitted when it stands alone. */
+  context?: string | null;
   /** The coin-toss decoration (`.confirm__coin` in `../live/live.css`) — play/draw only. */
   coin?: boolean;
   /** `showConfirmDialog`'s callId, so `data-call-id` still finds the open ask. */
@@ -241,7 +243,7 @@ export interface ConfirmPromptProps {
  * `LiveBoard.tsx`'s own senders (`pressButton`/`answerConfirm`) — this
  * component sends nothing itself.
  */
-export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, callId, button1, button2, check, card }: ConfirmPromptProps) {
+export function ConfirmPrompt({ testId, role = 'dialog', title, message, context, coin, callId, button1, button2, check, card }: ConfirmPromptProps) {
   const titleId = useId();
   const messageId = useId();
   return (
@@ -267,6 +269,11 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, coin, c
       <p className="confirm__message" id={messageId}>
         <RulesText text={message} />
       </p>
+      {context != null && context !== '' && (
+        <p className="confirm__context" data-testid="prompt-source-text">
+          <RulesText text={context} />
+        </p>
+      )}
       <div className="confirm__actions">
         {check !== undefined && (
           <label className="confirm__check">

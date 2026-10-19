@@ -46,11 +46,12 @@
  *    prompt line as a titled pop-up; `match.prompt` only ever reached the
  *    collapsed log (`LiveBoard.tsx`'s `live__says`). Mounting
  *    `SelectionPrompt` for `'on-board'` too is the fix: it gives the
- *    board's own highlight a titled sheet with Forge's own words
- *    ("World Breaker (81) - When you cast this spell, exile target
- *    artifact, enchantment, or land. […]\n\nSelect target artifact,
- *    enchantment or land" — Forge's own text, verbatim, already on the
- *    wire), the same shape every other decision already has.
+ *    board's own highlight a titled sheet with Forge's own words — the
+ *    question ("Select target artifact, enchantment or land") as its title
+ *    and the ability's text ("When you cast this spell, exile target
+ *    artifact, enchantment, or land. […]") on its own line under it, as the
+ *    bridge splits Forge's one string (`promptLines`) — the same shape every
+ *    other decision already has.
  *
  * ## No yes/no kind
  *
@@ -64,9 +65,8 @@ import { useEffect, useRef, useState } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
-import { PickChoice, PromptShell, promptTileFor } from './PromptShell.tsx';
+import { PickChoice, PromptShell, promptThumb, promptTileFor } from './PromptShell.tsx';
 import { promptText, type PromptLookup } from './lookup.ts';
-import { RulesText } from './RulesText.tsx';
 
 /** `LiveSelectables`'s shape, read structurally so this file does not import lane L's `../live/match.ts`. */
 export interface SelectionLike {
@@ -107,6 +107,10 @@ export interface SelectionPromptProps {
    * `plainRulesText` unchanged.
    */
   message: string;
+  /** The ability text the question needs under it (`promptLines`), or null when it stands alone. */
+  context?: string | null;
+  /** The card the selection is for (`showPromptMessage.card`), drawn beside the question. */
+  source?: number | null;
   /** `selection.cards`, in Forge's own order. */
   cards: readonly number[];
   lookup: PromptLookup;
@@ -136,7 +140,7 @@ export interface SelectionPromptProps {
  * area owns a question once one is open) — never drawn when Forge has not
  * enabled them.
  */
-export function SelectionPrompt({ message: rawMessage, cards, lookup, picked, onPick, done, cancel }: SelectionPromptProps) {
+export function SelectionPrompt({ message: rawMessage, context = null, source = null, cards, lookup, picked, onPick, done, cancel }: SelectionPromptProps) {
   const message = promptText(rawMessage);
   /*
    * A double click (`PickChoice`): pick the card and press Done. The picks are
@@ -166,19 +170,16 @@ export function SelectionPrompt({ message: rawMessage, cards, lookup, picked, on
     setConfirming(null);
     pressDone();
   }, [pressDone]);
-  // Forge's own selection prompts (`showPromptMessage`) separate the
-  // trigger/source line from the instruction with a blank line — the same
-  // two-part shape every other prompt's own `title`/`message` fields
-  // already are, just not pre-split for us. Drawn in `PromptShell`, so a
-  // selection's sheet is every other decision area question's sheet.
-  const [title, ...rest] = message.split('\n\n');
-  const instruction = rest.join('\n\n');
+  // The question is the title; the ability's text, where the question needs it, is the line
+  // under it (`promptLines`). Drawn in `PromptShell`, so a selection's sheet is every other
+  // decision area question's sheet.
   return (
     <PromptShell
       method="selection"
-      title={title ?? message}
+      title={message}
       label={rawMessage}
-      message={instruction === '' ? undefined : <RulesText text={instruction} />}
+      context={context === null ? null : promptText(context)}
+      face={source === null ? undefined : promptThumb(lookup, { kind: 'card', id: source }, 'prompt-source')}
       actions={
         done === undefined && cancel === undefined ? undefined : (
           <>

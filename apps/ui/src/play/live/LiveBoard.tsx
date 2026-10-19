@@ -274,7 +274,7 @@ import { libraryDeckText, namedCardPool } from '../../deck/build.ts';
 import { avatarSquareUrl } from '../../room/avatar.ts';
 import { drawnCards, PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
-import { lookupFromState, plainRulesText, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
+import { lookupFromState, plainRulesText, promptLines, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
 import { ManaPip } from '../../components/ManaPip.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
@@ -1591,12 +1591,18 @@ function combatDoneLabel(match: LiveMatch): string | null {
 function PaymentWindow({ match }: { match: LiveMatch }) {
   const messageId = useId();
   const bar = liveBar(match);
+  const { question, context } = promptLines(match.prompt ?? '', match.promptParts, match.promptTrigger !== null);
   return (
     <div className="live__prompt" data-testid="live-payment-host">
       <section className="confirm live__payment" data-testid="live-payment" role="dialog" aria-labelledby={messageId}>
         <p className="confirm__message" id={messageId}>
-          <RulesText text={match.prompt ?? ''} />
+          <RulesText text={question} />
         </p>
+        {context !== null && (
+          <p className="confirm__context" data-testid="prompt-source-text">
+            <RulesText text={context} />
+          </p>
+        )}
         <div className="confirm__actions">
           {lifePayable(match) && (
             <button
@@ -2794,6 +2800,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   // decision pop-up, its OK as Forge enables it — off until a card is set aside, on after.
   /** Forge's message, an exact pick's count said as one (`selectionText`). Every place below that words the open decision reads this. */
   const prompt = selectionText(match.prompt ?? '', match.selectables);
+  /** What every decision sheet below says: the question alone, and the ability's text under it where needed (`promptLines`). */
+  const lines = promptLines(match.prompt ?? '', match.promptParts, match.promptTrigger !== null);
+  const question = selectionText(lines.question, match.selectables);
+  const context = lines.context === null ? null : promptText(lines.context);
   const mulliganPick = !spectator && bar !== null && choosingMulligan(match) && !isConfirmPrompt(bar);
   /** The one sentence held for the whole bottom pick — see the note below. */
   const mulliganPickText = useRef<string | null>(null);
@@ -3700,7 +3710,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <div className="live__prompt" data-testid="live-confirm-host">
           <ConfirmPrompt
             testId="live-confirm"
-            message={promptText(prompt)}
+            message={promptText(question)}
+            context={context}
             button1={{ label: bar.label1, enabled: bar.enable1, testId: 'prompt-confirm-yes', onClick: () => answerTrigger('ok') }}
             button2={{ label: bar.label2, enabled: bar.enable2, testId: 'prompt-confirm-no', onClick: () => answerTrigger('cancel') }}
             check={match.promptTrigger === null ? undefined : { label: 'Always', testId: 'live-confirm-always', checked: always, onChange: setAlways }}
@@ -3724,7 +3735,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <div className="live__prompt" data-testid="live-decision-host" data-staged={interaction.stagedCardId !== undefined || undefined}>
           <ConfirmPrompt
             testId="live-decision"
-            message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(prompt, match.view?.stack[0] ?? null)}
+            message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(question, match.view?.stack[0] ?? null)}
+            context={mulliganPick ? null : context}
             button1={decisionOk ? { label: combatDoneLabel(match) ?? bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressWithSound(match, 'ok') } : undefined}
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') } : undefined}
             check={sameTargetCheck}
@@ -3734,7 +3746,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {/* A trigger's target with identical ones waiting and no button of Forge's to draw: the box alone, under Forge's own line. */}
       {sameTargetCheck !== undefined && !(decision && bar !== null) && (
         <div className="live__prompt" data-testid="live-target-host">
-          <ConfirmPrompt testId="live-target" message={promptText(prompt)} check={sameTargetCheck} />
+          <ConfirmPrompt testId="live-target" message={promptText(question)} context={context} check={sameTargetCheck} />
         </div>
       )}
       {/*
@@ -3751,7 +3763,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {selectionPopup && match.selectables !== null && (
         <div className="live__prompt" data-testid="live-selection-host">
           <SelectionPrompt
-            message={promptText(prompt)}
+            message={promptText(question)}
+            context={lines.context}
+            source={match.promptCard}
             cards={[...match.selectables.cards]}
             lookup={lookupFromState(match.state)}
             picked={match.highlighted ?? EMPTY_CARD_IDS}

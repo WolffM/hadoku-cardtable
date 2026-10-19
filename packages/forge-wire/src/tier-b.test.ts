@@ -404,6 +404,16 @@ describe('wave 52 §S — the offer facts and the confirm ability are strict and
     expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7) } }).success).toBe(false);
   });
 
+  it('parts split a prompt into its question and the ability text, from one of the four inputs, strictly', () => {
+    const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, card: card(121) };
+    const message = 'Bone Shards (121)\n - Destroy target creature or planeswalker. (Additional cost: Sacrifice a creature)\nSelect creature to sacrifice (1 left)';
+    const parts = { question: 'Select creature to sacrifice (1 left)', context: 'Destroy target creature or planeswalker. (Additional cost: Sacrifice a creature)', input: 'select' };
+    expect(ShowPromptMessageSchema.safeParse({ ...base, message, parts }).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, message, parts: { ...parts, input: 'mulligan' } }).success).toBe(false);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, message, parts: { ...parts, question: '' } }).success).toBe(false);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, message, parts: { ...parts, card: 1 } }).success).toBe(false);
+  });
+
   it("an optional search's confirm names the zones, whose they are, and whether the choice may be none", () => {
     const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 1 }, message: 'Search your hand?', card: null };
     const search = { origin: ['Hand'], player: { kind: 'player', id: 1 }, mayChooseNothing: true };

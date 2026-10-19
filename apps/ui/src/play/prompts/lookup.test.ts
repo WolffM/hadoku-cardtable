@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { WireObject } from '../wire.ts';
 import { cardStateKey, deltaKey, WireType } from '../wire.ts';
-import { isZoneDividerLabel, lookupFromState, plainRulesText, promptText, selectionText, translateTargetWords } from './lookup.ts';
+import { isZoneDividerLabel, lookupFromState, plainRulesText, promptLines, promptText, selectionText, translateTargetWords, type PromptParts } from './lookup.ts';
 
 const card = (id: number): [string, WireObject] => [deltaKey(WireType.Card, id), { _type: WireType.Card, _id: id }];
 const face = (id: number, name: string, setCode: string): [string, WireObject] => [
@@ -237,5 +237,49 @@ describe('selectionText — an exact pick says its count', () => {
   });
   it('touches only the count the selection is for', () => {
     expect(selectionText('Untap up to 3 lands. Select up to 2 cards', { min: 2, max: 2 })).toBe('Untap up to 3 lands. Select 2 cards');
+  });
+});
+
+/*
+ * The operator, 2026-10-19, on Bone Shards: the sacrifice sheet read "Destroy target creature or
+ * planeswalker. (Additional cost: Sacrifice a creature) Select creature to sacrifice (1 left)".
+ * `parts` are the bridge's split of Forge's real prompts (`qt-prompt-parts.jvm.test.ts`).
+ */
+describe('promptLines', () => {
+  const BONE_SHARDS = 'Destroy target creature or planeswalker. (Additional cost: Sacrifice a creature)';
+  const target: PromptParts = { input: 'target', question: 'Select target creature or planeswalker', context: BONE_SHARDS };
+  const sacrifice: PromptParts = { input: 'select', question: 'Select creature to sacrifice (1 left)', context: BONE_SHARDS };
+  const discard: PromptParts = {
+    input: 'select',
+    question: 'Select a card to discard (1 left)',
+    context: 'Destroy target creature or planeswalker. (Additional cost: Discard a card)',
+  };
+  const pay: PromptParts = { input: 'pay', question: 'Pay Mana Cost: {B}', context: 'Bone Shards - Destroy Hill Giant.' };
+  const costConfirm: PromptParts = { input: 'confirm', question: 'Do you want to sacrifice Augur of Skulls?', context: 'Augur of Skulls - {1}{B}, Sacrifice Augur of Skulls: …' };
+
+  it('a cost’s sacrifice is the sacrifice alone: the spell’s text is not repeated', () => {
+    expect(promptLines('Bone Shards (160)\n - ' + BONE_SHARDS + '\nSelect creature to sacrifice (1 left)', sacrifice, false)).toEqual({
+      question: 'Select creature to sacrifice (1 left)',
+      context: null,
+    });
+  });
+  it('a cost’s discard is the discard alone', () => {
+    expect(promptLines('', discard, false)).toEqual({ question: 'Select a card to discard (1 left)', context: null });
+  });
+  it('a target keeps what the spell does, as its own line under the question', () => {
+    expect(promptLines('Bone Shards (160) - ' + BONE_SHARDS + '\n\nSelect target creature or planeswalker', target, false)).toEqual({
+      question: 'Select target creature or planeswalker',
+      context: BONE_SHARDS,
+    });
+  });
+  it('a mana payment keeps what it pays for', () => {
+    expect(promptLines('', pay, false)).toEqual({ question: 'Pay Mana Cost: {B}', context: 'Bone Shards - Destroy Hill Giant.' });
+  });
+  it('a yes/no keeps the ability only when it is an optional trigger’s', () => {
+    expect(promptLines('', costConfirm, false).context).toBeNull();
+    expect(promptLines('', costConfirm, true).context).toBe(costConfirm.context);
+  });
+  it('a prompt the bridge did not split is its own question', () => {
+    expect(promptLines('Priority: Alice\nTurn: 1 (Alice)', null, false)).toEqual({ question: 'Priority: Alice\nTurn: 1 (Alice)', context: null });
   });
 });

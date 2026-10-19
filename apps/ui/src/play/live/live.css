@@ -716,6 +716,15 @@
   overflow-wrap: anywhere;
 }
 
+/* The ability text under a question that needs it: quieter than the question. */
+.confirm__context {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 13px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 .confirm__actions {
   display: flex;
   flex-wrap: wrap;

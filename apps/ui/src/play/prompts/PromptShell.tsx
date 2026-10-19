@@ -53,6 +53,11 @@ export interface PromptShellProps {
    * the source card is still drawn in the head, its text is not.
    */
   effectText?: boolean;
+  /**
+   * The ability text a selection's question needs under it (`promptLines`), drawn as the ask's
+   * effect line is. A selection is not an ask, so it has no ask source to draw one from.
+   */
+  context?: string | null;
   children?: ReactNode;
 }
 
@@ -141,11 +146,12 @@ export function PromptShell({
   actions,
   face,
   effectText = true,
+  context = null,
   children,
 }: PromptShellProps) {
   const asked = useContext(AskSourceContext);
   const head = face ?? (asked === null ? undefined : promptThumb(asked.lookup, asked.source.card, 'prompt-source'));
-  const said = asked === null || !effectText ? null : effectLine(asked, face === undefined, [title, label, message]);
+  const said = context ?? (asked === null || !effectText ? null : effectLine(asked, face === undefined, [title, label, message]));
   const effect = said === null ? null : (
     <p className="prompt__source" data-testid="prompt-source-text">
       <RulesText text={said} />
@@ -156,6 +162,7 @@ export function PromptShell({
       {head === undefined ? (
         <>
           <PromptTitle title={title} />
+          {effect}
           {message !== undefined && message !== '' && <p className="prompt__message">{message}</p>}
         </>
       ) : (

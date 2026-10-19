@@ -297,3 +297,21 @@ describe('ConfirmPrompt — `showConfirmDialog`’s own shape (title, alertdialo
     expect(dialog.querySelector('[data-answer="no"]')?.hasAttribute('data-default')).toBe(false);
   });
 });
+
+describe('ConfirmPrompt — the question first, the ability under it', () => {
+  it('draws the context as its own line after the question, and nothing when there is none', () => {
+    const { getByTestId, queryByTestId, rerender, container } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'Use triggered ability of Sanctum of Ugin?',
+        context: 'Whenever you cast a colorless spell with mana value 7 or greater, you may sacrifice Sanctum of Ugin.',
+      }),
+    );
+    const question = container.querySelector('.confirm__message')!;
+    const context = getByTestId('prompt-source-text');
+    expect(question.textContent).toBe('Use triggered ability of Sanctum of Ugin?');
+    expect(question.compareDocumentPosition(context) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    rerender(createElement(ConfirmPrompt, { testId: 'live-confirm', message: 'Do you want to sacrifice Augur of Skulls?', context: null }));
+    expect(queryByTestId('prompt-source-text')).toBeNull();
+  });
+});

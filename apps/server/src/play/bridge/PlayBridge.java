@@ -2237,6 +2237,8 @@ public final class PlayBridge {
             if (target != null) { f.add("targetAbility", target); }
             final JsonObject selection = openSelection();
             if (selection != null) { f.add("selection", selection); }
+            final JsonObject parts = promptParts(message);
+            if (parts != null) { f.add("parts", parts); }
             frame(f);
             broadcastIfWaiting();
             // A press of a payment's life button re-shows its prompt and changes nothing else, and
@@ -2360,6 +2362,101 @@ public final class PlayBridge {
          * <p>An optional search's "Search your hand?" also names the search ({@code search},
          * {@link #optionalSearch}), so the server can answer the one a No gains nothing on.
          */
+        /**
+         * The open input's prompt split into the decision it asks for and the ability text Forge
+         * wrote in front of it, or null when the prompt holds no ability text.
+         *
+         * With {@code UI_DETAILED_SPELLDESC_IN_PROMPT} on (Forge's default,
+         * {@code ForgePreferences.java:110}) every input that works for an ability writes that
+         * ability's description into its one prompt string ahead of its own question:
+         * {@code InputSelectManyBase.showMessage} (a cost's sacrifice, discard, exile or tap, and an
+         * effect's card choice) as {@code "<card>\n - <ability>\n<question>"},
+         * {@code InputSelectTargets.showMessage} as {@code "<card> - <ability>\n\n<question>"},
+         * {@code InputConfirm.showMessage} the same, {@code InputPayManaOfCostPayment.getMessage} as
+         * {@code "<stack description>\n\n<question>"}, and
+         * {@code InputSelectCardsForConvokeOrImprovise.getMessage} as
+         * {@code "<stack description>\n<question>"}. A seat reading the one string reads the ability
+         * as the question (the operator, on Bone Shards' sacrifice: "Destroy target creature or
+         * planeswalker. (Additional cost: Sacrifice a creature) Select creature to sacrifice (1
+         * left)").
+         *
+         * The ability is the input's own {@code SpellAbility}, so its text is found in the prompt
+         * exactly, not guessed at: {@code question} is what follows it (with any line before the
+         * card's name, a payment's {@code messagePrefix}, kept), {@code context} is the ability's
+         * text, and {@code input} says which input asked ({@code select}, {@code target},
+         * {@code confirm}, {@code pay}). {@code message} stays the whole string.
+         */
+        private JsonObject promptParts(final String message) {
+            if (message == null) { return null; }
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            final Object input = human.getInputQueue().getInput();
+            final String kind;
+            final SpellAbility sa;
+            try {
+                if (input instanceof forge.gamemodes.match.input.InputSelectTargets) {
+                    kind = "target";
+                    sa = (SpellAbility) field(input, forge.gamemodes.match.input.InputSelectTargets.class, "sa");
+                } else if (input instanceof forge.gamemodes.match.input.InputSelectManyBase) {
+                    kind = "select";
+                    sa = (SpellAbility) field(input, forge.gamemodes.match.input.InputSelectManyBase.class, "sa");
+                } else if (input instanceof forge.gamemodes.match.input.InputConfirm) {
+                    kind = "confirm";
+                    sa = (SpellAbility) field(input, forge.gamemodes.match.input.InputConfirm.class, "sa");
+                } else if (input instanceof InputPayMana) {
+                    kind = "pay";
+                    sa = (SpellAbility) field(input, InputPayMana.class, "saPaidFor");
+                } else {
+                    return null;
+                }
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] promptParts: could not read the open input (" + e + "); the prompt goes whole");
+                return null;
+            }
+            if (sa == null) { return null; }
+            String context = null;
+            int at = -1;
+            for (final String said : abilityTexts(sa)) {
+                final int i = message.indexOf(said);
+                // Forge writes the ability first, or after the card's " - ", or after a line of its own.
+                final boolean leads = i == 0 || (i > 0 && (message.startsWith(" - ", i - 3) || message.charAt(i - 1) == '\n'));
+                if (leads && (context == null || said.length() > context.length())) { context = said; at = i; }
+            }
+            if (context == null) { return null; }
+            final String after = message.substring(at + context.length()).strip();
+            if (after.isEmpty()) { return null; }
+            // What precedes the ability: the card's name and Forge's " - " (dropped, the frame's
+            // `card` names it), after any line of the input's own (kept, it is part of the ask).
+            final java.util.regex.Matcher lead = java.util.regex.Pattern.compile("(?s)(.*?)[^\\n]*\\n? - $").matcher(message.substring(0, at));
+            final String kept = (lead.matches() ? lead.group(1) : message.substring(0, at)).strip();
+            final JsonObject o = new JsonObject();
+            o.addProperty("question", kept.isEmpty() ? after : kept + "\n" + after);
+            o.addProperty("context", context.strip());
+            o.addProperty("input", kind);
+            return o;
+        }
+
+        /** Every text an input writes for its ability, as {@link #promptParts} looks for it. */
+        private static java.util.List<String> abilityTexts(final SpellAbility sa) {
+            final java.util.List<String> raw = new java.util.ArrayList<>();
+            raw.add(sa.toString());
+            raw.add(sa.getRootAbility().toString());
+            raw.add(sa.getStackDescription());
+            if (sa.getPayCosts() != null) { raw.add(sa.getPayCosts().toString()); }
+            final java.util.List<String> texts = new java.util.ArrayList<>();
+            final String name = sa.getHostCard() == null ? null : sa.getHostCard().getTranslatedName();
+            for (final String r : raw) {
+                if (r == null) { continue; }
+                // `InputSelectTargets` and `InputPayManaOfCostPayment` rewrite these in the whole string.
+                String t = r.replace("(Targeting ERROR)", "");
+                if (name != null) { t = t.replace("CARDNAME", name).replace("NICKNAME", forge.util.Lang.getInstance().getNickName(name)); }
+                for (final String s : new String[] { r, t }) {
+                    if (s.strip().length() > 1 && !texts.contains(s)) { texts.add(s); }
+                }
+            }
+            return texts;
+        }
+
         private JsonObject confirmAbility() {
             final forge.game.player.Player mine = liveSelf(liveGame());
             if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }

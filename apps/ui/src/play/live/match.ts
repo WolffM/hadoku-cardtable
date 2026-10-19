@@ -259,6 +259,7 @@ import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, followOffer, OFFER_HOLD_MAX_MS, type OfferHold } from './offer-hold.ts';
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
+import type { PromptParts } from '../prompts/lookup.ts';
 import { foldPackets, type PendingTriggers, type WaitingEffects, type WireState } from '../fold.ts';
 import { expectWirePackets, WireType, type Tagged, type WirePacket } from '../wire.ts';
 import {
@@ -587,6 +588,8 @@ export interface LiveMatch {
    * (`confirmAbility.trigger`), so it is exactly as fresh.
    */
   promptTrigger: { key: string; name: string } | null;
+  /** {@link prompt} split into its decision and the ability text before it (`promptLines`), or null. From the same frame. */
+  promptParts: PromptParts | null;
   /** The optional triggers Forge answers for this seat, from the server's `forge:trigger-decisions`. */
   triggerDecisions: readonly RememberedTrigger[];
   /**
@@ -1039,6 +1042,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     prompt: null,
     promptCard: null,
     promptTrigger: null,
+    promptParts: null,
     triggerDecisions: [],
     deckColors: undefined,
     buttons: null,
@@ -3118,6 +3122,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // The board's known library tops depend on it (`adapter.ts` `knownTop`).
     if (redrawBoard) redraw(match);
     match.promptTrigger = frame.confirmAbility?.trigger ?? null;
+    match.promptParts = frame.parts ?? null;
     match.promptTargetMore = frame.targetAbility?.more ?? 0;
     match.promptSelection = frame.selection === undefined ? null : { targets: frame.selection.targets, aimed: frame.selection.aimed ?? [] };
     match.sameTarget = false;
@@ -3250,6 +3255,7 @@ function discardLocal(match: LiveMatch): void {
   match.prompt = null;
   match.promptCard = null;
   match.promptTrigger = null;
+  match.promptParts = null;
   match.buttons = null;
   match.barHold = null;
   match.windowHalf = null;

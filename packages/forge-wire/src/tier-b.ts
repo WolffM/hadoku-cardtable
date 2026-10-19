@@ -300,6 +300,19 @@ export const ShowPromptMessageSchema = z.strictObject({
       aimed: z.array(GameEntityRefSchema).optional(),
     })
     .optional(),
+  /**
+   * Ours: `message` split into the decision the input asks for (`question`) and the ability text
+   * Forge wrote in front of it (`context`), found by the input's own `SpellAbility`
+   * (`PlayBridge.java`'s `promptParts`). `input` is which input asked. Absent when the prompt holds
+   * no ability text: a priority window, a mulligan, an input with no ability.
+   */
+  parts: z
+    .strictObject({
+      question: z.string().min(1),
+      context: z.string().min(1),
+      input: z.enum(['select', 'target', 'confirm', 'pay']),
+    })
+    .optional(),
 });
 
 /**
