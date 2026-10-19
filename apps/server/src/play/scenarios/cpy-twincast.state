@@ -1,0 +1,16 @@
+# e2e/cpy-copy-available.spec.ts — a copier keeps the caster's own spell. Alice (seat 0) holds
+# Lightning Bolt and Twincast with a Mountain and two Islands in her own Main 1: once she bolts
+# bob, Twincast is a play whose target is her own Bolt, so her priority over it is held.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt;Twincast
+humanbattlefield=Mountain;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

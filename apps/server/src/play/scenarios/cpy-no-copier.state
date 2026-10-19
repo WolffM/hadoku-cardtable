@@ -1,0 +1,15 @@
+# e2e/cpy-copy-available.spec.ts — the same, with Brainstorm where Twincast was: a playable
+# instant that copies nothing, so her own Bolt is passed on as before (`own-spell`).
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt;Brainstorm
+humanbattlefield=Mountain;Island;Island
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
