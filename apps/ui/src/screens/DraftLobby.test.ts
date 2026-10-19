@@ -21,10 +21,6 @@ const { fetchPodView, sitPod, standPod } = vi.hoisted(() => ({
 
 vi.mock('./pod/client.ts', () => ({ fetchPodView, sitPod, standPod }));
 
-vi.mock('../room/whoami.ts', () => ({
-  useWhoami: () => ({ userId: 'u-alice', tier: 'friend' as const, name: 'Alice' }),
-}));
-
 import { DraftLobby } from './DraftLobby.tsx';
 import { POD_SEATS, type PodView } from './pod/wire.ts';
 
@@ -44,6 +40,7 @@ const member = (id: string, name: string, ready = false): { id: string; name: st
 const noop = (): void => undefined;
 const baseProps = {
   leaderId: 'u-alice',
+  myId: 'u-alice',
   iAmReady: false,
   allReady: false,
   dealing: false,

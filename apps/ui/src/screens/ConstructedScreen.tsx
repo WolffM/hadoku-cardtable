@@ -2142,6 +2142,7 @@ function RoomTableScreen({
           <DraftLobby
             members={members}
             leaderId={view?.leader ?? ''}
+            myId={view?.you.id ?? ''}
             iAmReady={iAmReady}
             allReady={allReady}
             dealing={dealing}

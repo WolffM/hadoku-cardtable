@@ -36,7 +36,7 @@ const ROOM: RoomView = {
   gameType: 'constructed-1v1',
   format: 'unavailable',
   settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: false },
-  you: { leader: true, ready: false },
+  you: { id: 'http-a', leader: true, ready: false },
   clientMode: 'builtin',
   locked: false,
   members: [],

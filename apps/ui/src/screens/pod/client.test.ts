@@ -76,7 +76,7 @@ describe('fetchPodContext', () => {
 
   it('answers empty rather than throwing on a failed read', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
-    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {} });
+    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {}, me: null });
   });
 
   it('drops a malformed tables array rather than guessing', async () => {

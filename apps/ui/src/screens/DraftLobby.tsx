@@ -23,13 +23,10 @@
  *
  * ## Fetched independently, not threaded through new props (wave 72 §R)
  *
- * `ConstructedScreen.tsx` is Q's file and this lane does not add to its call
- * site — `<DraftLobby members leaderId iAmReady allReady dealing busy error
- * onReady onRetry>`, unchanged. The room id and the viewer's own identity
- * this needs for seats are read the same way `MatchScreen.tsx` reads its
- * room id: from the route itself (`useRoute()`) and from `useWhoami()`,
- * both general-purpose hooks already used by `App.tsx`/`RoomShell.tsx` from
- * other files — not a prop either of them would have to grow to supply.
+ * The room id comes from the route itself (`useRoute()`), the same way
+ * `MatchScreen.tsx` reads its own. Which seat is mine comes from `myId`, the
+ * server's own `you.id` for this room — never whoami's id, which for an
+ * admin session is not the member id the pod's seats name.
  * `RoomView.pod` is read past `rooms/api.ts`'s loose `unknown` the same way
  * `MatchScreen.tsx` reads `tables` past it — see `pod/client.ts`.
  *
@@ -44,7 +41,6 @@ import { useEffect, useState } from 'react';
 import type { RoomMember } from '../rooms/api.ts';
 import { StatusPill } from './ConstructedScreen.tsx';
 import { useRoute } from './route.ts';
-import { useWhoami } from '../room/whoami.ts';
 import { roomFeed } from '../rooms/feed.ts';
 import { fetchPodView, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
@@ -78,6 +74,7 @@ function usePodView(roomId: string | null): PodView | null {
 export function DraftLobby({
   members,
   leaderId,
+  myId,
   iAmReady,
   allReady,
   dealing,
@@ -88,6 +85,8 @@ export function DraftLobby({
 }: {
   members: RoomMember[];
   leaderId: string;
+  /** My member id here (`RoomView.you.id`); `''` while unknown. */
+  myId: string;
   iAmReady: boolean;
   allReady: boolean;
   dealing: boolean;
@@ -98,8 +97,7 @@ export function DraftLobby({
 }) {
   const route = useRoute();
   const roomId = roomIdOf(route);
-  const who = useWhoami();
-  const myMemberId = who === 'pending' || who === null ? null : who.userId;
+  const myMemberId = myId === '' ? null : myId;
   const pod = usePodView(roomId);
 
   const [seatBusy, setSeatBusy] = useState(false);

@@ -49,7 +49,7 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   // are asserted in "the pool and the caller" below.
   format: '2011-02-13',
   settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: false },
-  you: { leader: true, ready: false },
+  you: { id: 'http-a', leader: true, ready: false },
   clientMode: 'builtin',
   locked: false,
   members: [{ id: 'http-a', name: 'alice', joinedAt: '2026-09-19T00:00:00.000Z', ready: false }],
@@ -514,21 +514,22 @@ describe('the pool and the caller', () => {
   });
 
   it('reads `you` from booleans only, so an older server leaves nobody in charge', () => {
-    expect(parseRoomView({ ...OPEN, you: { leader: true, ready: true } })?.you).toEqual({ leader: true, ready: true });
+    expect(parseRoomView({ ...OPEN, you: { id: 'http-a', leader: true, ready: true } })?.you).toEqual({ id: 'http-a', leader: true, ready: true });
 
     const older: Record<string, unknown> = { ...OPEN };
     delete older.you;
-    expect(parseRoomView(older)?.you).toEqual({ leader: false, ready: false });
+    expect(parseRoomView(older)?.you).toEqual({ id: '', leader: false, ready: false });
     // Anything that is not a boolean `true` is false: the only way a browser
     // draws the leader's control is for the server to have said so.
     for (const near of ['true', 'yes', 1, {}, null, undefined]) {
       expect(parseRoomView({ ...OPEN, you: { leader: near, ready: near } })?.you).toEqual({
+        id: '',
         leader: false,
         ready: false,
       });
     }
     for (const near of ['x', 3, null, []]) {
-      expect(parseRoomView({ ...OPEN, you: near })?.you).toEqual({ leader: false, ready: false });
+      expect(parseRoomView({ ...OPEN, you: near })?.you).toEqual({ id: '', leader: false, ready: false });
     }
   });
 });

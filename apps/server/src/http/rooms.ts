@@ -402,12 +402,13 @@ function parsePatch(body: unknown): Parsed<PatchBody> {
  * relabelled the button and could not stand down in one click.
  */
 export interface RoomBody extends RoomView {
-	you: { leader: boolean; ready: boolean };
+	/** `id` is the caller's own member id — the one the room's tables and pod name them by, whatever the session's whoami says. */
+	you: { id: string; leader: boolean; ready: boolean };
 }
 
 function roomBody(room: RoomView, callerId: string): RoomBody {
 	const mine = room.members.find((m) => m.id === callerId);
-	return { ...room, you: { leader: room.leader === callerId, ready: mine?.ready === true } };
+	return { ...room, you: { id: callerId, leader: room.leader === callerId, ready: mine?.ready === true } };
 }
 
 function badRequest(res: Response, error: string): void {

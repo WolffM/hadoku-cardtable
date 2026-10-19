@@ -63,6 +63,12 @@ export interface PodContext {
   tables: RoomTable[];
   /** Every member's display name, by id — for resolving `pod.built`/`pod.bye`/`pod.standings[].id`. */
   names: Record<string, string>;
+  /**
+   * My member id in this room, from the server's own `you` — what the tables
+   * and the pod name me by. Not whoami's id: for an admin session the two
+   * differ, and "my table" was never found (2026-10-19, r-25e3eb4baa00).
+   */
+  me: string | null;
 }
 
 /**
@@ -74,13 +80,14 @@ export interface PodContext {
  */
 export async function fetchPodContext(roomId: string): Promise<PodContext> {
   const body = await fetchRoomRaw(roomId);
-  if (body === null) return { pod: null, tables: [], names: {} };
+  if (body === null) return { pod: null, tables: [], names: {}, me: null };
   const tables = RoomTablesSchema.safeParse(body.tables);
   const members = Array.isArray(body.members) ? body.members.filter(isNamed) : [];
   return {
     pod: parsePodView(body.pod),
     tables: tables.success ? tables.data : [],
     names: Object.fromEntries(members.map((m) => [m.id, m.name])),
+    me: typeof body.you === 'object' && body.you !== null && typeof (body.you as { id?: unknown }).id === 'string' ? (body.you as { id: string }).id : null,
   };
 }
 

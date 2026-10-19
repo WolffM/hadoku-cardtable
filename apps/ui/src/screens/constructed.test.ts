@@ -324,7 +324,7 @@ function stubServer(table: Table) {
     settings: table.settings ?? { handSmoothing: true },
     // Caller-scoped, as `http/rooms.ts` serialises it: whether the leader is
     // this caller, and whether this caller is ready. `p-alice` is us.
-    you: { leader: iAmLeader(), ready: membersOf().some((m) => m.id === 'p-alice' && m.ready === true) },
+    you: { id: 'p-alice', leader: iAmLeader(), ready: membersOf().some((m) => m.id === 'p-alice' && m.ready === true) },
     ...(table.clientMode === undefined ? {} : { clientMode: table.clientMode }),
     locked: false,
     members: membersOf().map((m) => ({
@@ -1116,7 +1116,7 @@ describe('a room’s table', () => {
                   gameType: 'constructed-1v1',
                   format: '2010-07-16',
                   settings: { handSmoothing: true, matchLength: 'bo1' as const, sideboarding: false },
-                  you: { leader: true, ready: false },
+                  you: { id: 'p-alice', leader: true, ready: false },
                   clientMode: 'builtin' as const,
                   locked: false,
                   members: [],

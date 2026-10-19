@@ -98,6 +98,8 @@ export interface RoomMember {
  * a latch set by our own call (wave 23's known gap).
  */
 export interface RoomYou {
+  /** My member id in this room, as the server names me — `''` from a server that does not say. Never whoami's id, which can differ (an admin session). */
+  id: string;
   leader: boolean;
   ready: boolean;
 }
@@ -295,7 +297,7 @@ function parseClientMode(v: unknown): ClientMode {
  */
 function parseYou(v: unknown): RoomYou {
   const o = isRecord(v) ? v : {};
-  return { leader: o.leader === true, ready: o.ready === true };
+  return { id: typeof o.id === 'string' ? o.id : '', leader: o.leader === true, ready: o.ready === true };
 }
 
 /**

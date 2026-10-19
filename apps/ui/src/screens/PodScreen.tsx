@@ -71,7 +71,6 @@ import type { PackLayout } from '../components/PackView.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { appLocation, navigate, routeUrl } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
-import { useWhoami } from '../room/whoami.ts';
 import type { RoomTable } from '@hadoku/shared';
 import { livePodSource, startMyTable, usePodContext, type PodSource } from './pod/client.ts';
 import { PodStandings } from './pod/PodStandings.tsx';
@@ -160,8 +159,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   const phase = ctx?.pod?.phase;
   const inRounds = phase === 'rounds' || phase === 'done';
 
-  const who = useWhoami();
-  const myMemberId = who === 'pending' || who === null ? null : who.userId;
+  const myMemberId = ctx?.me ?? null;
   const nameOf = (id: string): string => ctx?.names[id] ?? id;
 
   /** The header's own rule: a finished draft goes to the builder unless the pod is already playing. */
@@ -259,7 +257,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           <h2 data-testid="pod-round">
             Round {ctx.pod.round} of {ctx.pod.rounds}
           </h2>
-          <PodTables tables={ctx.tables} myMemberId={myMemberId} byeId={ctx.pod.bye} nameOf={nameOf} onPlay={startTableError === null ? undefined : retryTable} />
+          <PodTables tables={ctx.tables.filter((t) => ctx.pod?.pairings.some((p) => p.tableId === t.id) === true)} myMemberId={myMemberId} byeId={ctx.pod.bye} nameOf={nameOf} onPlay={startTableError === null ? undefined : retryTable} />
           {startTableError !== null && (
             <p className="pod__error" role="alert" data-testid="pod-table-start-error">
               {startTableError}

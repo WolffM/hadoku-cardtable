@@ -810,21 +810,25 @@ describe('you', () => {
 			.json() as import('../room/lobby.ts').RoomView;
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 
-		type Body = import('../room/lobby.ts').RoomView & { you: { leader: boolean; ready: boolean } };
+		type Body = import('../room/lobby.ts').RoomView & { you: { id: string; leader: boolean; ready: boolean } };
 		const asUser = async (who: string): Promise<Body> =>
 			(await call(h, 'GET', `/api/rooms/${created.id}`, { as: who })).json() as Body;
 
-		expect((await asUser('alice')).you).toEqual({ leader: true, ready: false });
-		expect((await asUser('bob')).you).toEqual({ leader: false, ready: false });
+		expect((await asUser('alice')).you).toMatchObject({ leader: true, ready: false });
+		expect((await asUser('bob')).you).toMatchObject({ leader: false, ready: false });
 		// A friend who is not in the room at all is neither.
-		expect((await asUser('carol')).you).toEqual({ leader: false, ready: false });
+		expect((await asUser('carol')).you).toMatchObject({ leader: false, ready: false });
+		// And each is told their own member id, the one the room's tables name them by.
+		const room = await asUser('alice');
+		expect(room.you.id).toBe(room.leader);
+		expect((await asUser('bob')).you.id).toBe(room.members.find((m) => m.id !== room.leader)?.id);
 		// Exactly one, counted rather than asserted twice.
 		const leaders = ['alice', 'bob', 'carol'].map(async (who) => (await asUser(who)).you.leader);
 		expect((await Promise.all(leaders)).filter(Boolean)).toHaveLength(1);
 
 		// The list carries it too, so the front page needs no second request.
 		const listed = ((await call(h, 'GET', '/api/rooms', { as: 'bob' })).json() as { rooms: Body[] }).rooms;
-		expect(listed.map((r) => r.you)).toEqual([{ leader: false, ready: false }]);
+		expect(listed.map((r) => r.you)).toMatchObject([{ leader: false, ready: false }]);
 	});
 
 	it('follows your OWN ready flag, which is what a reload could not tell', async () => {
@@ -839,18 +843,18 @@ describe('you', () => {
 		type You = { leader: boolean; ready: boolean };
 		const readied = await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: true } });
 		// The answer to the ready call is bob's own row.
-		expect((readied.json() as { you: You }).you).toEqual({ leader: false, ready: true });
+		expect((readied.json() as { you: You }).you).toMatchObject({ leader: false, ready: true });
 		// Alice sees a ready member and is not ready herself — the distinction the
 		// screen could not draw.
 		const alice = (await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'alice' })).json() as {
 			you: You;
 			members: { ready: boolean }[];
 		};
-		expect(alice.you).toEqual({ leader: true, ready: false });
+		expect(alice.you).toMatchObject({ leader: true, ready: false });
 		expect(alice.members.map((m) => m.ready)).toEqual([false, true]);
 		// And standing down is one click, with the flag to prove it.
 		const down = await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: false } });
-		expect((down.json() as { you: You }).you).toEqual({ leader: false, ready: false });
+		expect((down.json() as { you: You }).you).toMatchObject({ leader: false, ready: false });
 	});
 });
 
@@ -1159,7 +1163,7 @@ describe('POST /api/rooms/:id/leave', () => {
 		const asBob = (await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'bob' })).json() as {
 			you: { leader: boolean; ready: boolean };
 		};
-		expect(asBob.you).toEqual({ leader: false, ready: false });
+		expect(asBob.you).toMatchObject({ leader: false, ready: false });
 
 		// And it is persisted: still gone after a restart, over the SAME dir.
 		const reopened = await openApp(dir);

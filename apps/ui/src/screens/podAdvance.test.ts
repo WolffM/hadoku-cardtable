@@ -96,10 +96,11 @@ function pod(over: Partial<PodView>): PodView {
   };
 }
 
-const ctxOf = (p: PodView | null): PodContext => ({
+const ctxOf = (p: PodView | null, tables: PodContext['tables'] = []): PodContext => ({
   pod: p,
-  tables: [],
+  tables,
   names: { 'u-alice': 'Alice', 'u-bob': 'Bob' },
+  me: 'u-alice',
 });
 
 /* ── PodScreen ───────────────────────────────────────────────────────── */
@@ -186,6 +187,39 @@ describe('a finished draft goes straight to the builder', () => {
     room.read(ctxOf(pod({ phase: 'drafting' })));
     draft.send(MID);
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
+  });
+});
+
+/* ── into the game, with nobody pressing anything ───────────────────── */
+
+describe('in rounds, my table starts by itself', () => {
+  const myTable = { id: 't-2', players: [{ seat: 0 as const, memberId: 'u-alice', name: 'Alice' }], matchId: null, series: { length: 3 as const, wins: [0, 0] as [number, number], games: [], phase: 'seating' as const } };
+  const roomsDefault = { ...myTable, id: 't-1', players: [] };
+
+  /**
+   * The server's own `you.id`, not whoami: an admin session's whoami id is
+   * not its member id, and on 2026-10-19 (r-25e3eb4baa00) the table was
+   * never found and the AI game never started.
+   */
+  it('finds my table by the room’s own id for me and starts the AI game at it', async () => {
+    const posts: { url: string; body: string }[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      posts.push({ url: String(input), body: String(init?.body ?? '') });
+      return Promise.resolve(new Response(JSON.stringify({ matchId: 'm-000000000001' }), { status: 201 }));
+    });
+    const { draft, room } = mountPod();
+    draft.send(complete());
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1, pairings: [{ tableId: 't-2', players: ['u-alice', 'ai'] }] }), [roomsDefault, myTable]));
+    await vi.waitFor(() => expect(posts.some((p) => p.url.endsWith('/play/matches'))).toBe(true));
+    expect(JSON.parse(posts.find((p) => p.url.endsWith('/play/matches'))!.body)).toEqual({ room: ROOM, bot: true, table: 't-2' });
+  });
+
+  it('lists only the pod’s own tables, not the room’s unused first table', () => {
+    const { draft, room } = mountPod();
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
+    draft.send(complete());
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 1, pairings: [{ tableId: 't-2', players: ['u-alice', 'ai'] }] }), [roomsDefault, myTable]));
+    expect(screen.getAllByTestId('pod-tables-row').map((r) => r.dataset.tableId)).toEqual(['t-2']);
   });
 });
 
