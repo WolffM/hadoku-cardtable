@@ -2358,6 +2358,13 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
 
   const showSideboard = sideboarding && phase === 'sideboarding';
   const choice = myChoice(table);
+  /**
+   * The outcome is shown first, and Next opens the sideboard step — the
+   * operator, 2026-10-19: *"victory screen should show when winning a match in
+   * pod. it seems to immediately go into sideboarding. let's let the player
+   * click 'next' which takes them to side-boarding."*
+   */
+  const [nextPressed, setNextPressed] = useState(false);
 
   if (!shownOnce.current) return null;
 
@@ -2374,7 +2381,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
 
   // Between games the result gives way to the sideboard step, which takes
   // the whole match box: the outcome shrinks to a line above the editor.
-  if (showSideboard && roomId !== null && choice !== null) {
+  if (showSideboard && nextPressed && roomId !== null && choice !== null) {
     return (
       <section
         className="board__over board__over--sideboard"
@@ -2419,6 +2426,11 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
           </p>
         )}
         <div className="confirm__actions">
+          {showSideboard && roomId !== null && choice !== null && (
+            <button type="button" className="button" data-testid="game-result-next" data-highlight="true" disabled={leaving} onClick={() => setNextPressed(true)}>
+              Next
+            </button>
+          )}
           {!inPod && !showSideboard && (
             <button
               type="button"

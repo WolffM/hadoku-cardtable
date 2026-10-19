@@ -112,6 +112,9 @@ test(
       /* ── both press Rematch — the sideboard step, not a new game ─────── */
       for (const f of [alice, bob]) await press(f.page, 'game-result-rematch');
       for (const f of [alice, bob]) {
+        // The outcome stays up with Next; Next opens the step (the operator, 2026-10-19).
+        await expect(f.page.getByTestId('game-result-next'), `${f.name}: the outcome, with Next`).toBeVisible({ timeout: 20_000 });
+        await press(f.page, 'game-result-next');
         await expect(f.page.getByTestId('sideboard-step'), `${f.name} sees the sideboard step`).toBeVisible({ timeout: 20_000 });
         await expect(f.page.getByTestId('game-result-rematch'), 'the editor replaces the button').toHaveCount(0);
         // Ready must sit inside the window with no scrolling at this size
@@ -200,9 +203,11 @@ test(
       await concede(alice, bob, bob);
       console.log('[w72-sideboard] bo3 game 1 ended: bob conceded, series not decided (0-1 of 3)');
 
-      /* ── the sideboard step opens on its own: no Rematch press ───────── */
+      /* ── no Rematch press: the outcome with Next, then the sideboard step ── */
       for (const f of [alice, bob]) {
-        await expect(f.page.getByTestId('sideboard-step'), `${f.name}: the sideboard step opens on its own`).toBeVisible({ timeout: 20_000 });
+        await expect(f.page.getByTestId('game-result-next'), `${f.name}: the outcome, with Next`).toBeVisible({ timeout: 20_000 });
+        await press(f.page, 'game-result-next');
+        await expect(f.page.getByTestId('sideboard-step'), `${f.name}: the sideboard step opens on Next`).toBeVisible({ timeout: 20_000 });
         await expect(f.page.getByTestId('game-result-rematch'), 'no Rematch/Next game press happened').toHaveCount(0);
         await expect(f.page.getByTestId('sideboard-ready'), `${f.name}: Ready is in the viewport, no scroll needed`).toBeInViewport();
       }
