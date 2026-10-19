@@ -1,0 +1,17 @@
+# e2e/reveal-on-board.spec.ts — the operator, 2026-10-19: "when gitaxian prob is palyed, i get a
+# window where i have to hit oaky. i dont want that anymore." Alice (seat 0) holds Gitaxian Probe
+# ({U/P}) and no land, an uncontested turn-1 Main Phase 1, so she pays 2 life (`af61-phyrexian.state`).
+# Bob holds Lightning Bolt and a Mountain: the Probe shows them to her, face up in his hand.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Gitaxian Probe
+humanbattlefield=
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Lightning Bolt;Mountain
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
