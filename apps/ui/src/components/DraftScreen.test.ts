@@ -178,7 +178,7 @@ describe('the draft screen, on committed fixtures', () => {
 
     // …and the pack says it has moved on rather than pretending to know the next one.
     expect(packCards()).toHaveLength(0);
-    expect(screen.getByTestId('status').textContent).toContain('Pick sent');
+    expect(screen.getByTestId('pack').textContent).toContain('Picked — waiting for the next pack.');
   });
 
   it('the pool groups by colour, not mana value — a 4-mana white card and a 1-mana black one land in different buckets', () => {

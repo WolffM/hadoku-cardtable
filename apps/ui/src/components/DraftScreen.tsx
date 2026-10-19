@@ -249,16 +249,11 @@ export function DraftScreen({
       {connection && <ConnectionBanner state={connection} />}
       {spectating && <SpectatorNotice seatCount={view.seats.length} />}
 
-      <p className="draft__status" data-testid="status" role="status">
-        {spectating
-          ? 'Spectating.'
-          : awaiting
-            ? 'Pick sent.'
-            : blocked?.reason === 'not-your-turn'
-              ? 'You have already picked from this pack.'
-              : `Your pick — ${visiblePack(state).length} cards in the pack.`}
-        {message && <span className="draft__error"> {message}</span>}
-      </p>
+      {message && (
+        <p className="draft__status draft__error" data-testid="draft-refused" role="alert">
+          {message}
+        </p>
+      )}
 
       <div className={complete ? 'draft__body draft__body--complete' : 'draft__body'} ref={fitToWindow}>
         <main className="draft__main" ref={mainRef}>
