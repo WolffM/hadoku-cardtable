@@ -908,7 +908,7 @@ describe('hidden information is untouched by any of this', () => {
     const top = cardIdNamed(state, 'Mountain');
     onLibraryTop(state, top);
     mayLook(state, top, [me.id, them.id]);
-    expect(adapt(state).players.find((p) => p.isViewer)!.libraryTop?.seenByOpponent).toBe(true);
+    expect(adapt(state).players.find((p) => p.isViewer)!.libraryTop?.[0]?.seenByOpponent).toBe(true);
   });
 
   it("draws a library's top card only when the seat was sent its name — Courser of Kruphix", () => {
@@ -916,13 +916,13 @@ describe('hidden information is untouched by any of this', () => {
     const id = cardIdNamed(state, 'Mountain');
     const viewer = onLibraryTop(state, id);
     const shown = adapt(state).players.find((p) => p.id === viewer)!;
-    expect(shown.libraryTop?.id).toBe(id);
-    expect(shown.libraryTop?.card.name).toBe('Mountain');
+    expect(shown.libraryTop?.map((c) => c.id)).toEqual([id]);
+    expect(shown.libraryTop?.[0]?.card.name).toBe('Mountain');
     redact(state, id);
     expect(adapt(state).players.find((p) => p.id === viewer)!.libraryTop, 'a library card the seat may not see is never drawn').toBeUndefined();
   });
 
-  it('draws no library top while the seat may also see the card under it — a search or a scry, not Courser', () => {
+  it('draws every top card the seat knows, top first, up to the first it does not — and none while it sees the whole library (a search)', () => {
     const state = baseState();
     const top = cardIdNamed(state, 'Mountain');
     const under = [...cardsById(adapt(state)).values()].find((c) => c.hidden !== true && c.id !== top)!.id;
@@ -930,19 +930,45 @@ describe('hidden information is untouched by any of this', () => {
     const viewer = onLibraryTop(state, top);
     const seat = () => adapt(state).players.find((p) => p.id === viewer)!;
     expect(seat().libraryIds?.slice(0, 2)).toEqual([top, under]);
-    expect(seat().libraryTop, 'a look at more than the top is a prompt’s, never a standing reveal').toBeUndefined();
+    expect(seat().libraryTop?.map((c) => c.id), 'a scry that kept both: both, top first').toEqual([top, under]);
     redact(state, under);
-    expect(seat().libraryTop?.id, 'the top alone is a standing reveal').toBe(top);
+    expect(seat().libraryTop?.map((c) => c.id), 'the top alone').toEqual([top]);
+    const library = seat().libraryIds!;
+    const named = [...cardsById(adapt(state)).values()].find((c) => c.hidden !== true)!.id;
+    for (const id of library) state.set(deltaKey(WireType.Card, id), state.get(deltaKey(WireType.Card, named))!);
+    expect(seat().libraryTop, 'a look at the whole library is a search, never the board’s').toBeUndefined();
   });
 
-  it('draws no library top while a prompt names it — a scry 1’s Top or Bottom', () => {
+  it('draws nothing under a top card the seat does not know — a card put on top of the ones it knew', () => {
+    const state = baseState();
+    const known = cardIdNamed(state, 'Mountain');
+    const viewer = onLibraryTop(state, known);
+    const stranger = [...cardsById(adapt(state)).values()].find((c) => c.hidden !== true && c.id !== known)!.id;
+    redact(state, stranger);
+    onLibraryTop(state, stranger);
+    expect(adapt(state).players.find((p) => p.id === viewer)!.libraryTop).toBeUndefined();
+  });
+
+  it('marks a known top card only the viewer may look at, and not one the table saw', () => {
     const state = baseState();
     const top = cardIdNamed(state, 'Mountain');
     const viewer = onLibraryTop(state, top);
-    const seat = (promptCard: number | null) =>
-      toBoardView(state, 1, { viewerPlayerId: fixture.viewerPlayerId, promptCard }).players.find((p) => p.id === viewer)!;
-    expect(seat(null).libraryTop?.id).toBe(top);
-    expect(seat(top).libraryTop, 'the prompt’s card is the decision’s, not the board’s').toBeUndefined();
+    const them = adapt(state).players.find((p) => p.id !== viewer)!.id;
+    const card = () => adapt(state).players.find((p) => p.id === viewer)!.libraryTop?.[0];
+    mayLook(state, top, [viewer]);
+    expect(card()?.onlyViewer, 'a scry of its own, a fate seal').toBe(true);
+    mayLook(state, top, [viewer, them]);
+    expect(card()?.onlyViewer, 'Courser of Kruphix, Goblin Guide').toBeUndefined();
+  });
+
+  it('draws no library top while the open decision shows it — a scry 1’s Top or Bottom, a scry’s order', () => {
+    const state = baseState();
+    const top = cardIdNamed(state, 'Mountain');
+    const viewer = onLibraryTop(state, top);
+    const seat = (promptCards: ReadonlySet<number>) =>
+      toBoardView(state, 1, { viewerPlayerId: fixture.viewerPlayerId, promptCards }).players.find((p) => p.id === viewer)!;
+    expect(seat(new Set()).libraryTop?.map((c) => c.id)).toEqual([top]);
+    expect(seat(new Set([top])).libraryTop, 'the decision’s card, not the board’s').toBeUndefined();
   });
 
   it('treats a blank name as no name', () => {

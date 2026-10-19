@@ -1150,8 +1150,33 @@ export function currentAsk(match: LiveMatch): LiveAsk | null {
 function closeAsk(match: LiveMatch, callId: string): boolean {
   const i = match.asks.findIndex((a) => a.callId === callId);
   if (i < 0) return false;
+  const before = askedKey(match);
   match.asks.splice(i, 1);
+  if (askedKey(match) !== before) redraw(match);
   return true;
+}
+
+/** Every card id a frame names as `{ kind: 'card', id }`, at any depth. */
+function cardRefs(value: unknown, out: Set<number>): Set<number> {
+  if (Array.isArray(value)) for (const v of value) cardRefs(v, out);
+  else if (typeof value === 'object' && value !== null) {
+    const o = value as { kind?: unknown; id?: unknown };
+    if (o.kind === 'card' && typeof o.id === 'number') out.add(o.id);
+    for (const v of Object.values(value)) cardRefs(v, out);
+  }
+  return out;
+}
+
+/** The cards the seat's open decision shows: Forge's prompt card and every card an open ask names (`AdaptOptions.promptCards`). */
+function promptCardsOf(match: LiveMatch): Set<number> {
+  const out = cardRefs(match.asks, new Set());
+  if (match.promptCard !== null) out.add(match.promptCard);
+  return out;
+}
+
+/** {@link promptCardsOf}'s ask half as one string: the board's known library tops depend on it. */
+function askedKey(match: LiveMatch): string {
+  return [...cardRefs(match.asks, new Set())].sort((a, b) => a - b).join(',');
 }
 
 /**
@@ -1733,7 +1758,7 @@ function cardIdsInView(view: BoardView): Set<number> {
   for (const p of view.players) {
     for (const zone of [p.hand ?? [], p.battlefield, p.graveyard, p.exile]) for (const c of zone) ids.add(c.id);
     for (const c of p.handShown ?? []) if (c !== null) ids.add(c.id);
-    if (p.libraryTop !== undefined) ids.add(p.libraryTop.id);
+    for (const c of p.libraryTop ?? []) ids.add(c.id);
   }
   for (const item of view.stack) if (item.sourceCardId !== null) ids.add(item.sourceCardId);
   return ids;
@@ -2850,7 +2875,7 @@ function redraw(match: LiveMatch): void {
           hits: match.hits,
           faceHits: match.faceHits,
           deathCauses: match.deathCauses,
-          promptCard: match.promptCard,
+          promptCards: promptCardsOf(match),
         });
   // A watcher's wire carries the bottom player's hand as hidden cards (the
   // public projection, `apps/server/src/play/visibility.ts`): drawn as the
@@ -3031,10 +3056,12 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     // Queued, never replacing another: see the module header. The same callId
     // twice (a re-send) updates its entry in place rather than queueing twice.
     const i = match.asks.findIndex((a) => a.callId === frame.callId);
+    const asked = askedKey(match);
     if (i < 0) {
       match.asks.push(frame);
       if (CARDLESS_ASKS.has(frame.method)) match.lastSelectedCard = null;
     } else match.asks[i] = frame;
+    if (askedKey(match) !== asked) redraw(match);
     // The seat's next real decision takes the place of a reveal still showing.
     match.reveal = null;
     unspend(match);
@@ -3048,7 +3075,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     const promptCard = frame.card === null ? null : frame.card.id;
     const redrawBoard = promptCard !== match.promptCard;
     match.promptCard = promptCard;
-    // The board's revealed library top depends on it (`adapter.ts` `revealedTop`).
+    // The board's known library tops depend on it (`adapter.ts` `knownTop`).
     if (redrawBoard) redraw(match);
     match.promptTrigger = frame.confirmAbility?.trigger ?? null;
     match.promptTargetMore = frame.targetAbility?.more ?? 0;

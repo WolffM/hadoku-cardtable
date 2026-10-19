@@ -211,6 +211,12 @@ export interface BoardCard {
    * shown"), and stops the moment that player forgets it. Absent otherwise.
    */
   seenByOpponent?: boolean;
+  /**
+   * A library's known top card that no player but the viewer may see — a fate seal's, a scry's, one
+   * put back from the hand — as against one the table saw (Goblin Guide's reveal, Courser of
+   * Kruphix): its `PlayerMayLook` names the viewer and nobody else. Absent otherwise.
+   */
+  onlyViewer?: true;
   /** Each keyword's `original()` text, off the current face (`Keywords`). */
   keywords?: readonly string[];
   /** Forge's `LethalDamage`. Carried, not drawn — see the header. */
@@ -443,14 +449,14 @@ export interface BoardPlayer {
    */
   libraryIds?: readonly number[];
   /**
-   * The library's top card, when this seat may see it standing revealed: Forge puts the seat in that
-   * card's `PlayerMayLook` (Courser of Kruphix and Future Sight for everyone, Vizier of the Menagerie for
-   * its controller only), or revealed it to the seat (Goblin Guide) and the seat still knows it, and the
-   * server's projection then sends its face. Absent otherwise — the
-   * projection sends a library card it may not see as existence only, never a name — and absent while a
-   * prompt shows the seat more of its library than the top (`revealedTop`).
+   * The library's top cards this seat knows, top first (`knownTop`): Forge lets it look (Courser of
+   * Kruphix and Future Sight for everyone, Vizier of the Menagerie for its controller only), or it was
+   * shown them (Goblin Guide's reveal) or looked at them (a scry or a fate seal it kept there, a card
+   * it put back from its hand) and they are still there, and the server's projection then sends their
+   * faces. Absent when it knows none — the projection sends a library card it may not see as existence
+   * only, never a name.
    */
-  libraryTop?: BoardCard;
+  libraryTop?: readonly BoardCard[];
   battlefield: BoardCard[];
   graveyard: BoardCard[];
   exile: BoardCard[];
@@ -808,11 +814,12 @@ export interface AdaptOptions {
   /** Why recent deaths happened (`live/match.ts`'s `deathCauses`), carried onto `BoardView.deathCauses` as they are. */
   deathCauses?: ReadonlyMap<number, DeathCause>;
   /**
-   * The card Forge's current prompt names (`showPromptMessage`'s third argument, `LiveMatch.promptCard`):
-   * a scry 1 asks Top or Bottom of ONE card it lets the seat look at (`PlayerControllerHuman.willPutCardOnTop`,
-   * :1089-1099), so that card is the decision's, never a revealed top on the board.
+   * The cards the seat's open decision shows: the card Forge's current prompt names
+   * (`showPromptMessage`'s third argument — a scry 1 asks Top or Bottom of ONE card,
+   * `PlayerControllerHuman.willPutCardOnTop`, :1089-1099) and every card an open ask names (a scry's
+   * order, a fate seal's choice). Those are the decision's, never a known top on the board.
    */
-  promptCard?: number | null;
+  promptCards?: ReadonlySet<number>;
 }
 
 // ── what a card's printed power and toughness are ───────────────────────────
@@ -1587,36 +1594,34 @@ function known(card: BoardCard | null): BoardCard | null {
 }
 
 /**
- * The library's top card as a standing reveal, or null.
+ * The library's top cards this seat knows, top first: the run from the top of the cards the server's
+ * projection sends with a face (`apps/server/src/play/visibility.ts`, "What a seat was shown" — a look
+ * at the top of a library, a reveal, a card put back from the hand, a static's `MayLookAt`), up to the
+ * first it does not know. A card put on top that the seat does not know hides every one under it.
  *
- * Forge's `PlayerMayLook` (`Card.updateMayLook`, Card.java:3780-3787) is ONE list
- * merging two grants the wire cannot tell apart: a static's `MayLookAt` — every
- * one of the 79 that reach a library in `res/cardsfolder` (Courser of Kruphix,
- * Future Sight, Vizier of the Menagerie) is `Affected$ Card.TopLibrary`, the top
- * card alone — and the temporary look a prompt grants while it shows the seat
- * cards (`PlayerControllerHuman.tempShowCard`, :182-187, undone by
- * `endTempShowCards`, :198-205). A library search grants that look to the whole
- * library (`chooseSingleEntityForEffect`, :596-599, over `ChangeZoneEffect`'s
- * `toReveal`, :1047-1050), and a scry or a look at the top N to N of them; drawn
- * as a revealed top, it put a library card on the board mid-search (the
- * operator, 2026-10-11: *"a hangerback walker appeared on my board suddenly …
- * i'm just searching my library"*). So the top is a standing reveal only when
- * the seat may see it and NOT the card under it — and is not the one card a
- * prompt is showing (a scry 1's Top or Bottom, `AdaptOptions.promptCard`).
- * "May see" includes a top card the seat was shown and still knows (Goblin
- * Guide's reveal): the server's projection keeps sending it while it stays put.
+ * None while the seat may see the WHOLE library: that is a search (`chooseSingleEntityForEffect` over
+ * `ChangeZoneEffect`'s `toReveal`, `PlayerControllerHuman.java:596-599`), drawn on the board it put a
+ * library card on the table mid-search (the operator, 2026-10-11: *"a hangerback walker appeared on my
+ * board suddenly … i'm just searching my library"*), and the library is shuffled when it ends. And
+ * the run stops at a card the open decision shows (`AdaptOptions.promptCards`): a scry's cards are the
+ * scry's while it is open, and the library's once it is answered.
  */
-function revealedTop(
+function knownTop(
   state: WireState,
   libraryIds: readonly number[],
   artIds: ArtIdIndex,
   printedPT: PrintedPTIndex,
-  promptCard: number | null,
-): BoardCard | null {
-  if (libraryIds[0] === promptCard) return null;
-  const seen = (id: number | undefined): BoardCard | null => (id === undefined ? null : known(toBoardCard(state, id, artIds, printedPT)));
-  const top = seen(libraryIds[0]);
-  return top !== null && seen(libraryIds[1]) === null ? top : null;
+  promptCards: ReadonlySet<number>,
+  viewer: number,
+): BoardCard[] {
+  const out: BoardCard[] = [];
+  for (const id of libraryIds) {
+    const card = promptCards.has(id) ? null : known(toBoardCard(state, id, artIds, printedPT));
+    if (card === null) break;
+    const look = readIds(state.get(deltaKey(WireType.Card, id)), 'PlayerMayLook');
+    out.push(look.length > 0 && look.every((p) => p === viewer) ? { ...card, onlyViewer: true } : card);
+  }
+  return out.length === libraryIds.length && out.length > 1 ? [] : out;
 }
 
 /** The PlayerView lists a card can be drawn in; a spell whose card one of them holds has left the stack (header). */
@@ -1643,7 +1648,7 @@ export function toBoardView(
     hits,
     faceHits,
     deathCauses,
-    promptCard = null,
+    promptCards = new Set(),
   }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === WireType.Game);
@@ -1687,7 +1692,7 @@ export function toBoardView(
     const isViewer = pid === viewerPlayerId;
     const handIds = readIds(p, 'Hand');
     const libraryIds = readIds(p, 'Library');
-    const top = revealedTop(state, libraryIds, artIds, printedPT, promptCard);
+    const top = knownTop(state, libraryIds, artIds, printedPT, promptCards, viewerPlayerId);
     const shown = isViewer ? [] : handIds.map((id) => shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, undefined, playerName)) : null);
     const avatarId = avatarByPlayerId?.get(pid);
     const emblems = readEmblems(state, p, artIds, printedPT);
@@ -1706,7 +1711,7 @@ export function toBoardView(
       handCount: handIds.length,
       libraryCount: libraryIds.length,
       libraryIds,
-      ...(top === null ? {} : { libraryTop: isViewer ? seenByOthers(state, top, viewerPlayerId) : top }),
+      ...(top.length === 0 ? {} : { libraryTop: isViewer ? top.map((c) => seenByOthers(state, c, viewerPlayerId)) : top }),
       battlefield: cardsIn(readIds(p, 'Battlefield'), true),
       graveyard: cardsIn(readIds(p, 'Graveyard')),
       exile: cardsIn(readIds(p, 'Exile')),

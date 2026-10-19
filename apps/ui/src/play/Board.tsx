@@ -2433,6 +2433,7 @@ function CardOnBoard({
       /* Item 16 — see `BoardInteraction.actionable`'s own note. */
       data-can-act={(interaction?.actionable?.has(entry.id) ?? false) || undefined}
       data-library-top={libraryTop || undefined}
+      data-only-viewer={(libraryTop && entry.onlyViewer === true) || undefined}
       data-cast-forbidden={forbidden === undefined ? undefined : ''}
       data-tip={forbidden}
       data-refused={interaction?.refused?.card === entry.id ? (interaction.refused.seq % 2 === 0 ? 'even' : 'odd') : undefined}
@@ -3402,12 +3403,13 @@ function PlayerArea({
         </div>
         {player.libraryTop !== undefined && (
           /*
-           * The library's top card while this screen may see it — revealed (Goblin Guide, Dark
-           * Confidant), standing revealed (Courser of Kruphix) or known since — under its owner's
-           * avatar (the operator, 2026-10-13: "when top of deck is revealed put it below the
-           * avatar"), in the seat's own column: under it on yours, the mirror on theirs. Not a
-           * permanent and not arranged; a land Forge offers from it is played from here like a
-           * hand card (`live/gestures/cast.ts`).
+           * The library's top cards this screen knows, top first — revealed (Goblin Guide, Dark
+           * Confidant), standing revealed (Courser of Kruphix), or looked at and kept there (a fate
+           * seal, a scry) — under its owner's avatar (the operator, 2026-10-13: "when top of deck is
+           * revealed put it below the avatar"), in the seat's own column: under it on yours, the
+           * mirror on theirs. The top card whole, each under it a strip behind it. Not a permanent
+           * and not arranged; a land Forge offers from the top is played from here like a hand card
+           * (`live/gestures/cast.ts`).
            */
           <ZoneShell
             owner={player.name}
@@ -3415,11 +3417,13 @@ function PlayerArea({
             zone="library"
             label="Library"
             count={player.libraryCount}
-            canAct={interaction?.actionable?.has(player.libraryTop.id) === true}
+            canAct={interaction?.actionable?.has(player.libraryTop[0]!.id) === true}
           >
             <ul className="zone__cards">
               {/* Keyed: the next top is another card, never this element reused with the last one's gesture styles. */}
-              <CardOnBoard key={player.libraryTop.id} entry={player.libraryTop} interaction={interaction} libraryTop />
+              {player.libraryTop.map((entry) => (
+                <CardOnBoard key={entry.id} entry={entry} interaction={interaction} libraryTop />
+              ))}
             </ul>
           </ZoneShell>
         )}
@@ -4157,7 +4161,7 @@ function BoardFaces({ players }: { players: readonly BoardPlayer[] }) {
     ...p.battlefield,
     ...p.graveyard,
     ...p.exile,
-    ...(p.libraryTop === undefined ? [] : [p.libraryTop]),
+    ...(p.libraryTop ?? []),
   ]);
   const faced = [...new Map(cards.filter((c) => c.faces !== undefined && c.faces.length > 0).map((c) => [c.id, c])).values()];
   if (faced.length === 0) return null;

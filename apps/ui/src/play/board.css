@@ -855,9 +855,28 @@
 
 .board .seat .zone--library .zone__cards {
   --card-w: var(--zone-w);
+  /* The strip each card under the top one shows, as a pile's (`zone--graveyard`). */
+  --peek: calc(var(--card-w) * 0.575);
 
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+/* Top first in the markup; drawn as a pile: the top card whole, each under it a strip behind it. */
+.board .seat .zone--library .zone__cards > li + li {
+  margin-bottom: calc(var(--peek) - var(--card-w) * var(--card-tall));
+}
+
+.board .seat .zone--library .zone__cards > li:nth-child(1) {
+  z-index: 3;
+}
+
+.board .seat .zone--library .zone__cards > li:nth-child(2) {
+  z-index: 2;
+}
+
+.board .seat .zone--library .zone__cards > li:nth-child(3) {
+  z-index: 1;
 }
 
 .board .seat .zone--library[data-can-act] {
@@ -1752,4 +1771,9 @@
 .board-card[data-library-top] > .board-card__face .card {
   outline: 2px dashed var(--ink-dim);
   outline-offset: 2px;
+}
+
+/* One only this screen knows — a fate seal's, a scry's — rather than one the table saw. */
+.board-card[data-library-top][data-only-viewer] > .board-card__face .card {
+  outline-color: color-mix(in srgb, var(--accent) 70%, transparent);
 }

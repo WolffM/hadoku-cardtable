@@ -42,7 +42,7 @@ export function castZoneOf(match: LiveMatch, id: number): CastZone | null {
   if (mine.hand?.some((c) => c.id === id) === true) return 'hand';
   if (mine.graveyard.some((c) => c.id === id)) return 'graveyard';
   if (mine.exile.some((c) => c.id === id)) return 'exile';
-  if (mine.libraryTop?.id === id) return 'library';
+  if (mine.libraryTop?.[0]?.id === id) return 'library';
   return null;
 }
 
@@ -54,7 +54,7 @@ export function isHandCard(match: LiveMatch, id: number): boolean {
 /** The current type line of a card in one of the viewer's cast zones, or null — it may have left already. */
 export function castCardTypeLine(match: LiveMatch, id: number): string | null {
   const mine = match.view?.players.find((p) => p.isViewer);
-  const card = [...(mine?.hand ?? []), ...(mine?.graveyard ?? []), ...(mine?.exile ?? []), ...(mine?.libraryTop === undefined ? [] : [mine.libraryTop])].find((c) => c.id === id);
+  const card = [...(mine?.hand ?? []), ...(mine?.graveyard ?? []), ...(mine?.exile ?? []), ...(mine?.libraryTop ?? [])].find((c) => c.id === id);
   return card?.card.typeLine ?? null;
 }
 

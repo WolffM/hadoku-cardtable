@@ -1597,7 +1597,7 @@ describe('the seat’s vertical bar (#9)', () => {
     hidden.unmount();
     const owner = view.players[1]!;
     const top = { ...owner.battlefield[0]!, id: 8001 };
-    const shown = renderBoard({ ...view, players: view.players.map((p, i) => (i === 1 ? { ...p, libraryTop: top } : p)) }, undefined, 'single');
+    const shown = renderBoard({ ...view, players: view.players.map((p, i) => (i === 1 ? { ...p, libraryTop: [top] } : p)) }, undefined, 'single');
     const library = shown.zone(owner.id, 'library');
     expect(library.querySelector('[data-board-card="8001"]')!.hasAttribute('data-library-top')).toBe(true);
     expect(library.parentElement!.classList.contains('seat__side'), 'in the seat column, with the avatar').toBe(true);
@@ -1605,6 +1605,12 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(column.indexOf(library), 'right after the avatar block').toBe(column.findIndex((el) => el.classList.contains('seat__who')) + 1);
     expect(shown.zone(owner.id, 'battlefield').querySelector('[data-board-card="8001"]'), 'not on the battlefield').toBeNull();
     expect(shown.zone(owner.id, 'battlefield').dataset.count, 'not counted as a permanent').toBe(String(owner.battlefield.length));
+    shown.unmount();
+    const under = { ...owner.battlefield[0]!, id: 8002, onlyViewer: true as const };
+    const pile = renderBoard({ ...view, players: view.players.map((p, i) => (i === 1 ? { ...p, libraryTop: [top, under] } : p)) }, undefined, 'single');
+    const cards = [...pile.zone(owner.id, 'library').querySelectorAll('[data-library-top]')];
+    expect(cards.map((c) => c.getAttribute('data-board-card')), 'every known top card, top first').toEqual(['8001', '8002']);
+    expect(cards.map((c) => c.hasAttribute('data-only-viewer')), 'marked when only this screen knows it').toEqual([false, true]);
   });
 
   it("draws a card of someone else's hand this seat was shown face up in its place, and the rest as backs", () => {
@@ -5435,7 +5441,7 @@ describe('seen — an eye on a card of yours the opponent was shown', () => {
 
   it("draws it on the viewer's revealed library top too", () => {
     const top = { ...unseen!, id: 4242, seenByOpponent: true };
-    const { container } = renderBoard({ ...view, players: view.players.map((p) => (p.isViewer ? { ...p, libraryTop: top } : p)) });
+    const { container } = renderBoard({ ...view, players: view.players.map((p) => (p.isViewer ? { ...p, libraryTop: [top] } : p)) });
     expect(eye(container, 4242)).not.toBeNull();
   });
 });

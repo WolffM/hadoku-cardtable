@@ -1012,14 +1012,79 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(held(out, 10)).toBeUndefined();
 	});
 
-	it("does not keep a look at the seat's own library (a scry), only a reveal of it", () => {
+	it("keeps a look at the top of the seat's own library (a scry keeping its cards) after the look ends, and only those cards", () => {
 		const p = createProjector(1);
-		p.project(opening({ 20: [1] }));
-		expect(p.visibilityOf(20)).toBe('full');
-		p.project(delta([{ _type: TYPE.card, _id: 20, PlayerMayLook: null }]));
-		expect(p.visibilityOf(20), 'the look ends with the scry').toBe('hidden');
-		expect(p.learn([20]), 'a reveal of it is kept').not.toBeNull();
-		expect(p.visibilityOf(20)).toBe('full');
+		const out: (StateFrame | null)[] = [p.project(opening({ 20: [1], 21: [1] }))];
+		out.push(p.project(delta([{ _type: TYPE.card, _id: 20, PlayerMayLook: null }, { _type: TYPE.card, _id: 21, PlayerMayLook: null }])));
+		expect([20, 21, 22].map((id) => p.visibilityOf(id)), 'the two it looked at, not the one under them').toEqual(['full', 'full', 'hidden']);
+		expect(lookHeld(out, 20), 'said in Forge’s words: this seat may look at it').toEqual(list([1]));
+		out.push(p.project(delta([{ _type: TYPE.game, _id: 0, Turn: int(3) } as WireObj, { ...player(0, { Graveyard: [] }) }])));
+		expect(held(out, 21), 'kept through packets that touch neither the card nor its library').toEqual({ t: 'str', v: 'Shock' });
+	});
+
+	it("does not keep a look at the seat's whole library: that is a search, and what it chose there is the decision's", () => {
+		const p = createProjector(1);
+		p.project(opening({ 20: [1], 21: [1], 22: [1] }));
+		p.project(delta([20, 21, 22].map((id) => ({ _type: TYPE.card, _id: id, PlayerMayLook: null }) as unknown as WireObj)));
+		expect([20, 21, 22].map((id) => p.visibilityOf(id))).toEqual(['hidden', 'hidden', 'hidden']);
+	});
+
+	it('does not keep a look that is not the top of a library', () => {
+		const p = createProjector(1);
+		p.project(opening({ 21: [1] }));
+		p.project(delta([{ _type: TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj]));
+		expect(p.visibilityOf(21)).toBe('hidden');
+	});
+
+	it("keeps the opponent's top card a fate seal looked at, and never sends it to that library's holder", () => {
+		const alice = createProjector(0);
+		const bob = createProjector(1);
+		const look = opening({ 20: [0] });
+		const ended = delta([{ _type: TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj]);
+		const aliceOut = [alice.project(look), alice.project(ended)];
+		const bobOut = [bob.project(look), bob.project(ended)];
+		expect(alice.visibilityOf(20)).toBe('full');
+		expect(lookHeld(aliceOut, 20), 'alice alone: bob was not shown it').toEqual(list([0]));
+		expect(bob.visibilityOf(20)).toBe('hidden');
+		expect(held(bobOut, 20), 'bob is never sent his own top card').toBeUndefined();
+	});
+
+	it("names the holder too when it was shown its own top card as well (Goblin Guide's reveal)", () => {
+		const alice = createProjector(0);
+		const out: (StateFrame | null)[] = [alice.project(opening()), alice.learn([20]), alice.learn([20], 1)];
+		expect(lookHeld(out, 20)).toEqual(list([0, 1]));
+	});
+
+	it('keeps the top card a scry kept when the scry puts the card under it on the bottom', () => {
+		const p = createProjector(1);
+		const out: (StateFrame | null)[] = [p.project(opening({ 20: [1], 21: [1] }))];
+		out.push(p.project(delta([{ _type: TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj, { _type: TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj, player(1, { Hand: [10], Library: [20, 22, 21] })])));
+		expect(p.visibilityOf(20), 'kept on top').toBe('full');
+		expect(held(out, 20)).toEqual({ t: 'str', v: 'Lightning Bolt' });
+	});
+
+	it('forgets every looked-at card once the library is shuffled, and a drawn one leaves the library', () => {
+		const p = createProjector(1);
+		const out: (StateFrame | null)[] = [p.project(opening({ 20: [1], 21: [1] }))];
+		const twelve = [20, 21, 22, 23, 24];
+		out.push(p.project(delta([{ _type: TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj, { _type: TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj, player(1, { Hand: [10], Library: twelve })])));
+		out.push(p.project(delta([player(1, { Hand: [10, 20], Library: [21, 22, 23, 24] })])));
+		expect(p.visibilityOf(21), 'the card under the drawn one is still known').toBe('full');
+		out.push(p.project(delta([player(1, { Hand: [10, 20], Library: [24, 22, 21, 23] })])));
+		expect(p.visibilityOf(21), 'shuffled').toBe('hidden');
+		expect(held(out, 21), 'and wiped from the client').toBeUndefined();
+	});
+
+	it("keeps what the seat put on top of its own library from its own hand (Brainstorm), and not what it shuffled in", () => {
+		const p = createProjector(1);
+		const out: (StateFrame | null)[] = [p.project(opening())];
+		out.push(p.project(renewed([card(10)], [player(1, { Hand: [], Library: [10, 20, 21, 22] })])));
+		expect(p.visibilityOf(10), 'put back on top').toBe('full');
+		expect(lookHeld(out, 10)).toEqual(list([1]));
+		const q = createProjector(1);
+		q.project(opening());
+		q.project(renewed([card(10)], [player(1, { Hand: [], Library: [10, 22, 20, 21] })]));
+		expect(q.visibilityOf(10), 'shuffled in with the library').toBe('hidden');
 	});
 
 	it('keeps a known card through a packet that has it in no zone (taken out and put back on top)', () => {
@@ -1067,7 +1132,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		const bob = createProjector(1);
 		const out: (StateFrame | null)[] = [bob.project(opening()), bob.learn([10], 0)];
 		out.push(bob.project(delta([{ ...player(1, { Hand: [], Library: [10, 20, 21, 22] }) }])));
-		expect(lookHeld(out, 10), 'hidden in the library').toBeUndefined();
+		expect(lookHeld(out, 10), 'put on top of his library: bob knows it there, alice no longer does').toEqual(list([1]));
 		out.push(bob.project(delta([{ ...player(1, { Hand: [10], Library: [20, 21, 22] }) }])));
 		expect(bob.visibilityOf(10)).toBe('full');
 		expect(lookHeld(out, 10), 'back in the hand, and nobody else knows it').toBeUndefined();

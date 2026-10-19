@@ -292,7 +292,7 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
   const seen = new Set<number>(prevDamage.keys());
   for (const player of prev.players) {
     for (const card of [...player.graveyard, ...player.exile, ...(player.hand ?? [])]) seen.add(card.id);
-    if (player.libraryTop !== undefined) seen.add(player.libraryTop.id);
+    for (const card of player.libraryTop ?? []) seen.add(card.id);
   }
   for (const item of prev.stack) if (item.sourceCardId !== null) seen.add(item.sourceCardId);
   const arrivals: Arrival[] = [];

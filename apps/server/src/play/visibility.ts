@@ -87,9 +87,11 @@
  * card in full for exactly as long as the seat could still name it at a real
  * table:
  *
- *   - it stays in that hand, or that library with nothing reordered — a
- *     library whose common cards change order was shuffled (or a card was
- *     put to the bottom), and every card the seat knew in it is forgotten;
+ *   - it stays in that hand, or that library unshuffled — a library whose
+ *     common cards change order was shuffled, and every card the seat knew in
+ *     it is forgotten. The cards a look let the player see are left out of
+ *     that reading, in the packet the look ended and the one before: the look
+ *     moves them itself (a scry's bottom card), and the player saw where;
  *   - a known library card drawn into its holder's hand stays known there;
  *   - any other move forgets it — discarded, put back from the hand, bounced
  *     to a hand from the table: the seat sees it while it is public and never
@@ -101,15 +103,29 @@
  *     zones, CR 400.7) and sends it as one — the card replaced in the
  *     packet's `newObjects` ({@link replacedCards}) — so it is judged as moved.
  *
- * Two ways in, one set: a card whose Forge grant (`PlayerMayLook`) reaches
- * this seat while it sits in SOMEONE ELSE's hand or library, and the cards of
- * a reveal the server answered ({@link SeatProjector.learn}) — the second
- * because Forge may grant and take back the look inside one packet, and a
- * reveal is the one place the seat is told outright that it was shown a
- * card, its own included (Goblin Guide's top card is revealed to its owner
- * too). A seat's look at its OWN library is not a reveal — a scry, a search —
- * and is not kept: what the seat chose to do with those cards is its
- * decision window's, never the table's (`e2e/w70-nissa.spec.ts`).
+ * The ways in, one set: a card whose Forge grant (`PlayerMayLook`) reaches
+ * this seat while it sits in SOMEONE ELSE's hand or library; the cards of a
+ * reveal the server answered ({@link SeatProjector.learn}) — because Forge may
+ * grant and take back the look inside one packet, and a reveal is the one
+ * place the seat is told outright that it was shown a card, its own included
+ * (Goblin Guide's top card is revealed to its owner too); and two that reach
+ * the seat's OWN library too:
+ *
+ *   - a look at the top of a library — Forge grants this seat that library's
+ *     top cards and none under them: a scry, a fate seal, Sensei's Divining
+ *     Top, Ponder, Courser of Kruphix. The operator, 2026-10-19: *"when 'fate
+ *     seal' happens and the card stays on top, it should stay revealed for the
+ *     player who has that knowledge … we should also utilize this zone for when
+ *     you have cards that let you look at the top of your library"*. A look at
+ *     a WHOLE library is a search, not this, and is not kept: the library is
+ *     shuffled when it ends, and what the seat chose there is its decision
+ *     window's, never the table's (`e2e/w70-nissa.spec.ts`);
+ *   - the cards the seat put on top of its own library from its own hand
+ *     (Brainstorm), from the top down, unless that packet shuffled it.
+ *
+ * Which of a library's known cards a screen draws on it is the client's: the
+ * top ones, in order, while no card it does not know is above them
+ * (`apps/ui/src/play/adapter.ts`, `knownTop`).
  *
  * ## What the other seats were shown, the owner is told
  *
@@ -120,10 +136,17 @@
  * hand or a library another player still knows. The operator, 2026-10-15: *"let's also create an
  * 'eye' pill for cards that have been revealed to your opponent"*. Said in Forge's own words, as a
  * known card is: each such player is in the card's `PlayerMayLook` as this seat receives it. Only
- * on a card this seat holds, so a seat learns nothing about anyone's knowledge but of its own
- * cards — and nothing it could not have watched happen.
+ * on a card this seat holds — and, so a screen can tell a card only it knows from one the table
+ * saw (a fate seal from Goblin Guide's reveal), on a library card this seat itself knows, whose
+ * holder is named when it was shown that card too. So a seat learns nothing about anyone's
+ * knowledge but of cards it holds or knows — and nothing it could not have watched happen.
  *
  * ## What it cannot fix
+ *
+ * A shuffle is read off the order of the cards the player did not just look
+ * at. A library holding at most one such card can be shuffled without the
+ * order saying so; the bridge sends no shuffle event (`PlayBridge.java` never
+ * encodes events), so a card known there stays known.
  *
  * Card ids are stable in Forge. A library is an ordered id list, so a card the
  * viewer has SEEN (it was on the battlefield, it was revealed) and that is later
@@ -490,16 +513,27 @@ function wipeFace(csvId: number): WireObj {
 }
 
 /**
- * Whether the cards `before` and `now` share stand in a different order in `now` — a shuffle,
- * or a card moved within the library. Cards drawn, milled or put on top or bottom are not
- * shared and say nothing.
+ * Whether the cards `before` and `now` share, leaving out `looked`, stand in a different order in
+ * `now` — a shuffle. Cards drawn, milled or put on top are not shared and say nothing; nor do the
+ * cards a look let the player see, which the look itself moves (a scry's bottom card, a fate seal's).
  */
-function reordered(before: readonly number[], now: readonly number[]): boolean {
+function reordered(before: readonly number[], now: readonly number[], looked: ReadonlySet<number>): boolean {
 	const inNow = new Set(now);
 	const inBefore = new Set(before);
-	const was = before.filter((id) => inNow.has(id));
-	const is = now.filter((id) => inBefore.has(id));
+	const was = before.filter((id) => inNow.has(id) && !looked.has(id));
+	const is = now.filter((id) => inBefore.has(id) && !looked.has(id));
 	return was.some((id, i) => is[i] !== id);
+}
+
+/** Each card's `PlayerMayLook` in `state`, for the cards that have one. */
+function grantsOf(state: ReadonlyMap<string, WireObj>): Map<number, number[]> {
+	const out = new Map<number, number[]>();
+	for (const obj of state.values()) {
+		if (obj._type !== TYPE.card) continue;
+		const look = idsOf(obj, 'PlayerMayLook');
+		if (look.length > 0) out.set(obj._id, look);
+	}
+	return out;
 }
 
 /**
@@ -589,6 +623,8 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	const sentLook = new Map<number, string>();
 	/** Each player's library as last folded, top first — what a shuffle is read against. */
 	const libraries = new Map<number, number[]>();
+	/** Forge's `PlayerMayLook` grants as last folded — a look that ended in this packet still explains its moves. */
+	let grantsBefore = new Map<number, number[]>();
 	let lastSeq = 0;
 	let who = viewer;
 	/** The zone index of the raw state as last folded — {@link visibilities} rebuilds it once per packet. */
@@ -607,29 +643,75 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	 * Bring {@link known} up to the raw state: forget what moved or was shuffled, follow a
 	 * library card into its holder's hand. Run once per packet, before visibility is read.
 	 */
-	function settleKnown(zones: ZoneIndex, replaced: ReadonlySet<number>): void {
-		const shuffled = new Set<number>();
+	function settleKnown(zones: ZoneIndex, replaced: ReadonlySet<number>, zonesBefore: ZoneIndex | null): void {
+		const grants = grantsOf(raw);
+		/** Whether `player` was let look at `cardId` in this packet or the one before it. */
+		const looked = (player: number, cardId: number): boolean => [grants, grantsBefore].some((g) => g.get(cardId)?.includes(player) === true);
+		const before = new Map(libraries);
+		const nowOf = new Map<number, number[]>();
 		for (const obj of raw.values()) {
 			if (obj._type !== TYPE.player) continue;
-			const now = idsOf(obj, 'Library');
-			const before = libraries.get(obj._id);
-			if (before !== undefined && reordered(before, now)) shuffled.add(obj._id);
-			libraries.set(obj._id, now);
+			nowOf.set(obj._id, idsOf(obj, 'Library'));
+			libraries.set(obj._id, idsOf(obj, 'Library'));
 		}
-		for (const cards of known.values()) {
+		/** Whether `holder`'s library was shuffled, read past the cards `player` looked at. */
+		const shuffledFor = (player: number, holder: number): boolean => {
+			const was = before.get(holder);
+			const now = nowOf.get(holder);
+			if (was === undefined || now === undefined) return false;
+			return reordered(was, now, new Set([...was, ...now].filter((id) => looked(player, id))));
+		};
+		for (const [player, cards] of known) {
+			const shuffled = new Map<number, boolean>();
 			for (const [cardId, was] of cards) {
 				const at = zones.byCard.get(cardId);
 				// In no zone list: between two (Goblin Guide's Dig takes the card out and puts it back on
 				// top) or on the stack. Nothing to judge it by until it lands somewhere.
 				if (at === undefined && raw.has(keyOf(TYPE.card, cardId))) continue;
 				if (at !== undefined && at.holder === was.holder && at.zone === was.zone && !replaced.has(cardId)) {
-					if (was.zone === 'Library' && shuffled.has(was.holder)) cards.delete(cardId);
-				} else if (at !== undefined && at.holder === was.holder && was.zone === 'Library' && at.zone === 'Hand') {
+					if (was.zone !== 'Library') continue;
+					if (!shuffled.has(was.holder)) shuffled.set(was.holder, shuffledFor(player, was.holder));
+					if (shuffled.get(was.holder) === true) cards.delete(cardId);
+				} else if (at !== undefined && at.holder === was.holder && was.zone === 'Library' && at.zone === 'Hand' && at.holder !== player) {
 					cards.set(cardId, at);
 				} else {
 					cards.delete(cardId);
 				}
 			}
+		}
+		if (who !== null) learnOwnTop(who, zones, zonesBefore, nowOf.get(who) ?? [], shuffledFor(who, who));
+		grantsBefore = grants;
+	}
+
+	/**
+	 * What this seat put on top of its own library from its own hand (Brainstorm, Jace's 0) it knows
+	 * there, from the top down — never after a shuffle in the same packet, and never a card under one
+	 * it does not know.
+	 */
+	function learnOwnTop(self: number, zones: ZoneIndex, zonesBefore: ZoneIndex | null, library: readonly number[], shuffled: boolean): void {
+		if (zonesBefore === null || shuffled) return;
+		const cards = knownTo(self);
+		for (const cardId of library) {
+			const was = zonesBefore.byCard.get(cardId);
+			if (was !== undefined && was.zone === 'Hand' && was.holder === self) cards.set(cardId, zones.byCard.get(cardId)!);
+			else if (!cards.has(cardId)) return;
+		}
+	}
+
+	/**
+	 * A look at the top of a library: Forge lets this seat see that library's top cards and no others
+	 * (a scry, a fate seal, Sensei's Divining Top, Courser of Kruphix). Kept like a reveal, its own
+	 * library included. A look at a whole library is a search, not this: the library is shuffled when
+	 * it ends, and what the seat chose there is the decision window's (`e2e/w70-nissa.spec.ts`).
+	 */
+	function noteTopLooks(zones: ZoneIndex): void {
+		if (who === null) return;
+		for (const [holder, library] of libraries) {
+			let top = 0;
+			while (top < library.length && cardVisibility(raw, zones, library[top]!, who) === 'full') top += 1;
+			if (top === 0 || top === library.length) continue;
+			if (library.slice(top).some((id) => cardVisibility(raw, zones, id, who) === 'full')) continue;
+			for (const cardId of library.slice(0, top)) knownTo(who).set(cardId, { zone: 'Library', holder });
 		}
 	}
 
@@ -680,8 +762,10 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 
 	function visibilities(replaced: ReadonlySet<number> = new Set()): Map<number, Visibility> {
 		const zones = indexZones(raw);
+		const zonesBefore = zonesNow;
 		zonesNow = zones;
-		settleKnown(zones, replaced);
+		settleKnown(zones, replaced, zonesBefore);
+		noteTopLooks(zones);
 		noteOthersShown(zones);
 		const out = new Map<number, Visibility>();
 		for (const cardId of cardsAndFaces().keys()) out.set(cardId, seen(zones, cardId));
@@ -690,8 +774,9 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 
 	/**
 	 * A `full` card's `PlayerMayLook` as this seat is sent it: Forge's grant, this seat when it KNOWS
-	 * the card, and — on a card this seat holds — every other player that knows it (the header's
-	 * "What the other seats were shown"). A card sent in full because the seat knows it, not because
+	 * the card, — on a card this seat holds — every other player that knows it (the header's
+	 * "What the other seats were shown"), and on a card this seat knows in someone else's library,
+	 * that library's holder when it was shown it too (Goblin Guide's reveal, not a fate seal). A card sent in full because the seat knows it, not because
 	 * Forge grants it, so says so in Forge's own words: a client reads one field for "I may look at
 	 * this card" whichever of the two put it there — and a client fed Forge's raw stream, where a
 	 * hand card carries its name for everybody, still draws it as a back (`Board.test.ts`).
@@ -703,8 +788,9 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 			if (!look.includes(p)) look.push(p);
 		};
 		if (knownTo(who).has(cardId)) add(who);
-		const holder = (zonesNow ?? indexZones(raw)).byCard.get(cardId)?.holder;
-		if (holder === who) for (const [p, cards] of known) if (p !== who && cards.has(cardId)) add(p);
+		const at = (zonesNow ?? indexZones(raw)).byCard.get(cardId);
+		if (at?.holder === who) for (const [p, cards] of known) if (p !== who && cards.has(cardId)) add(p);
+		if (at !== undefined && at.holder !== who && at.zone === 'Library' && knownTo(who).has(cardId) && knownTo(at.holder).has(cardId)) add(at.holder);
 		return look;
 	}
 
@@ -906,6 +992,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 					sent.clear();
 					sentLook.clear();
 					libraries.clear();
+					grantsBefore = new Map();
 					foldInto(raw, {
 						seq: 0,
 						checksum: 0,

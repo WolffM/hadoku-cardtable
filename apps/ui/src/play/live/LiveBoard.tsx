@@ -1040,7 +1040,7 @@ function stagedHandCardId(match: LiveMatch, offered: LiveClickables, blocked: bo
 /** Every card of a player's this seat is shown: its zones, the known cards of a hidden hand, a revealed library top. */
 function seenIn(p: BoardPlayer): readonly (readonly BoardCard[])[] {
   const shown = (p.handShown ?? []).filter((c): c is BoardCard => c !== null);
-  return [p.hand ?? [], shown, p.battlefield, p.graveyard, p.exile, p.libraryTop === undefined ? [] : [p.libraryTop]];
+  return [p.hand ?? [], shown, p.battlefield, p.graveyard, p.exile, p.libraryTop ?? []];
 }
 
 /** The forge ids of every card of each name in the view — what a log line's name hands the inspector. */
