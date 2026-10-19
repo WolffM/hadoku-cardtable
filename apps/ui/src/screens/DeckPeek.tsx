@@ -25,6 +25,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEventHandler } from 'react';
 
 import type { DraftCard, ManaColor } from '@hadoku/shared';
+import { BACK_FACE } from '@hadoku/carddata/art';
 
 import { CardTile } from '../components/CardTile.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
@@ -85,20 +86,27 @@ const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
  * wire sends names. The inspector enlarges it as the art when there is an id,
  * and as the text tile (name and cost) when there is none.
  */
-export function namedFace(name: string, cost: readonly string[], manaValue: number, scryfallId: string | undefined): DraftCard {
+export function namedFace(
+  name: string,
+  cost: readonly string[],
+  manaValue: number,
+  scryfallId: string | undefined,
+  backFaces: readonly string[] = [],
+): DraftCard {
   const symbols = new Set(cost.flatMap((token) => token.split('/')));
+  const printed = { manaCost: [], manaValue: 0, colors: [], typeLine: '', oracleText: '', setCode: '', collectorNumber: '', rarity: 'special' } as const;
   return {
+    ...printed,
     cardId: name,
     name,
     manaCost: [...cost],
     manaValue,
     colors: COLORS.filter((c) => symbols.has(c)),
-    typeLine: '',
-    oracleText: '',
-    setCode: '',
-    collectorNumber: '',
-    rarity: 'special',
     ...(scryfallId === undefined ? {} : { scryfallId }),
+    // Its back faces (`backFaceNames`), each drawn as its own back image.
+    ...(scryfallId === undefined || backFaces.length === 0
+      ? {}
+      : { faces: backFaces.map((face) => ({ ...printed, manaCost: [], colors: [], name: face, scryfallId: `${scryfallId}${BACK_FACE}` })) }),
   };
 }
 

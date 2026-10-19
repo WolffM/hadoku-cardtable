@@ -148,6 +148,32 @@ export function scryfallIdFor(index: ArtIdIndex, name: string, setCode: string):
   return index.get(artIdKey(name, setCode)) ?? index.get(name);
 }
 
+const backFaceIndexes = new WeakMap<ArtIdIndex, Map<string, string[]>>();
+
+/**
+ * The faces that draw `scryfallId`'s back image (`<id>#back`): a transformed or modal double-faced
+ * card's other faces, by the table alone — for a card known only by its name (a library deck's
+ * line), which carries nothing else to find them by. Empty for a one-image card, and for an id that
+ * is itself a back.
+ */
+export function backFaceNames(index: ArtIdIndex, scryfallId: string | undefined): string[] {
+  if (scryfallId === undefined || scryfallId.endsWith(BACK_FACE)) return [];
+  let byFront = backFaceIndexes.get(index);
+  if (byFront === undefined) {
+    byFront = new Map();
+    for (const [key, id] of index) {
+      // A bare name only: `Name|SET` rows name the same faces again.
+      if (!id.endsWith(BACK_FACE) || key.includes('|')) continue;
+      const front = id.slice(0, -BACK_FACE.length);
+      const names = byFront.get(front) ?? [];
+      if (!names.includes(key)) names.push(key);
+      byFront.set(front, names);
+    }
+    backFaceIndexes.set(index, byFront);
+  }
+  return byFront.get(scryfallId) ?? [];
+}
+
 /**
  * A token's art by the tokenscript its `ImageKey` names (`t:c_3_3_a_phyrexian_wurm_deathtouch|2XM|29|1`):
  * the exact printing under `t:<script>|<SET>`, else any printing of that token under `t:<script>`.

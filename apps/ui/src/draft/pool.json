@@ -130,7 +130,25 @@
    "oracleText": "When Ajani enters, create a 2/1 white Cat Warrior creature token.\nWhenever one or more other Cats you control die, you may exile Ajani, then return him to the battlefield transformed under his owner's control.",
    "setCode": "MH3",
    "collectorNumber": "237",
-   "rarity": "mythic"
+   "rarity": "mythic",
+   "faces": [
+    {
+     "scryfallId": "0d16e8e0-31b2-4389-afd6-783c501f6fa0#back",
+     "name": "Ajani, Nacatl Avenger",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [
+      "R",
+      "W"
+     ],
+     "typeLine": "Legendary Planeswalker — Ajani",
+     "oracleText": "+2: Put a +1/+1 counter on each Cat you control.\n0: Create a 2/1 white Cat Warrior creature token. When you do, if you control a red permanent other than Ajani, he deals damage equal to the number of creatures you control to any target.\n−4: Each opponent chooses an artifact, a creature, an enchantment, and a planeswalker from among the nonland permanents they control, then sacrifices the rest.",
+     "setCode": "MH3",
+     "collectorNumber": "237",
+     "rarity": "mythic",
+     "loyalty": "3"
+    }
+   ]
   },
   {
    "cardId": "c8",
@@ -1067,7 +1085,21 @@
    "oracleText": "When this creature enters, destroy target artifact or enchantment an opponent controls.",
    "setCode": "MH3",
    "collectorNumber": "239",
-   "rarity": "uncommon"
+   "rarity": "uncommon",
+   "faces": [
+    {
+     "scryfallId": "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b#back",
+     "name": "Witch-Blessed Meadow",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [],
+     "typeLine": "Land",
+     "oracleText": "As this land enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {W}.",
+     "setCode": "MH3",
+     "collectorNumber": "239",
+     "rarity": "uncommon"
+    }
+   ]
   },
   {
    "cardId": "c57",
@@ -1102,7 +1134,25 @@
    "oracleText": "Flying\nWhenever Tamiyo attacks, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")\nWhen you draw your third card in a turn, exile Tamiyo, then return her to the battlefield transformed under her owner's control.",
    "setCode": "MH3",
    "collectorNumber": "242",
-   "rarity": "mythic"
+   "rarity": "mythic",
+   "faces": [
+    {
+     "scryfallId": "2a717b98-cdac-416d-bf6c-f6b6638e65d1#back",
+     "name": "Tamiyo, Seasoned Scholar",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [
+      "G",
+      "U"
+     ],
+     "typeLine": "Legendary Planeswalker — Tamiyo",
+     "oracleText": "+2: Until your next turn, whenever a creature attacks you or a planeswalker you control, it gets -1/-0 until end of turn.\n−3: Return target instant or sorcery card from your graveyard to your hand. If it's a green card, add one mana of any color.\n−7: Draw cards equal to half the number of cards in your library, rounded up. You get an emblem with \"You have no maximum hand size.\"",
+     "setCode": "MH3",
+     "collectorNumber": "242",
+     "rarity": "mythic",
+     "loyalty": "2"
+    }
+   ]
   },
   {
    "cardId": "c59",
@@ -1138,7 +1188,24 @@
    "oracleText": "{T}: Draw a card, then discard a card. If there are five or more cards in your graveyard, exile Jace, then return him to the battlefield transformed under his owner's control.",
    "setCode": "ORI",
    "collectorNumber": "60",
-   "rarity": "mythic"
+   "rarity": "mythic",
+   "faces": [
+    {
+     "scryfallId": "02d6d693-f1f3-4317-bcc0-c21fa8490d38#back",
+     "name": "Jace, Telepath Unbound",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [
+      "U"
+     ],
+     "typeLine": "Legendary Planeswalker — Jace",
+     "oracleText": "+1: Up to one target creature gets -2/-0 until your next turn.\n−3: You may cast target instant or sorcery card from your graveyard this turn. If that spell would be put into your graveyard, exile it instead.\n−9: You get an emblem with \"Whenever you cast a spell, target opponent mills five cards.\"",
+     "setCode": "ORI",
+     "collectorNumber": "60",
+     "rarity": "mythic",
+     "loyalty": "5"
+    }
+   ]
   },
   {
    "cardId": "c61",
@@ -1362,7 +1429,24 @@
    "collectorNumber": "39",
    "rarity": "mythic",
    "power": "3",
-   "toughness": "1"
+   "toughness": "1",
+   "faces": [
+    {
+     "scryfallId": "c2089ec9-0665-448f-bfe9-d181de127814",
+     "name": "Petty Theft",
+     "manaCost": [
+      "1",
+      "U"
+     ],
+     "manaValue": 2,
+     "colors": [],
+     "typeLine": "Instant — Adventure",
+     "oracleText": "Return target nonland permanent an opponent controls to its owner's hand.",
+     "setCode": "ELD",
+     "collectorNumber": "39",
+     "rarity": "mythic"
+    }
+   ]
   },
   {
    "cardId": "c72",
@@ -2461,7 +2545,21 @@
    "oracleText": "Return target spell or nonland permanent an opponent controls to its owner's hand.",
    "setCode": "MH3",
    "collectorNumber": "241",
-   "rarity": "uncommon"
+   "rarity": "uncommon",
+   "faces": [
+    {
+     "scryfallId": "5358b87a-1a29-426d-b165-40c97da2c14d#back",
+     "name": "Soporific Springs",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [],
+     "typeLine": "Land",
+     "oracleText": "As this land enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {U}.",
+     "setCode": "MH3",
+     "collectorNumber": "241",
+     "rarity": "uncommon"
+    }
+   ]
   },
   {
    "cardId": "c132",
@@ -2476,7 +2574,25 @@
    "oracleText": "Deathtouch\nDarkness — Whenever Cecil deals damage, you lose that much life. Then if your life total is less than or equal to half your starting life total, untap Cecil and transform it.",
    "setCode": "FIN",
    "collectorNumber": "91",
-   "rarity": "rare"
+   "rarity": "rare",
+   "faces": [
+    {
+     "scryfallId": "026e7167-d665-43d0-a51e-8df2d68cdb5e#back",
+     "name": "Cecil, Redeemed Paladin",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [
+      "W"
+     ],
+     "typeLine": "Legendary Creature — Human Knight",
+     "oracleText": "Lifelink\nProtect — Whenever Cecil attacks, other attacking creatures gain indestructible until end of turn.",
+     "setCode": "FIN",
+     "collectorNumber": "91",
+     "rarity": "rare",
+     "power": "4",
+     "toughness": "4"
+    }
+   ]
   },
   {
    "cardId": "c133",
@@ -2491,7 +2607,25 @@
    "oracleText": "Defender\n{2}{B}: Transform this creature. Activate only as a sorcery.",
    "setCode": "VOW",
    "collectorNumber": "101",
-   "rarity": "rare"
+   "rarity": "rare",
+   "faces": [
+    {
+     "scryfallId": "612b2e6e-fe8d-49ad-b845-6fa7fa59ffd1#back",
+     "name": "Revealing Eye",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [
+      "B"
+     ],
+     "typeLine": "Creature — Eye Horror",
+     "oracleText": "Menace\nWhen this creature transforms into Revealing Eye, target opponent reveals their hand. You may choose a nonland card from it. If you do, that player discards that card, then draws a card.",
+     "setCode": "VOW",
+     "collectorNumber": "101",
+     "rarity": "rare",
+     "power": "3",
+     "toughness": "4"
+    }
+   ]
   },
   {
    "cardId": "c134",
@@ -3416,7 +3550,38 @@
    "oracleText": "All lands you control become 1/1 creatures until end of turn. They're still lands.",
    "setCode": "APC",
    "collectorNumber": "130",
-   "rarity": "uncommon"
+   "rarity": "uncommon",
+   "faces": [
+    {
+     "scryfallId": "7ab75cdb-93a1-4f78-b404-37566295c321",
+     "name": "Life",
+     "manaCost": [
+      "G"
+     ],
+     "manaValue": 1,
+     "colors": [],
+     "typeLine": "Sorcery",
+     "oracleText": "All lands you control become 1/1 creatures until end of turn. They're still lands.",
+     "setCode": "APC",
+     "collectorNumber": "130",
+     "rarity": "uncommon"
+    },
+    {
+     "scryfallId": "7ab75cdb-93a1-4f78-b404-37566295c321",
+     "name": "Death",
+     "manaCost": [
+      "1",
+      "B"
+     ],
+     "manaValue": 2,
+     "colors": [],
+     "typeLine": "Sorcery",
+     "oracleText": "Return target creature card from your graveyard to the battlefield. You lose life equal to its mana value.",
+     "setCode": "APC",
+     "collectorNumber": "130",
+     "rarity": "uncommon"
+    }
+   ]
   },
   {
    "cardId": "c183",
@@ -3823,7 +3988,23 @@
    "collectorNumber": "122",
    "rarity": "uncommon",
    "power": "2",
-   "toughness": "1"
+   "toughness": "1",
+   "faces": [
+    {
+     "scryfallId": "6cc73d16-5ed7-4104-91f6-0997a2080e2e",
+     "name": "Battle Display",
+     "manaCost": [
+      "R"
+     ],
+     "manaValue": 1,
+     "colors": [],
+     "typeLine": "Sorcery — Adventure",
+     "oracleText": "Destroy target artifact. (Then exile this card. You may cast the creature later from exile.)",
+     "setCode": "ELD",
+     "collectorNumber": "122",
+     "rarity": "uncommon"
+    }
+   ]
   },
   {
    "cardId": "c206",
@@ -4025,7 +4206,24 @@
    "collectorNumber": "115",
    "rarity": "rare",
    "power": "4",
-   "toughness": "3"
+   "toughness": "3",
+   "faces": [
+    {
+     "scryfallId": "09fd2d9c-1793-4beb-a3fb-7a869f660cd4",
+     "name": "Stomp",
+     "manaCost": [
+      "1",
+      "R"
+     ],
+     "manaValue": 2,
+     "colors": [],
+     "typeLine": "Instant — Adventure",
+     "oracleText": "Damage can't be prevented this turn. Stomp deals 2 damage to any target.",
+     "setCode": "ELD",
+     "collectorNumber": "115",
+     "rarity": "rare"
+    }
+   ]
   },
   {
    "cardId": "c216",
@@ -4366,7 +4564,26 @@
    "oracleText": "Trample\nWhen Etali enters, each player exiles cards from the top of their library until they exile a nonland card. You may cast any number of spells from among the nonland cards exiled this way without paying their mana costs.\n{9}{G/P}: Transform Etali. Activate only as a sorcery.",
    "setCode": "MOM",
    "collectorNumber": "137",
-   "rarity": "rare"
+   "rarity": "rare",
+   "faces": [
+    {
+     "scryfallId": "95c14c4d-6c16-4826-8d93-d89ad04aee09#back",
+     "name": "Etali, Primal Sickness",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [
+      "G",
+      "R"
+     ],
+     "typeLine": "Legendary Creature — Phyrexian Elder Dinosaur",
+     "oracleText": "Trample, indestructible\nWhenever Etali deals combat damage to a player, they get that many poison counters. (A player with ten or more poison counters loses the game.)",
+     "setCode": "MOM",
+     "collectorNumber": "137",
+     "rarity": "rare",
+     "power": "11",
+     "toughness": "11"
+    }
+   ]
   },
   {
    "cardId": "c233",
@@ -4810,7 +5027,25 @@
    "oracleText": "(As this Saga enters and after your draw step, add a lore counter.)\nI — Create a 2/2 red Goblin Shaman creature token with \"Whenever this token attacks, create a Treasure token.\"\nII — You may discard up to two cards. If you do, draw that many cards.\nIII — Exile this Saga, then return it to the battlefield transformed under your control.",
    "setCode": "NEO",
    "collectorNumber": "141",
-   "rarity": "rare"
+   "rarity": "rare",
+   "faces": [
+    {
+     "scryfallId": "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc#back",
+     "name": "Reflection of Kiki-Jiki",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [
+      "R"
+     ],
+     "typeLine": "Enchantment Creature — Goblin Shaman",
+     "oracleText": "{1}, {T}: Create a token that's a copy of another target nonlegendary creature you control, except it has haste. Sacrifice it at the beginning of the next end step.",
+     "setCode": "NEO",
+     "collectorNumber": "141",
+     "rarity": "rare",
+     "power": "2",
+     "toughness": "2"
+    }
+   ]
   },
   {
    "cardId": "c258",
@@ -4857,7 +5092,21 @@
    "oracleText": "Destroy target land. Its controller may search their library for a basic land card, put it onto the battlefield tapped, then shuffle. Creatures without flying can't block this turn.",
    "setCode": "MH3",
    "collectorNumber": "248",
-   "rarity": "uncommon"
+   "rarity": "uncommon",
+   "faces": [
+    {
+     "scryfallId": "50686ac7-346c-43d1-bdaa-28d46a12ad93#back",
+     "name": "Volcanic Fissure",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [],
+     "typeLine": "Land",
+     "oracleText": "As this land enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {R}.",
+     "setCode": "MH3",
+     "collectorNumber": "248",
+     "rarity": "uncommon"
+    }
+   ]
   },
   {
    "cardId": "c261",
@@ -6028,7 +6277,40 @@
    "oracleText": "You may play lands from your graveyard.\n(You may cast either half. That door unlocks on the battlefield. As a sorcery, you may pay the mana cost of a locked door to unlock it.)",
    "setCode": "DSK",
    "collectorNumber": "205",
-   "rarity": "mythic"
+   "rarity": "mythic",
+   "faces": [
+    {
+     "scryfallId": "0adcd4e5-d542-4293-8774-ace2305ef820",
+     "name": "Walk-In Closet",
+     "manaCost": [
+      "2",
+      "G"
+     ],
+     "manaValue": 3,
+     "colors": [],
+     "typeLine": "Enchantment — Room",
+     "oracleText": "You may play lands from your graveyard.\n(You may cast either half. That door unlocks on the battlefield. As a sorcery, you may pay the mana cost of a locked door to unlock it.)",
+     "setCode": "DSK",
+     "collectorNumber": "205",
+     "rarity": "mythic"
+    },
+    {
+     "scryfallId": "0adcd4e5-d542-4293-8774-ace2305ef820",
+     "name": "Forgotten Cellar",
+     "manaCost": [
+      "3",
+      "G",
+      "G"
+     ],
+     "manaValue": 5,
+     "colors": [],
+     "typeLine": "Enchantment — Room",
+     "oracleText": "When you unlock this door, you may cast spells from your graveyard this turn, and if a card would be put into your graveyard from anywhere this turn, exile it instead.\n(You may cast either half. That door unlocks on the battlefield. As a sorcery, you may pay the mana cost of a locked door to unlock it.)",
+     "setCode": "DSK",
+     "collectorNumber": "205",
+     "rarity": "mythic"
+    }
+   ]
   },
   {
    "cardId": "c322",
@@ -7028,7 +7310,23 @@
    "oracleText": "Flash\nFlying\nWhen Aang enters, airbend up to one other target creature or spell. (Exile it. While it's exiled, its owner may cast it for {2} rather than its mana cost.)\nWaterbend {8}: Transform Aang.",
    "setCode": "TLA",
    "collectorNumber": "204",
-   "rarity": "rare"
+   "rarity": "rare",
+   "faces": [
+    {
+     "scryfallId": "82866a0e-485a-4f7e-8c49-f7d9ff3f4ad4#back",
+     "name": "Aang and La, Ocean's Fury",
+     "manaCost": [],
+     "manaValue": 0,
+     "colors": [],
+     "typeLine": "Legendary Creature — Avatar Spirit Ally",
+     "oracleText": "Reach, trample\nWhenever Aang and La attack, put a +1/+1 counter on each tapped creature you control.",
+     "setCode": "TLA",
+     "collectorNumber": "204",
+     "rarity": "rare",
+     "power": "5",
+     "toughness": "5"
+    }
+   ]
   },
   {
    "cardId": "c388",

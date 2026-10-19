@@ -1586,10 +1586,35 @@ describe('a card’s other faces', () => {
     addFace(state, 3, 'Reflection of Kiki-Jiki', ['Enchantment', 'Creature']);
     setCard(state, 21, 'AlternateState', { t: 'int', v: 3 });
     const card = cardsById(adapt(state)).get(21)!;
-    expect(card.faces?.map((f) => f.name)).toEqual(['Reflection of Kiki-Jiki']);
-    expect(card.faces?.[0]?.scryfallId, 'the back face’s own art').toBe(scryfallIdFor(KNOWN_ART_IDS, 'Reflection of Kiki-Jiki', 'NEO'));
-    expect(card.faces?.[0]?.scryfallId).not.toBe(card.card.scryfallId);
+    expect(card.card.faces?.map((f) => f.name)).toEqual(['Reflection of Kiki-Jiki']);
+    expect(card.card.faces?.[0]?.scryfallId, 'the back face’s own art').toBe(scryfallIdFor(KNOWN_ART_IDS, 'Reflection of Kiki-Jiki', 'NEO'));
+    expect(card.card.faces?.[0]?.scryfallId).not.toBe(card.card.scryfallId);
     expect(cardFaces(state, 21).map((f) => f.name), 'the face on show first').toEqual(['Fable of the Mirror-Breaker', 'Reflection of Kiki-Jiki']);
+  });
+
+  /*
+   * Etali, Primal Conqueror as Forge sends it to its owner: the front on show, `AlternateState` naming
+   * the transformed back, Etali, Primal Sickness. On the stack — cast, so in no zone list — the spell's
+   * card still carries the back face for the stack's tile to draw.
+   */
+  it('carries Etali, Primal Conqueror’s back on the stack too, with the back’s own art', () => {
+    const state = baseState();
+    renameCard(state, 21, 'Etali, Primal Conqueror', 'MOM');
+    addFace(state, 1, 'Etali, Primal Sickness', ['Creature'], 'MOM');
+    setCard(state, 21, 'AlternateState', { t: 'int', v: 1 });
+    const { id: sid } = adapt(state).stack[0]!;
+    const key = deltaKey(WireType.StackItem, sid);
+    state.set(key, { ...state.get(key)!, Ability: { t: 'bool', v: false }, SourceCard: { t: 'int', v: 21 } } as WireObject);
+    for (const { id: pid } of adapt(state).players) {
+      for (const zone of ['Hand', 'Library', 'Battlefield', 'Graveyard', 'Exile']) {
+        const list = ((state.get(deltaKey(WireType.Player, pid))?.[zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((t) => t.v);
+        setZone(state, pid, zone, list.filter((id) => id !== 21));
+      }
+    }
+    const spell = adapt(state).stack.find((i) => i.id === sid)!;
+    expect(spell.sourceCard?.name).toBe('Etali, Primal Conqueror');
+    expect(spell.sourceCard?.faces?.map((f) => f.name)).toEqual(['Etali, Primal Sickness']);
+    expect(spell.sourceCard?.faces?.[0]?.scryfallId).toBe('95c14c4d-6c16-4826-8d93-d89ad04aee09#back');
   });
 
   it('carries a split card’s halves, drawn with the card’s art where a half has none of its own', () => {
@@ -1600,15 +1625,15 @@ describe('a card’s other faces', () => {
     setCard(state, 21, 'LeftSplitState', { t: 'int', v: 5 });
     setCard(state, 21, 'RightSplitState', { t: 'int', v: 6 });
     const card = cardsById(adapt(state)).get(21)!;
-    expect(card.faces?.map((f) => f.name)).toEqual(['Fire', 'Ice']);
-    expect(card.faces?.every((f) => f.scryfallId === card.card.scryfallId)).toBe(true);
+    expect(card.card.faces?.map((f) => f.name)).toEqual(['Fire', 'Ice']);
+    expect(card.card.faces?.every((f) => f.scryfallId === card.card.scryfallId)).toBe(true);
   });
 
   // The operator, 2026-10-19: "i see the entire split card in both choices so i can't really tell which one is wish".
   it('crops a split card’s halves to their own part of its image, turned upright, each with its own name, cost and text', () => {
     const state = splitCard('Fire // Ice', 'AP', ['Fire', '1\u0006RED', 'Fire deals 2 damage divided as you choose'], ['Ice', '1\u0006BLUE', 'Tap target permanent.\nDraw a card.']);
     const whole = cardsById(adapt(state)).get(21)!;
-    const faces = whole.faces!;
+    const faces = whole.card.faces!;
     expect(faces.map((f) => [f.name, f.faceCrop])).toEqual([['Fire', 'split-left'], ['Ice', 'split-right']]);
     expect(faces.map((f) => FACE_REGIONS[f.faceCrop!].rotate), 'printed sideways: a quarter turn clockwise reads them').toEqual([90, 90]);
     expect(faces.map((f) => [f.manaCost, f.oracleText])).toEqual([
@@ -1625,7 +1650,7 @@ describe('a card’s other faces', () => {
 
   it('crops an aftermath card’s halves: the first upright at the top, the second turned the other way', () => {
     const state = splitCard('Cut // Ribbons', 'AKH', ['Cut', '1\u0006RED', 'Cut deals 4 damage to target creature.'], ['Ribbons', '0\u0006X\u0006BLACK\u0006BLACK', 'Each opponent loses X life.'], ['Aftermath']);
-    const faces = cardsById(adapt(state)).get(21)!.faces!;
+    const faces = cardsById(adapt(state)).get(21)!.card.faces!;
     expect(faces.map((f) => [f.name, f.faceCrop, FACE_REGIONS[f.faceCrop!].rotate])).toEqual([
       ['Cut', 'aftermath-top', 0],
       ['Ribbons', 'aftermath-bottom', -90],
@@ -1638,7 +1663,7 @@ describe('a card’s other faces', () => {
     addFace(state, 7, 'Stomp', ['Instant'], 'ELD', { OracleText: { t: 'str', v: 'Stomp deals 2 damage to any target.' } });
     setCard(state, 21, 'AlternateState', { t: 'int', v: 7 });
     const giant = cardsById(adapt(state)).get(21)!;
-    expect(giant.faces!.map((f) => [f.name, f.faceCrop, f.oracleText, f.scryfallId === giant.card.scryfallId])).toEqual([
+    expect(giant.card.faces!.map((f) => [f.name, f.faceCrop, f.oracleText, f.scryfallId === giant.card.scryfallId])).toEqual([
       ['Stomp', 'adventure', 'Stomp deals 2 damage to any target.', true],
     ]);
 
@@ -1648,13 +1673,13 @@ describe('a card’s other faces', () => {
     addFace(other, 7, 'Stomp', ['Instant'], 'CLB');
     setCard(other, 21, 'AlternateState', { t: 'int', v: 7 });
     expect(scryfallIdFor(KNOWN_ART_IDS, 'Stomp', 'CLB')).not.toBe(scryfallIdFor(KNOWN_ART_IDS, 'Bonecrusher Giant', 'ELD'));
-    expect(cardsById(adapt(other)).get(21)!.faces![0]!.scryfallId).toBe(scryfallIdFor(KNOWN_ART_IDS, 'Bonecrusher Giant', 'ELD'));
+    expect(cardsById(adapt(other)).get(21)!.card.faces![0]!.scryfallId).toBe(scryfallIdFor(KNOWN_ART_IDS, 'Bonecrusher Giant', 'ELD'));
 
     const dfc = baseState();
     renameCard(dfc, 21, 'Fable of the Mirror-Breaker', 'NEO');
     addFace(dfc, 3, 'Reflection of Kiki-Jiki', ['Enchantment', 'Creature']);
     setCard(dfc, 21, 'AlternateState', { t: 'int', v: 3 });
-    expect(cardsById(adapt(dfc)).get(21)!.faces![0]!.faceCrop).toBeUndefined();
+    expect(cardsById(adapt(dfc)).get(21)!.card.faces![0]!.faceCrop).toBeUndefined();
   });
 
   it('carries none for a face-down card — its other face is what is hidden — nor for a card with one face', () => {
@@ -1662,8 +1687,8 @@ describe('a card’s other faces', () => {
     addFace(state, 3, 'Reflection of Kiki-Jiki', ['Enchantment', 'Creature']);
     setCard(state, 21, 'AlternateState', { t: 'int', v: 3 });
     setCard(state, 21, 'Facedown', { t: 'bool', v: true });
-    expect(cardsById(adapt(state)).get(21)!.faces).toBeUndefined();
-    expect(cardsById(adapt(baseState())).get(21)!.faces).toBeUndefined();
+    expect(cardsById(adapt(state)).get(21)!.card.faces).toBeUndefined();
+    expect(cardsById(adapt(baseState())).get(21)!.card.faces).toBeUndefined();
   });
 });
 
@@ -1734,12 +1759,12 @@ describe('a Room’s doors', () => {
     const card = cardsById(adapt(roomState(5))).get(21)!;
     expect(card.card.name).toBe(ROOM);
     expect(card.card.oracleText, 'the whole card, not the door Forge shows').toBe(`${ROOM} text`);
-    expect(card.faces?.map((f) => f.name)).toEqual(['Walk-In Closet', 'Forgotten Cellar']);
+    expect(card.card.faces?.map((f) => f.name)).toEqual(['Walk-In Closet', 'Forgotten Cellar']);
   });
 
   it('its doors are its faces, each cropped to its half of the card and marked with its state', () => {
     const card = cardsById(adapt(roomState(5))).get(21)!;
-    expect(card.faces?.map((f) => [f.name, f.faceCrop, f.door])).toEqual([
+    expect(card.card.faces?.map((f) => [f.name, f.faceCrop, f.door])).toEqual([
       ['Walk-In Closet', 'split-left', 'unlocked'],
       ['Forgotten Cellar', 'split-right', 'locked'],
     ]);

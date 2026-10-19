@@ -140,6 +140,7 @@ import {
 
 import {
   artIdIndexFromTable,
+  backFaceNames,
   scryfallIdFor,
   type ArtIdIndex,
   type ArtIdTableFile,
@@ -303,7 +304,8 @@ function namedPeekLine({ name, count }: DeckLine): PeekLine {
   const printed = LIBRARY_CARD_COSTS[name] ?? '';
   const cost = manaTokensOf(printed);
   const manaValue = manaValueOf(printed);
-  return { name, count, cost, manaValue, face: namedFace(name, cost, manaValue, scryfallIdFor(LIBRARY_ART_IDS, name, '')) };
+  const id = scryfallIdFor(LIBRARY_ART_IDS, name, '');
+  return { name, count, cost, manaValue, face: namedFace(name, cost, manaValue, id, backFaceNames(LIBRARY_ART_IDS, id)) };
 }
 
 /** A library deck's lines: the wire sends names. */

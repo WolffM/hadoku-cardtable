@@ -33,6 +33,7 @@ import {
   artIdsWithBacks,
   BACK_FACE,
   artIdKey,
+  backFaceNames,
   mergeArtIdIndexes,
   scryfallIdFor,
   tokenArtId,
@@ -336,5 +337,16 @@ describe('a token’s art follows its tokenscript, not its name', () => {
     expect(tokenArtId(KNOWN, 'c:Mountain|MRD|1')).toBeUndefined();
     expect(tokenArtId(KNOWN, 't:no_such_tokenscript|2XM|1|1')).toBeUndefined();
     expect(tokenArtId(KNOWN, null)).toBeUndefined();
+  });
+});
+
+describe('backFaceNames: a two-image card’s other faces, by the table alone', () => {
+  it('names Etali, Primal Sickness for Etali, Primal Conqueror’s id, and nothing for a one-image card or a back', () => {
+    const etali = scryfallIdFor(KNOWN, 'Etali, Primal Conqueror', 'MOM');
+    expect(backFaceNames(KNOWN, etali)).toEqual(['Etali, Primal Sickness']);
+    expect(backFaceNames(KNOWN, scryfallIdFor(KNOWN, 'Fable of the Mirror-Breaker', 'NEO'))).toEqual(['Reflection of Kiki-Jiki']);
+    expect(backFaceNames(KNOWN, scryfallIdFor(KNOWN, 'Bonecrusher Giant', 'ELD')), 'an adventure is one image').toEqual([]);
+    expect(backFaceNames(KNOWN, `${etali}${BACK_FACE}`)).toEqual([]);
+    expect(backFaceNames(KNOWN, undefined)).toEqual([]);
   });
 });

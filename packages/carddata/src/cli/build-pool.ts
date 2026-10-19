@@ -39,6 +39,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadCube } from '../cubes.ts';
+import { otherFaces } from '../faces.ts';
 import { buildCardIndex, resolveCard } from '../resolve.ts';
 import type { GameplayCard } from '../scryfall/project.ts';
 
@@ -123,7 +124,42 @@ function toDraftCard(card: GameplayCard, cardId: string): Record<string, unknown
   if (typeof raw.power === 'string') out.power = raw.power;
   if (typeof raw.toughness === 'string') out.toughness = raw.toughness;
   if (typeof raw.loyalty === 'string') out.loyalty = raw.loyalty;
+  const others = faceCards(card, out);
+  if (others.length > 0) out.faces = others;
   return out;
+}
+
+/**
+ * The card's other faces, printed as the card is (`DraftCard.faces`): each face's own text from its
+ * `card_faces` entry, and the art `otherFaces` says it draws — Etali, Primal Sickness its own back
+ * image. A face Scryfall prints no entry for (a meld result, a card of its own) is left out: a face
+ * with no text and a borrowed set line is not one this pool can print.
+ */
+function faceCards(card: GameplayCard, front: Record<string, unknown>): Array<Record<string, unknown>> {
+  const raw = card as unknown as Record<string, unknown>;
+  const printed = Array.isArray(raw.card_faces) ? (raw.card_faces as Array<Record<string, unknown>>) : [];
+  return otherFaces(card).flatMap(({ name, artId }) => {
+    const face = printed.find((f) => f.name === name);
+    if (face === undefined) return [];
+    const colors = Array.isArray(face.colors) ? (face.colors as unknown[]).filter((c): c is string => typeof c === 'string' && COLORS.has(c)) : [];
+    const manaCost = manaTokens(typeof face.mana_cost === 'string' ? face.mana_cost : '');
+    const out: Record<string, unknown> = {
+      scryfallId: artId,
+      name,
+      manaCost,
+      manaValue: typeof face.cmc === 'number' ? face.cmc : manaCost.reduce((n, t) => n + (/^\d+$/.test(t) ? Number(t) : t === 'X' ? 0 : 1), 0),
+      colors,
+      typeLine: String(face.type_line ?? ''),
+      oracleText: String(face.oracle_text ?? ''),
+      setCode: front.setCode,
+      collectorNumber: front.collectorNumber,
+      rarity: front.rarity,
+    };
+    if (typeof face.power === 'string') out.power = face.power;
+    if (typeof face.toughness === 'string') out.toughness = face.toughness;
+    if (typeof face.loyalty === 'string') out.loyalty = face.loyalty;
+    return [out];
+  });
 }
 
 async function main(): Promise<void> {

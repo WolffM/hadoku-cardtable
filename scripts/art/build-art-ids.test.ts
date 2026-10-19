@@ -13,7 +13,8 @@
 import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
-import { faceRows, mostUsedPrinting, otherFaces, scenarioNames, type PrintingVote } from './build-art-ids.ts';
+import { otherFaces } from '../../packages/carddata/src/faces.ts';
+import { faceRows, mostUsedPrinting, scenarioNames, type PrintingVote } from './build-art-ids.ts';
 
 describe('mostUsedPrinting', () => {
   it('picks the printing with the most votes, not the first one cast', () => {

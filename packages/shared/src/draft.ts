@@ -66,16 +66,8 @@ export const ManaColorSchema = z.enum(['W', 'U', 'B', 'R', 'G']);
 
 export const RaritySchema = z.enum(['common', 'uncommon', 'rare', 'mythic', 'special']);
 
-/**
- * A card as the draft table needs it: enough to pick with, nothing more.
- *
- * `manaCost` is a list of symbol *tokens* (`['2','W','W']`, `['X','R']`,
- * `['W/U']`) rather than a rendered string, because we draw our own pips and a
- * renderer needs the pieces. Deliberately not a WotC symbol font.
- */
-export const DraftCardSchema = z.object({
-  /** Stable within one draft. Distinguishes two copies of the same card. */
-  cardId: z.string().min(1),
+/** The printed fields every face of a card has — {@link DraftCardSchema} documents them. */
+const CardFaceFields = {
   /**
    * Scryfall's own card id, carried ONLY so the browser can derive an image
    * URL for itself — see `apps/ui/src/draft/cardImage.ts`.
@@ -102,6 +94,36 @@ export const DraftCardSchema = z.object({
   setCode: z.string(),
   collectorNumber: z.string(),
   rarity: RaritySchema,
+};
+
+/**
+ * One of a card's OTHER faces — a transformed card's back (Etali, Primal Sickness under Etali,
+ * Primal Conqueror), a modal double-faced card's, a split card's halves, an adventure — printed the
+ * way the card itself is, its own `scryfallId` drawing its own art (`<id>#back` for a two-image
+ * card). The inspector's mouse wheel turns an enlarged card to these.
+ */
+export const CardFaceSchema = z.object({
+  ...CardFaceFields,
+  /** The card's id, or its back image's (`<id>#back`, `@hadoku/carddata/art`'s `BACK_FACE`) for a two-image card's back face. */
+  scryfallId: z
+    .string()
+    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(#back)?$/i)
+    .optional(),
+});
+
+/**
+ * A card as the draft table needs it: enough to pick with, nothing more.
+ *
+ * `manaCost` is a list of symbol *tokens* (`['2','W','W']`, `['X','R']`,
+ * `['W/U']`) rather than a rendered string, because we draw our own pips and a
+ * renderer needs the pieces. Deliberately not a WotC symbol font.
+ */
+export const DraftCardSchema = z.object({
+  /** Stable within one draft. Distinguishes two copies of the same card. */
+  cardId: z.string().min(1),
+  ...CardFaceFields,
+  /** Every face but the one this card shows, in printed order. Absent for a card with one face. */
+  faces: z.array(CardFaceSchema).optional(),
 });
 
 /**
@@ -175,6 +197,7 @@ export type SeatOccupant = z.infer<typeof SeatOccupantSchema>;
 export type ManaColor = z.infer<typeof ManaColorSchema>;
 export type Rarity = z.infer<typeof RaritySchema>;
 export type DraftCard = z.infer<typeof DraftCardSchema>;
+export type CardFace = z.infer<typeof CardFaceSchema>;
 export type DraftSeatView = z.infer<typeof DraftSeatViewSchema>;
 export type ViewerView = z.infer<typeof ViewerViewSchema>;
 export type PassDirection = z.infer<typeof PassDirectionSchema>;

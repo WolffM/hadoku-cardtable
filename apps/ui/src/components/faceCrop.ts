@@ -18,7 +18,7 @@
 
 import type { CSSProperties } from 'react';
 
-import type { DraftCard } from '../draft/types.ts';
+import type { CardFace, DraftCard } from '../draft/types.ts';
 
 export type FacePart = 'split-left' | 'split-right' | 'aftermath-top' | 'aftermath-bottom' | 'adventure';
 
@@ -32,10 +32,13 @@ export const DOOR_TIP: Readonly<Record<DoorState, string>> = {
 };
 
 /**
- * A card as a tile draws it: a face that shares the card's image says which part of it is its own, and
- * a Room's door says whether it is unlocked (`play/adapter.ts`'s `BoardCard.doors`).
+ * One of a card's other faces as a tile draws it: a face that shares the card's image says which part of
+ * it is its own, and a Room's door says whether it is unlocked (`play/adapter.ts`'s `BoardCard.doors`).
  */
-export type TileCard = DraftCard & { readonly faceCrop?: FacePart; readonly door?: DoorState };
+export type TileFace = CardFace & { readonly faceCrop?: FacePart; readonly door?: DoorState };
+
+/** A card as a tile draws it, its other faces ({@link TileFace}) with it. */
+export type TileCard = Omit<DraftCard, 'faces'> & { readonly faceCrop?: FacePart; readonly door?: DoorState; faces?: TileFace[] };
 
 /** Where a face is printed, as fractions of the image's width and height, and the turn that sets it upright. */
 export interface FaceRegion {

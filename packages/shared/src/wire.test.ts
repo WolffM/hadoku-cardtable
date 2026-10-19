@@ -175,6 +175,23 @@ describe('server → client', () => {
     expect(text).toContain('$.view.viewer.pack[0].image_uris');
   });
 
+  it('carries a card’s other faces, and holds each face to a card’s own field rules', () => {
+    const faced = view();
+    const pack = (faced.viewer as { pack: DraftCard[] }).pack;
+    const back = { ...card('x2', 'Etali, Primal Sickness'), scryfallId: '95c14c4d-6c16-4826-8d93-d89ad04aee09#back' } as Record<string, unknown>;
+    delete back.cardId;
+    pack[0] = { ...pack[0]!, faces: [back as never] };
+    const ok = safeParseServerMessage(updateMessage(faced));
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(((ok.value as { view: DraftView }).view.viewer as { pack: DraftCard[] }).pack[0]!.faces?.map((f) => f.name)).toEqual(['Etali, Primal Sickness']);
+
+    back.image_uris = { normal: 'https://cards.scryfall.io/x.jpg' };
+    const leaky = safeParseServerMessage(updateMessage(faced));
+    expect(leaky.ok).toBe(false);
+    if (leaky.ok) return;
+    expect(leaky.errors.map((e) => e.path)).toContain('$.view.viewer.pack[0].faces[0].image_uris');
+  });
+
   it('runs the hidden-information rules through the wrapper too', () => {
     const leaky = view();
     (leaky.seats[1] as unknown as Record<string, unknown>).picked = [card('x1', 'Ancestral Recall')];

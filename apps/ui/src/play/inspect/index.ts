@@ -108,12 +108,14 @@
  *
  * A card with more than one face — transformed (Fable of the Mirror-Breaker and Reflection of
  * Kiki-Jiki), modal double-faced, split, an adventure — has its other faces drawn as hidden tiles by
- * the board (`../Board.tsx`'s `BoardFaces`, `data-faces-of="<id>"`). While the panel is open on such
+ * its own tile (`../../components/CardTile.tsx`: `data-faces="<key>"` on the tile, its faces under
+ * `data-faces-of="<key>"`), wherever that tile is — the board, the stack, a prompt, a pack, a pool,
+ * a deck. While the panel is open on such
  * a card, the mouse wheel turns it to the next face down, or back up, and round again (the operator,
  * 2026-10-17: *"mousewheel up/down lets you cycle between other relevant cards"*). The wheel scrolls
  * nothing else meanwhile; on a card with one face it is left alone. A Room is drawn as its two doors
- * (`../Board.tsx`'s `RoomDoors`): the panel opens on the door under the pointer, with its lock state,
- * and the wheel turns to the other.
+ * (`../Board.tsx`'s `RoomDoors`), each door a tile whose one other face is the other door: the panel
+ * opens on the door under the pointer, with its lock state, and the wheel turns to the other.
  *
  * ## Staleness, on purpose
  *
@@ -452,6 +454,7 @@ function enlarged(tile: Element): HTMLElement {
   const clone = tile.cloneNode(true) as HTMLElement;
   clone.removeAttribute('data-card-id');
   clone.removeAttribute('data-testid');
+  clone.removeAttribute('data-faces');
   const art = clone.querySelector('img');
   if (art !== null) art.setAttribute('loading', 'eager');
   return clone;
@@ -535,9 +538,7 @@ export function mountInspector(root: ParentNode): () => void {
     current = target;
 
     const clone = enlarged(target.tile);
-    // A face the board draws as a card of its own (a Room's door) is not turned to twice.
-    const named = (el: Element): string | null => el.querySelector('.card__name')?.textContent ?? null;
-    faces = [target.tile, ...otherFacesOf(target.tile).filter((f) => named(f) !== named(target.tile))];
+    faces = [target.tile, ...otherFacesOf(target.tile)];
 
     const hoverR = rectOf((target.trigger ?? target.tile).getBoundingClientRect());
     // A window is open: the panel stands beside it, never on it — the hovered
@@ -580,11 +581,11 @@ export function mountInspector(root: ParentNode): () => void {
     panel.replaceChildren(enlarged(faces[faceAt]!));
   }
 
-  /** A card's other faces, as the board drew them (`BoardFaces`), by the board id in its tile's own `w<id>`. */
+  /** A card's other faces, as its tile drew them (`CardTile`'s `data-faces`). */
   function otherFacesOf(tile: Element): Element[] {
-    const id = tile.getAttribute('data-card-id');
-    if (id === null || !TILE_ID.test(id)) return [];
-    const drawn = root.querySelector(`[data-faces-of="${id.slice(1)}"]`);
+    const key = tile.getAttribute('data-faces');
+    if (key === null) return [];
+    const drawn = scope.querySelector(`[data-faces-of="${key}"]`);
     return drawn === null ? [] : [...drawn.querySelectorAll('.card')];
   }
 

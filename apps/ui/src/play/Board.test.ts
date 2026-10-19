@@ -5548,12 +5548,11 @@ describe('a Room on the battlefield', () => {
     });
     const room: BoardCard = {
       ...base,
-      card: { ...base.card, name: ROOM },
+      card: { ...base.card, name: ROOM, faces: [door('Walk-In Closet', 'split-left', left), door('Forgotten Cellar', 'split-right', right)] },
       doors: [
         { name: 'Walk-In Closet', unlocked: left },
         { name: 'Forgotten Cellar', unlocked: right },
       ],
-      faces: [door('Walk-In Closet', 'split-left', left), door('Forgotten Cellar', 'split-right', right)],
     };
     const players = view.players.map((p) => (p === player ? { ...p, battlefield: [room, ...p.battlefield.slice(1)] } : p));
     return { view: { ...view, players }, id: base.id };
@@ -5600,7 +5599,7 @@ describe('a Room on the battlefield', () => {
 
   it('is drawn as one card when its doors are not both in hand to draw', () => {
     const { view, id } = withRoom(false, false);
-    const players = view.players.map((p) => ({ ...p, battlefield: p.battlefield.map((c) => (c.id === id ? { ...c, faces: c.faces!.slice(0, 1) } : c)) }));
+    const players = view.players.map((p) => ({ ...p, battlefield: p.battlefield.map((c) => (c.id === id ? { ...c, card: { ...c.card, faces: c.card.faces!.slice(0, 1) } } : c)) }));
     const { container } = renderBoard({ ...view, players });
     expect(roomLi(container, id).dataset.room).toBeUndefined();
   });

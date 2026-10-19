@@ -385,6 +385,26 @@ describe('DeckEditor — limited', () => {
     expect(ids.every((id) => /^w\d+$/.test(id ?? ''))).toBe(true);
   });
 
+  /*
+   * The operator, 2026-10-19, building a deck from pod r-921122bd71b6 with Etali in the pool: "i
+   * remember having asked for 'scroll to see transformed card' as a feature when hovering … I'm
+   * hovering Etali right now and i can see it has a transform, why can i not scroll to see it?"
+   */
+  it('turns an enlarged Etali, Primal Conqueror to Etali, Primal Sickness on the wheel, its own back art', () => {
+    const etali = (poolData as { cards: DraftCard[] }).cards.find((c) => c.name.startsWith('Etali, Primal Conqueror'))!;
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: [...POOL.slice(0, 20), { ...etali, cardId: `draft:${DRAFT_ID}/etali` }] }));
+    const tile = cardsIn('side-grid').find((t) => t.querySelector('.card__name')?.textContent?.startsWith('Etali'))!;
+    fireEvent.pointerOver(tile, { pointerType: 'mouse' });
+    const shown = (): string | null | undefined => document.querySelector('[data-inspect] .card__name')?.textContent;
+    expect(shown()).toBe('Etali, Primal Conqueror // Etali, Primal Sickness');
+    expect(fireEvent.wheel(tile, { deltaY: 100 }), 'the wheel is taken').toBe(false);
+    expect(shown()).toBe('Etali, Primal Sickness');
+    expect(document.querySelector('[data-inspect] .card__rules')?.textContent).toContain('poison counters');
+    expect(document.querySelector('[data-inspect] img')?.getAttribute('src'), 'its back image').toMatch(/\/back\/9\/5\/95c14c4d-6c16-4826-8d93-d89ad04aee09\.jpg$/);
+    fireEvent.wheel(tile, { deltaY: -100 });
+    expect(shown()).toBe('Etali, Primal Conqueror // Etali, Primal Sickness');
+  });
+
   it('filters the pool by colour', () => {
     render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL_MIXED }));
     const before = cardsIn('side-grid').length;

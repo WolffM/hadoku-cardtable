@@ -34,6 +34,7 @@ export {
   type SeatOccupant,
   type ManaColor,
   type Rarity,
+  type CardFace,
   type DraftCard,
   type DraftSeatView,
   type ViewerView,

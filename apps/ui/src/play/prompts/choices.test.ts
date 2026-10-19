@@ -634,6 +634,17 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     }
   });
 
+  // The operator, 2026-10-19, on Etali: "why can i not scroll to see it?" A prompt's tile carries the
+  // card's other faces, from the same lookup the board reads (`lookup.faces`), for the inspector's wheel.
+  it('draws a revealed card’s other faces for the wheel, the one on show left out', () => {
+    const face = (name: string) => ({ cardId: `w${POOL_ID_BASE}`, name, manaCost: [], manaValue: 0, colors: [], typeLine: '', oracleText: '', setCode: 'MOM', collectorNumber: '', rarity: 'rare' as const });
+    const lookup: PromptLookup = { ...poolLookup, faces: (id) => (id === POOL_ID_BASE ? [face('Etali, Primal Conqueror'), face('Etali, Primal Sickness')] : []) };
+    mountPrompt('getChoices', revealAsk(), lookup);
+    const tile = document.querySelector(`[data-testid="prompt-cards"] > li .card`)!;
+    const drawn = document.querySelector(`[data-faces-of="${tile.getAttribute('data-faces')}"]`);
+    expect([...(drawn?.querySelectorAll('.card__name') ?? [])].map((e) => e.textContent)).toEqual(['Etali, Primal Sickness']);
+  });
+
   // The operator's lane, 2026-10-19: "Swamp (124)" on a tile. Forge's id is not part of a card's name.
   it("says Forge's own wording on the tile, without the id it ends in", () => {
     const { getByTestId } = mountPrompt('getChoices', revealAsk(), poolLookup);

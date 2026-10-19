@@ -289,6 +289,7 @@ export {
   artIdsWithBacks,
   artIdIndexFromTable,
   artIdKey,
+  backFaceNames,
   mergeArtIdIndexes,
   scryfallIdFor,
   tokenArtId,

@@ -311,7 +311,11 @@ export function promptTileFor(lookup: PromptLookup, forgeId: number, label?: str
   const facts = lookup.card(forgeId);
   const identity = facts?.name ?? (label === undefined ? `card #${forgeId}` : nameFromForgeLabel(label, forgeId));
   // Forge's wording, without the " (id)" its `CardView.toString()` ends in: an id is never a card's name.
-  return promptCardTile(forgeId, identity, facts?.setCode ?? '', label === undefined ? undefined : nameFromForgeLabel(label, forgeId));
+  const card = promptCardTile(forgeId, identity, facts?.setCode ?? '', label === undefined ? undefined : nameFromForgeLabel(label, forgeId));
+  // Its other faces, the board's own (`lookup.faces`: the one on show first), for the inspector's wheel.
+  const faces = lookup.faces?.(forgeId).slice(1) ?? [];
+  if (faces.length > 0) card.faces = [...faces];
+  return card;
 }
 
 /**

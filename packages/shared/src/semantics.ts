@@ -51,7 +51,12 @@ const CARD_FIELDS = new Set([
   'setCode',
   'collectorNumber',
   'rarity',
+  // The card's other faces (`CardFaceSchema`): each is checked as a card is, below.
+  'faces',
 ]);
+
+/** Fields one of a card's other faces may carry: a card's, less its own identity and faces. */
+const FACE_FIELDS = new Set([...CARD_FIELDS].filter((f) => f !== 'cardId' && f !== 'faces'));
 
 /**
  * What an image reference looks like, however it is spelled.
@@ -79,10 +84,11 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-function checkCard(card: unknown, path: Array<string | number>, out: ValidationFailure[]): void {
+function checkCard(card: unknown, path: Array<string | number>, out: ValidationFailure[], fields: ReadonlySet<string> = CARD_FIELDS): void {
   if (!isRecord(card)) return;
+  if (fields === CARD_FIELDS && Array.isArray(card.faces)) card.faces.forEach((face, i) => checkCard(face, [...path, 'faces', i], out, FACE_FIELDS));
   for (const key of Object.keys(card)) {
-    if (CARD_FIELDS.has(key)) continue;
+    if (fields.has(key)) continue;
     // Field NAME or URL-shaped value only — never free text. "image" is a
     // substring of real card names (Mirror Image, Nissa's Pilgrimage), and a
     // control that fires on those is one somebody turns off.

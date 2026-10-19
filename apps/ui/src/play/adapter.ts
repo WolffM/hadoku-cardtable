@@ -185,7 +185,7 @@ export interface BoardCardWaiting {
 export interface BoardCard {
   id: number;
   /** What `CardTile` draws. */
-  card: DraftCard;
+  card: TileCard;
   /**
    * This seat's wire carries no name for the card — it may not see it — so the
    * board draws its back, and `card.name` is `HIDDEN_CARD_NAME`.
@@ -303,15 +303,6 @@ export interface BoardCard {
    * `readAbilityText`'s own note for why this is never raw HTML.
    */
   abilityText?: string | null;
-  /**
-   * The card's OTHER faces, as cards: a transformed card's front (Fable of the Mirror-Breaker under
-   * Reflection of Kiki-Jiki), a modal double-faced card's back, a split card's halves, an adventure.
-   * Read off the face states Forge sends beside the current one (`AlternateState`, `LeftSplitState`,
-   * `RightSplitState`); never for a face-down card, whose other face is what is hidden. Absent for a
-   * card with one face, which is most of them. A face drawn with the card's own image carries the part
-   * of it that face is printed in (`../components/faceCrop.ts`).
-   */
-  faces?: TileCard[];
   /**
    * A Room's two doors on the battlefield, left then right, each with whether it is unlocked — see
    * {@link readDoors}. Absent for every other card, and for a Room anywhere else.
@@ -1505,10 +1496,13 @@ function facePartOf(state: WireState, id: number, view: WireObject, v: number): 
 }
 
 /**
- * A card's faces other than `shown`, as cards — {@link BoardCard.faces}. A face with no name on this
- * seat's wire is one it may not see and is left out; a face-down card has none to show at all. A face
- * printed on the card's own image (a split half, an adventure) is drawn with that image, cropped to its
- * part of it; any other face without art of its own is drawn with the card's.
+ * A card's faces other than `shown`, as cards — `DraftCard.faces`: a transformed card's front (Fable
+ * of the Mirror-Breaker under Reflection of Kiki-Jiki), a modal double-faced card's back, a split
+ * card's halves, an adventure. Read off the face states Forge sends beside the current one
+ * (`AlternateState`, `LeftSplitState`, `RightSplitState`). A face with no name on this seat's wire is
+ * one it may not see and is left out; a face-down card has none to show at all. A face printed on
+ * the card's own image (a split half, an adventure) is drawn with that image, cropped to its part of
+ * it; any other face without art of its own is drawn with the card's.
  */
 function otherFaces(state: WireState, id: number, view: WireObject, shown: DraftCard, artIds: ArtIdIndex): TileCard[] {
   if (readBool(view, 'Facedown')) return [];
@@ -1581,8 +1575,10 @@ function toBoardCard(
   const core = coreTypes(type);
   const counters = countersOf(view);
   const loyaltyCounter = counters.find((c) => c.name === 'Loyalty');
-  const card = faceCard(id, face, name, artIds, hidden);
+  const card: TileCard = faceCard(id, face, name, artIds, hidden);
   if (core.includes('Planeswalker') && loyaltyCounter !== undefined) card.loyalty = String(loyaltyCounter.count);
+  const faces = hidden ? [] : withDoors(otherFaces(state, id, view, card, artIds), doors);
+  if (faces.length > 0) card.faces = faces;
 
   const keywords = readKeywords(face);
   // Forge sets `Sickness` on cards in every zone; it only means something on
@@ -1619,10 +1615,6 @@ function toBoardCard(
     choices,
     relations,
     abilityText,
-    ...((): { faces?: TileCard[] } => {
-      const faces = hidden ? [] : withDoors(otherFaces(state, id, view, card, artIds), doors);
-      return faces.length > 0 ? { faces } : {};
-    })(),
     ...(doors !== null && { doors }),
   };
 }

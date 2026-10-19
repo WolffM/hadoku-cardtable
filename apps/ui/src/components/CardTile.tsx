@@ -1,4 +1,5 @@
-import { memo, useMemo } from 'react';
+import { memo, useLayoutEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 /**
  * One card, drawn as our own layout.
  *
@@ -40,12 +41,25 @@ import { memo, useMemo } from 'react';
  * no audio object, no file name and no volume, and it does not consult the
  * player's mute — for the same reason it holds no image URL: what plays is the
  * operator's assignment, changed in one place.
+ *
+ * ## A card with other faces draws them, out of sight
+ *
+ * A card that carries `faces` (a transformed card's back, a modal double-faced card's, a split
+ * card's halves, an adventure) draws each as a tile of its own in one hidden layer of the app's
+ * scope (`facesHost`), grouped under `data-faces-of` and named by the tile's own `data-faces`. The
+ * inspector (`../play/inspect/index.ts`) turns an enlarged card to them on the mouse wheel (the
+ * operator, 2026-10-17: *"show transformed cards with mousewheel"*; 2026-10-19, on Etali in a
+ * deck: *"why can i not scroll to see it?"*). Because the tile draws them, every surface that
+ * draws a card — the board, the stack, a prompt, a pack, a pool, a deck — has them, with nothing
+ * of its own to remember. A face tile is not a card on screen: no test id, no card id, no sound.
  */
 
-import { DOOR_TIP, faceCropStyle, type DoorState, type TileCard } from './faceCrop.ts';
+import type { ReactNode } from 'react';
+import { DOOR_TIP, faceCropStyle, type DoorState, type TileCard, type TileFace } from './faceCrop.ts';
 import { ManaCost, ManaPip, SetSymbol } from './ManaPip.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { playRole, roleHandler } from '../sound/index.ts';
+import { documentScope } from '../dom.ts';
 
 const RARITY_LETTER: Record<string, string> = {
   common: 'C',
@@ -127,7 +141,107 @@ export interface CardTileProps {
   conditionMet?: boolean;
 }
 
+/** The hidden layer every tile's other faces are drawn into, made once per scope: the embed's shadow root, or the document's body. */
+function facesHost(): HTMLElement {
+  const scope = documentScope();
+  const found = scope.querySelector<HTMLElement>('[data-card-faces]');
+  if (found !== null) return found;
+  const host = document.createElement('div');
+  host.setAttribute('data-card-faces', '');
+  host.hidden = true;
+  (scope instanceof Document ? scope.body : scope).append(host);
+  return host;
+}
+
+let facesSeq = 0;
+
+/** A card's other faces, drawn into {@link facesHost} under the name its tile carries. */
+function useFaces(card: TileCard): { key: string | undefined; drawn: ReactNode } {
+  const faces = card.faces ?? [];
+  const [key] = useState(() => `cf${++facesSeq}`);
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  const has = faces.length > 0;
+  useLayoutEffect(() => {
+    if (has) setHost(facesHost());
+  }, [has]);
+  if (!has) return { key: undefined, drawn: null };
+  const drawn =
+    host === null
+      ? null
+      : createPortal(
+          <div data-faces-of={key}>
+            {faces.map((face) => (
+              <FaceTile key={face.name} card={face} />
+            ))}
+          </div>,
+          host,
+        );
+  return { key, drawn };
+}
+
+/** One face of a card, as the tile draws it — for the inspector to enlarge, never a card on screen. */
+function FaceTile({ card }: { card: TileFace }) {
+  return (
+    <article className="card" data-face-crop={card.faceCrop} data-door={card.door}>
+      <CardBody card={card} />
+    </article>
+  );
+}
+
 function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui.select', conditionMet = false }: CardTileProps) {
+  const faces = useFaces(card);
+  const body = <CardBody card={card} liveText={liveText} conditionMet={conditionMet} />;
+
+  // `roleHandler` returns the SAME function object every render, which matters
+  // here specifically: this component is `memo`-ised because a late-draft
+  // screen holds 60 tiles, and an inline `() => playRole(...)` would allocate a
+  // fresh closure per render.
+  const onHover = roleHandler('ui.hover-card');
+
+  if (!onPick) {
+    return (
+      // Hover cues a pool tile too. A pool card is not clickable but it IS the
+      // thing you are reading, and a cue that only fires on half the cards on
+      // screen reads as a bug rather than as a rule.
+      <>
+        <article className="card" data-card-id={card.cardId} data-testid="card" data-face-crop={card.faceCrop} data-door={card.door} data-faces={faces.key} data-condition-met={conditionMet ? '' : undefined} onMouseEnter={onHover}>
+          {body}
+        </article>
+        {faces.drawn}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="card card--pickable"
+        data-card-id={card.cardId}
+        data-face-crop={card.faceCrop}
+        data-door={card.door}
+        data-testid="card"
+        data-faces={faces.key}
+        disabled={disabled}
+        onMouseEnter={onHover}
+        onClick={() => {
+          // The cue first, then the pick. `onPick` navigates and re-renders the
+          // whole screen, and a cue requested after that has to survive the
+          // unmount to be heard.
+          if (pickRole !== null) playRole(pickRole);
+          onPick(card.cardId);
+        }}
+        aria-label={`Pick ${card.name}`}
+      >
+        {body}
+      </button>
+      {faces.drawn}
+    </>
+  );
+}
+
+/** A face's printed content: art over the text tile. */
+function CardBody({ card, liveText, conditionMet = false }: { card: TileFace; liveText?: string | null | undefined; conditionMet?: boolean }) {
   const identity = card.colors.length === 0 ? 'colorless' : card.colors.join('').toLowerCase();
   const shownText = liveText != null && liveText.trim() !== card.oracleText.trim() ? liveText : card.oracleText;
   // Splitting rules text runs a regex per line. It is small per card and
@@ -154,7 +268,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
   // ../draft/cardImage.ts.
   const imageUrl = cardImageUrl(card.scryfallId);
 
-  const body = (
+  return (
     <>
       {imageUrl !== null && (
         // The whole unmodified card face, which carries its own copyright and
@@ -201,46 +315,6 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
         )}
       </span>
     </>
-  );
-
-  // `roleHandler` returns the SAME function object every render, which matters
-  // here specifically: this component is `memo`-ised because a late-draft
-  // screen holds 60 tiles, and an inline `() => playRole(...)` would allocate a
-  // fresh closure per render.
-  const onHover = roleHandler('ui.hover-card');
-
-  if (!onPick) {
-    return (
-      // Hover cues a pool tile too. A pool card is not clickable but it IS the
-      // thing you are reading, and a cue that only fires on half the cards on
-      // screen reads as a bug rather than as a rule.
-      <article className="card" data-card-id={card.cardId} data-testid="card" data-face-crop={card.faceCrop} data-door={card.door} data-condition-met={conditionMet ? '' : undefined} onMouseEnter={onHover}>
-        {body}
-      </article>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      className="card card--pickable"
-      data-card-id={card.cardId}
-      data-face-crop={card.faceCrop}
-      data-door={card.door}
-      data-testid="card"
-      disabled={disabled}
-      onMouseEnter={onHover}
-      onClick={() => {
-        // The cue first, then the pick. `onPick` navigates and re-renders the
-        // whole screen, and a cue requested after that has to survive the
-        // unmount to be heard.
-        if (pickRole !== null) playRole(pickRole);
-        onPick(card.cardId);
-      }}
-      aria-label={`Pick ${card.name}`}
-    >
-      {body}
-    </button>
   );
 }
 

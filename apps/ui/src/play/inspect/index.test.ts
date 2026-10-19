@@ -625,9 +625,10 @@ describe('a card name elsewhere on the page (the log)', () => {
  * mousewheel up/down lets you cycle between other relevant cards."
  */
 describe('the wheel turns a card to its other faces', () => {
+  const front = card(3, 'Fable of the Mirror-Breaker');
   const fable: BoardCard = {
-    ...card(3, 'Fable of the Mirror-Breaker'),
-    faces: [{ ...card(3, 'Reflection of Kiki-Jiki').card, typeLine: 'Enchantment Creature — Goblin Shaman' }],
+    ...front,
+    card: { ...front.card, faces: [{ ...card(3, 'Reflection of Kiki-Jiki').card, typeLine: 'Enchantment Creature — Goblin Shaman' }] },
   };
   const view: BoardView = { ...VIEW, players: [YOU, { ...THEM, battlefield: [fable] }] };
   const shown = (panel: HTMLElement | null) => panel?.querySelector('.card__name')?.textContent;
@@ -645,6 +646,16 @@ describe('the wheel turns a card to its other faces', () => {
     expect(shown(panel())).toBe('Reflection of Kiki-Jiki');
   });
 
+  it('turns a spell on the stack too — the tile draws its faces, wherever it is drawn', () => {
+    const spell = { ...VIEW.stack[0]!, sourceCardId: 3, sourceName: 'Fable of the Mirror-Breaker', sourceCard: fable.card };
+    const { stackItem, panel } = mountBoard(undefined, { ...VIEW, stack: [spell] });
+    const tile = stackItem().querySelector('.card')!;
+    hover(tile);
+    expect(shown(panel())).toBe('Fable of the Mirror-Breaker');
+    wheel(tile, 100);
+    expect(shown(panel())).toBe('Reflection of Kiki-Jiki');
+  });
+
   it('leaves the wheel alone over a card with one face, and with no panel open', () => {
     const { yourHandCard, theirCard, panel } = mountBoard(undefined, view);
     expect(wheel(theirCard(), 100), 'nothing open').toBe(true);
@@ -656,13 +667,14 @@ describe('the wheel turns a card to its other faces', () => {
 
   it('a Room opens on the door under the pointer, with its lock state, and turns to the other door, never to the same one twice', () => {
     const doorFace = (name: string, faceCrop: 'split-left' | 'split-right', door: 'locked' | 'unlocked') => ({ ...card(4, name).card, faceCrop, door });
+    const whole = card(4, 'Walk-In Closet // Forgotten Cellar');
     const room: BoardCard = {
-      ...card(4, 'Walk-In Closet // Forgotten Cellar'),
+      ...whole,
+      card: { ...whole.card, faces: [doorFace('Walk-In Closet', 'split-left', 'unlocked'), doorFace('Forgotten Cellar', 'split-right', 'locked')] },
       doors: [
         { name: 'Walk-In Closet', unlocked: true },
         { name: 'Forgotten Cellar', unlocked: false },
       ],
-      faces: [doorFace('Walk-In Closet', 'split-left', 'unlocked'), doorFace('Forgotten Cellar', 'split-right', 'locked')],
     };
     const { board, panel } = mountBoard(undefined, { ...VIEW, players: [YOU, { ...THEM, battlefield: [room] }] });
     const right = board.querySelector('[data-door-side="right"] .card')!;
@@ -681,6 +693,8 @@ describe('the wheel turns a card to its other faces', () => {
     const { board } = mountBoard(undefined, view);
     const names = [...board.querySelectorAll('[data-zone] .card__name')].map((n) => n.textContent);
     expect(names).not.toContain('Reflection of Kiki-Jiki');
-    expect(board.querySelector('[data-faces-of="3"]')?.closest('[hidden]'), 'hidden').not.toBeNull();
+    const faces = document.querySelector('[data-faces-of]');
+    expect(faces?.textContent, 'drawn').toContain('Reflection of Kiki-Jiki');
+    expect(faces?.closest('[hidden]'), 'hidden').not.toBeNull();
   });
 });

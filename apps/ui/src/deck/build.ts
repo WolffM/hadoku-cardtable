@@ -32,7 +32,7 @@
 import { cardKey, isBasicLand, manaTokensOf, type Deck } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseCardRequest, type DeckEntry } from '@hadoku/carddata/dck';
-import { artIdIndexFromTable, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
+import { artIdIndexFromTable, backFaceNames, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
 
 import { cardRequestOf, dckTextOf } from '../draft/deckFromPool.ts';
 import type { DraftCard } from '../draft/types.ts';
@@ -73,7 +73,8 @@ const LIBRARY_ART_IDS = artIdIndexFromTable(artIdsData as ArtIdTableFile);
 
 function namedLibraryFace(name: string): DraftCard {
   const cost = LIBRARY_CARD_COSTS[name] ?? '';
-  return namedFace(name, manaTokensOf(cost), manaValueOf(cost), scryfallIdFor(LIBRARY_ART_IDS, name, ''));
+  const id = scryfallIdFor(LIBRARY_ART_IDS, name, '');
+  return namedFace(name, manaTokensOf(cost), manaValueOf(cost), id, backFaceNames(LIBRARY_ART_IDS, id));
 }
 
 /** One `DraftCard` per distinct name — the same degrade `libraryDeckPool` uses, for names from anywhere (a drafted sideboard's parsed text, not only a `TableDeck`'s own lines). */

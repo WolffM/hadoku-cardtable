@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { artIdIndexFromTable, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
+import { artIdIndexFromTable, backFaceNames, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { DeckPeek, namedFace, peekOrder, type PeekLine } from './DeckPeek.tsx';
@@ -75,6 +75,23 @@ describe('hovering a line of a peeked list', () => {
     expect(panel()!.querySelector('.card__name')!.textContent).toBe('Negate');
     fireEvent.pointerOut(lineOf('Negate'), { pointerType: 'mouse', relatedTarget: screen.getByTestId('deck-peek') });
     expect(panel()).toBeNull();
+  });
+
+  // The operator, 2026-10-19, on Etali: "why can i not scroll to see it?" A library line is a name, and
+  // the art table alone names its back face.
+  it('turns a two-faced line to its back face on the wheel, the back’s own art', () => {
+    const table = artIdIndexFromTable(artIdsData as ArtIdTableFile);
+    const id = scryfallIdFor(table, 'Etali, Primal Conqueror', '');
+    const box = new DOMRect(0, 0, 100, 100);
+    const etali: PeekLine = { name: 'Etali, Primal Conqueror', count: 1, cost: ['5', 'R', 'R'], manaValue: 7, face: namedFace('Etali, Primal Conqueror', ['5', 'R', 'R'], 7, id, backFaceNames(table, id)) };
+    render(createElement(DeckPeek, { id: 'deck-peek', label: 'Red', colors: ['R'], list: { main: [etali], sideboard: [] }, anchor: box, bounds: new DOMRect(0, 0, 1280, 800) }));
+    const li = screen.getByTestId('deck-peek').querySelector('.peek__line')!;
+    fireEvent.pointerOver(li, { pointerType: 'mouse' });
+    const panel = () => document.querySelector('.peek__zoom [data-inspect]');
+    expect(panel()?.querySelector('.card__name')?.textContent).toBe('Etali, Primal Conqueror');
+    fireEvent.wheel(li, { deltaY: 100 });
+    expect(panel()?.querySelector('.card__name')?.textContent).toBe('Etali, Primal Sickness');
+    expect(panel()?.querySelector('img')?.getAttribute('src')).toBe(cardImageUrl(`${id}#back`));
   });
 
   it('stays a tooltip: no dialog, nothing to tab to, the hidden faces out of the reading order', () => {
