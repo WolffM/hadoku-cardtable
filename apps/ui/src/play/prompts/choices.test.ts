@@ -79,6 +79,22 @@ describe('getChoices', () => {
     expectWireReply('getChoices', answers[0]);
   });
 
+  it('counts what is picked against the most it takes, and sends any count from none up', () => {
+    const ask = { ...askFor('getChoices'), min: 0, max: 3 };
+    const { getAllByTestId, getByTestId, submit } = mountPrompt('getChoices', ask);
+    const boxes = getAllByTestId('prompt-choice');
+    expect(getByTestId('prompt-bounds').textContent).toBe('0 / 3');
+    expect(submit().disabled).toBe(false);
+    [0, 2].forEach((i) => fireEvent.click(boxes[i]!));
+    expect(getByTestId('prompt-bounds').textContent).toBe('2 / 3');
+    expect(submit().disabled).toBe(false);
+  });
+
+  it('shows a required least beside the count', () => {
+    const { getByTestId } = mountPrompt('getChoices', { ...askFor('getChoices'), min: 2, max: 4 });
+    expect(getByTestId('prompt-bounds').textContent).toBe('0 / 2–4');
+  });
+
   /**
    * First list item 13: "Choose X" / `NumTimes` / a keyword-cost count never
    * leaves the wire as anything but `getChoices` whose choices LABEL Forge's

@@ -48,13 +48,13 @@ function cardOfOption(ref: EntityRef | null): CardRef | null {
 
 /**
  * The bound, as a LABEL. Not a sentence: the board states things, it does not
- * explain them (operator, 2026-09-24). An ask with nothing to choose never gets
- * here: the server answers it and sends it as a reveal (`RevealNotice.tsx`).
+ * explain them (operator, 2026-09-24). A prompt that takes more than one counts
+ * what is picked against it. An ask with nothing to choose never gets here: the
+ * server answers it and sends it as a reveal (`RevealNotice.tsx`).
  */
-function boundsText(min: number, max: number): string {
-  if (min === max) return `Choose ${min}`;
-  if (min === 0) return `Up to ${max}`;
-  return `${min}–${max}`;
+function boundsText(picked: number, min: number, max: number): string {
+  if (max > 1) return min > 0 && min < max ? `${picked} / ${min}–${max}` : `${picked} / ${max}`;
+  return min === max ? `Choose ${min}` : `Up to ${max}`;
 }
 
 /**
@@ -271,7 +271,9 @@ function ListChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>)
 
   return (
     <PromptShell method="getChoices" title={promptText(ask.message)} problems={problems} onSubmit={submit}>
-      <p className="prompt__hint">{boundsText(bounds.min, bounds.max)}</p>
+      <p className="prompt__hint" data-testid="prompt-bounds">
+        {boundsText(chosen.length, bounds.min, bounds.max)}
+      </p>
       <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
         {ask.choices.map((c) => {
           // Y18, second half: `TargetSelection.chooseCardFromList` splices a
@@ -384,7 +386,9 @@ export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'cho
   return (
     <PromptShell method="chooseEntitiesForEffect" title={promptText(ask.title)} problems={problems} onSubmit={submit}>
       <DelayedRevealNote reveal={ask.delayedReveal} lookup={lookup} />
-      <p className="prompt__hint">{boundsText(bounds.min, bounds.max)}</p>
+      <p className="prompt__hint" data-testid="prompt-bounds">
+        {boundsText(chosen.length, bounds.min, bounds.max)}
+      </p>
       <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
         {rows.map((row) => (
           <li

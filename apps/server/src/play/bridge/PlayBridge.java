@@ -3646,6 +3646,66 @@ public final class PlayBridge {
     }
 
     /**
+     * A human seat's Forge player, the stock {@link forge.player.LobbyPlayerHuman} except that the
+     * controller it makes for each game is a {@link SeatController}. {@link BridgeGui#hostMatch}
+     * puts one in place of every human {@link RegisteredPlayer} Forge's lobby registered, before the
+     * match makes its first game, so every game of the match and a mind-slave control alike ask
+     * through it.
+     */
+    static final class SeatPlayer extends forge.player.LobbyPlayerHuman {
+        SeatPlayer(final LobbyPlayer stock) {
+            super(stock.getName(), stock.getAvatarIndex(), stock.getSleeveIndex());
+            setAvatarCardImageKey(stock.getAvatarCardImageKey());
+            setSleeveArtKey(stock.getSleeveArtKey());
+            setSleeveArtOffset(stock.getSleeveArtOffset());
+        }
+
+        @Override
+        public forge.game.player.Player createIngamePlayer(final Game game, final int id) {
+            // LobbyPlayerHuman.createIngamePlayer with this controller: a player takes one first controller only.
+            final forge.game.player.Player player = new forge.game.player.Player(forge.util.GuiDisplayUtil.personalizeHuman(getName()), game, id);
+            player.setFirstController(new SeatController(game, player, this));
+            return player;
+        }
+
+        @Override
+        public forge.game.player.PlayerController createMindSlaveController(final forge.game.player.Player master, final forge.game.player.Player slave) {
+            return new SeatController(slave, this, (PlayerControllerHuman) master.getController());
+        }
+    }
+
+    /**
+     * Forge's human controller, with the questions it asks one card at a time asked once.
+     *
+     * <p>Delve: {@code PlayerControllerHuman.chooseCardsToDelve} asks "Delve how many cards?"
+     * ({@code getGui().one} over {@code 0..min(generic, graveyard)}), then "Exile which card (i/N)?"
+     * once per card ({@code getGui().oneOrNone} over what is left of the graveyard). Here it is one
+     * pick of up to that many graveyard cards: how many are picked is how many are delved, and none
+     * picked is no delve, as Forge's cancel was.
+     */
+    static final class SeatController extends PlayerControllerHuman {
+        SeatController(final Game game, final forge.game.player.Player player, final LobbyPlayer lobbyPlayer) {
+            super(game, player, lobbyPlayer);
+        }
+
+        SeatController(final forge.game.player.Player slave, final LobbyPlayer lobbyPlayer, final PlayerControllerHuman owner) {
+            super(slave, lobbyPlayer, owner);
+        }
+
+        @Override
+        public forge.game.card.CardCollectionView chooseCardsToDelve(final int genericAmount, final forge.game.card.CardCollection grave) {
+            final int most = Math.min(genericAmount, grave.size());
+            if (most == 0) { return forge.game.card.CardCollection.EMPTY; }
+            final forge.game.GameEntityViewMap<forge.game.card.Card, CardView> byView = GameEntityView.getMap(grave);
+            final List<CardView> picked = getGui().getChoices(forge.util.Localizer.getInstance().getMessage("lblDelveHowManyCards"),
+                    0, most, byView.getTrackableKeys(), null, null);
+            final forge.game.card.CardCollection toExile = new forge.game.card.CardCollection();
+            if (picked != null) { byView.addToList(picked, toExile); }
+            return toExile;
+        }
+    }
+
+    /**
      * The headless {@code GuiBase}.
      *
      * <p><b>Two "event dispatch threads", because one deadlocks.</b> Stock Forge runs its
@@ -3785,11 +3845,21 @@ public final class PlayBridge {
                  * turns the AI-cards warning off the same way ({@code DuelScene.java:519}):
                  * it reveals the cards an AI deck plays badly to every seat at the start
                  * ({@code Match.java:347}) and removes none of them.
+                 *
+                 * <p>Each human seat's player becomes a {@link SeatPlayer} here, before
+                 * {@code Match} creates a game's players from them. The registered player is
+                 * the key of {@code guis} and of {@code GameLobby}'s slot map, so swapping
+                 * the player it holds keeps both.
                  */
                 @Override public void startMatch(final GameRules rules, final Set<GameType> variants,
                         final List<RegisteredPlayer> players, final Map<RegisteredPlayer, IGuiGame> guis,
                         final MusicPlaylist playlist) {
                     rules.setWarnAboutAICards(false);
+                    for (final RegisteredPlayer rp : players) {
+                        if (rp.getPlayer() instanceof forge.player.LobbyPlayerHuman stock && !(stock instanceof SeatPlayer)) {
+                            rp.setPlayer(new SeatPlayer(stock));
+                        }
+                    }
                     super.startMatch(rules, variants, players, guis, playlist);
                 }
             };
