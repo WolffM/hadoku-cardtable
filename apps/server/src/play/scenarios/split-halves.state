@@ -1,0 +1,18 @@
+# e2e/sp-split-halves.spec.ts — the operator, 2026-10-19: "'Choose a face' doesn't work well when picking
+# between split cards. i see the entire split card in both choices". Alice holds a split card (Fire // Ice),
+# a fuse card (Wear // Tear), an adventure (Bonecrusher Giant), a room (Unholy Annex // Ritual Chamber) and
+# an aftermath card (Cut // Ribbons), with the mana to cast any half of each; the AI holds an artifact
+# creature and an enchantment, so every half has a target.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Fire // Ice;Wear // Tear;Bonecrusher Giant;Unholy Annex // Ritual Chamber;Cut // Ribbons
+humanbattlefield=Mountain;Mountain;Mountain;Island;Island;Plains;Plains;Swamp;Swamp;Swamp;Swamp;Swamp
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Grizzly Bears
+aibattlefield=Forest;Ornithopter;Glorious Anthem
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=
