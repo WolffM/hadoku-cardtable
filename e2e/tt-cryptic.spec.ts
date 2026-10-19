@@ -5,12 +5,12 @@
  * selection … then the second click needs to happen and the target arrow is
  * first from hand, and then broken when the cryptic command is back in view."*
  *
- * `tt-cryptic.state`: bob casts Memnite; alice holds Cryptic Command and four
- * Islands. She drags Cryptic Command off her hand, takes a person's time over
+ * `tt-cryptic.state`: bob casts Memnite and Dark Ritual over it; alice holds
+ * Cryptic Command and four Islands. She drags Cryptic Command off her hand, takes a person's time over
  * the modes (the operator's two answers took 2.0 s and 2.7 s), picks "Counter
- * target spell" and "Draw a card", aims at Memnite and pays. Full control is on
- * for her so Forge's one-legal-target shortcut leaves the target question to
- * her, as it was in the reported game (two spells on the stack there).
+ * target spell" and "Draw a card", aims at Memnite and pays. Two spells on the
+ * stack make the target a real question, as it was in the reported game; full
+ * control keeps her priority while she does.
  *
  * Three things are measured, every animation frame from the release until
  * Cryptic Command is on the stack:
@@ -24,8 +24,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, serverLog, stackCount } from './play/board.ts';
-import { answerLoneAbility } from './play/prompts.ts';
+import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, serverLog, stackCount, stackTwoSpells } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -140,10 +139,7 @@ test(
       await page.getByTestId('live-full-control').click();
       await expect(page.getByTestId('live-full-control'), 'full control is on for alice').toHaveAttribute('aria-pressed', 'true');
 
-      const memnite = await handCardNamed(bob.page, 'Memnite');
-      expect(memnite, 'Memnite is in bob’s hand').not.toBeUndefined();
-      await castCard(bob.page, memnite!);
-      await expect.poll(() => stackCount(page), { timeout: 15_000, message: 'bob’s Memnite reached the stack' }).toBe(1);
+      await stackTwoSpells(page, bob.page);
 
       const cryptic = await handCardNamed(page, 'Cryptic Command');
       expect(cryptic, 'Cryptic Command is in alice’s hand').not.toBeUndefined();
@@ -170,7 +166,6 @@ test(
       await expect
         .poll(
           async () => {
-            if (await answerLoneAbility(page)) return stackCount(page);
             const mode = modePrompt(page);
             if ((await mode.count()) > 0) {
               const call = (await page.getByTestId('live-prompt').first().getAttribute('data-call-id')) ?? '?';
@@ -203,7 +198,7 @@ test(
           },
           { timeout: 60_000, message: 'Cryptic Command reached the stack' },
         )
-        .toBe(2);
+        .toBe(3);
       await expect(page.locator('[data-stack-id][aria-label*="Cryptic Command"]'), 'Cryptic Command is its own stack item').toHaveCount(1, { timeout: 10_000 });
 
       const mine = await frames(page);
@@ -240,7 +235,7 @@ test(
       const handAfter = await page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').count();
       console.log(`[tt] alice's hand ${handBefore} before the cast, ${handAfter} after it resolved`);
       expect(handAfter, 'Cryptic Command left the hand and its draw added one').toBe(handBefore);
-      await expect(bob.page.locator('[data-zone="battlefield"][data-owner="you"] [data-board-card]'), 'Memnite was countered').toHaveCount(0);
+      await expect(bob.page.locator('[data-zone="battlefield"][data-owner="you"] [data-board-card]', { hasText: 'Memnite' }), 'Memnite was countered').toHaveCount(0);
     } finally {
       await seated?.alice.context.close();
       await seated?.bob.context.close();

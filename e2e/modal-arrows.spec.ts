@@ -16,7 +16,6 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { clickOnce, handCardNamed, makeTitled, offered, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { answerLoneAbility } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -84,7 +83,6 @@ test.describe(titled('a modal spell draws its arrows'), () => {
         .poll(
           async () => {
             const text = await says(alice.page);
-            if (await answerLoneAbility(alice.page)) return stackCount(alice.page);
             if (!(await pressPaymentAuto(alice.page)) && /Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
             return stackCount(alice.page);
           },
@@ -108,7 +106,6 @@ test.describe(titled('a modal spell draws its arrows'), () => {
           async () => {
             const text = await says(bob.page);
             if (await chooseRow(bob.page, /Counter target noncreature spell/i)) return stackCount(bob.page);
-            if (await answerLoneAbility(bob.page)) return stackCount(bob.page);
             if (!(await pressPaymentAuto(bob.page)) && /Pay Mana Cost/i.test(text)) await clickOnce(bob.page, text, 'ok');
             return stackCount(bob.page);
           },

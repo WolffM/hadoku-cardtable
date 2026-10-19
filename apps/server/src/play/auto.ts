@@ -81,7 +81,10 @@
  *
  * {@link FULL_CONTROL_POLICY} makes every phase a stop phase, refuses to pass a
  * stack window, refuses to pass for want of actions, asks every payment, leaves
- * a cost Forge cannot pay for the player to cancel, and answers no bounds ask.
+ * a cost Forge cannot pay for the player to cancel, and asks the order of
+ * simultaneous triggers. It never asks a question with one answer: an ask
+ * {@link onlyAnswer} answers, and the cost confirm of the ability the seat just
+ * chose ({@link chosenCostConfirm}), are answered in every mode.
  * `match.ts` also gates on the seat's `fullControl` flag, so the escape hatch
  * holds at both levels: the flag short-circuits before the seat's policy is
  * read at all, and setting the policy to {@link FULL_CONTROL_POLICY} reaches
@@ -119,8 +122,7 @@
  *   `YieldController`. Until that delegates to
  *   `getYieldController().isSkippingPhase(turnPlayer, phase)`, a `SkipPhase`
  *   envelope is inert on our bridge.
- * - `apps/server/src/play/match.ts` — a `lastAnsweredAsk` note on `SeatNotes`
- *   (see {@link StopPolicy.costConfirm}). **The per-seat `StopPolicy` this list used
+ * - **The per-seat `StopPolicy` this list used
  *   to ask for landed in wave 26 §E**: `SeatState.policy`, set through
  *   `Match.setStopPolicy`, and every decision below is asked of THAT seat's
  *   policy rather than of {@link DEFAULT_STOP_POLICY}. Nothing yet lets a
@@ -208,8 +210,6 @@ export type SkipScope = 'never' | 'theirTurn' | 'always';
  * | `passStackWindows` | `YieldController.setAutoPassUntilStackEmpty` as a standing preference, carried by `YieldUpdate.StackYield` |
  * | `unambiguousPayment` | `FPref.UI_SHOW_AUTOTAP_PREVIEW` — the pref that puts Forge's own auto-tap PLAN on our wire, which is what makes "unambiguous" provable |
  * | `unpayableCost` | Forge's own `Auto` button being DEAD, which is `ensureAutoPayManaSources` finding no payment (`InputPayMana.java:402-407`) |
- * | `costConfirm` | `AutoYieldStore` per-ability auto-yield, `YieldUpdate.SetDisableYields` / `CardAutoYield` |
- * | `answerOneAnswerAsks` | ours: the bounds arithmetic in {@link onlyAnswer} |
  */
 export interface StopPolicy {
 	/** Phases the player wants priority in on their OWN turn, with an empty stack. */
@@ -305,25 +305,6 @@ export interface StopPolicy {
 	 * {@link PromptFacts.noWayToPay}.
 	 */
 	readonly unpayableCost: 'ask' | 'cancel';
-	/**
-	 * Whether a cost confirm on an activation the player themselves chose is put
-	 * to them (#16, and wave 52 §S B).
-	 *
-	 * The operator, 2026-10-06: *"after selecting the creature, and then selecting
-	 * the sacrifice ability it AGAIN asks me if i want to sacrifice the augur of
-	 * skulls. thats a redundant ask."* Forge asks through `InputConfirm`
-	 * (`HumanCostDecision.java:1295-1310` → `PlayerControllerHuman.confirmPayment`
-	 * → `InputConfirm.confirm`), which reaches us as a `showPromptMessage` with
-	 * `card: null` plus a Yes/No `updateButtons`. An optional trigger's "may" is
-	 * the same shape and is a real game choice, so the bridge names the ability
-	 * the confirm belongs to (`confirmAbility`, `PlayBridge.java`'s
-	 * `confirmAbility`). `'accept'` answers Yes exactly when that is the ability
-	 * the seat just chose from `getAbilityToPlay` ({@link chosenCostConfirm});
-	 * every other confirm still asks. `'ask'` puts every one to the player.
-	 */
-	readonly costConfirm: 'ask' | 'accept';
-	/** Whether an ask Forge left exactly one legal reply to is answered (w19). */
-	readonly answerOneAnswerAsks: boolean;
 	/**
 	 * Skip the Declare Blockers stop when this seat controls no creature (Q10).
 	 *
@@ -513,9 +494,6 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	// Item 7, wave 25: *"it's confusing i have to click 'cancel' to not pay
 	// manaleak when i dont even have enough mana"*.
 	unpayableCost: 'cancel',
-	// Wave 52 §S B. *"thats a redundant ask."*
-	costConfirm: 'accept',
-	answerOneAnswerAsks: true,
 	// Q10, wave 32. *"no creatures, no block."*
 	skipEmptyBlockStop: true,
 	// Wave 52 §S A. *"i would expect the shortcutter not to skip past my upkeep."*
@@ -575,8 +553,9 @@ export const EVERY_PRIORITY_POLICY: StopPolicy = {
  *
  * Every phase on every turn is a stop phase, a stack window is not passed, a
  * window with nothing to do is not passed, a payment is not pressed, a cost
- * Forge cannot pay is not cancelled for the player, and an ask with one legal
- * reply is still asked.
+ * Forge cannot pay is not cancelled for the player, and simultaneous triggers
+ * are the player's to order. An ask with one legal reply is still answered:
+ * one possible answer is no question in any mode (the operator, 2026-10-19).
  */
 export const FULL_CONTROL_POLICY: StopPolicy = {
 	stopOnMyTurn: PHASE_TYPES,
@@ -589,8 +568,6 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	passStackWindows: false,
 	unambiguousPayment: 'ask',
 	unpayableCost: 'ask',
-	costConfirm: 'ask',
-	answerOneAnswerAsks: false,
 	skipEmptyBlockStop: false,
 	stopForPhaseAbility: true,
 	attackStopIsTheDeclaration: false,
@@ -694,8 +671,8 @@ export function namedStopPolicy(name: string | undefined | null): StopPolicy | n
  * chooseOptionalAdditionalCosts`, reached from `orderAndPlaySimultaneousSa`),
  * with the trigger as the only option, and a trigger nobody clicked is not the
  * player's question. The one offer `match.ts` keeps from this rule is the one
- * the seat's own click opened: the browser answers that one (`autoAnswer` in
- * `apps/ui/src/play/prompts/rules.ts`) so it can SAY what was played. Payment
+ * the seat's own click opened: the browser answers that one (`@hadoku/shared`'s
+ * `selfAnswer`) so it can SAY what was played. Payment
  * never produces a one-ability offer: `InputPayMana.activateCard` plays a
  * single mana ability without asking (`InputPayMana.java:101-106`) and only
  * calls `getAbilityToPlay` for two or more — which is #6, and which
@@ -705,7 +682,6 @@ export function namedStopPolicy(name: string | undefined | null): StopPolicy | n
  * a reveal, answered and shown by `match.ts` before any ask is opened.
  */
 export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP_POLICY): AutoAnswer | null {
-	if (!policy.answerOneAnswerAsks) return null;
 	if (frame.kind !== 'ask') return null;
 	const callId = frame.callId;
 	switch (frame.method) {
@@ -772,9 +748,8 @@ export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP
  * itself, not the player.
  *
  * The offer a seat's own click opened is answered by the browser, not by
- * {@link onlyAnswer} (its own comment says why), and only when full control is
- * off. That still leaves full control staring at a genuine Forge quirk, confirmed against a
- * real jar: casting ANY single ability — a spell, an activated ability, even
+ * {@link onlyAnswer} (its own comment says why). Behind it sits a genuine Forge
+ * quirk, confirmed against a real jar: casting ANY single ability — a spell, an activated ability, even
  * tapping a land for mana — sends `getAbilityToPlay` TWICE, with the SAME
  * host card and the SAME one ability both times, from TWO different places:
  * once from whichever `Input` read the click (`InputPassPriority.
@@ -1428,22 +1403,28 @@ export function decideCancel(facts: PromptFacts, policy: StopPolicy): string | n
 
 /**
  * Wave 52 §S B — Yes to a cost confirm for the ability the seat just chose, or
- * null when the confirm is the player's ({@link StopPolicy.costConfirm}).
+ * null when the confirm is the player's. In every mode, full control included.
+ *
+ * The operator, 2026-10-06: *"after selecting the creature, and then selecting
+ * the sacrifice ability it AGAIN asks me if i want to sacrifice the augur of
+ * skulls. thats a redundant ask."* — and 2026-10-19, in full control: *"when
+ * tapping black lotus why does it ask me if i want to sacrifice? of course i do,
+ * i tapped it."* Forge asks through `InputConfirm`
+ * (`HumanCostDecision.java:1295-1310` → `PlayerControllerHuman.confirmPayment`
+ * → `InputConfirm.confirm`), which reaches us as a `showPromptMessage` with
+ * `card: null` plus a Yes/No `updateButtons`; the bridge names the ability the
+ * confirm belongs to (`confirmAbility`, `PlayBridge.java`'s `confirmAbility`).
  *
  * `chosen` is the ability this seat picked from `getAbilityToPlay` since its
  * last priority window (`match.ts`'s `SeatState.chosenAbility`, cleared at every
- * `Priority:` prompt). The confirm's own ability is the bridge's
- * `confirmAbility`. They must be the same host card and the same ability: the
+ * `Priority:` prompt). They must be the same host card and the same ability: the
  * player already said "this one" and Forge is asking again whether to pay for
- * it. An optional trigger's "may" names its trigger, never the chosen
- * activation, so it is still asked; so is a confirm with no ability on it.
+ * it. An optional trigger's "may" is the same shape and is a real game choice:
+ * it names its trigger, never the chosen activation, so it is still asked; so
+ * is a confirm with no ability on it.
  */
-export function chosenCostConfirm(
-	notes: SeatNotes,
-	chosen: { hostCard: number; abilityId: number } | null,
-	policy: StopPolicy = DEFAULT_STOP_POLICY,
-): string | null {
-	if (policy.costConfirm !== 'accept' || chosen === null || notes.openAsks > 0) return null;
+export function chosenCostConfirm(notes: SeatNotes, chosen: { hostCard: number; abilityId: number } | null): string | null {
+	if (chosen === null || notes.openAsks > 0) return null;
 	const prompt = notes.prompt;
 	const buttons = notes.buttons;
 	if (prompt === null || prompt.method !== 'showPromptMessage' || prompt.confirmAbility === undefined) return null;

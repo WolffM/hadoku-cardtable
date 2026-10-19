@@ -23,22 +23,18 @@
  * soft-lock's exact shape. `classifySelection` (`./SelectionPrompt.tsx`)
  * reads this as `'off-board'`.
  *
- * **The real "you may pay {X}" decision is NOT this selection at all.** The
- * card's own script (`relentless_dead.txt`) carries `OptionalDecider$ You`
- * on the SECOND trigger — the decision to even attempt the ability is made
- * BEFORE targeting, as `getAbilityToPlay` ("which ability to play": one
- * option, the trigger itself, with the existing `GetAbilityToPlayPrompt`'s
- * own "None" button) — and this file's FIRST draft missed that: it tried
- * to prove "declined" by sending a raw `selectButtonCancel` straight at the
- * open target SELECTION, which the wire does accept (Forge's `InputSelect-
- * Targets` treats it as declining the whole ability) but which no real bar
- * ever offers for this mandatory (min 1, a legal Zombie exists) target —
- * `bar.enable2` is measured `false` at that exact moment, so `SelectionPrompt`
- * correctly draws no Cancel button there, and a person could never press
- * one that does not exist. **Declining is answering `null` to the
- * `getAbilityToPlay` ask instead** — proven below, and already fully
- * supported by the EXISTING `GetAbilityToPlayPrompt` (`ChoicePrompts.tsx`),
- * nothing in this lane's new files needed for that half.
+ * **The real "you may pay {X}" decision is NOT this selection at all.** It
+ * is the payment of `{X}` that follows it: the trigger's own `Cost$ X` is
+ * paid on resolution, and a trigger with a cost is always "confirmed" by
+ * Forge (`PlayerControllerHuman.confirmTrigger`: *"triggers with costs can
+ * always be declined by not paying the cost"*). `X` is the chosen target's
+ * mana value (`SVar:X:Targeted$CardManaCost`), so the target is picked first
+ * and the payment window, with Forge's own Cancel, is where the seat says no.
+ * Each trigger also reaches the wire once as a one-ability `getAbilityToPlay`
+ * (`PlaySpellAbility.chooseOptionalAdditionalCosts`); that offer has one
+ * answer and the server plays it in every mode, as Forge's own clients do
+ * (`CMatchUI.getAbilityToPlay`, `MatchController.getAbilityToPlay`), so it is
+ * no decline.
  *
  * This suite drives the SERVER/bridge directly (`apps/server/src/play/
  * scenario.ts`'s `s.select`/`s.ok`, the same calls a UI click would
@@ -54,7 +50,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_STOP_POLICY } from '../../../../server/src/play/auto.ts';
+import { paymentCost } from '../../../../server/src/play/auto.ts';
 import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from '../../../../server/src/play/scenario.ts';
 
 const title = available.ok
@@ -69,31 +65,13 @@ interface OpenSelection {
   max: number;
 }
 
-const PAY_X_LABEL = /you may pay \{X\}/;
-
-/**
- * Cast Kozilek's Return and drive every ask except the second trigger's own
- * "play this ability?" (`getAbilityToPlay`, the `OptionalDecider$ You`
- * decision): that one is answered `null` (decline) when `decideX ===
- * 'decline'`, or with the ability itself (play it) otherwise — exactly what
- * a click on `GetAbilityToPlayPrompt`'s own "None" button, or on the
- * ability, would send. A trigger's one-ability offer reaches a seat only
- * with the one-answer shortcut off (in the product: full control), so the
- * match runs with it off.
- */
-async function castAndDecideX(seed: number, decideX: 'play' | 'decline'): Promise<Scenario> {
+/** Cast Kozilek's Return, whose damage kills Relentless Dead and puts both its dies triggers on the stack. */
+async function castKozileksReturn(seed: number): Promise<Scenario> {
   if (!available.ok) throw new Error(available.reason);
   const s = await startScenario(available.config, {
     seed,
     decks: DECKS,
     scenario: scenarioText('w42-relentless-dead'),
-    policy: { ...DEFAULT_STOP_POLICY, answerOneAnswerAsks: false },
-    reply: (f: { method: string; abilities?: { label?: string }[] }) => {
-      if (f.method !== 'getAbilityToPlay') return undefined;
-      const only = f.abilities?.[0];
-      if (only?.label === undefined || !PAY_X_LABEL.test(only.label)) return undefined; // every other ask keeps its plain default
-      return decideX === 'decline' ? null : only;
-    },
   });
   await finishMulligan(s);
   // A cast sent before Forge's priority input is live is dropped, and the
@@ -149,25 +127,33 @@ async function reachTheGraveyardSelection(s: Scenario): Promise<OpenSelection> {
 
 describe.skipIf(!available.ok)(title, () => {
   it(
-    'the real "you may pay {X}" decision is Relentless Dead’s own getAbilityToPlay ask — declining it (None) leaves both graveyard cards untouched and the game continues normally',
+    'the real "you may pay {X}" decision is the {X} payment after the target — declining it (Cancel) leaves both graveyard cards untouched and the game continues normally',
     async () => {
       if (!available.ok) return;
-      const s = await castAndDecideX(4210, 'decline');
+      const s = await castKozileksReturn(4210);
       try {
+        const selection = await reachTheGraveyardSelection(s);
+        s.select(0, selection.cards[0]!);
+        let declined: string | null = null;
         await waitUntil(
           () => {
-            answerAndPay(s);
-            return /Stack: Empty/.test(s.prompt(0));
+            s.answerAsks();
+            const bar = s.buttons(0);
+            const cost = paymentCost(s.prompt(0));
+            if (declined === null && cost !== null && cost !== '{B}' && bar?.label1 === 'Auto' && bar.enable2) {
+              declined = cost;
+              s.cancel(0);
+            } else if (bar?.label1 === 'Auto' && bar.enable1) s.ok(0);
+            return declined !== null && /Stack: Empty/.test(s.prompt(0));
           },
-          'the stack to resolve empty after declining the optional trigger',
+          'the stack to resolve empty after declining the {X} payment',
           20_000,
           s,
         );
+        console.log(`[offboard] declined the payment of ${String(declined)}`);
         expect(s.zone(0, 'Graveyard').some((c) => c.name === 'Diregraf Ghoul')).toBe(true);
         expect(s.zone(0, 'Graveyard').some((c) => c.name === 'Dread Wanderer')).toBe(true);
         expect(s.zone(0, 'Battlefield').some((c) => c.name === 'Diregraf Ghoul' || c.name === 'Dread Wanderer')).toBe(false);
-        // The selection never even opens — declining happens a step earlier.
-        expect(s.sent.some((x) => x.seat === 0 && x.envelope.frame.method === 'setSelectables')).toBe(false);
         // Priority genuinely returns — never a lock.
         expect(s.buttons(0)?.label1).toBe('OK');
       } finally {
@@ -178,10 +164,10 @@ describe.skipIf(!available.ok)(title, () => {
   );
 
   it(
-    'playing the ability (not None) opens the real target selection: a setSelectables naming two cards, both in the graveyard — nothing on the battlefield can answer it by clicking the board',
+    'the trigger opens the real target selection: a setSelectables naming two cards, both in the graveyard — nothing on the battlefield can answer it by clicking the board',
     async () => {
       if (!available.ok) return;
-      const s = await castAndDecideX(4211, 'play');
+      const s = await castKozileksReturn(4211);
       try {
         const selection = await reachTheGraveyardSelection(s);
         expect(selection.min).toBe(1);
@@ -190,8 +176,8 @@ describe.skipIf(!available.ok)(title, () => {
         // Forge's own bar has NO Cancel here either: the target itself is
         // MANDATORY once the ability is being played (a legal Zombie
         // exists) — `SelectionPrompt` correctly draws no Cancel/Done for
-        // this selection; declining the whole thing was the EARLIER
-        // getAbilityToPlay "None" (the test above), not this step.
+        // this selection; declining is the {X} payment after it (the test
+        // above), not this step.
         const bar = s.buttons(0);
         expect(bar?.enable2).toBe(false);
         const graveyardIds = new Set(s.zone(0, 'Graveyard').map((c) => c.id));
@@ -211,7 +197,7 @@ describe.skipIf(!available.ok)(title, () => {
     'picking one of the two graveyard cards returns exactly that card to the battlefield',
     async () => {
       if (!available.ok) return;
-      const s = await castAndDecideX(4212, 'play');
+      const s = await castKozileksReturn(4212);
       try {
         const selection = await reachTheGraveyardSelection(s);
         const chosen = selection.cards[0]!;

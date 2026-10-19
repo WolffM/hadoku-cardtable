@@ -35,7 +35,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { castCard, clickOnce, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts';
-import { answerLoneAbility } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -192,7 +191,6 @@ async function pumpToStackCount(page: Page, want: number, label: string): Promis
     .poll(
       async () => {
         const text = await says(page);
-        if (await answerLoneAbility(page)) return stackCount(page);
         if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
         return stackCount(page);
       },
@@ -235,16 +233,14 @@ test.describe(titled('the counterspell arc'), () => {
       const memniteAsk = alice.page.locator('[data-stack-id][aria-label*="Memnite"]');
       await expect(memniteAsk, 'Memnite is on the stack already (sanity check)').toHaveCount(1, { timeout: 10_000 });
 
-      // Full control means NOTHING auto-answers (`LiveBoard.tsx`'s own gate on
-      // `selfAnswer`) — not only the stack-target ask, but the `getAbilityToPlay`
-      // ask Counterspell's own cast opens FIRST (one ability, "Counter target
-      // spell."), before Forge ever asks for the target. Click through both,
-      // in whichever order Forge is currently asking for.
+      // Counterspell's one ability and its lone stack target answer themselves
+      // (`selfAnswer`) in full control too; full control keeps alice's priority
+      // with both spells on the stack. The target is answered by hand if Forge
+      // ever offers more than Memnite.
       await expect
         .poll(
           async () => {
             const text = await says(alice.page);
-            if (await answerLoneAbility(alice.page)) return stackCount(alice.page);
             if (await answerStackTargetChoice(alice.page, 'Memnite')) return stackCount(alice.page);
             if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
             return stackCount(alice.page);

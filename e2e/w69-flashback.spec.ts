@@ -20,7 +20,6 @@ import { expect, test, type Page } from '@playwright/test';
 import { messages, type Friend } from './play/browser.ts';
 import { clickOnce, enabledOk, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { answerLoneAbility } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -67,7 +66,7 @@ const stackSeen = (page: Page): Promise<string[]> => page.evaluate(() => (window
 const exiled = (page: Page) => page.locator('.seat[data-viewer] [data-zone="exile"] .card__name').allTextContents();
 
 /**
- * Answer whatever the cast still asks (the lone-ability sheet, the mana), and pass priority while the
+ * Answer whatever the cast still asks (the mana), and pass priority while the
  * spell waits on the stack, until it has resolved into her exile — never pressing OK on an empty stack,
  * which would end her main phase.
  */
@@ -75,7 +74,6 @@ async function resolveIntoExile(alice: Page, bob: Page, name: string): Promise<v
   await expect
     .poll(
       async () => {
-        await answerLoneAbility(alice);
         await pressPaymentAuto(alice);
         if ((await stackCount(alice)) > 0) {
           for (const p of [alice, bob]) if ((await enabledOk(p).count()) > 0) await clickOnce(p, await says(p), 'ok');

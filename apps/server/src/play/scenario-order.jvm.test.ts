@@ -170,8 +170,8 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(order, 'a real order ask reached the client under full control').toBeDefined();
 				expect(order?.showRememberCheckbox).toBe(true);
 				expect(order?.sourceChoices).toHaveLength(2);
-				// The server never took this one for itself: full control short-circuits
-				// `onlyAnswer` ahead of the policy (`match.ts`'s `s.fullControl ? null : …`).
+				// The server never took this one for itself: full control reads `onlyAnswer`
+				// under `FULL_CONTROL_POLICY`, whose `orderSimultaneous` is `'ask'`.
 				expect(s.logs.some((l) => l.evt === 'ask-auto-answered' && l.seat === 0 && l.method === 'order')).toBe(false);
 			} finally {
 				await s.stop();

@@ -44,7 +44,6 @@
 import { expect, test, type Page, type Locator } from '@playwright/test';
 
 import { castByDrag, castCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts'
-import { answerLoneAbility } from './play/prompts.ts';
 import { turnFastModeOff } from './play/prefs.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -158,13 +157,10 @@ test(
       await expect(alice.page.getByTestId('live-full-control'), 'full control is on for alice').toHaveAttribute('aria-pressed', 'true');
 
       /* ── alice casts Remand on Hinder — TWO legal spell targets now (Hinder, Keiga), so this is a real choice, not an auto-answer ── */
-      // Under full control, the release opens Forge's lone-ability `getAbilityToPlay` sheet first —
-      // "Choose ability to play / Remand / Counter target spell…" — which `@hadoku/shared`'s `selfAnswer`
-      // leaves to the player on purpose (measured on a CI runner, run 37787781493: the cast went out as
-      // `act selectCard`, the card parked, the sheet sat unanswered — the earlier reds, 37763694613
-      // → 37765728857, were this driver gap, never the product). Then the stack-target ask, with TWO
-      // legal targets, is answered the way a player answers it: a click on Hinder's placed card
-      // (`live/placed.ts` carries `data-stack-id` on it for exactly this; `gestures/stack.ts`).
+      // Remand's one ability answers itself (`@hadoku/shared`'s `selfAnswer`), full control or not.
+      // The stack-target ask, with TWO legal targets, is answered the way a player answers it: a click
+      // on Hinder's placed card (`live/placed.ts` carries `data-stack-id` on it for exactly this;
+      // `gestures/stack.ts`).
       await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'Remand is offered' }).toContain(remandCardId);
       expect(await dragHandCard(alice.page, remandCardId!, remandPoint), 'Remand armed the drag-cast gesture').toBe(true);
       await expect
@@ -172,13 +168,12 @@ test(
           async () => {
             const text = await says(alice.page);
             if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'ok');
-            if (await answerLoneAbility(alice.page)) return stackCount(alice.page);
             if ((await alice.page.locator('section[data-prompt="getChoices"]').count()) > 0) {
               await placedSpell(alice.page, 'Hinder').click({ timeout: 2_000 });
             }
             return stackCount(alice.page);
           },
-          { timeout: 20_000, message: 'Remand reached the stack: the lone-ability sheet answered, then Hinder’s placed card clicked as the target' },
+          { timeout: 20_000, message: 'Remand reached the stack: Hinder’s placed card clicked as the target' },
         )
         .toBe(3);
       await expect.poll(() => stackCount(alice.page), { timeout: 10_000, message: 'Remand reached the stack, targeting Hinder' }).toBe(3);

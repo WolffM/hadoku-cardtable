@@ -17,7 +17,6 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { makeTitled, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { answerLoneAbility } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -126,10 +125,6 @@ test.describe(titled('an ability nobody stopped'), () => {
       const stackUp = (page: Page) => page.locator('[data-zone="stack"]').evaluate((el) => Number(el.getAttribute('data-count') ?? '0') > 0);
       const deadline = Date.now() + 90_000;
       while (Date.now() < deadline && !(await stackUp(bob.page))) {
-        if (await answerLoneAbility(bob.page)) {
-          await bob.page.waitForTimeout(150);
-          continue;
-        }
         const ok = bob.page.locator('[data-testid="live-button-next-phase"]:enabled, [data-testid="live-decision-ok"]:enabled');
         if ((await ok.count()) > 0 && !(await stackUp(bob.page))) await ok.first().click().catch(() => undefined);
         await bob.page.waitForTimeout(150);

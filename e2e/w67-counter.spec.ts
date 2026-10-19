@@ -25,7 +25,6 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { answerLoneAbility } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -158,7 +157,6 @@ test(titled('a countered spell: on the other screen the back at the release turn
       .poll(
         async () => {
           const text = await says(bob.page);
-          if (await answerLoneAbility(bob.page)) return stackCount(bob.page);
           if (/Pay Mana Cost/i.test(text)) await clickOnce(bob.page, text, 'ok');
           return stackCount(bob.page);
         },

@@ -49,10 +49,8 @@ async function pressOkIfEnabled(page: Page): Promise<void> {
 
 /**
  * Click a hand card to cast it, then drain everything between the click and
- * the selection this spec cares about: `getAbilityToPlay`'s "play this
- * trigger?" (via `answerPrompt`), as many as Forge sends (Relentless Dead's
- * two dies triggers both go through it), and a live mana-payment bar's
- * "Auto" (Kozilek's Return's own cost, then the first trigger's `{B}`).
+ * the selection this spec cares about: any ask (via `answerPrompt`), and a
+ * live mana-payment bar's "Auto" (Kozilek's Return's own cost).
  * `castCard` (`play/board.ts`) only waits for ONE stack change inside a 3s
  * window, which is too tight for a chain this long; this drives the same
  * two steps itself with the budget a multi-trigger scenario needs. Returns
@@ -78,53 +76,28 @@ async function castAndReachTheSelection(page: Page, cardId: number, atLeast: num
 }
 
 /**
- * Click a hand card to cast it, answering every `getAbilityToPlay` ask
- * normally (the ability itself, via `prompt-choice`) EXCEPT the one whose
- * own text matches `declineTextMatch` — that one is declined by clicking
- * `GetAbilityToPlayPrompt`'s own existing "None" button (`prompt-cancel`),
- * exactly the real "you may pay {X}" decision (`OptionalDecider$ You` on
- * Relentless Dead's own second trigger — see `offboard.jvm.test.ts`'s
- * header). Also auto-pays any live mana window and passes its own priority
- * while the stack is busy: the caller turns Full control on, because a
- * one-ability offer is otherwise answered by the board itself (`@hadoku/shared`
- * `selfAnswer`) and there would be nothing to decline. Returns once the
- * trigger was declined, the stack is empty and nothing is being asked, read
- * off the board.
+ * After the target is picked, pay what Forge asks — Kozilek's Return's own cost is already paid,
+ * `TrigReturn`'s `{B}` is paid — and decline the `{X}` payment with Forge's own Cancel: a trigger
+ * with a cost is declined by not paying it (`PlayerControllerHuman.confirmTrigger`). Returns once
+ * the stack is empty and nothing is being asked, read off the board.
  */
-const DECLINE_SETTLE_MS = 1_000;
-
-async function castAndDeclineTrigger(page: Page, cardId: number, declineTextMatch: RegExp): Promise<void> {
-  await clickHandCard(page, cardId);
-  /*
-   * When the declined offer is the FIRST of the two triggers, the second one's offer is still on
-   * its way when the decline's own tick reads the board: nothing open, stack 0. Settled means
-   * that stayed true a full round trip after the decline.
-   */
-  let declinedAt: number | null = null;
+async function declineTheXPayment(page: Page): Promise<void> {
+  let declined = false;
   await expect
     .poll(
       async () => {
-        const sheet = page.getByTestId('live-prompt');
-        if ((await sheet.count()) > 0 && (await sheet.getAttribute('data-method')) === 'getAbilityToPlay') {
-          const choice = sheet.getByTestId('prompt-choice');
-          if ((await choice.count()) > 0) {
-            const text = (await choice.first().innerText()) ?? '';
-            if (declineTextMatch.test(text)) {
-              await sheet.getByTestId('prompt-cancel').click();
-              declinedAt = Date.now();
-            } else await choice.first().click();
-          } else {
-            await sheet.getByTestId('prompt-cancel').click();
-          }
-        } else {
-          // An ability choice that opens between the two reads is the branch above's, next tick.
-          await answerPrompt(page, { leave: ['getAbilityToPlay'] });
-        }
+        await answerPrompt(page);
         const text = await says(page);
-        if (/Pay Mana Cost/i.test(text) || (/^Priority:/.test(text) && !/Stack: Empty/.test(text))) await pressOkIfEnabled(page);
-        // Between the two triggers the stack can read 0 while the next one's offer is still open.
+        if (/Pay Mana Cost/i.test(text)) {
+          const cancel = page.getByTestId('live-payment-cancel');
+          // `live-says` spells `{B}` as `B` (`plainRulesText`).
+          if (!declined && !/Pay Mana Cost:\s*B\b/.test(text) && (await cancel.isEnabled().catch(() => false))) {
+            await cancel.click({ timeout: 1_500 });
+            declined = true;
+          } else await pressOkIfEnabled(page);
+        } else if (/^Priority:/.test(text) && !/Stack: Empty/.test(text)) await pressOkIfEnabled(page);
         if ((await page.getByTestId('live-prompt').count()) > 0 || (await stackCount(page)) !== 0) return false;
-        return declinedAt !== null && Date.now() - declinedAt >= DECLINE_SETTLE_MS;
+        return declined;
       },
       { timeout: 30_000, intervals: [150] },
     )
@@ -178,7 +151,7 @@ test(titled('W18 — Relentless Dead’s graveyard target is mandatory (two lega
     // targeting step itself offers no decline, only picking one of the two
     // (`SelectionPrompt` never draws a button Forge has not enabled, the
     // same rule `done`/`cancel` follow everywhere else). The REAL "you may
-    // pay {X}" decline is a step EARLIER — see the next test.
+    // pay {X}" decline is the payment AFTER it — see the next test.
     await expect(alice.page.getByTestId('selection-cancel')).toHaveCount(0);
     await expect(alice.page.getByTestId('selection-done')).toHaveCount(0);
   } finally {
@@ -186,7 +159,7 @@ test(titled('W18 — Relentless Dead’s graveyard target is mandatory (two lega
   }
 });
 
-test(titled('W18 — the real "you may pay {X}" decision is answered by the ability-choice pop-up’s own "None" button, and declining it leaves both graveyard cards untouched with no lock'), async ({ browser }) => {
+test(titled('W18 — the real "you may pay {X}" decision is the payment after the target: declining it with Cancel leaves both graveyard cards untouched with no lock'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(2 * 60_000);
@@ -197,14 +170,11 @@ test(titled('W18 — the real "you may pay {X}" decision is answered by the abil
 
     const kozileksReturn = alice.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]', { hasText: "Kozilek's Return" });
     const cardId = Number(await kozileksReturn.first().getAttribute('data-board-card'));
-    // `relentless_dead.txt`'s second trigger carries `OptionalDecider$ You`:
-    // the decision to even attempt it is the existing `getAbilityToPlay`
-    // ask (already-built `GetAbilityToPlayPrompt`, `ChoicePrompts.tsx`),
-    // never the later target selection — decline it by its own text. Under
-    // Full control, the one mode in which the board draws a one-ability offer.
-    await alice.page.getByTestId('live-full-control').click();
-    await expect(alice.page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
-    await castAndDeclineTrigger(alice.page, cardId, /another target Zombie/);
+    // `relentless_dead.txt`'s second trigger costs `{X}`, X the chosen target's mana value: the
+    // target is picked first, and the payment that follows is where the seat says no.
+    await castAndReachTheSelection(alice.page, cardId, 2);
+    await selectionTiles(alice.page).first().click({ force: true });
+    await declineTheXPayment(alice.page);
 
     await expect(alice.page.getByTestId('prompt-cards')).toHaveCount(0);
     const graveyard = alice.page.locator('[data-zone="graveyard"][data-owner="you"] [data-board-card]');

@@ -160,27 +160,3 @@ export async function answerPrompt(
   return { method, callId };
 }
 
-/**
- * Answer a lone `getAbilityToPlay` offer (`ChoicePrompts.tsx`'s
- * `GetAbilityToPlayPrompt`, one `[data-testid="prompt-choice"]` button) by
- * clicking it — the one ask `@hadoku/shared`'s `selfAnswer` would otherwise settle
- * on its own, EXCEPT while full control is on (`LiveBoard.tsx`: `const auto
- * = pending === null || match.fullControl || spectator ? null :
- * autoAnswer(pending)` — full control suppresses every auto-answer, not only
- * the stack-target one). Every cast goes through exactly this ask (one
- * ability, "Counter target spell.") before Forge ever opens a target choice;
- * a full-control seat has to click through it by hand. `false`, nothing
- * touched, when it is not showing — so a cast loop can call it every tick.
- */
-export async function answerLoneAbility(page: Page): Promise<boolean> {
-  // Scoped to `GetAbilityToPlayPrompt`'s own `data-prompt` (`PromptShell`'s
-  // `method` prop): `[data-testid="prompt-choice"]` is shared with OTHER
-  // prompt types (a checkbox-based `getChoices` list among them), whose
-  // choices need a SEPARATE submit click, not one click to answer — measured
-  // directly: an unscoped click here landed on a `getChoices` checkbox by the
-  // time Playwright's actionability wait resolved, which only toggles a box.
-  const choice = page.locator('section[data-prompt="getAbilityToPlay"] [data-testid="prompt-choice"]');
-  if ((await choice.count()) !== 1) return false;
-  await choice.click().catch(() => undefined);
-  return true;
-}

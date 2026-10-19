@@ -192,7 +192,7 @@ describe('onlyAnswer, where Forge left exactly one possibility', () => {
 		expect(onlyAnswer(ask)).toBeNull();
 		const one = narrowed('getAbilityToPlay.json', { abilities: [ask.abilities[0]] });
 		expect(onlyAnswer(one)).toMatchObject({ result: ask.abilities[0], why: 'one ability' });
-		expect(onlyAnswer(one, FULL_CONTROL_POLICY)).toBeNull();
+		expect(onlyAnswer(one, FULL_CONTROL_POLICY)).toMatchObject({ result: ask.abilities[0], why: 'one ability' });
 	});
 
 	it('showOptionDialog with one button presses it', () => {
@@ -1399,12 +1399,12 @@ describe('full control — the escape hatch, off by default', () => {
 		expect(h.match.setFullControl(9, true)).toEqual({ ok: false, error: 'no-such-seat' });
 	});
 
-	it('turns the bounds shortcut off too, not just the passing', () => {
+	it('keeps the bounds shortcut: an ask with one legal reply is no question in any mode', () => {
 		const h = harness();
 		h.match.setFullControl(0, true);
 		push(h, 0, allMustBeChosen('a-4'));
-		expect(frames(h, 0).filter((f) => f.kind === 'ask' && f.callId === 'a-4')).toHaveLength(1);
-		expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([]);
+		expect(frames(h, 0).filter((f) => f.kind === 'ask' && f.callId === 'a-4')).toEqual([]);
+		expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([{ t: 'reply', seat: 0, callId: 'a-4', result: ['k1', 'k2', 'k3', 'k4', 'k5'] }]);
 	});
 
 	it('stops at a phase with nothing to do instead of passing it', () => {
@@ -1528,17 +1528,6 @@ describe('a seat owns its stop policy', () => {
 		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0)).toEqual([]);
 		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 1)).toEqual([
 			{ t: 'act', seat: 1, frame: { kind: 'act', method: 'selectButtonOk' } },
-		]);
-	});
-
-	it('reaches the bounds shortcut too — a policy that answers nothing answers nothing', () => {
-		const h = harness();
-		h.match.setStopPolicy(0, FULL_CONTROL_POLICY);
-		push(h, 0, allMustBeChosen('p-1'));
-		push(h, 1, allMustBeChosen('p-2'));
-		expect(frames(h, 0).filter((f) => f.kind === 'ask' && f.callId === 'p-1')).toHaveLength(1);
-		expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([
-			{ t: 'reply', seat: 1, callId: 'p-2', result: ['k1', 'k2', 'k3', 'k4', 'k5'] },
 		]);
 	});
 
@@ -1855,8 +1844,6 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			passStackWindows: true,
 			unambiguousPayment: 'forgeAuto',
 			unpayableCost: 'cancel',
-			costConfirm: 'accept',
-			answerOneAnswerAsks: true,
 			skipEmptyBlockStop: true,
 			stopForPhaseAbility: true,
 			passOwnSpell: true,
@@ -2196,7 +2183,7 @@ describe('NEVER shortcut (2): a cost whose payment is a genuine choice', () => {
 		const read = readPromptFacts(notes);
 		expect(read.window).toBe('other');
 		expect(read.cost).toBeNull();
-		for (const policy of [DEFAULT_STOP_POLICY, { ...DEFAULT_STOP_POLICY, costConfirm: 'accept' as const }, DEFAULT_STOP_POLICY]) {
+		for (const policy of [DEFAULT_STOP_POLICY, FULL_CONTROL_POLICY]) {
 			expect(decideStop(read, policy)).toBeNull();
 			expect(decidePay(read, policy)).toBeNull();
 		}
@@ -2246,10 +2233,10 @@ describe('NEVER shortcut (3): anything at all while full control is on', () => {
 		expect(decidePay(one, FULL_CONTROL_POLICY)).toBeNull();
 	});
 
-	it('answers no bounds ask either — the shortcut is off, not narrowed', () => {
+	it('still answers a bounds ask — one legal reply is no question in any mode', () => {
 		const ask = allMustBeChosen('fc-1');
-		expect(onlyAnswer(ask, DEFAULT_STOP_POLICY)).not.toBeNull();
-		expect(onlyAnswer(ask, FULL_CONTROL_POLICY)).toBeNull();
+		expect(onlyAnswer(ask, FULL_CONTROL_POLICY)).toEqual(onlyAnswer(ask, DEFAULT_STOP_POLICY));
+		expect(onlyAnswer(ask, FULL_CONTROL_POLICY)).not.toBeNull();
 	});
 });
 
@@ -2692,16 +2679,12 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		expect(confirmed(h)).toBe(0);
 	});
 
-	it('(B) full control, and costConfirm ask, put every confirm to the player', () => {
+	it('(B) full control answers it too: the seat chose that ability, there is nothing left to ask', () => {
 		const held = harness();
 		held.match.setFullControl(0, true);
 		choose(held, 9002);
 		confirm(held, 70, 9002);
-		expect(confirmed(held)).toBe(0);
-		const asked = harness({ ...DEFAULT_STOP_POLICY, costConfirm: 'ask' });
-		choose(asked, 9002);
-		confirm(asked, 70, 9002);
-		expect(confirmed(asked)).toBe(0);
+		expect(confirmed(held)).toBe(1);
 	});
 
 	it('(B) chosenCostConfirm is pure over the notes and the choice', () => {
@@ -2723,7 +2706,6 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		expect(chosenCostConfirm(notes, { hostCard: 70, abilityId: 9002 })).not.toBeNull();
 		expect(chosenCostConfirm(notes, null)).toBeNull();
 		expect(chosenCostConfirm({ ...notes, openAsks: 1 }, { hostCard: 70, abilityId: 9002 })).toBeNull();
-		expect(chosenCostConfirm(notes, { hostCard: 70, abilityId: 9002 }, FULL_CONTROL_POLICY)).toBeNull();
 	});
 });
 
@@ -2775,13 +2757,13 @@ describe("an optional search's \"Search your hand?\" — answered when No gains 
 		expect(shown(h)).toHaveLength(1);
 	});
 
-	it('another player’s hand is the seat’s question, and so is any search under full control', () => {
+	it('another player’s hand is the seat’s question, full control or not', () => {
 		const theirs = harness();
 		searchConfirm(theirs, (me) => ({ origin: ['Hand'], player: { kind: 'player', id: me + 1 }, mayChooseNothing: true }), "Search Bob's hand?");
 		expect(presses(theirs)).toEqual([]);
 		const full = harness();
 		full.match.setFullControl(0, true);
-		searchConfirm(full, own(['Hand']));
+		searchConfirm(full, (me) => ({ origin: ['Hand'], player: { kind: 'player', id: me + 1 }, mayChooseNothing: true }), "Search Bob's hand?");
 		expect(presses(full)).toEqual([]);
 	});
 

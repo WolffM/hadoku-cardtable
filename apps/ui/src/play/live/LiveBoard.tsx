@@ -36,8 +36,7 @@
  * because Forge asks that offer twice for one `selectCard` and both copies now
  * answer themselves. The reply goes through `answerAsk` like any other, and what
  * it played is in Forge's own game log like any cast, so the shortcut is
- * visible; nothing is drawn for it, not even for a frame. `match.fullControl` turns it
- * off and the picker comes back.
+ * visible; nothing is drawn for it, not even for a frame, full control or not.
  *
  * ## Clicks on the board
  *
@@ -2610,10 +2609,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   /*
    * One answer is no question (§B, items 4 and 9). `@hadoku/shared`'s `selfAnswer`
    * is the only place that decides it — the server reads the same rule for the other seat's banner; here it is sent, and the prompt that
-   * would have asked is never drawn. Full control turns it off, and then the
-   * picker comes back for one ability as it does for two.
+   * would have asked is never drawn, in full control too: one answer is no choice in any mode.
    */
-  const auto = pending === null || match.fullControl || spectator ? null : selfAnswer(pending);
+  const auto = pending === null || spectator ? null : selfAnswer(pending);
   const autoCallId = auto === null || pending === null ? null : pending.callId;
   useEffect(() => {
     if (autoCallId === null || auto === null || pending === null) return;

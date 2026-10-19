@@ -12,8 +12,7 @@
  * keys, `w62-condescend.state`) casts Grizzly Bears in his own Main Phase
  * 1; alice (`human…` keys) responds with Condescend, X=1, targeting it
  * (the only spell on the stack, so Forge's own targeting choice is a
- * single-option shortcut, answered explicitly below because full control —
- * see next paragraph — disables that shortcut too). Once both seats have
+ * single-option shortcut the server answers). Once both seats have
  * passed priority on "Stack: 2 to Resolve", Condescend resolves.
  *
  * **Measured first, and worth recording — both wrong against the wave
@@ -88,17 +87,14 @@ describe.skipIf(!available.ok)(title, () => {
         seed: 62,
         decks: DECKS,
         scenario: scenarioText('w62-condescend'),
-        // Full control (set on both seats below) disables the server's own
-        // "one legal choice" `getChoices` shortcut too (`match.ts`'s
-        // `openAsk`: `s.fullControl ? null : onlyAnswer(...)`) — so BOTH of
-        // Condescend's own `getChoices` asks reach the wire for real: the X
-        // announce ("Choose X for Condescend", Forge's plain, unconstrained
-        // `0..9` shape — `choose-x.jvm.test.ts`'s own finding — picked here
-        // by its LABEL), and the target choice ("Select target spell"),
-        // which has exactly one legal entry (Grizzly Bears, the only spell
-        // on the stack) and is answered with it. Every other ask
-        // (`getAbilityToPlay`, the scry `order` — see the file header)
-        // keeps `answerAsks()`'s ordinary default.
+        // The X announce ("Choose X for Condescend", Forge's plain,
+        // unconstrained `0..9` shape — `choose-x.jvm.test.ts`'s own finding)
+        // is picked here by its LABEL. The target choice ("Select target
+        // spell") has exactly one legal entry (Grizzly Bears, the only spell
+        // on the stack), and the server answers it with that in any mode;
+        // the reply below covers it should Forge ever offer more. Every other
+        // ask (the scry `order` — see the file header) keeps `answerAsks()`'s
+        // ordinary default.
         reply: (f) => {
           if (f.method !== 'getChoices') return undefined;
           const message = String(f.message ?? '');

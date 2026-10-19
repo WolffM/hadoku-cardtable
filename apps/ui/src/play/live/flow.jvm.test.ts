@@ -22,8 +22,8 @@
  *    seat's own main phase with an empty stack is never passed for it, however
  *    little it can do. The game waits, indefinitely.
  *
- * And the escape hatch: with full control on, the one-ability offer is a
- * question again.
+ * And the escape hatch: with full control on, the one-ability offer is still
+ * no question — one answer is no choice in any mode (the operator, 2026-10-19).
  *
  * ## The decks are chosen so the assertions can be unconditional
  *
@@ -609,7 +609,7 @@ describe.skipIf(!available.ok)(title, () => {
       (x) => x.method === 'getAbilityToPlay' && (x.ask as { abilities: unknown[] }).abilities.length === 1,
     ).length;
 
-    // 6. Full control: the same one-ability offer becomes a question again.
+    // 6. Full control: the same one-ability offer is still no question — one answer is no choice in any mode.
     setFullControl(a.seat.live, true);
     await until(() => a.seat.live.fullControl, 'full control on', 10_000, () => {});
     const turnThen = a.seat.live.view?.turn ?? 0;
@@ -619,23 +619,20 @@ describe.skipIf(!available.ok)(title, () => {
       240_000,
       () => advance(hands, (p) => p.seat.seat === 0 && atSteadyOwnMain(p) && (p.seat.live.view?.turn ?? 0) > turnThen),
     );
-    /*
-     * The one click this step makes is deliberately NOT `playLand`: under full
-     * control the land does NOT reach the battlefield until the one-ability offer
-     * is answered, which is the claim this step exists to make, so a loop keyed on
-     * "is the land down yet" would click again while the prompt was open. The
-     * predicate above has already settled the window, which is the guard that
-     * matters.
-     */
+    // One click, not `playLand`'s loop: a second click while a prompt were open would hide the prompt this step looks for.
+    const islandsDown = () => zoneOf(a.seat.live, 'battlefield').filter((c) => c.name === 'Volcanic Island').length;
+    const down = islandsDown();
     const land2 = zoneOf(a.seat.live, 'hand').find((c) => c.name === 'Volcanic Island')!;
     click(a, land2.id, 'play land under full control');
     await until(
-      () => showing(a) !== null,
-      'the one-ability offer to be DRAWN under full control',
+      () => islandsDown() > down,
+      'the land to reach the battlefield under full control',
       30_000,
-      () => {},
+      () => {
+        const method = showing(a);
+        if (method !== null) record.promptsUnderFullControl.push(method);
+      },
     );
-    record.promptsUnderFullControl.push(showing(a) ?? '?');
 
     record.refused = [...hands[0].refused, ...hands[1].refused];
     record.acts = [...hands[0].acts.map((x) => `seat 0: ${x}`), ...hands[1].acts.map((x) => `seat 1: ${x}`)];
@@ -737,8 +734,8 @@ describe.skipIf(!available.ok)(title, () => {
     expect(record.stalledTo).toBe(record.stalledFrom);
   });
 
-  it('full control restores the stop the one-ability shortcut removed', () => {
-    expect(record.promptsUnderFullControl).toEqual(['getAbilityToPlay']);
+  it('full control keeps the one-ability shortcut: one answer is no question in any mode', () => {
+    expect(record.promptsUnderFullControl).toEqual([]);
   });
 
   /*

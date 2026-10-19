@@ -9,7 +9,8 @@
  *   already played (`e2e/w62-bounce.spec.ts`). Two copies of this rule had drifted: the server's
  *   knew the one-ability offer, not the lone counterspell target.
  *
- * Both callers leave it off under full control, when every stop comes back.
+ * Both callers read it under full control too: full control brings back every stop and every real
+ * choice, never a question with one answer (the operator, 2026-10-19).
  *
  * The rule is the server's (`apps/server/src/play/auto.ts`): a shortcut may remove a question,
  * never information, and it never decides anything about the GAME — only that Forge left one

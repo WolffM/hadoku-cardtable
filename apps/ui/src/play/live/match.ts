@@ -1580,7 +1580,7 @@ export function drawnOffer(match: LiveMatch): LiveClickables {
     turn: view.turn,
     phase: view.phase,
     forgeNamedASet: match.selectables !== null || match.weaklySelectable !== null,
-    askedByHand: match.asks.some((ask) => !SELF_ANSWERING.has(ask.method) && (match.fullControl || selfAnswer(ask) === null)),
+    askedByHand: match.asks.some((ask) => !SELF_ANSWERING.has(ask.method) && selfAnswer(ask) === null),
     waitingOnAnother: [...(match.waitingOn?.keys() ?? [])].some((seat) => seat !== match.seat),
   });
 }

@@ -14,7 +14,6 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { clickHandCard, clickOnce, handCardNamed, makeTitled, offered, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
-import { answerLoneAbility } from './play/prompts.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -49,7 +48,6 @@ async function castOwnDivination(page: Page): Promise<void> {
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline && (await stackCount(page)) === 0) {
       if (await paymentShown(page)) shown = true;
-      await answerLoneAbility(page);
       await page.waitForTimeout(50);
     }
   }
@@ -73,7 +71,6 @@ async function castCharmCounterMode(page: Page): Promise<void> {
           if (!(await box.isChecked())) await box.click({ force: true });
           await page.locator('[data-testid="live-prompt"] [data-testid="prompt-submit"]:enabled').first().click({ timeout: 1_000 }).catch(() => undefined);
         }
-        await answerLoneAbility(page);
         await pressPaymentAuto(page);
         return stackCount(page);
       },

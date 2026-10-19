@@ -17,7 +17,7 @@ import { ZONE_BOXES } from '../../apps/ui/src/play/zone-box.ts';
 import { E2E_ERA, enterMatch, twoLegalDecks } from './enter.ts';
 import { createStreamedRoomByApi, openCreateRoom } from './rooms.ts';
 import type { ForgeAvailability } from './harness.ts';
-import { answerLoneAbility, answerPrompt } from './prompts.ts';
+import { answerPrompt } from './prompts.ts';
 
 export { E2E_ERA, enterMatch, twoLegalDecks };
 
@@ -422,6 +422,35 @@ export async function castWatch(page: Page, cardId: number): Promise<{ stack: nu
 }
 
 /**
+ * `tt-cryptic.state`'s opening: bob casts Memnite and, holding priority (full control for those two
+ * casts only), Dark Ritual over it, then passes — two spells on the stack, so a counterspell's
+ * target is a real choice. Returns once `alice` sees both.
+ */
+export async function stackTwoSpells(alice: Page, bob: Page): Promise<void> {
+  await bob.getByTestId('live-full-control').click();
+  await expect(bob.getByTestId('live-full-control'), 'full control is on for bob').toHaveAttribute('aria-pressed', 'true');
+  for (const [name, count] of [['Memnite', 1], ['Dark Ritual', 2]] as const) {
+    await expect.poll(() => handCardNamed(bob, name), { timeout: 15_000, message: `${name} is in bob’s hand` }).not.toBeUndefined();
+    const id = (await handCardNamed(bob, name))!;
+    await expect.poll(() => offered(bob), { timeout: 15_000, message: `bob is offered ${name}` }).toContain(id);
+    await castCard(bob, id);
+    await expect.poll(() => stackCount(alice), { timeout: 15_000, message: `bob’s ${name} reached the stack` }).toBe(count);
+  }
+  await bob.getByTestId('live-full-control').click();
+  await expect(bob.getByTestId('live-full-control'), 'full control is off for bob').toHaveAttribute('aria-pressed', 'false');
+  await expect
+    .poll(
+      async () => {
+        const text = await says(bob);
+        if (/^Priority:/.test(text)) await clickOnce(bob, text, 'ok');
+        return /^Priority:/.test(await says(alice));
+      },
+      { timeout: 15_000, message: 'bob passed: alice holds priority over his two spells' },
+    )
+    .toBe(true);
+}
+
+/**
  * Click a hand card to cast it, then drain whatever Forge asks next: a
  * `getAbilityToPlay` choice (a seat holding priority over a non-empty stack
  * gets this instead of the board staying the only surface), then "Pay Mana
@@ -457,10 +486,8 @@ export async function castCard(page: Page, cardId: number, opts: { x?: number } 
  * `dragHandCard` with the retry a multi-screen, full-control chain needs
  * (T6, folded from `w59-stack.spec.ts`'s own, AD4 rule 2/3 — "placed by a
  * drag", never a plain click): a held drag from the hand to `to`, then
- * whatever Forge asks next — a plain mana payment, the lone-ability sheet
- * full control leaves to the player (`answerLoneAbility`, not the generic
- * `answerPrompt`: a seat under full control answers nothing on its own) —
- * until `castWatch` says the cast happened. Not before Forge offers the
+ * a plain mana payment if Forge asks for one, until `castWatch` says the
+ * cast happened. Not before Forge offers the
  * card: a drag released before the offer is a no-op, and the first act
  * after a scenario start can be dropped outright (ledger AB15,
  * `PlayBridge.java`'s own `refreshActionable`), so the drag is repeated,
@@ -488,7 +515,6 @@ export async function castByDrag(
         async () => {
           const text = await says(page);
           if (/Pay Mana Cost/i.test(text)) await clickOnce(page, text, 'ok');
-          await answerLoneAbility(page);
           return watch.cast();
         },
         { timeout: 8_000 },

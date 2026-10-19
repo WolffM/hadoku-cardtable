@@ -116,9 +116,6 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
 
     /* ── a target's Cancel is the pop-up's, and it backs out ──────────── */
     await clickHandCard(page, bolt);
-    // Full control asks which of the card's abilities to play first (`getAbilityToPlay`), an ask answered as one.
-    await expect(page.getByTestId('live-prompt'), 'full control: which ability').toHaveAttribute('data-method', 'getAbilityToPlay', { timeout: 15_000 });
-    await page.getByTestId('live-prompt').getByTestId('prompt-choice').first().click();
     await expect(page.getByTestId('live-decision-cancel'), 'choosing a target: Forge’s Cancel, in the pop-up').toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('live-decision-cancel')).toHaveText('Cancel');
     await expect(nextPhase(page), 'choosing a target: Next Phase greyed').toBeDisabled();

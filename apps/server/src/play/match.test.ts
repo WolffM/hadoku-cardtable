@@ -419,18 +419,19 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 			expect(h.told.slice(before).some((seats) => seats[0]?.waitingOn !== undefined), 'never told').toBe(false);
 		});
 
-		it('under full control it is the picker, a real decision: told after the grace', () => {
+		it('under full control the browser answers it all the same: never told', () => {
 			vi.useFakeTimers();
 			const h = waitingHarness();
 			h.host.push(...OPENING);
 			h.match.fromClient(1, ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' }));
 			h.match.setFullControl(0, true);
 			vi.advanceTimersByTime(200);
+			const before = h.told.length;
 			click(h, 121);
 			h.host.push(offer('land-2', 121));
-			vi.advanceTimersByTime(200);
-			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'getAbilityToPlay' } });
-			expect(h.told.at(-1)![0]).toMatchObject({ waitingOn: { method: 'getAbilityToPlay' } });
+			vi.advanceTimersByTime(400);
+			expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
+			expect(h.told.slice(before).some((seats) => seats[0]?.waitingOn !== undefined), 'never told').toBe(false);
 		});
 	});
 
@@ -2162,12 +2163,14 @@ describe("a trigger's one ability is not a question: the server plays it", () =>
 		expect(onWire(h, 't-4')).toBe(true);
 	});
 
-	it('full control: asked', () => {
+	it('full control: played all the same — one ability is no choice in any mode', () => {
 		const h = harness();
 		h.host.push(...OPENING);
 		h.match.setFullControl(0, true);
 		h.host.push({ t: 'frame', seat: 0, frame: offer('t-5', 963, [82]) });
-		expect(onWire(h, 't-5')).toBe(true);
+		expect(onWire(h, 't-5')).toBe(false);
+		h.host.push({ t: 'frame', seat: 0, frame: offer('t-6', 963, [83, 84]) });
+		expect(onWire(h, 't-6')).toBe(true);
 	});
 });
 
@@ -3054,6 +3057,17 @@ describe('hold-decide-forward', () => {
 			expect(oks(h) - okBefore, 'a confirm for an ability it targeted nothing for').toBe(1);
 			expect(methodsSent(h, SEAT1_ID, before)).toContain('showPromptMessage');
 		});
+
+		it('full control answers it too: the seat already chose that target', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.match.setFullControl(SEAT1_ID, true);
+			ask(h, 101, 0);
+			h.match.fromClient(SEAT1_ID, ClientFrameSchema.parse({ kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: BOB }, triggerEvent: null }));
+			const okBefore = oks(h);
+			h.host.push(...dealConfirm(101));
+			expect(oks(h) - okBefore, 'answered Yes').toBe(1);
+		});
 	});
 
 	describe("an optional trigger's remembered answer", () => {
@@ -3404,15 +3418,22 @@ describe('cards entering the battlefield together, every one the same card, are 
 		expect(h.logs.find((l) => l.evt === 'ask-auto-answered' && l.callId === 'x-entry-1')).toMatchObject({ method: 'order', why: 'every card the same' });
 	});
 
-	it('two different cards, a library order of the same card, and full control are still asked', () => {
+	it('two different cards and a library order of the same card are still asked', () => {
 		const h = harness();
 		h.host.push(...OPENING);
 		h.host.push({ t: 'frame', seat: 0, frame: entryAsk('x-entry-2', ['Mountain', 'Forest', 'Mountain']) });
 		h.host.push({ t: 'frame', seat: 0, frame: entryAsk('x-library', ['Island', 'Island'], 'Choose order of cards to put into the library') });
+		for (const callId of ['x-entry-2', 'x-library']) expect(shown(h, callId), callId).toHaveLength(1);
+		expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([]);
+	});
+
+	it('full control answers it all the same: every order of identical cards is one order', () => {
+		const h = harness();
+		h.host.push(...OPENING);
 		h.match.setFullControl(0, true);
 		h.host.push({ t: 'frame', seat: 0, frame: entryAsk('x-entry-3', MOUNTAINS) });
-		for (const callId of ['x-entry-2', 'x-library', 'x-entry-3']) expect(shown(h, callId), callId).toHaveLength(1);
-		expect(h.host.commands.filter((c) => c.t === 'reply')).toEqual([]);
+		expect(shown(h, 'x-entry-3')).toEqual([]);
+		expect(h.host.commands.filter((c) => c.t === 'reply')).toHaveLength(1);
 	});
 });
 

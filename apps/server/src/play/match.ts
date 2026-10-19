@@ -117,6 +117,7 @@ import {
 	decidePay,
 	DEFAULT_STOP_POLICY,
 	freeSearchConfirm,
+	FULL_CONTROL_POLICY,
 	judgeStop,
 	onlyAnswer,
 	PAY_MANA,
@@ -368,9 +369,10 @@ export interface SeatState {
 	/* ── Wave 19 lane C: questions with one answer, stops with nothing to do ── */
 
 	/**
-	 * The escape hatch, off by default. While it is on, this seat is asked
-	 * everything and passes nothing for itself — because the one thing worse
-	 * than a stop you did not want is a stop you did not get.
+	 * The escape hatch, off by default. While it is on, this seat stops at every
+	 * window and makes every real choice itself — because the one thing worse
+	 * than a stop you did not want is a stop you did not get. A question with one
+	 * answer is not a choice, and is answered as it is without it.
 	 */
 	fullControl: boolean;
 	/**
@@ -1562,7 +1564,7 @@ export class Match {
 	private waitingOnFor(s: SeatState): { method: string; hostCard: string | null } | null {
 		// An ask the seat's browser answers by itself (`selfAnswer`, the browser's own rule) is nobody's
 		// decision, however long a loaded browser takes to reply — no grace is long enough.
-		const decision = [...s.asks.values()].find((ask) => s.fullControl || selfAnswer(ask.frame) === null);
+		const decision = [...s.asks.values()].find((ask) => selfAnswer(ask.frame) === null);
 		// A live bar on an ORDINARY priority window (Forge's "Priority: …" prompt) is not a decision
 		// either: the seat merely holds priority. The operator, 2026-10-08 (AE13), after a bounceland
 		// returned itself with no choice to make: *"it still shows 'Waiting for Bella to decide…' as if
@@ -2572,8 +2574,9 @@ export class Match {
 	/* ── Wave 19 lane C ─────────────────────────────────────────────── */
 
 	/**
-	 * The escape hatch. Off by default; while it is on this seat is asked every
-	 * question and passes no stop for itself.
+	 * The escape hatch. Off by default; while it is on this seat passes no stop
+	 * for itself, pays nothing for itself, and orders its own simultaneous
+	 * triggers. A question with one answer is still answered for it.
 	 */
 	setFullControl(seat: number, on: boolean): ClientOutcome {
 		const s = this.seats[seat];
@@ -2858,12 +2861,22 @@ export class Match {
 	 *
 	 * Null means "not this gate's seat to decide for" — full control is on, the
 	 * seat is an AI, or the match is not running — and every caller's own no-op
-	 * is that null. `notes` rides along because `chosenCostConfirm` reads it
-	 * directly rather than through `PromptFacts` (it answers a confirm against
-	 * `SeatState.chosenAbility`, which is not a fact `readPromptFacts` carries).
+	 * is that null.
 	 */
 	private autoGateFacts(s: SeatState): { notes: SeatNotes; facts: PromptFacts } | null {
-		if (s.fullControl || s.ai || this.status !== 'running') return null;
+		return s.fullControl ? null : this.answerGateFacts(s);
+	}
+
+	/**
+	 * {@link autoGateFacts} for the confirms that ask nothing the seat has not
+	 * already answered — the cost of the ability it chose, its own target's "may",
+	 * a search of its own hand — which full control leaves to the server too:
+	 * full control is every stop and every real choice, never a question with one
+	 * answer (the operator, 2026-10-19). `notes` rides along because those
+	 * deciders read it directly rather than through `PromptFacts`.
+	 */
+	private answerGateFacts(s: SeatState): { notes: SeatNotes; facts: PromptFacts } | null {
+		if (s.ai || this.status !== 'running') return null;
 		const notes = this.notesOf(s);
 		return { notes, facts: readPromptFacts(notes) };
 	}
@@ -3119,7 +3132,7 @@ export class Match {
 	}
 
 	private maybeConfirmChosenTarget(s: SeatState): boolean {
-		const gate = this.autoGateFacts(s);
+		const gate = this.answerGateFacts(s);
 		if (gate === null) return false;
 		const abilityId = chosenTargetConfirm(gate.notes, s.chosenTargets);
 		if (abilityId === null) return false;
@@ -3136,9 +3149,9 @@ export class Match {
 	 * Returns whether it answered, so the caller withholds the prompt.
 	 */
 	private maybeConfirmChosenCost(s: SeatState): boolean {
-		const gate = this.autoGateFacts(s);
+		const gate = this.answerGateFacts(s);
 		if (gate === null) return false;
-		const why = chosenCostConfirm(gate.notes, s.chosenAbility, s.policy);
+		const why = chosenCostConfirm(gate.notes, s.chosenAbility);
 		const question = gate.notes.prompt?.method === 'showPromptMessage' ? gate.notes.prompt.message : null;
 		if (why === null || question === null || s.confirmedCosts.has(question)) return false;
 		s.confirmedCosts.add(question);
@@ -3153,7 +3166,7 @@ export class Match {
 	 * caller withholds the prompt.
 	 */
 	private maybeConfirmFreeSearch(s: SeatState): boolean {
-		const gate = this.autoGateFacts(s);
+		const gate = this.answerGateFacts(s);
 		if (gate === null) return false;
 		const why = freeSearchConfirm(gate.notes);
 		if (why === null) return false;
@@ -3337,7 +3350,9 @@ export class Match {
 		const frame = arrangeAsk(offered) ?? modesAsk(offered) ?? this.narrowNames(s, offered);
 		const clicked = frame.method === 'getAbilityToPlay' && frame.hostCard.id === s.clicked;
 		if (frame.method === 'getAbilityToPlay') s.clicked = null;
-		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (s.fullControl || clicked ? null : (onlyAnswer(frame, s.policy) ?? sameCardsOrder(frame)));
+		// One legal reply is no question in any mode; full control keeps only the order of simultaneous triggers.
+		const policy = s.fullControl ? FULL_CONTROL_POLICY : s.policy;
+		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (clicked ? null : (onlyAnswer(frame, policy) ?? sameCardsOrder(frame)));
 		if (auto !== null) {
 			s.autoAnswered += 1;
 			this.deps.log({

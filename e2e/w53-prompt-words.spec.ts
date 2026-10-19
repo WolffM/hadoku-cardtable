@@ -61,26 +61,6 @@ async function handCardNamed(page: Page, name: string): Promise<number | undefin
 }
 
 /**
- * Answer a lone `getAbilityToPlay` offer (`ChoicePrompts.tsx`'s
- * `GetAbilityToPlayPrompt`, one `[data-testid="prompt-choice"]` button) by
- * clicking it — the ask `@hadoku/shared`'s `selfAnswer` would otherwise settle on
- * its own, EXCEPT while full control is on (`LiveBoard.tsx`: full control
- * suppresses every auto-answer, not only the stack-target one —
- * `e2e/w49-counterspell.spec.ts`'s own `answerLoneAbility`, same shape,
- * because Venser's own cast opens exactly this ask first, before Forge ever
- * asks for its target). Diagnosed against a real run: alice's `says` line
- * read "Priority: Alice … Stack: 2 to Resolve" with `promptMethod ===
- * 'getAbilityToPlay'` for the full 20s this helper used to not handle it —
- * not a selection, not silence; an unanswered ask, per the memory note.
- */
-async function answerLoneAbility(page: Page): Promise<boolean> {
-  const choice = page.locator('section[data-prompt="getAbilityToPlay"] [data-testid="prompt-choice"]');
-  if ((await choice.count()) !== 1) return false;
-  await choice.click().catch(() => undefined);
-  return true;
-}
-
-/**
  * Click whichever page currently shows an enabled bar OK and nothing more
  * urgent asked of it, until EITHER page opens a `getChoices` ask — the
  * ordinary "both pass, the stack resolves" rhythm, driven on both seats at
@@ -99,7 +79,6 @@ async function passUntilGetChoices(pages: readonly Page[], label: string): Promi
             }
           }
           for (const p of pages) {
-            if (await answerLoneAbility(p)) continue;
             const ok = enabledOk(p);
             if ((await ok.count()) > 0) await ok.click().catch(() => undefined);
           }

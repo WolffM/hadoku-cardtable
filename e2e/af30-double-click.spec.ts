@@ -1,21 +1,20 @@
 /**
  * The operator, 2026-10-13: *"double click to confirm without needing to click ok"*.
  *
- * Against real Forge, on `tt-cryptic.state`: bob casts Memnite, alice casts
- * Cryptic Command at it with full control on, so every question is hers to
- * answer. OK is never pressed:
+ * Against real Forge, on `tt-cryptic.state`: bob casts Memnite and Dark Ritual,
+ * alice casts Cryptic Command at Memnite with full control on. OK is never
+ * pressed:
  *  - the mode prompt picks two: a double click on "Counter target spell"
  *    picks it and leaves the prompt open (one mode is not an answer yet); a
  *    double click on "Draw a card" picks it and answers;
- *  - the target prompt picks one: a double click on Memnite answers it.
+ *  - the target prompt picks one of the two spells: a double click on Memnite answers it.
  * Cryptic Command reaching the stack is Forge accepting both answers.
  *
  * `[af30]` lines are the evidence: what each prompt held after each double click.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount } from './play/board.ts';
-import { answerLoneAbility } from './play/prompts.ts';
+import { clickOnce, dragHandCard, handCardNamed, makeTitled, offered, resizeWindow, says, stackCount, stackTwoSpells } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -43,11 +42,7 @@ test(titled('double-clicking a choice picks it and confirms: a two-mode prompt a
     await page.getByTestId('live-full-control').click();
     await expect(page.getByTestId('live-full-control'), 'full control is on for alice').toHaveAttribute('aria-pressed', 'true');
 
-    const memnite = await handCardNamed(bob.page, 'Memnite');
-    expect(memnite, 'Memnite is in bob’s hand').not.toBeUndefined();
-    await expect.poll(() => offered(bob.page), { timeout: 15_000, message: 'bob is offered Memnite' }).toContain(memnite!);
-    await castCard(bob.page, memnite!);
-    await expect.poll(() => stackCount(page), { timeout: 15_000, message: 'bob’s Memnite reached the stack' }).toBe(1);
+    await stackTwoSpells(page, bob.page);
 
     const cryptic = await handCardNamed(page, 'Cryptic Command');
     expect(cryptic, 'Cryptic Command is in alice’s hand').not.toBeUndefined();
@@ -95,7 +90,6 @@ test(titled('double-clicking a choice picks it and confirms: a two-mode prompt a
     await expect
       .poll(
         async () => {
-          if (await answerLoneAbility(page)) return stackCount(page);
           const mode = modePrompt(page);
           if (!modesDone && (await mode.count()) > 0) {
             await page.waitForTimeout(500);
@@ -133,7 +127,7 @@ test(titled('double-clicking a choice picks it and confirms: a two-mode prompt a
         },
         { timeout: 60_000, message: 'Cryptic Command reached the stack' },
       )
-      .toBe(2);
+      .toBe(3);
     console.log(`[af30] modes=${modesDone} target=${targetDone} OK presses=${submits.length}`);
     expect(modesDone, 'the mode prompt was shown and answered by double clicks').toBe(true);
     expect(targetDone, 'the target prompt was shown and answered by a double click').toBe(true);
