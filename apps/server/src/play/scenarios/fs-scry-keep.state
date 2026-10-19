@@ -1,0 +1,15 @@
+# Alice (seat 0) casts Serum Visions ("Draw a card. Scry 2.") over a library of Island, Lightning Bolt,
+# Shock: she draws the Island and keeps both looked-at cards on top. Bob has no plays.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Serum Visions
+humanbattlefield=Island
+humanlibrary=Island;Lightning Bolt;Shock;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
