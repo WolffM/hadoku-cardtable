@@ -1,0 +1,19 @@
+# e2e/aa-ai-beats.spec.ts — the other seat's turn draws every beat, whoever plays it.
+# Seat 1 is the active player at its Main Phase 1 with Hill Giant (3/3) and Gray Ogre (2/2) ready to
+# attack, four Swamps and Ravenous Chupacabra in hand (its arrival destroys a creature an opponent
+# controls). Alice (seat 0) has a tapped Grizzly Bears — nothing to block with, nothing in hand — so
+# every stop of hers is passed for her and the turn plays straight through: a creature cast, a death,
+# an attack and its blow. Against the Forge AI it plays itself; against a person, the spec plays it.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Grizzly Bears|Tapped
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Ravenous Chupacabra
+aibattlefield=Hill Giant;Gray Ogre;Swamp;Swamp;Swamp;Swamp
+ailibrary=Swamp;Swamp;Swamp;Swamp
+aigraveyard=

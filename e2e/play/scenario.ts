@@ -42,6 +42,7 @@ import { resolve } from 'node:path';
 
 import { expect, type Browser, type Page } from '@playwright/test';
 
+import { setPlayFastModeDefault } from '../prefsLocal.ts';
 import { enabledCancel, enabledOk, says } from './board.ts';
 import { openFriend, type Friend } from './browser.ts';
 import { confirmYes } from './confirm.ts';
@@ -342,4 +343,57 @@ export async function startScenarioMatch(
   ]);
 
   return { alice, bob, matchId };
+}
+
+/**
+ * Start a match seeded by the named scenario against the Forge AI: alice is seat 0 (the `human…`
+ * keys), Forge's own AI plays seat 1 (the `ai…` keys). `beforeKeep` runs on her page once the board
+ * is up and before she keeps her hand — the scenario applies, and the AI starts playing, the moment
+ * she does, so whatever must watch its turn is put in place there. Returns once her hand is kept and
+ * seat 1's scripted battlefield is drawn on her screen.
+ */
+export async function startScenarioVsAi(
+  browser: Browser,
+  stack: PlayStack,
+  scenarioName: string,
+  options: { fastMode?: boolean; beforeKeep?: (alice: Friend) => Promise<void> } = {},
+): Promise<{ alice: Friend; matchId: string }> {
+  const scenario = readScenario(scenarioName);
+  const alice = await openFriend(browser, 'alice');
+  if (options.fastMode !== undefined) await setPlayFastModeDefault(alice.context, options.fastMode);
+  const res = await alice.context.request.post(`${stack.origin}${PREFIX}/api/play/matches`, {
+    data: { opponent: 'ai', decks: [null, null], names: ['Alice', null], scenario },
+  });
+  if (res.status() !== 201) throw new Error(`scenario "${scenarioName}" vs the AI: POST /api/play/matches answered ${res.status()} ${await res.text()}`);
+  const { matchId } = (await res.json()) as { matchId: string };
+  await alice.page.goto(matchUrl(stack.origin, matchId));
+  await boardUp(alice.page);
+  await options.beforeKeep?.(alice);
+
+  const theirs = /^aibattlefield=(.*)$/m.exec(scenario)?.[1]?.split(';').map((entry) => entry.split('|')[0]!.trim()) ?? [];
+  const applied = async (): Promise<boolean> => {
+    const names = await alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card] .card__name').allTextContents();
+    return theirs.every((name) => names.includes(name));
+  };
+  const clicked = new Set<string>();
+  const deadline = Date.now() + 30_000;
+  while (!(await applied())) {
+    if (Date.now() > deadline) throw new Error(`scenario "${scenarioName}" vs the AI did not apply: says "${await says(alice.page)}"`);
+    const text = await says(alice.page);
+    if (!clicked.has(text)) {
+      const button = /play or draw/i.test(text)
+        ? alice.page.getByTestId('live-play-or-draw-play')
+        : /keep your hand/i.test(text)
+          ? confirmYes(alice.page)
+          : /return \d+ card/i.test(text)
+            ? enabledOk(alice.page)
+            : null;
+      if (button !== null && (await button.count()) > 0) {
+        clicked.add(text);
+        await button.click().catch(() => undefined);
+      }
+    }
+    await alice.page.waitForTimeout(100);
+  }
+  return { alice, matchId };
 }
