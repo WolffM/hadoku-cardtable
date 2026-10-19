@@ -202,6 +202,18 @@ describe('onlyAnswer, where Forge left exactly one possibility', () => {
 		expect(onlyAnswer(one, FULL_CONTROL_POLICY)).toMatchObject({ result: ask.abilities[0], why: 'one ability' });
 	});
 
+	it("getAbilityToPlay from a land card off the battlefield is the seat's unless it plays the land", () => {
+		const ask = fixture('getAbilityToPlay.json') as Extract<ServerFrame, { method: 'getAbilityToPlay' }>;
+		const cycling = { ...ask.abilities[0]!, label: '{2}, Cycling (Draw a card.)' };
+		const inHand = narrowed('getAbilityToPlay.json', { abilities: [cycling], hostLand: { zone: 'Hand' } });
+		expect(onlyAnswer(inHand)).toBeNull();
+		expect(onlyAnswer(inHand, FULL_CONTROL_POLICY)).toBeNull();
+		const play = { ...ask.abilities[0]!, label: 'Play land', playsLand: true as const };
+		expect(onlyAnswer(narrowed('getAbilityToPlay.json', { abilities: [play], hostLand: { zone: 'Hand' } }))).toMatchObject({ result: play });
+		const mana = narrowed('getAbilityToPlay.json', { abilities: [cycling], hostLand: { zone: 'Battlefield' } });
+		expect(onlyAnswer(mana)).toMatchObject({ result: cycling, why: 'one ability' });
+	});
+
 	it('showOptionDialog with one button presses it', () => {
 		const one = narrowed('showOptionDialog.json', { options: ['OK'], defaultOption: 0 });
 		expect(onlyAnswer(one)).toMatchObject({ result: 0 });

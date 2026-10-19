@@ -1,0 +1,19 @@
+# A land's one ability is asked unless it plays the land (the operator, 2026-10-19): "sometimes you
+# might try to play a land without realizing it's gonna get cycled. make it so you still have to
+# select the cycling ability when playing lands".
+#
+# Seat 0 (human) holds a Forest and Tranquil Thicket (land, cycling {G}) with a Forest out. Playing
+# the Forest uses the land drop, so Forge then offers the Thicket only its Cycling.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Forest;Tranquil Thicket
+humanbattlefield=Forest
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

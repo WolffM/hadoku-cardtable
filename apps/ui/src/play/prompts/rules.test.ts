@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { cardRequest } from '@hadoku/forge-wire';
-import { selfAnswer } from '@hadoku/shared';
+import { oneAbility, selfAnswer } from '@hadoku/shared';
 
 import { askFor, asksFor, fixtureLookup } from './fixtures.ts';
 import {
@@ -222,6 +222,35 @@ describe('selfAnswer', () => {
 
   it('asks when there are none — an empty offer is not an answer', () => {
     expect(selfAnswer({ ...two, abilities: [] })).toBeNull();
+  });
+
+  describe('a land card: the operator, 2026-10-19 — "you still have to select the cycling ability when playing lands"', () => {
+    const cycling = { kind: 'spellAbility' as const, id: 31, label: '{2}, Cycling (Draw a card.)' };
+    const play = { kind: 'spellAbility' as const, id: 32, label: 'Play land', playsLand: true as const };
+    const inHand = { ...two, abilities: [cycling], hostLand: { zone: 'Hand' } };
+
+    it('asks when its one ability from hand is not playing it: Cycling once the land drop is used', () => {
+      expect(selfAnswer(inHand)).toBeNull();
+      expect(oneAbility(inHand)).toBeNull();
+    });
+
+    it('asks from any zone off the battlefield', () => {
+      expect(selfAnswer({ ...inHand, hostLand: { zone: 'Graveyard' } })).toBeNull();
+      expect(selfAnswer({ ...inHand, hostLand: { zone: 'Exile' } })).toBeNull();
+    });
+
+    it('plays it with one press when playing it is the one offer', () => {
+      expect(selfAnswer({ ...inHand, abilities: [play] })).toMatchObject({ method: 'getAbilityToPlay', reply: { id: 32 } });
+    });
+
+    it('taps a battlefield land for its one mana ability as before', () => {
+      const mana = { kind: 'spellAbility' as const, id: 33, label: '{T}: Add {G}.' };
+      expect(selfAnswer({ ...inHand, abilities: [mana], hostLand: { zone: 'Battlefield' } })).toMatchObject({ reply: { id: 33 } });
+    });
+
+    it('a nonland card carries no land facts, and its one ability answers itself', () => {
+      expect(selfAnswer({ ...two, abilities: [cycling] })).toMatchObject({ reply: { id: 31 } });
+    });
   });
 
   it('answers only getAbilityToPlay and a lone stack target: everything else with one legal reply is the server’s', () => {

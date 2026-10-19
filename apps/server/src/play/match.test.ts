@@ -15,6 +15,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientFrameSchema, deltaKeyOf, safeParseServerFrame, type ClientFrame } from '@hadoku/forge-wire';
+import { selfAnswer } from '@hadoku/shared';
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
@@ -2171,6 +2172,41 @@ describe("a trigger's one ability is not a question: the server plays it", () =>
 		expect(onWire(h, 't-5')).toBe(false);
 		h.host.push({ t: 'frame', seat: 0, frame: offer('t-6', 963, [83, 84]) });
 		expect(onWire(h, 't-6')).toBe(true);
+	});
+
+	describe('a land card off the battlefield: its one ability is asked unless it plays the land', () => {
+		const landOffer = (callId: string, hostCard: number, zone: string, playsLand: boolean) => ({
+			...offer(callId, hostCard, [90]),
+			abilities: [{ kind: 'spellAbility' as const, id: 90, label: playsLand ? 'Play land' : '{2}, Cycling', ...(playsLand ? { playsLand: true as const } : {}) }],
+			hostLand: { zone },
+		});
+
+		for (const full of [false, true]) {
+			it(`${full ? 'full control' : 'default'}: a cycling land in hand reaches the seat, clicked or not, and its browser does not answer it`, () => {
+				const h = harness();
+				h.host.push(...OPENING);
+				h.match.setFullControl(0, full);
+				click(h, 964);
+				const clicked = landOffer('l-1', 964, 'Hand', false);
+				h.host.push({ t: 'frame', seat: 0, frame: clicked });
+				expect(onWire(h, 'l-1')).toBe(true);
+				expect(selfAnswer(clicked)).toBeNull();
+				h.host.push({ t: 'frame', seat: 0, frame: landOffer('l-2', 965, 'Hand', false) });
+				expect(onWire(h, 'l-2')).toBe(true);
+				expect(h.host.commands.some((c) => c.t === 'reply' && (c.callId === 'l-1' || c.callId === 'l-2'))).toBe(false);
+			});
+		}
+
+		it('playing the land is still one press, and a battlefield land is still played by the server', () => {
+			const h = harness();
+			h.host.push(...OPENING);
+			click(h, 966);
+			const play = landOffer('l-3', 966, 'Hand', true);
+			h.host.push({ t: 'frame', seat: 0, frame: play });
+			expect(selfAnswer(play)).toMatchObject({ method: 'getAbilityToPlay', reply: { id: 90 } });
+			h.host.push({ t: 'frame', seat: 0, frame: landOffer('l-4', 967, 'Battlefield', false) });
+			expect(onWire(h, 'l-4')).toBe(false);
+		});
 	});
 });
 
