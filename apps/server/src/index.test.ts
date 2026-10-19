@@ -23,11 +23,11 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { testPort } from './testPort.ts';
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TSX = join(PKG_ROOT, 'node_modules', '.bin', 'tsx');
@@ -45,13 +45,6 @@ afterAll(() => {
 	rmSync(root, { recursive: true, force: true });
 });
 
-async function freePort(): Promise<number> {
-	const probe = createServer();
-	await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r));
-	const { port } = probe.address() as AddressInfo;
-	await new Promise<void>((r) => probe.close(() => r()));
-	return port;
-}
 
 interface Served {
 	status: number;
@@ -79,7 +72,7 @@ async function boot(webDir: string): Promise<Booted> {
 	mkdirSync(join(webDir, 'embed', 'assets'), { recursive: true });
 	writeFileSync(join(webDir, 'embed', 'cardtable-embed.js'), 'export function mount() {}\n');
 	writeFileSync(join(webDir, 'embed', 'assets', 'chunk-a1b2c3.js'), 'export const x = 1;\n');
-	const port = await freePort();
+	const port = await testPort();
 
 	const env: NodeJS.ProcessEnv = {
 		...process.env,

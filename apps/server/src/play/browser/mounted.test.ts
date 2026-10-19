@@ -52,7 +52,7 @@ import express from 'express';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server as HttpServer } from 'node:http';
-import { connect as netConnect, createServer as netServer, type AddressInfo, type Socket } from 'node:net';
+import { connect as netConnect, type AddressInfo, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,6 +62,7 @@ import { ClientFrameSchema } from '@hadoku/forge-wire';
 
 import type { Match } from '../match.js';
 import { leaked, loadTranscript, rawStatesOf, replayFactory, secretsFor, type ReplayHost } from '../fixtures/transcript.js';
+import { testPort } from '../../testPort.ts';
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const TSX = join(PKG_ROOT, 'node_modules', '.bin', 'tsx');
@@ -208,13 +209,6 @@ afterEach(() => {
 
 /* ── 1. The real `src/index.ts`, as a real process ───────────────────── */
 
-async function freePort(): Promise<number> {
-	const probe = netServer();
-	await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r));
-	const { port } = probe.address() as AddressInfo;
-	await new Promise<void>((r) => probe.close(() => r()));
-	return port;
-}
 
 describe('the endpoint a server started from src/index.ts actually exposes', () => {
 	let root = '';
@@ -235,7 +229,7 @@ describe('the endpoint a server started from src/index.ts actually exposes', () 
 		// `pnpm check`: EADDRINUSE on the probed port). Only that failure is
 		// retried, on a fresh port; anything else still fails the suite.
 		for (let attempt = 1; ; attempt++) {
-			port = await freePort();
+			port = await testPort();
 			try {
 				await startServer(webDir);
 				break;
