@@ -1059,12 +1059,14 @@ test(
         (window as unknown as { __resultSeen: string[] }).__resultSeen = seen;
         new MutationObserver(() => {
           if (document.querySelector('[data-testid="game-result-rematch"]') !== null) seen.push('rematch');
-          if (document.querySelector('[data-testid="game-result"]') !== null && document.querySelector('[data-testid="sideboard-step"]') === null) seen.push('result-without-sideboard');
+          if (document.querySelector('[data-testid="game-result"]') !== null && document.querySelector('[data-testid="sideboard-step"]') === null && document.querySelector('[data-testid="game-result-next"]') === null) seen.push('result-without-next');
         }).observe(document.body, { childList: true, subtree: true });
       });
       await alice.page.getByTestId('live-concede').click();
       await alice.page.getByTestId('live-concede-yes').click();
-      await expect(alice.page.getByTestId('sideboard-step'), 'losing game 1 opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
+      // The outcome first, with Next (the operator, 2026-10-19); Next opens the sideboard step.
+      await alice.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
+      await expect(alice.page.getByTestId('sideboard-step'), 'Next opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
       expect(await alice.page.evaluate(() => [...new Set((window as unknown as { __resultSeen: string[] }).__resultSeen)]), 'shown before the sideboard step').toEqual([]);
 
       /* ── Ready: game 2, against the AI again ─────────────────────────── */
