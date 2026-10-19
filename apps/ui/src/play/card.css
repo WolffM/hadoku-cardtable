@@ -241,12 +241,11 @@
  * printed `.card__stat`, and the number that matters on a battlefield is the
  * current one.
  *
- * **Colour is never the only signal.** Each state carries three: an ink, a
- * heavier weight, and a marker glyph (`▲` / `▼`, drawn by `Board.tsx` and hidden
- * from the accessible name because the name says it in words). Read with no
- * colour at all, `▲3 / ▼1` still says buffed and hurt. Damaged toughness is
- * the one without a glyph (the operator: *"just show 4/2(red)"*): the whole
- * badge's danger rule and tint below are its other signal.
+ * Each state is an ink and a heavier weight, and the badge's accessible name
+ * says it in words. No marker glyph: the operator, 2026-10-19, *"i don't like
+ * the triangles on the creatures power/toughness. just showing red/green
+ * numbers and the counter pill is enough."* Damaged toughness also wears the
+ * whole badge's danger rule and tint below.
  *
  * Out of flow, clipped to the card, and `pointer-events: none`: it may not
  * change a card's box and it may not eat a click Forge offered.

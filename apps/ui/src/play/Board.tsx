@@ -1849,21 +1849,6 @@ interface Arranging {
 const ARRANGING: Arranging = { enabled: true };
 
 /**
- * What a buffed or a hurt number wears BESIDES its colour.
- *
- * Settled at dispatch: *colour may never be the only signal*. So each state
- * carries a marker glyph and a weight of its own as well as an ink, and the
- * badge says the whole thing in words in its accessible name. The glyphs are
- * geometry, not typography that might not render: `▲` and `▼`. Damaged
- * toughness takes no glyph: its other signal is the whole badge's own danger
- * rule and tint (`data-damage`, `card.css`).
- */
-const PT_MARK: Readonly<Record<'buffed' | 'hurt', string>> = {
-  buffed: '▲',
-  hurt: '▼',
-};
-
-/**
  * A planeswalker's loyalty, drawn the way a creature's power and toughness
  * are: the same badge `PowerToughness` draws below, reusing its classes
  * wholesale (`.board-card__pt`, `.board-card__pt-n`) rather than a new one.
@@ -1941,7 +1926,6 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
         data-tip={`${entry.damage} damage marked`}
       >
         <span className="board-card__pt-n" data-pt-state="hurt" data-pt-of="damage">
-          <span aria-hidden="true">{PT_MARK.hurt}</span>
           {entry.damage}
         </span>
       </span>
@@ -1957,7 +1941,6 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
           : `${what} ${value}`;
   const number = (value: number, state: PTState, which: string) => (
     <span className="board-card__pt-n" data-pt-state={state === 'plain' ? undefined : state} data-pt-of={which}>
-      {state === 'buffed' || state === 'hurt' ? <span aria-hidden="true">{PT_MARK[state]}</span> : null}
       {value}
     </span>
   );
@@ -2023,7 +2006,7 @@ type StateMark = 'sick' | 'cantBlock' | 'attacking' | 'blocking';
 
 /**
  * The marks, as geometry we drew rather than a typeface that might not have the
- * character — the same reason `PT_MARK` is `▲`/`▼` and not a glyph name. 16×16,
+ * character. 16×16,
  * currentColor, no image and nothing that could be mistaken for a WotC mark.
  */
 const MARK_ART: Readonly<Record<StateMark, string>> = {

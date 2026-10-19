@@ -2749,7 +2749,6 @@ describe('power and toughness on the board (#12, #18)', () => {
       label: el.getAttribute('aria-label'),
       of: parts.map((p) => p.dataset.ptOf),
       states: parts.map((p) => p.dataset.ptState),
-      marks: parts.map((p) => p.querySelector('[aria-hidden="true"]')?.textContent ?? null),
     };
   }
 
@@ -2776,11 +2775,10 @@ describe('power and toughness on the board (#12, #18)', () => {
   it('draws the operator’s case: a 1/2 with +2/+2 that has taken 3 reads 3 / 1', () => {
     const { container } = renderBoard(urchin(3, 4, 3, { power: 1, toughness: 2 }));
     expect(badge(container, 21)).toEqual({
-      text: '▲3/1',
+      text: '3/1',
       label: 'power 3, up from 1, toughness 4, 3 damage marked',
       of: ['power', 'toughness'],
       states: ['buffed', 'damaged'],
-      marks: ['▲', null],
     });
   });
 
@@ -2791,7 +2789,6 @@ describe('power and toughness on the board (#12, #18)', () => {
       label: 'power 1, toughness 2',
       of: ['power', 'toughness'],
       states: [undefined, undefined],
-      marks: [null, null],
     });
   });
 
@@ -2806,7 +2803,6 @@ describe('power and toughness on the board (#12, #18)', () => {
       label: 'power 1, toughness 3',
       of: ['power', 'toughness'],
       states: [undefined, undefined],
-      marks: [null, null],
     });
     // A 5/5 with a big base and no knowledge of it is plain too, not blue.
     expect(badge(container, 99)!.states).toEqual([undefined, undefined]);
@@ -2815,7 +2811,7 @@ describe('power and toughness on the board (#12, #18)', () => {
   it('marks a shrunk creature hurt, and a damaged one damaged without a base at all', () => {
     const shrunk = renderBoard(urchin(0, 1, 0, { power: 1, toughness: 2 }));
     expect(badge(shrunk.container, 21)!.states).toEqual(['hurt', 'hurt']);
-    expect(badge(shrunk.container, 21)!.text).toBe('▼0/▼1');
+    expect(badge(shrunk.container, 21)!.text).toBe('0/1');
     expect(badge(shrunk.container, 21)!.label).toBe('power 0, down, toughness 1, down');
     cleanup();
     const hurt = renderBoard(urchin(1, 3, 2, null));
@@ -2824,7 +2820,6 @@ describe('power and toughness on the board (#12, #18)', () => {
       label: 'power 1, toughness 3, 2 damage marked',
       of: ['power', 'toughness'],
       states: [undefined, 'damaged'],
-      marks: [null, null],
     });
   });
 
@@ -2835,14 +2830,13 @@ describe('power and toughness on the board (#12, #18)', () => {
       label: 'power 4, toughness 5, 3 damage marked',
       of: ['power', 'toughness'],
       states: [undefined, 'damaged'],
-      marks: [null, null],
     });
   });
 
   it('never double-marks damage on a creature also shrunk below its printed base: damaged wins, unmarked', () => {
     // A printed 1/3 at -0/-1 (1/2) with 1 damage: what is left is 1, drawn once, as damage.
     const { container } = renderBoard(urchin(1, 2, 1, { power: 1, toughness: 3 }));
-    expect(badge(container, 21)).toMatchObject({ text: '1/1', states: [undefined, 'damaged'], marks: [null, null] });
+    expect(badge(container, 21)).toMatchObject({ text: '1/1', states: [undefined, 'damaged'] });
   });
 
   it('says the damage in the badge instead of a second time in a chip', () => {
@@ -2864,7 +2858,7 @@ describe('power and toughness on the board (#12, #18)', () => {
     expect(container.querySelectorAll('.board-card__pt')).toHaveLength(3);
   });
 
-  it('never carries meaning in colour alone: every state has a marker or the damage badge, and words', () => {
+  it('draws a state as its number alone — no marker glyph — with the words in its name and damage on the badge', () => {
     const { container } = renderBoard(urchin(3, 4, 3, { power: 1, toughness: 2 }));
     for (const n of container.querySelectorAll<HTMLElement>('[data-card-id="21"] > .board-card__pt .board-card__pt-n')) {
       const state = n.dataset.ptState;
@@ -2873,8 +2867,10 @@ describe('power and toughness on the board (#12, #18)', () => {
         expect(n.closest<HTMLElement>('.board-card__pt')!.dataset.damage, 'damaged: the whole badge wears the damage rule').toBe('3');
         continue;
       }
-      expect(n.querySelector('[aria-hidden="true"]')!.textContent, `${state} has a marker glyph`).toMatch(/[▲▼]/);
+      expect(n.querySelector('[aria-hidden="true"]'), `${state}: no marker glyph`).toBeNull();
+      expect(n.textContent, `${state}: the number alone`).toMatch(/^\d+$/);
     }
+    expect(container.querySelector('[data-card-id="21"] > .board-card__pt')!.getAttribute('aria-label')).toContain('up from 1');
   });
 
   it('sets every state in a heavier weight than a plain number, so the states differ without a colour too', () => {
@@ -3591,7 +3587,7 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(only, 'a card with no P/T still shows its damage').not.toBeNull();
     expect(only.dataset.damage).toBe('3');
     expect(only.getAttribute('aria-label')).toBe('3 damage marked');
-    expect(only.textContent, 'the number, with the hurt marker — not the word').toBe('▼3');
+    expect(only.textContent, 'the number, not the word').toBe('3');
   });
 
   it('nothing the state layer draws can change a card’s box', () => {
