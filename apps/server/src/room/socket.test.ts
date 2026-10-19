@@ -145,6 +145,8 @@ async function bootLobby(): Promise<Lobby> {
 	// Only the first one is started, through the lobby's own rules: every member
 	// ready, then `startDraft`. Nothing here sets `draftStartedAt` by hand.
 	if (!lobby.setReady(startedRoomId, OWNER.id, true)) throw new Error('the lobby refused a ready flag');
+	// No deal with an open seat: the AI holds the other seven.
+	for (let seat = 1; seat < 8; seat++) if (!lobby.aiPod(startedRoomId, OWNER.id, seat, true).ok) throw new Error('the lobby refused an AI seat');
 	const started = lobby.startDraft(startedRoomId, OWNER.id);
 	if (!started.ok) throw new Error(`the lobby refused to start the draft: ${started.reason}`);
 	if (lobby.get(pendingRoomId)?.draftStartedAt !== null) throw new Error('the pending room started itself');
@@ -443,6 +445,7 @@ describe('a join against a draft that has not started', () => {
 		// The room starts through the lobby's own rules — every member ready,
 		// then `startDraft` — and nothing about the socket changed.
 		expect(live().lobby.setReady(pendingRoomId, OWNER.id, true)).toBe(true);
+		for (let seat = 1; seat < 8; seat++) expect(live().lobby.aiPod(pendingRoomId, OWNER.id, seat, true).ok).toBe(true);
 		expect(live().lobby.startDraft(pendingRoomId, OWNER.id).ok).toBe(true);
 
 		alice.send(joinDraft(pendingRoomId));

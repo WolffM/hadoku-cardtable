@@ -283,6 +283,8 @@ interface Table {
    * in this stub.
    */
   savedDeck?: string | null;
+  /** `RoomView.pod` — a draft room's pod. Absent ⇒ `null`. */
+  pod?: unknown;
   /** What `GET /api/decks` answers — Free pick's "My decks". Absent ⇒ none; a promise ⇒ answers when it settles. */
   myDecks?: MyDeck[] | Promise<MyDeck[]>;
 }
@@ -337,6 +339,7 @@ function stubServer(table: Table) {
     })),
     matchId: table.matchId,
     draftStartedAt: table.draftStartedAt ?? null,
+    ...(table.pod === undefined ? {} : { pod: table.pod }),
     createdAt: '2026-09-19T00:00:00.000Z',
     tables: [
       {
@@ -2020,6 +2023,20 @@ describe('a draft room', () => {
   const members = (...ready: boolean[]) =>
     ready.map((r, i) => ({ id: i === 0 ? 'p-alice' : `p-${i}`, name: i === 0 ? 'user-alice' : `user-${i}`, ready: r }));
 
+  /** The pod lobby with these members seated, in order, and the AI in every other seat. */
+  const seatedPod = (...ids: string[]) => ({
+    phase: 'lobby',
+    seats: Array.from({ length: 8 }, (_, i) => (i < ids.length ? { memberId: ids[i]!, name: ids[i]! } : { memberId: 'ai', name: 'AI' })),
+    round: 0,
+    rounds: 0,
+    results: [],
+    standings: [],
+    pairings: [],
+    bye: null,
+    drafters: [],
+    built: [],
+  });
+
   async function mountDraft(table: Partial<Table> = {}, feed: RoomFeed = everyMs(10)) {
     const server = stubServer({ players: [], matchId: null, gameType: 'draft', members: members(false), ...table });
     render(
@@ -2044,7 +2061,7 @@ describe('a draft room', () => {
     expect(screen.getByTestId('draft-member-0').textContent).toContain('user-alice');
     expect(screen.getByTestId('draft-member-0-ready').textContent).toBe('not ready');
     expect(screen.getByTestId('draft-member-0-ready').dataset.mark).toBe('ring');
-    expect(screen.getByTestId('draft-state').textContent).toBe('Waiting for user-alice and user-1.');
+    expect(screen.getByTestId('draft-state').textContent).toBe('Nobody is seated.');
 
     // No pack, no pod, no seats: the draft does not exist yet.
     expect(screen.queryByTestId('pod')).toBeNull();
@@ -2066,12 +2083,11 @@ describe('a draft room', () => {
     expect(server.calls.filter((c) => c.url.endsWith('/play/matches'))).toHaveLength(0);
   });
 
-  it('states the rule the operator would otherwise have to guess', async () => {
+  it('has no prose explaining the rule', async () => {
     await mountDraft();
-    const rule = (await screen.findByTestId('draft-rule')).textContent ?? '';
-    expect(rule).toContain('every member of this room is ready');
-    expect(rule).toContain('eight');
-    expect(rule).toMatch(/bots/i);
+    await screen.findByTestId('draft-lobby');
+    expect(screen.queryByTestId('draft-rule')).toBeNull();
+    expect(screen.getByTestId('draft-lobby').textContent).not.toMatch(/never before|played for|whatever is left/);
   });
 
   it('readies YOU through the room’s route, and says so in the list', async () => {
@@ -2140,10 +2156,10 @@ describe('a draft room', () => {
     expect(screen.getByTestId('draft-member-1').textContent).not.toMatch(/leader/i);
   });
 
-  it('starts the draft exactly once when every member is ready, and only then', async () => {
-    // One member still not ready: nothing is asked for, however often it re-reads.
+  it('starts the draft exactly once when every seated player is ready, and only then', async () => {
+    // One seated player still not ready: nothing is asked for, however often it re-reads.
     const stepped = steppedFeed();
-    const server = await mountDraft({ members: members(true, false) }, stepped.feed);
+    const server = await mountDraft({ members: members(true, false), pod: seatedPod('p-alice', 'p-1') }, stepped.feed);
     await screen.findByTestId('draft-lobby');
     await stepped.reread(8);
     expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toHaveLength(0);
@@ -2160,6 +2176,21 @@ describe('a draft room', () => {
     // And a re-read does not ask again now that it has started.
     await stepped.reread(8);
     expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toHaveLength(1);
+  });
+
+  // The operator, 2026-10-19: "the room should not wait on spectators to be ready", and "drafts
+  // should not immediately start with open seats".
+  it('does not wait on a member who never sat, and does not deal with a seat open', async () => {
+    const stepped = steppedFeed();
+    const open = { ...seatedPod('p-alice'), seats: [{ memberId: 'p-alice', name: 'user-alice' }, null, ...seatedPod().seats.slice(2)] };
+    const server = await mountDraft({ members: members(true, false), pod: open }, stepped.feed);
+    await screen.findByTestId('draft-lobby');
+    await stepped.reread(4);
+    expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`)), 'a seat is open').toHaveLength(0);
+    // The AI takes the open seat; user-1, watching and not ready, is not waited on.
+    server.table.pod = seatedPod('p-alice');
+    await stepped.reread(1);
+    await waitFor(() => expect(server.calls.filter((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toHaveLength(1));
   });
 
   it('renders the pod, with every hook it had as its own route, once draftStartedAt is set', async () => {
@@ -2182,7 +2213,7 @@ describe('a draft room', () => {
   it('says what the server refused, and asks again only when told to', async () => {
     const stepped = steppedFeed();
     const server = await mountDraft(
-      { members: members(true, true), refuseRoomWrite: { status: 409, error: 'this room plays constructed-1v1, not draft' } },
+      { members: members(true, true), pod: seatedPod('p-alice', 'p-1'), refuseRoomWrite: { status: 409, error: 'this room plays constructed-1v1, not draft' } },
       stepped.feed,
     );
     const refused = await screen.findByTestId('draft-error');

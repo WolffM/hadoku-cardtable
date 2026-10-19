@@ -631,7 +631,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 				error:
 					result.reason === 'not-draft'
 						? 'this room is not playing a draft'
-						: 'everyone in the room has to be ready before the draft starts',
+						: 'every seat needs a player or the AI, and every player ready, before the draft starts',
 			});
 		}
 		res.json(roomBody(result.room, caller.id));
@@ -681,6 +681,38 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 			return res.status(409).json({
 				error: result.reason === 'not-draft' ? 'this room does not have a pod' : 'the pod has already started — seats are fixed',
 			});
+		}
+		res.json(roomBody(result.room, caller.id));
+	});
+
+	/**
+	 * The AI button on an open pod seat (`{ seat, on: true }`), or taking it
+	 * back out (`on: false`), lobby phase only, any member. The draft deals
+	 * only once no seat is open (`room/lobby.ts`'s `startDraft`).
+	 */
+	rooms.post('/:id/pod/ai', (req: Request, res: Response) => {
+		const o = asObject(req.body);
+		if (o === null) return badRequest(res, 'body must be a JSON object');
+		const extra = unknownKeys(o, ['seat', 'on']);
+		if (extra.length > 0) return badRequest(res, `unknown field(s): ${extra.join(', ')}`);
+		if (typeof o.seat !== 'number' || !Number.isInteger(o.seat) || o.seat < 0 || o.seat >= POD_SEATS) {
+			return badRequest(res, `seat must be an integer 0..${POD_SEATS - 1}`);
+		}
+		if (typeof o.on !== 'boolean') return badRequest(res, 'on must be true or false');
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id)) return noMatch(res);
+		const result = lobby.aiPod(id, caller.id, o.seat, o.on);
+		if (!result.ok) {
+			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
+			const error =
+				result.reason === 'not-draft'
+					? 'this room does not have a pod'
+					: result.reason === 'not-lobby'
+						? 'the pod has already started — seats are fixed'
+						: 'that seat is already taken';
+			return res.status(409).json({ error });
 		}
 		res.json(roomBody(result.room, caller.id));
 	});

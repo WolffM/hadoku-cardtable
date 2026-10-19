@@ -42,9 +42,12 @@ import type { RoomMember } from '../rooms/api.ts';
 import { StatusPill } from './ConstructedScreen.tsx';
 import { useRoute } from './route.ts';
 import { roomFeed } from '../rooms/feed.ts';
-import { fetchPodView, sitPod, standPod } from './pod/client.ts';
+import { aiPod, fetchPodView, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
-import type { PodView } from './pod/wire.ts';
+import { POD_AI, podDealable, type PodView } from './pod/wire.ts';
+
+export { podDealable };
+
 
 function roomIdOf(route: ReturnType<typeof useRoute>): string | null {
   if (route.kind === 'room') return route.roomId;
@@ -116,6 +119,16 @@ export function DraftLobby({
       })
       .finally(() => setSeatBusy(false));
   };
+  const doAi = (seat: number, on: boolean): void => {
+    if (roomId === null) return;
+    setSeatBusy(true);
+    setSeatError(null);
+    aiPod(roomId, seat, on)
+      .then((r) => {
+        if (!r.ok) setSeatError(r.message);
+      })
+      .finally(() => setSeatBusy(false));
+  };
   const doStand = (): void => {
     if (roomId === null) return;
     setSeatBusy(true);
@@ -140,6 +153,7 @@ export function DraftLobby({
             busy={seatBusy}
             onSit={doSit}
             onStand={doStand}
+            onAi={doAi}
           />
           {seatError !== null && (
             <p className="lobby__error" role="alert" data-testid="pod-seat-error">
@@ -178,7 +192,7 @@ export function DraftLobby({
       </ul>
 
       <p className="lobby__note" data-testid="draft-state">
-        {draftStateText(members, dealing)}
+        {draftStateText(pod, members, dealing)}
       </p>
 
       <button
@@ -186,7 +200,7 @@ export function DraftLobby({
         className="lobby__go"
         data-testid="ready-toggle"
         aria-pressed={iAmReady}
-        disabled={busy || dealing || members.length === 0}
+        disabled={busy || seatBusy || dealing || members.length === 0}
         onClick={() => onReady(!iAmReady)}
       >
         {iAmReady ? 'Stand down' : 'Ready'}
@@ -206,21 +220,20 @@ export function DraftLobby({
         </div>
       )}
 
-      <p className="lobby__note" data-testid="draft-rule">
-        The draft deals when every member of this room is ready. Bots take whatever is left of the eight
-        seats at that moment — never before, so nobody who has not readied is played for.
-      </p>
     </section>
   );
 }
 
-/** Who the draft is waiting on, in one line. Names, because none of them is "you". */
-function draftStateText(members: RoomMember[], dealing: boolean): string {
+/** Who the draft is waiting on, in one line: the seated members not ready, else the open seats. */
+function draftStateText(pod: PodView | null, members: RoomMember[], dealing: boolean): string {
   if (dealing) return 'Dealing the draft…';
-  if (members.length === 0) return 'Waiting for someone to join.';
-  const waiting = members.filter((m) => !m.ready).map((m) => m.name);
-  if (waiting.length === 0) return 'Everyone is ready.';
-  return `Waiting for ${listOf(waiting)}.`;
+  const seats = pod?.seats ?? [];
+  const seatedIds = seats.filter((s) => s !== null && s.memberId !== POD_AI).map((s) => s!.memberId);
+  const waiting = members.filter((m) => seatedIds.includes(m.id) && !m.ready).map((m) => m.name);
+  if (waiting.length > 0) return `Waiting for ${listOf(waiting)}.`;
+  const open = seats.filter((s) => s === null).length;
+  if (open > 0) return open === 1 ? '1 open seat' : `${open} open seats`;
+  return seatedIds.length === 0 ? 'Nobody is seated.' : 'Everyone is ready.';
 }
 
 /** `a`, `a and b`, `a, b and c`. */

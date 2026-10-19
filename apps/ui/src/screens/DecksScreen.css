@@ -1,4 +1,4 @@
-/* `#/decks` — the deck chooser's tiles (`.deckpick__option`, screens.css), as links, with their actions under them. */
+/* `#/decks` — the room's deck chooser (`.deckpick`, screens.css), and a deck's name and actions over its editor. */
 
 .decks {
   display: flex;
@@ -7,49 +7,24 @@
   padding: 12px 0;
 }
 
-.decks__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-@media (max-width: 600px) {
-  .decks__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.decks__item {
+.decks__manage {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
-.decks__tile {
-  height: 190px;
-  text-decoration: none;
-}
-
-.decks__tile:hover {
-  border-color: var(--color-primary);
-}
-
-.decks__meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-variant-numeric: tabular-nums;
+.decks__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .decks__actions {
   display: flex;
-  justify-content: flex-end;
   gap: 6px;
-  min-height: 28px;
 }
 
 .decks__rename {
@@ -97,11 +72,6 @@
   color: var(--danger-ink);
 }
 
-.decks__empty {
-  margin: 24px 0;
-  color: var(--color-text-secondary);
-}
-
 .ct-decks-button {
   display: inline-flex;
   flex: none;
@@ -129,4 +99,11 @@
   position: absolute;
   top: 0;
   right: 80px;
+}
+
+/* The editor's head on the Decks page: back, then the deck's name and actions, on one row. */
+.shell__head.decks__head {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
 }

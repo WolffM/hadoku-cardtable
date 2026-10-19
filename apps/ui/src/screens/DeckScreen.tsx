@@ -55,6 +55,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { DeckEditor } from '../deck/DeckEditor.tsx';
 import { deckStoreClient, type DeckStoreClient, type Mine } from '../deck/deckStore.ts';
 import { navigate, routeHash } from './route.ts';
+import { DeckManage } from './DeckManage.tsx';
+import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { livePodSource, playPod, usePodContext, type PodSource } from './pod/client.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
@@ -76,6 +78,8 @@ export interface DeckScreenProps {
    * hand-off to the room once its rounds start.
    */
   standalone?: boolean;
+  /** The Decks page's client, for the standalone head's name, rename and delete. Tests pass a stub. */
+  decks?: MyDecksClient;
 }
 
 type Loaded = { kind: 'no-seat' } | { kind: 'ready'; mine: Mine };
@@ -88,6 +92,7 @@ export function DeckScreen({
   saveDelayMs,
   podSource = livePodSource,
   standalone = false,
+  decks: givenDecks,
 }: DeckScreenProps) {
   const store = useMemo(() => givenStore ?? deckStoreClient(), [givenStore]);
   const client = useMemo(() => givenClient ?? tablesClient(), [givenClient]);
@@ -119,6 +124,23 @@ export function DeckScreen({
     if (rounds && !standalone) navigate({ kind: 'room', roomId: draftId }, { replace: true });
   }, [rounds, draftId, standalone]);
 
+  /** The standalone head's deck — its name, and whether it may be renamed — once the Decks list has answered. */
+  const decksClient = useMemo(() => givenDecks ?? myDecksClient(), [givenDecks]);
+  const [myDeck, setMyDeck] = useState<MyDeck | null>(null);
+  useEffect(() => {
+    if (!standalone) return;
+    let live = true;
+    decksClient.list().then(
+      (all) => {
+        if (live) setMyDeck(all.find((d) => d.id === draftId) ?? null);
+      },
+      (err: unknown) => console.warn('[cardtable] the deck’s name is unavailable; the editor still opens', err),
+    );
+    return () => {
+      live = false;
+    };
+  }, [standalone, decksClient, draftId]);
+
   const [playError, setPlayError] = useState<string | null>(null);
   // The build as it stands is saved first: the editor's own save is debounced,
   // and the pod seats whatever was saved last.
@@ -145,7 +167,7 @@ export function DeckScreen({
   return (
     <div className="shell shell--fit deck-screen" data-testid="deck">
       {standalone && (
-        <nav className="shell__head">
+        <nav className="shell__head decks__head">
           <a
             className="shell__link"
             href={routeHash({ kind: 'decks' })}
@@ -157,6 +179,9 @@ export function DeckScreen({
           >
             ← Decks
           </a>
+          {myDeck !== null && (
+            <DeckManage deck={myDeck} client={decksClient} onRenamed={setMyDeck} onDeleted={() => navigate({ kind: 'decks' })} />
+          )}
         </nav>
       )}
       {!standalone && ctx !== null && pod !== null && pod.phase === 'building' && (

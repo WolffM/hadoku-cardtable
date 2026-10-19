@@ -28,6 +28,7 @@ import { poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms } from './draftRooms.ts';
 import { loadPool } from './pool.ts';
+import { POD_SEATS } from '@hadoku/shared';
 import {
 	AVATAR_ID_MAX,
 	AVATAR_POOL,
@@ -73,9 +74,18 @@ async function startedDraft(lobby: Lobby, members: Array<{ id: string; name: str
 	if (!made.ok) throw new Error(made.reason);
 	for (const member of members.slice(1)) expect(lobby.join(made.room.id, member).ok).toBe(true);
 	for (const member of members) expect(lobby.setReady(made.room.id, member.id, true)).toBe(true);
+	fillWithAi(lobby, made.room.id, members[0].id);
 	const started = lobby.startDraft(made.room.id, members[0].id);
 	expect(started.ok).toBe(true);
 	return made.room.id;
+}
+
+/** The AI button on every open pod seat: the draft deals only once none is open. */
+function fillWithAi(lobby: Lobby, roomId: string, by: string): void {
+	const seats = lobby.get(roomId)?.pod?.seats ?? [];
+	seats.forEach((occupant, seat) => {
+		if (occupant === null) expect(lobby.aiPod(roomId, by, seat, true).ok).toBe(true);
+	});
 }
 
 const ALICE = { id: 'fk:1111111111111111', name: 'user-alice' };
@@ -741,6 +751,9 @@ describe('Lobby.startDraft', () => {
 		expect(lobby.get(draft.room.id)?.draftStartedAt).toBeNull();
 
 		expect(lobby.setReady(draft.room.id, BOB.id, true)).toBe(true);
+		// Everyone seated is ready, and six seats are still open: no deal with an open seat.
+		expect(lobby.startDraft(draft.room.id, BOB.id)).toEqual({ ok: false, reason: 'not-ready' });
+		fillWithAi(lobby, draft.room.id, BOB.id);
 		const started = lobby.startDraft(draft.room.id, BOB.id);
 		expect(started.ok).toBe(true);
 		// ANY member may start it, not only the leader: both browsers ask and the
@@ -749,7 +762,7 @@ describe('Lobby.startDraft', () => {
 		expect(typeof started.room.draftStartedAt).toBe('string');
 	});
 
-	it('starts for one member who readied alone — "everyone" is every member, and one is enough', async () => {
+	it('starts for one member who readied alone, with the AI in every other seat', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const id = await startedDraft(lobby, [ALICE]);
 		const room = lobby.get(id);
@@ -849,6 +862,7 @@ describe('a draft that has started', () => {
 		expect(first.sitPod(id, ALICE.id, 0).ok).toBe(true);
 		expect(first.sitPod(id, BOB.id, 1).ok).toBe(true);
 		for (const m of [ALICE, BOB]) expect(first.setReady(id, m.id, true)).toBe(true);
+		fillWithAi(first, id, ALICE.id);
 		expect(first.startDraft(id, ALICE.id).ok).toBe(true);
 		first.setPodChecks(checks);
 		expect(first.playPod(id, ALICE.id).ok).toBe(true);
@@ -1780,38 +1794,52 @@ describe('Lobby.sitPod / standPod', () => {
 	});
 });
 
-describe('Lobby.startDraft — the pod’s seated-only ready gate', () => {
-	it('falls back to every member when nobody has ever sat — the exact gate before this wave', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
-		const id = await startedDraft(lobby, [ALICE, BOB]);
-		expect(Date.parse(String(lobby.get(id)?.draftStartedAt))).not.toBeNaN();
-	});
-
-	it('counts only SEATED members once somebody has sat, leaving a spectator out of the gate', async () => {
+describe('Lobby.startDraft — no open seat, and only the seated are waited on', () => {
+	// The operator, 2026-10-19: "drafts should not immediately start with open
+	// seats", "the room should not wait on spectators to be ready".
+	async function room(): Promise<{ lobby: Lobby; id: string }> {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
-		const id = made.room.id;
-		// BOB joins the room but never sits — a spectator, never ready.
-		expect(lobby.join(id, BOB).ok).toBe(true);
-		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		return { lobby, id: made.room.id };
+	}
+
+	it('does not deal while a seat is open, and deals once the AI holds every other one', async () => {
+		const { lobby, id } = await room();
 		expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
+		expect(lobby.get(id)?.pod?.seats[0]).toEqual({ memberId: ALICE.id, name: ALICE.name });
+		expect(lobby.startDraft(id, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
+		for (let seat = 1; seat < 7; seat++) expect(lobby.aiPod(id, BOB.id, seat, true).ok).toBe(true);
+		expect(lobby.startDraft(id, ALICE.id), 'one seat still open').toEqual({ ok: false, reason: 'not-ready' });
+		expect(lobby.aiPod(id, ALICE.id, 7, true).ok).toBe(true);
+		expect(lobby.get(id)?.pod?.seats[7]).toEqual({ memberId: POD_AI, name: 'AI' });
+		// BOB never sat: a spectator, not ready, and not waited on.
 		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
+		expect(lobby.get(id)?.pod?.drafters).toEqual([ALICE.id]);
 	});
 
-	it('still refuses while a seated member is not ready, even if every unseated member is', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
-		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
-		if (!made.ok) throw new Error('create failed');
-		const id = made.room.id;
-		expect(lobby.join(id, BOB).ok).toBe(true);
-		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+	it('waits on a seated member who is not ready, and takes the AI back out of a seat', async () => {
+		const { lobby, id } = await room();
 		expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
-		expect(lobby.setReady(id, BOB.id, true)).toBe(true);
-		// ALICE is seated and not ready: refused, even though every unseated
-		// member (there are none here, but BOB — a SEATED one — is ready) —
-		// restated with a genuine spectator for clarity:
+		expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
+		fillWithAi(lobby, id, ALICE.id);
 		expect(lobby.startDraft(id, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
+		expect(lobby.aiPod(id, ALICE.id, 1, true)).toEqual({ ok: false, reason: 'seat-taken' });
+		expect(lobby.aiPod(id, ALICE.id, 5, false).ok).toBe(true);
+		expect(lobby.get(id)?.pod?.seats[5]).toBeNull();
+		expect(lobby.sitPod(id, BOB.id, 5).ok).toBe(true);
+		expect(lobby.get(id)?.pod?.seats[1]).toBeNull();
+	});
+
+	it('seats a member who readies in the first open seat, and leaves one who readies in a full pod watching', async () => {
+		const { lobby, id } = await room();
+		for (let seat = 0; seat < POD_SEATS; seat++) if (seat !== 3) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
+		expect(lobby.setReady(id, BOB.id, true)).toBe(true);
+		expect(lobby.get(id)?.pod?.seats[3]).toEqual({ memberId: BOB.id, name: BOB.name });
+		expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
+		expect(lobby.get(id)?.pod?.seats.some((s) => s?.memberId === ALICE.id)).toBe(false);
+		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
 	});
 });
 
@@ -1828,6 +1856,7 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
 		expect(lobby.get(id)?.pod?.seats[0]).toEqual({ memberId: ALICE.id, name: ALICE.name });
 		expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
+		fillWithAi(lobby, id, ALICE.id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 
 		// Unwired PodChecks (the default, and the instant before `attachTables`
@@ -1896,6 +1925,7 @@ describe('Lobby.playPod', () => {
 		expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
 		expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
 		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		fillWithAi(lobby, id, ALICE.id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 		return { lobby, id };
 	}
@@ -1957,6 +1987,7 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
 		expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
 		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		fillWithAi(lobby, id, ALICE.id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 		return { lobby, id };
@@ -2059,6 +2090,7 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 		expect(lobby.join(id, CAROL).ok).toBe(true);
 		// Nobody ever calls sitPod.
 		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		fillWithAi(lobby, id, ALICE.id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 
 		// The fallback gate's own gap, closed: without the auto-seat this would

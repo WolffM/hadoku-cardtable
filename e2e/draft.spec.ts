@@ -59,6 +59,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { fillWithAi } from './podSeats.ts';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 import { envelopesOf, type RawCapture } from './frames.ts';
@@ -566,9 +567,12 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   /* ── both ready: the pack appears, with bots in the empty seats ───── */
 
   await bob.page.getByTestId('ready-toggle').click();
+  // Both seated and ready, six seats open: still no deal until the AI holds them.
+  expect((await roomState(alice, roomId)).draftStartedAt, 'an open seat holds the deal').toBeNull();
+  await fillWithAi(alice.page, UI_TIMEOUT);
   await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
   await expect(bob.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
-  expect((await roomState(alice, roomId)).draftStartedAt, 'every member ready deals the draft').not.toBeNull();
+  expect((await roomState(alice, roomId)).draftStartedAt, 'every seat filled and every player ready deals the draft').not.toBeNull();
 
   // Which seat each browser got is a race; that they are BOTH here is not.
   const aliceSeat = await seatFromWire(alice);
@@ -944,6 +948,7 @@ test(
 
       await alice.page.getByTestId('ready-toggle').click();
       await bob.page.getByTestId('ready-toggle').click();
+      await fillWithAi(alice.page, UI_TIMEOUT);
       await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
       await expect(bob.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
 
@@ -999,6 +1004,7 @@ test(
       await createDraftRoom(alice, `e2e solo ${Date.now()}`, stack.origin);
       await expectLobbyNotPod(alice);
       await alice.page.getByTestId('ready-toggle').click();
+      await fillWithAi(alice.page, UI_TIMEOUT);
       await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
 
       // The fan, as it opens: drawn as a fan, inside its half, and the page
