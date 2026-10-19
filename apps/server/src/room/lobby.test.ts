@@ -27,6 +27,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms } from './draftRooms.ts';
+import type { Tournament } from './tournaments.ts';
 import { loadPool } from './pool.ts';
 import { POD_SEATS } from '@hadoku/shared';
 import {
@@ -2134,5 +2135,88 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 		// `playPod` refuses `not-drafter`, and the `DraftRooms` deals to
 		// nobody (every seat a bot). 3 failed (the three assertions after the
 		// gap would first bite). Restored: passes, all assertions above hold.
+	});
+});
+
+describe('Lobby.close, and the tournaments a pod leaves behind', () => {
+	async function podInRound1(): Promise<{ lobby: Lobby; id: string; kept: Tournament[] }> {
+		const kept: Tournament[] = [];
+		const lobby = await openLobby({ dir: await tempDir(), now: () => 1_700_000_000_000, onTournament: (t) => void kept.push(t) });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		expect(lobby.sitPod(id, BOB.id, 4).ok).toBe(true);
+		for (const m of [ALICE, BOB]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		fillWithAi(lobby, id, ALICE.id);
+		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
+		expect(playAll(lobby, id, [ALICE, BOB]).ok).toBe(true);
+		return { lobby, id, kept };
+	}
+
+	it('only the owner closes the room; it is forgotten and the matches it was playing are handed back', async () => {
+		const { lobby, id } = await podInRound1();
+		const table = lobby.get(id)!.pod!.pairings[0]!.tableId;
+		expect(lobby.setTableMatch(id, table, 'm-live')).toBe(true);
+
+		expect(lobby.close(id, BOB.id)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.get(id)).toBeDefined();
+
+		expect(lobby.close(id, ALICE.id)).toEqual({ ok: true, matches: ['m-live'] });
+		expect(lobby.get(id)).toBeUndefined();
+		expect(lobby.list().some((r) => r.id === id)).toBe(false);
+		expect(lobby.close(id, ALICE.id)).toEqual({ ok: false, reason: 'no-room' });
+	});
+
+	it('a finished pod is kept once, with names and standings — closing it afterwards keeps nothing twice', async () => {
+		const { lobby, id, kept } = await podInRound1();
+		const table = lobby.get(id)!.pod!.pairings[0]!.tableId;
+		lobby.recordGameResult(id, table, { matchId: 'g1', winner: 0 });
+		expect(kept).toEqual([]);
+		lobby.recordGameResult(id, table, { matchId: 'g2', winner: 0 });
+		expect(lobby.get(id)?.pod?.phase).toBe('done');
+
+		expect(kept).toHaveLength(1);
+		expect(kept[0]).toMatchObject({
+			id: `${id}-1700000000000`,
+			name: 'Cube night',
+			closed: false,
+			rounds: 1,
+			names: { [ALICE.id]: ALICE.name, [BOB.id]: BOB.name, ai: 'AI' },
+			standings: [expect.objectContaining({ id: ALICE.id, matchPoints: 3, rank: 1 }), expect.objectContaining({ id: BOB.id, matchPoints: 0, rank: 2 })],
+		});
+		expect(lobby.close(id, ALICE.id).ok).toBe(true);
+		expect(kept).toHaveLength(2);
+		expect(kept[1]!.id).toBe(kept[0]!.id);
+	});
+
+	it('a pod closed before any match finished keeps nothing; one closed mid-way is kept as closed', async () => {
+		const early = await podInRound1();
+		expect(early.lobby.close(early.id, ALICE.id).ok).toBe(true);
+		expect(early.kept).toEqual([]);
+
+		const kept: Tournament[] = [];
+		const three = await (async () => {
+			const l = await openLobby({ dir: await tempDir(), onTournament: (t) => void kept.push(t) });
+			const made = l.create(ALICE, { name: 'Three', gameType: 'draft', clientMode: 'builtin' });
+			if (!made.ok) throw new Error('create failed');
+			for (const m of [BOB, CAROL]) expect(l.join(made.room.id, m).ok).toBe(true);
+			for (const [i, m] of [ALICE, BOB, CAROL].entries()) expect(l.sitPod(made.room.id, m.id, i).ok).toBe(true);
+			for (const m of [ALICE, BOB, CAROL]) expect(l.setReady(made.room.id, m.id, true)).toBe(true);
+			fillWithAi(l, made.room.id, ALICE.id);
+			expect(l.startDraft(made.room.id, ALICE.id).ok).toBe(true);
+			l.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+			expect(playAll(l, made.room.id, [ALICE, BOB, CAROL]).ok).toBe(true);
+			return { l, id: made.room.id };
+		})();
+		const table = three.l.get(three.id)!.pod!.pairings[0]!.tableId;
+		three.l.recordGameResult(three.id, table, { matchId: 'g1', winner: 0 });
+		three.l.recordGameResult(three.id, table, { matchId: 'g2', winner: 0 });
+		expect(three.l.get(three.id)?.pod?.round).toBe(2);
+		expect(three.l.close(three.id, ALICE.id).ok).toBe(true);
+		expect(kept).toHaveLength(1);
+		expect(kept[0]).toMatchObject({ closed: true, rounds: 2 });
 	});
 });

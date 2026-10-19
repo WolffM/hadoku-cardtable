@@ -1014,7 +1014,8 @@ test(
     let alice: Player | undefined;
     try {
       alice = await join(browser, 'alice');
-      await createDraftRoom(alice, `e2e solo ${Date.now()}`, stack.origin);
+      const roomName = `e2e solo ${Date.now()}`;
+      await createDraftRoom(alice, roomName, stack.origin);
       await expectLobbyNotPod(alice);
       await alice.page.getByTestId('ready-toggle').click();
       await fillWithAi(alice.page, UI_TIMEOUT);
@@ -1103,8 +1104,19 @@ test(
       const standing = await row.textContent();
       expect(standing, 'game win % from two lost games').toMatch(/0%/);
 
+      /* ── she owns the room and closes it: back to the lobby, the room gone, its standings kept ── */
+      await alice.page.getByTestId('room-close').click();
+      await alice.page.getByTestId('room-close-yes').click();
+      await expect(alice.page.getByTestId('lobby'), 'closing goes back to the lobby').toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(alice.page.getByTestId('room-name').filter({ hasText: roomName }), 'the room has left the list').toHaveCount(0);
+      await alice.page.getByTestId('lobby-stats').click();
+      await alice.page.getByTestId('stats-tab-tournaments').click();
+      const kept = alice.page.getByTestId('tournament').filter({ hasText: roomName });
+      await expect(kept, 'the closed room is a past tournament').toHaveCount(1, { timeout: UI_TIMEOUT });
+      await expect(kept.getByTestId('pod-standings-row-1')).toContainText('AI');
+      await alice.page.getByTestId('stats-close').click();
+
       /* ── the pool is her deck now, on the Decks page beside the trophy ── */
-      await alice.page.getByRole('link', { name: '← Lobby' }).click();
       await alice.page.getByTestId('lobby-decks').click();
       // The 1v1 room's own deck tiles, drawn once their art has.
       const tile = alice.page.getByTestId('deck-option');

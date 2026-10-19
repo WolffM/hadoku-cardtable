@@ -73,7 +73,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
-import { createDraftRooms } from './room/draftRooms.js';
+import { createDraftRooms, stateOf } from './room/draftRooms.js';
 import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
@@ -87,9 +87,11 @@ import { attachTables, loadTablesLibrary } from './http/index.js';
 import { attachDecks } from './http/decks.js';
 import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
+import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
 import { serveCover } from './cover.js';
 import { newestFormat, openLobby } from './room/lobby.js';
+import { openTournaments } from './room/tournaments.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
 import { recordMatch } from '@wolffm/prefs-client/games';
 
@@ -348,13 +350,28 @@ const newRoomFormat = process.env.CARDTABLE_NEW_ROOM_FORMAT;
 if (newRoomFormat !== undefined && newRoomFormat !== 'newest') {
 	throw new Error(`CARDTABLE_NEW_ROOM_FORMAT must be 'newest' or unset, not ${JSON.stringify(newRoomFormat)}`);
 }
+// Every pod that played a round, kept past its room for the stats popout's Tournaments tab.
+const tournaments = await openTournaments(
+	process.env.CARDTABLE_TOURNAMENTS_FILE ?? resolve(CONFIG.logDir, '../data/tournaments.json'),
+	(entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
+);
 const lobby = await openLobby({
 	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
 	formats: library.formats,
 	...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat(library.formats) } : {}),
 	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
+	onTournament: (t) => tournaments.record(t),
 });
-attachRooms(api, { lobby });
+attachRooms(api, {
+	lobby,
+	closed: (roomId, matches) => {
+		for (const id of matches) play?.matches.get(id)?.stop();
+		// An unfinished draft has no deck to keep; a finished one stays on its drafters' Decks page.
+		const draft = draftRooms?.find(roomId);
+		if (draft !== undefined && stateOf(draft).status !== 'complete') draftRooms?.delete(roomId);
+	},
+});
+attachTournaments(api, { tournaments });
 
 // ── Sounds ───────────────────────────────────────────────────────────────────
 // The sound-builder's catalogue, take audio, and assignment matrix. Same

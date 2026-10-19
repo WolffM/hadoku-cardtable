@@ -86,6 +86,7 @@ async function openApp(
 		now?: () => number;
 		/** A new room's format is drawn with this; without it every new room opens on `NEWEST_POOL`. */
 		random?: () => number;
+		closed?: (roomId: string, matches: readonly string[]) => void;
 	} = {},
 ): Promise<Harness> {
 	const log = (entry: Record<string, unknown>): void => {
@@ -102,7 +103,7 @@ async function openApp(
 	app.use(edgeMod.requireMinTier);
 	const api = express.Router();
 	api.use(express.json({ limit: '1mb' }));
-	roomsMod.attachRooms(api, { lobby, log, joinRateLimit: opts.joinRateLimit });
+	roomsMod.attachRooms(api, { lobby, log, joinRateLimit: opts.joinRateLimit, closed: opts.closed });
 	app.use('/api', api);
 
 	const server = createServer(app);
@@ -799,6 +800,29 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
 		expect(after.format).toBe(NEWEST_POOL);
 		expect(after.members.map((m) => m.ready)).toEqual([true]);
+	});
+});
+
+/* ── close ───────────────────────────────────────────────────────────── */
+
+describe('POST /api/rooms/:id/close', () => {
+	it('is the owner’s: a member who is not gets 403, a stranger 404, and the owner’s close forgets the room', async () => {
+		const closed: string[] = [];
+		const h = await openApp(await tempDir(), { closed: (id) => void closed.push(id) });
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/close`, { as: 'carol' })).status).toBe(404);
+		const bob = await call(h, 'POST', `/api/rooms/${room.id}/close`, { as: 'bob' });
+		expect(bob.status).toBe(403);
+		expect((bob.json() as { error: string }).error).toBe('only the room owner can close it');
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/close`, { as: 'alice', body: { now: true } })).status).toBe(400);
+		expect(closed).toEqual([]);
+
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/close`, { as: 'alice' })).status).toBe(200);
+		expect(closed).toEqual([room.id]);
+		expect((await call(h, 'GET', `/api/rooms/${room.id}`, { as: 'alice' })).status).toBe(404);
 	});
 });
 

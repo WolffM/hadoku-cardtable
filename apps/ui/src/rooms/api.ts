@@ -423,6 +423,8 @@ export interface RoomsClient {
    * the room's table.
    */
   leave(roomId: string): Promise<RoomOutcome>;
+  /** The owner ends the room for everyone: its games stop and it leaves the list. */
+  close(roomId: string): Promise<{ ok: true } | { ok: false; message: string }>;
   /**
    * Set the table's pool. The LEADER's call: anyone else gets the server's
    * `only the room leader…` refusal, in its own words, and the screen does not
@@ -639,6 +641,17 @@ export function roomsClient(
 
     leave(roomId) {
       return write(`/${encodeURIComponent(roomId)}/leave`, {}, 'Could not leave the room');
+    },
+
+    async close(roomId) {
+      let res: Response;
+      try {
+        res = await fetchImpl(url(`/${encodeURIComponent(roomId)}/close`), { method: 'POST', credentials: 'same-origin', headers: JSON_HEADERS, body: '{}' });
+      } catch {
+        return { ok: false, message: 'Could not reach the server.' };
+      }
+      if (res.ok) return { ok: true };
+      return { ok: false, message: `Could not close the room: ${serverMessage(await bodyOf(res), res.status)}.` };
     },
 
     setFormat(roomId, format) {

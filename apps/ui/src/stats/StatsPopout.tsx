@@ -45,6 +45,7 @@ import { createGameStatsClient, GameStatsError, type GameStatsClient } from '@wo
 import { ManaPip } from '../components/ManaPip.tsx';
 import type { DeckRecords } from './deckOrder.ts';
 import { navigate, routeHash } from '../screens/route.ts';
+import { Tournaments } from './Tournaments.tsx';
 import './stats.css';
 
 /** The rating pool every room match is reported in. */
@@ -181,11 +182,13 @@ const close = (): void => navigate({ kind: 'lobby' });
 export interface StatsPopoutProps {
   /** A registry name; absent is the viewer. */
   player?: string;
+  /** The Tournaments tab in place of the players' stats. */
+  tournaments?: boolean;
   /** Tests pass a client over a stub fetch, and its cache. Production passes nothing. */
   source?: StatsSource;
 }
 
-export function StatsPopout({ player, source = sharedSource() }: StatsPopoutProps) {
+export function StatsPopout({ player, tournaments = false, source = sharedSource() }: StatsPopoutProps) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -212,23 +215,42 @@ export function StatsPopout({ player, source = sharedSource() }: StatsPopoutProp
               Mine
             </a>
           )}
+          {player === undefined && (
+            <nav className="ct-stats-popout__tabs">
+              <a className="ct-stats-popout__tab" href={routeHash({ kind: 'stats' })} aria-current={tournaments ? undefined : 'page'} data-testid="stats-tab-players">
+                Players
+              </a>
+              <a
+                className="ct-stats-popout__tab"
+                href={routeHash({ kind: 'stats', tournaments: true })}
+                aria-current={tournaments ? 'page' : undefined}
+                data-testid="stats-tab-tournaments"
+              >
+                Tournaments
+              </a>
+            </nav>
+          )}
           <a className="ct-stats-popout__close" href={routeHash({ kind: 'lobby' })} aria-label="Close stats" data-testid="stats-close">
             <Icon name="close" size="1rem" />
           </a>
         </header>
-        <GameStats
-          key={player ?? ''}
-          client={source.client}
-          cache={source.cache}
-          mode={STATS_MODE}
-          player={player}
-          seatAttrs={['colors', 'deck']}
-          matchCounters={['turns']}
-          counterLabels={{ turns: 'Turns' }}
-          breakdowns={BREAKDOWNS}
-          renderAttr={renderAttr}
-          renderName={renderName}
-        />
+        {tournaments ? (
+          <Tournaments />
+        ) : (
+          <GameStats
+            key={player ?? ''}
+            client={source.client}
+            cache={source.cache}
+            mode={STATS_MODE}
+            player={player}
+            seatAttrs={['colors', 'deck']}
+            matchCounters={['turns']}
+            counterLabels={{ turns: 'Turns' }}
+            breakdowns={BREAKDOWNS}
+            renderAttr={renderAttr}
+            renderName={renderName}
+          />
+        )}
       </div>
     </div>
   );

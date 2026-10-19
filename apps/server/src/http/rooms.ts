@@ -141,6 +141,8 @@ export interface RoomsDeps {
 	lobby: Lobby;
 	/** Structured log lines. Never carries a password, hash or salt. */
 	log?: (entry: Record<string, unknown>) => void;
+	/** A room its owner closed: stop the matches it was playing and drop its draft if unfinished. */
+	closed?: (roomId: string, matches: readonly string[]) => void;
 	/** Overrides `JOIN_RATE_LIMIT`. */
 	joinRateLimit?: RateLimitConfig;
 	/** Injected for tests; the limiter's clock. */
@@ -565,6 +567,29 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		const result = lobby.leave(id, caller.id);
 		if (!result.ok) return noMatch(res);
 		res.json(roomBody(result.room, caller.id));
+	});
+
+	/**
+	 * The owner ends the room for everyone (the operator, 2026-10-19: *"lobby
+	 * owner needs to be able to 'close' a tournament"*). A non-member gets the
+	 * usual 404; a member who is not the owner, a 403.
+	 */
+	rooms.post('/:id/close', (req: Request, res: Response) => {
+		const o = asObject(req.body ?? {});
+		if (o === null) return badRequest(res, 'body must be a JSON object');
+		const extra = unknownKeys(o, []);
+		if (extra.length > 0) return badRequest(res, `unknown field(s): ${extra.join(', ')}`);
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'close');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id) || !lobby.isMember(id, caller.id)) return noMatch(res);
+		const result = lobby.close(id, caller.id);
+		if (!result.ok) {
+			if (result.reason === 'no-room') return noMatch(res);
+			return res.status(403).json({ error: 'only the room owner can close it' });
+		}
+		deps.closed?.(id, result.matches);
+		res.json({ ok: true });
 	});
 
 	/**

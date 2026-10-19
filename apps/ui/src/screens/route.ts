@@ -24,6 +24,7 @@
  *   `#/sounds/music`     the match-music review — compare, pick and submit, friend tier and above
  *   `#/stats`            the lobby, with the stats popout over it: your record, history, decks, the boards
  *   `#/stats/<name>`     the same popout for another player, by registry name
+ *   `#/tournaments`      the same popout on its Tournaments tab: every past pod's standings
  *   `#/decks`            your decks: every draft you finished
  *   `#/decks/<draftId>`  that deck in the editor, outside any game
  *
@@ -72,8 +73,8 @@ export type Route =
   | { kind: 'sounds' }
   | { kind: 'sounds-sandbox' }
   | { kind: 'sounds-music' }
-  /** `player` is a registry name; absent is the viewer. */
-  | { kind: 'stats'; player?: string }
+  /** `player` is a registry name; absent is the viewer. `tournaments` is the past-pods tab. */
+  | { kind: 'stats'; player?: string; tournaments?: true }
   /** `draftId` opens that deck in the editor; absent is the list. */
   | { kind: 'decks'; draftId?: string };
 
@@ -94,6 +95,7 @@ export function parseRoute(hash: string): Route {
   if (path === 'sounds/sandbox') return { kind: 'sounds-sandbox' };
   if (path === 'sounds/music') return { kind: 'sounds-music' };
   if (path === 'stats') return { kind: 'stats' };
+  if (path === 'tournaments') return { kind: 'stats', tournaments: true };
   if (path === 'decks') return { kind: 'decks' };
 
   const parts = path.split('/');
@@ -156,6 +158,7 @@ export function routeHash(route: Route): string {
     case 'room':
       return `#/room/${encodeURIComponent(route.roomId)}`;
     case 'stats':
+      if (route.tournaments === true) return '#/tournaments';
       return route.player === undefined ? '#/stats' : `#/stats/${encodeURIComponent(route.player)}`;
     case 'decks':
       return route.draftId === undefined ? '#/decks' : `#/decks/${encodeURIComponent(route.draftId)}`;

@@ -220,6 +220,7 @@ import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
 import { byWinRate, type DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
 import { takeWarmRoom } from '../rooms/warm.ts';
+import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { roomFeed, type RoomFeed } from '../rooms/feed.ts';
 
 export interface ConstructedScreenProps {
@@ -1377,7 +1378,11 @@ function RoomTableScreen({
         (room) => {
           if (!live) return;
           setResolved(true);
-          if (room === null) return;
+          if (room === null) {
+            // The room was here and is not any more: its owner closed it.
+            if (modeRef.current !== null) navigate({ kind: 'lobby' }, { replace: true });
+            return;
+          }
           if (mySeq !== roomReadSeq.current) return;
           if (issuedAfterWrite !== writes.current) {
             read();
@@ -2155,6 +2160,7 @@ function RoomTableScreen({
         ) : (
           <span className="skeleton skeleton--sub" />
         )}
+        {!streamed && iAmLeader && <CloseRoom roomId={roomId} rooms={rooms} />}
         <SettingsGear />
       </header>
 

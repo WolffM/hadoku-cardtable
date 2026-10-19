@@ -85,7 +85,9 @@ import {
 // `@hadoku/draft` depends on `@hadoku/shared`, never the reverse, so `pod.ts`
 // (which `@hadoku/shared` holds) cannot import these — this file is the one
 // place both sides meet (wave 72 §P).
-import { pairRound, roundsFor, standings, type MatchResult, type PodPlayer } from '@hadoku/draft';
+import { pairRound, roundsFor, standings, type MatchResult, type PodPlayer, type StandingsRow } from '@hadoku/draft';
+
+import type { Tournament } from './tournaments.ts';
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';
@@ -541,6 +543,10 @@ export type StandPodResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' };
 
+export type CloseRoomResult =
+	| { ok: true; matches: string[] }
+	| { ok: false; reason: 'no-room' | 'not-leader' };
+
 export type PlayPodResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-drafter' | 'not-built' };
@@ -673,6 +679,11 @@ function players(humans: string[], results: MatchResult[]): { id: string }[] {
 	return [...humans, ...(ai ? [POD_AI] : [])].map((id) => ({ id }));
 }
 
+/** The pod's standings, ranked 1-based. */
+function rankedStandings(humans: string[], results: MatchResult[]): (StandingsRow & { rank: number })[] {
+	return standings(players(humans, results), results).map((row, i) => ({ ...row, rank: i + 1 }));
+}
+
 /** `RoomView.pod`, for a `draft` room only — `viewOf` answers `null` for a `constructed-1v1` one. */
 function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	const phase = podPhaseOf(room, checks);
@@ -700,7 +711,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	}
 	const pod = room.pod as PodRecord; // `podPhaseOf` answers `rounds`/`done` only when `room.pod !== null`.
 	// The AI you played is ranked beside you (the operator, 2026-10-19: "why am i the only one in that room").
-	const ranked = standings(players(humans, pod.results), pod.results).map((row, i) => ({ ...row, rank: i + 1 }));
+	const ranked = rankedStandings(humans, pod.results);
 	return {
 		phase,
 		seats,
@@ -954,6 +965,12 @@ export interface Lobby {
 	 * already falls into with its bare `false`.
 	 */
 	leave(roomId: string, memberId: string): LeaveResult;
+	/**
+	 * The owner ends the room for everyone: it is forgotten, as the sweep forgets
+	 * one, and a pod that played a round is kept in the tournaments first. Answers
+	 * the matches its tables were playing, for the caller to stop.
+	 */
+	close(roomId: string, callerId: string): CloseRoomResult;
 	create(caller: Caller, input: CreateRoomInput): CreateResult;
 	/**
 	 * The room a watchparty room's game slot binds to (D21): `wp-` plus a digest
@@ -1070,6 +1087,8 @@ export interface OpenLobbyOptions {
 	 * the catalog is empty and a new room opens on `NO_FORMAT`.
 	 */
 	formats?: readonly CatalogFormat[];
+	/** Where a pod goes once it has finished or its room is closed (`tournaments.ts`). */
+	onTournament?: (t: Tournament) => void;
 }
 
 // ── the password ─────────────────────────────────────────────────────────────
@@ -1558,11 +1577,14 @@ class FileLobby implements Lobby {
 	/** Wave 72 §P. Unwired until `setPodChecks` runs — see `PodChecks`'s own doc. */
 	#podChecks: PodChecks = NO_POD_CHECKS;
 
-	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, newRoomFormat: () => FormatId) {
+	#onTournament: (t: Tournament) => void;
+
+	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, newRoomFormat: () => FormatId, onTournament: (t: Tournament) => void) {
 		this.#store = store;
 		this.#now = now;
 		this.#log = log;
 		this.#newRoomFormat = newRoomFormat;
+		this.#onTournament = onTournament;
 	}
 
 	/** Boot only: install a room decoded from disk. */
@@ -1861,6 +1883,7 @@ class FileLobby implements Lobby {
 		if (pod.round >= pod.rounds) {
 			room.pod = { ...pod, round: pod.rounds + 1, pairings: [], bye: null };
 			this.#log({ event: 'pod-done', roomId: room.id });
+			this.#archive(room);
 			return;
 		}
 		const nextRound = pod.round + 1;
@@ -2226,20 +2249,52 @@ class FileLobby implements Lobby {
 			// end the game. A pod survives restarts now, so the spare is bounded by
 			// its age, or an abandoned pod would keep its room forever.
 			if (room.draftStartedAt !== null && room.draftStartedAt > this.#now() - POD_SPARED_MS) continue;
-			this.#rooms.delete(id);
-			this.#secrets.delete(id);
-			this.#touchedAt.delete(id);
+			this.#archive(room);
+			this.#forget(id);
 			dropped.push(id);
-			// The room is gone from the list the moment it leaves the map; the
-			// disk write is best-effort and logged, because a store that cannot
-			// delete must not resurrect the room on the next boot silently.
-			void this.#store.remove(id).catch((err: unknown) => {
-				this.#log({ event: 'room-forget-failed', roomId: id, err: String(err) });
-			});
 			this.#log({ event: 'room-forgotten', roomId: id, idleMs });
-			this.#changed(id);
 		}
 		return dropped;
+	}
+
+	close(roomId: string, callerId: string): CloseRoomResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
+		this.#archive(room);
+		const matches = room.tables.flatMap((t) => (t.matchId === null ? [] : [t.matchId]));
+		this.#forget(roomId);
+		this.#log({ event: 'room-closed', roomId, matches: matches.length });
+		return { ok: true, matches };
+	}
+
+	/** Gone from the list the moment it leaves the map, and from disk best-effort. */
+	#forget(id: string): void {
+		this.#rooms.delete(id);
+		this.#secrets.delete(id);
+		this.#touchedAt.delete(id);
+		// Logged, because a store that cannot delete must not resurrect the room on the next boot silently.
+		void this.#store.remove(id).catch((err: unknown) => {
+			this.#log({ event: 'room-forget-failed', roomId: id, err: String(err) });
+		});
+		this.#changed(id);
+	}
+
+	/** A pod that finished a match goes to the tournaments: finished, or ended early by a close or the sweep. */
+	#archive(room: RoomRecord): void {
+		const pod = room.pod;
+		if (pod === null || room.draftStartedAt === null || !pod.results.some((r) => r.playerB !== null)) return;
+		this.#onTournament({
+			id: `${room.id}-${room.draftStartedAt}`,
+			name: room.name,
+			startedAt: room.draftStartedAt,
+			endedAt: this.#now(),
+			closed: pod.round <= pod.rounds,
+			rounds: pod.rounds,
+			names: { ...Object.fromEntries(room.members.map((m) => [m.id, m.name])), [POD_AI]: 'AI' },
+			standings: rankedStandings(pod.humans, pod.results),
+			results: pod.results,
+		});
 	}
 
 	/* ── the pod (wave 72 §P) ───────────────────────────────────────────── */
@@ -2394,7 +2449,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 	const fixed = opts.defaultFormat;
 	const random = opts.random ?? Math.random;
 	const formats = opts.formats ?? [];
-	const lobby = new FileLobby(store, now, log, fixed === undefined ? () => randomFormat(random, formats) : () => fixed);
+	const lobby = new FileLobby(store, now, log, fixed === undefined ? () => randomFormat(random, formats) : () => fixed, opts.onTournament ?? (() => {}));
 
 	for (const roomId of await store.list()) {
 		const quarantine = async (reason: string): Promise<void> => {

@@ -43,7 +43,7 @@ export interface LobbyScreenProps {
   /** Tests pass their own room feed. Production passes nothing. */
   feed?: RoomFeed;
   /** `#/stats[/<name>]`: the stats popout is open over the lobby, for this player (absent, the viewer). */
-  stats?: { player?: string };
+  stats?: { player?: string; tournaments?: boolean };
   /** Tests pass a stats client over a stubbed fetch. Production passes nothing. */
   statsSource?: StatsSource;
 }
@@ -64,7 +64,7 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
       <main className="front">
         <RoomList client={rooms} feed={feed} />
       </main>
-      {stats !== undefined && <StatsPopout player={stats.player} source={statsSource} />}
+      {stats !== undefined && <StatsPopout player={stats.player} tournaments={stats.tournaments === true} source={statsSource} />}
 
       <footer className="shell__foot">
         <Disclaimer />

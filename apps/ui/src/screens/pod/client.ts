@@ -36,10 +36,11 @@ function podApiBase(): string {
   return `${base}${base.endsWith('/') ? '' : '/'}api/`;
 }
 
-/** The room's raw body — `fetchRoomTables`'s sibling for `pod`. `null` on any failure. */
-async function fetchRoomRaw(roomId: string): Promise<Record<string, unknown> | null> {
+/** The room's raw body — `fetchRoomTables`'s sibling for `pod`. `'gone'` on the server's 404, `null` on any other failure. */
+async function fetchRoomRaw(roomId: string): Promise<Record<string, unknown> | 'gone' | null> {
   try {
     const res = await fetch(`${podApiBase()}rooms/${encodeURIComponent(roomId)}`, { credentials: 'same-origin' });
+    if (res.status === 404) return 'gone';
     if (!res.ok) return null;
     return (await res.json()) as Record<string, unknown>;
   } catch {
@@ -65,6 +66,10 @@ export interface PodContext {
   me: string | null;
   /** The room's own name, what the pod's header calls it. `''` while unknown. */
   name: string;
+  /** I own the room: mine is its Close. */
+  leader: boolean;
+  /** The server no longer has the room — closed by its owner, or never mine to see. */
+  gone: boolean;
 }
 
 /**
@@ -76,7 +81,7 @@ export interface PodContext {
  */
 export async function fetchPodContext(roomId: string): Promise<PodContext> {
   const body = await fetchRoomRaw(roomId);
-  if (body === null) return { pod: null, tables: [], names: {}, me: null, name: '' };
+  if (body === null || body === 'gone') return { pod: null, tables: [], names: {}, me: null, name: '', leader: false, gone: body === 'gone' };
   const tables = RoomTablesSchema.safeParse(body.tables);
   const members = Array.isArray(body.members) ? body.members.filter(isNamed) : [];
   return {
@@ -85,6 +90,8 @@ export async function fetchPodContext(roomId: string): Promise<PodContext> {
     names: { ...Object.fromEntries(members.map((m) => [m.id, m.name])), [POD_AI]: 'AI' },
     name: typeof body.name === 'string' ? body.name : '',
     me: typeof body.you === 'object' && body.you !== null && typeof (body.you as { id?: unknown }).id === 'string' ? (body.you as { id: string }).id : null,
+    leader: typeof body.you === 'object' && body.you !== null && (body.you as { leader?: unknown }).leader === true,
+    gone: false,
   };
 }
 

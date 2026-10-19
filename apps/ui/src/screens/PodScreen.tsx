@@ -75,6 +75,8 @@ import { PodStandings } from './pod/PodStandings.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { PodTables } from './pod/PodTables.tsx';
 import { followMatchOnce } from '../play/live/matchStart.ts';
+import { CloseRoom } from '../rooms/CloseRoom.tsx';
+import { roomsClient } from '../rooms/api.ts';
 import './PodScreen.css';
 
 export interface PodScreenProps {
@@ -158,6 +160,13 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   const phase = ctx?.pod?.phase;
   const inRounds = phase === 'rounds' || phase === 'done';
 
+  const closeClient = useMemo(() => roomsClient(), []);
+  // Closed by its owner: there is nothing left here to show.
+  const gone = ctx?.gone === true;
+  useEffect(() => {
+    if (gone) navigate({ kind: 'lobby' }, { replace: true });
+  }, [gone]);
+
   const myMemberId = ctx?.me ?? null;
   const nameOf = (id: string): string => ctx?.names[id] ?? id;
 
@@ -239,6 +248,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
         />
 
         <Invite url={link} />
+        {ctx?.leader === true && <CloseRoom roomId={draftId} rooms={closeClient} />}
         <SettingsGear />
       </header>
 

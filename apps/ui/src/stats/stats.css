@@ -87,3 +87,42 @@
   top: 0;
   right: 40px;
 }
+
+/* The popout's two tabs: the players' boards and the past tournaments. */
+.ct-stats-popout__tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.ct-stats-popout__tab {
+  padding: 4px 10px;
+  border-radius: var(--hdk-radius-sm);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.ct-stats-popout__tab[aria-current='page'] {
+  background: var(--color-bg-card);
+  color: var(--color-text);
+}
+
+.ct-tournaments {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ct-tournament__head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.ct-tournament__date,
+.ct-tournament__closed {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: normal;
+}

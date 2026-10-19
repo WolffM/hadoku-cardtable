@@ -45,7 +45,19 @@ describe('fetchPodContext', () => {
 
   it('answers empty rather than throwing on a failed read', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
-    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {}, me: null, name: '' });
+    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {}, me: null, name: '', leader: false, gone: false });
+  });
+
+  it('says the room is gone on the server’s 404, and only then', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 404 }));
+    expect((await fetchPodContext('r-cube')).gone).toBe(true);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 500 }));
+    expect((await fetchPodContext('r-cube')).gone).toBe(false);
+  });
+
+  it('says whether I own the room', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ id: 'r-cube', pod: null, members: [], you: { id: 'u-alice', leader: true } }), { status: 200 }));
+    expect(await fetchPodContext('r-cube')).toMatchObject({ me: 'u-alice', leader: true, gone: false });
   });
 
   it('drops a malformed tables array rather than guessing', async () => {

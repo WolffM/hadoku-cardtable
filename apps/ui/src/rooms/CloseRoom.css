@@ -1,0 +1,10 @@
+.room-close__ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.room-close--danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}

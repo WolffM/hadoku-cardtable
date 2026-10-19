@@ -71,7 +71,7 @@ export function Screen({ transport }: ScreenProps) {
       return <LobbyScreen />;
     case 'stats':
       // The same element as the lobby's, so opening the popout keeps the lobby mounted.
-      return <LobbyScreen stats={{ player: route.player }} />;
+      return <LobbyScreen stats={{ player: route.player, tournaments: route.tournaments === true }} />;
     case 'decks':
       return route.draftId === undefined ? <DecksScreen /> : <DeckScreen key={route.draftId} draftId={route.draftId} standalone />;
   }
