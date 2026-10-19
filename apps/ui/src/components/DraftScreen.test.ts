@@ -145,7 +145,7 @@ describe('the draft screen, on committed fixtures', () => {
     }
     expect(screen.getByTestId('seat-0').dataset.occupant).toBe('human');
     expect(screen.getByTestId('seat-7').dataset.occupant).toBe('bot');
-    expect(screen.getByTestId('pass-direction').textContent).toContain('passes left');
+    expect(screen.getByTestId('pass-direction').dataset['direction']).toBe('left');
   });
 
   it('shows only the seats still owing a pick when the payload says so', () => {
@@ -287,7 +287,7 @@ describe('the draft screen, on committed fixtures', () => {
     chooseFixture('seat3-pack2-pick5.json');
     expect(screen.getByTestId('pack-number').textContent).toBe('2');
     expect(screen.getByTestId('pick-number').textContent).toBe('5');
-    expect(screen.getByTestId('pass-direction').textContent).toContain('passes right');
+    expect(screen.getByTestId('pass-direction').dataset['direction']).toBe('right');
     expect(packCards()).toHaveLength(11);
     expect(poolCards()).toHaveLength(19);
     const waiting = [0, 1, 2, 3, 4, 5, 6, 7].filter(
