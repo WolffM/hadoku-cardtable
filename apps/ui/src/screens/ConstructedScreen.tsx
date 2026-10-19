@@ -2641,16 +2641,11 @@ function RoomTableScreen({
 /* ── a draft room, before the cards exist ─────────────────────────────── */
 
 /**
- * The draft room's lobby: who is here, who is ready, and the two rules a person
- * would otherwise have to guess.
- *
- * Both rules are written on the screen on purpose. *"Every member ready, then
- * bots take the rest of the eight seats"* is the operator's own design and the
- * difference between this and the pod button it replaced, which auto-started
- * against seven bots. *"A draft does not survive a restart"* is true of the
- * server as built — the deal is in memory and `draftStartedAt` is never restored
- * — and a room that silently came back to an empty table would look like a bug
- * rather than the honest answer.
+ * The draft room's lobby: who is here, who is ready, and the rule a person
+ * would otherwise have to guess — *"every member ready, then bots take the
+ * rest of the eight seats"*, the operator's own design and the difference
+ * between this and the pod button it replaced, which auto-started against
+ * seven bots.
  *
  * The toggle carries `ready-toggle`, the same id the constructed table's does:
  * one room plays one game, so exactly one of the two is ever on the screen.

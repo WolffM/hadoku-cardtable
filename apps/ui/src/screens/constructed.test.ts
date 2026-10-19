@@ -2050,15 +2050,12 @@ describe('a draft room', () => {
     expect(server.calls.filter((c) => c.url.endsWith('/play/matches'))).toHaveLength(0);
   });
 
-  it('states the two rules the operator would otherwise have to guess', async () => {
+  it('states the rule the operator would otherwise have to guess', async () => {
     await mountDraft();
     const rule = (await screen.findByTestId('draft-rule')).textContent ?? '';
     expect(rule).toContain('every member of this room is ready');
     expect(rule).toContain('eight');
     expect(rule).toMatch(/bots/i);
-    // §1.6: the draft is in memory, so it cannot outlive the process, and the
-    // room says that rather than coming back to an empty table.
-    expect(screen.getByTestId('draft-restart-note').textContent).toContain('does not survive a restart');
   });
 
   it('readies YOU through the room’s route, and says so in the list', async () => {
@@ -2317,7 +2314,6 @@ describe('a builtin room is what it has always been', () => {
     expect(screen.queryByTestId('draft-lobby')).toBeNull();
     expect(screen.queryByTestId('draft-members')).toBeNull();
     expect(screen.queryByTestId('draft-rule')).toBeNull();
-    expect(screen.queryByTestId('draft-restart-note')).toBeNull();
     expect(screen.queryByTestId('pod')).toBeNull();
     // The one shared id belongs to my seat's own toggle here.
     expect(screen.getByTestId('ready-toggle').closest('[data-testid="room-seat-1"]')).not.toBeNull();
