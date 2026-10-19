@@ -30,7 +30,8 @@
  * Before any of that, an ask goes past `@hadoku/shared`'s `selfAnswer` —
  * the ONE place it is decided whether a question answers itself (the server
  * reads it too, so the other seat is never told this one is deciding). One case
- * is `getAbilityToPlay` with exactly one ability: the operator's *"one
+ * is `getAbilityToPlay` with exactly one ability (never a land card's off the battlefield that does not
+ * play it — `oneAbility`): the operator's *"one
  * choice shouldn't require this dialog at all"* (wave 20, item 4), and the
  * whole of their *"'choose ability' often needs the click TWICE"* (item 9),
  * because Forge asks that offer twice for one `selectCard` and both copies now

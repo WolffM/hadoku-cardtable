@@ -525,6 +525,8 @@ export const OfferedAbilitySchema = z.strictObject({
    * `faceAbilities`). The seat draws those faces side by side to pick from.
    */
   face: z.string().optional(),
+  /** Ours, never Forge's: this ability plays its card as a land (`PlayBridge.java`'s `landFacts`). */
+  playsLand: z.literal(true).optional(),
 });
 
 export type OfferedAbility = z.infer<typeof OfferedAbilitySchema>;
@@ -542,6 +544,11 @@ export const GetAbilityToPlaySchema = z.strictObject({
   hostCard: CardRefSchema,
   abilities: z.array(OfferedAbilitySchema),
   triggerEvent: TriggerEventSchema.nullable(),
+  /**
+   * Ours, never Forge's: present when the host card is a land by its current types, with the
+   * Forge zone it is in (`Hand`, `Battlefield`, …) — `PlayBridge.java`'s `landFacts`.
+   */
+  hostLand: z.strictObject({ zone: z.string().min(1) }).optional(),
 });
 
 export const GetAbilityToPlayReplySchema = OfferedAbilitySchema.nullable();

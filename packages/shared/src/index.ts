@@ -277,7 +277,7 @@ export {
   type RoomWatch,
   type RoomChanged,
 } from './room-feed.ts';
-export { selfAnswer, type SelfAnswer } from './self-answer.ts';
+export { oneAbility, selfAnswer, type SelfAnswer } from './self-answer.ts';
 export {
   MATCH_LENGTHS,
   MatchLengthSchema,

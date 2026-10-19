@@ -28,6 +28,12 @@
  * `InputPayMana.onCardSelected` for a land, which plays a lone mana ability itself and only asks for
  * two or more (`InputPayMana.java:101-106`).
  *
+ * Except from a LAND card off the battlefield, unless the one ability plays it (the operator,
+ * 2026-10-19: *"make it so you still have to select the cycling ability when playing lands"*). Once
+ * the land drop is used, Forge offers a cycling land only its Cycling, and a click meant to play the
+ * land would cycle it. `hostLand` and `playsLand` are the bridge's facts (`PlayBridge.java`'s
+ * `landFacts`); {@link oneAbility} is the rule, and the server's `onlyAnswer` reads it too.
+ *
  * ## A counterspell's lone stack target (wave 32 Q7)
  *
  * *"If there's only one spell on the stack then the target of Mana Leak is obvious"* (operator).
@@ -41,7 +47,7 @@
  * reply, the empty list. The server answers it and sends it on as display-only; answering it here
  * would delete the information (`max < 1` keeps it out).
  */
-import { REPLY_SCHEMAS, type ServerFrame } from '@hadoku/forge-wire';
+import { REPLY_SCHEMAS, type OfferedAbility, type ServerFrame } from '@hadoku/forge-wire';
 
 type ReplyOf<M extends keyof typeof REPLY_SCHEMAS> = ReturnType<(typeof REPLY_SCHEMAS)[M]['parse']>;
 
@@ -58,9 +64,22 @@ export function selfAnswer(frame: ServerFrame): SelfAnswer | null {
     const offered = frame.names ?? frame.choices.map((c) => c.key);
     return offered.includes(only.key) && frame.min <= 1 ? { method: 'getChoices', reply: [only.key] } : null;
   }
-  // Exactly one ability: two are a real choice, and none is Forge asking about nothing.
-  if (frame.method !== 'getAbilityToPlay' || frame.abilities.length !== 1) return null;
+  if (frame.method !== 'getAbilityToPlay') return null;
+  const only = oneAbility(frame);
+  if (only === null) return null;
   // A malformed answer must never leave: it would be refused a hop later with no player to blame.
-  const parsed = REPLY_SCHEMAS.getAbilityToPlay.safeParse(frame.abilities[0]);
+  const parsed = REPLY_SCHEMAS.getAbilityToPlay.safeParse(only);
   return parsed.success ? { method: 'getAbilityToPlay', reply: parsed.data } : null;
+}
+
+/**
+ * The ability a `getAbilityToPlay` leaves no choice about, or null when it is a question: two are a
+ * real choice, none is Forge asking about nothing, and one from a land card off the battlefield that
+ * does not play it is the seat's to pick.
+ */
+export function oneAbility(frame: Extract<ServerFrame, { method: 'getAbilityToPlay' }>): OfferedAbility | null {
+  const only = frame.abilities.length === 1 ? frame.abilities[0] : undefined;
+  if (only === undefined) return null;
+  const offField = frame.hostLand !== undefined && frame.hostLand.zone !== 'Battlefield';
+  return offField && only.playsLand !== true ? null : only;
 }

@@ -3386,6 +3386,7 @@ public final class PlayBridge {
             f.add("hostCard", ref("card", hostCard.getId()));
             final JsonArray offered = labelledAbilities(abilities);
             faceAbilities(hostCard, offered);
+            landFacts(hostCard, abilities, f, offered);
             f.add("abilities", offered);
             f.add("triggerEvent", JsonNull.INSTANCE);
             final JsonElement r = await(ask, f);
@@ -3425,6 +3426,46 @@ public final class PlayBridge {
                 for (int i = 0; i < offered.size(); i++) { offered.get(i).getAsJsonObject().addProperty("face", faces.get(i)); }
             } catch (final RuntimeException ex) {
                 System.err.println("[bridge] faceAbilities: could not read the card's faces (" + ex + ")");
+            }
+        }
+
+        /**
+         * What the offer says about a LAND card, which its labels cannot: {@code hostLand} with the
+         * zone the card is in, when the clicked card is a land by its current types, and
+         * {@code playsLand} on the ability that plays it ({@link SpellAbility#isLandAbility()}).
+         * {@code @hadoku/shared}'s {@code selfAnswer} reads them: one offer from a land off the
+         * battlefield that does not play it (Cycling once the land drop is used) is a question, so
+         * a click cannot cycle a land the seat meant to play.
+         *
+         * The ability is read through {@code PlayerControllerHuman.spellViewCache}, the map Forge
+         * just built for this very offer: a land played by a may-play effect is a fresh copy whose id
+         * is on none of the card's own abilities. Left out entirely when any of it cannot be read.
+         */
+        @SuppressWarnings("unchecked")
+        private void landFacts(final CardView hostCard, final List<SpellAbilityView> abilities, final JsonObject f, final JsonArray offered) {
+            final Game game = liveGame();
+            if (game == null) { return; }
+            try {
+                final forge.game.card.Card host = game.findById(hostCard.getId());
+                if (host == null || !host.isLand() || host.getZone() == null) { return; }
+                Map<SpellAbilityView, SpellAbility> cache = null;
+                for (final forge.game.player.Player p : game.getPlayers()) {
+                    if (!(p.getController() instanceof PlayerControllerHuman human)) { continue; }
+                    final Map<SpellAbilityView, SpellAbility> own =
+                        (Map<SpellAbilityView, SpellAbility>) field(human, PlayerControllerHuman.class, "spellViewCache");
+                    if (own != null && own.keySet().containsAll(abilities)) { cache = own; break; }
+                }
+                if (cache == null) { return; }
+                for (int i = 0; i < abilities.size(); i++) {
+                    final SpellAbility sa = cache.get(abilities.get(i));
+                    if (sa == null) { return; }
+                    if (sa.isLandAbility()) { offered.get(i).getAsJsonObject().addProperty("playsLand", true); }
+                }
+                final JsonObject land = new JsonObject();
+                land.addProperty("zone", host.getZone().getZoneType().name());
+                f.add("hostLand", land);
+            } catch (final ReflectiveOperationException | RuntimeException ex) {
+                System.err.println("[bridge] landFacts: could not read the offer (" + ex + ")");
             }
         }
 

@@ -151,6 +151,7 @@
  */
 
 import { PHASE_TYPES, REPLY_SCHEMAS, type PhaseType, type ServerFrame, type ZoneType } from '@hadoku/forge-wire';
+import { oneAbility } from '@hadoku/shared';
 import { copyTargets, type SpellCopy } from './spell-copiers.js';
 
 /** An ask that admits exactly one answer, and why. */
@@ -666,7 +667,8 @@ export function namedStopPolicy(name: string | undefined | null): StopPolicy | n
  * and `sideboard` are never auto-answered: each is a real question. There is no
  * prose in here and there never was — the rules are bounds arithmetic.
  *
- * A one-ability `getAbilityToPlay` is answered with that ability. Forge asks it
+ * A one-ability `getAbilityToPlay` is answered with that ability, by `@hadoku/shared`'s
+ * `oneAbility` (a land card's offer off the battlefield is the seat's own). Forge asks it
  * for every trigger it puts on the stack (`PlaySpellAbility.
  * chooseOptionalAdditionalCosts`, reached from `orderAndPlaySimultaneousSa`),
  * with the trigger as the only option, and a trigger nobody clicked is not the
@@ -708,8 +710,10 @@ export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP
 		case 'showOptionDialog':
 			return frame.options.length === 1 ? ok(callId, frame.method, 0, 'one button') : null;
 
-		case 'getAbilityToPlay':
-			return frame.abilities.length === 1 ? ok(callId, frame.method, frame.abilities[0], 'one ability') : null;
+		case 'getAbilityToPlay': {
+			const only = oneAbility(frame);
+			return only === null ? null : ok(callId, frame.method, only, 'one ability');
+		}
 
 		case 'order': {
 			// One item that must be placed has exactly one arrangement. With any
