@@ -1,0 +1,19 @@
+# Full control asks only real questions (the operator, 2026-10-19): "when tapping black lotus why
+# does it ask me if i want to sacrifice? of course i do, i tapped it. for cards like timewarp, why is
+# it asking me to 'select' an ability? there is only one valid choice here."
+#
+# Seat 0 (human) holds Time Walk ({1}{U}, one ability) with two Islands to pay for it, and controls
+# Black Lotus ({T}, Sacrifice: add three mana of any one color, one ability with a sacrifice cost).
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Time Walk
+humanbattlefield=Island;Island;Black Lotus
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

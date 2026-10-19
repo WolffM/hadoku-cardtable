@@ -901,8 +901,13 @@ describe('the says, the toggle, and the ability label', () => {
     expect(m.says).toEqual([]);
   });
 
-  it('full control makes that same one-ability offer a question again', async () => {
-    const { s, m, getByTestId } = await liveBoard();
+  /*
+   * The operator, 2026-10-19, in full control: *"for cards like timewarp, why is it asking me to
+   * 'select' an ability? there is only one valid choice here."* Full control brings back every
+   * stop and every real choice, never a question with one answer.
+   */
+  it('full control answers that same one-ability offer too, and still draws two', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
     fireEvent.click(getByTestId('live-full-control'));
     await untilMatch(m, () => expect(m.fullControl).toBe(true));
     const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
@@ -916,8 +921,23 @@ describe('the says, the toggle, and the ability label', () => {
         triggerEvent: null,
       }),
     );
-    await waitFor(() => expect(getByTestId('live-prompt').dataset.callId).toBe('fx-full-control'));
-    expect(await s.framesFrom(m)).toEqual([]);
+    await s.untilClientFrames(1);
+    expect(s.clientFrames()[0]).toMatchObject({
+      ok: true,
+      value: { kind: 'reply', callId: 'fx-full-control', method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9001 } },
+    });
+    expect(queryByTestId('live-prompt')).toBeNull();
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 'fx-full-control-two',
+        method: 'getAbilityToPlay',
+        hostCard: { kind: 'card', id: mine[0]! },
+        abilities: [{ kind: 'spellAbility', id: 9001 }, { kind: 'spellAbility', id: 9002 }],
+        triggerEvent: null,
+      }),
+    );
+    await waitFor(() => expect(getByTestId('live-prompt').dataset.callId).toBe('fx-full-control-two'));
   });
 });
 

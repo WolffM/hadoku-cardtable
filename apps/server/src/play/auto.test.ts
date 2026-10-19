@@ -2809,3 +2809,106 @@ describe("an optional search's \"Search your hand?\" — answered when No gains 
 		expect(freeSearchConfirm({ ...asked, buttons: { ...notes.buttons, enable1: false } as SeatNotes['buttons'] })).toBeNull();
 	});
 });
+
+/*
+ * The operator, 2026-10-19, in full control: *"when tapping black lotus why does it ask me if i
+ * want to sacrifice? of course i do, i tapped it. for cards like timewarp, why is it asking me to
+ * 'select' an ability? there is only one valid choice here."* Full control stops the seat at every
+ * priority window and lets it order and choose where there is a real choice; a question with one
+ * possible answer, and the cost confirm of the ability it just chose, are no choice in any mode.
+ */
+describe('full control asks only real questions', () => {
+	const card = (id: number) => ({ kind: 'card' as const, id });
+	function fullControl(): Harness {
+		const h = harness();
+		h.match.setFullControl(0, true);
+		return h;
+	}
+	const asked = (h: Harness, callId: string) => frames(h, 0).filter((f) => f.kind === 'ask' && f.callId === callId);
+	const replies = (h: Harness) => h.host.commands.filter((c) => c.t === 'reply');
+
+	it('a one-ability getAbilityToPlay (a trigger, nobody clicked) is answered with that ability', () => {
+		const h = fullControl();
+		push(h, 0, oneAbilityAsk('fc-ab'));
+		expect(asked(h, 'fc-ab')).toEqual([]);
+		expect(replies(h)).toEqual([{ t: 'reply', seat: 0, callId: 'fc-ab', result: { kind: 'spellAbility', id: 9001 } }]);
+		expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'ask-auto-answered', callId: 'fc-ab', why: 'one ability' }));
+	});
+
+	it('a one-option getChoices is answered', () => {
+		const h = fullControl();
+		push(h, 0, { kind: 'ask', callId: 'fc-one', method: 'getChoices', message: 'Choose', min: 1, max: 1, choices: [{ key: 'k1', label: 'option 1', ref: null }], selected: [] });
+		expect(asked(h, 'fc-one')).toEqual([]);
+		expect(replies(h)).toEqual([{ t: 'reply', seat: 0, callId: 'fc-one', result: ['k1'] }]);
+	});
+
+	it('a two-option ask still reaches the player', () => {
+		const h = fullControl();
+		push(h, 0, { kind: 'ask', callId: 'fc-two', method: 'getChoices', message: 'Choose', min: 1, max: 1, choices: [1, 2].map((i) => ({ key: `k${i}`, label: `option ${i}`, ref: null })), selected: [] });
+		push(h, 0, fixture('getAbilityToPlay.json'));
+		expect(asked(h, 'fc-two')).toHaveLength(1);
+		expect(frames(h, 0).filter((f) => f.kind === 'ask' && f.method === 'getAbilityToPlay')).toHaveLength(1);
+		expect(replies(h)).toEqual([]);
+	});
+
+	it('simultaneous triggers are still the seat’s to order; one item is no order', () => {
+		const h = fullControl();
+		push(h, 0, { ...(fixture('order.json') as unknown as Record<string, unknown>), callId: 'fc-order' });
+		expect(asked(h, 'fc-order')).toHaveLength(1);
+		const base = fixture('order.json') as unknown as { sourceChoices: unknown[] };
+		push(h, 0, { ...(base as Record<string, unknown>), callId: 'fc-order-1', sourceChoices: base.sourceChoices.slice(0, 1), remainingObjectsMax: 0 });
+		expect(asked(h, 'fc-order-1')).toEqual([]);
+		expect(replies(h)).toHaveLength(1);
+	});
+
+	it('Black Lotus: the sacrifice confirm for the ability the seat just activated answers Yes', () => {
+		const h = fullControl();
+		const me = playerOf(h, 0);
+		h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: card(70), otherCardViewsToSelect: [], triggerEvent: null }));
+		push(h, 0, { kind: 'ask', callId: 'lotus', method: 'getAbilityToPlay', hostCard: card(70), abilities: [{ kind: 'spellAbility', id: 9002 }], triggerEvent: null });
+		// The seat's own click: its browser answers (and says what it played), the server does not.
+		expect(asked(h, 'lotus')).toHaveLength(1);
+		expect(h.match.fromClient(0, ClientFrameSchema.parse({ kind: 'reply', callId: 'lotus', method: 'getAbilityToPlay', result: { kind: 'spellAbility', id: 9002 } }))).toEqual({ ok: true });
+		const before = frames(h, 0).length;
+		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
+		push(h, 0, { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: me }, message: 'Sacrifice Black Lotus?', card: null, confirmAbility: { hostCard: card(70), abilityId: 9002 } });
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0).at(-1)).toEqual({ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } });
+		expect(frames(h, 0).slice(before).filter((f) => f.method === 'showPromptMessage')).toEqual([]);
+		expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'prompt-withheld', seat: 0, why: 'auto-confirm' }));
+	});
+
+	it('Aether Vial: "Search your hand?" is answered as it is by default', () => {
+		const h = fullControl();
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
+		push(h, 0, {
+			kind: 'notify',
+			method: 'showPromptMessage',
+			player: { kind: 'player', id: me },
+			message: 'Search your hand?',
+			card: null,
+			confirmAbility: { hostCard: card(70), abilityId: 9003, search: { origin: ['Hand'], player: { kind: 'player', id: me }, mayChooseNothing: true } },
+		});
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0)).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } }]);
+	});
+
+	it('an optional trigger’s "may" is still asked — it names the trigger, not a chosen ability', () => {
+		const h = fullControl();
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: me }, label1: 'Yes', label2: 'No', enable1: true, enable2: true, focus1: true });
+		push(h, 0, { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: me }, message: 'Use triggered ability of Augur?', card: null, confirmAbility: { hostCard: card(71), abilityId: 555 } });
+		expect(h.host.commands.filter((c) => c.t === 'act' && c.seat === 0)).toEqual([]);
+	});
+
+	it('every priority window still stops, and no payment is pressed', () => {
+		const h = fullControl();
+		const me = playerOf(h, 0);
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [] });
+		push(h, 0, prompt(PRIORITY_MESSAGE.replace('Priority: B', 'Priority: A'), me));
+		push(h, 0, buttons(true, me));
+		push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [card(67)] });
+		push(h, 0, autoBar(true, me));
+		push(h, 0, prompt('Pay Mana Cost: {U}', me));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+	});
+});
