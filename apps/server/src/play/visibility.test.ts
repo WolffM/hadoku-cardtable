@@ -927,7 +927,7 @@ describe('a null viewer: the public table (the watcher channel)', () => {
 describe('a card the seat was shown stays shown while it stays put', () => {
 	const int = (v: number) => ({ t: 'int', v });
 	const list = (ids: readonly number[]) => ({ t: 'list', v: ids.map(int) });
-	const NAMES: Record<number, string> = { 10: 'Goblin Guide', 20: 'Lightning Bolt', 21: 'Shock', 22: 'Mountain' };
+	const NAMES: Record<number, string> = { 10: 'Goblin Guide', 20: 'Lightning Bolt', 21: 'Shock', 22: 'Mountain', 30: 'Grizzly Bears' };
 	const card = (id: number, mayLook: readonly number[] = []): WireObj => ({
 		_type: TYPE.card,
 		_id: id,
@@ -936,12 +936,14 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		Name: { t: 'str', v: NAMES[id] },
 		...(mayLook.length === 0 ? {} : { PlayerMayLook: list(mayLook) }),
 	});
-	const player = (id: number, zones: { Hand?: number[]; Library?: number[]; Graveyard?: number[] } = {}): WireObj => ({
+	const player = (id: number, zones: { Hand?: number[]; Library?: number[]; Graveyard?: number[]; Battlefield?: number[]; Exile?: number[] } = {}): WireObj => ({
 		_type: TYPE.player,
 		_id: id,
 		Hand: list(zones.Hand ?? []),
 		Library: list(zones.Library ?? []),
 		Graveyard: list(zones.Graveyard ?? []),
+		Battlefield: list(zones.Battlefield ?? []),
+		Exile: list(zones.Exile ?? []),
 	});
 	const opening = (mayLook: Record<number, number[]> = {}): StateFrame => ({
 		kind: 'notify',
@@ -1002,11 +1004,11 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(p.visibilityOf(10), 'a known hand card put back into the library is forgotten').toBe('hidden');
 	});
 
-	it('forgets a known hand card that leaves the hand, even for a zone it will be hidden in again', () => {
+	it('forgets a known hand card that leaves the hand for a library, and does not know it drawn again', () => {
 		const p = createProjector(0);
 		const out: (StateFrame | null)[] = [p.project(opening()), p.learn([10])];
-		out.push(p.project(delta([{ ...player(1, { Hand: [], Library: [20, 21, 22], Graveyard: [10] }) }])));
-		expect(p.visibilityOf(10), 'public in the graveyard').toBe('full');
+		out.push(p.project(delta([{ ...player(1, { Hand: [], Library: [20, 21, 22, 10] }) }])));
+		expect(p.visibilityOf(10)).toBe('hidden');
 		out.push(p.project(delta([{ ...player(1, { Hand: [10], Library: [20, 21, 22] }) }])));
 		expect(p.visibilityOf(10)).toBe('hidden');
 		expect(held(out, 10)).toBeUndefined();
@@ -1200,5 +1202,124 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(lookHeld(out, 10), 'alice is named, as she knows it, and nobody else').toEqual(list([0]));
 		const everyLook = JSON.stringify(out).match(/"PlayerMayLook":\{[^}]*\}/g) ?? [];
 		expect(everyLook.filter((l) => l.includes('"v":1')), 'player 1 is in no look alice receives').toEqual([]);
+	});
+
+	/** Bob's side with Grizzly Bears (30) where `zones` puts it, and its card as it sits there. */
+	const table = (zones: Parameters<typeof player>[1], bears: WireObj = card(30)): StateFrame => ({
+		kind: 'notify',
+		method: 'setGameView',
+		payload: {
+			sequenceNumber: 1,
+			gameView: Object.fromEntries([player(0), player(1, zones), ...[10, 20, 21, 22].map((id) => card(id)), bears].map((o) => [keyOf(o._type, o._id), o])),
+		},
+	});
+	/** Both seats, fed the same raw frames. */
+	const both = (...frames: StateFrame[]) => {
+		const alice = createProjector(0);
+		const bob = createProjector(1);
+		const aliceOut = frames.map((f) => alice.project(f));
+		const bobOut = frames.map((f) => bob.project(f));
+		return { alice, bob, aliceOut, bobOut };
+	};
+
+	it("keeps a creature bounced from the table known in its owner's hand (Jace's −1, Unsummon), for the other seat, with the eye on the owner's — across a turn and a draw", () => {
+		const { alice, aliceOut, bobOut } = both(
+			table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }),
+			renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+			delta([{ _type: TYPE.game, _id: 0, Turn: int(4) } as WireObj]),
+			delta([player(1, { Hand: [10, 30, 20], Library: [21, 22] })]),
+		);
+		expect(alice.visibilityOf(30)).toBe('full');
+		expect(held(aliceOut, 30), "alice holds the bounced card's name").toEqual({ t: 'str', v: 'Grizzly Bears' });
+		expect(lookHeld(aliceOut, 30), 'said in Forge’s words: alice may look at it').toEqual(list([0]));
+		expect(lookHeld(bobOut, 30), "bob's eye: alice knows it").toEqual(list([0]));
+		expect(alice.visibilityOf(20), 'the card bob drew is his alone').toBe('hidden');
+		expect(alice.visibilityOf(10), 'nor any other card of that hand').toBe('hidden');
+	});
+
+	it('keeps a card returned to a hand from the graveyard (Regrowth, Eternal Witness) or from exile known', () => {
+		for (const from of ['Graveyard', 'Exile'] as const) {
+			const { alice, aliceOut, bobOut } = both(
+				table({ Hand: [10], Library: [20, 21, 22], [from]: [30] }),
+				renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+			);
+			expect(alice.visibilityOf(30), from).toBe('full');
+			expect(held(aliceOut, 30), from).toEqual({ t: 'str', v: 'Grizzly Bears' });
+			expect(lookHeld(bobOut, 30), from).toEqual(list([0]));
+		}
+	});
+
+	it('keeps a spell returned from the stack to its hand known (Remand)', () => {
+		const onStack = { ...card(30), Zone: { t: 'enum', v: 'Stack' } };
+		const { alice, aliceOut } = both(
+			table({ Hand: [10, 30], Library: [20, 21, 22] }),
+			renewed([onStack], [player(1, { Hand: [10], Library: [20, 21, 22] })]),
+			renewed([{ ...card(30), Zone: { t: 'enum', v: 'Hand' } }], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+		);
+		expect(alice.visibilityOf(30)).toBe('full');
+		expect(held(aliceOut, 30)).toEqual({ t: 'str', v: 'Grizzly Bears' });
+	});
+
+	it('does not learn a card that sat in a hand before it was ever public, nor a face-down permanent bounced to a hand', () => {
+		const faceDown = { ...card(30), Facedown: { t: 'bool', v: true } };
+		const { alice, bob, aliceOut, bobOut } = both(
+			table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }, faceDown),
+			renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+		);
+		expect(alice.visibilityOf(30)).toBe('hidden');
+		expect(held(aliceOut, 30)).toBeUndefined();
+		expect(lookHeld(bobOut, 30)).toBeUndefined();
+		expect(bob.visibilityOf(30)).toBe('full');
+	});
+
+	it('forgets a bounced card once its hand is shuffled into the library, and does not know it drawn again', () => {
+		const { alice, aliceOut, bobOut } = both(
+			table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }),
+			renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+			renewed([card(30), card(10)], [player(1, { Hand: [], Library: [21, 30, 20, 10, 22] })]),
+			renewed([card(30)], [player(1, { Hand: [30], Library: [21, 20, 10, 22] })]),
+		);
+		expect(alice.visibilityOf(30)).toBe('hidden');
+		expect(held(aliceOut, 30), 'wiped from the client').toBeUndefined();
+		expect(lookHeld(bobOut, 30), "and bob's eye is gone").toBeUndefined();
+	});
+
+	it('does not learn a graveyard card Timetwister shuffles in and deals into the new hand inside one packet', () => {
+		const cases = [
+			{ hand: [10], library: [22, 10, 20], why: 'shuffled, the old hand in it' },
+			{ hand: [10], library: [20, 21, 22, 10], why: 'the old hand in it, the order saying nothing' },
+			{ hand: [], library: [22, 20], why: 'shuffled, nothing put in but the card dealt out' },
+		];
+		for (const { hand, library, why } of cases) {
+			const { alice, aliceOut, bobOut } = both(
+				table({ Hand: hand, Library: [20, 21, 22], Graveyard: [30] }),
+				renewed([card(30), ...hand.map((id) => card(id))], [player(1, { Hand: [30, 21], Graveyard: [], Library: library })]),
+			);
+			expect(alice.visibilityOf(30), why).toBe('hidden');
+			expect(held(aliceOut, 30), why).toBeUndefined();
+			expect(lookHeld(bobOut, 30), why).toBeUndefined();
+		}
+	});
+
+	it('keeps a bounced card known through a packet that has it in no zone, and not a public card that says it went to a library first', () => {
+		const bounced = both(
+			table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }),
+			renewed([card(30)], [player(1, { Hand: [10], Library: [20, 21, 22] })]),
+			delta([player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+		);
+		expect(bounced.alice.visibilityOf(30)).toBe('full');
+		const tucked = both(
+			table({ Hand: [10], Library: [20, 21, 22], Graveyard: [30] }),
+			renewed([{ ...card(30), Zone: { t: 'enum', v: 'Library' } }], [player(1, { Hand: [10], Library: [20, 21, 22] })]),
+			delta([player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
+		);
+		expect(tucked.alice.visibilityOf(30)).toBe('hidden');
+	});
+
+	it('teaches a watcher nothing from a bounce: it holds no hand', () => {
+		const watcher = createProjector(null);
+		watcher.project(table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }));
+		watcher.project(renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]));
+		expect(watcher.visibilityOf(30)).toBe('hidden');
 	});
 });

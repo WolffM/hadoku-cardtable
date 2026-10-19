@@ -93,9 +93,9 @@
  *     that reading, in the packet the look ended and the one before: the look
  *     moves them itself (a scry's bottom card), and the player saw where;
  *   - a known library card drawn into its holder's hand stays known there;
- *   - any other move forgets it — discarded, put back from the hand, bounced
- *     to a hand from the table: the seat sees it while it is public and never
- *     after it is hidden again. A card in no zone list at all (between two,
+ *   - any other move forgets it — discarded, put back from the hand, cast: the
+ *     seat sees it while it is public, and once it is hidden again it is known
+ *     only by the way in below. A card in no zone list at all (between two,
  *     or on the stack) is judged where it lands. A card that left and came
  *     back inside one packet (Timetwister shuffles a hand away and deals a new
  *     one) is in the same list on both sides of it, but Forge made it a new
@@ -123,15 +123,26 @@
  *   - the cards the seat put on top of its own library from its own hand
  *     (Brainstorm), from the top down, unless that packet shuffled it.
  *
+ * And one that reaches every player but the hand's holder: a card the whole
+ * table could see — face up on the battlefield, in a graveyard, in exile, on
+ * the stack — that goes to a hand. Jace's −1 and Unsummon bounce it, Regrowth
+ * returns it from a graveyard, Remand from the stack: everyone watched which
+ * card it was. The operator, 2026-10-19: *"returned a card to hand with Jace,
+ * why is it not showing as revealed?"* Not when that packet shuffled the
+ * holder's library or put a card into it: Timetwister shuffles a graveyard in
+ * and deals a new hand inside one packet, and a card dealt that way went
+ * through a library on its way, where the table lost it.
+ *
  * Which of a library's known cards a screen draws on it is the client's: the
  * top ones, in order, while no card it does not know is above them
  * (`apps/ui/src/play/adapter.ts`, `knownTop`).
  *
  * ## What the other seats were shown, the owner is told
  *
- * The same set is kept for every OTHER player too, from the same two ways in — Forge's grant, read
- * off the same raw state, and a reveal the server answered for that seat
- * ({@link SeatProjector.learn} with its `learner`) — and forgotten by the same rule. It is never
+ * The same set is kept for every OTHER player too, from the same ways in — Forge's grant, read
+ * off the same raw state, a reveal the server answered for that seat
+ * ({@link SeatProjector.learn} with its `learner`), and a card the table saw go to a hand — and
+ * forgotten by the same rule. It is never
  * used to show this seat anything; it is how this seat is told which of the cards IT holds in a
  * hand or a library another player still knows. The operator, 2026-10-15: *"let's also create an
  * 'eye' pill for cards that have been revealed to your opponent"*. Said in Forge's own words, as a
@@ -625,6 +636,8 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	const libraries = new Map<number, number[]>();
 	/** Forge's `PlayerMayLook` grants as last folded — a look that ended in this packet still explains its moves. */
 	let grantsBefore = new Map<number, number[]>();
+	/** The cards the whole table could see as of the last packet — {@link tableCards}. */
+	let onTable = new Set<number>();
 	let lastSeq = 0;
 	let who = viewer;
 	/** The zone index of the raw state as last folded — {@link visibilities} rebuilds it once per packet. */
@@ -679,8 +692,35 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 				}
 			}
 		}
+		/** Whether `holder`'s library took in a card it did not hold before — Timetwister's graveyard and hand. */
+		const fedFor = (holder: number): boolean => {
+			const was = new Set(before.get(holder) ?? []);
+			return (nowOf.get(holder) ?? []).some((id) => !was.has(id));
+		};
+		for (const [cardId, at] of zones.byCard) {
+			if (at.zone !== 'Hand' || !onTable.has(cardId) || fedFor(at.holder)) continue;
+			for (const player of nowOf.keys()) if (player !== at.holder && !shuffledFor(player, at.holder)) knownTo(player).set(cardId, at);
+		}
+		onTable = tableCards(zones);
 		if (who !== null) learnOwnTop(who, zones, zonesBefore, nowOf.get(who) ?? [], shuffledFor(who, who));
 		grantsBefore = grants;
+	}
+
+	/**
+	 * The cards the whole table can see now: face up in a public zone, by its zone list, or by its
+	 * own `Zone` when it is in none (on the stack). A card between two lists stays as it was, unless
+	 * it says it is in a library already.
+	 */
+	function tableCards(zones: ZoneIndex): Set<number> {
+		const out = new Set<number>();
+		for (const obj of raw.values()) {
+			if (obj._type !== TYPE.card) continue;
+			const listed = zones.byCard.get(obj._id);
+			const zone = listed?.zone ?? enumOf(obj, 'Zone');
+			const now = zone !== null && publicVisibility(obj, zone) === 'full';
+			if (now || (listed === undefined && zone !== 'Library' && onTable.has(obj._id))) out.add(obj._id);
+		}
+		return out;
 	}
 
 	/**
@@ -993,6 +1033,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 					sentLook.clear();
 					libraries.clear();
 					grantsBefore = new Map();
+					onTable = new Set();
 					foldInto(raw, {
 						seq: 0,
 						checksum: 0,
