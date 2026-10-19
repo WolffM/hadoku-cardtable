@@ -1,0 +1,16 @@
+# Delve picks its cards in one choice. Alice (`human…`, seat 0) holds Treasure Cruise ({7}{U}, delve)
+# with eight Islands out and eight cards in her graveyard, an uncontested turn-1 Main Phase 1. Delving
+# six leaves {1}{U}: two Islands tap, six stay untapped, and the six picked cards go to exile.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Treasure Cruise
+humanbattlefield=Island;Island;Island;Island;Island;Island;Island;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=Lightning Bolt;Ponder;Brainstorm;Opt;Mountain;Forest;Plains;Swamp
+aihand=Island
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
