@@ -443,11 +443,11 @@ button {
 }
 
 /*
- * The fan: a straight row. `PackView`'s `fanGeometry` sizes the card to the box
- * and `fanSlots` hands each slot its centre; this only places them. The card
- * the pointer is on (`data-focused`) has its neighbours slid apart already, so
- * it rises without covering anything; nothing tilts, so no card's corner pokes
- * above the one in front.
+ * The fan: a straight row of fixed places. `PackView`'s `fanGeometry` sizes the
+ * card to the box and hands each slot its place; `fanLayer` stacks the open
+ * card (`data-focused`) on top and the rest under it from either side, so the
+ * open card shows whole and only rises. Nothing tilts, so no corner pokes
+ * above the card in front.
  */
 .pack--fan {
   position: relative;
@@ -465,14 +465,13 @@ button {
   --card-w: var(--fan-w);
   --card-h: var(--fan-h);
   transform: translateX(var(--fan-x, 0));
-  /* Transform only: compositor-driven, so sliding and rising cost no repaint. */
+  /* Transform only: compositor-driven, so the rise costs no repaint. */
   transition: transform 140ms ease;
   will-change: transform;
 }
 
 .pack--fan .pack__slot[data-focused] {
   transform: translateX(var(--fan-x, 0)) translateY(-18px);
-  z-index: 999 !important;
   box-shadow: 0 14px 26px var(--shadow);
 }
 
