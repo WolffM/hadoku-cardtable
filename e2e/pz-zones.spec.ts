@@ -79,9 +79,14 @@ const zoneBoxes = (page: Page): Promise<{ zone: string; w: number; h: number }[]
 /** The sheet in both themes, at 1280×720. */
 async function shoot(page: Page, name: string): Promise<void> {
   mkdirSync(SHOTS, { recursive: true });
+  // Off every card, so the inspector is not drawn over the sheet.
+  await page.mouse.move(2, 2);
   await settle(page);
   for (const theme of ['light', 'dark'] as const) {
-    await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
+    // Every element that carries a theme: the app's own slot sets one of its own under <html>.
+    await page.evaluate((t) => {
+      for (const el of [document.documentElement, ...Array.from(document.querySelectorAll('[data-theme]'))]) el.setAttribute('data-theme', t);
+    }, theme);
     await page.waitForTimeout(150);
     await page.screenshot({ path: resolve(SHOTS, `${name}-${theme}.png`) });
   }
