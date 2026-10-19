@@ -1877,6 +1877,25 @@ describe('concede: the wire has always carried it, and now something sends it', 
  * (`InputConfirm.java:107-121`) so the BAR lags and can go stale — which is why
  * the load-bearing fact here is the PROMPT's own card, not the button.
  */
+describe('a known library top and the open decision', () => {
+  it('draws no card an open ask shows on its library, and draws it again once the ask is answered', async () => {
+    const { s, m } = await fullGame();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const [top, ...hand] = me.hand!.map((c) => c.id);
+    const list = (xs: readonly number[]) => ({ t: 'list', v: xs.map((v) => ({ t: 'int', v })) });
+    const player = m.state.get(deltaKey(WireType.Player, me.id))!;
+    const library = ((player.Library as { v?: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+    await sendAndApply(s, m, [stateDelta({ [deltaKey(WireType.Player, me.id)]: { _type: WireType.Player, _id: me.id, Hand: list(hand), Library: list([top!, ...library]) } })]);
+    const drawn = () => m.view!.players.find((p) => p.isViewer)!.libraryTop?.map((c) => c.id);
+    expect(drawn(), 'a card the seat knows, on top of its library').toEqual([top]);
+    const look = parseServerFrame({ kind: 'ask', callId: 'look-1', method: 'chooseEntitiesForEffect', title: 'Put on the bottom', optionList: [{ kind: 'card', id: top }], min: 0, max: 1, delayedReveal: null });
+    await sendAndApply(s, m, [look]);
+    expect(drawn(), 'the decision’s card while it is open').toBeUndefined();
+    expect(answerAsk(m, 'look-1', 'chooseEntitiesForEffect', [])).toBe(true);
+    expect(drawn(), 'the library’s again once answered').toEqual([top]);
+  });
+});
+
 describe('payingMana: the payment input, and not a bar that outlived it', () => {
   const payBar = (enable1: boolean) =>
     parseServerFrame({
