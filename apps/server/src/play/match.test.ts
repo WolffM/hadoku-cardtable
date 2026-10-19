@@ -294,7 +294,7 @@ describe("item 4: a seat's identity", () => {
  * that method's own header on why this is not folded into `MatchSnapshot`).
  */
 describe("a seat's open ask or payment, for the other seat's banner", () => {
-	function waitingHarness(): Harness & { told: SeatIdentity[][] } {
+	function waitingHarness(chooser?: 0 | 1): Harness & { told: SeatIdentity[][] } {
 		const { factory, hosts } = replayFactory();
 		const sent: Harness['sent'] = [];
 		const logs: Record<string, unknown>[] = [];
@@ -306,7 +306,7 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 			emit: (_match, seat, envelope) => sent.push({ seat, envelope }),
 			seatsChanged: (_match, seats) => told.push(seats),
 		});
-		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }], ...(chooser === undefined ? {} : { chooser }) });
 		return { match, host: hosts[0] as ReplayHost, sent, logs, told };
 	}
 
@@ -641,6 +641,14 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 			const h = waitingHarness();
 			h.host.push(barFrame(0, 'Play', 'Draw', true, true));
 			expect(h.match.seatIdentities()[0]).toMatchObject({ waitingOn: { method: 'confirm', hostCard: null } });
+		});
+
+		// A series' next game: the previous loser chooses, and nothing was tossed.
+		it('shows no coin when the match names who chooses — the previous game’s loser', () => {
+			const h = waitingHarness(1);
+			h.host.push(barFrame(1, 'Play', 'Draw', true, true));
+			for (const identity of h.match.seatIdentities()) expect(identity).not.toHaveProperty('coinToss');
+			expect(h.match.seatIdentities()[1]).toMatchObject({ waitingOn: { method: 'confirm', hostCard: null } });
 		});
 
 		// AE17 — the operator, three times: "both players should see the coinflip". Forge tells only the

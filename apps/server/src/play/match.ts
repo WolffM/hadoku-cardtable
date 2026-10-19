@@ -2015,7 +2015,10 @@ export class Match {
 		if (frame.method !== 'updateButtons') return;
 		const playOrDraw = frame.label1 === 'Play' && frame.label2 === 'Draw' && frame.enable1 === true && frame.enable2 === true;
 		if (playOrDraw) {
-			if (this.coinToss !== null) return;
+			// A series' next game asks the previous game's loser (`MatchSpec.chooser`):
+			// nothing was tossed, so no coin is shown — the operator, 2026-10-19: "it
+			// should ask the opponent if they want to go first not flip a coin".
+			if (this.coinToss !== null || this.spec.chooser !== undefined) return;
 			this.coinToss = { winner: s.seat, at: Date.now() };
 			this.deps.log({ evt: 'coin-toss', matchId: this.id, winner: s.seat });
 			this.deps.seatsChanged?.(this.seatIdentities());
