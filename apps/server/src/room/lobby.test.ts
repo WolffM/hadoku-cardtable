@@ -1814,7 +1814,8 @@ describe('Lobby.startDraft — no open seat, and only the seated are waited on',
 		for (let seat = 1; seat < 7; seat++) expect(lobby.aiPod(id, BOB.id, seat, true).ok).toBe(true);
 		expect(lobby.startDraft(id, ALICE.id), 'one seat still open').toEqual({ ok: false, reason: 'not-ready' });
 		expect(lobby.aiPod(id, ALICE.id, 7, true).ok).toBe(true);
-		expect(lobby.get(id)?.pod?.seats[7]).toEqual({ memberId: POD_AI, name: 'AI' });
+		// Every character is taken by now (two members, six AI seats): the last AI seat shares one with a member.
+		expect(lobby.get(id)?.pod?.seats[7]).toEqual({ memberId: POD_AI, name: 'Sage' });
 		// BOB never sat: a spectator, not ready, and not waited on.
 		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
 		expect(lobby.get(id)?.pod?.drafters).toEqual([ALICE.id]);
@@ -2184,7 +2185,7 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 			name: 'Cube night',
 			closed: false,
 			rounds: 1,
-			names: { [ALICE.id]: ALICE.name, [BOB.id]: BOB.name, ai: 'AI' },
+			names: { [ALICE.id]: ALICE.name, [BOB.id]: BOB.name, ai: expect.any(String) },
 			standings: [expect.objectContaining({ id: ALICE.id, matchPoints: 3, rank: 1 }), expect.objectContaining({ id: BOB.id, matchPoints: 0, rank: 2 })],
 		});
 		expect(lobby.close(id, ALICE.id).ok).toBe(true);
@@ -2218,5 +2219,44 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 		expect(three.l.close(three.id, ALICE.id).ok).toBe(true);
 		expect(kept).toHaveLength(1);
 		expect(kept[0]).toMatchObject({ closed: true, rounds: 2 });
+	});
+});
+
+describe('the AI seats play as the room’s characters', () => {
+	it('gives each AI seat a character nobody in the room wears, keeps it through a restart, and names the draft’s bots and the opponent after them', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		const worn = lobby.get(id)!.members[0]!.avatarId;
+		for (let seat = 1; seat < 8; seat++) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
+		const names = lobby.get(id)!.pod!.seats.slice(1).map((s) => s!.name);
+		expect(new Set(names).size, 'seven different characters').toBe(7);
+		expect(names.map((n) => n.toLowerCase()), 'none of them the one Alice wears').not.toContain(worn);
+		expect(names.every((n) => /^[A-Z][a-z]+$/.test(n))).toBe(true);
+		expect(lobby.podBotNames(id)).toEqual(names);
+		// Across the table from the one human (draft seat 4, the fourth bot): who the AI plays as.
+		expect(lobby.get(id)!.ai.name).toBe(names[3]);
+
+		// Taken out and put back, a seat gets a character again; the others keep theirs.
+		expect(lobby.aiPod(id, ALICE.id, 2, false).ok).toBe(true);
+		expect(lobby.aiPod(id, ALICE.id, 2, true).ok).toBe(true);
+		const again = lobby.get(id)!.pod!.seats.slice(1).map((s) => s!.name);
+		expect(again.filter((n, i) => i !== 1)).toEqual(names.filter((n, i) => i !== 1));
+
+		const reopened = await openLobby({ dir });
+		expect(reopened.get(id)!.pod!.seats.slice(1).map((s) => s!.name), 'kept through a restart').toEqual(again);
+		expect(reopened.get(id)!.ai).toEqual(lobby.get(id)!.ai);
+	});
+
+	it('a 1v1 room’s AI is a character none of its members wears', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const worn = made.room.members[0]!.avatarId;
+		expect(made.room.ai.avatarId).not.toBe(worn);
+		expect(made.room.ai.name.toLowerCase()).toBe(made.room.ai.avatarId);
 	});
 });

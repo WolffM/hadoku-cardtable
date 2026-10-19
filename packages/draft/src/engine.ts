@@ -72,6 +72,8 @@ export interface DraftConfig {
   packSize: number;
   /** Humans, seated in the order given. Remaining seats are filled with bots. */
   humans: readonly HumanSeat[];
+  /** What the bots are called, the first bot seat first; a seat past the list is `Bot <seat>`. */
+  botNames?: readonly string[];
   /** How long a dropped player's seat is held. 0 disables (the package default). */
   reservationTtlMs?: number;
 }
@@ -180,8 +182,9 @@ export function createDraft(config: DraftConfig): DraftState {
   // the count is a target: seatCount minus the humans actually seated.
   const humansSeated = occupiedSeats(table).length;
   padWithBots(table, Math.max(0, config.seatCount - humansSeated));
+  let bot = 0;
   for (const { id, occupant } of occupiedSeats(table)) {
-    if (occupant.kind === 'bot') displayNames[id] = `Bot ${id}`;
+    if (occupant.kind === 'bot') displayNames[id] = config.botNames?.[bot++] ?? `Bot ${id}`;
   }
 
   const rounds = deal(config.pool, rng, config.packCount, config.seatCount, config.packSize);

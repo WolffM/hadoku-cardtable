@@ -21,6 +21,7 @@
 import type { RoomTable } from '@hadoku/shared';
 
 import { routeHash } from '../route.ts';
+import { POD_AI } from './wire.ts';
 import './PodTables.css';
 
 export interface PodTablesProps {
@@ -39,10 +40,10 @@ function isMine(table: RoomTable, myMemberId: string | null): boolean {
 }
 
 /** "Alice 1–0 Bob", from whichever seats are filled — no explanatory text. */
-function label(t: RoomTable): string {
+function label(t: RoomTable, nameOf: (memberId: string) => string): string {
   const [p0, p1] = t.players;
-  // A pod table with one player is against the AI (`room/lobby.ts`'s `POD_AI`).
-  return `${p0?.name ?? ''} ${t.series.wins[0]}–${t.series.wins[1]} ${p1?.name ?? (t.players.length === 1 ? 'AI' : '')}`.trim();
+  // A pod table with one player is against the AI (`room/lobby.ts`'s `POD_AI`), by its character's name.
+  return `${p0?.name ?? ''} ${t.series.wins[0]}–${t.series.wins[1]} ${p1?.name ?? (t.players.length === 1 ? nameOf(POD_AI) : '')}`.trim();
 }
 
 export function PodTables({ tables, myMemberId, byeId, nameOf, onPlay, starting = false }: PodTablesProps) {
@@ -60,7 +61,7 @@ export function PodTables({ tables, myMemberId, byeId, nameOf, onPlay, starting 
               data-phase={t.series.phase}
               data-mine={mine ? '' : undefined}
             >
-              <span className="pod-tables__who">{label(t)}</span>
+              <span className="pod-tables__who">{label(t, nameOf)}</span>
               {t.matchId !== null ? (
                 <a
                   className="pod-tables__link"

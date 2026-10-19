@@ -621,6 +621,9 @@ export interface SeatState {
 	staleBar: ButtonsFrame | null;
 }
 
+/** Who `MatchDeps.seatAvatar` is asked about for Forge's AI seat, which nobody holds. */
+export const AI_SEAT_OWNER = 'ai';
+
 export interface MatchDeps {
 	host: MatchHostFactory;
 	/**
@@ -674,7 +677,8 @@ export interface MatchDeps {
 	 * cannot go stale across an avatar change or a restart. `index.ts` answers it
 	 * from the room that started the match (`http/routes.ts`'s `seatAvatar`).
 	 * Undefined for a holder with none; absent (a unit suite, a match no room
-	 * started) means no seat has one.
+	 * started) means no seat has one. Forge's AI seat is asked as `AI_SEAT_OWNER`:
+	 * the room's AI plays as one of its characters.
 	 */
 	seatAvatar?(matchId: string, owner: ParticipantId): string | undefined;
 	/**
@@ -1487,7 +1491,8 @@ export class Match {
 			claimed: s.owner !== null,
 			playerId: s.playerId,
 			...(() => {
-				const avatarId = s.owner === null ? undefined : this.deps.seatAvatar?.(this.id, s.owner);
+				const owner = s.ai ? AI_SEAT_OWNER : s.owner;
+				const avatarId = owner === null ? undefined : this.deps.seatAvatar?.(this.id, owner);
 				return avatarId === undefined ? {} : { avatarId };
 			})(),
 			...(s.displayName === undefined ? {} : { name: s.displayName }),

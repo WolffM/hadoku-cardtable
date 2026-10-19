@@ -410,6 +410,8 @@ export interface RoomView {
 	 * can reach it) decides `phase`/`built` beyond what this file stores.
 	 */
 	pod: PodView | null;
+	/** Who this room's AI plays as (`roomAi`): what the pod's `ai` id is drawn as, and the AI seat of a match. */
+	ai: AiPersona;
 	createdAt: string;
 }
 
@@ -558,6 +560,50 @@ export type PlayPodResult =
  */
 export const POD_AI = 'ai';
 
+/** An AI seat as a player: one of the room's characters, by its own name (the operator, 2026-10-19). */
+export interface AiPersona {
+	name: string;
+	avatarId: string;
+}
+
+/** `knight` → Knight. */
+export function personaOf(avatarId: string): AiPersona {
+	return { name: avatarId.charAt(0).toUpperCase() + avatarId.slice(1), avatarId };
+}
+
+/** A character for a new AI seat: one nobody in the room wears and no other AI seat has, else any the AI seats have not. */
+function freeAiAvatar(room: RoomRecord): string {
+	const ai = new Set(room.podAi.filter((a): a is string => a !== null));
+	const worn = new Set(room.members.flatMap((m) => (m.avatarId === undefined ? [] : [m.avatarId])));
+	return AVATAR_POOL.find((a) => !ai.has(a) && !worn.has(a)) ?? AVATAR_POOL.find((a) => !ai.has(a)) ?? AVATAR_POOL[0];
+}
+
+/** The personas of the pod's AI seats, in pod seat order — the order the draft deals its bot seats in. */
+function aiPersonas(room: RoomRecord): AiPersona[] {
+	return room.podSeats.flatMap((id, i) => (id === POD_AI && room.podAi[i] !== null && room.podAi[i] !== undefined ? [personaOf(room.podAi[i]!)] : []));
+}
+
+/** The AI this room's games are played against: a pod's across-the-table bot, or for a 1v1 room a character nobody here wears. */
+export function roomAi(room: RoomRecord): AiPersona {
+	if (room.gameType === 'draft') {
+		const opponent = aiOpponent(room);
+		if (opponent !== null) return opponent;
+	}
+	const worn = new Set(room.members.flatMap((m) => (m.avatarId === undefined ? [] : [m.avatarId])));
+	return personaOf(AVATAR_POOL.find((a) => !worn.has(a)) ?? AVATAR_POOL[0]);
+}
+
+/**
+ * The AI a pod of one plays: the bot that drafted across the table (`draftRooms.ts`'s `botPoolAcross` —
+ * the one human holds draft seat 0, its bots seats 1 onward in pod seat order).
+ */
+function aiOpponent(room: RoomRecord): AiPersona | null {
+	const bots = aiPersonas(room);
+	const humans = seatedHumans(room).length;
+	const across = Math.floor(POD_SEATS / 2);
+	return bots[across - humans] ?? bots[0] ?? null;
+}
+
 /**
  * What `RoomView.pod` needs that this file cannot answer on its own: whether
  * a pod's DRAFT is complete (`draftRooms.ts`'s `DraftState.status`), whether
@@ -665,9 +711,9 @@ function seatedHumans(room: RoomRecord): string[] {
 }
 
 function podSeatsView(room: RoomRecord): PodView['seats'] {
-	return room.podSeats.map((id) => {
+	return room.podSeats.map((id, i) => {
 		if (id === null) return null;
-		if (id === POD_AI) return { memberId: POD_AI, name: 'AI' } as PodMember;
+		if (id === POD_AI) return { memberId: POD_AI, name: personaOf(room.podAi[i] ?? AVATAR_POOL[0]).name } as PodMember;
 		const member = room.members.find((m) => m.id === id);
 		return member === undefined ? null : ({ memberId: id, name: member.name } as PodMember);
 	}) as PodView['seats'];
@@ -1034,6 +1080,8 @@ export interface Lobby {
 	 * members to connect evict one, same as a room with no pod lobby at all).
 	 */
 	podHumans(roomId: string): { id: string; name: string }[];
+	/** The names the draft's bot seats take, in seat order after the humans: the pod's AI seats' characters. */
+	podBotNames(roomId: string): string[];
 	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[];
 	/**
@@ -1203,6 +1251,8 @@ interface RoomRecord {
 	draftStartedAt: number | null;
 	/** The 8 pod seats (wave 72 §P), by member id. Meaningful only while `draftStartedAt === null`; frozen from there — `#dealPodRounds`'s own `PodRecord.humans` is what the pod plays. */
 	podSeats: (string | null)[];
+	/** The character each AI seat plays as, by pod seat — null where no AI sits. Kept the tournament through. */
+	podAi: (string | null)[];
 	/** The pod's rounds, once dealt. Null until every drafter has pressed Play (`playPod`). */
 	pod: PodRecord | null;
 	/** Who has pressed Play in `building` (`playPod`). Persisted with `pod`, so a restart mid-build keeps the presses. */
@@ -1248,6 +1298,8 @@ interface StoredApp {
 	draftStartedAt: number | null;
 	/** Absent on disk for a room written before wave 72 §P: the default (8 nulls) is nobody seated, same as before the pod lobby existed. */
 	podSeats: (string | null)[];
+	/** Absent for a room written before AI seats had characters: none has one. */
+	podAi?: (string | null)[];
 	/** Absent for a room written before wave 72 §P, or whose rounds have never started. */
 	pod: PodRecord | null;
 	/** Absent for a room written before it was persisted: nobody has pressed Play. */
@@ -1373,6 +1425,7 @@ const appCodec: AppCodec<StoredApp> = {
 		}
 		// Absent is a room written before wave 72 §P, which has nobody seated.
 		if (a.podSeats !== undefined && !isStoredPodSeats(a.podSeats)) throw new Error('app.podSeats is invalid');
+		if (a.podAi !== undefined && !isStoredPodSeats(a.podAi)) throw new Error('app.podAi is invalid');
 		// Absent is a room written before wave 72 §P, or whose rounds never started.
 		if (a.pod !== null && a.pod !== undefined && !isStoredPodRecord(a.pod)) throw new Error('app.pod is invalid');
 		if (a.podPlaying !== undefined && !(Array.isArray(a.podPlaying) && a.podPlaying.every((m) => typeof m === 'string'))) {
@@ -1419,6 +1472,7 @@ const appCodec: AppCodec<StoredApp> = {
 			matches: a.matches === undefined ? [] : [...(a.matches as string[])],
 			draftStartedAt: a.draftStartedAt === undefined ? null : (a.draftStartedAt as number | null),
 			podSeats: a.podSeats === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(a.podSeats as (string | null)[])],
+			podAi: a.podAi === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(a.podAi as (string | null)[])],
 			pod: a.pod === undefined || a.pod === null ? null : (a.pod as PodRecord),
 			podPlaying: a.podPlaying === undefined ? [] : [...(a.podPlaying as string[])],
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
@@ -1488,6 +1542,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		matchId: room.tables[0]?.matchId ?? null,
 		draftStartedAt: room.draftStartedAt === null ? null : new Date(room.draftStartedAt).toISOString(),
 		pod: room.gameType === 'draft' ? podViewOf(room, checks) : null,
+		ai: roomAi(room),
 		createdAt: new Date(room.createdAt).toISOString(),
 	};
 }
@@ -1639,6 +1694,7 @@ class FileLobby implements Lobby {
 			matches: [...room.matches],
 			draftStartedAt: room.draftStartedAt,
 			podSeats: [...room.podSeats],
+			podAi: [...room.podAi],
 			podPlaying: [...room.podPlaying],
 			pod:
 				room.pod === null
@@ -2051,6 +2107,7 @@ class FileLobby implements Lobby {
 			matches: [],
 			draftStartedAt: null,
 			podSeats: new Array<string | null>(POD_SEATS).fill(null),
+			podAi: new Array<string | null>(POD_SEATS).fill(null),
 			pod: null,
 			podPlaying: [],
 			createdAt: now,
@@ -2291,7 +2348,7 @@ class FileLobby implements Lobby {
 			endedAt: this.#now(),
 			closed: pod.round <= pod.rounds,
 			rounds: pod.rounds,
-			names: { ...Object.fromEntries(room.members.map((m) => [m.id, m.name])), [POD_AI]: 'AI' },
+			names: { ...Object.fromEntries(room.members.map((m) => [m.id, m.name])), [POD_AI]: roomAi(room).name },
 			standings: rankedStandings(pod.humans, pod.results),
 			results: pod.results,
 		});
@@ -2330,6 +2387,11 @@ class FileLobby implements Lobby {
 			if (member !== undefined) out.push({ id, name: member.name });
 		}
 		return out;
+	}
+
+	podBotNames(roomId: string): string[] {
+		const room = this.#rooms.get(roomId);
+		return room === undefined ? [] : aiPersonas(room).map((p) => p.name);
 	}
 
 	sitPod(roomId: string, memberId: string, seat?: number): SitPodResult {
@@ -2384,9 +2446,11 @@ class FileLobby implements Lobby {
 		const now = room.podSeats[seat] ?? null;
 		if (on ? now === POD_AI : now === null) return { ok: true, room: this.#view(room) };
 		if (now !== (on ? null : POD_AI)) return { ok: false, reason: 'seat-taken' };
+		const avatar = on ? freeAiAvatar(room) : null;
 		const seats = [...room.podSeats];
 		seats[seat] = on ? POD_AI : null;
 		room.podSeats = seats;
+		room.podAi = room.podAi.map((a, i) => (i === seat ? avatar : a));
 		this.#persist(room);
 		this.#log({ event: on ? 'pod-ai-sit' : 'pod-ai-stand', roomId, memberId, seat });
 		return { ok: true, room: this.#view(room) };
@@ -2530,6 +2594,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// pod lobby is a property of the ROOM, not of the in-memory draft, so
 					// it survives a restart the room comes back from in its lobby phase.
 					podSeats: app.podSeats,
+					podAi: app.podAi ?? new Array<string | null>(POD_SEATS).fill(null),
 					// Restored with `draftStartedAt`, and released with it.
 					pod: app.pod,
 					podPlaying: app.podPlaying ?? [],

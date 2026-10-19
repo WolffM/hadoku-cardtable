@@ -135,6 +135,8 @@ interface RoomWire {
   gameType: string;
   draftStartedAt: string | null;
   members: { id: string; name: string; ready: boolean }[];
+  /** Who the room's AI plays as. */
+  ai: { name: string; avatarId: string };
 }
 
 /* ── one person at the table ─────────────────────────────────────────── */
@@ -1015,11 +1017,15 @@ test(
     try {
       alice = await join(browser, 'alice');
       const roomName = `e2e solo ${Date.now()}`;
-      await createDraftRoom(alice, roomName, stack.origin);
+      const roomId = await createDraftRoom(alice, roomName, stack.origin);
       await expectLobbyNotPod(alice);
       await alice.page.getByTestId('ready-toggle').click();
       await fillWithAi(alice.page, UI_TIMEOUT);
       await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+      // The AI plays as one of the room's characters, by name and face (the operator, 2026-10-19).
+      const ai = (await roomState(alice, roomId, stack.origin)).ai;
+      expect(ai.name, 'a character, not "AI"').toMatch(/^[A-Z][a-z]+$/);
+      await expect(alice.page.getByTestId('seat-bar'), 'the draft’s bots are the characters').toContainText(ai.name);
 
       // The fan, as it opens: drawn as a fan, inside its half, and the page
       // does not scroll either way (the operator's screenshot, 2026-10-19).
@@ -1064,6 +1070,7 @@ test(
       await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
       const game1 = alice.page.url();
       await expect(alice.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
+      await expect(alice.page.locator(`[data-avatar="${ai.avatarId}"]`), 'the AI wears its character').toHaveCount(1);
       await expect(alice.page.getByTestId('room-create'), 'no create-room form on the way').toHaveCount(0);
       await pressIntoTurnOne([alice.page]);
 
@@ -1100,7 +1107,7 @@ test(
       await expect(alice.page.getByTestId('pod-final'), 'the pod is done').toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('pod-final').getByRole('heading'), 'the heading is Standings').toHaveText('Standings');
       await expect(alice.page.getByTestId(/^pod-standings-row-\d+$/), 'the AI she played is ranked beside her').toHaveCount(2);
-      await expect(alice.page.getByTestId('pod-standings-row-1'), 'the AI won the series').toContainText('AI');
+      await expect(alice.page.getByTestId('pod-standings-row-1'), 'the AI won the series').toContainText(ai.name);
       const row = alice.page.getByTestId('pod-standings-row-2');
       await expect(row, 'her standing counts the series she lost').toContainText('(you)');
       const standing = await row.textContent();
@@ -1115,7 +1122,7 @@ test(
       await alice.page.getByTestId('stats-tab-tournaments').click();
       const kept = alice.page.getByTestId('tournament').filter({ hasText: roomName });
       await expect(kept, 'the closed room is a past tournament').toHaveCount(1, { timeout: UI_TIMEOUT });
-      await expect(kept.getByTestId('pod-standings-row-1')).toContainText('AI');
+      await expect(kept.getByTestId('pod-standings-row-1')).toContainText(ai.name);
       await alice.page.getByTestId('stats-close').click();
 
       /* ── the pool is her deck now, on the Decks page beside the trophy ── */

@@ -80,7 +80,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, busy, onSit, on
           return (
             <li key={seat} className="tables__row" data-testid={`pod-seat-${seat}`} data-ai="">
               <span className="tables__who tables__who--seat">
-                <strong className="tables__name">AI</strong>
+                <strong className="tables__name">{occupant.name}</strong>
                 <button type="button" className="tables__stand" data-testid="pod-seat-ai-remove" data-seat={seat} disabled={busy} onClick={() => onAi(seat, false)}>
                   Remove
                 </button>

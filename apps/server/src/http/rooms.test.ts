@@ -253,6 +253,7 @@ describe('POST /api/rooms', () => {
 		expect(Date.parse(room.createdAt)).not.toBeNaN();
 		// The whole public shape, so a field added without a decision fails here.
 		expect(Object.keys(room).sort()).toEqual([
+			'ai',
 			'clientMode',
 			'createdAt',
 			'creator',

@@ -48,6 +48,11 @@ async function fetchRoomRaw(roomId: string): Promise<Record<string, unknown> | '
   }
 }
 
+/** The room's AI, by its character's name (`room/lobby.ts`'s `roomAi`); a server without one says AI. */
+function aiNameOf(v: unknown): string {
+  return typeof v === 'object' && v !== null && typeof (v as { name?: unknown }).name === 'string' ? (v as { name: string }).name : 'AI';
+}
+
 function isNamed(v: unknown): v is { id: string; name: string } {
   return typeof v === 'object' && v !== null && typeof (v as { id?: unknown }).id === 'string' && typeof (v as { name?: unknown }).name === 'string';
 }
@@ -87,7 +92,7 @@ export async function fetchPodContext(roomId: string): Promise<PodContext> {
   return {
     pod: parsePodView(body.pod),
     tables: tables.success ? tables.data : [],
-    names: { ...Object.fromEntries(members.map((m) => [m.id, m.name])), [POD_AI]: 'AI' },
+    names: { ...Object.fromEntries(members.map((m) => [m.id, m.name])), [POD_AI]: aiNameOf(body.ai) },
     name: typeof body.name === 'string' ? body.name : '',
     me: typeof body.you === 'object' && body.you !== null && typeof (body.you as { id?: unknown }).id === 'string' ? (body.you as { id: string }).id : null,
     leader: typeof body.you === 'object' && body.you !== null && (body.you as { leader?: unknown }).leader === true,

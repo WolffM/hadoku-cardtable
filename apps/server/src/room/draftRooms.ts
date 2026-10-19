@@ -292,6 +292,8 @@ export interface DraftRooms {
 	 * registry and the lobby) — `index.ts` is not touched for this.
 	 */
 	setHumansLookup(lookup: (draftId: string) => readonly HumanSeat[]): void;
+	/** What a new draft's bot seats are called (`room/lobby.ts`'s `podBotNames`: the pod's AI characters). Unwired, `Bot <seat>`. */
+	setBotNamesLookup(lookup: (draftId: string) => readonly string[]): void;
 }
 
 /*
@@ -400,6 +402,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	// advance, so `build` deals every seat to a bot and the first humans to
 	// connect evict one each — see `setHumansLookup`'s own doc.
 	let humansLookup: (draftId: string) => readonly HumanSeat[] = () => [];
+	let botNamesLookup: (draftId: string) => readonly string[] = () => [];
 
 	/** Write-through. A no-op while persistence is off or before `open()` has dealt the draft. */
 	function persistRoom(room: DraftRoom): void {
@@ -537,6 +540,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// nobody ever sat — the pre-wave behaviour, unchanged: all eight
 			// seats start as bots, and every human who connects evicts one.
 			humans: humansLookup(draftId),
+			botNames: botNamesLookup(draftId),
 			reservationTtlMs: params.reservationTtlMs,
 		});
 
@@ -577,6 +581,9 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		},
 		setHumansLookup(lookup) {
 			humansLookup = lookup;
+		},
+		setBotNamesLookup(lookup) {
+			botNamesLookup = lookup;
 		},
 	};
 }

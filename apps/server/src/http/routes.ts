@@ -191,6 +191,7 @@ import { botDeckText } from '../room/botDeck.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { FREE_PICK, draftIdOfPool, draftPoolId, type PodChecks } from '../room/lobby.js';
 import type { MatchSpec } from '../play/host.js';
+import { AI_SEAT_OWNER } from '../play/match.js';
 import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
 import {
 	checkSeat,
@@ -237,6 +238,8 @@ export interface RoomViewLike {
 	 * not four. Structural here like the rest of this interface.
 	 */
 	members: { id: string; name: string; avatarId?: string }[];
+	/** Who the room's AI plays as (`room/lobby.ts`'s `roomAi`). Absent, Forge's own name and no face. */
+	ai?: { name: string; avatarId: string };
 	/**
 	 * Wave 71: always at least one. Every request without a `table` field means
 	 * `tables[0]` — see `resolveTable`. The real `@hadoku/shared` `RoomTable`
@@ -326,6 +329,8 @@ export interface TablesRooms {
 	 * Optional like `onAvatarChange`, for the same reason.
 	 */
 	podHumans?(roomId: string): { id: string; name: string }[];
+	/** The pod's AI characters' names, for the draft's bot seats. Optional like `podHumans`. */
+	podBotNames?(roomId: string): string[];
 	/** Wires `PodChecks` into the room registry — see its own doc (`room/lobby.ts`). Optional like `onAvatarChange`. */
 	setPodChecks?(checks: PodChecks): void;
 }
@@ -945,6 +950,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	deps.draftRooms?.setHumansLookup((podId) =>
 		(rooms?.podHumans?.(podId) ?? []).map((m) => ({ participantId: m.id, displayName: m.name })),
 	);
+	deps.draftRooms?.setBotNamesLookup((podId) => rooms?.podBotNames?.(podId) ?? []);
 
 	/**
 	 * The room this caller may act in, or null. One answer covers "no such
@@ -1905,12 +1911,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// avatars: a seat's face is read from this room for as long as the match
 		// runs (`seatAvatar`), so the match never holds a copy that could go stale.
 		if (vsBot) {
-			// Seat 1 is Forge's AI. `names` stays a pair (play refuses anything
-			// else); the AI seat's entry is absent, so play names it itself.
+			// Seat 1 is Forge's AI, playing as the room's character (`room.ai`, the
+			// operator, 2026-10-19: "instead of having 'Forge AI' … fake players from
+			// the avatar list"). `names` stays a pair (play refuses anything else).
 			req.body = {
 				opponent: 'ai',
 				decks: [loaded[0]!.deck.text, botDeck!],
-				names: [loaded[0]!.member.name, undefined],
+				names: [loaded[0]!.member.name, room.ai?.name],
 				format: effectivePoolOf(room),
 				handSmoothing: room.settings.handSmoothing,
 				...(chooser === undefined ? {} : { chooser }),
@@ -2016,7 +2023,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	return {
 		library,
 		seatAvatar(matchId, memberId) {
-			return rooms?.roomOfMatch(matchId)?.members.find((m) => m.id === memberId)?.avatarId;
+			const room = rooms?.roomOfMatch(matchId);
+			if (memberId === AI_SEAT_OWNER) return room?.ai?.avatarId;
+			return room?.members.find((m) => m.id === memberId)?.avatarId;
 		},
 		matchStart(match) {
 			const room = rooms?.roomOfMatch(match.id);

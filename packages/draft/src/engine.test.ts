@@ -307,6 +307,12 @@ describe('seating', () => {
     expect(bots.length).toBe(6);
   });
 
+  it('names the bots from botNames, the first bot seat first, and Bot <seat> past the list', () => {
+    const state = newDraft('seed-1', { botNames: ['Sage', 'Herald', 'Cleric'] });
+    expect([2, 3, 4, 5].map((id) => state.displayNames[id])).toEqual(['Sage', 'Herald', 'Cleric', 'Bot 5']);
+    expect(state.displayNames[0]).toBe('alice');
+  });
+
   it('the pod is exactly seatCount seats', () => {
     const state = newDraft();
     const view = viewFor(state, 0);
