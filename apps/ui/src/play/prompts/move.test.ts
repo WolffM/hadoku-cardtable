@@ -11,7 +11,8 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
+import { createElement } from 'react';
 
 import { askFor } from './fixtures.ts';
 import { dragRow, expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
@@ -20,6 +21,7 @@ import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import { GHOST_ATTR } from '../lift.ts';
 import { GLIDE_MS } from '../motion.ts';
 import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
+import { PromptFor } from './index.ts';
 import type { AskOf } from './types.ts';
 
 afterEach(cleanup);
@@ -207,6 +209,13 @@ describe('a scry: Top | Bottom, one prompt', () => {
     expect(dest().previousElementSibling?.getAttribute('data-end'), 'before the Bottom zone').toBe('bottom');
     expect(container.querySelector('.prompt__card-order')).toBeNull();
     expect(container.querySelector('[data-testid="prompt-source-text"]')).toBeNull();
+  });
+
+  it('draws the source card in the head, and not its sentence: the zones say it', () => {
+    const ask = { ...cardsAsk({ remainingObjectsMin: -1, remainingObjectsMax: -1, destination: LIBRARY_BOTTOM, rest: LIBRARY_TOP }), source: { card: { kind: 'card' as const, id: POOL_ID_BASE }, text: 'Scry 2, then draw a card.' } };
+    const { getByTestId, queryByTestId } = render(createElement(PromptFor, { ask, lookup: poolLookup, onAnswer: () => undefined }));
+    expect(getByTestId('prompt-source')).not.toBeNull();
+    expect(queryByTestId('prompt-source-text')).toBeNull();
   });
 
   it('a zone whose answer runs from its lowest card is drawn the other way round: the left is still the higher card', () => {
