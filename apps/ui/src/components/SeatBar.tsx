@@ -5,8 +5,7 @@
  *
  * `SeatId` is an index and the pack passes along it, so the bar renders
  * `view.seats` in array order with no sort. It also draws the pass direction as
- * an arrow between the seats, because "pack 2 passes right" is a fact about the
- * table that a player otherwise has to remember.
+ * an arrow, and only an arrow.
  *
  * ## What a seat may show
  *
@@ -44,10 +43,10 @@ export function SeatBar({ view }: { view: DraftView }) {
         <h2 className="seats__title">
           Pod <span className="seats__capacity">{view.seats.length}/{view.capacity ?? '∞'}</span>
         </h2>
-        <p className="seats__pass" data-testid="pass-direction">
-          Pack {view.packNumber} passes {view.passDirection}
-          <span aria-hidden="true"> {view.passDirection === 'left' ? '←' : '→'}</span>
-        </p>
+        {/* The arrow alone: the operator, 2026-10-19, of "Pack 2 passes right →": "more useless ai prose". */}
+        <span className="seats__pass" data-testid="pass-direction" data-direction={view.passDirection} role="img" aria-label={`passing ${view.passDirection}`}>
+          {view.passDirection === 'left' ? '←' : '→'}
+        </span>
       </header>
 
       <ol className="seats__list">

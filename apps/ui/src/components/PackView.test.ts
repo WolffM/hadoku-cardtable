@@ -62,6 +62,13 @@ describe('the fan', () => {
     expect(open()).toBe(7);
   });
 
+  // The operator, 2026-10-19: the fan's open card is already full size, so no enlarged copy beside it.
+  it('gives the shared inspector nothing to open in the fan', () => {
+    mount();
+    const slots = [...screen.getByTestId('pack').querySelectorAll('.pack__slot')];
+    expect(slots.filter((el) => /^w\d+$/.test(el.getAttribute('data-card-id') ?? ''))).toEqual([]);
+  });
+
   it('steps one card per wheel notch, either way, and stops at the ends', () => {
     mount();
     wheel(100);

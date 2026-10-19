@@ -14,9 +14,12 @@
  * `FAN_MIN_WIDTH` the fan draws the grid. "fan"/"grid" is still a control, the
  * grid is what the tests read, and both render the same `CardTile`s in order.
  *
- * ## The shared inspector, without teaching it a second vocabulary
+ * ## The shared inspector, in the grid only
  *
- * Each slot carries a synthetic `data-card-id="w<n>"` of its own, matching
+ * The fan's open card is already full size, so an enlarged copy beside it is a
+ * duplicate (the operator, 2026-10-19: *"i dont need the hover expand anymore"*):
+ * only the grid's fitted tiles open the inspector. In the grid each slot carries
+ * a synthetic `data-card-id="w<n>"` of its own, matching
  * `play/inspect/index.ts`'s `TILE_ID` so hovering opens the same enlarged view
  * the board uses — that module may not be edited to recognise a drafted card's
  * real id (`c0`, `c1`, …), so the wrapper carries the convention and the
@@ -171,20 +174,8 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
   const packKey = cards.map((c) => c.cardId).join(',');
   useEffect(() => setFocus(null), [packKey]);
 
-  /** Whether the pointer is over the pack: the inspector follows the open card only then. */
-  const hovering = useRef(false);
   /** Where the pointer was when the wheel last moved the focus; it takes focus back once it moves on. */
   const wheeledAt = useRef<{ x: number; y: number } | null>(null);
-
-  // The shared inspector opens on `pointerover`, which a browser sends when the
-  // POINTER moves onto a card — not when the cards slide under a still pointer,
-  // which is how the fan changes cards. So the open card says it is hovered,
-  // or the inspector keeps showing the card the pointer arrived on.
-  useEffect(() => {
-    if (shown === null || !hovering.current || typeof PointerEvent === 'undefined') return;
-    const card = root.current?.querySelector('.pack__slot[data-focused] [data-testid="card"]');
-    card?.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }));
-  }, [shown]);
 
   // The wheel steps through the row: one notch, one card. Not React's onWheel,
   // which is passive and cannot stop the page under the pack scrolling instead.
@@ -257,9 +248,6 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
       data-card-count={cards.length}
       ref={attach}
       style={style}
-      onPointerEnter={() => {
-        hovering.current = true;
-      }}
       onPointerMove={
         fan === null
           ? undefined
@@ -270,15 +258,12 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
               setFocus(fanFocusAt(fan, e.clientX - e.currentTarget.getBoundingClientRect().left, box.width));
             }
       }
-      onPointerLeave={() => {
-        hovering.current = false;
-      }}
     >
       {cards.map((card, i) => (
         <div
           key={card.cardId}
           className="pack__slot"
-          data-card-id={`w${i}`}
+          data-card-id={fan === null ? `w${i}` : undefined}
           data-focused={shown === i ? '' : undefined}
           onFocus={fan === null ? undefined : () => setFocus(i)}
           style={
