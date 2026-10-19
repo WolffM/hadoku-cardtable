@@ -2235,6 +2235,8 @@ public final class PlayBridge {
             if (confirm != null) { f.add("confirmAbility", confirm); }
             final JsonObject target = targetAbility();
             if (target != null) { f.add("targetAbility", target); }
+            final JsonObject selection = openSelection();
+            if (selection != null) { f.add("selection", selection); }
             frame(f);
             broadcastIfWaiting();
             // A press of a payment's life button re-shows its prompt and changes nothing else, and
@@ -2288,6 +2290,46 @@ public final class PlayBridge {
                 return o;
             } catch (final ReflectiveOperationException | RuntimeException e) {
                 System.err.println("[bridge] targetAbility: could not read the open selection (" + e + ")");
+                return null;
+            }
+        }
+
+        /**
+         * What the open selection is choosing, or null when no selection input is open.
+         *
+         * {@code setSelectables} is sent from the two selection inputs' constructors
+         * ({@code InputSelectTargets.java:68}, {@code InputSelectEntitiesFromList.java:57}), before
+         * either is the open input, so it cannot say which one sent it; this prompt is shown with
+         * the input live. {@code targets} is true for a target choice and false for any other pick
+         * — a sacrifice or discard a cost asks for, a "choose a creature". On a pick that pays for
+         * an ability whose targets are already chosen — Bone Shards' sacrifice, asked after its
+         * target (rule 601.2c before 601.2h) — {@code aimed} carries those targets, so the seat
+         * can be shown what the spell is aimed at while it pays.
+         */
+        private JsonObject openSelection() {
+            final Game game = liveGame();
+            final forge.game.player.Player mine = liveSelf(game);
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            final Object input = human.getInputQueue().getInput();
+            final JsonObject o = new JsonObject();
+            try {
+                if (input instanceof forge.gamemodes.match.input.InputSelectTargets) {
+                    o.addProperty("targets", true);
+                    return o;
+                }
+                if (!(input instanceof forge.gamemodes.match.input.InputSelectManyBase)) { return null; }
+                o.addProperty("targets", false);
+                final SpellAbility sa = (SpellAbility) field(input, forge.gamemodes.match.input.InputSelectManyBase.class, "sa");
+                if (sa == null) { return o; }
+                final List<Object> aimed = new ArrayList<>();
+                for (final TargetChoices choices : sa.getAllTargetChoices()) {
+                    for (final forge.game.card.Card c : choices.getTargetCards()) { if (!aimed.contains(c.getView())) { aimed.add(c.getView()); } }
+                    for (final forge.game.player.Player p : choices.getTargetPlayers()) { if (!aimed.contains(p.getView())) { aimed.add(p.getView()); } }
+                }
+                if (!aimed.isEmpty()) { o.add("aimed", refs(aimed)); }
+                return o;
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] openSelection: could not read the open input (" + e + ")");
                 return null;
             }
         }

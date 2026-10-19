@@ -266,7 +266,7 @@ import { clearMarquee, drawMarquee } from './marquee.ts';
 import { guardTextSelection } from './text-press.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
 import { playRole } from '../../../sound/index.ts';
-import { boxOf, cardBox, centreOf, targetUnder } from './targets.ts';
+import { boxOf, cardBox, centreOf, faceBox, targetUnder } from './targets.ts';
 import {
   clickLatch,
   pastSlop,
@@ -615,6 +615,38 @@ export function installGestures(options: GestureOptions): GestureHandle {
     return null;
   }
 
+  /**
+   * Whether the open selection is AIMING — choosing targets — so a click-targeting arrow means
+   * something. Forge says so on the prompt (`match.promptSelection`): a cost's sacrifice or
+   * discard, a "choose a creature", is a pick and draws no arrow. Found in a live game (the
+   * operator, 2026-10-19, Bone Shards): its sacrifice, asked after its target, drew the same aiming
+   * arrow from the parked card as the target had, so the target looked unchosen. Only a prompt
+   * that does not say falls back to `choosingOwnHand`.
+   */
+  function aiming(): boolean {
+    const said = match.promptSelection;
+    return said === null ? !choosingOwnHand() : said.targets;
+  }
+
+  /**
+   * What the ability an open pick pays for is already aimed at (`match.promptSelection.aimed`),
+   * drawn from the same tail the click-targeting arrow would leave from: Bone Shards' sacrifice
+   * shows the target chosen before it, rather than nothing.
+   */
+  function aimedArrows(): AutoTargetArrow[] {
+    const said = match.promptSelection;
+    if (said === null || said.targets || said.aimed.length === 0) return [];
+    const origin = clickOrigin();
+    if (origin === null) return [];
+    const out: AutoTargetArrow[] = [];
+    for (const ref of said.aimed) {
+      const to = ref.kind === 'card' ? cardBox(canvas, ref.id) : faceBox(canvas, ref.id);
+      if (to === null) continue;
+      out.push({ key: `aim:${ref.kind}:${ref.id}`, from: origin.at, to, kind: ref.kind, role: 'aim' });
+    }
+    return out;
+  }
+
   /** Forge's selectables are all cards of the viewer's own hand, and no player: a pick, not a target. */
   function choosingOwnHand(): boolean {
     const sel = match.selectables;
@@ -680,7 +712,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       // arrow, whatever `clickOrigin` could have supplied as a tail (found in
       // a live game, the operator 2026-10-08: the discard drew an arrow from
       // the card clicked last). Targets are never in the chooser's own hand.
-      const origin = hover !== null && !choosingOwnHand() && (match.selectables !== null || stackAsk(match) !== null) ? clickOrigin() : null;
+      const origin = hover !== null && aiming() && (match.selectables !== null || stackAsk(match) !== null) ? clickOrigin() : null;
       if (origin === null || hover === null) {
         clearArrow(overlay);
         clearMarquee(overlay);
@@ -705,7 +737,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // the lasting attack arrow and the lasting block arrow — neither a
     // stack-item concern — stay on this reconciler.
     if (overlay !== null) {
-      drawAutoTargetArrows(overlay, [...combatArrows(canvas, match), ...blockArrows(canvas, match)]);
+      drawAutoTargetArrows(overlay, [...combatArrows(canvas, match), ...blockArrows(canvas, match), ...aimedArrows()]);
     }
     if (next === shape) return;
     shape = next;

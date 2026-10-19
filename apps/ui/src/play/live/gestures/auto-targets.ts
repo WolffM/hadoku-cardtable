@@ -25,8 +25,11 @@ export interface AutoTargetArrow {
   /** The target's own element — the tip is computed against its live box at draw time, never cached. */
   to: Element;
   kind: 'card' | 'player';
-  /** What the arrow reports: an attack (attacker → defender) or a block (blocker → attacker). Each draws in its own theme colour. */
-  role: 'attack' | 'block';
+  /**
+   * What the arrow reports: an attack (attacker → defender) or a block (blocker → attacker), each in its own
+   * theme colour; or `aim`, what an ability is already aimed at while its cost is still being picked.
+   */
+  role: 'attack' | 'block' | 'aim';
 }
 
 /**

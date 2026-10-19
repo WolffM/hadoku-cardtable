@@ -2093,6 +2093,54 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     expect(await s.framesFrom(m)).toHaveLength(1); // the one click, nothing from the hover
   });
 
+  /**
+   * The operator, 2026-10-19, on Bone Shards ("As an additional cost to cast this spell, sacrifice a
+   * creature or discard a card. Destroy target creature or planeswalker."): Forge asks the target first and
+   * the sacrifice after it (rule 601.2c before 601.2h). The sacrifice drew the same aiming arrow from the
+   * spell as the target had and showed nothing of the target, so the target looked unchosen — *"it seems
+   * like no target was selected for the cast?"*. The prompt says which is which (`selection.targets`) and
+   * what the spell is aimed at while its cost is picked (`selection.aimed`).
+   */
+  it('a cost picked after the target (Bone Shards’ sacrifice) draws no aiming arrow, and shows the target already chosen', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const spell = mineOf(m).hand![0]!.id;
+    const mine = mineOf(m).battlefield[0]!.id;
+    const theirs = theirsOf(m).battlefield[0]!.id;
+    boxAt(cardEl(canvas, spell), 100, 400);
+    boxAt(cardEl(canvas, mine), 200, 300);
+    boxAt(cardEl(canvas, theirs), 300, 50);
+    const promptOf = (message: string, selection: unknown) =>
+      parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: { kind: 'card', id: spell }, selection });
+
+    // The target: a target choice, which aims.
+    for (const f of notify([selectables([mine, theirs], 1, 1), promptOf('Select target creature or planeswalker', { targets: true })])) s.send(f);
+    await untilMatch(m, () => expect(m.promptSelection?.targets).toBe(true));
+    fireEvent.pointerMove(cardEl(canvas, theirs), { clientX: 310, clientY: 70 });
+    const aiming = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(aiming.dataset.mode).toBe('click');
+    expect(aiming.dataset.source).toBe(String(spell));
+
+    // The sacrifice, after the target was chosen: a pick, aimed at nothing — and the spell's target shows.
+    s.send(parseServerFrame({ kind: 'notify', method: 'clearSelectables' }));
+    for (const f of notify([selectables([mine], 1, 1), promptOf('Select creature to sacrifice (1 left)', { targets: false, aimed: [{ kind: 'card', id: theirs }] })])) s.send(f);
+    await untilMatch(m, () => expect(m.promptSelection?.targets).toBe(false));
+    fireEvent.pointerMove(cardEl(canvas, mine), { clientX: 210, clientY: 320 });
+    await frame();
+    expect(overlayOf(canvas).querySelector('[data-testid="targeter"]'), 'the sacrifice is not aimed: no aiming arrow').toBeNull();
+    const aimed = [...overlayOf(canvas).querySelectorAll('[data-testid="stack-target-arrow"][data-role="aim"]')].map((e) => e.getAttribute('data-key'));
+    expect(aimed, 'the target already chosen shows, from the spell').toEqual([`aim:card:${theirs}`]);
+    expect(overlayOf(canvas).querySelector('[data-role="aim"] path')!.getAttribute('d'), 'from the spell').toMatch(/^M 120 428 Q /);
+    expect(await sent(s, m)).toEqual([]);
+
+    // The cast goes on: the pick closes, priority comes back, and the aimed arrow goes with it.
+    s.send(parseServerFrame({ kind: 'notify', method: 'clearSelectables' }));
+    s.send(prompt('Priority'));
+    await untilMatch(m, () => expect(m.promptSelection).toBeNull());
+    fireEvent.pointerMove(canvas, { clientX: 5, clientY: 5 });
+    await frame();
+    expect(overlayOf(canvas).querySelector('[data-role="aim"]'), 'nothing aimed is left behind').toBeNull();
+  });
+
   it('with nothing to draw from, the pointer draws no arrow', async () => {
     const { s, m, canvas } = await gestureBoard();
     const theirs = theirsOf(m).battlefield.map((c) => c.id);

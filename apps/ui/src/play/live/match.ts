@@ -242,6 +242,7 @@ import {
   safeParseServerFrame,
   type BlockingMethod,
   type ClientAbort,
+  type GameEntityRef,
   type GameLogLine,
   type Loss,
   type ServerFrame,
@@ -785,6 +786,12 @@ export interface LiveMatch {
    * "same target for all".
    */
   promptTargetMore: number;
+  /**
+   * What the open selection is choosing (`showPromptMessage.selection`): `targets` true for a target choice,
+   * false for any other pick — a cost's sacrifice or discard. `aimed` is what the ability that pick pays for
+   * is already aimed at. Null for a prompt with no selection, or a bridge that could not tell.
+   */
+  promptSelection: { targets: boolean; aimed: readonly GameEntityRef[] } | null;
   /** "Same target for all" ticked on the open target question: the seat's pick goes out with `sameTarget`. */
   sameTarget: boolean;
   /**
@@ -1067,6 +1074,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     nextHitSeq: 1,
     deathCauses: new Map(),
     promptTargetMore: 0,
+    promptSelection: null,
     sameTarget: false,
     avatarByPlayerId: null,
     unclaimedAvatar: null,
@@ -3111,6 +3119,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     if (redrawBoard) redraw(match);
     match.promptTrigger = frame.confirmAbility?.trigger ?? null;
     match.promptTargetMore = frame.targetAbility?.more ?? 0;
+    match.promptSelection = frame.selection === undefined ? null : { targets: frame.selection.targets, aimed: frame.selection.aimed ?? [] };
     match.sameTarget = false;
     match.inputLive = true;
   } else if (frame.kind === 'notify' && frame.method === 'updateButtons') {
@@ -3272,6 +3281,7 @@ function discardLocal(match: LiveMatch): void {
   match.faceHits = [];
   match.deathCauses = new Map();
   match.promptTargetMore = 0;
+  match.promptSelection = null;
   match.sameTarget = false;
   match.avatarByPlayerId = null;
   match.unclaimedAvatar = null;

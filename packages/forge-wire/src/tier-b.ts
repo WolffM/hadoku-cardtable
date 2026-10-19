@@ -287,6 +287,19 @@ export const ShowPromptMessageSchema = z.strictObject({
       players: z.array(PlayerRefSchema).optional(),
     })
     .optional(),
+  /**
+   * Ours: what the open selection is choosing (`PlayBridge.java`'s `openSelection`), read while it is
+   * the open input — `setSelectables` is sent before it is, so it cannot say. `targets` is true for a
+   * target choice, false for any other pick (a cost's sacrifice or discard, a "choose a creature").
+   * `aimed`, on a pick that pays for an ability whose targets are already chosen (Bone Shards'
+   * sacrifice comes after its target), is what that ability is aimed at. Absent on every other prompt.
+   */
+  selection: z
+    .strictObject({
+      targets: z.boolean(),
+      aimed: z.array(GameEntityRefSchema).optional(),
+    })
+    .optional(),
 });
 
 /**
