@@ -171,6 +171,7 @@ import { deckStoreClient, type DeckStoreClient } from '../deck/deckStore.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
+import { TableSideboard } from './TableSideboard.tsx';
 import { DraftLobby } from './DraftLobby.tsx';
 import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
@@ -1506,6 +1507,8 @@ function RoomTableScreen({
    * room is the one-table case, so this is always `tables[0]`.
    */
   const myTable: SharedRoomTable | null = view?.tables[0] ?? null;
+  /** Between games of my series: the room is where the sideboard step is, whichever page I came back by (`TableSideboard`). */
+  const mySideboarding = myTable !== null && myTable.matchId === null && myTable.series.phase === 'sideboarding';
   const seriesScore = seriesScoreText(players, myTable);
   const streamed = modeRef.current === 'streamed';
   /** The room's name as soon as either read has it; the id is never a title. */
@@ -2327,6 +2330,10 @@ function RoomTableScreen({
                 <p className="lobby__note" data-testid="room-spectator">
                   Table full &mdash; watching.
                 </p>
+              </section>
+            ) : mySideboarding && players.some((p) => p.you) ? (
+              <section className="lobby__card">
+                <TableSideboard key={`${myTable.id}:${myTable.series.games.length}`} roomId={roomId} tableId={myTable.id} refresh={view} tables={client} />
               </section>
             ) : loaded === null ? (
               loadError === null && <DeckCardSkeleton />

@@ -259,7 +259,7 @@ describe('the room is where a player comes back to', () => {
     draft.send(complete());
     const mine = { id: 't-2', players, matchId: null, series: series('sideboarding', [{ matchId: 'm-000000000001', winner: 1 }]) };
     room.read(ctxOf(rounds('t-2'), [mine]));
-    await vi.waitFor(() => expect(screen.getByTestId('pod-sideboard')).toBeTruthy());
+    await vi.waitFor(() => expect(screen.getByTestId('table-sideboard')).toBeTruthy());
     expect(screen.getByTestId('sideboard-step')).toBeTruthy();
     expect(screen.queryByTestId('pod-standings')).toBeNull();
     expect(asked.some((a) => a.endsWith('/play/matches'))).toBe(false);

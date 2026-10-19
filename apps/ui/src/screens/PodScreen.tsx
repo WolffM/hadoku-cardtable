@@ -71,8 +71,8 @@ import { appLocation, navigate, routeUrl } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import type { RoomTable } from '@hadoku/shared';
 import { livePodSource, startMyTable, usePodContext, type PodContext, type PodSource } from './pod/client.ts';
-import { PodSideboard } from './pod/PodSideboard.tsx';
 import { PodStandings } from './pod/PodStandings.tsx';
+import { TableSideboard } from './TableSideboard.tsx';
 import { PodTables } from './pod/PodTables.tsx';
 import './PodScreen.css';
 
@@ -321,7 +321,7 @@ function PodRoom({
           </p>
         )}
         {sideboarding ? (
-          <PodSideboard key={`${mine.id}:${mine.series.games.length}`} roomId={draftId} tableId={mine.id} refresh={ctx} />
+          <TableSideboard key={`${mine.id}:${mine.series.games.length}`} roomId={draftId} tableId={mine.id} refresh={ctx} />
         ) : (
           <PodStandings rows={pod.standings} nameOf={nameOf} myMemberId={myMemberId} />
         )}
