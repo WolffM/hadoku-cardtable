@@ -210,10 +210,6 @@ export function DraftLobby({
         The draft deals when every member of this room is ready. Bots take whatever is left of the eight
         seats at that moment — never before, so nobody who has not readied is played for.
       </p>
-      <p className="lobby__note" data-testid="draft-restart-note">
-        A draft does not survive a restart of the server. The room comes back to this lobby, with its ready
-        marks, rather than to an empty table.
-      </p>
     </section>
   );
 }

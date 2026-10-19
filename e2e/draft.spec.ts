@@ -990,7 +990,7 @@ test(
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
-    test.setTimeout(9 * 60_000);
+    test.setTimeout(11 * 60_000);
 
     const stack = await startPlayStack(forge);
     let alice: Player | undefined;
@@ -1015,9 +1015,26 @@ test(
       });
       expect(fit, 'no page scroll, every fanned card inside the pack').toEqual({ x: 0, y: 0, outside: 0 });
 
-      await draftAll(alice);
+      // A deploy mid-draft (every land restarts the server) resumes the pod
+      // where it was, not back in its lobby — the audit of 2026-10-19.
+      let restartedAt: number | null = null;
+      await draftAll(alice, {
+        afterPick: async (n) => {
+          if (n !== 5) return;
+          await stack.restart();
+          restartedAt = n;
+          await alice!.page.reload();
+          await expect(alice!.page.getByTestId('pod'), 'the pod is still there after a restart').toBeVisible({ timeout: UI_TIMEOUT });
+          await expect(alice!.page.getByTestId('draft-lobby'), 'not back in its lobby').toHaveCount(0);
+        },
+      });
+      expect(restartedAt, 'the restart happened mid-draft').toBe(5);
       await expect(alice.page.getByTestId('deck-editor'), 'the finished draft opens the editor').toBeVisible({ timeout: UI_TIMEOUT });
       await buildMainDeck(alice, 40);
+      // And mid-build: the saved build and the pod both come back.
+      await stack.restart();
+      await alice.page.reload();
+      await expect(alice.page.getByTestId('main-count'), 'the build survives a restart').toHaveText('40', { timeout: UI_TIMEOUT });
       await alice.page.getByTestId('play-deck').click();
 
       // Play → the pod → its one table, against the AI, started by itself.

@@ -40,6 +40,7 @@ import {
 	openLobby,
 	POD_AI,
 	randomFormat,
+	POD_SPARED_MS,
 	ROOM_IDLE_MS,
 	ROOM_MATCHES_KEPT,
 	ROOM_STALE_MS,
@@ -811,7 +812,7 @@ describe('Lobby.setGameType and readiness', () => {
 	});
 });
 
-/* ── a live draft is not swept, and does not survive a restart ───────── */
+/* ── a live draft is not swept, and survives a restart ──────────────── */
 
 describe('a draft that has started', () => {
 	it('is spared by the sweep, however long the lobby has sat untouched', async () => {
@@ -830,25 +831,59 @@ describe('a draft that has started', () => {
 		expect(lobby.sweep()).toEqual([idle.room.id]);
 		expect(lobby.list().map((r) => r.id)).toEqual([drafting]);
 		expect(lobby.get(drafting)?.draftStartedAt).not.toBeNull();
+		// A pod survives restarts, so the spare ends with its age: a day on, it ages out like any room.
+		clock += POD_SPARED_MS;
+		expect(lobby.sweep()).toEqual([drafting]);
 	});
 
-	it('is back in its lobby phase after a restart, with the ready flags intact', async () => {
+	// The audit of 2026-10-19: every deploy wiped a running pod, though the draft
+	// itself has been on disk since P6 (`draftRooms.ts`'s snapshots).
+	it('resumes after a restart — the draft, who pressed Play, and the rounds', async () => {
+		const dir = await tempDir();
+		const checks = fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) });
+		const first = await openLobby({ dir });
+		const made = first.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(first.join(id, BOB).ok).toBe(true);
+		expect(first.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		expect(first.sitPod(id, BOB.id, 1).ok).toBe(true);
+		for (const m of [ALICE, BOB]) expect(first.setReady(id, m.id, true)).toBe(true);
+		expect(first.startDraft(id, ALICE.id).ok).toBe(true);
+		first.setPodChecks(checks);
+		expect(first.playPod(id, ALICE.id).ok).toBe(true);
+		expect(first.get(id)?.pod?.phase).toBe('building');
+
+		// Mid-build: Alice's Play survives, so Bob's is the one that deals round 1.
+		const second = await openLobby({ dir });
+		second.setPodChecks(checks);
+		expect(second.get(id)?.draftStartedAt).not.toBeNull();
+		expect(second.get(id)?.pod?.phase).toBe('building');
+		expect(second.get(id)?.pod?.built).toEqual([ALICE.id]);
+		expect(second.playPod(id, BOB.id).ok).toBe(true);
+		expect(second.get(id)?.pod?.phase).toBe('rounds');
+
+		// Mid-rounds: the round and its pairing come back.
+		const third = await openLobby({ dir });
+		third.setPodChecks(checks);
+		expect(third.get(id)?.pod).toMatchObject({ phase: 'rounds', round: 1 });
+		expect(third.get(id)?.pod?.pairings).toEqual(second.get(id)?.pod?.pairings);
+		expect(third.releaseLostDrafts(() => true)).toEqual([]);
+	});
+
+	it('goes back to its lobby, ready flags intact, when its draft did not come back', async () => {
 		const dir = await tempDir();
 		const first = await openLobby({ dir });
 		const id = await startedDraft(first, [ALICE, BOB]);
-		expect(first.get(id)?.draftStartedAt).not.toBeNull();
 
-		// The draft itself lives in this process's memory (`draftRooms.ts` keeps
-		// nothing on disk), so a restored `draftStartedAt` would point at a pod
-		// that cannot exist — the same mistake `matchId` used to make. The room
-		// comes back as a lobby everybody is already ready in.
 		const second = await openLobby({ dir });
+		expect(second.releaseLostDrafts(() => false)).toEqual([id]);
 		expect(second.get(id)?.draftStartedAt).toBeNull();
 		expect(second.get(id)?.members.map((m) => m.ready)).toEqual([true, true]);
 		expect(second.get(id)?.gameType).toBe('draft');
-		// And now it is sweepable again, so sparing a live draft cannot make a
-		// room immortal.
+		// Released on disk too, and sweepable again, so sparing a live draft cannot make a room immortal.
 		const third = await openLobby({ dir, now: () => Date.now() + ROOM_IDLE_MS + 1 });
+		expect(third.get(id)?.draftStartedAt).toBeNull();
 		expect(third.sweep()).toEqual([id]);
 	});
 });

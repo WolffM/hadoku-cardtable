@@ -713,6 +713,8 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
  * server cannot see.
  */
 export const ROOM_IDLE_MS = 12 * 60 * 60_000;
+/** How long a started pod's room is spared the idle sweep: a day is a long tournament night. */
+export const POD_SPARED_MS = 24 * 60 * 60_000;
 
 /**
  * How long a room may go without a touch before the front page stops
@@ -979,11 +981,9 @@ export interface Lobby {
 	 * Forget every room untouched for longer than `idleMs`, on disk as well as
 	 * in memory. Returns the ids dropped, for the caller's log.
 	 *
-	 * A room whose draft has STARTED is never dropped: a pod runs for the better
-	 * part of an hour without anybody touching the lobby, and reaping it would
-	 * take the draft with it. That cannot make a room immortal, because
-	 * `draftStartedAt` is not restored — the next restart puts the room back in
-	 * its lobby, and it ages out from there.
+	 * A room whose draft STARTED less than `POD_SPARED_MS` ago is not dropped: a
+	 * pod runs for hours without anybody touching the lobby, and reaping it would
+	 * take the tournament with it. Older than that, it ages out like any room.
 	 */
 	sweep(idleMs?: number): string[];
 
@@ -1000,6 +1000,8 @@ export interface Lobby {
 	 * members to connect evict one, same as a room with no pod lobby at all).
 	 */
 	podHumans(roomId: string): { id: string; name: string }[];
+	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
+	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[];
 	/**
 	 * Take a pod seat, in the `lobby` phase only (`draftStartedAt === null`).
 	 * `seat` absent takes the first free one; given, it must be free and
@@ -1165,7 +1167,7 @@ interface RoomRecord {
 	podSeats: (string | null)[];
 	/** The pod's rounds, once dealt. Null until every drafter has pressed Play (`playPod`). */
 	pod: PodRecord | null;
-	/** Who has pressed Play in `building` (`playPod`). In memory only, like `pod`: a restart puts the room back in its lobby. */
+	/** Who has pressed Play in `building` (`playPod`). Persisted with `pod`, so a restart mid-build keeps the presses. */
 	podPlaying: string[];
 	createdAt: number;
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
@@ -1201,16 +1203,17 @@ interface StoredApp {
 	/** A finished match's result screen still asks which room it was. */
 	matches: string[];
 	/**
-	 * Written, and deliberately read back as null (see `openLobby`). It is here
-	 * so a snapshot on disk says whether that room was mid-draft when the
-	 * process died — the log line of the last write — and so the codec refuses a
-	 * record whose value is not a number rather than silently ignoring it.
+	 * Restored with the pod (`openLobby`): the draft itself is on disk too
+	 * (`draftRooms.ts`'s snapshots), so a restart resumes it. A room whose draft
+	 * did NOT come back is put back in its lobby (`releaseLostDrafts`).
 	 */
 	draftStartedAt: number | null;
 	/** Absent on disk for a room written before wave 72 §P: the default (8 nulls) is nobody seated, same as before the pod lobby existed. */
 	podSeats: (string | null)[];
 	/** Absent for a room written before wave 72 §P, or whose rounds have never started. */
 	pod: PodRecord | null;
+	/** Absent for a room written before it was persisted: nobody has pressed Play. */
+	podPlaying?: string[];
 	secret: Secret | null;
 }
 
@@ -1334,6 +1337,9 @@ const appCodec: AppCodec<StoredApp> = {
 		if (a.podSeats !== undefined && !isStoredPodSeats(a.podSeats)) throw new Error('app.podSeats is invalid');
 		// Absent is a room written before wave 72 §P, or whose rounds never started.
 		if (a.pod !== null && a.pod !== undefined && !isStoredPodRecord(a.pod)) throw new Error('app.pod is invalid');
+		if (a.podPlaying !== undefined && !(Array.isArray(a.podPlaying) && a.podPlaying.every((m) => typeof m === 'string'))) {
+			throw new Error('app.podPlaying is not a list of member ids');
+		}
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
 		const settings: RoomSettings = { ...DEFAULT_ROOM_SETTINGS, ...(a.settings as Partial<RoomSettings> | undefined) };
 		const matchId = a.matchId as string | null;
@@ -1376,6 +1382,7 @@ const appCodec: AppCodec<StoredApp> = {
 			draftStartedAt: a.draftStartedAt === undefined ? null : (a.draftStartedAt as number | null),
 			podSeats: a.podSeats === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(a.podSeats as (string | null)[])],
 			pod: a.pod === undefined || a.pod === null ? null : (a.pod as PodRecord),
+			podPlaying: a.podPlaying === undefined ? [] : [...(a.podPlaying as string[])],
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 		};
 	},
@@ -1591,6 +1598,7 @@ class FileLobby implements Lobby {
 			matches: [...room.matches],
 			draftStartedAt: room.draftStartedAt,
 			podSeats: [...room.podSeats],
+			podPlaying: [...room.podPlaying],
 			pod:
 				room.pod === null
 					? null
@@ -2206,9 +2214,9 @@ class FileLobby implements Lobby {
 			if (room.updatedAt > cutoff) continue;
 			// A pod in progress. Nobody touches the lobby for the forty minutes a
 			// draft takes, and the room is the pod's container — reaping it would
-			// end the game. `draftStartedAt` dies with the process, so this cannot
-			// keep a room alive past the next restart.
-			if (room.draftStartedAt !== null) continue;
+			// end the game. A pod survives restarts now, so the spare is bounded by
+			// its age, or an abandoned pod would keep its room forever.
+			if (room.draftStartedAt !== null && room.draftStartedAt > this.#now() - POD_SPARED_MS) continue;
 			this.#rooms.delete(id);
 			this.#secrets.delete(id);
 			this.#touchedAt.delete(id);
@@ -2229,6 +2237,24 @@ class FileLobby implements Lobby {
 
 	setPodChecks(checks: PodChecks): void {
 		this.#podChecks = checks;
+	}
+
+	/**
+	 * Once the draft registry has restored itself at boot: every room mid-draft
+	 * whose draft did not come back goes back to its lobby, rather than
+	 * advertising a pod nobody can join. Returns the rooms released.
+	 */
+	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[] {
+		const released: string[] = [];
+		for (const room of this.#rooms.values()) {
+			if (room.draftStartedAt === null || draftExists(room.id)) continue;
+			room.draftStartedAt = null;
+			room.pod = null;
+			room.podPlaying = [];
+			this.#persist(room);
+			released.push(room.id);
+		}
+		return released;
 	}
 
 	podHumans(roomId: string): { id: string; name: string }[] {
@@ -2413,21 +2439,19 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// that died with the old process.
 					tables: app.tables,
 					matches: app.matches,
-					// **Never restored.** A draft lives in `room/draftRooms.ts`'s in-memory registry, which
-					// this process did not inherit — `open` would deal a brand new
-					// draft over the top of whatever was played. So a restart puts
-					// the room back in its lobby phase; the UI says a draft does
-					// not survive a restart rather than showing an empty table.
-					draftStartedAt: null,
+					// **Restored, the draft with it.** `room/draftRooms.ts` writes every
+					// pod to disk and restores them all at boot, so a deploy mid-pod
+					// resumes it. `releaseLostDrafts`, called once the draft registry
+					// exists, puts back in its lobby only a room whose draft did not
+					// come back — `open` would deal a brand new one over the top.
+					draftStartedAt: app.draftStartedAt,
 					// Restored, like `ready` and unlike the draft itself: who sat in the
 					// pod lobby is a property of the ROOM, not of the in-memory draft, so
 					// it survives a restart the room comes back from in its lobby phase.
 					podSeats: app.podSeats,
-					// **Never restored, same as `draftStartedAt`.** The pod's rounds are
-					// meaningless without the live draft they were dealt against; a
-					// restart's room comes back in `lobby`, same as before this wave.
-					pod: null,
-					podPlaying: [],
+					// Restored with `draftStartedAt`, and released with it.
+					pod: app.pod,
+					podPlaying: app.podPlaying ?? [],
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.

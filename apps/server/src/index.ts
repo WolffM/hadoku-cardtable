@@ -408,6 +408,10 @@ const draftRooms = poolLoad.ok
 			storeDir: process.env.CARDTABLE_DRAFTS_DIR ?? resolve(CONFIG.logDir, '../data/drafts'),
 		})
 	: null;
+// A deploy mid-pod resumes it: the lobby restored the room's pod, the registry
+// its draft. A room whose draft did not come back goes back to its lobby.
+const lostDrafts = lobby.releaseLostDrafts((roomId) => draftRooms?.find(roomId) !== undefined);
+if (lostDrafts.length > 0) console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', event: 'drafts-lost', rooms: lostDrafts }));
 attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier });
 // Every room write, pushed to the screens that have the room (or the list) open,
 // so none of them reads it on a timer. Behind the gate attachDraftSocket installed.
