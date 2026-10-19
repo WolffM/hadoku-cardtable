@@ -23,7 +23,7 @@ import { RoomTablesSchema, type RoomTable } from '@hadoku/shared';
 
 import { roomFeed } from '../../rooms/feed.ts';
 import { tablesClient } from '../tables.ts';
-import { parsePodView, type PodView } from './wire.ts';
+import { parsePodView, POD_AI, type PodView } from './wire.ts';
 
 function appBase(): string {
   const base = import.meta.env?.BASE_URL;
@@ -88,7 +88,7 @@ export async function fetchPodContext(roomId: string): Promise<PodContext> {
   return {
     pod: parsePodView(body.pod),
     tables: tables.success ? tables.data : [],
-    names: Object.fromEntries(members.map((m) => [m.id, m.name])),
+    names: { ...Object.fromEntries(members.map((m) => [m.id, m.name])), [POD_AI]: 'AI' },
     name: typeof body.name === 'string' ? body.name : '',
     me: typeof body.you === 'object' && body.you !== null && typeof (body.you as { id?: unknown }).id === 'string' ? (body.you as { id: string }).id : null,
   };

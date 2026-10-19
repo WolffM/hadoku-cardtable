@@ -21,18 +21,31 @@ export interface PodStandingsRowLike {
   rank: number;
 }
 
+/** A finished match, as `PodView.results` carries it — `playerB` null for a bye. */
+export interface PodResultLike {
+  playerA: string;
+  playerB: string | null;
+}
+
 export interface PodStandingsProps {
   rows: PodStandingsRowLike[];
+  results: readonly PodResultLike[];
   nameOf: (memberId: string) => string;
   myMemberId: string | null;
 }
 
-/** `62%`, never `61.999…%` — a tiebreaker column, not a stat to compute from. */
+/** `62%`, never `61.999…%`. */
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
 
-export function PodStandings({ rows, nameOf, myMemberId }: PodStandingsProps) {
+/** Match points over the most a player could have taken, three a match — a bye counts as a win. */
+function matchWinPct(row: PodStandingsRowLike, results: readonly PodResultLike[]): number {
+  const played = results.filter((r) => r.playerA === row.id || r.playerB === row.id).length;
+  return played === 0 ? 0 : row.matchPoints / (3 * played);
+}
+
+export function PodStandings({ rows, results, nameOf, myMemberId }: PodStandingsProps) {
   if (rows.length === 0) return null;
 
   return (
@@ -42,9 +55,8 @@ export function PodStandings({ rows, nameOf, myMemberId }: PodStandingsProps) {
           <th scope="col">#</th>
           <th scope="col">Player</th>
           <th scope="col">Points</th>
-          <th scope="col">OMW%</th>
-          <th scope="col">GW%</th>
-          <th scope="col">OGW%</th>
+          <th scope="col">Match Winrate%</th>
+          <th scope="col">Game Winrate%</th>
         </tr>
       </thead>
       <tbody>
@@ -53,9 +65,8 @@ export function PodStandings({ rows, nameOf, myMemberId }: PodStandingsProps) {
             <td>{row.rank}</td>
             <td>{row.id === myMemberId ? `${nameOf(row.id)} (you)` : nameOf(row.id)}</td>
             <td>{row.matchPoints}</td>
-            <td>{pct(row.opponentMatchWinPct)}</td>
+            <td>{pct(matchWinPct(row, results))}</td>
             <td>{pct(row.gameWinPct)}</td>
-            <td>{pct(row.opponentGameWinPct)}</td>
           </tr>
         ))}
       </tbody>

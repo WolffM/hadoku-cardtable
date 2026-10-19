@@ -314,7 +314,7 @@ function PodRoom({
             Round {pod.round} of {pod.rounds}
           </h2>
         ) : (
-          <h1>Final standings</h1>
+          <h1>Standings</h1>
         )}
         {startTableError !== null && (
           <p className="pod__error" role="alert" data-testid="pod-table-start-error">
@@ -324,7 +324,7 @@ function PodRoom({
         {sideboarding ? (
           <TableSideboard key={`${mine.id}:${mine.series.games.length}`} roomId={draftId} tableId={mine.id} refresh={ctx} />
         ) : (
-          <PodStandings rows={pod.standings} nameOf={nameOf} myMemberId={myMemberId} />
+          <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} myMemberId={myMemberId} />
         )}
       </div>
       <footer className="pod__tables">

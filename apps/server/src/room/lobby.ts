@@ -548,7 +548,7 @@ export type PlayPodResult =
 /**
  * The opponent at a pod table that has one human: the one drafter of a pod of
  * bots plays Forge's AI. Stands in `PodRecord.pairings` and the results where a
- * member id would, and is never a member — so never a row of the standings.
+ * member id would, and is never a member — but once it has played, a row of the standings.
  */
 export const POD_AI = 'ai';
 
@@ -667,6 +667,12 @@ function podSeatsView(room: RoomRecord): PodView['seats'] {
 	}) as PodView['seats'];
 }
 
+/** The standings' players: the pod's humans, and the AI once a result names it. */
+function players(humans: string[], results: MatchResult[]): { id: string }[] {
+	const ai = results.some((r) => r.playerA === POD_AI || r.playerB === POD_AI);
+	return [...humans, ...(ai ? [POD_AI] : [])].map((id) => ({ id }));
+}
+
 /** `RoomView.pod`, for a `draft` room only — `viewOf` answers `null` for a `constructed-1v1` one. */
 function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	const phase = podPhaseOf(room, checks);
@@ -693,7 +699,8 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, drafters: humans, built };
 	}
 	const pod = room.pod as PodRecord; // `podPhaseOf` answers `rounds`/`done` only when `room.pod !== null`.
-	const ranked = standings(humans.map((id) => ({ id })), pod.results).map((row, i) => ({ ...row, rank: i + 1 }));
+	// The AI you played is ranked beside you (the operator, 2026-10-19: "why am i the only one in that room").
+	const ranked = standings(players(humans, pod.results), pod.results).map((row, i) => ({ ...row, rank: i + 1 }));
 	return {
 		phase,
 		seats,
@@ -1834,7 +1841,7 @@ class FileLobby implements Lobby {
 		if (pairing === undefined) return;
 		const [a, b] = pairing.players;
 		// A series against the AI counts like any other (the operator: "i lost so it
-		// should show my standings"): the AI is the opponent, never a ranked row.
+		// should show my standings").
 		pod.results = [...pod.results, { round: pod.round, playerA: a, playerB: b, gamesA: table.series.wins[0], gamesB: table.series.wins[1] }];
 		const stillPlaying = pod.pairings.some((p) => {
 			if (p.tableId === table.id) return false;

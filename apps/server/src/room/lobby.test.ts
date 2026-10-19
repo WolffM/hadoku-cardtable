@@ -1899,10 +1899,12 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		lobby.recordGameResult(id, pairing.tableId, { matchId: 'm-ai-g2', winner: 1 });
 		const done = lobby.get(id)!;
 		expect(done.pod?.phase).toBe('done');
-		// The AI won 2-0: her standing says so, and the AI is not a row of it.
+		// The AI won 2-0: it ranks first, and her standing says so under it.
 		expect(done.pod?.results).toEqual([{ round: 1, playerA: ALICE.id, playerB: POD_AI, gamesA: 0, gamesB: 2 }]);
-		expect(done.pod?.standings).toEqual([expect.objectContaining({ id: ALICE.id, matchPoints: 0, gameWinPct: expect.any(Number), rank: 1 })]);
-		expect(done.pod?.standings[0]?.opponentMatchWinPct).toBeGreaterThan(0.5);
+		expect(done.pod?.standings).toEqual([
+			expect.objectContaining({ id: POD_AI, matchPoints: 3, gameWinPct: 1, rank: 1 }),
+			expect.objectContaining({ id: ALICE.id, matchPoints: 0, gameWinPct: 0, rank: 2 }),
+		]);
 	});
 });
 

@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchPodContext, fetchPodView, playPod, sitPod, standPod, startTableMatch } from './client.ts';
+import { fetchPodContext, playPod, sitPod, standPod, startTableMatch } from './client.ts';
 import { POD_SEATS, type PodView } from './wire.ts';
 
 afterEach(() => {
@@ -26,37 +26,6 @@ const podFixture = (): PodView => ({
   built: [],
 });
 
-describe('fetchPodView', () => {
-  it('reads the room once and narrows its pod field', async () => {
-    const pod = podFixture();
-    const calls: string[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      calls.push(String(input));
-      return Promise.resolve(new Response(JSON.stringify({ id: 'r-cube', pod }), { status: 200 }));
-    });
-
-    const result = await fetchPodView('r-cube');
-    expect(result).toEqual(pod);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]).toContain('/rooms/r-cube');
-  });
-
-  it('answers null for a constructed room (pod: null on the wire)', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ id: 'r-cube', pod: null }), { status: 200 }));
-    expect(await fetchPodView('r-cube')).toBeNull();
-  });
-
-  it('answers null rather than throwing on a failed read', async () => {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'));
-    expect(await fetchPodView('r-cube')).toBeNull();
-  });
-
-  it('answers null on a non-ok response', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('not found', { status: 404 }));
-    expect(await fetchPodView('r-cube')).toBeNull();
-  });
-});
-
 describe('fetchPodContext', () => {
   it('reads pod, tables and a name map in one call', async () => {
     const pod = podFixture();
@@ -71,7 +40,7 @@ describe('fetchPodContext', () => {
     const ctx = await fetchPodContext('r-cube');
     expect(ctx.pod).toEqual(pod);
     expect(ctx.tables).toHaveLength(1);
-    expect(ctx.names).toEqual({ 'u-alice': 'Alice', 'u-bob': 'Bob' });
+    expect(ctx.names).toEqual({ 'u-alice': 'Alice', 'u-bob': 'Bob', ai: 'AI' });
   });
 
   it('answers empty rather than throwing on a failed read', async () => {

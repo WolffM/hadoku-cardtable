@@ -1082,9 +1082,11 @@ test(
       await expect(alice.page.getByTestId('sideboard-step'), 'no sideboarding after the last game').toHaveCount(0);
       await alice.page.getByTestId('game-result-room').click();
       await expect(alice.page.getByTestId('pod-final'), 'the pod is done').toBeVisible({ timeout: UI_TIMEOUT });
-      const row = alice.page.getByTestId('pod-standings-row-1');
-      await expect(row, 'her standing counts the series she lost').toContainText('0');
-      await expect(alice.page.getByTestId(/^pod-standings-row-\d+$/), 'the AI is not a row').toHaveCount(1);
+      await expect(alice.page.getByTestId('pod-final').getByRole('heading'), 'the heading is Standings').toHaveText('Standings');
+      await expect(alice.page.getByTestId(/^pod-standings-row-\d+$/), 'the AI she played is ranked beside her').toHaveCount(2);
+      await expect(alice.page.getByTestId('pod-standings-row-1'), 'the AI won the series').toContainText('AI');
+      const row = alice.page.getByTestId('pod-standings-row-2');
+      await expect(row, 'her standing counts the series she lost').toContainText('(you)');
       const standing = await row.textContent();
       expect(standing, 'game win % from two lost games').toMatch(/0%/);
 
