@@ -788,3 +788,26 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   39328402310)** — on main `abe771cb`'s server, the fate seal's card stays named in the looking seat's
   state at every one of the 13 state frames until its holder draws it; a scry of the seat's own
   library (Serum Visions keeping two) is missing from all 17 state frames after its look ends.
+
+## An "any color" source's colour can be answered before it is asked — 2026-10-19 (lane LT)
+
+- **VERIFIED (read)** — `ManaEffect.resolve` asks a `Produced$ Any` source's colour from the
+  ability's express choice: an empty choice asks `chooseColor` of all five
+  (`forge-game/.../ability/effects/ManaEffect.java:151-168`), and a choice of one colour makes
+  `PlayerControllerHuman.chooseColor` return it without asking (`case 1`,
+  `forge-gui/.../player/PlayerControllerHuman.java:2012-2022`).
+- **VERIFIED (read)** — the AI payer writes that choice while it is still only weighing a source:
+  `ComputerUtilMana.canPayShardWithSpellAbility` sets an any-colour source's express choice to the
+  first of WUBRG that pays the shard (`forge-ai/.../ComputerUtilMana.java:1021-1035` — White for a
+  generic shard), and `payManaCost` can then turn the source down (Black Lotus's `AILogic$
+  BlackLotus` refuses a spell under four, `SpecialCardAi.java:125-146`; `ComputerUtilMana.java:705-709` excludes it).
+  Before fork commit `6e71db52` only the sources it USED were cleared (`resetPayment`, test mode
+  only), so a turned-down source kept the colour.
+- **VERIFIED (read)** — a human player reaches that payer at every priority window: the fork's
+  `AvailableActions.scan` prices each spell in hand with `ComputerUtilMana.canPayManaCost` under a
+  swapped-in AI controller (`forge-ai/.../AvailableActions.java:318-326`), and the bridge's X bound
+  does the same (`PlayBridge.java`'s `affordableX`).
+- **VERIFIED (production, m-305dcd0165f1)** — with Mind Stone-and-up spells in hand, tapping Black
+  Lotus sent no `getChoices` after the sacrifice confirm and floated {W}{W}{W}. Fork commit
+  `6e71db52` snapshots every candidate's express choice when a payment starts and puts it back at
+  every exit, test or real.
