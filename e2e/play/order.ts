@@ -37,9 +37,8 @@ export const pointIn = (l: Locator, at: Point = { x: 0.5, y: 0.5 }): Promise<Poi
   }, { at, clear: CLEAR });
 
 /**
- * A point on the part of `row` that shows, `f` of the way down it. A card list is a pile
- * (`MovePrompt.tsx`): each card's name strip peeks out above the card drawn in front of it, so a row
- * shows only from its own top down to the top of the next row drawn below it in its list.
+ * A point on the part of `row` that shows, `f` of the way down it: from its own top down to the top of
+ * the next row drawn below it in its list, if one overlaps it.
  */
 export const stripPoint = (row: Locator, f = 0.5): Promise<Point> =>
   row.evaluate((el, f) => {
@@ -53,12 +52,17 @@ export const stripPoint = (row: Locator, f = 0.5): Promise<Point> =>
   }, f);
 
 /**
- * Where a release puts a card just before `row` in the answer, the way a hand points at it: in a pile
- * (`data-pile`, first card in front at the foot) the lower part of its showing strip — between it and
- * the card drawn below it, which is the one before it — and in a list of words, its upper part.
+ * Where a release puts a card just before `row` in the answer, the way a hand points at it: in a row
+ * of cards laid across (`data-across`, `MovePrompt.tsx`) the left part of the card, and in a list of
+ * words, its upper part.
  */
 export const beforePoint = async (row: Locator): Promise<Point> =>
-  stripPoint(row, (await row.evaluate((el) => el.parentElement?.hasAttribute('data-pile') === true)) ? 0.8 : 0.2);
+  (await row.evaluate((el) => el.parentElement?.hasAttribute('data-across') === true))
+    ? row.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width * 0.2, y: r.top + r.height / 2 };
+      })
+    : stripPoint(row, 0.2);
 
 /**
  * True when no ordering row moved across two animation frames and none is sliding: a drop's slide

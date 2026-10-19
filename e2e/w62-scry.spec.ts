@@ -16,10 +16,9 @@
  * every zone prompt shares), never an HTML5
  * `dragstart`/`dragover`/`drop` sequence.
  *
- * The on-card ↑/↓ were the second half of that note. Since 2026-10-15 an
- * order over cards is a pile (`e2e/od-order-pile.spec.ts`): a card behind
- * shows only its name strip, which has no room for them, so a focused card
- * moves with the arrow keys, up the pile or down it as drawn.
+ * The on-card ↑/↓ were the second half of that note. Since 2026-10-19 a zone of
+ * cards is a row of whole cards (`MovePrompt.tsx`), and a focused card moves
+ * along it with the arrow keys.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`);
  * without one the test SKIPS and its title says why.
@@ -65,7 +64,6 @@ test(
       // A real press-drag of the first card into the answer's own empty space.
       const first = sourceRows.nth(0);
       const firstKey = await first.getAttribute('data-key');
-      // Pressed on the part of the card that shows: in a pile the cards in front cover the rest of it.
       const { x: fx, y: fy } = await stripPoint(first);
       const to = (await dest.boundingBox())!;
       const tx = to.x + to.width / 2;
@@ -95,14 +93,13 @@ test(
       await expect(destRows, 'both cards are now placed').toHaveCount(2);
       await expect(destRows.first(), 'the second drag landed before the first').toHaveAttribute('data-key', secondKey!);
 
-      // The second half of the brief, as a pile has it: a placed card moves with the arrow keys, the way they
-      // point as the pile is drawn — up a pile drawn from its foot (`data-pile`), down one drawn from its top.
+      // The second half of the brief, as a row of cards has it (`MovePrompt.tsx`): a placed card moves
+      // along its zone with the arrow keys, right for later, left for earlier.
       await expect(dest.locator('.prompt__row-actions, .prompt__card-order'), 'no button row on a card — that shape is gone').toHaveCount(0);
-      const fromFoot = (await dest.getAttribute('data-pile')) !== null;
-      const [later, earlier] = fromFoot ? ['ArrowUp', 'ArrowDown'] : ['ArrowDown', 'ArrowUp'];
+      const [later, earlier] = ['ArrowRight', 'ArrowLeft'];
       await destRows.first().focus();
       await page.keyboard.press(later);
-      await expect(destRows.nth(1), `${later} sent the first card one along the pile`).toHaveAttribute('data-key', secondKey!);
+      await expect(destRows.nth(1), `${later} sent the first card one along the row`).toHaveAttribute('data-key', secondKey!);
       await destRows.nth(1).focus();
       await page.keyboard.press(earlier);
       await expect(destRows.first(), `${earlier} brought it back`).toHaveAttribute('data-key', secondKey!);

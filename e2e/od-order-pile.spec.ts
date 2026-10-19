@@ -8,20 +8,20 @@
  * can we instead just show 'Bottom of deck' and show a transparent ethereal representation of the deck
  * above the stack?"*
  *
- * So each group of an order over cards is ONE pile, measured at both of `table-fit.spec.ts`'s sizes:
+ * That was a pile. Then, 2026-10-19, over Ponder's pile: *"the UI for ponder is quite ugly"*, and the
+ * manager: you cannot order cards you cannot read. So each zone of an order over cards is ONE ROW of whole
+ * cards (`MovePrompt.tsx`), measured at both of `table-fit.spec.ts`'s sizes:
  *
- *  - one column, each card drawn above the one below it by less than half a card: they overlap;
- *  - the lowest card is in front: every corner of it and its middle hit it; every other card's strip,
- *    above the card below it, hits that card;
- *  - a group going into the library is named by its end ("Bottom", under the title "Your library"), and a ghost of the
- *    library is drawn where the library is: above the pile when the cards go under it, below when they go
- *    on top. The card that touches the ghost is the one Forge puts next to the rest of the library;
- *  - nothing scrolls: the sheet, its body and both lists hold what they draw.
+ *  - one line, left to right, every card drawn whole: every corner and the middle of each hit it;
+ *  - a zone going into the library is named by its end ("Bottom", under the title "Your library"), and a ghost
+ *    of the library is drawn on the side the zone meets it: after the Top zone, before the Bottom zone. The card
+ *    that touches the ghost is the one Forge puts next to the rest of the library;
+ *  - nothing scrolls: the sheet, its body and the zones hold what they draw.
  *
  * `od-tezzeret-pile`: alice activates Tezzeret's +1 over five non-artifacts, so all five go to the bottom
  * and Forge asks their order. `scry-one-prompt`: Foresee's Scry 4, the two-group order — and Foresee's
- * draw is the proof of which way up the top pile is. `order-drag-ponder`: Ponder puts three back on top,
- * and its draw is the card the pile drew farthest from the library. `ol-relic-exile`: Relic of Progenitus
+ * draw is the proof of which way round the top row is. `order-drag-ponder`: Ponder puts three back on top,
+ * and its draw is the card the row drew farthest from the library. `ol-relic-exile`: Relic of Progenitus
  * exiles alice's three graveyard cards, Forge asks their order (*"this needs an auto button"*, the operator,
  * 2026-10-16): since 2026-10-19 an order that places every card opens with all of them in its one zone
  * (`MovePrompt.tsx`), so OK answers it in one press with Forge's own order.
@@ -47,30 +47,26 @@ const SIZES = [
   { width: 1366, height: 768 },
 ] as const;
 
-interface PileReport {
+interface RowReport {
   list: string;
-  /** The group's heading, as drawn. */
+  /** The zone's heading, as drawn. */
   heading: string;
-  /** The answer's order: the rows as the DOM holds them. */
+  /** The cards as the DOM holds them. */
   ids: number[];
-  /** The rows from the top of the screen down. */
+  /** The cards from the left of the screen. */
   drawn: number[];
-  /** Every card in one column: the same left edge and width. */
-  column: boolean;
-  /** How far each card is drawn above the one below it, px (top of the screen first). */
-  rises: number[];
-  /** A card's height, px. */
-  height: number;
-  /** Every corner and the middle of the lowest card hit it. */
-  frontWhole: boolean;
-  /** Each card above the lowest shows its strip: the part above the card below it hits it. */
-  stripsShow: boolean[];
-  /** The library's ghost in this group: where it is against the pile, and the gap to the nearest card, px. */
-  ghost: { side: 'above' | 'below' | 'overlaps'; gap: number; touching: number | null } | null;
+  /** Every card on one line. */
+  line: boolean;
+  /** Every corner and the middle of every card hit it: nothing covers any of them. */
+  whole: boolean[];
+  /** A card's width, px. */
+  width: number;
+  /** The library's ghost in this zone: where it is against the row, and the gap to the nearest card, px. */
+  ghost: { side: 'left' | 'right' | 'overlaps'; gap: number; touching: number | null } | null;
 }
 
-/** Both groups as drawn, and every box of the sheet that scrolls. */
-function measure(page: Page): Promise<{ piles: PileReport[]; scrolls: string[] }> {
+/** Both zones as drawn, and every box of the sheet that scrolls. */
+function measure(page: Page): Promise<{ rows: RowReport[]; scrolls: string[] }> {
   return page.evaluate(() => {
     const host = document.querySelector('[data-testid="live-prompt"]');
     if (host === null) throw new Error('no prompt');
@@ -80,29 +76,28 @@ function measure(page: Page): Promise<{ piles: PileReport[]; scrolls: string[] }
       return el === null ? [] : [el];
     });
     const owner = (x: number, y: number) => document.elementFromPoint(x, y)?.closest('li[data-card-id]') ?? null;
-    const piles = lists.map((list) => {
-      const rows = Array.from(list.querySelectorAll<HTMLElement>(':scope > li[data-card-id]'));
-      const down = rows.map((row) => ({ row, box: row.getBoundingClientRect() })).sort((a, b) => a.box.top - b.box.top);
-      const front = down[down.length - 1];
+    const rows = lists.map((list) => {
+      const cards = Array.from(list.querySelectorAll<HTMLElement>(':scope > li[data-card-id]'));
+      const across = cards.map((row) => ({ row, box: row.getBoundingClientRect() })).sort((a, b) => a.box.left - b.box.left);
       const inset = 4;
-      const frontWhole =
-        front === undefined ||
+      const whole = across.map(({ row, box }) =>
         [
-          [front.box.left + inset, front.box.top + inset],
-          [front.box.right - inset, front.box.top + inset],
-          [front.box.left + inset, front.box.bottom - inset],
-          [front.box.right - inset, front.box.bottom - inset],
-          [(front.box.left + front.box.right) / 2, (front.box.top + front.box.bottom) / 2],
-        ].every(([x, y]) => owner(x!, y!) === front.row);
+          [box.left + inset, box.top + inset],
+          [box.right - inset, box.top + inset],
+          [box.left + inset, box.bottom - inset],
+          [box.right - inset, box.bottom - inset],
+          [(box.left + box.right) / 2, (box.top + box.bottom) / 2],
+        ].every(([x, y]) => owner(x!, y!) === row),
+      );
       const section = list.closest('section');
       const ghostEl = section?.querySelector<HTMLElement>('[data-testid="zone-library"]') ?? null;
-      let ghost: PileReport['ghost'] = null;
-      if (ghostEl !== null && down.length > 0) {
+      let ghost: { side: 'left' | 'right' | 'overlaps'; gap: number; touching: number | null } | null = null;
+      if (ghostEl !== null && across.length > 0) {
         const g = ghostEl.getBoundingClientRect();
-        const top = down[0]!;
-        const foot = down[down.length - 1]!;
-        if (g.bottom <= top.box.top + 2) ghost = { side: 'above', gap: Math.round(top.box.top - g.bottom), touching: Number(top.row.dataset.cardId) };
-        else if (g.top >= foot.box.bottom - 2) ghost = { side: 'below', gap: Math.round(g.top - foot.box.bottom), touching: Number(foot.row.dataset.cardId) };
+        const first = across[0]!;
+        const last = across[across.length - 1]!;
+        if (g.right <= first.box.left + 2) ghost = { side: 'left', gap: Math.round(first.box.left - g.right), touching: Number(first.row.dataset.cardId) };
+        else if (g.left >= last.box.right - 2) ghost = { side: 'right', gap: Math.round(g.left - last.box.right), touching: Number(last.row.dataset.cardId) };
         else ghost = { side: 'overlaps', gap: 0, touching: null };
       } else if (ghostEl !== null) {
         ghost = { side: 'overlaps', gap: 0, touching: null };
@@ -110,13 +105,11 @@ function measure(page: Page): Promise<{ piles: PileReport[]; scrolls: string[] }
       return {
         list: list.dataset.testid ?? '?',
         heading: section?.querySelector('.prompt__col-head')?.textContent?.trim() ?? '',
-        ids: rows.map((r) => Number(r.dataset.cardId)),
-        drawn: down.map((d) => Number(d.row.dataset.cardId)),
-        column: down.every((d) => Math.abs(d.box.left - down[0]!.box.left) < 2 && Math.abs(d.box.width - down[0]!.box.width) < 2),
-        rises: down.slice(1).map((d, i) => Math.round(d.box.top - down[i]!.box.top)),
-        height: Math.round(front?.box.height ?? 0),
-        frontWhole,
-        stripsShow: down.slice(0, -1).map((d, k) => owner(d.box.left + d.box.width / 2, (d.box.top + down[k + 1]!.box.top) / 2) === d.row),
+        ids: cards.map((r) => Number(r.dataset.cardId)),
+        drawn: across.map((d) => Number(d.row.dataset.cardId)),
+        line: across.every((d) => Math.abs(d.box.top - across[0]!.box.top) < 2),
+        whole,
+        width: Math.round(across[0]?.box.width ?? 0),
         ghost,
       };
     });
@@ -124,43 +117,39 @@ function measure(page: Page): Promise<{ piles: PileReport[]; scrolls: string[] }
     const scrolls = boxesThatScroll
       .filter((e) => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1)
       .map((e) => `${e.className} ${e.scrollWidth}x${e.scrollHeight} in ${e.clientWidth}x${e.clientHeight}`);
-    return { piles, scrolls };
+    return { rows, scrolls };
   });
 }
 
-/** The claims at one size: every group is one pile, the lowest card in front, and nothing scrolls. */
-async function expectPiles(page: Page, label: string): Promise<PileReport[]> {
+/** The claims at one size: every zone is one row of whole cards, readable, and nothing scrolls. */
+async function expectRows(page: Page, label: string): Promise<RowReport[]> {
   await settle(page);
-  const { piles, scrolls } = await measure(page);
-  console.log(`[od] ${label} ${JSON.stringify(page.viewportSize())} piles ${JSON.stringify(piles)} scrolls ${JSON.stringify(scrolls)}`);
-  for (const p of piles) {
-    if (p.ids.length === 0) continue;
-    expect(p.frontWhole, `${label} ${p.list}: the lowest card is drawn whole, in front`).toBe(true);
-    if (p.ids.length < 2) continue;
-    expect(p.column, `${label} ${p.list}: the cards are one pile, one column`).toBe(true);
-    for (const rise of p.rises) {
-      expect(rise, `${label} ${p.list}: each card is drawn above the one below it`).toBeGreaterThan(0);
-      expect(rise, `${label} ${p.list}: and overlaps it — less than half a card up`).toBeLessThan(p.height / 2);
-    }
-    expect(p.stripsShow, `${label} ${p.list}: every card behind shows its strip`).toEqual(p.ids.slice(1).map(() => true));
+  const { rows, scrolls } = await measure(page);
+  console.log(`[od] ${label} ${JSON.stringify(page.viewportSize())} rows ${JSON.stringify(rows)} scrolls ${JSON.stringify(scrolls)}`);
+  for (const r of rows) {
+    if (r.ids.length === 0) continue;
+    expect(r.line, `${label} ${r.list}: the cards are one row`).toBe(true);
+    expect(r.whole, `${label} ${r.list}: every card is drawn whole, nothing over it`).toEqual(r.ids.map(() => true));
+    expect(r.width, `${label} ${r.list}: a card is readable — at least a small board card wide`).toBeGreaterThanOrEqual(56);
+    expect(r.drawn, `${label} ${r.list}: the cards are drawn left to right as the DOM holds them`).toEqual(r.ids);
   }
   expect(scrolls, `${label}: nothing in the sheet scrolls`).toEqual([]);
-  return piles;
+  return rows;
 }
 
 /**
- * The group going into the library at `end`: its heading says so, its ghost library sits on the side the
- * library is (above for the bottom, below for the top) and touches the pile, and the card touching it is
+ * The zone going into the library at `end`: its heading says so, its ghost library sits on the side the zone
+ * meets it (after the Top zone, before the Bottom zone) and touches the row, and the card touching it is
  * `adjacent` — the one Forge puts next to the rest of the library.
  */
-function expectLibraryGroup(p: PileReport, label: string, end: 'top' | 'bottom', adjacent: number): void {
+function expectLibraryGroup(r: RowReport, label: string, end: 'top' | 'bottom', adjacent: number): void {
   const words = end === 'top' ? 'Top' : 'Bottom';
-  expect(p.heading, `${label} ${p.list}: the heading says where the cards go`).toBe(words);
-  expect(p.heading, `${label} ${p.list}: no "Closest to" caption`).not.toContain('Closest to');
-  expect(p.ghost, `${label} ${p.list}: a ghost of the library is drawn with the pile`).not.toBeNull();
-  expect(p.ghost!.side, `${label} ${p.list}: the library's ghost is ${end === 'top' ? 'below' : 'above'} the pile`).toBe(end === 'top' ? 'below' : 'above');
-  expect(p.ghost!.gap, `${label} ${p.list}: and touches it`).toBeLessThanOrEqual(8);
-  expect(p.ghost!.touching, `${label} ${p.list}: the card touching the ghost is the one Forge puts next to the library`).toBe(adjacent);
+  expect(r.heading, `${label} ${r.list}: the heading says where the cards go`).toBe(words);
+  expect(r.heading, `${label} ${r.list}: no "Closest to" caption`).not.toContain('Closest to');
+  expect(r.ghost, `${label} ${r.list}: a ghost of the library is drawn with the row`).not.toBeNull();
+  expect(r.ghost!.side, `${label} ${r.list}: the library's ghost is ${end === 'top' ? 'after' : 'before'} the row`).toBe(end === 'top' ? 'right' : 'left');
+  expect(r.ghost!.gap, `${label} ${r.list}: and touches it`).toBeLessThanOrEqual(8);
+  expect(r.ghost!.touching, `${label} ${r.list}: the card touching the ghost is the one Forge puts next to the library`).toBe(adjacent);
 }
 
 const rowsIds = (list: Locator): Promise<number[]> => list.locator(':scope > li').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-card-id'))));
@@ -187,7 +176,7 @@ async function ownPermanent(page: Page, name: string): Promise<number> {
 
 test(
   titled(
-    'Tezzeret’s “put the rest on the bottom in any order”: one pile under “Bottom” with the library’s ghost above it, the card Forge puts next to the library touching it, no scroll bar at 1280×800 or 1366×768, and a drag reorders it',
+    'Tezzeret’s “put the rest on the bottom in any order”: one row of whole cards under “Bottom” with the library’s ghost before it, the card Forge puts next to the library touching it, no scroll bar at 1280×800 or 1366×768, and a drag reorders it',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -229,36 +218,29 @@ test(
 
       for (const size of SIZES) {
         await resizeWindow(page, size);
-        await expectPiles(page, 'tezzeret');
+        await expectRows(page, 'tezzeret');
       }
       await resizeWindow(page, SIZES[0]);
 
       await expect(prompt.getByRole('heading', { name: /^Unplaced/ }), 'no "Unplaced" heading').toHaveCount(0);
       for (const size of SIZES) {
         await resizeWindow(page, size);
-        const widths = await prompt.evaluate((host) => {
-          const dual = host.querySelector('.prompt__dual')!.getBoundingClientRect().width;
-          const group = host.querySelector('[data-testid="zone-dest"]')!.closest('section')!.getBoundingClientRect().width;
-          return { dual: Math.round(dual), group: Math.round(group) };
-        });
-        console.log(`[od] tezzeret placed ${JSON.stringify(page.viewportSize())} widths ${JSON.stringify(widths)}`);
-        expect(widths.group, 'the pile’s group spans the sheet').toBeGreaterThanOrEqual(widths.dual - 2);
-        const placed = (await expectPiles(page, 'tezzeret placed')).find((p) => p.list === 'zone-dest')!;
+        const placed = (await expectRows(page, 'tezzeret placed')).find((r) => r.list === 'zone-dest')!;
         // Forge reverses this answer and slides each card under the library in turn
         // (`PlayerControllerHuman.orderMoveToZoneList`, `DigEffect`'s `LibraryPosition2` -1): the answer's
-        // LAST card goes under first, so it is the one next to the rest of the library, and the first is the
-        // library's new bottom card — drawn lowest, in front.
-        expectLibraryGroup(placed, 'tezzeret placed', 'bottom', placed.ids[placed.ids.length - 1]!);
-        expect(placed.drawn[placed.drawn.length - 1], 'tezzeret placed: the library’s new bottom card is the lowest, in front').toBe(placed.ids[0]);
+        // LAST card goes under first, so it is the one next to the rest of the library. That answer runs from
+        // its lowest card (`first: 'bottom'`), so it is drawn the other way round: the card next to the
+        // library is the leftmost, against the ghost, and the library's new bottom card the rightmost.
+        expectLibraryGroup(placed, 'tezzeret placed', 'bottom', placed.ids[0]!);
       }
       await resizeWindow(page, SIZES[0]);
 
       const order = await rowsIds(dest);
       const card = (id: number): Locator => prompt.locator(`li[data-card-id="${id}"]`);
-      const deepest = order[order.length - 1]!;
-      await dragRowOnto(page, card(deepest), card(order[0]!), 'before');
-      await expect.poll(() => rowsIds(dest), { message: 'the card next to the library, dragged before the first, is now the first' }).toEqual([deepest, ...order.slice(0, -1)]);
-      await expectPiles(page, 'tezzeret reordered');
+      const lowest = order[order.length - 1]!;
+      await dragRowOnto(page, card(lowest), card(order[0]!), 'before');
+      await expect.poll(() => rowsIds(dest), { message: 'the lowest card, dragged before the first, is now the first' }).toEqual([lowest, ...order.slice(0, -1)]);
+      await expectRows(page, 'tezzeret reordered');
 
       await page.getByTestId('prompt-submit').click();
       await expect.poll(() => promptMethod(page), { timeout: 15_000, message: 'the order reached Forge' }).not.toBe('order');
@@ -269,7 +251,7 @@ test(
 );
 
 test(
-  titled('Foresee’s Scry 4: “Top” sits on the library’s ghost and “Bottom” hangs under its own, no scroll bar, and Foresee draws the two cards drawn farthest from the ghost'),
+  titled('Foresee’s Scry 4: “Top” runs into the library’s ghost and “Bottom” starts at its own, no scroll bar, and Foresee draws the two cards drawn farthest from the ghost'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -290,13 +272,13 @@ test(
       await expect(top.locator(':scope > li'), 'Scry 4: all four start on top').toHaveCount(4);
       for (const size of SIZES) {
         await resizeWindow(page, size);
-        const piles = await expectPiles(page, 'scry');
-        const onTop = piles.find((p) => p.list === 'zone-source')!;
+        const rows = await expectRows(page, 'scry');
+        const onTop = rows.find((r) => r.list === 'zone-source')!;
         // The top group's first card is the library's new top card (`GameAction.scry` reverses it and puts
         // each on top in turn): the last is the one resting on the rest of the library.
         expectLibraryGroup(onTop, 'scry', 'top', onTop.ids[onTop.ids.length - 1]!);
-        expect(onTop.drawn[0], 'scry: the library’s new top card is drawn highest').toBe(onTop.ids[0]);
-        const under = piles.find((p) => p.list === 'zone-dest')!;
+        expect(onTop.drawn[0], 'scry: the library’s new top card is drawn leftmost').toBe(onTop.ids[0]);
+        const under = rows.find((r) => r.list === 'zone-dest')!;
         expect(under.heading, 'scry: the bottom group says where its cards go').toBe('Bottom');
       }
       await resizeWindow(page, SIZES[0]);
@@ -307,11 +289,11 @@ test(
       let drawnTop: number[] = [];
       for (const size of SIZES) {
         await resizeWindow(page, size);
-        const piles = await expectPiles(page, 'scry split');
-        const onTop = piles.find((p) => p.list === 'zone-source')!;
+        const rows = await expectRows(page, 'scry split');
+        const onTop = rows.find((r) => r.list === 'zone-source')!;
         expectLibraryGroup(onTop, 'scry split', 'top', onTop.ids[onTop.ids.length - 1]!);
         // One card under the library: it is the one next to it (`GameAction.scry` slides each under in turn).
-        expectLibraryGroup(piles.find((p) => p.list === 'zone-dest')!, 'scry split', 'bottom', b);
+        expectLibraryGroup(rows.find((r) => r.list === 'zone-dest')!, 'scry split', 'bottom', b);
         drawnTop = onTop.drawn;
       }
       expect((await rowsIds(top))[0], 'the first card is still the top one').toBe(a);
@@ -320,7 +302,7 @@ test(
       await page.getByTestId('prompt-submit').click();
       await expect.poll(async () => (await handIds(page)).length, { timeout: 20_000, message: 'Foresee draws two' }).toBe(handBefore.length + 2);
       const drew = (await handIds(page)).filter((id) => !handBefore.includes(id));
-      console.log(`[od] scry drew ${JSON.stringify(drew)} top pile from the screen's top ${JSON.stringify(drawnTop)}`);
+      console.log(`[od] scry drew ${JSON.stringify(drew)} top row from the left ${JSON.stringify(drawnTop)}`);
       expect([...drew].sort(), 'Foresee drew the two cards drawn farthest from the library’s ghost').toEqual(drawnTop.slice(0, 2).sort());
     } finally {
       await stack.stop();
@@ -329,7 +311,7 @@ test(
 );
 
 test(
-  titled('Ponder’s “put them back in any order”: one pile under “Top” sitting on the library’s ghost, no scroll bar, and Ponder draws the card drawn farthest from the ghost'),
+  titled('Ponder’s “put them back in any order”: one row of whole cards under “Top” ending at the library’s ghost, no scroll bar, and Ponder draws the card drawn farthest from the ghost'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -352,7 +334,7 @@ test(
       let drawnDest: number[] = [];
       for (const size of SIZES) {
         await resizeWindow(page, size);
-        const placed = (await expectPiles(page, 'ponder')).find((p) => p.list === 'zone-dest')!;
+        const placed = (await expectRows(page, 'ponder')).find((r) => r.list === 'zone-dest')!;
         // Forge reverses the answer and puts each card on top in turn (`RearrangeTopOfLibraryEffect`): the
         // answer's first card ends on top, its last rests on the rest of the library.
         expectLibraryGroup(placed, 'ponder', 'top', placed.ids[placed.ids.length - 1]!);
@@ -366,7 +348,7 @@ test(
       await answerConfirm(page, 'no');
       await expect.poll(async () => (await handIds(page)).length, { timeout: 15_000, message: 'Ponder draws' }).toBe(handBefore.length + 1);
       const drew = (await handIds(page)).filter((id) => !handBefore.includes(id));
-      console.log(`[od] ponder drew ${JSON.stringify(drew)} pile from the screen's top ${JSON.stringify(drawnDest)}`);
+      console.log(`[od] ponder drew ${JSON.stringify(drew)} row from the left ${JSON.stringify(drawnDest)}`);
       expect(drew, 'Ponder drew the card drawn farthest from the library’s ghost').toEqual([drawnDest[0]]);
     } finally {
       await stack.stop();

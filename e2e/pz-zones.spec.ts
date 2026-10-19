@@ -18,9 +18,10 @@
  *  - `order-drag-ponder`: Ponder. One zone, Top, every card in it from the start; a drag reorders it; Ponder
  *    draws the card the drag put on top.
  *
- * Each sheet is measured: the phantom keeps the spot it was grabbed at under the pointer (with the page
- * scrolled, for Ponder), an emptied zone is still drawn at its own size, and no box in the sheet scrolls
- * sideways. Screenshots at 1280×720 in both themes are kept beside the run's videos.
+ * Each sheet is measured: every card drawn whole and readable side by side, no Forge id in a name and no
+ * sentence in the head (the manager's review, 2026-10-19); the phantom keeps the spot it was grabbed at under
+ * the pointer (with the page scrolled, for Ponder); an emptied zone is still drawn at its own size; and no box
+ * in the sheet scrolls sideways. Screenshots at 1280×720 in both themes are kept beside the run's videos.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one the test SKIPS and its title
  * says why.
@@ -75,6 +76,39 @@ const zoneBoxes = (page: Page): Promise<{ zone: string; w: number; h: number }[]
       return { zone: el.dataset.zone ?? '?', w: Math.round(r.width), h: Math.round(r.height) };
     }),
   );
+
+/**
+ * Every card in the zones, as a person sees it: drawn whole (every corner and the middle hit it), at
+ * least a small board card wide, and its name as the tile says it. And the sheet's head: no sentence.
+ */
+async function expectReadable(page: Page, label: string): Promise<void> {
+  // Off every card, so the inspector is not drawn over the sheet.
+  await page.mouse.move(2, 2);
+  await settle(page);
+  const seen = await livePrompt(page).evaluate((host) => ({
+    cards: Array.from(host.querySelectorAll<HTMLElement>('[data-testid^="zone-"] > li[data-card-id]')).map((li) => {
+      const r = li.getBoundingClientRect();
+      const hit = (x: number, y: number) => document.elementFromPoint(x, y)?.closest('li[data-card-id]') === li;
+      const whole = [
+        [r.left + 4, r.top + 4],
+        [r.right - 4, r.top + 4],
+        [r.left + 4, r.bottom - 4],
+        [r.right - 4, r.bottom - 4],
+        [(r.left + r.right) / 2, (r.top + r.bottom) / 2],
+      ].every(([x, y]) => hit(x!, y!));
+      return { name: li.querySelector('.card__name')?.textContent?.trim() ?? '', whole, width: Math.round(r.width) };
+    }),
+    sheet: Math.round(host.querySelector('.prompt')!.getBoundingClientRect().width),
+    effect: host.querySelector('[data-testid="prompt-source-text"]')?.textContent ?? null,
+  }));
+  console.log(`[pz] ${label} readable ${JSON.stringify(seen)}`);
+  expect(seen.cards.map((c) => c.whole), `${label}: every card is drawn whole, nothing over it`).toEqual(seen.cards.map(() => true));
+  for (const c of seen.cards) {
+    expect(c.width, `${label}: ${c.name} is at least a small board card wide`).toBeGreaterThanOrEqual(90);
+    expect(c.name, `${label}: no Forge id in a card's name`).not.toMatch(/\(\d+\)$/);
+  }
+  expect(seen.effect, `${label}: no sentence in the head`).toBeNull();
+}
 
 /** The sheet in both themes, at 1280×720. */
 async function shoot(page: Page, name: string): Promise<void> {
@@ -174,6 +208,7 @@ test(
       await expect(prompt, 'no “select a card to put on bottom” sentence').not.toContainText(/choose|select/i);
       expect(await namesIn(top), 'the looked-at card starts on top').toEqual(['Lightning Bolt']);
       await expect(page.getByTestId('prompt-submit'), 'keeping it on top is an answer').toBeEnabled();
+      await expectReadable(page, 'fateseal');
       await shoot(page, 'fateseal');
 
       const [bolt] = (await idsIn(top)) as [number];
@@ -216,6 +251,7 @@ test(
       expect(await headings(page)).toEqual(['Top', 'Bottom']);
       expect(await namesIn(top), 'Scry 2: both on top, in library order').toEqual(['Plains', 'Forest']);
       expect(await zoneBoxes(page).then((b) => b.find((z) => z.zone === 'bottom')!.h), 'the empty Bottom zone is drawn at its own size').toBeGreaterThan(40);
+      await expectReadable(page, 'scry2');
       await shoot(page, 'scry2');
 
       const [plains, forest] = (await idsIn(top)) as [number, number];
@@ -261,6 +297,7 @@ test(
       expect(await headings(page)).toEqual(['Top', 'Graveyard']);
       await expect(graveyard).toHaveAttribute('data-zone', 'graveyard');
       expect(await namesIn(top)).toEqual(['Plains', 'Forest']);
+      await expectReadable(page, 'surveil');
       await shoot(page, 'surveil');
 
       const [plains] = (await idsIn(top)) as [number, number];
@@ -302,6 +339,7 @@ test(
       expect(await namesIn(zone), 'every card in the zone from the start, top first').toEqual(['Plains', 'Forest', 'Swamp']);
       await expect(page.getByTestId('prompt-submit'), 'Forge’s order is an answer as it stands').toBeEnabled();
       expect(await sidewaysScroll(page), 'nothing in the sheet scrolls sideways').toEqual([]);
+      await expectReadable(page, 'ponder');
       await shoot(page, 'ponder');
 
       // The page scrolled under the prompt: the phantom is fixed, and must still sit under the pointer.
