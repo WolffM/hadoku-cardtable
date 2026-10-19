@@ -88,15 +88,19 @@ async function expectReadable(page: Page, label: string): Promise<void> {
   const seen = await livePrompt(page).evaluate((host) => ({
     cards: Array.from(host.querySelectorAll<HTMLElement>('[data-testid^="zone-"] > li[data-card-id]')).map((li) => {
       const r = li.getBoundingClientRect();
-      const hit = (x: number, y: number) => document.elementFromPoint(x, y)?.closest('li[data-card-id]') === li;
-      const whole = [
+      const points = [
         [r.left + 4, r.top + 4],
         [r.right - 4, r.top + 4],
         [r.left + 4, r.bottom - 4],
         [r.right - 4, r.bottom - 4],
         [(r.left + r.right) / 2, (r.top + r.bottom) / 2],
-      ].every(([x, y]) => hit(x!, y!));
-      return { name: li.querySelector('.card__name')?.textContent?.trim() ?? '', whole, width: Math.round(r.width) };
+      ];
+      /** What is drawn over the card at each point it does not hit itself. */
+      const over = points.flatMap(([x, y]) => {
+        const at = document.elementFromPoint(x!, y!);
+        return at?.closest('li[data-card-id]') === li ? [] : [`${at?.tagName.toLowerCase()}.${String(at?.className)}`];
+      });
+      return { name: li.querySelector('.card__name')?.textContent?.trim() ?? '', whole: over.length === 0, over, width: Math.round(r.width) };
     }),
     sheet: Math.round(host.querySelector('.prompt')!.getBoundingClientRect().width),
     effect: host.querySelector('[data-testid="prompt-source-text"]')?.textContent ?? null,
