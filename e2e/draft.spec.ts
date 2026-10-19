@@ -1026,14 +1026,16 @@ test(
       await expect(alice.page.locator('[data-testid="pack"].pack--fan')).toBeVisible({ timeout: UI_TIMEOUT });
       const fit = await alice.page.evaluate(() => {
         const pack = document.querySelector('[data-testid="pack"]')!.getBoundingClientRect();
-        const cards = [...document.querySelectorAll('[data-testid="pack"] .pack__slot')].map((c) => c.getBoundingClientRect());
+        const cards = [...document.querySelectorAll('[data-testid="pack"] .pack__slot:not([data-off])')].map((c) => c.getBoundingClientRect());
         return {
           x: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           y: document.documentElement.scrollHeight - document.documentElement.clientHeight,
           outside: cards.filter((c) => c.left < pack.left - 1 || c.right > pack.right + 1 || c.bottom > pack.bottom + 1).length,
         };
       });
-      expect(fit, 'no page scroll, every fanned card inside the pack').toEqual({ x: 0, y: 0, outside: 0 });
+      expect(fit, 'no page scroll, every drawn card inside the pack').toEqual({ x: 0, y: 0, outside: 0 });
+      // Seven of the fifteen are drawn: the open card and three either side of it.
+      await expect(alice.page.locator('[data-testid="pack"] .pack__slot:not([data-off])')).toHaveCount(7);
 
       // A deploy mid-draft (every land restarts the server) resumes the pod
       // where it was, not back in its lobby — the audit of 2026-10-19.

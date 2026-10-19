@@ -122,6 +122,47 @@ describe('the fan', () => {
     expect(onPick).toHaveBeenCalledWith('c7');
   });
 
+  it('draws the open card and three either side, and the rest once the row is scrolled to them', () => {
+    mount();
+    const drawn = () => [...document.querySelectorAll('.pack__slot')].flatMap((el, i) => (el.hasAttribute('data-off') ? [] : [i]));
+    expect(drawn()).toEqual([4, 5, 6, 7, 8, 9, 10]);
+    for (let i = 0; i < 10; i++) wheel(100);
+    expect(drawn()).toEqual([11, 12, 13, 14]);
+  });
+
+  it('opens nothing by passing the pointer over a card', () => {
+    mount();
+    fireEvent.pointerMove(screen.getByTestId('pack'), { clientX: 10, clientY: 300 });
+    fireEvent.pointerEnter(tile(5).parentElement!);
+    expect(open()).toBe(7);
+  });
+
+  it('picks the open card on Enter, and moves along the row on the arrows', () => {
+    const { onPick } = mount();
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(open()).toBe(5);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(open()).toBe(6);
+    expect(onPick).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(onPick).toHaveBeenCalledWith('c6');
+  });
+
+  it('leaves Enter alone while it is typed into a field, or while picking is off', () => {
+    const onPick = vi.fn();
+    const field = document.createElement('input');
+    document.body.append(field);
+    const { rerender } = render(createElement(PackView, { cards: PACK, layout: 'fan', onPick, disabled: false, emptyNote: '' }));
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(onPick).not.toHaveBeenCalled();
+    rerender(createElement(PackView, { cards: PACK, layout: 'fan', onPick, disabled: true, emptyNote: '' }));
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onPick).not.toHaveBeenCalled();
+    field.remove();
+  });
+
   it('opens the middle of a new pack', () => {
     const { rerender, onPick } = mount();
     wheel(100);
@@ -140,5 +181,18 @@ describe('the grid', () => {
     expect(open()).toBe(-1);
     fireEvent.click(tile(3));
     expect(onPick).toHaveBeenCalledWith('c3');
+  });
+
+  it('picks the card under the pointer on Enter, and nothing once the pointer has left', () => {
+    const onPick = vi.fn();
+    render(createElement(PackView, { cards: PACK, layout: 'grid', onPick, disabled: false, emptyNote: '' }));
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onPick).not.toHaveBeenCalled();
+    fireEvent.pointerEnter(tile(9).parentElement!);
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onPick).toHaveBeenCalledWith('c9');
+    fireEvent.pointerLeave(screen.getByTestId('pack'));
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onPick).toHaveBeenCalledTimes(1);
   });
 });
