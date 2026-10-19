@@ -2,9 +2,10 @@
  * Wave 71 §G's acceptance sequence (`docs/planning/wave71-2026-10-17.md`):
  *
  *   A room gets a second table. Alice plays the AI at table 1 and Bob plays
- *   the AI at table 2. Carol, unseated, opens table 1's board, switches to
- *   table 2's from the strip, and switches back. Her chat panel is the same
- *   room chat on all three boards.
+ *   the AI at table 2. Carol, unseated, is carried to table 1's board once,
+ *   goes back to the room and stays there, then opens table 2's. Since
+ *   2026-10-19 there is no strip over the board, and each table's board has a
+ *   chat of its own, apart from the room's lobby chat.
  *
  * This lane (G) owns the board strip and the chat key; lane D owns the
  * tables themselves (`apps/server/src/room/lobby.ts`, `http/routes.ts`) and
@@ -199,7 +200,7 @@ test('a room with two live tables shows the strip, switching boards never drops 
     await bob.page.goto(`${stack.origin}${PREFIX}/#/match/${matchId2}`);
     await expect(bob.page.locator('[aria-label="Game board"]'), 'bob’s own board came up at table 2').toBeVisible({ timeout: 30_000 });
 
-    // ── carol: unseated, carried to table 1, then the strip ─────────────
+    // ── carol: unseated, carried to table 1 once, and each board its own chat ──
     const carol = await openFriend(browser, 'carol');
     await resizeWindow(carol.page, { width: 1280, height: 800 });
     const roomChromeJoins = await watchRoomChromeJoins(carol.page);
@@ -207,56 +208,30 @@ test('a room with two live tables shows the strip, switching boards never drops 
     await carol.page.waitForURL(new RegExp(`#/match/${matchId1}$`), { timeout: 60_000 });
     await expect(carol.page.locator('[aria-label="Game board"]'), 'carol was carried to table 1, as a watcher').toBeVisible({ timeout: 30_000 });
     await expect(chatBoxOf(carol.page), 'carol’s chat panel is up on table 1’s board').toBeVisible({ timeout: 30_000 });
+    await expect(carol.page.getByTestId('board-strip'), 'no strip over the board (the operator, 2026-10-19)').toHaveCount(0);
 
-    const strip = carol.page.getByTestId('board-strip');
-    await expect(strip, 'two live tables draw the strip').toBeVisible({ timeout: 15_000 });
-    await expect(carol.page.getByTestId('board-strip-entry')).toHaveCount(2);
-    const entryFor = (table: string) => carol.page.locator(`[data-testid="board-strip-entry"][data-table-id="${table}"]`);
+    // Back in the room by choice (in-page, as a link would): she stays there, with the way back in.
+    // The operator, 2026-10-19: "the initial force into the game should only happen once".
+    await carol.page.evaluate((hash) => (window.location.hash = hash), `#/room/${roomId}`);
+    await expect(carol.page.getByTestId('room-match-link'), 'the room offers the game it is playing').toBeVisible({ timeout: 15_000 });
+    await expect(carol.page.getByTestId('room-match-link')).toHaveText('Watch');
+    await carol.page.waitForTimeout(2_000);
+    expect(carol.page.url(), 'not carried back into the game').toMatch(new RegExp(`#/room/${roomId}$`));
 
-    // The strip and the watcher's own line (`live.css`'s `.live__spectator--watcher`,
-    // `pointer-events: auto`) used to sit at the exact same spot — wave 71 §G's
-    // regression, fixed in wave 72 §R by moving the strip (`BoardStrip.css`),
-    // not the watcher's line. Carol is unseated at this table, so her own
-    // watcher line is up; `elementFromPoint` at a strip entry's centre must
-    // land on the entry, not whatever the watcher's banner draws on top of
-    // it at the same point. Red on main before the §R fix ("watcher-status …
-    // intercepts pointer events").
-    await expect(carol.page.getByTestId('watcher-status'), 'carol is a watcher, so her own line is up too').toBeVisible();
-    const entryBox = await entryFor(table1).boundingBox();
-    if (entryBox === null) throw new Error('table 1’s strip entry has no box');
-    const hitTestId = await carol.page.evaluate(
-      ({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-testid]')?.getAttribute('data-testid') ?? null,
-      { x: entryBox.x + entryBox.width / 2, y: entryBox.y + entryBox.height / 2 },
-    );
-    expect(hitTestId, 'the strip entry is on top at its own centre, not the watcher’s line').toBe('board-strip-entry');
-
-    // Switch to table 2 — timed, picking to the new board's first frame.
+    // Table 2's board, by its own link.
     const toTable2 = Date.now();
-    await entryFor(table2).click();
-    await carol.page.waitForURL(new RegExp(`#/match/${matchId2}$`), { timeout: 15_000 });
+    await carol.page.evaluate((hash) => (window.location.hash = hash), `#/match/${matchId2}`);
     await expect(carol.page.locator('[aria-label="Game board"]'), 'carol’s board is now table 2’s').toBeVisible({ timeout: 15_000 });
-    const switchToTable2Ms = Date.now() - toTable2;
-    console.log(`[w71-switch-ms] ${switchToTable2Ms}`);
-
+    console.log(`[w71-switch-ms] ${Date.now() - toTable2}`);
     // Switching away from table 1 did not touch alice's own game.
     await expect(alice.page.locator('[aria-label="Game board"]'), 'alice’s own board is untouched by carol’s switch').toBeVisible();
 
-    // Switch back — timed the same way, the other direction.
-    const backToTable1 = Date.now();
-    await entryFor(table1).click();
-    await carol.page.waitForURL(new RegExp(`#/match/${matchId1}$`), { timeout: 15_000 });
-    await expect(carol.page.locator('[aria-label="Game board"]'), 'carol’s board is table 1’s again').toBeVisible({ timeout: 15_000 });
-    const switchBackMs = Date.now() - backToTable1;
-    console.log(`[w71-switch-ms] ${switchBackMs}`);
-
-    // ── her chat is the room's, not the match's, on all three boards ────
-    // See the header: watchparty's own debug log is read here rather than
-    // the wire or a real message, because this harness runs no watchparty
-    // backend for either of those to reach.
-    await expect.poll(() => roomChromeJoins.length, { timeout: 15_000, message: 'watchparty’s RoomChrome logged joining at least once' }).toBeGreaterThanOrEqual(1);
-    const distinctKeys = [...new Set(roomChromeJoins)];
-    console.log(`[w71-boards] carol’s RoomChrome join log, across all three boards: ${JSON.stringify(roomChromeJoins)}`);
-    expect(distinctKeys, 'carol’s chat is ONE watchparty room across all three boards, not one per match').toEqual([`cardtable-${roomId}`]);
+    // ── the game's chat is apart from the lobby's: one per table ────────
+    // The operator, 2026-10-19: "can we make sure the game-chat is seperate from the lobby chat?"
+    // See the header: watchparty's own debug log is read, not the wire.
+    const wanted = [`cardtable-${roomId}-${table1}`, `cardtable-${roomId}`, `cardtable-${roomId}-${table2}`];
+    await expect.poll(() => wanted.every((k) => roomChromeJoins.includes(k)), { timeout: 15_000, message: `carol’s chat joins: ${JSON.stringify(roomChromeJoins)}` }).toBe(true);
+    console.log(`[w71-boards] carol’s RoomChrome join log: ${JSON.stringify(roomChromeJoins)}`);
   } finally {
     await stack.stop();
   }

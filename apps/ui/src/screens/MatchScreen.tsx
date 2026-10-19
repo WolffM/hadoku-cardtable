@@ -37,49 +37,24 @@
  * or a returning viewer's persisted choice once `LiveBoard`'s settings
  * wiring re-applies it after this join resolves — see that file's own note).
  *
- * ## The board strip (wave 71 §G)
+ * ## No strip over the board
  *
- * Once the room is known, this screen also asks it for its `tables` — plural
- * since wave 71, one room can hold several 1v1 tables — and draws
- * `BoardStrip` over the board. `BoardStrip` itself decides whether there is
- * anything to switch to (nothing with fewer than two live tables); this
- * screen's job is only to fetch and keep that list current.
- *
- * `rooms/api.ts`'s `RoomView` does not carry `tables` — it is wave 70's file
- * and `tables` is not on its parser's allow-list — so this reads the room's
- * own endpoint a second time, raw, through `@hadoku/shared`'s `RoomTablesSchema`
- * (lane D's `packages/shared/src/room-tables.ts`), rather than widening a
- * parser this lane does not own.
- *
- * **Stops following once THIS match has ended** (`match.over`, reactively —
- * `useSyncExternalStore` on `match.ts`'s own `subscribe`, the same store
- * `LiveBoard.tsx` reads for everything else). `GameResultScreen` (also
- * `LiveBoard.tsx`) already follows this same room for its own "which room do
- * I rematch into" read, so a second independent `roomFeed().follow()` left
- * running on the result screen doubled the room's idle read volume —
- * `e2e/aa-polling.spec.ts`'s "two result screens left open read nothing"
- * caught it (4 reads in 60 s idle against a budget of 3). The strip's own job
- * — switching to another table — has nothing left to do once this board is a
- * result screen showing Rematch, so there is nothing lost by stopping here,
- * and `tables` just keeps whatever it last knew.
+ * Wave 71 drew a strip of the room's live tables over the board, plus a way
+ * back to the pod. The operator, 2026-10-19: *"neither of those buttons should
+ * be there, useless"* — the room's own table cards are where another board is
+ * opened, and the room is reached from the room list.
  */
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { RoomTablesSchema, type RoomTable } from '@hadoku/shared';
+import { useEffect, useState } from 'react';
 
 import { LiveBoard } from '../play/live/LiveBoard.tsx';
 import { pacedMatchTransport } from '../play/live/pace.ts';
 import { PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { roomsClient } from '../rooms/api.ts';
-import { roomFeed } from '../rooms/feed.ts';
-import { apiBase } from './tables.ts';
-import { BoardStrip } from './BoardStrip.tsx';
-import './BoardStrip.css';
 import {
   closeMatch,
   socketIoMatchTransport,
   startMatch,
-  subscribe,
   type LiveMatch,
   type MatchTransport,
 } from '../play/live/match.ts';
@@ -88,32 +63,6 @@ export interface MatchScreenProps {
   matchId: string;
   /** Tests pass a stub transport. Production leaves it undefined and gets a paced socket.io transport. */
   makeTransport?: () => MatchTransport;
-}
-
-function appBase(): string {
-  const base = import.meta.env?.BASE_URL;
-  return typeof base === 'string' ? base : '/';
-}
-
-interface RoomTablesRead {
-  tables: RoomTable[];
-  /** `RoomView.gameType`, read off the same raw body — wave 72 §R.3's "is this a pod". */
-  gameType: string | null;
-}
-
-/** The room's raw body, read a second time past `rooms/api.ts`'s parser — see the header. */
-async function fetchRoomTables(roomId: string): Promise<RoomTablesRead> {
-  try {
-    const res = await fetch(`${apiBase(appBase())}rooms/${encodeURIComponent(roomId)}`, { credentials: 'same-origin' });
-    if (!res.ok) return { tables: [], gameType: null };
-    const body: unknown = await res.json();
-    const tables = (body as { tables?: unknown })?.tables;
-    const gameType = (body as { gameType?: unknown })?.gameType;
-    const parsed = RoomTablesSchema.safeParse(tables);
-    return { tables: parsed.success ? parsed.data : [], gameType: typeof gameType === 'string' ? gameType : null };
-  } catch {
-    return { tables: [], gameType: null };
-  }
 }
 
 export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
@@ -151,48 +100,8 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
     };
   }, [matchId]);
 
-  // This screen's own match, ended or not — `match.ts`'s mutable store, read
-  // reactively so the effect below can react to the transition rather than
-  // only seeing it on the next unrelated re-render. See the header for why it
-  // matters: following stops here, once there is nothing left to switch away
-  // FROM.
-  const over = useSyncExternalStore(
-    (listener) => (match === null ? () => undefined : subscribe(match, listener)),
-    () => match?.over ?? false,
-  );
-
-  // The room's tables, kept current without polling — `roomFeed` reads once
-  // on follow and again whenever the server says the room changed (a second
-  // table added, a match starting or ending at one), so the strip below is
-  // never more than one ping behind. Nothing follows before `roomId` is known,
-  // so a match with no room (an orphaned link) asks the server for nothing —
-  // and nothing follows once `over`, so a result screen left open adds no
-  // read of its own past the one `GameResultScreen` already makes.
-  const [tables, setTables] = useState<RoomTable[]>([]);
-  // `null` until read; `'draft'` is the one value that turns on the strip's
-  // "Back to the pod" entry (`BoardStrip`'s `podRoomId`) — see that file's
-  // own header on why the 1v1 result screen's "Back to room" is not enough.
-  const [gameType, setGameType] = useState<string | null>(null);
-  useEffect(() => {
-    if (roomId === null || over) return;
-    let live = true;
-    const stopFollowing = roomFeed().follow({ room: roomId }, () => {
-      fetchRoomTables(roomId).then((r) => {
-        if (live) {
-          setTables(r.tables);
-          setGameType(r.gameType);
-        }
-      });
-    });
-    return () => {
-      live = false;
-      stopFollowing();
-    };
-  }, [roomId, over]);
-
   return (
     <div className="shell shell--match" data-testid="match" style={{ position: 'relative' }}>
-      <BoardStrip tables={tables} currentMatchId={matchId} podRoomId={gameType === 'draft' && roomId !== null ? roomId : undefined} />
       {match !== null && <LiveBoard match={match} roomId={roomId} />}
     </div>
   );

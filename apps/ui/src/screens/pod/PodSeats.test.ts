@@ -3,7 +3,7 @@
  * The pod's 8-seat grid: empty seats offer Sit, my own seat offers Stand,
  * every occupied seat shows a ready pill, and sitting is refused once I
  * already hold one. `.test.ts`, not `.test.tsx` — the root vitest config
- * globs `apps/*\/src/**\/*.test.ts` (see `BoardStrip.test.ts`'s own header).
+ * globs `apps/*\/src/**\/*.test.ts`.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';

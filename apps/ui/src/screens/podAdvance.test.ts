@@ -11,6 +11,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { forgetMatchesFollowed } from '../play/live/matchStart.ts';
 import { createElement } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { DRAFT_CHANNEL, stateMessage, type DraftView } from '@hadoku/shared';
@@ -27,6 +28,7 @@ import { POD_SEATS, type PodView } from './pod/wire.ts';
 const ROOM = 'r-pod';
 
 afterEach(() => {
+  forgetMatchesFollowed();
   cleanup();
   vi.restoreAllMocks();
   globalThis.location.hash = '';
@@ -282,6 +284,21 @@ describe('the room is where a player comes back to', () => {
     draft.send(complete());
     room.read(ctxOf(rounds('t-2'), [{ id: 't-2', players, matchId: null, series: series('playing', [{ matchId: 'm-000000000001', winner: 0 }]) }]));
     await vi.waitFor(() => expect(posts.some((u) => u.endsWith('/play/matches'))).toBe(true));
+  });
+
+  it('carries me into my game once; back in the room, I stay, and my table card is the way back', () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
+    const live = { id: 't-2', players, matchId: 'm-000000000007', series: series('playing') };
+    let mounted = mountPod();
+    mounted.draft.send(complete());
+    mounted.room.read(ctxOf(rounds('t-2'), [live]));
+    expect(route()).toEqual({ kind: 'match', matchId: 'm-000000000007' });
+    cleanup();
+    mounted = mountPod();
+    mounted.draft.send(complete());
+    mounted.room.read(ctxOf(rounds('t-2'), [live]));
+    expect(route()).toEqual({ kind: 'room', roomId: ROOM });
+    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe('#/match/m-000000000007');
   });
 
   it('keeps every table the pod has played at along the bottom: this round first, earlier ones finished', () => {

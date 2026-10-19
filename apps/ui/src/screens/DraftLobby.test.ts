@@ -7,7 +7,7 @@
  * header on why seats are additive, not a new gate.
  *
  * `.test.ts`, not `.test.tsx` — the root vitest config globs
- * `apps/*\/src/**\/*.test.ts` (see `BoardStrip.test.ts`'s own header).
+ * `apps/*\/src/**\/*.test.ts`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';

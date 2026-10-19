@@ -74,6 +74,7 @@ import { livePodSource, startMyTable, usePodContext, type PodContext, type PodSo
 import { PodStandings } from './pod/PodStandings.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { PodTables } from './pod/PodTables.tsx';
+import { followMatchOnce } from '../play/live/matchStart.ts';
 import './PodScreen.css';
 
 export interface PodScreenProps {
@@ -174,7 +175,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   useEffect(() => {
     if (myMemberId === null || ctx === null || phase !== 'rounds') return;
     const mine = myCurrentTable(ctx, myMemberId);
-    if (mine?.matchId != null) navigate({ kind: 'match', matchId: mine.matchId });
+    if (mine?.matchId != null) followMatchOnce(mine.matchId, false);
   }, [phase, ctx, myMemberId]);
 
   /**

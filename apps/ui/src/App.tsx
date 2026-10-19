@@ -99,6 +99,18 @@ export type AppProps = ScreenProps;
  * room" by itself — which is why this is its own piece of state, set
  * alongside `roomId` in the very same update, rather than computed from it.
  */
+/**
+ * A game's own chat: its room AND its table, so the lobby's conversation and
+ * the game's are two rooms (the operator, 2026-10-19: *"can we make sure the
+ * game-chat is separate from the lobby chat?"*), while the games of one series
+ * — one table — keep one chat between them. A match no table names (it has
+ * since been let go) is its own.
+ */
+export function tableChatId(room: { id: string; tables: readonly { id: string; matchId: string | null; series: { games: readonly { matchId: string }[] } }[] }, matchId: string): string {
+  const table = room.tables.find((t) => t.matchId === matchId || t.series.games.some((g) => g.matchId === matchId));
+  return `${room.id}-${table?.id ?? matchId}`;
+}
+
 function useMatchRoomId(matchId: string | null): { roomId: string | null; pending: boolean } {
   const [state, setState] = useState<{ roomId: string | null; everAnswered: boolean }>({ roomId: null, everAnswered: false });
   useEffect(() => {
@@ -108,7 +120,7 @@ function useMatchRoomId(matchId: string | null): { roomId: string | null; pendin
       .roomOfMatch(matchId)
       .then(
         (room) => {
-          if (live) setState({ roomId: room?.id ?? null, everAnswered: true });
+          if (live) setState({ roomId: room === null ? null : tableChatId(room, matchId), everAnswered: true });
         },
         () => {
           if (live) setState({ roomId: null, everAnswered: true });
@@ -131,14 +143,10 @@ function useMatchRoomId(matchId: string | null): { roomId: string | null; pendin
  * it. The legacy `draft` route maps to the same id the `room` route does, so
  * redirecting one to the other does not tear down and rebuild the chrome.
  *
- * **A `match` route resolves to the MATCH'S ROOM, not the match itself**
- * (wave 71 §G, `useMatchRoomId` above). Every member used to be pushed onto
- * `cardtable-m-<matchId>` here — a chat room keyed by the game, and a
- * DIFFERENT one from the room's own `cardtable-r-<roomId>` — so a room's
- * conversation stopped the moment anyone opened a board and could not be
- * resumed by opening another board of the same room (the board strip this
- * wave adds is exactly that second board). `matchRoomId` is the answer this
- * function returns for a `match` route, but **falls back to the match's own
+ * **A `match` route resolves to its TABLE's chat** (`tableChatId`, above):
+ * separate from the room's own lobby chat, the same across the games of one
+ * series. `matchRoomId` is the answer this function returns for a `match`
+ * route, but **falls back to the match's own
  * id when `matchRoomId` is `null`** (wave 72 §R) — a SETTLED answer: the
  * fetch came back with no room for this match (a scenario, a direct vs-AI
  * game), which before wave 71 §G kept its own `cardtable-m-<id>` chat and
