@@ -354,42 +354,71 @@ describe('emblems around the avatar', () => {
 });
 
 /*
- * The operator, 2026-10-14: *"show storm counter as an emblem if storm card in hand"*. The count
- * takes the ring's last slot; the emblems keep the slots before it.
+ * The operator, 2026-10-19: *"let's make a special zone between their name and the deck symbol for
+ * this type of information. by default that zone is empty, but when things like storm counters are
+ * being tracked or extra turns, then it'd be good to show it there."*
  */
-describe('the storm count in the emblem ring', () => {
+describe('the seat’s status zone', () => {
   const emblem = (id: number) => ({ id, source: `Source ${id}`, text: `Text ${id}.` });
-  const withStorm = (storm: number | undefined, emblems: number) => {
-    const base = boardFromFixture(fixture);
-    const all = Array.from({ length: emblems }, (_, i) => emblem(i + 1));
-    return {
-      ...base,
-      players: base.players.map((p) => (p.isViewer ? { ...p, ...(storm === undefined ? {} : { storm }), ...(emblems === 0 ? {} : { emblems: all }) } : p)),
-    };
-  };
+  const base = boardFromFixture(fixture);
+  const withViewer = (extra: Partial<BoardView['players'][number]>, them: Partial<BoardView['players'][number]> = {}): BoardView => ({
+    ...base,
+    players: base.players.map((p) => (p.isViewer ? { ...p, ...extra } : { ...p, ...them })),
+  });
+  const status = (el: HTMLElement) => el.querySelector<HTMLElement>('[data-player-bar] > [data-seat-status]')!;
 
-  it('draws the count as a medallion in the last slot, with its own tip', () => {
-    const { seat } = renderBoard(withStorm(4, 0));
-    const storm = seat(0).querySelector<HTMLElement>('[data-testid="storm-count"]')!;
-    expect(storm.textContent).toBe('4');
-    expect(storm.dataset.slot).toBe('3');
-    expect(storm.dataset.tip).toBe('Storm 4');
+  it('is in every seat’s bar, between the name and the library mark, and holds nothing while nothing is tracked', () => {
+    const { seat } = renderBoard(base);
+    for (const p of base.players) {
+      const zone = status(seat(p.id));
+      expect(zone, `seat ${p.id} has a status zone in its bar`).not.toBeNull();
+      expect(zone.children, `seat ${p.id}'s is empty`).toHaveLength(0);
+      expect(zone.dataset.items).toBe('0');
+      const bar = [...seat(p.id).querySelector('[data-player-bar]')!.children];
+      expect(bar.indexOf(zone), 'after the name').toBe(bar.findIndex((c) => c.classList.contains('seat__ident')) + 1);
+    }
+  });
+
+  it('draws the storm count there, with its tip — not on the avatar', () => {
+    const { seat } = renderBoard(withViewer({ storm: 4 }));
+    const storm = within(status(seat(0))).getByTestId('storm-count');
+    expect([storm.textContent, storm.dataset.storm, storm.dataset.tip, storm.getAttribute('aria-label')]).toEqual(['4', '4', 'Storm 4', 'Storm 4']);
+    expect(seat(0).querySelector('[data-player-face] [data-testid="storm-count"], .face__emblems'), 'nothing on the face').toBeNull();
     expect(seat(1).querySelector('[data-testid="storm-count"]'), 'not on the other seat').toBeNull();
   });
 
-  it('beside emblems: three emblem slots, then the count; past them, the overflow counts the rest before it', () => {
-    const two = renderBoard(withStorm(1, 2)).seat(0);
-    expect(Array.from(two.querySelectorAll<HTMLElement>('[data-emblem]')).map((m) => m.dataset.slot)).toEqual(['0', '1']);
-    expect(two.querySelector<HTMLElement>('[data-testid="storm-count"]')!.dataset.slot).toBe('3');
-    const four = renderBoard(withStorm(1, 4)).seat(0);
-    expect(Array.from(four.querySelectorAll<HTMLElement>('[data-emblem]')).map((m) => m.dataset.slot)).toEqual(['0', '1']);
-    const more = four.querySelector<HTMLElement>('[data-emblem-more]')!;
-    expect([more.textContent, more.dataset.slot]).toEqual(['+2', '2']);
+  it('gives the avatar’s last slot back to emblems: four emblems are four medallions beside a storm count', () => {
+    const { seat } = renderBoard(withViewer({ storm: 1, emblems: [1, 2, 3, 4].map(emblem) }));
+    expect(Array.from(seat(0).querySelectorAll<HTMLElement>('[data-emblem]')).map((m) => m.dataset.slot)).toEqual(['0', '1', '2', '3']);
+    expect(seat(0).querySelector('[data-emblem-more]')).toBeNull();
   });
 
-  it('no count, no medallion', () => {
-    const { seat } = renderBoard(withStorm(undefined, 0));
-    expect(seat(0).querySelector('[data-testid="storm-count"]')).toBeNull();
+  it('draws the extra turns to come on any seat, and the mark that this turn is one on the seat taking it', () => {
+    const { seat } = renderBoard(withViewer({ extraTurn: true }, { extraTurns: 2 }));
+    const coming = within(status(seat(1))).getByTestId('extra-turns');
+    expect([coming.textContent, coming.dataset.extraTurns, coming.dataset.tip]).toEqual(['2', '2', '2 extra turns']);
+    expect(coming.querySelector('svg'), 'a drawn mark').not.toBeNull();
+    expect(seat(1).querySelector('[data-testid="extra-turn-now"]'), 'their turn is not an extra one').toBeNull();
+    const now = within(status(seat(0))).getByTestId('extra-turn-now');
+    expect([now.textContent, now.dataset.tip]).toEqual(['', 'Extra turn']);
+    expect(seat(0).querySelector('[data-testid="extra-turns"]'), 'none to come on ours').toBeNull();
+    expect(renderBoard(withViewer({ extraTurns: 1 })).seat(0).querySelector<HTMLElement>('[data-testid="extra-turns"]')!.dataset.tip).toBe('1 extra turn');
+  });
+
+  it('holds a fixed track in the bar, the same with chips as without, so a chip arriving moves no face or count', () => {
+    const css = styled();
+    const tracks = (view: BoardView) => {
+      const { seat, unmount } = renderBoard(view);
+      const read = [0, 1].map((id) => {
+        const bar = seat(id).querySelector<HTMLElement>('[data-player-bar]')!;
+        return { rows: css(bar, 'grid-template-rows'), status: css(status(seat(id)), 'grid-row') };
+      });
+      unmount();
+      return read;
+    };
+    const empty = tracks(base);
+    for (const t of empty) expect(t.rows, 'the status track is a named, fixed one').toContain('var(--status-h)');
+    expect(tracks(withViewer({ storm: 3, extraTurn: true, extraTurns: 1 }, { extraTurns: 1 }))).toEqual(empty);
   });
 });
 
@@ -1334,7 +1363,7 @@ describe('the table as the operator blocked it (§A)', () => {
     expect(pool.getAttribute('aria-label')).toBe(`${mine} mana pool: 1 white, 2 red, 1 colourless`);
     // It is against the portrait — one is the other's sibling in the bar — and it
     // is NOT a zone, so the set of zones on the board is untouched by it.
-    expect(pool.previousElementSibling!.className).toBe('seat__ident');
+    expect(pool.parentElement!.querySelector(':scope > .seat__ident')).not.toBeNull();
     expect(pool.dataset.zone).toBeUndefined();
     // And the other seat, whose pool this state left empty, draws the same box
     // holding nothing: a pool arriving mid-turn may not move a track.
@@ -1522,8 +1551,8 @@ describe('the seat’s vertical bar (#9)', () => {
     for (const p of view.players) {
       const bar = seat(p.id).querySelector<HTMLElement>('[data-player-bar]')!;
       expect(bar.querySelector('[data-zone]'), `seat ${p.id}'s bar holds no zone`).toBeNull();
-      expect(new Set([...bar.children].map((c) => c.className)), `seat ${p.id}'s bar holds exactly these three`).toEqual(
-        new Set(['seat__ident', 'seat__mana', 'seat__counts']),
+      expect(new Set([...bar.children].map((c) => c.className)), `seat ${p.id}'s bar holds exactly these four`).toEqual(
+        new Set(['seat__ident', 'seat__status', 'seat__mana', 'seat__counts']),
       );
       const side = seat(p.id).querySelector<HTMLElement>(':scope > .seat__side')!;
       expect([...side.children].map((c) => c.className), `seat ${p.id}'s column: the bar, then the piles`).toEqual([
@@ -1544,16 +1573,16 @@ describe('the seat’s vertical bar (#9)', () => {
    * avatar, counts, then the rest — and the opponent's column is its vertical
    * mirror. Read off the rows the cascade gives each rendered element.
    */
-  it('R3 / Q9: the viewer reads avatar, counts, mana down the column; the opponent reads it mirrored', () => {
+  it('R3 / Q9: the viewer reads avatar, status, counts, mana down the column; the opponent reads it mirrored', () => {
     const css = styled();
     const { seat } = renderBoard(view);
     const order = (id: number): string[] =>
-      ['ident', 'counts', 'mana']
+      ['ident', 'status', 'counts', 'mana']
         .map((name) => [name, Number(css(seat(id).querySelector(`.seat__${name}`)!, 'grid-row'))] as const)
         .sort((a, b) => a[1] - b[1])
         .map(([name]) => name);
-    expect(order(0), 'the viewer, top to bottom').toEqual(['ident', 'counts', 'mana']);
-    expect(order(1), 'the opponent, top to bottom').toEqual(['mana', 'counts', 'ident']);
+    expect(order(0), 'the viewer, top to bottom').toEqual(['ident', 'status', 'counts', 'mana']);
+    expect(order(1), 'the opponent, top to bottom').toEqual(['mana', 'counts', 'status', 'ident']);
   });
 
   it('Q9: exile is drawn only while it holds a card', () => {

@@ -1521,17 +1521,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* The storm count's medallion: the count itself, filled with the accent so it reads apart from an emblem. */
-.face__emblem--storm {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-  font-size: 8px;
-  font-weight: 700;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ── a player Forge says may be chosen (a target, say) ───────────────── */
 
 .seat[data-selectable] {

@@ -476,10 +476,26 @@ export interface BoardPlayer {
    * `MagicStack` refreshes on every cast and clears at the turn's start) — set only
    * on the VIEWER's own seat and only while their hand holds a card with Storm:
    * the operator, 2026-10-14, *"show storm counter as an emblem if storm card in
-   * hand"*. Never on another seat: whether an opponent holds a Storm card is
-   * hidden, and a count that appeared beside them would say so.
+   * hand"*, drawn in the seat's status zone since 2026-10-19. Never on another
+   * seat: whether an opponent holds a Storm card is hidden, and a count that
+   * appeared beside them would say so.
    */
   storm?: number;
+  /**
+   * The extra turns this player has coming, one after another (`PlayerView.ExtraTurnCount`): every
+   * seat's, because a Time Walk resolving is public. Forge recounts it for every player when one is
+   * added (`PhaseHandler.addExtraTurn`) and for the player whose turn begins when one is taken
+   * (`getNextActivePlayer`), so it reads 1 from Time Walk's resolution until the extra turn starts,
+   * then 0. Absent at 0.
+   */
+  extraTurns?: number;
+  /**
+   * This turn is an extra one, and it is this player's. `PlayerView.IsExtraTurn` is set only on the
+   * player whose turn BEGINS (`PhaseHandler.getNextActivePlayer`) and never cleared on anyone
+   * else, so the player who took an extra turn keeps `true` through the opponent's next turn; it is
+   * read here only for the active player. Absent otherwise.
+   */
+  extraTurn?: true;
   /**
    * Player-level counters — poison, energy, experience, and anything else
    * Forge tracks on the PLAYER rather than a card (wave 33 item 4, the first
@@ -1698,12 +1714,14 @@ export function toBoardView(
     const emblems = readEmblems(state, p, artIds, printedPT);
     const hand = isViewer ? cardsIn(handIds).map((c) => seenByOthers(state, c, viewerPlayerId)) : null;
     const holdsStorm = hand?.some((c) => hasKeyword(c.keywords, 'storm')) === true;
+    const isActive = pid === activePlayerId;
+    const extraTurns = readInt(p, 'ExtraTurnCount');
     return {
       id: pid,
       name: playerName(pid),
       life: readInt(p, 'Life') - (lifePaying?.get(pid) ?? 0),
       isViewer,
-      isActive: pid === activePlayerId,
+      isActive,
       hasPriority: readBool(p, 'HasPriority'),
       hasLost: readBool(p, 'HasLost'),
       hand,
@@ -1719,6 +1737,8 @@ export function toBoardView(
       counters: countersOf(p),
       ...(emblems.length === 0 ? {} : { emblems }),
       ...(holdsStorm ? { storm: prop(game, 'StormCount') === undefined ? 0 : readInt(game, 'StormCount') } : {}),
+      ...(extraTurns > 0 ? { extraTurns } : {}),
+      ...(isActive && readBool(p, 'IsExtraTurn') ? { extraTurn: true as const } : {}),
       // The key must be ABSENT for a seat with none — never `avatarId:
       // undefined` — so an in-process `'avatarId' in player` reader and a JSON
       // reader agree (`D-avatar-field.md` §3).

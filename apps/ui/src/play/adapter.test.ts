@@ -40,6 +40,7 @@ import {
   scryfallIdFor,
   toBoardView,
   type BoardCard,
+  type BoardView,
 } from './adapter.ts';
 import { loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
@@ -1390,6 +1391,51 @@ describe('storm — the game’s storm count on the viewer’s seat while a Stor
 
   it('no Storm card in hand, no key', () => {
     for (const p of adapt(withStorm(4, false)).players) expect(p).not.toHaveProperty('storm');
+  });
+});
+
+/*
+ * Extra turns — the operator, 2026-10-19: *"when a player has extra turns, this kind of thing should
+ * be visible somewhere around their portrait"*. `PlayerView.ExtraTurnCount` is the turns to come,
+ * public, on every seat; `PlayerView.IsExtraTurn` is Forge's flag that the player's turn is an
+ * extra one, set when a turn begins on the player whose turn it is and left behind on the player
+ * who took one when the other's turn begins — so it counts only on the active player.
+ */
+describe('extra turns — the turns to come on every seat, and the mark on the seat taking one', () => {
+  const game = (state: Map<string, WireObject>) => deltaKey(WireType.Game, [...state.values()].find((o) => o._type === WireType.Game)!._id);
+  function withTurns(active: number, players: Record<number, { count?: number; isExtra?: boolean }>): Map<string, WireObject> {
+    const state = baseState();
+    state.set(game(state), { ...state.get(game(state))!, PlayerTurn: { t: 'int', v: active } } as WireObject);
+    for (const [pid, { count, isExtra }] of Object.entries(players)) {
+      const key = deltaKey(WireType.Player, Number(pid));
+      state.set(key, {
+        ...state.get(key)!,
+        ...(count === undefined ? {} : { ExtraTurnCount: { t: 'int', v: count } }),
+        ...(isExtra === undefined ? {} : { IsExtraTurn: { t: 'bool', v: isExtra } }),
+      } as WireObject);
+    }
+    return state;
+  }
+  const player = (view: BoardView, id: number) => view.players.find((p) => p.id === id)!;
+
+  it('reads the turns to come onto whichever seat has them, the viewer’s or not', () => {
+    const view = adapt(withTurns(0, { 0: { count: 0 }, 1: { count: 2 } }));
+    expect(player(view, 1).extraTurns).toBe(2);
+    expect(player(view, 0), 'none to come, no key').not.toHaveProperty('extraTurns');
+    expect(player(adapt(withTurns(1, { 0: { count: 1 } })), 0).extraTurns, 'the viewer’s own too').toBe(1);
+  });
+
+  it('marks the active player’s extra turn, and never a flag Forge left on a player whose turn it is not', () => {
+    expect(player(adapt(withTurns(0, { 0: { isExtra: true } })), 0).extraTurn).toBe(true);
+    const after = adapt(withTurns(1, { 0: { isExtra: true }, 1: { isExtra: false } }));
+    for (const p of after.players) expect(p, `seat ${p.id}: the turn after an extra one is not one`).not.toHaveProperty('extraTurn');
+  });
+
+  it('nothing on the wire, no keys', () => {
+    for (const p of adapt(baseState()).players) {
+      expect(p).not.toHaveProperty('extraTurns');
+      expect(p).not.toHaveProperty('extraTurn');
+    }
   });
 });
 

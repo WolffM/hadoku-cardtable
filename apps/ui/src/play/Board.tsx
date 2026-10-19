@@ -2978,8 +2978,7 @@ function PlayerFace({
   const artistOf = useArtistLookup(emblems.some((e) => e.scryfallId !== undefined));
   /** Who drew an emblem's medallion art, once it can be credited — the medallion shows no art before. */
   const credited = (e: BoardEmblem): string | null => (e.scryfallId === undefined || artistOf === undefined ? null : artistOf(e.scryfallId));
-  const storm = player.storm;
-  const drawn = new Set(medallionsOf(emblems, slotsFor(storm)));
+  const drawn = new Set(medallionsOf(emblems));
   const emblemTip = emblems.length === 0 ? undefined : emblemsTip(emblems, (e) => (drawn.has(e) && cardImageUrl(e.scryfallId) !== null ? credited(e) : null));
   const poison = poisonOf(player);
   const mark = (
@@ -3040,7 +3039,7 @@ function PlayerFace({
       ) : (
         <div className="face__hit">{mark}</div>
       )}
-      {emblemTip === undefined && storm === undefined ? null : <SeatEmblems emblems={emblems} tip={emblemTip} storm={storm} credited={credited} />}
+      {emblemTip === undefined ? null : <SeatEmblems emblems={emblems} tip={emblemTip} credited={credited} />}
       <span className="face__name">{player.name}</span>
     </div>
   );
@@ -3098,14 +3097,9 @@ function EmblemMedallion({ emblem, slot, tip, art }: { emblem: BoardEmblem; slot
 /** The medallions one avatar has room for around it (`card.css`'s `.face__emblem` slots). */
 const EMBLEM_SLOTS = 4;
 
-/** The slots left to emblems: all of them, or all but the last while the storm count holds that one. */
-function slotsFor(storm: number | undefined): number {
-  return storm === undefined ? EMBLEM_SLOTS : EMBLEM_SLOTS - 1;
-}
-
 /** The emblems that get a medallion of their own: all of them while they fit, else all but the slot that counts the rest. */
-function medallionsOf(emblems: readonly BoardEmblem[], slots: number): readonly BoardEmblem[] {
-  return emblems.length > slots ? emblems.slice(0, slots - 1) : emblems;
+function medallionsOf(emblems: readonly BoardEmblem[]): readonly BoardEmblem[] {
+  return emblems.length > EMBLEM_SLOTS ? emblems.slice(0, EMBLEM_SLOTS - 1) : emblems;
 }
 
 /**
@@ -3117,43 +3111,75 @@ function medallionsOf(emblems: readonly BoardEmblem[], slots: number): readonly 
  *
  * A medallion shows its source's art cropped to the illustration, once that art can be credited
  * (the credit is in the tip; `../draft/artists.ts`), else a drawn emblem mark.
- *
- * The storm count rides the same ring (the operator, 2026-10-14: *"show storm counter as an emblem
- * if storm card in hand"*): while `storm` is set (`adapter.ts` sets it only on your own seat, only
- * while your hand holds a Storm card) the LAST slot is its medallion — the count, in Forge's number
- * — and the emblems keep the slots before it, so the count arriving moves no emblem but the overflow.
  */
-function SeatEmblems({
-  emblems,
-  tip,
-  storm,
-  credited,
-}: {
-  emblems: readonly BoardEmblem[];
-  tip: string | undefined;
-  storm: number | undefined;
-  credited: (e: BoardEmblem) => string | null;
-}) {
-  const slots = slotsFor(storm);
-  const shown = medallionsOf(emblems, slots);
+function SeatEmblems({ emblems, tip, credited }: { emblems: readonly BoardEmblem[]; tip: string; credited: (e: BoardEmblem) => string | null }) {
+  const shown = medallionsOf(emblems);
   const rest = emblems.length - shown.length;
-  const stormTip = storm === undefined ? undefined : `Storm ${storm}`;
   return (
-    <span className="face__emblems" data-emblems={emblems.length} role="img" aria-label={[tip, stormTip].filter((t) => t !== undefined).join('. ')}>
-      {tip === undefined
-        ? null
-        : shown.map((e, slot) => <EmblemMedallion key={e.id} emblem={e} slot={slot} tip={tip} art={credited(e) === null ? null : cardImageUrl(e.scryfallId)} />)}
-      {tip === undefined || rest === 0 ? null : (
-        <span className="face__emblem face__emblem--more" data-emblem-more="" data-slot={slots - 1} data-tip={tip}>
+    <span className="face__emblems" data-emblems={emblems.length} role="img" aria-label={tip}>
+      {shown.map((e, slot) => (
+        <EmblemMedallion key={e.id} emblem={e} slot={slot} tip={tip} art={credited(e) === null ? null : cardImageUrl(e.scryfallId)} />
+      ))}
+      {rest === 0 ? null : (
+        <span className="face__emblem face__emblem--more" data-emblem-more="" data-slot={EMBLEM_SLOTS - 1} data-tip={tip}>
           +{rest}
         </span>
       )}
-      {storm === undefined ? null : (
-        <span className="face__emblem face__emblem--storm" data-testid="storm-count" data-storm={storm} data-slot={EMBLEM_SLOTS - 1} data-tip={stormTip}>
-          {storm}
+    </span>
+  );
+}
+
+/**
+ * The seat's STATUS zone, between its name and its library mark — the operator, 2026-10-19: *"when a
+ * player has extra turns, this kind of thing should be visible somewhere around their portrait.
+ * let's make a special zone between their name and the deck symbol for this type of information. by
+ * default that zone is empty, but when things like storm counters are being tracked or extra turns,
+ * then it'd be good to show it there."* What the game is tracking about this player right now, one
+ * chip each: a drawn mark and a number, the words in the tip and the accessible name.
+ *
+ * Its track is a fixed one (`--status-h`, `board.css`) and is there while it is empty, so a chip
+ * arriving moves neither the face nor the counts. The tracks it holds:
+ *
+ *   - the storm count (`BoardPlayer.storm`): your own seat only, only while your hand holds a Storm
+ *     card (the operator, 2026-10-14) — it was the last medallion round the avatar until this zone;
+ *   - the extra turns to come (`extraTurns`), on any seat: a Time Walk resolving is public;
+ *   - the mark that this turn IS an extra one (`extraTurn`), on the seat whose turn it is.
+ */
+function SeatStatus({ player }: { player: BoardPlayer }) {
+  const { storm, extraTurns, extraTurn } = player;
+  const turns = (n: number): string => `${n} extra ${n === 1 ? 'turn' : 'turns'}`;
+  const items = [storm !== undefined, extraTurn === true, extraTurns !== undefined].filter(Boolean).length;
+  return (
+    <div className="seat__status" data-seat-status="" data-items={items}>
+      {extraTurn === true && (
+        <span className="seat__chip seat__chip--now" data-testid="extra-turn-now" data-tip="Extra turn" role="img" aria-label="Extra turn">
+          <ExtraTurnArt />
         </span>
       )}
-    </span>
+      {extraTurns !== undefined && (
+        <span className="seat__chip" data-testid="extra-turns" data-extra-turns={extraTurns} data-tip={turns(extraTurns)} role="img" aria-label={turns(extraTurns)}>
+          <ExtraTurnArt />
+          <span aria-hidden="true">{extraTurns}</span>
+        </span>
+      )}
+      {storm !== undefined && (
+        <span className="seat__chip" data-testid="storm-count" data-storm={storm} data-tip={`Storm ${storm}`} role="img" aria-label={`Storm ${storm}`}>
+          <svg className="seat__chip-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M4.5 9.5a3 3 0 0 1 .4-6 4 4 0 0 1 7.4 1.2 2.4 2.4 0 0 1-.3 4.8H10l-1.6 2.4h1.8L6.6 15.5l1-3.4H5.8l1.2-2.6Z" />
+          </svg>
+          <span aria-hidden="true">{storm}</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** An extra turn, drawn: a turn arrow come round on itself. Ours, as geometry like the library mark. */
+function ExtraTurnArt() {
+  return (
+    <svg className="seat__chip-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M8 2a6 6 0 1 0 5.7 7.9l-1.9-.6A4 4 0 1 1 8 4c1 0 1.9.4 2.6 1L9 6.5h5V1.5l-1.9 1.9A6 6 0 0 0 8 2Z" />
+    </svg>
   );
 }
 
@@ -3335,7 +3361,7 @@ function PlayerArea({
     >
       {/*
        * The seat's furniture, in the upper cell of its narrow left column: the
-       * avatar with its life, the name, the mana pool, then the counts — and,
+       * avatar with its life, the name, its status, the counts, then the mana pool — and,
        * on the viewer's side, the one control on this board that is ours.
        *
        * Fixed grid tracks (`board.css`), with the avatar block in the seat's
@@ -3367,6 +3393,7 @@ function PlayerArea({
               )}
             </h3>
           </div>
+          <SeatStatus player={player} />
           <ManaPool player={player} />
           {/*
            * The library's count, as a MARK rather than a word (item 10: *"can we get
