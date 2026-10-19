@@ -163,6 +163,13 @@ describe('onlyAnswer, where Forge left exactly one possibility', () => {
 		expect(onlyAnswer(all)).toMatchObject({ result: ask.choices.map((c) => c.key) });
 	});
 
+	it("an any-colour source's colour question is the player's in every mode — Black Lotus's five colours", () => {
+		const colours = ['White', 'Blue', 'Black', 'Red', 'Green'].map((label, i) => ({ key: `c${i}`, label, ref: null }));
+		const ask = narrowed('getChoices.json', { message: 'Select Mana to Produce', min: 1, max: 1, choices: colours });
+		expect(onlyAnswer(ask, DEFAULT_STOP_POLICY)).toBeNull();
+		expect(onlyAnswer(ask, FULL_CONTROL_POLICY)).toBeNull();
+	});
+
 	it('chooseSingleEntityForEffect with one option answers it — unless declining is allowed', () => {
 		const ask = fixture('chooseSingleEntityForEffect.json') as Extract<
 			ServerFrame,
