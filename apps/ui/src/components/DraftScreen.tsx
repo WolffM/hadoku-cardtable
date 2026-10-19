@@ -55,6 +55,7 @@ import {
 import { ConnectionBanner } from './ConnectionBanner.tsx';
 import { DeckView } from './DeckView.tsx';
 import { DraftCounters } from './DraftCounters.tsx';
+import { useNewPackSound } from '../draft/packSound.ts';
 import { PackView, type PackLayout } from './PackView.tsx';
 import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
 import { SeatBar } from './SeatBar.tsx';
@@ -123,6 +124,7 @@ export function DraftScreen({
 
   const [message, setMessage] = useState<string | null>(null);
   const { view } = state;
+  useNewPackSound(view);
   const spectating = view.viewer.kind === 'spectator';
   const blocked = pickBlockedBy(state);
   const awaiting = isAwaitingConfirmation(state);

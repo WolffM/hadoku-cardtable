@@ -1,0 +1,21 @@
+{
+ "note": "Round 10 (2026-10-19): candidates for the draft's New pack (ui.draft-pack; the operator: \"we also need a sound for when a new pack is opened\"). It plays three times a draft, at each fresh booster, so it can be a little fuller than a pick. One literal real-world source per prompt, as round 9.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, close-mic.",
+ "negative": "low quality, muffled, lo-fi, hiss, distortion, clipping, chime, chimes, gong, bell, glockenspiel, music, melody, song, speech, voice, vocals, harsh, shrill, explosion, fire, laser, sci-fi",
+ "seconds": 2.0,
+ "sounds": {
+  "ui.draft-pack": {
+   "group": "Round 10",
+   "name": "New pack",
+   "section": "Moments",
+   "seconds": 1.5,
+   "prompts": [
+    "A foil trading card booster pack torn open along its top edge, one crisp crinkly rip",
+    "A sealed plastic wrapper ripped open by hand, a short sharp crinkle and tear",
+    "A small stack of playing cards slid out of a paper sleeve and fanned onto a felt table",
+    "Tearing the top off a stiff paper envelope, then a soft papery rustle of cards inside",
+    "A crinkly foil packet pulled open quickly, a bright crackle that settles"
+   ]
+  }
+ }
+}
