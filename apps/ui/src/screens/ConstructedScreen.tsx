@@ -172,7 +172,7 @@ import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.
 import { openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
-import { DraftLobby } from './DraftLobby.tsx';
+import { DraftLobby, podDealable } from './DraftLobby.tsx';
 import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
@@ -806,7 +806,7 @@ export function openDraftedDeck(saved: string | null | undefined, draftId: strin
  * `aria-checked` is what says which deck is chosen; `data-chosen` on the root is
  * the same fact for a test, and the row also paints a mark.
  */
-function DeckChooser({
+export function DeckChooser({
   options,
   value,
   disabled,
@@ -1178,7 +1178,7 @@ function RoomTableScreen({
   const draftRoom = view?.gameType === 'draft';
   const draftStartedAt = view?.draftStartedAt ?? null;
   const members = view?.members ?? [];
-  const allReady = members.length > 0 && members.every((m) => m.ready);
+  const allReady = podDealable(view?.pod?.seats, members);
   /** Your own readiness in a DRAFT room, as the ROOM says it. Not a latch. */
   const iAmReady = view?.you.ready === true;
   /**

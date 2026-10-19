@@ -27,7 +27,7 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         busy: false,
         onSit: () => undefined,
-        onStand: () => undefined,
+        onStand: () => undefined, onAi: () => undefined,
       }),
     );
     expect(screen.getAllByTestId('pod-seat-sit')).toHaveLength(POD_SEATS);
@@ -45,7 +45,7 @@ describe('the pod seat grid', () => {
         readyOf: (id) => id === 'u-alice',
         busy: false,
         onSit: () => undefined,
-        onStand: () => undefined,
+        onStand: () => undefined, onAi: () => undefined,
       }),
     );
     const row = screen.getByTestId('pod-seat-2');
@@ -66,7 +66,7 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         busy: false,
         onSit: () => undefined,
-        onStand: () => undefined,
+        onStand: () => undefined, onAi: () => undefined,
       }),
     );
     expect(screen.getByTestId('pod-seat-0').textContent).toContain('Me (you)');
@@ -85,7 +85,7 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         busy: false,
         onSit: () => undefined,
-        onStand: () => undefined,
+        onStand: () => undefined, onAi: () => undefined,
       }),
     );
     expect(screen.getByTestId('pod-seat-5-leader')).toBeTruthy();
@@ -102,7 +102,7 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         busy: false,
         onSit: () => undefined,
-        onStand: () => undefined,
+        onStand: () => undefined, onAi: () => undefined,
       }),
     );
     for (const btn of screen.getAllByTestId('pod-seat-sit')) {
@@ -120,7 +120,7 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         busy: false,
         onSit,
-        onStand: () => undefined,
+        onStand: () => undefined, onAi: () => undefined,
       }),
     );
     screen.getByTestId('pod-seat-3').querySelector('button')?.click();
@@ -140,6 +140,7 @@ describe('the pod seat grid', () => {
         busy: false,
         onSit: () => undefined,
         onStand,
+        onAi: () => undefined,
       }),
     );
     screen.getByTestId('pod-seat-stand').click();

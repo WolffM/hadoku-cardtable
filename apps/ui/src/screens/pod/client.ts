@@ -128,7 +128,7 @@ export interface PodActionOutcome {
   message: string | null;
 }
 
-async function postPod(roomId: string, action: 'sit' | 'stand' | 'play', body: Record<string, unknown>): Promise<PodActionOutcome> {
+async function postPod(roomId: string, action: 'sit' | 'stand' | 'play' | 'ai', body: Record<string, unknown>): Promise<PodActionOutcome> {
   try {
     const res = await fetch(`${podApiBase()}rooms/${encodeURIComponent(roomId)}/pod/${action}`, {
       method: 'POST',
@@ -148,6 +148,11 @@ async function postPod(roomId: string, action: 'sit' | 'stand' | 'play', body: R
 /** Claims a pod seat — the leader's choice of `seat` (0-7), or the server's own pick when omitted. */
 export function sitPod(roomId: string, seat?: number): Promise<PodActionOutcome> {
   return postPod(roomId, 'sit', seat === undefined ? {} : { seat });
+}
+
+/** The AI button on an open pod seat (`on`), or taking the AI back out of it. */
+export function aiPod(roomId: string, seat: number, on: boolean): Promise<PodActionOutcome> {
+  return postPod(roomId, 'ai', { seat, on });
 }
 
 /** Gives my own seat back. A no-op (refused, not thrown) once drafting has started. */

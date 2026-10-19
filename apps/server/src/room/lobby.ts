@@ -649,9 +649,19 @@ function podPhaseOf(room: RoomRecord, checks: PodChecks): PodPhase {
 /** `PodView.seats` once the pod has left the `lobby` phase — see `podViewOf`. */
 const EMPTY_POD_SEATS: PodView['seats'] = new Array(POD_SEATS).fill(null) as PodView['seats'];
 
+/**
+ * The members seated in the pod, in seat order — not the open seats, and not
+ * the seats the AI holds (`POD_AI`, the AI button: the operator, 2026-10-19,
+ * *"i need an AI button same as how it's used in the constructed 1v1 lobby"*).
+ */
+function seatedHumans(room: RoomRecord): string[] {
+	return room.podSeats.filter((id): id is string => id !== null && id !== POD_AI);
+}
+
 function podSeatsView(room: RoomRecord): PodView['seats'] {
 	return room.podSeats.map((id) => {
 		if (id === null) return null;
+		if (id === POD_AI) return { memberId: POD_AI, name: 'AI' } as PodMember;
 		const member = room.members.find((m) => m.id === id);
 		return member === undefined ? null : ({ memberId: id, name: member.name } as PodMember);
 	}) as PodView['seats'];
@@ -673,7 +683,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// `humans`), falling back to the CURRENT seats for a pod whose rounds have
 	// not started yet (`drafting`/`building`) — there is no fixed list to fall
 	// back to before `#dealPodRounds` has run.
-	const humans = room.pod?.humans ?? room.podSeats.filter((id): id is string => id !== null);
+	const humans = room.pod?.humans ?? seatedHumans(room);
 	if (phase === 'drafting') {
 		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: humans, built: [] };
 	}
@@ -1012,6 +1022,8 @@ export interface Lobby {
 	sitPod(roomId: string, memberId: string, seat?: number): SitPodResult;
 	/** Give up a pod seat, in the `lobby` phase only. Idempotent: not seated is not a failure. */
 	standPod(roomId: string, memberId: string): StandPodResult;
+	/** Put the AI in an open pod seat (`on`), or take it out — lobby phase only, any member. */
+	aiPod(roomId: string, memberId: string, seat: number, on: boolean): SitPodResult;
 	/**
 	 * A drafter is done building — the deck editor's Play. Refused unless their
 	 * saved deck is legal (`PodChecks.built`). Once EVERY human drafter has
@@ -2053,6 +2065,13 @@ class FileLobby implements Lobby {
 		const member = room?.members.find((m) => m.id === memberId);
 		if (room === undefined || member === undefined) return false;
 		member.ready = ready;
+		// In a pod's lobby, Ready is "I am playing": a member who has not sat takes
+		// the first open seat. A full pod leaves them watching, ready or not — the
+		// deal never waits on a member who holds no seat.
+		if (ready && room.gameType === 'draft' && room.draftStartedAt === null && !room.podSeats.includes(memberId)) {
+			const open = room.podSeats.indexOf(null);
+			if (open !== -1) room.podSeats = room.podSeats.map((id, i) => (i === open ? memberId : id));
+		}
 		this.#persist(room);
 		this.#log({ event: 'room-ready', roomId, ready });
 		return true;
@@ -2120,30 +2139,13 @@ class FileLobby implements Lobby {
 		// been cleared by a leave. A room that has started has started.
 		if (room.draftStartedAt !== null) return { ok: true, room: this.#view(room) };
 		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
-		// The pod's ready gate counts SEATED members only (wave 72 §P): a
-		// spectator who never sat holds no seat to be ready FOR. Nobody having
-		// sat yet (every room before this wave, and every one that still never
-		// calls `sitPod`) falls back to "every member" — the exact gate this
-		// had before the pod lobby existed, byte for byte.
-		const seated = room.podSeats.filter((id): id is string => id !== null);
-		const gate = seated.length > 0 ? seated : room.members.map((m) => m.id);
-		if (gate.length === 0 || gate.some((id) => room.members.find((m) => m.id === id)?.ready !== true)) {
-			return { ok: false, reason: 'not-ready' };
-		}
-		// The fallback gate just used "every member" — so SEAT them, now, in
-		// join order, up to POD_SEATS. Without this a room that never pressed
-		// Sit would deal (the fallback above lets it start), but every LATER
-		// reader of `podSeats` — `draftRooms.ts`'s humans lookup, `built`,
-		// `playPod` — would see nobody seated and the pod could never
-		// reach `rounds`. A room that DID seat somebody is left exactly as the
-		// pod lobby set it; this only fills the gap the fallback itself opened.
-		if (seated.length === 0) {
-			const autoSeated: (string | null)[] = new Array(POD_SEATS).fill(null);
-			room.members.slice(0, POD_SEATS).forEach((m, i) => {
-				autoSeated[i] = m.id;
-			});
-			room.podSeats = autoSeated;
-		}
+		// Every seat filled — a member or the AI — and every seated member ready.
+		// The operator, 2026-10-19: *"drafts should not immediately start with
+		// open seats"* and *"the room should not wait on spectators to be
+		// ready"*: a member who never sat is watching, and is not waited on.
+		const seated = seatedHumans(room);
+		if (seated.length === 0 || room.podSeats.includes(null)) return { ok: false, reason: 'not-ready' };
+		if (seated.some((id) => room.members.find((m) => m.id === id)?.ready !== true)) return { ok: false, reason: 'not-ready' };
 		room.draftStartedAt = this.#now();
 		this.#persist(room);
 		this.#log({ event: 'room-draft-started', roomId, members: room.members.length, seated: seated.length });
@@ -2261,8 +2263,7 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return [];
 		const out: { id: string; name: string }[] = [];
-		for (const id of room.podSeats) {
-			if (id === null) continue;
+		for (const id of seatedHumans(room)) {
 			const member = room.members.find((m) => m.id === id);
 			if (member !== undefined) out.push({ id, name: member.name });
 		}
@@ -2311,12 +2312,30 @@ class FileLobby implements Lobby {
 		return { ok: true, room: this.#view(room) };
 	}
 
+	aiPod(roomId: string, memberId: string, seat: number, on: boolean): SitPodResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!room.members.some((m) => m.id === memberId)) return { ok: false, reason: 'not-member' };
+		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
+		if (room.draftStartedAt !== null) return { ok: false, reason: 'not-lobby' };
+		if (!Number.isInteger(seat) || seat < 0 || seat >= POD_SEATS) return { ok: false, reason: 'bad-seat' };
+		const now = room.podSeats[seat] ?? null;
+		if (on ? now === POD_AI : now === null) return { ok: true, room: this.#view(room) };
+		if (now !== (on ? null : POD_AI)) return { ok: false, reason: 'seat-taken' };
+		const seats = [...room.podSeats];
+		seats[seat] = on ? POD_AI : null;
+		room.podSeats = seats;
+		this.#persist(room);
+		this.#log({ event: on ? 'pod-ai-sit' : 'pod-ai-stand', roomId, memberId, seat });
+		return { ok: true, room: this.#view(room) };
+	}
+
 	playPod(roomId: string, memberId: string): PlayPodResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		const phase = room.gameType === 'draft' ? podPhaseOf(room, this.#podChecks) : 'lobby';
 		if (phase === 'rounds' || phase === 'done') return { ok: true, room: this.#view(room) };
-		const humans = room.podSeats.filter((id): id is string => id !== null);
+		const humans = seatedHumans(room);
 		if (phase !== 'building' || !humans.includes(memberId)) return { ok: false, reason: 'not-drafter' };
 		if (!this.#podChecks.built(roomId, memberId)) return { ok: false, reason: 'not-built' };
 		if (!room.podPlaying.includes(memberId)) room.podPlaying = [...room.podPlaying, memberId];
@@ -2337,7 +2356,7 @@ class FileLobby implements Lobby {
 		}
 		const rounds = roundsFor(humans.length);
 		const players: PodPlayer[] = room.podSeats
-			.map((id, i) => (id === null ? null : { id, podSeat: i }))
+			.map((id, i) => (id === null || id === POD_AI ? null : { id, podSeat: i }))
 			.filter((p): p is PodPlayer => p !== null);
 		const paired = pairRound({ players, results: [], round: 1 });
 		const pairings = paired.tables.map(([a, b]) => ({ tableId: this.#newPodTable(room, a, b), players: [a, b] as [string, string] }));

@@ -790,6 +790,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
 			.json() as import('../room/lobby.ts').RoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
+		for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' })).status).toBe(200);
 
 		const patched = await call(h, 'PATCH', `/api/rooms/${room.id}`, { as: 'alice', body: { format: OLDEST_POOL } });
@@ -1248,20 +1249,24 @@ describe('POST /api/rooms/:id/leave', () => {
 });
 
 describe('POST /api/rooms/:id/start', () => {
-	it('starts the draft once every member is ready, for either member, idempotently', async () => {
+	it('starts the draft once no seat is open and every seated player is ready, for either of them, idempotently', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
 			.json() as import('../room/lobby.ts').RoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
+		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: true } });
 
-		// Bob has not readied: 409 with a sentence, not a 4xx a screen has to guess at.
+		// Both ready, six seats open: 409 with a sentence, not a 4xx a screen has to guess at.
 		const early = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' });
 		expect(early.status).toBe(409);
-		expect((early.json() as { error: string }).error).toContain('ready');
+		expect((early.json() as { error: string }).error).toContain('the AI');
 		expect(((await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView).draftStartedAt).toBeNull();
 
-		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'bob', body: { ready: true } });
+		// The AI button, on every open seat.
+		for (let seat = 2; seat < 8; seat++) expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat, on: true } })).status).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat: 2, on: 'yes' } })).status).toBe(400);
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat: 0, on: true } })).status).toBe(409);
 		// Bob is not the leader, and starts it anyway: any member may ask.
 		const started = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'bob' });
 		expect(started.status).toBe(200);
@@ -1301,6 +1306,7 @@ describe('PATCH /api/rooms/:id while a draft is running', () => {
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
 			.json() as import('../room/lobby.ts').RoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
+		for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' })).status).toBe(200);
 
 		const patched = await call(h, 'PATCH', `/api/rooms/${room.id}`, {

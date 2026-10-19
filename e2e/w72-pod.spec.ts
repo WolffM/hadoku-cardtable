@@ -18,6 +18,7 @@
  * Games end by concede (not a real finish) to keep the run fast — the
  * acceptance text only needs a round to RESOLVE, not a full game.
  */
+import { fillWithAi } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
@@ -144,6 +145,7 @@ test(
 
       /* ── ready, deal, draft, build ──────────────────────────────────── */
       for (const p of players) await p.page.getByTestId('ready-toggle').click();
+      await fillWithAi(alice.page, UI_TIMEOUT);
       for (const p of players) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
       await Promise.all(players.map((p) => draftUntilDone(p)));
       for (const p of players) {

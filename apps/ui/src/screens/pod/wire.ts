@@ -21,6 +21,21 @@ import { POD_SEATS, RoomPodSchema, type PodMember, type PodSeats, type PodStandi
 export { POD_SEATS };
 export type { PodMember, PodSeats, PodStandingsRow, PodView };
 
+/** The AI's seat occupant (`apps/server/src/room/lobby.ts`'s `POD_AI`). */
+export const POD_AI = 'ai';
+
+/**
+ * Whether the draft deals: no seat open — every one a member or the AI — and
+ * every seated member ready. A member who never sat is watching, and is not
+ * waited on (the operator, 2026-10-19). The server's `startDraft` holds the same gate.
+ */
+export function podDealable(seats: PodSeats | undefined, members: readonly { id: string; ready: boolean }[]): boolean {
+  if (seats === undefined || seats.some((s) => s === null)) return false;
+  const humans = seats.filter((s) => s !== null && s.memberId !== POD_AI).map((s) => s!.memberId);
+  return humans.length > 0 && humans.every((id) => members.find((m) => m.id === id)?.ready === true);
+}
+
+
 /**
  * `RoomView.pod`, narrowed. `null` for a constructed room, for a body this
  * cannot parse (an old server), and for a draft room genuinely in no pod
