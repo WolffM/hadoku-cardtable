@@ -208,7 +208,8 @@ test(
           // manager's own note). Both players press Ready with their
           // unchanged 75 before game 2 is dealt.
           for (const p of seated) {
-            await expect(p.page.getByTestId('sideboard-step'), `${p.name}: the sideboard step opens`).toBeVisible({ timeout: UI_TIMEOUT });
+            await p.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
+            await expect(p.page.getByTestId('sideboard-step'), `${p.name}: Next opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
           }
           // The loser closes the tab and comes back through the room link: the
           // room itself opens their sideboard step (the rejoin audit, 2026-10-19,
@@ -221,6 +222,11 @@ test(
           // Game 2 starts from the two Readys, and the room carries the loser into it.
           await loser.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
           await expect(loser.page.locator('[aria-label="Game board"]'), 'the loser is back at the table for game 2').toBeVisible({ timeout: UI_TIMEOUT });
+          // Game 2: the loser of game 1 is asked play or draw — no coin (the operator, 2026-10-19: "please check").
+          await expect(loser.page.getByTestId('live-play-or-draw-host'), 'game 1’s loser chooses play or draw').toBeVisible({ timeout: 30_000 });
+          await expect(winner.page.getByTestId('live-play-or-draw-host'), 'the winner is not asked').toHaveCount(0);
+          await expect(winner.page.getByTestId('coin-toss'), 'no coin is flipped for game 2').toHaveCount(0);
+          await loser.page.getByTestId('live-play-or-draw-play').click();
         }
       }
 

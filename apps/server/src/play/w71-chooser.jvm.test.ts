@@ -21,10 +21,11 @@
  * `apps/ui/src/play/live/match.ts:1412-1413` reads `coinToss` off `forge:seats`
  * and `apps/ui/src/play/live/LiveBoard.tsx` draws `CoinToss` from it — so the
  * ask reaches the browser as data the client already trusts, not as a frame it
- * parses itself. None of that observing code changes in this wave: it already
- * reports whichever seat Forge actually asked, so rigging WHICH seat Forge asks
- * (this file's subject) makes it tell the truth about the named seat with no
- * client change, exactly as §E item 2 requires.
+ * parses itself. Since 2026-10-19 a match that names its chooser reports no
+ * coin at all — nothing was tossed (the operator: "it should ask the opponent
+ * if they want to go first not flip a coin") — and the other seat reads the
+ * named seat's open question as an ordinary wait. This file reads the raw
+ * frames, so it proves which seat Forge asks either way.
  *
  * `MatchSpec.chooser` (`host.ts`) flows to `config.json` unchanged, like every
  * other spec field (`bridgeConfig` just spreads the spec). `PlayBridge.java`'s
