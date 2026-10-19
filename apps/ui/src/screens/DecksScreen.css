@@ -1,0 +1,132 @@
+/* `#/decks` — the deck chooser's tiles (`.deckpick__option`, screens.css), as links, with their actions under them. */
+
+.decks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.decks__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 600px) {
+  .decks__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.decks__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.decks__tile {
+  height: 190px;
+  text-decoration: none;
+}
+
+.decks__tile:hover {
+  border-color: var(--color-primary);
+}
+
+.decks__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.decks__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.decks__rename {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+}
+
+.decks__rename input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+}
+
+.decks__icon,
+.decks__confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.decks__icon:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.decks__confirm {
+  border-color: var(--danger);
+  color: var(--danger-ink);
+}
+
+.decks__empty {
+  margin: 24px 0;
+  color: var(--color-text-secondary);
+}
+
+.ct-decks-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+}
+
+.ct-decks-button:hover,
+.ct-decks-button:focus-visible {
+  color: var(--color-text);
+}
+
+/* Beside the trophy, which sits beside the gear (stats.css). */
+.shell__head:has(> .ct-decks-button) {
+  padding-right: 124px;
+}
+
+.shell__head > .ct-decks-button {
+  position: absolute;
+  top: 0;
+  right: 80px;
+}

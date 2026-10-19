@@ -2000,6 +2000,19 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 
 	api.use('/play', gate);
 
+	/**
+	 * A drafted deck's stats id, `draft:<podId>` — what the Decks page reads its
+	 * W–L by (`http/decks.ts`). A pod table plays its own pool; on Free pick a
+	 * seat brought one from "My decks", found by its saved text.
+	 */
+	const draftedDeckId = (pool: string, owner: string, text: string | null): string | undefined => {
+		const podId = draftIdOfPool(pool);
+		if (podId !== null) return `draft:${podId}`;
+		if (pool !== FREE_PICK || text === null) return undefined;
+		const room = deps.draftRooms?.all().find((r) => builtDeckOf(r, owner) === text);
+		return room === undefined ? undefined : `draft:${room.roomId}`;
+	};
+
 	return {
 		library,
 		seatAvatar(matchId, memberId) {
@@ -2013,10 +2026,12 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			const format = library.format(pool);
 			const costs = format === undefined ? LIBRARY_CARD_COSTS : { ...LIBRARY_CARD_COSTS, ...format.fixture.manaCost };
 			const family = draftIdOfPool(pool) !== null ? 'draft' : pool === FREE_PICK ? 'free' : (format?.family ?? 'unknown');
-			const deckOf = (text: string | null) => (text === null ? null : summarizeDeck(text, costs, libraryIdByText.get(text)));
+			const deckOf = (text: string | null, id = text === null ? undefined : libraryIdByText.get(text)) =>
+				text === null ? null : summarizeDeck(text, costs, id);
 			const seats: MatchStartInput['seats'] = match.spec.seats.map((s, i) => {
 				if (s.ai) return { ai: true, memberId: null, deck: deckOf(s.deck) };
 				const owner = match.seats[i]?.owner ?? null;
+				const drafted = owner === null ? undefined : draftedDeckId(pool, owner, s.deck);
 				const member = owner === null ? undefined : room.members.find((m) => m.id === owner);
 				// The member's own name; the seat's, for a holder who has since left the room.
 				const displayName = member?.name ?? match.seats[i]?.displayName;
@@ -2025,7 +2040,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					memberId: owner,
 					...(displayName === undefined ? {} : { displayName }),
 					...(member?.avatarId === undefined ? {} : { avatarId: member.avatarId }),
-					deck: deckOf(s.deck),
+					deck: drafted === undefined ? deckOf(s.deck) : deckOf(s.deck, drafted),
 				};
 			});
 			return {

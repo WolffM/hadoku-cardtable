@@ -54,7 +54,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { DeckEditor } from '../deck/DeckEditor.tsx';
 import { deckStoreClient, type DeckStoreClient, type Mine } from '../deck/deckStore.ts';
-import { navigate } from './route.ts';
+import { navigate, routeHash } from './route.ts';
 import { livePodSource, playPod, usePodContext, type PodSource } from './pod/client.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
@@ -70,6 +70,12 @@ export interface DeckScreenProps {
   saveDelayMs?: number;
   /** Tests pass a stub. Production leaves it undefined and reads the room over the feed. */
   podSource?: PodSource;
+  /**
+   * Opened from the Decks page (`#/decks/<podId>`), outside any game: the
+   * same build, saved the same way, with no Play, no pod status and no
+   * hand-off to the room once its rounds start.
+   */
+  standalone?: boolean;
 }
 
 type Loaded = { kind: 'no-seat' } | { kind: 'ready'; mine: Mine };
@@ -81,6 +87,7 @@ export function DeckScreen({
   checkDelayMs,
   saveDelayMs,
   podSource = livePodSource,
+  standalone = false,
 }: DeckScreenProps) {
   const store = useMemo(() => givenStore ?? deckStoreClient(), [givenStore]);
   const client = useMemo(() => givenClient ?? tablesClient(), [givenClient]);
@@ -109,8 +116,8 @@ export function DeckScreen({
   const pod = ctx?.pod ?? null;
   const rounds = pod?.phase === 'rounds';
   useEffect(() => {
-    if (rounds) navigate({ kind: 'room', roomId: draftId }, { replace: true });
-  }, [rounds, draftId]);
+    if (rounds && !standalone) navigate({ kind: 'room', roomId: draftId }, { replace: true });
+  }, [rounds, draftId, standalone]);
 
   const [playError, setPlayError] = useState<string | null>(null);
   // The build as it stands is saved first: the editor's own save is debounced,
@@ -137,7 +144,22 @@ export function DeckScreen({
 
   return (
     <div className="shell shell--fit deck-screen" data-testid="deck">
-      {ctx !== null && pod !== null && pod.phase === 'building' && (
+      {standalone && (
+        <nav className="shell__head">
+          <a
+            className="shell__link"
+            href={routeHash({ kind: 'decks' })}
+            data-testid="back-to-decks"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate({ kind: 'decks' });
+            }}
+          >
+            ← Decks
+          </a>
+        </nav>
+      )}
+      {!standalone && ctx !== null && pod !== null && pod.phase === 'building' && (
         <PodBuilding pod={pod} nameOf={(id) => ctx.names[id] ?? id} />
       )}
 
@@ -165,7 +187,7 @@ export function DeckScreen({
           onSave={(dck) =>
             store.save(draftId, dck).then((outcome) => (outcome.ok ? { ok: true } : { ok: false, issues: outcome.issues }))
           }
-          onPlay={play}
+          onPlay={standalone ? undefined : play}
         />
       ) : (
         loadError === null && (
@@ -173,14 +195,16 @@ export function DeckScreen({
             <section className="lobby__card" data-testid={loaded === null ? 'deck-joining' : 'deck-no-seat'}>
               {loaded === null && <h2>Fetching your pool</h2>}
               {loaded !== null && loaded.kind === 'no-seat' && <h2>You have no seat in this pod</h2>}
-              <button
-                type="button"
-                className="lobby__go"
-                data-testid="back-to-pod"
-                onClick={() => navigate({ kind: 'draft', draftId })}
-              >
-                Back to the pod
-              </button>
+              {!standalone && (
+                <button
+                  type="button"
+                  className="lobby__go"
+                  data-testid="back-to-pod"
+                  onClick={() => navigate({ kind: 'draft', draftId })}
+                >
+                  Back to the pod
+                </button>
+              )}
             </section>
           </main>
         )

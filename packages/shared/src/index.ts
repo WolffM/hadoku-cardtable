@@ -32,6 +32,10 @@ export {
   SaveDraftDeckBodySchema,
   SaveDraftDeckResponseSchema,
   SaveDraftDeckRefusalSchema,
+  MyDeckSchema,
+  MyDecksSchema,
+  RenameDeckBodySchema,
+  DECK_NAME_MAX,
   viewerSeat,
   seatLabel,
   isWaiting,
@@ -52,6 +56,9 @@ export {
   type SaveDraftDeckBody,
   type SaveDraftDeckResponse,
   type SaveDraftDeckRefusal,
+  type MyDeck,
+  type MyDecks,
+  type RenameDeckBody,
   type ValidationFailure,
 } from './draft.ts';
 

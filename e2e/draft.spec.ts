@@ -1062,6 +1062,23 @@ test(
       await expect(alice.page.getByTestId(/^pod-standings-row-\d+$/), 'the AI is not a row').toHaveCount(1);
       const standing = await row.textContent();
       expect(standing, 'game win % from two lost games').toMatch(/0%/);
+
+      /* ── the pool is her deck now, on the Decks page beside the trophy ── */
+      await alice.page.getByRole('link', { name: '← Lobby' }).click();
+      await alice.page.getByTestId('lobby-decks').click();
+      const tile = alice.page.getByTestId('decks-tile');
+      await expect(tile, 'the finished draft is one deck').toHaveCount(1, { timeout: UI_TIMEOUT });
+      // Its tournament is over, so it can be renamed.
+      await tile.getByTestId('decks-rename').click();
+      await tile.getByTestId('decks-name-input').fill('Solo cube');
+      await tile.getByTestId('decks-name-save').click();
+      await expect(tile.getByTestId('decks-name')).toHaveText('Solo cube');
+      await tile.getByRole('link').click();
+      await expect(alice.page.getByTestId('deck-editor'), 'the deck opens in the editor').toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(alice.page.getByTestId('play-deck'), 'outside a game there is nothing to play').toHaveCount(0);
+      await expect(alice.page.getByTestId('main-count')).toHaveText('40');
+      await alice.page.getByTestId('back-to-decks').click();
+      await expect(alice.page.getByTestId('decks-name')).toHaveText('Solo cube');
     } finally {
       if (alice) await finalizeVideo(alice);
       await stack.stop();

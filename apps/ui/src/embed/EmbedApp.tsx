@@ -54,7 +54,7 @@ import { navigate, useRoute, type Route } from '../screens/route.ts';
 import type { GameBundleContext } from './contract.ts';
 import './embed.css';
 
-const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'play', 'debug', 'sounds', 'sounds-sandbox', 'sounds-music']);
+const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'decks', 'play', 'debug', 'sounds', 'sounds-sandbox', 'sounds-music']);
 
 export interface EmbedAppProps {
   ctx: GameBundleContext;

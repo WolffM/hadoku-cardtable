@@ -24,6 +24,8 @@
  *   `#/sounds/music`     the match-music review — compare, pick and submit, friend tier and above
  *   `#/stats`            the lobby, with the stats popout over it: your record, history, decks, the boards
  *   `#/stats/<name>`     the same popout for another player, by registry name
+ *   `#/decks`            your decks: every draft you finished
+ *   `#/decks/<draftId>`  that deck in the editor, outside any game
  *
  * An unrecognised hash is the lobby. That is deliberate: a mistyped invite link
  * lands on the room list, which offers a way in, rather than on an error page
@@ -71,7 +73,9 @@ export type Route =
   | { kind: 'sounds-sandbox' }
   | { kind: 'sounds-music' }
   /** `player` is a registry name; absent is the viewer. */
-  | { kind: 'stats'; player?: string };
+  | { kind: 'stats'; player?: string }
+  /** `draftId` opens that deck in the editor; absent is the list. */
+  | { kind: 'decks'; draftId?: string };
 
 /**
  * `#/room/r-1a2b3c` → `{ kind: 'room', roomId: 'r-1a2b3c' }`.
@@ -90,6 +94,7 @@ export function parseRoute(hash: string): Route {
   if (path === 'sounds/sandbox') return { kind: 'sounds-sandbox' };
   if (path === 'sounds/music') return { kind: 'sounds-music' };
   if (path === 'stats') return { kind: 'stats' };
+  if (path === 'decks') return { kind: 'decks' };
 
   const parts = path.split('/');
   if (parts.length !== 2) return { kind: 'lobby' };
@@ -107,6 +112,8 @@ export function parseRoute(hash: string): Route {
       return { kind: 'room', roomId: id };
     case 'stats':
       return { kind: 'stats', player: id };
+    case 'decks':
+      return { kind: 'decks', draftId: id };
     default:
       return { kind: 'lobby' };
   }
@@ -150,6 +157,8 @@ export function routeHash(route: Route): string {
       return `#/room/${encodeURIComponent(route.roomId)}`;
     case 'stats':
       return route.player === undefined ? '#/stats' : `#/stats/${encodeURIComponent(route.player)}`;
+    case 'decks':
+      return route.draftId === undefined ? '#/decks' : `#/decks/${encodeURIComponent(route.draftId)}`;
   }
 }
 

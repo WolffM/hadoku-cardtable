@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 import { ConstructedScreen } from './ConstructedScreen.tsx';
 import { DebugHarness } from './DebugHarness.tsx';
 import { DeckScreen } from './DeckScreen.tsx';
+import { DecksScreen } from './DecksScreen.tsx';
 import { LobbyScreen } from './LobbyScreen.tsx';
 import { MatchScreen } from './MatchScreen.tsx';
 import { MusicReview } from './MusicReview.tsx';
@@ -71,5 +72,7 @@ export function Screen({ transport }: ScreenProps) {
     case 'stats':
       // The same element as the lobby's, so opening the popout keeps the lobby mounted.
       return <LobbyScreen stats={{ player: route.player }} />;
+    case 'decks':
+      return route.draftId === undefined ? <DecksScreen /> : <DeckScreen key={route.draftId} draftId={route.draftId} standalone />;
   }
 }

@@ -34,6 +34,7 @@ import type { RoomFeed } from '../rooms/feed.ts';
 import { navigate } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
+import { DecksButton } from './DecksButton.tsx';
 import { Disclaimer } from '../components/Disclaimer.tsx';
 
 export interface LobbyScreenProps {
@@ -56,6 +57,7 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
           screens' `shell__head` earns its place by naming the ROOM or the
           deck; the lobby has nothing to add that the header has not said. */}
       <nav className="shell__head">
+        <DecksButton />
         <StatsButton source={statsSource} />
         <SettingsGear />
       </nav>

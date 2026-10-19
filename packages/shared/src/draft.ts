@@ -277,4 +277,38 @@ export type SaveDraftDeckResponse = z.infer<typeof SaveDraftDeckResponseSchema>;
 export const SaveDraftDeckRefusalSchema = z.object({ issues: z.array(z.string()) });
 export type SaveDraftDeckRefusal = z.infer<typeof SaveDraftDeckRefusalSchema>;
 
+/*
+ * ── The Decks page ────────────────────────────────────────────────────────
+ *
+ * Every finished draft is a deck of the drafter's own: the pool it was made
+ * from, and the build saved against it. The pod's builder and the Decks page
+ * save the same build (`PUT …/drafts/:podId/deck`), so the deck is the pod's,
+ * forever — these routes only list it, name it and hide it.
+ *
+ *   GET    /api/decks              → 200 { decks }
+ *   PATCH  /api/decks/:podId       { name } → 200 { deck }   409 — tournament still on
+ *   DELETE /api/decks/:podId       → 204                      409 — tournament still on
+ */
+
+export const MyDeckSchema = z.object({
+  /** The pod it was drafted in, which is also its room's id. */
+  id: z.string().min(1),
+  name: z.string().min(1),
+  cube: z.string(),
+  /** When the pod was dealt, epoch ms. */
+  createdAt: z.number(),
+  pool: z.array(DraftCardSchema),
+  deck: z.string().nullable(),
+  /** The pod's tournament is over (or its room is gone): it may be renamed and deleted. */
+  concluded: z.boolean(),
+});
+export type MyDeck = z.infer<typeof MyDeckSchema>;
+
+export const MyDecksSchema = z.object({ decks: z.array(MyDeckSchema) });
+export type MyDecks = z.infer<typeof MyDecksSchema>;
+
+export const DECK_NAME_MAX = 60;
+export const RenameDeckBodySchema = z.strictObject({ name: z.string().trim().min(1).max(DECK_NAME_MAX) });
+export type RenameDeckBody = z.infer<typeof RenameDeckBodySchema>;
+
 export type { ValidationFailure } from './semantics.ts';

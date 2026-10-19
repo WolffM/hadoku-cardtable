@@ -502,10 +502,11 @@ export function DeckEditor({
             mode={mode}
             readyState={readyState}
             verdict={verdict === null ? 'pending' : verdict.legal ? 'legal' : 'illegal'}
-            onAct={() => {
-              if (mode === 'limited') onPlay?.(dckTextOf(deck));
-              else onReady?.(deck);
-            }}
+            onAct={
+              mode === 'limited'
+                ? onPlay && (() => onPlay(dckTextOf(deck)))
+                : () => onReady?.(deck)
+            }
           />
         </div>
         <div className="deck-editor__body">
@@ -710,14 +711,17 @@ function Onward({
   readyState: ReadyState;
   /** `limited`: what the server has said of the build. Play is enabled by `legal` alone. */
   verdict: 'pending' | 'legal' | 'illegal';
-  onAct: () => void;
+  /** Absent: nothing to go on to — the Decks page's editor, outside any game. The count stays. */
+  onAct?: () => void;
 }) {
-  if (count < min) {
+  if (count < min || onAct === undefined) {
+    const complete = count >= min;
     return (
       <span className="deck-editor__meter" role="meter" aria-valuenow={count} aria-valuemin={0} aria-valuemax={min} data-testid="deck-meter">
-        <span className="deck-editor__meter-fill" style={{ width: `${(count / min) * 100}%` }} />
-        <span className="deck-editor__meter-text" data-complete="false">
-          <strong data-testid="main-count">{count}</strong>/{min}
+        <span className="deck-editor__meter-fill" style={{ width: `${Math.min(1, count / min) * 100}%` }} />
+        <span className="deck-editor__meter-text" data-complete={complete ? 'true' : 'false'}>
+          <strong data-testid="main-count">{count}</strong>
+          {!complete && `/${min}`}
         </span>
       </span>
     );
