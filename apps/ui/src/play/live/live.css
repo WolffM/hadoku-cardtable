@@ -568,10 +568,13 @@
  * A question that moves cards (`../prompts/MovePrompt.tsx`) draws every card whole, side by side at a
  * board card's size: the operator, 2026-10-19, on Ponder's three cards in a 236px column, *"the UI for
  * ponder is quite ugly"*. So its column runs from just past the seats' avatars to the column's own right
- * edge (clear of the phase rail), its height and place unchanged — over the battlefields, never the
- * hands — and the sheet is as wide as its rows, centred in it.
+ * edge (clear of the phase rail), and up over the other seat's battlefield far enough for a row of whole
+ * cards at 1280×720; its foot stays where the column's is, above this seat's hand. The sheet is as wide as
+ * its rows, centred in it.
  */
 .live__prompt:has(.prompt__zones) {
+  top: 12%;
+  height: 60%;
   left: 8.5rem;
   width: auto;
   right: calc(100% - var(--live-col-x) - var(--live-col-w));
