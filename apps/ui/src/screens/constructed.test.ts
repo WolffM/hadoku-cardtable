@@ -70,6 +70,7 @@ import { parseRoute } from './route.ts';
 import poolJson from '../draft/pool.json';
 import { dckTextOf, deckFromPool } from '../draft/deckFromPool.ts';
 import { deckStoreClient } from '../deck/deckStore.ts';
+import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
 import { loadFixtures } from '../draft/fixtures.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
@@ -282,6 +283,8 @@ interface Table {
    * in this stub.
    */
   savedDeck?: string | null;
+  /** What `GET /api/decks` answers — Free pick's "My decks". Absent ⇒ none; a promise ⇒ answers when it settles. */
+  myDecks?: MyDeck[] | Promise<MyDeck[]>;
 }
 
 /**
@@ -590,6 +593,14 @@ function stubServer(table: Table) {
     /** Everyone's record per deck; empty unless a test sets one. Never the real stats service. */
     records,
     deckRecords: () => Promise.resolve(records),
+    myDecks: {
+      list: async () => {
+        calls.push({ method: 'GET', url: '/cardtable/api/decks', body: undefined });
+        return (await table.myDecks) ?? [];
+      },
+      rename: () => Promise.reject(new Error('not on this screen')),
+      remove: () => Promise.reject(new Error('not on this screen')),
+    } satisfies MyDecksClient,
   };
 }
 
@@ -649,6 +660,7 @@ async function mountRoom(table: Table, rand?: () => number, feed: RoomFeed = eve
     createElement(ConstructedScreen, {
       client: server.client, deckRecords: server.deckRecords,
       rooms: server.rooms,
+      myDecks: server.myDecks,
       roomId: ROOM,
       feed,
       ...(rand === undefined ? {} : { rand }),
@@ -1767,6 +1779,38 @@ describe('the table’s pool', () => {
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(screen.getByTestId('browse-tab-standard'));
     await waitFor(() => expect(chosen()).toBe(SECOND_DECK));
+  });
+
+  // The operator, 2026-10-19: "the only other time this deck can be selected to be played is if
+  // 'Free-Pick' is enabled. under freepick we should have a filter option for 'My Decks'".
+  it('Free pick: My decks offers each drafted build that is a deck, and seats its saved text', async () => {
+    const pool = (poolJson as { cards: DraftCard[] }).cards.slice(0, 45).map((card, i) => ({ ...card, cardId: `draft:pod-a/p${i}` }));
+    const built = dckTextOf(draftedDeckOf('pod-a', pool));
+    const mine = (id: string, deck: string | null): MyDeck => ({ id, name: `Deck ${id}`, cube: 'Cube', createdAt: 1, pool, deck, concluded: true });
+    let answer!: (decks: MyDeck[]) => void;
+    const server = await mountRoom({
+      players: [opponent()],
+      matchId: null,
+      leader: false,
+      format: 'free',
+      myDecks: new Promise((done) => (answer = done)),
+    });
+    await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
+    fireEvent.click(screen.getByTestId('browse-tab-mine'));
+    // The tiles' outlines while the list is on its way, never an empty tab that then fills.
+    await waitFor(() => expect(screen.getByTestId('deck-mine').querySelectorAll('.skeleton--tile').length).toBeGreaterThan(0));
+    expect(screen.queryAllByTestId('deck-option')).toEqual([]);
+    expect(screen.queryByTestId('browse-era')).toBeNull();
+    await act(async () => answer([mine('pod-a', built), mine('pod-short', dckTextOf(deckFromPool('pod-short', pool))), mine('pod-none', null)]));
+    await waitFor(() => expect(offered()).toEqual(['mine:pod-a']));
+    expect(rowName(deckRow('mine:pod-a'))).toBe('Deck pod-a');
+
+    await pick('mine:pod-a');
+    const sent = lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body as { deck: { dck: string } };
+    expect(sent.deck).toEqual({ dck: built });
+    // A library tab never shows them.
+    fireEvent.click(screen.getByTestId('browse-tab-standard'));
+    await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
   });
 
   it('Hand smoothing: on by default, and the leader’s toggle turns it off on the room', async () => {

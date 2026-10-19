@@ -499,7 +499,7 @@ describe('DeckEditor — limited', () => {
   it('keeps Play disabled at 40 while the server says the build is not legal, and says nothing about it', async () => {
     const api = stubApi({ check: () => illegal });
     render(
-      createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: savedWith(POOL, 23, { Plains: 17 }), client: api.client, checkDelayMs: 0 }),
+      createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: savedWith(POOL, 23, { Plains: 17 }), client: api.client, checkDelayMs: 0, onPlay: () => undefined }),
     );
     await waitFor(() => expect(screen.getByTestId('play-deck').dataset['verdict']).toBe('illegal'));
     expect(checks(api.calls)).toHaveLength(1);
@@ -725,6 +725,22 @@ describe('DeckScreen', () => {
     expect(calls).toHaveLength(1);
     expect(mainDeckSizeOf(calls[0]!.dck)).toBe(40);
     expect(posted.filter((u) => u.endsWith(`/rooms/${DRAFT_ID}/pod/play`))).toHaveLength(1);
+  });
+
+  // The Decks page's editor (`#/decks/<podId>`), outside any game: the same save, no Play.
+  it('standalone: edits and saves the same build with no Play, and goes back to the decks', async () => {
+    const built = savedWith(POOL, 23, { Plains: 17 });
+    const { calls, store } = stubStore({ pool: POOL, deck: built });
+    render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: stubApi({ check: () => legal }).client, checkDelayMs: 0, saveDelayMs: 0, standalone: true }));
+    await screen.findByTestId('deck-editor');
+    expect(screen.queryByTestId('play-deck')).toBeNull();
+    expect(screen.getByTestId('main-count').textContent).toBe('40');
+    expect(screen.getByTestId('main-count').parentElement?.dataset['complete']).toBe('true');
+    promote(1);
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(mainDeckSizeOf(calls[0]!.dck)).toBe(41);
+    fireEvent.click(screen.getByTestId('back-to-decks'));
+    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'decks' });
   });
 
   it('Play stays on the build and says why when the pod refuses it', async () => {

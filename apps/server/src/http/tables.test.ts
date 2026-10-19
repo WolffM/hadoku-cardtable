@@ -2811,6 +2811,27 @@ describe('a room on a drafted pool', () => {
 		expect(botPoolAcross(room, ALICE)).toEqual(state.pools[across]);
 	});
 
+	/** The Decks page reads a drafted deck's W–L by `draft:<podId>` (`http/decks.ts`). */
+	it('reports a drafted deck under its pod, so its record follows it', async () => {
+		const h = await boot();
+		const pools = pod(h);
+		const state = stateOf(h.rooms.find(POD)!);
+		const across = (state.table.seats.findIndex((s) => s.occupant?.kind === 'human' && s.occupant.participantId === ALICE) + 4) % 8;
+		state.pools[across] = state.packs.flat().slice(90, 135);
+		openRoom(h);
+		expect((await putDeck(h, 'alice', built(pools.alice))).status).toBe(200);
+		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+		expect(res.status).toBe(201);
+		const match = h.matches.get(res.body.matchId as string)!;
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: match.spec.seats[0].name });
+
+		await vi.waitFor(() => expect(h.reports).toHaveLength(1));
+		expect(h.reports[0]!.seats.map((s) => [s.kind, s.attrs?.deckId])).toEqual([
+			['user', `draft:${POD}`],
+			['bot', undefined],
+		]);
+	});
+
 	it('refuses a drafted room against the AI while no bot has drafted anything', async () => {
 		const h = await boot();
 		const pools = pod(h);

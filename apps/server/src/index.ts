@@ -84,6 +84,7 @@ import { attachStream, attachStreamRoutes, streamLayout, STREAM_BASE_PORT } from
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables, loadTablesLibrary } from './http/index.js';
+import { attachDecks } from './http/decks.js';
 import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
 import { attachSounds } from './http/sounds.js';
@@ -446,6 +447,9 @@ const tables = attachTables(api, {
 // build saved against it. Friend-gated like every other `/api` route, by
 // the same `requireMinTier` above `api`.
 attachDrafts(api, { draftRooms });
+
+// GET/PATCH/DELETE /api/decks — every finished draft as the drafter's deck.
+attachDecks(api, { draftRooms, room: (id) => lobby.get(id) });
 
 // ── Match stats ──────────────────────────────────────────────────────────────
 // A finished room match is reported with this server's service key; without

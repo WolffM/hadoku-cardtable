@@ -149,6 +149,7 @@ import {
   basicLand,
   deckColorsByName,
   deckFromDeckFile,
+  LIMITED_MIN_MAIN_DECK_SIZE,
   mainDeckSize,
   manaTokensOf,
   moveToMain,
@@ -167,6 +168,7 @@ import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
 
 import { navigate } from './route.ts';
 import { deckStoreClient, type DeckStoreClient } from '../deck/deckStore.ts';
+import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { DraftLobby } from './DraftLobby.tsx';
@@ -242,6 +244,8 @@ export interface ConstructedScreenProps {
   deckRecords?: () => Promise<DeckRecords>;
   /** The pod's saved-deck store (C's contract). Tests pass a stub; production passes nothing. */
   deckStore?: DeckStoreClient;
+  /** Free pick's "My decks" (`deck/myDecks.ts`). Tests pass a stub; production passes nothing. */
+  myDecks?: MyDecksClient;
 }
 
 /** How often a seat that has no stream yet asks again. */
@@ -264,7 +268,7 @@ type Loaded = { formats: TableFormat[]; decks: TableDeck[] };
  * The colours are folded once, here, and used twice — in the row's own pips and
  * in the pips beside the control — so the two cannot disagree with each other.
  */
-interface DeckOption {
+export interface DeckOption {
   value: string;
   /** The whole name, which the tile's title and every accessible name carry. */
   label: string;
@@ -358,6 +362,13 @@ const FORMAT_TABS: ReadonlyArray<{ id: FormatFamily; label: string }> = [
   { id: 'modern', label: 'Modern' },
   { id: 'legacy', label: 'Legacy' },
 ];
+
+/** Free pick's browse: a format's library, or the decks you drafted (`#/decks`). */
+type BrowseTab = FormatFamily | 'mine';
+const BROWSE_TABS: ReadonlyArray<{ id: BrowseTab; label: string }> = [...FORMAT_TABS, { id: 'mine', label: 'My decks' }];
+
+/** A "My decks" option's value: the pod it was drafted in, never a library id. */
+const MY_DECK = 'mine:';
 
 /**
  * `formats`, narrowed to one tab's own eras, newest year first.
@@ -671,7 +682,7 @@ function PoolSets({ format }: { format: TableFormat | null }) {
  * foot, so the band carries them itself (Scryfall's image guidelines for art
  * shown cropped), and shows no art it cannot credit.
  */
-function DeckArt({ artId }: { artId: string | undefined }) {
+export function DeckArt({ artId }: { artId: string | undefined }) {
   const [broken, setBroken] = useState(false);
   const artist = useArtist(artId ?? null);
   const url = artId === undefined ? null : cardImageUrl(artId);
@@ -684,6 +695,60 @@ function DeckArt({ artId }: { artId: string | undefined }) {
       <span className="deckpick__credit">{artCredit(artist)}</span>
     </span>
   );
+}
+
+/**
+ * A drafted deck as a chooser tile: its list, its colours and its art, all
+ * from the pool it was drafted from — the lobby's own pod deck, Free pick's
+ * "My decks", and the Decks page draw drafted decks with this one fold.
+ */
+export function draftedDeckOption(value: string, label: string, deck: Deck, pool: readonly DraftCard[]): DeckOption {
+  // A drafted card carries its own id and its own mana value, so the art rule
+  // needs no lookup table here — the pool IS the table.
+  const byName = new Map(pool.map((card) => [card.name, card]));
+  // A drafted card is its own face; a basic is not in the pool and is looked up by name.
+  const draftedLine = (entry: { card: { name: string }; count: number }): PeekLine => {
+    const card = byName.get(entry.card.name);
+    return card === undefined
+      ? namedPeekLine({ name: entry.card.name, count: entry.count })
+      : { name: card.name, count: entry.count, cost: card.manaCost, manaValue: card.manaValue, face: card };
+  };
+  return {
+    value,
+    label,
+    list: {
+      main: [...deck.main, ...deck.basics].map(draftedLine),
+      sideboard: deck.sideboard.map(draftedLine),
+    },
+    colors: mainDeckColors(deck, cardIndex(pool)),
+    art: rankDeckArt(
+      deck.main.flatMap((entry) => {
+        const card = byName.get(entry.card.name);
+        if (card === undefined || card.manaCost.length === 0) return [];
+        return [
+          {
+            name: card.name,
+            count: entry.count,
+            manaValue: card.manaValue,
+            traits: traitsOfDraftCard(card.rarity, card.typeLine),
+            scryfallId: card.scryfallId,
+          },
+        ];
+      }),
+    ),
+  };
+}
+
+/** A drafter's saved build as a deck, or the auto-built one (`draftedDeckOf`) when there is none or it cannot be read. */
+export function openDraftedDeck(saved: string | null | undefined, draftId: string, pool: readonly DraftCard[]): Deck {
+  if (typeof saved === 'string') {
+    try {
+      return splitBasics(deckFromDeckFile(parseDck(saved)));
+    } catch {
+      // A corrupt save falls back to the auto-built deck rather than a crash.
+    }
+  }
+  return draftedDeckOf(draftId, pool);
 }
 
 /**
@@ -985,6 +1050,7 @@ export function ConstructedScreen({
   makeTransport,
   deckRecords = fetchDeckRecords,
   deckStore,
+  myDecks,
 }: ConstructedScreenProps) {
   const client = useMemo(() => given ?? tablesClient(), [given]);
   return roomId === undefined ? (
@@ -1000,6 +1066,7 @@ export function ConstructedScreen({
       makeTransport={makeTransport}
       deckRecords={deckRecords}
       deckStore={deckStore}
+      myDecks={myDecks}
     />
   );
 }
@@ -1014,6 +1081,7 @@ function RoomTableScreen({
   makeTransport,
   deckRecords: readDeckRecords,
   deckStore: givenDeckStore,
+  myDecks: givenMyDecks,
 }: {
   client: TablesClient;
   roomId: string;
@@ -1024,9 +1092,11 @@ function RoomTableScreen({
   makeTransport?: () => DraftTransport;
   deckRecords: () => Promise<DeckRecords>;
   deckStore?: DeckStoreClient;
+  myDecks?: MyDecksClient;
 }) {
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   const deckStore = useMemo(() => givenDeckStore ?? deckStoreClient(), [givenDeckStore]);
+  const myDecksStore = useMemo(() => givenMyDecks ?? myDecksClient(), [givenMyDecks]);
   // What the room list read before navigating here (`rooms/warm.ts`): the first
   // render is then the finished page. Every read below still runs as before.
   const [warm] = useState(() => takeWarmRoom(roomId));
@@ -1412,17 +1482,10 @@ function RoomTableScreen({
    * (`draftedDeckOf`, unchanged). Rebuilt only when the pool or the save
    * changes.
    */
-  const draftedDeck = useMemo(() => {
-    if (pod === null || myPool === null || myPool.length === 0) return null;
-    if (typeof mySavedDeck === 'string') {
-      try {
-        return splitBasics(deckFromDeckFile(parseDck(mySavedDeck)));
-      } catch {
-        // A corrupt save falls back to the auto-built deck rather than a crash.
-      }
-    }
-    return draftedDeckOf(pod, myPool);
-  }, [pod, myPool, mySavedDeck]);
+  const draftedDeck = useMemo(
+    () => (pod === null || myPool === null || myPool.length === 0 ? null : openDraftedDeck(mySavedDeck, pod, myPool)),
+    [pod, myPool, mySavedDeck],
+  );
 
   const players = table?.players ?? [];
   const mine = players.find((p) => p.you) ?? null;
@@ -1547,50 +1610,49 @@ function RoomTableScreen({
    * disagree about what colour a deck is, which is the failure wave 26's single
    * export exists to prevent.
    */
+  /**
+   * Free pick's "My decks": every draft you finished whose build is a deck —
+   * the operator, 2026-10-19: *"the only other time this deck can be selected
+   * to be played is if 'Free-Pick' is enabled"*. Asked for when Free pick is
+   * on and the deck card is drawn; null until it answers.
+   */
+  const [myDecks, setMyDecks] = useState<MyDeck[] | null>(null);
+  useEffect(() => {
+    if (!picking || !freePick) return;
+    let live = true;
+    myDecksStore
+      .list()
+      .then((decks) => {
+        if (live) setMyDecks(decks);
+      })
+      .catch((err: unknown) => {
+        if (!live) return;
+        setMyDecks([]);
+        setActionError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      live = false;
+    };
+  }, [picking, freePick, myDecksStore]);
+  const myDeckOptions = useMemo(
+    () =>
+      myDecks?.flatMap((d) => {
+        if (d.deck === null) return [];
+        const deck = openDraftedDeck(d.deck, d.id, d.pool);
+        return mainDeckSize(deck) < LIMITED_MIN_MAIN_DECK_SIZE ? [] : [{ option: draftedDeckOption(`${MY_DECK}${d.id}`, d.name, deck, d.pool), dck: d.deck }];
+      }) ?? null,
+    [myDecks],
+  );
+
   const deckOptions = useMemo<DeckOption[] | null>(() => {
     if (pod !== null) {
       if (!podAnswered) return null;
       if (draftedDeck === null) return [];
-      // A drafted card carries its own id and its own mana value, so the art rule
-      // needs no lookup table here — the pool IS the table.
-      const byName = new Map((myPool ?? []).map((card) => [card.name, card]));
-      // A drafted card is its own face; a basic is not in the pool and is looked up by name.
-      const draftedLine = (entry: { card: { name: string }; count: number }): PeekLine => {
-        const card = byName.get(entry.card.name);
-        return card === undefined
-          ? namedPeekLine({ name: entry.card.name, count: entry.count })
-          : { name: card.name, count: entry.count, cost: card.manaCost, manaValue: card.manaValue, face: card };
-      };
-      return [
-        {
-          value: DRAFTED_DECK,
-          label: `Your drafted pool — ${mainDeckSize(draftedDeck)} cards`,
-          list: {
-            main: [...draftedDeck.main, ...draftedDeck.basics].map(draftedLine),
-            sideboard: draftedDeck.sideboard.map(draftedLine),
-          },
-          colors: mainDeckColors(draftedDeck, cardIndex(myPool ?? [])),
-          art: rankDeckArt(
-            draftedDeck.main.flatMap((entry) => {
-              const card = byName.get(entry.card.name);
-              if (card === undefined || card.manaCost.length === 0) return [];
-              return [
-                {
-                  name: card.name,
-                  count: entry.count,
-                  manaValue: card.manaValue,
-                  traits: traitsOfDraftCard(card.rarity, card.typeLine),
-                  scryfallId: card.scryfallId,
-                },
-              ];
-            }),
-          ),
-        },
-      ];
+      return [draftedDeckOption(DRAFTED_DECK, `Your drafted pool — ${mainDeckSize(draftedDeck)} cards`, draftedDeck, myPool ?? [])];
     }
-    return offered === null
-      ? null
-      : byWinRate(offered.map((d) => ({
+    if (offered === null) return null;
+    const mine = freePick ? (myDeckOptions ?? []).map((m) => m.option) : [];
+    return [...byWinRate(offered.map((d) => ({
           value: d.id,
           label: d.name,
           name: d.archetype,
@@ -1619,8 +1681,8 @@ function RoomTableScreen({
               ];
             }),
           ),
-        })), deckRecords);
-  }, [pod, podAnswered, draftedDeck, myPool, offered, deckRecords]);
+        })), deckRecords), ...mine];
+  }, [pod, podAnswered, draftedDeck, myPool, offered, deckRecords, freePick, myDeckOptions]);
 
   /**
    * On Free pick the whole library is on offer, and each player browses it by
@@ -1630,7 +1692,7 @@ function RoomTableScreen({
    * room: it filters what THIS screen shows. `deckOptions` stays the whole
    * offer, so a deck you hold is still yours while you look at another tab.
    */
-  const [browse, setBrowse] = useState<{ family: FormatFamily; era: string }>({ family: 'standard', era: '' });
+  const [browse, setBrowse] = useState<{ family: BrowseTab; era: string }>({ family: 'standard', era: '' });
   /** A library deck's era, joined on the name and date the catalogue gives both. */
   const eraOfDeck = useMemo(() => {
     const out = new Map<string, TableFormat>();
@@ -1646,15 +1708,19 @@ function RoomTableScreen({
   // not repeated further down — the operator, 2026-10-11.
   const shownOptions = useMemo(() => {
     if (deckOptions === null) return null;
+    // "My decks" draws nothing until they have answered, not an empty tab that then fills.
+    if (freePick && browse.family === 'mine' && myDeckOptions === null) return null;
     const shown = !freePick
       ? deckOptions
-      : deckOptions.filter((o) => {
-          const era = eraOfDeck.get(o.value);
-          return era !== undefined && era.family === browse.family && (browse.era === '' || era.id === browse.era);
-        });
+      : browse.family === 'mine'
+        ? deckOptions.filter((o) => o.value.startsWith(MY_DECK))
+        : deckOptions.filter((o) => {
+            const era = eraOfDeck.get(o.value);
+            return era !== undefined && era.family === browse.family && (browse.era === '' || era.id === browse.era);
+          });
     const artIds = assignDeckArt(shown.map((o) => o.art ?? []));
     return shown.map((o, i) => ({ ...o, artId: artIds[i] }));
-  }, [deckOptions, freePick, eraOfDeck, browse]);
+  }, [deckOptions, freePick, eraOfDeck, browse, myDeckOptions]);
 
   /**
    * The filter row's narrowing of the library on show (`deckFilter.ts`). It is
@@ -1846,6 +1912,10 @@ function RoomTableScreen({
    * drafted option before the pod has answered.
    */
   const deckRefOf = (value: string): DeckRef | null => {
+    if (value.startsWith(MY_DECK)) {
+      const mine = myDeckOptions?.find((m) => m.option.value === value);
+      return mine === undefined ? null : { dck: mine.dck };
+    }
     if (value !== DRAFTED_DECK) return { library: value };
     return draftedDeck === null ? null : { dck: dckTextOf(draftedDeck) };
   };
@@ -2381,7 +2451,7 @@ function RoomTableScreen({
                     {freePick && (
                       <>
                         <div className="lobby__format-tabs" role="tablist" data-testid="browse-tabs">
-                          {FORMAT_TABS.map((tab) => (
+                          {BROWSE_TABS.map((tab) => (
                             <button
                               key={tab.id}
                               type="button"
@@ -2394,21 +2464,24 @@ function RoomTableScreen({
                             </button>
                           ))}
                         </div>
-                        <select
-                          data-testid="browse-era"
-                          aria-label={`${browse.family} year`}
-                          value={browse.era}
-                          onChange={(e) => setBrowse({ family: browse.family, era: e.target.value })}
-                        >
-                          <option value="">All years</option>
-                          {/* A format has one era a year, so the year names it, and a
-                              short option keeps this row one line high. */}
-                          {erasOf(loaded.formats, browse.family).map((f) => (
-                            <option key={f.id} value={f.id} title={f.name}>
-                              {f.effective.slice(0, 4)}
-                            </option>
-                          ))}
-                        </select>
+                        {/* My decks have no years. */}
+                        {browse.family !== 'mine' && (
+                          <select
+                            data-testid="browse-era"
+                            aria-label={`${browse.family} year`}
+                            value={browse.era}
+                            onChange={(e) => setBrowse({ family: browse.family, era: e.target.value })}
+                          >
+                            <option value="">All years</option>
+                            {/* A format has one era a year, so the year names it, and a
+                                short option keeps this row one line high. */}
+                            {erasOf(loaded.formats, browse.family).map((f) => (
+                              <option key={f.id} value={f.id} title={f.name}>
+                                {f.effective.slice(0, 4)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </>
                     )}
                     {/* The leader's switches, together at the row's far end. */}
@@ -2430,7 +2503,8 @@ function RoomTableScreen({
                               choosePool(FREE_PICK);
                               return;
                             }
-                            const era = browse.era || erasOf(loaded.formats, browse.family)[0]?.id;
+                            const family = browse.family === 'mine' ? 'standard' : browse.family;
+                            const era = browse.era || erasOf(loaded.formats, family)[0]?.id;
                             choosePool(era ?? newestFormat(loaded.formats));
                           }}
                         >
@@ -2517,7 +2591,7 @@ function RoomTableScreen({
                     empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
                     value={deckId}
                     disabled={deckOptions === null || underway}
-                    pending={deckOptions === null}
+                    pending={shownOptions === null}
                     onChoose={chooseDeck}
                   />
                   {/* Why the dropdown has nothing in it, when it has nothing in it.

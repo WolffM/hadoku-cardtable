@@ -165,6 +165,13 @@ export interface DraftApp {
 	 */
 	builtDecks: Record<ParticipantId, string>;
 	/**
+	 * What each drafter has done to the deck this pod made them on the Decks
+	 * page (`http/decks.ts`): a name of their own, or deleted. Absent is the
+	 * default — named after the cube, listed. The deck itself is
+	 * `builtDecks` and the pool above; this is only how it is shown.
+	 */
+	deckMeta: Record<ParticipantId, DeckMeta>;
+	/**
 	 * Write this pod to disk now. A no-op when persistence is off (`storeDir:
 	 * null`) or before `open()` has filled in `state`. Stashed on the app
 	 * rather than threaded as a parameter because every mutator that needs it
@@ -173,6 +180,11 @@ export interface DraftApp {
 	 * already uses for the same reason.
 	 */
 	persist: (room: DraftRoom) => void;
+}
+
+export interface DeckMeta {
+	name?: string;
+	deleted?: true;
 }
 
 /** The hosting app's per-connection state. */
@@ -374,7 +386,10 @@ function logDraft(entry: Record<string, unknown>): void {
 interface PersistedDraftApp {
 	state: DraftState | null;
 	builtDecks: Record<ParticipantId, string>;
+	deckMeta?: Record<ParticipantId, DeckMeta>;
 }
+
+type PersistedFields = Required<Pick<PersistedDraftApp, 'state' | 'builtDecks' | 'deckMeta'>>;
 
 export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	const params: DraftParams = { ...DEFAULT_PARAMS, ...options.params };
@@ -414,13 +429,14 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	 * assignment itself through `persistRoom` fixes that without `socket.ts`
 	 * having to know persistence exists.
 	 */
-	function makeDraftApp(initial: { state: DraftState | null; builtDecks: Record<ParticipantId, string> }): DraftApp {
+	function makeDraftApp(initial: PersistedFields): DraftApp {
 		let current = initial.state;
 		const app: DraftApp = {
 			disconnectGraceMs: params.disconnectGraceMs,
 			onDeferredChange,
 			vacating: new Map(),
 			builtDecks: initial.builtDecks,
+			deckMeta: initial.deckMeta,
 			persist: persistRoom,
 			get state() {
 				return current;
@@ -437,7 +453,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	const codec: RoomCodec<DraftApp, DraftClient> = {
 		app: {
 			version: 1,
-			serialize: (app): PersistedDraftApp => ({ state: app.state, builtDecks: app.builtDecks }),
+			serialize: (app): PersistedDraftApp => ({ state: app.state, builtDecks: app.builtDecks, deckMeta: app.deckMeta }),
 			deserialize: (raw, _version, ctx): DraftApp => {
 				const persisted = raw as PersistedDraftApp;
 				return makeDraftApp({
@@ -447,12 +463,13 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 					// module's header and `draftRestore.test.ts`.
 					state: persisted.state === null ? null : { ...persisted.state, epoch: ctx.restoreId },
 					builtDecks: persisted.builtDecks ?? {},
+					deckMeta: persisted.deckMeta ?? {},
 				});
 			},
 		},
 	};
 
-	const registry = new RoomRegistry<DraftApp, DraftClient>(() => makeDraftApp({ state: null, builtDecks: {} }));
+	const registry = new RoomRegistry<DraftApp, DraftClient>(() => makeDraftApp({ state: null, builtDecks: {}, deckMeta: {} }));
 
 	// Anything a room owns that outlives the map entry. Today that is the
 	// deferred vacates; GC is OFF (see the header), so nothing calls this yet
@@ -820,5 +837,11 @@ export function builtDeckOf(room: DraftRoom, participantId: ParticipantId): stri
  */
 export function saveBuiltDeck(room: DraftRoom, participantId: ParticipantId, dck: string): void {
 	room.app.builtDecks[participantId] = dck;
+	room.app.persist(room);
+}
+
+/** Rename or delete this drafter's deck — write-through, like a save. */
+export function setDeckMeta(room: DraftRoom, participantId: ParticipantId, meta: DeckMeta): void {
+	room.app.deckMeta[participantId] = { ...room.app.deckMeta[participantId], ...meta };
 	room.app.persist(room);
 }

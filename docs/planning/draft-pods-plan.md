@@ -167,3 +167,15 @@ There is no constructed deck editing or card search (ruling 5).
    step, a forced Rematch, the bo3 score. Delete the dead `SideboardPrompt` path.
 3. **Tables and pods.** Multi-table rooms, the 8-seat pod lobby, pairings and
    rounds, byes, standings, the board strip, chat keyed to the room.
+
+## 2026-10-19 ruling — the Decks page
+
+The operator, verbatim: *"it would be nice if the deck editor was reachable outside of games also. whenever a draft is finished, we can consider the pool a new deck. if the player actually builds the deck and adds basic lands and what not and then presses save, it updates the deck. regardless of how the deck was updated/saved it should always be reachable by the player's deck view. Let's add a new button next to leaderboard on the first page. for that we'll need a new 'deck' view that displays all the users decks. by default most people will have none, but if you created a draft deck it would show here. Draft decks can be edited here, but cards cannot be added or removed from the pool. The draft deck should be eternally linked to the unique draft-pool that it was created from. the only other time this deck can be selected to be played is if 'Free-Pick' is enabled. under freepick we should have a filter option for 'My Decks' where this should show up."*
+
+Answers to the follow-up questions, same day:
+- Rename and delete: *"only allowed after the tournament that it's connected to is concluded"* (the room's pod is `done`, or the room is gone).
+- Drafts finished before this shipped: new drafts only. Pods are never deleted, so in practice every finished pool still on disk is listed.
+- One deck per pool.
+- Each deck shows its W–L (stats `deckId` `draft:<podId>`).
+
+Built as: `GET/PATCH/DELETE /api/decks` (`apps/server/src/http/decks.ts`) over the pods themselves — the deck is the drafter's finished seat plus the build `PUT /api/drafts/:podId/deck` saved, whichever screen saved it; name and deletion ride on the pod's snapshot (`DraftApp.deckMeta`). `#/decks` lists them, `#/decks/<podId>` is the pod builder without Play, and Free pick's browse row has a "My decks" tab offering each build of forty or more.

@@ -33,6 +33,8 @@ describe('parseRoute', () => {
     expect(parseRoute('#/stats/Bella')).toEqual({ kind: 'stats', player: 'Bella' });
     expect(parseRoute('#/room/r-1a2b3c4d5e6f')).toEqual({ kind: 'room', roomId: 'r-1a2b3c4d5e6f' });
     expect(parseRoute('#/deck/friday-cube')).toEqual({ kind: 'deck', draftId: 'friday-cube' });
+    expect(parseRoute('#/decks')).toEqual({ kind: 'decks' });
+    expect(parseRoute('#/decks/r-friday')).toEqual({ kind: 'decks', draftId: 'r-friday' });
   });
 
   it('is the lobby for an empty, missing or unrecognised hash', () => {
@@ -76,6 +78,8 @@ describe('parseRoute', () => {
       { kind: 'room', roomId: 'friday room/2' },
       { kind: 'stats' },
       { kind: 'stats', player: 'Bella Two' },
+      { kind: 'decks' },
+      { kind: 'decks', draftId: 'r-friday' },
     ];
     for (const route of routes) {
       expect(parseRoute(routeHash(route)), routeHash(route)).toEqual(route);
