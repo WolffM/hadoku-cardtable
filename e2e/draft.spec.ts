@@ -858,25 +858,6 @@ async function buildMainDeck(p: Player, n: number): Promise<void> {
 }
 
 /**
- * Answer `/session/whoami` with this player's REAL member id, read off the room,
- * then reload so `useWhoami()` re-reads it. The harness's own whoami answers the
- * device-tier `e2e-<name>-id`, not the `fk:` id the room knows them by, and the
- * pod screen finds "my table" by that id (`w72-pod.spec.ts` has the full note).
- */
-async function routeWhoami(p: Player, roomId: string): Promise<void> {
-  const room = (await p.page.evaluate(
-    (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
-    roomId,
-  )) as { members: { id: string; name: string }[] };
-  const me = room.members.find((m) => m.name === `e2e-${p.name}`);
-  if (me === undefined) throw new Error(`${p.name}: not found among the room’s own members`);
-  await p.context.route('**/session/whoami', (route) =>
-    route.fulfill({ json: { valid: true, userId: me.id, userType: 'friend', name: `e2e-${p.name}` } }),
-  );
-  await p.page.reload();
-}
-
-/**
  * The room leave the UI has no button for (`PodScreen`'s "← Lobby" only
  * navigates away; it never calls this) — the same route `rooms/api.ts`'s
  * `leave()` sends, by the caller's own page so the identity is theirs. This
@@ -968,10 +949,6 @@ test(
       await expectLobbyNotPod(alice);
       await enterFromList(bob, podId, podName, { origin });
       await expectLobbyNotPod(bob);
-      for (const p of [alice, bob]) {
-        await routeWhoami(p, podId);
-        await expectLobbyNotPod(p);
-      }
 
       await alice.page.getByTestId('ready-toggle').click();
       await bob.page.getByTestId('ready-toggle').click();
@@ -1027,9 +1004,7 @@ test(
     let alice: Player | undefined;
     try {
       alice = await join(browser, 'alice');
-      const podId = await createDraftRoom(alice, `e2e solo ${Date.now()}`, stack.origin);
-      await expectLobbyNotPod(alice);
-      await routeWhoami(alice, podId);
+      await createDraftRoom(alice, `e2e solo ${Date.now()}`, stack.origin);
       await expectLobbyNotPod(alice);
       await alice.page.getByTestId('ready-toggle').click();
       await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
