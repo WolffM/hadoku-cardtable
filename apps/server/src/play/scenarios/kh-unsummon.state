@@ -1,0 +1,17 @@
+# A creature bounced from the table is known in its owner's hand. Alice
+# (`human…`, seat 0) holds Unsummon and one untapped Island, an uncontested
+# turn-1 Main Phase 1. Bob's Grizzly Bears is the only creature, so it is
+# Unsummon's target; bob also holds a Mountain nobody has seen.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Unsummon
+humanbattlefield=Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Mountain
+aibattlefield=Grizzly Bears
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
