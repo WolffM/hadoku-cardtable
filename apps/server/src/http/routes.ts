@@ -352,6 +352,8 @@ export interface TablesMatches {
 				stop(): void;
 				/** Forge's own winning player's NAME (`PlayBridge.java`'s `getWinningLobbyPlayer().getName()`) — see `winnerSeatOf`. */
 				winner: string | null;
+				/** The winning seat from Forge's own losers — see `winnerSeatOf`. */
+				winnerSeat?: 0 | 1 | null;
 				/** The seat whose concede Forge was sent, or null. */
 				concededBy: number | null;
 				/** Each seat's own display name, as sent to Forge — `winnerSeatOf` matches `winner` against these. */
@@ -440,6 +442,7 @@ export interface TablesHandle {
 export interface GameOverMatch {
 	id: string;
 	winner: string | null;
+	winnerSeat?: 0 | 1 | null;
 	concededBy: number | null;
 	seats: readonly { displayName?: string }[];
 }
@@ -701,13 +704,22 @@ export function relayAvatarToMatch(rooms: TablesRooms, registry: TablesMatches |
  * concede, Forge's own `winner` is the WINNING player's display NAME
  * (`PlayBridge.java`'s `getWinningLobbyPlayer().getName()`), matched against
  * each seat's own `displayName` (the same string `startFromRoom` sent Forge as
- * `names`). `null` when neither resolves a seat — an AI game, two seats with
- * the same name, or no winner at all — rather than a guess: `RoomTableGame.winner`
- * allows it.
+ * `names`) — after Forge's own losers mapped by seat (`Match.winnerSeat`), which
+ * is what decides an AI game. `null` when nothing resolves a seat — two seats
+ * with the same name, or no winner at all — rather than a guess:
+ * `RoomTableGame.winner` allows it.
  */
-export function winnerSeatOf(match: { winner: string | null; concededBy: number | null; seats: readonly { displayName?: string }[] }): 0 | 1 | null {
+export function winnerSeatOf(match: {
+	winner: string | null;
+	winnerSeat?: 0 | 1 | null;
+	concededBy: number | null;
+	seats: readonly { displayName?: string }[];
+}): 0 | 1 | null {
 	if (match.concededBy === 0) return 1;
 	if (match.concededBy === 1) return 0;
+	// Forge's own losers, mapped by seat (`Match.winnerSeat`): the one answer an
+	// AI game has, whose AI seat no name matches.
+	if (match.winnerSeat === 0 || match.winnerSeat === 1) return match.winnerSeat;
 	if (match.winner === null) return null;
 	const seat = match.seats.findIndex((s) => s.displayName === match.winner);
 	return seat === 0 || seat === 1 ? seat : null;

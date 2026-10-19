@@ -986,11 +986,11 @@ test(
 );
 
 test(
-  titled('one drafter and seven bots: draft, build, press Play, and land in turn 1 against the AI — no room to make'),
+  titled('one drafter and seven bots, the whole way: draft, build, Play, lose game 1, sideboard, lose game 2, and the pod’s standings say so'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
-    test.setTimeout(6 * 60_000);
+    test.setTimeout(9 * 60_000);
 
     const stack = await startPlayStack(forge);
     let alice: Player | undefined;
@@ -1021,10 +1021,47 @@ test(
       await alice.page.getByTestId('play-deck').click();
 
       // Play → the pod → its one table, against the AI, started by itself.
-      await alice.page.waitForURL(/#\/match\/(m-[0-9a-f]{12})$/, { timeout: 120_000 });
+      const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
+      await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
+      const game1 = alice.page.url();
       await expect(alice.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 30_000 });
       await expect(alice.page.getByTestId('room-create'), 'no create-room form on the way').toHaveCount(0);
       await pressIntoTurnOne([alice.page]);
+
+      /* ── game 1 lost: straight to sideboarding, and nothing else first ── */
+      // Anything the result screen shows on its way to the sideboard step is a
+      // flash (the operator: "never show UI until its ready").
+      await alice.page.evaluate(() => {
+        const seen: string[] = [];
+        (window as unknown as { __resultSeen: string[] }).__resultSeen = seen;
+        new MutationObserver(() => {
+          if (document.querySelector('[data-testid="game-result-rematch"]') !== null) seen.push('rematch');
+          if (document.querySelector('[data-testid="game-result"]') !== null && document.querySelector('[data-testid="sideboard-step"]') === null) seen.push('result-without-sideboard');
+        }).observe(document.body, { childList: true, subtree: true });
+      });
+      await alice.page.getByTestId('live-concede').click();
+      await alice.page.getByTestId('live-concede-yes').click();
+      await expect(alice.page.getByTestId('sideboard-step'), 'losing game 1 opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
+      expect(await alice.page.evaluate(() => [...new Set((window as unknown as { __resultSeen: string[] }).__resultSeen)]), 'shown before the sideboard step').toEqual([]);
+
+      /* ── Ready: game 2, against the AI again ─────────────────────────── */
+      await alice.page.getByTestId('sideboard-ready').click();
+      await alice.page.waitForURL((url) => matchUrl.test(url.toString()) && url.toString() !== game1, { timeout: 120_000 });
+      await expect(alice.page.locator('[aria-label="Game board"]'), 'game 2 is drawn').toBeVisible({ timeout: 30_000 });
+      await pressIntoTurnOne([alice.page]);
+
+      /* ── game 2 lost: the series is over, 0-2, and the pod says so ───── */
+      await alice.page.getByTestId('live-concede').click();
+      await alice.page.getByTestId('live-concede-yes').click();
+      await expect(alice.page.getByTestId('game-result')).toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(alice.page.getByTestId('sideboard-step'), 'no sideboarding after the last game').toHaveCount(0);
+      await alice.page.getByTestId('game-result-room').click();
+      await expect(alice.page.getByTestId('pod-final'), 'the pod is done').toBeVisible({ timeout: UI_TIMEOUT });
+      const row = alice.page.getByTestId('pod-standings-row-1');
+      await expect(row, 'her standing counts the series she lost').toContainText('0');
+      await expect(alice.page.getByTestId(/^pod-standings-row-\d+$/), 'the AI is not a row').toHaveCount(1);
+      const standing = await row.textContent();
+      expect(standing, 'game win % from two lost games').toMatch(/0%/);
     } finally {
       if (alice) await finalizeVideo(alice);
       await stack.stop();
