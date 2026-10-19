@@ -48,6 +48,11 @@ export interface PromptShellProps {
   actions?: ReactNode;
   /** The card the whole question is about, drawn beside the title and the message (`promptThumb`). */
   face?: ReactNode;
+  /**
+   * False for a sheet whose body says what the effect does by itself (`MovePrompt.tsx`'s named zones):
+   * the source card is still drawn in the head, its text is not.
+   */
+  effectText?: boolean;
   children?: ReactNode;
 }
 
@@ -135,11 +140,12 @@ export function PromptShell({
   onSubmit,
   actions,
   face,
+  effectText = true,
   children,
 }: PromptShellProps) {
   const asked = useContext(AskSourceContext);
   const head = face ?? (asked === null ? undefined : promptThumb(asked.lookup, asked.source.card, 'prompt-source'));
-  const said = asked === null ? null : effectLine(asked, face === undefined, [title, label, message]);
+  const said = asked === null || !effectText ? null : effectLine(asked, face === undefined, [title, label, message]);
   const effect = said === null ? null : (
     <p className="prompt__source" data-testid="prompt-source-text">
       <RulesText text={said} />
@@ -297,7 +303,8 @@ export function promptCardTile(forgeId: number, name: string, setCode = '', labe
 export function promptTileFor(lookup: PromptLookup, forgeId: number, label?: string): DraftCard {
   const facts = lookup.card(forgeId);
   const identity = facts?.name ?? (label === undefined ? `card #${forgeId}` : nameFromForgeLabel(label, forgeId));
-  return promptCardTile(forgeId, identity, facts?.setCode ?? '', label);
+  // Forge's wording, without the " (id)" its `CardView.toString()` ends in: an id is never a card's name.
+  return promptCardTile(forgeId, identity, facts?.setCode ?? '', label === undefined ? undefined : nameFromForgeLabel(label, forgeId));
 }
 
 /**

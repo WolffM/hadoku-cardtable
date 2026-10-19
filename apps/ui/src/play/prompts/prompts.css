@@ -439,8 +439,7 @@
  * the up/down arrow for reordering let's display those up/down arrows on top
  * of the card rather than in their own row. that makes it look a bit more
  * compact."*). `MovePrompt.tsx`'s rows of words draw them; a zone of cards
- * draws none: its cards are a pile (`.prompt__pile`, below), where a card
- * behind shows only its name strip, and the arrow keys move it.
+ * draws none: a card there moves by drag, or with the arrow keys.
  */
 .prompt__card-order {
   position: absolute;
@@ -640,17 +639,6 @@
  * question, *"the little card is a bit too small"* (it was 30px). It still gives way with the rest
  * of the head when the sheet is crowded.
  */
-/*
- * A sheet of piles (`MovePrompt.tsx`) is the one body that fits any height: its cards narrow to the
- * room they are left. So there the words keep their own height, up to a title and two lines, and the
- * piles give way — the head shrinking first cut Ponder's title and its card in half.
- */
-.prompt:has(.prompt__heap) > .prompt__head,
-.prompt:has(.prompt__heap) > .prompt__title {
-  flex-shrink: 0;
-  max-height: 4.5rem;
-}
-
 .prompt__head > .prompt__thumb {
   --card-w: 3rem;
 }
@@ -772,169 +760,119 @@
   align-content: start;
 }
 
-/*
- * A move over cards is one or two PILES (`MovePrompt.tsx`), and a pile is fitted to
- * the room the sheet has rather than scrolled: the operator, 2026-10-15, *"the
- * goal is still for this view to not need a scroll bar"*. So the piles are the
- * part of the sheet that gives way — the body's flex column shrinks the two
- * columns, each column its pile, and the cards in a pile narrow to fit the
- * height it was left (below).
- */
-.prompt__dual[data-piles] {
-  flex: 1 1 auto;
-  min-height: 0;
-  grid-auto-rows: minmax(0, 1fr);
-}
-
-.prompt__dual[data-piles] > section {
-  min-height: 0;
-}
-
-/* One zone (`MovePrompt.tsx`: an order that places everything): its pile stands in the middle of the sheet. */
+/* One zone of words (`MovePrompt.tsx`: an order that places everything): it has the width. */
 .prompt__dual[data-one] {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.prompt__dual[data-one] > section {
-  align-items: center;
-}
-
-.prompt__dual[data-one] .prompt__heap {
-  align-self: center;
-  width: 100%;
-  align-items: center;
-}
-
-/* A zone the answer has too few or too many cards in: the reason OK waits, drawn. */
-.prompt__dual > section[data-short] .prompt__col-head {
-  color: var(--warn);
-}
-
-.prompt__dual > section[data-short] .prompt__pile,
-.prompt__dual > section[data-short] .prompt__list {
-  outline: 1px dashed var(--warn);
-  outline-offset: 2px;
-  border-radius: var(--radius);
-}
-
-/* A card the effect lets you look at and order, but not move to the other zone. */
-.prompt__pile > li[data-locked] {
-  filter: saturate(0.4);
-}
-
 /*
- * One pile of cards, the board's way of stacking them (`card.css`): the card in
- * front drawn whole, at the foot, and each one above it peeking out by the
- * strip that carries a card's name (`--pile-strip`, a share of the card's
- * width: a card's title bar ends 15% of its width down). `MovePrompt.tsx`
- * stacks each card over the one above it (`z-index`). A pile marked
- * `data-pile` is drawn from its first card up (`column-reverse`); any other
- * from its first card down.
- *
- * `.prompt__heap` is the box that fits it, with the ghost of the zone its
- * cards go into (`.prompt__library`) above or below it: it asks for a card as
- * wide as its column plus a strip per card under it and the ghost's share
- * (`aspect-ratio`), may be shrunk below that by the sheet (`min-height`), and
- * every card is the width that fits the box it got — `100cqw` wide or `100cqh`
- * tall for the whole heap, whichever is less. More cards: narrower ones, never
- * a scroll bar. The pile and its ghost sit together at the top of the box, so
- * the ghost always touches the pile.
+ * A move over cards (`MovePrompt.tsx`): its zones side by side, each one row of whole tiles at a
+ * board card's size, the highest card on the left — every card readable at once. The sheet is as
+ * wide as the rows need (`../live/live.css` widens the question's column for it); a row that has
+ * less room than that narrows its tiles rather than scroll.
  */
-.prompt__heap {
-  --pile-strip: 0.16;
-  --pile-ghost: 0;
-  --pile-k: calc(680 / 488 + var(--pile-strip) * (max(var(--pile-n, 1), 1) - 1) + var(--pile-ghost));
+.prompt__zones {
+  --card-w: 7rem;
 
-  container-type: size;
-  flex: 1 1 auto;
-  min-height: 2.4rem;
-  aspect-ratio: 1 / var(--pile-k);
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.prompt__heap[data-ghost] {
-  --pile-ghost: 0.3;
-}
-
-.prompt__heap > * {
-  --w: min(100cqw, 100cqh / var(--pile-k));
-}
-
-.prompt__pile {
-  flex: none;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  justify-content: center;
+  gap: 16px;
+  min-width: 0;
   user-select: none;
 }
 
-.prompt__pile[data-pile] {
-  flex-direction: column-reverse;
+.prompt__zones > section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
-/* An empty zone is still all drop target, drawn as one: it fills what its heap has left, a card's size. */
-.prompt__pile:empty {
-  flex: 1 1 auto;
-  align-self: stretch;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
+.prompt__zone-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
 }
 
-.prompt__pile > li {
-  position: relative;
-  flex: none;
-  width: var(--w);
+.prompt__tiles {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
   margin: 0;
   padding: 0;
+  list-style: none;
+}
+
+.prompt__tiles > li {
+  position: relative;
+  flex: 0 1 var(--card-w);
+  min-width: 3.5rem;
   border-radius: var(--radius);
-  box-shadow: 0 -2px 6px var(--shadow);
 }
 
-.prompt__pile[data-pile] > li:not(:last-child),
-.prompt__pile:not([data-pile]) > li:not(:first-child) {
-  margin-top: calc(var(--w) * (var(--pile-strip) - 680 / 488));
-}
-
-.prompt__pile .card {
+.prompt__tiles .card {
   width: 100%;
   aspect-ratio: 488 / 680;
   height: auto;
 }
 
-.prompt__pile > li[data-dragging] {
+.prompt__tiles > li[data-dragging] {
   opacity: 0.5;
 }
 
+/* A card the effect lets you look at and order, but not move to the other zone. */
+.prompt__tiles > li[data-locked] {
+  filter: saturate(0.4);
+}
+
+/* An empty zone is still all drop target, drawn as one: a card's place, dashed. */
+.prompt__tiles:empty {
+  flex: 0 1 var(--card-w);
+  min-width: 3.5rem;
+  height: calc(var(--card-w) * 680 / 488);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.prompt__tiles[data-over] {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
 /*
- * The ghost of the library (or graveyard) the pile goes into: the operator,
- * 2026-10-16, *"a transparent ethereal representation of the deck above the
- * stack"*. Three card backs (`card.css`'s own back), each peeking out above the
- * next the way the pile's cards do, see-through, and never in a hand's way.
+ * The ghost of the library a zone goes into: the operator, 2026-10-16, *"a
+ * transparent ethereal representation of the deck"*. Three card backs edge on, see-through, on the
+ * side the zone meets it — after the Top zone, before the Bottom zone — and never in a hand's way.
  */
 .prompt__library {
   position: relative;
   flex: none;
-  width: var(--w);
-  height: calc(var(--w) * var(--pile-ghost));
+  width: calc(var(--card-w) * 0.3);
   overflow: hidden;
   opacity: 0.55;
   pointer-events: none;
 }
 
 .prompt__library > .card-back {
-  --card-back-w: 100%;
+  --card-back-w: var(--card-w);
 
   position: absolute;
-  left: 0;
-  top: calc(var(--w) * var(--pile-ghost) * (var(--i) / 3));
+  top: 0;
   margin: 0;
   border-color: var(--ink-faint);
-  box-shadow: 0 -2px 6px var(--shadow);
+  box-shadow: 0 0 6px var(--shadow);
+}
+
+/* After the Top zone the library runs on to the right; before the Bottom zone it ends at the left. */
+.prompt__zone-row[data-ghost='top'] > .prompt__library > .card-back {
+  left: calc(var(--card-w) * 0.1 * var(--i));
+  z-index: calc(3 - var(--i));
+}
+
+.prompt__zone-row[data-ghost='bottom'] > .prompt__library > .card-back {
+  right: calc(var(--card-w) * 0.1 * var(--i));
+  z-index: calc(3 - var(--i));
 }
 
 .prompt__library > .card-back:nth-child(1) {
@@ -949,8 +887,15 @@
   --i: 2;
 }
 
-.prompt__pile[data-over] {
-  outline: 1px solid var(--accent);
+/* A zone the answer has too few or too many cards in: the reason OK waits, drawn. */
+.prompt__zones > section[data-short] .prompt__col-head,
+.prompt__dual > section[data-short] .prompt__col-head {
+  color: var(--warn);
+}
+
+.prompt__zones > section[data-short] .prompt__tiles,
+.prompt__dual > section[data-short] .prompt__list {
+  outline: 1px dashed var(--warn);
   outline-offset: 2px;
   border-radius: var(--radius);
 }

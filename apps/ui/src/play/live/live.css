@@ -565,6 +565,24 @@
 }
 
 /*
+ * A question that moves cards (`../prompts/MovePrompt.tsx`) draws every card whole, side by side at a
+ * board card's size: the operator, 2026-10-19, on Ponder's three cards in a 236px column, *"the UI for
+ * ponder is quite ugly"*. So its column runs from just past the seats' avatars to the column's own right
+ * edge (clear of the phase rail), its height and place unchanged — over the battlefields, never the
+ * hands — and the sheet is as wide as its rows, centred in it.
+ */
+.live__prompt:has(.prompt__zones) {
+  left: 8.5rem;
+  width: auto;
+  right: calc(100% - var(--live-col-x) - var(--live-col-w));
+}
+
+.live__prompt:has(.prompt__zones) > .prompt {
+  width: fit-content;
+  max-width: 100%;
+}
+
+/*
  * Wave 51: a played card staged for its target (`board.css`'s `.staging`) is
  * centred in this same column, so the decision pop-up that holds Forge's
  * `Cancel` for that target draws at the column's foot, under the card.

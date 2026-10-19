@@ -35,19 +35,18 @@
  *
  * The caller names its drop targets by test id. A `rows` target is a list whose
  * order is the answer: a drop lands between two of its rows. A target that is
- * not (`rows: false` — a pile whose order is not the answer) takes the
+ * not (`rows: false` — a list whose order is not the answer) takes the
  * drop as a whole, and the caller highlights it off `over`.
  *
  * Rows carry their id on `li[data-card-id]`: a card's own Forge id, or any
  * number the caller hands a row that is not a card (`MovePrompt.tsx`'s words).
  *
- * A one-column list may overlap its rows: `MovePrompt.tsx` draws cards as a
- * pile, each card's name strip peeking out above the card in front of it. So a
- * row is pointed at by the part of it that SHOWS — its own top down to the top
- * of the row drawn below it — and a drop lands in the half of that strip it is
- * let go in: above the row or below it, as drawn. A list marked `PILE_ATTR` is
- * drawn from its first row up, the first row lowest and in front; there, as
- * drawn "above a row" is after it in the answer.
+ * A list is read down its column, or across when it is marked `ACROSS_ATTR`
+ * (`MovePrompt.tsx`'s rows of cards): there a drop lands before the first row
+ * the pointer is short of the middle of, however few rows it has. Down a
+ * column a row is pointed at by the part of it that shows — its own top down to
+ * the top of the row drawn below it — and a drop lands in the half of that
+ * strip it is let go in.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
@@ -88,8 +87,8 @@ export interface RowDrag {
 
 /** Set on the prompt while a row is dragged: `prompts.css` turns off text selection and shows the grab. */
 export const ROW_DRAG_ATTR = 'data-row-drag';
-/** Set on a list drawn as a pile: its first row at the foot, in front, each next one above and behind. */
-export const PILE_ATTR = 'data-pile';
+/** Set on a list laid out left to right: a drop lands between two rows by where the pointer is across them. */
+export const ACROSS_ATTR = 'data-across';
 /** The bar's thickness, px. */
 const BAR = 3;
 /** How near the scroll box's top or bottom the pointer scrolls it, px, and the fastest it scrolls, px a frame. */
@@ -159,18 +158,18 @@ interface Landing {
 
 /**
  * Where among `rows` the point falls, and the bar that shows it. Down a one-column list: the gap
- * between two rows as drawn, picked by which half of a row's showing strip the point is in — and
- * in a pile (`pile`), drawn from its first row up, that gap is turned back into the answer's order.
- * Across a grid's line: before the first row the point is above, or level with and short of its middle.
+ * between two rows as drawn, picked by which half of a row's showing strip the point is in. Across a
+ * line (`across`, or rows that do not share a column): before the first row the point is above, or
+ * level with and short of its middle.
  */
-function landing(list: HTMLElement, rows: readonly HTMLElement[], at: At, pile: boolean): Landing {
+function landing(list: HTMLElement, rows: readonly HTMLElement[], at: At, across: boolean): Landing {
   const style = getComputedStyle(list);
   const half = (v: string) => (Number.parseFloat(v) || 4) / 2;
   if (rows.length === 0) {
     const r = list.getBoundingClientRect();
     return { before: null, bar: { left: r.left + 4, top: r.top + 4, width: Math.max(r.width - 8, BAR), height: BAR } };
   }
-  if (oneColumn(rows)) {
+  if (!across && oneColumn(rows)) {
     const down = shownDown(rows);
     const gap = down.findIndex((s) => at.y < (s.top + s.bottom) / 2);
     const k = gap === -1 ? down.length : gap;
@@ -185,8 +184,7 @@ function landing(list: HTMLElement, rows: readonly HTMLElement[], at: At, pile: 
             ? (above.box.bottom + below.top) / 2
             : below.top;
     const edge = (below ?? above)!.box;
-    // A pile's answer runs up the screen: the gap goes before the row drawn above it.
-    const before = pile ? (above?.row ?? null) : (below?.row ?? null);
+    const before = below?.row ?? null;
     return { before, bar: { left: edge.left, top: y - BAR / 2, width: edge.width, height: BAR } };
   }
   const row =
@@ -285,7 +283,7 @@ export function useRowDrag(opts: RowDragOptions): RowDrag {
         track(p, at, event);
         return;
       }
-      const land = landing(target.el, rows, at, target.el.hasAttribute(PILE_ATTR));
+      const land = landing(target.el, rows, at, target.el.hasAttribute(ACROSS_ATTR));
       slot = { testid: target.spec.testid, before: land.before === null ? null : idOf(land.before) };
       bar = land.bar;
     }

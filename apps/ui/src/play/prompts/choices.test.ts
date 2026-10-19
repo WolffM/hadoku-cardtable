@@ -589,22 +589,23 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     }
   });
 
-  it("still says Forge's own wording on the tile — a fix may not remove information", () => {
+  // The operator's lane, 2026-10-19: "Swamp (124)" on a tile. Forge's id is not part of a card's name.
+  it("says Forge's own wording on the tile, without the id it ends in", () => {
     const { getByTestId } = mountPrompt('getChoices', revealAsk(), poolLookup);
     const names = [...getByTestId('prompt-cards').querySelectorAll('.card__name')].map((e) => e.textContent);
-    expect(names).toEqual(POOL.map((_, i) => labelFor(i)));
+    expect(names).toEqual(POOL.map((c) => c.name));
   });
 
   // The operator's report, 2026-10-03: Forge AI revealed a card from its own
   // library, the lookup held nothing for it, and the tile drew no art.
-  it('a card the lookup knows nothing about shows its label and draws the art of the name inside it', () => {
+  it('a card the lookup knows nothing about shows the name in its label and draws its art', () => {
     const ask = {
       ...revealAsk(),
       choices: [{ key: 'c0', label: 'Island (129)', ref: { kind: 'card' as const, id: 129 } }],
     };
     const { getByTestId } = mountPrompt('getChoices', ask, EMPTY_LOOKUP);
     const grid = getByTestId('prompt-cards');
-    expect(grid.querySelector('.card__name')!.textContent).toBe('Island (129)');
+    expect(grid.querySelector('.card__name')!.textContent).toBe('Island');
     const island = KNOWN_ART_IDS.get('Island');
     expect(island, 'the table has a bare-name Island row').toBeDefined();
     expect(grid.querySelector('img.card__art')!.getAttribute('src')).toBe(cardImageUrl(island!));
@@ -635,7 +636,7 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     };
     const { getByTestId } = mountPrompt('getChoices', ask, nameless);
     const grid = getByTestId('prompt-cards');
-    expect(grid.querySelector('.card__name')!.textContent).toBe('Island (47)');
+    expect(grid.querySelector('.card__name')!.textContent).toBe('Island');
     expect(grid.querySelector('img.card__art')!.getAttribute('src')).toBe(cardImageUrl(KNOWN_ART_IDS.get('Island')!));
   });
 

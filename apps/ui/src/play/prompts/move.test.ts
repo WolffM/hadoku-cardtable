@@ -126,7 +126,7 @@ describe('an order that places everything: one zone, ready', () => {
     for (const li of container.querySelectorAll('li')) expect(li.getAttribute('draggable')).toBeNull();
   });
 
-  it('Ponder: the cards are one pile named Top under the library’s title, the ghost below, and the answer is the pile', () => {
+  it('Ponder: the cards are one row named Top under the library’s title, the library’s ghost after the last, and the answer is the row', () => {
     const { dest, container, submit, answers } = zones(cardsAsk({ remainingObjectsMin: 0, remainingObjectsMax: 0, destination: LIBRARY_TOP }));
     expect(container.querySelector('.prompt__title')!.textContent).toBe('Your library');
     expect(heads(container)).toEqual(['Top']);
@@ -144,7 +144,7 @@ describe('an order that places everything: one zone, ready', () => {
       const label = forgeCardLabel(POOL[i]!.name, POOL_ID_BASE + i);
       expect(li.dataset.cardId).toBe(String(POOL_ID_BASE + i));
       expect(li.querySelector<HTMLImageElement>('img.card__art')!.getAttribute('src')).toBe(cardImageUrl(POOL[i]!.scryfallId));
-      expect(li.querySelector('.card__name')!.textContent).toBe(label);
+      expect(li.querySelector('.card__name')!.textContent, 'Forge’s wording, never its id').toBe(POOL[i]!.name);
       expect(scryfallIdFor(KNOWN_ART_IDS, label, POOL[i]!.setCode)).toBeUndefined();
     }
   });
@@ -200,13 +200,25 @@ describe('a scry: Top | Bottom, one prompt', () => {
     expect(submit().disabled).toBe(false);
   });
 
-  it('draws each zone as a pile the library’s way up, with the library’s ghost on the side it is', () => {
+  it('draws each zone as a row of whole cards, the library’s ghost between Top and Bottom, and the effect’s words not at all', () => {
     const { source, dest, container } = scry();
-    expect(source().hasAttribute('data-pile')).toBe(false);
-    expect(rowsOf(source()).map((li) => Number(li.style.zIndex))).toEqual([1, 2, 3]);
-    expect(source().nextElementSibling?.getAttribute('data-end')).toBe('top');
-    expect(dest().previousElementSibling?.getAttribute('data-end')).toBe('bottom');
+    expect(source().hasAttribute('data-across')).toBe(true);
+    expect(source().nextElementSibling?.getAttribute('data-end'), 'after the Top zone').toBe('top');
+    expect(dest().previousElementSibling?.getAttribute('data-end'), 'before the Bottom zone').toBe('bottom');
     expect(container.querySelector('.prompt__card-order')).toBeNull();
+    expect(container.querySelector('[data-testid="prompt-source-text"]')).toBeNull();
+  });
+
+  it('a zone whose answer runs from its lowest card is drawn the other way round: the left is still the higher card', () => {
+    const ask = cardsAsk({ remainingObjectsMin: 0, remainingObjectsMax: 0, destination: { zone: 'library', end: 'bottom', first: 'bottom' } });
+    const { dest, submit, answers } = zones(ask);
+    expect(keysIn(dest()), 'drawn highest first').toEqual(['s2', 's1', 's0']);
+    dragRow(rowsOf(dest())[2]!, rowsOf(dest())[0]!);
+    expect(keysIn(dest())).toEqual(['s0', 's2', 's1']);
+    fireEvent.keyDown(rowsOf(dest())[0]!, { key: 'ArrowRight' });
+    expect(keysIn(dest())).toEqual(['s2', 's0', 's1']);
+    fireEvent.click(submit());
+    expect(answers, 'the answer is the row read from its lowest card').toEqual([{ ordered: ['s1', 's0', 's2'], rememberDecision: false }]);
   });
 
   it('drags its own row when the board also draws that card (Courser of Kruphix’s library top)', () => {

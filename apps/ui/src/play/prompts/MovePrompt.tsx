@@ -37,28 +37,28 @@
  * other zone. The arrow keys move a focused card along its pile. The drag is the board's
  * (`./row-drag.ts`): the phantom, the landing bar, the slide.
  *
- * ## Cards are a pile, the library's way up
+ * ## Every card whole, in a row, the library's way across
  *
- * A zone of cards is one pile (`.prompt__pile`), read the way the board's piles are: the
- * card in front drawn whole, each one behind it peeking out by its name strip, the cards
- * narrowing as there are more so the sheet never scrolls (operator, 2026-10-15). A zone
- * going into a library or a graveyard draws the ghost of it (`.prompt__library`) on the
- * side the zone is, the screen's up the library's up (operator, 2026-10-16), so the card
- * that ends next to the rest of the library is the one touching the ghost:
- *
- *  - the answer's first card lowest (`first: 'bottom'`): drawn from the foot up
- *    (`data-pile`, `./row-drag.ts` reads it), the default for a list with no destination;
- *  - the answer's first card highest (`first: 'top'`): drawn from the top down.
+ * A zone of cards is one row of whole tiles at a board card's size, the highest card on the
+ * left: every card is readable at once, because a card you cannot read is one you cannot
+ * order (the operator, 2026-10-19, on Ponder: *"the UI for ponder is quite ugly"* — three
+ * cards stacked in a pile, one readable). The sheet is as wide as its rows need, up to the
+ * board (`live.css`). A zone going into a library draws the ghost of it
+ * (`.prompt__library`) on the side the zone meets it (operator, 2026-10-16): after the Top
+ * zone's last card, before the Bottom zone's first. So the cards read left to right as the
+ * library does top to bottom — Top, the library, Bottom — and the card touching the ghost is
+ * the one that ends next to the rest of the library. An answer whose first card is the lowest
+ * (`first: 'bottom'`) is drawn the other way round, so the left is always the higher card.
  *
  * A row of words (a trigger's ability) keeps its ↑/↓ on its own tile.
  */
 
-import { useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import { cardOrWordsFace, PromptShell } from './PromptShell.tsx';
 import { refName, translateTargetWords, type PromptLookup } from './lookup.ts';
 import { moveBetween, moveItem, orderProblems, type OrderLists } from './rules.ts';
-import { PILE_ATTR, useRowDrag } from './row-drag.ts';
+import { ACROSS_ATTR, useRowDrag } from './row-drag.ts';
 import { assertAnswerable, checkedReply, type AskOf, type PromptProps, type ReplyOf } from './types.ts';
 
 const LIST_TESTID = { source: 'zone-source', dest: 'zone-dest' } as const;
@@ -151,15 +151,32 @@ function ZonesSheet({
   };
 
   const other = (side: Side): Side => (side === 'dest' ? 'source' : 'dest');
-  /** Move `key` to `to`, just before `before`; false when nothing would change or the move is not allowed. */
+  const destinationOf: Readonly<Record<Side, Destination | undefined>> = { source: ask.rest, dest: ask.destination };
+  /** A zone of cards drawn the other way round from its answer: the answer's first card is its lowest. */
+  const turned = (side: Side): boolean => anyCards && destinationOf[side]?.first === 'bottom';
+  /** A zone's keys as drawn, left to right (top to bottom for words). */
+  const shown = (side: Side, keys: readonly string[] = lists[side]): string[] => (turned(side) ? [...keys].reverse() : [...keys]);
+
+  /**
+   * Move `key` to `to`, drawn just before `before` (`null`: at the end as drawn); false when nothing
+   * would change or the move is not allowed. In a zone drawn turned round, before a card as drawn is
+   * after it in the answer.
+   */
   const move = (key: string, to: Side, before: string | null): boolean => {
     if (to === 'dest' && locked.has(key)) return false;
-    const next = moveBetween(lists, key, to, before, fixedSource);
+    let at = before;
+    if (turned(to)) {
+      const rest = lists[to].filter((k) => k !== key);
+      at = before === null ? (rest[0] ?? null) : (rest[rest.indexOf(before) + 1] ?? null);
+    }
+    const next = moveBetween(lists, key, to, at, fixedSource);
     if (next.source.join() === lists.source.join() && next.dest.join() === lists.dest.join()) return false;
     setLists(next);
     return true;
   };
-  const nudge = (side: Side, from: number, to: number) => setLists((l) => ({ ...l, [side]: moveItem(l[side], from, to) }));
+  /** One card one place along its zone as drawn. */
+  const nudge = (side: Side, from: number, to: number) =>
+    setLists((l) => ({ ...l, [side]: shown(side, moveItem(shown(side, l[side]), from, to)) }));
 
   const drag = useRowDrag({
     targets: [
@@ -175,10 +192,6 @@ function ZonesSheet({
     },
   });
 
-  const destinationOf: Readonly<Record<Side, Destination | undefined>> = { source: ask.rest, dest: ask.destination };
-  /** A pile drawn from its foot up: its first card in front, at the foot (`data-pile`). */
-  const drawnUp = (side: Side): boolean => anyCards && destinationOf[side]?.first !== 'top';
-
   /** How many the answer must hold, when Forge bounds it: [least, most]. */
   const n = all.length;
   const bounds: readonly [number, number] | null =
@@ -186,16 +199,16 @@ function ZonesSheet({
   const exact = bounds !== null && bounds[0] === bounds[1] ? bounds[0] : null;
   const destShort = bounds !== null && (lists.dest.length < bounds[0] || lists.dest.length > bounds[1]);
 
-  /** Enter or Space does what a click does; in an ordered pile the arrows move the card the way they point. */
+  /** Enter or Space does what a click does; in an ordered zone the arrows move the card the way they point. */
   const onKey = (act: () => void, side: Side, i: number, ordered: boolean) => (e: ReactKeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       act();
       return;
     }
-    if (!ordered || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
-    const later = (e.key === 'ArrowDown') !== drawnUp(side);
-    const to = later ? i + 1 : i - 1;
+    const step = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[e.key];
+    if (!ordered || step === undefined) return;
+    const to = i + step;
     if (to < 0 || to >= lists[side].length) return;
     e.preventDefault();
     nudge(side, i, to);
@@ -204,23 +217,22 @@ function ZonesSheet({
   /** One item's face: the tile when the item is a card, the words otherwise. A card the server folded in has no label: the lookup names it. */
   const face = (key: string) => cardOrWordsFace(lookup, cardIdOf.get(key), labelOf.get(key) || undefined);
 
-  /** One zone: its name and its pile (or list of words), with the ghost of the zone it goes into. */
+  /** One zone: its name and its row of cards (or list of words), with the ghost of the zone it goes into. */
   const zone = (side: Side) => {
-    const keys = lists[side];
+    const keys = shown(side);
     const ordered = side === 'dest' || fixedSource === undefined;
     const Tag = ordered ? 'ol' : 'ul';
     const destination = destinationOf[side];
-    const ghost = anyCards ? destination : undefined;
-    const up = drawnUp(side);
+    const ghost = anyCards && destination?.zone === 'library' ? destination : undefined;
     const name = destination !== undefined ? zoneName(destination) : side === 'dest' ? ask.top : 'Not chosen';
     const click = (key: string) => (single ? undefined : () => move(key, other(side), null));
     const list = (
       <Tag
-        className={anyCards ? 'prompt__pile' : 'prompt__list'}
+        className={anyCards ? 'prompt__tiles' : 'prompt__list'}
         data-testid={LIST_TESTID[side]}
         data-zone={zoneWord(destination, side)}
         data-over={drag.over === LIST_TESTID[side] || undefined}
-        {...(up && { [PILE_ATTR]: '' })}
+        {...(anyCards && { [ACROSS_ATTR]: '' })}
       >
         {keys.map((key, i) => (
           <li
@@ -232,8 +244,6 @@ function ZonesSheet({
             tabIndex={0}
             aria-label={nameOf(key)}
             data-dragging={drag.liftedId === liftIdOf.get(key) || undefined}
-            // The card lower down a pile is drawn over the one above it.
-            style={anyCards ? { zIndex: up ? keys.length - i : i + 1 } : undefined}
             onPointerDown={drag.onRowPointerDown(liftIdOf.get(key)!)}
             onClick={click(key)}
             onKeyDown={onKey(click(key) ?? (() => undefined), side, i, ordered)}
@@ -277,17 +287,13 @@ function ZonesSheet({
             <>
               {' '}
               <span className="zone__count" data-testid="zone-count">
-                {keys.length}/{exact}
+                {lists[side].length}/{exact}
               </span>
             </>
           )}
         </h4>
         {anyCards ? (
-          <div
-            className="prompt__heap"
-            data-ghost={ghost?.end}
-            style={keys.length > 0 ? ({ '--pile-n': keys.length } as CSSProperties) : undefined}
-          >
+          <div className="prompt__zone-row" data-ghost={ghost?.end}>
             {ghost?.end === 'bottom' && <ZoneGhost destination={ghost} />}
             {list}
             {ghost?.end === 'top' && <ZoneGhost destination={ghost} />}
@@ -300,9 +306,9 @@ function ZonesSheet({
   };
 
   return (
-    <PromptShell method={method} title={titleOf(ask, lookup)} drawnBlock={problems.length > 0} onSubmit={submit}>
+    <PromptShell method={method} title={titleOf(ask, lookup)} drawnBlock={problems.length > 0} onSubmit={submit} effectText={!anyCards}>
       {ask.referenceCard !== null && <p className="prompt__hint">For {refName(lookup, ask.referenceCard)}</p>}
-      <div className="prompt__dual" data-piles={anyCards || undefined} data-one={single || undefined}>
+      <div className={anyCards ? 'prompt__zones' : 'prompt__dual'} data-one={single || undefined}>
         {!single && zone('source')}
         {zone('dest')}
       </div>
