@@ -769,3 +769,22 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
 - The bridge (`PlayBridge.java`'s `orderDestination`) sends the real zone, end and
   first-card direction on the `order` ask; `apps/server/src/play/order-destination.jvm.test.ts`
   checks it against real Forge.
+
+## A look at a library's top, and what moves it — 2026-10-19 (lane FS)
+
+- **VERIFIED (read)** — a look grants the looking player `PlayerMayLook` on exactly the cards it
+  shows, its own library included: `PlayerControllerHuman.tempShowCard` → `Card.addMayLookTemp`
+  (`forge-gui/.../player/PlayerControllerHuman.java:182-187`), taken back by `endTempShowCards`
+  (`:198-205`). Jace, the Mind Sculptor's +2 is a `Dig` (`DigNum$ 1`, `DestinationZone$ Library`,
+  `LibraryPosition2$ 0`): the digger is shown the top card (`DigEffect.java:344-354`) and asked
+  `chooseEntitiesForEffect` with that card as its `delayedReveal`; what it does not choose goes back
+  with `moveTo(Library, c, 0)`.
+- **VERIFIED (read)** — a move within one hidden zone keeps the card object: `GameAction.changeZone`
+  copies a card only when it is not `suppress`ed (`zoneFrom.equals(zoneTo)` for a non-token,
+  `GameAction.java:154`) into a hidden zone (`:171-174`). So a scry's top card, a fate seal's kept
+  card or Sensei's Divining Top's rearrangement reaches the wire as a reordered `Library` list, never
+  as a new `CardView`; a card from the hand put on top (Brainstorm) is a new one.
+- **VERIFIED (measured, `apps/server/src/play/fs-top-known.jvm.test.ts` on the claws, run
+  39328402310)** — on main `abe771cb`'s server, the fate seal's card stays named in the looking seat's
+  state at every one of the 13 state frames until its holder draws it; a scry of the seat's own
+  library (Serum Visions keeping two) is missing from all 17 state frames after its look ends.
