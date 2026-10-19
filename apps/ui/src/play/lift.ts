@@ -81,7 +81,12 @@ export function pinFixed(el: HTMLElement, host: Element): (left: number, top: nu
   el.style.margin = '0';
   el.style.pointerEvents = 'none';
   host.append(el);
+  // Measured unscaled: a lift's own `scale` (`lift.css`) grows the box about its centre, and an
+  // origin read off the grown box put every copy that much down and right of where it was placed.
+  const scale = el.style.scale;
+  el.style.scale = 'none';
   const origin = el.getBoundingClientRect();
+  el.style.scale = scale;
   return (left, top) => {
     el.style.left = `${left - origin.left}px`;
     el.style.top = `${top - origin.top}px`;
@@ -104,9 +109,20 @@ export function liftGhost(source: HTMLElement, host: Element, press: At, id: str
   const list = inList && source.parentElement !== null ? (source.parentElement.cloneNode(false) as HTMLElement) : null;
   const el = list ?? copy;
   if (list !== null) {
+    // The list is only there for its stylesheet; its layout must not move or resize the row. A pile
+    // sizes its rows off a variable only the pile's own box defines (`prompts.css`'s `--w`) and
+    // lays them out from its foot (`column-reverse`): the copy came out smaller, at the foot, and
+    // so down and left of the pointer that had grabbed it (the operator, 2026-10-19, on Ponder).
+    list.style.display = 'block';
+    list.style.padding = '0';
     copy.style.margin = '0';
+    copy.style.width = `${at.width}px`;
+    copy.style.height = `${at.height}px`;
     list.append(copy);
   }
+  // A row still sliding from the last drop carries its slide's transform: the copy starts where the row is.
+  copy.style.transform = '';
+  copy.style.transition = '';
   for (const node of [el, ...el.querySelectorAll<HTMLElement>('*')]) {
     for (const attr of STRIPPED) node.removeAttribute(attr);
   }

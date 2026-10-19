@@ -692,7 +692,10 @@ export const GetChoicesReplySchema = z.array(z.string());
  * (`apps/server/src/play/arrange.ts`), whose items left in `sourceChoices`
  * stay on top of the library in an order Forge asks for in a second `order`.
  * It is where that group goes, and the reply's `rest` is its order — the
- * server answers Forge's second question with it, so the player is asked once.
+ * server answers Forge's second question with it, so the player is asked once. *
+ * `locked` is ours too: keys of cards the seat may look at and order with the
+ * `rest` group but not move into the answer — a `Dig`'s looked-at cards its
+ * `ChangeValid` lets through no further (`apps/server/src/play/arrange.ts`).
  */
 /**
  * Where an order's cards go: `zone`, at its `end`; and `first`, which way the
@@ -701,9 +704,12 @@ export const GetChoicesReplySchema = z.array(z.string());
  * is the highest one when they go to the bottom, the lowest when they go on top.
  */
 export const OrderDestinationSchema = z.strictObject({
-  zone: z.enum(['library', 'graveyard']),
-  end: z.enum(['top', 'bottom']),
-  first: z.enum(['top', 'bottom']),
+  zone: z.enum(['library', 'graveyard', 'hand', 'exile', 'battlefield']),
+  /** Absent for a zone with no ends (a hand, exile, the battlefield). */
+  end: z.enum(['top', 'bottom']).optional(),
+  first: z.enum(['top', 'bottom']).optional(),
+  /** Whose zone, when it is not the asked seat's own (a fateseal's opponent's library). */
+  owner: PlayerRefSchema.optional(),
 });
 
 export const OrderSchema = z.strictObject({
@@ -722,6 +728,7 @@ export const OrderSchema = z.strictObject({
   showRememberCheckbox: z.boolean(),
   destination: OrderDestinationSchema.optional(),
   rest: OrderDestinationSchema.optional(),
+  locked: z.array(z.string()).optional(),
 });
 
 export const OrderReplySchema = z.strictObject({
@@ -771,6 +778,11 @@ export const ChooseSingleEntityForEffectReplySchema = GameEntityRefSchema.nullab
  * `List<GameEntityView> chooseEntitiesForEffect(String title,
  * List<? extends GameEntityView> optionList, int min, int max,
  * DelayedReveal delayedReveal)` — IGuiGame.java:252.
+ *
+ * `dig` is ours, never Forge's: set by the bridge (`PlayBridge.java`'s
+ * `digZones`) when a `Dig` is asking which of the cards it looked at go to its
+ * first zone (`chosen`); the others go to `rest`. The server shows the seat one
+ * prompt with both groups (`apps/server/src/play/arrange.ts`).
  */
 export const ChooseEntitiesForEffectSchema = z.strictObject({
   kind: z.literal('ask'),
@@ -782,6 +794,7 @@ export const ChooseEntitiesForEffectSchema = z.strictObject({
   min: z.number().int(),
   max: z.number().int(),
   delayedReveal: DelayedRevealSchema.nullable(),
+  dig: z.strictObject({ chosen: OrderDestinationSchema, rest: OrderDestinationSchema }).optional(),
 });
 
 export const ChooseEntitiesForEffectReplySchema = z.array(GameEntityRefSchema);

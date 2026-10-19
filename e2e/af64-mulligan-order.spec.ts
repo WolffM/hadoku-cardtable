@@ -92,12 +92,10 @@ test(titled('a London mulligan that puts two cards back asks their order, in the
     expect([...rows].sort(), 'the window holds exactly the two cards put back').toEqual([...picked].sort());
     await expect(orderWindow(bob.page), "bob is never asked alice's order").toHaveCount(0);
 
-    // The window starts with both cards unplaced; a click places one (closest to top first), and
-    // OK is live once every card is placed, as in every library-order window (`order-drag.spec.ts`).
-    for (const id of rows) await win.locator(`[data-testid="order-source"] li[data-card-id="${id}"]`).click();
-    await expect
-      .poll(() => win.locator('[data-testid="order-dest"] li[data-card-id]').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-card-id')))))
-      .toEqual(rows);
+    // The window opens with both cards in its one zone, Bottom, in Forge's order, and OK live, as in
+    // every order that places every card (`MovePrompt.tsx`, `order-drag.spec.ts`).
+    await expect(win.getByTestId('zone-source'), 'no second zone').toHaveCount(0);
+    await expect(win.getByTestId('zone-dest'), 'the one zone is the bottom of the library').toHaveAttribute('data-zone', 'bottom');
     await alice.page.getByTestId('prompt-submit').click();
     await expect(win, 'the answered window closes').toHaveCount(0, { timeout: 10_000 });
     await expect.poll(() => says(alice.page), { timeout: 60_000, message: 'the match goes on past the mulligan' }).not.toMatch(/return \d card|keep your hand/i);

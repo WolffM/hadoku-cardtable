@@ -25,6 +25,17 @@
  * caption alone never opens the fold. The follow-up is recognised by shape
  * alone: the very next ask to the same seat, an `order` of exactly the cards
  * the reply left on top, with every one to be placed.
+ *
+ * A `Dig` is the same family: it asks which of the cards it looked at go to
+ * its first zone (`chooseEntitiesForEffect`, `DigEffect.java:351`), then the
+ * order of each group going into a library (`orderMoveToZoneList`). Jace, the
+ * Mind Sculptor's fateseal was a "Choose card(s) to put on the bottom of …"
+ * grid (the operator, 2026-10-19: *"it would be nice if it were just two zones
+ * 'top' and 'bottom' and i can drag between them"*). The bridge says where
+ * both groups go (`dig`), so the seat is asked one `order` of every card looked
+ * at, the chosen group its answer and the rest its `rest`; Forge is sent the
+ * chosen cards, and its order questions after it are answered from the same
+ * reply (`pendingOrders`, `answerPending`).
  */
 
 import type { ChoiceOption, ServerFrame } from '@hadoku/forge-wire';
@@ -32,6 +43,19 @@ import type { ChoiceOption, ServerFrame } from '@hadoku/forge-wire';
 import type { AutoAnswer } from './auto.js';
 
 type OrderAsk = Extract<ServerFrame, { kind: 'ask'; method: 'order' }>;
+type DigAsk = Extract<ServerFrame, { kind: 'ask'; method: 'chooseEntitiesForEffect' }>;
+type Destination = NonNullable<OrderAsk['destination']>;
+type OrderReply = { ordered: readonly string[]; rememberDecision: boolean; rest?: readonly string[] };
+
+/**
+ * A group of cards the seat already ordered in one prompt, for an `order`
+ * Forge asks about them later: their ids in the reply's order, and which way
+ * that order runs (`OrderDestinationSchema`'s `first`).
+ */
+export interface PendingOrder {
+	readonly ids: readonly number[];
+	readonly first: Destination['first'];
+}
 
 /** Forge's captions for the first question of a scry and of a surveil. */
 const ARRANGEMENTS: ReadonlySet<string> = new Set(['Cards to put on the bottom', 'Cards to put in the graveyard']);
@@ -65,6 +89,64 @@ export function arrangeAsk(frame: Extract<ServerFrame, { kind: 'ask' }>): OrderA
 }
 
 /**
+ * A `Dig`'s question, as the seat is asked it: one `order` of every card it
+ * looked at, in Forge's order, all of them in the `rest` group to start with;
+ * the answer is the chosen group, as many as Forge's `min`..`max`. A looked-at
+ * card Forge does not offer (a `ChangeValid` it fails) is `locked` in the rest.
+ * Null for any other ask, and for a dig whose looked-at cards are not sent.
+ */
+export function digAsk(frame: Extract<ServerFrame, { kind: 'ask' }>): OrderAsk | null {
+	if (frame.method !== 'chooseEntitiesForEffect' || frame.dig === undefined || frame.delayedReveal === null) return null;
+	const looked = frame.delayedReveal.cards;
+	const seen = new Set(looked.map((c) => c.id));
+	const offered = new Set<number>();
+	for (const r of frame.optionList) {
+		if (r.kind !== 'card' || !seen.has(r.id)) return null;
+		offered.add(r.id);
+	}
+	if (looked.length === 0 || offered.size === 0) return null;
+	const n = looked.length;
+	return {
+		kind: 'ask',
+		callId: frame.callId,
+		...(frame.source !== undefined && { source: frame.source }),
+		method: 'order',
+		title: frame.title,
+		top: frame.title,
+		remainingObjectsMin: n - frame.max,
+		remainingObjectsMax: n - frame.min,
+		sourceChoices: looked.map((c) => ({ key: digKey(c.id), label: '', ref: c })),
+		destChoices: [],
+		referenceCard: null,
+		sideboardingMode: false,
+		showRememberCheckbox: false,
+		destination: frame.dig.chosen,
+		rest: frame.dig.rest,
+		...(offered.size < n && { locked: looked.filter((c) => !offered.has(c.id)).map((c) => digKey(c.id)) }),
+	};
+}
+
+const digKey = (id: number): string => `d${id}`;
+
+/**
+ * Forge's answer to a `Dig`'s question from the reply to its `digAsk`: the
+ * chosen cards, as the entity refs Forge offered.
+ */
+export function digAnswer(ask: DigAsk, reply: OrderReply): DigAsk['optionList'] {
+	const byKey = new Map(ask.optionList.map((r) => [digKey(r.id), r]));
+	return reply.ordered.flatMap((key) => byKey.get(key) ?? []);
+}
+
+/** The card ids of one group of a reply, in the reply's order. */
+function groupIds(ask: OrderAsk, keys: readonly string[]): number[] {
+	const byKey = new Map([...ask.sourceChoices, ...ask.destChoices].map((c) => [c.key, cardIdOf(c)]));
+	return keys.flatMap((k) => {
+		const id = byKey.get(k);
+		return id === undefined || id === null ? [] : [id];
+	});
+}
+
+/**
  * The card ids the reply left on top, in the order the seat gave them: the
  * reply's `rest` where it names exactly the cards left, Forge's own order of
  * them otherwise (a reply that did not order them took the order it was shown).
@@ -79,20 +161,43 @@ export function restOrder(ask: OrderAsk, reply: { ordered: readonly string[]; re
 }
 
 /**
- * Forge's second question answered from the first one's reply: its keys in
- * the order `rest` gave. Null when `frame` is not that question.
+ * The groups of a one-prompt reply whose order Forge has still to ask for: of
+ * two or more cards, going to a zone with an order. A scry's or a surveil's
+ * answer is its chosen group's order already, so only its rest is asked about;
+ * a dig's chosen cards are an unordered pick, so both of its groups are
+ * (`DigEffect.java:363-370,428-433`).
  */
-export function answerRest(frame: Extract<ServerFrame, { kind: 'ask' }>, rest: readonly number[]): { ordered: string[]; rememberDecision: false } | null {
+export function pendingOrders(ask: OrderAsk, reply: OrderReply, dig: boolean): PendingOrder[] {
+	const groups: [readonly number[], Destination | undefined][] = [
+		...(dig ? [[groupIds(ask, reply.ordered), ask.destination] as [readonly number[], Destination | undefined]] : []),
+		[restOrder(ask, reply), ask.rest],
+	];
+	return groups.filter(([ids, to]) => ids.length > 1 && to !== undefined && to.zone !== 'hand' && to.zone !== 'exile').map(([ids, to]) => ({ ids, first: to!.first }));
+}
+
+/**
+ * A later `order` Forge asks about one of `pending`'s groups, answered from it:
+ * its keys in the group's order, turned round when this question reads its
+ * answer the other way up (its own `destination.first`). Null when `frame` is
+ * no such question; `left` is what is still pending after it.
+ */
+export function answerPending(
+	frame: Extract<ServerFrame, { kind: 'ask' }>,
+	pending: readonly PendingOrder[],
+): { result: { ordered: string[]; rememberDecision: false }; left: PendingOrder[] } | null {
 	if (frame.method !== 'order' || frame.remainingObjectsMax !== 0 || frame.destChoices.length !== 0) return null;
-	if (frame.sourceChoices.length !== rest.length) return null;
 	const keyOf = new Map<number, string>();
 	for (const c of frame.sourceChoices) {
 		const id = cardIdOf(c);
 		if (id === null) return null;
 		keyOf.set(id, c.key);
 	}
-	if (!rest.every((id) => keyOf.has(id))) return null;
-	return { ordered: rest.map((id) => keyOf.get(id)!), rememberDecision: false };
+	const at = pending.findIndex((p) => p.ids.length === keyOf.size && p.ids.every((id) => keyOf.has(id)));
+	if (at === -1) return null;
+	const group = pending[at]!;
+	const turned = frame.destination?.first !== undefined && group.first !== undefined && frame.destination.first !== group.first;
+	const ids = turned ? [...group.ids].reverse() : group.ids;
+	return { result: { ordered: ids.map((id) => keyOf.get(id)!), rememberDecision: false }, left: pending.filter((_, i) => i !== at) };
 }
 
 /**

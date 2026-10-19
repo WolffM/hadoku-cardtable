@@ -132,7 +132,7 @@ import {
 	type StopPolicy,
 	type StopWindow,
 } from './auto.js';
-import { answerRest, arrangeAsk, restOrder, sameCardsOrder } from './arrange.js';
+import { answerPending, arrangeAsk, digAnswer, digAsk, pendingOrders, restOrder, sameCardsOrder, type PendingOrder } from './arrange.js';
 import { firstMode, modesAsk, nextMode, type ModesLeft } from './modes.js';
 import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
 import { artOf } from './art.js';
@@ -558,11 +558,13 @@ export interface SeatState {
 	 */
 	mergedChoice: Map<string, { chooseCallId: string; keyByRef: Map<string, string> }>;
 	/**
-	 * The card ids a scry's (or surveil's) one prompt left on top, in the
-	 * player's order, until Forge's own second question about them arrives
-	 * and is answered with it (`./arrange.ts`). Cleared by the next ask either way.
+	 * The groups a one-prompt scry, surveil or dig ordered, in the player's
+	 * order, until Forge's own later questions about them arrive and are
+	 * answered with them (`./arrange.ts`). Cleared by the first ask that is none of them.
 	 */
-	restOnTop: number[] | null;
+	pendingOrders: PendingOrder[];
+	/** A `Dig`'s question shown as one `order` (`./arrange.ts`'s `digAsk`), by callId: the question Forge asked. */
+	digFolds: Map<string, Extract<ServerFrame, { kind: 'ask'; method: 'chooseEntitiesForEffect' }>>;
 	/**
 	 * The modes a modal spell's one prompt picked that Forge has not asked for
 	 * yet, until its later mode questions arrive and are answered with them
@@ -1182,7 +1184,8 @@ export class Match {
 			pendingReveal: null,
 			behindReveal: [],
 			mergedChoice: new Map(),
-			restOnTop: null,
+			pendingOrders: [],
+			digFolds: new Map(),
 			modesLeft: null,
 			pendingPrompt: null,
 			pendingButtons: null,
@@ -1761,6 +1764,7 @@ export class Match {
 				if (named !== undefined && !(frame.result as string[]).every((name) => named.includes(name))) {
 					return { ok: false, error: 'reply names a card that was not offered' };
 				}
+				const dig = s.digFolds.get(frame.callId);
 				this.closeAsk(s, ask.callId);
 				const about = askGist(ask.frame);
 				const fallback = s.unparsed.get(frame.callId);
@@ -1804,14 +1808,15 @@ export class Match {
 					s.lastAbilityToPlay = { hostCard, abilityId };
 					this.choose(s, s.lastAbilityToPlay);
 				}
-				// A scry's one prompt: Forge is sent its first question's answer, and
-				// the top's order waits for its second (`./arrange.ts`).
+				// A scry's, surveil's or dig's one prompt: Forge is sent its first
+				// question's answer, and the groups' orders wait for its later ones (`./arrange.ts`).
 				if (frame.method === 'order' && ask.frame.kind === 'ask' && ask.frame.method === 'order' && ask.frame.rest !== undefined) {
 					const reply = frame.result as { ordered: string[]; rememberDecision: boolean; rest?: string[] };
 					const rest = restOrder(ask.frame, reply);
-					s.restOnTop = rest.length > 1 ? rest : null;
-					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, ...about, rest });
-					this.command({ t: 'reply', seat, callId: frame.callId, result: { ordered: reply.ordered, rememberDecision: reply.rememberDecision } });
+					s.pendingOrders = pendingOrders(ask.frame, reply, dig !== undefined);
+					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: dig === undefined ? frame.method : 'chooseEntitiesForEffect (one order with the dig\'s rest)', ms: this.now() - ask.sentAt, ...about, rest });
+					const result = dig === undefined ? { ordered: reply.ordered, rememberDecision: reply.rememberDecision } : digAnswer(dig, reply);
+					this.command({ t: 'reply', seat, callId: frame.callId, result });
 					return { ok: true };
 				}
 				// A modal spell's one prompt: Forge is sent the first mode, and the rest
@@ -3259,6 +3264,7 @@ export class Match {
 
 	private closeAsk(s: SeatState, callId: string): void {
 		s.asks.delete(callId);
+		s.digFolds.delete(callId);
 		this.checkWaitingOn();
 	}
 
@@ -3314,10 +3320,9 @@ export class Match {
 	 * it here is complete, not a partial duplicate.
 	 */
 	private openAsk(s: SeatState, offered: Extract<ServerFrame, { kind: 'ask' }>): void {
-		const rest = s.restOnTop;
-		s.restOnTop = null;
-		const restAnswer = rest === null ? null : answerRest(offered, rest);
-		if (restAnswer !== null) {
+		const pending = answerPending(offered, s.pendingOrders);
+		s.pendingOrders = pending?.left ?? [];
+		if (pending !== null) {
 			s.autoAnswered += 1;
 			this.deps.log({
 				evt: 'ask-auto-answered',
@@ -3325,9 +3330,9 @@ export class Match {
 				seat: s.seat,
 				callId: offered.callId,
 				method: offered.method,
-				why: 'the top order the scry prompt already gave',
+				why: 'the order the one scry, surveil or dig prompt already gave',
 			});
-			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: restAnswer });
+			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: pending.result });
 			return;
 		}
 		const modes = s.modesLeft;
@@ -3374,6 +3379,12 @@ export class Match {
 			// (`onlyAnswer`'s own "one option") still owes its later echo nothing.
 			if (frame.method === 'getChoices' && frame.min > 0) this.noteDiscardChoice(frame.choices, auto.result as string[]);
 			this.command({ t: 'reply', seat: s.seat, callId: auto.callId, result: auto.result });
+			return;
+		}
+		const folded = digAsk(frame);
+		if (folded !== null && frame.method === 'chooseEntitiesForEffect') {
+			s.digFolds.set(frame.callId, frame);
+			this.openAskFrame(s, frame.callId, folded.method, folded);
 			return;
 		}
 		this.openAskFrame(s, frame.callId, frame.method, frame);

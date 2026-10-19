@@ -3115,12 +3115,70 @@ public final class PlayBridge {
 
         /** The stack of the server thread parked in {@code RemoteClientGuiGame.order}, or empty. */
         private static StackTraceElement[] askingStack() {
+            return askingStack("order");
+        }
+
+        /** The stack of the server thread parked in {@code RemoteClientGuiGame}'s {@code method}, or empty. */
+        private static StackTraceElement[] askingStack(final String method) {
             for (final StackTraceElement[] stack : Thread.getAllStackTraces().values()) {
                 for (final StackTraceElement frame : stack) {
-                    if (RemoteClientGuiGame.class.getName().equals(frame.getClassName()) && "order".equals(frame.getMethodName())) { return stack; }
+                    if (RemoteClientGuiGame.class.getName().equals(frame.getClassName()) && method.equals(frame.getMethodName())) { return stack; }
                 }
             }
             return new StackTraceElement[0];
+        }
+
+        /**
+         * Where a {@code Dig}'s cards go ({@code ChooseEntitiesForEffectSchema}'s {@code dig}): the zone
+         * the chosen ones go to and the zone the rest go to, read off the resolving {@code Dig} with the
+         * defaults {@code DigEffect.resolve} gives them ({@code DigEffect.java:120-125}: the hand and the
+         * bottom of the library). Null when the question is not a {@code Dig}'s, or the cards it looked at
+         * are not sent with it ({@code delayedReveal}, which the server shows as one group).
+         */
+        private JsonObject digZones(final DelayedReveal looked) {
+            if (looked == null) { return null; }
+            boolean digging = false;
+            for (final StackTraceElement frame : askingStack("chooseEntitiesForEffect")) {
+                if (forge.game.ability.effects.DigEffect.class.getName().equals(frame.getClassName())) { digging = true; break; }
+            }
+            final Game game = liveGame();
+            if (!digging || game == null || !game.getStack().isResolving() || game.getStack().isEmpty()) { return null; }
+            SpellAbility sa = game.getStack().peek().getSpellAbility();
+            while (sa != null && sa.getApi() != forge.game.ability.ApiType.Dig) { sa = sa.getSubAbility(); }
+            if (sa == null) { return null; }
+            final PlayerView me = getCurrentPlayer();
+            final PlayerView owner = looked.getOwner();
+            final JsonObject whose = owner != null && me != null && owner.getId() != me.getId() ? ref("player", owner.getId()) : null;
+            final JsonObject chosen = digZone(sa.getParamOrDefault("DestinationZone", "Hand"), sa.getParamOrDefault("LibraryPosition", "-1"), whose);
+            final JsonObject rest = digZone(sa.getParamOrDefault("DestinationZone2", "Library"), sa.getParamOrDefault("LibraryPosition2", "-1"), whose);
+            if (chosen == null || rest == null) { return null; }
+            final JsonObject o = new JsonObject();
+            o.add("chosen", chosen);
+            o.add("rest", rest);
+            return o;
+        }
+
+        /** One of a {@code Dig}'s zones, its first card the highest; null for a zone the schema has no word for. */
+        private static JsonObject digZone(final String zone, final String position, final JsonObject owner) {
+            final JsonObject o = new JsonObject();
+            switch (ZoneType.smartValueOf(zone)) {
+                case Library:
+                    o.addProperty("zone", "library");
+                    o.addProperty("end", Integer.parseInt(position) >= 0 ? "top" : "bottom");
+                    o.addProperty("first", "top");
+                    break;
+                case Graveyard:
+                    o.addProperty("zone", "graveyard");
+                    o.addProperty("end", "top");
+                    o.addProperty("first", "top");
+                    break;
+                case Hand: o.addProperty("zone", "hand"); return o;
+                case Exile: o.addProperty("zone", "exile"); return o;
+                case Battlefield: o.addProperty("zone", "battlefield"); return o;
+                default: return null;
+            }
+            if (owner != null) { o.add("owner", owner); }
+            return o;
         }
 
         private static JsonObject destination(final String zone, final boolean onTop, final boolean firstHighest) {
@@ -3287,6 +3345,8 @@ public final class PlayBridge {
             f.addProperty("min", min);
             f.addProperty("max", max);
             f.add("delayedReveal", delayedReveal(delayedReveal));
+            final JsonObject dig = digZones(delayedReveal);
+            if (dig != null) { f.add("dig", dig); }
             final JsonElement r = await(ask, f);
             if (r == ABORTED) { return null; }
             final List<GameEntityView> out = new ArrayList<>();

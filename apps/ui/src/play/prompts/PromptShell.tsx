@@ -316,9 +316,7 @@ export function nameFromForgeLabel(label: string, forgeId: number): string {
 
 /**
  * A row's face: the board's `CardTile` when it stands for a card, the words
- * otherwise. `OrderPrompt`'s dual list (a mix of cards and abilities) and
- * `ManipulateCardListPrompt`'s pile (always cards) shared this by hand (T5) —
- * the pile just never takes the words branch.
+ * otherwise: `MovePrompt.tsx`'s zones hold either.
  */
 export function cardOrWordsFace(lookup: PromptLookup, cardId: number | undefined, label?: string): ReactNode {
   if (cardId !== undefined) return <CardTile card={promptTileFor(lookup, cardId, label)} />;

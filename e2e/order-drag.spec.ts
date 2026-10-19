@@ -12,7 +12,9 @@
  *  - no scrollbar appears: no scroll box from the prompt up to the page gains
  *    horizontal overflow, or more vertical overflow than it had before the press;
  *  - no text is selected;
- *  - the card follows the pointer (the board's phantom);
+ *  - the card follows the pointer (the board's phantom), the spot it was grabbed at
+ *    staying under the pointer (the operator, 2026-10-19, on Ponder: *"when dragging
+ *    cards they are weirdly displaced from the cursor, significantly down and left"*);
  *  - the cards that are not moving stay where they are while the drag is under
  *    way, and a bar shows where the card will land.
  *
@@ -47,6 +49,8 @@ interface Frame {
   phantom: boolean;
   /** A bar shows where the card will land. */
   indicator: boolean;
+  /** How far the phantom's centre is from where the grab puts it, px: the pointer plus the press's offset from the row's centre. */
+  drift: number;
   /** Rows other than the dragged one that moved since the press. */
   shifted: string[];
 }
@@ -78,7 +82,7 @@ async function snapshot(page: Page): Promise<void> {
       return y;
     };
     const boxes = new Map<Element, { left: number; top: number }>();
-    for (const li of Array.from(prompt.querySelectorAll('[data-testid="order-source"] > li, [data-testid="order-dest"] > li'))) {
+    for (const li of Array.from(prompt.querySelectorAll('[data-testid="zone-source"] > li, [data-testid="zone-dest"] > li'))) {
       const r = li.getBoundingClientRect();
       boxes.set(li, { left: r.left, top: r.top + scrolled(li) });
     }
@@ -90,9 +94,9 @@ async function snapshot(page: Page): Promise<void> {
 }
 
 /** One frame of a drag, measured against the snapshot. */
-function probe(page: Page, at: Point, dragged: number): Promise<Frame> {
+function probe(page: Page, at: Point, dragged: number, grab: Point): Promise<Frame> {
   return page.evaluate(
-    ({ at, dragged }) => {
+    ({ at, dragged, grab }) => {
       const { dims, boxes } = (
         window as unknown as {
           __orderDrag: {
@@ -131,6 +135,9 @@ function probe(page: Page, at: Point, dragged: number): Promise<Frame> {
         const r = el.getBoundingClientRect();
         return shown(el) && r.width > 0 && r.height > 0;
       });
+      const copy = document.querySelector('[data-arrange-ghost] > li') ?? document.querySelector('[data-arrange-ghost]');
+      const box = copy?.getBoundingClientRect();
+      const drift = box === undefined ? Infinity : Math.hypot(box.left + box.width / 2 - (at.x + grab.x), box.top + box.height / 2 - (at.y + grab.y));
       const scrolled = (el: Element) => {
         let y = 0;
         for (let a = el.parentElement; a !== null; a = a.parentElement) y += a.scrollTop;
@@ -150,10 +157,11 @@ function probe(page: Page, at: Point, dragged: number): Promise<Frame> {
         selection: window.getSelection()?.toString() ?? '',
         phantom,
         indicator,
+        drift,
         shifted,
       };
     },
-    { at, dragged },
+    { at, dragged, grab },
   );
 }
 
@@ -176,6 +184,9 @@ async function dragProbed(page: Page, label: string, row: Locator, onto: Locator
   // Pressed on the strip of the card that shows, where its name is: a press on text is where a drag selects it.
   const from = await stripPoint(row);
   const to = at === 'before' ? await beforePoint(onto) : await pointIn(onto, at);
+  const box = (await row.boundingBox())!;
+  // The phantom's centre is the pointer plus this, for as long as the drag lasts.
+  const grab = { x: box.x + box.width / 2 - from.x, y: box.y + box.height / 2 - from.y };
   await page.mouse.move(from.x, from.y);
   await snapshot(page);
   await page.mouse.down();
@@ -188,10 +199,10 @@ async function dragProbed(page: Page, label: string, row: Locator, onto: Locator
     };
     await page.mouse.move(at.x, at.y);
     // A drag starts once the pointer is past the board's slop (`DRAG_SLOP_PX`, 6px): every frame past it is measured.
-    if (Math.hypot(at.x - from.x, at.y - from.y) >= DRAG_SLOP_PX + 1) frames.push(await probe(page, at, dragged));
+    if (Math.hypot(at.x - from.x, at.y - from.y) >= DRAG_SLOP_PX + 1) frames.push(await probe(page, at, dragged, grab));
   }
   await page.waitForTimeout(100);
-  const last = await probe(page, to, dragged);
+  const last = await probe(page, to, dragged, grab);
   frames.push(last);
   await page.mouse.up();
   const afterRelease = await page.evaluate(() => window.getSelection()?.toString() ?? '');
@@ -200,19 +211,21 @@ async function dragProbed(page: Page, label: string, row: Locator, onto: Locator
   const selected = [...frames.map((f) => f.selection), afterRelease].find((s) => s !== '') ?? '';
   const noPhantom = frames.filter((f) => !f.phantom).length;
   const shifted = [...new Set(frames.flatMap((f) => f.shifted))];
+  const drift = Math.max(...frames.map((f) => f.drift));
   console.log(
-    `[order-drag] ${label}: card ${dragged} ${Math.round(from.x)},${Math.round(from.y)} → ${Math.round(to.x)},${Math.round(to.y)} | frames ${frames.length} | grown ${JSON.stringify(grown)} | selection ${JSON.stringify(selected.slice(0, 60))} | frames without phantom ${noPhantom} | indicator at drop ${last.indicator} | shifted ${JSON.stringify(shifted)}`,
+    `[order-drag] ${label}: card ${dragged} ${Math.round(from.x)},${Math.round(from.y)} → ${Math.round(to.x)},${Math.round(to.y)} | frames ${frames.length} | grown ${JSON.stringify(grown)} | selection ${JSON.stringify(selected.slice(0, 60))} | frames without phantom ${noPhantom} | indicator at drop ${last.indicator} | drift ${drift.toFixed(1)}px | shifted ${JSON.stringify(shifted)}`,
   );
   expect(grown, `${label}: no scrollbar appears while dragging`).toEqual([]);
   expect(selected, `${label}: dragging selects no text`).toBe('');
   expect(noPhantom, `${label}: the card follows the pointer on every frame`).toBe(0);
+  expect(drift, `${label}: the spot the card was grabbed at stays under the pointer`).toBeLessThanOrEqual(2);
   expect(shifted, `${label}: the other cards hold still while the drag is under way`).toEqual([]);
   expect(last.indicator, `${label}: a bar shows where the card will land`).toBe(true);
 }
 
 test(
   titled(
-    'Ponder’s “Choose order of cards to put into the library”: cards drag into the order with the board’s phantom, no scrollbars, no text selection, a landing bar, and the top card is the one drawn',
+    'Ponder’s library order: the three cards open in their one zone and drag within it with the board’s phantom held where it was grabbed, no scrollbars, no text selection, a landing bar, and the top card is the one drawn',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -239,21 +252,17 @@ test(
         })
         .toBe('order');
       const prompt = page.getByTestId('live-prompt');
-      await expect(prompt, 'the library-order question').toContainText('Choose order of cards to put into the library');
+      await expect(prompt.locator('.prompt__title'), 'the library-order question is the library’s').toHaveText('Your library');
 
-      const source = page.getByTestId('order-source');
-      const dest = page.getByTestId('order-dest');
+      const dest = page.getByTestId('zone-dest');
       const card = (id: number): Locator => prompt.locator(`li[data-card-id="${id}"]`);
-      await expect(rows(source), 'all three looked-at cards start unplaced').toHaveCount(3);
-      const [a, b, c] = (await idsIn(source)) as [number, number, number];
+      await expect(rows(dest), 'all three looked-at cards are in the one zone from the start').toHaveCount(3);
+      await expect(page.getByTestId('zone-source'), 'no second zone').toHaveCount(0);
+      const [a, b, c] = (await idsIn(dest)) as [number, number, number];
 
-      await dragProbed(page, 'first card into the empty order', card(a), dest);
-      await expect.poll(() => idsIn(dest)).toEqual([a]);
-      await dragProbed(page, 'second card above the first', card(b), card(a), 'before');
-      await expect.poll(() => idsIn(dest)).toEqual([b, a]);
-      await dragProbed(page, 'third card between them', card(c), card(a), 'before');
-      await expect.poll(() => idsIn(dest)).toEqual([b, c, a]);
-      await dragProbed(page, 'a placed card to the top', card(c), card(b), 'before');
+      await dragProbed(page, 'third card to the top', card(c), card(a), 'before');
+      await expect.poll(() => idsIn(dest)).toEqual([c, a, b]);
+      await dragProbed(page, 'third card between them', card(b), card(a), 'before');
       await expect.poll(() => idsIn(dest)).toEqual([c, b, a]);
 
       const handBefore = await handIds(page);
@@ -308,8 +317,8 @@ test(
         })
         .toBe('order');
       const prompt = page.getByTestId('live-prompt');
-      const top = page.getByTestId('order-source');
-      const bottom = page.getByTestId('order-dest');
+      const top = page.getByTestId('zone-source');
+      const bottom = page.getByTestId('zone-dest');
       const card = (id: number): Locator => prompt.locator(`li[data-card-id="${id}"]`);
       await expect(rows(top), 'Scry 4: all four start on top').toHaveCount(4);
       const [a, b, c, d] = (await idsIn(top)) as [number, number, number, number];

@@ -59,16 +59,16 @@ test(
       await expect.poll(() => promptMethod(page), { timeout: 20_000, message: 'the scry opened' }).toBe('order');
       const prompt = page.getByTestId('live-prompt');
       const firstCall = await prompt.getAttribute('data-call-id');
-      const top = page.getByTestId('order-source');
-      const bottom = page.getByTestId('order-dest');
+      const top = page.getByTestId('zone-source');
+      const bottom = page.getByTestId('zone-dest');
       await expect(rows(top), 'Scry 4: all four looked-at cards start on top').toHaveCount(4);
       await expect(rows(bottom), 'nothing on the bottom yet').toHaveCount(0);
       const looked = await idsIn(top);
       console.log(`[scry] looked at ${JSON.stringify(await namesIn(top))} ids ${JSON.stringify(looked)}`);
       console.log(`[scry] headings ${JSON.stringify(await prompt.locator('.prompt__col-head').allInnerTexts())}`);
-      // The operator, 2026-10-16: each group says where its cards go ("Bottom of deck", `od-order-pile.spec.ts`).
-      await expect.soft(prompt.getByRole('heading', { name: /^Top of library/ }), 'the top group says "Top of library"').toHaveCount(1);
-      await expect.soft(prompt.getByRole('heading', { name: /^Bottom of library/ }), 'the bottom group says "Bottom of library"').toHaveCount(1);
+      // The operator, 2026-10-19: just two zones, "Top" and "Bottom" (`MovePrompt.tsx`).
+      await expect.soft(prompt.getByRole('heading', { name: 'Top', exact: true }), 'the top zone says "Top"').toHaveCount(1);
+      await expect.soft(prompt.getByRole('heading', { name: 'Bottom', exact: true }), 'the bottom zone says "Bottom"').toHaveCount(1);
       await expect.soft(prompt, 'no "Unplaced" anywhere on a scry').not.toContainText('Unplaced');
 
       const [a, b, c, d] = looked as [number, number, number, number];

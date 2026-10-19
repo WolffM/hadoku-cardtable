@@ -13,7 +13,7 @@
  *  - one column, each card drawn above the one below it by less than half a card: they overlap;
  *  - the lowest card is in front: every corner of it and its middle hit it; every other card's strip,
  *    above the card below it, hits that card;
- *  - a group going into the library says where in plain words ("Bottom of library"), and a ghost of the
+ *  - a group going into the library is named by its end ("Bottom", under the title "Your library"), and a ghost of the
  *    library is drawn where the library is: above the pile when the cards go under it, below when they go
  *    on top. The card that touches the ghost is the one Forge puts next to the rest of the library;
  *  - nothing scrolls: the sheet, its body and both lists hold what they draw.
@@ -23,7 +23,8 @@
  * draw is the proof of which way up the top pile is. `order-drag-ponder`: Ponder puts three back on top,
  * and its draw is the card the pile drew farthest from the library. `ol-relic-exile`: Relic of Progenitus
  * exiles alice's three graveyard cards, Forge asks their order (*"this needs an auto button"*, the operator,
- * 2026-10-16), and Auto answers it in one press with Forge's own order.
+ * 2026-10-16): since 2026-10-19 an order that places every card opens with all of them in its one zone
+ * (`MovePrompt.tsx`), so OK answers it in one press with Forge's own order.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one the test SKIPS and
  * its title says why.
@@ -74,7 +75,7 @@ function measure(page: Page): Promise<{ piles: PileReport[]; scrolls: string[] }
     const host = document.querySelector('[data-testid="live-prompt"]');
     if (host === null) throw new Error('no prompt');
     const sheet = host.matches('.prompt') ? host : host.querySelector('.prompt');
-    const lists = ['order-source', 'order-dest'].flatMap((t) => {
+    const lists = ['zone-source', 'zone-dest'].flatMap((t) => {
       const el = host.querySelector<HTMLElement>(`[data-testid="${t}"]`);
       return el === null ? [] : [el];
     });
@@ -94,7 +95,7 @@ function measure(page: Page): Promise<{ piles: PileReport[]; scrolls: string[] }
           [(front.box.left + front.box.right) / 2, (front.box.top + front.box.bottom) / 2],
         ].every(([x, y]) => owner(x!, y!) === front.row);
       const section = list.closest('section');
-      const ghostEl = section?.querySelector<HTMLElement>('[data-testid="order-library"]') ?? null;
+      const ghostEl = section?.querySelector<HTMLElement>('[data-testid="zone-library"]') ?? null;
       let ghost: PileReport['ghost'] = null;
       if (ghostEl !== null && down.length > 0) {
         const g = ghostEl.getBoundingClientRect();
@@ -153,8 +154,8 @@ async function expectPiles(page: Page, label: string): Promise<PileReport[]> {
  * `adjacent` — the one Forge puts next to the rest of the library.
  */
 function expectLibraryGroup(p: PileReport, label: string, end: 'top' | 'bottom', adjacent: number): void {
-  const words = end === 'top' ? 'Top of library' : 'Bottom of library';
-  expect(p.heading, `${label} ${p.list}: the heading says where the cards go`).toMatch(new RegExp(`^${words}`));
+  const words = end === 'top' ? 'Top' : 'Bottom';
+  expect(p.heading, `${label} ${p.list}: the heading says where the cards go`).toBe(words);
   expect(p.heading, `${label} ${p.list}: no "Closest to" caption`).not.toContain('Closest to');
   expect(p.ghost, `${label} ${p.list}: a ghost of the library is drawn with the pile`).not.toBeNull();
   expect(p.ghost!.side, `${label} ${p.list}: the library's ghost is ${end === 'top' ? 'below' : 'above'} the pile`).toBe(end === 'top' ? 'below' : 'above');
@@ -186,7 +187,7 @@ async function ownPermanent(page: Page, name: string): Promise<number> {
 
 test(
   titled(
-    'Tezzeret’s “put the rest on the bottom in any order”: one pile under “Bottom of library” with the library’s ghost above it, the card Forge puts next to the library touching it, no scroll bar at 1280×800 or 1366×768, and a drag reorders it',
+    'Tezzeret’s “put the rest on the bottom in any order”: one pile under “Bottom” with the library’s ghost above it, the card Forge puts next to the library touching it, no scroll bar at 1280×800 or 1366×768, and a drag reorders it',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -219,10 +220,12 @@ test(
       const prompt = livePrompt(page);
       console.log(`[od] tezzeret prompt ${JSON.stringify(((await prompt.textContent()) ?? '').replace(/\s+/g, ' ').slice(0, 200))} headings ${JSON.stringify(await prompt.locator('.prompt__col-head').allInnerTexts())}`);
       await expect(prompt, 'no "Closest to" caption anywhere').not.toContainText('Closest to');
-      const source = page.getByTestId('order-source');
-      const dest = page.getByTestId('order-dest');
-      // Whichever group Forge started them in, the five are in one of them.
-      await expect.poll(async () => (await rowsIds(source)).length + (await rowsIds(dest)).length, { message: 'all five cards are in the order' }).toBe(5);
+      const source = page.getByTestId('zone-source');
+      const dest = page.getByTestId('zone-dest');
+      await expect(prompt.locator('.prompt__title'), 'the sheet is named by the library').toHaveText('Your library');
+      // An order that places every card is one zone, every card in it from the start.
+      await expect.poll(() => rowsIds(dest), { message: 'all five cards are in the one zone' }).toHaveLength(5);
+      await expect(source, 'no second zone').toHaveCount(0);
 
       for (const size of SIZES) {
         await resizeWindow(page, size);
@@ -230,23 +233,17 @@ test(
       }
       await resizeWindow(page, SIZES[0]);
 
-      // Every card placed, so the answer is the pile of five.
-      for (let guard = 0; guard < 10 && (await rowsIds(source)).length > 0; guard++) await source.locator(':scope > li').first().click();
-      await expect.poll(() => rowsIds(dest)).toHaveLength(5);
-      // Every card must be placed (Forge leaves none unplaced here), so an empty "Unplaced" group holds
-      // nothing to place and nothing to drop back: it is gone, and the pile's group has the sheet's width.
-      await expect(source, 'the empty Unplaced group is not drawn').toHaveCount(0);
       await expect(prompt.getByRole('heading', { name: /^Unplaced/ }), 'no "Unplaced" heading').toHaveCount(0);
       for (const size of SIZES) {
         await resizeWindow(page, size);
         const widths = await prompt.evaluate((host) => {
           const dual = host.querySelector('.prompt__dual')!.getBoundingClientRect().width;
-          const group = host.querySelector('[data-testid="order-dest"]')!.closest('section')!.getBoundingClientRect().width;
+          const group = host.querySelector('[data-testid="zone-dest"]')!.closest('section')!.getBoundingClientRect().width;
           return { dual: Math.round(dual), group: Math.round(group) };
         });
         console.log(`[od] tezzeret placed ${JSON.stringify(page.viewportSize())} widths ${JSON.stringify(widths)}`);
         expect(widths.group, 'the pile’s group spans the sheet').toBeGreaterThanOrEqual(widths.dual - 2);
-        const placed = (await expectPiles(page, 'tezzeret placed')).find((p) => p.list === 'order-dest')!;
+        const placed = (await expectPiles(page, 'tezzeret placed')).find((p) => p.list === 'zone-dest')!;
         // Forge reverses this answer and slides each card under the library in turn
         // (`PlayerControllerHuman.orderMoveToZoneList`, `DigEffect`'s `LibraryPosition2` -1): the answer's
         // LAST card goes under first, so it is the one next to the rest of the library, and the first is the
@@ -272,7 +269,7 @@ test(
 );
 
 test(
-  titled('Foresee’s Scry 4: “Top of library” sits on the library’s ghost and “Bottom of library” hangs under its own, no scroll bar, and Foresee draws the two cards drawn farthest from the ghost'),
+  titled('Foresee’s Scry 4: “Top” sits on the library’s ghost and “Bottom” hangs under its own, no scroll bar, and Foresee draws the two cards drawn farthest from the ghost'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -288,19 +285,19 @@ test(
       await expect.poll(() => promptMethod(page), { timeout: 20_000, message: 'the scry opened' }).toBe('order');
 
       const prompt = livePrompt(page);
-      const top = page.getByTestId('order-source');
-      const bottom = page.getByTestId('order-dest');
+      const top = page.getByTestId('zone-source');
+      const bottom = page.getByTestId('zone-dest');
       await expect(top.locator(':scope > li'), 'Scry 4: all four start on top').toHaveCount(4);
       for (const size of SIZES) {
         await resizeWindow(page, size);
         const piles = await expectPiles(page, 'scry');
-        const onTop = piles.find((p) => p.list === 'order-source')!;
+        const onTop = piles.find((p) => p.list === 'zone-source')!;
         // The top group's first card is the library's new top card (`GameAction.scry` reverses it and puts
         // each on top in turn): the last is the one resting on the rest of the library.
         expectLibraryGroup(onTop, 'scry', 'top', onTop.ids[onTop.ids.length - 1]!);
         expect(onTop.drawn[0], 'scry: the library’s new top card is drawn highest').toBe(onTop.ids[0]);
-        const under = piles.find((p) => p.list === 'order-dest')!;
-        expect(under.heading, 'scry: the bottom group says where its cards go').toMatch(/^Bottom of library/);
+        const under = piles.find((p) => p.list === 'zone-dest')!;
+        expect(under.heading, 'scry: the bottom group says where its cards go').toBe('Bottom');
       }
       await resizeWindow(page, SIZES[0]);
 
@@ -311,10 +308,10 @@ test(
       for (const size of SIZES) {
         await resizeWindow(page, size);
         const piles = await expectPiles(page, 'scry split');
-        const onTop = piles.find((p) => p.list === 'order-source')!;
+        const onTop = piles.find((p) => p.list === 'zone-source')!;
         expectLibraryGroup(onTop, 'scry split', 'top', onTop.ids[onTop.ids.length - 1]!);
         // One card under the library: it is the one next to it (`GameAction.scry` slides each under in turn).
-        expectLibraryGroup(piles.find((p) => p.list === 'order-dest')!, 'scry split', 'bottom', b);
+        expectLibraryGroup(piles.find((p) => p.list === 'zone-dest')!, 'scry split', 'bottom', b);
         drawnTop = onTop.drawn;
       }
       expect((await rowsIds(top))[0], 'the first card is still the top one').toBe(a);
@@ -332,7 +329,7 @@ test(
 );
 
 test(
-  titled('Ponder’s “put them back in any order”: one pile under “Top of library” sitting on the library’s ghost, no scroll bar, and Ponder draws the card drawn farthest from the ghost'),
+  titled('Ponder’s “put them back in any order”: one pile under “Top” sitting on the library’s ghost, no scroll bar, and Ponder draws the card drawn farthest from the ghost'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -349,14 +346,13 @@ test(
 
       const prompt = livePrompt(page);
       await expect(prompt, 'no "Closest to" caption anywhere').not.toContainText('Closest to');
-      const source = page.getByTestId('order-source');
-      const dest = page.getByTestId('order-dest');
-      for (let guard = 0; guard < 10 && (await rowsIds(source)).length > 0; guard++) await source.locator(':scope > li').first().click();
-      await expect.poll(() => rowsIds(dest)).toHaveLength(3);
+      const dest = page.getByTestId('zone-dest');
+      await expect.poll(() => rowsIds(dest), { message: 'the three are in the one zone from the start' }).toHaveLength(3);
+      await expect(page.getByTestId('zone-source'), 'no second zone to empty').toHaveCount(0);
       let drawnDest: number[] = [];
       for (const size of SIZES) {
         await resizeWindow(page, size);
-        const placed = (await expectPiles(page, 'ponder')).find((p) => p.list === 'order-dest')!;
+        const placed = (await expectPiles(page, 'ponder')).find((p) => p.list === 'zone-dest')!;
         // Forge reverses the answer and puts each card on top in turn (`RearrangeTopOfLibraryEffect`): the
         // answer's first card ends on top, its last rests on the rest of the library.
         expectLibraryGroup(placed, 'ponder', 'top', placed.ids[placed.ids.length - 1]!);
@@ -379,7 +375,7 @@ test(
 );
 
 test(
-  titled('Relic of Progenitus’s “exile all graveyards”: the exile order has an Auto button, one press closes it, and the cards land in exile in the order Forge offered them'),
+  titled('Relic of Progenitus’s “exile all graveyards”: the exile order opens ready, one press of OK closes it, and the cards land in exile in the order Forge offered them'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -408,12 +404,10 @@ test(
       const prompt = livePrompt(page);
       console.log(`[od] relic prompt ${JSON.stringify(((await prompt.textContent()) ?? '').replace(/\s+/g, ' ').slice(0, 160))}`);
       await expect(prompt, 'the exile question').toContainText('exile');
-      const offered = [...(await rowsIds(page.getByTestId('order-dest'))), ...(await rowsIds(page.getByTestId('order-source')))];
-      expect(offered, 'the three graveyard cards are ordered').toHaveLength(3);
-      // Somebody fiddles first — places the card in front of the pile — and Auto still sends Forge's own order.
-      await page.getByTestId('order-source').locator(':scope > li').first().click();
-      await prompt.getByTestId('prompt-auto').click();
-      await expect.poll(() => promptMethod(page), { timeout: 15_000, message: 'one press of Auto answered the order' }).not.toBe('order');
+      const offered = await rowsIds(page.getByTestId('zone-dest'));
+      expect(offered, 'the three graveyard cards are ordered, all in the one zone').toHaveLength(3);
+      await page.getByTestId('prompt-submit').click();
+      await expect.poll(() => promptMethod(page), { timeout: 15_000, message: 'one press of OK answered the order' }).not.toBe('order');
       const exiled = page.locator('.seat[data-viewer] [data-zone="exile"] [data-board-card]');
       let inExile: number[] = [];
       await expect

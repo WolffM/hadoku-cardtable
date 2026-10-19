@@ -10,10 +10,10 @@
  * `w62-scry.state`: alice holds Preordain ("Scry 2. Draw a card.") and one
  * untapped Island, an uncontested turn-1 Main Phase 1. Measured against
  * this exact jar (`docs/planning/wave62-evidence/S/scry.md`): casting it
- * opens Forge's `order` ask (`OrderPrompt.tsx`'s dual list), never
+ * opens Forge's `order` ask (`MovePrompt.tsx`'s Top | Bottom zones), never
  * `manipulateCardList` — so this spec drives THAT component's own
  * press-drag (`apps/ui/src/play/prompts/row-drag.ts`, the board's phantom,
- * shared with `ManipulateCardListPrompt.tsx`), never an HTML5
+ * every zone prompt shares), never an HTML5
  * `dragstart`/`dragover`/`drop` sequence.
  *
  * The on-card ↑/↓ were the second half of that note. Since 2026-10-15 an
@@ -56,8 +56,8 @@ test(
       // Nothing on either seat to respond with: the spell resolves straight into its own Scry 2.
       await expect.poll(() => promptMethod(page), { timeout: 15_000, message: 'the scry ask (`order`) opened' }).toBe('order');
 
-      const source = page.getByTestId('order-source');
-      const dest = page.getByTestId('order-dest');
+      const source = page.getByTestId('zone-source');
+      const dest = page.getByTestId('zone-dest');
       const sourceRows = source.locator(':scope > li');
       await expect(sourceRows, 'Scry 2: both looked-at cards start on top').toHaveCount(2);
       await expect(dest.locator(':scope > li'), 'nothing placed yet').toHaveCount(0);

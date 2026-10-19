@@ -568,44 +568,9 @@ export function orderProblems(ask: AskOf<'order'>, reply: ReplyOf<'order'>): Pro
       );
     }
   }
+  const locked = new Set(ask.locked ?? []);
+  for (const key of reply.ordered) if (locked.has(key)) problems.push(`"${key}" may not be moved there`);
   if (reply.rememberDecision && !ask.showRememberCheckbox) problems.push('"remember" was not offered');
-  return problems;
-}
-
-/**
- * `ListCardArea.validIndex` (ListCardArea.java:134-148), stated as a property
- * of the final list rather than of each drag: the answer is a permutation of
- * `cards`; the cards that may not move keep their order and stay together; and
- * unless `toAnywhere`, a movable card sits above that block only if `toTop`
- * and below it only if `toBottom`.
- */
-export function manipulateProblems(
-  ask: AskOf<'manipulateCardList'>,
-  reply: ReplyOf<'manipulateCardList'>,
-): Problems {
-  const problems: Problems = [];
-  const ids = reply.map((c) => c.id);
-  const original = ask.cards.map((c) => c.id);
-  const sorted = (xs: number[]) => [...xs].sort((a, b) => a - b).join(',');
-  if (sorted(ids) !== sorted(original)) {
-    problems.push('the answer must hold exactly the cards shown');
-    return problems;
-  }
-  const movable = new Set(ask.manipulable.map((c) => c.id));
-  const fixedBefore = original.filter((id) => !movable.has(id));
-  const fixedAfter = ids.filter((id) => !movable.has(id));
-  if (fixedBefore.join(',') !== fixedAfter.join(',')) problems.push('cards that cannot move must keep their order');
-  if (ask.toAnywhere || fixedAfter.length === 0) return problems;
-
-  const first = ids.indexOf(fixedAfter[0]!);
-  const last = ids.indexOf(fixedAfter[fixedAfter.length - 1]!);
-  if (ids.slice(first, last + 1).some((id) => movable.has(id))) {
-    problems.push('movable cards go to the top or the bottom, not between the others');
-  }
-  // A movable card that is already where it started is not a move.
-  const moved = (id: number) => ids.indexOf(id) !== original.indexOf(id);
-  if (!ask.toTop && ids.slice(0, first).some(moved)) problems.push('nothing may be put on top');
-  if (!ask.toBottom && ids.slice(last + 1).some(moved)) problems.push('nothing may be put on the bottom');
   return problems;
 }
 

@@ -74,5 +74,5 @@ export const ANSWER_TESTID = {
   cancel: 'prompt-cancel',
   submit: 'prompt-submit',
   auto: 'prompt-auto',
-  orderSource: 'order-source',
+  orderSource: 'zone-source',
 } as const;

@@ -103,12 +103,11 @@ export function answerOpenPrompt(root: Element, prefs: PromptPreferences = {}): 
       return method;
     }
     case 'order-until-submittable': {
-      // An unplaced row is placed by clicking the row itself (`OrderPrompt.tsx`: drag, or click
-      // as the short form — there is no Place button since 2026-10-06). Read afresh after each
-      // click: placing one re-renders the list.
+      // A row is moved to the other zone by clicking it (`MovePrompt.tsx`: drag, or click as the
+      // short form). Read afresh after each click: moving one re-renders the zones.
       const submitButton = sheet.querySelector<HTMLButtonElement>(`[data-testid="${ANSWER_TESTID.submit}"]`);
       for (let guard = 0; guard < 100 && submitButton?.disabled === true; guard += 1) {
-        const row = sheet.querySelector<HTMLElement>(`[data-testid="${ANSWER_TESTID.orderSource}"] > li`);
+        const row = sheet.querySelector<HTMLElement>(`[data-testid="${ANSWER_TESTID.orderSource}"] > li:not([data-locked])`);
         if (row === null) break;
         fireEvent.click(row);
       }

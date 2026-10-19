@@ -1,7 +1,7 @@
 /*
- * The drag every prompt that asks for an ORDER uses — `OrderPrompt.tsx`'s two
- * lists (a library order, a scry, an order of triggers) and
- * `ManipulateCardListPrompt.tsx`'s pile — and it is the board's drag: the
+ * The drag of every prompt that moves cards between zones or orders them —
+ * `MovePrompt.tsx` (a library order, a scry, a dig, an order of triggers) —
+ * and it is the board's drag: the
  * operator, 2026-10-12, *"dragging should work just like it does with cards on
  * board or cards in hand … it should behave well for any decision windows that
  * ask me to place something in order like this."*
@@ -35,13 +35,13 @@
  *
  * The caller names its drop targets by test id. A `rows` target is a list whose
  * order is the answer: a drop lands between two of its rows. A target that is
- * not (`rows: false` — a "Top of library" zone, an unordered pile) takes the
+ * not (`rows: false` — a pile whose order is not the answer) takes the
  * drop as a whole, and the caller highlights it off `over`.
  *
  * Rows carry their id on `li[data-card-id]`: a card's own Forge id, or any
- * number the caller hands a row that is not a card (`OrderPrompt.tsx`'s words).
+ * number the caller hands a row that is not a card (`MovePrompt.tsx`'s words).
  *
- * A one-column list may overlap its rows: `OrderPrompt.tsx` draws cards as a
+ * A one-column list may overlap its rows: `MovePrompt.tsx` draws cards as a
  * pile, each card's name strip peeking out above the card in front of it. So a
  * row is pointed at by the part of it that SHOWS — its own top down to the top
  * of the row drawn below it — and a drop lands in the half of that strip it is

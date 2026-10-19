@@ -25,8 +25,7 @@ import {
   GetChoicesPrompt,
 } from './ChoicePrompts.tsx';
 import { ConfirmAskPrompt, ShowInputDialogPrompt, ShowOptionDialogPrompt } from './DialogPrompts.tsx';
-import { ManipulateCardListPrompt } from './ManipulateCardListPrompt.tsx';
-import { OrderPrompt } from './OrderPrompt.tsx';
+import { ManipulateCardListPrompt, OrderPrompt } from './MovePrompt.tsx';
 import { AskSourceContext } from './PromptShell.tsx';
 import { SideboardPrompt } from './SideboardPrompt.tsx';
 import { OpenZonesPrompt, TempShowZonesPrompt } from './ZonePrompts.tsx';

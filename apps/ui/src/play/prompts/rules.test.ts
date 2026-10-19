@@ -22,7 +22,6 @@ import {
   manaCombos,
   getChoicesProblems,
   inputDialogProblems,
-  manipulateProblems,
   moveBetween,
   moveItem,
   numericChoiceRange,
@@ -584,30 +583,11 @@ describe('order', () => {
   });
 });
 
-describe('manipulateCardList', () => {
-  const ask = askFor('manipulateCardList');
-  const ids = (...xs: number[]) => xs.map(card);
-  it('accepts the pile unchanged, and movable cards sent to the bottom', () => {
-    expect(manipulateProblems(ask, ask.cards)).toEqual([]);
-    expect(manipulateProblems(ask, ids(47, 17, 46, 60, 54))).toEqual([]);
-    expect(manipulateProblems(ask, ids(17, 46, 60, 47, 54))).toEqual([]);
-  });
-  it('refuses a movable card wedged between fixed ones', () => {
-    expect(manipulateProblems(ask, ids(47, 17, 54, 46, 60))).toEqual([
-      'movable cards go to the top or the bottom, not between the others',
-    ]);
-  });
-  it('refuses reordering the fixed cards, and a pile with a card swapped out', () => {
-    expect(manipulateProblems(ask, ids(54, 47, 46, 17, 60))).toEqual(['cards that cannot move must keep their order']);
-    expect(manipulateProblems(ask, ids(54, 47, 17, 46, 99))).toEqual(['the answer must hold exactly the cards shown']);
-  });
-  it('refuses the bottom when only the top is allowed', () => {
-    expect(manipulateProblems({ ...ask, toBottom: false }, ids(47, 17, 46, 60, 54))).toEqual([
-      'nothing may be put on the bottom',
-    ]);
-  });
-  it('allows anything that keeps the fixed cards in order when toAnywhere', () => {
-    expect(manipulateProblems({ ...ask, toAnywhere: true }, ids(17, 54, 46, 47, 60))).toEqual([]);
+describe('moving cards', () => {
+  it('orderProblems refuses a locked card in the answer', () => {
+    const ask = { ...askFor('order'), remainingObjectsMin: -1, remainingObjectsMax: -1, locked: ['sa-9101'] };
+    expect(orderProblems(ask, { ordered: ['sa-9102'], rememberDecision: false })).toEqual([]);
+    expect(orderProblems(ask, { ordered: ['sa-9101'], rememberDecision: false })).toEqual(['"sa-9101" may not be moved there']);
   });
   it('moveItem moves one item and keeps the rest in order', () => {
     expect(moveItem([1, 2, 3, 4], 0, 2)).toEqual([2, 3, 1, 4]);

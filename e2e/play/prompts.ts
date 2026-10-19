@@ -143,7 +143,7 @@ export async function answerPrompt(
       await submit.click();
       break;
     case 'order-until-submittable': {
-      const places = sheet.locator(`[data-testid="${ANSWER_TESTID.orderSource}"] > li`);
+      const places = sheet.locator(`[data-testid="${ANSWER_TESTID.orderSource}"] > li:not([data-locked])`);
       for (let guard = 0; guard < 100 && !(await submittable()) && (await places.count()) > 0; guard++) {
         await places.first().click();
       }

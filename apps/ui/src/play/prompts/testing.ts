@@ -90,7 +90,7 @@ export function forgeCardLabel(name: string, forgeId: number): string {
 }
 
 /** Every ordering prompt's drop targets, in the column order `dragRow` lays them out in. */
-const DROP_TARGETS = ['order-source', 'order-dest', 'manipulate-top', 'manipulate-list', 'manipulate-bottom'];
+const DROP_TARGETS = ['zone-source', 'zone-dest'];
 const COLUMN_PX = 200;
 const ROW_PX = 44;
 

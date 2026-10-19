@@ -38,7 +38,7 @@ export const pointIn = (l: Locator, at: Point = { x: 0.5, y: 0.5 }): Promise<Poi
 
 /**
  * A point on the part of `row` that shows, `f` of the way down it. A card list is a pile
- * (`OrderPrompt.tsx`): each card's name strip peeks out above the card drawn in front of it, so a row
+ * (`MovePrompt.tsx`): each card's name strip peeks out above the card drawn in front of it, so a row
  * shows only from its own top down to the top of the next row drawn below it in its list.
  */
 export const stripPoint = (row: Locator, f = 0.5): Promise<Point> =>
