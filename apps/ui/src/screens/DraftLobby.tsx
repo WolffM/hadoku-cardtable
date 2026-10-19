@@ -21,60 +21,30 @@
  * room's existing "join, ready, draft" path (`e2e/draft.spec.ts`) working
  * with nobody ever touching a seat.
  *
- * ## Fetched independently, not threaded through new props (wave 72 §R)
+ * ## The pod comes with the room
  *
- * The room id comes from the route itself (`useRoute()`), the same way
- * `MatchScreen.tsx` reads its own. Which seat is mine comes from `myId`, the
- * server's own `you.id` for this room — never whoami's id, which for an
- * admin session is not the member id the pod's seats name.
- * `RoomView.pod` is read past `rooms/api.ts`'s loose `unknown` the same way
- * `MatchScreen.tsx` reads `tables` past it — see `pod/client.ts`.
- *
- * `pod === null` (the fetch has not landed, `pod.ts` is not on the server
- * yet, or this really is an old server) draws nothing new: the lobby looks
- * exactly as it did before this wave, seats included nowhere, which is the
- * safe default while lane P's routes are still landing.
+ * `pod` is the room read's own `RoomView.pod` (`ConstructedScreen`'s `view`),
+ * so the seats are drawn in the same frame as the room's name and members. A
+ * second read of its own landed a beat later and pushed the seats in above
+ * the member list (the operator, 2026-10-19: *"elements quickly shift around
+ * as things are loaded"*). Which seat is mine comes from `myId`, the server's
+ * own `you.id` for this room — never whoami's id, which for an admin session
+ * is not the member id the pod's seats name.
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import type { RoomMember } from '../rooms/api.ts';
 import { StatusPill } from './ConstructedScreen.tsx';
-import { useRoute } from './route.ts';
-import { roomFeed } from '../rooms/feed.ts';
-import { aiPod, fetchPodView, sitPod, standPod } from './pod/client.ts';
+import { aiPod, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
 import { POD_AI, podDealable, type PodView } from './pod/wire.ts';
 
 export { podDealable };
 
-
-function roomIdOf(route: ReturnType<typeof useRoute>): string | null {
-  if (route.kind === 'room') return route.roomId;
-  if (route.kind === 'draft') return route.draftId;
-  return null;
-}
-
-/** The pod view, followed without polling — the same mechanism `MatchScreen.tsx`'s table strip already uses. */
-function usePodView(roomId: string | null): PodView | null {
-  const [pod, setPod] = useState<PodView | null>(null);
-  useEffect(() => {
-    if (roomId === null) return;
-    let live = true;
-    const stop = roomFeed().follow({ room: roomId }, () => {
-      fetchPodView(roomId).then((v) => {
-        if (live) setPod(v);
-      });
-    });
-    return () => {
-      live = false;
-      stop();
-    };
-  }, [roomId]);
-  return pod;
-}
-
 export function DraftLobby({
+  roomId,
+  pod,
   members,
   leaderId,
   myId,
@@ -86,6 +56,9 @@ export function DraftLobby({
   onReady,
   onRetry,
 }: {
+  roomId: string;
+  /** The room read's `RoomView.pod`; null for a body that carried none. */
+  pod: PodView | null;
   members: RoomMember[];
   leaderId: string;
   /** My member id here (`RoomView.you.id`); `''` while unknown. */
@@ -98,10 +71,7 @@ export function DraftLobby({
   onReady: (ready: boolean) => void;
   onRetry: () => void;
 }) {
-  const route = useRoute();
-  const roomId = roomIdOf(route);
   const myMemberId = myId === '' ? null : myId;
-  const pod = usePodView(roomId);
 
   const [seatBusy, setSeatBusy] = useState(false);
   const [seatError, setSeatError] = useState<string | null>(null);
@@ -110,7 +80,6 @@ export function DraftLobby({
   const spectators = members.filter((m) => !seated.has(m.id));
 
   const doSit = (seat: number): void => {
-    if (roomId === null) return;
     setSeatBusy(true);
     setSeatError(null);
     sitPod(roomId, seat)
@@ -120,7 +89,6 @@ export function DraftLobby({
       .finally(() => setSeatBusy(false));
   };
   const doAi = (seat: number, on: boolean): void => {
-    if (roomId === null) return;
     setSeatBusy(true);
     setSeatError(null);
     aiPod(roomId, seat, on)
@@ -130,7 +98,6 @@ export function DraftLobby({
       .finally(() => setSeatBusy(false));
   };
   const doStand = (): void => {
-    if (roomId === null) return;
     setSeatBusy(true);
     setSeatError(null);
     standPod(roomId)

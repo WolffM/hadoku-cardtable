@@ -536,8 +536,21 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
 
   /* ── bob arrives from the room list, and from nowhere else ────────── */
 
+  // The room is drawn whole on its first frame: no skeleton, and never the lobby without its seats
+  // (the operator, 2026-10-19: "elements quickly shift around as things are loaded").
+  // From every page load on: `enterFromList` loads the room list first.
+  await bob.page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { __lobbySeen: string[] }).__lobbySeen = seen;
+    new MutationObserver(() => {
+      if (document.querySelector('[data-testid="room-skeleton"]') !== null) seen.push('skeleton');
+      if (document.querySelector('[data-testid="draft-lobby"]') !== null && document.querySelector('[data-testid="pod-seats"]') === null) seen.push('lobby-without-seats');
+    }).observe(document, { childList: true, subtree: true });
+  });
   await enterFromList(bob, roomId, roomName);
   await expectLobbyNotPod(bob);
+  await expect(bob.page.getByTestId('pod-seats')).toBeVisible();
+  expect(await bob.page.evaluate(() => [...new Set((window as unknown as { __lobbySeen: string[] }).__lobbySeen)]), 'drawn in pieces').toEqual([]);
 
   // Bob is a MEMBER before anybody readies. That ordering is load-bearing:
   // "every member ready" with one member would start the draft against seven

@@ -47,12 +47,6 @@ async function fetchRoomRaw(roomId: string): Promise<Record<string, unknown> | n
   }
 }
 
-/** `RoomView.pod`, narrowed. `null` for a constructed room, an unparseable body, or a failed read. */
-export async function fetchPodView(roomId: string): Promise<PodView | null> {
-  const body = await fetchRoomRaw(roomId);
-  return body === null ? null : parsePodView(body.pod);
-}
-
 function isNamed(v: unknown): v is { id: string; name: string } {
   return typeof v === 'object' && v !== null && typeof (v as { id?: unknown }).id === 'string' && typeof (v as { name?: unknown }).name === 'string';
 }

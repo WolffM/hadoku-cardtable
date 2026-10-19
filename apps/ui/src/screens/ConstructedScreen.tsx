@@ -2210,6 +2210,8 @@ function RoomTableScreen({
             table write it could make is a 409. */}
         {locked === null && draftRoom && (
           <DraftLobby
+            roomId={roomId}
+            pod={view?.pod ?? null}
             members={members}
             leaderId={view?.leader ?? ''}
             myId={view?.you.id ?? ''}
