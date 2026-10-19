@@ -220,37 +220,44 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
     startTable(mine, ask);
   }, [phase, ctx, myMemberId]);
 
+  /** The room's bar: on top of the pod, or at the top of the draft's side column while drafting. */
+  const bar = (
+    <>
+      <div className="pod__who">
+        <a
+          className="shell__link"
+          href="#/"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate({ kind: 'lobby' });
+          }}
+        >
+          ← Lobby
+        </a>
+        {ctx !== null && ctx.name !== '' && <strong className="pod__name" data-testid="pod-name">{ctx.name}</strong>}
+        {draft !== null && cubeName(draft) !== null && <span className="pod__cube">{cubeName(draft)}</span>}
+      </div>
+
+      <PodSeats
+        connected={draft?.connected === true}
+        everConnected={draft?.everConnected === true}
+        seated={seats.length}
+        humans={humans}
+        bots={bots}
+        open={open}
+      />
+
+      <Invite url={link} />
+      {ctx?.leader === true && <CloseRoom roomId={draftId} rooms={closeClient} />}
+      <SettingsGear />
+    </>
+  );
+  const rounds = done && ctx?.pod !== null && ctx?.pod !== undefined && inRounds;
+  const drafting = !rounds && !done && table !== null;
+
   return (
     <div className="shell" data-testid="pod" ref={host}>
-      <header className="pod__bar">
-        <div className="pod__who">
-          <a
-            className="shell__link"
-            href="#/"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate({ kind: 'lobby' });
-            }}
-          >
-            ← Lobby
-          </a>
-          {ctx !== null && ctx.name !== '' && <strong className="pod__name" data-testid="pod-name">{ctx.name}</strong>}
-          {draft !== null && cubeName(draft) !== null && <span className="pod__cube">{cubeName(draft)}</span>}
-        </div>
-
-        <PodSeats
-          connected={draft?.connected === true}
-          everConnected={draft?.everConnected === true}
-          seated={seats.length}
-          humans={humans}
-          bots={bots}
-          open={open}
-        />
-
-        <Invite url={link} />
-        {ctx?.leader === true && <CloseRoom roomId={draftId} rooms={closeClient} />}
-        <SettingsGear />
-      </header>
+      {!drafting && <header className="pod__bar">{bar}</header>}
 
       {draft !== null && draft.lastError !== null && (
         <p className="pod__error" role="alert" data-testid="pod-error">
@@ -259,8 +266,9 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
         </p>
       )}
 
-      {done && ctx?.pod !== null && ctx?.pod !== undefined && inRounds ? (
-        <PodRoom ctx={ctx} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} startTableError={startTableError} retryTable={retryTable} />      ) : done ? null : table === null ? (
+      {rounds ? (
+        <PodRoom ctx={ctx!} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} startTableError={startTableError} retryTable={retryTable} />
+      ) : done ? null : table === null ? (
         <div className="pod__waiting" data-testid="pod-waiting">
           <h1>{draft?.everConnected === true ? 'Waiting for the table' : 'Joining the pod'}</h1>
         </div>
@@ -274,7 +282,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           nextPayload={null}
           layout={layout}
           onLayoutChange={setLayout}
-          title={ctx !== null && ctx.name !== '' ? ctx.name : undefined}
+          side={<div className="pod__bar pod__bar--side">{bar}</div>}
         />
       )}
       <div className="pod__zoom" data-board-zoom="" />

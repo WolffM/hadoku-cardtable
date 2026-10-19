@@ -38,7 +38,7 @@
  * and a `null` `from` is `PoolView`'s whole "skip it" signal.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { ConnectionState } from '../draft/connection.ts';
 import type { DraftView } from '../draft/types.ts';
@@ -98,8 +98,10 @@ export interface DraftScreenProps {
    * it, which is what production wants; a test passes one to read the bytes.
    */
   onDownloadDeck?: (filename: string, text: string) => void;
-  /** The room's name. A screen with no room (the debug harness) says Draft. */
+  /** The room's name, drawn when there is no `side` to name it. A screen with no room (the debug harness) says Draft. */
   title?: string;
+  /** The room's own bar, drawn at the top of the side column (`PodScreen`). */
+  side?: ReactNode;
 }
 
 export function DraftScreen({
@@ -113,6 +115,7 @@ export function DraftScreen({
   connection = null,
   onDownloadDeck,
   title = 'Draft',
+  side,
 }: DraftScreenProps) {
   const [localLayout, setLocalLayout] = useState<PackLayout>('fan');
   const layout = layoutProp ?? localLayout;
@@ -215,37 +218,6 @@ export function DraftScreen({
       data-viewer={view.viewer.kind}
       data-complete={complete ? 'true' : 'false'}
     >
-      <header className="draft__bar">
-        <h1 className="draft__title" data-testid="draft-title">{title}</h1>
-        <DraftCounters view={view} />
-        <div className="draft__controls">
-          <div className="segmented" role="group" aria-label="Pack layout">
-            {(['fan', 'grid'] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={layout === option ? 'segmented__on' : ''}
-                aria-pressed={layout === option}
-                onClick={() => setLayout(option)}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-          {onAdvance && (
-            <button
-              type="button"
-              className="button"
-              data-testid="advance"
-              disabled={nextPayload === null}
-              onClick={onAdvance}
-            >
-              {nextPayload ? `Next payload (seq ${nextPayload.seq})` : 'No further payload'}
-            </button>
-          )}
-        </div>
-      </header>
-
       {connection && <ConnectionBanner state={connection} />}
       {spectating && <SpectatorNotice seatCount={view.seats.length} />}
 
@@ -276,7 +248,46 @@ export function DraftScreen({
             </>
           )}
         </main>
+        {/* One column beside the pack and the picks, the whole height: the room's bar,
+            the draft's, and the seats (the operator, 2026-10-19: "we could reclaim a lot
+            of vertical space in that way"). */}
         <aside className="draft__aside">
+          {side}
+          <header className="draft__bar">
+            {/* The room's bar names the room already. */}
+            {side === undefined && (
+              <h1 className="draft__title" data-testid="draft-title">
+                {title}
+              </h1>
+            )}
+            <DraftCounters view={view} />
+            <div className="draft__controls">
+              <div className="segmented" role="group" aria-label="Pack layout">
+                {(['fan', 'grid'] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={layout === option ? 'segmented__on' : ''}
+                    aria-pressed={layout === option}
+                    onClick={() => setLayout(option)}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+              {onAdvance && (
+                <button
+                  type="button"
+                  className="button"
+                  data-testid="advance"
+                  disabled={nextPayload === null}
+                  onClick={onAdvance}
+                >
+                  {nextPayload ? `Next payload (seq ${nextPayload.seq})` : 'No further payload'}
+                </button>
+              )}
+            </div>
+          </header>
           <SeatBar view={view} />
         </aside>
       </div>

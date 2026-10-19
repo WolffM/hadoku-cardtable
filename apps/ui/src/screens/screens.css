@@ -380,6 +380,34 @@
   padding: 12px 16px;
 }
 
+.pod__bar--side {
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px;
+}
+
+/* The gear in the box's top right corner, beside the room's name. */
+.pod__bar--side > .ct-settings-gear {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  margin: 0;
+}
+
+.pod__bar--side > .pod__who {
+  padding-right: 36px;
+}
+
+.pod__bar--side .pod__invite {
+  flex: none;
+}
+
+.pod__bar--side .pod__invite-url {
+  width: 100%;
+}
+
 .pod__who {
   display: flex;
   align-items: baseline;
