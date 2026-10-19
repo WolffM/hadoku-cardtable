@@ -209,9 +209,17 @@ test(
           for (const p of seated) {
             await expect(p.page.getByTestId('sideboard-step'), `${p.name}: the sideboard step opens`).toBeVisible({ timeout: UI_TIMEOUT });
           }
+          // The loser closes the tab and comes back through the room link: the
+          // room itself opens their sideboard step (the rejoin audit, 2026-10-19,
+          // stranded them on the round screen while the winner waited).
+          await loser.page.goto(roomUrl);
+          await expect(loser.page.getByTestId('pod-sideboard'), 'the room opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
           // Q's sideboard layout fix (`8fc0f75f`) put the Ready button back
           // in the viewport — a real click again, not `dispatchEvent`.
           for (const p of seated) await p.page.getByTestId('sideboard-ready').click();
+          // Game 2 starts from the two Readys, and the room carries the loser into it.
+          await loser.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
+          await expect(loser.page.locator('[aria-label="Game board"]'), 'the loser is back at the table for game 2').toBeVisible({ timeout: UI_TIMEOUT });
         }
       }
 
@@ -220,10 +228,12 @@ test(
       await expect(bye!.page.getByTestId('pod-standings'), 'standings after round 1').toBeVisible({ timeout: UI_TIMEOUT });
       const rows = bye!.page.getByTestId(/^pod-standings-row-\d+$/);
       await expect(rows).toHaveCount(3);
+      // Round 1's table stays as its result; round 2's are the ones still to play.
       await expect.poll(
-        async () => bye!.page.getByTestId('pod-tables-row').count(),
+        async () => bye!.page.locator('[data-testid="pod-tables-row"]:not([data-phase="done"])').count(),
         { timeout: UI_TIMEOUT, message: 'round 2’s tables are up' },
       ).toBeGreaterThan(0);
+      await expect(bye!.page.locator('[data-testid="pod-tables-row"][data-phase="done"]'), 'round 1’s table is still on show, finished').toHaveCount(1);
     } finally {
       // `stack.stop()` itself closes every open `openFriend` context and
       // renames its video when `CARDTABLE_E2E_VIDEO=1` (`play/harness.ts`'s

@@ -224,6 +224,91 @@ describe('in rounds, my table starts by itself', () => {
   });
 });
 
+/* ── coming back to the room mid-series (the rejoin audit, 2026-10-19) ── */
+
+describe('the room is where a player comes back to', () => {
+  const series = (phase: 'seating' | 'playing' | 'sideboarding' | 'done', games: { matchId: string; winner: 0 | 1 | null }[] = []) => ({
+    length: 3 as const,
+    wins: [0, games.length] as [number, number],
+    games,
+    phase,
+  });
+  const players = [
+    { seat: 0 as const, memberId: 'u-alice', name: 'Alice' },
+    { seat: 1 as const, memberId: 'u-bob', name: 'Bob' },
+  ];
+  const rounds = (tableId: string) => pod({ phase: 'rounds', round: 2, rounds: 2, pairings: [{ tableId, players: ['u-alice', 'u-bob'] }] });
+
+  it('opens my sideboard step between games, in the room, and starts game 2 once both have readied', async () => {
+    const DCK = '[metadata]\nName=Mine\n[main]\n40 Plains\n';
+    let bothReady = false;
+    const asked: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = String(input);
+      asked.push(`${init?.method ?? 'GET'} ${url}`);
+      if (url.includes('/tables/rooms/') && (init?.method ?? 'GET') === 'GET') {
+        const you = { seat: 0, name: 'Alice', you: true, deckName: 'Mine', rulesName: 'pool', legal: true, issueCount: 0, ready: bothReady, choice: { deck: { dck: DCK }, rules: { kind: 'draft', draftId: ROOM } } };
+        const them = { ...you, seat: 1, name: 'Bob', you: false, choice: null };
+        return Promise.resolve(new Response(JSON.stringify({ room: { id: ROOM, name: 'Cube night', format: `draft:${ROOM}`, matchId: null, locked: false, phase: 'sideboarding' }, players: [you, them] }), { status: 200 }));
+      }
+      if (url.endsWith(`/drafts/${ROOM}/mine`)) return Promise.resolve(new Response(JSON.stringify({ pool: [], deck: DCK }), { status: 200 }));
+      if (url.endsWith('/play/matches')) return Promise.resolve(new Response(JSON.stringify({ matchId: 'm-000000000002' }), { status: 201 }));
+      return new Promise(() => {});
+    });
+    const { draft, room } = mountPod();
+    draft.send(complete());
+    const mine = { id: 't-2', players, matchId: null, series: series('sideboarding', [{ matchId: 'm-000000000001', winner: 1 }]) };
+    room.read(ctxOf(rounds('t-2'), [mine]));
+    await vi.waitFor(() => expect(screen.getByTestId('pod-sideboard')).toBeTruthy());
+    expect(screen.getByTestId('sideboard-step')).toBeTruthy();
+    expect(screen.queryByTestId('pod-standings')).toBeNull();
+    expect(asked.some((a) => a.endsWith('/play/matches'))).toBe(false);
+
+    // Both ready (the other on their result screen, me here): the room moves, and asks for game 2.
+    bothReady = true;
+    room.read(ctxOf(rounds('t-2'), [{ ...mine }]));
+    await vi.waitFor(() => expect(asked.filter((a) => a.endsWith('/play/matches'))).toEqual([expect.stringContaining('POST')]));
+  });
+
+  it('starts my game again when it died mid-series (`playing`, no match)', async () => {
+    const posts: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = String(input);
+      if (init?.method === 'POST') posts.push(url);
+      if (url.endsWith('/ready')) return Promise.resolve(new Response(JSON.stringify({ room: { id: ROOM, matchId: null }, players: [] }), { status: 200 }));
+      return Promise.resolve(new Response(JSON.stringify({ matchId: 'm-000000000003' }), { status: 201 }));
+    });
+    const { draft, room } = mountPod();
+    draft.send(complete());
+    room.read(ctxOf(rounds('t-2'), [{ id: 't-2', players, matchId: null, series: series('playing', [{ matchId: 'm-000000000001', winner: 0 }]) }]));
+    await vi.waitFor(() => expect(posts.some((u) => u.endsWith('/play/matches'))).toBe(true));
+  });
+
+  it('keeps every table the pod has played at along the bottom: this round first, earlier ones finished', () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
+    const { draft, room } = mountPod();
+    draft.send(complete());
+    const earlier = { id: 't-1', players, matchId: null, series: series('done', [{ matchId: 'm-a', winner: 0 }, { matchId: 'm-b', winner: 0 }]) };
+    const now = { id: 't-3', players, matchId: 'm-000000000009', series: series('playing') };
+    room.read(ctxOf(rounds('t-3'), [{ id: 't-0', players: [], matchId: null, series: series('seating') }, earlier, now]));
+    const rows = screen.getAllByTestId('pod-tables-row');
+    expect(rows.map((r) => [r.dataset.tableId, r.dataset.phase])).toEqual([
+      ['t-3', 'playing'],
+      ['t-1', 'done'],
+    ]);
+    expect(screen.getByTestId('pod-tables').closest('footer')).not.toBeNull();
+  });
+
+  it('keeps the tables under the final standings once the pod is done', () => {
+    const { draft, room } = mountPod();
+    draft.send(complete());
+    const earlier = { id: 't-1', players, matchId: null, series: series('done', [{ matchId: 'm-a', winner: 0 }]) };
+    room.read(ctxOf(pod({ phase: 'done', round: 3, rounds: 2 }), [earlier]));
+    expect(screen.getByTestId('pod-final')).toBeTruthy();
+    expect(screen.getAllByTestId('pod-tables-row').map((r) => r.dataset.tableId)).toEqual(['t-1']);
+  });
+});
+
 /* ── DeckScreen carries `building` ───────────────────────────────────── */
 
 /** The pool never arrives: these cases are about the pod panel above the editor, not the editor. */

@@ -13,3 +13,24 @@
   padding: 16px;
   overflow-y: auto;
 }
+
+/* The rounds above, the pod's tables pinned along the bottom (`PodRoom`). */
+.pod__room {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pod__rounds {
+  flex: 1;
+}
+
+.pod__tables {
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  padding: 10px 16px;
+  border-top: 1px solid var(--color-border-light);
+  background: var(--color-bg);
+}

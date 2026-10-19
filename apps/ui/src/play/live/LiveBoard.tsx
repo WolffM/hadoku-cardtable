@@ -1802,6 +1802,17 @@ export interface Rematch {
  * `alone` is latched from the table's first answer: a game against the bot has
  * one player at the table from the start, a human game two until one leaves.
  */
+/**
+ * The table's next game, once its players have agreed: against the AI the one
+ * player's Ready is the agreement. The result screen and the pod room's own
+ * sideboard step (`screens/pod/PodSideboard.tsx`) both ask; the server joins
+ * two asks for one table into one start.
+ */
+export function startNextGame(tables: TablesClient, roomId: string, tableId: string | undefined, solo: boolean): Promise<StartOutcome> {
+  const start = solo ? tables.startVsBot : tables.startRoom;
+  return tableId === undefined ? start(roomId) : start(roomId, tableId);
+}
+
 export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
   const me = table?.players.find((p) => p.you);
   const other = table?.players.find((p) => !p.you);
@@ -1945,7 +1956,7 @@ function useAfterTheBoard(over: boolean): boolean {
 }
 
 /** The viewer's own held choice at this table — the editor's starting point. */
-function myChoice(table: RoomTable | null): SeatChoice | null {
+export function myChoice(table: RoomTable | null): SeatChoice | null {
   return table?.players.find((p) => p.you)?.choice ?? null;
 }
 
@@ -2011,7 +2022,7 @@ async function my75Text(choice: SeatChoice, tables: TablesClient): Promise<strin
  * as a loading box that turns into an editor. `undefined` while either is
  * still being read; `null` choice reads nothing.
  */
-function useSideboardInputs(
+export function useSideboardInputs(
   choice: SeatChoice | null,
   tables: TablesClient,
 ): { text: string | null; draftPool: DraftCard[] | null } | undefined {
@@ -2051,7 +2062,7 @@ function useSideboardInputs(
   return { text, draftPool: draftPool ?? null };
 }
 
-function SideboardStep({
+export function SideboardStep({
   roomId,
   tableId,
   tables,
@@ -2301,8 +2312,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   useEffect(() => {
     if ((!rematch.agreed && !soloNext) || roomId === null || asked.current) return;
     asked.current = true;
-    const start = soloNext ? tables.startVsBot : tables.startRoom;
-    (tableId === undefined ? start(roomId) : start(roomId, tableId)).then(started, unreachable);
+    startNextGame(tables, roomId, tableId, soloNext).then(started, unreachable);
   }, [rematch.agreed, soloNext, roomId, tables, tableId]);
 
   const onRematch = (): void => {

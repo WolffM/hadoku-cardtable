@@ -1,26 +1,33 @@
 /*
- * The pod's current-round table list — wave 72 §R.2. Colour from
- * `@wolffm/themes` only, same discipline as `BoardStrip.css`.
+ * The pod's tables, as a row of cards along the bottom of the pod room.
+ * Colour from `@wolffm/themes` only, same discipline as `BoardStrip.css`.
  */
 
 .pod-tables__list {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0 0 8px;
+  gap: 8px;
+  margin: 0;
   padding: 0;
   list-style: none;
+  overflow-x: auto;
 }
 
 .pod-tables__row {
   display: flex;
-  align-items: center;
+  flex: none;
+  flex-direction: column;
   justify-content: space-between;
-  gap: 8px;
-  padding: 4px 10px;
+  gap: 6px;
+  min-width: 150px;
+  min-height: 64px;
+  padding: 8px 10px;
   border-radius: 6px;
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-light);
+}
+
+.pod-tables__row[data-phase='done'] {
+  opacity: 0.7;
 }
 
 .pod-tables__row--mine {
@@ -55,7 +62,7 @@
 }
 
 .pod-tables__bye {
-  margin: 0;
+  justify-content: center;
   color: var(--color-text-secondary);
   font-size: 0.85rem;
 }

@@ -141,7 +141,8 @@ export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
 
       {state.kind === 'ready' && state.rooms.length > 0 && (
         <ul className="rooms__list" data-testid="room-list">
-          {state.rooms.map((room) => (
+          {/* Your own rooms first: the one you closed the tab on is the one you are looking for. */}
+          {[...state.rooms.filter(isMine), ...state.rooms.filter((r) => !isMine(r))].map((room) => (
             <RoomRow key={room.id} room={room} client={client} onGone={() => void refresh()} />
           ))}
         </ul>
@@ -174,6 +175,9 @@ export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
 }
 
 /* ── one row ─────────────────────────────────────────────────────────── */
+
+/** Whether I am a member: closing the tab never leaves a room, so this is where I come back to. */
+const isMine = (room: RoomView): boolean => room.members.some((m) => m.id === room.you.id);
 
 function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient; onGone: () => void }) {
   const [asking, setAsking] = useState(false);
@@ -219,7 +223,8 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
     // password prompt is a thing that happened, and a button that is silent
     // half the time reads as a button that did not work.
     playRole('ui.select');
-    if (room.locked) {
+    // A member is already in: the server waives the password for them, so it is not asked.
+    if (room.locked && !isMine(room)) {
       setAsking(true);
       setError(null);
       return;
@@ -241,7 +246,7 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
   const names = room.members.map((m) => m.name);
 
   return (
-    <li className="rooms__row" data-testid="room-row" data-room-id={room.id}>
+    <li className={isMine(room) ? 'rooms__row rooms__row--mine' : 'rooms__row'} data-testid="room-row" data-room-id={room.id} data-mine={isMine(room) ? '' : undefined}>
       <div className="rooms__info">
         <span className="rooms__name" data-testid="room-name">
           {room.name}

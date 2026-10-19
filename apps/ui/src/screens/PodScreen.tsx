@@ -70,7 +70,8 @@ import { mountInspector } from '../play/inspect/index.ts';
 import { appLocation, navigate, routeUrl } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import type { RoomTable } from '@hadoku/shared';
-import { livePodSource, startMyTable, usePodContext, type PodSource } from './pod/client.ts';
+import { livePodSource, startMyTable, usePodContext, type PodContext, type PodSource } from './pod/client.ts';
+import { PodSideboard } from './pod/PodSideboard.tsx';
 import { PodStandings } from './pod/PodStandings.tsx';
 import { PodTables } from './pod/PodTables.tsx';
 import './PodScreen.css';
@@ -172,7 +173,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
    */
   useEffect(() => {
     if (myMemberId === null || ctx === null || phase !== 'rounds') return;
-    const mine = ctx.tables.find((t) => t.players.some((p) => p.memberId === myMemberId));
+    const mine = myCurrentTable(ctx, myMemberId);
     if (mine?.matchId != null) navigate({ kind: 'match', matchId: mine.matchId });
   }, [phase, ctx, myMemberId]);
 
@@ -187,8 +188,8 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
    */
   const [startTableError, setStartTableError] = useState<string | null>(null);
   const asked = useRef<string | null>(null);
-  const startTable = (table: RoomTable): void => {
-    asked.current = table.id;
+  const startTable = (table: RoomTable, ask: string = table.id): void => {
+    asked.current = ask;
     setStartTableError(null);
     startMyTable(draftId, table).then((r) => {
       if (!r.ok) setStartTableError(r.message);
@@ -200,9 +201,13 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   };
   useEffect(() => {
     if (myMemberId === null || ctx === null || phase !== 'rounds') return;
-    const mine = ctx.tables.find((t) => t.players.some((p) => p.memberId === myMemberId));
-    if (mine === undefined || mine.matchId !== null || mine.series.phase !== 'seating' || asked.current === mine.id) return;
-    startTable(mine);
+    const mine = myCurrentTable(ctx, myMemberId);
+    // `playing` with no match is a game that died (`releaseTableMatch`): it is
+    // started again, as a series' first game is — once per game of the series.
+    if (mine === undefined || mine.matchId !== null || (mine.series.phase !== 'seating' && mine.series.phase !== 'playing')) return;
+    const ask = `${mine.id}:${mine.series.games.length}:${mine.series.phase}`;
+    if (asked.current === ask) return;
+    startTable(mine, ask);
   }, [phase, ctx, myMemberId]);
 
   return (
@@ -243,25 +248,8 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
         </p>
       )}
 
-      {done && ctx?.pod?.phase === 'rounds' ? (
-        <div className="pod__rounds" data-testid="pod-rounds">
-          <h2 data-testid="pod-round">
-            Round {ctx.pod.round} of {ctx.pod.rounds}
-          </h2>
-          <PodTables tables={ctx.tables.filter((t) => ctx.pod?.pairings.some((p) => p.tableId === t.id) === true)} myMemberId={myMemberId} byeId={ctx.pod.bye} nameOf={nameOf} onPlay={startTableError === null ? undefined : retryTable} />
-          {startTableError !== null && (
-            <p className="pod__error" role="alert" data-testid="pod-table-start-error">
-              {startTableError}
-            </p>
-          )}
-          <PodStandings rows={ctx.pod.standings} nameOf={nameOf} myMemberId={myMemberId} />
-        </div>
-      ) : done && ctx?.pod?.phase === 'done' ? (
-        <div className="pod__rounds" data-testid="pod-final">
-          <h1>Final standings</h1>
-          <PodStandings rows={ctx.pod.standings} nameOf={nameOf} myMemberId={myMemberId} />
-        </div>
-      ) : done ? null : table === null ? (
+      {done && ctx?.pod !== null && ctx?.pod !== undefined && inRounds ? (
+        <PodRoom ctx={ctx} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} startTableError={startTableError} retryTable={retryTable} />      ) : done ? null : table === null ? (
         <div className="pod__waiting" data-testid="pod-waiting">
           <h1>{draft?.everConnected === true ? 'Waiting for the table' : 'Joining the pod'}</h1>
         </div>
@@ -279,6 +267,74 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
         />
       )}
       <div className="pod__zoom" data-board-zoom="" />
+    </div>
+  );
+}
+
+/* ── the rounds: the round, my sideboard step or the standings, and the tables ── */
+
+/** My table in the CURRENT round — an earlier round's table is still mine, and finished. */
+function myCurrentTable(ctx: PodContext, myMemberId: string): RoomTable | undefined {
+  const current = new Set(ctx.pod?.pairings.map((p) => p.tableId) ?? []);
+  return ctx.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === myMemberId));
+}
+
+/** Every table the pod has played at: this round's first, then earlier rounds', newest first. The room's own first table seats nobody in a pod. */
+export function podTablesInOrder(ctx: PodContext): RoomTable[] {
+  const current = new Set(ctx.pod?.pairings.map((p) => p.tableId) ?? []);
+  const played = ctx.tables.filter((t) => t.players.length > 0);
+  return [...played.filter((t) => current.has(t.id)), ...played.filter((t) => !current.has(t.id)).reverse()];
+}
+
+function PodRoom({
+  ctx,
+  draftId,
+  myMemberId,
+  nameOf,
+  startTableError,
+  retryTable,
+}: {
+  ctx: PodContext;
+  draftId: string;
+  myMemberId: string | null;
+  nameOf: (id: string) => string;
+  startTableError: string | null;
+  retryTable: (tableId: string) => void;
+}) {
+  const pod = ctx.pod!;
+  const mine = myMemberId === null ? undefined : myCurrentTable(ctx, myMemberId);
+  // Between games of my series, the room is where the sideboard step is, whichever page I came back by.
+  const sideboarding = pod.phase === 'rounds' && mine !== undefined && mine.matchId === null && mine.series.phase === 'sideboarding';
+  return (
+    <div className="pod__room">
+      <div className="pod__rounds" data-testid={pod.phase === 'rounds' ? 'pod-rounds' : 'pod-final'}>
+        {pod.phase === 'rounds' ? (
+          <h2 data-testid="pod-round">
+            Round {pod.round} of {pod.rounds}
+          </h2>
+        ) : (
+          <h1>Final standings</h1>
+        )}
+        {startTableError !== null && (
+          <p className="pod__error" role="alert" data-testid="pod-table-start-error">
+            {startTableError}
+          </p>
+        )}
+        {sideboarding ? (
+          <PodSideboard key={`${mine.id}:${mine.series.games.length}`} roomId={draftId} tableId={mine.id} refresh={ctx} />
+        ) : (
+          <PodStandings rows={pod.standings} nameOf={nameOf} myMemberId={myMemberId} />
+        )}
+      </div>
+      <footer className="pod__tables">
+        <PodTables
+          tables={podTablesInOrder(ctx)}
+          myMemberId={myMemberId}
+          byeId={pod.phase === 'rounds' ? pod.bye : null}
+          nameOf={nameOf}
+          onPlay={startTableError === null ? undefined : retryTable}
+        />
+      </footer>
     </div>
   );
 }

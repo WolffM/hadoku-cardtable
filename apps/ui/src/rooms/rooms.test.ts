@@ -787,6 +787,33 @@ describe('entering a room', () => {
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-locked' }));
   });
 
+  // The rejoin audit, 2026-10-19: a member coming back from the front page had
+  // to find their room by name, and was asked a password the server waives.
+  it('lists my own rooms first, marked, and enters a locked one I am in without asking its password', async () => {
+    const MINE = room({ id: 'r-mine', name: 'Our pod', locked: true });
+    const posts: { url: string; body: unknown }[] = [];
+    const fetchImpl: Fetch = async (url, init) => {
+      if (init?.method === 'POST') {
+        posts.push({ url: String(url), body: JSON.parse(String(init.body ?? '{}')) });
+        return json(200, MINE);
+      }
+      return json(200, { rooms: [{ ...OPEN, you: { id: 'http-z', leader: false, ready: false } }, MINE] });
+    };
+    mount(roomsClient(fetchImpl, '/cardtable/api/'));
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(2));
+    expect(screen.getAllByTestId('room-row').map((r) => [r.dataset.roomId, r.dataset.mine])).toEqual([
+      ['r-mine', ''],
+      ['r-open', undefined],
+    ]);
+
+    await act(async () => {
+      fireEvent.click(within(rowFor('r-mine')).getByTestId('room-enter'));
+    });
+    expect(screen.queryByTestId('room-password')).toBeNull();
+    expect(posts).toEqual([{ url: '/cardtable/api/rooms/r-mine/join', body: {} }]);
+    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-mine' }));
+  });
+
   it('says so when the server is rate-limiting password attempts', async () => {
     const fetchImpl: Fetch = async (_url, init) => (init?.method === 'POST' ? json(429, {}) : json(200, { rooms: [LOCKED] }));
     mount(roomsClient(fetchImpl, '/cardtable/api/'));
