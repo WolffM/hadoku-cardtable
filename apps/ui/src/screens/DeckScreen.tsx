@@ -50,14 +50,16 @@
  * them, so production gets the real API.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DeckEditor } from '../deck/DeckEditor.tsx';
 import { deckStoreClient, type DeckStoreClient, type Mine } from '../deck/deckStore.ts';
 import { navigate, routeHash } from './route.ts';
 import { DeckManage } from './DeckManage.tsx';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
-import { livePodSource, playPod, usePodContext, type PodSource } from './pod/client.ts';
+import { livePodSource, playPod, startMyTable, usePodContext, type PodSource } from './pod/client.ts';
+import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
+import { roomsClient, type RoomsClient } from '../rooms/api.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
 
@@ -80,6 +82,8 @@ export interface DeckScreenProps {
   standalone?: boolean;
   /** The Decks page's client, for the standalone head's name, rename and delete. Tests pass a stub. */
   decks?: MyDecksClient;
+  /** Read after Play, to go straight to the game when it can start. Tests pass a stub. */
+  rooms?: RoomsClient;
 }
 
 type Loaded = { kind: 'no-seat' } | { kind: 'ready'; mine: Mine };
@@ -93,7 +97,9 @@ export function DeckScreen({
   podSource = livePodSource,
   standalone = false,
   decks: givenDecks,
+  rooms: givenRooms,
 }: DeckScreenProps) {
+  const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   const store = useMemo(() => givenStore ?? deckStoreClient(), [givenStore]);
   const client = useMemo(() => givenClient ?? tablesClient(), [givenClient]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -120,8 +126,10 @@ export function DeckScreen({
   const ctx = usePodContext(draftId, podSource);
   const pod = ctx?.pod ?? null;
   const rounds = pod?.phase === 'rounds';
+  /** Play is deciding where this player goes: the hand-off to the room below waits for it. */
+  const playing = useRef(false);
   useEffect(() => {
-    if (rounds && !standalone) navigate({ kind: 'room', roomId: draftId }, { replace: true });
+    if (rounds && !standalone && !playing.current) navigate({ kind: 'room', roomId: draftId }, { replace: true });
   }, [rounds, draftId, standalone]);
 
   /** The standalone head's deck — its name, and whether it may be renamed — once the Decks list has answered. */
@@ -144,24 +152,38 @@ export function DeckScreen({
   const [playError, setPlayError] = useState<string | null>(null);
   // The build as it stands is saved first: the editor's own save is debounced,
   // and the pod seats whatever was saved last.
+  /**
+   * Play: saved, marked done, and then straight to wherever this player ends
+   * up — the game itself when my table can start now (the last Play of the pod,
+   * or a game against the AI), the room only while others are still building.
+   * The operator, 2026-10-19: *"when clicking play we should look to see where
+   * the player will end up, if they can go straight into the game then we
+   * should put them there. if the other player isn't ready yet then we can
+   * show the lobby"* — not three screens in a row.
+   */
   const play = (dck: string): void => {
     setPlayError(null);
-    store
-      .save(draftId, dck)
-      .then((saved) => {
-        if (!saved.ok) {
-          setPlayError(saved.issues.join(' '));
-          return;
-        }
-        // Done building: to the room, which (re)joins it. While others are
-        // still building, the pod screen hands this one back here; once rounds
-        // start it starts their table.
-        return playPod(draftId).then((r) => {
-          if (r.ok) navigate({ kind: 'room', roomId: draftId });
-          else setPlayError(r.message);
-        });
-      })
-      .catch((err: unknown) => setPlayError(err instanceof Error ? err.message : String(err)));
+    playing.current = true;
+    const toRoom = (): void => navigate({ kind: 'room', roomId: draftId });
+    const fail = (message: string): void => {
+      playing.current = false;
+      setPlayError(message);
+    };
+    void (async () => {
+      const saved = await store.save(draftId, dck);
+      if (!saved.ok) return fail(saved.issues.join(' '));
+      const marked = await playPod(draftId);
+      if (!marked.ok) return fail(marked.message ?? 'The pod refused that.');
+      const room = await rooms.get(draftId).catch(() => null);
+      const me = room?.you.id;
+      const current = new Set(room?.pod?.phase === 'rounds' ? room.pod.pairings.map((p) => p.tableId) : []);
+      const mine = room?.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === me));
+      if (mine === undefined) return toRoom();
+      if (mine.matchId !== null) return followMatchOnce(mine.matchId, false);
+      const started = await startMyTable(draftId, mine);
+      if (started.ok && started.matchId !== null) openNewMatch(started.matchId);
+      else toRoom();
+    })().catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
   };
 
   return (
