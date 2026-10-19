@@ -1,0 +1,18 @@
+# Jace, the Mind Sculptor's +2 — a fateseal: "Look at the top card of target player's library. You may
+# put that card on the bottom of that player's library." Alice (seat 0) has Jace at loyalty 3 and Lantern
+# of Insight, which shows both seats each library's top card, so the board says which card is on top of
+# bob's library before and after. Bob's library is ten cards, Lightning Bolt on top and Shock under it.
+# `e2e/pz-zones.spec.ts` drives it: one prompt, "Bob's library", Top | Bottom.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Jace, the Mind Sculptor|Counters:LOYALTY=3;Lantern of Insight
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Lightning Bolt;Shock;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

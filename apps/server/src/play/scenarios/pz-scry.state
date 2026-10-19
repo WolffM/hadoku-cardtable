@@ -1,0 +1,16 @@
+# Preordain ({U} sorcery, "Scry 2, then draw a card.") — seat 0 holds it and an untapped Island, an
+# uncontested turn-1 Main Phase 1. Different basics on top, so the two cards the scry looks at can be told
+# apart, and Preordain's draw shows which one the answer left on top. `e2e/pz-zones.spec.ts` drives it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Preordain
+humanbattlefield=Island
+humanlibrary=Plains;Forest;Swamp;Mountain;Wastes;Wastes
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

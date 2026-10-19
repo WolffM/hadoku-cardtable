@@ -1,0 +1,17 @@
+# Notion Rain ({1}{U}{B} sorcery, "Surveil 2, then draw two cards. Notion Rain deals 2 damage to you.") —
+# seat 0 holds it and three untapped lands, an uncontested turn-1 Main Phase 1. Different basics on top, so
+# the two cards the surveil looks at can be told apart: the one put in the graveyard shows there, and the
+# draw shows the one kept on top. `e2e/pz-zones.spec.ts` drives it.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Notion Rain
+humanbattlefield=Island;Swamp;Island
+humanlibrary=Plains;Forest;Swamp;Mountain;Wastes;Wastes
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
