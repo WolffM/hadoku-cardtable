@@ -549,6 +549,14 @@ export interface SeatProjector {
 	 */
 	stackTopActivator(): number | null;
 	/**
+	 * The core types (`Instant`, `Creature`, …) of the SPELL on top of the stack, or null
+	 * when the stack is empty, its top is an ability, or its card's face is not known.
+	 * Public, as {@link stackTopActivator} is: the stack is on the table.
+	 */
+	stackTopSpellTypes(): readonly string[] | null;
+	/** A card's current face name and the zone list that holds it, each null when the state does not say. */
+	cardAt(cardId: number): { name: string | null; zone: string | null };
+	/**
 	 * Forge's own turn counter (the Game object's `Turn`), or null when the
 	 * state does not know it yet — off a delta every seat already receives,
 	 * never off a prompt's own text, so a seat that has not acted yet this
@@ -558,6 +566,17 @@ export interface SeatProjector {
 	turnNumber(): number | null;
 	/** Forge's own current phase (the Game object's `Phase`), or null when the state does not say. Global, as {@link turnNumber} is. */
 	phase(): string | null;
+}
+
+/** A card's current face (`CardStateView`), off its `CurrentState` ordinal. */
+function currentFace(state: ReadonlyMap<string, WireObj>, cardId: number): WireObj | undefined {
+	return state.get(keyOf(TYPE.cardState, cardId * 16 + (intOf(state.get(keyOf(TYPE.card, cardId)), 'CurrentState') ?? 0)));
+}
+
+/** The core types of a card's current face, or null when the face's type is not known. */
+function coreTypes(state: ReadonlyMap<string, WireObj>, cardId: number): string[] | null {
+	const type = tagged(currentFace(state, cardId), 'Type') as { t: string; core?: unknown } | undefined;
+	return type?.t === 'cardtype' && Array.isArray(type.core) ? (type.core as unknown[]).filter((t): t is string => typeof t === 'string') : null;
 }
 
 export function createProjector(viewer: number | null = null): SeatProjector {
@@ -971,16 +990,30 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 			if (top === undefined) return null;
 			return intOf(raw.get(keyOf(TYPE.stackItem, top)), 'ActivatingPlayer');
 		},
+		stackTopSpellTypes(): readonly string[] | null {
+			const game = [...raw.values()].find((o) => o._type === TYPE.game);
+			const top = idsOf(game, 'Stack')[0];
+			if (top === undefined) return null;
+			const item = raw.get(keyOf(TYPE.stackItem, top));
+			if (item === undefined || boolOf(item, 'Ability')) return null;
+			const source = intOf(item, 'SourceCard');
+			return source === null ? null : coreTypes(raw, source);
+		},
+		cardAt(cardId: number): { name: string | null; zone: string | null } {
+			const face = currentFace(raw, cardId);
+			const name = tagged(face, 'Name') ?? tagged(raw.get(keyOf(TYPE.card, cardId)), 'Name');
+			return {
+				name: name?.t === 'str' && typeof name.v === 'string' && name.v !== '' ? name.v : null,
+				zone: indexZones(raw).byCard.get(cardId)?.zone ?? null,
+			};
+		},
 		creatureCount(): number | null {
 			if (who === null) return null;
 			const player = raw.get(keyOf(TYPE.player, who));
 			if (player === undefined) return null;
 			let creatures = 0;
 			for (const id of idsOf(player, 'Battlefield')) {
-				const card = raw.get(keyOf(TYPE.card, id));
-				const face = raw.get(keyOf(TYPE.cardState, id * 16 + (intOf(card, 'CurrentState') ?? 0)));
-				const type = tagged(face, 'Type') as { t: string; core?: unknown } | undefined;
-				const core = type?.t === 'cardtype' && Array.isArray(type.core) ? (type.core as unknown[]) : null;
+				const core = coreTypes(raw, id);
 				if (core === null || core.includes('Creature')) creatures += 1;
 			}
 			return creatures;

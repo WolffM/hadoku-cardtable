@@ -138,6 +138,7 @@ import { artOf } from './art.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import { faceNames, namesForFormat } from './names.js';
+import type { SpellCopy } from './spell-copiers.js';
 import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
 
 /**
@@ -623,6 +624,12 @@ export interface MatchDeps {
 	 * when the format has no list. Absent: every card-name ask offers Forge's whole list.
 	 */
 	formatNames?(format: string): ReadonlySet<string> | null;
+	/**
+	 * A card name's spell-copying abilities, off Forge's own scripts (`spell-copiers.ts`),
+	 * or undefined for a card that copies none. Absent: nothing copies, and a seat's own
+	 * spell is passed as `own-spell` always (`auto.ts`'s `holdForSpellCopy`).
+	 */
+	spellCopiers?(name: string): readonly SpellCopy[] | undefined;
 	/** Deliver one envelope to every connection bound to this seat. */
 	emit(seat: number, envelope: ServerEnvelope): void;
 	log(entry: Record<string, unknown>): void;
@@ -2793,6 +2800,8 @@ export class Match {
 
 	/** What this seat was last told, as the stop decisions read it (`auto.ts`). */
 	private notesOf(s: SeatState): SeatNotes {
+		const stackTopActivator = s.projector.stackTopActivator();
+		const ownSpell = s.playerId !== null && stackTopActivator === s.playerId;
 		return {
 			playerId: s.playerId,
 			prompt: s.prompt,
@@ -2800,7 +2809,9 @@ export class Match {
 			actionable: s.actionable,
 			openAsks: s.asks.size,
 			creatures: s.projector.creatureCount(),
-			stackTopActivator: s.projector.stackTopActivator(),
+			stackTopActivator,
+			// Read only for the seat's own spell (`StopPolicy.holdForSpellCopy`).
+			...(ownSpell ? { stackTopTypes: s.projector.stackTopSpellTypes(), spellCopiers: this.spellCopiersOffered(s) } : {}),
 			// The bridge's facts about the set `actionable` holds (wave 52 §S).
 			...(s.actionable !== null && s.weakly?.method === 'setWeaklySelectable'
 				? {
@@ -2810,6 +2821,23 @@ export class Match {
 					}
 				: {}),
 		};
+	}
+
+	/**
+	 * The seat's offered cards that copy spells from where each sits: a copy made by
+	 * casting counts off the battlefield, one made by activating counts on it, and a
+	 * card whose zone is unknown keeps both (a doubt keeps the stop).
+	 */
+	private spellCopiersOffered(s: SeatState): ReadonlyMap<number, readonly SpellCopy[]> {
+		const out = new Map<number, readonly SpellCopy[]>();
+		const index = this.deps.spellCopiers;
+		if (index === undefined || s.actionable === null) return out;
+		for (const id of new Set(s.actionable)) {
+			const { name, zone } = s.projector.cardAt(id);
+			const copies = name === null ? undefined : index(name)?.filter((c) => zone === null || (c.via === 'activate') === (zone === 'Battlefield'));
+			if (copies !== undefined && copies.length > 0) out.set(id, copies);
+		}
+		return out;
 	}
 
 	/**

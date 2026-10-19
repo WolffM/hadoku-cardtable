@@ -41,6 +41,7 @@ import {
 	type StopPolicy,
 } from './auto.js';
 import { FORGE_PREFERENCES } from './host.js';
+import { copyTargets, parseCardScript, type SpellCopy } from './spell-copiers.js';
 import { createMatchRegistry, type Match } from './match.js';
 import type { ServerEnvelope } from './transport.js';
 import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/transcript.js';
@@ -612,7 +613,7 @@ interface Harness {
  * @param stopPolicy what a NEW match's seats start on (`MatchDeps.stopPolicy`,
  *   wave 27 §C). Omitted is production: `DEFAULT_STOP_POLICY`.
  */
-function harness(stopPolicy?: StopPolicy): Harness {
+function harness(stopPolicy?: StopPolicy, spellCopiers?: (name: string) => readonly SpellCopy[] | undefined): Harness {
 	const { factory, hosts } = replayFactory();
 	const sent: Harness['sent'] = [];
 	const logs: Record<string, unknown>[] = [];
@@ -621,6 +622,7 @@ function harness(stopPolicy?: StopPolicy): Harness {
 		log: (e) => logs.push(e),
 		overGraceMs: 60_000,
 		...(stopPolicy === undefined ? {} : { stopPolicy }),
+		...(spellCopiers === undefined ? {} : { spellCopiers }),
 		emit: (_m, seat, envelope) => sent.push({ seat, envelope }),
 	});
 	const match = registry.create({
@@ -1004,6 +1006,144 @@ describe('Q17: a seat does not hold priority on its own spell', () => {
 		expect(held.host.commands.filter((c) => c.t === 'act')).toEqual([]);
 	});
 });
+
+/*
+ * The operator, 2026-10-19: *"for instant cards that copy spells like lutri … can we default
+ * to having the player hold priority after casting any spell that is a valid target for
+ * those? (assuming the copy spell is playable)"* — `StopPolicy.holdForSpellCopy`.
+ */
+describe('copy-available: the seat’s own spell is held while it can play a copier the spell is a target for', () => {
+	const SCRIPTS = {
+		twincast: 'Name:Twincast\nManaCost:U U\nTypes:Instant\nA:SP$ CopySpellAbility | ValidTgts$ Instant,Sorcery | TargetType$ Spell | MayChooseTarget$ True | SpellDescription$ Copy target instant or sorcery spell.',
+		lutri:
+			'Name:Lutri, the Spellchaser\nTypes:Legendary Creature Elemental Otter\nK:Flash\nT:Mode$ ChangesZone | ValidCard$ Card.Self+wasCastByYou | Origin$ Any | Destination$ Battlefield | Execute$ TrigCopy | TriggerDescription$ copy\nSVar:TrigCopy:DB$ CopySpellAbility | ValidTgts$ Instant.YouCtrl,Sorcery.YouCtrl | MayChooseTarget$ True',
+		dualcaster:
+			'Name:Dualcaster Mage\nTypes:Creature Human Wizard\nK:Flash\nT:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Card.Self | Execute$ TrigCopy | TriggerDescription$ copy\nSVar:TrigCopy:DB$ CopySpellAbility | ValidTgts$ Instant,Sorcery | TargetType$ Spell | MayChooseTarget$ True',
+	};
+	const copiesOf = (script: string): readonly SpellCopy[] => parseCardScript(script)[0]!.copies;
+	const OWN_BOLT = { stackEmpty: false, phase: 'MAIN1' as const, phaseLabel: 'Main phase, precombat', myTurn: true, stackTopMine: true, stackTopTypes: ['Instant'] };
+	const COPIER = 67;
+	const OTHER = 68;
+
+	for (const [name, script] of Object.entries(SCRIPTS)) {
+		it(`keeps the window with ${name} playable and an instant of the seat’s own on top`, () => {
+			const judged = judgeStop(facts({ ...OWN_BOLT, sources: [COPIER, OTHER], spellCopiers: new Map([[COPIER, copiesOf(script)]]) }), DEFAULT_STOP_POLICY);
+			expect(judged).toEqual({ pass: null, rule: 'copy-available', plays: [COPIER] });
+		});
+	}
+
+	it('passes as own-spell when only a non-copy instant is playable', () => {
+		expect(judgeStop(facts({ ...OWN_BOLT, sources: [OTHER] }), DEFAULT_STOP_POLICY).rule).toBe('own-spell');
+	});
+
+	it('passes as own-spell when the copier is held but Forge does not offer it', () => {
+		const spellCopiers = new Map([[COPIER, copiesOf(SCRIPTS.twincast)]]);
+		expect(judgeStop(facts({ ...OWN_BOLT, sources: [OTHER], spellCopiers }), DEFAULT_STOP_POLICY).rule).toBe('own-spell');
+		expect(judgeStop(facts({ ...OWN_BOLT, sources: [COPIER], nonManaSources: [], spellCopiers }), DEFAULT_STOP_POLICY).rule).toBe('own-spell');
+	});
+
+	it('passes as own-spell when the spell on top is a creature, or an ability', () => {
+		const spellCopiers = new Map([[COPIER, copiesOf(SCRIPTS.twincast)]]);
+		expect(judgeStop(facts({ ...OWN_BOLT, stackTopTypes: ['Creature'], sources: [COPIER], spellCopiers }), DEFAULT_STOP_POLICY).rule).toBe('own-spell');
+		expect(judgeStop(facts({ ...OWN_BOLT, stackTopTypes: null, sources: [COPIER], spellCopiers }), DEFAULT_STOP_POLICY).rule).toBe('own-spell');
+	});
+
+	it('passes as own-spell with the policy field off', () => {
+		const spellCopiers = new Map([[COPIER, copiesOf(SCRIPTS.twincast)]]);
+		expect(judgeStop(facts({ ...OWN_BOLT, sources: [COPIER], spellCopiers }), { ...DEFAULT_STOP_POLICY, holdForSpellCopy: false }).rule).toBe('own-spell');
+	});
+
+	it('the matcher: Lutri’s YouCtrl takes only the seat’s own spell; Twincast takes either', () => {
+		const [lutri] = copiesOf(SCRIPTS.lutri);
+		const [twincast] = copiesOf(SCRIPTS.twincast);
+		expect(copyTargets(lutri!, { types: ['Instant'], mine: true })).toBe(true);
+		expect(copyTargets(lutri!, { types: ['Instant'], mine: false })).toBe(false);
+		expect(copyTargets(lutri!, { types: ['Sorcery'], mine: true })).toBe(true);
+		expect(copyTargets(lutri!, { types: ['Creature'], mine: true })).toBe(false);
+		expect(copyTargets(twincast!, { types: ['Instant'], mine: false })).toBe(true);
+		expect(copyTargets(twincast!, { types: ['Artifact'], mine: true })).toBe(false);
+	});
+
+	it('the matcher keeps on a term it cannot read, and refuses an ability-only TargetType', () => {
+		// Izzet Guildmage's mana-value bound is not a fact here: the type decides.
+		expect(copyTargets({ validTgts: ['Instant.YouCtrl+cmcLE2'], targetType: ['Spell'] }, { types: ['Instant'], mine: true })).toBe(true);
+		expect(copyTargets({ validTgts: ['Instant.YouCtrl+cmcLE2'], targetType: ['Spell'] }, { types: ['Sorcery'], mine: true })).toBe(false);
+		expect(copyTargets({ validTgts: ['Card', 'Emblem'], targetType: ['Activated.YouCtrl', 'Triggered.YouCtrl'] }, { types: ['Instant'], mine: true })).toBe(false);
+		expect(copyTargets({ validTgts: ['Permanent.YouCtrl'], targetType: ['Spell'] }, { types: ['Creature'], mine: true })).toBe(true);
+		expect(copyTargets({ validTgts: ['Permanent.YouCtrl'], targetType: ['Spell'] }, { types: ['Instant'], mine: true })).toBe(false);
+	});
+
+	it('through the match: Twincast in hand holds the caster at its own Lightning Bolt; a creature on top does not', () => {
+		const index = new Map(Object.values(SCRIPTS).flatMap((s) => parseCardScript(s).map((f) => [f.name, f.copies] as const)));
+		const run = (topTypes: string[]): Harness => {
+			const h = harness(undefined, (name) => index.get(name));
+			const me = playerOf(h, 0);
+			putCard(h, 0, COPIER, 'Hand', 'Twincast', ['Instant']);
+			putCard(h, 0, 70, 'Stack', 'Lightning Bolt', topTypes);
+			putSpellOnStack(h, 0, 5, me, 70);
+			push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: COPIER }] });
+			push(h, 0, prompt('Priority: A\nTurn: 4 (A)\nPhase: Main phase, precombat\nStack: 1 to Resolve.', me));
+			push(h, 0, buttons(true, me));
+			return h;
+		};
+		const held = run(['Instant']);
+		expect(held.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+		expect(held.match.seats[0]!.lastStop).toEqual({ rule: 'copy-available', plays: [COPIER] });
+		const passed = run(['Creature']);
+		expect(passed.host.commands.filter((c) => c.t === 'act')).toEqual([{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } }]);
+		expect(passed.logs.find((l) => l.evt === 'auto-passed')?.rule).toBe('own-spell');
+	});
+});
+
+/** A card with a name and core types in one of a seat's zone lists, through Forge's state channel. */
+function putCard(h: Harness, seat: number, cardId: number, zone: string, name: string, core: string[]): void {
+	const me = playerOf(h, seat);
+	const faceKey = String(((4 << 28) | ((cardId * 16) & 0x0fffffff)) >>> 0);
+	push(h, seat, {
+		kind: 'notify',
+		method: 'applyDelta',
+		payload: {
+			packet: {
+				seq: 2900 + cardId,
+				checksum: 0,
+				checksumProperties: [],
+				newObjects: {
+					[String(((0 << 28) | cardId) >>> 0)]: { _type: 0, _id: cardId, Zone: { t: 'enum', c: 'forge.game.zone.ZoneType', v: zone }, CurrentState: { t: 'int', v: 0 } },
+					[faceKey]: { _type: 4, _id: cardId * 16, Name: { t: 'str', v: name }, Type: { t: 'cardtype', sup: [], core, sub: [], all: false, exc: [] } },
+				},
+				objectDeltas: zone === 'Stack' ? {} : { [String(((1 << 28) | me) >>> 0)]: { _type: 1, _id: me, [zone]: { t: 'list', v: [{ t: 'int', v: cardId }] } } },
+				events: [],
+			},
+		},
+	});
+}
+
+/** A SPELL on top of the stack: {@link putOnStack} with the card it was cast from. */
+function putSpellOnStack(h: Harness, seat: number, itemId: number, activator: number, sourceCard: number): void {
+	const gameKey = String(((3 << 28) | 1) >>> 0);
+	push(h, seat, {
+		kind: 'notify',
+		method: 'applyDelta',
+		payload: {
+			packet: {
+				seq: 3900 + itemId,
+				checksum: 0,
+				checksumProperties: [],
+				newObjects: {
+					[String(((2 << 28) | itemId) >>> 0)]: {
+						_type: 2,
+						_id: itemId,
+						ActivatingPlayer: { t: 'int', v: activator },
+						SourceCard: { t: 'int', v: sourceCard },
+						Ability: { t: 'bool', v: false },
+					},
+				},
+				objectDeltas: { [gameKey]: { _type: 3, _id: 1, Stack: { t: 'list', v: [{ t: 'int', v: itemId }] } } },
+				events: [],
+			},
+		},
+	});
+}
 
 describe('a Match with the shortcuts on (the default)', () => {
 	it('gives the one-ability ask its own click opened to the player, and answers a bounds question for them', () => {
@@ -1589,6 +1729,8 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 		openAsks: 0,
 		creatures: null,
 		stackTopMine: false,
+		stackTopTypes: null,
+		spellCopiers: new Map(),
 		attackers: null,
 		...over,
 	};
@@ -1718,6 +1860,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			skipEmptyBlockStop: true,
 			stopForPhaseAbility: true,
 			passOwnSpell: true,
+			holdForSpellCopy: true,
 			orderSimultaneous: 'forge',
 			attackStopIsTheDeclaration: true,
 			blockStopIsTheDeclaration: true,

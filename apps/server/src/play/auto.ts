@@ -149,6 +149,7 @@
  */
 
 import { PHASE_TYPES, REPLY_SCHEMAS, type PhaseType, type ServerFrame, type ZoneType } from '@hadoku/forge-wire';
+import { copyTargets, type SpellCopy } from './spell-copiers.js';
 
 /** An ask that admits exactly one answer, and why. */
 export interface AutoAnswer {
@@ -424,6 +425,19 @@ export interface StopPolicy {
 	 */
 	readonly passOwnSpell: boolean;
 	/**
+	 * {@link passOwnSpell}'s one exception: the seat's own spell is kept when Forge
+	 * offers it a card that copies spells and the spell is a target for it
+	 * (`copy-available`, {@link PromptFacts.spellCopiers}).
+	 *
+	 * The operator, 2026-10-19: *"for instant cards that copy spells like lutri and
+	 * others of that nature can we default to having the player hold priority after
+	 * casting any spell that is a valid target for those? (assuming the copy spell is
+	 * playable)"* — passing the caster's priority on its own spell skips the only
+	 * moment Twincast, Lutri or Dualcaster Mage can be played. It is the leak Q17
+	 * removed, brought back for this one shape at the operator's choice.
+	 */
+	readonly holdForSpellCopy: boolean;
+	/**
 	 * How the order of simultaneous abilities and replacement effects is settled
 	 * (Q8). *"Select order for simultaneous abilities"* is Forge's
 	 * `getGui().order(...)` (`PlayerControllerHuman.java:2309-2313`, `:2136`), and
@@ -511,6 +525,8 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	blockStopIsTheDeclaration: true,
 	// Q17, wave 32. *"holding priority on my own spells is weird."*
 	passOwnSpell: true,
+	// 2026-10-19. *"hold priority after casting any spell that is a valid target"* for a copier.
+	holdForSpellCopy: true,
 	// Q8, wave 32. Ordering is a full-control thing: Forge's own order unless asked.
 	orderSimultaneous: 'forge',
 };
@@ -580,6 +596,7 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	attackStopIsTheDeclaration: false,
 	blockStopIsTheDeclaration: false,
 	passOwnSpell: false,
+	holdForSpellCopy: true,
 	orderSimultaneous: 'ask',
 };
 
@@ -819,6 +836,13 @@ export interface SeatNotes {
 	creatures?: number | null;
 	/** The player id that activated the top stack item, or null (`SeatProjector.stackTopActivator`). */
 	stackTopActivator?: number | null;
+	/** The top stack item's core types when it is a SPELL, else null (`SeatProjector.stackTopSpellTypes`). */
+	stackTopTypes?: readonly string[] | null;
+	/**
+	 * For each `actionable` id that copies spells from where it sits, the copies it
+	 * offers (`spell-copiers.ts`, off Forge's own scripts). Ids that copy nothing are absent.
+	 */
+	spellCopiers?: ReadonlyMap<number, readonly SpellCopy[]>;
 	/**
 	 * The ids among `actionable` that are no play — the bridge's
 	 * `setWeaklySelectable.manaOnly`: offered for their mana (or a mana tap's
@@ -949,6 +973,15 @@ export interface PromptFacts {
 	 * "not mine", which keeps the stop. Off the board, not the prompt.
 	 */
 	readonly stackTopMine: boolean;
+	/** The top of the stack's core types when it is a spell; null when it is empty, an ability, or unknown. */
+	readonly stackTopTypes: readonly string[] | null;
+	/**
+	 * The offered cards that copy spells, with the copies each offers — Forge's own
+	 * `CopySpellAbility` scripts, never a list of ours. Read only by
+	 * {@link StopPolicy.holdForSpellCopy}, which also requires the card to be in
+	 * {@link nonManaSources}, Forge's own "this can be played now".
+	 */
+	readonly spellCopiers: ReadonlyMap<number, readonly SpellCopy[]>;
 	/**
 	 * Creatures attacking in the game's current combat, 0 outside one; null when the bridge has
 	 * not said, which a combat play-stop reads as an attack (a doubt keeps).
@@ -1054,6 +1087,8 @@ const UNKNOWN_WINDOW: PromptFacts = {
 	openAsks: 0,
 	creatures: null,
 	stackTopMine: false,
+	stackTopTypes: null,
+	spellCopiers: new Map(),
 	attackers: null,
 };
 
@@ -1114,6 +1149,8 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		openAsks: notes.openAsks,
 		creatures: notes.creatures ?? null,
 		stackTopMine: notes.playerId !== null && notes.stackTopActivator === notes.playerId,
+		stackTopTypes: notes.stackTopTypes ?? null,
+		spellCopiers: notes.spellCopiers ?? new Map(),
 		attackers: notes.attackers ?? null,
 	};
 }
@@ -1212,7 +1249,8 @@ function phaseAbilityNow(policy: StopPolicy, facts: PromptFacts): boolean {
  * off); `every-window` (`passWhenNothingToDo` off); `no-answer` (Forge has not
  * said what the seat can do); `has-play` (it can do something —
  * {@link StopJudgement.plays} names the cards); `play-stop` (the same, in a
- * phase that stops only for a play — {@link StopPolicy.stopWithPlayOnTheirTurn}).
+ * phase that stops only for a play — {@link StopPolicy.stopWithPlayOnTheirTurn});
+ * `copy-available` (the seat's own spell, held for a copier — {@link StopPolicy.holdForSpellCopy}).
  * Passed: `skip-phase`, `own-spell`, `nothing-to-do`.
  */
 export type StopRule =
@@ -1226,6 +1264,7 @@ export type StopRule =
 	| 'no-answer'
 	| 'has-play'
 	| 'play-stop'
+	| 'copy-available'
 	| 'skip-phase'
 	| 'own-spell'
 	| 'nothing-to-do';
@@ -1234,8 +1273,19 @@ export interface StopJudgement {
 	/** The phase label to pass, or null when the player must be asked. */
 	readonly pass: string | null;
 	readonly rule: StopRule;
-	/** For `has-play` and `play-stop`: the offered cards that are a play ({@link PromptFacts.nonManaSources}). */
+	/** For `has-play`, `play-stop` and `copy-available` (the copiers alone): the offered cards that are a play ({@link PromptFacts.nonManaSources}). */
 	readonly plays?: readonly number[];
+}
+
+/**
+ * The cards Forge says the seat can play now ({@link PromptFacts.nonManaSources}) with a
+ * copy that can target the spell on top of the stack ({@link StopPolicy.holdForSpellCopy}).
+ */
+function copiersFor(facts: PromptFacts): number[] {
+	const types = facts.stackTopTypes;
+	if (types === null || facts.nonManaSources === null) return [];
+	const spell = { types, mine: facts.stackTopMine };
+	return facts.nonManaSources.filter((id) => facts.spellCopiers.get(id)?.some((copy) => copyTargets(copy, spell)) ?? false);
 }
 
 const keep = (rule: StopRule): StopJudgement => ({ pass: null, rule });
@@ -1277,7 +1327,9 @@ export function judgeStop(facts: PromptFacts, policy: StopPolicy): StopJudgement
 		return keep('stack-held');
 	} else if (policy.passOwnSpell && facts.stackTopMine) {
 		// Q17: the seat's own spell, back at the caster. Forge hands the caster
-		// priority and this hands it on, whatever else the seat could do — see the field.
+		// priority and this hands it on — unless a playable card copies it (see both fields).
+		const copiers = policy.holdForSpellCopy ? copiersFor(facts) : [];
+		if (copiers.length > 0) return { pass: null, rule: 'copy-available', plays: copiers };
 		return pass(facts, 'own-spell');
 	}
 

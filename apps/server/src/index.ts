@@ -79,7 +79,7 @@ import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
-import { attachPlay, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, type PlayHandle } from './play/index.js';
+import { attachPlay, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, type PlayHandle } from './play/index.js';
 import { attachStream, attachStreamRoutes, streamLayout, STREAM_BASE_PORT } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
@@ -498,6 +498,8 @@ play = attachPlay(io, api, {
 	keys: statsKeys,
 	// A card-name ask offers the names of the room's pool (`play/names.ts`).
 	formatNames: roomFormatNames(tables.library, poolLoad.ok ? poolLoad.pool.cards : null),
+	// A seat's own spell is held while it can play a card that copies it (`play/spell-copiers.ts`).
+	...(forge.ok ? { spellCopiers: spellCopierLookup(forge.config.res, (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-play', ...entry }))) } : {}),
 	// A seat's face is its holder's avatar in the room that started the match.
 	seatAvatar: tables.seatAvatar,
 	// A seat's deck colours pick the match's music (`play/deck-colors.ts`).

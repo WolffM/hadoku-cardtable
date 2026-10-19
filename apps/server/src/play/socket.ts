@@ -106,6 +106,7 @@ import { seatDeckColors, type DeckCosts } from './deck-colors.js';
 import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } from './auto.js';
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
+import type { SpellCopy } from './spell-copiers.js';
 import {
 	fullControlFrame,
 	MATCH_EVENTS,
@@ -172,6 +173,8 @@ export interface PlayDeps {
 	onGameOver?(match: Match): void;
 	/** See {@link MatchDeps.formatNames}. */
 	formatNames?(format: string): ReadonlySet<string> | null;
+	/** See {@link MatchDeps.spellCopiers}. */
+	spellCopiers?(name: string): readonly SpellCopy[] | undefined;
 	/** See {@link MatchDeps.seatAvatar}. */
 	seatAvatar?(matchId: string, owner: string): string | undefined;
 	/** What a seat's deck colours fold against (`./deck-colors.ts`). Absent: the library's costs alone. */
@@ -521,6 +524,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
 		...(deps.onGameOver === undefined ? {} : { onGameOver: deps.onGameOver }),
 		...(deps.formatNames === undefined ? {} : { formatNames: deps.formatNames }),
+		...(deps.spellCopiers === undefined ? {} : { spellCopiers: deps.spellCopiers }),
 		...(deps.seatAvatar === undefined ? {} : { seatAvatar: deps.seatAvatar }),
 		seatsChanged: (match, seats) => {
 			// Wave 32, Q6: a seat's avatar changed mid-match. Every socket in the match

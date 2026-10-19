@@ -727,6 +727,43 @@ describe('creatureCount (Q10)', () => {
 	});
 });
 
+describe('stackTopSpellTypes and cardAt', () => {
+	it('names the top SPELL\u2019s core types, null for an ability on top; and a card\u2019s name and zone', () => {
+		const projector = createProjector(0);
+		const game = keyOf(TYPE.game, 1);
+		const frame = (ability: boolean): StateFrame =>
+			({
+				kind: 'notify',
+				method: 'applyDelta',
+				payload: {
+					packet: {
+						seq: 1,
+						checksum: 0,
+						checksumProperties: [],
+						newObjects: {
+							[game]: { _type: TYPE.game, _id: 1 },
+							[keyOf(TYPE.player, 0)]: { _type: TYPE.player, _id: 0, Hand: { t: 'list', v: [{ t: 'int', v: 67 }] } },
+							[keyOf(TYPE.card, 67)]: { _type: TYPE.card, _id: 67, CurrentState: { t: 'int', v: 0 } },
+							[keyOf(TYPE.cardState, 67 * 16)]: { _type: TYPE.cardState, _id: 67 * 16, Name: { t: 'str', v: 'Twincast' } },
+							[keyOf(TYPE.card, 70)]: { _type: TYPE.card, _id: 70, CurrentState: { t: 'int', v: 0 } },
+							[keyOf(TYPE.cardState, 70 * 16)]: { _type: TYPE.cardState, _id: 70 * 16, Type: { t: 'cardtype', core: ['Instant'] } },
+							[keyOf(TYPE.stackItem, 9)]: { _type: TYPE.stackItem, _id: 9, SourceCard: { t: 'int', v: 70 }, Ability: { t: 'bool', v: ability } },
+						},
+						objectDeltas: { [game]: { _type: TYPE.game, _id: 1, Stack: { t: 'list', v: [{ t: 'int', v: 9 }] } } },
+						events: [],
+					},
+				},
+			}) as StateFrame;
+		expect(projector.stackTopSpellTypes()).toBeNull();
+		projector.project(frame(false));
+		expect(projector.stackTopSpellTypes()).toEqual(['Instant']);
+		expect(projector.cardAt(67)).toEqual({ name: 'Twincast', zone: 'Hand' });
+		expect(projector.cardAt(99)).toEqual({ name: null, zone: null });
+		projector.project(frame(true));
+		expect(projector.stackTopSpellTypes()).toBeNull();
+	});
+});
+
 describe('stackTopActivator (Q17)', () => {
 	it('is the activating player of the TOP stack item, and null for an empty or unknown stack', () => {
 		const projector = createProjector(0);
