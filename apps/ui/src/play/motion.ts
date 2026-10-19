@@ -59,6 +59,14 @@ export function afterGlide(el: Element, done: () => void): () => void {
 
 /** A revealed card's beat — in the reveal notice, or where the board draws it — before anything it caused is drawn. */
 export const REVEAL_BEAT_MS = 450;
+/**
+ * The other seat's attackers, drawn attacking, before anything after them is drawn — their blow above
+ * all: as long as a spell stands on the stack before it resolves (`live/pace.ts`'s resolve gap). A
+ * person's attack is seen one declaration at a time and its blow seconds later; the Forge AI's came in
+ * the same moment as its blow (the operator, 2026-10-19: "they attack me and i dont even see their
+ * creatures do the attack because everything happens so fast").
+ */
+export const ATTACK_BEAT_MS = 600;
 /** A hit (damage, life lost or gained) travelling from its source to the player or creature it changes — on its arc, speeding up (`live/projectile.ts`). */
 export const HIT_MS = 850;
 

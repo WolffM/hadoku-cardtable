@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
-import { boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, powerSize, damagePower, GLIDE_MS, lifeImpactAt, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
+import { ATTACK_BEAT_MS, boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, powerSize, damagePower, GLIDE_MS, lifeImpactAt, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { ALIGN_MS, contactMs, RAM_STAGGER_MS } from './ram.ts';
 import {
@@ -100,31 +100,38 @@ function view(players: BoardPlayer[]): BoardView {
 describe('diffViews', () => {
   it('the first view ever seen diffs to nothing — there is no "before" to compare it against', () => {
     const v = view([player(0, 20), player(1, 20)]);
-    expect(diffViews(null, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [] });
+    expect(diffViews(null, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [] });
   });
 
   it('a life change is reported for the player it happened to, and nobody else', () => {
     const before = view([player(0, 20), player(1, 20)]);
     const after = view([player(0, 17), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [] });
+    expect(diffViews(before, after)).toEqual({ life: [{ playerId: 0, from: 20, to: 17 }], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [] });
   });
 
   it('a damage change on a creature still on a battlefield is reported, keyed by card id and owner', () => {
     const before = view([player(0, 20, { battlefield: [card(7, 0)] }), player(1, 20)]);
     const after = view([player(0, 20, { battlefield: [card(7, 1)] }), player(1, 20)]);
-    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [] });
+    expect(diffViews(before, after)).toEqual({ life: [], damage: [{ cardId: 7, ownerId: 0, from: 0, to: 1 }], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [] });
   });
 
   it('a creature that leaves the battlefield for a graveyard is a departure', () => {
     const before = view([player(0, 20, { battlefield: [card(7, 3)] }), player(1, 20)]);
     const after = view([player(0, 20, { battlefield: [], graveyard: [card(7, 3)] }), player(1, 20)]);
     expect(diffViews(before, after)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [],
-      departures: [{ cardId: 7, playerId: 0, to: 'graveyard', toPlayerId: 0, card: card(7, 3), index: 0 }] });
+      departures: [{ cardId: 7, playerId: 0, to: 'graveyard', toPlayerId: 0, card: card(7, 3), index: 0 }], attacks: [] });
+  });
+
+  it("the other seat's creatures that start attacking are an attack; the viewer's own, and one already attacking, are not", () => {
+    const attacking = (id: number): BoardCard => ({ ...card(id, 0), attacking: true });
+    const before = view([player(0, 20, { isViewer: true, battlefield: [card(1, 0)] }), player(1, 20, { battlefield: [card(5, 0), card(6, 0), attacking(7)] })]);
+    const after = view([player(0, 20, { isViewer: true, battlefield: [attacking(1)] }), player(1, 20, { battlefield: [attacking(5), card(6, 0), attacking(7)] })]);
+    expect(diffViews(before, after).attacks).toEqual([5]);
   });
 
   it('nothing moving at all diffs to nothing', () => {
     const v = view([player(0, 20, { battlefield: [card(7, 2)] }), player(1, 20)]);
-    expect(diffViews(v, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [] });
+    expect(diffViews(v, v)).toEqual({ life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [] });
   });
 });
 
@@ -455,6 +462,30 @@ describe('installNumbers: a resolution’s hits', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(still, 'and still once it has').toBe(true);
     handle.dispose();
+  });
+
+  it("the other seat's attack holds the board for its beat, so what comes after it waits until it has been seen; Fast Mode holds nothing", async () => {
+    vi.useFakeTimers();
+    const attacking = (id: number): BoardCard => ({ ...card(id, 0), attacking: true });
+    const reports: Record<string, unknown>[] = [];
+    for (const fast of [false, true]) {
+      const { canvas } = board();
+      const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => fast, report: (data) => reports.push(data) });
+      handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [card(5, 0)] })]));
+      handle.notify({ ...view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacking(5)] })]), seq: 2 });
+      let still = false;
+      whenBoardStill(() => (still = true));
+      if (fast) {
+        expect(still, 'Fast Mode: the board is still at once').toBe(true);
+      } else {
+        await vi.advanceTimersByTimeAsync(ATTACK_BEAT_MS - 1);
+        expect(still, 'the attack is still being shown').toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(still, 'and the board is free once it has been').toBe(true);
+      }
+      handle.dispose();
+    }
+    expect(reports, 'one attack beat, told to the log').toEqual([{ what: 'attack', attackers: 1, beatMs: ATTACK_BEAT_MS }]);
   });
 
   it('a board taken down mid-beat is still at once: nothing it was drawing is left to wait for', async () => {

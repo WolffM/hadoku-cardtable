@@ -79,6 +79,29 @@
  * frame, and it is the result screen that waits for the frame that shows the end
  * (`LiveBoard.tsx`'s `useGameEnded`), and then for the board to draw it (`../motion.ts`'s `whenBoardStill`).
  *
+ * ## One act at a time, and the board's beats first
+ *
+ * A person acts seconds apart; the Forge AI acts within milliseconds, and its turn reached the other
+ * screen as one burst (the operator, 2026-10-19: *"they attack me and i dont even see their creatures
+ * do the attack because everything happens so fast"*). Forge moves the phase in the same frame as the
+ * attack (`Attacking` with `Phase=COMBAT_DECLARE_ATTACKERS`) and as the combat damage (`Life` with
+ * `Phase=COMBAT_DAMAGE`), and those were read as phase steps: a phase with something queued behind it goes
+ * at once, so the AI's attack, its damage and the next turn went out in one task and were drawn as ONE
+ * view — no attacker drawn attacking, no ram, the life simply lower (`e2e/aa-ai-beats.spec.ts`; in
+ * production, `m-dfc6932a95be`'s seq 192→209 and 212→222). So, whoever acts:
+ *
+ *   - what a frame draws decides its class before the step it moves to ({@link classify});
+ *   - a frame the board draws ({@link HELD_BY_THE_BOARD}) never goes out in the same task as another: React
+ *     draws each as its own view, and every beat of it is diffed on its own;
+ *   - and it waits while the board is still drawing the beats of what came before
+ *     (`../motion.ts`'s `whenBoardStill`: a ram, a bolt, a death, an attack being shown), at most
+ *     {@link BOARD_HOLD_MAX_MS}. A beat is as long as it always was; the next act simply starts after it,
+ *     as a person's would. A cast's own pieces draw no beat, so a cast is still one moment.
+ *
+ * Input, a log line, a frame of nothing drawn and a phase step are never held by the board: an ask is
+ * still drawn at once, over the motion (`../motion.ts`), once what came before it in the queue has gone.
+ * Fast Mode holds nothing.
+ *
  * ## What a resync needs from the pacer: nothing
  *
  * `forge:join` and `forge:resync` are not `forge:s2c` payloads — they travel
@@ -94,6 +117,7 @@
  * bug. Holding a stale delta an extra few hundred ms is slower, not wrong.
  */
 
+import { whenBoardStill } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
 
@@ -127,6 +151,12 @@ export const PACE_DELAYS_MS: Readonly<Record<PaceClass, number>> = {
   /** Everything else on the state channel. */
   default: 150,
 };
+
+/** The classes of frame that start something the board draws: each waits for the board's beats, and goes out in a task of its own. */
+export const HELD_BY_THE_BOARD: ReadonlySet<PaceClass> = new Set<PaceClass>(['cast', 'resolve', 'draw', 'default']);
+
+/** The longest a frame waits on the board's beats: a beat that never says it is over must not freeze the table. */
+export const BOARD_HOLD_MAX_MS = 5_000;
 
 /** `match.ts`'s own `INPUT_FRAMES` — see this module's header for why it is copied, not imported. */
 const INPUT_NOTIFY_METHODS: ReadonlySet<string> = new Set([
@@ -211,6 +241,7 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
   let arrivedInHand = false;
   let castPiece = false;
   let drawn = false;
+  let hit = false;
   for (const { obj, isNew } of objects) {
     const type = obj._type;
     if (Object.keys(obj).some((k) => k !== '_type' && k !== '_id' && !UNDRAWN_PROPERTIES.has(k))) drawn = true;
@@ -224,10 +255,12 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
     } else if (type === WIRE_TYPE_PLAYER) {
       // A hand that changed with no card arriving in it: a card left it — cast, played or discarded.
       if ('Hand' in obj) castPiece = true;
+      if ('Life' in obj) hit = true;
     } else if (type === WIRE_TYPE_CARD) {
       const zone = tagged(obj, 'Zone');
       if (zone === 'Hand') arrivedInHand = true;
       if (zone === 'Stack' || tagged(obj, 'Tapped') === true) castPiece = true;
+      if ('Damage' in obj) hit = true;
     }
   }
   if (stack !== null) {
@@ -235,9 +268,12 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
     memory.stackDepth = stack;
     return (before === null ? newStackItem : stack > before) ? 'cast' : 'resolve';
   }
-  if (sawPhase) return 'phase';
+  // What the board draws decides before the step: Forge moves the phase in the same frame as an attack, combat
+  // damage or a draw, and a "phase" there was let straight through with everything behind it.
+  if (hit) return 'default';
   if (arrivedInHand) return 'draw';
   if (castPiece) return 'cast';
+  if (sawPhase) return 'phase';
   if (objects.length > 0 && !drawn) return 'unseen';
   return 'default';
 }
@@ -273,6 +309,8 @@ export interface PaceOptions {
   schedule?: (run: () => void, delayMs: number) => unknown;
   /** Test seam, paired with `schedule`. Defaults to the real `clearTimeout`. */
   cancel?: (handle: unknown) => void;
+  /** Runs `done` once the board has drawn every beat it is drawing, at once when it is still; returns a cancel. Defaults to `../motion.ts`'s `whenBoardStill`. */
+  boardStill?: (done: () => void) => () => void;
 }
 
 export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions = {}): PacedMatchTransport {
@@ -280,6 +318,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const now = options.now ?? (() => Date.now());
   const schedule = options.schedule ?? ((run: () => void, delayMs: number) => setTimeout(run, delayMs));
   const cancel = options.cancel ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+  const boardStill = options.boardStill ?? whenBoardStill;
 
   let fast = options.initialFast ?? false;
   let endingTurn = false;
@@ -310,28 +349,92 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     deliverTo?.(next.payload);
   }
 
-  /** Deliver whatever is due, and schedule a timer for whatever is not — never more than one timer live at once. */
-  function pump(): void {
-    if (timer !== null || queue.length === 0) return;
-    const waitMs = Math.max(0, lastDeliveredAt + delayFor(queue[0]!.pace, queue.length > 1) - now());
-    if (waitMs <= 0) {
-      deliverNext();
+  /** The queued frame the board has let go: a frame waits for the board once, never again (the cap's own promise). */
+  let boardFreed: { payload: unknown; pace: PaceClass } | null = null;
+  /** Stops the wait on the board, while one is running. */
+  let boardWait: (() => void) | null = null;
+  /** A frame the board draws went out in the task now running. */
+  let drewThisTask = false;
+
+  /** Start waiting for the board's beats before `entry` goes out, when it must: `false` when it need not, or the board is already still. */
+  function waitForBoard(entry: { payload: unknown; pace: PaceClass }): boolean {
+    if (fast || !HELD_BY_THE_BOARD.has(entry.pace) || boardFreed === entry) return false;
+    let waiting = false;
+    let stillNow = false;
+    const release = (): void => {
+      if (!waiting) {
+        stillNow = true;
+        return;
+      }
+      if (boardWait === null) return;
+      const stop = boardWait;
+      boardWait = null;
+      stop();
+      boardFreed = entry;
       pump();
-      return;
-    }
-    timer = schedule(() => {
-      timer = null;
-      deliverNext();
-      pump();
-    }, waitMs);
+    };
+    const stopStill = boardStill(release);
+    if (stillNow) return false;
+    waiting = true;
+    const cap = schedule(release, BOARD_HOLD_MAX_MS);
+    boardWait = () => {
+      stopStill();
+      cancel(cap);
+    };
+    return true;
   }
 
-  /** Cancel whatever is pending and deliver the rest of the queue right now, in order. */
-  function flush(): void {
+  /** Deliver whatever is due, and schedule a timer for whatever is not — never more than one timer, or one wait on the board, live at once. */
+  function pump(): void {
+    if (timer !== null || boardWait !== null || queue.length === 0) return;
+    const head = queue[0]!;
+    const waitMs = Math.max(0, lastDeliveredAt + delayFor(head.pace, queue.length > 1) - now());
+    if (waitMs > 0) {
+      timer = schedule(() => {
+        timer = null;
+        drewThisTask = false;
+        pump();
+      }, waitMs);
+      return;
+    }
+    const drawn = !fast && HELD_BY_THE_BOARD.has(head.pace);
+    if (drawn && drewThisTask) {
+      // Another frame the board draws went out in this task: this one waits for a task of its own, after that one's render.
+      timer = schedule(() => {
+        timer = null;
+        drewThisTask = false;
+        pump();
+      }, 0);
+      return;
+    }
+    if (waitForBoard(head)) return;
+    deliverNext();
+    if (drawn) {
+      drewThisTask = true;
+      // React draws what went out at the end of this task (its own microtask); a frame arriving in a later task is a new view.
+      void Promise.resolve().then(() => {
+        drewThisTask = false;
+      });
+    }
+    pump();
+  }
+
+  /** Stop whatever is pending: the timer, and any wait on the board. */
+  function stopPending(): void {
     if (timer !== null) {
       cancel(timer);
       timer = null;
     }
+    if (boardWait !== null) {
+      const stop = boardWait;
+      boardWait = null;
+      stop();
+    }
+  }
+
+  /** Cancel whatever is pending and deliver the rest of the queue right now, in order. */
+  function flush(): void {
+    stopPending();
     while (queue.length > 0) deliverNext();
   }
 
@@ -360,10 +463,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       inner.request(event, payload, onAck);
     },
     disconnect() {
-      if (timer !== null) {
-        cancel(timer);
-        timer = null;
-      }
+      stopPending();
       queue = [];
       inner.disconnect();
     },

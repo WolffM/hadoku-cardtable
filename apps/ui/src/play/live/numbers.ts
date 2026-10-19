@@ -87,12 +87,20 @@
  * Every mark is in the overlay or the stand-in layer, never a transform on a
  * card in a row (table-fit). Reduced motion: no travel — the target flashes,
  * an arrival fades in, the number appears in place.
+ *
+ * ## The other seat's attack is a beat
+ *
+ * A view in which creatures of a seat not the viewer's start attacking (`ViewDiff.attacks`) holds the
+ * board for `ATTACK_BEAT_MS`: `live/pace.ts` draws nothing after it until the attack has been seen, so
+ * their ram comes after the attack as a person's does, whoever declared it. The viewer's own
+ * declarations are theirs to see as they click. Fast Mode: no beat.
  */
 
 import type { ManaColor } from '@hadoku/shared';
 
 import type { BoardView, DamageHit, FaceHit, StackEntry } from '../adapter.ts';
 import {
+  ATTACK_BEAT_MS,
   BEAT_STAGGER_MS,
   BOLT_STAGGER_MS,
   damagePower,
@@ -177,9 +185,11 @@ export interface ViewDiff {
   readonly faceHits: readonly FaceHit[];
   /** The permanents that left every battlefield in this view (`departures.ts`). */
   readonly departures: readonly Departure[];
+  /** The creatures of a seat not the viewer's that are attacking in this view and were not in the last: an attack to be seen. */
+  readonly attacks: readonly number[];
 }
 
-const NO_DIFF: ViewDiff = { life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [] };
+const NO_DIFF: ViewDiff = { life: [], damage: [], resolved: [], arrivals: [], hits: [], faceHits: [], departures: [], attacks: [] };
 
 /**
  * How a creature's ram ends, from who dies of the fight (`ram.ts`'s `RamEnd`): both, it crumples into
@@ -323,7 +333,9 @@ export function diffViews(prev: BoardView | null, next: BoardView): ViewDiff {
   const hits = (next.hits ?? []).filter((h) => h.seq > lastHit && (prevDamage.has(h.cardId) || nowOnField.has(h.cardId)));
   const lastFaceHit = Math.max(0, ...(prev.faceHits ?? []).map((h) => h.seq));
   const faceHits = (next.faceHits ?? []).filter((h) => h.seq > lastFaceHit);
-  return { life, damage, resolved, arrivals, hits, faceHits, departures: departuresOf(prev, next) };
+  const attackingBefore = new Set(prev.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)));
+  const attacks = next.players.filter((p) => !p.isViewer).flatMap((p) => p.battlefield.filter((c) => c.attacking && !attackingBefore.has(c.id)).map((c) => c.id));
+  return { life, damage, resolved, arrivals, hits, faceHits, departures: departuresOf(prev, next), attacks };
 }
 
 /* ── pure: stacking (simultaneous numbers at one anchor) ─────────────── */
@@ -422,6 +434,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   const fast = (): boolean => host.fastMode?.() ?? false;
   /** Each ram drawn, to put back at once on dispose. */
   const rams = new Set<() => void>();
+  /** When each creature attacking now was first drawn attacking: how long its attack was seen before it rammed. */
+  const attackingSince = new Map<number, number>();
   /** Each shake of the table, likewise. */
   const shakes = new Set<() => void>();
 
@@ -839,11 +853,17 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       schedule(() => rams.delete(cancel), untilMs);
       endMs = Math.max(endMs, untilMs);
     };
+    /** The rams drawn, and the least time a rammer's attack had been on screen when its ram set off (-1 for none). */
+    let ramsDrawn = 0;
+    let attackLeadMs = -1;
     for (const plan of combat?.rams ?? []) {
       const source = root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${plan.sourceId}"]`) ?? battlefieldCard(plan.sourceId);
       const struck = 'cardId' in plan.target ? plan.target.cardId : null;
       const target = struckEl(plan.target);
       if (root === null || source === null || target === null) continue;
+      ramsDrawn += 1;
+      const lead = Date.now() + plan.delayMs - (attackingSince.get(plan.sourceId) ?? Date.now());
+      attackLeadMs = attackLeadMs === -1 ? lead : Math.min(attackLeadMs, lead);
       const end = ramEnd(plan.kind, leaving.has(plan.sourceId), struck !== null && leaving.has(struck));
       const from = boxIn(source, root);
       const to = boxIn(target, root);
@@ -873,6 +893,11 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     if (prevView !== null) noteBoardSounds(prevView.seq, sounds.map((s) => ({ role: s.role, at: Date.now() + s.ms, intensity: s.intensity, mine: s.mine })));
     if (prevView !== null && firstExit !== null) noteExitBeat(prevView.seq, Date.now() + firstExit);
     if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs));
+    // The other seat's attack is seen before anything after it is drawn (`live/pace.ts` waits on this beat).
+    if (diff.attacks.length > 0 && !fast()) {
+      endMs = Math.max(endMs, ATTACK_BEAT_MS);
+      host.report?.({ what: 'attack', attackers: diff.attacks.length, beatMs: ATTACK_BEAT_MS });
+    }
     if (endMs > 0) noteBoardDrawing(beatsOver(endMs));
     if (firstLifeLand !== null && prevView !== null) noteLifeImpact(prevView.seq, Date.now() + firstLifeLand);
     if (beat > 0 || bolt > 0 || reveal !== null || diff.departures.length > 0 || (combat?.rams.length ?? 0) > 0) {
@@ -886,6 +911,8 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         hits: bolt,
         forgeHits: diff.hits.length,
         rams: combat?.rams.length ?? 0,
+        ramsDrawn,
+        attackLeadMs: Math.round(attackLeadMs),
         arrivals: diff.arrivals.length,
         fromMaker,
         departures: diff.departures.length,
@@ -917,6 +944,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       apply(diff, before, revealed);
       markReveal(revealed);
       noteStack(view);
+      const attacking = new Set(view.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)));
+      for (const id of attackingSince.keys()) if (!attacking.has(id)) attackingSince.delete(id);
+      for (const id of attacking) if (!attackingSince.has(id)) attackingSince.set(id, Date.now());
     },
     noteStack(view: BoardView) {
       if (live) noteStack(view);

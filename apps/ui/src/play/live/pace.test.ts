@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
-import { classify, isPacedTransport, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
+import { BOARD_HOLD_MAX_MS, classify, isPacedTransport, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
 
 /* ── Building the shapes `classify` reads ────────────────────────────── */
 
@@ -58,6 +58,16 @@ describe('classify', () => {
       'resolve',
     ));
   it('a Phase delta with no Stack key is phase', () => expect(classify(PHASE)).toBe('phase'));
+  /* The Forge AI's turn as it reached the defender (`e2e/aa-ai-beats.spec.ts`, cursors 41, 51 and 67): the step moves with the act. */
+  const phaseTo = (v: string) => ({ _type: 3, _id: 1, Phase: { t: 'enum', c: 'PhaseType', v } });
+  it('attackers declared in the frame that moves to Declare Attackers are a cast piece, not a phase step', () =>
+    expect(classify(deltaOf({ c131: { _type: 0, _id: 131, Attacking: { t: 'bool', v: true }, Tapped: { t: 'bool', v: true } }, g: phaseTo('COMBAT_DECLARE_ATTACKERS') }))).toBe('cast'));
+  it('combat damage in the frame that moves to Combat Damage is a drawn change, not a phase step', () =>
+    expect(classify(deltaOf({ p0: { _type: 1, _id: 0, Life: { t: 'int', v: 15 } }, g: phaseTo('COMBAT_DAMAGE') }))).toBe('default'));
+  it('a creature hurt in a phase frame is a drawn change too', () =>
+    expect(classify(deltaOf({ c7: { _type: 0, _id: 7, Damage: { t: 'int', v: 2 } }, g: phaseTo('COMBAT_DAMAGE') }))).toBe('default'));
+  it("the turn's draw in the frame that moves to the draw step is a draw", () =>
+    expect(classify(deltaOf({ c121: zone(121, 'Hand'), g: phaseTo('DRAW') }))).toBe('draw'));
   it('a card arriving in a hand is draw', () => expect(classify(DRAW)).toBe('draw'));
   it('an unrecognised delta is default', () => expect(classify(DEFAULT_DELTA)).toBe('default'));
   it('a delta of nothing the board draws is unseen', () => expect(classify(CAST_FLAG)).toBe('unseen'));
@@ -195,11 +205,15 @@ describe('pacedMatchTransport', () => {
     expect(received).toEqual([RESOLVE, DEFAULT_DELTA, DRAW]);
   });
 
-  it('a cast goes out as Forge sends it — release, taps and the stack card at once — and its resolution keeps its pace', () => {
+  it('a cast goes out as Forge sends it — release, taps and the stack card at once — and its resolution keeps its pace', async () => {
     const inner = fakeInner();
     const { received } = paced(inner);
     inner.deliver(PHASE); // the table was just busy: the next paced frame would wait
-    for (const frame of [CAST_FLAG, ASK, HAND_OUT, CAST_FLAG, TAPS, ON_STACK]) inner.deliver(frame);
+    // Each frame its own socket message, so its own task.
+    for (const frame of [CAST_FLAG, ASK, HAND_OUT, CAST_FLAG, TAPS, ON_STACK]) {
+      inner.deliver(frame);
+      await Promise.resolve();
+    }
     expect(received).toEqual([PHASE, CAST_FLAG, ASK, HAND_OUT, CAST_FLAG, TAPS, ON_STACK]);
     expect(vi.getTimerCount()).toBe(0);
     inner.deliver(RESOLVED);
@@ -208,11 +222,14 @@ describe('pacedMatchTransport', () => {
     expect(received.at(-1)).toBe(RESOLVED);
   });
 
-  it("the game log's lines inside a cast — the mana that paid, the cast itself — do not pull it apart", () => {
+  it("the game log's lines inside a cast — the mana that paid, the cast itself — do not pull it apart", async () => {
     const inner = fakeInner();
     const { received } = paced(inner);
     inner.deliver(PHASE);
-    for (const frame of [HAND_OUT, MESSAGE, TAPS, MESSAGE, ON_STACK]) inner.deliver(frame);
+    for (const frame of [HAND_OUT, MESSAGE, TAPS, MESSAGE, ON_STACK]) {
+      inner.deliver(frame);
+      await Promise.resolve();
+    }
     expect(received).toEqual([PHASE, HAND_OUT, MESSAGE, TAPS, MESSAGE, ON_STACK]);
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -382,6 +399,134 @@ describe('pacedMatchTransport', () => {
     const wrapped = pacedMatchTransport(inner);
     expect(isPacedTransport(wrapped)).toBe(true);
     expect(isPacedTransport(inner)).toBe(false);
+  });
+});
+
+/** A board that is drawing beats until told it is still: `pace.ts`'s `boardStill` seam. */
+function fakeBoard(): { still: (done: () => void) => () => void; busy: (on: boolean) => void } {
+  let drawing = false;
+  const waiters = new Set<() => void>();
+  return {
+    still(done) {
+      if (!drawing) {
+        done();
+        return () => undefined;
+      }
+      waiters.add(done);
+      return () => waiters.delete(done);
+    },
+    busy(on) {
+      drawing = on;
+      if (on) return;
+      for (const wake of [...waiters]) {
+        waiters.delete(wake);
+        wake();
+      }
+    },
+  };
+}
+
+/*
+ * The operator, 2026-10-19: "they attack me and i dont even see their creatures do the attack because everything
+ * happens so fast". The Forge AI's turn reached the other screen as a burst, and went out as one drawn view.
+ */
+describe('pacedMatchTransport: one act at a time', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const ATTACK = deltaOf({ c5: { _type: 0, _id: 5, Attacking: { t: 'bool', v: true }, Tapped: { t: 'bool', v: true } } });
+  const BLOW = deltaOf({ p0: { _type: 1, _id: 0, Life: { t: 'int', v: 15 } } });
+
+  it('two frames the board draws, arriving in one task, go out in two: each is its own view', async () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver(HAND_OUT);
+    inner.deliver(MESSAGE);
+    inner.deliver(TAPS);
+    expect(received, 'the log line rides with the first; the taps wait for a task of their own').toEqual([HAND_OUT, MESSAGE]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received).toEqual([HAND_OUT, MESSAGE, TAPS]);
+  });
+
+  it('a frame the board draws waits while the board draws the beats before it, and goes once they are over', async () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { received } = paced(inner, { boardStill: board.still });
+    inner.deliver(ATTACK);
+    board.busy(true); // the attack being shown (`numbers.ts`'s attack beat)
+    await vi.advanceTimersByTimeAsync(0);
+    inner.deliver(BLOW);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(received, 'the blow waits for the attack to have been seen').toEqual([ATTACK]);
+    board.busy(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received).toEqual([ATTACK, BLOW]);
+  });
+
+  it('an AI burst — the attack and its blow in one breath — is drawn as two views, the blow after the attack beat', async () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { received } = paced(inner, { boardStill: board.still });
+    const drawn: unknown[][] = [];
+    // The board: each delivered frame drawn at the end of its task; an attack holds it for its beat.
+    const render = (): void => {
+      if (received.length === drawn.flat().length) return;
+      const view = received.slice(drawn.flat().length);
+      drawn.push(view);
+      if (view.includes(ATTACK)) {
+        board.busy(true);
+        setTimeout(() => board.busy(false), 600);
+      }
+    };
+    inner.deliver(ATTACK);
+    inner.deliver(BLOW);
+    await Promise.resolve();
+    render();
+    for (let t = 0; t < 1_000; t += 50) {
+      await vi.advanceTimersByTimeAsync(50);
+      render();
+    }
+    expect(drawn, 'the attack, then its blow: never one view').toEqual([[ATTACK], [BLOW]]);
+  });
+
+  it('an ask at the head of the queue is never held by the board', () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { received } = paced(inner, { boardStill: board.still });
+    board.busy(true);
+    inner.deliver(ASK);
+    inner.deliver(MESSAGE);
+    expect(received).toEqual([ASK, MESSAGE]);
+  });
+
+  it('a beat that never ends holds a frame no longer than the cap', async () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { received } = paced(inner, { boardStill: board.still });
+    board.busy(true);
+    inner.deliver(BLOW);
+    await vi.advanceTimersByTimeAsync(BOARD_HOLD_MAX_MS - 1);
+    expect(received).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(received).toEqual([BLOW]);
+  });
+
+  it('Fast Mode holds nothing for the board, and turning it on lets a held frame go', async () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { transport, received } = paced(inner, { boardStill: board.still });
+    board.busy(true);
+    inner.deliver(BLOW);
+    expect(received).toEqual([]);
+    transport.setFast(true);
+    expect(received).toEqual([BLOW]);
+    inner.deliver(ATTACK);
+    inner.deliver(DEFAULT_DELTA);
+    expect(received).toEqual([BLOW, ATTACK, DEFAULT_DELTA]);
   });
 });
 
