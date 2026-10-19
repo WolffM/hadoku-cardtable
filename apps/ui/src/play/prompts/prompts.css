@@ -794,6 +794,16 @@
   min-width: 0;
 }
 
+/*
+ * A card that has just been dropped slides from where it was let go to its place (`../lift.ts`'s
+ * `flip`), and a transform counts toward its box's scroll overflow: the body drew a sideways scroll
+ * bar for the length of every slide across a zone. The sheet never scrolls sideways; nothing it holds
+ * is ever outside it once still.
+ */
+.prompt__body:has(> .prompt__zones) {
+  overflow-x: hidden;
+}
+
 .prompt__tiles {
   display: flex;
   gap: 6px;
