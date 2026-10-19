@@ -348,8 +348,8 @@ button {
 /* ── layout ────────────────────────────────────────────────────────── */
 
 /*
- * Two halves of the window (the operator, 2026-10-19): the pack fanned across
- * the top with the seats beside it, the picks across the bottom. The body is
+ * The pack across the top three quarters of the window with the seats beside
+ * it, the picks across the bottom quarter (the operator, 2026-10-19). The body is
  * exactly as tall as the window below it (`--draft-h`, measured by
  * `DraftScreen`), each half scrolls inside itself, and the page does not
  * scroll at all — sideways or down.
@@ -360,7 +360,8 @@ button {
 .draft__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 220px;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  /* Three quarters for the pack, a quarter for the picks (the operator). */
+  grid-template-rows: minmax(0, 3fr) minmax(0, 1fr);
   grid-template-areas:
     'pack seats'
     'pool pool';
@@ -435,15 +436,18 @@ button {
 .pack--grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
-  gap: 12px;
+  gap: 10px;
+  /* Each slot is as tall as its own card, not its row: the inspector opens on
+     the card under the pointer, never on the empty cell below a shorter one. */
+  align-items: start;
 }
 
 /*
- * The fan. `PackView`'s `fanGeometry` measures the box and hands each slot its
- * offset, drop and angle, and the card its size; this only places them. Each
- * slot sits on the box's centre line and pivots at its own bottom edge, so a
- * rotation tilts the card without swinging it outward — every corner stays
- * inside the box, which is what `fanGeometry` sized it to.
+ * The fan: a straight row. `PackView`'s `fanGeometry` sizes the card to the box
+ * and `fanSlots` hands each slot its centre; this only places them. The card
+ * the pointer is on (`data-focused`) has its neighbours slid apart already, so
+ * it rises without covering anything; nothing tilts, so no card's corner pokes
+ * above the one in front.
  */
 .pack--fan {
   position: relative;
@@ -454,32 +458,33 @@ button {
 
 .pack--fan .pack__slot {
   position: absolute;
-  top: 30px;
+  top: 22px;
   left: 50%;
   width: var(--fan-w);
   margin-left: calc(var(--fan-w) / -2);
   --card-w: var(--fan-w);
   --card-h: var(--fan-h);
-  transform-origin: 50% 100%;
-  transform: translate(var(--fan-x, 0), var(--fan-y, 0)) rotate(var(--fan-a, 0deg));
-  /*
-   * Transition ONLY transform: compositor-driven, so the lift costs no
-   * repaint. (`filter: drop-shadow()` here was the lag you could feel.)
-   */
-  transition: transform 120ms ease;
+  transform: translateX(var(--fan-x, 0));
+  /* Transform only: compositor-driven, so sliding and rising cost no repaint. */
+  transition: transform 140ms ease;
   will-change: transform;
 }
 
-/*
- * Lift clear of the neighbours so the whole card can be read and clicked. The
- * rotation is kept: straightening a tilted card slides it out from under the
- * cursor, which drops the hover, which drops it back down.
- */
-.pack--fan .pack__slot:hover,
-.pack--fan .pack__slot:focus-within {
-  transform: translate(var(--fan-x, 0), calc(var(--fan-y, 0px) - 24px)) scale(1.05) rotate(var(--fan-a, 0deg));
+.pack--fan .pack__slot[data-focused] {
+  transform: translateX(var(--fan-x, 0)) translateY(-18px);
   z-index: 999 !important;
   box-shadow: 0 14px 26px var(--shadow);
+}
+
+/* The grid at the size that shows the whole pack (`gridGeometry`): no scroll. */
+.pack--grid[style] .pack__slot {
+  --card-w: var(--grid-w);
+  --card-h: calc(var(--grid-w) / 0.7176);
+}
+
+.pack--grid[style] {
+  justify-content: center;
+  align-content: start;
 }
 
 .pack--empty {
