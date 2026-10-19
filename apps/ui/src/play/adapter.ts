@@ -1815,3 +1815,30 @@ export function toBoardView(
     ...(deathCauses === undefined || deathCauses.size === 0 ? {} : { deathCauses }),
   };
 }
+
+/**
+ * Every card this screen draws of `player`'s: its hand (the viewer's own, or the cards of another's it
+ * was shown and still knows), the known run on top of its library, its battlefield and its piles.
+ */
+export function drawnCards(player: BoardPlayer): BoardCard[] {
+  return [
+    ...(player.hand ?? []),
+    ...(player.handShown ?? []).filter((c): c is BoardCard => c !== null),
+    ...player.battlefield,
+    ...player.graveyard,
+    ...player.exile,
+    ...(player.libraryTop ?? []),
+  ];
+}
+
+/**
+ * Whether `view` already draws every one of `cardIds` face up, each in its own zone ({@link drawnCards}):
+ * a reveal of only such cards shows the seat nothing the board does not (the operator, 2026-10-19, on
+ * Gitaxian Probe: *"we show revealed cards in the players hand directly now"*). An empty reveal is not
+ * one of them.
+ */
+export function drawsFaceUp(view: BoardView, cardIds: readonly number[]): boolean {
+  if (cardIds.length === 0) return false;
+  const drawn = new Set(view.players.flatMap(drawnCards).flatMap((c) => (c.hidden === true ? [] : [c.id])));
+  return cardIds.every((id) => drawn.has(id));
+}

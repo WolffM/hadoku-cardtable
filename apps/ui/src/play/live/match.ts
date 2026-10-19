@@ -252,7 +252,8 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { manaCostTokens, toBoardView, type BoardView, type DamageHit, type DeathCause, type FaceHit } from '../adapter.ts';
+import { drawsFaceUp, manaCostTokens, toBoardView, type BoardView, type DamageHit, type DeathCause, type FaceHit } from '../adapter.ts';
+import type { Revealed } from './numbers.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, followOffer, OFFER_HOLD_MAX_MS, type OfferHold } from './offer-hold.ts';
@@ -535,12 +536,20 @@ export interface LiveMatch {
   settled: Set<string>;
   /**
    * The last reveal Forge was already answered for (an envelope marked
-   * `displayOnly`, `@hadoku/shared`'s `ServerEnvelope`): cards to show, never a
-   * question, so never in {@link LiveMatch.asks}. Cleared by the next real
-   * question ({@link applyFrame}), by {@link dismissReveal}, and by anything
-   * that drops local state.
+   * `displayOnly`, `@hadoku/shared`'s `ServerEnvelope`) that shows a card the
+   * board does not draw: the notice's (`../prompts/RevealNotice.tsx`). Cards to
+   * show, never a question, so never in {@link LiveMatch.asks}. Cleared by the
+   * next real question ({@link applyFrame}), by {@link dismissReveal}, and by
+   * anything that drops local state.
    */
   reveal: RevealAsk | null;
+  /**
+   * The last reveal of any kind — on the board or in the notice — its cards and
+   * when it arrived, handed to the board for its beat (`numbers.ts`). Not
+   * cleared by a question: what it resolves into comes after it. Not part of
+   * the view: a fresh fold of the stream holds no reveal.
+   */
+  revealed: (Revealed & { readonly ask: RevealAsk }) | null;
   /**
    * The damage an open `assignCombatDamage` window assigns as it stands, by
    * card id, keyed to that ask's call — the board echoes it on the cards
@@ -1012,6 +1021,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     asks: [],
     settled: new Set(),
     reveal: null,
+    revealed: null,
     damagePreview: null,
     prompt: null,
     promptCard: null,
@@ -2679,6 +2689,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   // The server re-sends every open ask after the snapshot, as normal frames.
   match.asks = [];
   match.reveal = null;
+  match.revealed = null;
   // The server re-sends the open selection, the marks and the actionable set
   // after the snapshot (wave 31 §S: `resendAfterSnapshot` keeps them per
   // seat), as normal frames. What this client held from before is replaced by
@@ -2996,6 +3007,12 @@ function sendDeferredSelect(match: LiveMatch): void {
  * answered for. Only a `getChoices` reveal is ever sent that way
  * (`apps/server/src/play/match.ts`'s `showReveal`); anything else so marked is
  * counted invalid and dropped — there is no reply to owe it either way.
+ *
+ * A reveal of cards the board already draws face up in their own zones (a
+ * hand shown by Gitaxian Probe, a revealed library top, a permanent) opens no
+ * notice: the board is where the seat sees them (`../adapter.ts`'s
+ * `drawsFaceUp`). Any card it does not draw — a library searched, cards
+ * revealed and put back unseen — and the notice shows the whole reveal.
  */
 function showReveal(match: LiveMatch, frame: ServerFrame): void {
   if (frame.kind !== 'ask' || frame.method !== 'getChoices') {
@@ -3003,7 +3020,10 @@ function showReveal(match: LiveMatch, frame: ServerFrame): void {
     match.lastInvalid = [{ path: '$.displayOnly', message: `only a getChoices reveal is display-only, not ${frame.kind} ${frame.method}` }];
     return;
   }
-  match.reveal = frame;
+  const cardIds = frame.choices.flatMap((c) => (c.ref?.kind === 'card' ? [c.ref.id] : []));
+  const onBoard = cardIds.length === frame.choices.length && match.view !== null && drawsFaceUp(match.view, cardIds);
+  if (!onBoard) match.reveal = frame;
+  match.revealed = { ask: frame, cardIds, at: Date.now() };
 }
 
 /** The reveal notice has been seen (its time ran out, or the player clicked it away). */
@@ -3205,6 +3225,7 @@ function discardLocal(match: LiveMatch): void {
   match.asks = [];
   match.settled.clear();
   match.reveal = null;
+  match.revealed = null;
   match.prompt = null;
   match.promptCard = null;
   match.promptTrigger = null;

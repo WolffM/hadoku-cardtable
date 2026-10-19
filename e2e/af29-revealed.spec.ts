@@ -100,15 +100,16 @@ test(titled("Goblin Guide's revealed top card sits under bob's avatar on both sc
     expect(await pressOffered(guide), 'Goblin Guide pressed').toBe(true);
     await expect(guide, 'Forge declared it attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
 
-    // The trigger resolves: bob reveals Lightning Bolt, and it stays on top of his library.
-    await grindPriority([alice.page, bob.page], async () => (await alice.page.getByTestId('live-reveal').count()) > 0, { timeoutMs: 45_000 });
-    for (const p of [alice.page, bob.page]) {
-      const ok = p.getByTestId('live-reveal-ok');
-      if ((await ok.count()) > 0) await ok.click();
-    }
+    // The trigger resolves: bob reveals Lightning Bolt, and it stays on top of his library — drawn there, so
+    // no reveal notice opens on either screen.
+    await grindPriority([alice.page, bob.page], async () => (await libraryTop(alice.page, 'them')).name !== null, { timeoutMs: 45_000 });
     // Polled: the board may still be settling the frame the reveal arrived with.
     await expect.soft.poll(() => libraryTop(alice.page, 'them'), { timeout: 10_000, message: "alice's screen draws Lightning Bolt under bob's avatar" }).toEqual({ name: 'Lightning Bolt', underAvatar: true });
     await expect.soft.poll(() => libraryTop(bob.page, 'you'), { timeout: 10_000, message: "bob's screen draws it under his own avatar" }).toEqual({ name: 'Lightning Bolt', underAvatar: true });
+    expect.soft(
+      { alice: await alice.page.getByTestId('live-reveal').count(), bob: await bob.page.getByTestId('live-reveal').count() },
+      'the board draws the revealed top card, so neither screen opens a notice for it',
+    ).toEqual({ alice: 0, bob: 0 });
     console.log(`[af29] after the reveal: alice's screen draws bob's top ${JSON.stringify(await libraryTop(alice.page, 'them'))} ${await geometry(alice.page, 'them')}, bob's ${JSON.stringify(await libraryTop(bob.page, 'you'))} ${await geometry(bob.page, 'you')}`);
 
     // Bob's turn: he draws it.

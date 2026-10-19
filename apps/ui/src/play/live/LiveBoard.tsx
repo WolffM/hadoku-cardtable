@@ -271,7 +271,7 @@ import { deckStoreClient } from '../../deck/deckStore.ts';
 import { dckTextOf } from '../../draft/deckFromPool.ts';
 import { libraryDeckText, namedCardPool } from '../../deck/build.ts';
 import { avatarSquareUrl } from '../../room/avatar.ts';
-import { PHASE_LABEL, type BoardCard, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
+import { drawnCards, PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
 import { lookupFromState, plainRulesText, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
@@ -1037,12 +1037,6 @@ function stagedHandCardId(match: LiveMatch, offered: LiveClickables, blocked: bo
   return viewer?.hand?.some((c) => c.id === id) === true ? id : undefined;
 }
 
-/** Every card of a player's this seat is shown: its zones, the known cards of a hidden hand, a revealed library top. */
-function seenIn(p: BoardPlayer): readonly (readonly BoardCard[])[] {
-  const shown = (p.handShown ?? []).filter((c): c is BoardCard => c !== null);
-  return [p.hand ?? [], shown, p.battlefield, p.graveyard, p.exile, p.libraryTop ?? []];
-}
-
 /** The forge ids of every card of each name in the view — what a log line's name hands the inspector. */
 function cardIdsNamedInView(view: BoardView | null): Map<string, number[]> {
   const out = new Map<string, number[]>();
@@ -1054,7 +1048,7 @@ function cardIdsNamedInView(view: BoardView | null): Map<string, number[]> {
     else held.push(id);
   };
   for (const p of view.players) {
-    for (const zone of seenIn(p)) for (const c of zone) add(c.card, c.id);
+    for (const c of drawnCards(p)) add(c.card, c.id);
   }
   for (const item of view.stack) if (item.sourceCard !== null && item.sourceCardId !== null) add(item.sourceCard, item.sourceCardId);
   return out;
@@ -1068,7 +1062,7 @@ function cardsNamedInView(view: BoardView | null): Map<string, DraftCard> {
     if (!out.has(key)) out.set(key, card);
   };
   for (const p of view.players) {
-    for (const zone of seenIn(p)) for (const c of zone) add(c.card);
+    for (const c of drawnCards(p)) add(c.card);
   }
   for (const item of view.stack) if (item.sourceCard !== null) add(item.sourceCard);
   return out;
@@ -3461,6 +3455,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <Board
           view={visualView}
           interaction={interaction}
+          revealed={match.revealed}
           boardLayout={boardLayout}
           fastMode={fastMode}
           onOpenSettings={settings.toggle}

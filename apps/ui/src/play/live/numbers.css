@@ -120,6 +120,28 @@
   }
 }
 
+/*
+ * A revealed card where the board draws it, while its reveal's beat runs (`numbers.ts`'s `markReveal`):
+ * it glows before what it causes is drawn. Ink overflow only, as the flash above.
+ */
+.board-card[data-reveal-beat] {
+  animation: effect-reveal-beat 450ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes effect-reveal-beat {
+  0% {
+    box-shadow: 0 0 0 0 transparent;
+    filter: brightness(1.4);
+  }
+  55% {
+    box-shadow: 0 0 18px 6px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    filter: none;
+  }
+}
+
 /* An arrival with nowhere to travel from (or under reduced motion): it fades in where it is. */
 [data-arriving-from]:not([data-cast-landing]) {
   animation: effect-arrive 240ms ease-out;

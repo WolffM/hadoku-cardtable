@@ -62,10 +62,12 @@
  * damage dealt animation"). In a frame where a stack item resolved
  * (`ViewDiff.resolved`), what it changed is drawn in Forge's order instead:
  *
- *  1. a reveal first — when the reveal notice (`../prompts/RevealNotice.tsx`)
- *     was drawn while that item was on the stack, nothing below starts until
- *     its beat (`REVEAL_BEAT_MS`) is over, and its card is where the hits
- *     come from;
+ *  1. a reveal first — when a reveal (`Revealed`) arrived while
+ *     that item was on the stack, nothing below starts until its beat
+ *     (`REVEAL_BEAT_MS`) is over, and its card — where it is drawn now: the
+ *     reveal notice (`../prompts/RevealNotice.tsx`), else its own zone on the
+ *     board, which marks it `data-reveal-beat` for the beat — is where the
+ *     hits come from;
  *  2. each hit — a player's life or a creature's damage moving — travels from
  *     that card (else the resolving item's source on the battlefield, else
  *     where the item was drawn on the stack) to its target as a
@@ -97,7 +99,6 @@ import {
   GLIDE_MS,
   HIT_MS,
   animationsSettled,
-  lastRevealBeat,
   noteBoardDrawing,
   noteBoardSounds,
   noteCardImpact,
@@ -131,6 +132,14 @@ export const HIT_FLASH_MS = 360;
 export const ARRIVE_FADE_MS = 240;
 /** On a permanent's row element while it arrives from what made it: that card's id, empty when unknown. */
 export const ARRIVING_ATTR = 'data-arriving-from';
+/** A reveal the server answered for this seat (`match.ts`'s `revealed`): the cards it showed, and when it arrived. */
+export interface Revealed {
+  readonly cardIds: readonly number[];
+  readonly at: number;
+}
+
+/** A revealed card on the board, while its reveal's beat runs (`markReveal`). */
+const REVEAL_BEAT_ATTR = 'data-reveal-beat';
 /** A reveal drawn in the same paint as the stack item it belongs to can be noted a few ms before the item is. */
 const SAME_PAINT_MS = 150;
 
@@ -369,7 +378,8 @@ export interface NumbersHost {
 
 export interface NumbersHandle {
   /** Call with every new `BoardView` the board renders — diffs it against the last one seen and spawns whatever changed. */
-  notify(view: BoardView): void;
+  /** `revealed` is the last reveal the seat was shown, if any: what gives a resolution its reveal's beat. */
+  notify(view: BoardView, revealed?: Revealed): void;
   /**
    * Note where each stack item of `view` is drawn — `notify` does, and a host whose stack layer draws
    * after `notify` (`Board.tsx`: `numbers` decides the beats `placed` reads) calls this again once it has.
@@ -554,15 +564,36 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     return onField ?? stackBoxes.get(item.id) ?? null;
   }
 
-  /** The reveal this resolution made, when its notice was drawn while the item was on the stack: the card, and how long its beat still runs. */
-  function revealOf(item: StackEntry | undefined): { at: Boxed; waitMs: number } | null {
-    const beat = lastRevealBeat();
-    if (item === undefined || beat === null) return null;
+  /** Where a revealed card is drawn now: in the reveal notice when it has one, else in its own zone on the board. */
+  function revealedCard(cardId: number): Element | null {
+    return canvas.ownerDocument.querySelector(`[data-testid="live-reveal"] [data-card-id="${cardId}"]`) ?? canvas.querySelector(`[data-board-card="${cardId}"]`);
+  }
+
+  /** The reveal this resolution made, when it arrived while the item was on the stack: where its card is, and how long its beat still runs. */
+  function revealOf(item: StackEntry | undefined, revealed: Revealed | undefined): { at: Boxed | null; waitMs: number } | null {
+    if (item === undefined || revealed === undefined) return null;
     const put = firstSeen.get(item.id);
-    if (put === undefined || beat.at < put - SAME_PAINT_MS) return null;
-    const at = beat.card?.isConnected === true ? beat.card : beat.box;
-    if (at === null) return null;
-    return { at, waitMs: Math.max(0, beat.at + REVEAL_BEAT_MS - Date.now()) };
+    if (put === undefined || revealed.at < put - SAME_PAINT_MS) return null;
+    const first = revealed.cardIds[0];
+    return { at: first === undefined ? null : revealedCard(first), waitMs: Math.max(0, revealed.at + REVEAL_BEAT_MS - Date.now()) };
+  }
+
+  /**
+   * A reveal's cards on the board wear {@link REVEAL_BEAT_ATTR} while its beat runs (`board.css`): the card
+   * is seen before what it causes. Again on every view inside the beat, since a card that moves (Sorin's
+   * revealed top card, into its owner's hand) is a new element where it lands.
+   */
+  function markReveal(revealed: Revealed | undefined): void {
+    if (revealed === undefined) return;
+    const left = revealed.at + REVEAL_BEAT_MS - Date.now();
+    if (left <= 0) return;
+    for (const id of revealed.cardIds) {
+      const el = canvas.querySelector(`[data-board-card="${id}"]`);
+      if (el === null || el.hasAttribute(REVEAL_BEAT_ATTR)) continue;
+      el.setAttribute(REVEAL_BEAT_ATTR, '');
+      marked.add(el);
+      schedule(() => el.removeAttribute(REVEAL_BEAT_ATTR), left);
+    }
   }
 
   /** One hit: a mark from `from` to `to`, then `land` — at once under reduced motion, where only the flash is drawn. */
@@ -649,9 +680,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     return battlefieldCard(cardId) ?? canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${cardId}"]`);
   }
 
-  function apply(diff: ViewDiff, before: BoardView | null): void {
+  function apply(diff: ViewDiff, before: BoardView | null, revealed: Revealed | undefined): void {
     const item = diff.resolved[0];
-    const reveal = revealOf(item);
+    const reveal = revealOf(item, revealed);
     const origin = reveal?.at ?? sourceOf(item);
     const effects =
       diff.life.length + diff.hits.length + diff.departures.length + diff.arrivals.length + diff.damage.filter((c) => c.to > c.from).length > 0;
@@ -878,12 +909,13 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   }
 
   return {
-    notify(view: BoardView) {
+    notify(view: BoardView, revealed?: Revealed) {
       if (!live) return;
       const before = prevView;
       const diff = diffViews(before, view);
       prevView = view;
-      apply(diff, before);
+      apply(diff, before, revealed);
+      markReveal(revealed);
       noteStack(view);
     },
     noteStack(view: BoardView) {
@@ -912,6 +944,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       for (const el of marked) {
         el.removeAttribute('data-hit-flash');
         el.removeAttribute(ARRIVING_ATTR);
+        el.removeAttribute(REVEAL_BEAT_ATTR);
       }
       marked.clear();
     },

@@ -393,6 +393,7 @@ import { cardImageUrl } from '../draft/cardImage.ts';
 import { avatarSquareUrl } from '../room/avatar.ts';
 import {
   boardPT,
+  drawnCards,
   hasKeyword,
   keywordTags,
   type BoardCard,
@@ -409,7 +410,7 @@ import { mountTips } from './tip/index.ts';
 import { choiceTip, emblemsTip, keywordTip, MARK_TIP, SEEN_TIP, waitingTip } from './tip/words.ts';
 import { documentScope, eventTarget } from '../dom.ts';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
-import { installNumbers } from './live/numbers.ts';
+import { installNumbers, type Revealed } from './live/numbers.ts';
 import { installPlaced } from './live/placed.ts';
 import { DEPARTURE_MAX_MS, departuresOf, installDepartures, LEAVING_GAP_ATTR, type Departure } from './live/departures.ts';
 import { HiddenCard } from './HiddenCard.tsx';
@@ -3753,9 +3754,12 @@ export function Board({
   onOpenSettings,
   onOpenDeck,
   onEffect,
+  revealed,
   fastMode = false,
 }: {
   view: BoardView;
+  /** The last reveal this seat was shown (`live/match.ts`'s `revealed`): its beat comes before what it causes (`live/numbers.ts`). */
+  revealed?: Revealed | null;
   /** Fast Mode (`live/prefs.ts`): nothing that left the battlefield is drawn leaving, and a resolution does not blink first. */
   fastMode?: boolean;
   interaction?: BoardInteraction;
@@ -3922,8 +3926,8 @@ export function Board({
     };
   }, []);
   useLayoutEffect(() => {
-    numbers.current?.notify(view);
-  }, [view]);
+    numbers.current?.notify(view, revealed ?? undefined);
+  }, [view, revealed]);
 
   /*
    * The placed-cards layer (`live/placed.ts`, §S), booted the same way as the
@@ -4155,14 +4159,7 @@ export function Board({
  * that finds a card by its tile finds one of these.
  */
 function BoardFaces({ players }: { players: readonly BoardPlayer[] }) {
-  const cards = players.flatMap((p) => [
-    ...(p.hand ?? []),
-    ...(p.handShown ?? []).filter((c): c is BoardCard => c !== null),
-    ...p.battlefield,
-    ...p.graveyard,
-    ...p.exile,
-    ...(p.libraryTop ?? []),
-  ]);
+  const cards = players.flatMap(drawnCards);
   const faced = [...new Map(cards.filter((c) => c.faces !== undefined && c.faces.length > 0).map((c) => [c.id, c])).values()];
   if (faced.length === 0) return null;
   return (

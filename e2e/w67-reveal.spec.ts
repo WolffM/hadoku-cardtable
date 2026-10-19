@@ -6,8 +6,10 @@
  * The reveal. The operator, 2026-10-09: *"why does 'Genju of the Spires' create this OK prompt for the
  * opponent: 'Looking at cards in Hadoku's library / Revealed'? … i would guess the game should be able
  * to continue even without needing an OK click here."* Forge is answered for that reveal the moment it
- * arrives, so neither screen may ever draw it as a decision: both screens show the revealed card as a
- * notice that stays until its own OK, and alice reaches her main phase with her priority live.
+ * arrives, so neither screen may ever draw it as a decision. And since 2026-10-19 (*"i don't need the
+ * 'revealed' cards popout anymore because we show revealed cards in the players hand directly now"*)
+ * not as a notice either: the board draws the Genju where it is — on top of alice's library, then in
+ * her hand, face up on bob's screen too — and alice reaches her main phase with her priority live.
  *
  * The trigger. A trigger's one ability is not a question. Forge asks `getAbilityToPlay` for every
  * trigger it puts on the stack (`PlaySpellAbility.chooseOptionalAdditionalCosts`), with that trigger
@@ -62,7 +64,7 @@ const isOffer = (r: Row): boolean => r.method === 'getAbilityToPlay' && r.seat =
 
 const seen = (page: Page): Promise<Seen[]> => page.evaluate(() => (window as unknown as { __w67Seen: Seen[] }).__w67Seen);
 
-test(titled("Dark Confidant's reveal is a notice on both screens, never an OK, and its trigger is played by the server: alice reaches her main phase with no click, and her own cast is still hers"), async ({ browser }) => {
+test(titled("Dark Confidant's reveal is drawn on the board on both screens, never a notice or an OK, and its trigger is played by the server: alice reaches her main phase with no click, and her own cast is still hers"), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -87,18 +89,14 @@ test(titled("Dark Confidant's reveal is a notice on both screens, never an OK, a
       for (const s of log) console.log(`[w67-reveal] ${name} ${Math.round(s.t)} ${s.what} ${s.detail}`);
       const prompts = log.filter((s) => s.what === 'prompt');
       expect(prompts, `${name}'s screen opened a decision window for the reveal`).toEqual([]);
+      expect(log.filter((s) => s.what === 'notice'), `${name}'s screen opened a reveal notice for a card the board draws`).toEqual([]);
     }
 
-    for (const [name, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
-      await expect
-        .poll(async () => (await seen(page)).filter((s) => s.what === 'notice').map((s) => s.detail).join(' | '), { timeout: 10_000, message: `${name}'s screen shows the revealed card` })
-        .toContain('Genju of the Spires');
-    }
-
-    // The game went on without it; the notice stays until its own OK, which only closes it.
-    await expect(alice.page.getByTestId('live-reveal'), "alice's notice is still up for her to read").toHaveCount(1);
-    await alice.page.getByTestId('live-reveal-ok').click();
-    await expect(alice.page.getByTestId('live-reveal'), "alice's OK closes her notice").toHaveCount(0, { timeout: 5_000 });
+    // The revealed card is on the board: in alice's hand, face up on bob's screen too. Her library is all
+    // Genjus, so she holds two — the revealed one and her draw — and bob was shown only the first.
+    const genjuIn = (page: Page, seat: string): Promise<number> => page.locator(`${seat} [data-zone="hand"] .card__name`).filter({ hasText: 'Genju of the Spires' }).count();
+    await expect.poll(() => genjuIn(alice.page, '.seat[data-viewer]'), { timeout: 10_000, message: "alice's screen draws the revealed Genju and her draw in her hand" }).toBe(2);
+    await expect.poll(() => genjuIn(bob.page, '.seat:not([data-viewer])'), { timeout: 10_000, message: "bob's screen draws the revealed Genju face up in alice's hand" }).toBe(1);
 
     await expect(alice.page.locator('[data-testid="live-button-next-phase"]:enabled'), "alice's priority is live in her main phase").toHaveCount(1, { timeout: 30_000 });
     console.log(`[w67-reveal] alice main phase, priority live: ${await alice.page.getByTestId('live-says').textContent()}`);

@@ -31,6 +31,7 @@ import {
   boardPT,
   cardFaces,
   CUBE_ART_IDS,
+  drawsFaceUp,
   HIDDEN_CARD_NAME,
   keywordTags,
   KNOWN_ART_IDS,
@@ -969,6 +970,53 @@ describe('hidden information is untouched by any of this', () => {
       toBoardView(state, 1, { viewerPlayerId: fixture.viewerPlayerId, promptCards }).players.find((p) => p.id === viewer)!;
     expect(seat(new Set()).libraryTop?.map((c) => c.id)).toEqual([top]);
     expect(seat(new Set([top])).libraryTop, 'the decision’s card, not the board’s').toBeUndefined();
+  });
+
+  describe('drawsFaceUp: whether a reveal shows the seat anything the board does not', () => {
+    /** The ids in `playerId`'s `zone` list, as the wire holds them. */
+    const idsIn = (state: Map<string, WireObject>, playerId: number, zone: string): number[] =>
+      ((state.get(deltaKey(WireType.Player, playerId))![zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+
+    it("an opponent's hand the seat was shown (Gitaxian Probe) is drawn face up in that hand; before it was shown, it is not", () => {
+      const state = baseState();
+      const view = adapt(state);
+      const me = view.players.find((p) => p.isViewer)!;
+      const them = view.players.find((p) => !p.isViewer)!;
+      const hand = idsIn(state, them.id, 'Hand');
+      expect(hand.length).toBeGreaterThan(0);
+      expect(drawsFaceUp(view, hand), 'a hidden hand is not on the board').toBe(false);
+      for (const id of hand) mayLook(state, id, [me.id]);
+      const shown = adapt(state);
+      expect(shown.players.find((p) => !p.isViewer)!.handShown?.map((c) => c?.id)).toEqual(hand);
+      expect(drawsFaceUp(shown, hand)).toBe(true);
+    });
+
+    it("the viewer's own hand, a battlefield and the known run on top of a library are drawn; the library under it is not", () => {
+      const state = baseState();
+      const view = adapt(state);
+      const me = view.players.find((p) => p.isViewer)!;
+      const them = view.players.find((p) => !p.isViewer)!;
+      expect(drawsFaceUp(view, [...me.hand!.map((c) => c.id), ...them.battlefield.map((c) => c.id)])).toBe(true);
+      // A card the seat holds the name of but the board draws nowhere, put on top of its library.
+      const top = idsIn(state, them.id, 'Hand')[0]!;
+      const under = idsIn(state, me.id, 'Library')[0]!;
+      expect(drawsFaceUp(view, [top]), 'not on the board yet').toBe(false);
+      onLibraryTop(state, top);
+      const withTop = adapt(state);
+      expect(withTop.players.find((p) => p.isViewer)!.libraryTop?.map((c) => c.id), 'the top alone is known: the run on top').toEqual([top]);
+      expect(drawsFaceUp(withTop, [top]), 'a revealed top card').toBe(true);
+      expect(drawsFaceUp(withTop, [under]), 'a library card the board does not draw').toBe(false);
+      expect(drawsFaceUp(withTop, [top, under]), 'one card the board does not draw is enough').toBe(false);
+    });
+
+    it('a face-down card is not drawn face up, and an empty reveal is not drawn', () => {
+      const state = baseState();
+      const view = adapt(state);
+      const id = view.players.find((p) => p.isViewer)!.battlefield[0]!.id;
+      redact(state, id);
+      expect(drawsFaceUp(adapt(state), [id])).toBe(false);
+      expect(drawsFaceUp(view, [])).toBe(false);
+    });
   });
 
   it('treats a blank name as no name', () => {

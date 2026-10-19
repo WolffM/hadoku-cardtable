@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
-import { boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, powerSize, damagePower, GLIDE_MS, lifeImpactAt, noteRevealShown, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
+import { boardSoundsAt, BOLT_STAGGER_MS, HIT_MS, powerSize, damagePower, GLIDE_MS, lifeImpactAt, REVEAL_BEAT_MS, takeResolutionEffects, whenBoardStill } from '../motion.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { ALIGN_MS, contactMs, RAM_STAGGER_MS } from './ram.ts';
 import {
@@ -470,24 +470,44 @@ describe('installNumbers: a resolution’s hits', () => {
     expect(still).toBe(true);
   });
 
-  it('a reveal shown while the item was on the stack goes first: the hit waits out its beat and comes from the revealed card', () => {
+  it('a reveal that arrived while the item was on the stack goes first: its card glows where the board draws it, and the hit waits out its beat', () => {
     vi.useFakeTimers();
     const { canvas, overlay } = sorinBoard();
     const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
     handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]));
-    const revealed = document.createElement('li');
-    revealed.getBoundingClientRect = () => rect({ left: 200, top: 300, width: 96, height: 134 });
-    document.body.append(revealed);
-    noteRevealShown(revealed);
-    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
+    // The revealed top card, drawn under its owner's avatar; the resolution puts it in her hand.
+    canvas.querySelector('.board')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="9" data-card-id="9" data-library-top=""></li>');
+    const revealed = { cardIds: [9], at: Date.now() };
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]), revealed);
+    expect(canvas.querySelector('[data-board-card="9"]')!.hasAttribute('data-reveal-beat'), 'the revealed card glows on the board').toBe(true);
+    canvas.querySelector('[data-board-card="9"]')!.remove();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="9" data-card-id="9"></li>');
+    const inHand = canvas.querySelector<HTMLElement>('[data-board-card="9"]')!;
+    inHand.getBoundingClientRect = () => rect({ left: 200, top: 650, width: 60, height: 84 });
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), revealed);
 
+    expect(inHand.hasAttribute('data-reveal-beat'), 'and keeps glowing where it lands').toBe(true);
     expect(overlay.querySelector('.effect-hit'), 'nothing travels during the reveal’s beat').toBeNull();
     vi.advanceTimersByTime(REVEAL_BEAT_MS);
+    expect(inHand.hasAttribute('data-reveal-beat'), 'the glow is over with the beat').toBe(false);
     const mark = overlay.querySelector<HTMLElement>('.effect-hit');
     expect(mark, 'then the hit').not.toBeNull();
     expect(mark!.dataset.hit).toBe('player:1');
     vi.advanceTimersByTime(HIT_MS);
     expect(overlay.querySelector('.board-number')?.textContent).toBe('-2');
+    handle.dispose();
+  });
+
+  it('a reveal from before the item was put on the stack is not its reveal: the hit goes at once', () => {
+    vi.useFakeTimers();
+    const { canvas, overlay } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const revealed = { cardIds: [9], at: Date.now() };
+    // Inside the reveal's beat still, but well before the item was drawn on the stack.
+    vi.advanceTimersByTime(REVEAL_BEAT_MS / 2);
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [item(40, 8)]), revealed);
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]), revealed);
+    expect(overlay.querySelector('.effect-hit')?.getAttribute('data-hit')).toBe('player:1');
     handle.dispose();
   });
 

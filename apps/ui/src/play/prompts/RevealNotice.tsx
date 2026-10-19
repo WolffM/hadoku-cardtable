@@ -1,8 +1,16 @@
 /*
- * A reveal Forge has already been answered for, drawn as what it is: the
- * revealed cards, never a question. Nothing waits on it — the game has moved
- * on before it draws (the operator, 2026-10-09, on Dark Confidant's top card:
- * *"why is it necessary for this to require an 'ok' press at all?"*).
+ * A reveal Forge has already been answered for, of cards the board does not
+ * draw: a library searched (Ghost Quarter's fail to find, a whole library),
+ * cards revealed and put back unseen. A reveal whose cards are all drawn face up
+ * in their own zones — a hand shown (Gitaxian Probe), a revealed library top,
+ * a permanent — opens no notice at all: the board is where it is seen (the
+ * operator, 2026-10-19: *"i don't need the 'revealed' cards popout anymore
+ * because we show revealed cards in the players hand directly now"*;
+ * `../live/match.ts`'s `showReveal`).
+ *
+ * Drawn as what it is: the revealed cards, never a question. Nothing waits on
+ * it — the game has moved on before it draws (the operator, 2026-10-09: *"why
+ * is it necessary for this to require an 'ok' press at all?"*).
  *
  * It stays until the seat has seen it: its OK closes it, and nothing is sent
  * (the operator, 2026-10-10, on Ghost Quarter's fail to find, a whole library
@@ -27,9 +35,9 @@
  * some kind of reveal and then damage dealt animation"*).
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { noteRevealGone, noteRevealShown, REVEAL_BEAT_MS } from '../motion.ts';
+import { REVEAL_BEAT_MS } from '../motion.ts';
 
 import { CardTile } from '../../components/CardTile.tsx';
 
@@ -47,19 +55,13 @@ export function RevealNotice({ reveal, lookup, onDone }: { reveal: AskOf<'getCho
     })),
   );
   const [beat, setBeat] = useState(true);
-  const cards = useRef<HTMLUListElement>(null);
-  useLayoutEffect(() => {
-    const first = cards.current?.firstElementChild ?? null;
-    noteRevealShown(first);
-    return () => noteRevealGone(first);
-  }, []);
   useEffect(() => {
     const timer = setTimeout(() => setBeat(false), REVEAL_BEAT_MS);
     return () => clearTimeout(timer);
   }, []);
   return (
     <div className="reveal-notice" data-testid="live-reveal" data-call-id={reveal.callId} data-reveal-beat={beat ? '' : undefined} role="status">
-      <ul className="reveal-notice__cards" ref={cards}>
+      <ul className="reveal-notice__cards">
         {rows.map((c) =>
           c.card !== null ? (
             <li key={c.key} data-card-id={c.card.id}>

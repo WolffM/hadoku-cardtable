@@ -11,9 +11,10 @@
  *
  *  - Kalitas: the Zombie arrives FROM Kalitas — its row card is marked `data-arriving-from="<Kalitas>"`
  *    and a stand-in travels from Kalitas's place into the Zombie's slot;
- *  - Sorin: the revealed card has its beat first (`data-reveal-beat` on the notice), THEN a hit
- *    (`[data-hit="player:<bob>"]`) sets off from the revealed card and slams into bob's face
- *    (`[data-impact]` there), and only when it lands does bob's -2 rise.
+ *  - Sorin: the revealed card has its beat first (`data-reveal-beat` on the card where the board
+ *    draws it — the top of alice's library, then her hand; no reveal notice opens for a card the board
+ *    draws), THEN a hit (`[data-hit="player:<bob>"]`) sets off from the revealed card and slams into
+ *    bob's face (`[data-impact]` there), and only when it lands does bob's -2 rise.
  *
  * Scenarios: `fx-kalitas`, `fx-sorin`. Every step prints one `[fx]` line.
  *
@@ -32,10 +33,11 @@ const log = (step: string, data: unknown): void => console.log(`[fx] ${JSON.stri
 
 interface Frame {
   t: number;
-  /** The reveal notice is up, and in its beat. */
+  /** A reveal notice is up. */
   reveal: boolean;
+  /** A revealed card is in its beat — in a notice or on the board. */
   beat: boolean;
-  /** The notice's first card's centre. */
+  /** The revealed card's centre: the notice's first card, else the board card in its beat. */
   revealAt: { x: number; y: number } | null;
   hits: { key: string; x: number; y: number }[];
   /** Where each hit slammed in (`projectile.ts`'s impact): its key and centre. */
@@ -61,11 +63,12 @@ async function record(page: Page): Promise<void> {
     const tick = (): void => {
       if (w.__fxStop) return;
       const notice = document.querySelector('[data-testid="live-reveal"]');
-      const first = notice?.querySelector('.reveal-notice__cards > li') ?? null;
+      const onBoard = document.querySelector('.board-card[data-reveal-beat]');
+      const first = notice?.querySelector('.reveal-notice__cards > li') ?? onBoard;
       w.__fx.push({
         t: Math.round(performance.now() - t0),
         reveal: notice !== null,
-        beat: notice?.hasAttribute('data-reveal-beat') === true,
+        beat: notice?.hasAttribute('data-reveal-beat') === true || onBoard !== null,
         revealAt: first === null ? null : centre(first),
         hits: Array.from(document.querySelectorAll('[data-hit]')).map((el) => ({ key: el.getAttribute('data-hit') ?? '', ...centre(el) })),
         impacts: Array.from(document.querySelectorAll('[data-impact]')).map((el) => ({ key: el.getAttribute('data-impact') ?? '', ...centre(el) })),
@@ -250,6 +253,7 @@ test(titled('Sorin’s +1: the revealed card has its beat, then the hit travels 
         face: bobFace[who],
       });
       expect(beat, `${who}: the revealed card has its beat`).not.toBeUndefined();
+      expect(seen.some((f) => f.reveal), `${who}: no reveal notice — the board draws the revealed card`).toBe(false);
       expect(hits.length, `${who}: a hit travels to bob`).toBeGreaterThan(0);
       expect(hits[0]!.t, `${who}: after the reveal’s beat began`).toBeGreaterThanOrEqual(beat!.t);
       const from = hits[0]!.hits[0]!;

@@ -3275,15 +3275,16 @@ describe('spectator, names and the end of the game (wave 31 §S)', () => {
 });
 
 describe('a display-only reveal is a notice, never a question', () => {
-  function reveal(callId: string): ServerFrame {
+  /** A reveal of `ids` — the fixture's 121 is in no zone, so the board draws it nowhere. */
+  function reveal(callId: string, ids: readonly (number | null)[] = [121]): ServerFrame {
     return parseServerFrame({
       kind: 'ask',
       callId,
       method: 'getChoices',
-      message: 'Looking at cards in your library',
+      message: 'Looking at cards',
       min: -1,
       max: -1,
-      choices: [{ key: 'c0', label: 'Genju of the Spires (121)', ref: { kind: 'card', id: 121 } }],
+      choices: ids.map((id, i) => (id === null ? { key: `c${i}`, label: 'Heads', ref: null } : { key: `c${i}`, label: `Card (${id})`, ref: { kind: 'card', id } })),
       selected: [],
     });
   }
@@ -3320,6 +3321,47 @@ describe('a display-only reveal is a notice, never a question', () => {
     expect(m.reveal?.callId).toBe('r3');
     dismissReveal(m, 'r3');
     expect(m.reveal).toBeNull();
+  });
+
+  it('a reveal of cards the board already draws face up opens no notice — a hand, a battlefield — and still gives the board its beat', async () => {
+    const { s, m } = await fullGame();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    const ids = [...me.hand!.slice(0, 2).map((c) => c.id), them.battlefield[0]!.id];
+    await showReveal(s, m, reveal('r5', ids));
+    expect(m.reveal, 'no notice: the board is where the seat sees them').toBeNull();
+    expect(m.revealed?.cardIds).toEqual(ids);
+  });
+
+  it('a reveal of a library the board does not draw still opens the notice — a search that found nothing', async () => {
+    const { s, m } = await fullGame();
+    const library = m.view!.players.find((p) => p.isViewer)!.libraryIds!.slice(0, 5);
+    await showReveal(s, m, reveal('r6', library));
+    expect(m.reveal?.callId).toBe('r6');
+  });
+
+  it('a mixed reveal — one card the board does not draw — opens the notice with every card', async () => {
+    const { s, m } = await fullGame();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    await showReveal(s, m, reveal('r7', [me.hand![0]!.id, me.libraryIds![0]!]));
+    expect(m.reveal?.callId).toBe('r7');
+    expect(m.reveal?.choices).toHaveLength(2);
+  });
+
+  it('a reveal that names something other than a card opens the notice', async () => {
+    const { s, m } = await fullGame();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    await showReveal(s, m, reveal('r8', [me.hand![0]!.id, null]));
+    expect(m.reveal?.callId).toBe('r8');
+  });
+
+  it('a reveal the board draws leaves a notice still up for the seat to read', async () => {
+    const { s, m } = await fullGame();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    await showReveal(s, m, reveal('r9'));
+    await showReveal(s, m, reveal('r10', [me.hand![0]!.id]));
+    expect(m.reveal?.callId).toBe('r9');
+    expect(m.revealed?.cardIds).toEqual([me.hand![0]!.id]);
   });
 
   it('only a getChoices reveal may be display-only: anything else so marked is counted invalid', async () => {
