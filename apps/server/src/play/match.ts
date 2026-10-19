@@ -211,6 +211,8 @@ export interface SeatIdentity {
 	 * bar changes (the answer); absent otherwise.
 	 */
 	coinToss?: { winner: number; at: number };
+	/** This seat's player left and is past the grace (`SeatState.away`). Absent while they are here. */
+	away?: true;
 }
 import {
 	createProjector,
@@ -354,6 +356,13 @@ export interface SeatState {
 	departure: NodeJS.Timeout | null;
 	/** A person is on this seat: connected, or gone for less than the grace. Never true for an AI seat. */
 	here: boolean;
+	/**
+	 * The person on this seat LEFT: they were here, and have been gone past the
+	 * grace. Told to the other seat (`SeatIdentity.away`) so it is not left
+	 * reading "is choosing…" for a player who closed the tab (the rejoin audit,
+	 * 2026-10-19). A seat nobody has joined yet is not away — it is starting.
+	 */
+	away: boolean;
 
 	/* ── Wave 19 lane C: questions with one answer, stops with nothing to do ── */
 
@@ -1132,6 +1141,7 @@ export class Match {
 			endNotices: [],
 			departure: null,
 			here: false,
+			away: false,
 			fullControl: false,
 			autoYield: null,
 			phaseStop: null,
@@ -1474,6 +1484,7 @@ export class Match {
 				return waitingOn === null ? {} : { waitingOn };
 			})(),
 			...(this.coinToss === null ? {} : { coinToss: this.coinToss }),
+			...(s.away ? { away: true } : {}),
 		}));
 	}
 
@@ -1847,15 +1858,19 @@ export class Match {
 		if (s === undefined || s.departure !== null) return;
 		const grace = this.deps.disconnectGraceMs ?? 0;
 		this.deps.log({ evt: 'seat-departing', matchId: this.id, seat, graceMs: grace, openAsks: s.asks.size });
-		if (grace <= 0) {
+		const gone = (): void => {
 			s.here = false;
+			s.away = true;
+			this.deps.seatsChanged?.(this.seatIdentities());
 			this.armRejoinGrace();
+		};
+		if (grace <= 0) {
+			gone();
 			return;
 		}
 		s.departure = setTimeout(() => {
 			s.departure = null;
-			s.here = false;
-			this.armRejoinGrace();
+			gone();
 		}, grace);
 		s.departure.unref();
 	}
@@ -1874,6 +1889,10 @@ export class Match {
 		const s = this.seats[seat];
 		if (s === undefined) return;
 		s.here = true;
+		if (s.away) {
+			s.away = false;
+			this.deps.seatsChanged?.(this.seatIdentities());
+		}
 		// Before the departure check, and not inside it: a seat that was never here at all (a new or
 		// re-attached match) disarms it too.
 		if (this.rejoinTimer !== null) {

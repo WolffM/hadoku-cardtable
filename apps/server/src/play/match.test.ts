@@ -463,6 +463,22 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 		expect(h.match.seatIdentities()[0]).not.toHaveProperty('waitingOn');
 	});
 
+	// The rejoin audit, 2026-10-19: the one still at the table read "is choosing…" for a player who was gone.
+	it('tells the other seat when a player has left past the grace, and when they are back', () => {
+		const h = waitingHarness();
+		h.host.push(...OPENING);
+		// A seat nobody has left is not away — not before its player ever joined either.
+		expect(h.match.seatIdentities().map((s) => s.away)).toEqual([undefined, undefined]);
+		const before = h.told.length;
+		h.match.seatDisconnected(0);
+		expect(h.match.seatIdentities()[0]?.away).toBe(true);
+		expect(h.told.at(-1)?.[0]?.away, 'told at once, to everyone in the match').toBe(true);
+		expect(h.told.length).toBeGreaterThan(before);
+		h.match.seatConnected(0);
+		expect(h.match.seatIdentities()[0]).not.toHaveProperty('away');
+		expect(h.told.at(-1)?.[0]).not.toHaveProperty('away');
+	});
+
 	it('does not re-send the roster when the fact it carries has not moved', () => {
 		const h = waitingHarness();
 		h.host.push(...OPENING);

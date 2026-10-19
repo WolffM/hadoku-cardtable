@@ -4096,6 +4096,24 @@ describe('T2 — a calm "waiting for the other player"', () => {
     expect(isWaitingForOpponent(m)).toBe(true);
   });
 
+  // The rejoin audit, 2026-10-19: a player who closed the tab left the other reading "is choosing…".
+  it('says the other player is gone, whatever they were doing, and drops it when they are back', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const them = m.view!.players.find((p) => !p.isViewer)!;
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: m.playerId },
+      { seat: 1, claimed: true, playerId: them.id, name: them.name, away: true },
+    ]);
+    const waiting = await waitFor(() => getByTestId('live-waiting-pop'));
+    expect(waiting.textContent).toBe(`Waiting for ${them.name} to reconnect…`);
+    expect(isWaitingForOpponent(m)).toBe(true);
+    s.sendSeats([
+      { seat: 0, claimed: true, playerId: m.playerId },
+      { seat: 1, claimed: true, playerId: them.id, name: them.name },
+    ]);
+    await waitFor(() => expect(queryByTestId('live-waiting-pop')).toBeNull());
+  });
+
   // AE17: "both players should see the coinflip" — the loser draws the coin landed on the winner,
   // never the sentence; the winner draws the coin beside their own Play/Draw question.
   it('the coin toss: the LOSER draws the coin landed on the winner’s face and name, and no "Waiting for…" sentence', async () => {

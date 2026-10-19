@@ -647,7 +647,16 @@ export function isWaitingForOpponent(match: LiveMatch): boolean {
   if (isSpectator(match)) return false;
   const view = match.view;
   if (view === null || view.gameOver) return false;
-  return theirWaitingOn(match) !== null;
+  return theirWaitingOn(match) !== null || theyLeft(match);
+}
+
+/**
+ * The other seat's player closed the tab or dropped, and is past the server's
+ * grace — the rejoin audit, 2026-10-19: the one still at the table read
+ * "is choosing to play or draw…" for a player who was gone.
+ */
+export function theyLeft(match: LiveMatch): boolean {
+  return match.seat !== null && match.awaySeats.has(match.seat === 0 ? 1 : 0);
 }
 
 /**
@@ -3768,7 +3777,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       )}
       {waitingForOpponent && !viewerOpen && coinToss === null && (
         <WaitingPop
-          sentence={pregameWait || theirAsk === null ? `Waiting for ${theirName ?? 'the other player'}…` : waitingSentence(theirName ?? 'the other player', theirAsk)}
+          sentence={
+            theyLeft(match)
+              ? `Waiting for ${theirName ?? 'the other player'} to reconnect…`
+              : pregameWait || theirAsk === null
+                ? `Waiting for ${theirName ?? 'the other player'}…`
+                : waitingSentence(theirName ?? 'the other player', theirAsk)
+          }
         />
       )}
       {conceding && !spectator && !over && (

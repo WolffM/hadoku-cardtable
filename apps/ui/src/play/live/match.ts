@@ -859,6 +859,8 @@ export interface LiveMatch {
    * card of the asking seat's.
    */
   waitingOn: ReadonlyMap<number, { method: string; hostCard: string | null }> | null;
+  /** The seats whose player left, past the server's grace — `forge:seats`' `away`. */
+  awaySeats: ReadonlySet<number>;
   /**
    * The coin toss while the winner's Play/Draw question is open —
    * `forge:seats`' `coinToss`, the same on every seat's entry. `winner` is a
@@ -1054,6 +1056,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     nameByPlayerId: null,
     playerIdBySeat: null,
     waitingOn: null,
+    awaySeats: new Set(),
     coinToss: null,
     spectator: false,
     watcher: false,
@@ -1409,6 +1412,7 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
     if (seat.waitingOn !== undefined) waitingOn.set(seat.seat, seat.waitingOn);
   }
   match.waitingOn = waitingOn;
+  match.awaySeats = new Set(parsed.value.seats.filter((seat) => seat.away === true).map((seat) => seat.seat));
   const tossed = parsed.value.seats.find((seat) => seat.coinToss !== undefined)?.coinToss;
   match.coinToss =
     tossed === undefined

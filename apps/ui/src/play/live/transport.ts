@@ -193,6 +193,8 @@ export const SeatIdentitySchema = borrowed.emptyObject
      * live, so BOTH screens draw the flip landing on the winner (`CoinToss.tsx`).
      */
     coinToss: borrowed.emptyObject.extend({ winner: borrowed.forgeId.min(0), at: borrowed.unknown }).strict().optional(),
+    /** This seat's player left, past the server's grace (`apps/server/src/play/match.ts`'s `SeatState.away`). */
+    away: borrowed.boolean.optional(),
   })
   .strict();
 
