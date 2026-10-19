@@ -187,6 +187,11 @@ async function driveDefenderThroughBlock(s: Scenario, defender: number, blockerI
 	// ownership) with "how many real decisions did the defender make" (one:
 	// which creature blocks).
 	let selected = false;
+	// The prompt frame last pressed: one press per window Forge shows. `s.buttons` is the last bar Forge
+	// sent and stays enabled until its next update, so on a loaded claw a 3 ms poll saw the same window
+	// twice and pressed (and counted) it twice — four clicks for three (main 2b76c03d, b0079816).
+	let pressedAt = -1;
+	const promptAt = (): number => s.sent.findLastIndex((x) => x.seat === defender && x.envelope.frame.method === 'showPromptMessage');
 	await fastPoll(() => {
 		s.answerAsks();
 		const msg = s.prompt(defender);
@@ -215,7 +220,9 @@ async function driveDefenderThroughBlock(s: Scenario, defender: number, blockerI
 		if (!selected) {
 			// A real stop BEFORE the block-select window opened: the defender's priority once the
 			// attack is declared, kept only when it has a play there.
-			if (/^Priority:/.test(msg) && buttons?.enable1 === true) {
+			const at = promptAt();
+			if (/^Priority:/.test(msg) && buttons?.enable1 === true && at !== pressedAt) {
+				pressedAt = at;
 				clicks.push({ kind: 'pre-block priority', phase, message: msg });
 				s.ok(defender);
 			}

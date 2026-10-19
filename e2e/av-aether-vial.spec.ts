@@ -140,8 +140,16 @@ test(titled('tapping Aether Vial and choosing nothing leaves the creature in han
     expect(await asked(confirms), 'nothing was asked before the choice').toEqual([]);
 
     await enabledCancel(alice.page).first().click();
-    // Forge's own guard on a choice left empty ("Cancel Search?") is the player's: answer it.
-    await expect.poll(async () => (await confirmYes(alice.page).count()) > 0 || !(await choiceOpen(alice.page)), { timeout: 15_000 }).toBe(true);
+    // Forge's own guard on a choice left empty ("Cancel Search?") is the player's: answer it. Forge closes
+    // the choice and asks in the same instant, so the choice closing says nothing about the question —
+    // waiting on it let the poll end before the pop-up was drawn, and the question went unanswered
+    // (main d49f3f1d, b0079816). Wait for the question or for the ability to have resolved.
+    await expect
+      .poll(async () => (await confirmYes(alice.page).count()) > 0 || (await stackCount(alice.page)) === 0, {
+        timeout: 15_000,
+        message: "Forge's Cancel Search? question, or the ability resolved without one",
+      })
+      .toBe(true);
     if ((await confirmYes(alice.page).count()) > 0) await confirmYes(alice.page).click();
 
     await expect
