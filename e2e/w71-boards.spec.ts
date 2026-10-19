@@ -133,7 +133,7 @@ async function watchRoomChromeJoins(page: Page): Promise<string[]> {
   return keys;
 }
 
-test('a room with two live tables shows the strip, switching boards never drops the room chat, and a player’s own board is never conceded by picking another', async ({ browser }) => {
+test('a room with two live tables: a watcher is carried in once, stays in the room by choice, and each table’s board has its own chat, apart from the room’s', async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(5 * 60_000);
