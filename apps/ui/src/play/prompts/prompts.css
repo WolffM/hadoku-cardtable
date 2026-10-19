@@ -805,7 +805,9 @@
 
 .prompt__tiles > li {
   position: relative;
+  /* The width as well as the basis: the sheet is as wide as its rows' widths, art loaded or not. */
   flex: 0 1 var(--card-w);
+  width: var(--card-w);
   min-width: 3.5rem;
   border-radius: var(--radius);
 }
@@ -828,6 +830,7 @@
 /* An empty zone is still all drop target, drawn as one: a card's place, dashed. */
 .prompt__tiles:empty {
   flex: 0 1 var(--card-w);
+  width: var(--card-w);
   min-width: 3.5rem;
   height: calc(var(--card-w) * 680 / 488);
   border: 1px dashed var(--line);
