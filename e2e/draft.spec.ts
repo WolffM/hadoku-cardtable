@@ -1091,19 +1091,20 @@ test(
       /* ── the pool is her deck now, on the Decks page beside the trophy ── */
       await alice.page.getByRole('link', { name: '← Lobby' }).click();
       await alice.page.getByTestId('lobby-decks').click();
-      const tile = alice.page.getByTestId('decks-tile');
+      // The 1v1 room's own deck tiles, drawn once their art has.
+      const tile = alice.page.getByTestId('deck-option');
       await expect(tile, 'the finished draft is one deck').toHaveCount(1, { timeout: UI_TIMEOUT });
-      // Its tournament is over, so it can be renamed.
-      await tile.getByTestId('decks-rename').click();
-      await tile.getByTestId('decks-name-input').fill('Solo cube');
-      await tile.getByTestId('decks-name-save').click();
-      await expect(tile.getByTestId('decks-name')).toHaveText('Solo cube');
-      await tile.getByRole('link').click();
+      await tile.click();
       await expect(alice.page.getByTestId('deck-editor'), 'the deck opens in the editor').toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('play-deck'), 'outside a game there is nothing to play').toHaveCount(0);
       await expect(alice.page.getByTestId('main-count')).toHaveText('40');
-      await alice.page.getByTestId('back-to-decks').click();
+      // Its tournament is over, so it can be renamed, over its editor.
+      await alice.page.getByTestId('decks-rename').click();
+      await alice.page.getByTestId('decks-name-input').fill('Solo cube');
+      await alice.page.getByTestId('decks-name-save').click();
       await expect(alice.page.getByTestId('decks-name')).toHaveText('Solo cube');
+      await alice.page.getByTestId('back-to-decks').click();
+      await expect(tile.locator('.deckpick__name')).toHaveText('Solo cube', { timeout: UI_TIMEOUT });
     } finally {
       if (alice) await finalizeVideo(alice);
       await stack.stop();
