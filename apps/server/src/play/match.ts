@@ -3211,7 +3211,9 @@ export class Match {
 		if (s.autoCancelled === cost) return false;
 		s.autoCancelled = cost;
 		this.deps.log({ evt: 'auto-cancelled', matchId: this.id, seat: s.seat, cost });
-		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonCancel' } });
+		// Scoped to the payment: Forge may finish it (Auto already paying) before a plain Cancel
+		// lands, which then ends the turn at the next priority window (af57, run 39163377412).
+		this.command({ t: 'cancel-payment', seat: s.seat });
 		// The seat did not cancel it: a refusal it sees, as Forge's own turned-away click is.
 		this.send(s, { kind: 'notify', method: 'flashIncorrectAction' });
 		return true;

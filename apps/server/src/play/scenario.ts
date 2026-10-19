@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
 import { afterEach } from 'vitest';
 
-import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostConfig } from './host.js';
+import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeCommand, type BridgeLine, type JvmHostConfig, type MatchHost } from './host.js';
 import { createMatchRegistry, type Match, type SeatIdentity } from './match.js';
 import { PHASE_BY_UI_NAME, type StopPolicy } from './auto.js';
 import type { ServerEnvelope } from './transport.js';
@@ -277,6 +277,8 @@ export interface Scenario {
 	ok(seat: number): void;
 	cancel(seat: number): void;
 	select(seat: number, id: number): void;
+	/** A bridge command sent as the server sends it, for one the browser has no act for (`cancel-payment`). */
+	command(command: BridgeCommand): void;
 	/** Answer every ask that reached a browser, plainly. Returns the asks answered this call. */
 	answerAsks(): ServerFrame[];
 	/**
@@ -326,17 +328,18 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 	const logs: Record<string, unknown>[] = [];
 	const seats: Scenario['seats'] = [];
 	const jvm = jvmHostFactory(config, { spare: false, log: (e) => logs.push(e) });
+	let host: MatchHost | null = null;
 	const registry = createMatchRegistry({
 		seatsChanged: (_m, told) => seats.push({ t: performance.now(), seats: told }),
 		host: (id, spec, events) =>
-			jvm(id, spec, {
+			(host = jvm(id, spec, {
 				...events,
 				line: (l) => {
 					lines.push({ ...(l as BridgeLine & { t: string }), hostT: performance.now() });
 					const kept = options.mapLine === undefined ? l : options.mapLine(l);
 					if (kept !== null) events.line(kept);
 				},
-			}),
+			})),
 		log: (e) => logs.push(e),
 		overGraceMs: 60_000,
 		...(options.actSilenceMs === undefined ? {} : { actSilenceMs: options.actSilenceMs }),
@@ -421,6 +424,10 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 				seat,
 				ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id }, otherCardViewsToSelect: [], triggerEvent: null }),
 			),
+		command(command) {
+			if (host === null) throw new Error('the match has no host yet');
+			host.send(command);
+		},
 		answerAsks() {
 			const now: ServerFrame[] = [];
 			for (const { seat, envelope } of sent) {

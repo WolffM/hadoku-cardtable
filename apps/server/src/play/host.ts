@@ -335,6 +335,8 @@ export type BridgeCommand =
 	| { t: 'act'; seat: number; frame: ClientAction | SendYieldUpdate }
 	/** Re-send every ask the seat is parked on, original callIds (`match.ts`'s `armActWatch`). */
 	| { t: 'resend-pending'; seat: number }
+	/** Forge's Cancel on the seat's open mana payment only, never on an input opened after it (`PlayBridge.java`'s `cancelPayment`). */
+	| { t: 'cancel-payment'; seat: number }
 	| { t: 'probe'; seat: number; probeId: string; message: string }
 	| { t: 'stop' };
 

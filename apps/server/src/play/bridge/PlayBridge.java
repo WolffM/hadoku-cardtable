@@ -1742,8 +1742,11 @@ public final class PlayBridge {
             final JsonArray out = new JsonArray();
             if (game == null) { lifeHeld.clear(); return out; }
             for (final forge.game.player.Player p : game.getPlayers()) {
-                final boolean human = p.getController() instanceof PlayerControllerHuman;
-                final Object open = human ? ((PlayerControllerHuman) p.getController()).getInputQueue().getInput() : null;
+                // Read once: the game thread swaps in an AI controller while it prices the highlight
+                // (AvailableActions.canAfford), so a second read can find it gone mid-check.
+                final PlayerControllerHuman hc = p.getController() instanceof PlayerControllerHuman c ? c : null;
+                final boolean human = hc != null;
+                final Object open = human ? hc.getInputQueue().getInput() : null;
                 final Object[] held = lifeHeld.get(p.getId());
                 final InputPayMana pay = open instanceof InputPayMana o && !o.isPaid() ? o : held == null ? null : (InputPayMana) held[0];
                 if (pay == null) { continue; }
@@ -3557,6 +3560,34 @@ public final class PlayBridge {
         @Override public void setCard(final CardView card) { }
         @Override public void setPlayerAvatar(final LobbyPlayer player, final IHasIcon ihi) { }
 
+        /**
+         * Forge's Cancel on this seat's open mana payment, and on nothing else: the server's
+         * auto-cancel of a cost Forge says cannot be paid ({@code match.ts}'s
+         * {@code maybeCancelUnpayable}). A plain {@code selectButtonCancel} lands on whatever input
+         * is open by the time it arrives, and a payment Auto was already paying ends before then,
+         * so the press became the next priority window's End Turn (af57, run 39163377412: Brainstorm
+         * paid, then alice yielded the turn). Pressed on the payment itself, read now: not one that
+         * is paid, finished, or being paid by Auto.
+         */
+        void cancelPayment() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            final Object open = mine != null && mine.getController() instanceof PlayerControllerHuman human ? human.getInputQueue().getInput() : null;
+            if (!(open instanceof InputPayMana pay)) {
+                System.err.println("[bridge] cancel-payment: seat " + seat + " has no open payment (" + open + "), nothing pressed");
+                return;
+            }
+            try {
+                final boolean paid = pay.isPaid() || ((forge.game.mana.ManaCostBeingPaid) field(pay, InputPayMana.class, "manaCost")).isPaid();
+                if (paid || (Boolean) field(pay, InputPayMana.class, "locked")) {
+                    System.err.println("[bridge] cancel-payment: seat " + seat + "'s payment is " + (paid ? "paid" : "being paid by Auto") + ", nothing pressed");
+                    return;
+                }
+            } catch (final ReflectiveOperationException e) {
+                throw new IllegalStateException("cancel-payment: could not read the open payment", e);
+            }
+            pay.selectButtonCancel();
+        }
+
         // ------------------------------------------------ acts, browser → Forge
 
         void act(final JsonObject frame) {
@@ -5183,6 +5214,7 @@ public final class PlayBridge {
             case "reply" -> seat(cmd).resolve(cmd.get("callId").getAsString(), cmd.get("result"));
             case "abort" -> seat(cmd).resolve(cmd.get("callId").getAsString(), ABORTED);
             case "act" -> seat(cmd).act(cmd.getAsJsonObject("frame"));
+            case "cancel-payment" -> seat(cmd).cancelPayment();
             case "resend-pending" -> seat(cmd).resendPending();
             case "probe" -> probe(cmd);
             case "stop" -> STOP.countDown();

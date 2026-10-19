@@ -2435,6 +2435,9 @@ describe('item 7 — a payment Forge left only Cancel for', () => {
 });
 
 describe('a Match with an unpayable cost in front of it (item 7)', () => {
+	/** A press on Forge: an act, or the bridge's scoped Cancel. */
+	const pressed = (c: { t: string }): boolean => c.t === 'act' || c.t === 'cancel-payment';
+
 	/** Forge's payment input with its own Auto dead and nothing to click. */
 	function unpayable(h: Harness, seat: number): void {
 		const me = playerOf(h, seat);
@@ -2443,12 +2446,12 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		push(h, seat, prompt('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', me));
 	}
 
-	it('presses Forge’s own Cancel, exactly once for that cost, and says nothing — the seat sees the refusal', () => {
+	it('presses Forge’s own Cancel on the payment, exactly once for that cost, and says nothing — the seat sees the refusal', () => {
 		const h = harness();
 		unpayable(h, 0);
-		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
-			{ t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonCancel' } },
-		]);
+		// Never a plain `selectButtonCancel`: one that lands after the payment ended presses the
+		// next window's End Turn (af57, run 39163377412).
+		expect(h.host.commands.filter(pressed)).toEqual([{ t: 'cancel-payment', seat: 0 }]);
 		expect(h.logs.filter((l) => l.evt === 'auto-cancelled')).toEqual([
 			{ evt: 'auto-cancelled', matchId: h.match.id, seat: 0, cost: '{1}{U}' },
 		]);
@@ -2456,7 +2459,7 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		// would answer whatever it asks next.
 		push(h, 0, autoBar(false, playerOf(h, 0)));
 		push(h, 0, prompt('Mana Leak - counter target spell.\n\nPay Mana Cost: {1}{U}', playerOf(h, 0)));
-		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
+		expect(h.host.commands.filter(pressed)).toHaveLength(1);
 		// The cast never happened, so there is nothing to account for: no line.
 		expect(says(h, 0)).toEqual([]);
 		// The window was answered, so it never reached the seat: Forge asks it nothing more
@@ -2478,14 +2481,14 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		// default; what must never happen here is a CANCEL, because Forge said it
 		// found a payment.
 		expect(h.logs.filter((l) => l.evt === 'auto-cancelled')).toEqual([]);
-		expect(h.host.commands.filter((c) => c.t === 'act' && c.frame.method === 'selectButtonCancel')).toEqual([]);
+		expect(h.host.commands.filter(pressed).filter((c) => c.t !== 'act' || c.frame.method === 'selectButtonCancel')).toEqual([]);
 	});
 
 	it('full control leaves the Cancel to the player', () => {
 		const h = harness();
 		h.match.setFullControl(0, true);
 		unpayable(h, 0);
-		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([]);
+		expect(h.host.commands.filter(pressed)).toEqual([]);
 		expect(h.logs.filter((l) => l.evt === 'auto-cancelled')).toEqual([]);
 	});
 
@@ -2494,9 +2497,7 @@ describe('a Match with an unpayable cost in front of it (item 7)', () => {
 		h.match.setFullControl(0, true);
 		unpayable(h, 0);
 		unpayable(h, 1);
-		expect(h.host.commands.filter((c) => c.t === 'act')).toEqual([
-			{ t: 'act', seat: 1, frame: { kind: 'act', method: 'selectButtonCancel' } },
-		]);
+		expect(h.host.commands.filter(pressed)).toEqual([{ t: 'cancel-payment', seat: 1 }]);
 	});
 });
 
