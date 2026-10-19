@@ -377,15 +377,9 @@
   margin-top: calc(var(--cw) * -1.3934 + var(--peek));
 }
 
-/* Hovering a card in a pile slides the ones below it down, so its face shows. */
-.deck-editor__stack > :hover + *,
-.deck-editor__stack > :hover + * ~ * {
-  transform: translateY(calc(var(--cw) * 0.6));
-}
-
-.deck-editor__stack > * {
-  transition: transform 140ms ease;
-}
+/* A pile never moves under the pointer: each card's top shows, and hovering
+   it opens the inspector (the operator, 2026-10-19: "when cards are stacked,
+   just don't bring them forward. that way it's always easy to hover all cards"). */
 
 .deck-editor__landcard {
   position: relative;
