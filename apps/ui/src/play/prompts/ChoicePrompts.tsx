@@ -39,7 +39,7 @@ import {
 } from './rules.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
 import type { CardRef, EntityRef } from '@hadoku/forge-wire';
-import type { DraftCard } from '@hadoku/shared';
+import type { TileCard } from '../../components/faceCrop.ts';
 
 /** The card an option stands for, when it stands for one. */
 function cardOfOption(ref: EntityRef | null): CardRef | null {
@@ -506,12 +506,12 @@ export function GetAbilityToPlayPrompt({ ask, onAnswer, lookup }: PromptProps<'g
 export function facedAbilities(
   ask: PromptProps<'getAbilityToPlay'>['ask'],
   lookup: PromptLookup,
-): { ability: (typeof ask.abilities)[number]; card: DraftCard }[] | null {
+): { ability: (typeof ask.abilities)[number]; card: TileCard }[] | null {
   const named = ask.abilities.map((a) => a.face);
   if (named.some((f) => f === undefined) || new Set(named).size !== named.length) return null;
   const faces = lookup.faces?.(ask.hostCard.id) ?? [];
   const out = ask.abilities.map((ability) => ({ ability, card: faces.find((c) => c.name === ability.face) }));
-  return out.every((x): x is { ability: (typeof ask.abilities)[number]; card: DraftCard } => x.card !== undefined) ? out : null;
+  return out.every((x): x is { ability: (typeof ask.abilities)[number]; card: TileCard } => x.card !== undefined) ? out : null;
 }
 
 /**

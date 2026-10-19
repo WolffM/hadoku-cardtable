@@ -24,6 +24,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ALLOWED_ART_HOSTS, resolveArtUrl } from '@hadoku/carddata/art';
 
+import { FACE_REGIONS } from '../components/faceCrop.ts';
 import artManifest from '../draft/art-manifest.json';
 import poolData from '../draft/pool.json';
 import {
@@ -1533,7 +1534,7 @@ describe('view.combat — Forge’s CombatView, read off the state channel (X1)'
  */
 describe('a card’s other faces', () => {
   /** Give card 21 a face state at `v`, named `name`, typed `core`. */
-  function addFace(state: Map<string, WireObject>, v: number, name: string, core: string[], setCode = 'NEO'): void {
+  function addFace(state: Map<string, WireObject>, v: number, name: string, core: string[], setCode = 'NEO', own: Record<string, unknown> = {}): void {
     const front = state.get(cardStateKey(21, 0))!;
     state.set(cardStateKey(21, v), {
       ...front,
@@ -1541,7 +1542,25 @@ describe('a card’s other faces', () => {
       Name: { t: 'str', v: name },
       SetCode: { t: 'str', v: setCode },
       Type: { t: 'cardtype', sup: [], core, sub: [], all: false, exc: [] },
+      ...own,
     } as WireObject);
+  }
+
+  /** Card 21 as a split card `whole` with halves `left` and `right` — Forge's ordinals 5 and 6, its other side the right half. */
+  function splitCard(whole: string, setCode: string, left: [string, string, string], right: [string, string, string], rightKeywords: string[] = []): Map<string, WireObject> {
+    const state = baseState();
+    renameCard(state, 21, whole, setCode);
+    const half = ([, cost, text]: [string, string, string], keywords: string[]) => ({
+      ManaCost: { t: 'manacost', v: cost },
+      OracleText: { t: 'str', v: text },
+      Keywords: { t: 'keywords', v: keywords },
+    });
+    addFace(state, 5, left[0], ['Instant'], setCode, half(left, []));
+    addFace(state, 6, right[0], ['Instant'], setCode, half(right, rightKeywords));
+    setCard(state, 21, 'LeftSplitState', { t: 'int', v: 5 });
+    setCard(state, 21, 'RightSplitState', { t: 'int', v: 6 });
+    setCard(state, 21, 'AlternateState', { t: 'int', v: 6 });
+    return state;
   }
 
   it('carries a transformed card’s other face, with that face’s own art', () => {
@@ -1566,6 +1585,59 @@ describe('a card’s other faces', () => {
     const card = cardsById(adapt(state)).get(21)!;
     expect(card.faces?.map((f) => f.name)).toEqual(['Fire', 'Ice']);
     expect(card.faces?.every((f) => f.scryfallId === card.card.scryfallId)).toBe(true);
+  });
+
+  // The operator, 2026-10-19: "i see the entire split card in both choices so i can't really tell which one is wish".
+  it('crops a split card’s halves to their own part of its image, turned upright, each with its own name, cost and text', () => {
+    const state = splitCard('Fire // Ice', 'AP', ['Fire', '1\u0006RED', 'Fire deals 2 damage divided as you choose'], ['Ice', '1\u0006BLUE', 'Tap target permanent.\nDraw a card.']);
+    const whole = cardsById(adapt(state)).get(21)!;
+    const faces = whole.faces!;
+    expect(faces.map((f) => [f.name, f.faceCrop])).toEqual([['Fire', 'split-left'], ['Ice', 'split-right']]);
+    expect(faces.map((f) => FACE_REGIONS[f.faceCrop!].rotate), 'printed sideways: a quarter turn clockwise reads them').toEqual([90, 90]);
+    expect(faces.map((f) => [f.manaCost, f.oracleText])).toEqual([
+      [['1', 'R'], 'Fire deals 2 damage divided as you choose'],
+      [['1', 'U'], 'Tap target permanent.\nDraw a card.'],
+    ]);
+    expect(faces.every((f) => f.scryfallId === whole.card.scryfallId), 'the card’s own image').toBe(true);
+    expect(cardFaces(state, 21).map((f) => [f.name, f.faceCrop]), 'the whole card first, uncropped — a fuse spell’s face').toEqual([
+      ['Fire // Ice', undefined],
+      ['Fire', 'split-left'],
+      ['Ice', 'split-right'],
+    ]);
+  });
+
+  it('crops an aftermath card’s halves: the first upright at the top, the second turned the other way', () => {
+    const state = splitCard('Cut // Ribbons', 'AKH', ['Cut', '1\u0006RED', 'Cut deals 4 damage to target creature.'], ['Ribbons', '0\u0006X\u0006BLACK\u0006BLACK', 'Each opponent loses X life.'], ['Aftermath']);
+    const faces = cardsById(adapt(state)).get(21)!.faces!;
+    expect(faces.map((f) => [f.name, f.faceCrop, FACE_REGIONS[f.faceCrop!].rotate])).toEqual([
+      ['Cut', 'aftermath-top', 0],
+      ['Ribbons', 'aftermath-bottom', -90],
+    ]);
+  });
+
+  it('crops an adventure to its inset, and leaves a double-faced card’s back whole', () => {
+    const state = baseState();
+    renameCard(state, 21, 'Bonecrusher Giant', 'ELD');
+    addFace(state, 7, 'Stomp', ['Instant'], 'ELD', { OracleText: { t: 'str', v: 'Stomp deals 2 damage to any target.' } });
+    setCard(state, 21, 'AlternateState', { t: 'int', v: 7 });
+    const giant = cardsById(adapt(state)).get(21)!;
+    expect(giant.faces!.map((f) => [f.name, f.faceCrop, f.oracleText, f.scryfallId === giant.card.scryfallId])).toEqual([
+      ['Stomp', 'adventure', 'Stomp deals 2 damage to any target.', true],
+    ]);
+
+    // Its own name alone could name another printing (Stomp|CLB); the face is printed on this card's image.
+    const other = baseState();
+    renameCard(other, 21, 'Bonecrusher Giant', 'ELD');
+    addFace(other, 7, 'Stomp', ['Instant'], 'CLB');
+    setCard(other, 21, 'AlternateState', { t: 'int', v: 7 });
+    expect(scryfallIdFor(KNOWN_ART_IDS, 'Stomp', 'CLB')).not.toBe(scryfallIdFor(KNOWN_ART_IDS, 'Bonecrusher Giant', 'ELD'));
+    expect(cardsById(adapt(other)).get(21)!.faces![0]!.scryfallId).toBe(scryfallIdFor(KNOWN_ART_IDS, 'Bonecrusher Giant', 'ELD'));
+
+    const dfc = baseState();
+    renameCard(dfc, 21, 'Fable of the Mirror-Breaker', 'NEO');
+    addFace(dfc, 3, 'Reflection of Kiki-Jiki', ['Enchantment', 'Creature']);
+    setCard(dfc, 21, 'AlternateState', { t: 'int', v: 3 });
+    expect(cardsById(adapt(dfc)).get(21)!.faces![0]!.faceCrop).toBeUndefined();
   });
 
   it('carries none for a face-down card — its other face is what is hidden — nor for a card with one face', () => {

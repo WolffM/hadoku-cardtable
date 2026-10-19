@@ -1043,3 +1043,24 @@ button {
   aspect-ratio: 488 / 680;
   height: auto;
 }
+
+/*
+ * A face that shares its card's image (`components/faceCrop.ts`): its own part of the image, upright,
+ * in a frame the tile's shape. Where the part is not card-shaped (an adventure's inset) the frame's
+ * own ground shows around it, so the whole card never peeks out. The image's box is set inline.
+ */
+.card__crop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--bg-card);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.card__crop > .card__art {
+  inset: auto;
+  object-fit: fill;
+  border-radius: 0;
+}

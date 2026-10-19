@@ -169,6 +169,7 @@ import {
   type ArtIdTableFile,
 } from '@hadoku/carddata/art';
 import type { DraftCard, ManaColor, Rarity } from '@hadoku/shared';
+import type { FacePart, TileCard } from '../components/faceCrop.ts';
 
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import poolData from '../draft/pool.json' with { type: 'json' };
@@ -307,9 +308,10 @@ export interface BoardCard {
    * Reflection of Kiki-Jiki), a modal double-faced card's back, a split card's halves, an adventure.
    * Read off the face states Forge sends beside the current one (`AlternateState`, `LeftSplitState`,
    * `RightSplitState`); never for a face-down card, whose other face is what is hidden. Absent for a
-   * card with one face, which is most of them.
+   * card with one face, which is most of them. A face drawn with the card's own image carries the part
+   * of it that face is printed in (`../components/faceCrop.ts`).
    */
-  faces?: DraftCard[];
+  faces?: TileCard[];
 }
 
 /**
@@ -1465,17 +1467,39 @@ function faceCard(id: number, face: WireObject | undefined, name: string, artIds
   return card;
 }
 
-/** The face states Forge sends beside a card's current one, in its order: the other side, then a split card's halves. */
-const OTHER_FACE_STATES = ['AlternateState', 'LeftSplitState', 'RightSplitState'] as const;
+/**
+ * The face states Forge sends beside a card's current one: a split card's halves, left then right, then
+ * the other side (a split card's is one of its halves, `Card.getAlternateStateName`, so it adds none).
+ */
+const OTHER_FACE_STATES = ['LeftSplitState', 'RightSplitState', 'AlternateState'] as const;
+
+/** `CardStateName` ordinals (`forge-core/.../card/CardStateName.java`) of the faces printed on the card's one image. */
+const LEFT_SPLIT = 5;
+const RIGHT_SPLIT = 6;
+const SECONDARY = 7;
+
+/**
+ * The part of the card's image the face in state `v` is printed in: a split card's half (an aftermath
+ * card's, when its second half has Aftermath), an adventure's spell. Undefined for any other face — a
+ * transformed or modal double-faced card's back is a whole card.
+ */
+function facePartOf(state: WireState, id: number, view: WireObject, v: number): FacePart | undefined {
+  if (v === SECONDARY) return 'adventure';
+  if (v !== LEFT_SPLIT && v !== RIGHT_SPLIT) return undefined;
+  const aftermath = hasKeyword(readKeywords(state.get(cardStateKey(id, readInt(view, 'RightSplitState', -1)))), 'aftermath');
+  if (v === LEFT_SPLIT) return aftermath ? 'aftermath-top' : 'split-left';
+  return aftermath ? 'aftermath-bottom' : 'split-right';
+}
 
 /**
  * A card's faces other than `shown`, as cards — {@link BoardCard.faces}. A face with no name on this
  * seat's wire is one it may not see and is left out; a face-down card has none to show at all. A face
- * whose own art the table lacks (a split half, an adventure) is drawn with the card's art.
+ * printed on the card's own image (a split half, an adventure) is drawn with that image, cropped to its
+ * part of it; any other face without art of its own is drawn with the card's.
  */
-function otherFaces(state: WireState, id: number, view: WireObject, shown: DraftCard, artIds: ArtIdIndex): DraftCard[] {
+function otherFaces(state: WireState, id: number, view: WireObject, shown: DraftCard, artIds: ArtIdIndex): TileCard[] {
   if (readBool(view, 'Facedown')) return [];
-  const out: DraftCard[] = [];
+  const out: TileCard[] = [];
   const seen = new Set([shown.name]);
   for (const key of OTHER_FACE_STATES) {
     const v = readInt(view, key, -1);
@@ -1485,6 +1509,12 @@ function otherFaces(state: WireState, id: number, view: WireObject, shown: Draft
     if (name === null || name.trim() === '' || seen.has(name)) continue;
     seen.add(name);
     const card = faceCard(id, face, name, artIds, false);
+    const part = facePartOf(state, id, view, v);
+    if (part !== undefined && shown.scryfallId !== undefined) {
+      // Printed on the card's own image: that image, cropped to this face's part of it.
+      out.push({ ...card, scryfallId: shown.scryfallId, faceCrop: part });
+      continue;
+    }
     if (card.scryfallId === undefined && shown.scryfallId !== undefined) card.scryfallId = shown.scryfallId;
     out.push(card);
   }
@@ -1495,7 +1525,7 @@ function otherFaces(state: WireState, id: number, view: WireObject, shown: Draft
  * Every face of card `id` this seat may see, the one on show first — for a choice between them
  * (`prompts/lookup.ts`'s `faces`). Empty for a card this seat was sent nothing for.
  */
-export function cardFaces(state: WireState, id: number, artIds: ArtIdIndex = KNOWN_ART_IDS): DraftCard[] {
+export function cardFaces(state: WireState, id: number, artIds: ArtIdIndex = KNOWN_ART_IDS): TileCard[] {
   const view = state.get(deltaKey(WireType.Card, id));
   if (view === undefined) return [];
   const face = shownFace(state, id, view, false);
@@ -1563,7 +1593,7 @@ function toBoardCard(
     choices,
     relations,
     abilityText,
-    ...((): { faces?: DraftCard[] } => {
+    ...((): { faces?: TileCard[] } => {
       const faces = hidden ? [] : otherFaces(state, id, view, card, artIds);
       return faces.length > 0 ? { faces } : {};
     })(),

@@ -26,6 +26,7 @@ import { PromptFor, type AskOf } from './index.ts';
 import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
 import { nameFromForgeLabel } from './PromptShell.tsx';
 import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
+import type { FacePart, TileCard } from '../../components/faceCrop.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 
@@ -349,6 +350,50 @@ describe('getAbilityToPlay: a card’s faces', () => {
     expect(mountPrompt('getAbilityToPlay', bare, lookup).queryAllByTestId('prompt-face')).toHaveLength(0);
     cleanup();
     expect(mountPrompt('getAbilityToPlay', ask, { ...lookup, faces: () => [] }).getAllByTestId('prompt-choice')).toHaveLength(2);
+  });
+});
+
+describe('getAbilityToPlay: a split card’s halves', () => {
+  // The operator, 2026-10-19: "i see the entire split card in both choices so i can't really tell which one is wish".
+  const art = scryfallIdFor(KNOWN_ART_IDS, 'Wear // Tear', 'DGM');
+  const card = (name: string, faceCrop?: FacePart): TileCard => ({
+    cardId: 'w83', name, manaCost: [], manaValue: 0, colors: [], typeLine: 'Instant', oracleText: `${name}'s own text`, setCode: 'DGM', collectorNumber: '', rarity: 'uncommon',
+    ...(art === undefined ? {} : { scryfallId: art }),
+    ...(faceCrop === undefined ? {} : { faceCrop }),
+  });
+  const lookup: PromptLookup = {
+    ...EMPTY_LOOKUP,
+    faces: (id) => (id === 83 ? [card('Wear // Tear'), card('Wear', 'split-left'), card('Tear', 'split-right')] : []),
+  };
+  const ask = {
+    kind: 'ask' as const,
+    callId: 'c2',
+    method: 'getAbilityToPlay' as const,
+    hostCard: { kind: 'card' as const, id: 83 },
+    abilities: [
+      { kind: 'spellAbility' as const, id: 301, label: 'Destroy target artifact.', face: 'Wear' },
+      { kind: 'spellAbility' as const, id: 302, label: 'Destroy target enchantment.', face: 'Tear' },
+      { kind: 'spellAbility' as const, id: 303, label: 'Fuse (both halves)', face: 'Wear // Tear' },
+    ],
+    triggerEvent: null,
+  };
+
+  it('draws each half as its own part of the card, upright, and fuse’s both halves as the whole card', () => {
+    expect(art, 'Wear // Tear has art').toBeDefined();
+    const faces = mountPrompt('getAbilityToPlay', ask, lookup).getAllByTestId('prompt-face');
+    const drawn = faces.map((f) => ({
+      face: f.getAttribute('data-face'),
+      crop: f.querySelector('.card')?.getAttribute('data-face-crop') ?? null,
+      turn: f.querySelector<HTMLImageElement>('img.card__art')?.style.transform || null,
+      framed: f.querySelector('.card__crop > img.card__art') !== null,
+      text: f.querySelector('.card__rules')?.textContent ?? null,
+      src: f.querySelector('img')?.getAttribute('src') ?? null,
+    }));
+    expect(drawn).toEqual([
+      { face: 'Wear', crop: 'split-left', turn: 'rotate(90deg)', framed: true, text: "Wear's own text", src: cardImageUrl(art!) },
+      { face: 'Tear', crop: 'split-right', turn: 'rotate(90deg)', framed: true, text: "Tear's own text", src: cardImageUrl(art!) },
+      { face: 'Wear // Tear', crop: null, turn: null, framed: false, text: "Wear // Tear's own text", src: cardImageUrl(art!) },
+    ]);
   });
 });
 

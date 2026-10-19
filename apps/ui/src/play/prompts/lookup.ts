@@ -23,7 +23,7 @@
  * recorded in the lane report). Until then an ability draws as "ability #id".
  */
 
-import type { DraftCard } from '@hadoku/shared';
+import type { TileCard } from '../../components/faceCrop.ts';
 
 import { cardFaces } from '../adapter.ts';
 import type { WireState } from '../fold.ts';
@@ -68,7 +68,7 @@ export interface PromptLookup {
   /** A label for a `SpellAbilityRef`. See the module header: not on the wire. */
   ability(id: number): string | undefined;
   /** Every face of a card this seat may see, the one on show first (`../adapter.ts`'s `cardFaces`). */
-  faces?(id: number): readonly DraftCard[];
+  faces?(id: number): readonly TileCard[];
 }
 
 /** A lookup that knows nothing. Every id draws as its fallback label. */

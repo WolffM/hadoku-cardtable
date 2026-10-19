@@ -42,7 +42,7 @@ import { memo, useMemo } from 'react';
  * operator's assignment, changed in one place.
  */
 
-import type { DraftCard } from '../draft/types.ts';
+import { faceCropStyle, type TileCard } from './faceCrop.ts';
 import { ManaCost, ManaPip, SetSymbol } from './ManaPip.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { playRole, roleHandler } from '../sound/index.ts';
@@ -96,7 +96,8 @@ function RulesLine({ line, conditionMet = false }: { line: string; conditionMet?
 const ABILITY_WORD = /^((?!Choose\b)[A-Z][A-Za-z']*(?: [A-Za-z']+){0,2}) — /;
 
 export interface CardTileProps {
-  card: DraftCard;
+  /** A face that shares its card's image (`faceCrop.ts`) draws only its own part of it. */
+  card: TileCard;
   /** Present on a pack card, absent in the pool. */
   onPick?: (cardId: string) => void;
   disabled?: boolean;
@@ -169,20 +170,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
         // now — all 534 carry a scryfallId — so the path that matters here is a
         // fetch that fails: a CDN key that was never uploaded 404s, and only
         // this handler turns that into a readable card instead of a broken one.
-        <img
-          className="card__art"
-          src={imageUrl}
-          // No srcSet: one correctly-chosen size beats a responsive set that
-          // resolves to the largest candidate. See cardImage.ts.
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          decoding="async"
-          draggable={false}
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
-        />
+        <CardArt url={imageUrl} crop={card.faceCrop} />
       )}
       <span className="card__stripe" data-identity={identity} aria-hidden="true" />
       <span className="card__head">
@@ -225,7 +213,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
       // Hover cues a pool tile too. A pool card is not clickable but it IS the
       // thing you are reading, and a cue that only fires on half the cards on
       // screen reads as a bug rather than as a rule.
-      <article className="card" data-card-id={card.cardId} data-testid="card" data-condition-met={conditionMet ? '' : undefined} onMouseEnter={onHover}>
+      <article className="card" data-card-id={card.cardId} data-testid="card" data-face-crop={card.faceCrop} data-condition-met={conditionMet ? '' : undefined} onMouseEnter={onHover}>
         {body}
       </article>
     );
@@ -236,6 +224,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
       type="button"
       className="card card--pickable"
       data-card-id={card.cardId}
+      data-face-crop={card.faceCrop}
       data-testid="card"
       disabled={disabled}
       onMouseEnter={onHover}
@@ -250,6 +239,37 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
     >
       {body}
     </button>
+  );
+}
+
+/**
+ * The art over the tile. A face that shares its card's image is its own part of it, upright, in a
+ * frame the tile's shape (`faceCrop.ts`); the frame goes with the image when the image fails.
+ */
+function CardArt({ url, crop }: { url: string; crop: TileCard['faceCrop'] }) {
+  const img = (
+    <img
+      className="card__art"
+      src={url}
+      // No srcSet: one correctly-chosen size beats a responsive set that
+      // resolves to the largest candidate. See cardImage.ts.
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+      style={crop === undefined ? undefined : faceCropStyle(crop)}
+      onError={(e) => {
+        const gone = crop === undefined ? e.currentTarget : e.currentTarget.parentElement;
+        if (gone !== null) gone.style.display = 'none';
+      }}
+    />
+  );
+  if (crop === undefined) return img;
+  return (
+    <span className="card__crop" aria-hidden="true">
+      {img}
+    </span>
   );
 }
 
