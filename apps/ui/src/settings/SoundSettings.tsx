@@ -12,6 +12,7 @@ import { Icon } from '@wolffm/themes';
 import { MUSIC_STYLES, type MusicStyle } from '@hadoku/shared';
 
 import {
+  LEVEL_DEFAULTS,
   getLevel,
   getMusicStyle,
   isMuted,
@@ -50,7 +51,7 @@ function MusicStylePicker({ disabled }: { disabled: boolean }) {
 }
 
 function LevelSlider({ name, label, disabled }: { name: LevelName; label: string; disabled: boolean }) {
-  const value = useSyncExternalStore(subscribeSound, () => getLevel(name), () => 1);
+  const value = useSyncExternalStore(subscribeSound, () => getLevel(name), () => LEVEL_DEFAULTS[name]);
   return (
     <label className="ct-settings__level">
       <span>{label}</span>

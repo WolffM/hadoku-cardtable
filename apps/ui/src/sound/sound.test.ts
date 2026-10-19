@@ -325,7 +325,8 @@ describe('the sound settings', () => {
     render(createElement(SoundSettings));
     const volume = screen.getByTestId('settings-volume') as HTMLInputElement;
     const music = screen.getByTestId('settings-music') as HTMLInputElement;
-    expect([volume.value, music.value]).toEqual(['100', '100']);
+    // Nothing stored: everything full, the music at half.
+    expect([volume.value, music.value]).toEqual(['100', '50']);
 
     fireEvent.change(volume, { target: { value: '40' } });
     fireEvent.change(music, { target: { value: '15' } });
@@ -380,7 +381,9 @@ describe('the sound settings', () => {
     render(createElement(SoundSettings));
     const volume = screen.getByTestId('settings-volume') as HTMLInputElement;
     expect(volume.value).toBe('25');
-    expect((screen.getByTestId('settings-music') as HTMLInputElement).value).toBe('100');
+    // An unreadable music level is its default, half.
+    expect((screen.getByTestId('settings-music') as HTMLInputElement).value).toBe('50');
     expect(volume.disabled).toBe(true);
   });
+
 });

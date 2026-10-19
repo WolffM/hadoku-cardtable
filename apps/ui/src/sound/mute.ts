@@ -40,8 +40,15 @@ export const MUTE_KEY = 'cardtable.sound.muted';
 export const LEVEL_KEYS = { volume: 'cardtable.sound.volume', music: 'cardtable.sound.music' } as const;
 export const MUSIC_STYLE_KEY = 'cardtable.sound.music-style';
 
-/** `volume` scales everything; `music` scales the music bus under it. Both 0..1, full by default. */
+/** `volume` scales everything; `music` scales the music bus under it. Both 0..1. */
 export type LevelName = keyof typeof LEVEL_KEYS;
+
+/**
+ * A level nobody has set. The music starts at half (the operator, 2026-10-19:
+ * "let's change default music volume to be 50%") so it sits under the game's
+ * own sounds; everything else starts full.
+ */
+export const LEVEL_DEFAULTS: Readonly<Record<LevelName, number>> = { volume: 1, music: 0.5 };
 
 /** `true` when the player has muted. Authoritative once loaded. */
 let muted: boolean | null = null;
@@ -96,17 +103,17 @@ function notify(): void {
   for (const fn of [...listeners]) fn();
 }
 
-/** A level, 0..1. Reads the store once, then memoises; anything unreadable is full. */
+/** A level, 0..1. Reads the store once, then memoises; anything unreadable is its default. */
 export function getLevel(name: LevelName): number {
   const known = levels[name];
   if (known !== undefined) return known;
-  let value = 1;
+  let value = LEVEL_DEFAULTS[name];
   try {
     const raw = globalThis.localStorage?.getItem(LEVEL_KEYS[name]);
     const n = raw == null ? NaN : Number(raw);
     if (Number.isFinite(n)) value = clamp(n);
   } catch {
-    // A blocked store: full volume, the default.
+    // A blocked store: the default.
   }
   levels[name] = value;
   return value;

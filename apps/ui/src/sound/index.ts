@@ -203,6 +203,7 @@ export function roleHandler(role: string): () => void {
 }
 
 export {
+  LEVEL_DEFAULTS,
   MUSIC_STYLE_KEY,
   MUTE_KEY,
   getLevel,
