@@ -103,9 +103,20 @@ const roomsClientState = vi.hoisted(() => ({
    * `tables[0].series.phase` and `pod`.
    */
   room: null as Record<string, unknown> | null,
+  /** Called after each `get` answers — a test that needs the room to move between reads sets it. */
+  afterGet: null as (() => void) | null,
+  gets: 0,
 }));
 vi.mock('../../rooms/api.ts', () => ({
-  roomsClient: () => ({ leave: roomsClientState.leave, get: async () => roomsClientState.room }),
+  roomsClient: () => ({
+    leave: roomsClientState.leave,
+    get: async () => {
+      const room = roomsClientState.room;
+      roomsClientState.gets += 1;
+      roomsClientState.afterGet?.();
+      return room;
+    },
+  }),
 }));
 
 /*
@@ -266,6 +277,8 @@ afterEach(async () => {
   prefsState.saved = [];
   roomsClientState.leave.mockClear();
   roomsClientState.room = null;
+  roomsClientState.afterGet = null;
+  roomsClientState.gets = 0;
   tableState.me = { ready: false, present: true, choice: null };
   tableState.other = { ready: false, present: true };
   tableState.matchId = null;
@@ -3789,12 +3802,67 @@ describe('R16 — the result screen, drawn over the board', () => {
       expect(tableState.startRoom).not.toHaveBeenCalled();
     });
 
+    /**
+     * The operator's pod (2026-10-19) and claw run 39207516746: the first room
+     * read was taken before the game was recorded — it still said `playing`
+     * while the table already said `sideboarding` — so the sideboard step never
+     * opened and Back to room was all there was. Now nothing is drawn until the
+     * two agree, and a room read that is behind the table is taken again.
+     */
+    it('a room read from before the game was recorded is read again, and nothing shows until it agrees with the table', async () => {
+      const s = (server = await startReplayServer());
+      const pod = { phase: 'rounds', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [] };
+      const settings = { handSmoothing: true, matchLength: 'bo3', sideboarding: true };
+      // Before the game is recorded: the match is still the table's live game.
+      roomsClientState.room = { settings, pod, tables: [{ id: 't-1', players: [], matchId: s.matchId, series: { length: 3, wins: [0, 0], games: [], phase: 'playing' } }] };
+      // Two reads still from before; the one after that finds it recorded.
+      roomsClientState.afterGet = () => {
+        if (roomsClientState.gets < 2) return;
+        roomsClientState.room = { settings, pod, tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [0, 1], games: [{ matchId: s.matchId, winner: 1 }], phase: 'sideboarding' } }] };
+        roomsClientState.afterGet = null;
+      };
+      tableState.phase = 'sideboarding';
+      tableState.other = { ready: false, present: false };
+      tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n40 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
+      const m = (match = startMatch({
+        matchId: s.matchId,
+        transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
+      }));
+      const shown: string[] = [];
+      const utils = render(createElement(LiveBoard, { match: m, roomId: 'r-1' }));
+      const observer = new MutationObserver(() => {
+        if (utils.queryByTestId('sideboard-loading') !== null) shown.push('sideboard-loading');
+        else if (utils.queryByTestId('game-result-room') !== null && utils.queryByTestId('sideboard-step') === null) shown.push('back-to-room-alone');
+        if (utils.queryByTestId('game-result-rematch') !== null) shown.push('rematch');
+      });
+      observer.observe(utils.container, { childList: true, subtree: true });
+      await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
+      const frames = fixtureFrames();
+      for (const f of frames) s.send(f);
+      await untilMatch(m, () => expect(m.stats.applied).toBe(frames.length));
+      await waitFor(() => expect(utils.getByTestId('live-turn-n').textContent).toBe('14'));
+      s.send(gameOverDelta(m.view!.seq + 1, m.view!.players.find((p) => !p.isViewer)!.id));
+      await untilMatch(m, () => expect(m.over).toBe(true));
+      await waitFor(() => expect(roomsClientState.gets).toBe(2));
+      // Both reads so far are behind the table: nothing is drawn yet.
+      expect(utils.queryByTestId('game-result')).toBeNull();
+      // The next tick of the room (another seat's write, the fallback timer)
+      // reads the table, sees the room behind it, and reads the room again.
+      roomPing();
+      await waitFor(() => expect(utils.getByTestId('sideboard-step')).toBeTruthy(), { timeout: 3_000 });
+      observer.disconnect();
+      expect(roomsClientState.gets).toBeGreaterThanOrEqual(2);
+      // It opened straight on the sideboard step: no Back-to-room-only screen, no Rematch, first.
+      expect(shown).toEqual([]);
+    });
+
     it('mounting the sideboard step sends no ready request — the server already began it with nobody ready', async () => {
       roomsClientState.room = {
         settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
+      tableState.phase = 'sideboarding';
       tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const { getByTestId } = await victoryInRoom();
       await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
@@ -3809,6 +3877,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
+      tableState.phase = 'sideboarding';
       tableState.me = {
         ready: false,
         present: true,
@@ -3828,6 +3897,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
+      tableState.phase = 'sideboarding';
       tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const { getByTestId } = await victoryInRoom();
       await waitFor(() => expect(getByTestId('sideboard-ready')).toBeTruthy());
@@ -3840,6 +3910,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
+      tableState.phase = 'sideboarding';
       tableState.other.ready = true;
       tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const { getByTestId } = await victoryInRoom();
@@ -3866,6 +3937,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
+      tableState.phase = 'sideboarding';
       tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const { getByTestId } = await victoryInRoom();
       const ready = await waitFor(() => getByTestId('sideboard-ready'));
@@ -3884,6 +3956,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
+      tableState.phase = 'sideboarding';
       tableState.me = { ready: false, present: true, choice: { deck: { dck }, rules: CONSTRUCTED_RULES } };
       const { getByTestId, queryByTestId } = await victoryInRoom();
       // No Rematch press: the step opens on its own once `phase` says so.
@@ -3909,6 +3982,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
+      tableState.phase = 'sideboarding';
       tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const { getByTestId } = await victoryInRoom();
       await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());
@@ -3953,6 +4027,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         ],
         pod: { phase: 'rounds', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [] },
       };
+      tableState.phase = 'sideboarding';
       tableState.me = { ready: false, present: true, choice: { deck: { dck: '[Main]\n60 Island\n[Sideboard]\n' }, rules: CONSTRUCTED_RULES } };
       const utils = render(createElement(LiveBoard, { match: m, roomId: 'r-1' }));
       await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));

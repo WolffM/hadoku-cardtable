@@ -547,8 +547,8 @@ export type PlayPodResult =
 
 /**
  * The opponent at a pod table that has one human: the one drafter of a pod of
- * bots plays Forge's AI. Stands in `PodRecord.pairings` where a member id would,
- * and is never a member — `#finishPodTable` records no result for it.
+ * bots plays Forge's AI. Stands in `PodRecord.pairings` and the results where a
+ * member id would, and is never a member — so never a row of the standings.
  */
 export const POD_AI = 'ai';
 
@@ -1813,8 +1813,9 @@ class FileLobby implements Lobby {
 		const pairing = pod.pairings.find((p) => p.tableId === table.id);
 		if (pairing === undefined) return;
 		const [a, b] = pairing.players;
-		// A game against the AI is not a pod result: there is nobody to rank it against.
-		if (b !== POD_AI) pod.results = [...pod.results, { round: pod.round, playerA: a, playerB: b, gamesA: table.series.wins[0], gamesB: table.series.wins[1] }];
+		// A series against the AI counts like any other (the operator: "i lost so it
+		// should show my standings"): the AI is the opponent, never a ranked row.
+		pod.results = [...pod.results, { round: pod.round, playerA: a, playerB: b, gamesA: table.series.wins[0], gamesB: table.series.wins[1] }];
 		const stillPlaying = pod.pairings.some((p) => {
 			if (p.tableId === table.id) return false;
 			const t = room.tables.find((x) => x.id === p.tableId);

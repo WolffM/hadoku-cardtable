@@ -1903,6 +1903,9 @@ function fromTheBoard(seq: number): DelayedSoundEvent[] {
  */
 export const END_UNSHOWN_MS = 2_000;
 
+/** How long the result screen waits for its table and room to agree before it shows anyway. */
+export const RESULT_SETTLE_MS = 4_000;
+
 /**
  * Whether the game has ended on this screen: the view shows it — the frame that carries the killing
  * blow — or the server's notice came and no frame showed it within `END_UNSHOWN_MS`. Never the notice
@@ -2002,20 +2005,19 @@ async function my75Text(choice: SeatChoice, tables: TablesClient): Promise<strin
  * `ready(true)`. A refusal (the server's 75 check, or the start gate) shows
  * as its own sentence above the editor.
  */
-function SideboardStep({
-  roomId,
-  tableId,
-  tables,
-  choice,
-}: {
-  roomId: string;
-  /** This match's own table (`GameResultScreen`'s `findMyTable`) — a pod's table 2+, never `tables[0]` by default. */
-  tableId: string | undefined;
-  tables: TablesClient;
-  choice: SeatChoice;
-}) {
+/**
+ * What the sideboard step draws from — my 75 and, for a drafted deck, the
+ * drafted pool — read BEFORE the step is shown, so it opens whole rather than
+ * as a loading box that turns into an editor. `undefined` while either is
+ * still being read; `null` choice reads nothing.
+ */
+function useSideboardInputs(
+  choice: SeatChoice | null,
+  tables: TablesClient,
+): { text: string | null; draftPool: DraftCard[] | null } | undefined {
   const [text, setText] = useState<string | null | undefined>(undefined);
   useEffect(() => {
+    if (choice === null) return;
     let live = true;
     my75Text(choice, tables).then((t) => {
       if (live) setText(t);
@@ -2025,8 +2027,8 @@ function SideboardStep({
     };
   }, [choice, tables]);
 
-  const draftId = choice.rules.kind === 'draft' ? choice.rules.draftId : null;
-  const [draftPool, setDraftPool] = useState<DraftCard[] | null>(null);
+  const draftId = choice !== null && choice.rules.kind === 'draft' ? choice.rules.draftId : null;
+  const [draftPool, setDraftPool] = useState<DraftCard[] | null | undefined>(undefined);
   useEffect(() => {
     if (draftId === null) return;
     let live = true;
@@ -2045,6 +2047,28 @@ function SideboardStep({
     };
   }, [draftId]);
 
+  if (choice === null || text === undefined || (draftId !== null && draftPool === undefined)) return undefined;
+  return { text, draftPool: draftPool ?? null };
+}
+
+function SideboardStep({
+  roomId,
+  tableId,
+  tables,
+  choice,
+  inputs,
+}: {
+  roomId: string;
+  /** This match's own table (`GameResultScreen`'s `findMyTable`) — a pod's table 2+, never `tables[0]` by default. */
+  tableId: string | undefined;
+  tables: TablesClient;
+  choice: SeatChoice;
+  /** Read by `GameResultScreen` before it shows anything (`useSideboardInputs`). */
+  inputs: { text: string | null; draftPool: DraftCard[] | null };
+}) {
+  const { text, draftPool } = inputs;
+  const draftId = choice.rules.kind === 'draft' ? choice.rules.draftId : null;
+
   const parsed = useMemo(() => (typeof text === 'string' ? deckFromDeckFile(parseDck(text)) : null), [text]);
   const pool = useMemo(
     () => draftPool ?? (parsed === null ? [] : namedCardPool([...parsed.main, ...parsed.sideboard].map((e) => e.card.name))),
@@ -2053,9 +2077,6 @@ function SideboardStep({
   const [readyState, setReadyState] = useState<ReadyState>('idle');
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  if (text === undefined) {
-    return <section className="sideboard-step" data-testid="sideboard-loading" aria-busy="true" />;
-  }
   if (text === null || parsed === null) {
     return (
       <p className="live__error" role="alert" data-testid="sideboard-unavailable">
@@ -2169,49 +2190,93 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
    */
   const lastTableSignature = useRef<string | null>(null);
 
+  /** The last room read, for the next tick to compare the table against. */
+  const roomRef = useRef<RoomView | null>(null);
+  /** A room read has answered — a room, or the server's 404 for one it will not admit to. */
+  const [roomAnswered, setRoomAnswered] = useState(false);
   useEffect(() => {
     if (roomId === null) return;
     let live = true;
-    const refreshRoom = (): void => {
+    const refreshRoom = (): Promise<void> =>
       roomsClient()
         .get(roomId)
         .then(
           (answer) => {
-            if (!live || answer === null) return;
+            if (!live) return;
+            setRoomAnswered(true);
+            if (answer === null) return;
+            roomRef.current = answer;
             setRoom(answer);
             myTableIdRef.current = findMyTable(answer, match.matchId)?.id;
           },
-          () => undefined,
+          () => {
+            if (live) setRoomAnswered(true);
+          },
         );
+    const tick = async (): Promise<void> => {
+      // The room first, once: it says which of the room's tables is this
+      // match's. A table read without it is the room's FIRST table — in a pod,
+      // one nobody plays at.
+      if (roomRef.current === null) await refreshRoom();
+      const answer = await tables.table(roomId, myTableIdRef.current).catch(() => null);
+      // Unreachable for a moment: the last answer stays on screen and the next read asks again.
+      if (!live || answer === null || !answer.ok) return;
+      setTable(answer.table);
+      setAlone((was) => was ?? answer.table.players.length === 1);
+      const signature = JSON.stringify({
+        matchId: answer.table.room.matchId,
+        locked: answer.table.room.locked,
+        phase: answer.table.room.phase,
+        players: answer.table.players.map((p) => ({ ready: p.ready, legal: p.legal })),
+      });
+      // The room again when the table moved, or when the last room read is
+      // behind it: read before the game was recorded, it still says `playing`
+      // while the table is `sideboarding` — and the sideboard step never opened
+      // (w72-pod, claw run 39207516746; the operator's own pod, 2026-10-19).
+      const behind = roomRef.current !== null && findMyTable(roomRef.current, match.matchId)?.series.phase !== answer.table.room.phase;
+      if (signature !== lastTableSignature.current || behind) {
+        lastTableSignature.current = signature;
+        await refreshRoom();
+      }
     };
-    const stopFollowing = roomFeed().follow({ room: roomId }, () => {
-      tables.table(roomId, myTableIdRef.current).then(
-        (answer) => {
-          if (!live || !answer.ok) return;
-          setTable(answer.table);
-          setAlone((was) => was ?? answer.table.players.length === 1);
-          const signature = JSON.stringify({
-            matchId: answer.table.room.matchId,
-            locked: answer.table.room.locked,
-            phase: answer.table.room.phase,
-            players: answer.table.players.map((p) => ({ ready: p.ready, legal: p.legal })),
-          });
-          // `lastTableSignature` starts `null`, which no real signature ever
-          // equals, so the very first read always also reads the room.
-          if (signature !== lastTableSignature.current) {
-            lastTableSignature.current = signature;
-            refreshRoom();
-          }
-        },
-        // Unreachable for a moment: the last answer stays on screen and the next read asks again.
-        () => undefined,
-      );
-    });
+    const stopFollowing = roomFeed().follow({ room: roomId }, () => void tick());
     return () => {
       live = false;
       stopFollowing();
     };
   }, [roomId, tables, match.matchId]);
+
+  /**
+   * Nothing is drawn until what it would show is settled (the operator,
+   * 2026-10-19: *"never show UI until its ready"* — a Rematch that flashed and
+   * turned into something else): the table read, and a room read that has
+   * answered and, when it found the room, agrees with the table on this
+   * table's phase. A server that never lets them agree still gets the screen,
+   * late, rather than none.
+   */
+  // The same test the step itself is shown on (`showSideboard`, below).
+  const willSideboard = sideboarding && phase === 'sideboarding';
+  // By content: every table read is a fresh object, and the 75 is read once per choice, not once per read.
+  const choiceKey = willSideboard ? JSON.stringify(myChoice(table)) : null;
+  const sideboardChoice = useMemo(() => (choiceKey === null ? null : (JSON.parse(choiceKey) as SeatChoice | null)), [choiceKey]);
+  const sideboardInputs = useSideboardInputs(sideboardChoice, tables);
+  const settled =
+    roomId === null ||
+    (table !== null &&
+      roomAnswered &&
+      (myTable == null || myTable.series.phase === table.room.phase) &&
+      // The sideboard step opens whole: its 75 (and drafted pool) already read.
+      (!willSideboard || myChoice(table) === null || sideboardInputs !== undefined));
+  const [waitedOut, setWaitedOut] = useState(false);
+  useEffect(() => {
+    if (settled) return;
+    const timer = setTimeout(() => setWaitedOut(true), RESULT_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [settled]);
+  // Only the first showing waits: once up, the screen stays up while a later
+  // read catches the room up, rather than vanishing and coming back.
+  const shownOnce = useRef(false);
+  if (settled || waitedOut) shownOnce.current = true;
 
   // The room's next match, whichever screen asked for it.
   const next = table?.room.matchId ?? null;
@@ -2275,6 +2340,8 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const showSideboard = sideboarding && phase === 'sideboarding';
   const choice = myChoice(table);
 
+  if (!shownOnce.current) return null;
+
   const backButtons = (
     <>
       <button type="button" className="button" data-testid="game-result-room" disabled={roomId === null || leaving} onClick={onBackToRoom}>
@@ -2310,7 +2377,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
             <span className="live__sideboard-spacer" />
             {backButtons}
           </div>
-          <SideboardStep roomId={roomId} tableId={tableId} tables={tables} choice={choice} />
+          {sideboardInputs !== undefined && <SideboardStep roomId={roomId} tableId={tableId} tables={tables} choice={choice} inputs={sideboardInputs} />}
         </div>
       </section>
     );

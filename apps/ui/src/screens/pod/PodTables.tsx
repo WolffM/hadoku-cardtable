@@ -44,7 +44,8 @@ function isMine(table: RoomTable, myMemberId: string | null): boolean {
 /** "Alice 1–0 Bob", from whichever seats are filled — no explanatory text, same rule `BoardStrip` keeps. */
 function label(t: RoomTable): string {
   const [p0, p1] = t.players;
-  return `${p0?.name ?? ''} ${t.series.wins[0]}–${t.series.wins[1]} ${p1?.name ?? ''}`.trim();
+  // A pod table with one player is against the AI (`room/lobby.ts`'s `POD_AI`).
+  return `${p0?.name ?? ''} ${t.series.wins[0]}–${t.series.wins[1]} ${p1?.name ?? (t.players.length === 1 ? 'AI' : '')}`.trim();
 }
 
 export function PodTables({ tables, myMemberId, byeId, nameOf, onPlay, starting = false }: PodTablesProps) {
