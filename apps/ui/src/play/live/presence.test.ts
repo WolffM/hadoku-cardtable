@@ -1437,6 +1437,76 @@ describe('receiving', () => {
     handle.dispose();
   });
 
+  /*
+   * table-fit's stand-in red (main f9c61e83, run 39379687036): alice dragged Compulsion to her
+   * battlefield (`forge:placement`, card 49), then cancelled its payment. Bob's stand-in waited in
+   * the reserved gap for a card that was back in her hand: 52 echoes of hers said nothing was parked
+   * any more, Forge drew nothing new, and only the fifteen-second clock took it down.
+   */
+  it('a placement whose play is cancelled (their card no longer parked, nothing arriving) ends after the grace, and its column with it — never the safety clock', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    theirHandBacks(canvas, 3);
+    const t = fakeTransport();
+    const report = vi.fn();
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), report, watch: () => () => undefined, theirCards: () => [], theirPlayerId: () => 1, motion: () => true },
+    });
+    const at = { zone: 'battlefield' as const, x: 0.4, y: 0.6 };
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: true, from: null, arranging: null });
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 49, slot: 'back', target: { kind: 'at', column: 1 }, at });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: at, held: false, from: null, arranging: null, placing: { at } });
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'the stand-in waits in the gap while they pay').not.toBeNull();
+    // Cancelled: their card floats home, and every message from here on says nothing is parked.
+    for (let i = 0; i < 4; i++) {
+      vi.advanceTimersByTime(CLEARED_GRACE_MS / 4);
+      t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { ...at, x: 0.4 + i * 0.05 }, held: false, from: null, arranging: null });
+    }
+    vi.advanceTimersByTime(CLEARED_GRACE_MS);
+    expect(canvas.querySelector('.presence__back'), 'nothing of theirs stands in the gap').toBeNull();
+    expect(pendingPlacementFor(1), 'and the gap is not held for a card that is not coming').toBeNull();
+    vi.advanceTimersByTime(PLACEMENT_WAIT_MS);
+    expect(report.mock.calls.filter(([k]) => k === 'stand-in'), 'a cancelled play’s designed end, said once').toEqual([['stand-in', expect.objectContaining({ how: 'grace', forBattlefield: true, card: 49, lastEcho: 'none' })]]);
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
+  it('a placement cancelled as Forge says it — the card back in their hand — flies the stand-in home and frees its column', async () => {
+    const { canvas } = board();
+    document.elementFromPoint = () => null;
+    const backs = theirHandBacks(canvas, 2);
+    const t = fakeTransport();
+    const report = vi.fn();
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), report, watch: (cb) => ((wake = cb), () => undefined), theirCards: () => [], theirPlayerId: () => 1, motion: () => true },
+    });
+    const frame = (): Promise<unknown> => new Promise((r) => requestAnimationFrame(() => r(undefined)));
+    const at = { zone: 'battlefield' as const, x: 0.4, y: 0.6 };
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 49, slot: 'back', target: { kind: 'at', column: 1 }, at });
+    const standIn = canvas.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
+    standIn.getBoundingClientRect = () => rect({ left: 370, top: 450, width: 60, height: 84 });
+    // Forge takes it out of their hand to pay for it: one back fewer, and still the stand-in waits.
+    backs[1]!.remove();
+    wake!();
+    await frame();
+    expect(canvas.querySelector('.presence__back[data-waiting]'), 'still waiting while they pay').toBe(standIn);
+    // Cancelled: Forge puts it back.
+    const [home] = theirHandBacks(canvas, 1);
+    home!.getBoundingClientRect = () => rect({ left: 170, top: 20, width: 60, height: 84 });
+    wake!();
+    await frame();
+    expect(canvas.querySelector('.presence__back'), 'nothing of theirs stands in the gap').toBeNull();
+    expect(canvas.querySelector('.board > .presence__handoff .card-back'), 'a back flies home').not.toBeNull();
+    expect(pendingPlacementFor(1), 'its column is free').toBeNull();
+    expect(report.mock.calls.filter(([k]) => k === 'stand-in'), 'its card ended it, not a clock').toEqual([]);
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
   it('a held message while their placement is still arriving does not abandon the gap: the stand-in stays, their pointer is just a pointer', () => {
     const { canvas } = board();
     document.elementFromPoint = () => null;
