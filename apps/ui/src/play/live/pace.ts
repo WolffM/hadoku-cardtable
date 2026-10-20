@@ -79,7 +79,7 @@
  * frame, and it is the result screen that waits for the frame that shows the end
  * (`LiveBoard.tsx`'s `useGameEnded`), and then for the board to draw it (`../motion.ts`'s `whenBoardStill`).
  *
- * ## One act at a time, and the board's beats first
+ * ## One act at a time, and the board's beats first — for every act but the seat's own (below)
  *
  * A person acts seconds apart; the Forge AI acts within milliseconds, and its turn reached the other
  * screen as one burst (the operator, 2026-10-19: *"they attack me and i dont even see their creatures
