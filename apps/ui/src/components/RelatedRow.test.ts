@@ -62,11 +62,15 @@ describe('the related row', () => {
     expect(screen.queryByTestId('pack-related')).toBeNull();
   });
 
-  it('starts under the open card and stays inside the pack', () => {
+  it('starts just under the hovered card and stays inside the pack', () => {
     const fan = fanGeometry(1000, 400);
-    const left = (open: number, n: number) => parseFloat(String((relatedStyle(fan, open, 15, 1000, n) as Record<string, string>)['--related-left']));
-    expect(left(0, 1)).toBeCloseTo(1000 / 2 + (-3 * fan.step) - fan.cardW / 2, 0);
+    const at = (card: number, open: number, n: number, key: string) => parseFloat(String((relatedStyle(fan, card, open, 15, 1000, n) as Record<string, string>)[key]));
+    expect(at(0, 0, 1, '--related-left')).toBeCloseTo(1000 / 2 + (-3 * fan.step) - fan.cardW / 2, 0);
+    expect(at(1, 0, 1, '--related-left')).toBeCloseTo(1000 / 2 + (-2 * fan.step) - fan.cardW / 2, 0);
     const w = fan.cardW * 0.8;
-    expect(left(14, 3) + 3 * w + 2 * 8).toBeLessThanOrEqual(1000.5);
+    expect(at(14, 14, 3, '--related-left') + 3 * w + 2 * 8).toBeLessThanOrEqual(1000.5);
+    // The open card's bottom edge is 22 px down, risen 18; a closed card's is not risen.
+    expect(at(0, 0, 1, '--related-top')).toBeCloseTo(22 + fan.cardH - 18 + 6, 0);
+    expect(at(1, 0, 1, '--related-top')).toBeCloseTo(22 + fan.cardH + 6, 0);
   });
 });

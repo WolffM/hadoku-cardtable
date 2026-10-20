@@ -66,6 +66,10 @@ export const FAN_MIN_WIDTH = 480;
 const RELATED_SCALE = 0.8;
 /** The gap between related cards, as `.pack__related` draws it. */
 const RELATED_GAP = 8;
+/** The open card's rise, as `.pack__slot[data-focused]` draws it. */
+const RISE = 18;
+/** From a card's bottom edge to its related row. */
+const RELATED_DROP = 6;
 /** How many cards are drawn either side of the open one. */
 export const FAN_SIDE = 3;
 /** The row's places: the open card in the middle of them, `FAN_SIDE` either side, but at the pack's ends. */
@@ -135,13 +139,14 @@ export function gridGeometry(count: number, width: number, height: number): { co
   return { cols, cardW };
 }
 
-/** The related row's place: from the open card's left edge, kept inside the pack's width. */
-export function relatedStyle(fan: FanGeometry, open: number, count: number, width: number, n: number): CSSProperties {
+/** The related row of card `at`, with `open` open: just under its bottom edge, from its left edge, kept inside the pack's width. */
+export function relatedStyle(fan: FanGeometry, at: number, open: number, count: number, width: number, n: number): CSSProperties {
   const w = fan.cardW * RELATED_SCALE;
   const row = n * w + Math.max(0, n - 1) * RELATED_GAP;
-  const cardLeft = width / 2 + (fanX(fan, open, open, count) ?? 0) - fan.cardW / 2;
+  const cardLeft = width / 2 + (fanX(fan, at, open, count) ?? 0) - fan.cardW / 2;
   const left = Math.max(0, Math.min(cardLeft, width - row));
-  return { '--related-w': `${w.toFixed(1)}px`, '--related-left': `${left.toFixed(1)}px` } as CSSProperties;
+  const top = LIFT + fan.cardH - (at === open ? RISE : 0) + RELATED_DROP;
+  return { '--related-w': `${w.toFixed(1)}px`, '--related-left': `${left.toFixed(1)}px`, '--related-top': `${top.toFixed(1)}px` } as CSSProperties;
 }
 
 /** The box the pack draws in, kept current. Zero until it has been measured. */
@@ -205,7 +210,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
     if (focus !== null && shown !== null && was !== null && was.pack === packKey && was.at !== shown) playRole('ui.draft-scroll');
   }, [focus, shown, packKey]);
 
-  /** The grid's card under the pointer: what Enter picks there. */
+  /** The card under the pointer: what Enter picks in the grid, and whose related cards the fan draws. */
   const [hovered, setHovered] = useState<number | null>(null);
   useEffect(() => setHovered(null), [packKey]);
 
@@ -292,6 +297,9 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
     );
   }
 
+  const hoveredCard = hovered === null ? undefined : cards[hovered];
+  const related = fan === null || hovered === null || hoveredCard === undefined ? null : { at: hovered, cards: relatedCards(hoveredCard.scryfallId) };
+
   const style =
     fan !== null
       ? ({ '--fan-w': `${fan.cardW.toFixed(1)}px`, '--fan-h': `${fan.cardH.toFixed(1)}px` } as CSSProperties)
@@ -307,7 +315,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
       data-card-count={cards.length}
       ref={attach}
       style={style}
-      onPointerLeave={fan === null ? () => setHovered(null) : undefined}
+      onPointerLeave={() => setHovered(null)}
     >
       {cards.map((card, i) => {
         const x = fan === null || shown === null ? null : fanX(fan, i, shown, cards.length);
@@ -320,7 +328,8 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
             data-focused={shown === i ? '' : undefined}
             data-off={off ? '' : undefined}
             onFocus={fan === null || off ? undefined : () => setFocus(i)}
-            onPointerEnter={fan === null ? () => setHovered(i) : undefined}
+            onPointerEnter={off ? undefined : () => setHovered(i)}
+            onPointerLeave={fan === null ? undefined : () => setHovered((was) => (was === i ? null : was))}
             style={
               x === null || shown === null
                 ? undefined
@@ -333,9 +342,9 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
           </div>
         );
       })}
-      {/* The open card's back face, tokens and meld cards, in a row under it. */}
-      {fan !== null && shown !== null && (
-        <RelatedRow cards={relatedCards(cards[shown]!.scryfallId)} style={relatedStyle(fan, shown, cards.length, box.width, relatedCards(cards[shown]!.scryfallId).length)} />
+      {/* The hovered card's back face, tokens and meld cards, in a row under it. */}
+      {fan !== null && shown !== null && related !== null && (
+        <RelatedRow cards={related.cards} style={relatedStyle(fan, related.at, shown, cards.length, box.width, related.cards.length)} />
       )}
     </div>
   );

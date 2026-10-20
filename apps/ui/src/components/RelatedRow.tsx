@@ -1,7 +1,9 @@
 /*
- * The fan's open card's related cards, in a row under it (the operator,
- * 2026-10-19: *"when hovering a transform card in fan mode, let's show all the
- * related cards below it in a line"*, and *"tokens and meld results too"*). Drawn
+ * The related cards of the fan's card under the pointer, in a row just under it
+ * (the operator, 2026-10-19: *"when hovering a transform card in fan mode, let's
+ * show all the related cards below it in a line"*, *"tokens and meld results
+ * too"*, and *"it should happen on hover not persistently show with the
+ * selected card"*). Drawn
  * only once every one of their images has settled — a row that fills in a card
  * at a time is the flash the operator asked never to see — and only the ones
  * that decoded: a related card has no text tile to fall back on. Never in the
