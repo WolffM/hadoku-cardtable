@@ -100,3 +100,32 @@
   align-items: center;
   gap: 12px;
 }
+
+/* A tile and the delete over its art's corner: siblings, since a button holds no button. */
+.deckpick__cell {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.decks__tile-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.deckpick__cell:hover .decks__tile-actions,
+.decks__tile-actions:focus-within,
+.decks__tile-actions[data-asking] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .decks__tile-actions {
+    opacity: 1;
+  }
+}

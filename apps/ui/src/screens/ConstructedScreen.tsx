@@ -135,6 +135,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from 'react';
 
 import {
@@ -787,6 +788,7 @@ export function DeckChooser({
   empty,
   pending = false,
   pendingTiles = 8,
+  tileAction,
 }: {
   options: readonly DeckOption[];
   value: string;
@@ -798,6 +800,8 @@ export function DeckChooser({
   pendingTiles?: number;
   /** Drawn in place of the tiles when there are none, if given. */
   empty?: string | undefined;
+  /** A control drawn over a tile's corner, beside the tile's button rather than inside it. */
+  tileAction?: (option: DeckOption) => ReactNode;
 }) {
   /** Where Tab lands. Null until the reader moves it, so it follows the choice. */
   const [focus, setFocus] = useState<number | null>(null);
@@ -949,7 +953,8 @@ export function DeckChooser({
         pointerAt.current = null;
       }}
     >
-      {options.map((option, index) => (
+      {options.map((option, index) => {
+        const tile = (
         <button
           key={option.value}
           type="button"
@@ -991,7 +996,16 @@ export function DeckChooser({
             </span>
           )}
         </button>
-      ))}
+        );
+        return tileAction === undefined ? (
+          tile
+        ) : (
+          <div key={option.value} className="deckpick__cell">
+            {tile}
+            {tileAction(option)}
+          </div>
+        );
+      })}
       {pending && options.length === 0 && <SkeletonTiles count={pendingTiles} />}
       {options.length === 0 && empty !== undefined && (
         <p className="deckpick__empty" data-testid="deck-none">

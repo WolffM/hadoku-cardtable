@@ -115,6 +115,27 @@ describe('DecksScreen', () => {
     expect(shown()).toEqual([]);
     expect(screen.getByTestId('deck-none').textContent).toBe('No decks');
   });
+
+  it('deletes a finished deck from its tile after a second press, and offers no delete on a deck whose tournament runs', async () => {
+    globalThis.location.hash = '#/decks';
+    const { calls, client } = stub([deck('a'), deck('b', { concluded: false })]);
+    render(createElement(DecksScreen, { decks: client, deckRecords: records([]) }));
+    await waitFor(() => expect(screen.getAllByTestId('deck-option')).toHaveLength(2));
+    const bins = screen.getAllByTestId('decks-tile-delete');
+    expect(bins).toHaveLength(1);
+    expect(bins[0]!.closest('.deckpick__cell')?.querySelector('[data-testid="deck-option"]')).toBe(tile('a'));
+
+    fireEvent.click(bins[0]!);
+    expect(calls).toEqual([]);
+    expect(globalThis.location.hash).toBe('#/decks');
+    fireEvent.click(screen.getByTestId('decks-tile-delete-cancel'));
+    expect(screen.queryByTestId('decks-tile-delete-confirm')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('decks-tile-delete'));
+    fireEvent.click(screen.getByTestId('decks-tile-delete-confirm'));
+    await waitFor(() => expect(screen.getAllByTestId('deck-option').map((t) => t.dataset['deckId'])).toEqual(['b']));
+    expect(calls).toEqual(['delete a']);
+  });
 });
 
 describe('a deck’s name, rename and delete, over its editor', () => {
