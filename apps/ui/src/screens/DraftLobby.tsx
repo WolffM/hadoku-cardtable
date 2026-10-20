@@ -32,9 +32,10 @@
  * is not the member id the pod's seats name.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { RoomMember } from '../rooms/api.ts';
+import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { StatusPill } from './ConstructedScreen.tsx';
 import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
@@ -70,6 +71,8 @@ export function DraftLobby({
   onRetry: () => void;
 }) {
   const myMemberId = myId === '' ? null : myId;
+  // The cube's art warms while the room fills, so the first pack — and every one after — draws at once.
+  useEffect(() => void preloadCubeArt(), []);
 
   const [seatError, setSeatError] = useState<string | null>(null);
   /**

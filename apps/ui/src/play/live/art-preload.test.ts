@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
-import { PRELOAD_AT_ONCE, preloadMatchArt, preloadUrls } from './art-preload.ts';
+import poolData from '../../draft/pool.json' with { type: 'json' };
+import { cubeArtUrls, PRELOAD_AT_ONCE, preloadCubeArt, preloadMatchArt, preloadUrls, resetCubeArtForTests } from './art-preload.ts';
 
 const loads: { src: string; fetchPriority: string; settle: (ok: boolean) => void }[] = [];
 
@@ -101,5 +102,20 @@ describe('preloadMatchArt: both decks’ art, a few at a time, at low priority',
     loads[0]!.settle(true);
     await settled();
     expect(loads).toHaveLength(4);
+  });
+});
+
+describe('preloadCubeArt: every card the cube can deal, once a page opens a draft room', () => {
+  afterEach(() => resetCubeArtForTests());
+
+  it('names every cube card the art manifest knows, a pack card’s own URL among them, and warms them low, a few at a time, once per page', () => {
+    const urls = cubeArtUrls();
+    const cards = (poolData as { cards: { scryfallId?: string }[] }).cards;
+    expect(urls.length, 'every cube card, and back faces').toBeGreaterThanOrEqual(cards.filter((c) => cardImageUrl(c.scryfallId) !== null).length);
+    expect(urls).toContain(cardImageUrl(cards[0]!.scryfallId));
+    expect(preloadCubeArt()).toBe(urls.length);
+    expect(loads).toHaveLength(PRELOAD_AT_ONCE);
+    expect(loads.every((l) => l.fetchPriority === 'low')).toBe(true);
+    expect(preloadCubeArt(), 'not twice').toBe(0);
   });
 });

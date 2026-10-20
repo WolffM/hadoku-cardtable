@@ -16,6 +16,7 @@ import { ArtPreloadSchema } from '@hadoku/shared';
 
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
+import poolData from '../../draft/pool.json' with { type: 'json' };
 
 /** How many art loads run at once. */
 export const PRELOAD_AT_ONCE = 3;
@@ -36,7 +37,38 @@ function whenIdle(fn: () => void): void {
 
 /** Start the preload; returns how many distinct images it will warm. */
 export function preloadMatchArt(matchId: string, payload: unknown): number {
-  const urls = preloadUrls(matchId, payload);
+  return warm(preloadUrls(matchId, payload));
+}
+
+/** Every card the cube can deal, with its back face: what a draft's packs are drawn from. */
+export function cubeArtUrls(): string[] {
+  const ids = (poolData as { cards: { scryfallId?: string }[] }).cards.flatMap((c) => (c.scryfallId === undefined ? [] : [c.scryfallId]));
+  const urls = artIdsWithBacks(KNOWN_ART_IDS, ids).map((id) => cardImageUrl(id));
+  return [...new Set(urls.filter((url): url is string => url !== null))];
+}
+
+let cubeWarmed = false;
+
+/**
+ * The whole cube's art, warmed once a page opens a draft room (the operator,
+ * 2026-10-19: *"when a new pack appears i notice slight lag for the art to load …
+ * preload the art for all cards in the draft set"*). The cube's list is public —
+ * it is in this bundle — so warming all of it says nothing about anyone's pack.
+ * Once per page; returns how many it will warm (0 the second time).
+ */
+export function preloadCubeArt(): number {
+  if (cubeWarmed) return 0;
+  cubeWarmed = true;
+  return warm(cubeArtUrls());
+}
+
+/** For tests: the next `preloadCubeArt` warms again. */
+export function resetCubeArtForTests(): void {
+  cubeWarmed = false;
+}
+
+/** Warm `urls` a few at a time, at low priority, once the page is idle. */
+function warm(urls: readonly string[]): number {
   let next = 0;
   const pump = (): void => {
     while (next < urls.length) {

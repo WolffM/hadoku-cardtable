@@ -75,6 +75,7 @@ import { PodStandings } from './pod/PodStandings.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { PodTables } from './pod/PodTables.tsx';
 import { followMatchOnce } from '../play/live/matchStart.ts';
+import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { roomsClient } from '../rooms/api.ts';
 import './PodScreen.css';
@@ -154,6 +155,9 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   const bots = seats.filter((s) => s.occupant?.kind === 'bot').length;
   const open = seats.filter((s) => s.occupant === null).length;
   const done = draft !== null && isComplete(draft);
+
+  // Every pack's art, warmed in the background: a page opened mid-draft never came through the lobby.
+  useEffect(() => void preloadCubeArt(), []);
 
   /** The ROOM's own pod state — `null` until the first read answers. */
   const ctx = usePodContext(draftId, podSource);
