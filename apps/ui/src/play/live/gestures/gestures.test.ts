@@ -2875,6 +2875,21 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(canvas.querySelector('[data-cast-ghost]')?.getAttribute('data-cast-lift'), 'the stand-in floats home').toBe('returning');
   });
 
+  it('a cancelled cast lifted again while its stand-in is still floating home leaves no stand-in behind', async () => {
+    const { s, m, canvas, cast, theirBattlefield } = await parkLikeForge();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await s.untilClientFrames(2);
+    expect(canvas.querySelector(`[data-cast-ghost="${cast}"]`)?.getAttribute('data-cast-lift'), 'the stand-in floats home').toBe('returning');
+    // Forge rolls the cast back: the card is in the hand again, offered again — and lifted again before the float is over.
+    s.send(handDelta(mineOf(m).hand!.map((c) => c.id).concat(cast)));
+    for (const f of notify([prompt('Priority'), actionable([cast]), okBar()])) s.send(f);
+    await waitFor(() => expect(canvas.querySelector(`[data-board-card="${cast}"]`)).not.toBeNull());
+    fireEvent.pointerDown(cardEl(canvas, cast), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    expect(cardEl(canvas, cast).getAttribute('data-cast-lift'), 'the card is lifted again').toBe('lifted');
+    expect(canvas.querySelector(`[data-cast-ghost="${cast}"]`), 'the old stand-in went with the float it belonged to').toBeNull();
+  });
+
   it('a parked cast whose card the board no longer draws still answers Escape with Forge’s Cancel', async () => {
     const { s, m } = await parkLikeForge();
     fireEvent.keyDown(window, { key: 'Escape' });
