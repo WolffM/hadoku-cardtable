@@ -43,22 +43,20 @@ export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 /**
  * Which ruleset family an era belongs to (wave 48). Mirrors the server's own
- * `FormatFamily` (`apps/server/src/http/library.ts`) over the wire; a drafted
- * pool's `source` is `'draft'` and its `family` is meaningless — the picker
- * groups a pod by `source`, never by `family`.
+ * `FormatFamily` (`apps/server/src/http/library.ts`) over the wire.
  */
 export type FormatFamily = 'standard' | 'modern' | 'legacy';
 
 /**
  * The Free pick pool's id — any library deck, whatever its era. A mirror of the
  * server's `FREE_PICK` (`apps/server/src/room/lobby.ts`); its `/formats` row has
- * `source: 'free'` and, like a pod's, a `family` nobody reads.
+ * `source: 'free'` and a `family` nobody reads.
  */
 export const FREE_PICK = 'free';
 
-/** A frozen era — not a drafted pool and not Free pick, whose rows also carry a `family`. */
+/** A frozen era — not Free pick, whose row also carries a `family`. */
 export function isEra(f: TableFormat): boolean {
-  return f.source !== 'draft' && f.source !== 'free';
+  return f.source !== 'free';
 }
 
 export interface TableFormat {
@@ -114,7 +112,7 @@ export interface Verdict {
 }
 
 export type DeckRef = { library: string } | { dck: string };
-export type DeckRules = { kind: 'standard'; format: string } | { kind: 'draft'; draftId: string };
+export type DeckRules = { kind: 'standard'; format: string } | { kind: 'draft'; draftId: string } | { kind: 'free' };
 export interface SeatChoice {
   deck: DeckRef;
   rules: DeckRules;
@@ -421,24 +419,4 @@ export async function legalDecksIn(
   } catch (err: unknown) {
     return { formatId, ids: new Set(decks.map((d) => d.id)), error: err instanceof Error ? err.message : String(err) };
   }
-}
-
-/** What makes a room's pool a pod rather than a frozen era. The server's own spelling. */
-const DRAFT_POOL_PREFIX = 'draft:';
-
-/**
- * The pod behind a room's drafted pool id, or null for a frozen era.
- *
- * A MIRROR of the server's `draftIdOfPool` (`apps/server/src/room/lobby.ts`),
- * including the room-id shape, and it is a mirror rather than a shared function
- * because the string lives in a server package this browser app does not import.
- * It is used only to decide what to draw and which pod to open a socket on — the
- * server re-derives it for every decision that matters, so a browser that read
- * this wrong would draw the wrong picker and could still not check a deck against
- * the wrong pool.
- */
-export function draftPoolPod(poolId: string): string | null {
-  if (!poolId.startsWith(DRAFT_POOL_PREFIX)) return null;
-  const draftId = poolId.slice(DRAFT_POOL_PREFIX.length);
-  return /^[a-z0-9-]{1,40}$/.test(draftId) ? draftId : null;
 }

@@ -19,7 +19,6 @@
  */
 
 import {
-  draftPoolPod,
   legalDecksIn,
   newestFormat,
   tablesClient,
@@ -56,7 +55,7 @@ async function readRoom(view: RoomView, tables: TablesClient): Promise<WarmRoom 
   if (!table.ok) return null;
   if (catalogue === undefined) return { view, table: table.table };
   const poolId = view.format !== '' ? view.format : newestFormat(catalogue.formats);
-  if (poolId === '' || draftPoolPod(poolId) !== null) return { view, table: table.table, catalogue };
+  if (poolId === '') return { view, table: table.table, catalogue };
   const sweep = await legalDecksIn(tables, poolId, catalogue.decks);
   // A refused sweep is not handed on: the screen asks again and reports it.
   return sweep.error === null ? { view, table: table.table, catalogue, sweep } : { view, table: table.table, catalogue };

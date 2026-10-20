@@ -36,9 +36,9 @@ import { forgetMatchesFollowed } from '../play/live/matchStart.ts';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
-import { DRAFT_CHANNEL, stateMessage, type DraftCard, type DraftView } from '@hadoku/shared';
+import type { DraftCard } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
-import { BASIC_LAND_NAMES, deckColorsByName, deckFromDeckFile, mainDeckSize, moveToMain } from '@hadoku/deck';
+import { BASIC_LAND_NAMES, deckColorsByName, mainDeckSize } from '@hadoku/deck';
 import {
   LIBRARY,
   LIBRARY_ARCHETYPE_KEY,
@@ -53,7 +53,6 @@ import {
 import {
   ConstructedScreen,
   DRAFTED_BASICS,
-  DRAFTED_DECK,
   draftedDeckOf,
   erasOf,
   groupSetsByBlock,
@@ -70,10 +69,7 @@ import type { DeckRecords } from '../stats/deckOrder.ts';
 import { parseRoute } from './route.ts';
 import poolJson from '../draft/pool.json';
 import { dckTextOf, deckFromPool } from '../draft/deckFromPool.ts';
-import { deckStoreClient } from '../deck/deckStore.ts';
 import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
-import { loadFixtures } from '../draft/fixtures.ts';
-import type { DraftTransport } from '../draft/socket.ts';
 import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
 import { takeWarmRoom, warmRoom } from '../rooms/warm.ts';
 import type { RoomFeed } from '../rooms/feed.ts';
@@ -259,14 +255,6 @@ interface Table {
   /** A start that answers only once this settles — Forge coming up. */
   holdStart?: Promise<void>;
   /**
-   * The pods `GET /tables/formats` offers THIS caller, as pools (wave 26 §F).
-   *
-   * The real route builds them from the caller's own seats and sends them FIRST,
-   * `source: 'draft'`, with `cardCount` being the size of their own pool — so a
-   * `newestFormat` fallback still lands on the newest frozen era.
-   */
-  pods?: { id: string; cards: number }[];
-  /**
    * What `GET /tables/decks` offers. Absent ⇒ {@link DECKS}, the two Paris rows
    * every other suite uses.
    *
@@ -277,14 +265,6 @@ interface Table {
   decks?: TableDeck[];
   /** `GET /tables/decks` answers only once a room read has, as on a reload where the room is quicker. */
   catalogueAfterRoom?: boolean;
-  /**
-   * What `GET /api/drafts/:podId/mine` answers for `deck` (wave 70, C's
-   * contract) — the caller's last saved build, or `null` before the first
-   * save. Also written by a `PUT …/deck` this test drives. 404s when `pods` is
-   * empty, the same "you have no seat" case the pod socket answers elsewhere
-   * in this stub.
-   */
-  savedDeck?: string | null;
   /** `RoomView.pod` — a draft room's pod. Absent ⇒ `null`. */
   pod?: unknown;
   /** What `GET /api/decks` answers — Free pick's "My decks". Absent ⇒ none; a promise ⇒ answers when it settles. */
@@ -298,8 +278,6 @@ interface Table {
 function stubServer(table: Table) {
   const calls: Call[] = [];
   const records = new Map<string, { games: number; wins: number; losses: number; draws: number }>();
-  /** The last `.dck` a drafted hold was sent as, so a test can parse it back. */
-  let draftedText: string | null = null;
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   const gameType = table.gameType ?? 'constructed-1v1';
@@ -444,18 +422,7 @@ function stubServer(table: Table) {
       return json(200, roomRecord());
     }
     if (url.endsWith('/tables/formats')) {
-      const pods = (table.pods ?? []).map((pod) => ({
-        id: `draft:${pod.id}`,
-        name: `Cube draft ${pod.id}`,
-        effective: '',
-        sets: [],
-        banned: [],
-        cardCount: pod.cards,
-        source: 'draft',
-        // Unused: the picker's "Drafted pool" tab is `source === 'draft'`.
-        family: 'standard' as const,
-      }));
-      return json(200, { formats: [...pods, FREE, ...FORMATS, MODERN] });
+      return json(200, { formats: [FREE, ...FORMATS, MODERN] });
     }
     if (url.endsWith('/tables/decks')) {
       if (table.catalogueAfterRoom === true) {
@@ -497,24 +464,7 @@ function stubServer(table: Table) {
       const sent = body as { deck?: DeckRef; rules?: unknown };
       if ('rules' in (sent as object)) return json(400, { error: 'unknown field(s): rules' });
       const deckId = sent.deck !== undefined && 'library' in sent.deck ? sent.deck.library : '?';
-      /*
-       * The ROOM's pool is the rules, for both seats — and for a room on a pod
-       * (wave 26 §F) the rule is the pod and the pool is the CALLER's own 45, so
-       * the body is a `.dck` rather than a library id and the verdict says whose
-       * pool it was taken in. The server's own proof of that is
-       * `apps/server/src/http/tables.test.ts`; what this stub has to get right is
-       * the SHAPE, so a screen sending the wrong thing fails here.
-       */
-      const pod = (table.format ?? '').startsWith('draft:') ? (table.format ?? '').slice('draft:'.length) : null;
-      if (pod !== null) {
-        const text = sent.deck !== undefined && 'dck' in sent.deck ? sent.deck.dck : null;
-        if (text === null) return json(400, { error: 'body.deck is .dck text for a drafted pool' });
-        draftedText = text;
-      }
-      const verdict =
-        pod === null
-          ? verdictOf(deckId, table.format ?? '')
-          : LEGAL(`Cube draft ${pod}`, `your pool from ${pod}`);
+      const verdict = verdictOf(deckId, table.format ?? '');
       const mine: RoomPlayer = {
         seat: 0,
         name: 'user-alice',
@@ -566,36 +516,14 @@ function stubServer(table: Table) {
       table.matchId = MATCH;
       return json(201, { matchId: MATCH });
     }
-    /*
-     * C's pod-store contract (wave 70): the caller's own pool and last saved
-     * build, 404 when they drafted no seat in the pod — the same fact `pods`
-     * being empty already means for the socket above. `mine` sends an empty
-     * pool: nothing in this screen reads it, only `deck`, since the pod SOCKET
-     * is still this stub's (and the real server's) answer for the pool itself.
-     */
-    const mineMatch = /\/api\/drafts\/([^/]+)\/mine$/.exec(url);
-    if (mineMatch !== null) {
-      if ((table.pods ?? []).length === 0) return json(404, { error: 'you have no seat in this pod' });
-      return json(200, { pool: [], deck: table.savedDeck ?? null });
-    }
-    const deckMatch = /\/api\/drafts\/([^/]+)\/deck$/.exec(url);
-    if (deckMatch !== null) {
-      const sent = body as { dck?: unknown };
-      if (typeof sent.dck !== 'string') return json(400, { issues: ['dck must be a string'] });
-      table.savedDeck = sent.dck;
-      return json(200, { deck: sent.dck });
-    }
     return json(404, { error: 'not found' });
   };
   return {
     calls,
     table,
     holdNextRoomRead,
-    draftedText: () => draftedText,
-    draftSaved: () => table.savedDeck ?? null,
     client: tablesClient(fetchImpl, '/cardtable/api/'),
     rooms: roomsClient(fetchImpl, '/cardtable/api/'),
-    deckStore: deckStoreClient(fetchImpl, '/cardtable/api/'),
     /** Everyone's record per deck; empty unless a test sets one. Never the real stats service. */
     records,
     deckRecords: () => Promise.resolve(records),
@@ -809,6 +737,8 @@ describe('a room that has not answered yet', () => {
     expect(room.textContent).not.toContain(ROOM);
     expect(screen.queryByTestId('room-name')).toBeNull();
     expect(screen.getByTestId('room-skeleton')).toBeTruthy();
+    // The operator, 2026-10-20: twelve deck outlines, not eight.
+    expect(screen.getByTestId('deck-skeleton').querySelectorAll('.skeleton--tile')).toHaveLength(12);
     expect(room.querySelector('main')?.getAttribute('aria-busy')).toBe('true');
     expect(room.textContent, 'no words while it waits').not.toMatch(/Waiting|Loading|Constructed 1v1/);
 
@@ -1718,7 +1648,7 @@ describe('the table’s pool', () => {
     // Every era here is Standard, and the room is on one, so that tab opens active.
     expect(screen.getByTestId('format-tab-standard').getAttribute('aria-selected')).toBe('true');
     expect(screen.getByTestId('format-tab-modern').getAttribute('aria-selected')).toBe('false');
-    // No "Drafted pool" tab at all when the room has no pod — never a disabled one.
+    // A drafted deck is never a room's format: no fourth tab.
     expect(screen.queryByTestId('format-tab-draft')).toBeNull();
     // No prose anywhere on the card explaining what a tab is or does.
     const card = screen.getByTestId('deck-mine').closest('section') as HTMLElement;
@@ -1819,7 +1749,7 @@ describe('the table’s pool', () => {
     await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
     fireEvent.click(screen.getByTestId('browse-tab-mine'));
     // The tiles' outlines while the list is on its way, never an empty tab that then fills.
-    await waitFor(() => expect(screen.getByTestId('deck-mine').querySelectorAll('.skeleton--tile').length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getByTestId('deck-mine').querySelectorAll('.skeleton--tile')).toHaveLength(12));
     expect(screen.queryAllByTestId('deck-option')).toEqual([]);
     expect(screen.queryByTestId('browse-era')).toBeNull();
     await act(async () => answer([mine('pod-a', built), mine('pod-short', dckTextOf(deckFromPool('pod-short', pool))), mine('pod-none', null)]));
@@ -1832,6 +1762,58 @@ describe('the table’s pool', () => {
     // A library tab never shows them.
     fireEvent.click(screen.getByTestId('browse-tab-standard'));
     await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
+  });
+
+  // The operator, 2026-10-20: "'drafted pool' should be 'my decks' and should only be visible if
+  // freepick is enabled." A room's format is never a pod; a drafted deck is one of My decks.
+  it('off Free pick there is no Drafted pool and no My decks, and your decks are never asked for', async () => {
+    const pool = (poolJson as { cards: DraftCard[] }).cards.slice(0, 45).map((card, i) => ({ ...card, cardId: `draft:pod-a/p${i}` }));
+    const built = dckTextOf(draftedDeckOf('pod-a', pool));
+    const server = await mountRoom({
+      players: [opponent()],
+      matchId: null,
+      myDecks: [{ id: 'pod-a', name: 'Deck pod-a', cube: 'Cube', createdAt: 1, pool, deck: built, concluded: true }],
+    });
+    await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
+    expect(screen.queryByTestId('format-tab-draft')).toBeNull();
+    expect(screen.queryByTestId('browse-tab-mine')).toBeNull();
+    expect(screen.getByTestId('constructed').textContent).not.toMatch(/Drafted pool|My decks/);
+    const format = screen.getByTestId('format') as HTMLSelectElement;
+    expect([...format.options].map((o) => o.value).filter((v) => v.startsWith('draft:'))).toEqual([]);
+    expect(server.calls.filter((c) => c.url.endsWith('/api/decks'))).toHaveLength(0);
+
+    // On Free pick, the same build is one of My decks.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('free-pick'));
+    });
+    fireEvent.click(await screen.findByTestId('browse-tab-mine'));
+    await waitFor(() => expect(offered()).toEqual(['mine:pod-a']));
+  });
+
+  it('Free pick: a drafted deck the server holds reopens as that My decks tile', async () => {
+    const pool = (poolJson as { cards: DraftCard[] }).cards.slice(0, 45).map((card, i) => ({ ...card, cardId: `draft:pod-a/p${i}` }));
+    const built = dckTextOf(draftedDeckOf('pod-a', pool));
+    const held: RoomPlayer = {
+      seat: 1,
+      name: 'user-alice',
+      you: true,
+      deckName: 'Deck pod-a',
+      rulesName: 'Free pick',
+      legal: true,
+      issueCount: 0,
+      ready: false,
+      choice: { deck: { dck: built }, rules: { kind: 'free' } },
+    };
+    const server = await mountRoom({
+      players: [opponent(), held],
+      matchId: null,
+      leader: false,
+      format: 'free',
+      myDecks: [{ id: 'pod-a', name: 'Deck pod-a', cube: 'Cube', createdAt: 1, pool, deck: built, concluded: true }],
+    });
+    fireEvent.click(screen.getByTestId('browse-tab-mine'));
+    await waitFor(() => expect(chosen()).toBe('mine:pod-a'));
+    expect(server.calls.filter((c) => c.url.endsWith('/deck'))).toHaveLength(0);
   });
 
   it('Hand smoothing: on by default, and the leader’s toggle turns it off on the room', async () => {
@@ -2599,10 +2581,9 @@ describe('erasOf: a tab shows only its own family\'s eras, newest year first', (
     era('modern-2012-07-13', 'modern'),
     era('modern-2014-07-18', 'modern'),
     era('legacy-2016-07-22', 'legacy'),
-    { ...era('draft:cube-1', 'standard'), source: 'draft' },
   ];
 
-  it('narrows to the chosen family, drops drafted pools, newest year first', () => {
+  it('narrows to the chosen family, newest year first', () => {
     expect(erasOf(mixed, 'standard').map((f) => f.id)).toEqual(['2014-07-18', '2012-07-13']);
     expect(erasOf(mixed, 'modern').map((f) => f.id)).toEqual(['modern-2014-07-18', 'modern-2012-07-13']);
     expect(erasOf(mixed, 'legacy').map((f) => f.id)).toEqual(['legacy-2016-07-22']);
@@ -2641,246 +2622,22 @@ describe('poolIsOnTab: the select never lets the DOM invent a selection', () => 
   ];
 
   it('is true when the room’s own era is one of the tab’s options', () => {
-    expect(poolIsOnTab(mixed, 'standard', '2014-07-18', null)).toBe(true);
-    expect(poolIsOnTab(mixed, 'legacy', 'legacy-2016-07-22', null)).toBe(true);
+    expect(poolIsOnTab(mixed, 'standard', '2014-07-18')).toBe(true);
+    expect(poolIsOnTab(mixed, 'legacy', 'legacy-2016-07-22')).toBe(true);
   });
 
   it('is false while browsing a DIFFERENT family — even the tab’s own first (newest) era', () => {
     // The room is on the Standard era; browsing Legacy must not claim its
     // newest entry (the one a naive `<select>` would default-highlight).
-    expect(poolIsOnTab(mixed, 'legacy', '2014-07-18', null)).toBe(false);
-    expect(poolIsOnTab(mixed, 'modern', '2014-07-18', null)).toBe(false);
+    expect(poolIsOnTab(mixed, 'legacy', '2014-07-18')).toBe(false);
+    expect(poolIsOnTab(mixed, 'modern', '2014-07-18')).toBe(false);
   });
 
-  it('the draft tab is true only for the caller’s OWN pod, by id', () => {
-    const withPod: TableFormat[] = [...mixed, { ...era('draft:cube-1', 'standard'), source: 'draft' }];
-    expect(poolIsOnTab(withPod, 'draft', 'draft:cube-1', 'cube-1')).toBe(true);
-    // Browsing "Drafted pool" while the room is on a frozen era: false.
-    expect(poolIsOnTab(withPod, 'draft', '2014-07-18', null)).toBe(false);
-  });
 });
 
 /**
- * A drafted deck against a friend, from the room screen.
- *
- * The server half is `apps/server/src/http/tables.test.ts` — that the room's pool
- * can BE a pod, that each seat is checked against its own 45, and that nobody can
- * load a deck from somebody else's pool. What this proves is the browser half:
- * the leader can pick a pod they drafted in, the deck dropdown then offers the
- * cards YOU drafted rather than the 60-card library, and what it sends is the
- * `.dck` of your own pool.
- *
- * The pool is 45 cards off the committed cube and it arrives the way it arrives
- * in production: over the pod's own socket, which this screen opens for a room on
- * a drafted pool precisely because being connected is what keeps your seat — and
- * therefore your pool — findable by the gate.
- */
-describe('a room on a drafted pool', () => {
-  const POD = 'amber-lantern-k7q4';
-  const POOL: DraftCard[] = (poolJson as { cards: DraftCard[] }).cards
-    .slice(0, 45)
-    .map((card, i) => ({ ...card, cardId: `draft:${POD}/p${i}` }));
-
-  /** A seat view carrying a finished pool, as `deck.test.ts` builds one. */
-  function seatView(pool: DraftCard[]): DraftView {
-    const opening = loadFixtures()[0] as DraftView;
-    const viewer = opening.viewer;
-    if (viewer.kind !== 'seat') throw new Error('the opening fixture is a seat view');
-    return {
-      ...opening,
-      draftId: POD,
-      seq: opening.seq + 100,
-      seats: opening.seats.map((s) => (s.id === viewer.seatId ? { ...s, pickedCount: pool.length } : s)),
-      viewer: { ...viewer, pack: [], pool },
-    };
-  }
-
-  /**
-   * The pod's side of the socket, answering as `apps/server/src/room/socket.ts`
-   * does: every `join` is answered with the pod's current view, and a new view
-   * reaches every transport that has joined and not hung up. So a view the test
-   * serves before the screen has subscribed is not lost — the screen's own join
-   * collects it, whatever order React flushes the subscribing effect in.
-   */
-  function podServer() {
-    let view: unknown;
-    const joined = new Set<(payload: unknown) => void>();
-    const deliver = (to: (payload: unknown) => void, payload: unknown): void => {
-      act(() => to(payload));
-    };
-    return {
-      serve(payload: unknown) {
-        view = payload;
-        for (const to of joined) deliver(to, payload);
-      },
-      make: (): DraftTransport => {
-        let toClient: ((payload: unknown) => void) | undefined;
-        return {
-          on(event, handler) {
-            if (event === DRAFT_CHANNEL.serverToClient) toClient = handler;
-          },
-          emit(event, message) {
-            if (event !== DRAFT_CHANNEL.clientToServer || (message as { type?: string }).type !== 'join' || !toClient) return;
-            const to = toClient;
-            joined.add(to);
-            // A reply, so it arrives after the emitting effect has finished, as over a wire.
-            if (view !== undefined) queueMicrotask(() => joined.has(to) && deliver(to, view));
-          },
-          disconnect() {
-            if (toClient) joined.delete(toClient);
-          },
-        };
-      },
-    };
-  }
-
-  /** `served`: the view the pod already holds when the screen opens, so the screen's join is what fetches it. */
-  async function mountPod(over: Partial<Table> = {}, served?: unknown) {
-    const server = stubServer({
-      players: [],
-      matchId: null,
-      format: `draft:${POD}`,
-      pods: [{ id: POD, cards: 45 }],
-      ...over,
-    });
-    const pod = podServer();
-    if (served !== undefined) pod.serve(served);
-    render(
-      createElement(ConstructedScreen, {
-        client: server.client, deckRecords: server.deckRecords,
-        rooms: server.rooms,
-        roomId: ROOM,
-        feed: everyMs(10),
-        makeTransport: pod.make,
-        deckStore: server.deckStore,
-      }),
-    );
-    await screen.findByTestId('room-players');
-    return { server, pod };
-  }
-
-  it('offers the pods the caller drafted in, on their own tab, without making one the default era', async () => {
-    await mountPod();
-    const tabs = await screen.findByTestId('format-tabs');
-    // The table is ON the pod, so the tab bar opens there — the same property
-    // the old "pods come first" ordering protected, restated for tabs: a pod
-    // must never become the pool a room opens on by accident.
-    expect(within(tabs).getByTestId('format-tab-draft').getAttribute('aria-selected')).toBe('true');
-    const select = screen.getByTestId('format') as HTMLSelectElement;
-    expect([...select.options].map((o) => o.value)).toEqual([`draft:${POD}`]);
-    expect(select.value).toBe(`draft:${POD}`);
-    // The field says what kind of pool this is, rather than calling a cube Standard.
-    expect(screen.getByLabelText('Drafted pool')).toBe(select);
-    // A cube is not an era, so it draws no set symbols.
-    expect(screen.queryByTestId('pool-sets')).toBeNull();
-
-    // Switching tabs browses the eras without moving the room off its pod —
-    // newest year first, so the reverse of FORMATS' own (oldest-first) order.
-    // The room's actual pool (the pod) is not one of THIS tab's options, so a
-    // hidden empty placeholder leads the list and the select reads as nothing
-    // chosen — never the first real era shown as selected by DOM fallback.
-    fireEvent.click(within(tabs).getByTestId('format-tab-standard'));
-    expect([...select.options].map((o) => o.value)).toEqual(['', ...[...FORMATS].reverse().map((f) => f.id)]);
-    expect(select.value).toBe('');
-  });
-
-  it('offers YOUR drafted cards as the deck, and sends the .dck of your own pool', async () => {
-    const { server, pod } = await mountPod();
-    // Until the pod answers, there is nothing to offer and the screen says why.
-    expect(screen.getByTestId('deck-mine').getAttribute('aria-disabled')).toBe('true');
-    expect((await screen.findByTestId('drafted-waiting')).textContent).toContain(POD);
-
-    pod.serve(stateMessage(seatView(POOL), { name: 'Test Cube', size: 540 }));
-
-    await deckPicker();
-    // One row, and it is the cards you drafted — not the 60-card library, which
-    // no cube pool holds.
-    expect(offered()).toEqual([DRAFTED_DECK]);
-    // The row says how big the deck it would load is; its colours are pips beside
-    // that rather than letters in it. `pool.json`'s first 45 cards are the cube's
-    // white section, so `W` — and the basics `draftedDeckOf` adds are Plains for
-    // the same reason (wave 27 §D).
-    const drafted = deckRow(DRAFTED_DECK);
-    expect(rowName(drafted)).toBe(`Your drafted pool — ${45 + DRAFTED_BASICS} cards`);
-    expect(drafted.dataset['colors']).toBe('W');
-    expect(within(drafted).getByTestId('deck-colors').dataset['colors']).toBe('W');
-    // A drafted card carries its own Scryfall id, rarity and type line, so the
-    // art rule needs no lookup table here. The art waits for its credit, which
-    // is a lazy chunk.
-    await waitFor(() => expect(drafted.querySelector('img')?.getAttribute('src')).toMatch(/^https:\/\//));
-    // And the library sweep never ran: a drafted pool asks the gate nothing.
-    expect(sweeps(server)).toEqual([]);
-
-    // No saved build yet (`GET /api/drafts/:podId/mine` answered `deck: null`):
-    // a link to the real editor sits beside the auto-built row (wave 70 §A.3).
-    const link = await screen.findByTestId('drafted-build-link');
-    fireEvent.click(within(link).getByText('Build your deck'));
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'deck', draftId: POD });
-
-    await pick(DRAFTED_DECK);
-
-    // What went to the server is a `.dck`, and it is the deck this screen built
-    // out of the pool the pod answered with — byte for byte, the same writer
-    // `#/deck/<podId>` uses.
-    const sent = lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body as { deck: { dck: string } };
-    expect(sent.deck.dck).toBe(dckTextOf(draftedDeckOf(POD, POOL)));
-    expect(server.draftedText()).toBe(sent.deck.dck);
-    // Parsed back by the real parser: every drafted card is in the maindeck, and
-    // so are the basics (`toDeckFile` merges the pile in on export).
-    const parsed = deckFromDeckFile(parseDck(sent.deck.dck));
-    expect(parsed.main.reduce((n, e) => n + e.count, 0)).toBe(45 + DRAFTED_BASICS);
-    expect(parsed.sideboard).toEqual([]);
-
-    // The verdict the server took is in YOUR pool, and it says so.
-    await waitFor(() => expect(screen.getByTestId('room-seat-0-rules').textContent).toBe(`your pool from ${POD}`));
-    await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false));
-  });
-
-  /**
-   * `GET /api/drafts/:podId/mine` is the other half of C's contract (wave 70
-   * §A.3): once the drafter has a SAVED build, the dropdown offers that one —
-   * byte for byte, over the pod's own pool and nothing `draftedDeckOf` touches
-   * — not the auto-built forty-five-plus-basics, and the link to the editor
-   * is gone (there is nothing left to build that is not already saved).
-   */
-  it('offers the SAVED build once there is one, instead of the auto-built deck', async () => {
-    let built = deckFromPool(POD, POOL);
-    built = moveToMain(built, built.sideboard[0]!.card);
-    const savedText = dckTextOf(built);
-
-    const { server, pod } = await mountPod({ savedDeck: savedText });
-    pod.serve(stateMessage(seatView(POOL), { name: 'Test Cube', size: 540 }));
-    await deckPicker();
-
-    const drafted = deckRow(DRAFTED_DECK);
-    // One card, not the auto-built 45 + 17 basics.
-    await waitFor(() => expect(rowName(drafted)).toBe('Your drafted pool — 1 cards'));
-    expect(screen.queryByTestId('drafted-build-link')).toBeNull();
-
-    await pick(DRAFTED_DECK);
-    const sent = lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body as { deck: { dck: string } };
-    expect(sent.deck.dck).toBe(savedText);
-  });
-
-  /**
-   * A member of the room who has no seat in the pod is told so, rather than shown
-   * an empty dropdown. Two different things to a person — "you drafted elsewhere"
-   * and "you are not in this pod" — and a pool is hidden information, so the
-   * server tells you about your own seat and nobody else's.
-   */
-  it('says you have no seat in the pod rather than offering nothing', async () => {
-    await mountPod({ pods: [] }, stateMessage({ ...seatView(POOL), viewer: { kind: 'spectator' } }, { name: 'Test Cube', size: 540 }));
-    const note = await screen.findByTestId('drafted-none');
-    expect(note.textContent).toContain(POD);
-    // No rows at all — and `Random` is still there, with nothing to roll.
-    expect(offered()).toEqual([]);
-    expect(screen.getByTestId('deck-random')).toBeTruthy();
-  });
-});
-
-/**
- * The auto-build, on its own: the room screen has a dropdown, not a builder, so
- * "the cards I drafted" has to be one deck and it has to be playable.
+ * The auto-build, on its own: what a finished draft with no saved build is
+ * shown as on the Decks page, so it has to be one deck and it has to be playable.
  */
 describe('draftedDeckOf', () => {
   const POD = 'amber-lantern-k7q4';

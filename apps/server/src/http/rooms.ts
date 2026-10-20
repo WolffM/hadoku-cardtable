@@ -20,8 +20,9 @@
  *   POST  /api/rooms/:id/pod/stand  {} or no body                → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
  *   POST  /api/rooms/:id/pod/play   {} or no body                → 200 RoomView | 403 | 404 | 409 (done building; the last drafter's press deals round 1)
  *
- * `format` is a frozen Standard era's date or `draft:<podId>` — a room's pool is
- * either a frozen era or a drafted pool (wave 26 §F, `room/lobby.ts`).
+ * `format` is a frozen era's id or Free pick — never `draft:<podId>`. A drafted
+ * deck is played on Free pick ("My decks"); a pod's own tables play its pool by
+ * being a `draft` room (`http/routes.ts`'s `effectivePoolOf`), not by a format.
  *
  * Every body that carries a room is `RoomView` plus a caller-scoped
  * `you: { leader, ready }` — see "`you` is the caller's own row" below.
@@ -107,7 +108,6 @@ import {
 	GAME_TYPES,
 	POD_MIN_OPEN,
 	ROOM_ID_RE,
-	draftIdOfPool,
 	watchpartyRoomId,
 	type Caller,
 	type ClientMode,
@@ -330,17 +330,15 @@ function parseSit(body: unknown): Parsed<{ seat: number | undefined }> {
  * is the tables layer's answer (`http/routes.ts`'s `unknownPool`, a 409 about
  * the room rather than a 400 about the body).
  *
- * The one thing checked here is the SHAPE of a drafted pool id (wave 26 §F): a
- * room's pool may be `draft:<podId>`, and a pod id is a room id, so
- * `draft:` followed by anything `ROOM_ID_RE` refuses is refused at the door
- * rather than stored and looked up later. `draftIdOfPool` returns null for it
- * either way — this makes it a stated 400 instead of a room silently sitting on
- * a pool that can never resolve.
+ * A drafted pool is refused at the door (operator, 2026-10-20). Putting a room
+ * on `draft:<podId>` tied its table to that pod's socket, which answers nobody
+ * once the pod's room has closed — so nobody's deck ever loaded. A drafted deck
+ * is played on Free pick, from "My decks", as its saved `.dck`.
  */
 function parseFormat(v: unknown): Parsed<FormatId> {
 	if (typeof v !== 'string' || v.trim() === '') return { ok: false, error: 'format must be a format id' };
-	if (v.startsWith(DRAFT_POOL_PREFIX) && draftIdOfPool(v) === null) {
-		return { ok: false, error: `format must be a format id: ${JSON.stringify(v)} names no pod` };
+	if (v.startsWith(DRAFT_POOL_PREFIX)) {
+		return { ok: false, error: 'format must be a format id: a drafted deck is played on Free pick' };
 	}
 	return { ok: true, value: v };
 }

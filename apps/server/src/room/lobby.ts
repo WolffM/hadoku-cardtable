@@ -129,7 +129,10 @@ export const ROOM_ID_RE = /^[a-z0-9-]{1,40}$/;
  *   `2016-07-22`              a frozen Standard era — a `TableFormat.id` from
  *                             `http/library.ts`, which is the pool's date
  *   `draft:amber-lantern-k7q4` a DRAFTED pool — the pod every player at this
- *                             table drafted from (`draftPoolId`)
+ *                             table drafted from (`draftPoolId`). Only a
+ *                             `draft` room's tables play one, derived from the
+ *                             room's id (`http/routes.ts`'s `effectivePoolOf`);
+ *                             no room's stored format is ever one (2026-10-20)
  *
  * **Why one string rather than a tagged union.** The id travels through the
  * room snapshot on disk, through `RoomView.format`, through `PATCH
@@ -2580,6 +2583,13 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 				restoredAt: now(),
 			});
 			const app = decoded.app;
+			// A constructed room a leader put on a pod before 2026-10-20, when a
+			// room's format could still be `draft:<podId>`. It comes back on the
+			// newest era with every deck hold and ready flag dropped — exactly what
+			// a format change does (`setFormat`) — since nothing held there was ever
+			// checked against a pool a constructed room can be on now.
+			const offPod = app.gameType !== 'draft' && app.format !== null && app.format.startsWith(DRAFT_POOL_PREFIX);
+			if (offPod) log({ event: 'room-format-off-pod', roomId, format: app.format });
 			const members: MemberRecord[] = decoded.members.map((m) => {
 				// Re-normalised on the way in rather than trusted. `decodeSnapshot`
 				// already drops a non-string, but a record written by a build with a
@@ -2591,11 +2601,11 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					id: m.participantId,
 					name: m.name ?? 'anon',
 					joinedAt: m.joinedAt,
-					state: unboxState(m.app),
+					state: offPod ? undefined : unboxState(m.app),
 					// Kept across the restart, unlike the draft itself: the room comes
 					// back in its lobby phase with everybody still ready, which is one
 					// click from starting again rather than four.
-					ready: unboxReady(m.app),
+					ready: !offPod && unboxReady(m.app),
 					...(avatarId === undefined ? {} : { avatarId }),
 				};
 			});
@@ -2611,7 +2621,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// decks against is exactly the bug this field exists to prevent:
 					// the decks are restored too (the per-member blob), so the pool
 					// they were checked in has to come back with them.
-					format: app.format ?? fixed ?? newestFormat(formats),
+					format: (offPod ? null : app.format) ?? fixed ?? newestFormat(formats),
 					settings: app.settings,
 					clientMode: app.clientMode,
 					// **Restored, tables and all** — already migrated into the one-table

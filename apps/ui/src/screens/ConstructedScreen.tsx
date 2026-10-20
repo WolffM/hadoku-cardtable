@@ -132,7 +132,6 @@
 import {
   useEffect,
   useMemo,
-  useReducer,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -167,7 +166,6 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
 import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
-import { deckStoreClient, type DeckStoreClient } from '../deck/deckStore.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
@@ -180,8 +178,8 @@ import { assignDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } fro
 import { artCredit, useArtist } from '../draft/artists.ts';
 import { cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
 import { cardIndex, mainSummary, splitBasics } from '../deck/build.ts';
-import { deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
-import { closeDraft, startDraft, type DraftTransport, type SocketDraft } from '../draft/socket.ts';
+import { deckFromPool } from '../draft/deckFromPool.ts';
+import type { DraftTransport } from '../draft/socket.ts';
 import type { DraftCard } from '../draft/types.ts';
 import {
   roomsClient,
@@ -196,7 +194,6 @@ import {
 import {
   FREE_PICK,
   RANDOM_DECK,
-  draftPoolPod,
   isEra,
   legalDecksIn,
   newestFormat,
@@ -244,8 +241,6 @@ export interface ConstructedScreenProps {
   makeTransport?: () => DraftTransport;
   /** Everyone's record per deck, for the picker's order. Tests pass a stub; production passes nothing and asks the stats service. */
   deckRecords?: () => Promise<DeckRecords>;
-  /** The pod's saved-deck store (C's contract). Tests pass a stub; production passes nothing. */
-  deckStore?: DeckStoreClient;
   /** Free pick's "My decks" (`deck/myDecks.ts`). Tests pass a stub; production passes nothing. */
   myDecks?: MyDecksClient;
 }
@@ -356,9 +351,8 @@ function poolLabel(formats: readonly TableFormat[], id: string): string {
 
 /**
  * The three ruleset tabs, operator order (2026-10-05): *"i'll need a tab
- * selector at the top for picking the format as well obviously"*. "Drafted
- * pool" is a fourth tab, appended only when the room has one — it is not a
- * `FormatFamily` and is never grouped into one of these three.
+ * selector at the top for picking the format as well obviously"*. A drafted
+ * deck is never a room's format: it is one of Free pick's "My decks".
  */
 const FORMAT_TABS: ReadonlyArray<{ id: FormatFamily; label: string }> = [
   { id: 'standard', label: 'Standard' },
@@ -404,20 +398,11 @@ export function erasOf(formats: readonly TableFormat[], tab: FormatFamily): Tabl
  * on a tab the room's own era is not part of, rather than let the DOM invent
  * one.
  */
-export function poolIsOnTab(
-  formats: readonly TableFormat[],
-  tab: FormatFamily | 'draft',
-  poolId: string,
-  pod: string | null,
-): boolean {
-  if (tab === 'draft') return pod !== null && formats.some((f) => f.source === 'draft' && f.id === poolId);
+export function poolIsOnTab(formats: readonly TableFormat[], tab: FormatFamily, poolId: string): boolean {
   return erasOf(formats, tab).some((f) => f.id === poolId);
 }
 
-/* ── a room on a DRAFTED pool (wave 26 §F) ────────────────────────────── */
-
-/** The option value for "the cards I drafted". Not a library id, like `RANDOM_DECK`. */
-export const DRAFTED_DECK = '__drafted__';
+/* ── a drafted deck ───────────────────────────────────────────────────── */
 
 /** Basics in an auto-built limited deck: the limited convention, one number. */
 export const DRAFTED_BASICS = 17;
@@ -431,12 +416,11 @@ const BASIC_FOR: Record<'W' | 'U' | 'B' | 'R' | 'G', string> = {
 };
 
 /**
- * A playable deck out of a drafted pool, with no choices asked.
+ * A playable deck out of a drafted pool, with no choices asked: what a finished
+ * draft with no saved build (or an unreadable one) is shown as.
  *
- * The room screen has a deck DROPDOWN, not a deck builder: `#/deck/<podId>`
- * is where a pool is refined into forty cards, and duplicating that here would
- * be a second builder to keep correct. So the one thing this offers is "the cards
- * I drafted", and it has to be a deck Forge can actually play — which means
+ * `#/deck/<podId>` is where a pool is refined into forty cards; this is only the
+ * stand-in, and it has to be a deck Forge could actually play — which means
  * lands, because a maindeck of 45 spells and no lands is legal by every rule we
  * check and unplayable at the table.
  *
@@ -484,19 +468,6 @@ export function draftedDeckOf(draftId: string, pool: readonly DraftCard[]): Deck
  * A drafted pool has no set list and draws nothing, which is the truth about it:
  * a cube is not an era.
  */
-/**
- * The label on the pool control. Two kinds of pool, two nouns.
- *
- * Was "Matched Standard" (the operator's own words) for every frozen era; wave
- * 48 §U replaced the single "Matched Standard" optgroup with the format tab
- * selector, and the label above it has to stay true for a Modern or Legacy
- * pick too — "Format" is neutral across all three and names what the tabs
- * are tabs OF. A room on a pod is still not playing any of the three, so that
- * half is unchanged.
- */
-function poolFieldLabel(pod: string | null): string {
-  return pod === null ? 'Format' : 'Drafted pool';
-}
 
 /* ── the era's sets, grouped by block (wave 28 §C, item 1) ─────────────── */
 
@@ -702,8 +673,8 @@ export function DeckArt({ artId }: { artId: string | undefined }) {
 
 /**
  * A drafted deck as a chooser tile: its list, its colours and its art, all
- * from the pool it was drafted from — the lobby's own pod deck, Free pick's
- * "My decks", and the Decks page draw drafted decks with this one fold.
+ * from the pool it was drafted from — Free pick's "My decks" and the Decks
+ * page draw drafted decks with this one fold.
  */
 export function draftedDeckOption(value: string, label: string, deck: Deck, pool: readonly DraftCard[]): DeckOption {
   // A drafted card carries its own id and its own mana value, so the art rule
@@ -815,6 +786,7 @@ export function DeckChooser({
   onChoose,
   empty,
   pending = false,
+  pendingTiles = 8,
 }: {
   options: readonly DeckOption[];
   value: string;
@@ -822,6 +794,8 @@ export function DeckChooser({
   onChoose: (value: string) => void;
   /** The pool has not said which decks it offers: tiles' outlines where they will be. */
   pending?: boolean;
+  /** How many outlines `pending` draws. */
+  pendingTiles?: number;
   /** Drawn in place of the tiles when there are none, if given. */
   empty?: string | undefined;
 }) {
@@ -1018,7 +992,7 @@ export function DeckChooser({
           )}
         </button>
       ))}
-      {pending && options.length === 0 && <SkeletonTiles />}
+      {pending && options.length === 0 && <SkeletonTiles count={pendingTiles} />}
       {options.length === 0 && empty !== undefined && (
         <p className="deckpick__empty" data-testid="deck-none">
           {empty}
@@ -1052,7 +1026,6 @@ export function ConstructedScreen({
   rand = secureRandom,
   makeTransport,
   deckRecords = fetchDeckRecords,
-  deckStore,
   myDecks,
 }: ConstructedScreenProps) {
   const client = useMemo(() => given ?? tablesClient(), [given]);
@@ -1068,7 +1041,6 @@ export function ConstructedScreen({
       rand={rand}
       makeTransport={makeTransport}
       deckRecords={deckRecords}
-      deckStore={deckStore}
       myDecks={myDecks}
     />
   );
@@ -1083,7 +1055,6 @@ function RoomTableScreen({
   rand,
   makeTransport,
   deckRecords: readDeckRecords,
-  deckStore: givenDeckStore,
   myDecks: givenMyDecks,
 }: {
   client: TablesClient;
@@ -1094,11 +1065,9 @@ function RoomTableScreen({
   rand: () => number;
   makeTransport?: () => DraftTransport;
   deckRecords: () => Promise<DeckRecords>;
-  deckStore?: DeckStoreClient;
   myDecks?: MyDecksClient;
 }) {
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
-  const deckStore = useMemo(() => givenDeckStore ?? deckStoreClient(), [givenDeckStore]);
   const myDecksStore = useMemo(() => givenMyDecks ?? myDecksClient(), [givenMyDecks]);
   // What the room list read before navigating here (`rooms/warm.ts`): the first
   // render is then the finished page. Every read below still runs as before.
@@ -1219,15 +1188,6 @@ function RoomTableScreen({
    * every room used to open (operator, 2026-09-27: newest).
    */
   const poolId = view?.format !== undefined && view.format !== '' ? view.format : newestFormat(loaded?.formats ?? []);
-  /**
-   * The pod this table drafts from, or null for a frozen era (wave 26 §F).
-   *
-   * Everything a drafted pool changes on this screen hangs off this one value:
-   * the deck dropdown offers your own drafted cards instead of the library, the
-   * per-deck legality sweep does not run (the library is not in a cube pool and
-   * asking would be 26 refusals), and the pod's socket is opened below.
-   */
-  const pod = draftPoolPod(poolId);
   /** The pool's own catalogue row: its name, and for an era its set list. */
   const poolFormat = loaded?.formats.find((f) => f.id === poolId) ?? null;
   /** Free pick: every library deck, whatever its era. No tab is the table's while it is on. */
@@ -1237,8 +1197,8 @@ function RoomTableScreen({
   const matchLength = view?.settings.matchLength ?? 'bo1';
   /** A `bo3` room always reads this true, regardless of what is stored (the server's own rule). */
   const sideboarding = view?.settings.sideboarding ?? false;
-  /** Which tab the table is actually on — a pod's own tab, or its era's family. */
-  const tabOfPool = pod !== null ? 'draft' : poolFormat?.family ?? 'standard';
+  /** Which tab the table is actually on: its era's family. */
+  const tabOfPool = poolFormat?.family ?? 'standard';
   /**
    * The LEADER's format tab (operator, 2026-10-05: *"i'll need a tab selector
    * at the top for picking the format as well obviously"*).
@@ -1251,7 +1211,7 @@ function RoomTableScreen({
    * so it only BROWSES which eras the `<select>` below offers; nothing is sent
    * until an option in it is chosen, same as the control always worked.
    */
-  const [formatTab, setFormatTab] = useState<FormatFamily | 'draft'>(tabOfPool);
+  const [formatTab, setFormatTab] = useState<FormatFamily>(tabOfPool);
   useEffect(() => setFormatTab(tabOfPool), [poolId, tabOfPool]);
   /**
    * Whether the room's actual pool is one of THIS tab's own options.
@@ -1261,7 +1221,7 @@ function RoomTableScreen({
    * `poolId` as chosen or nothing at all — see the comment on the select
    * itself for why "nothing at all" is the one safe answer.
    */
-  const poolOnTab = poolIsOnTab(loaded?.formats ?? [], formatTab, poolId, pod);
+  const poolOnTab = poolIsOnTab(loaded?.formats ?? [], formatTab, poolId);
 
   // The formats and the decks — for a constructed table only. A draft room has
   // no deck to hold, and `routes.ts` refuses every table write it could make.
@@ -1426,91 +1386,6 @@ function RoomTableScreen({
     };
   }, [rooms, roomId, feed]);
 
-  /*
-   * The pod's socket, for a room on a DRAFTED pool — and it is not only how the
-   * screen learns your cards.
-   *
-   * **Being connected is what makes your pool findable at all.** The gate resolves
-   * a drafted pool through the seat you HOLD (`viewForParticipant`, over `seatOf`),
-   * and a drafter who walks away from `#/deck/<podId>` or the pod screen has their
-   * seat vacated after the disconnect grace — so the server would answer "you have
-   * no seat in draft …" about cards you really did draft. Joining a pod you already
-   * sit in reclaims your remembered seat and answers with your own pool
-   * (`apps/server/src/room/socket.ts`, the `join` case), which is the same thing
-   * `DeckScreen` relies on and says so in its header.
-   *
-   * One socket, only while it is needed: no pod, a draft room (its own screen owns
-   * the pod), or a streamed room, and nothing is opened.
-   */
-  const [draft, setDraft] = useState<SocketDraft | null>(null);
-  const [, draftTicked] = useReducer((n: number) => n + 1, 0);
-  useEffect(() => {
-    // `modeRef` rather than the `streamed` binding below: this effect sits above
-    // it, and the ref is the latched answer either way.
-    if (pod === null || draftRoom || modeRef.current === 'streamed') {
-      setDraft(null);
-      return;
-    }
-    const live = startDraft({ draftId: pod, transport: makeTransport?.(), onChange: () => draftTicked() });
-    setDraft(live);
-    return () => {
-      closeDraft(live);
-      setDraft(null);
-    };
-  }, [pod, draftRoom, resolved, makeTransport]);
-
-  /**
-   * Whether the pod has answered AT ALL — which is a different question from
-   * whether it gave you a seat, and the two are different sentences to a person.
-   * `SocketDraft` is mutated in place and re-renders through `draftTicked`, so
-   * this is read every render rather than keyed on the object's identity.
-   */
-  const podAnswered = draft !== null && draft.view !== null;
-  /** The cards YOU drafted, as the pod answered them. Null until it has. */
-  const myPool = draft?.view?.viewer.kind === 'seat' ? draft.view.viewer.pool : null;
-
-  /*
-   * Your own saved build (wave 70): `GET /api/drafts/:podId/mine`, asked once
-   * per pod over the one HTTP route C's contract adds — the pod SOCKET above is
-   * still what this screen reads for the pool, the seat state and the "no seat
-   * in this pod" / "still asking" sentences; this adds only the one new fact
-   * the socket has no field for. `undefined` is "not asked yet" and reads as
-   * "no save" below, so the auto-built deck is what shows while this is in
-   * flight; `null` is the server's own answer, "asked, nothing saved".
-   */
-  const [mySavedDeck, setMySavedDeck] = useState<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (pod === null) {
-      setMySavedDeck(undefined);
-      return;
-    }
-    let live = true;
-    deckStore
-      .mine(pod)
-      .then((mine) => {
-        if (live) setMySavedDeck(mine?.deck ?? null);
-      })
-      .catch(() => {
-        // A failed read is not a "no seat" answer — it just leaves the
-        // auto-built deck on screen, same as "not asked yet" does.
-        if (live) setMySavedDeck(null);
-      });
-    return () => {
-      live = false;
-    };
-  }, [pod, deckStore]);
-
-  /**
-   * Your drafted pool as a deck Forge can play — YOUR saved build when
-   * `GET …/mine` has one, the auto-built forty-five-plus-basics otherwise
-   * (`draftedDeckOf`, unchanged). Rebuilt only when the pool or the save
-   * changes.
-   */
-  const draftedDeck = useMemo(
-    () => (pod === null || myPool === null || myPool.length === 0 ? null : openDraftedDeck(mySavedDeck, pod, myPool)),
-    [pod, myPool, mySavedDeck],
-  );
-
   const players = table?.players ?? [];
   const mine = players.find((p) => p.you) ?? null;
   const matchId = table?.room.matchId ?? null;
@@ -1551,10 +1426,7 @@ function RoomTableScreen({
   // locked room and a spectator ask nothing. The leader moving the pool re-runs
   // it, which is what narrows the dropdown for everybody in the room.
   useEffect(() => {
-    // A drafted pool asks nothing: the library is 60-card Standard and a cube pool
-    // holds none of it, so the sweep would be one refusal per deck and would narrow
-    // the list to nothing anyway. `deckOptions` offers your own drafted cards there.
-    if (!picking || loaded === null || poolId === '' || pod !== null) return;
+    if (!picking || loaded === null || poolId === '') return;
     const cached = sweeps.current.get(poolId);
     if (cached !== undefined) {
       setLegal(cached);
@@ -1573,7 +1445,7 @@ function RoomTableScreen({
     return () => {
       live = false;
     };
-  }, [picking, loaded, poolId, pod, client]);
+  }, [picking, loaded, poolId, client]);
 
   /**
    * Everyone's record per library deck, so the picker lists the winners first
@@ -1607,12 +1479,11 @@ function RoomTableScreen({
   /**
    * What the deck dropdown offers, or null while the answer is in flight.
    *
-   * One list for two kinds of pool, because the control is one control: an era
-   * offers the library decks legal in it, a pod offers the cards you drafted, and
-   * both are {@link DeckOption} rows the same `<select>` renders. Null keeps the
-   * select disabled — an option list assembled before the answer would offer
-   * decks the pool does not have — and for a pod the answer is the pod's, which
-   * arrives over the socket rather than over HTTP.
+   * An era offers the library decks legal in it; Free pick offers the whole
+   * library plus your own drafted decks ("My decks"), and all of them are
+   * {@link DeckOption} rows the same chooser renders. Null keeps the chooser
+   * disabled — an option list assembled before the answer would offer decks the
+   * pool does not have.
    *
    * ## The colours, and the ONE fold they come from
    *
@@ -1628,7 +1499,7 @@ function RoomTableScreen({
    *     `decks/pools/*.generated.json` the fixtures are and shipped as 10 KB of
    *     data because a browser has no filesystem and `GET /api/tables/decks`
    *     sends names without costs.
-   *   - a DRAFTED pool is a `Deck` of real cards, so it folds through
+   *   - a DRAFTED deck is a `Deck` of real cards, so it folds through
    *     `mainDeckColors`, which is the same fold plus the basics.
    *
    * The MAINDECK only, both times, and `DeckView`'s head does the same: a
@@ -1671,11 +1542,6 @@ function RoomTableScreen({
   );
 
   const deckOptions = useMemo<DeckOption[] | null>(() => {
-    if (pod !== null) {
-      if (!podAnswered) return null;
-      if (draftedDeck === null) return [];
-      return [draftedDeckOption(DRAFTED_DECK, `Your drafted pool — ${mainDeckSize(draftedDeck)} cards`, draftedDeck, myPool ?? [])];
-    }
     if (offered === null) return null;
     const mine = freePick ? (myDeckOptions ?? []).map((m) => m.option) : [];
     return [...byWinRate(offered.map((d) => ({
@@ -1708,7 +1574,7 @@ function RoomTableScreen({
             }),
           ),
         })), deckRecords), ...mine];
-  }, [pod, podAnswered, draftedDeck, myPool, offered, deckRecords, freePick, myDeckOptions]);
+  }, [offered, deckRecords, freePick, myDeckOptions]);
 
   /**
    * On Free pick the whole library is on offer, and each player browses it by
@@ -1752,13 +1618,12 @@ function RoomTableScreen({
    * The filter row's narrowing of the library on show (`deckFilter.ts`). It is
    * this screen's own view and moves nothing in the room: a chosen deck the
    * filter hides stays chosen. Kept across an era change, so a search follows
-   * the reader from one year to the next. A drafted pool is one deck and is
-   * never filtered.
+   * the reader from one year to the next.
    */
   const [deckFilter, setDeckFilter] = useState<DeckFilter>(NO_DECK_FILTER);
   const visibleOptions = useMemo(
-    () => (shownOptions === null || pod !== null ? shownOptions : shownOptions.filter((o) => deckPasses(o, deckFilter))),
-    [shownOptions, pod, deckFilter],
+    () => (shownOptions === null ? shownOptions : shownOptions.filter((o) => deckPasses(o, deckFilter))),
+    [shownOptions, deckFilter],
   );
 
   /**
@@ -1770,7 +1635,7 @@ function RoomTableScreen({
    */
   const prefetchedArt = useRef(new Map<string, HTMLImageElement>());
 
-  // The moment an era's (or a pod's) options are known, ask the browser to
+  // The moment an era's options are known, ask the browser to
   // warm every one of their art URLs at once — the operator: *"some loaded
   // quick, but others loaded extremely slowly… this is a static list we
   // should be able to cache these images."* One request per DISTINCT URL,
@@ -1893,12 +1758,18 @@ function RoomTableScreen({
   useEffect(() => {
     if (restored.current || mine === null || mine.choice === null) return;
     const { deck } = mine.choice;
+    if ('library' in deck) {
+      restored.current = true;
+      setDeckId(deck.library);
+      return;
+    }
+    // A `{ dck }` hold is one of Free pick's "My decks" — the only thing on this
+    // screen that sends one — so the picker opens on the deck with those bytes.
+    if (myDeckOptions === null) return;
     restored.current = true;
-    // A `{ dck }` hold at a room table is a drafted deck — the only thing on this
-    // screen that sends one — so the picker opens on that option rather than blank.
-    if ('library' in deck) setDeckId(deck.library);
-    else setDeckId(DRAFTED_DECK);
-  }, [mine]);
+    const held = myDeckOptions.find((m) => m.dck === deck.dck);
+    if (held !== undefined) setDeckId(held.option.value);
+  }, [mine, myDeckOptions]);
 
   const apply = (outcome: Awaited<ReturnType<TablesClient['table']>>): void => {
     if (outcome.ok) {
@@ -1930,19 +1801,16 @@ function RoomTableScreen({
   /**
    * The chosen option as a deck reference.
    *
-   * `DRAFTED_DECK` is the only value that is not a library id, and it becomes the
-   * `.dck` text of your own drafted pool — the same writer `#/deck/<podId>` uses
-   * (`dckTextOf`), so the server checks and Forge plays the same bytes either
-   * route. Null when the choice cannot be turned into a deck yet, which is a
-   * drafted option before the pod has answered.
+   * A "My decks" value is the `.dck` text of that draft's saved build, the bytes
+   * `#/deck/<podId>` saved; every other value is a library id. Null for a "My
+   * decks" value whose list has not answered.
    */
   const deckRefOf = (value: string): DeckRef | null => {
     if (value.startsWith(MY_DECK)) {
       const mine = myDeckOptions?.find((m) => m.option.value === value);
       return mine === undefined ? null : { dck: mine.dck };
     }
-    if (value !== DRAFTED_DECK) return { library: value };
-    return draftedDeck === null ? null : { dck: dckTextOf(draftedDeck) };
+    return { library: value };
   };
 
   /**
@@ -2072,7 +1940,7 @@ function RoomTableScreen({
     if (deckId === '') return;
     const ref = deckRefOf(deckId);
     if (ref !== null) loadDeckRef(ref);
-  }, [picking, poolId, deckId, draftedDeck]);
+  }, [picking, poolId, deckId]);
 
   const setReady = (ready: boolean): void => {
     if (queued(() => setReady(ready))) return;
@@ -2395,14 +2263,11 @@ function RoomTableScreen({
                             a second line, and that line comes off the deck grid. */}
                         {!freePick && (
                           <label className="lobby__field" htmlFor="format">
-                            {poolFieldLabel(pod)}
+                            Format
                           </label>
                         )}
                         {/* The format tab selector (wave 48 §U), replacing the single
-                            "Matched Standard" optgroup: Standard, Modern, Legacy, plus
-                            a "Drafted pool" tab when the room has one (the CALLER's own
-                            seats — the server scopes that list, so a leader is never
-                            offered a pod they did not draft in). The active tab opens
+                            "Matched Standard" optgroup: Standard, Modern, Legacy. The active tab opens
                             on the table's own era and only browses which eras the
                             select below offers; nothing moves the room until an option
                             in it is chosen. No prose: the tabs are the explanation. */}
@@ -2422,7 +2287,7 @@ function RoomTableScreen({
                                   // (newest, the list's order) at once, rather than showing nothing chosen
                                   // until the leader picks (the operator, 2026-10-07: "selecting modern
                                   // should default the year selection to the first available").
-                                  if (loaded !== null && !poolIsOnTab(loaded.formats, tab.id, poolId, pod)) {
+                                  if (loaded !== null && !poolIsOnTab(loaded.formats, tab.id, poolId)) {
                                     const first = erasOf(loaded.formats, tab.id)[0];
                                     if (first !== undefined) choosePool(first.id);
                                   }
@@ -2431,18 +2296,6 @@ function RoomTableScreen({
                                 {tab.label}
                               </button>
                             ))}
-                            {loaded.formats.some((f) => f.source === 'draft') && (
-                              <button
-                                type="button"
-                                role="tab"
-                                aria-selected={formatTab === 'draft'}
-                                data-testid="format-tab-draft"
-                                disabled={underway}
-                                onClick={() => setFormatTab('draft')}
-                              >
-                                Drafted pool
-                              </button>
-                            )}
                           </div>
                         )}
                         {/* The era the room is ACTUALLY on is not always one this
@@ -2466,19 +2319,11 @@ function RoomTableScreen({
                             onChange={(e) => choosePool(e.target.value)}
                           >
                             {!poolOnTab && <option value="" disabled hidden />}
-                            {formatTab === 'draft'
-                              ? loaded.formats
-                                  .filter((f) => f.source === 'draft')
-                                  .map((f) => (
-                                    <option key={f.id} value={f.id}>
-                                      {f.name} — {f.cardCount} cards
-                                    </option>
-                                  ))
-                              : erasOf(loaded.formats, formatTab).map((f) => (
-                                  <option key={f.id} value={f.id}>
-                                    {f.id} — {f.name}
-                                  </option>
-                                ))}
+                            {erasOf(loaded.formats, formatTab).map((f) => (
+                              <option key={f.id} value={f.id}>
+                                {f.id} — {f.name}
+                              </option>
+                            ))}
                           </select>
                         )}
                       </>
@@ -2486,7 +2331,7 @@ function RoomTableScreen({
                       <>
                         {/* "Free pick" names itself; the label beside it would wrap
                             the browse row (found at 1024x700 on the CI runner's fonts). */}
-                        {!freePick && <span className="lobby__field">{poolFieldLabel(pod)}</span>}
+                        {!freePick && <span className="lobby__field">Format</span>}
                         <span className="lobby__pool" data-testid="format-fixed" data-format={poolId}>
                           {poolLabel(loaded.formats, poolId)}
                         </span>
@@ -2544,7 +2389,7 @@ function RoomTableScreen({
                           disabled={underway}
                           onClick={() => {
                             if (!freePick) {
-                              setBrowse({ family: formatTab === 'draft' ? 'standard' : formatTab, era: '' });
+                              setBrowse({ family: formatTab, era: '' });
                               choosePool(FREE_PICK);
                               return;
                             }
@@ -2595,14 +2440,13 @@ function RoomTableScreen({
 
                   </div>
                   {/* The sets the chosen era is made of, as symbols — the operator's
-                      own ask, for a Standard era. A drafted pool has none and draws none; an
+                      own ask, for a Standard era. An
                       eternal format's forty-odd sets drew a strip the operator called
                       ridiculous (2026-10-07), so those draw none either. */}
-                  {/* Beside them, the deck grid's filters — the library's only;
-                      a drafted pool is one deck. */}
+                  {/* Beside them, the deck grid's filters. */}
                   <div className="lobby__setsrow">
                     {poolFormat !== null && isEra(poolFormat) && poolFormat.family === 'standard' && <PoolSets format={poolFormat} />}
-                    {pod === null && <DeckFilterBar filter={deckFilter} onChange={setDeckFilter} />}
+                    <DeckFilterBar filter={deckFilter} onChange={setDeckFilter} />
                     {/* Random is a button and not one of the tiles because it is not a
                         state a deck can be in: it resolves to one of the decks on offer,
                         and the chooser then reads that deck (`chooseDeck`). */}
@@ -2637,41 +2481,9 @@ function RoomTableScreen({
                     value={deckId}
                     disabled={deckOptions === null || underway}
                     pending={shownOptions === null}
+                    pendingTiles={ROOM_SKELETON_TILES}
                     onChoose={chooseDeck}
                   />
-                  {/* Why the dropdown has nothing in it, when it has nothing in it.
-                      A pool is hidden information until the draft is over, so the
-                      server tells you about your own seat and nobody else's — and
-                      "you drafted in another pod" and "you are not in this one" are
-                      two different things to a person. */}
-                  {pod !== null && deckOptions !== null && deckOptions.length === 0 && (
-                    <p className="lobby__note" data-testid="drafted-none">
-                      You have no seat in pod <strong>{pod}</strong>, so there are no drafted cards to play. Whoever
-                      leads this room chose that pod as its pool.
-                    </p>
-                  )}
-                  {pod !== null && !podAnswered && (
-                    <p className="lobby__note" data-testid="drafted-waiting">
-                      Asking pod <strong>{pod}</strong> for the cards you drafted.
-                    </p>
-                  )}
-                  {/* No saved build yet: the auto-built deck above is what gets sent,
-                      and this is the way to a real one — `#/deck/<podId>`, which is
-                      the only place a pool is refined into forty cards (wave 70). */}
-                  {pod !== null && podAnswered && draftedDeck !== null && mySavedDeck === null && (
-                    <p className="lobby__note" data-testid="drafted-build-link">
-                      <a
-                        className="shell__link"
-                        href="#/"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          navigate({ kind: 'deck', draftId: pod });
-                        }}
-                      >
-                        Build your deck
-                      </a>
-                    </p>
-                  )}
                 </section>
             )}
           </>
@@ -3002,15 +2814,18 @@ function DeckCardSkeleton() {
       <span className="skeleton skeleton--row" />
       <span className="skeleton skeleton--sets" />
       <div className="deckpick">
-        <SkeletonTiles />
+        <SkeletonTiles count={ROOM_SKELETON_TILES} />
       </div>
     </section>
   );
 }
 
-/** A row's worth of deck tiles at any width the grid draws, each the size a tile is. */
-function SkeletonTiles() {
-  return Array.from({ length: 8 }, (_, i) => <span key={i} className="skeleton skeleton--tile" />);
+/** A room's deck card while it loads: twelve outlines (the operator, 2026-10-20). */
+export const ROOM_SKELETON_TILES = 12;
+
+/** `count` deck tiles' outlines, each the size a tile is. */
+function SkeletonTiles({ count }: { count: number }) {
+  return Array.from({ length: count }, (_, i) => <span key={i} className="skeleton skeleton--tile" />);
 }
 
 /** `#/play` with no room: the room list is where a match starts now. */

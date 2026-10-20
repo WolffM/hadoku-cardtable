@@ -90,15 +90,12 @@
  * drops every deck hold and both readiness flags — so the verdict this file
  * holds was always taken in the pool the room is on now.
  *
- * ## A room's pool is a frozen era OR a DRAFTED pool (wave 26 §F)
+ * ## A pod's tables play a DRAFTED pool (wave 26 §F, wave 72 §P)
  *
- * Wave 25 left a hole nobody had noticed: a room's pool was a `FormatId`, a
- * match against a person starts from a room, and a drafted pool could not be
- * named as a room's pool — so for a project whose first line is "cube drafting
- * + Magic play for a private friend group", the two halves had never met. A
- * room's pool is now either a frozen era's date or `draft:<podId>`
- * (`room/lobby.ts`'s `draftPoolId` / `draftIdOfPool`), and `roomRules` turns it
- * into the gate's own `{ kind: 'standard' }` or `{ kind: 'draft' }`.
+ * A `draft` room's tables play `draft:<podId>` (`effectivePoolOf`, from the
+ * room's game type — never its stored format), and `roomRules` turns that into
+ * the gate's own `{ kind: 'draft' }`. A constructed room is never on a pod
+ * (operator, 2026-10-20): a drafted deck is played there on Free pick.
  *
  * **The room owns the POD; each player owns their own 45.** That is the whole
  * property, and it is why the resolution had to move from the request to the
@@ -754,58 +751,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	const tables = express.Router();
 	tables.use(express.json({ limit: '256kb' }));
 
-	/**
-	 * The pods THIS CALLER is seated in, as pools a room can be put on.
-	 *
-	 * A drafted pool is a pool a table can play in, so it is offered in the same
-	 * list and the same shape as a frozen era — one vocabulary for the room
-	 * screen's picker, one `poolLabel`, no second type on the wire. `source` is
-	 * `'draft'`, which is how a client tells the two apart when it cares.
-	 *
-	 * **Caller-scoped, and it is the caller's own seats and nobody else's.** The
-	 * list is built from `viewForParticipant`, so it says nothing about who else
-	 * drafted; `cardCount` is the size of the caller's OWN pool, which is their
-	 * own hidden information, and no card name is in it.
-	 *
-	 * **They go FIRST, not last.** `newestFormat` — on both sides — picks the
-	 * newest era whose `family` is `'standard'` (wave 48; `family` is sent as
-	 * `'standard'` on a pod's own row too, unread, since a pod is told apart by
-	 * `source`), and that is the fallback a browser uses before the room has
-	 * answered. (A new room's own era is drawn from the library catalog, which
-	 * holds no pod: `room/lobby.ts`'s `randomFormat`.) A pod appended to the end would
-	 * silently become eligible for that pick if it were not excluded by
-	 * `source` first. `effective` is empty for a pod, so first is also where the
-	 * documented "oldest first" ordering puts something with no date.
-	 */
-	function draftedPoolsFor(req: Request): Record<string, unknown>[] {
-		const draftRooms = deps.draftRooms;
-		if (draftRooms === null) return [];
-		const me = callerIdOf(req);
-		const offered: Record<string, unknown>[] = [];
-		for (const room of draftRooms.all()) {
-			const view = viewForParticipant(room, me);
-			if (view.viewer.kind !== 'seat') continue;
-			offered.push({
-				id: draftPoolId(room.roomId),
-				name: `Cube draft ${room.roomId}`,
-				effective: '',
-				sets: [],
-				banned: [],
-				cardCount: view.viewer.pool.length,
-				source: 'draft',
-				// Unused: the picker's "Drafted pool" tab is `source === 'draft'`,
-				// never a family. The field is still sent, never optional, so every
-				// row on the wire has the same shape.
-				family: 'standard',
-			});
-		}
-		return offered;
-	}
-
-	tables.get('/formats', (req: Request, res: Response) => {
+	tables.get('/formats', (_req: Request, res: Response) => {
 		res.json({
 			formats: [
-				...draftedPoolsFor(req),
 				// Free pick (`FREE_PICK`): a pool row so every browser can name it, with
 				// no sets and no cards of its own — the whole library is its list.
 				{

@@ -758,33 +758,24 @@ describe('PATCH /api/rooms/:id { format }', () => {
 	});
 
 	/**
-	 * A drafted pool goes through the same PATCH (wave 26 §F), and a `draft:`
-	 * that names no pod is refused at the door rather than stored.
-	 *
-	 * Whether the pod EXISTS is not this layer's question — it has no draft
-	 * registry — so `draft:r-never-opened` is a 200 here and a 409 from the
-	 * tables layer, which is the same split a frozen era id has always had.
+	 * A room is never put on a pod (operator, 2026-10-20). A room on
+	 * `draft:<podId>` tied its table to the pod's socket, which answers nobody
+	 * once the pod's room has closed, so no deck ever loaded. A drafted deck is
+	 * played on Free pick, from "My decks".
 	 */
-	it('takes a drafted pool, and refuses a draft: that names no pod', async () => {
+	it('refuses every draft: format, a real pod id included', async () => {
 		const h = await openApp(await tempDir());
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
 			.json() as import('../room/lobby.ts').RoomView;
 
-		const drafted = await call(h, 'PATCH', `/api/rooms/${created.id}`, {
-			as: 'alice',
-			body: { format: 'draft:amber-lantern-k7q4' },
-		});
-		expect(drafted.status).toBe(200);
-		expect((drafted.json() as import('../room/lobby.ts').RoomView).format).toBe('draft:amber-lantern-k7q4');
-
-		for (const format of ['draft:', 'draft:../../etc/passwd', 'draft:Amber-Lantern', 'draft:has space']) {
+		for (const format of ['draft:amber-lantern-k7q4', 'draft:', 'draft:../../etc/passwd', 'draft:Amber-Lantern']) {
 			const res = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format } });
 			expect(res.status, format).toBe(400);
-			expect((res.json() as { error: string }).error).toContain('names no pod');
+			expect((res.json() as { error: string }).error).toBe('format must be a format id: a drafted deck is played on Free pick');
 		}
-		// Nothing moved: the room is still on the pod the one accepted PATCH set.
 		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as import('../room/lobby.ts').RoomView;
-		expect(after.format).toBe('draft:amber-lantern-k7q4');
+		expect(after.format).toBe(created.format);
+		expect(after.format.startsWith('draft:')).toBe(false);
 	});
 
 	it('refuses to move the pool while a draft is running', async () => {

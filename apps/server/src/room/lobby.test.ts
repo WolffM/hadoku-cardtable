@@ -409,6 +409,26 @@ describe('a room’s format', () => {
 		expect(second.playerState(made.room.id, ALICE.id)).toEqual({ deck: 'held-under-the-old-pool' });
 	});
 
+	/*
+	 * Before 2026-10-20 a leader could put a constructed room on a pod; such a room
+	 * waited forever on a pod socket that no longer answered (prod r-763d04bedb4a).
+	 */
+	it('brings a constructed room left on a pod back on the newest era, its deck holds dropped', async () => {
+		const dir = await tempDir();
+		const first = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		const made = first.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) return;
+		expect(first.setFormat(made.room.id, ALICE.id, 'draft:r-6a708794c832').ok).toBe(true);
+		first.setPlayerState(made.room.id, ALICE.id, { deck: 'held-under-the-pod' });
+
+		const logged: Record<string, unknown>[] = [];
+		const second = await openLobby({ dir, defaultFormat: POOLS[0], log: (e) => void logged.push(e) });
+		expect(second.get(made.room.id)?.format).toBe(POOLS[0]);
+		expect(second.playerState(made.room.id, ALICE.id)).toBeUndefined();
+		expect(logged).toContainEqual({ event: 'room-format-off-pod', roomId: made.room.id, format: 'draft:r-6a708794c832' });
+	});
+
 	it('reads back on the newest pool for a record written before the field', async () => {
 		const dir = await tempDir();
 		writeFixtureRoom(dir, 'r-preformat0001', legacyApp());
@@ -493,37 +513,6 @@ describe('Lobby.setFormat', () => {
 		expect(second.get(id)?.format).toBe(POOLS[0]);
 		expect(second.get(id)?.members.map((m) => m.ready)).toEqual([false, false]);
 		expect(second.playerState(id, ALICE.id)).toBeUndefined();
-	});
-
-	/**
-	 * A drafted pool is a pool: the leader sets it through the same setter, it
-	 * clears the same holds, and it survives the same restart.
-	 *
-	 * Wave 26 §F. What the lobby knows about it is the string and nothing else —
-	 * the POD is looked up by `http/routes.ts`, which is where the draft registry
-	 * is, so a room can be on a pod this process has never heard of and the lobby
-	 * has no opinion (`unknownPool` answers 409 for that).
-	 */
-	it('moves the pool to a DRAFTED pool, clearing the same holds, and stores it', async () => {
-		const dir = await tempDir();
-		const lobby = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
-		const id = await loadedRoom(lobby);
-		const pool = draftPoolId('amber-lantern-k7q4');
-
-		const moved = lobby.setFormat(id, ALICE.id, pool);
-		expect(moved.ok).toBe(true);
-		if (!moved.ok) return;
-		expect(moved.room.format).toBe(pool);
-		expect(draftIdOfPool(moved.room.format)).toBe('amber-lantern-k7q4');
-		expect(moved.room.members.map((m) => m.ready)).toEqual([false, false]);
-		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
-
-		// And a non-leader still cannot move it, drafted pool or not.
-		expect(lobby.setFormat(id, BOB.id, POOLS[0])).toEqual({ ok: false, reason: 'not-leader' });
-		expect(lobby.get(id)?.format).toBe(pool);
-
-		const second = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
-		expect(second.get(id)?.format).toBe(pool);
 	});
 
 	it('clears nothing when the pool it is set to is the one the room is on', async () => {
