@@ -1735,6 +1735,168 @@ describe('X1/W14 — a drop on a planeswalker or a face attacks it; the defender
 });
 
 /*
+ * The operator, 2026-10-19: "when i draw a box to select a number of
+ * creatures, i still want to select where the arrow goes rather than having
+ * them auto-select a target … if i have 10 creatures and i draw a box, they
+ * might all get auto-targeted to a planeswalker on board." A box that declares
+ * while Forge offers more than one defender holds its group; the next press
+ * says which defender, and only then does anything leave.
+ */
+describe('a box with a choice of defender is aimed before anything is sent', () => {
+  /** Declaring attackers in Forge's live window; with `planeswalker`, the opponent's first card retyped one. */
+  async function boxBoard({ planeswalker }: { planeswalker: boolean }) {
+    const ctx = await declaringAttackersBoard();
+    const { s, m, canvas } = ctx;
+    const mine = mineOf(m).battlefield.map((c) => c.id);
+    const [a, b, far] = [mine[0]!, mine[1]!, mine[2]!];
+    const pw = theirsOf(m).battlefield[0]!.id;
+    if (planeswalker) {
+      s.send(retypeDelta(pw, ['Planeswalker'], ['Jace']));
+      await untilMatch(m, () => expect(theirsOf(m).battlefield.find((c) => c.id === pw)!.card.typeLine).toContain('Planeswalker'));
+    }
+    for (const f of notify([prompt('Declare attackers'), attackBar(), actionable([a, b, far])])) s.send(f);
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(far)).toBe(true));
+    if (planeswalker) await untilMatch(m, () => expect(boardInteraction(m).selectable.has(pw)).toBe(true));
+    boxAt(overlayOf(canvas), 0, 0, 800, 600);
+    boxAt(cardEl(canvas, a), 120, 120);
+    boxAt(cardEl(canvas, b), 180, 120);
+    boxAt(cardEl(canvas, far), 600, 400);
+    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
+    /** A box over `a` and `b`, released on empty table. */
+    const sweep = (): void => {
+      fireEvent.pointerDown(zone, { button: 0, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(zone, { clientX: 300, clientY: 300 });
+      fireEvent.pointerUp(zone, { clientX: 300, clientY: 300 });
+    };
+    /** A press and its click, the way a mouse makes them. */
+    const press = (el: HTMLElement, button = 0): void => {
+      fireEvent.pointerDown(el, { button, clientX: 400, clientY: 40 });
+      fireEvent.pointerUp(el, { button, clientX: 400, clientY: 40 });
+      if (button === 0) fireEvent.click(el);
+    };
+    const pending = (): number[] =>
+      [...canvas.querySelectorAll('[data-attack-pending]')].map((el) => Number(el.getAttribute('data-board-card') ?? el.getAttribute('data-card-id')));
+    return { ...ctx, a, b, far, pw, opponent: theirsOf(m).id, zone, sweep, press, pending };
+  }
+
+  it('the box sends nothing: the group is marked and an arrow leaves it, following the pointer', async () => {
+    const { s, m, canvas, a, b, zone, sweep, pending } = await boxBoard({ planeswalker: true });
+    sweep();
+    expect(pending().sort()).toEqual([a, b].sort());
+    fireEvent.pointerMove(zone, { clientX: 500, clientY: 50 });
+    const arrow = overlayOf(canvas).querySelector('[data-testid="targeter"]');
+    expect(arrow, 'the aiming arrow is drawn').not.toBeNull();
+    expect(arrow!.getAttribute('data-mode')).toBe('drag');
+    expect(await s.framesFrom(m), 'nothing has left').toHaveLength(0);
+  });
+
+  it('a press on the opponent’s face: selectPlayer, then every boxed attacker once Forge marks them', async () => {
+    const { s, m, canvas, a, b, opponent, sweep, press, pending } = await boxBoard({ planeswalker: true });
+    holdBoardClock();
+    sweep();
+    fireEvent.pointerMove(faceEl(canvas, opponent), { clientX: 400, clientY: 40 });
+    expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')!.getAttribute('data-target'), 'the tip snaps to the face').toBe(`player:${opponent}`);
+    press(faceEl(canvas, opponent));
+    await s.untilClientFrames(1);
+    expect(await sent(s, m), 'the defender alone, and the face’s own click swallowed').toEqual([['selectPlayer', opponent]]);
+    expect(pending(), 'the group is let go at the press').toEqual([]);
+    s.send(highlightPlayers([opponent], true));
+    await s.untilClientFrames(3);
+    expect(await sent(s, m)).toEqual([
+      ['selectPlayer', opponent],
+      ['selectCard', a],
+      ['selectCard', b],
+    ]);
+  });
+
+  it('a press on the planeswalker: selectCard(pw), then every boxed attacker once Forge marks it', async () => {
+    const { s, m, canvas, a, b, pw, sweep, press } = await boxBoard({ planeswalker: true });
+    holdBoardClock();
+    sweep();
+    press(cardEl(canvas, pw));
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', pw]]);
+    s.send(highlight([pw], true));
+    await s.untilClientFrames(3);
+    expect(await sent(s, m)).toEqual([
+      ['selectCard', pw],
+      ['selectCard', a],
+      ['selectCard', b],
+    ]);
+  });
+
+  it('the defender Forge already has current: only the attackers go', async () => {
+    const { s, m, canvas, a, b, opponent, sweep, press } = await boxBoard({ planeswalker: true });
+    s.send(highlightPlayers([opponent], true));
+    await untilMatch(m, () => expect(m.highlightedPlayers?.has(opponent)).toBe(true));
+    sweep();
+    press(faceEl(canvas, opponent));
+    await s.untilClientFrames(2);
+    expect(await sent(s, m)).toEqual([
+      ['selectCard', a],
+      ['selectCard', b],
+    ]);
+  });
+
+  it('Escape, a press on empty table, or a right-click drops the group and sends nothing', async () => {
+    const { s, m, canvas, zone, sweep, press, pending } = await boxBoard({ planeswalker: true });
+    sweep();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(pending()).toEqual([]);
+    expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).toBeNull();
+    sweep();
+    press(zone);
+    expect(pending()).toEqual([]);
+    sweep();
+    press(zone, 2);
+    expect(pending()).toEqual([]);
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
+  it('a press on another of this seat’s creatures drops the group, and is not a click on it either', async () => {
+    const { s, m, canvas, far, sweep, press, pending } = await boxBoard({ planeswalker: true });
+    sweep();
+    press(cardEl(canvas, far));
+    expect(pending()).toEqual([]);
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
+  it('the group never outlives the declare window: Forge moving on drops it', async () => {
+    const { s, m, canvas, sweep, pending } = await boxBoard({ planeswalker: true });
+    sweep();
+    expect(pending()).toHaveLength(2);
+    await deliver(s, m, [phaseDelta('COMBAT_DECLARE_BLOCKERS', mineOf(m).id)]);
+    expect(pending()).toEqual([]);
+    expect(canvas.hasAttribute('data-aiming')).toBe(false);
+    expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).toBeNull();
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
+  it('the opponent the only defender: the box declares at once, as before', async () => {
+    const { s, m, a, b, sweep, pending } = await boxBoard({ planeswalker: false });
+    sweep();
+    expect(pending()).toEqual([]);
+    await s.untilClientFrames(2);
+    expect(await sent(s, m)).toEqual([
+      ['selectCard', a],
+      ['selectCard', b],
+    ]);
+  });
+
+  it('a box over only declared attackers still pulls them back at once, planeswalker or not', async () => {
+    const { s, m, a, b, sweep, pending } = await boxBoard({ planeswalker: true });
+    await deliver(s, m, [attackingDelta([a, b])]);
+    sweep();
+    expect(pending()).toEqual([]);
+    await s.untilClientFrames(2);
+    expect(await sent(s, m)).toEqual([
+      ['selectCard', a],
+      ['selectCard', b],
+    ]);
+  });
+});
+
+/*
  * The operator, 2026-10-15: "when dragging a card to draw an arrow, if
  * hovering over the card itself it weirdly draws an arrow to the top of the
  * card. let's not allow arrows to snap to things that are not valid targets."

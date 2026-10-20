@@ -96,21 +96,45 @@ export function commitDrag(match: LiveMatch, drag: DragState, node: EventTarget 
    * (`afterMarked`: Forge may apply two quick clicks in either order). When the
    * defender is already the marked one, the attacker's click is all it takes.
    */
-  if (source !== null && target.kind !== 'stack') {
-    const assignment = attackAssignment(match, source, target);
-    if (assignment === 'already') return;
-    if (assignment === 'assign') {
-      if (isMarked(match, target)) { selectCard(match, source); return; }
-      const picked = target.kind === 'card' ? selectCard(match, target.id) : selectPlayer(match, target.id);
-      if (picked) afterMarked(match, target, () => selectCard(match, source));
-      return;
-    }
+  if (source !== null && target.kind !== 'stack' && attackAssignment(match, source, target) !== null) {
+    attackWith(match, [source], target);
+    return;
   }
   // Forge's own `max`: one thing wanted, so the drop is the thing meant.
   const single = match.selectables !== null && match.selectables.max <= 1;
   if (source !== null && !single && !selectCard(match, source)) return;
   if (target.kind === 'card') selectCard(match, target.id);
   else if (target.kind === 'player') selectPlayer(match, target.id);
+}
+
+/**
+ * Declare `attackers` against the defender `target`: the defender's click first,
+ * so `InputAttack` makes it current, then every attacker's own click — sent only
+ * once Forge has marked the defender (`afterMarked`), or at once when it already
+ * is. One attacker for a drag, a box's whole group for an aimed box. An attacker
+ * already attacking `target` is left out: its click would toggle it off.
+ */
+export function attackWith(match: LiveMatch, attackers: readonly number[], target: { kind: 'card' | 'player'; id: number }): void {
+  const todo = attackers.filter((id) => attackAssignment(match, id, target) === 'assign');
+  if (todo.length === 0) return;
+  const declare = (): void => {
+    for (const id of todo) selectCard(match, id);
+  };
+  if (isMarked(match, target)) { declare(); return; }
+  const picked = target.kind === 'card' ? selectCard(match, target.id) : selectPlayer(match, target.id);
+  if (picked) afterMarked(match, target, declare);
+}
+
+/**
+ * Every defender `InputAttack` would take for `attacker` right now: the
+ * opponents it offers and the planeswalkers and battles (`attackAssignment`).
+ */
+export function defendersOf(match: LiveMatch, attacker: number): DropTarget[] {
+  const offer = boardInteraction(match);
+  const out: DropTarget[] = [];
+  for (const id of offer.selectablePlayers) if (attackAssignment(match, attacker, { kind: 'player', id }) !== null) out.push({ kind: 'player', id });
+  for (const id of offer.selectable) if (attackAssignment(match, attacker, { kind: 'card', id }) !== null) out.push({ kind: 'card', id });
+  return out;
 }
 
 /** A rectangle in client coordinates. */
@@ -135,6 +159,9 @@ function overlaps(a: Rect, b: DOMRect): boolean {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 }
 
+/** What a box-draw over attackers did: sent its clicks, or held a group to be aimed at a defender. */
+export type MarqueeCommit = { kind: 'sent'; ids: number[] } | { kind: 'aim'; ids: number[] };
+
 /**
  * Box-draw multi-select (§B.2): every creature Forge OFFERED whose box the
  * marquee touched, each sent as its own `selectCard`.
@@ -142,8 +169,8 @@ function overlaps(a: Rect, b: DOMRect): boolean {
  * `boardInteraction` is consulted once per id, inside `selectCard`, so an id
  * Forge did not offer cannot leave however the marquee was drawn — and an id
  * whose offer disappears part-way through the sweep (Forge answering between
- * two frames) stops there rather than being forced out. Returns what was
- * actually sent, in DOM order, so a caller can say what happened.
+ * two frames) stops there rather than being forced out. `sent` is what was
+ * actually sent, in DOM order.
  *
  * ## Wave 32 Q14 — a box over declared attackers pulls them back
  *
@@ -155,21 +182,34 @@ function overlaps(a: Rect, b: DOMRect): boolean {
  *    and only those (the ones already attacking are left alone);
  *  - it touches ONLY creatures already attacking → it pulls every one of them
  *    back.
+ *
+ * ## A box that declares is aimed, when there is a choice of defender
+ *
+ * The operator, 2026-10-19: *"when i draw a box to select a number of
+ * creatures, i still want to select where the arrow goes rather than having
+ * them auto-select a target"* — a box's clicks declare against whatever
+ * defender `InputAttack` has current, a planeswalker included. So a box that
+ * DECLARES while Forge offers more than one defender sends nothing: it returns
+ * the group (`aim`), and `./install.ts` holds it until the defender's click
+ * (`attackWith`). One defender, the opponent alone, and it declares at once.
  */
-export function commitMarquee(match: LiveMatch, rect: Rect, root: ParentNode): number[] {
+export function commitMarquee(match: LiveMatch, rect: Rect, root: ParentNode): MarqueeCommit {
   const offered = boardInteraction(match).selectable;
+  const mine = new Set(viewerBattlefield(match).map((c) => c.id));
   const hits: number[] = [];
   for (const { id, el } of cardElements(root)) {
-    if (!offered.has(id)) continue;
+    // Only this seat's own creatures: a defender the box crossed is aimed at, never swept.
+    if (!offered.has(id) || !mine.has(id)) continue;
     if (!overlaps(rect, el.getBoundingClientRect())) continue;
     hits.push(id);
   }
-  const attacking = attackingCards(match);
+  const attacking = new Set(viewerBattlefield(match).filter((c) => c.attacking).map((c) => c.id));
   const fresh = hits.filter((id) => !attacking.has(id));
+  if (fresh.length > 0 && defendersOf(match, fresh[0]!).length > 1) return { kind: 'aim', ids: fresh };
   const toSend = fresh.length > 0 ? fresh : hits;
   const sent: number[] = [];
   for (const id of toSend) if (selectCard(match, id)) sent.push(id);
-  return sent;
+  return { kind: 'sent', ids: sent };
 }
 
 /**
@@ -208,12 +248,9 @@ export function clearTappedPending(root: ParentNode, id: number): void {
   cardBox(root, id)?.removeAttribute(TAPPED_PENDING_ATTR);
 }
 
-/** This seat's own creatures Forge says are attacking — its `Attacking` property, off the view. */
-function attackingCards(match: LiveMatch): ReadonlySet<number> {
-  const out = new Set<number>();
-  const me = match.view?.players.find((p) => p.isViewer);
-  for (const c of me?.battlefield ?? []) if (c.attacking) out.add(c.id);
-  return out;
+/** This seat's own battlefield, off the view. */
+function viewerBattlefield(match: LiveMatch) {
+  return match.view?.players.find((p) => p.isViewer)?.battlefield ?? [];
 }
 
 export type { DropTarget };

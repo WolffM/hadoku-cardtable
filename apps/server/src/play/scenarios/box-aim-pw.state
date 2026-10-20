@@ -1,0 +1,22 @@
+# A box over several attackers, aimed (the operator, 2026-10-19: "if i have 10
+# creatures and i draw a box, they might all get auto-targeted to a
+# planeswalker on board"). Seat 0 (human) has three untapped, non-sick
+# creatures of three different names (so the board draws three cards, never
+# one pile) at its own Main Phase 1, nothing pre-declared, so Forge's live
+# `InputAttack` opens for real — `attackers-declared.state`'s shape. Seat 1
+# controls Jace Beleren as a second possible defender beside seat 1 itself;
+# `|Counters:LOYALTY=3` for the reason `w46-b-planeswalker.state` gives (at the
+# default zero Jace dies to state-based actions before the test can aim).
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite;Ornithopter;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Jace Beleren|Counters:LOYALTY=3
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

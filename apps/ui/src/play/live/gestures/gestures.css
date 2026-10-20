@@ -5,8 +5,9 @@
  * It names NOTHING of another lane's: no `.board`, no `.card`, no `.live`. Every
  * selector here is either this module's own class (`.targeter`, `.marquee`) or
  * an attribute this module writes (`data-gesture-canvas`, `data-dragging`,
- * `data-marquee`, `data-attack-intent`). That is what keeps lane A's markup and
- * lane C's frame out of this file and this file out of theirs.
+ * `data-marquee`, `data-aiming`, `data-attack-intent`, `data-attack-pending`).
+ * That is what keeps lane A's markup and lane C's frame out of this file and
+ * this file out of theirs.
  *
  * `.targeter*` moved here from `../live.css`, where wave 20 left it.
  */
@@ -142,6 +143,17 @@
 }
 
 /*
+ * A box's creatures held for the defender click (`./intent.ts`'s
+ * `PENDING_ATTR`): chosen, nothing sent yet. Forge's attacking mark is a solid
+ * danger outline (`card.css`), so this is the same colour DASHED — the
+ * attack it will be, not yet declared.
+ */
+[data-attack-pending] {
+  outline: 2px dashed var(--danger);
+  outline-offset: 2px;
+}
+
+/*
  * A hand card, picked up by a press OR a click, follows the pointer
  * (`./cast.ts`'s `drawCastLift` sets `left`/`top` in client coordinates,
  * `position: fixed` is what makes those the same units) until the gesture
@@ -236,7 +248,8 @@
 
 /* A drag is a drag, not a text selection. */
 [data-gesture-canvas][data-dragging],
-[data-gesture-canvas][data-marquee] {
+[data-gesture-canvas][data-marquee],
+[data-gesture-canvas][data-aiming] {
   user-select: none;
 }
 
@@ -244,6 +257,7 @@
   cursor: grabbing;
 }
 
-[data-gesture-canvas][data-marquee] {
+[data-gesture-canvas][data-marquee],
+[data-gesture-canvas][data-aiming] {
   cursor: crosshair;
 }

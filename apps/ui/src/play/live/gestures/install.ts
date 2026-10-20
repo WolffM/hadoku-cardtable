@@ -253,7 +253,7 @@ import { CAST_LANDING_ATTR, expectedGapBox,
   type CastZone,
 } from './cast.ts';
 import { closePileView } from '../../PileView.tsx';
-import { aimedTarget, clearTappedPending, commitDrag, commitMarquee, landsInBox, markTappedPending, rectOf, type Rect } from './commit.ts';
+import { aimedTarget, attackWith, clearTappedPending, commitDrag, commitMarquee, landsInBox, markTappedPending, rectOf, type Rect } from './commit.ts';
 import {
   clearHandIndicator,
   commitHandReorder,
@@ -261,7 +261,7 @@ import {
   handOrderIds,
   updateHandIndicator,
 } from './hand.ts';
-import { applyIntents, clearIntents } from './intent.ts';
+import { applyIntents, applyPending, clearIntents } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
 import { guardTextSelection } from './text-press.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
@@ -421,6 +421,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
   const { canvas, match } = options;
   let drag: DragState | null = null;
   let marquee: MarqueeState | null = null;
+  /**
+   * A box's attackers held for the defender click — `./commit.ts`'s
+   * `commitMarquee` returned them instead of sending, because Forge offers more
+   * than one defender. An arrow leaves the group and follows the pointer
+   * (`at`, over `node`); the next press on a defender sends the group against it
+   * (`attackWith`), and any other press, a right-click or Escape drops it with
+   * nothing sent. It also drops the moment Forge's declare window is gone
+   * (`dropStaleAim`), so it never outlives the input it was for.
+   */
+  let aim: { ids: number[]; at: Point; node: EventTarget | null } | null = null;
   /** Where the pointer is while NO gesture is held — the click-targeting arrow's tip. */
   let hover: { at: Point; node: EventTarget | null } | null = null;
   /** What was drawn last, so `onChange` fires on a change and not on every move. */
@@ -680,7 +690,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
     flag(CANVAS_ATTR, '');
     flag('data-dragging', drag !== null && drag.moved ? '' : null);
     flag('data-marquee', marquee !== null && marquee.moved ? '' : null);
-    applyIntents(canvas, match);
+    flag('data-aiming', aim !== null ? '' : null);
+    applyMarks();
 
     let next = '';
     if (overlay === null) {
@@ -704,6 +715,13 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearArrow(overlay);
       drawMarquee(overlay, rectOf(marquee.press, marquee.at));
       next = 'marquee';
+    } else if (aim !== null) {
+      // The same arrow a single attacker's drag draws, from the middle of the group.
+      const target = aimedTarget(match, aim.ids[0]!, aim.node);
+      const snap = target === null ? null : boxOf(canvas, target);
+      drawArrow(overlay, { from: groupCentre(aim.ids, aim.at), to: aim.at, source: null, target, snap, tail: null, mode: 'drag' });
+      clearMarquee(overlay);
+      next = `aim:${aim.ids.join(',')}:${target === null ? '' : `${target.kind}:${target.id}`}`;
     } else {
       // This is also how a parked cast draws its arrow, see `clickOrigin`.
       // A choice among this seat's OWN HAND cards is not aiming — the cleanup
@@ -742,6 +760,34 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (next === shape) return;
     shape = next;
     options.onChange?.();
+  }
+
+  /** Forge's attack intents, and the held group's own mark — on every paint, and again whenever React redraws a card. */
+  function applyMarks(): void {
+    applyIntents(canvas, match);
+    applyPending(canvas, aim?.ids ?? []);
+  }
+
+  /** The centre of the group's own cards, or `fallback` when none of them is drawn. */
+  function groupCentre(ids: readonly number[], fallback: Point): Point {
+    const centres = ids.flatMap((id) => {
+      const box = cardBox(canvas, id);
+      return box === null ? [] : [centreOf(box)];
+    });
+    if (centres.length === 0) return fallback;
+    return { x: centres.reduce((n, c) => n + c.x, 0) / centres.length, y: centres.reduce((n, c) => n + c.y, 0) / centres.length };
+  }
+
+  /**
+   * A held group whose window is gone is dropped: Forge left declare-attackers
+   * (it moved on, the turn changed), or the offer emptied (a reconnect, a
+   * question). Only the group's creatures Forge still offers stay in it.
+   */
+  function dropStaleAim(): void {
+    if (aim === null) return;
+    const offered = boardInteraction(match).selectable;
+    const ids = aim.ids.filter((id) => offered.has(id));
+    aim = declaringAttackers(match) && ids.length > 0 ? { ...aim, ids } : null;
   }
 
   function flag(name: string, value: string | null): void {
@@ -1221,6 +1267,27 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   function onPointerDown(event: PointerEvent): void {
     /*
+     * A held box group takes the next press, whatever it lands on: on a
+     * defender it attacks it, anywhere else (a right-click included) it is
+     * dropped. Either way the press is spent here — the click it leaves must
+     * not also reach the face or card under it.
+     */
+    if (aim !== null) {
+      claim(event);
+      const group = aim;
+      aim = null;
+      if (event.button === 0) {
+        clicks.arm();
+        const target = aimedTarget(match, group.ids[0]!, eventTarget(event));
+        if (target !== null && target.kind !== 'stack') {
+          playRole('ui.target');
+          attackWith(match, group.ids, target);
+        }
+      }
+      paint();
+      return;
+    }
+    /*
      * A right-click cancels a live gesture outright, before any button
      * filtering below — a parked cast or a bare lift, held or click-armed
      * alike.
@@ -1484,6 +1551,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
       }
     } else if (marquee !== null) {
       marquee = { press: marquee.press, at, moved: marquee.moved || pastSlop(marquee.press, at) };
+    } else if (aim !== null) {
+      aim = { ...aim, at, node: eventTarget(event) };
     } else if (placedDrag !== null) {
       // AD3 (item 6): this is the ONLY thing that moves a placed card — never
       // a bare hover, which is what the OLD stand-in's bug was. `moveSpell`
@@ -1549,7 +1618,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (heldMarquee !== null && heldMarquee.moved) {
       const box = rectOf(heldMarquee.press, { x: event.clientX, y: event.clientY });
       if (declaringAttackers(match)) {
-        commitMarquee(match, box, canvas);
+        const result = commitMarquee(match, box, canvas);
+        if (result.kind === 'aim') {
+          aim = { ids: result.ids, at: { x: event.clientX, y: event.clientY }, node: eventTarget(event) };
+          paint();
+        }
       } else {
         endTapSweep();
         tapQueue = landsInBox(match, box, canvas);
@@ -1593,6 +1666,11 @@ export function installGestures(options: GestureOptions): GestureHandle {
   /** Escape cancels cleanly, from either phase — see `cancelLive`. */
   function onKeyDown(event: KeyboardEvent): void {
     if (event.key !== 'Escape') return;
+    if (aim !== null) {
+      aim = null;
+      paint();
+      return;
+    }
     if (parked === null && !(drag !== null && drag.lifted)) return;
     cancelLive('escape');
   }
@@ -1621,6 +1699,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   const unsubscribe = subscribe(match, () => {
     if (!live) return;
     pumpTaps();
+    dropStaleAim();
     settleParkedIfResolved();
     syncStackStandIn();
     syncParkedGhost();
@@ -1656,7 +1735,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // reacting to ourselves.
     const overlay = overlayOf();
     if (records.every((r) => overlay !== null && r.target instanceof Node && overlay.contains(r.target))) return;
-    applyIntents(canvas, match);
+    applyMarks();
     // A played card lands on its row's own element, which exists only now.
     settleParkedIfResolved();
     syncParkedGhost();
@@ -1667,6 +1746,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   return {
     dispose(): void {
       live = false;
+      aim = null;
       unguardText();
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('click', clicks.swallow, true);
@@ -1697,6 +1777,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       canvas.removeAttribute(CANVAS_ATTR);
       canvas.removeAttribute('data-dragging');
       canvas.removeAttribute('data-marquee');
+      canvas.removeAttribute('data-aiming');
     },
   };
 }

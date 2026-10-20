@@ -1,0 +1,16 @@
+# `box-aim-pw.state` without the planeswalker: seat 1 itself is the only
+# defender Forge offers, so a box over the three attackers declares them at
+# once, with no aiming step.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Memnite;Ornithopter;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

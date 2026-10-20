@@ -36,7 +36,25 @@ export function applyIntents(root: ParentNode, match: LiveMatch): void {
   }
 }
 
+/**
+ * A box's creatures held for the defender click (`./commit.ts`'s
+ * `commitMarquee`): chosen, nothing sent. Written here, not by `attackIntents`,
+ * because nothing about them is on the match yet — `./install.ts` owns the group.
+ */
+export const PENDING_ATTR = 'data-attack-pending';
+
+/** Mark exactly `ids` pending. Idempotent, like `applyIntents`: a remounted `<li>` gets its mark back on the next call. */
+export function applyPending(root: ParentNode, ids: readonly number[]): void {
+  const want = new Set(ids);
+  for (const { id, el } of cardElements(root)) {
+    const has = el.hasAttribute(PENDING_ATTR);
+    if (want.has(id) && !has) el.setAttribute(PENDING_ATTR, '');
+    else if (!want.has(id) && has) el.removeAttribute(PENDING_ATTR);
+  }
+}
+
 /** Take every mark away — on dispose, so a board left behind carries none. */
 export function clearIntents(root: ParentNode): void {
   for (const el of root.querySelectorAll(`[${INTENT_ATTR}]`)) el.removeAttribute(INTENT_ATTR);
+  for (const el of root.querySelectorAll(`[${PENDING_ATTR}]`)) el.removeAttribute(PENDING_ATTR);
 }
