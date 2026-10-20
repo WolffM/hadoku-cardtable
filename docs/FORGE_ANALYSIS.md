@@ -851,7 +851,7 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   targeted his Woodfall Primus and then sacrificed it, and the spell fizzled (m-2ade17d9333d). Which
   KIND of additional cost (sacrifice or discard, `K:AlternateAdditionalCost`) is asked earlier still,
   in `chooseOptionalAdditionalCosts` (`getAbilityToPlay`, `:146`).
-- **Fork `df73b8d` (`cardtable/cost-choice-first`)** — the operator, 2026-10-20: "sacrifice first
+- **Fork `df73b8d` + `cab6fc5` (`cardtable/cost-choice-first`)** — the operator, 2026-10-20: "sacrifice first
   makes sense to me". `CostPayment.chooseObjectsBeforeTargets` (`CostPayment.java:157`) asks, right
   before `setupTargets` (`PlaySpellAbility.java:678`), every sacrifice or discard picked from a list
   (`isChosenBeforeTargets`: not this card, the whole hand, at random or the last drawn); `payCost`
@@ -862,3 +862,6 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   `CostDecisionMakerBase.choosesCostObjectsFirst()` is true (the human's `HumanCostDecision`) asks
   this way; the AI is unchanged. A spell without targets now asks the sacrifice before its mana
   (Tinker). Exile, tap and return costs are still picked as they are paid, after the targets.
+  `cab6fc5`: while a part is chosen early it is on `game.costPaymentStack`, as `payCost` puts every
+  part it pays (`CostPayment.java:171`), so the bridge's `sacrificeAsked` names it a cost's sacrifice
+  in either order and the server still takes the only legal one for the seat.
