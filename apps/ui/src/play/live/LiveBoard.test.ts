@@ -3811,17 +3811,18 @@ describe('R16 — the result screen, drawn over the board', () => {
       expect(tableState.startRoom).not.toHaveBeenCalled();
     });
 
-    it('a pod of one keeps Rematch — its one drafter plays the AI again from here', async () => {
+    it('a pod of one has no Next game once its series is over — Back to room, to the standings', async () => {
       roomsClientState.room = {
         settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [2, 0], games: [], phase: 'done' } }],
         pod: { phase: 'done', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, built: [] },
       };
       tableState.other = { ready: false, present: false };
-      const { rematch } = await victoryInRoom();
-      await waitFor(() => expect(rematch().textContent).toBe('Next game'));
-      fireEvent.click(rematch());
-      await waitFor(() => expect(tableState.startVsBot).toHaveBeenCalledWith('r-1', 't-1'));
+      const { getByTestId, queryByTestId } = await victoryInRoom();
+      await waitFor(() => expect(getByTestId('game-result-room')).toBeTruthy());
+      expect(queryByTestId('game-result-rematch')).toBeNull();
+      expect(queryByTestId('game-result-next')).toBeNull();
+      expect(tableState.startVsBot).not.toHaveBeenCalled();
     });
 
     it('against the AI, my sideboard Ready alone starts the next game — the bot’s, not a two-player start', async () => {

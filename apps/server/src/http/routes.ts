@@ -1682,6 +1682,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(200).json({ matchId: live });
 			return;
 		}
+		// A pod's series is its round: once it is over, the next game is the pod's
+		// next round, never another series at the same table (the operator,
+		// 2026-10-19: "it seems like it just lets me keep clicking 'next game' forever").
+		if (room.pod !== null && table.series.phase === 'done') {
+			res.status(409).json({ error: 'this series is over — the standings are in the room' });
+			return;
+		}
 		// Keyed by table, not room: two different tables of the same room start
 		// independently.
 		const startKey = `${room.id}:${table.id}`;

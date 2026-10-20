@@ -3092,11 +3092,25 @@ describe('a room on a drafted pool', () => {
 		// nothing past it runs. 1 failed. Restored: passes, 201. 1 passed.
 	});
 
+	it('starts no new series at a pod table whose series is over — the pod, not a Rematch, decides the next game', async () => {
+		const h = await boot();
+		h.lobby.open(PODTABLE, [...MEMBERS], 'draft', POWER_2010);
+		const room = h.lobby.room(PODTABLE)!;
+		room.pod = { phase: 'done' };
+		room.tables[0]!.series.phase = 'done';
+		for (const body of [{ room: PODTABLE }, { room: PODTABLE, bot: true }]) {
+			const res = await start(h, body, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+			expect(res.status).toBe(409);
+			expect(res.body.error).toBe('this series is over — the standings are in the room');
+		}
+		expect(h.specs).toHaveLength(0);
+	});
+
 	it('refuses a table WRITE the same as before while the pod has no tables yet', async () => {
 		const h = await boot();
 		h.lobby.open(PODTABLE, [...MEMBERS], 'draft', POWER_2010);
 		const room = h.lobby.room(PODTABLE)!;
-		// `done` keeps its tables: the one drafter of a pod of bots plays the AI again from hers.
+		// `done` keeps its tables, for their history; a finished series there starts nothing (below).
 		for (const phase of ['lobby', 'drafting', 'building'] as const) {
 			room.pod = { phase };
 			const res = await call(h, 'PUT', `/api/tables/rooms/${PODTABLE}/deck`, { deck: { dck: 'anything' } }, edgeHeaders('alice'));

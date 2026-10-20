@@ -2180,11 +2180,13 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const matchLength = room?.settings.matchLength ?? 'bo1';
   const sideboarding = room?.settings.sideboarding ?? false;
   /**
-   * No Rematch in a pod of people (wave 72 §Q.3): Back to room already opens
-   * the pod, and its rounds decide who plays whom. The one drafter of a pod of
-   * bots plays the AI again from here, the same as any game against the bot.
+   * No Rematch in a pod (wave 72 §Q.3), a pod of one against the AI included:
+   * Back to room opens the pod, whose rounds decide who plays whom, and whose
+   * standings follow the last game. A Rematch there started a new series at a
+   * finished table, for ever (the operator, 2026-10-19: *"it seems like it just
+   * lets me keep clicking 'next game' forever"*).
    */
-  const inPod = room !== null && room.pod !== null && alone !== true;
+  const inPod = room !== null && room.pod !== null;
   /**
    * The table id the reads below address — a ref, not state, because the
    * table-scoped read inside the SAME refresh cycle that learns it has to
