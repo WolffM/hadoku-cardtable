@@ -25,7 +25,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { answerPrompt } from './play/prompts.ts';
 import { boardCard, clickHandCard, handCardNamed, isOffered, makeTitled, offered, ownNamed, pressOffered, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { startScenarioMatch } from './play/scenario.ts';
+import { startScenarioMatch, startScenarioVsAi } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -45,16 +45,18 @@ async function drawn(page: Page): Promise<string> {
   return `says="${(await says(page)).replace(/\s+/g, ' ')}" popup=${JSON.stringify(await popup(page))} offered=${JSON.stringify(await offered(page))} sheets=${JSON.stringify(sheets)}`;
 }
 
-for (const { scenario, board } of [
-  { scenario: 'tk-tinker', board: 'the Bauble already out' },
-  { scenario: 'tk-tinker-bauble', board: 'the Bauble cast just before' },
+for (const { scenario, board, ai } of [
+  { scenario: 'tk-tinker', board: 'the Bauble already out', ai: false },
+  { scenario: 'tk-tinker-bauble', board: 'the Bauble cast just before', ai: false },
+  // The live game was against the Forge AI.
+  { scenario: 'tk-tinker-bauble', board: 'the Bauble cast just before, against the Forge AI', ai: true },
 ]) test(titled(`Tinker: the sacrifice is on screen the moment Forge asks it, and picking the Bauble resolves Tinker (${board})`), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
-    const { alice } = await startScenarioMatch(browser, stack, scenario);
+    const { alice } = ai ? await startScenarioVsAi(browser, stack, scenario) : await startScenarioMatch(browser, stack, scenario);
     const page = alice.page;
     await expect.poll(() => handCardNamed(page, 'Tinker'), { timeout: 30_000, message: 'alice holds Tinker' }).not.toBeUndefined();
     const tinker = (await handCardNamed(page, 'Tinker'))!;
