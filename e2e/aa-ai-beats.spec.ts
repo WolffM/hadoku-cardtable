@@ -16,7 +16,9 @@
  * - the death: the Bears' departure is drawn;
  * - the attack: the attackers are drawn attacking for a beat before any of them rams;
  * - the blow: the ram is drawn, and alice's life moves only once it has set off;
- * - the views: no one drawn view holds both the attack and its blow.
+ * - the views: no one drawn view holds both the attack and its blow;
+ * - the turn: alice's "Your turn" comes once the blow is over, not with it (the operator, 2026-10-20:
+ *   the turn banner waits until the AI's attack animation finishes).
  *
  * Once against the Forge AI, once against bob playing the same turn by hand (the control). `[aa]`
  * lines are the evidence: the marks, every view alice's screen drew with the roles it sounded, and when
@@ -52,6 +54,8 @@ interface Marks {
   ramGone?: number;
   crash?: number;
   life?: number;
+  /** alice's "Your turn" cue. */
+  cue?: number;
   lifeNow?: string;
 }
 
@@ -72,6 +76,7 @@ async function recordMarks(page: Page): Promise<void> {
       first('ram', ramming);
       if (marks.ram !== undefined && !ramming) first('ramGone', true);
       first('crash', document.querySelector('.effect-crash') !== null);
+      first('cue', document.querySelector('[data-testid="turn-cue"]') !== null);
       const life = document.querySelector('[data-player-face][data-viewer] [data-testid="life"]')?.textContent ?? null;
       if (life !== null && life !== '20') first('life', true);
       if (life !== null) marks.lifeNow = life;
@@ -177,12 +182,20 @@ test(titled("the Forge AI's turn draws every beat: its creature's cast, the deat
         zero = Date.now();
       },
     }));
+    const page = alice.page;
     try {
-      await turnDrawn(alice.page);
+      await turnDrawn(page);
+      await expect
+        .poll(async () => (await marksOf(page)).cue !== undefined, { timeout: 20_000, intervals: [250], message: "alice's turn began on her screen" })
+        .toBe(true);
     } finally {
       evidence(stack, alice, await marksOf(alice.page), zero, 'ai');
     }
-    judge(stack, await marksOf(alice.page), 'vs the AI');
+    const marks = await marksOf(alice.page);
+    judge(stack, marks, 'vs the AI');
+    expect(marks.cue!, 'vs the AI: "Your turn" came once the ram was over').toBeGreaterThanOrEqual(marks.ramGone!);
+    const turnWithBlow = drawnViews(stack).filter((v) => /g\.turn-mine/.test(v.roles) && /g\.(charge|crash|damage-player)/.test(v.roles));
+    expect(turnWithBlow, 'vs the AI: no one view drew the blow and the turn after it together').toEqual([]);
   } finally {
     await alice?.context.close();
     await stack.stop();
