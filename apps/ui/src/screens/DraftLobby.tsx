@@ -32,7 +32,7 @@
  * is not the member id the pod's seats name.
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { RoomMember } from '../rooms/api.ts';
 import { StatusPill } from './ConstructedScreen.tsx';
@@ -51,7 +51,6 @@ export function DraftLobby({
   iAmReady,
   allReady,
   dealing,
-  busy,
   error,
   onReady,
   onRetry,
@@ -66,55 +65,46 @@ export function DraftLobby({
   iAmReady: boolean;
   allReady: boolean;
   dealing: boolean;
-  busy: boolean;
   error: string | null;
   onReady: (ready: boolean) => void;
   onRetry: () => void;
 }) {
   const myMemberId = myId === '' ? null : myId;
 
-  const [seatBusy, setSeatBusy] = useState(false);
   const [seatError, setSeatError] = useState<string | null>(null);
+  /**
+   * One seat change at a time, held here and not drawn: disabling every seat's
+   * buttons for the round trip made the whole list blink on each press (the
+   * operator, 2026-10-19: *"whenever i click sit here or ai, i notice all the
+   * buttons flash"*). A press while one is in flight goes out once it has answered.
+   */
+  const inFlight = useRef(false);
+  const later = useRef<(() => Promise<{ ok: boolean; message: string | null }>)[]>([]);
 
   const seated = new Set((pod?.seats ?? []).filter((s) => s !== null).map((s) => s!.memberId));
   const spectators = members.filter((m) => !seated.has(m.id));
 
-  const doSit = (seat: number): void => {
-    setSeatBusy(true);
+  const act = (call: () => Promise<{ ok: boolean; message: string | null }>): void => {
+    if (inFlight.current) {
+      later.current.push(call);
+      return;
+    }
+    inFlight.current = true;
     setSeatError(null);
-    sitPod(roomId, seat)
+    call()
       .then((r) => {
         if (!r.ok) setSeatError(r.message);
       })
-      .finally(() => setSeatBusy(false));
+      .finally(() => {
+        inFlight.current = false;
+        const next = later.current.shift();
+        if (next !== undefined) act(next);
+      });
   };
-  const doAi = (seat: number, on: boolean): void => {
-    setSeatBusy(true);
-    setSeatError(null);
-    aiPod(roomId, seat, on)
-      .then((r) => {
-        if (!r.ok) setSeatError(r.message);
-      })
-      .finally(() => setSeatBusy(false));
-  };
-  const doClose = (seat: number, closed: boolean): void => {
-    setSeatBusy(true);
-    setSeatError(null);
-    closePod(roomId, seat, closed)
-      .then((r) => {
-        if (!r.ok) setSeatError(r.message);
-      })
-      .finally(() => setSeatBusy(false));
-  };
-  const doStand = (): void => {
-    setSeatBusy(true);
-    setSeatError(null);
-    standPod(roomId)
-      .then((r) => {
-        if (!r.ok) setSeatError(r.message);
-      })
-      .finally(() => setSeatBusy(false));
-  };
+  const doSit = (seat: number): void => act(() => sitPod(roomId, seat));
+  const doAi = (seat: number, on: boolean): void => act(() => aiPod(roomId, seat, on));
+  const doClose = (seat: number, closed: boolean): void => act(() => closePod(roomId, seat, closed));
+  const doStand = (): void => act(() => standPod(roomId));
 
   return (
     <section className="lobby__card" data-testid="draft-lobby">
@@ -126,7 +116,6 @@ export function DraftLobby({
             myMemberId={myMemberId}
             leaderId={leaderId}
             readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
-            busy={seatBusy}
             onSit={doSit}
             onStand={doStand}
             onAi={doAi}
@@ -177,7 +166,7 @@ export function DraftLobby({
         className="lobby__go"
         data-testid="ready-toggle"
         aria-pressed={iAmReady}
-        disabled={busy || seatBusy || dealing || members.length === 0}
+        disabled={dealing || members.length === 0}
         onClick={() => onReady(!iAmReady)}
       >
         {iAmReady ? 'Stand down' : 'Ready'}

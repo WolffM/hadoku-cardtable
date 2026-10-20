@@ -36,7 +36,6 @@ export interface PodSeatsProps {
   leaderId: string;
   /** Looks up a seated member's readiness — the room's own `ready` flag, unaffected by seating. */
   readyOf: (memberId: string) => boolean;
-  busy: boolean;
   onSit: (seat: number) => void;
   onStand: () => void;
   /** The AI button on an open seat (`on`), or the AI's own seat given back. */
@@ -45,7 +44,7 @@ export interface PodSeatsProps {
   onClose: (seat: number, closed: boolean) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, busy, onSit, onStand, onAi, onClose }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand, onAi, onClose }: PodSeatsProps) {
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
@@ -65,17 +64,17 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, busy, onSit, on
                     className="tables__sit"
                     data-testid="pod-seat-sit"
                     data-seat={seat}
-                    disabled={busy || iAmSeated}
+                    disabled={iAmSeated}
                     onClick={() => onSit(seat)}
                   >
                     Sit here
                   </button>
                   {/* The same AI button as the 1v1 table's empty seat. */}
-                  <button type="button" className="tables__sit" data-testid="pod-seat-ai" data-seat={seat} disabled={busy} onClick={() => onAi(seat, true)}>
+                  <button type="button" className="tables__sit" data-testid="pod-seat-ai" data-seat={seat} onClick={() => onAi(seat, true)}>
                     AI
                   </button>
                   {iLead && (
-                    <button type="button" className="tables__sit" data-testid="pod-seat-close" data-seat={seat} disabled={busy} onClick={() => onClose(seat, true)}>
+                    <button type="button" className="tables__sit" data-testid="pod-seat-close" data-seat={seat} onClick={() => onClose(seat, true)}>
                       Close
                     </button>
                   )}
@@ -91,7 +90,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, busy, onSit, on
                 <span className="tables__name">Closed</span>
                 {iLead && (
                   <span className="tables__actions">
-                    <button type="button" className="tables__sit" data-testid="pod-seat-open" data-seat={seat} disabled={busy} onClick={() => onClose(seat, false)}>
+                    <button type="button" className="tables__sit" data-testid="pod-seat-open" data-seat={seat} onClick={() => onClose(seat, false)}>
                       Open
                     </button>
                   </span>
@@ -105,7 +104,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, busy, onSit, on
             <li key={seat} className="tables__row" data-testid={`pod-seat-${seat}`} data-ai="">
               <span className="tables__who tables__who--seat">
                 <strong className="tables__name">{occupant.name}</strong>
-                <button type="button" className="tables__stand" data-testid="pod-seat-ai-remove" data-seat={seat} disabled={busy} onClick={() => onAi(seat, false)}>
+                <button type="button" className="tables__stand" data-testid="pod-seat-ai-remove" data-seat={seat} onClick={() => onAi(seat, false)}>
                   Remove
                 </button>
               </span>
@@ -126,7 +125,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, busy, onSit, on
                 </svg>
               )}
               {mine && (
-                <button type="button" className="tables__stand" data-testid="pod-seat-stand" disabled={busy} onClick={() => onStand()}>
+                <button type="button" className="tables__stand" data-testid="pod-seat-stand" onClick={() => onStand()}>
                   Stand up
                 </button>
               )}

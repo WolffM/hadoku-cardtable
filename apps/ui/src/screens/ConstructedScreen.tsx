@@ -1107,7 +1107,24 @@ function RoomTableScreen({
   const [tableError, setTableError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deckId, setDeckId] = useState('');
-  const [busy, setBusy] = useState(false);
+  /**
+   * One write at a time, held here and never drawn: greying every control for
+   * the round trip made the room blink on each press (the operator, 2026-10-19:
+   * *"whenever i click sit here or ai, i notice all the buttons flash"*). A press
+   * while one is in flight waits its turn and goes out once it has answered.
+   */
+  const busyRef = useRef(false);
+  const later = useRef<(() => void)[]>([]);
+  const setBusy = (b: boolean): void => {
+    busyRef.current = b;
+    while (!busyRef.current && later.current.length > 0) later.current.shift()!();
+  };
+  /** True when a write is in flight: `run` is queued behind it. */
+  const queued = (run: () => void): boolean => {
+    if (!busyRef.current) return false;
+    later.current.push(run);
+    return true;
+  };
   const [starting, setStarting] = useState(false);
   /** The pool's answer to "which decks are legal here", and one per pool kept. */
   const [legal, setLegal] = useState<LegalSweep | null>(warm?.sweep ?? null);
@@ -1898,6 +1915,7 @@ function RoomTableScreen({
    * check a deck against anything but what the table is on.
    */
   const loadDeckRef = (deck: DeckRef): void => {
+    if (queued(() => loadDeckRef(deck))) return;
     setBusy(true);
     setActionError(null);
     client
@@ -1951,6 +1969,7 @@ function RoomTableScreen({
    */
   const choosePool = (value: string): void => {
     if (value === poolId) return;
+    if (queued(() => choosePool(value))) return;
     setBusy(true);
     setActionError(null);
     rooms
@@ -1969,6 +1988,7 @@ function RoomTableScreen({
 
   /** The LEADER flipped hand smoothing: a room write, answered like `choosePool`. */
   const toggleHandSmoothing = (): void => {
+    if (queued(() => toggleHandSmoothing())) return;
     setBusy(true);
     setActionError(null);
     rooms
@@ -1987,6 +2007,7 @@ function RoomTableScreen({
 
   /** The LEADER flipped the series length: `bo1` ⇄ `bo3`, the same write shape as hand smoothing. */
   const toggleMatchLength = (): void => {
+    if (queued(() => toggleMatchLength())) return;
     setBusy(true);
     setActionError(null);
     rooms
@@ -2008,6 +2029,7 @@ function RoomTableScreen({
    * disabled under `bo3` (it is a settled `true` there, not a choice).
    */
   const toggleSideboarding = (): void => {
+    if (queued(() => toggleSideboarding())) return;
     setBusy(true);
     setActionError(null);
     rooms
@@ -2051,6 +2073,7 @@ function RoomTableScreen({
   }, [picking, poolId, deckId, draftedDeck]);
 
   const setReady = (ready: boolean): void => {
+    if (queued(() => setReady(ready))) return;
     setBusy(true);
     setActionError(null);
     client
@@ -2072,6 +2095,7 @@ function RoomTableScreen({
    * deck or ready refusal is.
    */
   const sitDown = (): void => {
+    if (queued(() => sitDown())) return;
     setBusy(true);
     setActionError(null);
     client
@@ -2081,6 +2105,7 @@ function RoomTableScreen({
       .finally(() => setBusy(false));
   };
   const standUp = (): void => {
+    if (queued(() => standUp())) return;
     setBusy(true);
     setActionError(null);
     client
@@ -2102,6 +2127,7 @@ function RoomTableScreen({
    * remembers what it asked for.
    */
   const setDraftReady = (ready: boolean): void => {
+    if (queued(() => setDraftReady(ready))) return;
     setBusy(true);
     setDraftError(null);
     rooms
@@ -2224,7 +2250,6 @@ function RoomTableScreen({
             iAmReady={iAmReady}
             allReady={allReady}
             dealing={dealing}
-            busy={busy}
             error={draftError}
             onReady={setDraftReady}
             onRetry={() => {
@@ -2278,7 +2303,7 @@ function RoomTableScreen({
                         className="tables__sit"
                         data-testid="seat-sit"
                         data-seat={seat}
-                        disabled={busy || seated || tableLocked || underway}
+                        disabled={seated || tableLocked || underway}
                         onClick={sitDown}
                       >
                         Sit here
@@ -2296,7 +2321,7 @@ function RoomTableScreen({
                           type="button"
                           className="tables__sit"
                           data-testid="play-vs-bot"
-                          disabled={busy || mine === null || !mine.legal || underway}
+                          disabled={mine === null || !mine.legal || underway}
                           onClick={startVsBot}
                         >
                           AI
@@ -2312,9 +2337,9 @@ function RoomTableScreen({
                       player={player}
                       leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
                       {...(player.you
-                        ? { onReady: () => setReady(!player.ready), readyDisabled: busy || deckId === '' || !player.legal || underway }
+                        ? { onReady: () => setReady(!player.ready), readyDisabled: deckId === '' || !player.legal || underway }
                         : {})}
-                      {...(player.you ? { onStand: standUp, standDisabled: busy || tableLocked || underway } : {})}
+                      {...(player.you ? { onStand: standUp, standDisabled: tableLocked || underway } : {})}
                     />
                   );
                 })}
@@ -2388,7 +2413,7 @@ function RoomTableScreen({
                                 role="tab"
                                 aria-selected={formatTab === tab.id}
                                 data-testid={`format-tab-${tab.id}`}
-                                disabled={busy || underway}
+                                disabled={underway}
                                 onClick={() => {
                                   setFormatTab(tab.id);
                                   // A tab whose eras do not include the room's pool chooses its first era
@@ -2410,7 +2435,7 @@ function RoomTableScreen({
                                 role="tab"
                                 aria-selected={formatTab === 'draft'}
                                 data-testid="format-tab-draft"
-                                disabled={busy || underway}
+                                disabled={underway}
                                 onClick={() => setFormatTab('draft')}
                               >
                                 Drafted pool
@@ -2435,7 +2460,7 @@ function RoomTableScreen({
                             id="format"
                             data-testid="format"
                             value={poolOnTab ? poolId : ''}
-                            disabled={busy || underway}
+                            disabled={underway}
                             onChange={(e) => choosePool(e.target.value)}
                           >
                             {!poolOnTab && <option value="" disabled hidden />}
@@ -2514,7 +2539,7 @@ function RoomTableScreen({
                           className="lobby__free-pick"
                           aria-pressed={freePick}
                           data-testid="free-pick"
-                          disabled={busy || underway}
+                          disabled={underway}
                           onClick={() => {
                             if (!freePick) {
                               setBrowse({ family: formatTab === 'draft' ? 'standard' : formatTab, era: '' });
@@ -2535,7 +2560,7 @@ function RoomTableScreen({
                           className="lobby__free-pick"
                           aria-pressed={handSmoothing}
                           data-testid="hand-smoothing"
-                          disabled={busy || underway}
+                          disabled={underway}
                           onClick={toggleHandSmoothing}
                         >
                           Hand smoothing
@@ -2546,7 +2571,7 @@ function RoomTableScreen({
                           className="lobby__free-pick"
                           aria-pressed={matchLength === 'bo3'}
                           data-testid="match-length"
-                          disabled={busy || underway}
+                          disabled={underway}
                           onClick={toggleMatchLength}
                         >
                           {matchLength === 'bo3' ? 'Best of 3' : 'Best of 1'}
@@ -2558,7 +2583,7 @@ function RoomTableScreen({
                           className="lobby__free-pick"
                           aria-pressed={sideboarding}
                           data-testid="sideboarding"
-                          disabled={busy || underway || matchLength === 'bo3'}
+                          disabled={underway || matchLength === 'bo3'}
                           onClick={toggleSideboarding}
                         >
                           Sideboarding

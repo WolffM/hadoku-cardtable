@@ -44,7 +44,6 @@ const baseProps = {
   iAmReady: false,
   allReady: false,
   dealing: false,
-  busy: false,
   error: null,
   onReady: noop,
   onRetry: noop,
@@ -93,6 +92,23 @@ describe('the draft lobby', () => {
 
     screen.getByTestId('ready-toggle').click();
     expect(onReady).toHaveBeenCalledWith(true);
+  });
+
+  it('changes nothing on the screen while a seat press is in flight, and sends a second press once the first has answered', async () => {
+    let answer: (v: { ok: boolean; message: string | null }) => void = () => undefined;
+    sitPod.mockImplementation(() => new Promise((r) => (answer = r)));
+    render(createElement(DraftLobby, { ...baseProps, pod: podFixture(), members: [member('u-alice', 'Alice'), member('u-bob', 'Bob')] }));
+    const buttons = () => [...screen.getByTestId('draft-lobby').querySelectorAll('button')];
+    const before = buttons().map((b) => b.disabled);
+
+    screen.getByTestId('pod-seat-2').querySelector('button')?.click();
+    expect(buttons().map((b) => b.disabled), 'no button greys out for the round trip').toEqual(before);
+    screen.getByTestId('pod-seat-3').querySelector('button')?.click();
+    expect(sitPod, 'one at a time').toHaveBeenCalledTimes(1);
+
+    answer({ ok: true, message: null });
+    await waitFor(() => expect(sitPod).toHaveBeenCalledTimes(2));
+    expect(sitPod).toHaveBeenLastCalledWith('r-cube', 3);
   });
 
   it('sits a member in the chosen seat and clears on a refusal', async () => {
