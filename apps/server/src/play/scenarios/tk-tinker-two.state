@@ -1,7 +1,7 @@
 # Tinker with two artifacts to sacrifice: the sacrifice is a real choice, so alice is asked it. Alice
 # (`human…`, seat 0) holds Tinker; three Islands pay its {2}{U}, and Mishra's Bauble and Ornithopter are
-# her artifacts. Forge takes the mana first (the server presses Auto for her) and asks the sacrifice
-# after it, before the spell is on the stack. `tk-tinker` is the same with the Bauble alone.
+# her artifacts. Forge asks the sacrifice first and takes the mana after it (the server presses Auto for
+# her), before the spell is on the stack. `tk-tinker` is the same with the Bauble alone.
 turn=1
 activeplayer=human
 activephase=MAIN1

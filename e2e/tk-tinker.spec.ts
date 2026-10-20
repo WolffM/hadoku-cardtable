@@ -3,9 +3,10 @@
  * question never popped up on my screen"*, and after a refresh it did.
  *
  * Tinker: "As an additional cost to cast this spell, sacrifice an artifact. Search your library for an
- * artifact card, put that card onto the battlefield, then shuffle." Forge takes the {2}{U} first — the
- * server presses Auto for it — and then asks which artifact to sacrifice, before the spell is on the
- * stack. In the live game the server sent that question (the run dir's stream has it: `setSelectables`
+ * artifact card, put that card onto the battlefield, then shuffle." Forge asks which artifact to
+ * sacrifice first (a cost's sacrifice is chosen before the targets and the mana), then takes the {2}{U} —
+ * the server presses Auto for it. In the live game, when the mana still came first, the server sent that
+ * question (the run dir's stream has it: `setSelectables`
  * [Mishra's Bauble], `tempShowZones`, "Select artifact to sacrifice (1 left)", OK off) and the board drew
  * nothing until a reload.
  *
@@ -105,16 +106,17 @@ test(titled('Tinker with two artifacts: the sacrifice is on screen the moment Fo
     expect(thopter, 'alice has her Ornithopter').not.toBeUndefined();
     const { bauble, from } = await castTinker(page, stack);
 
-    // Forge asks the sacrifice once the mana is paid; the server's own log says when.
+    // Forge asks the sacrifice first, before it takes the mana.
     await expect
-      .poll(() => serverLog(stack).some((r) => r.evt === 'auto-paid' && r.seat === 0 && r.cost === '{2}{U}'), { timeout: 20_000, message: 'the {2}{U} paid for her' })
+      .poll(() => isOffered(page, bauble), { timeout: 20_000, message: `the sacrifice is on screen — ${await drawn(page)}` })
       .toBe(true);
-    await expect
-      .poll(() => isOffered(page, bauble), { timeout: 10_000, message: `the sacrifice is on screen — ${await drawn(page)}` })
-      .toBe(true);
-    console.log(`[tk] sacrifice asked: ${await drawn(page)}`);
+    const paidForHer = () => serverLog(stack).some((r) => r.evt === 'auto-paid' && r.seat === 0 && r.cost === '{2}{U}');
+    expect(paidForHer(), 'the sacrifice is asked before the mana is taken').toBe(false);
     expect(await isOffered(page, thopter!), 'the Ornithopter is offered too').toBe(true);
-    expect(await says(page), 'the board words the sacrifice').toMatch(/sacrifice/i);
+    // Forge sends the question's words after the offer (`setSelectables`, then `tempShowZones` answered by
+    // this screen, then the prompt): wait for the words, not one read taken between the two.
+    await expect.poll(() => says(page), { timeout: 5_000, message: `the board words the sacrifice — ${await drawn(page)}` }).toMatch(/sacrifice/i);
+    console.log(`[tk] sacrifice asked: ${await drawn(page)}`);
     // The question pops up as every decision does — the operator: "that question never popped up on my screen".
     await expect.poll(() => popup(page), { timeout: 5_000, message: `the sacrifice pops up — ${await drawn(page)}` }).toMatch(/sacrifice/i);
     // What the board drew reaches the match's log, so a live game's missing pop-up is read from it.
@@ -123,6 +125,7 @@ test(titled('Tinker with two artifacts: the sacrifice is on screen the moment Fo
       .toMatchObject({ selection: 'on-board', popup: true, host: expect.stringMatching(/^selection@/) });
 
     expect(await pressOffered(boardCard(page, bauble)), 'alice picks the Bauble').toBe(true);
+    await expect.poll(paidForHer, { timeout: 20_000, message: 'the {2}{U} paid for her' }).toBe(true);
     await resolves(page);
     expect(await ownNamed(page, 'Ornithopter'), 'the Ornithopter stayed').toHaveLength(1);
     expect(selectionsSent(stack, from), 'the sacrifice reached her wire as a selection').toBeGreaterThan(0);
