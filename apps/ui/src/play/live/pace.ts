@@ -179,7 +179,7 @@ export interface InputHeld {
   ahead: number;
   /** Their classes, counted: `resolve×2 default×3`. */
   classes: string;
-  /** What the `default` frames among them changed (`Type.Property`), the gaps nobody named. */
+  /** What the `default` frames among them changed (`Type.Property`, or a notify's method), the gaps nobody named. */
   defaults: string;
 }
 
@@ -194,9 +194,11 @@ function opensDecision(payload: unknown): boolean {
 
 const WIRE_TYPE_NAMES: Readonly<Record<number, string>> = { 0: 'Card', 1: 'Player', 2: 'StackItem', 3: 'Game' };
 
-/** The `Type.Property` names a delta changes, for a report. */
+/** The `Type.Property` names a delta changes, or any other frame's own method, for a report. */
 function changedProperties(payload: unknown): string[] {
-  const packet = (payload as { frame?: { payload?: { packet?: unknown } } } | null)?.frame?.payload?.packet;
+  const frame = (payload as { frame?: { method?: unknown; payload?: { packet?: unknown } } } | null)?.frame;
+  if (frame?.method !== 'applyDelta') return [methodOf(payload)];
+  const packet = frame.payload?.packet;
   const names = new Set<string>();
   for (const { obj } of packetObjects(packet)) {
     const type = typeof obj._type === 'number' ? (WIRE_TYPE_NAMES[obj._type] ?? String(obj._type)) : '?';
