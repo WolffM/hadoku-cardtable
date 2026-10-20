@@ -85,7 +85,9 @@ test(titled('Bone Shards: the sacrifice sheet asks for the sacrifice and the tar
             sacrifice = now;
             return true;
           }
-          if (now !== null && now.cards.includes(giant)) target = now;
+          // A sheet counts as the target's only once its question says so: the cards can reach a sheet a frame
+          // before its words, and a priority sheet offers the Giant too.
+          if (now !== null && now.cards.includes(giant) && /target/i.test(now.question)) target = now;
           await answerPrompt(page);
           return false;
         },
@@ -98,7 +100,7 @@ test(titled('Bone Shards: the sacrifice sheet asks for the sacrifice and the tar
       .poll(
         async () => {
           const now = await sheet(page);
-          if (now !== null && now.cards.includes(giant)) {
+          if (now !== null && now.cards.includes(giant) && /target/i.test(now.question)) {
             target = now;
             return true;
           }
