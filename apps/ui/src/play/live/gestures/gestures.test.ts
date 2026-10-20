@@ -2745,6 +2745,23 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(arrow.dataset.target).toBe(`card:${theirsOf(m).battlefield[0]!.id}`);
   });
 
+  // The target's sheet draws the spell it is for as a face carrying the card's bare id (`promptThumb`).
+  // That face is not the card: the tail stays where the card was let go.
+  it('a parked cast’s arrow leaves from the park point, never from a prompt face that names the same card', async () => {
+    const { canvas, m, cast } = await parkLikeForge();
+    const face = document.createElement('span');
+    face.setAttribute('data-thumb', 'card');
+    face.setAttribute('data-card-id', String(cast));
+    canvas.appendChild(face);
+    boxAt(face, 700, 400);
+
+    const target = cardEl(canvas, theirsOf(m).battlefield[0]!.id);
+    fireEvent.pointerMove(target, { clientX: 520, clientY: 60 });
+    const arrow = await waitFor(() => overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!);
+    expect(arrow.dataset.source).toBe(String(cast));
+    expect(arrow.querySelector('path')!.getAttribute('d'), 'from the park point').toMatch(/^M 500 50 Q /);
+  });
+
   it('a parked cast that Forge finishes without ever asking a question clears on its own', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);
