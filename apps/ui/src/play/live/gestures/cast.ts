@@ -108,15 +108,20 @@ export function clearDropCues(canvas: ParentNode): void {
 /** The one attribute this module writes for the lift itself. Nothing else in this repo writes it. */
 export const CAST_LIFT_ATTR = 'data-cast-lift';
 
-/** A pending `floatCastLiftHome` clean-up per card id, so a new lift/park on the same id cannot be clobbered by a stale one. */
-const returnTimers = new Map<number, ReturnType<typeof setTimeout>>();
+/**
+ * A pending `floatCastLiftHome` per card id, so a new lift/park on the same id cannot be clobbered by
+ * a stale one. A float superseded that way still ends what it drew: its `onDone` takes away the
+ * stand-in it was floating (a cancelled cast's ghost), which nothing else would — the card's own
+ * element is the new lift's, so only that part of the clean-up is skipped.
+ */
+const returnTimers = new Map<number, { readonly timer: ReturnType<typeof setTimeout>; readonly onDone: () => void }>();
 
 function cancelReturnTimer(id: number): void {
-  const timer = returnTimers.get(id);
-  if (timer !== undefined) {
-    clearTimeout(timer);
-    returnTimers.delete(id);
-  }
+  const pending = returnTimers.get(id);
+  if (pending === undefined) return;
+  clearTimeout(pending.timer);
+  returnTimers.delete(id);
+  pending.onDone();
 }
 
 /**
@@ -208,7 +213,7 @@ export function floatCastLiftHome(
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduced) return done();
   const timer = setTimeout(done, GLIDE_MS);
-  if (id !== null) returnTimers.set(id, timer);
+  if (id !== null) returnTimers.set(id, { timer, onDone });
 }
 
 /** Marks the stand-in `parkedGhost` draws; it carries no card id, so `cardBox` never finds it. */
@@ -354,7 +359,7 @@ export function landCastGhost(root: ParentNode, id: number | null, ghost: HTMLEl
 
 /** Every lift away, whoever it belonged to — on dispose, so a board left behind carries none, and every pending float-back timer with it. */
 export function clearAllCastLifts(root: ParentNode): void {
-  for (const timer of returnTimers.values()) clearTimeout(timer);
+  for (const { timer } of returnTimers.values()) clearTimeout(timer);
   returnTimers.clear();
   for (const el of root.querySelectorAll<HTMLElement>(`[${CAST_LIFT_ATTR}]`)) {
     el.removeAttribute(CAST_LIFT_ATTR);
