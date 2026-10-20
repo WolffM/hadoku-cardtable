@@ -3149,6 +3149,19 @@ describe('hold-decide-forward', () => {
 			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setSelectables']);
 		});
 
+		it('a pick of up to one (improvise with one artifact) is never held and never taken', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: { ...set([77], 1), min: 0, players: [] } },
+				{ t: 'frame', seat: SEAT1_ID, frame: { ...promptFrame(1, 'Choose artifacts to tap for Improvise'), selection: { targets: false } } },
+				{ t: 'frame', seat: SEAT1_ID, frame: buttonsFrame(1, { label1: 'OK', label2: 'Cancel', enable1: true, enable2: true }) },
+			);
+			expect(selects(h)).toEqual([]);
+			expect(methodsSent(h, SEAT1_ID, before).filter((m) => m !== 'updateButtons')).toEqual(['setSelectables', 'showPromptMessage']);
+		});
+
 		it('a one-card pick that is not a sacrifice (a target, a discard) is still asked', () => {
 			const h = openedHarness();
 			closeDanglingBar(h, SEAT1_ID);

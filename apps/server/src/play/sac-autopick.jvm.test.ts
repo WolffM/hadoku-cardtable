@@ -191,6 +191,41 @@ describe.skipIf(!available.ok)(title, () => {
 		}
 	}, 180_000);
 
+	it('improvise with one untapped artifact is not tapped for her: a pick of up to one is her choice', async () => {
+		const state = [
+			'turn=1',
+			'activeplayer=human',
+			'activephase=MAIN1',
+			'humanlife=20',
+			'ailife=20',
+			'humanhand=Kappa Cannoneer',
+			"humanbattlefield=Island;Island;Island;Island;Island;Island;Mishra's Bauble",
+			'humanlibrary=Island;Island;Island;Island;Island;Island',
+			'humangraveyard=',
+			'aihand=',
+			'aibattlefield=Mountain',
+			'ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain',
+			'aigraveyard=',
+		].join('\n');
+		const s = await opened(state);
+		try {
+			const [bauble] = named(s, "Mishra's Bauble");
+			const sentFrom = s.sent.length;
+			const card = s.zone(0, 'Hand').find((c) => c.name === 'Kappa Cannoneer')!;
+			s.select(0, card.id);
+			await waitUntil(() => { s.answerAsks(); return /for Improvise/.test(s.prompt(0)); }, "Forge's Improvise question", 20_000, s);
+			await new Promise((r) => setTimeout(r, 3_000));
+			expect(s.prompt(0), 'the Improvise question still waits').toMatch(/for Improvise/);
+			expect(wired(s, sentFrom).map((f) => f as Frame & { cards?: { id: number }[]; min?: number; max?: number }).map((f) => ({ cards: f.cards?.map((c) => c.id), min: f.min, max: f.max })), 'the pick reached her').toEqual([
+				{ cards: [bauble!.id], min: 0, max: 1 },
+			]);
+			expect(s.logs.filter((l) => l.evt === 'auto-picked')).toEqual([]);
+			expect(named(s, "Mishra's Bauble")[0]?.tapped, 'the Bauble is untapped').toBe(false);
+		} finally {
+			await s.stop();
+		}
+	}, 180_000);
+
 	it('a discard cost with one card to discard is not a sacrifice: it is still asked', async () => {
 		const state = [
 			'turn=1',
