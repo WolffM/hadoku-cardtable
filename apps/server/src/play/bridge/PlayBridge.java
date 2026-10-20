@@ -675,8 +675,17 @@ public final class PlayBridge {
      * resolving item an ask names as its source ({@code askSource}).
      */
     static String stackText(final SpellAbilityStackInstance si) {
-        final String said = si.getStackDescription();
-        if (!(si.getSpellAbility() instanceof WrappedAbility wrapped) || wrapped.getTrigger() == null) { return said; }
+        return withoutTriggerObjects(si.getSpellAbility(), si.getStackDescription());
+    }
+
+    /**
+     * {@code said}, a text Forge wrote for {@code sa}, without the bracket of trigger objects
+     * {@code WrappedAbility} ends its text in ({@link #stackText}), when it ends in exactly it.
+     * Read for a stack item's text and for the ability text an input writes into its prompt
+     * ({@code promptParts}: {@code WrappedAbility.toString} ends in the same bracket).
+     */
+    static String withoutTriggerObjects(final SpellAbility sa, final String said) {
+        if (!(sa instanceof WrappedAbility wrapped) || wrapped.getTrigger() == null) { return said; }
         final String important = wrapped.getTrigger().getImportantStackObjects(wrapped);
         final String note = " [" + important + "]";
         return !important.isEmpty() && said.endsWith(note) ? said.substring(0, said.length() - note.length()) : said;
@@ -2449,7 +2458,7 @@ public final class PlayBridge {
          * The ability is the input's own {@code SpellAbility}, so its text is found in the prompt
          * exactly, not guessed at: {@code question} is what follows it (with any line before the
          * card's name, a payment's {@code messagePrefix}, kept), {@code context} is the ability's
-         * text, and {@code input} says which input asked ({@code select}, {@code target},
+         * text (a trigger's without Forge's bracket of trigger objects, {@link #withoutTriggerObjects}), and {@code input} says which input asked ({@code select}, {@code target},
          * {@code confirm}, {@code pay}). {@code message} stays the whole string.
          */
         private JsonObject promptParts(final String message) {
@@ -2497,7 +2506,7 @@ public final class PlayBridge {
             final String kept = (lead.matches() ? lead.group(1) : message.substring(0, at)).strip();
             final JsonObject o = new JsonObject();
             o.addProperty("question", kept.isEmpty() ? after : kept + "\n" + after);
-            o.addProperty("context", context.strip());
+            o.addProperty("context", withoutTriggerObjects(sa, context.strip()));
             o.addProperty("input", kind);
             return o;
         }
