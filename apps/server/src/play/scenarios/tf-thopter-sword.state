@@ -1,0 +1,17 @@
+# Thopter Foundry + Sword of the Meek, looped, as in the operator's match m-22c72c4dd6cd (2026-10-20):
+# "it seems i have to wait for the life gain sound to play before i can do the combo again?" Alice
+# (`human…`, seat 0) has the Foundry, the Sword, Sensei's Divining Top (so the sacrifice is a real
+# pick, as it was in the live game) and eight Islands to pay {1} a loop.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Thopter Foundry;Sword of the Meek;Sensei's Divining Top;Island;Island;Island;Island;Island;Island;Island;Island
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Mountain
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
