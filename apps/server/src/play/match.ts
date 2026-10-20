@@ -116,10 +116,13 @@ import {
 	decideCancel,
 	decidePay,
 	DEFAULT_STOP_POLICY,
+	forcedSacrificeSet,
 	freeSearchConfirm,
 	FULL_CONTROL_POLICY,
 	judgeStop,
+	ONLY_SACRIFICE,
 	onlyAnswer,
+	onlySacrifice,
 	PAY_MANA,
 	paymentCost,
 	PRIORITY,
@@ -436,6 +439,14 @@ export interface SeatState {
 	selection: ServerFrame | null;
 	highlighted: Map<string, unknown>;
 	weakly: ServerFrame | null;
+	/**
+	 * A sacrifice cost's `setSelectables` with no choice in it (`auto.ts`'s `forcedSacrificeSet`),
+	 * held off the seat's wire until the prompt after it says whether the server takes the
+	 * sacrifice itself ({@link Match.maybeOnlySacrifice}); null otherwise.
+	 */
+	heldSacrifice: ServerFrame | null;
+	/** The server just took a sacrifice for this seat: the bar Forge sends with that pick's prompt is not the seat's. */
+	pickedSacrifice: boolean;
 	/** The payment being made, while its prompt is up. */
 	payment: Payment | null;
 	/**
@@ -1169,6 +1180,8 @@ export class Match {
 			selection: null,
 			highlighted: new Map(),
 			weakly: null,
+			heldSacrifice: null,
+			pickedSacrifice: false,
 			payment: null,
 			autoPaid: null,
 			autoCancelled: null,
@@ -2310,6 +2323,8 @@ export class Match {
 			return;
 		} else if (frame.method === 'showPromptMessage') {
 			s.prompt = frame;
+			// A taken sacrifice's bar comes straight after its prompt, never after a later one.
+			s.pickedSacrifice = false;
 			if (frame.message.startsWith('Priority:')) {
 				this.choose(s, null);
 				s.sameTarget = null;
@@ -2318,10 +2333,21 @@ export class Match {
 			// decides on it (Z4: `maybeCancelUnpayable` must see the payment it is
 			// cancelling) — independent of whether this half is held or sent.
 			this.trackPayment(s, frame.message, frame.card?.id ?? null);
+			if (s.heldSacrifice !== null) {
+				if (this.maybeOnlySacrifice(s, frame)) return;
+				this.releaseHeldSacrifice(s);
+			}
 			this.holdPromptWindow(s, frame);
 			return;
 		} else if (frame.method === 'updateButtons') {
 			s.buttons = frame;
+			if (s.pickedSacrifice) {
+				// The bar of the pick the server just answered: dead on the seat's screen, never live.
+				s.pickedSacrifice = false;
+				if (s.wireButtonsLive) this.send(s, { ...frame, enable1: false, enable2: false, focus1: false });
+				this.checkWaitingOn();
+				return;
+			}
 			this.maybeDeclineYieldSuggestion(s);
 			this.holdPromptWindow(s, frame);
 			// An answer bar (the coin toss, the opening Keep/Mulligan, any other
@@ -2335,6 +2361,12 @@ export class Match {
 			s.actionable = frame.cards.map((c) => c.id);
 		} else if (frame.method === 'clearWeaklySelectable') {
 			s.actionable = null;
+		}
+		if (frame.method === 'setSelectables' || frame.method === 'clearSelectables') s.heldSacrifice = null;
+		if (frame.method === 'setSelectables' && !s.ai && this.status === 'running' && forcedSacrificeSet(frame)) {
+			// Its prompt decides whether the seat ever sees it (`maybeOnlySacrifice`).
+			s.heldSacrifice = frame;
+			return;
 		}
 		// Kept for a reload (see `SeatState.selection`). Independent of the
 		// actionable bookkeeping above, which has its own reader.
@@ -3107,6 +3139,40 @@ export class Match {
 		this.deps.log({ evt: 'auto-paid', matchId: this.id, seat: s.seat, cost });
 		this.command({ t: 'act', seat: s.seat, frame: { kind: 'act', method: 'selectButtonOk' } });
 		return true;
+	}
+
+	/**
+	 * Take the only legal sacrifice for the seat ({@link onlySacrifice}): the held set and its
+	 * prompt never reach the seat's screen, and the bar Forge sends with them goes out dead.
+	 * Under full control too: full control is every real choice, never a question with one answer.
+	 * Returns whether it picked.
+	 */
+	private maybeOnlySacrifice(s: SeatState, prompt: PromptFrame): boolean {
+		const gate = this.answerGateFacts(s);
+		// Forge asks to show the selection's zones (`tempShowZones`) alongside it, and the seat's
+		// screen answers that whenever it gets to it: it is part of this pick, not another question.
+		const others = [...s.asks.values()].filter((a) => a.method !== 'tempShowZones').length;
+		const act = gate === null ? null : onlySacrifice({ ...gate.notes, openAsks: others }, s.heldSacrifice);
+		if (act === null || act.method !== 'selectCard') return false;
+		s.heldSacrifice = null;
+		s.pickedSacrifice = true;
+		// A held half from the input before this one is not this pick's.
+		this.flushPendingWindow(s);
+		const cards = [act.card, ...act.otherCardViewsToSelect].map((c) => ({ id: c.id, name: cardName(this.foldedStateOf(s), c.id) }));
+		this.deps.log({ evt: 'auto-picked', matchId: this.id, seat: s.seat, why: ONLY_SACRIFICE, cards });
+		this.recordWindow(s, 'withheld', 'other', 'only-sacrifice', prompt, null);
+		this.command({ t: 'act', seat: s.seat, frame: act });
+		return true;
+	}
+
+	/** The held sacrifice set, on the seat's wire after all: its prompt left the pick to the seat. */
+	private releaseHeldSacrifice(s: SeatState): void {
+		const held = s.heldSacrifice;
+		if (held === null) return;
+		s.heldSacrifice = null;
+		s.selection = held;
+		this.send(s, held);
+		this.checkWaitingOn();
 	}
 
 	/**

@@ -9,11 +9,17 @@
  * [Mishra's Bauble], `tempShowZones`, "Select artifact to sacrifice (1 left)", OK off) and the board drew
  * nothing until a reload.
  *
- * Scenario `tk-tinker`: alice holds Tinker, three Islands and Mishra's Bauble; Blightsteel Colossus is on
- * top of her library. `tk-tinker-bauble`: the Bauble is in her hand instead, and she casts it and then
- * Tinker the moment it lands — the live game's order (0.6 s apart). Either way her screen shows the
- * sacrifice the moment Forge asks it, the Bauble is offered, and once she picks it Tinker resolves and the
- * Colossus enters.
+ * And on the same question: *"it's a bad question because there is only one target"* — the ruling: *"yes,
+ * auto-pick the only legal sacrifice, bone shards too."*
+ *
+ * Scenario `tk-tinker-two`: alice holds Tinker and has three Islands, Mishra's Bauble and Ornithopter out;
+ * Blightsteel Colossus is on top of her library. Her screen shows the sacrifice the moment Forge asks it,
+ * both artifacts are offered, and once she picks the Bauble Tinker resolves and the Colossus enters.
+ *
+ * Scenario `tk-tinker`: the Bauble is her only artifact. `tk-tinker-bauble`: the Bauble is in her hand
+ * instead, and she casts it and then Tinker the moment it lands — the live game's order (0.6 s apart).
+ * Either way the server takes the Bauble as the sacrifice (`auto-picked`, "the only legal sacrifice"), it
+ * is never offered and nothing pops up, and Tinker resolves.
  *
  * `[tk]` lines are the evidence: what her screen says and offers while Forge waits on the sacrifice.
  *
@@ -45,41 +51,69 @@ async function drawn(page: Page): Promise<string> {
   return `says="${(await says(page)).replace(/\s+/g, ' ')}" popup=${JSON.stringify(await popup(page))} offered=${JSON.stringify(await offered(page))} sheets=${JSON.stringify(sheets)}`;
 }
 
-for (const { scenario, board, ai } of [
-  { scenario: 'tk-tinker', board: 'the Bauble already out', ai: false },
-  { scenario: 'tk-tinker-bauble', board: 'the Bauble cast just before', ai: false },
-  // The live game was against the Forge AI.
-  { scenario: 'tk-tinker-bauble', board: 'the Bauble cast just before, against the Forge AI', ai: true },
-]) test(titled(`Tinker: the sacrifice is on screen the moment Forge asks it, and picking the Bauble resolves Tinker (${board})`), async ({ browser }) => {
+/**
+ * Alice's Tinker, cast from her hand once any Bauble in her hand has been cast and landed: her Bauble's
+ * id, and how long the server's log was just before the Tinker click.
+ */
+async function castTinker(page: Page, stack: { serverLogFile: string }): Promise<{ bauble: number; from: number }> {
+  await expect.poll(() => handCardNamed(page, 'Tinker'), { timeout: 30_000, message: 'alice holds Tinker' }).not.toBeUndefined();
+  const tinker = (await handCardNamed(page, 'Tinker'))!;
+  const inHand = await handCardNamed(page, "Mishra's Bauble");
+  if (inHand !== undefined) {
+    await expect.poll(() => offered(page), { timeout: 45_000, message: 'the Bauble is offered' }).toContain(inHand);
+    expect(await clickHandCard(page, inHand), 'the Bauble lifted and cast').toBe(true);
+    await expect.poll(() => ownNamed(page, "Mishra's Bauble"), { timeout: 20_000, message: 'the Bauble landed' }).toHaveLength(1);
+  }
+  const [bauble] = await ownNamed(page, "Mishra's Bauble");
+  expect(bauble, "alice has her Mishra's Bauble").not.toBeUndefined();
+  await expect.poll(() => offered(page), { timeout: 45_000, message: 'Tinker is offered' }).toContain(tinker);
+  const from = serverLog(stack).length;
+  expect(await clickHandCard(page, tinker), 'Tinker lifted and cast').toBe(true);
+  return { bauble: bauble!, from };
+}
+
+/** The selections put on alice's wire from log row `from` on (the probe trace's `wire-frame` rows), up to row `to`. */
+const selectionsSent = (stack: { serverLogFile: string }, from: number, to?: number): number =>
+  serverLog(stack)
+    .slice(from, to)
+    .filter((r) => r.evt === 'wire-frame' && r.seat === 0 && r.method === 'setSelectables').length;
+
+/** The search: one artifact in the library, picked by the prompt's own default; then Tinker is done. */
+async function resolves(page: Page): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        await answerPrompt(page);
+        return (await ownNamed(page, 'Blightsteel Colossus')).length;
+      },
+      { timeout: 30_000, message: `Tinker resolved — ${await drawn(page)}` },
+    )
+    .toBe(1);
+  expect(await stackCount(page), 'the stack is empty').toBe(0);
+  expect(await ownNamed(page, "Mishra's Bauble"), 'the Bauble was sacrificed').toHaveLength(0);
+}
+
+test(titled('Tinker with two artifacts: the sacrifice is on screen the moment Forge asks it, and picking the Bauble resolves Tinker'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
-    const { alice } = ai ? await startScenarioVsAi(browser, stack, scenario) : await startScenarioMatch(browser, stack, scenario);
+    const { alice } = await startScenarioMatch(browser, stack, 'tk-tinker-two');
     const page = alice.page;
-    await expect.poll(() => handCardNamed(page, 'Tinker'), { timeout: 30_000, message: 'alice holds Tinker' }).not.toBeUndefined();
-    const tinker = (await handCardNamed(page, 'Tinker'))!;
-    const inHand = await handCardNamed(page, "Mishra's Bauble");
-    if (inHand !== undefined) {
-      await expect.poll(() => offered(page), { timeout: 45_000, message: 'the Bauble is offered' }).toContain(inHand);
-      expect(await clickHandCard(page, inHand), 'the Bauble lifted and cast').toBe(true);
-      await expect.poll(() => ownNamed(page, "Mishra's Bauble"), { timeout: 20_000, message: 'the Bauble landed' }).toHaveLength(1);
-    }
-    const [bauble] = await ownNamed(page, "Mishra's Bauble");
-    expect(bauble, "alice has her Mishra's Bauble").not.toBeUndefined();
-    await expect.poll(() => offered(page), { timeout: 45_000, message: 'Tinker is offered' }).toContain(tinker);
-
-    expect(await clickHandCard(page, tinker), 'Tinker lifted and cast').toBe(true);
+    const [thopter] = await ownNamed(page, 'Ornithopter');
+    expect(thopter, 'alice has her Ornithopter').not.toBeUndefined();
+    const { bauble, from } = await castTinker(page, stack);
 
     // Forge asks the sacrifice once the mana is paid; the server's own log says when.
     await expect
       .poll(() => serverLog(stack).some((r) => r.evt === 'auto-paid' && r.seat === 0 && r.cost === '{2}{U}'), { timeout: 20_000, message: 'the {2}{U} paid for her' })
       .toBe(true);
     await expect
-      .poll(() => isOffered(page, bauble!), { timeout: 10_000, message: `the sacrifice is on screen — ${await drawn(page)}` })
+      .poll(() => isOffered(page, bauble), { timeout: 10_000, message: `the sacrifice is on screen — ${await drawn(page)}` })
       .toBe(true);
     console.log(`[tk] sacrifice asked: ${await drawn(page)}`);
+    expect(await isOffered(page, thopter!), 'the Ornithopter is offered too').toBe(true);
     expect(await says(page), 'the board words the sacrifice').toMatch(/sacrifice/i);
     // The question pops up as every decision does — the operator: "that question never popped up on my screen".
     await expect.poll(() => popup(page), { timeout: 5_000, message: `the sacrifice pops up — ${await drawn(page)}` }).toMatch(/sacrifice/i);
@@ -88,19 +122,51 @@ for (const { scenario, board, ai } of [
       .poll(() => serverLog(stack).find((r) => r.evt === 'client' && r.seat === 0 && r.what === 'pick-drawn' && r.at === '3s'), { timeout: 10_000, message: 'the pick is recorded' })
       .toMatchObject({ selection: 'on-board', popup: true, host: expect.stringMatching(/^selection@/) });
 
-    expect(await pressOffered(boardCard(page, bauble!)), 'alice picks the Bauble').toBe(true);
-    // The search: one artifact in the library, picked by the prompt's own default.
+    expect(await pressOffered(boardCard(page, bauble)), 'alice picks the Bauble').toBe(true);
+    await resolves(page);
+    expect(await ownNamed(page, 'Ornithopter'), 'the Ornithopter stayed').toHaveLength(1);
+    expect(selectionsSent(stack, from), 'the sacrifice reached her wire as a selection').toBeGreaterThan(0);
+    expect(serverLog(stack).filter((r) => r.evt === 'auto-picked' && r.seat === 0), 'no pick was made for her').toEqual([]);
+  } finally {
+    await stack.stop();
+  }
+});
+
+for (const { scenario, board, ai } of [
+  { scenario: 'tk-tinker', board: 'the Bauble already out', ai: false },
+  { scenario: 'tk-tinker-bauble', board: 'the Bauble cast just before', ai: false },
+  // The live game was against the Forge AI.
+  { scenario: 'tk-tinker-bauble', board: 'the Bauble cast just before, against the Forge AI', ai: true },
+]) test(titled(`Tinker with only the Bauble: the only legal sacrifice is taken for her, never asked, and Tinker resolves (${board})`), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = ai ? await startScenarioVsAi(browser, stack, scenario) : await startScenarioMatch(browser, stack, scenario);
+    const page = alice.page;
+    const { bauble, from } = await castTinker(page, stack);
+
+    // From the cast until the Bauble is gone, nothing pops up to ask the sacrifice.
+    const seen: string[] = [];
     await expect
       .poll(
         async () => {
-          await answerPrompt(page);
-          return (await ownNamed(page, 'Blightsteel Colossus')).length;
+          const up = await popup(page);
+          if (up !== null && /sacrifice/i.test(up)) seen.push(`popup: ${up}`);
+          return (await ownNamed(page, "Mishra's Bauble")).length;
         },
-        { timeout: 30_000, message: `Tinker resolved — ${await drawn(page)}` },
+        { timeout: 20_000, intervals: [50], message: `the Bauble was sacrificed — ${await drawn(page)}` },
       )
-      .toBe(1);
-    expect(await stackCount(page), 'the stack is empty').toBe(0);
-    expect(await ownNamed(page, "Mishra's Bauble"), 'the Bauble was sacrificed').toHaveLength(0);
+      .toBe(0);
+    console.log(`[tk] sacrificed for her: ${await drawn(page)}`);
+    expect(seen, 'no sacrifice popped up').toEqual([]);
+    const rows = serverLog(stack);
+    const picked = rows.filter((r) => r.evt === 'auto-picked' && r.seat === 0);
+    expect(picked, 'the server took the Bauble, and said why').toEqual([expect.objectContaining({ why: 'the only legal sacrifice', cards: [{ id: bauble, name: "Mishra's Bauble" }] })]);
+    const at = rows.findIndex((r) => r.evt === 'auto-picked' && r.seat === 0);
+    expect(selectionsSent(stack, from, at), 'the sacrifice never reached her wire before it was taken').toBe(0);
+    await resolves(page);
   } finally {
     await stack.stop();
   }

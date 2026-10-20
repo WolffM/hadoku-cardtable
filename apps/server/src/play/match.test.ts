@@ -3051,6 +3051,124 @@ describe('hold-decide-forward', () => {
 		});
 	});
 
+	describe('a sacrifice cost with one legal way to pay it (Tinker with only a Bauble)', () => {
+		const ref = (id: number) => ({ kind: 'card' as const, id });
+		const set = (ids: number[], n: number, sacrifice = true) => ({
+			kind: 'notify' as const,
+			method: 'setSelectables' as const,
+			cards: ids.map(ref),
+			min: n,
+			max: n,
+			...(sacrifice ? { sacrifice: true as const } : {}),
+		});
+		const prompt = (ids: number[] | null, n: number) => ({
+			...promptFrame(1, 'Tinker - Search your library for an artifact card.\nSelect artifact to sacrifice (1 left)'),
+			selection: { targets: false, ...(ids === null ? {} : { sacrifice: { cards: ids.map(ref), min: n, max: n } }) },
+		});
+		const bar = buttonsFrame(1, { label1: 'OK', label2: 'Cancel', enable1: false, enable2: true });
+		const pick = (h: Harness, offered: number[], n: number, named: number[] | null = offered) =>
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: set(offered, n, named !== null) },
+				{ t: 'frame', seat: SEAT1_ID, frame: prompt(named, n) },
+				{ t: 'frame', seat: SEAT1_ID, frame: bar },
+			);
+		const selects = (h: Harness) => h.host.commands.flatMap((c) => (c.t === 'act' && c.frame.method === 'selectCard' ? [c.frame] : []));
+		const liveBars = (h: Harness, from: number) =>
+			envelopesFor(h, SEAT1_ID)
+				.slice(from)
+				.filter((e) => e.frame.method === 'updateButtons' && (e.frame.enable1 || e.frame.enable2));
+
+		it('the one artifact is sacrificed for the seat: the set, the question and its bar never reach it, and the log says why', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			pick(h, [77], 1);
+			expect(selects(h)).toEqual([{ kind: 'act', method: 'selectCard', card: ref(77), otherCardViewsToSelect: [], triggerEvent: null }]);
+			const sent = methodsSent(h, SEAT1_ID, before);
+			expect(sent).not.toContain('setSelectables');
+			expect(sent).not.toContain('showPromptMessage');
+			expect(liveBars(h, before), 'no live bar for the answered pick').toEqual([]);
+			expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'auto-picked', seat: SEAT1_ID, why: 'the only legal sacrifice', cards: [{ id: 77, name: null }] }));
+		});
+
+		it('taken while Forge\'s ask to show the zones is still open, as a browser answers it a moment later', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: { ...set([77], 1), players: [] } },
+				{
+					t: 'frame',
+					seat: SEAT1_ID,
+					frame: { kind: 'ask', callId: 'zones-1', method: 'tempShowZones', controller: { kind: 'player', id: 1 }, zonesToUpdate: [{ player: { kind: 'player', id: 1 }, zones: ['Battlefield'] }] },
+				},
+				{ t: 'frame', seat: SEAT1_ID, frame: prompt([77], 1) },
+				{ t: 'frame', seat: SEAT1_ID, frame: bar },
+			);
+			expect(selects(h)).toHaveLength(1);
+		});
+
+		it('two to sacrifice of exactly two: both are taken in one pick', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			pick(h, [77, 78], 2);
+			expect(selects(h)).toEqual([{ kind: 'act', method: 'selectCard', card: ref(77), otherCardViewsToSelect: [ref(78)], triggerEvent: null }]);
+		});
+
+		it('one to sacrifice of two: the seat picks, and sees the set before its question', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			pick(h, [77, 78], 1);
+			expect(selects(h)).toEqual([]);
+			expect(methodsSent(h, SEAT1_ID, before).filter((m) => m !== 'updateButtons')).toEqual(['setSelectables', 'showPromptMessage']);
+		});
+
+		it('a one-card pick that is not a sacrifice cost (a target, a discard, an effect) is still asked', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			pick(h, [77], 1, null);
+			expect(selects(h)).toEqual([]);
+			expect(methodsSent(h, SEAT1_ID, before).filter((m) => m !== 'updateButtons')).toEqual(['setSelectables', 'showPromptMessage']);
+		});
+
+		it('a held set whose prompt does not confirm it goes out after all, ahead of its question', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: set([77], 1) },
+				{ t: 'frame', seat: SEAT1_ID, frame: prompt(null, 1) },
+				{ t: 'frame', seat: SEAT1_ID, frame: bar },
+			);
+			expect(selects(h)).toEqual([]);
+			expect(methodsSent(h, SEAT1_ID, before).filter((m) => m !== 'updateButtons')).toEqual(['setSelectables', 'showPromptMessage']);
+			expect(liveBars(h, before)).toHaveLength(1);
+		});
+
+		it('full control takes it too: a pick with one answer is not a choice', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			h.match.setFullControl(SEAT1_ID, true);
+			pick(h, [77], 1);
+			expect(selects(h)).toHaveLength(1);
+		});
+
+		it('only the pick\'s own bar is swallowed: the next window\'s bar reaches the seat', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			pick(h, [77], 1);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push(
+				{ t: 'frame', seat: SEAT1_ID, frame: { kind: 'notify', method: 'clearSelectables' } },
+				{ t: 'frame', seat: SEAT1_ID, frame: set([77, 78], 1) },
+				{ t: 'frame', seat: SEAT1_ID, frame: prompt([77, 78], 1) },
+				{ t: 'frame', seat: SEAT1_ID, frame: bar },
+			);
+			expect(liveBars(h, before)).toHaveLength(1);
+		});
+	});
+
 	describe('a batch of identical triggers (six Valakut triggers)', () => {
 		const VALAKUT = 40;
 		const BOB = 0;

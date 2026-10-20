@@ -26,6 +26,8 @@ import {
 	PHASE_BY_UI_NAME,
 	namedStopPolicy,
 	chosenCostConfirm,
+	forcedSacrificeSet,
+	onlySacrifice,
 	freeSearchConfirm,
 	decideCancel,
 	decidePay,
@@ -2726,6 +2728,55 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 		expect(chosenCostConfirm(notes, { hostCard: 70, abilityId: 9002 })).not.toBeNull();
 		expect(chosenCostConfirm(notes, null)).toBeNull();
 		expect(chosenCostConfirm({ ...notes, openAsks: 1 }, { hostCard: 70, abilityId: 9002 })).toBeNull();
+	});
+});
+
+describe('onlySacrifice — the sacrifice cost with one legal way to pay it', () => {
+	const me = 1;
+	const card = (id: number) => ({ kind: 'card' as const, id });
+	const set = (ids: number[], n: number, extra: { sacrifice?: true; players?: { kind: 'player'; id: number }[] } = { sacrifice: true }): ServerFrame => ({
+		kind: 'notify',
+		method: 'setSelectables',
+		cards: ids.map(card),
+		min: n,
+		max: n,
+		...extra,
+	});
+	const notes = (sacrifice: { cards: number[]; min: number; max: number } | null, player = me): SeatNotes => ({
+		playerId: me,
+		prompt: {
+			kind: 'notify',
+			method: 'showPromptMessage',
+			player: { kind: 'player', id: player },
+			message: 'Select artifact to sacrifice (1 left)',
+			card: null,
+			selection: { targets: false, ...(sacrifice === null ? {} : { sacrifice: { cards: sacrifice.cards.map(card), min: sacrifice.min, max: sacrifice.max } }) },
+		},
+		buttons: null,
+		actionable: null,
+		openAsks: 0,
+	});
+
+	it('a set is forced only when it is a sacrifice cost and every card it offers must be taken', () => {
+		expect(forcedSacrificeSet(set([7], 1))).toBe(true);
+		expect(forcedSacrificeSet(set([7], 1, { sacrifice: true, players: [] })), 'no player offered, as the bridge says it').toBe(true);
+		expect(forcedSacrificeSet(set([7, 8], 2))).toBe(true);
+		expect(forcedSacrificeSet(set([7, 8], 1)), 'a choice of two').toBe(false);
+		expect(forcedSacrificeSet(set([7], 1, {})), 'not a sacrifice cost').toBe(false);
+		expect(forcedSacrificeSet(set([], 0)), 'nothing to take').toBe(false);
+		expect(forcedSacrificeSet(set([7], 1, { sacrifice: true, players: [{ kind: 'player', id: 0 }] })), 'a player is offered too').toBe(false);
+		expect(forcedSacrificeSet({ kind: 'notify', method: 'setSelectables', cards: [card(7)], min: 0, max: 1, sacrifice: true }), 'up to one').toBe(false);
+	});
+
+	it('picks the cards the open input names, all in one act, and nothing else', () => {
+		expect(onlySacrifice(notes({ cards: [7], min: 1, max: 1 }), set([7], 1))).toEqual({ kind: 'act', method: 'selectCard', card: card(7), otherCardViewsToSelect: [], triggerEvent: null });
+		expect(onlySacrifice(notes({ cards: [7, 8], min: 2, max: 2 }), set([7, 8], 2))).toMatchObject({ card: card(7), otherCardViewsToSelect: [card(8)] });
+		expect(onlySacrifice(notes(null), set([7], 1)), 'the prompt does not name a sacrifice cost').toBeNull();
+		expect(onlySacrifice(notes({ cards: [7, 8], min: 1, max: 1 }), set([7], 1)), 'the open input offers more').toBeNull();
+		expect(onlySacrifice(notes({ cards: [8], min: 1, max: 1 }), set([7], 1)), 'a different card').toBeNull();
+		expect(onlySacrifice(notes({ cards: [7], min: 1, max: 1 }, 0), set([7], 1)), "another player's prompt").toBeNull();
+		expect(onlySacrifice({ ...notes({ cards: [7], min: 1, max: 1 }), openAsks: 1 }, set([7], 1)), 'an ask is open').toBeNull();
+		expect(onlySacrifice(notes({ cards: [7], min: 1, max: 1 }), null)).toBeNull();
 	});
 });
 

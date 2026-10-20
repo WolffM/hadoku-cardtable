@@ -1,0 +1,18 @@
+# Bone Shards with two creatures to choose from: the sacrifice is a real choice, so alice is asked it.
+# Alice (`human…`, seat 0) holds Bone Shards and nothing else, so its cost can only be the sacrifice (no
+# card is left to discard). One Swamp pays its {B}. Her Grizzly Bears and Llanowar Elves can each be the
+# sacrifice; bob's Hill Giant is the target. Forge asks the target first and the sacrifice after it
+# (rule 601.2c before 601.2h). `bo-bone-shards` is the same with the Bears alone.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Bone Shards
+humanbattlefield=Swamp;Grizzly Bears;Llanowar Elves
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=Island
+aibattlefield=Hill Giant
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

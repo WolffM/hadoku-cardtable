@@ -1,7 +1,7 @@
 # Tinker cast right after a Mishra's Bauble lands, as in the operator's match
 # m-b752a3424b43 (2026-10-20): the Bauble resolved and entered 0.6 s before the Tinker click. Alice
 # (`human…`, seat 0) holds both; three Islands pay Tinker's {2}{U} and the Bauble ({0}) is the only
-# artifact to sacrifice once it is out.
+# artifact to sacrifice once it is out, so the server takes it for her.
 turn=1
 activeplayer=human
 activephase=MAIN1

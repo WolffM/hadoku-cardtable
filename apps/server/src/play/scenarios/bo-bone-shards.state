@@ -1,7 +1,8 @@
 # Bone Shards, whose additional cost is a sacrifice and whose effect has a target. Alice (`human…`,
 # seat 0) holds Bone Shards and nothing else, so its cost can only be the sacrifice (no card is left to
 # discard). One Swamp pays its {B}. Her Grizzly Bears is the creature to sacrifice; bob's Hill Giant is
-# the target. Forge asks the target first and the sacrifice after it (rule 601.2c before 601.2h).
+# the target. Forge asks the target first and the sacrifice after it (rule 601.2c before 601.2h). The
+# Bears are the only legal sacrifice, so the server takes them for her (`bo-bone-shards-two` has two).
 turn=1
 activeplayer=human
 activephase=MAIN1
