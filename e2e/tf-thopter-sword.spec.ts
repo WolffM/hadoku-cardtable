@@ -45,15 +45,20 @@ const life = (page: Page) => page.locator('.seat[data-viewer] [data-testid="life
 const whenOffered = (page: Page, id: number, timeout: number) =>
   page.waitForFunction((card) => document.querySelector(`[data-board-card="${card}"][data-selectable]`) !== null, id, { polling: 'raf', timeout });
 
-/** Resolves once the next loop may start: the Sword back on the battlefield, the Foundry offered — the last loop's beats may still be playing. */
-const whenLooped = (page: Page, foundry: number, timeout: number) =>
+/**
+ * Resolves once the next loop may start: loop `loop`'s Thopter made (alice's battlefield is the scenario's 11
+ * permanents, a Thopter a loop, the Sword counted once), the Sword back on the battlefield, the Foundry
+ * offered — the last loop's beats may still be playing. The count is what tells the loop's end from its
+ * start: right after the pick, the Sword is still drawn and the Foundry may still be offered.
+ */
+const whenLooped = (page: Page, foundry: number, loop: number, timeout: number) =>
   page.waitForFunction(
-    (card) => {
-      const own = document.querySelector('.seat[data-viewer]');
-      const sword = [...(own?.querySelectorAll('[data-zone="battlefield"] [data-board-card]') ?? [])].some((e) => e.querySelector('.card__name')?.textContent?.trim() === 'Sword of the Meek');
-      return sword && document.querySelector(`[data-board-card="${card}"][data-selectable]`) !== null;
+    ({ card, permanents }) => {
+      const own = [...(document.querySelector('.seat[data-viewer]')?.querySelectorAll('[data-zone="battlefield"] [data-board-card]') ?? [])];
+      const sword = own.some((e) => e.querySelector('.card__name')?.textContent?.trim() === 'Sword of the Meek');
+      return sword && own.length === permanents && document.querySelector(`[data-board-card="${card}"][data-selectable]`) !== null;
     },
-    foundry,
+    { card: foundry, permanents: 11 + loop + 1 },
     { polling: 'raf', timeout },
   );
 
@@ -69,6 +74,7 @@ test(titled('Thopter Foundry + Sword of the Meek: the server plays the Sword’s
     const [foundry] = await ownNamed(page, 'Thopter Foundry');
     await expect(life(page)).toHaveText('20', { timeout: 30_000 });
     await whenOffered(page, foundry!, 60_000);
+    await expect(page.locator('.seat[data-viewer] [data-zone="battlefield"] [data-board-card]'), 'the scenario’s 11 permanents, which `whenLooped` counts from').toHaveCount(11);
 
     const timed: { pickMs: number; nextMs: number; held: string[] }[] = [];
     let fromLoop = serverLog(stack).length;
@@ -90,7 +96,7 @@ test(titled('Thopter Foundry + Sword of the Meek: the server plays the Sword’s
         await page.getByTestId('live-confirm-always').check();
         await page.getByTestId('prompt-confirm-yes').click();
       }
-      await whenLooped(page, foundry!, 20_000);
+      await whenLooped(page, foundry!, loop, 20_000);
       const nextAt = Date.now();
       const rows = serverLog(stack).slice(fromLoop);
       fromLoop += rows.length;
