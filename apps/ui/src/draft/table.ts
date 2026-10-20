@@ -52,8 +52,15 @@ export function initialState(view: DraftView): TableState {
   return { view, pending: null };
 }
 
-/** Cards still choosable: the pack, minus a pick already sent. */
+/** The seat a watcher is looking over the shoulder of, or null for anyone else. */
+export function watchedSeat(view: DraftView): Extract<DraftView['viewer'], { kind: 'watcher' }> | null {
+  return view.viewer.kind === 'watcher' ? view.viewer : null;
+}
+
+/** Cards still choosable: the pack, minus a pick already sent. A watcher sees the watched seat's pack. */
 export function visiblePack(state: TableState): DraftCard[] {
+  const watched = watchedSeat(state.view);
+  if (watched) return watched.pack;
   const seat = viewerSeat(state.view);
   if (!seat) return [];
   if (state.pending === null) return seat.pack;
@@ -62,8 +69,10 @@ export function visiblePack(state: TableState): DraftCard[] {
   return [];
 }
 
-/** The pool as the player should see it, including a pick in flight. */
+/** The pool as the player should see it, including a pick in flight; a watcher's, the watched seat's picks. */
 export function visiblePool(state: TableState): DraftCard[] {
+  const watched = watchedSeat(state.view);
+  if (watched) return watched.pool;
   const seat = viewerSeat(state.view);
   if (!seat) return [];
   return state.pending === null ? seat.pool : [...seat.pool, state.pending];

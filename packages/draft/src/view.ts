@@ -7,8 +7,10 @@
  *
  * The envelope makes the guarantee structural rather than procedural: the
  * `spectator` arm of `ViewerView` has no card fields at all, and `DraftSeatView`
- * carries `pickedCount` — a number — instead of the picks. So there is nowhere
- * on a payload that another seat's cards *could* go. Leaking one requires adding
+ * carries `pickedCount` — a number — instead of the picks. A seat's cards go
+ * only under `viewer`: to the seat itself, or to a person holding no seat who
+ * chose to watch it (`watcherView`). So a drafter is never sent another
+ * seat's cards anywhere on a payload. Leaking one requires adding
  * a field, which a reviewer sees, rather than forgetting a filter, which nobody
  * sees. `apps/ui/src/draft/hiddenInfo.ts` then walks whole serialised payloads
  * and fails if a card-shaped object appears anywhere but `viewer.pack` and
@@ -96,7 +98,24 @@ export function viewFor(state: DraftState, seatId: SeatId): DraftView {
   };
 }
 
-/** The payload for someone watching. Carries no cards, structurally. */
+/**
+ * The payload for a spectator looking over one drafter's shoulder: that seat's
+ * pack and picks, under the watcher arm, so nothing that acts for a seat acts
+ * for them. Only a person holding no seat is ever sent one (`draftRooms.ts`).
+ */
+export function watcherView(state: DraftState, seatId: SeatId): DraftView {
+  return {
+    ...common(state),
+    viewer: {
+      kind: 'watcher',
+      seatId,
+      pack: state.packs[seatId]?.slice() ?? [],
+      pool: state.pools[seatId]?.slice() ?? [],
+    },
+  };
+}
+
+/** The payload for someone watching nobody's draft. Carries no cards, structurally. */
 export function spectatorView(state: DraftState): DraftView {
   return { ...common(state), viewer: { kind: 'spectator' } };
 }

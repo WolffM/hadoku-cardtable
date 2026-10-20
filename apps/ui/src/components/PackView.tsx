@@ -44,7 +44,8 @@ export type PackLayout = 'fan' | 'grid';
 export interface PackViewProps {
   cards: readonly DraftCard[];
   layout: PackLayout;
-  onPick: (cardId: string) => void;
+  /** Absent for a spectator watching a drafter: the cards browse, and nothing picks. */
+  onPick?: (cardId: string) => void;
   disabled: boolean;
   /** Shown instead of the cards when there is nothing to pick from. */
   emptyNote: string;
@@ -257,7 +258,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
     (cardId: string) => {
       const at = cardsRef.current.findIndex((c) => c.cardId === cardId);
       if (shownRef.current !== null && at !== shownRef.current) setFocus(at);
-      else {
+      else if (onPick !== undefined) {
         playRole('ui.draft-pick');
         onPick(cardId);
       }
@@ -276,7 +277,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
       if (event.key === 'Enter') {
         const at = highlightedRef.current;
         const card = at === null ? undefined : cardsRef.current[at];
-        if (card === undefined) return;
+        if (card === undefined || onPick === undefined) return;
         event.preventDefault();
         onPick(card.cardId);
       } else if (fanOn && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {

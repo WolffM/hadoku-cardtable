@@ -956,6 +956,32 @@ button {
   outline: 1px solid var(--line);
 }
 
+/* A spectator's seats: the one watched, and the rest to press. */
+.seat--watched {
+  outline: 1px solid var(--accent);
+}
+
+.seat:has(.seat__watch) {
+  position: relative;
+}
+
+.seat__watch {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.seat__watch:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.seat__watch:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
 .seat__id {
   grid-area: id;
   color: var(--ink-faint);

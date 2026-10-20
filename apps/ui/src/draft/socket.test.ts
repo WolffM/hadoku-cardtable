@@ -229,6 +229,24 @@ describe('classifySeq dispatch', () => {
     expect(countOf(stub, 'resync')).toBe(0);
   });
 
+  it("a watch's answer — the same moment over another drafter's shoulder — is adopted; a stale or repeated one is not", () => {
+    const seat = at(1);
+    if (seat.viewer.kind !== 'seat') throw new Error('expected a seat fixture');
+    const watching = (seq: number, seatId: number): DraftView => ({
+      ...at(seq),
+      viewer: { kind: 'watcher', seatId, pack: seat.viewer.kind === 'seat' ? seat.viewer.pack : [], pool: [] },
+    });
+    ingest(draft, stateMessage(watching(1, 0)));
+    ingest(draft, updateMessage(watching(2, 0)));
+    ingest(draft, stateMessage(watching(2, 3)));
+    expect(draft.view?.viewer).toMatchObject({ kind: 'watcher', seatId: 3 });
+    ingest(draft, stateMessage(watching(2, 3)));
+    ingest(draft, stateMessage(watching(1, 5)));
+    expect(draft.view?.viewer).toMatchObject({ kind: 'watcher', seatId: 3 });
+    expect(draft.stats.duplicatesDropped).toBe(2);
+    expect(countOf(stub, 'resync')).toBe(0);
+  });
+
   it('gap — asks for a resync, carrying the cursor it actually has', () => {
     ingest(draft, stateMessage(at(1)));
     ingest(draft, updateMessage(at(9)));

@@ -100,6 +100,53 @@ describe('a spectator payload renders the table and says it is a spectator', () 
   });
 });
 
+/* ── 1b. Watching one drafter ────────────────────────────────────────── */
+
+describe("a watcher payload shows one drafter's pack and picks, read-only", () => {
+  /** A spectator looking over seat 1's shoulder, with a committed seat's cards. */
+  function watcherView(): DraftView {
+    const seat = seatView();
+    if (seat.viewer.kind !== 'seat') throw new Error('expected a seat fixture');
+    return { ...seat, viewer: { kind: 'watcher', seatId: 1, pack: seat.viewer.pack, pool: seat.viewer.pool } };
+  }
+
+  it("draws the watched seat's pack and pool, and no spectator notice", () => {
+    const view = watcherView();
+    if (view.viewer.kind !== 'watcher') throw new Error('unreachable');
+    mount(initialState(view));
+    expect(screen.getByTestId('draft-screen').dataset.viewer).toBe('watcher');
+    expect(screen.queryByTestId('spectator-notice')).toBeNull();
+    expect(within(screen.getByTestId('pack')).getAllByTestId('card')).toHaveLength(view.viewer.pack.length);
+    expect(screen.getByTestId('pool').textContent).toContain(`${view.seats[1]!.displayName}'s pool`);
+  });
+
+  it('never picks — not on a click, not on Enter', () => {
+    const picked: string[] = [];
+    mount(initialState(watcherView()), { onPick: (id: string) => picked.push(id) });
+    const first = within(screen.getByTestId('pack')).getAllByTestId('card')[0]!;
+    expect(first.tagName).not.toBe('BUTTON');
+    fireEvent.click(first);
+    fireEvent.pointerEnter(first.parentElement!);
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(picked).toEqual([]);
+    expect(screen.queryByTestId('draft-refused')).toBeNull();
+  });
+
+  it('marks the watched seat, and pressing another seat watches that one', () => {
+    const watched: number[] = [];
+    mount(initialState(watcherView()), { onWatch: (id: number) => watched.push(id) });
+    expect(screen.getByTestId('seat-1').dataset.watched).toBe('');
+    expect(screen.queryByTestId('seat-1-watch')).toBeNull();
+    fireEvent.click(screen.getByTestId('seat-0-watch'));
+    expect(watched).toEqual([0]);
+  });
+
+  it("a drafter's own seats are not pressable", () => {
+    mount(initialState(seatView()), { onWatch: () => {} });
+    expect(screen.queryAllByTestId(/^seat-\d+-watch$/)).toHaveLength(0);
+  });
+});
+
 /* ── 2. Rejoin: held seats and recovery ──────────────────────────────── */
 
 describe('a seat the table is holding', () => {

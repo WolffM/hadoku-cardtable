@@ -49,7 +49,7 @@
 import { z } from 'zod';
 import type { SeqCursor } from '@wolffm/rooms-protocol';
 
-import { DraftIdSchema, DraftViewSchema, type DraftView } from './draft.ts';
+import { DraftIdSchema, DraftViewSchema, SeatIdSchema, type DraftView } from './draft.ts';
 import { formatPath, semanticIssues, type ValidationFailure } from './semantics.ts';
 
 /* ── The cursor ──────────────────────────────────────────────────────── */
@@ -156,18 +156,32 @@ export const ResyncRequestSchema = z.strictObject({
   have: SeqCursorSchema.nullable(),
 });
 
+/**
+ * "Show me this drafter's pack and picks." A spectator's choice of whose
+ * shoulder to look over; a seated drafter's view is their own seat whatever
+ * they send. `drafter`, not `seatId`: it names somebody else's seat, never the
+ * sender's own (the identity-key rule above).
+ */
+export const WatchDraftSchema = z.strictObject({
+  type: z.literal('watch'),
+  draftId: DraftIdSchema,
+  drafter: SeatIdSchema,
+});
+
 /** Everything a browser may say. Strict — see the module header. */
 export const ClientMessageSchema = z.discriminatedUnion('type', [
   JoinDraftSchema,
   LeaveDraftSchema,
   PickActionSchema,
   ResyncRequestSchema,
+  WatchDraftSchema,
 ]);
 
 export type JoinDraft = z.infer<typeof JoinDraftSchema>;
 export type LeaveDraft = z.infer<typeof LeaveDraftSchema>;
 export type PickAction = z.infer<typeof PickActionSchema>;
 export type ResyncRequest = z.infer<typeof ResyncRequestSchema>;
+export type WatchDraft = z.infer<typeof WatchDraftSchema>;
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
 /* ── Errors ──────────────────────────────────────────────────────────── */
@@ -355,6 +369,10 @@ export function pickCard(draftId: string, cardId: string): PickAction {
 
 export function resyncRequest(draftId: string, have: WireCursor | null): ResyncRequest {
   return { type: 'resync', draftId, have };
+}
+
+export function watchDraft(draftId: string, drafter: number): WatchDraft {
+  return { type: 'watch', draftId, drafter };
 }
 
 export function stateMessage(view: DraftView, cube?: CubeMeta): DraftStateMessage {

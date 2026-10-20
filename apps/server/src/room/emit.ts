@@ -5,8 +5,8 @@
  * single payload and hands the same bytes to everybody; for a draft that means
  * seat 3's pack arriving at seat 5's browser, where declining to render it is
  * not privacy. `emitPerRecipient` exists precisely so that the payload is BUILT
- * per recipient, and `viewForParticipant` is the builder: their own seat's pack
- * and pool, or the spectator arm, which has no card fields at all.
+ * per recipient, and `viewForClient` is the builder: their own seat's pack and
+ * pool, or — for a person holding no seat — the one seat they watch.
  *
  * There is no function in this file that takes a `DraftView` and sends it to a
  * room. That is deliberate — the only way to emit a view here is to name whose
@@ -34,7 +34,7 @@ import {
 } from '@hadoku/shared';
 
 import {
-	viewForParticipant,
+	viewForClient,
 	type DraftApp,
 	type DraftClient,
 	type DraftRoom,
@@ -66,7 +66,7 @@ export function emitDraftUpdate(io: SocketIOServer, room: DraftRoom, policy: Emi
 		io,
 		room,
 		DRAFT_CHANNEL.serverToClient,
-		(client) => updateMessage(viewForParticipant(room, client.participantId)),
+		(client) => updateMessage(viewForClient(room, client)),
 		policy,
 	);
 }
@@ -91,7 +91,7 @@ export function emitJoinSnapshot(
 		room,
 		DRAFT_CHANNEL.serverToClient,
 		(client) => {
-			const view = viewForParticipant(room, client.participantId);
+			const view = viewForClient(room, client);
 			return client.clientId === joinerClientId ? stateMessage(view, cube) : updateMessage(view);
 		},
 		policy,

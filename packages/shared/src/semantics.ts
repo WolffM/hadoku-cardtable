@@ -213,7 +213,7 @@ export function semanticIssues(raw: unknown): ValidationFailure[] {
           message: `a spectator payload carries no "${key}" — it is structurally cardless`,
         });
       }
-    } else if (viewer.kind === 'seat') {
+    } else if (viewer.kind === 'seat' || viewer.kind === 'watcher') {
       // One `seen` map across pack and pool: a card in both at once is the same
       // physical card in two places, which is exactly the bug worth catching.
       const seen = new Map<string, string>();

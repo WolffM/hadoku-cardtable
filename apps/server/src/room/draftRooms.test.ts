@@ -50,6 +50,7 @@ import {
 	leaveDraftRoom,
 	releaseSeat,
 	stateOf,
+	viewForClient,
 	viewForParticipant,
 	type DraftRoom,
 	type DraftRooms,
@@ -251,6 +252,40 @@ describe('joining', () => {
 		// Nothing moved, so nothing advanced — an update stamped with an
 		// unchanged cursor would reach every other client as a duplicate.
 		expect(stateOf(room).seq).toBe(seq);
+	});
+});
+
+describe('a pod dealt to the members who sat', () => {
+	it('takes nobody else: another member joins as a watcher, every bot stays, and the cursor does not move', () => {
+		const r = rooms();
+		r.setHumansLookup((draftId) => (draftId === 'pod-sat' ? [{ participantId: ALICE, displayName: 'Alice' }] : []));
+		const room = r.open('pod-sat');
+		expect(r.seatsArrivals('pod-sat')).toBe(false);
+		const seq = stateOf(room).seq;
+
+		const alice = joinDraftRoom(room, 'sock-a', ALICE, 'friend', r.seatsArrivals('pod-sat'));
+		expect(alice.seat).toBe(0);
+		const carol = joinDraftRoom(room, 'sock-c', CAROL, 'friend', r.seatsArrivals('pod-sat'));
+		expect(carol.seat).toBeNull();
+		expect(carol.changed).toBe(false);
+		expect(humanSeats(room.seats)).toEqual([{ id: 0, participantId: ALICE }]);
+		expect(stateOf(room).seq).toBe(seq);
+
+		// Carol watches the pod's drafter; alice is shown only her own seat.
+		expect(viewForClient(room, carol.client).viewer).toMatchObject({ kind: 'watcher', seatId: 0 });
+		expect(viewForClient(room, alice.client).viewer).toMatchObject({ kind: 'seat', seatId: 0 });
+		carol.client.app.watching = 3;
+		expect(viewForClient(room, carol.client).viewer).toMatchObject({ kind: 'watcher', seatId: 3 });
+
+		// A drafter coming back still gets their seat.
+		const back = joinDraftRoom(room, 'sock-a2', ALICE, 'friend', r.seatsArrivals('pod-sat'));
+		expect(back.seat).toBe(0);
+	});
+
+	it('a draft nobody sat in still seats whoever joins', () => {
+		const r = rooms();
+		r.open('pod-open');
+		expect(r.seatsArrivals('pod-open')).toBe(true);
 	});
 });
 

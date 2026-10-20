@@ -12,11 +12,12 @@
  *
  * `ViewerView` is a discriminated union whose `spectator` arm is structurally
  * incapable of holding cards, and `DraftSeatView` carries `pickedCount` — a
- * number — rather than the picks. There is no field on this envelope that could
- * carry another seat's cards, so leaking one means *adding a field*, not
- * forgetting a filter. `apps/ui/src/draft/hiddenInfo.ts` asserts the same
- * property at runtime over whole serialised payloads, because JSON does not
- * typecheck.
+ * number — rather than the picks. The one place a seat's cards travel is
+ * `viewer.pack` / `viewer.pool`: the recipient's own seat, or — the `watcher`
+ * arm — the one seat a person holding no seat chose to watch. Leaking a card
+ * anywhere else means *adding a field*, not forgetting a filter.
+ * `apps/ui/src/draft/hiddenInfo.ts` asserts the same property at runtime over
+ * whole serialised payloads, because JSON does not typecheck.
  *
  * ## `epoch` is not decoration — see `SeqCursor`
  *
@@ -140,10 +141,24 @@ export const DraftSeatViewSchema = z.object({
   pickedCount: z.number().int().nonnegative(),
 });
 
-/** The recipient's own slice. The spectator arm carries no cards at all. */
+/**
+ * The recipient's own slice. The spectator arm carries no cards at all.
+ *
+ * The watcher arm is a spectator looking over one drafter's shoulder — the
+ * operator, 2026-10-20, chose that over a cardless table: the seat they watch,
+ * its pack and its picks, read-only. It is a third arm rather than a seat arm
+ * because everything that acts on a seat (a pick, the deck builder, a finished
+ * pool) reads `kind === 'seat'` and must not act for a watcher.
+ */
 export const ViewerViewSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('seat'),
+    seatId: SeatIdSchema,
+    pack: z.array(DraftCardSchema),
+    pool: z.array(DraftCardSchema),
+  }),
+  z.object({
+    kind: z.literal('watcher'),
     seatId: SeatIdSchema,
     pack: z.array(DraftCardSchema),
     pool: z.array(DraftCardSchema),
@@ -203,7 +218,7 @@ export type ViewerView = z.infer<typeof ViewerViewSchema>;
 export type PassDirection = z.infer<typeof PassDirectionSchema>;
 export type DraftView = z.infer<typeof DraftViewSchema>;
 
-/** The seat arm of a viewer, or null for a spectator. */
+/** The seat arm of a viewer, or null for a spectator or a watcher. */
 export function viewerSeat(view: DraftView): Extract<ViewerView, { kind: 'seat' }> | null {
   return view.viewer.kind === 'seat' ? view.viewer : null;
 }

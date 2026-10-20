@@ -92,6 +92,7 @@ import {
 	stateMessage,
 	updateMessage,
 	type ClientMessage,
+	type DraftView,
 	type ServerMessage,
 	type WireCursor,
 	type WireErrorCode,
@@ -104,6 +105,7 @@ import {
 	leaveDraftRoom,
 	releaseSeat,
 	stateOf,
+	viewForClient,
 	viewForParticipant,
 	type DraftApp,
 	type DraftClient,
@@ -188,7 +190,7 @@ function handshakeTier(headers: IncomingHttpHeaders): string {
  * The step after a pick, to everyone in the room, one payload per recipient.
  *
  * `emitDraftUpdate`'s shape exactly — built per recipient by
- * `viewForParticipant`, never one payload for the room — with the one
+ * `viewForClient`, never one payload for the room — with the one
  * difference that this envelope declares itself self-contained. See the module
  * header for why a pick's step, and not a join's or a leave's, is where a seq
  * jump is routine.
@@ -198,7 +200,7 @@ function emitPickStep(io: SocketIOServer, room: DraftRoom, policy: EmitPolicy): 
 		io,
 		room,
 		DRAFT_CHANNEL.serverToClient,
-		(client) => updateMessage(viewForParticipant(room, client.participantId), 'full-state'),
+		(client) => updateMessage(viewForClient(room, client), 'full-state'),
 		policy,
 	);
 }
@@ -298,6 +300,12 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			}
 		});
 
+		/** This connection's own payload: its seat, or the seat it watches. */
+		function ownView(room: DraftRoom): DraftView {
+			const client = room.clients.get(socket.id);
+			return client === undefined ? viewForParticipant(room, participantId) : viewForClient(room, client);
+		}
+
 		function reject(room: DraftRoom | null, code: WireErrorCode, detail?: string): void {
 			sendTo(socket, errorMessage(room === null ? NO_DRAFT_CURSOR : cursorFor(room), code, detail), policy);
 		}
@@ -320,7 +328,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 						return;
 					}
 					const room = rooms.open(msg.draftId);
-					const outcome = joinDraftRoom(room, socket.id, participantId, tier);
+					const outcome = joinDraftRoom(room, socket.id, participantId, tier, rooms.seatsArrivals(room.roomId));
 					log({
 						evt: 'join',
 						participantId,
@@ -336,7 +344,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					} else {
 						sendTo(
 							socket,
-							stateMessage(viewForParticipant(room, participantId), rooms.cube),
+							stateMessage(viewForClient(room, outcome.client), rooms.cube),
 							policy,
 						);
 					}
@@ -373,7 +381,24 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					});
 					// A full snapshot, to the asker only. A draft payload is
 					// small and a delta protocol is a second thing to get wrong.
-					sendTo(socket, stateMessage(viewForParticipant(room, participantId), rooms.cube), policy);
+					sendTo(socket, stateMessage(ownView(room), rooms.cube), policy);
+					return;
+				}
+
+				case 'watch': {
+					const room = rooms.find(msg.draftId);
+					const client = room?.clients.get(socket.id);
+					if (room === undefined || client === undefined) {
+						reject(null, 'unknown-draft');
+						return;
+					}
+					if (msg.drafter >= stateOf(room).seatCount) {
+						reject(room, 'unknown-seat');
+						return;
+					}
+					client.app.watching = msg.drafter;
+					log({ evt: 'watch', participantId, draftId: room.roomId, drafter: msg.drafter });
+					sendTo(socket, stateMessage(viewForClient(room, client), rooms.cube), policy);
 					return;
 				}
 

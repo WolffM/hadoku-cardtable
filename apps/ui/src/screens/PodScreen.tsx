@@ -60,6 +60,7 @@ import {
   cubeName,
   isComplete,
   startDraft,
+  watchSeat,
   type DraftTransport,
   type SocketDraft,
 } from '../draft/socket.ts';
@@ -123,7 +124,8 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           setTable(null);
           return;
         }
-        const stamp = `${d.view.epoch}:${d.view.seq}`;
+        // The watched seat too: a watcher switching seats is the same moment of the draft.
+        const stamp = `${d.view.epoch}:${d.view.seq}:${d.view.viewer.kind === 'watcher' ? d.view.viewer.seatId : ''}`;
         if (stamp === shown) return;
         shown = stamp;
         setTable(initialState(d.view));
@@ -274,6 +276,9 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           layout={layout}
           onLayoutChange={setLayout}
           side={<div className="pod__bar pod__bar--side">{bar}</div>}
+          onWatch={(seatId) => {
+            if (draft !== null) watchSeat(draft, seatId);
+          }}
         />
       )}
       <div className="pod__zoom" data-board-zoom="" />

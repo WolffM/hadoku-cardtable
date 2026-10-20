@@ -52,6 +52,7 @@ import {
 	leaveDraft,
 	pickCard,
 	resyncRequest,
+	watchDraft,
 	safeParseServerMessage,
 	type DraftCard,
 	type DraftView,
@@ -571,20 +572,53 @@ describe('two sockets in one room', () => {
 		expect(aliceTranscript).toContain(quoted(aliceCards[0]?.cardId ?? ''));
 	});
 
-	it('gives someone with no seat a payload with no cards in it at all', async () => {
+	it("shows someone with no seat one drafter's pack and picks, the seat they ask for, and never a drafter anyone else's", async () => {
 		const alice = await connect(live().port, edgeHeaders('alice'));
+		const bob = await connect(live().port, edgeHeaders('bob'));
 		await joinAndSettle(alice);
-		// Leaving releases the seat; they stay connected as a spectator.
+		await joinAndSettle(bob);
+		const bobSeat = lastView(bob);
+		if (bobSeat?.viewer.kind !== 'seat') throw new Error('bob should be seated');
+
+		// Leaving releases the seat; they stay connected, watching the table's
+		// first human drafter — bob, now that alice's own seat is let go.
 		const before = alice.received.length;
 		alice.send(leaveDraft(startedRoomId));
 		await waitUntil(() => alice.received.length > before, 'the spectator payload');
+		const watched = lastView(alice)?.viewer;
+		const bobNow = lastView(bob)?.viewer;
+		if (watched?.kind !== 'watcher' || bobNow?.kind !== 'seat') throw new Error('alice watches, bob drafts');
+		expect(watched.seatId).toBe(bobNow.seatId);
+		expect(watched.pack.map((c) => c.cardId)).toEqual(bobNow.pack.map((c) => c.cardId));
+		expect(watched.pool.map((c) => c.cardId)).toEqual(bobNow.pool.map((c) => c.cardId));
 
-		const view = lastView(alice);
-		expect(view?.viewer).toEqual({ kind: 'spectator' });
-		// Structurally, not by filtering: the spectator arm has no card fields.
-		const spectatorTranscript = JSON.stringify(alice.raw.at(-1));
-		expect(spectatorTranscript).not.toContain('"pack"');
-		expect(spectatorTranscript).not.toContain('"pool"');
+		// Asked for another seat, a bot's, she watches that one instead.
+		const bot = 2;
+		alice.send(watchDraft(startedRoomId, bot));
+		await waitUntil(() => {
+			const v = lastView(alice)?.viewer;
+			return v?.kind === 'watcher' && v.seatId === bot;
+		}, 'the bot seat');
+		const botView = lastView(alice);
+		if (botView?.viewer.kind !== 'watcher') throw new Error('alice should be watching');
+		expect(botView.seats[bot]?.occupant?.kind).toBe('bot');
+		expect(botView.viewer.pack.length).toBeGreaterThan(0);
+		expect(botView.viewer.pool).toHaveLength(botView.seats[bot]?.pickedCount ?? -1);
+
+		// A drafter asking to watch is still shown their own seat.
+		const bobBefore = bob.received.length;
+		bob.send(watchDraft(startedRoomId, 0));
+		await waitUntil(() => bob.received.length > bobBefore, "bob's answer");
+		expect(lastView(bob)?.viewer).toMatchObject({ kind: 'seat', seatId: bobSeat.viewer.seatId });
+		for (const msg of bob.received) {
+			if (msg.type === 'state' || msg.type === 'update') expect(msg.view.viewer.kind).toBe('seat');
+		}
+		for (const payload of bob.raw) expect(leakedCardPaths(payload)).toEqual([]);
+
+		// A seat the table does not have is refused.
+		alice.send(watchDraft(startedRoomId, 99));
+		await waitUntil(() => errors(alice).length > 0, 'the refusal');
+		expect(errors(alice)[0]?.code).toBe('unknown-seat');
 	});
 });
 
@@ -637,7 +671,7 @@ describe('an out-of-turn pick', () => {
 		if (card === undefined) throw new Error('an opening pack should not be empty');
 
 		alice.send(leaveDraft(startedRoomId));
-		await waitUntil(() => lastView(alice)?.viewer.kind === 'spectator', 'the seat release');
+		await waitUntil(() => lastView(alice)?.viewer.kind === 'watcher', 'the seat release');
 
 		alice.send(pickCard(startedRoomId, card.cardId));
 		await waitUntil(() => errors(alice).length > 0, 'the rejection');

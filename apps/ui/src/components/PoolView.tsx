@@ -88,6 +88,8 @@ export interface PoolEnterRect {
 
 export interface PoolViewProps {
   cards: readonly DraftCard[];
+  /** The drafter a watcher is looking at, or null for the viewer's own pool. */
+  owner?: string | null;
   /**
    * The card that just arrived, and where its pack slot was — `null` turns
    * the FLIP off entirely (a snapshot restore, a reduced-motion viewer; see
@@ -96,7 +98,7 @@ export interface PoolViewProps {
   recentlyAdded: { cardId: string; from: PoolEnterRect } | null;
 }
 
-export function PoolView({ cards, recentlyAdded }: PoolViewProps) {
+export function PoolView({ cards, recentlyAdded, owner = null }: PoolViewProps) {
   const counts = COLORS.map(
     (c) => [c, cards.filter((card) => card.colors.includes(c)).length] as const,
   );
@@ -110,7 +112,7 @@ export function PoolView({ cards, recentlyAdded }: PoolViewProps) {
     <section className="pool" data-testid="pool" aria-label="Your picked pool">
       <header className="pool__head">
         <h2 className="pool__title">
-          Your pool <span data-testid="pool-count">{cards.length}</span>
+          {owner === null ? 'Your pool' : `${owner}'s pool`} <span data-testid="pool-count">{cards.length}</span>
         </h2>
         <div className="pool__colors">
           {counts.map(([color, n]) => (

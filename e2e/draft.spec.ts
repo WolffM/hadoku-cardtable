@@ -121,7 +121,7 @@ interface View {
   passDirection: 'left' | 'right';
   seats: Seat[];
   waitingOn: number[];
-  viewer: { kind: 'seat'; seatId: number; pack: Card[]; pool: Card[] } | { kind: 'spectator' };
+  viewer: { kind: 'seat' | 'watcher'; seatId: number; pack: Card[]; pool: Card[] } | { kind: 'spectator' };
 }
 interface Msg {
   type: 'state' | 'update' | 'error';
@@ -847,6 +847,66 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
 
   await finalizeVideo(alice);
   await finalizeVideo(bob);
+});
+
+/* ── watching a draft ────────────────────────────────────────────────── */
+
+test("a member who never sat watches the draft: a drafter's pack and picks, read-only, and any seat they press", async ({ browser }) => {
+  const alice = await join(browser, 'alice');
+  const bob = await join(browser, 'bob');
+  try {
+    const roomName = `e2e watch ${Date.now()}`;
+    const roomId = await createDraftRoom(alice, roomName);
+    await enterFromList(bob, roomId, roomName);
+    await expectLobbyNotPod(bob);
+    await expect
+      .poll(async () => (await roomState(alice, roomId)).members.length, { message: 'bob is a member', timeout: UI_TIMEOUT })
+      .toBe(2);
+
+    // Alice sits and readies; the AI takes every other seat. Bob never sits.
+    await alice.page.getByTestId('ready-toggle').click();
+    await fillWithAi(alice.page, UI_TIMEOUT);
+    await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+    await expect(bob.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+    const aliceSeat = await seatFromWire(alice);
+
+    // Bob takes no bot's seat: he is shown alice's pack, as a watcher.
+    const screen = bob.page.getByTestId('draft-screen');
+    await expect(screen).toHaveAttribute('data-viewer', 'watcher', { timeout: UI_TIMEOUT });
+    await expect(alice.page.getByTestId('pod-tally')).toHaveText('1 person · 7 bots', { timeout: UI_TIMEOUT });
+    await expect(bob.page.getByTestId(`seat-${aliceSeat}`)).toHaveAttribute('data-watched', '');
+    const alicePack = seatViewer(latestView(alice)!).pack.map((c) => c.cardId).sort(byCardId);
+    await expect
+      .poll(async () => (await bob.page.$$eval('[data-testid="pack"] [data-testid="card"]', (cs) => cs.map((c) => c.getAttribute('data-card-id') ?? ''))).sort(byCardId), {
+        message: "bob sees alice's pack",
+        timeout: UI_TIMEOUT,
+      })
+      .toEqual(alicePack);
+    expect(views(bob).every((v) => v.viewer.kind !== 'seat'), 'bob is never seated').toBe(true);
+
+    // Bob's Enter sends nothing; alice's picks; the card reaches bob's view of her picks.
+    await bob.page.keyboard.press('Enter');
+    await alice.page.keyboard.press('Enter');
+    await expect.poll(() => seatViewer(latestView(alice)!).pool.length, { message: 'alice picked', timeout: UI_TIMEOUT }).toBe(1);
+    const taken = seatViewer(latestView(alice)!).pool[0]!.cardId;
+    await expect(bob.page.locator(`[data-testid="pool"] [data-testid="card"][data-card-id="${taken}"]`)).toHaveCount(1, { timeout: UI_TIMEOUT });
+    expect(received(bob).filter((m) => m.type === 'error'), 'bob sent no pick to refuse').toEqual([]);
+
+    // Pressing a bot's seat watches that seat instead.
+    const bot = (aliceSeat + 1) % SEATS;
+    await bob.page.getByTestId(`seat-${bot}-watch`).click();
+    await expect(bob.page.getByTestId(`seat-${bot}`)).toHaveAttribute('data-watched', '', { timeout: UI_TIMEOUT });
+    await expect(bob.page.getByTestId(`seat-${aliceSeat}`)).not.toHaveAttribute('data-watched', '');
+    await expect
+      .poll(() => {
+        const v = latestView(bob)?.viewer as { kind: string; seatId?: number } | undefined;
+        return v?.kind === 'watcher' ? v.seatId : null;
+      }, { message: 'the wire follows the press', timeout: UI_TIMEOUT })
+      .toBe(bot);
+  } finally {
+    await finalizeVideo(alice);
+    await finalizeVideo(bob);
+  }
 });
 
 /* ── §Acceptance: draft, build, leave and return, then real Forge ────── */

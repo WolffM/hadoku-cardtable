@@ -67,6 +67,7 @@ import {
   leaveDraft,
   pickCard,
   resyncRequest,
+  watchDraft,
   safeParseServerMessage,
   type CubeMeta,
   type DraftCard,
@@ -119,6 +120,8 @@ export interface SocketStats {
 
 export interface SocketDraft {
   readonly draftId: string;
+  /** The seat this spectator asked to watch, asked again on a reconnect; null for the server's default. */
+  watching: number | null;
   /** The last payload applied, or null before the first snapshot. */
   view: DraftView | null;
   /** Where we are in the stream. Null means "nothing applied yet". */
@@ -269,6 +272,7 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
     onChange: options.onChange ?? null,
     everConnected: false,
     appliedAtLastJoin: 0,
+    watching: null,
   };
 
   draft.transport.on(DRAFT_CHANNEL.serverToClient, (payload) => {
@@ -289,6 +293,7 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
       // counted as "arrived since we came back".
       draft.appliedAtLastJoin = draft.stats.applied;
       send(draft, joinDraft(draft.draftId));
+      if (draft.watching !== null) send(draft, watchDraft(draft.draftId, draft.watching));
     }
     notify(draft);
   });
@@ -315,6 +320,13 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
  */
 export function applyPick(draft: SocketDraft, cardId: string): SocketDraft {
   send(draft, pickCard(draft.draftId, cardId));
+  return draft;
+}
+
+/** Watch this seat's pack and picks — a spectator's choice; a drafter's view stays their own seat. */
+export function watchSeat(draft: SocketDraft, seatId: number): SocketDraft {
+  draft.watching = seatId;
+  send(draft, watchDraft(draft.draftId, seatId));
   return draft;
 }
 
@@ -424,6 +436,12 @@ function requestResync(draft: SocketDraft): void {
  * Exported because this, not socket.io, is the thing worth testing: hand it
  * envelopes in any order and the driver has to behave.
  */
+/** Whether a payload shows a watcher a different seat than the one on screen. */
+function watchesAnother(shown: DraftView | null, next: DraftView): boolean {
+  if (next.viewer.kind !== 'watcher') return false;
+  return shown?.viewer.kind !== 'watcher' || shown.viewer.seatId !== next.viewer.seatId;
+}
+
 export function ingest(draft: SocketDraft, raw: unknown): void {
   const parsed = safeParseServerMessage(raw);
   if (!parsed.ok) {
@@ -452,8 +470,15 @@ export function ingest(draft: SocketDraft, raw: unknown): void {
     return;
   }
 
-  if (verdict === 'duplicate') {
+  const rewatch =
+    msg.type === 'state' &&
+    draft.cursor?.epoch === msg.cursor.epoch &&
+    draft.cursor.seq === msg.cursor.seq &&
+    watchesAnother(draft.view, msg.view);
+  if (verdict === 'duplicate' && !rewatch) {
     // Drop. No resync, and no clobbering newer state with an older snapshot.
+    // Except the answer to a `watch`: the same moment of the draft, over
+    // another drafter's shoulder.
     draft.stats.duplicatesDropped += 1;
     notify(draft);
     return;

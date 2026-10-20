@@ -103,6 +103,8 @@ export interface DraftScreenProps {
   title?: string;
   /** The room's own bar, drawn at the top of the side column (`PodScreen`). */
   side?: ReactNode;
+  /** A spectator's choice of whose pack and picks to watch. Absent: the seats are not pressable. */
+  onWatch?: (seatId: number) => void;
 }
 
 /**
@@ -145,6 +147,7 @@ export function DraftScreen({
   onDownloadDeck,
   title = 'Draft',
   side,
+  onWatch,
 }: DraftScreenProps) {
   const [localLayout, setLocalLayout] = useState<PackLayout>('fan');
   const layout = layoutProp ?? localLayout;
@@ -154,6 +157,7 @@ export function DraftScreen({
   const { view } = state;
   useNewPackSound(view);
   const spectating = view.viewer.kind === 'spectator';
+  const watching = view.viewer.kind === 'watcher';
   const blocked = pickBlockedBy(state);
   const awaiting = isAwaitingConfirmation(state);
   const complete = isDraftComplete(state);
@@ -211,11 +215,13 @@ export function DraftScreen({
 
   const emptyNote = spectating
     ? 'Spectating.'
-    : stalled
-      ? 'Reconnecting — seat held.'
-      : awaiting
-        ? 'Picked — waiting for the next pack.'
-        : 'This pack is empty.';
+    : watching
+      ? 'Waiting for the next pack.'
+      : stalled
+        ? 'Reconnecting — seat held.'
+        : awaiting
+          ? 'Picked — waiting for the next pack.'
+          : 'This pack is empty.';
 
   return (
     <div
@@ -247,11 +253,17 @@ export function DraftScreen({
               <PackView
                 cards={visiblePack(state)}
                 layout={layout}
-                onPick={handlePick}
-                disabled={blocked !== null || stalled}
+                onPick={watching ? undefined : handlePick}
+                disabled={!watching && (blocked !== null || stalled)}
                 emptyNote={emptyNote}
               />
-              {!spectating && <PoolView cards={visiblePool(state)} recentlyAdded={recentlyAdded} />}
+              {!spectating && (
+                <PoolView
+                  cards={visiblePool(state)}
+                  recentlyAdded={recentlyAdded}
+                  owner={view.viewer.kind === 'watcher' ? (view.seats[view.viewer.seatId]?.displayName ?? null) : null}
+                />
+              )}
             </>
           )}
         </main>
@@ -295,7 +307,7 @@ export function DraftScreen({
               )}
             </div>
           </header>
-          <SeatBar view={view} />
+          <SeatBar view={view} onWatch={onWatch} />
         </aside>
       </div>
     </div>

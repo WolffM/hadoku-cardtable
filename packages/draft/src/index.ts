@@ -46,7 +46,7 @@ export {
   humanSeatsWaiting,
 } from './bot.ts';
 
-export { viewFor, spectatorView, viewsForAllSeats } from './view.ts';
+export { viewFor, spectatorView, watcherView, viewsForAllSeats } from './view.ts';
 
 export {
   pairRound,

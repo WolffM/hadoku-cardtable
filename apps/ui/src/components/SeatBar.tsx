@@ -13,6 +13,12 @@
  * cards — the payload does not carry them, and this component could not leak
  * them if it tried. See `draft/types.ts`.
  *
+ * ## A spectator's seats are whose draft to watch
+ *
+ * A person holding no seat watches one drafter's pack and picks (the
+ * operator, 2026-10-20). Their bar marks the seat they watch, and pressing
+ * another seat watches that one instead.
+ *
  * ## HELD, which is the fourth thing a seat can be
  *
  * A seat whose player dropped is released with `{ hold: true }` and reserved
@@ -34,8 +40,10 @@ function occupantKind(seat: DraftSeatView): string {
   return seatStatus(seat);
 }
 
-export function SeatBar({ view }: { view: DraftView }) {
+export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId: number) => void }) {
   const viewerSeatId = view.viewer.kind === 'seat' ? view.viewer.seatId : null;
+  const watchedId = view.viewer.kind === 'watcher' ? view.viewer.seatId : null;
+  const watchable = watchedId !== null && onWatch !== undefined;
 
   return (
     <section className="seats" data-testid="seat-bar" aria-label="Seats">
@@ -53,6 +61,7 @@ export function SeatBar({ view }: { view: DraftView }) {
         {view.seats.map((seat) => {
           const waiting = isWaiting(view, seat.id);
           const isYou = seat.id === viewerSeatId;
+          const watched = seat.id === watchedId;
           const status = seatStatus(seat);
           const held = status === 'held';
           return (
@@ -62,6 +71,7 @@ export function SeatBar({ view }: { view: DraftView }) {
                 'seat',
                 waiting ? 'seat--waiting' : 'seat--done',
                 isYou ? 'seat--you' : '',
+                watched ? 'seat--watched' : '',
                 held ? 'seat--held' : '',
               ]
                 .filter(Boolean)
@@ -69,7 +79,17 @@ export function SeatBar({ view }: { view: DraftView }) {
               data-testid={`seat-${seat.id}`}
               data-waiting={waiting ? 'true' : 'false'}
               data-occupant={occupantKind(seat)}
+              data-watched={watched ? '' : undefined}
             >
+              {watchable && !watched && (
+                <button
+                  type="button"
+                  className="seat__watch"
+                  data-testid={`seat-${seat.id}-watch`}
+                  aria-label={`Watch ${seat.displayName}`}
+                  onClick={() => onWatch(seat.id)}
+                />
+              )}
               <span className="seat__id">{seat.id}</span>
               <span className="seat__name">
                 {status === 'empty' ? <em>empty</em> : seat.displayName}

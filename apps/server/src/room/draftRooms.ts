@@ -128,7 +128,7 @@ import {
 	type SeatId,
 	type SeatTable,
 } from '@wolffm/rooms-protocol';
-import { createDraft, isBotSeat, spectatorView, viewFor, type DraftState, type HumanSeat } from '@hadoku/draft';
+import { createDraft, isBotSeat, spectatorView, viewFor, watcherView, type DraftState, type HumanSeat } from '@hadoku/draft';
 import { cursorOf, type CubeMeta, type DraftCard, type DraftView, type WireCursor } from '@hadoku/shared';
 import {
 	applySnapshot,
@@ -191,6 +191,11 @@ export interface DeckMeta {
 export interface DraftClient {
 	/** The edge tier this connection was admitted at. Diagnostic; never emitted. */
 	tier: string;
+	/**
+	 * The seat this connection asked to watch (`watch`), or null for the
+	 * default. Read only while the person holds no seat (`viewForClient`).
+	 */
+	watching: SeatId | null;
 }
 
 export type DraftRoom = CoreRoomState<DraftApp, DraftClient>;
@@ -292,6 +297,14 @@ export interface DraftRooms {
 	 * registry and the lobby) — `index.ts` is not touched for this.
 	 */
 	setHumansLookup(lookup: (draftId: string) => readonly HumanSeat[]): void;
+	/**
+	 * Whether a `join` from someone holding no seat here takes one — evicting a
+	 * bot. Only for a draft nobody sat in (the lookup answers `[]`). A pod dealt
+	 * to the members who sat takes nobody else: the rest of the room watches
+	 * (the operator, 2026-10-19: *"a member who never sat is watching"*; and
+	 * 2026-10-20, on watching a draft).
+	 */
+	seatsArrivals(draftId: string): boolean;
 	/** How a new draft is dealt (`room/lobby.ts`'s `podDraft`): its seat count, and its bots' names. Unwired, the params' seats and `Bot <seat>`. */
 	setPodLookup(lookup: (draftId: string) => PodDeal | null): void;
 }
@@ -591,6 +604,9 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		setHumansLookup(lookup) {
 			humansLookup = lookup;
 		},
+		seatsArrivals(draftId) {
+			return humansLookup(draftId).length === 0;
+		},
 		setPodLookup(lookup) {
 			podLookup = lookup;
 		},
@@ -624,6 +640,29 @@ export function viewForParticipant(room: DraftRoom, participantId: ParticipantId
 	const state = stateOf(room);
 	const seat = seatOf(room.seats, participantId) ?? finishedSeatOf(state, room.seats, participantId);
 	return seat === null ? spectatorView(state) : viewFor(state, seat);
+}
+
+/**
+ * The payload for one CONNECTION — `viewForParticipant`, except that a person
+ * holding no seat watches one: the seat they asked for, or else the table's
+ * first human drafter, or its first seat (the operator, 2026-10-20, on draft
+ * spectating: one drafter's pack and picks, read-only). A drafter is never
+ * sent anything but their own seat. The socket's emits use this; the HTTP
+ * routes keep `viewForParticipant`, which is seat or nothing.
+ */
+export function viewForClient(room: DraftRoom, client: ClientMeta<DraftClient>): DraftView {
+	const view = viewForParticipant(room, client.participantId);
+	if (view.viewer.kind === 'seat') return view;
+	const state = stateOf(room);
+	const watched = watchedSeat(state, client.app.watching);
+	return watched === null ? view : watcherView(state, watched);
+}
+
+function watchedSeat(state: DraftState, wanted: SeatId | null): SeatId | null {
+	if (wanted !== null && wanted < state.seatCount) return wanted;
+	if (state.seatCount === 0) return null;
+	const human = state.table.seats.findIndex((s, i) => i < state.seatCount && s.occupant?.kind === 'human');
+	return human === -1 ? 0 : human;
 }
 
 /**
@@ -705,14 +744,18 @@ export function joinDraftRoom(
 	clientId: string,
 	participantId: ParticipantId,
 	tier: string,
+	seatsArrivals = true,
 ): JoinOutcome {
 	const state = stateOf(room);
 	// Back inside the grace: they never left the seat, so there is nothing to
 	// vacate and — because the seat is still theirs — nothing changes below.
 	cancelVacate(room, participantId);
 	const before = seatOf(room.seats, participantId);
+	const drafted = before !== null || room.seats.remembered[participantId] !== undefined;
+	if (!seatsArrivals && !drafted) return { client: watchRoom(room, clientId, participantId, tier), seat: null, changed: false };
 	const client = joinRoom<DraftApp, DraftClient>(room, clientId, clientId, participantId, () => ({
 		tier,
+		watching: null,
 	}));
 	const seat = seatOf(room.seats, participantId);
 	const changed = seat !== before;
@@ -722,6 +765,18 @@ export function joinDraftRoom(
 		room.app.persist(room);
 	}
 	return { client, seat, changed };
+}
+
+/**
+ * Join a connection that takes no seat: `joinRoom` without its
+ * `seatParticipant`, which would evict a bot for anyone who asks.
+ */
+function watchRoom(room: DraftRoom, clientId: string, participantId: ParticipantId, tier: string): ClientMeta<DraftClient> {
+	const at = Date.now();
+	const meta: ClientMeta<DraftClient> = { clientId, socketId: clientId, participantId, joinedAt: at, lastSeen: at, app: { tier, watching: null } };
+	room.clients.set(clientId, meta);
+	room.updatedAt = at;
+	return meta;
 }
 
 /**
