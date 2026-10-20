@@ -629,8 +629,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * Whether the open selection is AIMING — choosing targets — so a click-targeting arrow means
    * something. Forge says so on the prompt (`match.promptSelection`): a cost's sacrifice or
    * discard, a "choose a creature", is a pick and draws no arrow. Found in a live game (the
-   * operator, 2026-10-19, Bone Shards): its sacrifice, asked after its target, drew the same aiming
-   * arrow from the parked card as the target had, so the target looked unchosen. Only a prompt
+   * operator, 2026-10-19, Bone Shards): its sacrifice, then asked after its target, drew the same
+   * aiming arrow from the parked card as the target had, so the target looked unchosen. Only a prompt
    * that does not say falls back to `choosingOwnHand`.
    */
   function aiming(): boolean {
@@ -640,8 +640,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   /**
    * What the ability an open pick pays for is already aimed at (`match.promptSelection.aimed`),
-   * drawn from the same tail the click-targeting arrow would leave from: Bone Shards' sacrifice
-   * shows the target chosen before it, rather than nothing.
+   * drawn from the same tail the click-targeting arrow would leave from: a cost picked as it is paid,
+   * after the targets (a creature to tap, a card to exile), shows the target chosen before it, rather
+   * than nothing.
    */
   function aimedArrows(): AutoTargetArrow[] {
     const said = match.promptSelection;

@@ -2257,13 +2257,14 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
 
   /**
    * The operator, 2026-10-19, on Bone Shards ("As an additional cost to cast this spell, sacrifice a
-   * creature or discard a card. Destroy target creature or planeswalker."): Forge asks the target first and
-   * the sacrifice after it (rule 601.2c before 601.2h). The sacrifice drew the same aiming arrow from the
+   * creature or discard a card. Destroy target creature or planeswalker."): Forge then asked the target first
+   * and the sacrifice after it (a sacrifice is now chosen first; a tap or exile cost is still picked after the
+   * targets, rule 601.2c before 601.2h). The sacrifice drew the same aiming arrow from the
    * spell as the target had and showed nothing of the target, so the target looked unchosen — *"it seems
    * like no target was selected for the cast?"*. The prompt says which is which (`selection.targets`) and
    * what the spell is aimed at while its cost is picked (`selection.aimed`).
    */
-  it('a cost picked after the target (Bone Shards’ sacrifice) draws no aiming arrow, and shows the target already chosen', async () => {
+  it('a cost picked after the target draws no aiming arrow, and shows the target already chosen', async () => {
     const { s, m, canvas } = await gestureBoard();
     const spell = mineOf(m).hand![0]!.id;
     const mine = mineOf(m).battlefield[0]!.id;

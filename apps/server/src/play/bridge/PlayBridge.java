@@ -2431,9 +2431,10 @@ public final class PlayBridge {
          * either is the open input, so it cannot say which one sent it; this prompt is shown with
          * the input live. {@code targets} is true for a target choice and false for any other pick
          * — a sacrifice or discard a cost asks for, a "choose a creature". On a pick that pays for
-         * an ability whose targets are already chosen — Bone Shards' sacrifice, asked after its
-         * target (rule 601.2c before 601.2h) — {@code aimed} carries those targets, so the seat
-         * can be shown what the spell is aimed at while it pays. On a pick of what to sacrifice
+         * an ability whose targets are already chosen — a creature to tap or a card to exile for
+         * a cost, picked as it is paid after the targets (rule 601.2c before 601.2h); a sacrifice
+         * or discard is chosen before them — {@code aimed} carries those targets, so the seat can
+         * be shown what the ability is aimed at while it pays. On a pick of what to sacrifice
          * ({@link #sacrificeAsked}) {@code sacrifice} carries the cards it may sacrifice and how
          * many it must, so the server can take the only legal sacrifice itself.
          */
@@ -2479,10 +2480,11 @@ public final class PlayBridge {
          * cost of a spell it casts or an ability it activates, or a sacrifice effect it must obey
          * (an edict, "each player sacrifices a creature").
          *
-         * <p>A cost: Forge pushes every cost part it pays through {@code CostPayment.payCost} onto
-         * {@code game.costPaymentStack} for as long as that part is being decided
-         * ({@code CostPayment.java:147-165}), and a cast or activation pays through it
-         * ({@code PlaySpellAbility.java:683}). A cost asked while an effect resolves (an "unless"
+         * <p>A cost: Forge pushes every cost part it decides onto {@code game.costPaymentStack} for
+         * as long as that part is being decided — a sacrifice or discard chosen before the targets
+         * ({@code CostPayment.chooseObjectsBeforeTargets}, {@code CostPayment.java:157-178}) and
+         * every part paid after them ({@code CostPayment.payCost}, {@code :209-240}) — and a cast
+         * or activation goes through both ({@code PlaySpellAbility.java:678}, {@code :685}). A cost asked while an effect resolves (an "unless"
          * cost, {@code payCostDuringAbilityResolve}) visits its parts without it, and its input
          * carries the effect's own ability, so it is never reported. A trigger's cost is left out:
          * declining it is the player's choice. A sacrifice of the source itself is a confirm, not a
