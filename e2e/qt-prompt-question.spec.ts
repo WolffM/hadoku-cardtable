@@ -5,10 +5,10 @@
  * creature. is there a way to split this out for all cards? ideally the text here is just for the
  * decision that has to be made."*
  *
- * Real Forge, scenario `qt-bone-shards`: alice casts Bone Shards at bob's Hill Giant and pays its
- * additional cost by sacrificing one of her two creatures. Each sheet's question line is the decision
- * alone: the target sheet asks for a target, with what the spell does under it as its own line, and the
- * sacrifice sheet asks for the sacrifice and does not repeat the spell's text at all.
+ * Real Forge, scenario `qt-bone-shards`: alice casts Bone Shards, choosing one of her two creatures to
+ * sacrifice (asked first) and bob's Hill Giant as the target. Each sheet's question line is the decision
+ * alone: the sacrifice sheet asks for the sacrifice and does not repeat the spell's text at all, and the
+ * target sheet asks for a target, with what the spell does under it as its own line.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one this SKIPS and the
  * title says why.
@@ -52,7 +52,7 @@ const promptFrames = (f: Friend): unknown[] =>
     })
     .filter((frame) => frame.method === 'showPromptMessage');
 
-test(titled('Bone Shards: the target sheet asks for a target and the sacrifice sheet asks for the sacrifice, neither run together with the spell’s text'), async ({ browser }) => {
+test(titled('Bone Shards: the sacrifice sheet asks for the sacrifice and the target sheet asks for a target, neither run together with the spell’s text'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -73,7 +73,7 @@ test(titled('Bone Shards: the target sheet asks for a target and the sacrifice s
     await expect.poll(() => offered(page), { timeout: 45_000, message: 'Bone Shards is offered' }).toContain(shards);
     expect(await clickHandCard(page, shards), 'Bone Shards lifted out of alice’s hand').toBe(true);
 
-    // The target, then the sacrifice. Every sheet the cast shows is kept as it was drawn.
+    // The sacrifice is asked first, then the target. Every sheet the cast shows is kept as it was drawn.
     let target: Sheet | null = null;
     let sacrifice: Sheet | null = null;
     await expect
@@ -87,16 +87,30 @@ test(titled('Bone Shards: the target sheet asks for a target and the sacrifice s
           }
           if (now !== null && now.cards.includes(giant)) target = now;
           await answerPrompt(page);
-          // Only once its sheet was read: pressed the moment it is offered, the Giant can be picked before the sheet draws.
-          if (target !== null && (await boardCard(page, giant).count()) > 0) await pressOffered(boardCard(page, giant));
           return false;
         },
         { timeout: 30_000, intervals: [100], message: `the sacrifice sheet opened — says: "${await says(page)}"` },
       )
       .toBe(true);
+    expect(target, 'the sacrifice is asked before the target').toBeNull();
+    await page.locator(`[data-testid="live-selection-host"] li[data-card-id="${elves}"] label`).click();
+    await expect
+      .poll(
+        async () => {
+          const now = await sheet(page);
+          if (now !== null && now.cards.includes(giant)) {
+            target = now;
+            return true;
+          }
+          await answerPrompt(page);
+          return false;
+        },
+        { timeout: 30_000, intervals: [100], message: `the target sheet opened after the sacrifice — says: "${await says(page)}"` },
+      )
+      .toBe(true);
     console.log(`[qt] wire: ${JSON.stringify(promptFrames(alice).map((f) => (f as { message?: string; question?: string; context?: string }).message))}`);
-    console.log(`[qt] target sheet: ${JSON.stringify(target)}`);
     console.log(`[qt] sacrifice sheet: ${JSON.stringify(sacrifice)}`);
+    console.log(`[qt] target sheet: ${JSON.stringify(target)}`);
     const sac = sacrifice as Sheet | null;
     expect(sac?.question, 'the sacrifice sheet’s question is the sacrifice').toMatch(/^Select creature to sacrifice/);
     expect(sac?.question, 'and the spell’s text is not in it').not.toMatch(/Destroy|Additional cost/);
@@ -105,8 +119,8 @@ test(titled('Bone Shards: the target sheet asks for a target and the sacrifice s
     expect(tgt?.question, 'the target sheet’s question is the target').toMatch(/^Select target creature or planeswalker/);
     expect(tgt?.context, 'what the spell does is its own line under the question').toMatch(/^Destroy target creature or planeswalker/);
 
-    // The sacrifice answers the cost, and Bone Shards does what it says.
-    await page.locator(`[data-testid="live-selection-host"] li[data-card-id="${elves}"] label`).click();
+    // The target is chosen, the sacrifice paid, and Bone Shards does what it says.
+    expect(await pressOffered(boardCard(page, giant)), 'alice picks the Giant').toBe(true);
     await expect
       .poll(
         async () => {
@@ -117,6 +131,7 @@ test(titled('Bone Shards: the target sheet asks for a target and the sacrifice s
         { timeout: 30_000, intervals: [100], message: `Bone Shards destroyed Hill Giant — says: "${await says(page)}"` },
       )
       .toBe(true);
+    expect(await ownNamed(page, 'Llanowar Elves'), 'the Elves were sacrificed').toHaveLength(0);
   } finally {
     await stack.stop();
   }
