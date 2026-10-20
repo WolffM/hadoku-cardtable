@@ -102,6 +102,7 @@ const ctxOf = (p: PodView | null, tables: PodContext['tables'] = []): PodContext
   pod: p,
   tables,
   names: { 'u-alice': 'Alice', 'u-bob': 'Bob' },
+  avatars: {},
   me: 'u-alice',
   name: 'Cube night',
   leader: false,
@@ -303,26 +304,27 @@ describe('the room is where a player comes back to', () => {
     expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe('#/match/m-000000000007');
   });
 
-  it('keeps every table the pod has played at along the bottom: this round first, earlier ones finished', () => {
+  it('keeps every table the pod has played at in its round: earlier ones finished, this round live', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
     const { draft, room } = mountPod();
     draft.send(complete());
     const earlier = { id: 't-1', players, matchId: null, series: series('done', [{ matchId: 'm-a', winner: 0 }, { matchId: 'm-b', winner: 0 }]) };
     const now = { id: 't-3', players, matchId: 'm-000000000009', series: series('playing') };
-    room.read(ctxOf(rounds('t-3'), [{ id: 't-0', players: [], matchId: null, series: series('seating') }, earlier, now]));
+    const results = [{ round: 1, playerA: 'u-alice', playerB: 'u-bob', gamesA: 2, gamesB: 0 }];
+    room.read(ctxOf({ ...rounds('t-3'), results }, [{ id: 't-0', players: [], matchId: null, series: series('seating') }, earlier, now]));
     const rows = screen.getAllByTestId('pod-tables-row');
     expect(rows.map((r) => [r.dataset.tableId, r.dataset.phase])).toEqual([
-      ['t-3', 'playing'],
       ['t-1', 'done'],
+      ['t-3', 'playing'],
     ]);
-    expect(screen.getByTestId('pod-tables').closest('footer')).not.toBeNull();
+    expect(screen.getAllByTestId('pod-bracket-round').map((r) => r.dataset.state)).toEqual(['past', 'now']);
   });
 
-  it('keeps the tables under the final standings once the pod is done', () => {
+  it('keeps the tables beside the final standings once the pod is done', () => {
     const { draft, room } = mountPod();
     draft.send(complete());
     const earlier = { id: 't-1', players, matchId: null, series: series('done', [{ matchId: 'm-a', winner: 0 }]) };
-    room.read(ctxOf(pod({ phase: 'done', round: 3, rounds: 2 }), [earlier]));
+    room.read(ctxOf(pod({ phase: 'done', round: 3, rounds: 2, results: [{ round: 1, playerA: 'u-alice', playerB: 'u-bob', gamesA: 1, gamesB: 0 }] }), [earlier]));
     expect(screen.getByTestId('pod-final')).toBeTruthy();
     expect(screen.getAllByTestId('pod-tables-row').map((r) => r.dataset.tableId)).toEqual(['t-1']);
   });

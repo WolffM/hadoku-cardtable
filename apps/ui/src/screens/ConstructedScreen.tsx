@@ -2815,8 +2815,7 @@ function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boo
  * The series score while it is running (wave 72 §Q), or null before there is
  * one to show: a `bo3` table always has a running score once a game of it is
  * under way, and a `bo1` table only once a sideboarded Rematch has made it
- * worth one. "Alice 1–0 Bob", from whichever seats are filled — the same
- * shape the pod's table cards draw (`pod/PodTables.tsx`).
+ * worth one. "Alice 1–0 Bob", from whichever seats are filled.
  */
 function seriesScoreText(players: RoomPlayer[], table: SharedRoomTable | null): string | null {
   if (table === null) return null;

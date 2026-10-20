@@ -1,12 +1,11 @@
 /*
- * The pod's standings — wave 72 §R.2. Drawn under the tables throughout
- * `rounds`, and alone once the pod reaches `done` (the brief's own
- * ordering: "Standings sit under the tables throughout rounds").
+ * The pod's standings — wave 72 §R.2. Drawn beside the bracket
+ * (`PodBracket.tsx`) throughout `rounds` and once the pod reaches `done`.
  *
  * `rows` is already ranked (`PodStandingsRow.rank`, 1-based — the wire
  * contract's own ordering, `@hadoku/draft`'s tiebreak order), so this never
  * re-sorts; it only resolves each row's `id` (a member id) to a display
- * name through `nameOf`, the same indirection `PodSeats`/`PodTables` use
+ * name through `nameOf`, the same indirection `PodSeats`/`PodBracket` use
  * rather than carrying a name on the row itself.
  */
 

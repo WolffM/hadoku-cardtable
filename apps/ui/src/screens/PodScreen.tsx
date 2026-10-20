@@ -73,7 +73,7 @@ import type { RoomTable } from '@hadoku/shared';
 import { livePodSource, startMyTable, usePodContext, type PodContext, type PodSource } from './pod/client.ts';
 import { PodStandings } from './pod/PodStandings.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
-import { PodTables } from './pod/PodTables.tsx';
+import { PodBracket } from './pod/PodBracket.tsx';
 import { followMatchOnce } from '../play/live/matchStart.ts';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
@@ -288,13 +288,6 @@ function myCurrentTable(ctx: PodContext, myMemberId: string): RoomTable | undefi
   return ctx.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === myMemberId));
 }
 
-/** Every table the pod has played at: this round's first, then earlier rounds', newest first. The room's own first table seats nobody in a pod. */
-export function podTablesInOrder(ctx: PodContext): RoomTable[] {
-  const current = new Set(ctx.pod?.pairings.map((p) => p.tableId) ?? []);
-  const played = ctx.tables.filter((t) => t.players.length > 0);
-  return [...played.filter((t) => current.has(t.id)), ...played.filter((t) => !current.has(t.id)).reverse()];
-}
-
 function PodRoom({
   ctx,
   draftId,
@@ -329,21 +322,19 @@ function PodRoom({
             {startTableError}
           </p>
         )}
-        {sideboarding ? (
-          <TableSideboard key={`${mine.id}:${mine.series.games.length}`} roomId={draftId} tableId={mine.id} refresh={ctx} />
-        ) : (
-          <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} myMemberId={myMemberId} />
-        )}
+        {sideboarding && <TableSideboard key={`${mine.id}:${mine.series.games.length}`} roomId={draftId} tableId={mine.id} refresh={ctx} />}
+        <div className="pod__board">
+          <PodBracket
+            pod={pod}
+            tables={ctx.tables}
+            myMemberId={myMemberId}
+            nameOf={nameOf}
+            avatarOf={(id) => ctx.avatars[id] ?? null}
+            onPlay={startTableError === null ? undefined : retryTable}
+          />
+          {!sideboarding && <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} myMemberId={myMemberId} />}
+        </div>
       </div>
-      <footer className="pod__tables">
-        <PodTables
-          tables={podTablesInOrder(ctx)}
-          myMemberId={myMemberId}
-          byeId={pod.phase === 'rounds' ? pod.bye : null}
-          nameOf={nameOf}
-          onPlay={startTableError === null ? undefined : retryTable}
-        />
-      </footer>
     </div>
   );
 }

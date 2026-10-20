@@ -53,7 +53,12 @@ function aiNameOf(v: unknown): string {
   return typeof v === 'object' && v !== null && typeof (v as { name?: unknown }).name === 'string' ? (v as { name: string }).name : 'AI';
 }
 
-function isNamed(v: unknown): v is { id: string; name: string } {
+/** The room's AI's character (`room/lobby.ts`'s `roomAi`), or null. */
+function aiAvatarOf(v: unknown): string | null {
+  return typeof v === 'object' && v !== null && typeof (v as { avatarId?: unknown }).avatarId === 'string' ? (v as { avatarId: string }).avatarId : null;
+}
+
+function isNamed(v: unknown): v is { id: string; name: string; avatarId?: unknown } {
   return typeof v === 'object' && v !== null && typeof (v as { id?: unknown }).id === 'string' && typeof (v as { name?: unknown }).name === 'string';
 }
 
@@ -63,6 +68,8 @@ export interface PodContext {
   tables: RoomTable[];
   /** Every member's display name, by id — for resolving `pod.built`/`pod.bye`/`pod.standings[].id`. */
   names: Record<string, string>;
+  /** Every member's watchparty character, by id, the room's AI's under `POD_AI`. Absent for one without. */
+  avatars: Record<string, string>;
   /**
    * My member id in this room, from the server's own `you` — what the tables
    * and the pod name me by. Not whoami's id: for an admin session the two
@@ -86,13 +93,15 @@ export interface PodContext {
  */
 export async function fetchPodContext(roomId: string): Promise<PodContext> {
   const body = await fetchRoomRaw(roomId);
-  if (body === null || body === 'gone') return { pod: null, tables: [], names: {}, me: null, name: '', leader: false, gone: body === 'gone' };
+  if (body === null || body === 'gone') return { pod: null, tables: [], names: {}, avatars: {}, me: null, name: '', leader: false, gone: body === 'gone' };
   const tables = RoomTablesSchema.safeParse(body.tables);
   const members = Array.isArray(body.members) ? body.members.filter(isNamed) : [];
+  const ai = aiAvatarOf(body.ai);
   return {
     pod: parsePodView(body.pod),
     tables: tables.success ? tables.data : [],
     names: { ...Object.fromEntries(members.map((m) => [m.id, m.name])), [POD_AI]: aiNameOf(body.ai) },
+    avatars: { ...Object.fromEntries(members.flatMap((m) => (typeof m.avatarId === 'string' ? [[m.id, m.avatarId]] : []))), ...(ai === null ? {} : { [POD_AI]: ai }) },
     name: typeof body.name === 'string' ? body.name : '',
     me: typeof body.you === 'object' && body.you !== null && typeof (body.you as { id?: unknown }).id === 'string' ? (body.you as { id: string }).id : null,
     leader: typeof body.you === 'object' && body.you !== null && (body.you as { leader?: unknown }).leader === true,

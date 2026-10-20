@@ -33,19 +33,22 @@ describe('fetchPodContext', () => {
       id: 'r-cube',
       pod,
       tables: [{ id: 't-aaaaaaaa', players: [], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'seating' } }],
-      members: [{ id: 'u-alice', name: 'Alice' }, { id: 'u-bob', name: 'Bob' }],
+      members: [{ id: 'u-alice', name: 'Alice', avatarId: 'sage' }, { id: 'u-bob', name: 'Bob' }],
+      ai: { name: 'Knight', avatarId: 'knight' },
     };
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
 
     const ctx = await fetchPodContext('r-cube');
     expect(ctx.pod).toEqual(pod);
     expect(ctx.tables).toHaveLength(1);
-    expect(ctx.names).toEqual({ 'u-alice': 'Alice', 'u-bob': 'Bob', ai: 'AI' });
+    expect(ctx.names).toEqual({ 'u-alice': 'Alice', 'u-bob': 'Bob', ai: 'Knight' });
+    // Bob has no character: no entry, and the face falls back to his initial.
+    expect(ctx.avatars).toEqual({ 'u-alice': 'sage', ai: 'knight' });
   });
 
   it('answers empty rather than throwing on a failed read', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
-    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {}, me: null, name: '', leader: false, gone: false });
+    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {}, avatars: {}, me: null, name: '', leader: false, gone: false });
   });
 
   it('says the room is gone on the server’s 404, and only then', async () => {

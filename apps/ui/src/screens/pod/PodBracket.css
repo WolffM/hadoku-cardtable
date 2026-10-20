@@ -1,0 +1,209 @@
+/*
+ * The pod's rounds, one column each (`PodBracket.tsx`). Colour from
+ * `@wolffm/themes` only, one discipline across the pod screens.
+ */
+
+.pod-bracket {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.pod-bracket__round {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pod-bracket__head {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pod-bracket__round--now .pod-bracket__head {
+  color: var(--color-primary);
+}
+
+.pod-bracket__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pod-bracket__match {
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-light);
+  border-radius: 8px;
+  background: var(--color-bg-card);
+  color: var(--color-text);
+}
+
+/* A live card is one link (or, after a refused start, one button) edge to edge. */
+.pod-bracket__hit {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.pod-bracket__hit:focus-visible {
+  outline: none;
+}
+
+.pod-bracket__match:has(> .pod-bracket__hit:hover),
+.pod-bracket__match:has(> .pod-bracket__hit:focus-visible) {
+  border-color: var(--color-primary);
+  background: var(--color-bg-hover);
+}
+
+.pod-bracket__match[data-mine] {
+  border-color: var(--color-primary);
+}
+
+.pod-bracket__side {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+}
+
+.pod-bracket__side + .pod-bracket__side {
+  border-top: 1px solid var(--color-border-light);
+}
+
+.pod-bracket__face {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--color-bg-alt);
+  image-rendering: pixelated;
+}
+
+.pod-bracket__face--none {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.pod-bracket__name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pod-bracket__wins {
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.pod-bracket__side[data-won] .pod-bracket__wins {
+  color: var(--color-primary);
+}
+
+.pod-bracket__side[data-lost] .pod-bracket__name,
+.pod-bracket__side[data-lost] .pod-bracket__wins {
+  color: var(--color-text-secondary);
+}
+
+.pod-bracket__foot {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 10px;
+  border-top: 1px solid var(--color-border-light);
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pod-bracket__live {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--color-warning);
+}
+
+.pod-bracket__live::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+}
+
+.pod-bracket__go {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.pod-bracket__bye {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 240px;
+  padding: 7px 10px;
+  border: 1px dashed var(--color-border-light);
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+}
+
+.pod-bracket__tag {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Finished rounds: smaller and greyed. */
+.pod-bracket__round--past .pod-bracket__match,
+.pod-bracket__round--past .pod-bracket__bye {
+  width: 180px;
+  opacity: 0.55;
+  filter: grayscale(0.85);
+}
+
+.pod-bracket__round--past .pod-bracket__side,
+.pod-bracket__round--past .pod-bracket__bye {
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.pod-bracket__round--past .pod-bracket__face {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+}
+
+.pod-bracket__round--past .pod-bracket__wins {
+  font-size: 0.95rem;
+}
+
+/* Not paired until the round before it ends. */
+.pod-bracket__pending {
+  width: 200px;
+  height: 86px;
+  border: 1px dashed var(--color-border-light);
+  border-radius: 8px;
+}

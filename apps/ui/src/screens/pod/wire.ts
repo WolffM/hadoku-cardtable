@@ -10,10 +10,7 @@
  *
  * `POD_SEATS`/`PodSeats`/`PodView`/`PodStandingsRow` are re-exported from
  * here, not imported at each call site, so this stays the one seam between
- * `@hadoku/shared`'s own naming and this screen's — the real `PodView` also
- * carries `results` and `pairings`, neither of which any component here
- * reads (`PodTables.tsx`'s own header explains why `pairings` adds nothing
- * `RoomView.tables` does not already say better).
+ * `@hadoku/shared`'s own naming and this screen's.
  */
 
 import { POD_SEATS, RoomPodSchema, type PodMember, type PodSeats, type PodStandingsRow, type PodView } from '@hadoku/shared';
