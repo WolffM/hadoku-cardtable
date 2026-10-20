@@ -654,6 +654,29 @@ describe('the wheel turns a card to its other faces', () => {
     expect(shown(panel())).toBe('Your Hand Card');
   });
 
+  it('a Room opens on the door under the pointer, with its lock state, and turns to the other door, never to the same one twice', () => {
+    const doorFace = (name: string, faceCrop: 'split-left' | 'split-right', door: 'locked' | 'unlocked') => ({ ...card(4, name).card, faceCrop, door });
+    const room: BoardCard = {
+      ...card(4, 'Walk-In Closet // Forgotten Cellar'),
+      doors: [
+        { name: 'Walk-In Closet', unlocked: true },
+        { name: 'Forgotten Cellar', unlocked: false },
+      ],
+      faces: [doorFace('Walk-In Closet', 'split-left', 'unlocked'), doorFace('Forgotten Cellar', 'split-right', 'locked')],
+    };
+    const { board, panel } = mountBoard(undefined, { ...VIEW, players: [YOU, { ...THEM, battlefield: [room] }] });
+    const right = board.querySelector('[data-door-side="right"] .card')!;
+    hover(right);
+    const state = () => [shown(panel()), panel()?.querySelector<HTMLElement>('.card')?.dataset.door, panel()?.querySelector<HTMLElement>('.card__door')?.dataset.tip];
+    expect(state()).toEqual(['Forgotten Cellar', 'locked', 'Locked door']);
+    wheel(right, 100);
+    expect(state()).toEqual(['Walk-In Closet', 'unlocked', 'Unlocked door']);
+    wheel(right, 100);
+    expect(state(), 'round to the door it opened on').toEqual(['Forgotten Cellar', 'locked', 'Locked door']);
+    wheel(right, 100);
+    expect(state(), 'two doors, so two turns round').toEqual(['Walk-In Closet', 'unlocked', 'Unlocked door']);
+  });
+
   it('draws the other faces nowhere a zone’s cards are read', () => {
     const { board } = mountBoard(undefined, view);
     const names = [...board.querySelectorAll('[data-zone] .card__name')].map((n) => n.textContent);

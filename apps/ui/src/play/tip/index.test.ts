@@ -55,6 +55,15 @@ describe('tipAt', () => {
     expect(tipAt(face, 8, 8)?.dataset.tip, 'a mark still wins over its own card').toBe('sick words');
   });
 
+  it('answers a mark drawn on the card’s own tile — a Room’s door — by its box', () => {
+    const { face } = card();
+    face.innerHTML = '<span class="board-card__doors"><span class="board-card__door"><article class="card"><span class="card__door" data-tip="Locked door"></span></article></span></span>';
+    const lock = face.querySelector<HTMLElement>('.card__door')!;
+    box(lock, 40, 20, 14, 14);
+    expect(tipAt(face, 45, 25)).toBe(lock);
+    expect(tipAt(face, 50, 100), 'not elsewhere on the door').toBeNull();
+  });
+
   it('answers off the cards with the nearest element that carries words', () => {
     document.body.innerHTML = '<ol><li data-tip="stop words"><span>Upkeep</span></li></ol>';
     expect(tipAt(document.querySelector('span')!, 0, 0)?.dataset.tip).toBe('stop words');

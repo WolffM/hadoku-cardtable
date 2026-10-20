@@ -1666,3 +1666,98 @@ describe('a card’s other faces', () => {
     expect(cardsById(adapt(baseState())).get(21)!.faces).toBeUndefined();
   });
 });
+
+/*
+ * The operator, 2026-10-19: "cards like 'Walk-In Closet' it's hard to tell whats actually going on.
+ * which room was played, which room is active? has the door been unlocked?" Forge shows a Room's
+ * unlocked doors as its current state, measured in `apps/server/src/play/rooms.jvm.test.ts`: the cast
+ * door's split state (5 or 6), `Original` (0) for both, `EmptyRoom` (9, nameless) for neither. Card 21
+ * is made Walk-In Closet // Forgotten Cellar on the viewer's battlefield, as that wire has it.
+ */
+describe('a Room’s doors', () => {
+  const ROOM = 'Walk-In Closet // Forgotten Cellar';
+
+  function roomState(current: number, where: 'Battlefield' | 'Hand' = 'Battlefield'): Map<string, WireObject> {
+    const state = baseState();
+    const front = state.get(cardStateKey(21, 0))!;
+    const face = (v: number, name: string): void => {
+      state.set(cardStateKey(21, v), {
+        ...front,
+        _id: 21 * 16 + v,
+        Name: { t: 'str', v: name },
+        SetCode: { t: 'str', v: 'DSK' },
+        OracleText: { t: 'str', v: `${name} text` },
+      } as WireObject);
+    };
+    face(0, ROOM);
+    face(5, 'Walk-In Closet');
+    face(6, 'Forgotten Cellar');
+    face(9, '');
+    setCard(state, 21, 'Room', { t: 'bool', v: true });
+    setCard(state, 21, 'LeftSplitState', { t: 'int', v: 5 });
+    setCard(state, 21, 'RightSplitState', { t: 'int', v: 6 });
+    setCard(state, 21, 'CurrentState', { t: 'int', v: current });
+    setCard(state, 21, 'Zone', { t: 'enum', c: 'forge.game.zone.ZoneType', v: where });
+    const pid = fixture.viewerPlayerId;
+    for (const { id } of adapt(state).players) {
+      for (const zone of ['Hand', 'Library', 'Battlefield', 'Graveyard', 'Exile']) {
+        const list = ((state.get(deltaKey(WireType.Player, id))?.[zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((t) => t.v);
+        setZone(state, id, zone, [...list.filter((c) => c !== 21), ...(id === pid && zone === where ? [21] : [])]);
+      }
+    }
+    return state;
+  }
+  const doorsOf = (state: Map<string, WireObject>) => cardsById(adapt(state)).get(21)!.doors;
+
+  it('none unlocked: both doors locked, and the Room is drawn whole, not as its nameless face', () => {
+    const state = roomState(9);
+    // A Room put onto the battlefield uncast: its whole face never reaches the seat.
+    state.delete(cardStateKey(21, 0));
+    expect(doorsOf(state)).toEqual([{ name: 'Walk-In Closet', unlocked: false }, { name: 'Forgotten Cellar', unlocked: false }]);
+    const card = cardsById(adapt(state)).get(21)!;
+    expect(card.hidden).toBe(false);
+    expect(card.card.name).toBe(ROOM);
+    expect(card.card.scryfallId, 'the whole Room’s art').toBe(scryfallIdFor(KNOWN_ART_IDS, ROOM, 'DSK'));
+    expect(card.card.oracleText, 'its left door’s face stands in for the whole one').toBe('Walk-In Closet text');
+  });
+
+  it('the cast door alone unlocked, whichever it was', () => {
+    expect(doorsOf(roomState(5))).toEqual([{ name: 'Walk-In Closet', unlocked: true }, { name: 'Forgotten Cellar', unlocked: false }]);
+    expect(doorsOf(roomState(6))).toEqual([{ name: 'Walk-In Closet', unlocked: false }, { name: 'Forgotten Cellar', unlocked: true }]);
+  });
+
+  it('both unlocked', () => {
+    expect(doorsOf(roomState(0))).toEqual([{ name: 'Walk-In Closet', unlocked: true }, { name: 'Forgotten Cellar', unlocked: true }]);
+  });
+
+  it('the whole Room is shown, and its doors are its other faces for the inspector', () => {
+    const card = cardsById(adapt(roomState(5))).get(21)!;
+    expect(card.card.name).toBe(ROOM);
+    expect(card.card.oracleText, 'the whole card, not the door Forge shows').toBe(`${ROOM} text`);
+    expect(card.faces?.map((f) => f.name)).toEqual(['Walk-In Closet', 'Forgotten Cellar']);
+  });
+
+  it('its doors are its faces, each cropped to its half of the card and marked with its state', () => {
+    const card = cardsById(adapt(roomState(5))).get(21)!;
+    expect(card.faces?.map((f) => [f.name, f.faceCrop, f.door])).toEqual([
+      ['Walk-In Closet', 'split-left', 'unlocked'],
+      ['Forgotten Cellar', 'split-right', 'locked'],
+    ]);
+  });
+
+  it('a choice between a never-cast Room’s unlocks is drawn as its doors, both locked', () => {
+    const state = roomState(9);
+    state.delete(cardStateKey(21, 0));
+    expect(cardFaces(state, 21).map((f) => [f.name, f.door])).toEqual([
+      [ROOM, undefined],
+      ['Walk-In Closet', 'locked'],
+      ['Forgotten Cellar', 'locked'],
+    ]);
+    expect(cardFaces(roomState(0, 'Hand'), 21).map((f) => f.door), 'in hand, a cast choice: no door is locked or unlocked').toEqual([undefined, undefined, undefined]);
+  });
+
+  it('no doors for a Room in hand — its doors lock and unlock only on the battlefield — nor for any other card', () => {
+    expect(doorsOf(roomState(0, 'Hand'))).toBeUndefined();
+    expect(cardsById(adapt(baseState())).get(21)!.doors).toBeUndefined();
+  });
+});

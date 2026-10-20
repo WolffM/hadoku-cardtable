@@ -16,6 +16,7 @@ import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR } from './live/departures.ts';
+import { UNLOCK_BEAT_MS } from './motion.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import poolData from '../draft/pool.json';
 import {
@@ -5522,5 +5523,85 @@ describe('2026-10-17 — the other seat’s marks in danger, a raised number in 
   it('draws a buffed number and a +1/+1 counter in the success ink', () => {
     expect(rule(CARD_CSS, ".board-card__pt-n[data-pt-state='buffed']")).toMatch(/color: var\(--success-ink\)/);
     expect(rule(CARD_CSS, ".board-card__counter[data-counter='plus']")).toMatch(/color: var\(--success-ink\)/);
+  });
+});
+
+/*
+ * The operator, 2026-10-19: "cards like 'Walk-In Closet' it's hard to tell whats actually going on.
+ * which room was played, which room is active? has the door been unlocked?" A Room on the battlefield
+ * is drawn as its two doors, each its own half of the card, marked locked or unlocked; a door that
+ * unlocks while drawn plays a beat.
+ */
+describe('a Room on the battlefield', () => {
+  const ROOM = 'Walk-In Closet // Forgotten Cellar';
+
+  /** The fixture with its first battlefield card made a Room whose doors are `left` and `right`. */
+  function withRoom(left: boolean, right: boolean): { view: BoardView; id: number } {
+    const view = boardFromFixture(fixture);
+    const player = view.players.find((p) => p.battlefield.length > 0)!;
+    const base = player.battlefield[0]!;
+    const door = (name: string, faceCrop: 'split-left' | 'split-right', unlocked: boolean) => ({
+      ...base.card,
+      name,
+      faceCrop,
+      door: unlocked ? ('unlocked' as const) : ('locked' as const),
+    });
+    const room: BoardCard = {
+      ...base,
+      card: { ...base.card, name: ROOM },
+      doors: [
+        { name: 'Walk-In Closet', unlocked: left },
+        { name: 'Forgotten Cellar', unlocked: right },
+      ],
+      faces: [door('Walk-In Closet', 'split-left', left), door('Forgotten Cellar', 'split-right', right)],
+    };
+    const players = view.players.map((p) => (p === player ? { ...p, battlefield: [room, ...p.battlefield.slice(1)] } : p));
+    return { view: { ...view, players }, id: base.id };
+  }
+
+  const roomLi = (container: HTMLElement, id: number) => container.querySelector<HTMLElement>(`[data-zone="battlefield"] .board-card[data-board-card="${id}"]`)!;
+  const doorStates = (li: HTMLElement) =>
+    [...li.querySelectorAll<HTMLElement>('.board-card__door')].map((d) => ({
+      side: d.dataset.doorSide,
+      name: d.querySelector('.card__name')?.textContent,
+      door: d.querySelector<HTMLElement>('.card')?.dataset.door,
+      tip: d.querySelector<HTMLElement>('.card__door')?.dataset.tip,
+      crop: d.querySelector<HTMLElement>('.card')?.dataset.faceCrop,
+    }));
+
+  it('draws its two doors, left then right, each its half of the card, the locked one marked locked', () => {
+    const { view, id } = withRoom(true, false);
+    const { container } = renderBoard(view);
+    const li = roomLi(container, id);
+    expect(li.dataset.room).toBe('true');
+    expect(doorStates(li)).toEqual([
+      { side: 'left', name: 'Walk-In Closet', door: 'unlocked', tip: 'Unlocked door', crop: 'split-left' },
+      { side: 'right', name: 'Forgotten Cellar', door: 'locked', tip: 'Locked door', crop: 'split-right' },
+    ]);
+  });
+
+  it('a door that unlocks while drawn plays its beat, and only for its beat; one open on arrival plays none', () => {
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const before = withRoom(true, false);
+    const { container, rerender } = renderBoard(before.view);
+    const unlocking = () => [...roomLi(container, before.id).querySelectorAll<HTMLElement>('.board-card__door[data-unlocking]')].map((d) => d.dataset.doorSide);
+    expect(unlocking(), 'nothing unlocked yet').toEqual([]);
+    rerender(createElement(Board, { view: withRoom(true, true).view, boardLayout: 'type-separated' }));
+    expect(unlocking()).toEqual(['right']);
+    expect(doorStates(roomLi(container, before.id)).map((d) => d.door)).toEqual(['unlocked', 'unlocked']);
+    act(() => {
+      vi.advanceTimersByTime(UNLOCK_BEAT_MS);
+    });
+    expect(unlocking(), 'the beat is over').toEqual([]);
+  });
+
+  it('is drawn as one card when its doors are not both in hand to draw', () => {
+    const { view, id } = withRoom(false, false);
+    const players = view.players.map((p) => ({ ...p, battlefield: p.battlefield.map((c) => (c.id === id ? { ...c, faces: c.faces!.slice(0, 1) } : c)) }));
+    const { container } = renderBoard({ ...view, players });
+    expect(roomLi(container, id).dataset.room).toBeUndefined();
   });
 });
