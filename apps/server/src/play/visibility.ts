@@ -102,6 +102,13 @@
  *     object on the way (`GameAction.changeZone` copies a card that changes
  *     zones, CR 400.7) and sends it as one — the card replaced in the
  *     packet's `newObjects` ({@link replacedCards}) — so it is judged as moved.
+ *     Unless it is a library card that stands where it last stood in that
+ *     library, as its holder's library had it the last time it was in one:
+ *     a fate seal's kept card is taken out of the library and put back on
+ *     top (`DigEffect`), and when the look's end reaches the seat in two
+ *     packets instead of one the card can come back as a replace. Put back
+ *     where it was taken from, it was not lost; the shuffle rule above still
+ *     reads the library around it.
  *
  * The ways in, one set: a card whose Forge grant (`PlayerMayLook`) reaches
  * this seat while it sits in SOMEONE ELSE's hand or library; the cards of a
@@ -634,6 +641,8 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	const sentLook = new Map<number, string>();
 	/** Each player's library as last folded, top first — what a shuffle is read against. */
 	const libraries = new Map<number, number[]>();
+	/** Where each card last stood in a library, kept while it is in no zone list — what a card Forge re-creates there is read against. */
+	const libraryPlaces = new Map<number, { holder: number; index: number }>();
 	/** Forge's `PlayerMayLook` grants as last folded — a look that ended in this packet still explains its moves. */
 	let grantsBefore = new Map<number, number[]>();
 	/** The cards the whole table could see as of the last packet — {@link tableCards}. */
@@ -674,6 +683,11 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 			if (was === undefined || now === undefined) return false;
 			return reordered(was, now, new Set([...was, ...now].filter((id) => looked(player, id))));
 		};
+		/** Whether a card Forge re-created stands where it last stood in that library: put back where it was taken from. */
+		const putBack = (cardId: number, at: { zone: string; holder: number }): boolean => {
+			const place = libraryPlaces.get(cardId);
+			return at.zone === 'Library' && place?.holder === at.holder && nowOf.get(at.holder)?.indexOf(cardId) === place.index;
+		};
 		for (const [player, cards] of known) {
 			const shuffled = new Map<number, boolean>();
 			for (const [cardId, was] of cards) {
@@ -681,7 +695,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 				// In no zone list: between two (Goblin Guide's Dig takes the card out and puts it back on
 				// top) or on the stack. Nothing to judge it by until it lands somewhere.
 				if (at === undefined && raw.has(keyOf(TYPE.card, cardId))) continue;
-				if (at !== undefined && at.holder === was.holder && at.zone === was.zone && !replaced.has(cardId)) {
+				if (at !== undefined && at.holder === was.holder && at.zone === was.zone && (!replaced.has(cardId) || putBack(cardId, at))) {
 					if (was.zone !== 'Library') continue;
 					if (!shuffled.has(was.holder)) shuffled.set(was.holder, shuffledFor(player, was.holder));
 					if (shuffled.get(was.holder) === true) cards.delete(cardId);
@@ -701,6 +715,8 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 			if (at.zone !== 'Hand' || !onTable.has(cardId) || fedFor(at.holder)) continue;
 			for (const player of nowOf.keys()) if (player !== at.holder && !shuffledFor(player, at.holder)) knownTo(player).set(cardId, at);
 		}
+		for (const [holder, library] of nowOf) library.forEach((cardId, index) => libraryPlaces.set(cardId, { holder, index }));
+		for (const [cardId, at] of zones.byCard) if (at.zone !== 'Library') libraryPlaces.delete(cardId);
 		onTable = tableCards(zones);
 		if (who !== null) learnOwnTop(who, zones, zonesBefore, nowOf.get(who) ?? [], shuffledFor(who, who));
 		grantsBefore = grants;
