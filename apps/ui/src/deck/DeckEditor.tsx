@@ -296,7 +296,7 @@ export function DeckEditor({
   const setBasic = (c: ManaColor, count: number): void => setDeck((d) => setBasicLand(d, basicLand(BASIC_OF[c]), Math.max(0, count)));
   const autoBasics = (): void =>
     setDeck((d) => {
-      const want = suggestBasics(d, poolIndex);
+      const want = suggestBasics(d, poolIndex, minMain);
       let next = d;
       for (const c of COLORS) next = setBasicLand(next, basicLand(BASIC_OF[c]), want[c]);
       return next;

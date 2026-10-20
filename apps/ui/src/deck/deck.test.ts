@@ -159,19 +159,19 @@ describe('build.ts', () => {
     expect(draftedSeat(DRAFT_ID, deck)).toEqual({ deck: { dck: dckTextOf(deck) }, rules: { kind: 'draft', draftId: DRAFT_ID } });
   });
 
-  describe('suggestBasics — Forge’s DeckgenUtil.suggestBasicLandCount', () => {
+  describe('suggestBasics — Forge’s DeckgenUtil.suggestBasicLandCount, aimed at the editor’s floor', () => {
     it('fills 23 spells to 40, splitting by pure coloured symbols in W U B R G order', () => {
       // 15 × {1}{W} and 8 × {U}{U}: W 15, U 16, 31 symbols, 17 lands to add.
       // W first: round(17 × 15/31) = 8; then U: round(9 × 16/16) = 9.
       const cards = [...Array.from({ length: 15 }, (_, i) => costed(i, ['1', 'W'])), ...Array.from({ length: 8 }, (_, i) => costed(100 + i, ['U', 'U']))];
       const { deck, index } = playing(cards);
-      expect(suggestBasics(deck, index)).toEqual({ W: 8, U: 9, B: 0, R: 0, G: 0 });
+      expect(suggestBasics(deck, index, 40)).toEqual({ W: 8, U: 9, B: 0, R: 0, G: 0 });
     });
 
     it('gives a colour with any symbol at least one land', () => {
       const cards = [...Array.from({ length: 22 }, (_, i) => costed(i, ['G', 'G'])), costed(50, ['1', 'R'])];
       const { deck, index } = playing(cards);
-      const want = suggestBasics(deck, index);
+      const want = suggestBasics(deck, index, 40);
       expect(want.R).toBe(1);
       expect(want.G).toBe(16);
     });
@@ -179,54 +179,52 @@ describe('build.ts', () => {
     it('counts only pure symbols: a hybrid or Phyrexian one asks for nothing', () => {
       const cards = [...Array.from({ length: 22 }, (_, i) => costed(i, ['B'])), costed(50, ['W/U']), costed(51, ['R/P'])];
       const { deck, index } = playing(cards);
-      expect(suggestBasics(deck, index)).toEqual({ W: 0, U: 0, B: 16, R: 0, G: 0 });
+      expect(suggestBasics(deck, index, 40)).toEqual({ W: 0, U: 0, B: 16, R: 0, G: 0 });
     });
 
     it('replaces the deck’s basics rather than adding to them', () => {
       const cards = Array.from({ length: 23 }, (_, i) => costed(i, ['W']));
       const { deck, index } = playing(cards);
       const withBasics = setBasicLand(setBasicLand(deck, basicLand('Plains'), 9), basicLand('Island'), 4);
-      expect(suggestBasics(withBasics, index)).toEqual(suggestBasics(deck, index));
-      expect(suggestBasics(deck, index).W).toBe(17);
+      expect(suggestBasics(withBasics, index, 40)).toEqual(suggestBasics(deck, index, 40));
+      expect(suggestBasics(deck, index, 40).W).toBe(17);
     });
 
     it('ignores basics in the main deck itself too, as a round-tripped save carries them', () => {
       const cards = Array.from({ length: 23 }, (_, i) => costed(i, ['W']));
       const { deck, index } = playing(cards);
       const merged: Deck = { ...deck, main: [...deck.main, { count: 9, card: basicLand('Plains') }] };
-      expect(suggestBasics(merged, index)).toEqual(suggestBasics(deck, index));
+      expect(suggestBasics(merged, index, 40)).toEqual(suggestBasics(deck, index, 40));
     });
 
     it('counts a non-basic land toward the deck, as Forge does', () => {
       const cards = [...Array.from({ length: 22 }, (_, i) => costed(i, ['W'])), costed(60, [], 'Land')];
       const { deck, index } = playing(cards);
-      expect(suggestBasics(deck, index).W).toBe(17);
+      expect(suggestBasics(deck, index, 40).W).toBe(17);
     });
 
-    it('aims at 60 for a constructed-sized deck and 100 past 60 non-lands', () => {
-      const sixty = playing(Array.from({ length: 36 }, (_, i) => costed(i, ['R'])));
-      expect(suggestBasics(sixty.deck, sixty.index).R).toBe(24);
-      const hundred = playing(Array.from({ length: 61 }, (_, i) => costed(i, ['G'])));
-      expect(suggestBasics(hundred.deck, hundred.index).G).toBe(39);
+    it('fills a drafted build of 30 spells to 40, never to Forge’s constructed 60', () => {
+      const { deck, index } = playing(Array.from({ length: 30 }, (_, i) => costed(i, ['R'])));
+      expect(suggestBasics(deck, index, 40).R).toBe(10);
     });
 
     it('adds nothing to a deck already at or over its target (Forge would return negative counts)', () => {
       const at = playing([...Array.from({ length: 29 }, (_, i) => costed(i, ['W'])), ...Array.from({ length: 11 }, (_, i) => costed(100 + i, [], 'Land'))]);
-      expect(suggestBasics(at.deck, at.index)).toEqual({ W: 0, U: 0, B: 0, R: 0, G: 0 });
+      expect(suggestBasics(at.deck, at.index, 40)).toEqual({ W: 0, U: 0, B: 0, R: 0, G: 0 });
       const over = playing([...Array.from({ length: 29 }, (_, i) => costed(i, ['W'])), ...Array.from({ length: 13 }, (_, i) => costed(100 + i, [], 'Land'))]);
-      expect(suggestBasics(over.deck, over.index)).toEqual({ W: 0, U: 0, B: 0, R: 0, G: 0 });
+      expect(suggestBasics(over.deck, over.index, 40)).toEqual({ W: 0, U: 0, B: 0, R: 0, G: 0 });
     });
 
     it('adds nothing to a deck with no coloured symbols (Forge would divide by zero)', () => {
       const { deck, index } = playing(Array.from({ length: 23 }, (_, i) => costed(i, ['3'], 'Artifact')));
-      expect(suggestBasics(deck, index)).toEqual({ W: 0, U: 0, B: 0, R: 0, G: 0 });
+      expect(suggestBasics(deck, index, 40)).toEqual({ W: 0, U: 0, B: 0, R: 0, G: 0 });
     });
 
     it('never hands out a share past the last coloured colour', () => {
       // W and G only: the colours between them and after them get exactly 0, not NaN.
       const cards = [...Array.from({ length: 12 }, (_, i) => costed(i, ['W'])), ...Array.from({ length: 11 }, (_, i) => costed(100 + i, ['G']))];
       const { deck, index } = playing(cards);
-      const want = suggestBasics(deck, index);
+      const want = suggestBasics(deck, index, 40);
       expect(want).toEqual({ W: 9, U: 0, B: 0, R: 0, G: 8 });
       expect(Object.values(want).reduce((a, b) => a + b, 0)).toBe(17);
     });
@@ -454,11 +452,18 @@ describe('DeckEditor — limited', () => {
 
     let deck = deckFromPool(DRAFT_ID, POOL);
     for (const card of spells) deck = moveToMain(deck, cardRequestOf(card));
-    const want = suggestBasics(deck, cardIndex(POOL));
+    const want = suggestBasics(deck, cardIndex(POOL), 40);
     const names = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' } as const;
     for (const [c, name] of Object.entries(names)) {
       expect(screen.getByTestId(`basic-${name}-count`).textContent).toBe(String(want[c as keyof typeof names]));
     }
+    expect(screen.getByTestId('main-count').textContent).toBe('40');
+  });
+
+  it('Auto on a drafted build of 30 spells fills it to 40, not 60', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: savedWith(POOL, 30) }));
+    expect(screen.getByTestId('main-count').textContent).toBe('30');
+    fireEvent.click(screen.getByTestId('basics-auto'));
     expect(screen.getByTestId('main-count').textContent).toBe('40');
   });
 

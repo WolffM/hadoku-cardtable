@@ -143,35 +143,34 @@ export type BasicCounts = Record<'W' | 'U' | 'B' | 'R' | 'G', number>;
  * ported with its order and rounding, over the deck WITHOUT its current
  * basics (the editor's Auto replaces them rather than adding to them).
  *
- * Forge's steps: the target size comes from the non-land count (under 30 is
- * limited's 40, over 60 is 100, else 60); the lands to add are the target less
- * the main deck; each colour in W, U, B, R, G order takes its rounded share of
+ * Forge's steps: the lands to add are the target size less the main deck; each colour in W, U, B, R, G order takes its rounded share of
  * what is left by its count of pure coloured symbols, at least one if it has
  * any. Forge's last step, a rounding leftover handed to the first colour that
  * got lands, is not ported: the last colour with symbols always takes exactly
  * what is left (its share of the remaining total is the whole of it), so no
  * leftover can reach it.
  *
+ * The target is the caller's: the editor's own floor, 40 for a drafted pool.
+ * Forge picks it from the non-land count instead (under 30 is 40, over 60 is
+ * 100, else 60), which is a constructed rule: a drafted build of 30
+ * spells came back padded to 60.
+ *
  * Two edges Forge leaves open are closed here: a deck already at or over its
  * target adds nothing (Forge would hand back negative counts), and a deck
  * with no coloured symbols adds nothing (Forge divides by zero).
  */
-export function suggestBasics(deck: Deck, index: ReadonlyMap<string, DraftCard>): BasicCounts {
+export function suggestBasics(deck: Deck, index: ReadonlyMap<string, DraftCard>, target: number): BasicCounts {
   const none: BasicCounts = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   let size = 0;
-  let lands = 0;
   const shards: BasicCounts = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   for (const entry of deck.main) {
     if (isBasicLand(entry.card)) continue;
     const card = index.get(cardKey(entry.card));
     size += entry.count;
-    if (card !== undefined && /\bLand\b/.test(card.typeLine)) lands += entry.count;
     for (const token of card?.manaCost ?? []) {
       if (token === 'W' || token === 'U' || token === 'B' || token === 'R' || token === 'G') shards[token] += entry.count;
     }
   }
-  const nonLand = size - lands;
-  const target = nonLand < 30 ? 40 : nonLand > 60 ? 100 : 60;
   let toAdd = target - size;
   let total = shards.W + shards.U + shards.B + shards.R + shards.G;
   if (toAdd <= 0 || total === 0) return none;
