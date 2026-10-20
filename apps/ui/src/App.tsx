@@ -52,6 +52,26 @@ import { roomsClient } from './rooms/api.ts';
 export type AppProps = ScreenProps;
 
 /**
+ * A game's own chat: its room AND its table, so the lobby's conversation and
+ * the game's are two rooms (the operator, 2026-10-19: *"can we make sure the
+ * game-chat is separate from the lobby chat?"*), while the games of one series
+ * — one table — keep one chat between them. A match no table names (it has
+ * since been let go) is its own.
+ */
+export function tableChatId(room: { id: string; tables: readonly { id: string; matchId: string | null; series: { games: readonly { matchId: string }[] } }[] }, matchId: string): string {
+  const table = room.tables.find((t) => t.matchId === matchId || t.series.games.some((g) => g.matchId === matchId));
+  return `${room.id}-${table?.id ?? matchId}`;
+}
+
+/** Where a route's viewer is: the room they are a member of, and the chat they talk in. */
+export interface RoomPlace {
+  /** The room the viewer's identity (their avatar) is asserted to — a room id, or a match id the server resolves to its room. */
+  roomId: string;
+  /** The watchparty chat the chrome joins: the room's own, or a game's table chat (`tableChatId`). */
+  chatId: string;
+}
+
+/**
  * The room a live match belongs to, resolved once per match id — the same
  * call `MatchScreen.tsx` already makes for its own "back to the room" link
  * (`roomOfMatch`), asked again here because the chat has to know it BEFORE
@@ -99,20 +119,8 @@ export type AppProps = ScreenProps;
  * room" by itself — which is why this is its own piece of state, set
  * alongside `roomId` in the very same update, rather than computed from it.
  */
-/**
- * A game's own chat: its room AND its table, so the lobby's conversation and
- * the game's are two rooms (the operator, 2026-10-19: *"can we make sure the
- * game-chat is separate from the lobby chat?"*), while the games of one series
- * — one table — keep one chat between them. A match no table names (it has
- * since been let go) is its own.
- */
-export function tableChatId(room: { id: string; tables: readonly { id: string; matchId: string | null; series: { games: readonly { matchId: string }[] } }[] }, matchId: string): string {
-  const table = room.tables.find((t) => t.matchId === matchId || t.series.games.some((g) => g.matchId === matchId));
-  return `${room.id}-${table?.id ?? matchId}`;
-}
-
-function useMatchRoomId(matchId: string | null): { roomId: string | null; pending: boolean } {
-  const [state, setState] = useState<{ roomId: string | null; everAnswered: boolean }>({ roomId: null, everAnswered: false });
+function useMatchRoomId(matchId: string | null): { room: RoomPlace | null; pending: boolean } {
+  const [state, setState] = useState<{ room: RoomPlace | null; everAnswered: boolean }>({ room: null, everAnswered: false });
   useEffect(() => {
     if (matchId === null) return;
     let live = true;
@@ -120,21 +128,21 @@ function useMatchRoomId(matchId: string | null): { roomId: string | null; pendin
       .roomOfMatch(matchId)
       .then(
         (room) => {
-          if (live) setState({ roomId: room === null ? null : tableChatId(room, matchId), everAnswered: true });
+          if (live) setState({ room: room === null ? null : { roomId: room.id, chatId: tableChatId(room, matchId) }, everAnswered: true });
         },
         () => {
-          if (live) setState({ roomId: null, everAnswered: true });
+          if (live) setState({ room: null, everAnswered: true });
         },
       );
     return () => {
       live = false;
     };
   }, [matchId]);
-  return { roomId: state.roomId, pending: matchId !== null && !state.everAnswered };
+  return { room: state.room, pending: matchId !== null && !state.everAnswered };
 }
 
 /**
- * The watchparty room this route belongs in, or null for the routes that are
+ * The room and chat this route belongs in, or null for the routes that are
  * not a shared place: the lobby, the format picker and the debug harness.
  *
  * A draft room and its deck screen share one watchparty room on purpose — it is
@@ -143,11 +151,15 @@ function useMatchRoomId(matchId: string | null): { roomId: string | null; pendin
  * it. The legacy `draft` route maps to the same id the `room` route does, so
  * redirecting one to the other does not tear down and rebuild the chrome.
  *
- * **A `match` route resolves to its TABLE's chat** (`tableChatId`, above):
- * separate from the room's own lobby chat, the same across the games of one
- * series. `matchRoomId` is the answer this function returns for a `match`
- * route, but **falls back to the match's own
- * id when `matchRoomId` is `null`** (wave 72 §R) — a SETTLED answer: the
+ * **A `match` route has two answers** (`RoomPlace`): its TABLE's chat
+ * (`tableChatId`, above) — separate from the room's own lobby chat, the same
+ * across the games of one series — and the ROOM itself, which is where the
+ * viewer is a member and so where their avatar is asserted. The table chat id
+ * names no room the server knows, so an avatar asserted to it is refused and a
+ * pick made mid-match never reaches either board (Q6). `matchRoom` is the
+ * answer this function returns for a `match` route, but **falls back to the
+ * match's own id for both when `matchRoom` is `null`** (wave 72 §R) — a
+ * SETTLED answer: the
  * fetch came back with no room for this match (a scenario, a direct vs-AI
  * game), which before wave 71 §G kept its own `cardtable-m-<id>` chat and
  * without this fallback had none. `App` (below) never calls this with
@@ -156,15 +168,16 @@ function useMatchRoomId(matchId: string | null): { roomId: string | null; pendin
  * roomless match, which key it joins) decided BEFORE the board's first
  * paint rather than flipped after it. `RoomShell.test.ts` pins the fallback.
  */
-export function roomIdFor(route: ReturnType<typeof useRoute>, matchRoomId: string | null): string | null {
+export function roomIdFor(route: ReturnType<typeof useRoute>, matchRoom: RoomPlace | null): RoomPlace | null {
+  const same = (id: string): RoomPlace => ({ roomId: id, chatId: id });
   switch (route.kind) {
     case 'draft':
     case 'deck':
-      return route.draftId;
+      return same(route.draftId);
     case 'match':
-      return matchRoomId ?? route.matchId;
+      return matchRoom ?? same(route.matchId);
     case 'room':
-      return route.roomId;
+      return same(route.roomId);
     default:
       return null;
   }
@@ -172,7 +185,7 @@ export function roomIdFor(route: ReturnType<typeof useRoute>, matchRoomId: strin
 
 export function App({ transport }: AppProps) {
   const route = useRoute();
-  const { roomId: matchRoomId, pending: matchPending } = useMatchRoomId(route.kind === 'match' ? route.matchId : null);
+  const { room: matchRoom, pending: matchPending } = useMatchRoomId(route.kind === 'match' ? route.matchId : null);
   // `pending` is only ever true for a `match` route (see the hook's own
   // comment); read here as a single flag because it gates TWO things below
   // together — the board itself, and the room id handed to `RoomShell` —
@@ -244,14 +257,14 @@ export function App({ transport }: AppProps) {
   // screen itself back until the room is known. Rendering `Screen` early
   // with no chrome decided yet is exactly the wave 71 §G regression this
   // wave fixes (wave 72 §R): the board would draw once at its un-chromed
-  // width and again at its chromed one once `matchRoomId` settles.
-  const roomId = matchPending ? null : roomIdFor(route, matchRoomId);
+  // width and again at its chromed one once `matchRoom` settles.
+  const place = matchPending ? null : roomIdFor(route, matchRoom);
   return (
     <AppChrome header={header}>
       {/* The operator, 2026-10-10: *"theres really no reason to close the chat
           in the lobby screen"*. A room's lobby keeps it open; the draft, deck
           and match screens still let a viewer hide it. */}
-      <RoomShell roomId={roomId} collapsible={route.kind !== 'room'}>
+      <RoomShell roomId={place?.roomId ?? null} chatId={place?.chatId ?? null} collapsible={route.kind !== 'room'}>
         {matchPending ? null : <Screen transport={transport} />}
       </RoomShell>
     </AppChrome>

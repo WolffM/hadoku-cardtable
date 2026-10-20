@@ -158,10 +158,14 @@ const rooms = roomsClient();
  */
 export function RoomShell({
   roomId,
+  chatId = roomId,
   collapsible = true,
   children,
 }: {
+  /** The room this viewer is a member of; their avatar is asserted to it. */
   roomId: string | null;
+  /** The chat the chrome joins — a game's table chat, or (by default) the room's own. */
+  chatId?: string | null;
   /** `false` keeps the chat open with no Hide chat button — the room's lobby,
    *  where the chat is the point. A viewer's saved collapse is ignored there,
    *  not cleared, so the match still opens the way they left it. */
@@ -174,9 +178,11 @@ export function RoomShell({
   // on purpose (a silent fallback is the bug this removes), so a caller that
   // ever renders `RoomShell` outside the theme root takes that throw here.
   const { theme } = useHadokuTheme();
-  const key = roomId === null ? null : roomKeyFor(roomId);
+  const key = chatId === null ? null : roomKeyFor(chatId);
   // Before the early returns, because hooks cannot be called conditionally. It
-  // no-ops on its own until whoami has answered.
+  // no-ops on its own until whoami has answered. The ROOM, not the chat: a
+  // game's table chat names no room the server knows, and an avatar asserted
+  // to it is refused.
   useAvatarAssert(key === null ? null : roomId, who === 'pending' || who === null ? null : who.userId, rooms);
 
   if (key !== null && who === 'pending') return null;
