@@ -15,13 +15,19 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, forgeFrames, scenarioText, startScenario, timeline, waitUntil } from './scenario.js';
+import { available, deck, finishMulligan, forgeFrames, scenarioText, startScenario, timeline, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'the live declare-attackers window, set up by a scenario, against real Forge'
 	: `the live declare-attackers window, set up by a scenario, against real Forge — SKIPPED: ${available.reason}`;
 
 const DECKS: [string, string] = [deck('Any A', ['40 Mountain']), deck('Any B', ['40 Mountain'])];
+
+/** Whether seat 0's wire state marks the card attacking. */
+function attackingOnWire(s: Scenario, id: number): boolean {
+	const view = [...s.state(0).values()].find((o) => o._type === 0 && o._id === id);
+	return (view?.Attacking as { v?: boolean } | undefined)?.v === true;
+}
 
 describe.skipIf(!available.ok)(title, () => {
 	it(
@@ -75,8 +81,8 @@ describe.skipIf(!available.ok)(title, () => {
 					10_000,
 				);
 				expect(s.prompt(0), 'declaring an attacker left the live window entirely').toMatch(/^Select creatures to attack/);
-				const declaredView = [...s.state(0).values()].find((o) => o._type === 0 && o._id === memnite.id);
-				expect((declaredView?.Attacking as { v?: boolean } | undefined)?.v, 'the wire never marked the creature as attacking').toBe(true);
+				// The bar and the state delta are separate frames: wait for the delta, never read it off the bar's arrival.
+				await waitUntil(() => attackingOnWire(s, memnite.id), 'the wire to mark the creature as attacking', 10_000, s);
 
 				// Click the SAME creature again: pulls it back (undeclares it).
 				s.select(0, memnite.id);
@@ -88,8 +94,7 @@ describe.skipIf(!available.ok)(title, () => {
 					'"Call Back" to go away once the attacker is pulled back',
 					10_000,
 				);
-				const undeclaredView = [...s.state(0).values()].find((o) => o._type === 0 && o._id === memnite.id);
-				expect((undeclaredView?.Attacking as { v?: boolean } | undefined)?.v, 'the creature stayed marked as attacking after being pulled back').not.toBe(true);
+				await waitUntil(() => !attackingOnWire(s, memnite.id), 'the wire to unmark the creature once it is pulled back', 10_000, s);
 			} finally {
 				await s.stop();
 			}
@@ -167,10 +172,6 @@ describe.skipIf(!available.ok)(title, () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, { seed: 31, decks: DECKS, scenario: scenarioText('must-attack') });
 			const refusal = (): string | undefined => s.buttons(0)?.refusal1;
-			const attacking = (id: number): boolean => {
-				const view = [...s.state(0).values()].find((o) => o._type === 0 && o._id === id);
-				return (view?.Attacking as { v?: boolean } | undefined)?.v === true;
-			};
 			const say = (step: string): void => console.log(`[must-attack] ${step} | ${JSON.stringify(s.buttons(0))}`);
 			try {
 				await finishMulligan(s);
@@ -223,11 +224,11 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(refusal()).toBe('Attack declaration invalid');
 
 				s.select(0, bears.id);
-				await waitUntil(() => attacking(bears.id) && refusal() !== undefined, 'the Bears alone to be refused', 10_000, s);
+				await waitUntil(() => attackingOnWire(s, bears.id) && refusal() !== undefined, 'the Bears alone to be refused', 10_000, s);
 				say('bears only');
 
 				s.select(0, juggernaut.id);
-				await waitUntil(() => attacking(juggernaut.id) && refusal() === undefined, 'Juggernaut attacking to make the declaration valid', 10_000, s);
+				await waitUntil(() => attackingOnWire(s, juggernaut.id) && refusal() === undefined, 'Juggernaut attacking to make the declaration valid', 10_000, s);
 				say('juggernaut declared');
 
 				const linesBeforeOk = s.lines.length;
@@ -241,7 +242,7 @@ describe.skipIf(!available.ok)(title, () => {
 					10_000,
 					s,
 				);
-				expect(attacking(juggernaut.id) && attacking(bears.id), 'both attack').toBe(true);
+				expect(attackingOnWire(s, juggernaut.id) && attackingOnWire(s, bears.id), 'both attack').toBe(true);
 			} catch (err) {
 				console.log(`[must-attack-timeline]\n${timeline(s, 0)}`);
 				throw err;
