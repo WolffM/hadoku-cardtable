@@ -1,11 +1,4 @@
-/* `#/decks` — the room's deck chooser (`.deckpick`, screens.css), and a deck's name and actions over its editor. */
-
-.decks {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px 0;
-}
+/* `#/decks` — the room's deck card and chooser (`.lobby__decks`, `.deckpick`, screens.css), and a deck's name and actions over its editor. */
 
 .decks__manage {
   display: flex;

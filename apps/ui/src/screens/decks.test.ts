@@ -90,6 +90,31 @@ describe('DecksScreen', () => {
     render(createElement(DecksScreen, { decks: client, deckRecords: records([]) }));
     expect((await screen.findByTestId('deck-none')).textContent).toBe('No decks yet');
   });
+
+  it('filters the drafted decks with the room’s filter row, by colour and by card name, and offers no play style', async () => {
+    const poolB = (poolJson as { cards: DraftCard[] }).cards.slice(45, 90).map((c, i) => ({ ...c, cardId: `draft:q/q${i}` }));
+    const { client } = stub([deck('a'), deck('b', { pool: poolB, deck: dckTextOf(draftedDeckOf('b', poolB)) })]);
+    render(createElement(DecksScreen, { decks: client, deckRecords: records([]) }));
+    await waitFor(() => expect(screen.getAllByTestId('deck-option')).toHaveLength(2));
+    expect(screen.queryAllByTestId(/^deck-filter-style-/)).toEqual([]);
+    const shown = (): string[] => screen.queryAllByTestId('deck-option').map((t) => t.dataset['deckId']!);
+
+    const [colorsA, colorsB] = [tile('a').dataset['colors']!, tile('b').dataset['colors']!];
+    const only = [...'WUBRG'].find((c) => colorsA.includes(c) !== colorsB.includes(c))!;
+    expect(only, 'the fixture decks differ in a colour').toBeDefined();
+    fireEvent.click(screen.getByTestId(`deck-filter-color-${only}`));
+    expect(shown()).toEqual([colorsA.includes(only) ? 'a' : 'b']);
+    fireEvent.click(screen.getByTestId(`deck-filter-color-${only}`));
+    expect(shown()).toEqual(['a', 'b']);
+
+    const namesB = new Set(draftedDeckOf('b', poolB).main.map((e) => e.card.name));
+    const onlyInA = draftedDeckOf('a', POOL).main.find((e) => !namesB.has(e.card.name))!.card.name;
+    fireEvent.change(screen.getByTestId('deck-filter-text'), { target: { value: onlyInA.toUpperCase() } });
+    expect(shown()).toEqual(['a']);
+    fireEvent.change(screen.getByTestId('deck-filter-text'), { target: { value: 'no card is called this' } });
+    expect(shown()).toEqual([]);
+    expect(screen.getByTestId('deck-none').textContent).toBe('No decks');
+  });
 });
 
 describe('a deck’s name, rename and delete, over its editor', () => {

@@ -3,6 +3,8 @@
  * card-name search (`deckFilter.ts` has what each one means). Each style chip
  * is the same tag a deck's tile wears, and each colour is the same Mana-font
  * pip its colours are drawn with, so a filter looks like what it filters on.
+ * A grid whose decks have no play style (the Decks page's drafted decks)
+ * passes `styles={[]}`: a style chip there could only empty the grid.
  */
 import type { DeckColor } from '@hadoku/deck';
 import type { DeckStyle } from '@hadoku/deck/library';
@@ -28,26 +30,31 @@ function toggled<T>(set: ReadonlySet<T>, item: T): Set<T> {
 export function DeckFilterBar({
   filter,
   onChange,
+  styles = DECK_STYLE_ORDER,
 }: {
   filter: DeckFilter;
   onChange: (next: DeckFilter) => void;
+  /** The play styles offered as chips, in order. */
+  styles?: readonly DeckStyle[];
 }) {
   return (
     <div className="deckfilter" role="group" aria-label="Filter decks" data-testid="deck-filter">
-      <span className="deckfilter__set">
-        {DECK_STYLE_ORDER.map((style: DeckStyle) => (
-          <button
-            key={style}
-            type="button"
-            className="deckfilter__chip"
-            aria-pressed={filter.styles.has(style)}
-            data-testid={`deck-filter-style-${style}`}
-            onClick={() => onChange({ ...filter, styles: toggled(filter.styles, style) })}
-          >
-            <DeckStyleTag style={style} />
-          </button>
-        ))}
-      </span>
+      {styles.length > 0 && (
+        <span className="deckfilter__set">
+          {styles.map((style) => (
+            <button
+              key={style}
+              type="button"
+              className="deckfilter__chip"
+              aria-pressed={filter.styles.has(style)}
+              data-testid={`deck-filter-style-${style}`}
+              onClick={() => onChange({ ...filter, styles: toggled(filter.styles, style) })}
+            >
+              <DeckStyleTag style={style} />
+            </button>
+          ))}
+        </span>
+      )}
       <span className="deckfilter__set">
         {COLORS.map(({ color, name }) => (
           <button
