@@ -98,6 +98,13 @@
  *     {@link BOARD_HOLD_MAX_MS}. A beat is as long as it always was; the next act simply starts after it,
  *     as a person's would. A cast's own pieces draw no beat, so a cast is still one moment.
  *
+ * A new turn is drawn too — its "Your turn" (`TurnCue.tsx`), its sound, the edge light moving to the
+ * other seat — so the frame that moves `Turn` or `PlayerTurn` is a {@link classify | `turn`}, held by the
+ * board like any drawn frame: the AI's End of Turn is already in Forge's burst behind its combat damage,
+ * and as a phase step it went out with the blow and announced the next turn as the ram set off (the
+ * operator, 2026-10-20: the turn banner waits until the AI's attack animation has finished). Between it
+ * and the frame before it, it keeps a phase step's gap, passed straight through like one.
+ *
  * Input, a log line, a frame of nothing drawn and a phase step are never held by the board: an ask is
  * still drawn at once, over the motion (`../motion.ts`), once what came before it in the queue has gone.
  * Fast Mode holds nothing.
@@ -125,7 +132,7 @@ import { MATCH_EVENTS } from './transport.ts';
 
 /* ── Classifying an event ────────────────────────────────────────────── */
 
-export type PaceClass = 'input' | 'cast' | 'unseen' | 'log' | 'resolve' | 'phase' | 'draw' | 'default';
+export type PaceClass = 'input' | 'cast' | 'unseen' | 'log' | 'resolve' | 'phase' | 'turn' | 'draw' | 'default';
 
 /**
  * Starting values (wave file §P step 2) — the operator's to tune by feel
@@ -148,6 +155,8 @@ export const PACE_DELAYS_MS: Readonly<Record<PaceClass, number>> = {
   resolve: 600,
   /** `GameView.Phase` changed. */
   phase: 250,
+  /** `GameView.Turn` or `PlayerTurn` changed: a turn began. A phase step's gap; what it waits for is the board. */
+  turn: 250,
   /** A card arrived in a hand (its `Zone` is `Hand`) — a draw, most often. */
   draw: 200,
   /** Everything else on the state channel. */
@@ -155,7 +164,10 @@ export const PACE_DELAYS_MS: Readonly<Record<PaceClass, number>> = {
 };
 
 /** The classes of frame that start something the board draws: each waits for the board's beats, and goes out in a task of its own. */
-export const HELD_BY_THE_BOARD: ReadonlySet<PaceClass> = new Set<PaceClass>(['cast', 'resolve', 'draw', 'default']);
+export const HELD_BY_THE_BOARD: ReadonlySet<PaceClass> = new Set<PaceClass>(['cast', 'resolve', 'turn', 'draw', 'default']);
+
+/** The classes that step the game on: one queued behind another frame was passed straight through, so it keeps no gap. */
+const STEPS: ReadonlySet<PaceClass> = new Set<PaceClass>(['phase', 'turn']);
 
 /** The longest a frame waits on the board's beats: a beat that never says it is over must not freeze the table. */
 export const BOARD_HOLD_MAX_MS = 5_000;
@@ -295,6 +307,7 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
   let stack: number | null = null;
   let newStackItem = false;
   let sawPhase = false;
+  let newTurn = false;
   let arrivedInHand = false;
   let castPiece = false;
   let drawn = false;
@@ -307,6 +320,7 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
       if (Array.isArray(list)) stack = list.length;
       else if ('Stack' in obj) stack = 0;
       if ('Phase' in obj) sawPhase = true;
+      if ('Turn' in obj || 'PlayerTurn' in obj) newTurn = true;
     } else if (type === WIRE_TYPE_STACK_ITEM) {
       if (isNew) newStackItem = true;
     } else if (type === WIRE_TYPE_PLAYER) {
@@ -331,6 +345,7 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
   if (hit) return 'default';
   if (arrivedInHand) return 'draw';
   if (castPiece) return 'cast';
+  if (newTurn) return 'turn';
   if (sawPhase) return 'phase';
   if (objects.length > 0 && !drawn) return 'unseen';
   return 'default';
@@ -425,7 +440,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
    */
   function delayFor(pace: PaceClass, superseded: boolean): number {
     if (fast) return 0;
-    return pace === 'phase' && (endingTurn || superseded) ? 0 : delays[pace];
+    return STEPS.has(pace) && (endingTurn || superseded) ? 0 : delays[pace];
   }
 
   /*
@@ -596,8 +611,8 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       deliverTo = handler;
       inner.on(event, (payload) => {
         queue.push(entryOf(payload, classify(payload, memory)));
-        // A phase frame waiting on its gap has just been superseded: let it go now.
-        if (timer !== null && queue.length === 2 && queue[0]!.pace === 'phase' && !fast) stopTimer();
+        // A step waiting on its gap has just been superseded: let it go now.
+        if (timer !== null && queue.length === 2 && STEPS.has(queue[0]!.pace) && !fast) stopTimer();
         pump();
       });
     },

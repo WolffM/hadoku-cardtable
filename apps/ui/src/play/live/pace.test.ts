@@ -29,6 +29,8 @@ const zone = (id: number, v: string) => ({ _type: 0, _id: id, Zone: { t: 'enum',
 
 const RESOLVE = deltaOf({ g: stackOf([]) });
 const PHASE = deltaOf({ g: { _type: 3, _id: 1, Phase: { t: 'enum', c: 'PhaseType', v: 'MAIN1' } } });
+/** Forge's next turn beginning: `Turn`, `PlayerTurn` and `Phase` in one Game delta (`e2e/aa-ai-beats.spec.ts`'s wire record). */
+const NEW_TURN = deltaOf({ g: { _type: 3, _id: 1, Turn: { t: 'int', v: 3 }, PlayerTurn: { t: 'int', v: 0 }, Phase: { t: 'enum', c: 'PhaseType', v: 'UPKEEP' } } });
 const DRAW = deltaOf({ c9: zone(9, 'Hand'), p0: { _type: 1, _id: 0, Hand: { t: 'list', v: [{ t: 'int', v: 9 }] } } });
 const DEFAULT_DELTA = deltaOf({ p0: { _type: 1, _id: 0, Life: { t: 'int', v: 17 } } });
 const FINISH = { frame: { kind: 'notify', method: 'finishGame', losers: [1] } };
@@ -58,6 +60,8 @@ describe('classify', () => {
       'resolve',
     ));
   it('a Phase delta with no Stack key is phase', () => expect(classify(PHASE)).toBe('phase'));
+  it('a frame that moves the turn is a turn, not a phase step', () => expect(classify(NEW_TURN)).toBe('turn'));
+  it('the active player changing alone is a turn too', () => expect(classify(deltaOf({ g: { _type: 3, _id: 1, PlayerTurn: { t: 'int', v: 0 } } }))).toBe('turn'));
   /* The Forge AI's turn as it reached the defender (`e2e/aa-ai-beats.spec.ts`, cursors 41, 51 and 67): the step moves with the act. */
   const phaseTo = (v: string) => ({ _type: 3, _id: 1, Phase: { t: 'enum', c: 'PhaseType', v } });
   it('attackers declared in the frame that moves to Declare Attackers are a cast piece, not a phase step', () =>
@@ -499,6 +503,44 @@ describe('pacedMatchTransport: one act at a time', () => {
     expect(drawn, 'the attack, then its blow: never one view').toEqual([[ATTACK], [BLOW]]);
   });
 
+  it("the AI's blow, its End of Turn and the next turn in one burst: the turn waits for the blow's beats, and is a view of its own", async () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { received } = paced(inner, { boardStill: board.still });
+    inner.deliver(BLOW);
+    board.busy(true); // the ram (`numbers.ts`'s combat beats)
+    inner.deliver(PHASE);
+    inner.deliver(NEW_TURN);
+    expect(received, 'the step passed straight through rides with the blow').toEqual([BLOW, PHASE]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(received, 'the next turn waits while the ram is drawn').toEqual([BLOW, PHASE]);
+    board.busy(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received).toEqual([BLOW, PHASE, NEW_TURN]);
+  });
+
+  it('a new turn is not held when nothing is being drawn, and keeps no gap when another frame is behind it', async () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver(RESOLVE);
+    inner.deliver(NEW_TURN);
+    expect(received).toEqual([RESOLVE]);
+    inner.deliver(PHASE);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received, 'the turn goes in a task of its own, its gap waived; the newest phase keeps its own').toEqual([RESOLVE, NEW_TURN]);
+  });
+
+  it('Fast Mode holds a new turn for nothing', () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { transport, received } = paced(inner, { boardStill: board.still });
+    transport.setFast(true);
+    board.busy(true);
+    inner.deliver(BLOW);
+    inner.deliver(NEW_TURN);
+    expect(received).toEqual([BLOW, NEW_TURN]);
+  });
+
   it('an ask at the head of the queue is never held by the board', () => {
     const inner = fakeInner();
     const board = fakeBoard();
@@ -580,7 +622,7 @@ describe('pacedMatchTransport: one act at a time', () => {
 /** Every class the delay table promises, so a renamed or dropped entry fails loudly. */
 describe('PACE_DELAYS_MS', () => {
   it('has a non-negative delay for every PaceClass, and zero for input, a cast and an unseen change', () => {
-    const classes: PaceClass[] = ['input', 'cast', 'unseen', 'resolve', 'phase', 'draw', 'default'];
+    const classes: PaceClass[] = ['input', 'cast', 'unseen', 'resolve', 'phase', 'turn', 'draw', 'default'];
     for (const c of classes) expect(PACE_DELAYS_MS[c]).toBeGreaterThanOrEqual(0);
     expect(PACE_DELAYS_MS.input).toBe(0);
     expect(PACE_DELAYS_MS.cast).toBe(0);
