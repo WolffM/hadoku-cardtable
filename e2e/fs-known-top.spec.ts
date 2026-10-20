@@ -19,9 +19,10 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { messages, type Friend } from './play/browser.ts';
+import { messages } from './play/browser.ts';
 import { castCard, clickHandCard, clickPermanent, enabledOk, grindPriority, handCardNamed, livePrompt, makeTitled, offered, offeredNamed, promptMethod, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { unseenNamed } from './play/isolation.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -59,17 +60,6 @@ async function record(page: Page): Promise<void> {
 
 const samples = (page: Page): Promise<Sample[]> => page.evaluate(() => (window as unknown as { __fsTops: Sample[] }).__fsTops);
 const clock = (page: Page): Promise<number> => page.evaluate(() => Math.round(performance.now()));
-
-/** Whether `name` ever reached this browser in a game-state frame. */
-const received = (f: Friend, name: string): boolean =>
-  messages(f)
-    .filter((m) => m.dir === 'in')
-    .flatMap((m) => {
-      const msg = m.msg as { frame?: { method?: string }; frames?: { method?: string }[] } | null;
-      return [...(msg?.frames ?? []), ...(msg?.frame === undefined ? [] : [msg.frame])];
-    })
-    .filter((frame) => frame.method === 'setGameView' || frame.method === 'applyDelta')
-    .some((frame) => JSON.stringify(frame).includes(JSON.stringify(name)));
 
 async function ownPermanent(page: Page, name: string): Promise<number> {
   let id: number | undefined;
@@ -165,7 +155,7 @@ test(titled("Fate Seal: Jace's +2 keeps bob's Lightning Bolt on top — alice's 
     const goneAfter = back.slice(Math.max(0, backFrom)).filter((s) => JSON.stringify(s.them) !== JSON.stringify(['Lightning Bolt']));
     expect(goneAfter, 'and after the reload, until bob draws it').toEqual([]);
     expect(seenByBob.filter((s) => s.you.length > 0), "bob's screen never draws a card on his own library").toEqual([]);
-    expect(received(alice, 'Shock'), 'Shock, under it, never reaches alice').toBe(false);
+    expect(unseenNamed(messages(alice), ['Shock']).violations, 'Shock, under it, never reaches alice').toEqual([]);
   } finally {
     await stack.stop();
   }
@@ -215,7 +205,7 @@ test(titled('Scry keep: Serum Visions keeps Lightning Bolt over Shock — alice�
     const wrong = after.slice(shownFrom).filter((s) => JSON.stringify(s.you) !== JSON.stringify(['Lightning Bolt', 'Shock']));
     expect(wrong, "alice's screen draws Lightning Bolt then Shock on her library from then on").toEqual([]);
     expect(seenByBob.filter((s) => s.them.length > 0), "bob's screen never draws a card on alice's library").toEqual([]);
-    expect({ bolt: received(bob, 'Lightning Bolt'), shock: received(bob, 'Shock') }, 'bob is sent neither name').toEqual({ bolt: false, shock: false });
+    expect(unseenNamed(messages(bob), ['Lightning Bolt', 'Shock']).violations, 'bob is sent neither name').toEqual([]);
   } finally {
     await stack.stop();
   }

@@ -27,7 +27,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
-import { foldStream } from './play/isolation.ts';
+import { foldStream, unseenNamed } from './play/isolation.ts';
 import { dragHandCard, enabledOk, grindPriority, handCardNamed, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -132,9 +132,9 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
       mountainSentToBob: received(bob, 'Mountain'),
       bobTopOnAlice: await topOf(alice.page, 'them'),
       bobTopOnBob: await topOf(bob.page, 'you'),
-      elvesSentToAlice: received(alice, 'Llanowar Elves'),
-      elvesSentToBob: received(bob, 'Llanowar Elves'),
-      angelSentToBob: received(bob, 'Serra Angel'),
+      elvesSentToAlice: unseenNamed(messages(alice), ['Llanowar Elves']).violations,
+      elvesSentToBob: unseenNamed(messages(bob), ['Llanowar Elves']).violations,
+      angelSentToBob: unseenNamed(messages(bob), ['Serra Angel']).violations,
       plainsHeldByBob: held(bob, 'Plains'),
     };
     console.log(`[pp-top] hidden: ${JSON.stringify(leaks)}`);
@@ -143,9 +143,9 @@ test(titled("with Courser of Kruphix the top of alice's library is drawn on both
       mountainSentToBob: true,
       bobTopOnAlice: [],
       bobTopOnBob: [],
-      elvesSentToAlice: false,
-      elvesSentToBob: false,
-      angelSentToBob: false,
+      elvesSentToAlice: [],
+      elvesSentToBob: [],
+      angelSentToBob: [],
       plainsHeldByBob: false,
     });
 

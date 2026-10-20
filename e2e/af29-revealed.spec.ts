@@ -17,10 +17,11 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { messages, type Friend } from './play/browser.ts';
+import { messages } from './play/browser.ts';
 import { clickHandCard, enabledOk, grindPriority, livePrompt, makeTitled, offeredNamed, pressOffered, resizeWindow, says } from './play/board.ts';
 import { passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { unseenNamed } from './play/isolation.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -73,17 +74,6 @@ const geometry = (page: Page, owner: Owner): Promise<string> =>
     return `top@${box(seat?.querySelector('[data-library-top]'))} avatar@${box(seat?.querySelector('[data-player-face]'))}`;
   }, owner);
 
-/** Whether `name` ever reached this browser in a game-state frame. */
-const received = (f: Friend, name: string): boolean =>
-  messages(f)
-    .filter((m) => m.dir === 'in')
-    .flatMap((m) => {
-      const msg = m.msg as { frame?: { method?: string }; frames?: { method?: string }[] } | null;
-      return [...(msg?.frames ?? []), ...(msg?.frame === undefined ? [] : [msg.frame])];
-    })
-    .filter((frame) => frame.method === 'setGameView' || frame.method === 'applyDelta')
-    .some((frame) => JSON.stringify(frame).includes(JSON.stringify(name)));
-
 test(titled("Goblin Guide's revealed top card sits under bob's avatar on both screens, and once drawn stays face up in his hand on alice's"), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
@@ -116,10 +106,10 @@ test(titled("Goblin Guide's revealed top card sits under bob's avatar on both sc
     await grindPriority([alice.page, bob.page], async () => (await handCount(alice.page, 'them')) === 1, { timeoutMs: 90_000 });
     await expect.poll(() => handNames(bob.page, 'you'), { timeout: 10_000, message: 'bob drew Lightning Bolt' }).toEqual(['Lightning Bolt']);
     const drawn = await handNames(alice.page, 'them');
-    const leaks = { shockToAlice: received(alice, 'Shock'), aliceTopOnBob: (await libraryTop(bob.page, 'them')).name, bobTopNow: (await libraryTop(alice.page, 'them')).name };
+    const leaks = { shockToAlice: unseenNamed(messages(alice), ['Shock']).violations, aliceTopOnBob: (await libraryTop(bob.page, 'them')).name, bobTopNow: (await libraryTop(alice.page, 'them')).name };
     console.log(`[af29] after bob's draw: alice's screen draws his hand ${JSON.stringify(drawn)} (says "${(await says(alice.page)).trim()}"); hidden ${JSON.stringify(leaks)}`);
     expect.soft(drawn, "alice's screen draws the drawn Lightning Bolt face up in bob's hand").toEqual(['Lightning Bolt']);
-    expect(leaks, 'what was never revealed is never sent, and nothing unrevealed is drawn on a library').toEqual({ shockToAlice: false, aliceTopOnBob: null, bobTopNow: null });
+    expect(leaks, 'what was never revealed is never sent, and nothing unrevealed is drawn on a library').toEqual({ shockToAlice: [], aliceTopOnBob: null, bobTopNow: null });
   } finally {
     await stack.stop();
   }

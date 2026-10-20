@@ -11,9 +11,10 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { messages, type Friend } from './play/browser.ts';
+import { messages } from './play/browser.ts';
 import { boardCard, clickHandCard, grindPriority, handCardNamed, makeTitled, offered, pressOffered, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { unseenNamed } from './play/isolation.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -33,17 +34,6 @@ const eyed = (page: Page): Promise<string[]> =>
   page
     .locator('.seat[data-viewer] [data-zone="hand"] li.board-card')
     .evaluateAll((els) => els.filter((e) => e.querySelector(':scope > .board-card__tags > [data-seen]') !== null).map((e) => e.querySelector('.card__name')?.textContent?.trim() ?? '').sort());
-
-/** Whether `name` ever reached this browser in a game-state frame. */
-const received = (f: Friend, name: string): boolean =>
-  messages(f)
-    .filter((m) => m.dir === 'in')
-    .flatMap((m) => {
-      const msg = m.msg as { frame?: { method?: string }; frames?: { method?: string }[] } | null;
-      return [...(msg?.frames ?? []), ...(msg?.frame === undefined ? [] : [msg.frame])];
-    })
-    .filter((frame) => frame.method === 'setGameView' || frame.method === 'applyDelta')
-    .some((frame) => JSON.stringify(frame).includes(JSON.stringify(name)));
 
 test(titled("Unsummon: bob's bounced Grizzly Bears stays face up in his hand on alice's screen, with the eye on bob's, through his next turn"), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -87,10 +77,11 @@ test(titled("Unsummon: bob's bounced Grizzly Bears stays face up in his hand on 
     await grindPriority([page, bob.page], async () => (await theirHand(page)).count === 3, { timeoutMs: 90_000 });
     const drawn = await theirHand(page);
     const eye = await eyed(bob.page);
-    const leaks = { mountainToAlice: received(alice, 'Mountain') };
-    console.log(`[kh] after bob's draw: alice's screen draws bob's hand ${JSON.stringify(drawn)}; bob's eye on ${JSON.stringify(eye)}; hidden ${JSON.stringify(leaks)}`);
+    const hidden = unseenNamed(messages(alice), ['Mountain']);
+    console.log(`[kh] after bob's draw: alice's screen draws bob's hand ${JSON.stringify(drawn)}; bob's eye on ${JSON.stringify(eye)}; bob's Mountains sent to alice ${JSON.stringify(hidden)}`);
     expect({ drawn, eye }, 'still known on bob’s turn, and nothing else is').toEqual({ drawn: { names: ['Grizzly Bears'], count: 3 }, eye: ['Grizzly Bears'] });
-    expect(leaks, 'what alice never saw is never sent').toEqual({ mountainToAlice: false });
+    expect(hidden.closedCards, 'the check looked at bob\'s hidden cards').toBeGreaterThan(0);
+    expect(hidden.violations, 'what alice never saw is never sent').toEqual([]);
   } finally {
     await stack.stop();
   }
