@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { powerEase } from '../motion.ts';
-import { alignOf, BLAST_MS, chargeControl, fanOf, contactMs, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset } from './ram.ts';
+import { alignOf, BLAST_MS, chargeControl, contactMs, fanOf, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset } from './ram.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -92,14 +92,16 @@ describe('alignOf', () => {
 describe('fanOf', () => {
   const player = { x: 100, y: 0, w: 40, h: 40 };
   const row = [0, 1, 2, 3].map((i) => ({ x: 60 + i * 82, y: 400, w: 84, h: 60 }));
+  const table = { x: 640, y: 380, w: 1280, h: 760 };
+  const big = table;
   it('one charger draws straight back from the player', () => {
-    const [at] = fanOf([row[0]!], player, 'k');
+    const [at] = fanOf([row[0]!], player, 'k', table);
     const away = { x: row[0]!.x - player.x, y: row[0]!.y - player.y };
     expect(at!.x * away.y - at!.y * away.x, 'along its own line').toBeCloseTo(0);
     expect(at!.x * away.x + at!.y * away.y, 'away from them').toBeGreaterThan(0);
   });
   it('a pack draws back from the player in the order it stands, spread just enough that no two are closer than a card’s longest side', () => {
-    const at = fanOf(row, player, 'k');
+    const at = fanOf(row, player, 'k', table);
     const spots = row.map((b, i) => ({ x: b.x + at[i]!.x, y: b.y + at[i]!.y }));
     for (let i = 0; i < spots.length; i++)
       for (let j = i + 1; j < spots.length; j++) expect(Math.hypot(spots[i]!.x - spots[j]!.x, spots[i]!.y - spots[j]!.y), `${i} and ${j} apart`).toBeGreaterThan(84);
@@ -108,6 +110,46 @@ describe('fanOf', () => {
     expect(order(spots), 'no paths cross: the order they stood in').toEqual(order(row));
     row.forEach((b, i) => expect(Math.hypot(spots[i]!.x - player.x, spots[i]!.y - player.y), `${i} drawn back from the player`).toBeGreaterThan(Math.hypot(b.x - player.x, b.y - player.y)));
   });
+  /*
+   * The operator, 2026-10-20: "with a very large number of creatures (15+) they fan out in a circle around
+   * the opponent, but they should fan out in a cone around the opponent, towards the visible part of the
+   * board." Then: "cone is maybe the wrong word. just keep the creatures on the board." Up to thirty
+   * attackers in two rows, at the other seat's avatar (the top of the left bar), at ours (its bottom), at
+   * an avatar in the middle of the top edge, and at a planeswalker at the left of the other seat's row.
+   */
+  const card = { w: 84, h: 60 };
+  const rows = (n: number, ys: readonly number[], size = card, per = 13): { x: number; y: number; w: number; h: number }[] =>
+    Array.from({ length: n }, (_, i) => ({ x: 130 + (i % per) * (size.w + 4), y: ys[Math.floor(i / per) % ys.length]!, ...size }));
+  const cases = [
+    { name: 'the other seat’s avatar', to: { x: 34, y: 40, w: 56, h: 56 }, ys: [520, 620] },
+    { name: 'our avatar', to: { x: 34, y: 720, w: 56, h: 56 }, ys: [240, 140] },
+    { name: 'an avatar mid-edge', to: { x: 640, y: 36, w: 56, h: 56 }, ys: [520, 620] },
+    { name: 'a planeswalker at the left of the other seat’s row', to: { x: 130, y: 200, w: 60, h: 84 }, ys: [520, 620] },
+    // As a claw measured it (`cp-pack-ram`): a 896×633 table, each avatar at the inner end of its bar.
+    { name: 'the other seat’s avatar on a small table', to: { x: 51, y: 253, w: 56, h: 56 }, ys: [420, 480, 540], table: { x: 448, y: 316.5, w: 896, h: 633 }, size: { w: 56, h: 40 }, per: 12 },
+    { name: 'our avatar on a small table', to: { x: 51, y: 364, w: 56, h: 56 }, ys: [200, 140, 80], table: { x: 448, y: 316.5, w: 896, h: 633 }, size: { w: 56, h: 40 }, per: 12 },
+  ];
+  for (const c of cases)
+    for (const n of [15, 20, 26, 30])
+      it(`${n} chargers at ${c.name} form up on the board’s side of it, all on the table, none on top of another`, () => {
+        const table = c.table ?? big;
+        const froms = rows(n, c.ys, c.size, c.per);
+        const at = fanOf(froms, c.to, 'k', table);
+        const spots = froms.map((b, i) => ({ x: b.x + at[i]!.x, y: b.y + at[i]!.y }));
+        // Measured from straight toward the board: down from a target above the table's middle, up from one below it.
+        const board = c.to.y < table.y ? Math.PI / 2 : -Math.PI / 2;
+        const off = spots.map((p) => (((Math.atan2(p.y - c.to.y, p.x - c.to.x) - board + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) * (180 / Math.PI));
+        off.forEach((deg, i) => expect(Math.abs(deg), `${i} on the board's side of the target`).toBeLessThanOrEqual(90));
+        const longest = Math.max(froms[0]!.w, froms[0]!.h);
+        spots.forEach((p, i) => {
+          expect(p.x - longest / 2, `${i} not off the table's left`).toBeGreaterThanOrEqual(table.x - table.w / 2);
+          expect(p.x + longest / 2, `${i} not off its right`).toBeLessThanOrEqual(table.x + table.w / 2);
+          expect(p.y - longest / 2, `${i} not off its top`).toBeGreaterThanOrEqual(table.y - table.h / 2);
+          expect(p.y + longest / 2, `${i} not off its bottom`).toBeLessThanOrEqual(table.y + table.h / 2);
+        });
+        for (let i = 0; i < spots.length; i++)
+          for (let j = i + 1; j < spots.length; j++) expect(Math.hypot(spots[i]!.x - spots[j]!.x, spots[i]!.y - spots[j]!.y), `${i} and ${j} apart`).toBeGreaterThan(longest);
+      });
 });
 
 describe('punchAt', () => {

@@ -9,7 +9,13 @@
  *   avatar (`.board-ram`), the blow lands (`.effect-crash`), and only then does alice's life drop; the
  *   result screen comes once the charge is over — never before the Giant has moved. While a copy
  *   charges, the attacker's own card is not drawn in its row; no "lost" is drawn anywhere; and each
- *   screen hears the charge, the blow, the life lost and the end.
+ *   screen hears the charge, the blow, the life lost and the end. Every charger forms up whole on the
+ *   table, on the board's side of alice's avatar, no two on top of each other — read from each copy's
+ *   own wind-up (its first animation's last keyframe).
+ * - `cp-pack-ram`: the same with sixteen Grizzly Bears at alice on 32 life (the operator, 2026-10-20:
+ *   "with a very large number of creatures (15+) they fan out in a circle around the opponent, but they
+ *   should fan out in a cone around the opponent, towards the visible part of the board"; then "cone is
+ *   maybe the wrong word. just keep the creatures on the board.").
  * - `cp-lethal-bolt`: alice bolts bob at 3 life. The bolt flies (`.effect-hit`), lands
  *   (`.effect-impact`), bob's life drops, and only then the result screen.
  *
@@ -46,13 +52,18 @@ interface Marks {
   /** The first moment a "lost" word was drawn anywhere on the page. */
   lostText?: number;
   lostAt?: string;
+  /** Where each charger's copy formed up before it flew: its centre and size, in the overlay's coordinates. */
+  fan?: { x: number; y: number; w: number; h: number }[];
+  /** The overlay's size (the visible table) and the struck avatar's centre in it, as the copies were made. */
+  table?: { w: number; h: number };
+  face?: { x: number; y: number };
 }
 
 /** Start recording, on `page`, when each mark first appears and when the life of `playerSide` first moves off `lifeFrom`. */
 async function recordMarks(page: Page, playerSide: 'viewer' | 'opponent', lifeFrom: string): Promise<void> {
   await page.evaluate(
     ([side, from]) => {
-      const marks: Record<string, number | string> = {};
+      const marks: Record<string, unknown> = {};
       (window as unknown as { __cpMarks: typeof marks }).__cpMarks = marks;
       const life = (): string | null =>
         document.querySelector(`[data-player-face]${side === 'viewer' ? '[data-viewer]' : ':not([data-viewer])'} [data-testid="life"]`)?.textContent ?? null;
@@ -83,10 +94,27 @@ async function recordMarks(page: Page, playerSide: 'viewer' | 'opponent', lifeFr
         const r = el.getBoundingClientRect();
         return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
       };
+      // A charger's copy forms up with its first animation, the wind-up: its last keyframe is its place in the fan.
+      const formed = (c: HTMLElement): void => {
+        const o = document.querySelector('[data-board-overlay]')?.getBoundingClientRect();
+        const f = document.querySelector(`[data-player-face]${side === 'viewer' ? '[data-viewer]' : ':not([data-viewer])'}`)?.getBoundingClientRect();
+        const frames = c.getAnimations()[0]?.effect instanceof KeyframeEffect ? (c.getAnimations()[0]!.effect as KeyframeEffect).getKeyframes() : [];
+        const to = /(-?[\d.]+)px (-?[\d.]+)px/.exec(String(frames[frames.length - 1]?.translate ?? ''));
+        if (o === undefined || f === undefined || to === null) return;
+        const w = c.offsetWidth;
+        const h = c.offsetHeight;
+        marks.fan = [...((marks.fan as unknown[] | undefined) ?? []), { x: parseFloat(c.style.left) + w / 2 + Number(to[1]), y: parseFloat(c.style.top) + h / 2 + Number(to[2]), w, h }];
+        marks.table = { w: o.width, h: o.height };
+        marks.face = { x: f.left - o.left + f.width / 2, y: f.top - o.top + f.height / 2 };
+      };
       const frame = (): void => {
         const now = Date.now();
-        const copies = [...document.querySelectorAll('.board-ram')];
-        for (const c of copies) if (!born.has(c)) born.set(c, now);
+        const copies = [...document.querySelectorAll<HTMLElement>('.board-ram')];
+        for (const c of copies)
+          if (!born.has(c)) {
+            born.set(c, now);
+            formed(c);
+          }
         const settled = copies.filter((c) => now - born.get(c)! > 100).length;
         const hidden = [...document.querySelectorAll('[data-ramming]')].filter((el) => el.isConnected && !visible(el)).length;
         if (settled > 0 && hidden < settled && marks.dupe === undefined) {
@@ -158,9 +186,34 @@ function resyncs(friend: Friend): number {
   return friend.captures.filter((c) => c.dir === 'out' && c.text.includes('"forge:resync"')).length;
 }
 
-/** Every recorded moment as ms after `zero`, for the evidence line. */
-function relative(zero: number, at: Record<string, number | string | undefined>): Record<string, number | string | null> {
-  return Object.fromEntries(Object.entries(at).map(([k, v]) => [k, typeof v === 'number' ? v - zero : (v ?? null)]));
+/**
+ * The pack formed up on the board: every charger whole on the table (the overlay), on the board's side of
+ * the struck avatar, and no two closer than a card's longest side. `[cp] fan` is the evidence.
+ */
+function formation(who: string, marks: Marks, pack: number): void {
+  const fan = marks.fan ?? [];
+  const { table, face } = marks;
+  console.log(`[cp] fan ${who} table=${JSON.stringify(table)} face=${JSON.stringify(face)} spots=${JSON.stringify(fan.map((p) => [Math.round(p.x), Math.round(p.y)]))}`);
+  expect(fan.length, `${who}: every charger formed up`).toBe(pack);
+  if (table === undefined || face === undefined) return;
+  const longest = Math.max(...fan.map((p) => Math.max(p.w, p.h)));
+  const board = face.y < table.h / 2 ? 90 : -90;
+  const off = fan.map((p) => ((((Math.atan2(p.y - face.y, p.x - face.x) * 180) / Math.PI - board + 540) % 360) - 180));
+  fan.forEach((p, i) => {
+    expect.soft(Math.abs(off[i]!), `${who}: charger ${i} formed up on the board's side of the avatar`).toBeLessThanOrEqual(90);
+    expect.soft(p.x - longest / 2, `${who}: charger ${i} not off the table's left`).toBeGreaterThanOrEqual(-1);
+    expect.soft(p.x + longest / 2, `${who}: charger ${i} not off its right`).toBeLessThanOrEqual(table.w + 1);
+    expect.soft(p.y - longest / 2, `${who}: charger ${i} not off its top`).toBeGreaterThanOrEqual(-1);
+    expect.soft(p.y + longest / 2, `${who}: charger ${i} not off its bottom`).toBeLessThanOrEqual(table.h + 1);
+  });
+  for (let i = 0; i < fan.length; i++)
+    for (let j = i + 1; j < fan.length; j++)
+      expect.soft(Math.hypot(fan[i]!.x - fan[j]!.x, fan[i]!.y - fan[j]!.y), `${who}: chargers ${i} and ${j} apart`).toBeGreaterThan(longest);
+}
+
+/** Every recorded moment as ms after `zero`, and every recorded word, for the evidence line (the fan has its own). */
+function relative(zero: number, at: Record<string, unknown>): Record<string, number | string | null> {
+  return Object.fromEntries(Object.entries(at).flatMap(([k, v]): [string, number | string | null][] => (typeof v === 'number' ? [[k, v - zero]] : typeof v === 'string' || v === undefined ? [[k, v ?? null]] : [])));
 }
 
 /**
@@ -168,7 +221,7 @@ function relative(zero: number, at: Record<string, number | string | undefined>)
  * the scenario; on `cr-lethal-declared` alice, the viewer, declares hers by hand — they tap, as the
  * operator's own last attack did — and bob has nothing to block with.
  */
-async function lethalCharge(browser: Browser, jar: { jar: string; res: string }, scenario: string, attacker: 'alice' | 'bob'): Promise<void> {
+async function lethalCharge(browser: Browser, jar: { jar: string; res: string }, scenario: string, attacker: 'alice' | 'bob', pack = 2, life = '5'): Promise<void> {
   const stack = await startPlayStack(jar);
   let seated: Awaited<ReturnType<typeof startScenarioMatch>> | null = null;
   try {
@@ -177,15 +230,15 @@ async function lethalCharge(browser: Browser, jar: { jar: string; res: string },
     await turnFastModeOff(alice.page, stack, 0);
     await turnFastModeOff(bob.page, stack, 1);
     const defender = attacker === 'bob' ? 'alice' : 'bob';
-    await recordMarks(alice.page, defender === 'alice' ? 'viewer' : 'opponent', '5');
-    await recordMarks(bob.page, defender === 'bob' ? 'viewer' : 'opponent', '5');
+    await recordMarks(alice.page, defender === 'alice' ? 'viewer' : 'opponent', life);
+    await recordMarks(bob.page, defender === 'bob' ? 'viewer' : 'opponent', life);
     const zero = Date.now();
 
     if (attacker === 'bob') await passDeclareAttackers(bob.page);
     else {
       await passToDeclareAttackers(alice.page);
       const creatures = alice.page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card[data-selectable]');
-      await expect(creatures, 'both creatures are offered to attack').toHaveCount(2, { timeout: 10_000 });
+      await expect(creatures, 'every creature is offered to attack').toHaveCount(pack, { timeout: 10_000 });
       for (const id of await creatures.evaluateAll((els) => els.map((el) => Number(el.getAttribute('data-board-card'))))) {
         const card = alice.page.locator(`[data-board-card="${id}"]`);
         const box = (await card.boundingBox())!;
@@ -225,6 +278,7 @@ async function lethalCharge(browser: Browser, jar: { jar: string; res: string },
       expect.soft(resyncs(friend), `${who}: the end never sends the screen back for a resync`).toBe(0);
       // "weird [lost] text appears, we dont need that".
       expect.soft(marks.lostText, `${who}: no "lost" drawn (${marks.lostAt ?? ''})`).toBeUndefined();
+      formation(who, marks, pack);
     }
     // "sound effects didn't trigger as expected": the charge, the blow, the life lost, and the end, on each screen.
     for (const [who, seat] of [['alice', 0], ['bob', 1]] as const) {
@@ -258,6 +312,16 @@ test(
     if (!forge.ok) return;
     test.setTimeout(3 * 60_000);
     await lethalCharge(browser, forge, 'cr-lethal-declared', 'alice');
+  },
+);
+
+test(
+  titled('a pack of sixteen forms up on the board, every charger on the table and none on top of another'),
+  async ({ browser }) => {
+    test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+    if (!forge.ok) return;
+    test.setTimeout(3 * 60_000);
+    await lethalCharge(browser, forge, 'cp-pack-ram', 'bob', 16, '32');
   },
 );
 

@@ -1,0 +1,19 @@
+# e2e/cp-lethal-blow.spec.ts — a pack of sixteen charges (the operator, 2026-10-20: "with a very large
+# number of creatures (15+) they fan out in a circle around the opponent, but they should fan out in a cone
+# around the opponent, towards the visible part of the board"; then "cone is maybe the wrong word. just keep
+# the creatures on the board."). bob (ai, seat 1) is the active player with
+# sixteen Grizzly Bears (2/2) already attacking alice (human, seat 0), who is at 32 life with nothing to
+# block with: their combat damage is exactly lethal. Otherwise `cp-lethal-ram.state`, and for its reasons.
+turn=1
+activeplayer=ai
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=32
+ailife=20
+humanhand=
+humanbattlefield=Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Lightning Bolt
+aibattlefield=Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Grizzly Bears|Attacking;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
