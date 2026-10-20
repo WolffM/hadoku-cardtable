@@ -22,6 +22,18 @@
  */
 export const ZONE_BOXES = '.seat > .zone--battlefield, .seat > .zone--hand, .zone__row, .seat .zone--graveyard, .seat .zone--exile, .seat .zone--library';
 
+/**
+ * A pile's own card, measured too: its width is the column the grid gave it, which a crowded row
+ * squeezes well under the row's `--card-w`, and its badges are sized from it (`card.css`'s
+ * `--card-drawn-w`). Nothing that reads it changes the card's own box: the badges are out of flow.
+ */
+export const CARD_BOXES = '.board-card[data-pile-size]';
+
+/** A card's drawn width, written; exported for the tests. */
+export function writeCardBox(el: HTMLElement, width: number): void {
+  el.style.setProperty('--card-drawn-w', `${width}px`);
+}
+
 /** The bands `board.css` steps on, widest first. */
 const ASPECT_BANDS = [10, 8, 6, 5, 4, 3] as const;
 
@@ -44,11 +56,16 @@ export interface ZoneBoxes {
 export function observeZoneBoxes(): ZoneBoxes | null {
   if (typeof ResizeObserver === 'undefined') return null;
   const observed = new Set<Element>();
+  const cards = new Set<Element>();
+  const write = (el: HTMLElement, width: number, height: number): void => {
+    if (cards.has(el)) writeCardBox(el, width);
+    else writeZoneBox(el, width, height);
+  };
   // Read from the entries alone, then written in one pass: no layout read after a write.
   const observer = new ResizeObserver((entries) => {
     for (const entry of entries) {
       const box = entry.contentBoxSize[0];
-      if (box !== undefined && entry.target instanceof HTMLElement) writeZoneBox(entry.target, box.inlineSize, box.blockSize);
+      if (box !== undefined && entry.target instanceof HTMLElement) write(entry.target, box.inlineSize, box.blockSize);
     }
   });
   const onResize = (): void => {
@@ -58,17 +75,19 @@ export function observeZoneBoxes(): ZoneBoxes | null {
       const pad = (a: string, b: string): number => (Number.parseFloat(style.getPropertyValue(a)) || 0) + (Number.parseFloat(style.getPropertyValue(b)) || 0);
       return { el, width: el.clientWidth - pad('padding-left', 'padding-right'), height: el.clientHeight - pad('padding-top', 'padding-bottom') };
     });
-    for (const { el, width, height } of measured) writeZoneBox(el, width, height);
+    for (const { el, width, height } of measured) write(el, width, height);
   };
   window.addEventListener('resize', onResize);
   return {
     sync(root) {
       for (const el of observed) {
-        if (el.isConnected) continue;
+        if (el.isConnected && (!cards.has(el) || el.matches(CARD_BOXES))) continue;
         observer.unobserve(el);
         observed.delete(el);
+        cards.delete(el);
       }
-      for (const el of root.querySelectorAll(ZONE_BOXES)) {
+      for (const el of root.querySelectorAll(CARD_BOXES)) cards.add(el);
+      for (const el of root.querySelectorAll(`${ZONE_BOXES}, ${CARD_BOXES}`)) {
         if (observed.has(el)) continue;
         observed.add(el);
         observer.observe(el);
@@ -78,6 +97,7 @@ export function observeZoneBoxes(): ZoneBoxes | null {
       window.removeEventListener('resize', onResize);
       observer.disconnect();
       observed.clear();
+      cards.clear();
     },
   };
 }
