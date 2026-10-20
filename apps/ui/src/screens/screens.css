@@ -400,13 +400,6 @@
   padding-right: 36px;
 }
 
-.pod__bar--side .pod__invite {
-  flex: none;
-}
-
-.pod__bar--side .pod__invite-url {
-  width: 100%;
-}
 
 .pod__who {
   display: flex;
@@ -439,36 +432,22 @@
   background: var(--color-success);
 }
 
-.pod__invite {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 1 340px;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.pod__invite-url {
-  flex: 1 1 200px;
-  min-width: 0;
-  background: var(--color-bg-alt);
-  color: var(--color-text);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--hdk-radius);
-  padding: 7px 9px;
-  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.pod__invite button {
-  background: var(--color-bg-hover);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--hdk-radius);
+/* The leader's Close: the pod bar's own button size, not a room header's small one. */
+.pod__bar .room-close {
+  align-self: center;
   padding: 7px 14px;
+  font-size: inherit;
+  line-height: inherit;
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-light);
 }
 
-.pod__invite-said {
-  color: var(--color-text-secondary);
-  font-size: 12px;
+.pod__bar .room-close--danger {
+  border-color: var(--danger);
+}
+
+.pod__bar .room-close__ask {
+  align-self: center;
 }
 
 .pod__error {

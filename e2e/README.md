@@ -87,8 +87,8 @@ display name, which is `e2e-alice` (`identities.ts`).
   and lands on `#/room/<id>`; the old "Start a pod" button and paste-an-id box
   are asserted **absent**. Bob opens the front page and enters that same room
   from the **room list**, located by its `data-room-id`. Neither of them ever
-  types or pastes an id. The pod's `invite-url` is the room's own url, which is
-  what keeps "an invite link still works" honest — and alice's mid-draft reload
+  types or pastes an id. The pod is drawn at the room's own url, which is
+  what keeps "a room's link still works" honest — and alice's mid-draft reload
   of that url is the end-to-end proof that following it lands you back in your
   seat.
 - **The readiness gate.** Joining deals nothing. With bob already a member and

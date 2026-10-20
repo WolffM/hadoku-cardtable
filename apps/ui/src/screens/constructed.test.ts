@@ -2216,11 +2216,9 @@ describe('a draft room', () => {
 
     expect(screen.getByTestId('pod-seats')).toBeTruthy();
     expect(screen.getByTestId('pod-waiting')).toBeTruthy();
-    expect(screen.getByTestId('copy-invite')).toBeTruthy();
-    // The invite is the ROOM's url — there is no pod route to point at.
-    const invite = screen.getByTestId('invite-url') as HTMLInputElement;
-    expect(invite.value.endsWith(`#/room/${ROOM}`)).toBe(true);
-    expect(invite.value).not.toContain('#/draft/');
+    // No invite link and no copy button: the operator, 2026-10-20 — "useless".
+    expect(screen.queryByTestId('copy-invite')).toBeNull();
+    expect(screen.queryByTestId('invite-url')).toBeNull();
 
     // The lobby phase is gone, and the constructed table never appeared.
     expect(screen.queryByTestId('draft-lobby')).toBeNull();

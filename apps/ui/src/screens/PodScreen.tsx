@@ -67,7 +67,7 @@ import { initialState, type TableState } from '../draft/table.ts';
 import { DraftScreen } from '../components/DraftScreen.tsx';
 import type { PackLayout } from '../components/PackView.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
-import { appLocation, navigate, routeUrl } from './route.ts';
+import { navigate } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import type { RoomTable } from '@hadoku/shared';
 import { livePodSource, startMyTable, usePodContext, type PodContext, type PodSource } from './pod/client.ts';
@@ -81,7 +81,7 @@ import { roomsClient } from '../rooms/api.ts';
 import './PodScreen.css';
 
 export interface PodScreenProps {
-  /** The ROOM's id. The draft runs against it, and the invite link points at it. */
+  /** The ROOM's id. The draft runs against it. */
   draftId: string;
   /** Tests pass a stub. Production leaves it undefined and gets socket.io. */
   makeTransport?: () => DraftTransport;
@@ -135,19 +135,6 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
       setDraft(null);
     };
   }, [draftId, makeTransport]);
-
-  /**
-   * The invite is the ROOM's url, not a pod's.
-   *
-   * There is no pod route any more, and `#/room/<id>` is the link that works in
-   * both phases: before the draft is dealt it lands a friend in the lobby where
-   * they can ready up, and after it is dealt it lands them in this pod, where
-   * they evict a bot. One link, whenever it is clicked.
-   */
-  const link = useMemo(
-    () => routeUrl({ kind: 'room', roomId: draftId }, appLocation()),
-    [draftId],
-  );
 
   const view = table?.view ?? null;
   const seats = view?.seats ?? [];
@@ -251,7 +238,6 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
         open={open}
       />
 
-      <Invite url={link} />
       {ctx?.leader === true && <CloseRoom roomId={draftId} rooms={closeClient} />}
       <SettingsGear />
     </>
@@ -393,54 +379,6 @@ function PodSeats(props: PodSeatsProps) {
         <span className="pod__tally" data-testid="pod-tally">
           {humans} {humans === 1 ? 'person' : 'people'} · {bots} {bots === 1 ? 'bot' : 'bots'}
           {open === 0 ? '' : ` · ${open} open`}
-        </span>
-      )}
-    </div>
-  );
-}
-
-/* ── the link you send ───────────────────────────────────────────────── */
-
-/**
- * The invite.
- *
- * A read-only input rather than a bare string, because the fallback when the
- * clipboard is unavailable — and it is unavailable over plain HTTP, in older
- * browsers, and whenever permission is refused — has to be "select it and copy
- * it yourself", which needs a real input to select.
- */
-function Invite({ url }: { url: string }) {
-  const [said, setSaid] = useState<string | null>(null);
-
-  const copy = (): void => {
-    const write = globalThis.navigator?.clipboard?.writeText;
-    if (write === undefined) {
-      setSaid('Select the link and copy it.');
-      return;
-    }
-    write
-      .call(globalThis.navigator.clipboard, url)
-      .then(() => setSaid('Copied.'))
-      .catch(() => setSaid('Select the link and copy it.'));
-  };
-
-  return (
-    <div className="pod__invite">
-      <input
-        id="invite-url"
-        data-testid="invite-url"
-        className="pod__invite-url"
-        aria-label="Invite link"
-        readOnly
-        value={url}
-        onFocus={(e) => e.currentTarget.select()}
-      />
-      <button type="button" data-testid="copy-invite" onClick={copy}>
-        Copy
-      </button>
-      {said !== null && (
-        <span className="pod__invite-said" role="status">
-          {said}
         </span>
       )}
     </div>

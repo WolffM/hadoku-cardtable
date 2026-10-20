@@ -597,12 +597,10 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   await expect(alice.page.getByTestId('pod-tally')).toHaveText('2 people · 6 bots', { timeout: UI_TIMEOUT });
   await expect(bob.page.getByTestId('pod-tally')).toHaveText('2 people · 6 bots', { timeout: UI_TIMEOUT });
 
-  // §C's "an invite link still works": the pod's invite is the ROOM's url —
-  // the same url alice's mid-draft refresh reloads below, which is the
-  // end-to-end proof that following it lands you back in your seat.
-  expect(await alice.page.getByTestId('invite-url').inputValue()).toBe(
-    `${EDGE_ORIGIN}${PREFIX}/#/room/${roomId}`,
-  );
+  // §C's "a room's link still works": the pod is the ROOM's url — the same url
+  // alice's mid-draft refresh reloads below, which is the end-to-end proof that
+  // following it lands you back in your seat.
+  expect(alice.page.url()).toBe(`${EDGE_ORIGIN}${PREFIX}/#/room/${roomId}`);
 
   // Alice's view must have caught bob's arrival before the seat table is read.
   await expect

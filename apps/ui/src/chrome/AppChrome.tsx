@@ -154,14 +154,11 @@
  *    there, but it means a screen's navigation is not a prop, and a wrapper
  *    that owns routing has to meet it. The watchparty embed (D21) meets it
  *    with `routeInMemory`, which takes the router off the address bar.
- * 3. **`screens/PodScreen.tsx` reads `navigator.clipboard` directly** for
- *    the copy button, optional-chained, so it does not crash a host without
- *    it. Its invite URL now comes from `route.ts`'s `appLocation()`.
- * 4. **`rooms/RoomList.tsx` subscribes to `document.visibilitychange`** in
+ * 3. **`rooms/RoomList.tsx` subscribes to `document.visibilitychange`** in
  *    the effect that drives its poll, to stop polling on a hidden tab.
  *    Page-visibility is the shell's fact, not a list's. (No line numbers:
  *    lane C is rewriting that file in this same wave.)
- * 5. **`screens/tables.ts` (:127) and `screens/LobbyScreen.tsx` read
+ * 4. **`screens/tables.ts` (:127) and `screens/LobbyScreen.tsx` read
  *    `import.meta.env`** — `BASE_URL` for the api base, `DEV` for a
  *    dev-only affordance. Build-time, not runtime, and both optional-chain.
  *    Named so a wrapper that changes the base path knows where it is read.
