@@ -62,6 +62,7 @@ import {
 } from './match.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 import { BAR_HOLD_MAX_MS } from './bar-hold.ts';
+import { diffViews, planRams } from './numbers.ts';
 import { MATCH_EVENTS, parseMatchAck, parseServerEnvelope } from './transport.ts';
 
 const FRAMES = fixtureFrames();
@@ -2937,6 +2938,27 @@ describe('damage — the bridge’s own hits', () => {
     ]);
     await sendAndApply(s, m, [phase('MAIN2', m.view!.players.find((p) => p.isViewer)!.id)]);
     expect(m.view!.hits?.map((h) => h.seq), 'an event list: kept, and never drawn twice (numbers reads above the last seq)').toEqual([1, 2]);
+  });
+
+  it('a snapshot after a fight (a reconnect, a resync) brings none of its hits back as new: the board does not ram again', async () => {
+    const { s, m } = await fullGame();
+    const viewer = m.view!.players.find((p) => p.isViewer)!;
+    const id = viewer.battlefield[0]!.id;
+    await sendAndApply(s, m, [applyDeltaWith({ damage: [[id, 131, 3]], faceDamage: [[viewer.id, 131, 2, true]] })]);
+    const before = m.view!;
+    expect(diffViews(null, before).hits, 'the first view a board sees draws nothing').toEqual([]);
+
+    s.lose(applyDeltaWith({}));
+    s.send(applyDeltaWith({}));
+    await until('the resync snapshot', () => m.stats.snapshots === 2);
+    const after = m.view!;
+    const replayed = diffViews(before, after);
+    expect(replayed.hits, 'the snapshot’s history holds the fight, which already happened').toEqual([]);
+    expect(replayed.faceHits).toEqual([]);
+    expect(planRams(replayed.hits, replayed.faceHits, () => true).rams, "no creature rams").toEqual([]);
+
+    await sendAndApply(s, m, [applyDeltaWith({ damage: [[id, -1, 1]] })]);
+    expect(diffViews(after, m.view!).hits.map((h) => h.amount), 'a hit after the snapshot is drawn').toEqual([1]);
   });
 });
 

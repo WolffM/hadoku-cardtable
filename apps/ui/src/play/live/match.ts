@@ -2739,7 +2739,13 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   unspend(match);
   match.lastError = null;
   match.lastInvalid = null;
-  foldFrames(match, snapshot.frames);
+  // A snapshot's history holds every fight this game has had, all of them drawn already, or (a fresh
+  // page) none of them owed: its damage is not news. Re-noting it would number it above every hit
+  // the board has seen, and a board still mounted across a reconnect would ram the last fight again.
+  // `nextHitSeq` keeps counting, so the first hit after the snapshot is still above them all.
+  match.hits = [];
+  match.faceHits = [];
+  foldFrames(match, snapshot.frames, 'history');
   match.stats.snapshots += 1;
 
   const held = match.buffer;
@@ -2801,8 +2807,11 @@ function statePacket(match: LiveMatch): WirePacket & {
  * `applyDelta` folds on top. `openView` names the seats this client controls,
  * which the snapshot already said — a disagreement is an identity bug on the
  * server, and is surfaced rather than silently resolved either way.
+ *
+ * A snapshot's frames are `history`: their state folds, their damage is no
+ * hit to draw (`adoptSnapshot`).
  */
-function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
+function foldFrames(match: LiveMatch, frames: readonly ServerFrame[], source: 'live' | 'history'): void {
   let packets: unknown[] = match.state.size > 0 ? [statePacket(match)] : [];
   let changed = false;
   for (const frame of frames) {
@@ -2831,9 +2840,9 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[]): void {
     } else if (frame.method === 'applyDelta') {
       const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet, damage, deaths, faceDamage } = frame.payload;
       packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet });
-      if (damage !== undefined) noteHits(match, damage);
+      if (damage !== undefined && source === 'live') noteHits(match, damage);
       if (deaths !== undefined) noteDeaths(match, deaths);
-      if (faceDamage !== undefined) noteFaceHits(match, faceDamage);
+      if (faceDamage !== undefined && source === 'live') noteFaceHits(match, faceDamage);
       changed = true;
     } else if (frame.method === 'openView') {
       const mine = frame.payload.myPlayers;
@@ -3215,7 +3224,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.weaklySelectable = null;
     match.weaklySelectableManaOnly = null;
   }
-  foldFrames(match, [frame]);
+  foldFrames(match, [frame], 'live');
 }
 
 /** How long a refused card is marked ({@link LiveMatch.refused}). */
