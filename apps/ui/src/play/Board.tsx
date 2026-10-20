@@ -2172,8 +2172,9 @@ function CardTags({
   const cost = held?.cost;
   const flash = held?.flash;
   if (choices.length === 0 && waiting.length === 0 && keywords.length === 0 && cost === undefined && flash === undefined && !seen) return null;
+  const waits = sameMarks(waiting, (w) => w.kind).map((group) => ({ kind: group[0]!.kind, count: group.length, tip: listed(group.map(waitingTip)) }));
   const said = [
-    ...waiting.map(waitingTip),
+    ...waits.map((w) => w.tip),
     ...(cost === undefined ? [] : [`costs ${cost.tokens.join(' ')}`]),
     ...choices.map(choiceTip),
     ...(flash === undefined ? [] : ['Flash']),
@@ -2182,11 +2183,16 @@ function CardTags({
   ];
   return (
     <ul className="board-card__tags" aria-label={`${entry.card.name}: ${said.join('; ')}`}>
-      {waiting.map((w, i) => (
-        <li key={`${w.kind}:${i}`} className="board-card__tag" data-effect={w.kind} data-tip={waitingTip(w)}>
+      {waits.map((w) => (
+        <li key={w.kind} className="board-card__tag" data-effect={w.kind} data-count={w.count > 1 ? w.count : undefined} data-tip={w.tip}>
           <svg className="board-card__effect-glyph" viewBox="0 0 16 16" focusable="false" aria-hidden="true">
             <path d="M4 1h8v1.5c0 2-1.4 3.6-3 4.5v2c1.6.9 3 2.5 3 4.5V15H4v-1.5c0-2 1.4-3.6 3-4.5V7C5.4 6.1 4 4.5 4 2.5Z" />
           </svg>
+          {w.count > 1 && (
+            <span className="board-card__tag-count" aria-hidden="true">
+              {w.count}
+            </span>
+          )}
         </li>
       ))}
       {cost !== undefined && (
@@ -2223,6 +2229,26 @@ function CardTags({
       ))}
     </ul>
   );
+}
+
+/**
+ * The operator, 2026-10-20: *"once the white hourglass happens more than once, let's just display it
+ * once and show a number next to it that we increment rather than continuing to stack the icon
+ * lower."* Marks that draw the same (`key`) are one group, in the order each first appears, so the
+ * card wears one mark per kind and a count beside it; Kappa Cannoneer's third "can't be blocked this
+ * turn" is a 3, not a third hourglass down the card.
+ */
+function sameMarks<T>(marks: readonly T[], key: (mark: T) => string): T[][] {
+  const groups = new Map<string, T[]>();
+  for (const mark of marks) groups.set(key(mark), [...(groups.get(key(mark)) ?? []), mark]);
+  return [...groups.values()];
+}
+
+/** One line per distinct line, with how many times it was said: what a collapsed mark's tip lists. */
+function listed(lines: readonly string[]): string {
+  const counts = new Map<string, number>();
+  for (const line of lines) counts.set(line, (counts.get(line) ?? 0) + 1);
+  return [...counts].map(([line, n]) => (n > 1 ? `${line} (×${n})` : line)).join('\n');
 }
 
 /** A chosen colour: the Mana font's own symbol (D20), or the word when it names none. */

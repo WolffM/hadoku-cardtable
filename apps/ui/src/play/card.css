@@ -195,6 +195,15 @@
  * FACE, not the pile's box — the face is `--pile-fan` narrower and shorter — so
  * it sits inside the card whatever the fan, and the same capsule as the P/T
  * badge, a size up, so it reads over art.
+ *
+ * On a small card the middle IS the P/T's band, and the count covered the
+ * creature's numbers (the operator, 2026-10-20: "the stacks of tokens have
+ * become very small and cannot fit both the 2x and the 1/1"). So on a pile the
+ * two capsules are sized from the face they are drawn on, never over their
+ * own sizes here, and the count stacks ABOVE the P/T once the middle would
+ * reach it; turned, where the card is short and wide, it sits on the P/T's
+ * line at the face's left instead. Both stay inside the face at every width the
+ * board draws.
  */
 .board-card__copies {
   position: absolute;
@@ -213,6 +222,52 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/*
+ * `--face-w` is the card's own face: its drawn width (`--card-drawn-w`, measured by
+ * `zone-box.ts` on the pile and inherited by the cards stacked in it) less the fan. Not
+ * `--card-w`, which is the column's CEILING and which a crowded row squeezes its cards well
+ * under. The credit strip is a tenth of that face, and the fonts are the capsules' own 13px and
+ * 10px until the face is too narrow to hold both: stacked when upright, side by side turned.
+ */
+.board-card[data-pile-size],
+.board-card__pile > .board-card {
+  --face-w: calc(var(--card-drawn-w, var(--card-w)) - var(--pile-fan));
+  --credit-strip: calc(var(--face-w) * 0.1);
+  --copies-font: min(13px, var(--face-w) * 0.34);
+  --pt-font: min(10px, var(--face-w) * 0.27);
+}
+
+:is(.board-card[data-pile-size], .board-card__pile > .board-card):is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
+  --copies-font: min(13px, var(--face-w) * 0.16);
+  --pt-font: min(10px, var(--face-w) * 0.12);
+}
+
+:is(.board-card[data-pile-size], .board-card__pile > .board-card) > .board-card__pt {
+  padding: 0 calc(var(--pt-font) * 0.4);
+  font-size: var(--pt-font);
+}
+
+.board-card[data-pile-size] > .board-card__copies {
+  /* Each capsule's height: its line and its rule. */
+  --copies-h: calc(var(--copies-font) * 1.5 + 2px);
+  --pt-h: calc(var(--pt-font) * 1.5 + 2px);
+
+  top: clamp(
+    calc(var(--copies-h) / 2 + 1px),
+    calc((100% - var(--pile-fan)) / 2),
+    calc(100% - max(1px, var(--credit-strip) - 3px) - var(--pile-fan) - var(--pt-h) - 2px - var(--copies-h) / 2)
+  );
+  padding: 0 calc(var(--copies-font) * 0.45);
+  font-size: var(--copies-font);
+}
+
+.board-card[data-pile-size]:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__copies {
+  top: auto;
+  bottom: calc(max(1px, var(--credit-strip) - 3px) + var(--pile-fan));
+  left: 2px;
+  transform: none;
 }
 
 /*
@@ -258,7 +313,7 @@
    * it), so the badge keeps to the FACE's bottom, not the box's — a piled
    * creature's P/T drew exactly the fan below its card (table-fit, 2026-10-07).
    */
-  bottom: calc(var(--credit-strip) + var(--pile-fan) - 3px);
+  bottom: calc(max(1px, var(--credit-strip) - 3px) + var(--pile-fan));
   right: calc(2px + var(--pile-fan));
   z-index: var(--z-card-badge, 1);
   display: flex;
@@ -548,6 +603,14 @@
   width: 9px;
   height: 9px;
   fill: currentColor;
+}
+
+/* The same mark more than once is one chip and how many (`Board.tsx`'s `sameMarks`), beside the glyph in the chip's own ink. */
+.board-card__tag-count {
+  margin-left: 2px;
+  font-size: 9px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 /* The eye on a card of yours the opponent was shown (`Board.tsx`'s `CardTags`): a drawn glyph in the word tags' own capsule. */
@@ -868,8 +931,28 @@
     translate 160ms ease-out;
 }
 
+/*
+ * Everything the card wears rises with it. Only the face used to: on every creature that could
+ * attack, the P/T stayed on the table 3px below the lifted face (found by `e2e/bd-pile-pills.spec.ts`
+ * when its grind passed into the declare-attackers step). Grown from the bottom edge, the face only
+ * gains at its top and sides, so a badge lifted the same 4px is inside it wherever it is anchored.
+ * A flyer's badges already follow its loop (above); they add the lift to it.
+ */
+.board-card[data-combat-ready] > :not(.board-card__face, .board-card__pile) {
+  translate: 0 -4px;
+}
+
+.board-card[data-combat-ready]:not([data-flying]) > :not(.board-card__face, .board-card__pile) {
+  transition: translate 160ms ease-out;
+}
+
+.board-card[data-flying][data-combat-ready] > :not(.board-card__face, .board-card__pile) {
+  translate: var(--fly-x) calc(-7px + var(--fly-y));
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .board-card[data-combat-ready] > .board-card__face {
+  .board-card[data-combat-ready] > .board-card__face,
+  .board-card[data-combat-ready]:not([data-flying]) > :not(.board-card__face, .board-card__pile) {
     transition: none;
   }
 }
