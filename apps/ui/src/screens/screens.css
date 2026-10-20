@@ -455,23 +455,6 @@
   color: var(--color-warning);
 }
 
-.pod__waiting {
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--hdk-radius);
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.pod__waiting p {
-  margin: 0;
-  color: var(--color-text-secondary);
-  max-width: 60ch;
-}
-
 /* ── constructed (`#/play`) and a match (`#/match/<id>`) ─────────────── */
 
 .tables__seat {

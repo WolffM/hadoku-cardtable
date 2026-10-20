@@ -196,6 +196,31 @@ describe('a finished draft goes straight to the builder', () => {
   });
 });
 
+/* ── until the table arrives (the operator, 2026-10-20: "so i dont see the page change so many times") ── */
+
+describe('entering a pod before its table has arrived', () => {
+  it('draws the draft’s own layout as a skeleton, the room’s bar already in its side column, and no words', () => {
+    const { draft, room } = mountPod();
+    room.read(ctxOf(pod({ phase: 'drafting' })));
+    const waiting = screen.getByTestId('pod-waiting');
+    expect(waiting.textContent).not.toMatch(/joining|waiting/i);
+    expect(waiting.querySelector('.skeleton')).not.toBeNull();
+    expect(screen.getByTestId('pod-seats').closest('.draft__aside'), 'the bar is where the draft puts it').not.toBeNull();
+    expect(document.querySelector('header.pod__bar'), 'nothing on top to move away').toBeNull();
+
+    draft.send(MID);
+    expect(screen.queryByTestId('pod-waiting')).toBeNull();
+    expect(screen.getByTestId('pod-seats').closest('.draft__aside'), 'the bar has not moved').not.toBeNull();
+  });
+
+  it('draws the rounds as a skeleton, a column per round, while a pod in rounds waits for its table', () => {
+    const { room } = mountPod();
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 3 })));
+    expect(screen.getByTestId('pod-waiting').querySelectorAll('.pod__skeleton-round')).toHaveLength(3);
+    expect(document.querySelector('header.pod__bar')).not.toBeNull();
+  });
+});
+
 /* ── into the game, with nobody pressing anything ───────────────────── */
 
 describe('in rounds, my table starts by itself', () => {

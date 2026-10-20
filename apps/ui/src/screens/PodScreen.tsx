@@ -52,7 +52,7 @@
  * every card this pod ever draws.
  */
 
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 
 import {
   applyPick as socketPick,
@@ -64,7 +64,7 @@ import {
   type SocketDraft,
 } from '../draft/socket.ts';
 import { initialState, type TableState } from '../draft/table.ts';
-import { DraftScreen } from '../components/DraftScreen.tsx';
+import { DraftScreen, fitToWindow } from '../components/DraftScreen.tsx';
 import type { PackLayout } from '../components/PackView.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { navigate } from './route.ts';
@@ -243,7 +243,8 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
     </>
   );
   const rounds = done && ctx?.pod !== null && ctx?.pod !== undefined && inRounds;
-  const drafting = !rounds && !done && table !== null;
+  /** The draft's layout, drawn or still coming: the room's bar is in its side column, not on top. */
+  const drafting = !rounds && !done && !inRounds;
 
   return (
     <div className="shell" data-testid="pod" ref={host}>
@@ -258,10 +259,10 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
 
       {rounds ? (
         <PodRoom ctx={ctx!} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} startTableError={startTableError} retryTable={retryTable} />
-      ) : done ? null : table === null ? (
-        <div className="pod__waiting" data-testid="pod-waiting">
-          <h1>{draft?.everConnected === true ? 'Waiting for the table' : 'Joining the pod'}</h1>
-        </div>
+      ) : done ? null : inRounds ? (
+        <RoundsSkeleton rounds={ctx?.pod?.rounds ?? 1} />
+      ) : table === null ? (
+        <DraftSkeleton side={<div className="pod__bar pod__bar--side">{bar}</div>} />
       ) : (
         <DraftScreen
           state={table}
@@ -276,6 +277,43 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
         />
       )}
       <div className="pod__zoom" data-board-zoom="" />
+    </div>
+  );
+}
+
+/* ── until the draft's table arrives ──────────────────────────────────── */
+
+/**
+ * The draft's own layout with nothing in it yet: the pack and the picks as
+ * placeholders, the room's bar already in the side column, so the draft lands
+ * on the same lines and the page changes once (the operator, 2026-10-20: *"can
+ * we add a loading skeleton while this is still loading so i dont see the page
+ * change so many times?"*).
+ */
+function DraftSkeleton({ side }: { side: ReactNode }) {
+  return (
+    <div className="draft" data-testid="pod-waiting" aria-busy="true">
+      <div className="draft__body" ref={fitToWindow}>
+        <span className="skeleton pod__skeleton-pack" />
+        <span className="skeleton pod__skeleton-pool" />
+        <aside className="draft__aside">{side}</aside>
+      </div>
+    </div>
+  );
+}
+
+/** The rounds' layout with nothing in it yet: the heading's line, then a column of cards per round. */
+function RoundsSkeleton({ rounds }: { rounds: number }) {
+  return (
+    <div className="pod__room" data-testid="pod-waiting" aria-busy="true">
+      <div className="pod__rounds">
+        <span className="skeleton skeleton--heading" />
+        <div className="pod__skeleton-bracket">
+          {Array.from({ length: Math.max(1, rounds) }, (_, i) => (
+            <span key={i} className="skeleton pod__skeleton-round" />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

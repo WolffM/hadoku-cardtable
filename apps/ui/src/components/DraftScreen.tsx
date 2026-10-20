@@ -105,6 +105,34 @@ export interface DraftScreenProps {
   side?: ReactNode;
 }
 
+/**
+ * The draft body's ref: exactly as tall as the window below it, so the two
+ * halves fill the screen and the page itself never scrolls (`styles.css`,
+ * layout). The pod's skeleton (`PodScreen.tsx`) wears it too, so the draft
+ * lands on the same lines.
+ */
+export function fitToWindow(el: HTMLDivElement | null): (() => void) | undefined {
+  if (el === null || typeof window === 'undefined') return undefined;
+  const fit = (): void => {
+    // Everything from the body's top to the window's bottom, less whatever
+    // that pushes off the page (the shell's padding, anything after the
+    // body): set, measure the overflow, take it back. Always from the full
+    // height, so a window that grows gets the room back.
+    const full = Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY));
+    el.style.setProperty('--draft-h', `${Math.max(300, full)}px`);
+    const over = document.documentElement.scrollHeight - window.innerHeight;
+    if (over > 0) el.style.setProperty('--draft-h', `${Math.max(300, full - over)}px`);
+  };
+  fit();
+  window.addEventListener('resize', fit);
+  const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
+  observer?.observe(document.body);
+  return () => {
+    window.removeEventListener('resize', fit);
+    observer?.disconnect();
+  };
+}
+
 export function DraftScreen({
   state,
   onChange,
@@ -180,29 +208,6 @@ export function DraftScreen({
     [onChange, onPick],
   );
 
-  // The body is exactly as tall as the window below it, so the two halves fill
-  // the screen and the page itself never scrolls (`styles.css`, layout).
-  const fitToWindow = useCallback((el: HTMLDivElement | null) => {
-    if (el === null || typeof window === 'undefined') return;
-    const fit = (): void => {
-      // Everything from the body's top to the window's bottom, less whatever
-      // that pushes off the page (the shell's padding, anything after the
-      // body): set, measure the overflow, take it back. Always from the full
-      // height, so a window that grows gets the room back.
-      const full = Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY));
-      el.style.setProperty('--draft-h', `${Math.max(300, full)}px`);
-      const over = document.documentElement.scrollHeight - window.innerHeight;
-      if (over > 0) el.style.setProperty('--draft-h', `${Math.max(300, full - over)}px`);
-    };
-    fit();
-    window.addEventListener('resize', fit);
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
-    observer?.observe(document.body);
-    return () => {
-      window.removeEventListener('resize', fit);
-      observer?.disconnect();
-    };
-  }, []);
 
   const emptyNote = spectating
     ? 'Spectating.'

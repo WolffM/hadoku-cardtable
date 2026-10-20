@@ -37,3 +37,23 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Until the draft's table arrives (`DraftSkeleton`): the pack's half and the picks' half. */
+.pod__skeleton-pack {
+  grid-area: pack;
+}
+
+.pod__skeleton-pool {
+  grid-area: pool;
+}
+
+/* Until the rounds arrive (`RoundsSkeleton`): a column of cards per round. */
+.pod__skeleton-bracket {
+  display: flex;
+  gap: 20px;
+}
+
+.pod__skeleton-round {
+  width: 240px;
+  height: 230px;
+}
