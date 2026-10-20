@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { isTierC, type ClientFrame, type ServerFrame } from '@hadoku/forge-wire';
+import { isTierC, parseServerFrame, type ClientFrame, type ServerFrame } from '@hadoku/forge-wire';
 
 import { expectNoDesync, recordReply, waitUntil, type AskRecord, type DesyncSource } from './jvm-harness.ts';
 import { closeMatch, startMatch } from './match.ts';
@@ -138,6 +138,58 @@ describe('expectNoDesync: a server that keeps talking is not a desync', () => {
       } finally {
         closeMatch(server.live);
       }
+    }
+  });
+});
+
+/** An `applyDelta` that changes nothing on the board and carries the bridge's damage lists, numbered after `after`. */
+function fight(after: ServerFrame, payload: { damage?: [number, number, number][]; faceDamage?: [number, number, number, boolean][] }): ServerFrame {
+  if (after.method !== 'applyDelta') throw new Error('a fight follows a delta');
+  const seq = after.payload.packet.seq + 1;
+  return parseServerFrame({ kind: 'notify', method: 'applyDelta', payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: {}, events: [] }, ...payload } });
+}
+
+describe('expectNoDesync: hits are events, checked against the damage the server dealt', () => {
+  /** A seat level with a server that has sent it ten fixture frames and then one fight, folded live. */
+  async function afterAFight() {
+    const frames = fixtureFrames();
+    const server = await levelAfterTen(frames);
+    const viewer = server.live.view!.players.find((p) => p.isViewer)!;
+    const cardId = viewer.battlefield[0]!.id;
+    server.send(fight(frames[9]!, { damage: [[cardId, 131, 3], [cardId, -1, 1]], faceDamage: [[viewer.id, 131, 2, true]] }));
+    await waitUntil(() => server.live.cursor?.seq === 11, 'the seat to fold the fight', 3000);
+    expect(server.live.view!.hits?.length, 'the seat drew the fight live').toBe(2);
+    return server;
+  }
+
+  it('a fight the seat saw live and a fresh fold that owes none of it are the same board', async () => {
+    const server = await afterAFight();
+    try {
+      await expectNoDesync(server.source);
+    } finally {
+      closeMatch(server.live);
+    }
+  });
+
+  it('a hit the server never dealt is a desync', async () => {
+    const server = await afterAFight();
+    try {
+      const view = server.live.view!;
+      server.live.view = { ...view, hits: [...view.hits!.slice(0, -1), { ...view.hits!.at(-1)!, amount: 5 }] };
+      await expect(expectNoDesync(server.source)).rejects.toThrow(/latest damage the server dealt/);
+    } finally {
+      closeMatch(server.live);
+    }
+  });
+
+  it('a board that differs beside its hits is still a desync', async () => {
+    const server = await afterAFight();
+    try {
+      const view = server.live.view!;
+      server.live.view = { ...view, phaseLabel: `${view.phaseLabel} (stale)` };
+      await expect(expectNoDesync(server.source)).rejects.toThrow();
+    } finally {
+      closeMatch(server.live);
     }
   });
 });
