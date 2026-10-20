@@ -255,6 +255,20 @@ describe('the avatar the viewer picked in watchparty', () => {
     expect(posts.filter((u) => u.includes('/identity'))).toEqual([]);
   });
 
+  // Q6: a game's table chat is not a room. Asserted to it, every avatar pick made mid-match was refused.
+  it('in a game, is asserted to the room while the chrome joins the table’s chat', async () => {
+    globalThis.localStorage.setItem(watchpartyPrefsCacheKey('u-test'), ROW);
+    const posts: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      posts.push(String(input));
+      return Promise.resolve(new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } }));
+    });
+
+    render(createElement(RoomShell, { roomId: 'r-cube-night', chatId: 'r-cube-night-t-11111111', children: createElement('div', null, 'content') }));
+    await waitFor(() => expect(posts.filter((u) => u.includes('/identity'))).toHaveLength(1));
+    expect(posts.find((u) => u.includes('/identity'))).toContain('/rooms/r-cube-night/identity');
+  });
+
   it('refuses the shared anonymous prefs row while a session is still resolving', async () => {
     // `Yt()` in watchparty's own bundle skips the read in exactly this state,
     // because the anon row belongs to whoever used the browser last. Ours POSTs
@@ -276,12 +290,10 @@ describe('the avatar the viewer picked in watchparty', () => {
 /*
  * Wave 71 §G: the room this screen puts the chat in, for a `#/match/<id>`
  * route. `App.tsx`'s own `roomIdFor` is the function `RoomShell`'s `roomId`
- * prop is built from (`App`'s `<RoomShell roomId={roomIdFor(route,
- * matchRoomId)}>`); testing it here rather than rendering the whole app is
- * what keeps this a pure-function test and not a second `App.test.ts` this
- * lane does not own.
+ * and `chatId` props are built from; testing it here rather than rendering
+ * the whole app keeps this a pure-function test.
  *
- * `matchRoomId` is `App.tsx`'s own name for the match's resolved room
+ * `matchRoom` is `App.tsx`'s own name for the match's resolved room
  * (`useMatchRoomId`, built on `roomsClient().roomOfMatch`) — the second
  * argument stands in for it, exactly as `App` would pass it once that fetch
  * answers.
@@ -305,8 +317,9 @@ describe('the room a match route puts the chat in', () => {
     // the match's own. Reverting wave 71 §G's step 1 (`return route.matchId`
     // for the `match` case) makes this assertion fail: the function would
     // answer the match id instead of the room id below.
-    expect(roomIdFor(route, 'r-cube-night')).toBe('r-cube-night');
-    expect(roomIdFor(route, 'r-cube-night')).not.toBe('m-090bf01ba811');
+    const place = { roomId: 'r-cube-night', chatId: 'r-cube-night-t-11111111' };
+    expect(roomIdFor(route, place)).toEqual(place);
+    expect(roomIdFor(route, place)?.roomId).not.toBe('m-090bf01ba811');
   });
 
   it('falls back to the match’s OWN key while unresolved, and permanently for a match with no room — never a bare null (wave 72 §R)', () => {
@@ -317,16 +330,17 @@ describe('the room a match route puts the chat in', () => {
     // own `cardtable-m-<id>` chat, exactly as it did before wave 71 §G.
     // Reverting this fallback (`return matchRoomId;`) makes this fail: the
     // function would answer `null` instead.
-    expect(roomIdFor(route, null)).toBe('m-090bf01ba811');
-    expect(roomKeyFor(roomIdFor(route, null)!)).toBe('cardtable-m-090bf01ba811');
+    expect(roomIdFor(route, null)).toEqual({ roomId: 'm-090bf01ba811', chatId: 'm-090bf01ba811' });
+    expect(roomKeyFor(roomIdFor(route, null)!.chatId)).toBe('cardtable-m-090bf01ba811');
   });
 
   it('every other route is unchanged by the new parameter', () => {
-    expect(roomIdFor(parseRoute('#/room/r-cube-night'), null)).toBe('r-cube-night');
-    expect(roomIdFor(parseRoute('#/draft/pod-1'), 'r-should-be-ignored')).toBe('pod-1');
-    expect(roomIdFor(parseRoute('#/deck/pod-1'), 'r-should-be-ignored')).toBe('pod-1');
-    expect(roomIdFor(parseRoute('#/'), 'r-should-be-ignored')).toBeNull();
-    expect(roomIdFor(parseRoute('#/debug'), 'r-should-be-ignored')).toBeNull();
+    const ignored = { roomId: 'r-should-be-ignored', chatId: 'r-should-be-ignored-t-1' };
+    expect(roomIdFor(parseRoute('#/room/r-cube-night'), null)).toEqual({ roomId: 'r-cube-night', chatId: 'r-cube-night' });
+    expect(roomIdFor(parseRoute('#/draft/pod-1'), ignored)).toEqual({ roomId: 'pod-1', chatId: 'pod-1' });
+    expect(roomIdFor(parseRoute('#/deck/pod-1'), ignored)).toEqual({ roomId: 'pod-1', chatId: 'pod-1' });
+    expect(roomIdFor(parseRoute('#/'), ignored)).toBeNull();
+    expect(roomIdFor(parseRoute('#/debug'), ignored)).toBeNull();
   });
 });
 
