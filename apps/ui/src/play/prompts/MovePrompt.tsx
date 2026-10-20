@@ -92,8 +92,12 @@ function ZoneGhost({ destination }: { destination: Destination }) {
   );
 }
 
-/** The sheet's title: the library's, when a zone is one of its ends; Forge's own otherwise. */
+/**
+ * The sheet's title: the action the seat takes when the ask says it in words (a dig's); else the
+ * library's, when a zone is one of its ends; Forge's own otherwise.
+ */
 function titleOf(ask: OrderAsk, lookup: PromptLookup): string {
+  if (ask.question !== undefined) return ask.question;
   const library = [ask.destination, ask.rest].find((d) => d?.zone === 'library');
   if (library === undefined) return ask.title;
   return library.owner === undefined ? 'Your library' : `${refName(lookup, library.owner)}'s library`;

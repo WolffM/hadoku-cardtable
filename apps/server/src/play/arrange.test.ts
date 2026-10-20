@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { REPLY_SCHEMAS, type ServerFrame } from '@hadoku/forge-wire';
 
-import { answerPending, arrangeAsk, digAnswer, digAsk, pendingOrders } from './arrange.js';
+import { answerPending, arrangeAsk, digAnswer, digAsk, digQuestion, pendingOrders } from './arrange.js';
 
 type Ask = Extract<ServerFrame, { kind: 'ask' }>;
 type DigAsk = Extract<Ask, { method: 'chooseEntitiesForEffect' }>;
@@ -49,7 +49,58 @@ const followUp = (ids: number[], destination?: OrderAsk['destination']): OrderAs
 	...(destination !== undefined && { destination }),
 });
 
+describe('digQuestion', () => {
+	const asks = (text: string) => expect(digQuestion(text));
+	it('is the instruction after the look clause, wherever the clause stands in its sentence', () => {
+		asks(
+			'Whenever Dragonlord Ojutai deals combat damage to a player, look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.',
+		).toBe('Put one of them into your hand and the rest on the bottom of your library in any order.');
+		asks('Look at the top four cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.').toBe(
+			'Put one of them into your hand and the rest on the bottom of your library in any order.',
+		);
+		asks('Reveal the top five cards of your library. You may put a creature or enchantment card from among them into your hand. Put the rest into your graveyard.').toBe(
+			'You may put a creature or enchantment card from among them into your hand. Put the rest into your graveyard.',
+		);
+	});
+	it('reads past what the look clause says of its number, and an action joined to it by a comma', () => {
+		asks('Look at the top X cards of your library, where X is the amount of mana spent to cast this spell. Put two of them into your hand and the rest on the bottom of your library in a random order.').toBe(
+			'Put two of them into your hand and the rest on the bottom of your library in a random order.',
+		);
+		asks('Look at the top five cards of your library, put one of them into your hand, and exile the rest.').toBe('Put one of them into your hand, and exile the rest.');
+		asks('Look at the top ten cards of your library, then exile any number of them and put the rest back on top of your library in any order.').toBe(
+			'Exile any number of them and put the rest back on top of your library in any order.',
+		);
+	});
+	it('starts at the last look, without the "If you do," that hangs on it', () => {
+		asks('Look at the top four cards of your library. If this spell was bargained, look at the top eight cards of your library instead. Put two of them into your hand and the rest on the bottom of your library in a random order.').toBe(
+			'Put two of them into your hand and the rest on the bottom of your library in a random order.',
+		);
+		asks('When Fertile Thicket enters, you may look at the top five cards of your library. If you do, reveal up to one basic land card from among them, then put that card on top of your library and the rest on the bottom in any order.').toBe(
+			'Reveal up to one basic land card from among them, then put that card on top of your library and the rest on the bottom in any order.',
+		);
+	});
+	it('ends at the last sentence that moves a card, and leaves out reminder text', () => {
+		asks('Look at the top three cards of your library. Put two of them into your hand and the rest into your graveyard. You lose 2 life.').toBe('Put two of them into your hand and the rest into your graveyard.');
+		asks('Look at the top seven cards of your library (reminder). Put two of them into your hand and the rest on the bottom of your library in any order.').toBe(
+			'Put two of them into your hand and the rest on the bottom of your library in any order.',
+		);
+	});
+	it('is null for a text with no look clause, or no action after it', () => {
+		asks('Look at the top card of target player\'s library.').toBeNull();
+		asks('Put the top card of your library on the bottom of your library.').toBeNull();
+		asks('Look at the top card of target player\'s library. Activate only if you control two or more blue permanents.').toBeNull();
+	});
+});
+
 describe('digAsk', () => {
+	it("leads with the dig's action, Forge's own question where its text has none", () => {
+		const ojutai = 'Whenever Dragonlord Ojutai deals combat damage to a player, look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.';
+		const dig = fateseal([1, 2, 3], 1, 1);
+		expect(digAsk({ ...dig, dig: { ...dig.dig!, text: ojutai } })!.question).toBe('Put one of them into your hand and the rest on the bottom of your library in any order.');
+		expect(digAsk({ ...dig, dig: { ...dig.dig!, text: "Look at the top card of target player's library." } })!.question).toBe(dig.title);
+		expect(digAsk(dig)!.question).toBe(dig.title);
+	});
+
 	it('asks one order of every card looked at, all in the rest to start with, the chosen zone the answer', () => {
 		const shown = digAsk(fateseal([71]))!;
 		expect(shown.method).toBe('order');

@@ -93,6 +93,8 @@ export function arrangeAsk(frame: Extract<ServerFrame, { kind: 'ask' }>): OrderA
  * looked at, in Forge's order, all of them in the `rest` group to start with;
  * the answer is the chosen group, as many as Forge's `min`..`max`. A looked-at
  * card Forge does not offer (a `ChangeValid` it fails) is `locked` in the rest.
+ * Its `question` is the action the dig's own text asks for (`digQuestion`), or
+ * Forge's own question when the text has none to read.
  * Null for any other ask, and for a dig whose looked-at cards are not sent.
  */
 export function digAsk(frame: Extract<ServerFrame, { kind: 'ask' }>): OrderAsk | null {
@@ -123,7 +125,51 @@ export function digAsk(frame: Extract<ServerFrame, { kind: 'ask' }>): OrderAsk |
 		destination: frame.dig.chosen,
 		rest: frame.dig.rest,
 		...(offered.size < n && { locked: looked.filter((c) => !offered.has(c.id)).map((c) => digKey(c.id)) }),
+		question: (frame.dig.text === undefined ? null : digQuestion(frame.dig.text)) ?? frame.title,
 	};
+}
+
+/**
+ * A look clause: the dig's "look at the top three cards of your library", "reveal a number of
+ * cards from the top of your library", "exile the top card of that player's library".
+ */
+const LOOK = /\b(?:look|looks|reveal|reveals|exile|exiles)\b(?: at)?(?: [^\s.,;]+){0,6}? top\b[^.;]*?\b(?:library|libraries)\b/gi;
+
+/** A sentence that says where cards go. */
+const MOVES = /\b(?:hand|graveyard|library|libraries|battlefield|exile|exiles|exiled)\b/i;
+
+/**
+ * What a `Dig`'s text asks the seat to do with the cards it looked at, in the card's own words:
+ * the sentences after its (last) look clause, through the last one that moves a card. The
+ * operator, 2026-10-20, on Dragonlord Ojutai's sheet: *"ideally we just keep the action the player
+ * has to take. "Put one of them into your hand and the rest on the bottom of your library in any
+ * order.""* The look itself is what the sheet's cards already show, and what the text says before
+ * it (a trigger's condition, a cost) or after the action (a life loss, "Then shuffle") is not the
+ * decision. A clause that runs on to the action ("…, then exile any number of them") gives the
+ * action; one that says what its number is ("…, where X is …") does not. Reminder text goes, and so
+ * does an "If you do," that hangs on an optional look. Null when the text has no look clause, or
+ * no action after it.
+ */
+export function digQuestion(text: string): string | null {
+	const plain = text
+		.replace(/\s*\([^)]*\)/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+	const look = [...plain.matchAll(LOOK)].at(-1);
+	if (look === undefined) return null;
+	let after = plain.slice(look.index + look[0].length);
+	const runsOn = /^(?:,? (?:then|and) |, (?!where\b))/i.exec(after);
+	if (runsOn !== null) after = after.slice(runsOn[0].length);
+	else {
+		const end = after.search(/\.(?: |$)/);
+		if (end === -1) return null;
+		after = after.slice(end + 1);
+	}
+	const sentences = after.trim().replace(/^(?:if you do|then),? /i, '').match(/[^.]+(?:\.|$)/g) ?? [];
+	let last = sentences.length - 1;
+	while (last >= 0 && !MOVES.test(sentences[last]!)) last--;
+	const action = sentences.slice(0, last + 1).join('').trim();
+	return action === '' ? null : action[0]!.toUpperCase() + action.slice(1);
 }
 
 const digKey = (id: number): string => `d${id}`;

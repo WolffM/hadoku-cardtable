@@ -3528,8 +3528,9 @@ public final class PlayBridge {
          * Where a {@code Dig}'s cards go ({@code ChooseEntitiesForEffectSchema}'s {@code dig}): the zone
          * the chosen ones go to and the zone the rest go to, read off the resolving {@code Dig} with the
          * defaults {@code DigEffect.resolve} gives them ({@code DigEffect.java:120-125}: the hand and the
-         * bottom of the library). Null when the question is not a {@code Dig}'s, or the cards it looked at
-         * are not sent with it ({@code delayedReveal}, which the server shows as one group).
+         * bottom of the library), and its own text ({@link #digText}). Null when the question is not a
+         * {@code Dig}'s, or the cards it looked at are not sent with it ({@code delayedReveal}, which the
+         * server shows as one group).
          */
         private JsonObject digZones(final DelayedReveal looked) {
             if (looked == null) { return null; }
@@ -3551,7 +3552,29 @@ public final class PlayBridge {
             final JsonObject o = new JsonObject();
             o.add("chosen", chosen);
             o.add("rest", rest);
+            final String text = digText(sa);
+            if (text != null) { o.addProperty("text", text); }
             return o;
+        }
+
+        /**
+         * A {@code Dig}'s own written text, as its card says it: the {@code SpellDescription} of the
+         * dig or of the ability it hangs off, else its trigger's description (Dragonlord Ojutai's dig
+         * has none of its own: {@code TrigDig} is the trigger's {@code Execute}). Null when it has
+         * neither. The server reads the action the seat takes out of it ({@code arrange.ts}'s
+         * {@code digQuestion}).
+         */
+        static String digText(final SpellAbility dig) {
+            final SpellAbility own = dig instanceof WrappedAbility w ? w.getWrappedAbility() : dig;
+            final String name = own.getHostCard() == null ? null : own.getHostCard().getTranslatedName();
+            for (SpellAbility s = own; s != null; s = s.getParent()) {
+                final String said = s.getParam("SpellDescription");
+                if (said != null && !said.isBlank()) {
+                    return name == null ? said : said.replace("CARDNAME", name).replace("NICKNAME", forge.util.Lang.getInstance().getNickName(name));
+                }
+            }
+            final String triggered = own.getTrigger() == null ? "" : own.getTrigger().toString();
+            return triggered.isBlank() ? null : triggered;
         }
 
         /** One of a {@code Dig}'s zones, its first card the highest; null for a zone the schema has no word for. */

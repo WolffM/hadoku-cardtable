@@ -746,6 +746,10 @@ export const GetChoicesReplySchema = z.array(z.string());
  * `locked` is ours too: keys of cards the seat may look at and order with the
  * `rest` group but not move into the answer — a `Dig`'s looked-at cards its
  * `ChangeValid` lets through no further (`apps/server/src/play/arrange.ts`).
+ *
+ * `question` is ours too: the action the seat takes, in the card's own words,
+ * for an order the server composed from another question (a `Dig`'s,
+ * `arrange.ts`'s `digQuestion`). The sheet leads with it.
  */
 /**
  * Where an order's cards go: `zone`, at its `end`; and `first`, which way the
@@ -779,6 +783,7 @@ export const OrderSchema = z.strictObject({
   destination: OrderDestinationSchema.optional(),
   rest: OrderDestinationSchema.optional(),
   locked: z.array(z.string()).optional(),
+  question: z.string().min(1).optional(),
 });
 
 export const OrderReplySchema = z.strictObject({
@@ -832,7 +837,9 @@ export const ChooseSingleEntityForEffectReplySchema = GameEntityRefSchema.nullab
  * `dig` is ours, never Forge's: set by the bridge (`PlayBridge.java`'s
  * `digZones`) when a `Dig` is asking which of the cards it looked at go to its
  * first zone (`chosen`); the others go to `rest`. The server shows the seat one
- * prompt with both groups (`apps/server/src/play/arrange.ts`).
+ * prompt with both groups (`apps/server/src/play/arrange.ts`). `text` is the
+ * `Dig`'s own written text (its `SpellDescription`, or its trigger's
+ * description), absent when it has none.
  */
 export const ChooseEntitiesForEffectSchema = z.strictObject({
   kind: z.literal('ask'),
@@ -844,7 +851,7 @@ export const ChooseEntitiesForEffectSchema = z.strictObject({
   min: z.number().int(),
   max: z.number().int(),
   delayedReveal: DelayedRevealSchema.nullable(),
-  dig: z.strictObject({ chosen: OrderDestinationSchema, rest: OrderDestinationSchema }).optional(),
+  dig: z.strictObject({ chosen: OrderDestinationSchema, rest: OrderDestinationSchema, text: z.string().min(1).optional() }).optional(),
 });
 
 export const ChooseEntitiesForEffectReplySchema = z.array(GameEntityRefSchema);

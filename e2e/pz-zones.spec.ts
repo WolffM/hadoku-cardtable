@@ -9,7 +9,7 @@
  *
  * Every question that moves cards is one sheet of named zones (`apps/ui/src/play/prompts/MovePrompt.tsx`):
  *
- *  - `pz-fateseal`: Jace, the Mind Sculptor's +2 on bob. One prompt titled "Bob's library", Top | Bottom; the
+ *  - `pz-fateseal`: Jace, the Mind Sculptor's +2 on bob. One prompt asking the +2's action, Top | Bottom; the
  *    looked-at card dragged to Bottom goes under bob's library — Lantern of Insight shows bob's new top card.
  *  - `pz-scry`: Preordain's Scry 2. Top | Bottom; the second card dragged above the first, the first dragged
  *    to Bottom; Preordain draws the card the drag put on top.
@@ -207,7 +207,7 @@ test(
       const top = page.getByTestId('zone-source');
       const bottom = page.getByTestId('zone-dest');
       console.log(`[pz] fateseal title ${JSON.stringify(await prompt.locator('.prompt__title').textContent())} headings ${JSON.stringify(await headings(page))} top ${JSON.stringify(await namesIn(top))}`);
-      await expect(prompt.locator('.prompt__title'), 'the sheet is bob’s library').toHaveText(/^Bob.*'s library$/);
+      await expect(prompt.locator('.prompt__title'), 'the sheet asks the +2’s action, not its look').toHaveText("You may put that card on the bottom of that player's library.");
       expect(await headings(page), 'two zones, Top and Bottom').toEqual(['Top', 'Bottom']);
       await expect(prompt, 'no “select a card to put on bottom” sentence').not.toContainText(/choose|select/i);
       expect(await namesIn(top), 'the looked-at card starts on top').toEqual(['Lightning Bolt']);

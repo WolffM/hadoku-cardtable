@@ -306,6 +306,14 @@ describe('a dig: a fateseal and Impulse', () => {
     expect(answers, 'a card back in an ordered zone goes last').toEqual([{ ordered: ['s1'], rememberDecision: false, rest: ['s2', 's0'] }]);
   });
 
+  it('Dragonlord Ojutai: leads with the action the seat takes, no library title and no look clause', () => {
+    const question = 'Put one of them into your hand and the rest on the bottom of your library in any order.';
+    const ask = cardsAsk({ remainingObjectsMin: 2, remainingObjectsMax: 2, destination: { zone: 'hand' }, rest: { ...LIBRARY_BOTTOM }, question });
+    const { container } = zones(ask);
+    expect(container.querySelector('.prompt__title')!.textContent).toBe(question);
+    expect(container.textContent).not.toMatch(/Your library|Look at the top/);
+  });
+
   it('a looked-at card Forge does not offer stays in its zone, ordered with it', () => {
     const ask = cardsAsk({ remainingObjectsMin: 2, remainingObjectsMax: 3, destination: { zone: 'hand' }, rest: LIBRARY_BOTTOM, locked: ['s0'] });
     const { source, dest, submit, answers } = zones(ask);
