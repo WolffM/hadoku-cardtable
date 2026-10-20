@@ -107,17 +107,19 @@ test(titled("Fate Seal: Jace's +2 keeps bob's Lightning Bolt on top — alice's 
       .poll(
         async () => {
           const method = await promptMethod(alice.page);
-          if (method === 'chooseEntitiesForEffect') return method;
+          if (method === 'order') return method;
           if ((await plusTwo.count()) > 0) await plusTwo.first().click({ timeout: 1_000 }).catch(() => undefined);
           else if ((await opponentTarget.count()) > 0) await opponentTarget.first().locator('button').first().click({ timeout: 1_000 }).catch(() => undefined);
           else if (method !== null) await answerPrompt(alice.page).catch(() => undefined);
           for (const p of [alice.page, bob.page]) if ((await stackCount(p)) > 0 && (await enabledOk(p).count()) > 0) await enabledOk(p).first().click({ timeout: 1_000 }).catch(() => undefined);
           return method ?? 'none';
         },
-        { timeout: 45_000, intervals: [100], message: "the +2's look opens on alice's screen" },
+        { timeout: 45_000, intervals: [100], message: "the +2's look opens on alice's screen as bob's library, Top | Bottom" },
       )
-      .toBe('chooseEntitiesForEffect');
-    // Nothing to the bottom: the Bolt stays on top.
+      .toBe('order');
+    const top = livePrompt(alice.page).getByTestId('zone-source').locator(':scope > li .card__name');
+    await expect(top, 'the looked-at card starts in Top').toHaveText(['Lightning Bolt']);
+    // Nothing dragged to Bottom: the Bolt stays on top.
     await livePrompt(alice.page).getByTestId('prompt-submit').click();
     await expect(livePrompt(alice.page), 'the look closed').toHaveCount(0, { timeout: 10_000 });
     const answered = await clock(alice.page);

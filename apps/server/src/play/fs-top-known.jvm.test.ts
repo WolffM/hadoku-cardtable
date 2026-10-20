@@ -57,7 +57,13 @@ describe.skipIf(!available.ok)(title, () => {
 		"Fate Seal: Jace's +2 keeps bob's Lightning Bolt on top — alice's state names it until bob draws it, and Shock under it never reaches her",
 		async () => {
 			if (!available.ok) return;
-			const s = await startScenario(available.config, { seed: 4301, decks: DECKS, scenario: scenarioText('fs-fate-seal') });
+			// The look is one sheet of bob's library, Top | Bottom (`./arrange.ts`'s `digAsk`): nothing moved to Bottom keeps the Bolt on top.
+			const s = await startScenario(available.config, {
+				seed: 4301,
+				decks: DECKS,
+				scenario: scenarioText('fs-fate-seal'),
+				reply: (f) => (f.method === 'order' ? { ordered: [], rememberDecision: false } : undefined),
+			});
 			try {
 				await finishMulligan(s);
 				await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, 'seat 0 to hold priority at its own turn-1 main phase', 20_000, s);
@@ -72,7 +78,7 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(
 					() => {
 						s.answerAsks();
-						if (looked < 0) looked = s.sent.findIndex((x, i) => i >= mark && x.seat === 0 && x.envelope.frame.kind === 'ask' && x.envelope.frame.method === 'chooseEntitiesForEffect');
+						if (looked < 0) looked = s.sent.findIndex((x, i) => i >= mark && x.seat === 0 && x.envelope.frame.kind === 'ask' && x.envelope.frame.method === 'order');
 						if (!targeted && /target/i.test(s.prompt(0))) {
 							targeted = true;
 							s.match.fromClient(0, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: bob }, triggerEvent: null } as never);
