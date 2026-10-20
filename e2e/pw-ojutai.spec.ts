@@ -16,6 +16,10 @@
  *   type of card selection and movement question … unify"*), and a sheet says the decision, the
  *   ability's text only where the decision cannot be read without it (AF193: *"ideally the text
  *   here is just for the decision that has to be made"*);
+ * - leads with the action alice takes, the dig's own words after its look clause, as its question
+ *   (the operator, 2026-10-20: *"ideally we just keep the action the player has to take. "Put one
+ *   of them into your hand and the rest on the bottom of your library in any order.""*): no "Look
+ *   at the top three cards" lead-in, and no "Your library" in its place;
  * - draws Ojutai big enough to recognise (the head's thumb at least 44px wide);
  * - stands in a column wider than the 24.1% of the table it had.
  *
@@ -72,6 +76,8 @@ test(titled("Dragonlord Ojutai's combat-damage question: the decision without Fo
     console.log(`[pw] head ${JSON.stringify(m)}`);
     expect(m.zones, 'the decision: which card goes to the hand, the rest to the bottom').toEqual(expect.arrayContaining(['hand', 'bottom']));
     expect(m.text, "none of Forge's appended trigger objects").not.toMatch(/Damage Source|Damaged:|Amount:/);
+    expect(m.title, 'the question is the action alice takes').toBe('Put one of them into your hand and the rest on the bottom of your library in any order.');
+    expect(m.text, 'no look clause anywhere on the sheet').not.toContain('Look at the top');
     expect(m.thumb.w, 'the source card is big enough to recognise').toBeGreaterThanOrEqual(44);
     expect(m.sheet / m.live, 'the window is wider than the 24.1% column it was').toBeGreaterThanOrEqual(0.26);
   } finally {
