@@ -168,7 +168,8 @@ export function PodBracket({ pod, tables, myMemberId, nameOf, avatarOf, onPlay }
     <div className="pod-bracket" data-testid="pod-tables">
       {rounds.map((r) => (
         <section key={r.round} className={`pod-bracket__round pod-bracket__round--${r.state}`} data-testid="pod-bracket-round" data-state={r.state}>
-          <h3 className="pod-bracket__head">Round {r.round}</h3>
+          {/* A label, not a heading: the room's one heading says the round, or Standings. */}
+          <div className="pod-bracket__head">Round {r.round}</div>
           {r.state === 'next' ? (
             <div className="pod-bracket__pending" />
           ) : (

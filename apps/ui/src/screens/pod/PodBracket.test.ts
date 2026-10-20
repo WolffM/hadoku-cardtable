@@ -94,6 +94,7 @@ describe('PodBracket', () => {
   it('draws past rounds greyed, the round in play live, and an unpaired one empty', () => {
     render(createElement(PodBracket, { pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
     expect(screen.getAllByTestId('pod-bracket-round').map((r) => r.dataset.state)).toEqual(['past', 'now', 'next']);
+    expect(screen.queryAllByRole('heading'), 'the room keeps its one heading').toHaveLength(0);
     expect(screen.getAllByTestId('pod-tables-row').map((r) => [r.dataset.tableId, r.dataset.phase])).toEqual([
       ['t-1', 'done'],
       ['t-2', 'done'],
