@@ -2385,10 +2385,9 @@ public final class PlayBridge {
          * — a sacrifice or discard a cost asks for, a "choose a creature". On a pick that pays for
          * an ability whose targets are already chosen — Bone Shards' sacrifice, asked after its
          * target (rule 601.2c before 601.2h) — {@code aimed} carries those targets, so the seat
-         * can be shown what the spell is aimed at while it pays. On a pick that pays a sacrifice
-         * cost of a spell or ability this seat is casting or activating ({@link #sacrificeBeingPaid})
-         * {@code sacrifice} carries the cards it may sacrifice and how many it must, so the server
-         * can take the only legal sacrifice itself.
+         * can be shown what the spell is aimed at while it pays. On a pick of what to sacrifice
+         * ({@link #sacrificeAsked}) {@code sacrifice} carries the cards it may sacrifice and how
+         * many it must, so the server can take the only legal sacrifice itself.
          */
         private JsonObject openSelection() {
             final Game game = liveGame();
@@ -2411,9 +2410,7 @@ public final class PlayBridge {
                     for (final forge.game.player.Player p : choices.getTargetPlayers()) { if (!aimed.contains(p.getView())) { aimed.add(p.getView()); } }
                 }
                 if (!aimed.isEmpty()) { o.add("aimed", refs(aimed)); }
-                final forge.game.cost.CostSacrifice paying = sacrificeBeingPaid(game, mine);
-                if (paying != null && input instanceof forge.gamemodes.match.input.InputSelectEntitiesFromList<?> list
-                        && game.costPaymentStack.peek().payment().getAbility() == sa) {
+                if (input instanceof forge.gamemodes.match.input.InputSelectEntitiesFromList<?> list && sacrificeAsked(game, mine, sa)) {
                     final JsonObject sacrifice = new JsonObject();
                     final List<Object> cards = new ArrayList<>();
                     for (final Object c : list.getValidChoices()) { if (c instanceof forge.game.card.Card card) { cards.add(card.getView()); } }
@@ -2430,22 +2427,31 @@ public final class PlayBridge {
         }
 
         /**
-         * The sacrifice cost this seat is paying for a spell it casts or an ability it activates, or
-         * null. Forge pushes every cost part it pays through {@code CostPayment.payCost} onto
+         * Whether the open selection for {@code sa} asks this seat what to sacrifice: a sacrifice
+         * cost of a spell it casts or an ability it activates, or a sacrifice effect it must obey
+         * (an edict, "each player sacrifices a creature").
+         *
+         * <p>A cost: Forge pushes every cost part it pays through {@code CostPayment.payCost} onto
          * {@code game.costPaymentStack} for as long as that part is being decided
          * ({@code CostPayment.java:147-165}), and a cast or activation pays through it
-         * ({@code PlaySpellAbility.java:683}); a cost asked of a player while an effect resolves (an
-         * "unless" cost, {@code payCostDuringAbilityResolve}) visits its parts without it, so it is
-         * never reported. A trigger's cost is left out too: declining it is the player's choice.
-         * A sacrifice of the source itself is a confirm, not a selection, and is left out as well.
+         * ({@code PlaySpellAbility.java:683}). A cost asked while an effect resolves (an "unless"
+         * cost, {@code payCostDuringAbilityResolve}) visits its parts without it, and its input
+         * carries the effect's own ability, so it is never reported. A trigger's cost is left out:
+         * declining it is the player's choice. A sacrifice of the source itself is a confirm, not a
+         * selection.
+         *
+         * <p>An effect: {@code SacrificeEffect} asks through {@code choosePermanentsToSacrifice}
+         * ({@code SacrificeEffect.java:124-148} → {@code PlayerControllerHuman.choosePermanentsTo}),
+         * whose input carries the effect's ability; its {@code Destroy$} form destroys instead and
+         * is left out.
          */
-        private static forge.game.cost.CostSacrifice sacrificeBeingPaid(final Game game, final forge.game.player.Player mine) {
-            if (game == null || mine == null) { return null; }
+        private static boolean sacrificeAsked(final Game game, final forge.game.player.Player mine, final SpellAbility sa) {
             final forge.game.zone.CostPaymentStack.Entry top = game.costPaymentStack.peek();
-            if (top == null || !(top.cost() instanceof forge.game.cost.CostSacrifice sacrifice) || sacrifice.payCostFromSource()) { return null; }
-            final SpellAbility sa = top.payment().getAbility();
-            if (sa == null || sa.isTrigger() || sa.getActivatingPlayer() != mine) { return null; }
-            return sacrifice;
+            if (top != null && top.payment().getAbility() == sa) {
+                return top.cost() instanceof forge.game.cost.CostSacrifice sacrifice && !sacrifice.payCostFromSource()
+                        && !sa.isTrigger() && sa.getActivatingPlayer() == mine;
+            }
+            return sa.getApi() == forge.game.ability.ApiType.Sacrifice && !sa.hasParam("Destroy");
         }
 
         /**
@@ -2714,8 +2720,6 @@ public final class PlayBridge {
             f.addProperty("min", Math.max(0, min));
             f.addProperty("max", Math.max(0, max));
             if (players != null) { f.add("players", players); }
-            // Forge sends the set before the input is open, from inside the cost part it pays.
-            if (sacrificeBeingPaid(liveGame(), liveSelf(liveGame())) != null) { f.addProperty("sacrifice", true); }
             frame(f);
         }
 

@@ -26,7 +26,7 @@ import {
 	PHASE_BY_UI_NAME,
 	namedStopPolicy,
 	chosenCostConfirm,
-	forcedSacrificeSet,
+	forcedSet,
 	onlySacrifice,
 	freeSearchConfirm,
 	decideCancel,
@@ -2731,10 +2731,10 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 	});
 });
 
-describe('onlySacrifice — the sacrifice cost with one legal way to pay it', () => {
+describe('onlySacrifice — a sacrifice with one legal way to make it', () => {
 	const me = 1;
 	const card = (id: number) => ({ kind: 'card' as const, id });
-	const set = (ids: number[], n: number, extra: { sacrifice?: true; players?: { kind: 'player'; id: number }[] } = { sacrifice: true }): ServerFrame => ({
+	const set = (ids: number[], n: number, extra: { players?: { kind: 'player'; id: number }[] } = {}): ServerFrame => ({
 		kind: 'notify',
 		method: 'setSelectables',
 		cards: ids.map(card),
@@ -2757,15 +2757,14 @@ describe('onlySacrifice — the sacrifice cost with one legal way to pay it', ()
 		openAsks: 0,
 	});
 
-	it('a set is forced only when it is a sacrifice cost and every card it offers must be taken', () => {
-		expect(forcedSacrificeSet(set([7], 1))).toBe(true);
-		expect(forcedSacrificeSet(set([7], 1, { sacrifice: true, players: [] })), 'no player offered, as the bridge says it').toBe(true);
-		expect(forcedSacrificeSet(set([7, 8], 2))).toBe(true);
-		expect(forcedSacrificeSet(set([7, 8], 1)), 'a choice of two').toBe(false);
-		expect(forcedSacrificeSet(set([7], 1, {})), 'not a sacrifice cost').toBe(false);
-		expect(forcedSacrificeSet(set([], 0)), 'nothing to take').toBe(false);
-		expect(forcedSacrificeSet(set([7], 1, { sacrifice: true, players: [{ kind: 'player', id: 0 }] })), 'a player is offered too').toBe(false);
-		expect(forcedSacrificeSet({ kind: 'notify', method: 'setSelectables', cards: [card(7)], min: 0, max: 1, sacrifice: true }), 'up to one').toBe(false);
+	it('a set is forced only when every card it offers must be taken', () => {
+		expect(forcedSet(set([7], 1))).toBe(true);
+		expect(forcedSet(set([7], 1, { players: [] })), 'no player offered, as the bridge says it').toBe(true);
+		expect(forcedSet(set([7, 8], 2))).toBe(true);
+		expect(forcedSet(set([7, 8], 1)), 'a choice of two').toBe(false);
+		expect(forcedSet(set([], 0)), 'nothing to take').toBe(false);
+		expect(forcedSet(set([7], 1, { players: [{ kind: 'player', id: 0 }] })), 'a player is offered too').toBe(false);
+		expect(forcedSet({ kind: 'notify', method: 'setSelectables', cards: [card(7)], min: 0, max: 1 }), 'up to one').toBe(false);
 	});
 
 	it('picks the cards the open input names, all in one act, and nothing else', () => {

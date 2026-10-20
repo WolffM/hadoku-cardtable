@@ -144,7 +144,8 @@ test(titled('Bone Shards with one creature: alice picks the target, and the only
     const clicks = rows.filter((r) => r.evt === 'click').slice(clicksBefore).map((r) => Number(r.card));
     console.log(`[bo] resolved: clicks=${JSON.stringify(clicks)} picked=${JSON.stringify(picked)}`);
     expect(picked, 'the server took the Bears, and said why').toEqual([expect.objectContaining({ why: 'the only legal sacrifice', cards: [{ id: bears, name: 'Grizzly Bears' }] })]);
-    expect(clicks.filter((id) => id === giant || id === bears), 'her one click chose the Giant').toEqual([giant]);
+    // Every act the server sends Forge is watched as a click too: the one on the Bears is its own pick.
+    expect(clicks.filter((id) => id === giant || id === bears), 'she chose the Giant; the Bears were picked once, by the server').toEqual([giant, bears]);
   } finally {
     await stack.stop();
   }

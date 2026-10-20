@@ -292,10 +292,10 @@ export const ShowPromptMessageSchema = z.strictObject({
    * the open input — `setSelectables` is sent before it is, so it cannot say. `targets` is true for a
    * target choice, false for any other pick (a cost's sacrifice or discard, a "choose a creature").
    * `aimed`, on a pick that pays for an ability whose targets are already chosen (Bone Shards'
-   * sacrifice comes after its target), is what that ability is aimed at. `sacrifice`, on a pick that
-   * pays a sacrifice cost of a spell the seat casts or an ability it activates (`PlayBridge.java`'s
-   * `sacrificeBeingPaid`), is the cards it may sacrifice and how many it must. Absent on every other
-   * prompt.
+   * sacrifice comes after its target), is what that ability is aimed at. `sacrifice`, on a pick of
+   * what to sacrifice — a sacrifice cost of a spell the seat casts or an ability it activates, or an
+   * edict it must obey (`PlayBridge.java`'s `sacrificeAsked`) — is the cards it may sacrifice and how
+   * many it must. Absent on every other prompt.
    */
   selection: z
     .strictObject({
@@ -371,10 +371,6 @@ export const HideZonesSchema = z.strictObject({
  * The bridge runs those same checks for every player when the selection opens and
  * sends the ones that pass. Absent when the bridge could not tell (an input it does
  * not read): then every player stays offered, as before.
- *
- * `sacrifice` is ours too: true when the set is sent from inside a sacrifice cost of a
- * spell the seat casts or an ability it activates (`PlayBridge.java`'s
- * `sacrificeBeingPaid`). The prompt after it says so again, read with the input open.
  */
 export const SetSelectablesSchema = z.strictObject({
   kind: z.literal('notify'),
@@ -383,7 +379,6 @@ export const SetSelectablesSchema = z.strictObject({
   min: z.number().int().nonnegative(),
   max: z.number().int().nonnegative(),
   players: z.array(PlayerRefSchema).optional(),
-  sacrifice: z.literal(true).optional(),
 });
 
 /**

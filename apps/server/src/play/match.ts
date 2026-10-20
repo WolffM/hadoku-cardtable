@@ -116,7 +116,7 @@ import {
 	decideCancel,
 	decidePay,
 	DEFAULT_STOP_POLICY,
-	forcedSacrificeSet,
+	forcedSet,
 	freeSearchConfirm,
 	FULL_CONTROL_POLICY,
 	judgeStop,
@@ -440,9 +440,9 @@ export interface SeatState {
 	highlighted: Map<string, unknown>;
 	weakly: ServerFrame | null;
 	/**
-	 * A sacrifice cost's `setSelectables` with no choice in it (`auto.ts`'s `forcedSacrificeSet`),
-	 * held off the seat's wire until the prompt after it says whether the server takes the
-	 * sacrifice itself ({@link Match.maybeOnlySacrifice}); null otherwise.
+	 * A `setSelectables` with no choice in it (`auto.ts`'s `forcedSet`), held off the seat's wire
+	 * until the prompt after it says whether it is a sacrifice the server takes itself
+	 * ({@link Match.maybeOnlySacrifice}), and sent on ahead of that prompt otherwise; null when none is.
 	 */
 	heldSacrifice: ServerFrame | null;
 	/** The server just took a sacrifice for this seat: the bar Forge sends with that pick's prompt is not the seat's. */
@@ -2363,9 +2363,12 @@ export class Match {
 			s.actionable = null;
 		}
 		if (frame.method === 'setSelectables' || frame.method === 'clearSelectables') s.heldSacrifice = null;
-		if (frame.method === 'setSelectables' && !s.ai && this.status === 'running' && forcedSacrificeSet(frame)) {
-			// Its prompt decides whether the seat ever sees it (`maybeOnlySacrifice`).
+		if (frame.method === 'setSelectables' && !s.ai && this.status === 'running' && forcedSet(frame)) {
+			// Its prompt decides whether the seat ever sees it (`maybeOnlySacrifice`). Forge is waiting
+			// on the seat all the same, so the other seat is told, and a reload is told the set.
 			s.heldSacrifice = frame;
+			s.selection = frame;
+			this.checkWaitingOn();
 			return;
 		}
 		// Kept for a reload (see `SeatState.selection`). Independent of the
@@ -3165,12 +3168,11 @@ export class Match {
 		return true;
 	}
 
-	/** The held sacrifice set, on the seat's wire after all: its prompt left the pick to the seat. */
+	/** The held set, on the seat's wire after all: its prompt left the pick to the seat. */
 	private releaseHeldSacrifice(s: SeatState): void {
 		const held = s.heldSacrifice;
 		if (held === null) return;
 		s.heldSacrifice = null;
-		s.selection = held;
 		this.send(s, held);
 		this.checkWaitingOn();
 	}

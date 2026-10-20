@@ -1443,29 +1443,32 @@ export function chosenCostConfirm(notes: SeatNotes, chosen: { hostCard: number; 
 export const ONLY_SACRIFICE = 'the only legal sacrifice';
 
 /**
- * Whether a `setSelectables` is the set of a sacrifice cost with no choice in it: the bridge says
- * it is sent from inside a sacrifice cost of the seat's own cast or activation (`sacrifice`), and
- * it must take every card it offers (`min` = `max` = the number of cards). The server holds such
- * a set until the prompt confirms it ({@link onlySacrifice}).
+ * Whether a `setSelectables` leaves no choice: every card it offers must be taken (`min` = `max` =
+ * the number of cards) and no player is offered. Forge sends the set before its input is open, so
+ * the set cannot say what the pick is for; the server holds such a set until the prompt after it
+ * says ({@link onlySacrifice}), and sends it on ahead of that prompt when the pick is the seat's.
  */
-export function forcedSacrificeSet(selectables: ServerFrame): boolean {
-	if (selectables.method !== 'setSelectables' || selectables.sacrifice !== true) return false;
+export function forcedSet(selectables: ServerFrame): boolean {
+	if (selectables.method !== 'setSelectables') return false;
 	const { cards, min, max } = selectables;
 	return min > 0 && min === max && cards.length === min && (selectables.players ?? []).length === 0;
 }
 
 /**
- * The pick that pays a sacrifice cost with only one way to pay it, or null when the pick is the
- * seat's. The operator, 2026-10-20, on Tinker asking "Select artifact to sacrifice (1 left)" with
+ * The pick of what to sacrifice when there is only one way to make it, or null when the pick is
+ * the seat's. The operator, 2026-10-20, on Tinker asking "Select artifact to sacrifice (1 left)" with
  * Mishra's Bauble the only artifact: *"it's a bad question because there is only one target"* —
  * and the ruling: *"yes, auto-pick the only legal sacrifice, bone shards too."*
  *
- * Only a sacrifice COST of a spell the seat casts or an ability it activates: the bridge names it
- * from Forge's own cost-payment stack (`PlayBridge.java`'s `sacrificeBeingPaid`), never from the
- * prompt's words. A target, a discard, an effect's "sacrifice a creature", an "unless" cost and a
- * trigger's cost are never named, so they are still asked. The seat already chose to cast or
- * activate; Forge's Cancel there only takes that back, as with the cost confirm
- * {@link chosenCostConfirm} answers.
+ * The operator's scope, 2026-10-20: a sacrifice COST of a spell the seat casts or an ability it
+ * activates (Tinker, Bone Shards), and a sacrifice EFFECT it must obey (an edict, "each player
+ * sacrifices a creature") — whenever the choice is forced. The bridge names both from the open
+ * input itself (`PlayBridge.java`'s `sacrificeAsked`: Forge's cost-payment stack for a cost, the
+ * input's ability for an effect), never from the prompt's words. A target, a discard, an "unless"
+ * cost, a trigger's cost and a "you may sacrifice" (its `min` is 0) are never forced picks of
+ * this kind, so they are still asked. For a cost, the seat already chose to cast or activate;
+ * Forge's Cancel there only takes that back, as with the cost confirm {@link chosenCostConfirm}
+ * answers.
  *
  * It answers only when the set it must take is all there is: `min` = `max` = the number of cards
  * offered, read from the open input, and the same cards the held `setSelectables` offered. The act
@@ -1473,7 +1476,7 @@ export function forcedSacrificeSet(selectables: ServerFrame): boolean {
  * selected (`hasAllTargets`).
  */
 export function onlySacrifice(notes: SeatNotes, selectables: ServerFrame | null): Extract<ClientFrame, { kind: 'act' }> | null {
-	if (notes.openAsks > 0 || selectables === null || !forcedSacrificeSet(selectables) || selectables.method !== 'setSelectables') return null;
+	if (notes.openAsks > 0 || selectables === null || !forcedSet(selectables) || selectables.method !== 'setSelectables') return null;
 	const prompt = notes.prompt;
 	if (prompt === null || prompt.method !== 'showPromptMessage' || notes.playerId === null || prompt.player.id !== notes.playerId) return null;
 	const sacrifice = prompt.selection?.sacrifice;

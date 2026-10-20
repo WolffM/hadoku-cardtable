@@ -3051,16 +3051,9 @@ describe('hold-decide-forward', () => {
 		});
 	});
 
-	describe('a sacrifice cost with one legal way to pay it (Tinker with only a Bauble)', () => {
+	describe('a sacrifice with one legal way to make it (Tinker with only a Bauble, an edict with one creature)', () => {
 		const ref = (id: number) => ({ kind: 'card' as const, id });
-		const set = (ids: number[], n: number, sacrifice = true) => ({
-			kind: 'notify' as const,
-			method: 'setSelectables' as const,
-			cards: ids.map(ref),
-			min: n,
-			max: n,
-			...(sacrifice ? { sacrifice: true as const } : {}),
-		});
+		const set = (ids: number[], n: number) => ({ kind: 'notify' as const, method: 'setSelectables' as const, cards: ids.map(ref), min: n, max: n });
 		const prompt = (ids: number[] | null, n: number) => ({
 			...promptFrame(1, 'Tinker - Search your library for an artifact card.\nSelect artifact to sacrifice (1 left)'),
 			selection: { targets: false, ...(ids === null ? {} : { sacrifice: { cards: ids.map(ref), min: n, max: n } }) },
@@ -3068,7 +3061,7 @@ describe('hold-decide-forward', () => {
 		const bar = buttonsFrame(1, { label1: 'OK', label2: 'Cancel', enable1: false, enable2: true });
 		const pick = (h: Harness, offered: number[], n: number, named: number[] | null = offered) =>
 			h.host.push(
-				{ t: 'frame', seat: SEAT1_ID, frame: set(offered, n, named !== null) },
+				{ t: 'frame', seat: SEAT1_ID, frame: set(offered, n) },
 				{ t: 'frame', seat: SEAT1_ID, frame: prompt(named, n) },
 				{ t: 'frame', seat: SEAT1_ID, frame: bar },
 			);
@@ -3123,7 +3116,15 @@ describe('hold-decide-forward', () => {
 			expect(methodsSent(h, SEAT1_ID, before).filter((m) => m !== 'updateButtons')).toEqual(['setSelectables', 'showPromptMessage']);
 		});
 
-		it('a one-card pick that is not a sacrifice cost (a target, a discard, an effect) is still asked', () => {
+		it('a set with a choice in it is never held: it reaches the seat before its question does', () => {
+			const h = openedHarness();
+			closeDanglingBar(h, SEAT1_ID);
+			const before = envelopesFor(h, SEAT1_ID).length;
+			h.host.push({ t: 'frame', seat: SEAT1_ID, frame: set([77, 78], 1) });
+			expect(methodsSent(h, SEAT1_ID, before)).toEqual(['setSelectables']);
+		});
+
+		it('a one-card pick that is not a sacrifice (a target, a discard) is still asked', () => {
 			const h = openedHarness();
 			closeDanglingBar(h, SEAT1_ID);
 			const before = envelopesFor(h, SEAT1_ID).length;

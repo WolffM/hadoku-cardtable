@@ -87,7 +87,8 @@ test(titled('Bone Shards: the target sheet asks for a target and the sacrifice s
           }
           if (now !== null && now.cards.includes(giant)) target = now;
           await answerPrompt(page);
-          if ((await boardCard(page, giant).count()) > 0) await pressOffered(boardCard(page, giant));
+          // Only once its sheet was read: pressed the moment it is offered, the Giant can be picked before the sheet draws.
+          if (target !== null && (await boardCard(page, giant).count()) > 0) await pressOffered(boardCard(page, giant));
           return false;
         },
         { timeout: 30_000, intervals: [100], message: `the sacrifice sheet opened — says: "${await says(page)}"` },
