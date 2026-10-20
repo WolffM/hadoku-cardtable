@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { observeZoneBoxes, writeZoneBox, ZONE_BOXES } from './zone-box.ts';
+import { CARD_BOXES, observeZoneBoxes, writeCardBox, writeZoneBox, ZONE_BOXES } from './zone-box.ts';
 
 const dir = import.meta.dirname ?? 'apps/ui/src/play';
 const rules = (file: string): string => readFileSync(resolve(dir, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -47,6 +47,42 @@ describe('a zone’s box, measured instead of queried (the operator, 2026-10-10:
     for (const band of [3, 4, 5, 6, 8, 10]) {
       expect(css).toContain(`:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='${band}'] > :is(.zone__rows, .zone__cards, .card-backs) {`);
     }
+  });
+
+  it('a pile’s own card is measured as the width it is drawn at — a crowded row squeezes it under --card-w — and forgotten once it is no pile', () => {
+    const observedEls: Element[] = [];
+    const unobserved: Element[] = [];
+    class Stub {
+      observe(el: Element): void {
+        observedEls.push(el);
+      }
+      unobserve(el: Element): void {
+        unobserved.push(el);
+      }
+      disconnect(): void {}
+    }
+    const real = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = Stub as unknown as typeof ResizeObserver;
+    try {
+      document.body.innerHTML = '<ul class="zone__cards"><li class="board-card" data-pile-size="2"></li><li class="board-card"></li></ul>';
+      const pile = document.querySelector<HTMLElement>(CARD_BOXES)!;
+      const boxes = observeZoneBoxes()!;
+      boxes.sync(document.body);
+      expect(observedEls, 'the pile, not the lone card').toEqual([pile]);
+      window.dispatchEvent(new Event('resize'));
+      expect(pile.style.getPropertyValue('--card-drawn-w'), 'a card box, never a zone box').toBe('0px');
+      expect(pile.style.getPropertyValue('--zone-w')).toBe('');
+      pile.removeAttribute('data-pile-size');
+      boxes.sync(document.body);
+      expect(unobserved).toEqual([pile]);
+      boxes.disconnect();
+    } finally {
+      globalThis.ResizeObserver = real;
+      document.body.innerHTML = '';
+    }
+    const li = document.createElement('li');
+    writeCardBox(li, 40.25);
+    expect(li.style.getPropertyValue('--card-drawn-w')).toBe('40.25px');
   });
 
   it('a window resize is measured from its own event — before the frame callbacks — and not after a disconnect', () => {
