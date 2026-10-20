@@ -10,8 +10,10 @@
  * nothing until a reload.
  *
  * Scenario `tk-tinker`: alice holds Tinker, three Islands and Mishra's Bauble; Blightsteel Colossus is on
- * top of her library. Her screen shows the sacrifice the moment Forge asks it, the Bauble is offered, and
- * once she picks it Tinker resolves and the Colossus enters.
+ * top of her library. `tk-tinker-bauble`: the Bauble is in her hand instead, and she casts it and then
+ * Tinker the moment it lands — the live game's order (0.6 s apart). Either way her screen shows the
+ * sacrifice the moment Forge asks it, the Bauble is offered, and once she picks it Tinker resolves and the
+ * Colossus enters.
  *
  * `[tk]` lines are the evidence: what her screen says and offers while Forge waits on the sacrifice.
  *
@@ -34,16 +36,25 @@ async function drawn(page: Page): Promise<string> {
   return `says="${(await says(page)).replace(/\s+/g, ' ')}" offered=${JSON.stringify(await offered(page))} sheets=${JSON.stringify(sheets)}`;
 }
 
-test(titled('Tinker: the sacrifice is on screen the moment Forge asks it, and picking the Bauble resolves Tinker'), async ({ browser }) => {
+for (const { scenario, board } of [
+  { scenario: 'tk-tinker', board: 'the Bauble already out' },
+  { scenario: 'tk-tinker-bauble', board: 'the Bauble cast just before' },
+]) test(titled(`Tinker: the sacrifice is on screen the moment Forge asks it, and picking the Bauble resolves Tinker (${board})`), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
   const stack = await startPlayStack(forge);
   try {
-    const { alice } = await startScenarioMatch(browser, stack, 'tk-tinker');
+    const { alice } = await startScenarioMatch(browser, stack, scenario);
     const page = alice.page;
     await expect.poll(() => handCardNamed(page, 'Tinker'), { timeout: 30_000, message: 'alice holds Tinker' }).not.toBeUndefined();
     const tinker = (await handCardNamed(page, 'Tinker'))!;
+    const inHand = await handCardNamed(page, "Mishra's Bauble");
+    if (inHand !== undefined) {
+      await expect.poll(() => offered(page), { timeout: 45_000, message: 'the Bauble is offered' }).toContain(inHand);
+      expect(await clickHandCard(page, inHand), 'the Bauble lifted and cast').toBe(true);
+      await expect.poll(() => ownNamed(page, "Mishra's Bauble"), { timeout: 20_000, message: 'the Bauble landed' }).toHaveLength(1);
+    }
     const [bauble] = await ownNamed(page, "Mishra's Bauble");
     expect(bauble, "alice has her Mishra's Bauble").not.toBeUndefined();
     await expect.poll(() => offered(page), { timeout: 45_000, message: 'Tinker is offered' }).toContain(tinker);
@@ -52,7 +63,7 @@ test(titled('Tinker: the sacrifice is on screen the moment Forge asks it, and pi
 
     // Forge asks the sacrifice once the mana is paid; the server's own log says when.
     await expect
-      .poll(() => serverLog(stack).some((r) => r.evt === 'auto-paid' && r.seat === 0), { timeout: 20_000, message: 'the {2}{U} paid for her' })
+      .poll(() => serverLog(stack).some((r) => r.evt === 'auto-paid' && r.seat === 0 && r.cost === '{2}{U}'), { timeout: 20_000, message: 'the {2}{U} paid for her' })
       .toBe(true);
     await expect
       .poll(() => isOffered(page, bauble!), { timeout: 10_000, message: `the sacrifice is on screen — ${await drawn(page)}` })
