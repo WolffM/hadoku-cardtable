@@ -805,9 +805,11 @@
  * before it asks for the rest, so mana the player could not see still paid — it
  * just paid invisibly.
  *
- * A grid of three columns, so the six mana types Forge's pool can hold
- * (`ManaAtom.MANATYPES`) fit two rows deep inside `--mana-h` and the track never
- * has to grow. Each entry reads like the hand and library counts beside it — the
+ * Chips as wide as what they say, wrapped: three single-digit chips to a row,
+ * so the six mana types Forge's pool can hold (`ManaAtom.MANATYPES`) fit two
+ * 14px rows deep inside `--mana-h` and the track never has to grow. A two-digit
+ * count widens its own chip instead of being cut off at both ends, which a grid
+ * of three equal columns did (the operator, 2026-10-20). Each entry reads like the hand and library counts beside it — the
  * Mana font's own symbol, then the count in `--ink` — on the same quiet chip the
  * prompts' rows sit on. The operator, 2026-10-14: *"mana color outline box is
  * ugly"*: an outline per colour drew the colour twice, once in the symbol's own
@@ -817,8 +819,9 @@
  * whole pool is in the list's accessible name in words (`Board.tsx`).
  */
 .board .seat__mana {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-content: start;
   gap: 2px;
   min-width: 0;
@@ -831,17 +834,17 @@
 
 .seat__mana-pip {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  min-width: 0;
-  padding: 0 2px;
+  gap: 1px;
+  padding: 0 1px;
   background: var(--bg-card);
   border-radius: calc(var(--radius) / 2);
   color: var(--ink);
   font-size: 10px;
   font-weight: 600;
-  line-height: 1.5;
+  line-height: 14px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
