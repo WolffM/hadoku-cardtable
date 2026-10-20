@@ -12,7 +12,7 @@
  *
  * Scenario `tf-thopter-sword`, against the Forge AI as the live game was: alice loops the combo; the first
  * loop answers the Sword's "may" with Always + Yes, and every later loop is timed. `[tf]` lines are the
- * evidence: per loop, click→pick on screen, pick→Foundry offered again.
+ * evidence: per loop, click→the sacrifice's sheet on screen, pick→Foundry offered again.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one this SKIPS and the
  * title says why.
@@ -65,9 +65,11 @@ test(titled('Thopter Foundry + Sword of the Meek: the Sword’s trigger is playe
       expect(sword, `loop ${loop}: the Sword is on the battlefield`).not.toBeUndefined();
       const clickAt = Date.now();
       expect(await pressOffered(boardCard(page, foundry!)), `loop ${loop}: the Foundry is pressed`).toBe(true);
-      await whenOffered(page, sword!, 20_000);
+      // The pick is the selection sheet's: once the Sword rides a Thopter, its board card sits under the Thopter's.
+      const pick = page.locator(`[data-testid="live-selection-host"] li[data-card-id="${sword}"] label`);
+      await pick.waitFor({ timeout: 20_000 });
       const pickAt = Date.now();
-      expect(await pressOffered(boardCard(page, sword!)), `loop ${loop}: the Sword is picked as the sacrifice`).toBe(true);
+      await pick.click();
       const pickedAt = Date.now();
       if (loop === 0) {
         // The Sword's "may", once: Always + Yes, as the operator answered it in the live game.
