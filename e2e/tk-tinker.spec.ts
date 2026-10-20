@@ -30,10 +30,16 @@ import { startScenarioMatch } from './play/scenario.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-/** What the board draws of the open decision: the line, the offered cards, any prompt sheet. */
+/** The decision pop-up's text, or null when none is drawn. */
+async function popup(page: Page): Promise<string | null> {
+  const host = page.getByTestId('live-decision-host');
+  return (await host.count()) > 0 && (await host.first().isVisible()) ? ((await host.first().textContent()) ?? '').replace(/\s+/g, ' ').trim() : null;
+}
+
+/** What the board draws of the open decision: the line, the pop-up, the offered cards, any prompt sheet. */
 async function drawn(page: Page): Promise<string> {
   const sheets = await page.getByTestId('live-prompt').evaluateAll((els) => els.map((e) => `${e.getAttribute('data-method') ?? ''}#${e.getAttribute('data-call-id') ?? ''}`));
-  return `says="${(await says(page)).replace(/\s+/g, ' ')}" offered=${JSON.stringify(await offered(page))} sheets=${JSON.stringify(sheets)}`;
+  return `says="${(await says(page)).replace(/\s+/g, ' ')}" popup=${JSON.stringify(await popup(page))} offered=${JSON.stringify(await offered(page))} sheets=${JSON.stringify(sheets)}`;
 }
 
 for (const { scenario, board } of [
@@ -70,6 +76,8 @@ for (const { scenario, board } of [
       .toBe(true);
     console.log(`[tk] sacrifice asked: ${await drawn(page)}`);
     expect(await says(page), 'the board words the sacrifice').toMatch(/sacrifice/i);
+    // The question pops up as every decision does — the operator: "that question never popped up on my screen".
+    await expect.poll(() => popup(page), { timeout: 5_000, message: `the sacrifice pops up — ${await drawn(page)}` }).toMatch(/sacrifice/i);
 
     expect(await pressOffered(boardCard(page, bauble!)), 'alice picks the Bauble').toBe(true);
     // The search: one artifact in the library, picked by the prompt's own default.
