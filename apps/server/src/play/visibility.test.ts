@@ -1051,6 +1051,37 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(held(bobOut, 20), 'bob is never sent his own top card').toBeUndefined();
 	});
 
+	it('keeps the top card a fate seal kept when Forge re-creates it on top of the same library — in the packet the look ends, one after it, or after a packet that holds it in no zone', () => {
+		const ended = { _type: TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj;
+		const together = createProjector(0);
+		const togetherOut = [together.project(opening({ 20: [0] })), together.project(renewed([card(20)]))];
+		const after = createProjector(0);
+		const afterOut = [after.project(opening({ 20: [0] })), after.project(delta([ended])), after.project(renewed([card(20)]))];
+		// What Forge sent the fate seal in e2e/fs-known-top.spec.ts: the look ends with the card out of every zone list, and it comes back on top in the next packet as a new object.
+		const split = createProjector(0);
+		const splitOut = [
+			split.project(opening({ 20: [0] })),
+			split.project(delta([ended, player(1, { Hand: [10], Library: [21, 22] })])),
+			split.project(renewed([card(20)], [player(1, { Hand: [10], Library: [20, 21, 22] })])),
+		];
+		expect({ together: together.visibilityOf(20), after: after.visibilityOf(20), split: split.visibilityOf(20) }).toEqual({ together: 'full', after: 'full', split: 'full' });
+		expect([held(togetherOut, 20), held(afterOut, 20), held(splitOut, 20)]).toEqual(Array(3).fill({ t: 'str', v: 'Lightning Bolt' }));
+		expect(lookHeld(splitOut, 20), 'still said as alice’s look').toEqual(list([0]));
+	});
+
+	it('forgets a looked-at top card Forge re-creates anywhere but where it was, or in a library shuffled around it', () => {
+		const ended = { _type: TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj;
+		const bottom = createProjector(0);
+		bottom.project(opening({ 20: [0] }));
+		bottom.project(delta([ended]));
+		bottom.project(renewed([card(20)], [player(1, { Hand: [10], Library: [21, 22, 20] })]));
+		const shuffled = createProjector(0);
+		shuffled.project(opening({ 20: [0] }));
+		shuffled.project(delta([ended, player(1, { Hand: [10], Library: [21, 22] })]));
+		shuffled.project(renewed([card(20)], [player(1, { Hand: [10], Library: [20, 22, 21] })]));
+		expect({ bottom: bottom.visibilityOf(20), shuffled: shuffled.visibilityOf(20) }).toEqual({ bottom: 'hidden', shuffled: 'hidden' });
+	});
+
 	it("names the holder too when it was shown its own top card as well (Goblin Guide's reveal)", () => {
 		const alice = createProjector(0);
 		const out: (StateFrame | null)[] = [alice.project(opening()), alice.learn([20]), alice.learn([20], 1)];
