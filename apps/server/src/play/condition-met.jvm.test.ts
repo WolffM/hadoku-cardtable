@@ -33,6 +33,14 @@
  * Mythos of Illuna's plain copy (`ConditionManaNotSpent$`, beside its "if {R}{G} was spent"). A lone
  * comparison met at 0 is no default: Bloodghast's haste with the opponent at 10 life (`LE10`) lights.
  *
+ * The operator, 2026-10-20: "why is 'Kappa Cannoneer' highlighted in orange? what conditional effect
+ * is relevant here that would make it highlight?" — none. Its trigger carries `IsPresent$ Card.Self`,
+ * Forge's "only while this card is here", which the card's own presence always meets. A third game
+ * holds the cards whose only presence check is the card itself — a trigger's (Kappa Cannoneer,
+ * Steelfin Whale), a sub-ability's (Oubliette's `ConditionPresent$ Card.Self`), an activation's
+ * (Durkwood Tracker), and Edgar Markov's `Card.StrictlySelf` ("this object, not a new one") — beside a metalcraft card with three artifacts and Guardian Beast, whose
+ * "as long as it is untapped" (`Card.Self+untapped`) is a condition the card itself can turn off.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
@@ -80,6 +88,22 @@ const EMPTY_GRAVEYARDS = [
 	'humangraveyard=',
 	'aihand=',
 	'aibattlefield=',
+	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+	'aigraveyard=',
+].join('\n');
+
+const SELF_PRESENCE = [
+	'turn=1',
+	'activeplayer=human',
+	'activephase=MAIN1',
+	'humanlife=20',
+	'ailife=20',
+	'humanhand=',
+	'humanbattlefield=Ornithopter;Ornithopter;Kappa Cannoneer;Carapace Forger;Steelfin Whale;Oubliette;Durkwood Tracker;Edgar Markov;Guardian Beast;Swamp',
+	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
+	'humangraveyard=',
+	'aihand=',
+	'aibattlefield=Plains',
 	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
 	'aigraveyard=',
 ].join('\n');
@@ -182,6 +206,37 @@ describe.skipIf(!available.ok)(title, () => {
 				}
 				const bloodghast = named(hand, 'Bloodghast');
 				expect(seat0, `Bloodghast#${bloodghast.id} is on with the opponent at 10 life`).toContain(bloodghast.id);
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		'a presence check whose only subject is the card itself is not a condition: Kappa Cannoneer on the battlefield stays dark',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 85, decks: DECKS, scenario: SELF_PRESENCE });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Battlefield').some((c) => c.name === 'Kappa Cannoneer');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const board = s.zone(0, 'Battlefield');
+				const seat0 = latestConditionMet(s, 0);
+				const lit = board.filter((c) => seat0?.includes(c.id)).map((c) => `${c.name}#${c.id}`);
+				console.log(`[cm-condition-met.jvm] self presence: conditionMet=${JSON.stringify(seat0)} → [${lit.join(', ')}]`);
+				expect(seat0, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
+				for (const name of ['Kappa Cannoneer', 'Steelfin Whale', 'Oubliette', 'Durkwood Tracker', 'Edgar Markov']) {
+					const c = named(board, name);
+					expect(seat0, `${c.name}#${c.id} is off`).not.toContain(c.id);
+				}
+				for (const name of ['Carapace Forger', 'Guardian Beast']) {
+					const c = named(board, name);
+					expect(seat0, `${c.name}#${c.id} is on`).toContain(c.id);
+				}
 			} finally {
 				await s.stop();
 			}
