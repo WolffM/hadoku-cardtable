@@ -17,6 +17,7 @@ import { ArtPreloadSchema } from '@hadoku/shared';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 import poolData from '../../draft/pool.json' with { type: 'json' };
+import { allRelatedIds } from '../../draft/related.ts';
 
 /** How many art loads run at once. */
 export const PRELOAD_AT_ONCE = 3;
@@ -40,10 +41,10 @@ export function preloadMatchArt(matchId: string, payload: unknown): number {
   return warm(preloadUrls(matchId, payload));
 }
 
-/** Every card the cube can deal, with its back face: what a draft's packs are drawn from. */
+/** Every card the cube can deal, with its back face, and the tokens and meld cards the fan draws beside them. */
 export function cubeArtUrls(): string[] {
   const ids = (poolData as { cards: { scryfallId?: string }[] }).cards.flatMap((c) => (c.scryfallId === undefined ? [] : [c.scryfallId]));
-  const urls = artIdsWithBacks(KNOWN_ART_IDS, ids).map((id) => cardImageUrl(id));
+  const urls = [...artIdsWithBacks(KNOWN_ART_IDS, ids), ...allRelatedIds()].map((id) => cardImageUrl(id));
   return [...new Set(urls.filter((url): url is string => url !== null))];
 }
 

@@ -1,0 +1,641 @@
+{
+ "note": "scripts/art/build-related.ts — the cube cards that have a back face, tokens or a meld partner",
+ "cards": {
+  "026e7167-d665-43d0-a51e-8df2d68cdb5e": [
+   {
+    "id": "026e7167-d665-43d0-a51e-8df2d68cdb5e#back",
+    "name": "Cecil, Redeemed Paladin",
+    "kind": "back"
+   }
+  ],
+  "02aea379-b444-46a3-82f4-3038f698d4f4": [
+   {
+    "id": "8aefe8bd-216a-4ec1-9362-3f9dbf7fd083",
+    "name": "Urza, Lord Protector",
+    "kind": "meld"
+   },
+   {
+    "id": "40a01679-3224-427e-bd1d-b797b0ab68b7",
+    "name": "Urza, Planeswalker",
+    "kind": "meld"
+   }
+  ],
+  "02d6d693-f1f3-4317-bcc0-c21fa8490d38": [
+   {
+    "id": "02d6d693-f1f3-4317-bcc0-c21fa8490d38#back",
+    "name": "Jace, Telepath Unbound",
+    "kind": "back"
+   }
+  ],
+  "06c053d3-028e-4961-93a5-5b7bb5a8601c": [
+   {
+    "id": "491fc1c3-a46e-4cfd-a749-57f4c96f6aea",
+    "name": "Human Knight",
+    "kind": "token"
+   }
+  ],
+  "0783b426-a527-42c1-9271-be28b229e1c6": [
+   {
+    "id": "8c4b0257-2ca5-4015-9d63-d7cf6e87ab9d",
+    "name": "Soldier",
+    "kind": "token"
+   }
+  ],
+  "079e6263-e54c-4899-a336-5315909b9322": [
+   {
+    "id": "4ae9f454-4f8c-4123-9886-674bc439dfe7",
+    "name": "Treasure",
+    "kind": "token"
+   }
+  ],
+  "07a3d9e8-8597-498b-869c-cff79e0df516": [
+   {
+    "id": "c5eafa38-5333-4ef2-9661-08074c580a32",
+    "name": "Construct",
+    "kind": "token"
+   }
+  ],
+  "0d16e8e0-31b2-4389-afd6-783c501f6fa0": [
+   {
+    "id": "0d16e8e0-31b2-4389-afd6-783c501f6fa0#back",
+    "name": "Ajani, Nacatl Avenger",
+    "kind": "back"
+   },
+   {
+    "id": "ce5c5bcf-1fdd-4d73-a92b-223292da00ca",
+    "name": "Cat Warrior",
+    "kind": "token"
+   }
+  ],
+  "18092f68-b96e-4084-9eba-b240d2195d81": [
+   {
+    "id": "7d13a93a-a43d-4cf5-8300-8341f3b7f1b1",
+    "name": "Human",
+    "kind": "token"
+   }
+  ],
+  "187b6719-e5ed-4615-a00b-3313ceca055b": [
+   {
+    "id": "93116d98-2dad-4b80-a3af-9e36e34da6d4",
+    "name": "Treasure",
+    "kind": "token"
+   },
+   {
+    "id": "06e503b9-a822-4c42-b478-1f598bc5941d",
+    "name": "Rogue",
+    "kind": "token"
+   }
+  ],
+  "18b26e53-1fc2-4d07-a56f-9000ed25580d": [
+   {
+    "id": "4ad1fd1a-9c1e-4b01-974e-84f18d325cfc",
+    "name": "Construct",
+    "kind": "token"
+   }
+  ],
+  "21f6d49f-1577-4d17-a633-0c282769728a": [
+   {
+    "id": "5cddb130-a354-4373-9dc4-60c7d57eec8b",
+    "name": "Elemental",
+    "kind": "token"
+   }
+  ],
+  "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc": [
+   {
+    "id": "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc#back",
+    "name": "Reflection of Kiki-Jiki",
+    "kind": "back"
+   },
+   {
+    "id": "6911181d-573b-41eb-96a4-799c96e008fc",
+    "name": "Treasure",
+    "kind": "token"
+   },
+   {
+    "id": "0d9461c3-f545-4efb-926e-759961db0495",
+    "name": "Goblin Shaman",
+    "kind": "token"
+   },
+   {
+    "id": "f4e87a11-b3b1-47b2-bd73-f4c78d6fbe6c",
+    "name": "Copy",
+    "kind": "token"
+   }
+  ],
+  "278e97cf-312d-4e9e-bc39-023f4e547121": [
+   {
+    "id": "6f5a5786-e2be-4bb0-b971-81d1d5cc8f52",
+    "name": "Spirit",
+    "kind": "token"
+   }
+  ],
+  "2a717b98-cdac-416d-bf6c-f6b6638e65d1": [
+   {
+    "id": "2a717b98-cdac-416d-bf6c-f6b6638e65d1#back",
+    "name": "Tamiyo, Seasoned Scholar",
+    "kind": "back"
+   },
+   {
+    "id": "e604b9ca-6c5a-459e-b509-955c3428530a",
+    "name": "Clue",
+    "kind": "token"
+   }
+  ],
+  "2ba70366-b6ae-423a-a8d8-29d2b8afd939": [
+   {
+    "id": "6b563165-b97f-42c6-82a8-65d8ee69e381",
+    "name": "Blood",
+    "kind": "token"
+   }
+  ],
+  "2c695df6-6bf2-4e6b-8500-e3116137ca27": [
+   {
+    "id": "81de52ef-7515-4958-abea-fb8ebdcef93c",
+    "name": "Rabbit",
+    "kind": "token"
+   }
+  ],
+  "2c723fc9-d5c9-4126-a9a6-f80c247a4b6b": [
+   {
+    "id": "eb243b20-85e6-4eba-9403-42272975e8a5",
+    "name": "Beast",
+    "kind": "token"
+   }
+  ],
+  "2e139ad1-1079-49e9-babd-6399c44ad333": [
+   {
+    "id": "e5b57672-c346-42f5-ac3e-82466a13b957",
+    "name": "Elemental",
+    "kind": "token"
+   }
+  ],
+  "32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d": [
+   {
+    "id": "2c5ed737-657b-43bf-b222-941da7579a4a",
+    "name": "Incubator // Phyrexian",
+    "kind": "token"
+   }
+  ],
+  "3455d55e-aef5-4eb1-bcd9-1ff9d1ab3698": [
+   {
+    "id": "2de43b03-9ac5-4292-ab29-2dc6210ef3d9",
+    "name": "Soldier",
+    "kind": "token"
+   }
+  ],
+  "3462a3d0-5552-49fa-9eb7-100960c55891": [
+   {
+    "id": "261aed78-2d57-4ed4-b3d2-53b139b6bd44",
+    "name": "Food",
+    "kind": "token"
+   }
+  ],
+  "3a8b11ad-d077-40b6-988c-0462e118fe3d": [
+   {
+    "id": "34db5e62-4792-4207-b008-7d62bae683a7",
+    "name": "Marit Lage",
+    "kind": "token"
+   }
+  ],
+  "3c922347-f05f-40a4-bbee-6bc02a1e0de5": [
+   {
+    "id": "3fcf8950-117a-4587-8522-79001dffa500",
+    "name": "Drone",
+    "kind": "token"
+   }
+  ],
+  "3d8ca18d-9099-4f1e-95c1-f04da58a26bd": [
+   {
+    "id": "cf4c245f-af2f-46a7-81f3-670a04940901",
+    "name": "Skeleton",
+    "kind": "token"
+   }
+  ],
+  "42b8d797-b01d-49cf-9818-d84bba17029d": [
+   {
+    "id": "52510a8b-a5a2-421b-a8b4-5ab60c848628",
+    "name": "Thopter",
+    "kind": "token"
+   }
+  ],
+  "4720b4f2-e6af-4223-9250-a0ed21ed5693": [
+   {
+    "id": "c72ceae7-72d6-41dc-82cc-b86e845d7aa6",
+    "name": "Pest",
+    "kind": "token"
+   }
+  ],
+  "490eb213-9ae2-4b45-abec-6f1dfc83792a": [
+   {
+    "id": "633d2d10-def7-426f-8496-ed6b45684299",
+    "name": "Monk",
+    "kind": "token"
+   }
+  ],
+  "4a0bb5dc-75a6-4bd6-81f8-611197fb0fba": [
+   {
+    "id": "b53e0681-603e-4180-bc86-3dadf214e61a",
+    "name": "Phyrexian Germ",
+    "kind": "token"
+   }
+  ],
+  "4c6cf93a-d073-48ac-88db-c46bf3e10beb": [
+   {
+    "id": "7ec6f053-96f7-4e57-b2eb-4e7699a40a4f",
+    "name": "Treasure",
+    "kind": "token"
+   }
+  ],
+  "4df8aabc-7fcb-4b7b-980b-18f499e6c170": [
+   {
+    "id": "284ec798-2725-4741-8748-578c259d0623",
+    "name": "Treasure",
+    "kind": "token"
+   }
+  ],
+  "50686ac7-346c-43d1-bdaa-28d46a12ad93": [
+   {
+    "id": "50686ac7-346c-43d1-bdaa-28d46a12ad93#back",
+    "name": "Volcanic Fissure",
+    "kind": "back"
+   }
+  ],
+  "522aa72b-2b8c-484c-872b-f082101cee35": [
+   {
+    "id": "64839118-09d2-4645-9d3c-f80755ac781f",
+    "name": "Map",
+    "kind": "token"
+   }
+  ],
+  "5358b87a-1a29-426d-b165-40c97da2c14d": [
+   {
+    "id": "5358b87a-1a29-426d-b165-40c97da2c14d#back",
+    "name": "Soporific Springs",
+    "kind": "back"
+   }
+  ],
+  "543d55cb-3a6b-4620-af25-10ae74ed32c4": [
+   {
+    "id": "33ee3f6c-5df6-4271-b2f9-86b9afffab7b",
+    "name": "Wurm",
+    "kind": "token"
+   }
+  ],
+  "54a3ea87-005e-4985-b2a5-21711d0b71c0": [
+   {
+    "id": "8a016157-6f3f-4fb2-b962-1f548d378545",
+    "name": "Copy",
+    "kind": "token"
+   },
+   {
+    "id": "059e9d51-c7bf-41c0-a6f0-c0bbc6d3b434",
+    "name": "Insect",
+    "kind": "token"
+   }
+  ],
+  "5a077de0-1893-40d0-a499-ee2e6e2258f1": [
+   {
+    "id": "406e2960-f560-48bb-b4a6-4bd35889a8f8",
+    "name": "Golem",
+    "kind": "token"
+   }
+  ],
+  "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e": [
+   {
+    "id": "761507d5-d36a-4123-a074-95d7f6ffb4c5",
+    "name": "Servo",
+    "kind": "token"
+   }
+  ],
+  "5da578b8-19e6-4068-9336-e7cd33c585f1": [
+   {
+    "id": "8d502061-ca95-4067-a61f-bc5294c274dd",
+    "name": "Thopter",
+    "kind": "token"
+   },
+   {
+    "id": "6ec42fab-86b8-4479-90f2-a1690318d6d4",
+    "name": "Servo",
+    "kind": "token"
+   },
+   {
+    "id": "7fee6034-f0bb-49b9-ad75-67d3d6be1159",
+    "name": "Construct",
+    "kind": "token"
+   }
+  ],
+  "5fa6d385-6b8e-45ad-83dc-b477799c05a5": [
+   {
+    "id": "6b365694-e056-48b9-aae3-599180c0c29c",
+    "name": "Zombie",
+    "kind": "token"
+   }
+  ],
+  "612b2e6e-fe8d-49ad-b845-6fa7fa59ffd1": [
+   {
+    "id": "612b2e6e-fe8d-49ad-b845-6fa7fa59ffd1#back",
+    "name": "Revealing Eye",
+    "kind": "back"
+   }
+  ],
+  "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b": [
+   {
+    "id": "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b#back",
+    "name": "Witch-Blessed Meadow",
+    "kind": "back"
+   }
+  ],
+  "62b3f560-262b-4bc3-9aef-535fd7082c28": [
+   {
+    "id": "e85f57c5-923a-4824-969e-53feddd78c3b",
+    "name": "Copy",
+    "kind": "token"
+   }
+  ],
+  "6920c895-bc98-4871-a53f-219fa27a74e5": [
+   {
+    "id": "6bee4081-5d74-4cc2-ba2f-887bc8799513",
+    "name": "Spirit",
+    "kind": "token"
+   }
+  ],
+  "69af2825-18c2-4463-b6ba-42eaa070ccc1": [
+   {
+    "id": "03ce1033-ce07-40ef-9315-beb759af9465",
+    "name": "Insect",
+    "kind": "token"
+   }
+  ],
+  "6bcafc2e-cef6-412d-8c5d-1658c3337292": [
+   {
+    "id": "b802aea8-0ca3-4d2c-a8ef-a80e16729c9b",
+    "name": "Insect",
+    "kind": "token"
+   }
+  ],
+  "73a065e3-b530-4e62-ab3c-4f6f908184ec": [
+   {
+    "id": "6455d903-6996-448f-9148-9068febecb00",
+    "name": "Soldier",
+    "kind": "token"
+   }
+  ],
+  "777fcc21-2856-4181-8ecd-c272f9769e36": [
+   {
+    "id": "f59eba51-458a-40e0-b754-999f91d5d839",
+    "name": "Spirit",
+    "kind": "token"
+   }
+  ],
+  "7c024bae-5631-4e20-ac69-df392ac9e109": [
+   {
+    "id": "6943f966-fd21-427c-a13f-44727edcaa4b",
+    "name": "Orc Army",
+    "kind": "token"
+   }
+  ],
+  "80c72839-0fa6-4b5f-83b7-6553ebf09bef": [
+   {
+    "id": "a41eb9df-d8b4-4697-a759-886faf16754d",
+    "name": "Rebel",
+    "kind": "token"
+   }
+  ],
+  "82866a0e-485a-4f7e-8c49-f7d9ff3f4ad4": [
+   {
+    "id": "82866a0e-485a-4f7e-8c49-f7d9ff3f4ad4#back",
+    "name": "Aang and La, Ocean's Fury",
+    "kind": "back"
+   }
+  ],
+  "829d91e9-4878-4e55-a262-ac0d55b65d4e": [
+   {
+    "id": "01439983-8394-4a0c-9e9e-92a3f1927fe3",
+    "name": "Ally",
+    "kind": "token"
+   }
+  ],
+  "85d22d5d-3875-42ff-b51e-c6e21db201f5": [
+   {
+    "id": "4a029bdc-92e3-4d85-8af5-e33429a5f017",
+    "name": "Food",
+    "kind": "token"
+   }
+  ],
+  "87cc2855-6b14-44dd-a398-7dc2bbae081f": [
+   {
+    "id": "b53e0681-603e-4180-bc86-3dadf214e61a",
+    "name": "Phyrexian Germ",
+    "kind": "token"
+   }
+  ],
+  "89345f55-2b32-4356-945a-d56dded39909": [
+   {
+    "id": "0484390e-1167-4407-84de-7ddc726e8926",
+    "name": "Vampire",
+    "kind": "token"
+   }
+  ],
+  "89cf6f57-230f-497e-a14e-ad1e8737fd42": [
+   {
+    "id": "74bacab2-a4c6-4ba5-a208-6bd09ae4cf9f",
+    "name": "Cat",
+    "kind": "token"
+   }
+  ],
+  "8d27e717-8bda-44dc-90b9-a6f7029c7b93": [
+   {
+    "id": "79a7e037-9f56-4a77-a09e-caeafbb86d7c",
+    "name": "Treasure",
+    "kind": "token"
+   }
+  ],
+  "928036c9-11b8-493e-b9f2-8fbd3487cd19": [
+   {
+    "id": "0d0475e9-68ae-4553-a5ef-650091e04967",
+    "name": "Boo",
+    "kind": "token"
+   }
+  ],
+  "95c14c4d-6c16-4826-8d93-d89ad04aee09": [
+   {
+    "id": "95c14c4d-6c16-4826-8d93-d89ad04aee09#back",
+    "name": "Etali, Primal Sickness",
+    "kind": "back"
+   }
+  ],
+  "969ac7dd-f3aa-4888-9ff0-d16a31b5e7a9": [
+   {
+    "id": "be84f259-2809-48c9-9c70-861437f08c23",
+    "name": "Pilot",
+    "kind": "token"
+   }
+  ],
+  "97d08a15-e61c-4421-a541-c68a4f87cb74": [
+   {
+    "id": "ef607895-d6d2-44ab-a6b4-84af55fce593",
+    "name": "Clue",
+    "kind": "token"
+   }
+  ],
+  "9d914868-9000-4df2-a818-0ef8a7f636ae": [
+   {
+    "id": "4ae9f454-4f8c-4123-9886-674bc439dfe7",
+    "name": "Treasure",
+    "kind": "token"
+   }
+  ],
+  "a178cfe8-f9fa-4255-88d0-54a0bed079f5": [
+   {
+    "id": "e32795e1-5548-43ef-8cd6-c605a19ef708",
+    "name": "Eldrazi Spawn",
+    "kind": "token"
+   }
+  ],
+  "a36e682d-b43d-4e08-bf5b-70d7e924dbe5": [
+   {
+    "id": "e6b2c465-c446-4dee-9101-763105dcf813",
+    "name": "Otter",
+    "kind": "token"
+   }
+  ],
+  "a87606cc-fbf0-4e2c-9798-f1c935d0573d": [
+   {
+    "id": "2e07758f-0d1c-47d9-ba5a-43bc2a7423cd",
+    "name": "Cat",
+    "kind": "token"
+   },
+   {
+    "id": "f4e87a11-b3b1-47b2-bd73-f4c78d6fbe6c",
+    "name": "Copy",
+    "kind": "token"
+   }
+  ],
+  "ab1d1461-1625-4163-aacd-a939f4871fad": [
+   {
+    "id": "a171254d-7616-42c4-bd78-b2787fb973aa",
+    "name": "Spirit",
+    "kind": "token"
+   }
+  ],
+  "ae4aec0d-c853-44e6-9f51-cbecf413ea14": [
+   {
+    "id": "92a3afe7-bd9f-43f9-adc3-4819e60dc7a5",
+    "name": "Blood",
+    "kind": "token"
+   }
+  ],
+  "b2f73f5d-1aad-48c2-9e74-5f7bdd87900f": [
+   {
+    "id": "f4e87a11-b3b1-47b2-bd73-f4c78d6fbe6c",
+    "name": "Copy",
+    "kind": "token"
+   }
+  ],
+  "b689a206-aec3-4a31-95cf-3d4b840db04c": [
+   {
+    "id": "78c43047-87f6-4382-874e-02e9628647bd",
+    "name": "Copy",
+    "kind": "token"
+   }
+  ],
+  "b83cfbaa-7890-4f6f-878b-4edb45677371": [
+   {
+    "id": "2300635e-7771-4676-a5a5-29a9d8f49f1a",
+    "name": "Illusion",
+    "kind": "token"
+   }
+  ],
+  "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6": [
+   {
+    "id": "17fa0c1f-6737-487c-9101-0bec2e586795",
+    "name": "Hero",
+    "kind": "token"
+   }
+  ],
+  "c1e0f201-42cb-46a1-901a-65bb4fc18f6c": [
+   {
+    "id": "a7caaf39-8f16-4f1d-bee6-a45674306319",
+    "name": "Construct",
+    "kind": "token"
+   }
+  ],
+  "c9262000-e6f3-4da1-ad1c-038f65d3bef6": [
+   {
+    "id": "a41eb9df-d8b4-4697-a759-886faf16754d",
+    "name": "Rebel",
+    "kind": "token"
+   }
+  ],
+  "d21433ba-0a14-42bc-ad0b-a4ef823a3295": [
+   {
+    "id": "ba7638ef-114b-4055-9855-390f82b7d5c5",
+    "name": "Treasure",
+    "kind": "token"
+   }
+  ],
+  "e8fe855c-fe94-4de7-a033-9892a9d6ee0e": [
+   {
+    "id": "92a3afe7-bd9f-43f9-adc3-4819e60dc7a5",
+    "name": "Blood",
+    "kind": "token"
+   }
+  ],
+  "ec18fa41-6948-4d94-8dcc-31fb63fb53ec": [
+   {
+    "id": "5e644586-888f-4e2e-8d66-8aa02bd79ec1",
+    "name": "Clue",
+    "kind": "token"
+   }
+  ],
+  "ec3de5f4-bb55-4ab9-995f-f3e0dc22c1bb": [
+   {
+    "id": "7edc0515-a130-45a7-aa09-0e23bba41587",
+    "name": "Warrior",
+    "kind": "token"
+   }
+  ],
+  "ee8e9928-d9b2-4570-adb8-44b34115decd": [
+   {
+    "id": "3d66ec9c-7e5d-47ca-bce4-46798152d1f4",
+    "name": "Clue",
+    "kind": "token"
+   }
+  ],
+  "eeeffc0b-dc92-458e-ad58-86ff6077a508": [
+   {
+    "id": "64839118-09d2-4645-9d3c-f80755ac781f",
+    "name": "Map",
+    "kind": "token"
+   }
+  ],
+  "eef5a0ae-5907-42c9-a097-3f973737e392": [
+   {
+    "id": "6b8a810b-8538-41c3-a792-dbd1a1845faa",
+    "name": "Monster // Sorcerer",
+    "kind": "token"
+   }
+  ],
+  "f632be90-9e7f-41f8-a52e-a2952354d730": [
+   {
+    "id": "f22410b3-5c0b-4282-9b0b-5ba61229b6e7",
+    "name": "Spirit",
+    "kind": "token"
+   }
+  ],
+  "f6fb576e-a4a4-496b-b553-3f81cc651210": [
+   {
+    "id": "ef607895-d6d2-44ab-a6b4-84af55fce593",
+    "name": "Clue",
+    "kind": "token"
+   }
+  ],
+  "fab2d8a9-ab4c-4225-a570-22636293c17d": [
+   {
+    "id": "f68e5337-6e44-4f8f-a102-2f97b433beea",
+    "name": "Samurai",
+    "kind": "token"
+   }
+  ]
+ }
+}

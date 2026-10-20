@@ -35,7 +35,9 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 
 import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '../sound/index.ts';
+import { relatedCards } from '../draft/related.ts';
 import { CardTile } from './CardTile.tsx';
+import { RelatedRow } from './RelatedRow.tsx';
 
 export type PackLayout = 'fan' | 'grid';
 
@@ -60,6 +62,10 @@ const MAX_SHOW = 0.62;
 const MAX_CARD_H = 420;
 /** Below this width there is no readable fan: the grid. */
 export const FAN_MIN_WIDTH = 480;
+/** A related card's size beside the open card's. */
+const RELATED_SCALE = 0.8;
+/** The gap between related cards, as `.pack__related` draws it. */
+const RELATED_GAP = 8;
 /** How many cards are drawn either side of the open one. */
 export const FAN_SIDE = 3;
 /** The row's places: the open card in the middle of them, `FAN_SIDE` either side, but at the pack's ends. */
@@ -127,6 +133,15 @@ export function gridGeometry(count: number, width: number, height: number): { co
   // Wider than the box, the row scrolls sideways, and its scroll bar comes out of the height.
   const cardW = cols * fit(height) + (cols - 1) * GRID_GAP > width ? fit(height - SCROLLBAR) : fit(height);
   return { cols, cardW };
+}
+
+/** The related row's place: from the open card's left edge, kept inside the pack's width. */
+export function relatedStyle(fan: FanGeometry, open: number, count: number, width: number, n: number): CSSProperties {
+  const w = fan.cardW * RELATED_SCALE;
+  const row = n * w + Math.max(0, n - 1) * RELATED_GAP;
+  const cardLeft = width / 2 + (fanX(fan, open, open, count) ?? 0) - fan.cardW / 2;
+  const left = Math.max(0, Math.min(cardLeft, width - row));
+  return { '--related-w': `${w.toFixed(1)}px`, '--related-left': `${left.toFixed(1)}px` } as CSSProperties;
 }
 
 /** The box the pack draws in, kept current. Zero until it has been measured. */
@@ -318,6 +333,10 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
           </div>
         );
       })}
+      {/* The open card's back face, tokens and meld cards, in a row under it. */}
+      {fan !== null && shown !== null && (
+        <RelatedRow cards={relatedCards(cards[shown]!.scryfallId)} style={relatedStyle(fan, shown, cards.length, box.width, relatedCards(cards[shown]!.scryfallId).length)} />
+      )}
     </div>
   );
 }
