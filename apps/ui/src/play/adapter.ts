@@ -784,6 +784,8 @@ export interface AdaptOptions {
    * avatar — not an error.
    */
   avatarByPlayerId?: ReadonlyMap<number, string>;
+  /** The face of the seat nobody holds (`LiveMatch.unclaimedAvatar`), for the one player no seat in `seated` names. */
+  unclaimed?: { avatarId: string; seated: ReadonlySet<number> };
   /**
    * Every seat's display name, keyed by Forge PLAYER id — wave 31 §A.1, agreed
    * shape 2 (`SeatIdentity.name`, absent when unknown, on `forge:seats`). A live
@@ -1681,6 +1683,7 @@ export function toBoardView(
     artIds = KNOWN_ART_IDS,
     printedPT = POOL_PRINTED_PT,
     avatarByPlayerId,
+    unclaimed,
     nameByPlayerId,
     stackTargetSpells,
     pendingTriggers,
@@ -1740,7 +1743,9 @@ export function toBoardView(
     const libraryIds = readIds(p, 'Library');
     const top = knownTop(state, libraryIds, artIds, printedPT, promptCards, viewerPlayerId);
     const shown = isViewer ? [] : handIds.map((id) => shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, undefined, playerName)) : null);
-    const avatarId = avatarByPlayerId?.get(pid);
+    // The viewer holds a seat whether or not the roster has named its player yet.
+    const unheld = unclaimed !== undefined && !isViewer && !unclaimed.seated.has(pid);
+    const avatarId = avatarByPlayerId?.get(pid) ?? (unheld ? unclaimed.avatarId : undefined);
     const emblems = readEmblems(state, p, artIds, printedPT);
     const hand = isViewer ? cardsIn(handIds).map((c) => seenByOthers(state, c, viewerPlayerId)) : null;
     const holdsStorm = hand?.some((c) => hasKeyword(c.keywords, 'storm')) === true;

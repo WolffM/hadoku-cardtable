@@ -1234,6 +1234,23 @@ describe('item 4 — the avatar reaches the seat, wave 29 §A.6-8', () => {
     for (const p of view.players) expect(p).not.toHaveProperty('avatarId');
   });
 
+  it('gives the unheld seat’s face (Forge’s AI, as a room character) to the one player no seat names, and to nobody a seat names', () => {
+    const view = toBoardView(baseState(), 27, {
+      viewerPlayerId: fixture.viewerPlayerId,
+      avatarByPlayerId: new Map([[fixture.viewerPlayerId, 'wanderer']]),
+      unclaimed: { avatarId: 'mage', seated: new Set([fixture.viewerPlayerId]) },
+    });
+    expect(view.players.find((p) => p.isViewer)).toHaveProperty('avatarId', 'wanderer');
+    expect(view.players.find((p) => !p.isViewer)).toHaveProperty('avatarId', 'mage');
+
+    const bare = toBoardView(baseState(), 27, {
+      viewerPlayerId: fixture.viewerPlayerId,
+      avatarByPlayerId: new Map(),
+      unclaimed: { avatarId: 'mage', seated: new Set([fixture.viewerPlayerId]) },
+    });
+    expect(bare.players.find((p) => p.isViewer), 'a named seat with no face keeps none').not.toHaveProperty('avatarId');
+  });
+
   it('an EMPTY map (the seats arrived, nobody has a face) draws exactly the same as no map at all', () => {
     const view = toBoardView(baseState(), 27, {
       viewerPlayerId: fixture.viewerPlayerId,

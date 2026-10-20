@@ -838,6 +838,12 @@ export interface LiveMatch {
    */
   avatarByPlayerId: ReadonlyMap<number, string> | null;
   /**
+   * The face of the seat nobody holds — Forge's AI, playing as one of the room's
+   * characters (2026-10-19). It never opens a view, so `forge:seats` never names
+   * its Forge player: the board gives it to the player no seat has named.
+   */
+  unclaimedAvatar: string | null;
+  /**
    * The name Forge shows for each seat, keyed by Forge PLAYER id — wave 31 §S,
    * from `forge:seats`' `name`. Same three-state rule as
    * {@link LiveMatch.avatarByPlayerId}: `null` until the seat table has
@@ -1063,6 +1069,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     promptTargetMore: 0,
     sameTarget: false,
     avatarByPlayerId: null,
+    unclaimedAvatar: null,
     nameByPlayerId: null,
     playerIdBySeat: null,
     waitingOn: null,
@@ -1429,6 +1436,8 @@ function adoptSeats(match: LiveMatch, payload: unknown): void {
   // A real Map even when it holds nothing: "arrived, nobody has one" is still
   // arrived — see the field's own note on the three states.
   match.avatarByPlayerId = byPlayerId;
+  const unclaimed = parsed.value.seats.find((seat) => !seat.claimed && seat.playerId === null);
+  match.unclaimedAvatar = unclaimed === undefined ? null : normalizeAvatarId(unclaimed.avatarId);
   const names = new Map<number, string>();
   for (const seat of parsed.value.seats) {
     if (seat.playerId !== null && seat.name !== undefined) names.set(seat.playerId, seat.name);
@@ -2873,6 +2882,9 @@ function redraw(match: LiveMatch): void {
           // named no avatars) both mean "pass nothing" to the adapter — see the
           // field's own note on why the two are still kept apart in STATE.
           avatarByPlayerId: match.avatarByPlayerId ?? undefined,
+          ...(match.unclaimedAvatar === null || match.playerIdBySeat === null
+            ? {}
+            : { unclaimed: { avatarId: match.unclaimedAvatar, seated: new Set(match.playerIdBySeat.values()) } }),
           nameByPlayerId: match.nameByPlayerId ?? undefined,
           stackTargetSpells: match.stackTargetSpells,
           pendingTriggers: match.pendingTriggers,
@@ -3262,6 +3274,7 @@ function discardLocal(match: LiveMatch): void {
   match.promptTargetMore = 0;
   match.sameTarget = false;
   match.avatarByPlayerId = null;
+  match.unclaimedAvatar = null;
   match.nameByPlayerId = null;
   match.playerIdBySeat = null;
   match.waitingOn = null;

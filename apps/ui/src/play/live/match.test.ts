@@ -3129,11 +3129,19 @@ describe('the seat identities — item 4, wave 29 §A.6-8', () => {
     expect(m.avatarByPlayerId).toBeNull();
   });
 
-  it('a seat naming no player id (playerId: null) cannot be joined to a board player, and is simply skipped', async () => {
+  it('a seat nobody holds and naming no player id (Forge’s AI) gives its face to the other player, never to the viewer', async () => {
     const { s, m } = await fullGame();
     s.sendSeats([{ seat: 1, claimed: false, playerId: null, avatarId: 'rogue' }]);
     await until('forge:seats to be adopted', () => m.avatarByPlayerId !== null);
     expect(m.avatarByPlayerId!.size).toBe(0);
+    expect(m.view!.players.find((p) => p.isViewer)).not.toHaveProperty('avatarId');
+    expect(m.view!.players.find((p) => !p.isViewer)).toHaveProperty('avatarId', 'rogue');
+  });
+
+  it('a claimed seat that has not named its player yet lends nobody its face', async () => {
+    const { s, m } = await fullGame();
+    s.sendSeats([{ seat: 1, claimed: true, playerId: null, avatarId: 'rogue' }]);
+    await until('forge:seats to be adopted', () => m.avatarByPlayerId !== null);
     for (const p of m.view!.players) expect(p).not.toHaveProperty('avatarId');
   });
 });
