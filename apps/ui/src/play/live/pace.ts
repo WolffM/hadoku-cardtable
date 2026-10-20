@@ -109,6 +109,24 @@
  * still drawn at once, over the motion (`../motion.ts`), once what came before it in the queue has gone.
  * Fast Mode holds nothing.
  *
+ * ## The seat's own acts go out as Forge sends them
+ *
+ * The operator, 2026-10-20, of a Thopter Foundry + Sword of the Meek loop that waited 2.8 s for each next
+ * activation (1.4 s of beats, two 600 ms resolve gaps): *"let my click jump animations"* and *"shorten
+ * own-resolve pauses"* — *"i like the idea of lots of animations happening at the same time, seems fun."*
+ * So a frame of the seat's OWN act ({@link ownAct}) keeps no class's gap and waits for no beat: it still
+ * goes out in order and in a task of its own (each is its own view, and every beat of it is drawn), but
+ * it is folded the moment its turn in the queue comes, and what it draws starts over whatever is still
+ * playing. The next question is on screen as soon as Forge asks it.
+ *
+ * What is own: a stack item the seat put there (`StackItem.ActivatingPlayer`, remembered from the frame
+ * that brought it) going on the stack or resolving, a question the seat is asked, and every frame after
+ * either until the act passes on — a stack item of anyone else's arriving or resolving makes the frames
+ * after it someone else's, and a frame that moves the phase or the turn makes them nobody's (paced) until
+ * the next act says whose it is. A watcher has no act of its own. Everyone else's acts keep their pace and
+ * wait for the board, the seat's own beats included: what the other side did is drawn after them, one act
+ * at a time, as before.
+ *
  * ## What a resync needs from the pacer: nothing
  *
  * `forge:join` and `forge:resync` are not `forge:s2c` payloads — they travel
@@ -252,6 +270,64 @@ const UNDRAWN_PROPERTIES: ReadonlySet<string> = new Set(['MindSlaveMaster']);
  */
 const UNDRAWN_NOTIFIES: ReadonlySet<string> = new Set(['hideZones', 'restoreOldZones']);
 
+/** Whose act the frames now arriving belong to: the seat's, another player's, or nobody's yet (a step just began). */
+export type Actor = 'own' | 'other' | null;
+
+/** What {@link ownAct} remembers between frames. */
+export interface ActMemory {
+  /** The stack's item ids after the last frame that carried it. */
+  stack: number[];
+  /** Each stack item's activating player, from the frames that brought it. */
+  activators: Map<number, number>;
+  actor: Actor;
+}
+
+export function actMemory(): ActMemory {
+  return { stack: [], activators: new Map(), actor: null };
+}
+
+/**
+ * Whether `payload` is part of the seat's own act — `viewer` is the seat's Forge player, null for a
+ * watcher (module header, "The seat's own acts go out as Forge sends them"). `acts` is updated here, in
+ * arrival order, as {@link classify}'s memory is.
+ */
+export function ownAct(payload: unknown, acts: ActMemory, viewer: number | null): boolean {
+  const frame = (payload as { frame?: unknown } | null)?.frame;
+  if (typeof frame !== 'object' || frame === null) return false;
+  const f = frame as Record<string, unknown>;
+  if (f.kind === 'ask') {
+    acts.actor = 'own';
+    return viewer !== null;
+  }
+  if (f.kind === 'notify' && f.method === 'applyDelta') {
+    const packetPayload = f.payload;
+    const objects = packetObjects(typeof packetPayload === 'object' && packetPayload !== null ? (packetPayload as Record<string, unknown>).packet : undefined);
+    for (const { obj } of objects) {
+      const activator = tagged(obj, 'ActivatingPlayer');
+      if (obj._type === WIRE_TYPE_STACK_ITEM && typeof obj._id === 'number' && typeof activator === 'number') acts.activators.set(obj._id, activator);
+    }
+    for (const { obj } of objects) {
+      if (obj._type !== WIRE_TYPE_GAME) continue;
+      if ('Stack' in obj) {
+        const list = tagged(obj, 'Stack');
+        const ids = Array.isArray(list) ? list.flatMap((item) => (typeof (item as { v?: unknown } | null)?.v === 'number' ? [(item as { v: number }).v] : [])) : [];
+        const added = ids.filter((id) => !acts.stack.includes(id));
+        const gone = acts.stack.filter((id) => !ids.includes(id));
+        acts.stack = ids;
+        const moved = added.length > 0 ? added : gone;
+        if (moved.length > 0) acts.actor = viewer !== null && moved.every((id) => acts.activators.get(id) === viewer) ? 'own' : 'other';
+        for (const id of gone) acts.activators.delete(id);
+        return viewer !== null && acts.actor === 'own';
+      }
+      if ('Phase' in obj || 'Turn' in obj || 'PlayerTurn' in obj) {
+        acts.actor = null;
+        return false;
+      }
+    }
+  }
+  return viewer !== null && acts.actor === 'own';
+}
+
 /** What {@link classify} remembers between frames: the stack's depth after the last frame that carried it, or null before one has. */
 export interface PaceMemory {
   stackDepth: number | null;
@@ -359,6 +435,8 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
 interface Entry {
   payload: unknown;
   pace: PaceClass;
+  /** Part of the seat's own act ({@link ownAct}): no gap, no wait on the board. */
+  own: boolean;
   arrivedAt: number;
   boardAt: number;
   gapAt: number;
@@ -376,6 +454,8 @@ export interface PacedMatchTransport extends MatchTransport {
    * or anything else in those phases keeps its own pace.
    */
   setEndingTurn(ending: boolean): void;
+  /** The seat's Forge player, read as each frame arrives — null for a watcher, or before the snapshot names it ({@link ownAct}). */
+  setSeatPlayer(player: () => number | null): void;
 }
 
 /** Narrows a plain `MatchTransport` (the dev harness's, a test's own stub) from one this wrapper built. Structural, not a brand: `setFast` is this interface's only addition. */
@@ -428,6 +508,8 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   /** Each payload with its class, read on arrival — in arrival order, which is what `memory` needs and the cursor `match.ts` checks. */
   let queue: Entry[] = [];
   const memory: PaceMemory = { stackDepth: null };
+  const acts = actMemory();
+  let seatPlayer: () => number | null = () => null;
   let timer: unknown = null;
   let lastDeliveredAt = -Infinity;
   /** The handler `startMatch` registered for `MATCH_EVENTS.serverToClient` — null until `on` is called for it, which `startMatch` always does before anything can arrive. */
@@ -440,8 +522,8 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
    * 2026-10-12: "hearing some duplicate sounds" — 15-19 phase sounds 250 ms apart a game, each an opponent's
    * End Turn). The phase that is still the newest keeps its pace.
    */
-  function delayFor(pace: PaceClass, superseded: boolean): number {
-    if (fast) return 0;
+  function delayFor(pace: PaceClass, superseded: boolean, own: boolean): number {
+    if (fast || own) return 0;
     return STEPS.has(pace) && (endingTurn || superseded) ? 0 : delays[pace];
   }
 
@@ -461,9 +543,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     board: boardMs + (boardSince === null ? 0 : now() - boardSince),
     gap: gapMs + (gapSince === null ? 0 : now() - gapSince),
   });
-  function entryOf(payload: unknown, pace: PaceClass): Entry {
+  function entryOf(payload: unknown, pace: PaceClass, own: boolean): Entry {
     const at = spent();
-    return { payload, pace, arrivedAt: now(), boardAt: at.board, gapAt: at.gap, deliveredAt: delivered };
+    return { payload, pace, own, arrivedAt: now(), boardAt: at.board, gapAt: at.gap, deliveredAt: delivered };
   }
 
   function deliverNext(): void {
@@ -505,7 +587,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
 
   /** Start waiting for the board's beats before `entry` goes out, when it must: `false` when it need not, or the board is already still. */
   function waitForBoard(entry: Entry): boolean {
-    if (fast || !HELD_BY_THE_BOARD.has(entry.pace) || boardFreed === entry) return false;
+    if (fast || entry.own || !HELD_BY_THE_BOARD.has(entry.pace) || boardFreed === entry) return false;
     let waiting = false;
     let stillNow = false;
     const release = (): void => {
@@ -537,7 +619,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   function pump(): void {
     if (timer !== null || boardWait !== null || queue.length === 0) return;
     const head = queue[0]!;
-    const waitMs = Math.max(0, lastDeliveredAt + delayFor(head.pace, queue.length > 1) - now());
+    const waitMs = Math.max(0, lastDeliveredAt + delayFor(head.pace, queue.length > 1, head.own) - now());
     if (waitMs > 0) {
       gapSince = now();
       timer = schedule(() => {
@@ -612,7 +694,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       }
       deliverTo = handler;
       inner.on(event, (payload) => {
-        queue.push(entryOf(payload, classify(payload, memory)));
+        queue.push(entryOf(payload, classify(payload, memory), ownAct(payload, acts, seatPlayer())))
         // A step waiting on its gap has just been superseded: let it go now.
         if (timer !== null && queue.length === 2 && STEPS.has(queue[0]!.pace) && !fast) stopTimer();
         pump();
@@ -633,6 +715,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     setFast(value: boolean): void {
       fast = value;
       if (value) flush();
+    },
+    setSeatPlayer(player: () => number | null): void {
+      seatPlayer = player;
     },
     setEndingTurn(value: boolean): void {
       endingTurn = value;

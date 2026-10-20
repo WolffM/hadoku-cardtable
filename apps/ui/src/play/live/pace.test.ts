@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
-import { BOARD_HOLD_MAX_MS, classify, isPacedTransport, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
+import { actMemory, BOARD_HOLD_MAX_MS, classify, isPacedTransport, ownAct, pacedMatchTransport, PACE_DELAYS_MS, type PaceClass } from './pace.ts';
 
 /* ── Building the shapes `classify` reads ────────────────────────────── */
 
@@ -616,6 +616,134 @@ describe('pacedMatchTransport: one act at a time', () => {
     inner.deliver(ATTACK);
     inner.deliver(DEFAULT_DELTA);
     expect(received).toEqual([BLOW, ATTACK, DEFAULT_DELTA]);
+  });
+});
+
+/*
+ * The operator, 2026-10-20, of Thopter Foundry + Sword of the Meek: "let my click jump animations", "shorten
+ * own-resolve pauses" — "i like the idea of lots of animations happening at the same time, seems fun."
+ */
+describe('the seat’s own act', () => {
+  const ALICE = 0;
+  const BOB = 1;
+  /** A stack item `id` of `activator`'s going on the stack, alone on it after `below`. */
+  const pushed = (id: number, activator: number, below: number[] = []) =>
+    deltaOf({ g: stackOf([id, ...below]) }, { [`s${id}`]: { _type: 2, _id: id, ActivatingPlayer: { t: 'int', v: activator } } });
+  const popped = (left: number[] = []) => deltaOf({ g: stackOf(left) });
+  const THOPTER = deltaOf({}, { c50: { ...zone(50, 'Battlefield'), Token: { t: 'bool', v: true } } });
+  const SACRIFICE = deltaOf({ c7: zone(7, 'Graveyard') });
+
+  describe('ownAct', () => {
+    it("the seat's stack item and every frame after it are its act, until another player's item comes", () => {
+      const acts = actMemory();
+      expect(ownAct(pushed(3, ALICE), acts, ALICE)).toBe(true);
+      expect(ownAct(THOPTER, acts, ALICE)).toBe(true);
+      expect(ownAct(popped(), acts, ALICE), 'its resolution').toBe(true);
+      expect(ownAct(pushed(4, BOB), acts, ALICE), "the opponent's response").toBe(false);
+      expect(ownAct(SACRIFICE, acts, ALICE), 'what follows it is theirs').toBe(false);
+      expect(ownAct(popped(), acts, ALICE), "their item resolving is theirs").toBe(false);
+    });
+
+    it("an item resolving is whoever put it there's, whoever acted last", () => {
+      const acts = actMemory();
+      ownAct(pushed(3, BOB), acts, ALICE);
+      ownAct(pushed(4, ALICE, [3]), acts, ALICE);
+      expect(ownAct(popped([3]), acts, ALICE), "alice's response resolves first").toBe(true);
+      expect(ownAct(popped(), acts, ALICE), "then bob's spell").toBe(false);
+    });
+
+    it('a question the seat is asked makes what follows its act; a new step makes it nobody’s', () => {
+      const acts = actMemory();
+      expect(ownAct(SACRIFICE, acts, ALICE), 'nobody has acted yet').toBe(false);
+      expect(ownAct(ASK, acts, ALICE)).toBe(true);
+      expect(ownAct(SACRIFICE, acts, ALICE), 'the cost the seat chose').toBe(true);
+      expect(ownAct(PHASE, acts, ALICE)).toBe(false);
+      expect(ownAct(SACRIFICE, acts, ALICE)).toBe(false);
+      ownAct(ASK, acts, ALICE);
+      expect(ownAct(NEW_TURN, acts, ALICE)).toBe(false);
+    });
+
+    it('a watcher has no act of its own', () => {
+      const acts = actMemory();
+      expect(ownAct(ASK, acts, null)).toBe(false);
+      expect(ownAct(pushed(3, ALICE), acts, null)).toBe(false);
+      expect(ownAct(popped(), acts, null)).toBe(false);
+    });
+
+    it('an item whose activator never reached this seat is not its own', () => {
+      const acts = actMemory();
+      expect(ownAct(deltaOf({ g: stackOf([9]) }), acts, ALICE)).toBe(false);
+    });
+  });
+
+  describe('pacedMatchTransport', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** One loop of the combo after the sacrifice pick, as Forge sends it: the cost, the ability resolving, the Sword's trigger, the next question. */
+    const loop = (n: number) => [SACRIFICE, pushed(10 + 2 * n, ALICE), { frame: { kind: 'notify', method: 'message', message: 'x' } }, popped(), THOPTER, pushed(11 + 2 * n, ALICE), popped(), ASK];
+
+    it("the seat's own loop goes out as Forge sends it: no resolve gap, no wait on the board, each drawn frame a view of its own", async () => {
+      const inner = fakeInner();
+      const board = fakeBoard();
+      const held: unknown[] = [];
+      const { transport, received } = paced(inner, { boardStill: board.still, report: (h) => held.push(h) });
+      transport.setSeatPlayer(() => ALICE);
+      inner.deliver(ASK); // the activation's own question: the act is the seat's
+      board.busy(true); // the last loop's beats, still playing
+      const frames = loop(0);
+      const from = Date.now();
+      for (const frame of frames) inner.deliver(frame);
+      // Only the hop between two drawn frames (a task each, a fake millisecond here) separates them: nothing waits on a gap or a beat.
+      const views: number[] = [];
+      while (received.length < frames.length + 1 && Date.now() - from < PACE_DELAYS_MS.default) {
+        views.push(received.length);
+        await vi.advanceTimersByTimeAsync(1);
+      }
+      expect(received).toEqual([ASK, ...frames]);
+      expect(Date.now() - from, 'no gap waited').toBeLessThan(frames.length);
+      expect(new Set(views).size, 'the drawn frames went out one task apart').toBe(views.length);
+      expect(held, 'the question was held by nothing').toEqual([]);
+    });
+
+    it("the opponent's act after the seat's waits for the seat's beats and keeps its gaps", async () => {
+      const inner = fakeInner();
+      const board = fakeBoard();
+      const { transport, received } = paced(inner, { boardStill: board.still });
+      transport.setSeatPlayer(() => ALICE);
+      inner.deliver(pushed(3, ALICE));
+      inner.deliver(popped());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(received).toHaveLength(2);
+      board.busy(true); // the seat's resolution being drawn
+      inner.deliver(pushed(4, BOB));
+      inner.deliver(popped());
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(received, "bob's spell waits for alice's beats").toHaveLength(2);
+      board.busy(false);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(received).toHaveLength(3);
+      await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.resolve - 1);
+      expect(received, 'and its resolution keeps its gap').toHaveLength(3);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(received).toHaveLength(4);
+    });
+
+    it('a watcher, or a seat not yet named, paces the same frames as before', async () => {
+      const inner = fakeInner();
+      const { transport, received } = paced(inner);
+      transport.setSeatPlayer(() => null);
+      inner.deliver(pushed(3, ALICE));
+      inner.deliver(popped());
+      await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.resolve - 1);
+      expect(received).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(received).toHaveLength(2);
+    });
   });
 });
 

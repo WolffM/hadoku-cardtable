@@ -31,6 +31,11 @@ import { createMixPlanner, DEFAULT_MIX, type MixPlanner, type MixSettings, type 
 
 /** Above this many live voices, a new one is dropped rather than stacked. */
 const VOICE_CAP = 12;
+/**
+ * Above this many live voices of one cell, a new one of it is dropped: the seat's own acts draw at once and
+ * overlap (`play/live/pace.ts`), and a combo looped five times must not stack five life gains into a wall.
+ */
+export const CELL_VOICE_CAP = 2;
 /** A sound that could not start within this long of being asked for is dropped, not played late. */
 const STALE_MS = 1500;
 /** Music fades in and out over this long. */
@@ -95,6 +100,8 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
   let musicNode: GainNode | null = null;
   let levels = { volume: 1, music: 1 };
   let live = 0;
+  /** Live voices per cell, for {@link CELL_VOICE_CAP}. */
+  const liveByCell = new Map<string, number>();
   let loopRole: string | null = null;
   let loopVoice: { src: AudioBufferSourceNode; env: GainNode } | null = null;
   const buffers = new Map<string, Promise<AudioBuffer | null>>();
@@ -164,7 +171,8 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     p.linearRampToValueAtTime(1, now + Math.min(seconds, 1.2) + 0.4);
   };
 
-  const start = (file: string, gain: number, ducks: boolean, reverse = false, rate = 1): void => {
+  /** `cell` null: an audition, outside any cell's cap. */
+  const start = (cell: string | null, file: string, gain: number, ducks: boolean, reverse = false, rate = 1): void => {
     const ac = context();
     if (ac === null) return;
     const asked = performance.now();
@@ -174,6 +182,7 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     void Promise.all([reverse ? loadReversed(file) : load(file), ready]).then(([buf]) => {
       if (ac.state !== 'running' || performance.now() - asked > STALE_MS) return;
       if (buf === null || master === null || duckNode === null || live >= VOICE_CAP) return;
+      if (cell !== null && (liveByCell.get(cell) ?? 0) >= CELL_VOICE_CAP) return;
       const src = ac.createBufferSource();
       src.buffer = buf;
       if (rate !== 1) src.playbackRate.value = rate;
@@ -183,8 +192,14 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
       env.connect(ducks ? master : duckNode);
       if (ducks) duck(ac, buf.duration);
       live += 1;
+      if (cell !== null) liveByCell.set(cell, (liveByCell.get(cell) ?? 0) + 1);
       src.onended = () => {
         live -= 1;
+        if (cell !== null) {
+          const left = (liveByCell.get(cell) ?? 1) - 1;
+          if (left > 0) liveByCell.set(cell, left);
+          else liveByCell.delete(cell);
+        }
         src.disconnect();
         env.disconnect();
       };
@@ -232,11 +247,11 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     settings: DEFAULT_MIX,
     play(event, nowMs = performance.now()) {
       const plan = planner.plan(event, nowMs, mixer.settings);
-      for (const v of plan.voices) start(v.file, v.gain, v.duck, v.reverse === true, v.rate ?? 1);
+      for (const v of plan.voices) start(v.cell, v.file, v.gain, v.duck, v.reverse === true, v.rate ?? 1);
       return plan;
     },
     playFile(file, gain = 1) {
-      start(file, gain, false);
+      start(null, file, gain, false);
     },
     preload(files) {
       for (const f of files) void load(f);

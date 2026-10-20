@@ -3186,6 +3186,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     setFastModeState(persisted);
     if (isPacedTransport(match.transport)) match.transport.setFast(persisted);
   }, [prefs, match]);
+  // Whose acts go out as Forge sends them (`./pace.ts`, "The seat's own acts"): this seat's player, never a watcher's.
+  useEffect(() => {
+    if (isPacedTransport(match.transport)) match.transport.setSeatPlayer(() => (isSpectator(match) ? null : match.playerId));
+  }, [match]);
   function handleFastModeChange(next: boolean): void {
     setFastModeState(next);
     if (isPacedTransport(match.transport)) match.transport.setFast(next);

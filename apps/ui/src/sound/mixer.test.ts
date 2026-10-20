@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMixPlanner } from './mix.ts';
-import { createMixer } from './mixer.ts';
+import { CELL_VOICE_CAP, createMixer } from './mixer.ts';
 
 interface FakeSource {
   buffer: unknown;
@@ -205,6 +205,31 @@ describe('the mixer', () => {
     const m = mixer();
     m.loop(['music.match.R', 'music.match']);
     expect(contexts).toHaveLength(0);
+  });
+
+  it('one cell plays at most CELL_VOICE_CAP voices at once: overlapping loops do not stack into a wall', async () => {
+    const planner = createMixPlanner(() => 0);
+    planner.setAssignments({ 'g.lifegain|play': ['a/take-1.ogg'], 'g.tap|play': ['b/take-1.ogg'] }, {});
+    const m = createMixer((f) => `/takes/${f}`, planner);
+    m.play({ role: 'g.lifegain' });
+    const ctx = contexts[0]!;
+    ctx.grant();
+    await flush();
+    // Past the collapse window each time: every ask is a voice of its own until the cap.
+    for (let i = 1; i <= CELL_VOICE_CAP + 2; i++) {
+      m.play({ role: 'g.lifegain' }, performance.now() + i * 1000);
+      await flush();
+    }
+    expect(ctx.sources).toHaveLength(CELL_VOICE_CAP);
+    // Another cell is not held back by it.
+    m.play({ role: 'g.tap' }, performance.now() + 10_000);
+    await flush();
+    expect(ctx.sources).toHaveLength(CELL_VOICE_CAP + 1);
+    // One ending lets the next one of its cell play.
+    ctx.sources[0]!.onended?.();
+    m.play({ role: 'g.lifegain' }, performance.now() + 20_000);
+    await flush();
+    expect(ctx.sources).toHaveLength(CELL_VOICE_CAP + 2);
   });
 
   it('a sound asked for while locked is dropped, not played when the gesture finally comes', async () => {
