@@ -1007,7 +1007,8 @@ public final class PlayBridge {
      * check that means "none" ({@code EQ0}, a {@code False} flag). A branching count lights only when
      * the branch Forge takes now is not the one it takes at 0. Nor does a check that is only a turn
      * or a phase ("during your turn"): it is when an ability works, and would light the card every
-     * turn.
+     * turn. Nor does a presence check whose only subject is the card itself ({@code IsPresent$ Card.Self},
+     * {@link #self}): the card being where it is, not a condition it can meet.
      */
     static final class ConditionsOn {
         private static final int IF = 1_000_001;
@@ -1240,11 +1241,13 @@ public final class PlayBridge {
             svar(out, c, trait, p, "CheckSVar", "SVarCompare");
             svar(out, c, trait, p, "CheckSecondSVar", "SecondSVarCompare");
             svar(out, c, trait, p, "ConditionCheckSVar", "ConditionSVarCompare");
-            present(out, trait, p, p.get("IsPresent"), p.get("PresentCompare"), "PresentZone", "PresentPlayer", "PresentDefined");
-            present(out, trait, p, p.get("IsPresent2"), p.get("PresentCompare2"), "PresentZone2", "PresentPlayer2", "PresentDefined");
-            present(out, trait, p, p.get("ConditionPresent"), p.get("ConditionCompare"), "ConditionZone", "ConditionPlayerDefined", "ConditionDefined");
-            present(out, trait, p, p.get("ConditionPresent2"), p.get("ConditionCompare2"), "ConditionZone", "ConditionPlayerDefined", "ConditionDefined2");
-            present(out, trait, p, p.get("ConditionNotPresent"), "EQ0", "ConditionZone", "ConditionPlayerDefined", "ConditionDefined");
+            for (final Presence presence : PRESENCES) {
+                final String spec = p.get(presence.spec);
+                if (spec == null || self(spec)) { continue; }
+                final StringBuilder count = new StringBuilder("present:").append(spec);
+                for (final String where : presence.where) { count.append('|').append(p.get(where)); }
+                out.add(new Check(count.toString(), presence.compare(p), trait));
+            }
             for (final String spent : List.of("ManaSpent", "ConditionManaSpent")) {
                 if (p.containsKey(spent)) { out.add(new Check("mana:" + p.get(spent), "EQ1", trait)); }
             }
@@ -1267,32 +1270,77 @@ public final class PlayBridge {
             out.add(new Check("svar:" + (expression == null || expression.isEmpty() ? name : expression), p.getOrDefault(compare, "GE1"), trait));
         }
 
-        private static void present(final List<Check> out, final forge.game.CardTraitBase trait, final Map<String, String> p, final String spec, final String compare, final String zone, final String player, final String defined) {
-            if (spec == null) { return; }
-            out.add(new Check("present:" + spec + "|" + p.get(zone) + "|" + p.get(player) + "|" + p.get(defined), compare == null ? "GE1" : compare, trait));
+        /**
+         * One of Forge's "how many cards match" checks, in its own parameter names: the spec, the key
+         * of its comparison (null for {@code ConditionNotPresent$}, always {@code EQ0}), and the keys
+         * saying where it looks.
+         */
+        record Presence(String spec, String compareKey, String fixedCompare, List<String> where) {
+            String compare(final Map<String, String> p) {
+                return compareKey == null ? fixedCompare : p.getOrDefault(compareKey, fixedCompare);
+            }
         }
+
+        private static final List<Presence> PRESENCES = List.of(
+                new Presence("IsPresent", "PresentCompare", "GE1", List.of("PresentZone", "PresentPlayer", "PresentDefined")),
+                new Presence("IsPresent2", "PresentCompare2", "GE1", List.of("PresentZone2", "PresentPlayer2")),
+                new Presence("ConditionPresent", "ConditionCompare", "GE1", List.of("ConditionZone", "ConditionPlayerDefined", "ConditionDefined")),
+                new Presence("ConditionPresent2", "ConditionCompare2", "GE1", List.of("ConditionZone", "ConditionPlayerDefined", "ConditionDefined2")),
+                new Presence("ConditionNotPresent", null, "EQ0", List.of("ConditionZone", "ConditionPlayerDefined", "ConditionDefined")));
+
+        /**
+         * Whether a presence spec's only subject is the card itself, unqualified — {@code Card.Self}, or
+         * {@code Card.StrictlySelf} (the same object, not one that left and came back), in whatever
+         * zone or defined set. That is Forge's "only while this card is here" (Kappa Cannoneer's
+         * trigger, Oubliette's phasing, Durkwood Tracker's activation, Edgar Markov's eminence) or "if it was
+         * this card" (an "if you do" checking what was remembered), never a printed condition, and
+         * the card's own presence would light it for as long as it stays. A qualified self
+         * ({@code Card.Self+untapped}, {@code +attacking}, level counters, a solved case) is a
+         * printed "as long as this …" the card's own state turns on and off, and still counts.
+         */
+        private static boolean self(final String spec) {
+            return SELF.contains(spec.trim());
+        }
+
+        private static final Set<String> SELF = Set.of("Card.Self", "Card.StrictlySelf");
 
         /**
          * Whether the condition keys a checker {@code found} make a condition this card lights for: at
-         * least one, and not only timing.
+         * least one that is neither timing nor part of a presence check on the card itself.
          */
         private static boolean counts(final Set<String> found, final Map<String, String> params) {
-            return !found.isEmpty() && !timingOnly(found, params);
+            final Set<String> conditions = new java.util.HashSet<>(found);
+            conditions.removeIf(key -> timing(key, params.get(key)));
+            conditions.removeAll(selfPresence(params));
+            return !conditions.isEmpty();
         }
 
         /**
-         * Whether every key is a turn or phase — {@code PlayerTurn$}, {@code Phases$},
+         * The keys of the presence checks whose only subject is the card itself ({@link #self}),
+         * less any key a real presence check on the same trait shares (two of Forge's checks read one
+         * {@code ConditionZone$}).
+         */
+        private static Set<String> selfPresence(final Map<String, String> params) {
+            final Set<String> own = new java.util.HashSet<>();
+            final Set<String> real = new java.util.HashSet<>();
+            for (final Presence presence : PRESENCES) {
+                final String spec = params.get(presence.spec);
+                if (spec == null) { continue; }
+                final Set<String> keys = self(spec) ? own : real;
+                keys.add(presence.spec);
+                if (presence.compareKey != null) { keys.add(presence.compareKey); }
+                keys.addAll(presence.where);
+            }
+            own.removeAll(real);
+            return own;
+        }
+
+        /**
+         * Whether a key is a turn or phase — {@code PlayerTurn$}, {@code Phases$},
          * {@code ConditionPlayerTurn$}, {@code ActivationPhases$}, {@code Condition$ PlayerTurn}: "during
          * your turn" is when an ability works, not a count the player builds toward, and would light
          * the card every turn.
          */
-        private static boolean timingOnly(final Set<String> found, final Map<String, String> params) {
-            for (final String key : found) {
-                if (!timing(key, params.get(key))) { return false; }
-            }
-            return true;
-        }
-
         private static boolean timing(final String key, final String value) {
             return key.contains("Turn") || key.contains("Phase")
                     || (key.equals("Condition") && value != null && (value.contains("Turn") || value.contains("Phase")));
