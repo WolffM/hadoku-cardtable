@@ -208,15 +208,17 @@ const WIRE_TYPE_NAMES: Readonly<Record<number, string>> = { 0: 'Card', 1: 'Playe
 
 /** The `Type.Property` names a delta changes, or any other frame's own method, for a report. */
 function changedProperties(payload: unknown): string[] {
-  const frame = (payload as { frame?: { method?: unknown; payload?: { packet?: unknown } } } | null)?.frame;
+  const frame = (payload as { frame?: { method?: unknown; payload?: Record<string, unknown> } } | null)?.frame;
   if (frame?.method !== 'applyDelta') return [methodOf(payload)];
-  const packet = frame.payload?.packet;
   const names = new Set<string>();
-  for (const { obj } of packetObjects(packet)) {
+  for (const { obj } of packetObjects(frame.payload?.packet)) {
     const type = typeof obj._type === 'number' ? (WIRE_TYPE_NAMES[obj._type] ?? String(obj._type)) : '?';
     for (const key of Object.keys(obj)) if (key !== '_type' && key !== '_id') names.add(`${type}.${key}`);
   }
-  return [...names];
+  if (names.size > 0) return [...names];
+  // A packet with no object this seat sees: what else the frame carries (`visibility.ts`'s side channels), else that it is empty.
+  const sides = Object.keys(frame.payload ?? {}).filter((key) => key !== 'packet');
+  return sides.length > 0 ? sides.map((key) => `delta+${key}`) : ['delta(empty)'];
 }
 
 /** `match.ts`'s own `INPUT_FRAMES` — see this module's header for why it is copied, not imported. */
