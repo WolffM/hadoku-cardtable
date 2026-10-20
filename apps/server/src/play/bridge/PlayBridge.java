@@ -380,7 +380,12 @@ public final class PlayBridge {
         if (files == null || files.length == 0) {
             throw new IllegalStateException("no precon decks in " + dir.getAbsolutePath());
         }
-        final List<File> shuffled = new ArrayList<>(Arrays.asList(files));
+        return randomPrecon(files, random);
+    }
+
+    /** {@link #randomPrecon(Random)} over the precon files {@code listing}, in the order a directory listing gave them. */
+    static Deck randomPrecon(final File[] listing, final Random random) {
+        final List<File> shuffled = new ArrayList<>(Arrays.asList(listing));
         Collections.shuffle(shuffled, random);
         for (final File f : shuffled) {
             final Deck d = DeckSerializer.fromFile(f);
@@ -388,7 +393,7 @@ public final class PlayBridge {
                 return d;
             }
         }
-        throw new IllegalStateException("no precon in " + dir.getAbsolutePath() + " has 40 cards");
+        throw new IllegalStateException("no precon in " + Arrays.toString(listing) + " has 40 cards");
     }
 
     // ============================================================ JSON encoding
