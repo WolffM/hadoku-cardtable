@@ -844,7 +844,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         const at = struckEl(members[0]!.target);
         const boxes = members.map((r) => root.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${r.sourceId}"]`) ?? battlefieldCard(r.sourceId));
         if (at === null || boxes.some((b) => b === null)) continue;
-        const spots = fanOf(boxes.map((b) => boxIn(b!, root)), boxIn(at, root), key);
+        const spots = fanOf(boxes.map((b) => boxIn(b!, root)), boxIn(at, root), key, boxIn(root, root));
         members.forEach((r, i) => fanned.set(r.sourceId, spots[i]!));
       }
     }
