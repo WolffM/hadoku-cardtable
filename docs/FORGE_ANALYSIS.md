@@ -841,3 +841,24 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   both seats' state: a never-cast Room is `CurrentState` 9 and its whole face (ordinal 0) is never sent;
   cast Walk-In Closet is 5; after "Unlock Forgotten Cellar" it is 0. The offer leaves out an unlock the
   seat cannot pay for: with three Forests left only "Unlock Walk-In Closet" was offered (run 39343167782).
+
+## A cost's sacrifice or discard is chosen before the targets — 2026-10-20 (lane BO)
+
+- **VERIFIED (read, pin `6e71db52`)** — `PlaySpellAbility.playAbility` chooses targets
+  (`ability.setupTargets()`, `forge-game/.../player/PlaySpellAbility.java:677`) before it pays the
+  cost (`payment.payCost`, `:683`), and `CostPayment.payCost` asks each part's choice as it pays it
+  (`part.accept(decisionMaker)`). So Bone Shards asked its target, then its sacrifice: the operator
+  targeted his Woodfall Primus and then sacrificed it, and the spell fizzled (m-2ade17d9333d). Which
+  KIND of additional cost (sacrifice or discard, `K:AlternateAdditionalCost`) is asked earlier still,
+  in `chooseOptionalAdditionalCosts` (`getAbilityToPlay`, `:146`).
+- **Fork `df73b8d` (`cardtable/cost-choice-first`)** — the operator, 2026-10-20: "sacrifice first
+  makes sense to me". `CostPayment.chooseObjectsBeforeTargets` (`CostPayment.java:157`) asks, right
+  before `setupTargets` (`PlaySpellAbility.java:678`), every sacrifice or discard picked from a list
+  (`isChosenBeforeTargets`: not this card, the whole hand, at random or the last drawn); `payCost`
+  pays those choices after the targets (`:216`), re-asking only if a chosen object left its zone in
+  between (a mana ability can sacrifice it). Only the question moves: nothing is paid before the
+  targets (rule 601.2h stays after 601.2c), the chosen creature stays a legal target, and a cancel at
+  the targets rolls the cast back through `rollbackAbility` with nothing paid. Only a payer whose
+  `CostDecisionMakerBase.choosesCostObjectsFirst()` is true (the human's `HumanCostDecision`) asks
+  this way; the AI is unchanged. A spell without targets now asks the sacrifice before its mana
+  (Tinker). Exile, tap and return costs are still picked as they are paid, after the targets.
