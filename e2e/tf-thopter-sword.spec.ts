@@ -10,7 +10,7 @@
  * it. The browser answers that ask only once the pacer delivers it, after the Foundry's resolution has been
  * drawn — the life gain's beat — and Forge sat on it 2.5 s every loop.
  *
- * Scenario `tf-thopter-sword`, against the Forge AI as the live game was: alice loops the combo; the first
+ * Scenario `tf-thopter-sword`, against the Forge AI and paced (Fast Mode off) as the live game was: alice loops the combo; the first
  * loop answers the Sword's "may" with Always + Yes, and every later loop is timed. `[tf]` lines are the
  * evidence: per loop, click→the sacrifice's sheet on screen, pick→Foundry offered again.
  *
@@ -51,7 +51,7 @@ test(titled('Thopter Foundry + Sword of the Meek: the Sword’s trigger is playe
   test.setTimeout(4 * 60_000);
   const stack = await startPlayStack(forge);
   try {
-    const { alice } = await startScenarioVsAi(browser, stack, 'tf-thopter-sword');
+    const { alice } = await startScenarioVsAi(browser, stack, 'tf-thopter-sword', { fastMode: false });
     const page = alice.page;
     await expect.poll(() => ownNamed(page, 'Thopter Foundry'), { timeout: 60_000, message: 'alice has her Thopter Foundry' }).toHaveLength(1);
     const [foundry] = await ownNamed(page, 'Thopter Foundry');
