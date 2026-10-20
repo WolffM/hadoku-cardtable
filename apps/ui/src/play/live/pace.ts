@@ -117,6 +117,8 @@
  * bug. Holding a stale delta an extra few hundred ms is slower, not wrong.
  */
 
+import { CLIENT_EVENT, type ClientEvent } from '@hadoku/shared';
+
 import { whenBoardStill } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
@@ -157,6 +159,24 @@ export const HELD_BY_THE_BOARD: ReadonlySet<PaceClass> = new Set<PaceClass>(['ca
 
 /** The longest a frame waits on the board's beats: a beat that never says it is over must not freeze the table. */
 export const BOARD_HOLD_MAX_MS = 5_000;
+
+/**
+ * An input frame that waited at least this long behind what came before it is reported (`input-held`): how
+ * long, and how much of that was the board's beats and the classes' gaps — the operator, 2026-10-20, of a
+ * looped combo: "it seems i have to wait for the life gain sound to play before i can do the combo again?"
+ */
+export const INPUT_HELD_REPORT_MS = 100;
+
+/** What an `input-held` report says: the frame's method, its wait, and what the wait was spent on. */
+export interface InputHeld {
+  what: 'input-held';
+  method: string;
+  ms: number;
+  boardMs: number;
+  gapMs: number;
+  /** Frames that went out ahead of it while it waited. */
+  ahead: number;
+}
 
 /** `match.ts`'s own `INPUT_FRAMES` — see this module's header for why it is copied, not imported. */
 const INPUT_NOTIFY_METHODS: ReadonlySet<string> = new Set([
@@ -280,6 +300,16 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
 
 /* ── The wrapper ─────────────────────────────────────────────────────── */
 
+/** A queued payload: its class, and what the waits had been spent on when it arrived ({@link InputHeld}). */
+interface Entry {
+  payload: unknown;
+  pace: PaceClass;
+  arrivedAt: number;
+  boardAt: number;
+  gapAt: number;
+  deliveredAt: number;
+}
+
 /** `MatchTransport`, plus the one knob a mid-match toggle needs. */
 export interface PacedMatchTransport extends MatchTransport {
   /** `true`: today's behaviour exactly — every queued payload flushes at once and nothing new is held. `false`: paced. */
@@ -311,6 +341,23 @@ export interface PaceOptions {
   cancel?: (handle: unknown) => void;
   /** Runs `done` once the board has drawn every beat it is drawing, at once when it is still; returns a cancel. Defaults to `../motion.ts`'s `whenBoardStill`. */
   boardStill?: (done: () => void) => () => void;
+  /** Where an {@link InputHeld} goes, with the payload it is about. Defaults to the match's client telemetry, on the inner transport. */
+  report?: (held: InputHeld, payload: unknown) => void;
+}
+
+/** The match's client telemetry: the server writes it into the match's log (`@hadoku/shared`'s `telemetry.ts`). */
+function reportOn(inner: MatchTransport): (held: InputHeld, payload: unknown) => void {
+  return (held, payload) => {
+    const matchId = (payload as { matchId?: unknown }).matchId;
+    if (typeof matchId !== 'string' || matchId === '') return;
+    inner.emit(CLIENT_EVENT, { matchId, kind: 'effect', data: { ...held } } satisfies ClientEvent);
+  };
+}
+
+/** The method a frame names, for a report. */
+function methodOf(payload: unknown): string {
+  const method = ((payload as { frame?: { method?: unknown } } | null)?.frame ?? {}).method;
+  return typeof method === 'string' ? method : '?';
 }
 
 export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions = {}): PacedMatchTransport {
@@ -319,11 +366,12 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const schedule = options.schedule ?? ((run: () => void, delayMs: number) => setTimeout(run, delayMs));
   const cancel = options.cancel ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
   const boardStill = options.boardStill ?? whenBoardStill;
+  const report = options.report ?? reportOn(inner);
 
   let fast = options.initialFast ?? false;
   let endingTurn = false;
   /** Each payload with its class, read on arrival — in arrival order, which is what `memory` needs and the cursor `match.ts` checks. */
-  let queue: { payload: unknown; pace: PaceClass }[] = [];
+  let queue: Entry[] = [];
   const memory: PaceMemory = { stackDepth: null };
   let timer: unknown = null;
   let lastDeliveredAt = -Infinity;
@@ -342,22 +390,49 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     return pace === 'phase' && (endingTurn || superseded) ? 0 : delays[pace];
   }
 
+  /*
+   * What the waits were spent on, for {@link InputHeld}: the time spent on the board's beats and on the classes'
+   * gaps so far, each counting the wait still running.
+   */
+  let boardMs = 0;
+  let gapMs = 0;
+  let boardSince: number | null = null;
+  let gapSince: number | null = null;
+  let delivered = 0;
+  const spent = (): { board: number; gap: number } => ({
+    board: boardMs + (boardSince === null ? 0 : now() - boardSince),
+    gap: gapMs + (gapSince === null ? 0 : now() - gapSince),
+  });
+  function entryOf(payload: unknown, pace: PaceClass): Entry {
+    const at = spent();
+    return { payload, pace, arrivedAt: now(), boardAt: at.board, gapAt: at.gap, deliveredAt: delivered };
+  }
+
   function deliverNext(): void {
     const next = queue.shift();
     if (next === undefined) return;
     lastDeliveredAt = now();
+    const held = lastDeliveredAt - next.arrivedAt;
+    if (next.pace === 'input' && held >= INPUT_HELD_REPORT_MS) {
+      const at = spent();
+      report(
+        { what: 'input-held', method: methodOf(next.payload), ms: Math.round(held), boardMs: Math.round(at.board - next.boardAt), gapMs: Math.round(at.gap - next.gapAt), ahead: delivered - next.deliveredAt },
+        next.payload,
+      );
+    }
+    delivered += 1;
     deliverTo?.(next.payload);
   }
 
   /** The queued frame the board has let go: a frame waits for the board once, never again (the cap's own promise). */
-  let boardFreed: { payload: unknown; pace: PaceClass } | null = null;
+  let boardFreed: Entry | null = null;
   /** Stops the wait on the board, while one is running. */
   let boardWait: (() => void) | null = null;
   /** A frame the board draws went out in the task now running. */
   let drewThisTask = false;
 
   /** Start waiting for the board's beats before `entry` goes out, when it must: `false` when it need not, or the board is already still. */
-  function waitForBoard(entry: { payload: unknown; pace: PaceClass }): boolean {
+  function waitForBoard(entry: Entry): boolean {
     if (fast || !HELD_BY_THE_BOARD.has(entry.pace) || boardFreed === entry) return false;
     let waiting = false;
     let stillNow = false;
@@ -371,11 +446,13 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       boardWait = null;
       stop();
       boardFreed = entry;
+      endBoardWait();
       pump();
     };
     const stopStill = boardStill(release);
     if (stillNow) return false;
     waiting = true;
+    boardSince = now();
     const cap = schedule(release, BOARD_HOLD_MAX_MS);
     boardWait = () => {
       stopStill();
@@ -390,8 +467,10 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     const head = queue[0]!;
     const waitMs = Math.max(0, lastDeliveredAt + delayFor(head.pace, queue.length > 1) - now());
     if (waitMs > 0) {
+      gapSince = now();
       timer = schedule(() => {
         timer = null;
+        endGap();
         drewThisTask = false;
         pump();
       }, waitMs);
@@ -419,16 +498,31 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     pump();
   }
 
+  function endGap(): void {
+    if (gapSince !== null) gapMs += now() - gapSince;
+    gapSince = null;
+  }
+  function endBoardWait(): void {
+    if (boardSince !== null) boardMs += now() - boardSince;
+    boardSince = null;
+  }
+
+  /** Stop the timer, when one is pending. */
+  function stopTimer(): void {
+    if (timer === null) return;
+    cancel(timer);
+    timer = null;
+    endGap();
+  }
+
   /** Stop whatever is pending: the timer, and any wait on the board. */
   function stopPending(): void {
-    if (timer !== null) {
-      cancel(timer);
-      timer = null;
-    }
+    stopTimer();
     if (boardWait !== null) {
       const stop = boardWait;
       boardWait = null;
       stop();
+      endBoardWait();
     }
   }
 
@@ -446,12 +540,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       }
       deliverTo = handler;
       inner.on(event, (payload) => {
-        queue.push({ payload, pace: classify(payload, memory) });
+        queue.push(entryOf(payload, classify(payload, memory)));
         // A phase frame waiting on its gap has just been superseded: let it go now.
-        if (timer !== null && queue.length === 2 && queue[0]!.pace === 'phase' && !fast) {
-          cancel(timer);
-          timer = null;
-        }
+        if (timer !== null && queue.length === 2 && queue[0]!.pace === 'phase' && !fast) stopTimer();
         pump();
       });
     },
@@ -475,8 +566,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
       endingTurn = value;
       // A phase frame already waiting on its gap goes now: the wait was computed before the press.
       if (value && timer !== null) {
-        cancel(timer);
-        timer = null;
+        stopTimer();
         pump();
       }
     },

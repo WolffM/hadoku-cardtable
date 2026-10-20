@@ -2203,6 +2203,19 @@ describe("a trigger's one ability is not a question: the server plays it", () =>
 		expect(onWire(h, 't-3')).toBe(false);
 	});
 
+	it("a click that picks a card from an open selection is not that card's own offer: its trigger is played", () => {
+		// Thopter Foundry sacrificing Sword of the Meek (match m-22c72c4dd6cd): the sacrifice pick is a click on the
+		// Sword, and the Sword's own trigger reached the browser, waiting behind the pacer's beats 2.5 s a loop.
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'setSelectables', cards: [{ kind: 'card', id: 964 }], min: 1, max: 1, players: [] } });
+		click(h, 964);
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'clearSelectables' } });
+		h.host.push({ t: 'frame', seat: 0, frame: offer('t-7', 964, [85]) });
+		expect(onWire(h, 't-7')).toBe(false);
+		expect(h.host.commands).toContainEqual({ t: 'reply', seat: 0, callId: 't-7', result: { kind: 'spellAbility', id: 85, label: 'ability 85' } });
+	});
+
 	it('two abilities are a real choice: asked', () => {
 		const h = harness();
 		h.host.push(...OPENING);

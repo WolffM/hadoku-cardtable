@@ -503,6 +503,34 @@ describe('pacedMatchTransport: one act at a time', () => {
     expect(received).toEqual([ASK, MESSAGE]);
   });
 
+  it('an ask held behind the board is reported with what it waited on, to the match log', async () => {
+    // Thopter Foundry + Sword of the Meek (match m-22c72c4dd6cd): the next loop's question waited on the life gain's beat.
+    // The resolution waits its 600 ms gap, then the rest of the beat.
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const { received } = paced(inner, { boardStill: board.still });
+    const withMatch = (payload: unknown) => ({ ...(payload as object), matchId: 'm-1' });
+    inner.deliver(withMatch(BLOW));
+    board.busy(true);
+    inner.deliver(withMatch(RESOLVE));
+    const ask = withMatch(ASK);
+    inner.deliver(ask);
+    await vi.advanceTimersByTimeAsync(850);
+    board.busy(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(received.at(-1)).toBe(ask);
+    expect(inner.emits).toEqual([
+      { event: 'forge:client', payload: { matchId: 'm-1', kind: 'effect', data: { what: 'input-held', method: 'showConfirmDialog', ms: 850, boardMs: 250, gapMs: 600, ahead: 1 } } },
+    ]);
+  });
+
+  it('an ask that goes out at once reports nothing', () => {
+    const inner = fakeInner();
+    paced(inner);
+    inner.deliver({ ...ASK, matchId: 'm-1' });
+    expect(inner.emits).toEqual([]);
+  });
+
   it('a beat that never ends holds a frame no longer than the cap', async () => {
     const inner = fakeInner();
     const board = fakeBoard();

@@ -82,9 +82,11 @@ test(titled('Thopter Foundry + Sword of the Meek: the Sword’s trigger is playe
       fromLoop += rows.length;
       const forwarded = rows.filter((r) => r.evt === 'ask-answered' && r.seat === 0 && r.method === 'getAbilityToPlay').map((r) => r.ms);
       const played = rows.filter((r) => r.evt === 'ask-auto-answered' && r.seat === 0 && r.method === 'getAbilityToPlay' && r.why === 'one ability').length;
+      // The pacer's own word on each question it held behind the board (`apps/ui/src/play/live/pace.ts`, `input-held`).
+      const held = rows.filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'input-held').map((r) => `${String(r.method)} ${String(r.ms)}ms (board ${String(r.boardMs)}, gaps ${String(r.gapMs)}, ${String(r.ahead)} ahead)`);
       console.log(
         `[tf] loop ${loop}: click→pick ${pickAt - clickAt} ms, pick→next offer ${nextAt - pickedAt} ms, total ${nextAt - clickAt} ms; ` +
-          `getAbilityToPlay answered by the browser after ${JSON.stringify(forwarded)} ms, played by the server ${played}`,
+          `getAbilityToPlay answered by the browser after ${JSON.stringify(forwarded)} ms, played by the server ${played}; held: ${held.join('; ') || 'none'}`,
       );
       if (loop > 0) timed.push({ pickMs: pickAt - clickAt, nextMs: nextAt - pickedAt });
     }

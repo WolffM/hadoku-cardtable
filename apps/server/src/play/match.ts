@@ -541,7 +541,10 @@ export interface SeatState {
 	 * `getAbilityToPlay` it receives. A one-ability offer for exactly this card
 	 * is the click's own and goes to the browser, which says what was played; any
 	 * other (a trigger, an effect casting a card) is answered here
-	 * ({@link Match.openAsk}).
+	 * ({@link Match.openAsk}). A click that picks from an open selection is not
+	 * kept: Thopter Foundry's sacrifice of Sword of the Meek is a click on the
+	 * Sword, and the Sword's own trigger that follows went to the browser, where
+	 * it waited behind the pacer's beats, 2.5 s a loop (match m-22c72c4dd6cd).
 	 */
 	clicked: number | null;
 	/**
@@ -1765,7 +1768,8 @@ export class Match {
 		if (this.status !== 'running') return { ok: false, error: `match is ${this.status}` };
 		switch (frame.kind) {
 			case 'act':
-				if (frame.method === 'selectCard') s.clicked = frame.card.id;
+				// A click inside an open selection (a sacrifice, a target) picks a card; it opens no offer of its own.
+				if (frame.method === 'selectCard') s.clicked = s.selection === null ? frame.card.id : null;
 				if (frame.method === 'concede') this.concededBy = seat;
 				if (frame.method === 'selectButtonCancel' && s.buttons?.method === 'updateButtons' && s.buttons.label2 === 'Mulligan') s.mulligans += 1;
 				// The seat's own button press, with the label it pressed: a card click has its `click` record, and
