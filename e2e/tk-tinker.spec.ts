@@ -30,10 +30,13 @@ import { startScenarioMatch } from './play/scenario.ts';
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-/** The decision pop-up's text, or null when none is drawn. */
+/** The pop-up a decision draws (the selection sheet, or the decision area's own), or null when none is. */
 async function popup(page: Page): Promise<string | null> {
-  const host = page.getByTestId('live-decision-host');
-  return (await host.count()) > 0 && (await host.first().isVisible()) ? ((await host.first().textContent()) ?? '').replace(/\s+/g, ' ').trim() : null;
+  for (const id of ['live-selection-host', 'live-decision-host']) {
+    const host = page.getByTestId(id);
+    if ((await host.count()) > 0 && (await host.first().isVisible())) return `${id}: ${((await host.first().textContent()) ?? '').replace(/\s+/g, ' ').trim()}`;
+  }
+  return null;
 }
 
 /** What the board draws of the open decision: the line, the pop-up, the offered cards, any prompt sheet. */
