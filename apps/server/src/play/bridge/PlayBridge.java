@@ -2291,7 +2291,10 @@ public final class PlayBridge {
             maybeEmitGameOverFirst();
             frame(notify("finishGame"));
         }
-        @Override public void clearSelectables() { frame(notify("clearSelectables")); }
+        @Override public void clearSelectables() {
+            convokeOffered = null;
+            frame(notify("clearSelectables"));
+        }
 
         @Override public void showPromptMessage(final PlayerView playerView, final String message, final CardView card) {
             // See `syncMulliganFlag`: this is one of the two calls
@@ -2302,6 +2305,7 @@ public final class PlayBridge {
             // A priority window the SEAT is shown is a real input: no yield is running, so
             // an End Turn's pacing exemption is over (it is only ever armed by the click).
             if (phaseDelayOff && message != null && message.startsWith("Priority:")) { setPhaseDelayOff(false); }
+            syncConvokeSelectables();
             final JsonObject f = notify("showPromptMessage");
             f.add("player", ref("player", playerView.getId()));
             f.addProperty("message", str(message));
@@ -2616,6 +2620,7 @@ public final class PlayBridge {
             if (owner == null) { return; }
             lastLabel2 = label2 == null ? "" : label2;
             lastEnable2 = enable2;
+            syncConvokeSelectables();
             final JsonObject f = notify("updateButtons");
             f.add("owner", ref("player", owner.getId()));
             f.addProperty("label1", str(label1));
@@ -2665,13 +2670,60 @@ public final class PlayBridge {
         }
 
         @Override public void setSelectables(final Iterable<CardView> cards, final int min, final int max) {
+            // Forge's own selection replaces the one this bridge published.
+            convokeOffered = null;
+            selectables(cards, min, max, legalPlayers());
+        }
+
+        private void selectables(final Iterable<CardView> cards, final int min, final int max, final JsonArray players) {
             final JsonObject f = notify("setSelectables");
             f.add("cards", refs(cards));
             f.addProperty("min", Math.max(0, min));
             f.addProperty("max", Math.max(0, max));
-            final JsonArray players = legalPlayers();
             if (players != null) { f.add("players", players); }
             frame(f);
+        }
+
+        /** The improvise, convoke or Waterbend pick whose cards this seat was sent, while it is open; see {@link #syncConvokeSelectables}. */
+        private Object convokeOffered;
+
+        /**
+         * Publish an open improvise, convoke or Waterbend pick as a selection, and withdraw it once
+         * that pick is no longer the open input.
+         *
+         * Forge asks which artifacts or creatures to tap through
+         * {@code InputSelectCardsForConvokeOrImprovise} ({@code CostAdjustment.adjustCostByConvokeOrImprovise}),
+         * an {@code InputSelectManyBase} that never calls {@code IGuiGame.setSelectables}: only
+         * {@code InputSelectTargets} and {@code InputSelectEntitiesFromList} do. The seat was shown
+         * "Choose artifact to tap for Improvise" with nothing to pick (the operator's match
+         * m-e6863c7810f1). The cards are the input's own {@code availableCards}, the ones its
+         * {@code onCardSelected} accepts; {@code min} is 0 and {@code max} the input's own, capped by
+         * Waterbend's {@code maxSelectable}. No player is ever accepted.
+         *
+         * Called from {@link #showPromptMessage} and {@link #updateButtons}, which every input sends
+         * as it is shown and while it is open, on this seat's channel thread with the game thread
+         * parked on that input (see {@link #liveMulliganFlag}). The pick's own message and bar
+         * come after its cards, the order Forge's selection inputs send them in; the next input's
+         * first prompt or bar is preceded by the {@code clearSelectables} Forge itself never sends
+         * for this one.
+         */
+        private void syncConvokeSelectables() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            final Object input = mine != null && mine.getController() instanceof PlayerControllerHuman human ? human.getInputQueue().getInput() : null;
+            if (input == convokeOffered) { return; }
+            if (convokeOffered != null) { clearSelectables(); }
+            if (!(input instanceof forge.gamemodes.match.input.InputSelectCardsForConvokeOrImprovise)) { return; }
+            try {
+                final var declaring = forge.gamemodes.match.input.InputSelectCardsForConvokeOrImprovise.class;
+                final List<CardView> cards = new ArrayList<>();
+                for (final Object c : (Iterable<?>) field(input, declaring, "availableCards")) { cards.add(((forge.game.card.Card) c).getView()); }
+                final Integer cap = (Integer) field(input, declaring, "maxSelectable");
+                final int max = (Integer) field(input, forge.gamemodes.match.input.InputSelectManyBase.class, "max");
+                selectables(cards, 0, cap == null ? max : Math.min(max, cap), new JsonArray());
+                convokeOffered = input;
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] syncConvokeSelectables: could not read the open pick (" + e + "); nothing offered");
+            }
         }
 
         /**

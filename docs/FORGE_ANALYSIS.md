@@ -549,6 +549,16 @@ design, not a bug in our UI.
   #   PlayerControllerHuman.java:1590, :1617, :1628, :1646                   (4 callers)
   ```
 
+- **VERIFIED (2026-10-20, match m-e6863c7810f1)** — improvise, convoke and
+  Waterbend ask through `InputSelectCardsForConvokeOrImprovise` (built at
+  `PlayerControllerHuman.java:2685`, from `CostAdjustment.java:359`), an
+  `InputSelectManyBase` that is neither of those two callers: it names its cards
+  to no GUI call at all. Its legal picks are its `availableCards` field (`:29`,
+  checked in `onCardSelected` at `:76`), min 0 and max
+  `min(cmc, untapped)` (`:37`), and it never sends a `clearSelectables`. The
+  bridge publishes and withdraws them itself (`PlayBridge.java`'s
+  `syncConvokeSelectables`).
+
 - **VERIFIED (W22 lane L, re-derived here)** — the signal that a mulligan IS open
   is a tracked boolean on the game view, not a prompt: `GameView.isMulligan()` /
   `updateIsMulligan(boolean)` (`GameView.java:141-146`) over
