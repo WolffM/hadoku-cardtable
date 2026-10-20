@@ -27,11 +27,15 @@ import com.google.gson.JsonParser;
 import forge.LobbyPlayer;
 import forge.StaticData;
 import forge.GuiDesktop;
+import forge.card.CardDb;
+import forge.card.CardRules;
 import forge.card.CardTypeView;
+import forge.card.ICardFace;
 import forge.card.MagicColor;
 import forge.card.mana.ManaCost;
 import forge.deck.CardPool;
 import forge.deck.Deck;
+import forge.deck.DeckSection;
 import forge.deck.io.DeckSerializer;
 import forge.game.Game;
 import forge.game.GameEntityView;
@@ -134,6 +138,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+
+import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * One Forge match, driven over stdin/stdout by the Node server
@@ -298,13 +305,72 @@ public final class PlayBridge {
         return seats;
     }
 
+    /**
+     * A seat's {@code .dck} text as Forge's deck — the one place every deck, drafted or from the
+     * library, becomes the deck Forge plays. Each card line is first given the name Forge's card
+     * database files the card under ({@link #forgeCardName}).
+     */
     static Deck parseDeck(final String dck) {
         final List<String> lines = Arrays.asList(dck.split("\\r?\\n"));
-        final Deck deck = DeckSerializer.fromSections(FileSection.parseSections(lines));
+        final Map<String, List<String>> sections = FileSection.parseSections(lines);
+        final CardDb cards = StaticData.instance().getCommonCards();
+        // DeckSerializer.readDeckMetadata reads "metadata" by this exact name; every other section holds cards.
+        sections.replaceAll((name, body) -> "metadata".equals(name) ? body : forgeCardLines(body, n -> cards.getRules(n, false)));
+        final Deck deck = DeckSerializer.fromSections(sections);
         if (deck == null || deck.getMain() == null || deck.getMain().countAll() == 0) {
             throw new IllegalArgumentException("the .dck text has no main deck");
         }
         return deck;
+    }
+
+    /** {@code lines} of a card section, each naming its card by {@link #forgeCardName}; anything else as it was. */
+    static List<String> forgeCardLines(final List<String> lines, final Function<String, CardRules> rules) {
+        final List<String> out = new ArrayList<>(lines.size());
+        for (final String line : lines) {
+            // Forge's own reading of a card line: its count, then the request (CardPool.processCardList).
+            final List<Pair<String, Integer>> read = CardPool.processCardList(List.of(line));
+            if (read.isEmpty()) { out.add(line); continue; }
+            final String request = read.get(0).getLeft();
+            final String name = CardDb.CardRequest.fromString(request).cardName;
+            final String forge = forgeCardName(name, rules);
+            out.add(forge.equals(name) ? line : read.get(0).getRight() + " " + forge + request.substring(name.length()));
+        }
+        return out;
+    }
+
+    /**
+     * The name Forge's card database files a card under, for a name written {@code Front // Back}
+     * the way Scryfall names every two-faced card (and so the cube, and a drafted deck's lines).
+     *
+     * Forge's name is {@code CardRules.getName()} ({@code forge-core/.../card/CardRules.java:200}):
+     * both faces joined with {@code " // "} only when the layout combines them
+     * ({@code CardSplitType.Split}, the one {@code FaceSelectionMethod.COMBINE}: split, aftermath,
+     * fuse and rooms, all {@code AlternateMode:Split}), the front face alone for every other layout
+     * (transform, modal double-faced, adventure, flip, omen, meld). {@code CardDb.addCard} indexes a
+     * card under that name and each face's own, never the joined pair, so a transform card named the
+     * Scryfall way is no card at all and Forge removes it at the start of the match.
+     *
+     * The front face's card is the card only when its other face is the back face named. A split
+     * card's halves are no card's primary name, so its joined name is kept as written; a pair that
+     * is not one card is left for Forge to refuse.
+     */
+    static String forgeCardName(final String name, final Function<String, CardRules> rules) {
+        final int cut = name.indexOf(" // ");
+        if (cut < 0) { return name; }
+        final CardRules card = rules.apply(name.substring(0, cut));
+        final ICardFace back = card == null ? null : card.getOtherPart();
+        return back != null && back.getName().equals(name.substring(cut + 4)) ? card.getName() : name;
+    }
+
+    /** The cards of {@code deck} Forge has no card for: what {@code Deck.getValid} removes when the match starts. */
+    static List<String> unsupportedIn(final Deck deck) {
+        final List<String> out = new ArrayList<>();
+        for (final Map.Entry<DeckSection, CardPool> part : deck) {
+            for (final Map.Entry<PaperCard, Integer> e : part.getValue()) {
+                if (e.getKey().getRules() != null && e.getKey().getRules().isUnsupported()) { out.add(e.getKey().getName()); }
+            }
+        }
+        return out;
     }
 
     /** A random quest precon with at least 40 cards in its main deck. */
@@ -5296,6 +5362,14 @@ public final class PlayBridge {
             s.addProperty("seat", i);
             s.addProperty("ai", seats.get(i).ai());
             s.addProperty("deck", decks.get(i).getName());
+            // Forge drops these from the seat's deck as the game starts (Deck.getValid) and reveals
+            // them in a "Removed from your Deck" list: a card the deck named that Forge has no card for.
+            final JsonArray removed = new JsonArray();
+            for (final String name : unsupportedIn(decks.get(i))) {
+                removed.add(name);
+                System.err.println("[bridge] ERROR seat " + i + ": Forge has no card \"" + name + "\" and removes it from the deck");
+            }
+            s.add("removed", removed);
             seatInfo.add(s);
         }
         ready.add("seats", seatInfo);

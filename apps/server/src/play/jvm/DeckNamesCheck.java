@@ -37,7 +37,7 @@ import java.util.Map;
  * sideboard, read by the bridge's own {@code PlayBridge.parseDeck} against Forge's
  * card database built straight from CARDTABLE_FORGE_RES. Prints, per section,
  * {@code section TAB line TAB forge-name TAB edition TAB OK|UNSUPPORTED}: the card
- * Forge would play, or the one it would remove at the start.
+ * Forge would play, or one {@code PlayBridge.unsupportedIn} says it would remove.
  *
  * Driven by {@code ../deck-names.jvm.test.ts}, compiled and run on a classpath
  * that holds the compiled bridge and the Forge jar.
@@ -60,10 +60,11 @@ public class DeckNamesCheck {
         for (String line : Files.readAllLines(Path.of(args[1]), StandardCharsets.UTF_8)) {
             if (line.isBlank()) continue;
             Deck deck = PlayBridge.parseDeck("[metadata]\nName=check\n[Main]\n1 " + line + "\n[Sideboard]\n1 " + line + "\n");
+            List<String> removed = PlayBridge.unsupportedIn(deck);
             for (DeckSection section : List.of(DeckSection.Main, DeckSection.Sideboard)) {
                 for (Map.Entry<PaperCard, Integer> e : deck.get(section)) {
                     PaperCard card = e.getKey();
-                    System.out.println(section + "\t" + line + "\t" + card.getName() + "\t" + card.getEdition() + "\t" + (card.getRules().isUnsupported() ? "UNSUPPORTED" : "OK"));
+                    System.out.println(section + "\t" + line + "\t" + card.getName() + "\t" + card.getEdition() + "\t" + (removed.contains(card.getName()) ? "UNSUPPORTED" : "OK"));
                 }
             }
         }

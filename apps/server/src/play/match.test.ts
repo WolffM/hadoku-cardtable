@@ -1989,6 +1989,40 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 		expect(h.host.commands).toHaveLength(1);
 	});
 
+	it("Forge's removal of cards it has no card for is logged by name, never as an empty reveal", () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({
+			t: 'ready',
+			forgePort: 1,
+			bootMs: 1,
+			seats: [
+				{ seat: 0, ai: false, deck: 'Drafted', removed: ['Etali, Primal Conqueror // Stomp'] },
+				{ seat: 1, ai: false, deck: 'Islands', removed: [] },
+			],
+		});
+		h.host.push({
+			t: 'frame',
+			seat: 0,
+			frame: {
+				kind: 'ask',
+				callId: 'x-removed',
+				method: 'getChoices',
+				message: 'Removed from your  Deck',
+				min: -1,
+				max: -1,
+				choices: [{ key: 'c0', label: 'Etali, Primal Conqueror // Stomp', ref: null }],
+				selected: [],
+			},
+		});
+		vi.advanceTimersByTime(1000);
+		expect(h.logs.filter((l) => l.evt === 'deck-cards-removed')).toEqual([
+			{ evt: 'deck-cards-removed', error: 'Forge has no card for these and removes them from the deck', matchId: h.match.id, seat: 0, cards: ['Etali, Primal Conqueror // Stomp'] },
+		]);
+		expect(h.logs.find((l) => l.evt === 'reveal-shown' && l.callId === 'x-removed')).toMatchObject({ cards: [], named: ['Etali, Primal Conqueror // Stomp'] });
+	});
+
 	it('a shown reveal is not a wait: the other seat is never told this seat is deciding', () => {
 		vi.useFakeTimers();
 		const h = harness();

@@ -349,7 +349,11 @@ export type BridgeLine =
 	 * `bootMs` is from the JVM's own start (for a spare, that includes its idle
 	 * wait); `startMs` from the moment the match was handed to it (Wave 10).
 	 */
-	| { t: 'ready'; forgePort: number; bootMs: number; startMs?: number; seats: { seat: number; ai: boolean; deck: string }[] }
+	/**
+	 * `removed`: the cards of the seat's deck Forge has no card for, which it drops as the game starts
+	 * (`PlayBridge.java`'s `unsupportedIn`). Absent from a line an older bridge wrote.
+	 */
+	| { t: 'ready'; forgePort: number; bootMs: number; startMs?: number; seats: { seat: number; ai: boolean; deck: string; removed?: string[] }[] }
 	| { t: 'frame'; seat: number; frame: unknown }
 	| { t: 'probe'; probeId: string; seat: number; answer?: boolean; ms?: number; error?: string }
 	/**

@@ -2104,6 +2104,9 @@ export class Match {
 				for (const info of line.seats) {
 					const s = this.seats[info.seat];
 					if (s !== undefined) s.deck = info.deck;
+					if (info.removed !== undefined && info.removed.length > 0) {
+						this.deps.log({ evt: 'deck-cards-removed', error: 'Forge has no card for these and removes them from the deck', matchId: this.id, seat: info.seat, cards: info.removed });
+					}
 				}
 				this.deps.log({ evt: 'forge-ready', matchId: this.id, bootMs: line.bootMs });
 				return;
@@ -3481,7 +3484,8 @@ export class Match {
 	}
 
 	private showReveal(s: SeatState, frame: RevealFrame): void {
-		this.deps.log({ evt: 'reveal-shown', matchId: this.id, seat: s.seat, callId: frame.callId, cards: choiceCardIds(frame.choices) });
+		const named = frame.choices.filter((c) => c.ref === null).map((c) => c.label);
+		this.deps.log({ evt: 'reveal-shown', matchId: this.id, seat: s.seat, callId: frame.callId, cards: choiceCardIds(frame.choices), ...(named.length > 0 ? { named } : {}) });
 		this.send(s, frame, 'displayOnly');
 	}
 

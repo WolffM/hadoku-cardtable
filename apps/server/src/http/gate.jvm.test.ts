@@ -99,6 +99,7 @@ describe.skipIf(!available.ok)(title, () => {
 		// Forge removes a card it cannot name from the deck and says so with a reveal; none may come.
 		const removals = raw.filter((l) => l.t === 'frame' && /Removed/.test(String((l.frame as { message?: unknown }).message ?? '')));
 		expect(removals).toEqual([]);
+		expect(ready.seats.map((s) => s.removed)).toEqual([[], []]);
 		match.stop();
 		jvm.close();
 	}, 300_000);
