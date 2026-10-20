@@ -2350,6 +2350,8 @@ public final class PlayBridge {
             frame(notify("finishGame"));
         }
         @Override public void clearSelectables() {
+            // A selection cleared before its input opened was never the seat's to see.
+            heldSelectables = null;
             convokeOffered = null;
             frame(notify("clearSelectables"));
         }
@@ -2363,6 +2365,7 @@ public final class PlayBridge {
             // A priority window the SEAT is shown is a real input: no yield is running, so
             // an End Turn's pacing exemption is over (it is only ever armed by the click).
             if (phaseDelayOff && message != null && message.startsWith("Priority:")) { setPhaseDelayOff(false); }
+            sendHeldSelectables();
             syncConvokeSelectables();
             final JsonObject f = notify("showPromptMessage");
             f.add("player", ref("player", playerView.getId()));
@@ -2719,6 +2722,7 @@ public final class PlayBridge {
             if (owner == null) { return; }
             lastLabel2 = label2 == null ? "" : label2;
             lastEnable2 = enable2;
+            sendHeldSelectables();
             syncConvokeSelectables();
             final JsonObject f = notify("updateButtons");
             f.add("owner", ref("player", owner.getId()));
@@ -2768,19 +2772,52 @@ public final class PlayBridge {
             return null;
         }
 
+        /**
+         * Forge's selection, held until its input is open ({@link #sendHeldSelectables}).
+         *
+         * Forge calls {@code setSelectables} from the selection input's constructor
+         * ({@code InputSelectTargets.java:68}, {@code InputSelectEntitiesFromList.java:57}), before
+         * {@code showAndWait} opens it, and this seat's channel thread runs the call whenever it gets
+         * to it: usually once the game thread has opened the input, on a busy host before. The
+         * players the selection accepts are read from the open input ({@link #legalPlayers}), and a
+         * read before found no selection open and sent the cards with no players: the browser
+         * offered every face to a spell that can target none (Doom Blade). Such a selection waits
+         * for its input's first prompt or bar, which Forge sends with the input open, and goes out
+         * just ahead of it, the order Forge sends them in.
+         */
+        private JsonObject heldSelectables;
+
         @Override public void setSelectables(final Iterable<CardView> cards, final int min, final int max) {
             // Forge's own selection replaces the one this bridge published.
             convokeOffered = null;
-            selectables(cards, min, max, legalPlayers());
+            heldSelectables = selectablesFrame(cards, min, max);
+            if (selectionOpen()) { sendHeldSelectables(); }
         }
 
-        private void selectables(final Iterable<CardView> cards, final int min, final int max, final JsonArray players) {
+        /** Whether this seat's open input is one of the two that publish a selection, so {@link #legalPlayers} reads it. */
+        private boolean selectionOpen() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return false; }
+            final Object input = human.getInputQueue().getInput();
+            return input instanceof forge.gamemodes.match.input.InputSelectTargets || input instanceof forge.gamemodes.match.input.InputSelectEntitiesFromList;
+        }
+
+        /** Send the selection {@link #setSelectables} held, with the players its open input accepts. */
+        private void sendHeldSelectables() {
+            final JsonObject f = heldSelectables;
+            if (f == null) { return; }
+            heldSelectables = null;
+            final JsonArray players = legalPlayers();
+            if (players != null) { f.add("players", players); }
+            frame(f);
+        }
+
+        private JsonObject selectablesFrame(final Iterable<CardView> cards, final int min, final int max) {
             final JsonObject f = notify("setSelectables");
             f.add("cards", refs(cards));
             f.addProperty("min", Math.max(0, min));
             f.addProperty("max", Math.max(0, max));
-            if (players != null) { f.add("players", players); }
-            frame(f);
+            return f;
         }
 
         /** The improvise, convoke or Waterbend pick whose cards this seat was sent, while it is open; see {@link #syncConvokeSelectables}. */
@@ -2818,7 +2855,9 @@ public final class PlayBridge {
                 for (final Object c : (Iterable<?>) field(input, declaring, "availableCards")) { cards.add(((forge.game.card.Card) c).getView()); }
                 final Integer cap = (Integer) field(input, declaring, "maxSelectable");
                 final int max = (Integer) field(input, forge.gamemodes.match.input.InputSelectManyBase.class, "max");
-                selectables(cards, 0, cap == null ? max : Math.min(max, cap), new JsonArray());
+                final JsonObject f = selectablesFrame(cards, 0, cap == null ? max : Math.min(max, cap));
+                f.add("players", new JsonArray());
+                frame(f);
                 convokeOffered = input;
             } catch (final ReflectiveOperationException | RuntimeException e) {
                 System.err.println("[bridge] syncConvokeSelectables: could not read the open pick (" + e + "); nothing offered");
