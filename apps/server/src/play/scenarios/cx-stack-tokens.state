@@ -1,0 +1,20 @@
+# The operator, 2026-10-19: "let's start introducing a custom context menu for some quick actions.
+# The first quick action i need is 'stack all of the same tokens'" (match m-e6863c7810f1: many
+# tokens of one kind, not all in one pile). Alice (human, seat 0), Main Phase 1, nothing in hand:
+# six 1/1 Soldier tokens (Forge's own token script), two of them tapped — "keep tapped and untapped
+# as their own stacks" (the operator, 2026-10-20); a seventh Soldier with a +1/+1 counter (a 2/2 —
+# not the same token); a Goblin token; a Grizzly Bears and a Plains. e2e/cx-stack-tokens.spec.ts
+# splits the Soldiers across piles, right-clicks one and stacks them.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=T:w_1_1_soldier;T:w_1_1_soldier;T:w_1_1_soldier|Tapped;T:w_1_1_soldier;T:w_1_1_soldier|Tapped;T:w_1_1_soldier;T:w_1_1_soldier|Counters:P1P1=1;T:r_1_1_goblin;Grizzly Bears;Plains
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
