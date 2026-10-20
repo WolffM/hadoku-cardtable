@@ -112,7 +112,7 @@ function board(): { canvas: HTMLElement } {
   canvas.innerHTML = `
     <div class="board">
       <div data-testid="board-mid"></div>
-      <div data-zone="battlefield" data-owner="you"><li class="board-card" data-card-id="201"></li></div>
+      <div data-zone="battlefield" data-owner="you"><li class="board-card" data-board-card="201" data-card-id="201"></li></div>
       <div data-player-face data-player-id="0" data-viewer=""></div>
       <div data-player-face data-player-id="1"></div>
       <div class="board__overlay" data-board-overlay=""></div>

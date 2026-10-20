@@ -39,12 +39,14 @@ export function edgePointNearest(el: Element, from: Point): Point {
 }
 
 /**
- * A card's box. `data-board-card` first, `data-card-id` (lane A's name, same
- * value on the same element) second. Both are on the `<li>`, so either finds
- * the whole card rather than something inside it.
+ * A card's box on the board: its `data-board-card` `<li>`. Never `data-card-id`
+ * alone — the board's `<li>` carries both, and every other element with a bare
+ * `data-card-id` is a picture of the card somewhere else: a decision sheet's
+ * face of the spell it asks for (`promptThumb`), a selection's tile, a reveal.
+ * An arrow drawn from one of those leaves from the sheet, not the card.
  */
 export function cardBox(root: ParentNode, id: number): Element | null {
-  return root.querySelector(`[data-board-card="${id}"]`) ?? root.querySelector(`[data-card-id="${id}"]`);
+  return root.querySelector(`[data-board-card="${id}"]`);
 }
 
 /** A player's face. Lane A's `data-player-face`, with the seat section as the fallback. */
