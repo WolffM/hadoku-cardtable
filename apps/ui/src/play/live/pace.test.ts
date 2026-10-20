@@ -520,7 +520,20 @@ describe('pacedMatchTransport: one act at a time', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(received.at(-1)).toBe(ask);
     expect(inner.emits).toEqual([
-      { event: 'forge:client', payload: { matchId: 'm-1', kind: 'effect', data: { what: 'input-held', method: 'showConfirmDialog', ms: 850, boardMs: 250, gapMs: 600, ahead: 1 } } },
+      { event: 'forge:client', payload: { matchId: 'm-1', kind: 'effect', data: { what: 'input-held', method: 'showConfirmDialog', ms: 850, boardMs: 250, gapMs: 600, ahead: 1, classes: 'resolve×1', defaults: '' } } },
+    ]);
+  });
+
+  it("an ask held behind a default frame's gap names what that frame changed", async () => {
+    const inner = fakeInner();
+    const { received } = paced(inner);
+    inner.deliver({ ...(HAND_OUT as object), matchId: 'm-1' });
+    inner.deliver({ ...(DEFAULT_DELTA as object), matchId: 'm-1' });
+    inner.deliver({ ...ASK, matchId: 'm-1' });
+    await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.default);
+    expect(received).toHaveLength(3);
+    expect(inner.emits.map((e) => (e.payload as { data: unknown }).data)).toEqual([
+      { what: 'input-held', method: 'showConfirmDialog', ms: 150, boardMs: 0, gapMs: 150, ahead: 1, classes: 'default×1', defaults: 'Player.Life' },
     ]);
   });
 

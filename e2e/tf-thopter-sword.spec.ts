@@ -45,7 +45,7 @@ const whenLooped = (page: Page, foundry: number, lifeTotal: number, timeout: num
     { polling: 'raf', timeout },
   );
 
-test(titled('Thopter Foundry + Sword of the Meek: the Sword’s trigger is played by the server, and the next loop is offered without waiting on the life gain'), async ({ browser }) => {
+test(titled('Thopter Foundry + Sword of the Meek: the Sword’s trigger is played by the server, never held in the browser behind the life gain'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -85,7 +85,7 @@ test(titled('Thopter Foundry + Sword of the Meek: the Sword’s trigger is playe
       const forwarded = rows.filter((r) => r.evt === 'ask-answered' && r.seat === 0 && r.method === 'getAbilityToPlay').map((r) => r.ms);
       const played = rows.filter((r) => r.evt === 'ask-auto-answered' && r.seat === 0 && r.method === 'getAbilityToPlay' && r.why === 'one ability').length;
       // The pacer's own word on each question it held behind the board (`apps/ui/src/play/live/pace.ts`, `input-held`).
-      const held = rows.filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'input-held').map((r) => `${String(r.method)} ${String(r.ms)}ms (board ${String(r.boardMs)}, gaps ${String(r.gapMs)}, ${String(r.ahead)} ahead)`);
+      const held = rows.filter((r) => r.evt === 'client' && r.seat === 0 && r.what === 'input-held').map((r) => `${String(r.method)} ${String(r.ms)}ms (board ${String(r.boardMs)}, gaps ${String(r.gapMs)}, ahead ${String(r.classes)} [${String(r.defaults)}])`);
       console.log(
         `[tf] loop ${loop}: click→pick ${pickAt - clickAt} ms, pick→next offer ${nextAt - pickedAt} ms, total ${nextAt - clickAt} ms; ` +
           `getAbilityToPlay answered by the browser after ${JSON.stringify(forwarded)} ms, played by the server ${played}; held: ${held.join('; ') || 'none'}`,

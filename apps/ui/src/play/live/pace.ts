@@ -161,9 +161,10 @@ export const HELD_BY_THE_BOARD: ReadonlySet<PaceClass> = new Set<PaceClass>(['ca
 export const BOARD_HOLD_MAX_MS = 5_000;
 
 /**
- * An input frame that waited at least this long behind what came before it is reported (`input-held`): how
- * long, and how much of that was the board's beats and the classes' gaps — the operator, 2026-10-20, of a
- * looped combo: "it seems i have to wait for the life gain sound to play before i can do the combo again?"
+ * A decision — an ask, or Forge's prompt line — that waited at least this long behind what came before it is
+ * reported (`input-held`): how long, and how much of that was the board's beats and the classes' gaps (the
+ * operator, 2026-10-20, of a looped combo: "it seems i have to wait for the life gain sound to play before i
+ * can do the combo again?"). The other input notifies ride with it and say nothing more.
  */
 export const INPUT_HELD_REPORT_MS = 100;
 
@@ -176,6 +177,32 @@ export interface InputHeld {
   gapMs: number;
   /** Frames that went out ahead of it while it waited. */
   ahead: number;
+  /** Their classes, counted: `resolve×2 default×3`. */
+  classes: string;
+  /** What the `default` frames among them changed (`Type.Property`), the gaps nobody named. */
+  defaults: string;
+}
+
+/** A report's string field: at most what the telemetry schema keeps. */
+const REPORT_TEXT_MAX = 80;
+
+/** Whether a frame opens a decision: an ask, or Forge's prompt line. */
+function opensDecision(payload: unknown): boolean {
+  const frame = (payload as { frame?: { kind?: unknown; method?: unknown } } | null)?.frame;
+  return frame?.kind === 'ask' || frame?.method === 'showPromptMessage';
+}
+
+const WIRE_TYPE_NAMES: Readonly<Record<number, string>> = { 0: 'Card', 1: 'Player', 2: 'StackItem', 3: 'Game' };
+
+/** The `Type.Property` names a delta changes, for a report. */
+function changedProperties(payload: unknown): string[] {
+  const packet = (payload as { frame?: { payload?: { packet?: unknown } } } | null)?.frame?.payload?.packet;
+  const names = new Set<string>();
+  for (const { obj } of packetObjects(packet)) {
+    const type = typeof obj._type === 'number' ? (WIRE_TYPE_NAMES[obj._type] ?? String(obj._type)) : '?';
+    for (const key of Object.keys(obj)) if (key !== '_type' && key !== '_id') names.add(`${type}.${key}`);
+  }
+  return [...names];
 }
 
 /** `match.ts`'s own `INPUT_FRAMES` — see this module's header for why it is copied, not imported. */
@@ -399,6 +426,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   let boardSince: number | null = null;
   let gapSince: number | null = null;
   let delivered = 0;
+  /** The classes of the latest frames delivered, and a `default` frame's properties, for a report: `delivered` counts them all. */
+  const recent: { pace: PaceClass; properties: string[] }[] = [];
+  const RECENT_MAX = 64;
   const spent = (): { board: number; gap: number } => ({
     board: boardMs + (boardSince === null ? 0 : now() - boardSince),
     gap: gapMs + (gapSince === null ? 0 : now() - gapSince),
@@ -413,13 +443,27 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     if (next === undefined) return;
     lastDeliveredAt = now();
     const held = lastDeliveredAt - next.arrivedAt;
-    if (next.pace === 'input' && held >= INPUT_HELD_REPORT_MS) {
+    if (next.pace === 'input' && held >= INPUT_HELD_REPORT_MS && opensDecision(next.payload)) {
       const at = spent();
+      const ahead = recent.slice(Math.max(0, recent.length - (delivered - next.deliveredAt)));
+      const counts = new Map<PaceClass, number>();
+      for (const r of ahead) counts.set(r.pace, (counts.get(r.pace) ?? 0) + 1);
       report(
-        { what: 'input-held', method: methodOf(next.payload), ms: Math.round(held), boardMs: Math.round(at.board - next.boardAt), gapMs: Math.round(at.gap - next.gapAt), ahead: delivered - next.deliveredAt },
+        {
+          what: 'input-held',
+          method: methodOf(next.payload),
+          ms: Math.round(held),
+          boardMs: Math.round(at.board - next.boardAt),
+          gapMs: Math.round(at.gap - next.gapAt),
+          ahead: delivered - next.deliveredAt,
+          classes: [...counts].map(([pace, n]) => `${pace}×${n}`).join(' ').slice(0, REPORT_TEXT_MAX),
+          defaults: [...new Set(ahead.flatMap((r) => r.properties))].join(',').slice(0, REPORT_TEXT_MAX),
+        },
         next.payload,
       );
     }
+    recent.push({ pace: next.pace, properties: next.pace === 'default' ? changedProperties(next.payload) : [] });
+    if (recent.length > RECENT_MAX) recent.shift();
     delivered += 1;
     deliverTo?.(next.payload);
   }
