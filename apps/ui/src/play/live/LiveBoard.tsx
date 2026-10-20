@@ -2837,6 +2837,41 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   // would otherwise draw beside OK the same way it does for every other decision-area bar.
   const decisionCancel = !yielding && route === 'decision' && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match) && !mulliganPick;
   const decision = decisionOk || decisionCancel;
+  /*
+   * The operator, 2026-10-20 (m-b752a3424b43): Tinker's sacrifice "never popped up on my screen" until a
+   * reload, and no repro failed to draw it (`e2e/tk-tinker.spec.ts`). What the board draws for a pick, and
+   * every condition that decides it, as the pick opens and again 3 s later.
+   */
+  const pickKey = spectator || match.selectables === null ? null : `${match.prompt ?? ''}|${[...match.selectables.cards].join(',')}`;
+  const pickFacts = useRef<() => ClientEvent['data']>(() => ({}));
+  pickFacts.current = () => {
+    const barText = (b: typeof bar): string => (b === null ? 'none' : `${b.label1}:${b.enable1}|${b.label2}:${b.enable2}`);
+    const host = ['live-selection-host', 'live-decision-host']
+      .map((id) => [id, document.querySelector(`[data-testid="${id}"]`)] as const)
+      .find(([, el]) => el !== null);
+    const box = host?.[1]?.getBoundingClientRect();
+    return {
+      selection: selectionKind,
+      popup: selectionPopup,
+      decision,
+      route,
+      ask: pending?.method ?? '-',
+      paying,
+      bar: barText(bar),
+      buttons: barText(match.buttons),
+      held: match.barHold?.reason ?? '-',
+      live: match.inputLive,
+      cards: listField([...(match.selectables?.cards ?? [])].map(String)),
+      host: host === undefined || box === undefined ? 'none' : `${host[0].slice(5, -5)}@${Math.round(box.x)},${Math.round(box.y)},${Math.round(box.width)}x${Math.round(box.height)}`,
+    };
+  };
+  useEffect(() => {
+    if (pickKey === null) return;
+    const report = (at: string): void => reportClient(match.transport, match.matchId, 'info', { what: 'pick-drawn', at, ...pickFacts.current() });
+    report('open');
+    const later = setTimeout(() => report('3s'), 3_000);
+    return () => clearTimeout(later);
+  }, [pickKey, match]);
   /**
    * Measured (`e2e/w62-condescend.spec.ts`, two real
    * browsers): the server sequences bob's own payment window and alice's

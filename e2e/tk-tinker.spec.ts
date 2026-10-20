@@ -83,6 +83,10 @@ for (const { scenario, board, ai } of [
     expect(await says(page), 'the board words the sacrifice').toMatch(/sacrifice/i);
     // The question pops up as every decision does — the operator: "that question never popped up on my screen".
     await expect.poll(() => popup(page), { timeout: 5_000, message: `the sacrifice pops up — ${await drawn(page)}` }).toMatch(/sacrifice/i);
+    // What the board drew reaches the match's log, so a live game's missing pop-up is read from it.
+    await expect
+      .poll(() => serverLog(stack).find((r) => r.evt === 'client' && r.seat === 0 && r.what === 'pick-drawn' && r.at === '3s'), { timeout: 10_000, message: 'the pick is recorded' })
+      .toMatchObject({ selection: 'on-board', popup: true, host: expect.stringMatching(/^selection@/) });
 
     expect(await pressOffered(boardCard(page, bauble!)), 'alice picks the Bauble').toBe(true);
     // The search: one artifact in the library, picked by the prompt's own default.

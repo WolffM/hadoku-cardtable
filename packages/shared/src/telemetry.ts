@@ -24,7 +24,8 @@ export const ClientEventSchema = z
      * `info`: the seat's settings, on join and on each change, with `ui`, the
      * version of the bundle the tab is running, so a report of behaviour a
      * deploy had already replaced is read as a stale tab or a regression
-     * from the log. `handover`: a
+     * from the log; `what: 'pick-drawn'` is a selection's pop-up, and every
+     * fact that decides it, as the pick opens and 3 s later. `handover`: a
      * played card's stand-in giving way to its stack card; `landing`: to the
      * card in its row — on either screen. `sound`: what the table raised to
      * play and why — a view's derived events, a decision's chime, a button's
