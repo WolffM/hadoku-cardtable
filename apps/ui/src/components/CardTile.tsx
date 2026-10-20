@@ -101,8 +101,8 @@ export interface CardTileProps {
   /** Present on a pack card, absent in the pool. */
   onPick?: (cardId: string) => void;
   disabled?: boolean;
-  /** The role a pick plays. `ui.select` unless the caller names another. */
-  pickRole?: string;
+  /** The role a pick plays: `ui.select` unless the caller names another, or `null` when the caller plays its own. */
+  pickRole?: string | null;
   /**
    * The board's live `AbilityText` (`play/adapter.ts`'s
    * `BoardCard.abilityText`), drawn in place of `card.oracleText` when it
@@ -234,7 +234,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
         // The cue first, then the pick. `onPick` navigates and re-renders the
         // whole screen, and a cue requested after that has to survive the
         // unmount to be heard.
-        playRole(pickRole);
+        if (pickRole !== null) playRole(pickRole);
         onPick(card.cardId);
       }}
       aria-label={`Pick ${card.name}`}

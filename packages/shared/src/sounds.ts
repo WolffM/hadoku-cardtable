@@ -211,6 +211,7 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			ui('ui.inspect', 'Inspect', 'The expanded card view opens.'),
 			ui('ui.draft-pick', 'Draft pick', 'A pick is taken in the draft.'),
 			ui('ui.draft-pack', 'New pack', 'A fresh pack is opened in the draft: the first, and each new round.'),
+			ui('ui.draft-scroll', 'Fan scroll', 'The open card moves along a fanned pack in the draft: the wheel, the arrows or a click on another card.'),
 		],
 	},
 	{

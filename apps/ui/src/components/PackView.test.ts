@@ -4,6 +4,8 @@ import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import type { DraftCard } from '../draft/types.ts';
+import { setRolePlayer } from '../sound/index.ts';
+import type { SoundEvent } from '../sound/mix.ts';
 import { PackView } from './PackView.tsx';
 
 function card(i: number): DraftCard {
@@ -39,6 +41,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  setRolePlayer(null);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -161,6 +164,28 @@ describe('the fan', () => {
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(onPick).not.toHaveBeenCalled();
     field.remove();
+  });
+
+  it('plays the scroll sound once per step of the open card, and not on opening, at an end, or for a new pack', () => {
+    const roles: string[] = [];
+    setRolePlayer({ play: (e: SoundEvent) => void roles.push(e.role) });
+    const { rerender, onPick } = mount();
+    expect(roles).toEqual([]);
+    wheel(100);
+    wheel(100);
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    // Opening a card by clicking it is a step, not a pick: no pick sound.
+    fireEvent.click(tile(3));
+    expect(open()).toBe(3);
+    expect(roles).toEqual(['ui.draft-scroll', 'ui.draft-scroll', 'ui.draft-scroll', 'ui.draft-scroll']);
+    fireEvent.click(tile(3));
+    expect(onPick).toHaveBeenCalledWith(PACK[3]!.cardId);
+    expect(roles.at(-1)).toBe('ui.draft-pick');
+    roles.pop();
+    for (let i = 0; i < 10; i++) wheel(-100);
+    expect(roles).toHaveLength(7);
+    rerender(createElement(PackView, { cards: PACK.slice(1), layout: 'fan', onPick, disabled: false, emptyNote: '' }));
+    expect(roles).toHaveLength(7);
   });
 
   it('opens the middle of a new pack', () => {

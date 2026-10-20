@@ -33,6 +33,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import type { DraftCard } from '../draft/types.ts';
+import { playRole } from '../sound/index.ts';
 import { CardTile } from './CardTile.tsx';
 
 export type PackLayout = 'fan' | 'grid';
@@ -165,6 +166,17 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
   const packKey = cards.map((c) => c.cardId).join(',');
   useEffect(() => setFocus(null), [packKey]);
 
+  // The fan's scroll sound (`ui.draft-scroll`, the operator, 2026-10-19: "need a
+  // sound for when scrolling through a pack in 'fan' mode"): each step of the
+  // open card along the same pack, however it moved. A new pack, its reset to
+  // the middle, or the fan appearing, is not a step: only a card someone opened.
+  const lastShown = useRef<{ pack: string; at: number } | null>(null);
+  useEffect(() => {
+    const was = lastShown.current;
+    lastShown.current = shown === null ? null : { pack: packKey, at: shown };
+    if (focus !== null && shown !== null && was !== null && was.pack === packKey && was.at !== shown) playRole('ui.draft-scroll');
+  }, [focus, shown, packKey]);
+
   /** The grid's card under the pointer: what Enter picks there. */
   const [hovered, setHovered] = useState<number | null>(null);
   useEffect(() => setHovered(null), [packKey]);
@@ -207,11 +219,15 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
   shownRef.current = shown;
   const cardsRef = useRef(cards);
   cardsRef.current = cards;
+  // The tile stays silent in the fan, so opening a card never sounds like taking it.
   const pick = useCallback(
     (cardId: string) => {
       const at = cardsRef.current.findIndex((c) => c.cardId === cardId);
       if (shownRef.current !== null && at !== shownRef.current) setFocus(at);
-      else onPick(cardId);
+      else {
+        playRole('ui.draft-pick');
+        onPick(cardId);
+      }
     },
     [onPick],
   );
@@ -285,7 +301,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
                   ({ '--fan-x': `${x.toFixed(1)}px`, zIndex: fanLayer(i, shown, cards.length) } as CSSProperties)
             }
           >
-            <CardTile card={card} onPick={fan === null ? onPick : pick} disabled={disabled} pickRole="ui.draft-pick" />
+            <CardTile card={card} onPick={fan === null ? onPick : pick} disabled={disabled} pickRole={fan === null ? 'ui.draft-pick' : null} />
           </div>
         );
       })}
