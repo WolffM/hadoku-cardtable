@@ -33,6 +33,13 @@ describe('a drafted deck with basic lands', () => {
 		expect(POOL.some((c) => BASIC_LAND_NAMES.includes(c.name))).toBe(false);
 	});
 
+	it('plays every two-faced card of the cube, each under the name the pool holds', () => {
+		const twoFaced = POOL.filter((c) => c.name.includes(' // ')).map((c) => c.name);
+		expect(twoFaced).toHaveLength(16);
+		const main = (parseDck(draftedDeckText()).sections.get('main') ?? []).map((e) => e.card.name);
+		expect(twoFaced.filter((name) => !main.includes(name))).toEqual([]);
+	});
+
 	it('is legal with 17 Islands, and the text checked is the text sent', () => {
 		const text = draftedDeckText();
 		expect(text).toMatch(/^17 Island$/m);

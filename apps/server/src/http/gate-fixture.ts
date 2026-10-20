@@ -28,21 +28,18 @@ const cube = loadPool(resolve(REPO_ROOT, 'apps/ui/src/draft/pool.json'));
 if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
 
 /**
- * The first 45 cube cards that are neither lands nor double-faced: 23 to play,
- * 22 to sideboard.
+ * Every card of the cube that has two faces, then the first non-land cube cards
+ * to make 45: 23 to play, 22 to sideboard.
  *
- * The lands are left out so the only lands in the deck are the 17 the table
- * supplies. The `//` names are left out for a reason that is NOT this lane's
- * to fix and is written down rather than hidden: the cube stores a modal
- * double-faced card under its combined name (`Ajani, Nacatl Pariah // Ajani,
- * Nacatl Avenger`), `cardRequestOf` writes that name into the `.dck`, and
- * Forge's `CardDb` knows only the front face — so a real Forge silently DROPS
- * the line and plays 39 cards where the gate checked 40. Seen in the jar
- * suite's live run on 2026-09-19, reported to the tracker.
+ * The two-faced cards come first so all of them are in the 23 played: the cube
+ * stores each under Scryfall's combined name (`Etali, Primal Conqueror // Etali,
+ * Primal Sickness`), which is what the browser writes into the `.dck`, and
+ * Forge's card database files only a split card under that name. A real Forge
+ * plays every one of them, or this deck's library is short of 40. The other
+ * lands are left out so the only lands in the deck are the 17 the table supplies.
  */
-export const POOL: DraftCard[] = cube.pool.cards
-	.filter((c) => !/\bLand\b/.test(c.typeLine) && !c.name.includes(' // '))
-	.slice(0, 45);
+const twoFaced = cube.pool.cards.filter((c) => c.name.includes(' // '));
+export const POOL: DraftCard[] = [...twoFaced, ...cube.pool.cards.filter((c) => !/\bLand\b/.test(c.typeLine) && !c.name.includes(' // '))].slice(0, 45);
 
 /** The caller's own pool, as the route builds it from `DraftRooms`. */
 const draftPool: DraftPoolLookup = (draftId) =>

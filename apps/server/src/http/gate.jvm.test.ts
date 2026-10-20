@@ -82,7 +82,8 @@ describe.skipIf(!available.ok)(title, () => {
 		const ready = raw.find((l) => l.t === 'ready') as Extract<BridgeLine, { t: 'ready' }>;
 		expect(ready.seats.map((s) => s.deck)).toEqual([mine.deckName, theirs.deckName]);
 		// The proof that Forge plays the deck the gate checked: Forge's own view
-		// of the opening libraries is 40 cards (23 drafted + 17 Islands) and 60.
+		// of the opening libraries is 40 cards (23 drafted, every two-faced card of
+		// the cube among them, + 17 Islands) and 60.
 		//
 		// Wait for BOTH, not for the first one to arrive: the two players' zones
 		// reach us in separate frames and in no guaranteed order, so a loop that
@@ -95,6 +96,9 @@ describe.skipIf(!available.ok)(title, () => {
 		const sizes = (): number[] => raw.flatMap((l) => (l.t === 'frame' ? librarySizes(l.frame) : []));
 		while (!wanted.every((n) => sizes().includes(n)) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
 		for (const n of wanted) expect(sizes()).toContain(n);
+		// Forge removes a card it cannot name from the deck and says so with a reveal; none may come.
+		const removals = raw.filter((l) => l.t === 'frame' && /Removed/.test(String((l.frame as { message?: unknown }).message ?? '')));
+		expect(removals).toEqual([]);
 		match.stop();
 		jvm.close();
 	}, 300_000);
