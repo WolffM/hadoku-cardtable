@@ -1890,6 +1890,18 @@ describe('wave 31 §S: the open selection survives a reload (P10)', () => {
 	});
 });
 
+describe('a seat\'s button press is logged', () => {
+	it('names the method and the label Forge had on that button', () => {
+		const h = harness();
+		h.match.claim(ALICE);
+		h.match.claim(BOB);
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: { kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2: 'Cancel', enable1: true, enable2: true, focus1: true } } as BridgeLine);
+		expect(h.match.fromClient(0, { kind: 'act', method: 'selectButtonOk' } as ClientFrame)).toEqual({ ok: true });
+		expect(h.logs).toContainEqual(expect.objectContaining({ evt: 'button', seat: 0, method: 'selectButtonOk', label: 'OK' }));
+	});
+});
+
 describe('wave 31 §S: a concede after the game ended (P18)', () => {
 	const concede = { kind: 'act', method: 'concede' } as ClientFrame;
 

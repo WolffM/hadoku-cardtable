@@ -1768,6 +1768,12 @@ export class Match {
 				if (frame.method === 'selectCard') s.clicked = frame.card.id;
 				if (frame.method === 'concede') this.concededBy = seat;
 				if (frame.method === 'selectButtonCancel' && s.buttons?.method === 'updateButtons' && s.buttons.label2 === 'Mulligan') s.mulligans += 1;
+				// The seat's own button press, with the label it pressed: a card click has its `click` record, and
+				// without this one a pick that closed with no click in the log could not say who closed it.
+				if (frame.method === 'selectButtonOk' || frame.method === 'selectButtonCancel') {
+					const label = s.buttons?.method === 'updateButtons' ? (frame.method === 'selectButtonOk' ? s.buttons.label1 : s.buttons.label2) : undefined;
+					this.deps.log({ evt: 'button', matchId: this.id, seat, method: frame.method, ...(label !== undefined ? { label } : {}) });
+				}
 				this.noteTargetPick(s, frame);
 				this.disableStaleButtons(s);
 				this.command({ t: 'act', seat, frame: forgeAct(frame) });
