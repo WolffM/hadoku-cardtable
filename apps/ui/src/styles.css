@@ -1064,3 +1064,47 @@ button {
   object-fit: fill;
   border-radius: 0;
 }
+
+/*
+ * A door's state, on its tile wherever it is drawn — the board, the inspector's enlargement, a choice
+ * between doors (`CardTile`'s `DoorMark`). A locked door's half is dimmed by a scrim under a padlock; an
+ * unlocked one is at full strength under an open door in the success ink.
+ */
+.card__door {
+  position: absolute;
+  z-index: 2;
+  top: 11%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: max(14px, 18%);
+  aspect-ratio: 1;
+  translate: -50% 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink-dim);
+  pointer-events: none;
+}
+
+.card__door[data-door-mark='unlocked'] {
+  color: var(--success-ink);
+  border-color: var(--success);
+}
+
+.card__door-art {
+  width: 70%;
+  height: 70%;
+  fill: currentcolor;
+}
+
+/* A locked door's half is under a scrim, a layer over the image — never a filter on it (`cardImageRules.test.ts`). */
+.card[data-door='locked']::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--scrim) 70%, transparent);
+  pointer-events: none;
+}

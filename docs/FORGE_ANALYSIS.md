@@ -811,3 +811,23 @@ The rooms' hand smoothing setting (`MatchSpec.handSmoothing`) is Forge's own
   Lotus sent no `getChoices` after the sacrifice confirm and floated {W}{W}{W}. Fork commit
   `6e71db52` snapshots every candidate's express choice when a payment starts and puts it back at
   every exit, test or real.
+
+## A Room's doors are its current state — 2026-10-19 (lane RM)
+
+- **VERIFIED (read)** — Forge keeps a Room's unlocked doors as a set (`Card.unlockedRooms`,
+  `forge-game/.../card/Card.java:228`) and shows them as the card's current state, `Card.updateRooms`
+  (`:8032`): neither unlocked is `EmptyRoom`, one is that door's `LeftSplit`/`RightSplit`, both are
+  `Original`. `EmptyRoom` is nameless (`CardUtil.getEmptyRoomCharacteristic`, `CardUtil.java:215`).
+  A Room put onto the battlefield without being cast is set empty (`GameAction.changeZone`,
+  `GameAction.java:149-152`). The wire carries the state as `CurrentState`'s `CardStateName` ordinal
+  (0 both, 5 left, 6 right, 9 none) beside `Room` and both halves (`CardView.updateState`,
+  `CardView.java:1032`, `:1070-1071`). Unlocking fires `GameEventDoorChanged` and the `UnlockDoor`
+  trigger (`Card.unlockRoom`, `:7993`).
+- **VERIFIED (read)** — a door's unlock is a sorcery-speed ability the card makes on demand and caches
+  per door (`Card.getUnlockAbility`, `:8060`; `CardFactoryUtil.abilityUnlockRoom`, "Unlock <door>"),
+  offered for each locked door (`Card.java:7408-7414`). It is on no state's ability list, so a reader that
+  finds an ability's face by walking `getStates()` finds none for it.
+- **VERIFIED (measured, `apps/server/src/play/rooms.jvm.test.ts` on the claws, run 39343606183)** —
+  both seats' state: a never-cast Room is `CurrentState` 9 and its whole face (ordinal 0) is never sent;
+  cast Walk-In Closet is 5; after "Unlock Forgotten Cellar" it is 0. The offer leaves out an unlock the
+  seat cannot pay for: with three Forests left only "Unlock Walk-In Closet" was offered (run 39343167782).

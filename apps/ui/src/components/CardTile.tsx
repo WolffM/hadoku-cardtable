@@ -42,7 +42,7 @@ import { memo, useMemo } from 'react';
  * operator's assignment, changed in one place.
  */
 
-import { faceCropStyle, type TileCard } from './faceCrop.ts';
+import { DOOR_TIP, faceCropStyle, type DoorState, type TileCard } from './faceCrop.ts';
 import { ManaCost, ManaPip, SetSymbol } from './ManaPip.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { playRole, roleHandler } from '../sound/index.ts';
@@ -172,6 +172,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
         // this handler turns that into a readable card instead of a broken one.
         <CardArt url={imageUrl} crop={card.faceCrop} />
       )}
+      {card.door !== undefined && <DoorMark door={card.door} />}
       <span className="card__stripe" data-identity={identity} aria-hidden="true" />
       <span className="card__head">
         <span className="card__name">{card.name}</span>
@@ -213,7 +214,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
       // Hover cues a pool tile too. A pool card is not clickable but it IS the
       // thing you are reading, and a cue that only fires on half the cards on
       // screen reads as a bug rather than as a rule.
-      <article className="card" data-card-id={card.cardId} data-testid="card" data-face-crop={card.faceCrop} data-condition-met={conditionMet ? '' : undefined} onMouseEnter={onHover}>
+      <article className="card" data-card-id={card.cardId} data-testid="card" data-face-crop={card.faceCrop} data-door={card.door} data-condition-met={conditionMet ? '' : undefined} onMouseEnter={onHover}>
         {body}
       </article>
     );
@@ -225,6 +226,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
       className="card card--pickable"
       data-card-id={card.cardId}
       data-face-crop={card.faceCrop}
+      data-door={card.door}
       data-testid="card"
       disabled={disabled}
       onMouseEnter={onHover}
@@ -269,6 +271,23 @@ function CardArt({ url, crop }: { url: string; crop: TileCard['faceCrop'] }) {
   return (
     <span className="card__crop" aria-hidden="true">
       {img}
+    </span>
+  );
+}
+
+/** A padlock, and a door standing open: drawn on the tile, so the board, the inspector and a prompt all show it. */
+const DOOR_ART: Readonly<Record<DoorState, string>> = {
+  locked: 'M5 7V5.2a3 3 0 0 1 6 0V7h1.2c.4 0 .8.4.8.8v6.4c0 .4-.4.8-.8.8H3.8c-.4 0-.8-.4-.8-.8V7.8c0-.4.4-.8.8-.8Zm1.5 0h3V5.2a1.5 1.5 0 0 0-3 0Z',
+  unlocked: 'M3 1.5h10v13H3Zm1.3 1.3v10.4h7.4V2.8ZM4.3 2.8 8.5 4v8l-4.2 1.2Z',
+};
+
+/** A Room door's state, as a mark at the top of its tile; its word is the tooltip and the accessible name. */
+function DoorMark({ door }: { door: DoorState }) {
+  return (
+    <span className="card__door" data-door-mark={door} data-tip={DOOR_TIP[door]} role="img" aria-label={DOOR_TIP[door]}>
+      <svg className="card__door-art" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path fillRule="evenodd" d={DOOR_ART[door]} />
+      </svg>
     </span>
   );
 }

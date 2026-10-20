@@ -111,7 +111,9 @@
  * the board (`../Board.tsx`'s `BoardFaces`, `data-faces-of="<id>"`). While the panel is open on such
  * a card, the mouse wheel turns it to the next face down, or back up, and round again (the operator,
  * 2026-10-17: *"mousewheel up/down lets you cycle between other relevant cards"*). The wheel scrolls
- * nothing else meanwhile; on a card with one face it is left alone.
+ * nothing else meanwhile; on a card with one face it is left alone. A Room is drawn as its two doors
+ * (`../Board.tsx`'s `RoomDoors`): the panel opens on the door under the pointer, with its lock state,
+ * and the wheel turns to the other.
  *
  * ## Staleness, on purpose
  *
@@ -533,7 +535,9 @@ export function mountInspector(root: ParentNode): () => void {
     current = target;
 
     const clone = enlarged(target.tile);
-    faces = [target.tile, ...otherFacesOf(target.tile)];
+    // A face the board draws as a card of its own (a Room's door) is not turned to twice.
+    const named = (el: Element): string | null => el.querySelector('.card__name')?.textContent ?? null;
+    faces = [target.tile, ...otherFacesOf(target.tile).filter((f) => named(f) !== named(target.tile))];
 
     const hoverR = rectOf((target.trigger ?? target.tile).getBoundingClientRect());
     // A window is open: the panel stands beside it, never on it — the hovered

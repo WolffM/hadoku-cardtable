@@ -15,7 +15,8 @@
  * Giving the marks the pointer back to hover them would take those presses
  * away. So a mark is found by its BOX: the pointer is over a card, and the tip
  * is that card's own mark whose box holds the pointer. Over the rest of the card
- * there is no tip — the art is the inspector's. A card that is itself the thing to explain (a
+ * there is no tip — the art is the inspector's. A mark drawn on the card's tile itself (a Room door's,
+ * `CardTile`'s `DoorMark`) is found the same way. A card that is itself the thing to explain (a
  * hand card an effect forbids) carries `data-tip` on its own `<li>`.
  *
  * Off the cards, the nearest `data-tip` ancestor of the pointer's target (the
@@ -47,7 +48,7 @@ function holds(el: Element, x: number, y: number): boolean {
 export function tipAt(target: Element, x: number, y: number): HTMLElement | null {
   const card = target.closest<HTMLElement>('.board-card');
   if (card !== null) {
-    for (const mark of card.querySelectorAll<HTMLElement>(':scope > [data-tip], :scope > :not(.board-card__pile) > [data-tip]')) {
+    for (const mark of card.querySelectorAll<HTMLElement>(':scope > [data-tip], :scope > :not(.board-card__pile) > [data-tip], :scope > .board-card__face [data-tip]')) {
       if (holds(mark, x, y)) return mark;
     }
     if (card.dataset.tip !== undefined) return card;

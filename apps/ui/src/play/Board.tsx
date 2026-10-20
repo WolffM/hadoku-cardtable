@@ -387,6 +387,7 @@ import {
 } from 'react';
 
 import { CardTile } from '../components/CardTile.tsx';
+import type { TileCard } from '../components/faceCrop.ts';
 import { colorWordToken, ManaPip } from '../components/ManaPip.tsx';
 import { useArtistLookup } from '../draft/artists.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
@@ -399,6 +400,7 @@ import {
   type BoardCard,
   type BoardCardChoice,
   type BoardCardWaiting,
+  type BoardDoor,
   type BoardEmblem,
   type BoardPlayer,
   type BoardView,
@@ -420,7 +422,7 @@ import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
 import { liftGhost, type Ghost } from './lift.ts';
 import { observeZoneBoxes, type ZoneBoxes } from './zone-box.ts';
-import { PLACEMENT_WAIT_MS } from './motion.ts';
+import { PLACEMENT_WAIT_MS, UNLOCK_BEAT_MS } from './motion.ts';
 import './board.css';
 import './card.css';
 
@@ -2397,6 +2399,8 @@ function CardOnBoard({
   const flyPhase = flying ? (((entry.id * 0.618034) % 1) + 1) % 1 : undefined;
   /** An effect forbids casting this held card (`BoardInteraction.castForbidden`): drawn greyed, and its tip says why. */
   const forbidden = onBattlefield ? undefined : interaction?.castForbidden?.get(entry.id);
+  /** A Room on the battlefield is drawn as its doors — see `RoomDoors`. */
+  const doors = onBattlefield && entry.hidden !== true ? roomDoors(entry) : null;
 
   return (
     <li
@@ -2448,6 +2452,7 @@ function CardOnBoard({
        * `arrangeable`).
        */
       data-arrange-card={arrangeable ? slot : undefined}
+      data-room={doors !== null || undefined}
     >
       {/*
        * R10 (wave 35), diagnosed: this used to be a `<button>` when `selectable`
@@ -2500,6 +2505,8 @@ function CardOnBoard({
          */}
         {entry.hidden === true ? (
           <HiddenCard card={entry.card} />
+        ) : doors !== null ? (
+          <RoomDoors doors={doors} state={entry.doors!} />
         ) : (
           <CardTile card={entry.card} liveText={entry.abilityText} conditionMet={entry.conditionMet === true} />
         )}
@@ -2557,6 +2564,67 @@ function CardOnBoard({
     </li>
   );
 }
+
+/**
+ * A Room's two doors as the tiles to draw, left then right — its faces, each cropped to its half of
+ * the card and marked with its state (`adapter.ts`'s `BoardCard.doors`). Null for any other card.
+ */
+function roomDoors(entry: BoardCard): readonly [TileCard, TileCard] | null {
+  if (entry.doors === undefined) return null;
+  const tile = (door: BoardDoor): TileCard | undefined => entry.faces?.find((f) => f.name === door.name && f.door !== undefined);
+  const left = tile(entry.doors[0]);
+  const right = tile(entry.doors[1]);
+  return left === undefined || right === undefined ? null : [left, right];
+}
+
+/**
+ * The operator, 2026-10-19: *"cards like 'Walk-In Closet' it's hard to tell whats actually going on.
+ * which room was played, which room is active? has the door been unlocked?"* A Room on the battlefield
+ * is drawn turned, as its printed card reads: its two doors upright side by side, each its own half of
+ * the card's image. A locked door is dimmed under a padlock, an unlocked one full strength under an
+ * open door (`CardTile`'s `DoorMark`, so the inspector's enlargement shows the same). A press on the
+ * Room is Forge's offer of the card, its unlocks among it, and a choice between two is drawn as these
+ * same doors (`prompts/ChoicePrompts.tsx`'s `facedAbilities`).
+ *
+ * A door that unlocks while drawn plays a beat (`data-unlocking`, `card.css`) for
+ * {@link UNLOCK_BEAT_MS}. A door already open when the Room arrives does not: the cast is its own beat.
+ */
+function RoomDoors({ doors, state }: { doors: readonly [TileCard, TileCard]; state: readonly [BoardDoor, BoardDoor] }) {
+  const opening = useUnlockBeat(state);
+  return (
+    <span className="board-card__doors">
+      {doors.map((door, i) => (
+        <span key={door.name} className="board-card__door" data-door-side={i === 0 ? 'left' : 'right'} data-unlocking={opening.has(door.name) || undefined}>
+          <CardTile card={door} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** The doors of `doors` that unlocked since the last draw, for {@link UNLOCK_BEAT_MS}. */
+function useUnlockBeat(doors: readonly BoardDoor[]): ReadonlySet<string> {
+  const shown = useRef<string | null>(null);
+  const [opening, setOpening] = useState<ReadonlySet<string>>(NO_DOORS);
+  const key = doors.map((d) => `${d.name}:${d.unlocked ? 1 : 0}`).join('|');
+  useEffect(() => {
+    const before = shown.current;
+    shown.current = key;
+    if (before === null) return undefined;
+    const was = new Set(before.split('|'));
+    const opened = key
+      .split('|')
+      .filter((door) => door.endsWith(':1') && was.has(`${door.slice(0, -2)}:0`))
+      .map((door) => door.slice(0, -2));
+    if (opened.length === 0) return undefined;
+    setOpening(new Set(opened));
+    const timer = window.setTimeout(() => setOpening(NO_DOORS), UNLOCK_BEAT_MS);
+    return () => window.clearTimeout(timer);
+  }, [key]);
+  return opening;
+}
+
+const NO_DOORS: ReadonlySet<string> = new Set();
 
 /**
  * One zone's slot. The list is always rendered, empty or not: its box is the

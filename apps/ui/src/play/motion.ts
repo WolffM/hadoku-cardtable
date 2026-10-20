@@ -261,3 +261,9 @@ export function takeResolutionEffects(itemId: number): number | null {
   effectsUntil.delete(itemId);
   return until ?? null;
 }
+
+/**
+ * How long a Room's door that just unlocked plays its beat (`Board.tsx`'s `RoomDoors`, `card.css`'s
+ * `[data-unlocking]`): long enough to be seen as it happens, over before the next thing does.
+ */
+export const UNLOCK_BEAT_MS = 1_200;

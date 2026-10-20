@@ -22,8 +22,20 @@ import type { DraftCard } from '../draft/types.ts';
 
 export type FacePart = 'split-left' | 'split-right' | 'aftermath-top' | 'aftermath-bottom' | 'adventure';
 
-/** A card as a tile draws it: a face that shares the card's image says which part of it is its own. */
-export type TileCard = DraftCard & { readonly faceCrop?: FacePart };
+/** Whether a Room's door is open: Forge has it unlocked, and only then do its abilities work. */
+export type DoorState = 'locked' | 'unlocked';
+
+/** A door's mark, as its tooltip says it. */
+export const DOOR_TIP: Readonly<Record<DoorState, string>> = {
+  locked: 'Locked door',
+  unlocked: 'Unlocked door',
+};
+
+/**
+ * A card as a tile draws it: a face that shares the card's image says which part of it is its own, and
+ * a Room's door says whether it is unlocked (`play/adapter.ts`'s `BoardCard.doors`).
+ */
+export type TileCard = DraftCard & { readonly faceCrop?: FacePart; readonly door?: DoorState };
 
 /** Where a face is printed, as fractions of the image's width and height, and the turn that sets it upright. */
 export interface FaceRegion {

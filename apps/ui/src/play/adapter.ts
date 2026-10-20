@@ -312,6 +312,17 @@ export interface BoardCard {
    * of it that face is printed in (`../components/faceCrop.ts`).
    */
   faces?: TileCard[];
+  /**
+   * A Room's two doors on the battlefield, left then right, each with whether it is unlocked — see
+   * {@link readDoors}. Absent for every other card, and for a Room anywhere else.
+   */
+  doors?: readonly [BoardDoor, BoardDoor];
+}
+
+/** One door of a Room: its face's name, and whether Forge has it unlocked. */
+export interface BoardDoor {
+  name: string;
+  unlocked: boolean;
 }
 
 /**
@@ -1530,11 +1541,26 @@ function otherFaces(state: WireState, id: number, view: WireObject, shown: Draft
 export function cardFaces(state: WireState, id: number, artIds: ArtIdIndex = KNOWN_ART_IDS): TileCard[] {
   const view = state.get(deltaKey(WireType.Card, id));
   if (view === undefined) return [];
-  const face = shownFace(state, id, view, false);
-  const name = wireName(view, face);
+  const { doors, face, name } = drawnFace(state, id, view, readEnum(view, 'Zone') === 'Battlefield');
   if (name === null) return [];
   const shown = faceCard(id, face, name, artIds, false);
-  return [shown, ...otherFaces(state, id, view, shown, artIds)];
+  return [shown, ...withDoors(otherFaces(state, id, view, shown, artIds), doors)];
+}
+
+/**
+ * The face a card is drawn from and its name (null when this seat may not see it), and a Room's doors
+ * on the battlefield. A Room there is drawn whole, its doors over it — see `roomFace`.
+ */
+function drawnFace(
+  state: WireState,
+  id: number,
+  view: WireObject,
+  onBattlefield: boolean,
+): { doors: [BoardDoor, BoardDoor] | null; face: WireObject | undefined; name: string | null } {
+  const doors = onBattlefield ? readDoors(state, id, view) : null;
+  if (doors !== null) return { doors, face: roomFace(state, id, view), name: `${doors[0].name} // ${doors[1].name}` };
+  const face = shownFace(state, id, view, onBattlefield);
+  return { doors, face, name: wireName(view, face) };
 }
 
 function toBoardCard(
@@ -1548,9 +1574,7 @@ function toBoardCard(
 ): BoardCard | null {
   const view = state.get(deltaKey(WireType.Card, id));
   if (view === undefined) return null;
-  const face = shownFace(state, id, view, onBattlefield);
-
-  const known = wireName(view, face);
+  const { doors, face, name: known } = drawnFace(state, id, view, onBattlefield);
   const hidden = known === null;
   const name = known ?? HIDDEN_CARD_NAME;
   const type = prop(face, 'Type');
@@ -1596,10 +1620,55 @@ function toBoardCard(
     relations,
     abilityText,
     ...((): { faces?: TileCard[] } => {
-      const faces = hidden ? [] : otherFaces(state, id, view, card, artIds);
+      const faces = hidden ? [] : withDoors(otherFaces(state, id, view, card, artIds), doors);
       return faces.length > 0 ? { faces } : {};
     })(),
+    ...(doors !== null && { doors }),
   };
+}
+
+/** A Room's faces, each marked with its door's state; any other card's, as they are. */
+function withDoors(faces: TileCard[], doors: readonly BoardDoor[] | null): TileCard[] {
+  if (doors === null) return faces;
+  return faces.map((f) => {
+    const door = doors.find((d) => d.name === f.name);
+    return door === undefined ? f : { ...f, door: door.unlocked ? 'unlocked' : 'locked' };
+  });
+}
+
+/** `CardStateName.Original`'s ordinal: a Room shows it once both doors are unlocked. */
+const ORIGINAL_STATE = 0;
+
+/**
+ * A Room's doors, as Forge keeps them. `Card.updateRooms` shows the unlocked doors as the card's
+ * current state — neither is `EmptyRoom`, one is that door's split state, both are `Original` — and
+ * `CardView` sends it as `CurrentState` beside `Room` and both halves (`LeftSplitState`,
+ * `RightSplitState`). So a door is unlocked when the current state is its own or the whole card's.
+ * Measured against real Forge in `apps/server/src/play/rooms.jvm.test.ts`. Null for a card that is not
+ * a Room, or one whose halves this seat was not sent.
+ */
+function readDoors(state: WireState, id: number, view: WireObject): [BoardDoor, BoardDoor] | null {
+  if (!readBool(view, 'Room')) return null;
+  const current = readInt(view, 'CurrentState', ORIGINAL_STATE);
+  const door = (key: 'LeftSplitState' | 'RightSplitState'): BoardDoor | null => {
+    const ordinal = readInt(view, key, -1);
+    const name = ordinal < 0 ? null : wireName(undefined, state.get(cardStateKey(id, ordinal)));
+    return name === null ? null : { name, unlocked: current === ORIGINAL_STATE || current === ordinal };
+  };
+  const left = door('LeftSplitState');
+  const right = door('RightSplitState');
+  return left === null || right === null ? null : [left, right];
+}
+
+/**
+ * The face a Room on the battlefield is drawn from: the whole card's when this seat holds it named,
+ * else its left door's. Never the face Forge shows, which is one door, or a nameless one while neither
+ * is unlocked — and a Room put onto the battlefield without being cast has only that one: its whole
+ * face never reaches either seat (`rooms.jvm.test.ts`). It is named for both its doors either way.
+ */
+function roomFace(state: WireState, id: number, view: WireObject): WireObject | undefined {
+  const whole = state.get(cardStateKey(id, ORIGINAL_STATE));
+  return wireName(undefined, whole) !== null ? whole : state.get(cardStateKey(id, readInt(view, 'LeftSplitState', -1)));
 }
 
 // ── the board ───────────────────────────────────────────────────────────────

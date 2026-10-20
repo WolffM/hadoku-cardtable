@@ -3535,7 +3535,7 @@ public final class PlayBridge {
         /**
          * Names each offered ability's face ({@code face}) when they come from more than one: an
          * adventure (Bonecrusher Giant or Stomp), a modal double-faced card (Shatterskull Smashing or
-         * its land), a split card (Fire or Ice). Forge offers these as one {@code getAbilityToPlay}
+         * its land), a split card (Fire or Ice), a Room's two locked doors. Forge offers these as one {@code getAbilityToPlay}
          * whose labels do not say which face is which, so the seat could not draw the faces to pick
          * from (the operator, 2026-10-17: "flip cards should show both art and let you pick
          * left/right"). Read off each of the card's abilities, by id, from its own face; left out when any
@@ -3553,6 +3553,13 @@ public final class PlayBridge {
                     for (final SpellAbility sa : host.getState(name).getSpellAbilities()) {
                         final forge.game.card.CardState own = sa.getCardState();
                         if (own != null) { faceOf.putIfAbsent(sa.getId(), own.getName()); }
+                    }
+                }
+                // A Room's unlock abilities are on no face's list: the card keeps one per door
+                // (`Card.getUnlockAbility`), and it is that door's face.
+                if (host.isRoom()) {
+                    for (final forge.card.CardStateName door : new forge.card.CardStateName[] { forge.card.CardStateName.LeftSplit, forge.card.CardStateName.RightSplit }) {
+                        if (host.hasState(door)) { faceOf.putIfAbsent(host.getUnlockAbility(door).getId(), host.getState(door).getName()); }
                     }
                 }
                 final List<String> faces = new ArrayList<>();
