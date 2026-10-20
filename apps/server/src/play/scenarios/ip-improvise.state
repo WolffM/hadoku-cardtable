@@ -1,0 +1,17 @@
+# Kappa Cannoneer ({5}{U}, improvise) with four untapped artifacts and six Islands — the operator's
+# match m-e6863c7810f1 (2026-10-20): "it showed 'select artifacts to reduce cost' and none of my
+# artifacts were selectable". Forge asks which artifacts to tap for improvise before the mana; tapping
+# all four Baubles leaves {1}{U}, which two Islands pay.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Kappa Cannoneer
+humanbattlefield=Island;Island;Island;Island;Island;Island;Mishra's Bauble;Mishra's Bauble;Mishra's Bauble;Mishra's Bauble
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=Mountain
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

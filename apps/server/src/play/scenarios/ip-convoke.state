@@ -1,0 +1,16 @@
+# Siege Wurm ({5}{G}{G}, convoke) with three Grizzly Bears and seven Forests: Forge asks which creatures
+# to tap for convoke through the same input as improvise (InputSelectCardsForConvokeOrImprovise).
+# Tapping the three Bears pays three of the seven, and four Forests pay the rest.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Siege Wurm
+humanbattlefield=Forest;Forest;Forest;Forest;Forest;Forest;Forest;Grizzly Bears;Grizzly Bears;Grizzly Bears
+humanlibrary=Forest;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=Mountain
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
