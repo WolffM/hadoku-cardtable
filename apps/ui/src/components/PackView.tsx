@@ -65,6 +65,10 @@ export const FAN_SIDE = 3;
 /** The row's places: the open card in the middle of them, `FAN_SIDE` either side, but at the pack's ends. */
 const FAN_SLOTS = 2 * FAN_SIDE + 1;
 const GRID_GAP = 10;
+/** The grid's rows (the operator, 2026-10-19: "just enough space so grid view can show two rows"). */
+export const GRID_ROWS = 2;
+/** Room left under a grid that scrolls sideways, for its scroll bar. */
+const SCROLLBAR = 16;
 
 export interface FanGeometry {
   cardW: number;
@@ -112,19 +116,17 @@ export function fanLayer(i: number, open: number, count: number): number {
 }
 
 /**
- * The grid that shows a whole pack in the box without scrolling: the column
- * count that makes the cards largest.
+ * The grid: `GRID_ROWS` rows of cards as tall as the box allows, as many
+ * columns as the pack needs — a pack wider than the box scrolls sideways,
+ * never down.
  */
 export function gridGeometry(count: number, width: number, height: number): { cols: number; cardW: number } {
-  let best = { cols: 1, cardW: 0 };
-  for (let cols = 1; cols <= Math.max(1, count); cols++) {
-    const rows = Math.ceil(count / cols);
-    const byWidth = (width - (cols - 1) * GRID_GAP) / cols;
-    const byHeight = ((height - (rows - 1) * GRID_GAP) / rows) * CARD_RATIO;
-    const cardW = Math.min(byWidth, byHeight, MAX_CARD_H * CARD_RATIO);
-    if (cardW > best.cardW) best = { cols, cardW };
-  }
-  return best;
+  const rows = Math.min(GRID_ROWS, Math.max(1, count));
+  const cols = Math.ceil(Math.max(1, count) / rows);
+  const fit = (h: number): number => Math.min(((h - (rows - 1) * GRID_GAP) / rows) * CARD_RATIO, MAX_CARD_H * CARD_RATIO);
+  // Wider than the box, the row scrolls sideways, and its scroll bar comes out of the height.
+  const cardW = cols * fit(height) + (cols - 1) * GRID_GAP > width ? fit(height - SCROLLBAR) : fit(height);
+  return { cols, cardW };
 }
 
 /** The box the pack draws in, kept current. Zero until it has been measured. */

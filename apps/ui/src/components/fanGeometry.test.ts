@@ -84,13 +84,18 @@ describe('the open card', () => {
   });
 });
 
-describe('the grid shows a whole pack without scrolling', () => {
+describe('the grid is two rows, scrolling sideways only', () => {
   for (const { width, height } of BOXES) {
-    it(`fits 15 cards in ${width}x${height}`, () => {
+    it(`draws 15 cards in two rows that fit the height of ${width}x${height}, with room for a sideways scroll bar when wider`, () => {
       const { cols, cardW } = gridGeometry(15, width, height);
-      const rows = Math.ceil(15 / cols);
-      expect(cols * cardW + (cols - 1) * 10).toBeLessThanOrEqual(width + 0.5);
-      expect(rows * (cardW / (488 / 680)) + (rows - 1) * 10).toBeLessThanOrEqual(height + 0.5);
+      expect(cols).toBe(8);
+      const tall = 2 * (cardW / (488 / 680)) + 10;
+      const wide = cols * cardW + (cols - 1) * 10;
+      expect(tall).toBeLessThanOrEqual(height - (wide > width ? 16 : 0) + 0.5);
     });
   }
+
+  it('one card is one row', () => {
+    expect(gridGeometry(1, 1050, 640).cols).toBe(1);
+  });
 });

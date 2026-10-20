@@ -360,8 +360,9 @@ button {
 .draft__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 240px;
-  /* Three quarters for the pack, a quarter for the picks (the operator); the side column the whole height. */
-  grid-template-rows: minmax(0, 3fr) minmax(0, 1fr);
+  /* Half for the pack, half for the picks (the operator, 2026-10-19: the fan no longer needs
+     three quarters); the side column the whole height. */
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas:
     'pack seats'
     'pool seats';
@@ -503,8 +504,13 @@ button {
 }
 
 .pack--grid[style] {
-  justify-content: center;
+  justify-content: safe center;
   align-content: start;
+}
+
+/* The grid is two rows, as tall as the half allows: more cards scroll sideways, never down. */
+.draft__main > .pack--grid {
+  overflow: auto hidden;
 }
 
 .pack--empty {
