@@ -499,6 +499,8 @@ button {
   position: absolute;
   top: var(--related-top, 100%);
   left: var(--related-left, 0px);
+  /* Over every card of the fan, whose layers (`fanLayer`) count up to the pack's size. */
+  z-index: 100;
   display: flex;
   gap: 8px;
   pointer-events: none;
