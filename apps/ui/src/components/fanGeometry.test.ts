@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FAN_MIN_WIDTH, FAN_SIDE, fanGeometry, fanLayer, fanX, gridGeometry, type FanGeometry } from './PackView.tsx';
+import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, gridGeometry, type FanGeometry } from './PackView.tsx';
 
 // The operator's window, a laptop, a wide screen, and the narrowest a fan is drawn at.
 const BOXES = [
@@ -12,7 +12,7 @@ const BOXES = [
 
 /** Every drawn card's left and right edge with `open` open, in the box's coordinates (the slot sits on the centre line). */
 const edges = (width: number, fan: FanGeometry, count: number, open: number) =>
-  Array.from({ length: count }, (_, i) => fanX(fan, i, open)).flatMap((x) => (x === null ? [] : [{ left: width / 2 + x - fan.cardW / 2, right: width / 2 + x + fan.cardW / 2 }]));
+  Array.from({ length: count }, (_, i) => fanX(fan, i, open, count)).flatMap((x) => (x === null ? [] : [{ left: width / 2 + x - fan.cardW / 2, right: width / 2 + x + fan.cardW / 2 }]));
 
 describe('the fan fits the box it is drawn in', () => {
   for (const { width, height } of BOXES) {
@@ -38,18 +38,26 @@ describe('the fan fits the box it is drawn in', () => {
 
 describe('the row scrolls through the pack', () => {
   const fan = fanGeometry(1050, 640);
+  const drawn = (open: number, count = 15) => Array.from({ length: count }, (_, i) => i).filter((i) => fanX(fan, i, open, count) !== null);
 
-  it('puts the open card in the middle and draws FAN_SIDE cards either side of it, no more', () => {
-    for (let open = 0; open < 15; open++) {
-      expect(fanX(fan, open, open)).toBe(0);
-      const drawn = Array.from({ length: 15 }, (_, i) => i).filter((i) => fanX(fan, i, open) !== null);
-      expect(drawn).toEqual(Array.from({ length: 15 }, (_, i) => i).filter((i) => Math.abs(i - open) <= FAN_SIDE));
-    }
+  it('draws seven cards: from the first while the open card is near the start, the open one in the middle after, and the last seven at the end', () => {
+    expect(drawn(0)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(drawn(3)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(drawn(7)).toEqual([4, 5, 6, 7, 8, 9, 10]);
+    expect(fanX(fan, 7, 7, 15)).toBe(0);
+    expect(drawn(14)).toEqual([8, 9, 10, 11, 12, 13, 14]);
+  });
+
+  it('draws a pack shorter than the row whole, and centred', () => {
+    expect(drawn(0, 3)).toEqual([0, 1, 2]);
+    expect(fanX(fan, 1, 0, 3)).toBe(0);
   });
 
   it('keeps the drawn cards in pack order, one step apart', () => {
-    const xs = Array.from({ length: 15 }, (_, i) => fanX(fan, i, 7)).filter((x): x is number => x !== null);
-    for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeCloseTo(fan.step);
+    for (const open of [0, 7, 14]) {
+      const xs = Array.from({ length: 15 }, (_, i) => fanX(fan, i, open, 15)).filter((x): x is number => x !== null);
+      for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeCloseTo(fan.step);
+    }
   });
 });
 

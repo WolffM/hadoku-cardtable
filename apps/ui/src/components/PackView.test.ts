@@ -59,10 +59,10 @@ function mount(onPick = vi.fn()) {
 }
 
 describe('the fan', () => {
-  it('opens on the middle card', () => {
+  it('opens on the first card', () => {
     mount();
     expect(screen.getByTestId('pack').className).toContain('pack--fan');
-    expect(open()).toBe(7);
+    expect(open()).toBe(0);
   });
 
   // The operator, 2026-10-19: the fan's open card is already full size, so no enlarged copy beside it.
@@ -75,17 +75,14 @@ describe('the fan', () => {
   it('steps one card per wheel notch, either way, and stops at the ends', () => {
     mount();
     wheel(100);
-    expect(open()).toBe(8);
+    expect(open()).toBe(1);
     // Whatever size a browser makes its notch: one notch, one card.
     wheel(120);
     wheel(100);
-    expect(open()).toBe(10);
+    expect(open()).toBe(3);
     wheel(-120);
     wheel(-100);
-    expect(open()).toBe(8);
-    wheel(-100);
-    wheel(-100);
-    expect(open()).toBe(6);
+    expect(open()).toBe(1);
     for (let i = 0; i < 20; i++) wheel(-100);
     expect(open()).toBe(0);
     for (let i = 0; i < 30; i++) wheel(100);
@@ -96,9 +93,9 @@ describe('the fan', () => {
     mount();
     wheel(25);
     wheel(25);
-    expect(open()).toBe(7);
+    expect(open()).toBe(0);
     wheel(25);
-    expect(open()).toBe(8);
+    expect(open()).toBe(1);
   });
 
   it('stops the wheel from scrolling anything else', () => {
@@ -121,36 +118,38 @@ describe('the fan', () => {
 
   it('picks the open card on one click', () => {
     const { onPick } = mount();
-    fireEvent.click(tile(7));
-    expect(onPick).toHaveBeenCalledWith('c7');
+    fireEvent.click(tile(0));
+    expect(onPick).toHaveBeenCalledWith('c0');
   });
 
-  it('draws the open card and three either side, and the rest once the row is scrolled to them', () => {
+  it('draws seven cards from the first, and the rest once the row is scrolled to them', () => {
     mount();
     const drawn = () => [...document.querySelectorAll('.pack__slot')].flatMap((el, i) => (el.hasAttribute('data-off') ? [] : [i]));
-    expect(drawn()).toEqual([4, 5, 6, 7, 8, 9, 10]);
+    expect(drawn()).toEqual([0, 1, 2, 3, 4, 5, 6]);
     for (let i = 0; i < 10; i++) wheel(100);
-    expect(drawn()).toEqual([11, 12, 13, 14]);
+    expect(drawn()).toEqual([7, 8, 9, 10, 11, 12, 13]);
+    for (let i = 0; i < 10; i++) wheel(100);
+    expect(drawn()).toEqual([8, 9, 10, 11, 12, 13, 14]);
   });
 
   it('opens nothing by passing the pointer over a card', () => {
     mount();
     fireEvent.pointerMove(screen.getByTestId('pack'), { clientX: 10, clientY: 300 });
     fireEvent.pointerEnter(tile(5).parentElement!);
-    expect(open()).toBe(7);
+    expect(open()).toBe(0);
   });
 
   it('picks the open card on Enter, and moves along the row on the arrows', () => {
     const { onPick } = mount();
-    fireEvent.keyDown(window, { key: 'ArrowLeft' });
-    fireEvent.keyDown(window, { key: 'ArrowLeft' });
-    expect(open()).toBe(5);
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(open()).toBe(6);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(open()).toBe(2);
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(open()).toBe(1);
     expect(onPick).not.toHaveBeenCalled();
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(onPick).toHaveBeenCalledTimes(1);
-    expect(onPick).toHaveBeenCalledWith('c6');
+    expect(onPick).toHaveBeenCalledWith('c1');
   });
 
   it('leaves Enter alone while it is typed into a field, or while picking is off', () => {
@@ -188,14 +187,14 @@ describe('the fan', () => {
     expect(roles).toHaveLength(7);
   });
 
-  it('opens the middle of a new pack', () => {
+  it('opens a new pack on its first card', () => {
     const { rerender, onPick } = mount();
     wheel(100);
     wheel(100);
     wheel(100);
-    expect(open()).toBe(10);
+    expect(open()).toBe(3);
     rerender(createElement(PackView, { cards: PACK.slice(1), layout: 'fan', onPick, disabled: false, emptyNote: '' }));
-    expect(open()).toBe(6);
+    expect(open()).toBe(0);
   });
 });
 

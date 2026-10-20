@@ -1044,8 +1044,9 @@ test(
         };
       });
       expect(fit, 'no page scroll, every drawn card inside the pack').toEqual({ x: 0, y: 0, outside: 0 });
-      // Seven of the fifteen are drawn: the open card and three either side of it.
+      // Seven of the fifteen are drawn, from the first: the pack opens on its first card.
       await expect(alice.page.locator('[data-testid="pack"] .pack__slot:not([data-off])')).toHaveCount(7);
+      await expect(alice.page.locator('[data-testid="pack"] .pack__slot').first(), 'opened on the first card').toHaveAttribute('data-focused', '');
 
       // A deploy mid-draft (every land restarts the server) resumes the pod
       // where it was, not back in its lobby — the audit of 2026-10-19.

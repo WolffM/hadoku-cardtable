@@ -1,9 +1,10 @@
 /**
  * The pack, fanned for picking.
  *
- * The fan is a short overlapped row scrolled through the pack: the open card —
- * on top, whole, risen, in the middle — and `FAN_SIDE` cards either side of it;
- * the rest are not drawn until the row is scrolled to them (the operator,
+ * The fan is a short overlapped row scrolled through the pack: seven cards, the
+ * open one on top, whole and risen. A pack opens on its first card; the open
+ * card sits in the middle of the row once it can, and the row stops at the
+ * pack's ends (`fanStart`); the rest are not drawn until the row is scrolled to them (the operator,
  * 2026-10-19: *"let's not display the entire stack all at once and instead hide
  * cards until they are scrolled to"*). The wheel and the arrow keys move the
  * open card one along, and the row slides with it. The pointer opens nothing by
@@ -61,7 +62,7 @@ const MAX_CARD_H = 420;
 export const FAN_MIN_WIDTH = 480;
 /** How many cards are drawn either side of the open one. */
 export const FAN_SIDE = 3;
-/** The row's places: the open card in the middle, `FAN_SIDE` either side. */
+/** The row's places: the open card in the middle of them, `FAN_SIDE` either side, but at the pack's ends. */
 const FAN_SLOTS = 2 * FAN_SIDE + 1;
 const GRID_GAP = 10;
 
@@ -74,8 +75,7 @@ export interface FanGeometry {
 
 /**
  * The row that fits a `width` x `height` box: `FAN_SLOTS` places, the card as
- * tall as the box allows, each a step from the next. The open card is the
- * middle place whichever card it is, so the row is the same size for any pack.
+ * tall as the box allows, each a step from the next — the same size for any pack.
  */
 export function fanGeometry(width: number, height: number): FanGeometry {
   let cardH = Math.min(MAX_CARD_H, height - LIFT - BOTTOM);
@@ -90,9 +90,20 @@ export function fanGeometry(width: number, height: number): FanGeometry {
   return { cardW, cardH, step };
 }
 
-/** Card `i`'s place with `open` open: off the centre line by its distance from the open card, or not drawn past `FAN_SIDE`. */
-export function fanX(geo: FanGeometry, i: number, open: number): number | null {
-  return Math.abs(i - open) > FAN_SIDE ? null : (i - open) * geo.step;
+/**
+ * The first of the `FAN_SLOTS` cards drawn with `open` open: the open card in
+ * the middle, except near either end of the pack, where the row stops at the
+ * pack's first or last card and the open card moves along it instead.
+ */
+export function fanStart(open: number, count: number): number {
+  return Math.max(0, Math.min(open - FAN_SIDE, count - FAN_SLOTS));
+}
+
+/** Card `i`'s place off the centre line with `open` open, or null for a card not drawn. A pack shorter than the row is centred. */
+export function fanX(geo: FanGeometry, i: number, open: number, count: number): number | null {
+  const slot = i - fanStart(open, count);
+  const drawn = Math.min(count, FAN_SLOTS);
+  return slot < 0 || slot >= drawn ? null : (slot - (drawn - 1) / 2) * geo.step;
 }
 
 /** Card `i`'s stacking with `open` on top: the further from the open card, the lower. */
@@ -145,7 +156,7 @@ function typing(target: EventTarget | null): boolean {
 
 export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackViewProps) {
   const [measure, box] = useBox();
-  /** The open card. `null` is the middle one: where a pack opens. */
+  /** The open card. `null` is the first: where a pack opens (the operator, 2026-10-19). */
   const [focus, setFocus] = useState<number | null>(null);
   const root = useRef<HTMLDivElement | null>(null);
   const attach = useCallback(
@@ -160,9 +171,9 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
   const measured = box.width > 0 && box.height > 0;
   const fan = layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height) : null;
   const grid = fan === null && measured ? gridGeometry(cards.length, box.width, box.height) : null;
-  const shown = fan === null || cards.length === 0 ? null : Math.min(focus ?? Math.floor((cards.length - 1) / 2), cards.length - 1);
+  const shown = fan === null || cards.length === 0 ? null : Math.min(focus ?? 0, cards.length - 1);
 
-  // A new pack opens on its middle card.
+  // A new pack opens on its first card.
   const packKey = cards.map((c) => c.cardId).join(',');
   useEffect(() => setFocus(null), [packKey]);
 
@@ -205,7 +216,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
         wheelLeft.current -= steps * WHEEL_STEP;
       }
       if (steps === 0) return;
-      setFocus((was) => Math.max(0, Math.min(count - 1, (was ?? Math.floor((count - 1) / 2)) + steps)));
+      setFocus((was) => Math.max(0, Math.min(count - 1, (was ?? 0) + steps)));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -249,7 +260,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
       } else if (fanOn && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
         event.preventDefault();
         const by = event.key === 'ArrowLeft' ? -1 : 1;
-        setFocus((was) => Math.max(0, Math.min(count - 1, (was ?? Math.floor((count - 1) / 2)) + by)));
+        setFocus((was) => Math.max(0, Math.min(count - 1, (was ?? 0) + by)));
       }
     };
     window.addEventListener('keydown', onKey);
@@ -282,7 +293,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
       onPointerLeave={fan === null ? () => setHovered(null) : undefined}
     >
       {cards.map((card, i) => {
-        const x = fan === null || shown === null ? null : fanX(fan, i, shown);
+        const x = fan === null || shown === null ? null : fanX(fan, i, shown, cards.length);
         const off = fan !== null && x === null;
         return (
           <div
