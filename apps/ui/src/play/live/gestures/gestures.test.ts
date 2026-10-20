@@ -2821,6 +2821,37 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     expect(await sent(s, m)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
   });
 
+  it('the right-click that cancels a parked cast is the gesture’s: its contextmenu goes no further, the next one does', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    for (const f of notify([prompt('Priority'), actionable([hand[2]!]), okBar()])) s.send(f);
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+    const theirBattlefield = canvas.querySelector<HTMLElement>('[data-zone="battlefield"][data-owner="them"]')!;
+    fireEvent.pointerDown(cardEl(canvas, hand[2]!), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
+    fireEvent.pointerUp(theirBattlefield, { clientX: 500, clientY: 50 });
+    await s.untilClientFrames(1);
+    s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
+    await untilMatch(m, () => expect(m.selectables).not.toBeNull());
+
+    const reached = vi.fn();
+    document.addEventListener('contextmenu', reached);
+    try {
+      const rightClick = (): MouseEvent => {
+        fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 });
+        const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+        theirBattlefield.dispatchEvent(ev);
+        return ev;
+      };
+      expect(rightClick().defaultPrevented, 'the cancelling right-click: no browser menu').toBe(true);
+      expect(reached, 'nor the board’s own').not.toHaveBeenCalled();
+      expect(rightClick().defaultPrevented, 'a right-click with nothing to cancel: still no browser menu').toBe(true);
+      expect(reached, 'and it reaches the board’s own menu').toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener('contextmenu', reached);
+    }
+  });
+
   it('a left click on nothing Forge’s selection names, while a cast is parked, cancels the same way', async () => {
     const { s, m, canvas } = await gestureBoard();
     const hand = mineOf(m).hand!.map((c) => c.id);

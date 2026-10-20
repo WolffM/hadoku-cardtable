@@ -21,7 +21,7 @@ import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction } from '../Board.tsx';
-import { LONG_PRESS_MS, mountInspector } from './index.ts';
+import { CARD_LONG_PRESS, LONG_PRESS_MS, mountInspector, type CardLongPress } from './index.ts';
 import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
 
 /** Uuid-shaped, so the art resolver accepts it; nothing is fetched in jsdom. */
@@ -484,6 +484,36 @@ describe('touch', () => {
     const { panel, theirCard } = mountBoard();
     longPress(theirCard().querySelector('.card')!);
     expect(panel()!.querySelector('.card__name')!.textContent).toBe('Their Card');
+  });
+
+  it('the long press is announced on the card, with where it was: the board’s card menu opens on it too', () => {
+    const { theirCard } = mountBoard();
+    const heard: { at: CardLongPress; on: EventTarget | null }[] = [];
+    const listen = (event: Event) => heard.push({ at: (event as CustomEvent<CardLongPress>).detail, on: event.target });
+    document.addEventListener(CARD_LONG_PRESS, listen);
+    try {
+      longPress(theirCard().querySelector('.card')!);
+    } finally {
+      document.removeEventListener(CARD_LONG_PRESS, listen);
+    }
+    expect(heard).toHaveLength(1);
+    expect(heard[0]!.at).toEqual({ x: 40, y: 40 });
+    expect(theirCard().contains(heard[0]!.on as Node)).toBe(true);
+  });
+
+  it('a press released before the long-press announces nothing', () => {
+    const { theirCard } = mountBoard();
+    const heard = vi.fn();
+    document.addEventListener(CARD_LONG_PRESS, heard);
+    try {
+      vi.useFakeTimers();
+      fireEvent.pointerDown(theirCard().querySelector('.card')!, { pointerType: 'touch', clientX: 40, clientY: 40 });
+      fireEvent.pointerUp(theirCard().querySelector('.card')!, { pointerType: 'touch' });
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    } finally {
+      document.removeEventListener(CARD_LONG_PRESS, heard);
+    }
+    expect(heard).not.toHaveBeenCalled();
   });
 
   it('movement past the slop cancels the press', () => {

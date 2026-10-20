@@ -431,6 +431,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * (`dropStaleAim`), so it never outlives the input it was for.
    */
   let aim: { ids: number[]; at: Point; node: EventTarget | null } | null = null;
+  /** The right-click in progress cancelled a live gesture: its `contextmenu` is the gesture's. */
+  let cancelledByRightClick = false;
   /** Where the pointer is while NO gesture is held — the click-targeting arrow's tip. */
   let hover: { at: Point; node: EventTarget | null } | null = null;
   /** What was drawn last, so `onChange` fires on a change and not on every move. */
@@ -1267,6 +1269,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   function onPointerDown(event: PointerEvent): void {
+    cancelledByRightClick = false;
     /*
      * A held box group takes the next press, whatever it lands on: on a
      * defender it attacks it, anywhere else (a right-click included) it is
@@ -1277,6 +1280,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       claim(event);
       const group = aim;
       aim = null;
+      if (event.button === 2) cancelledByRightClick = true;
       if (event.button === 0) {
         clicks.arm();
         const target = aimedTarget(match, group.ids[0]!, eventTarget(event));
@@ -1295,6 +1299,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
      */
     if (event.button === 2 && (parked !== null || (drag !== null && drag.lifted))) {
       claim(event);
+      cancelledByRightClick = true;
       cancelLive('right-click', eventTarget(event));
       return;
     }
@@ -1676,10 +1681,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
     cancelLive('escape');
   }
 
-  /** The browser's own context menu is suppressed only while a gesture or cast is live — never otherwise. */
-  /** The board is a game surface: a right-click there never opens the browser's menu. */
+  /**
+   * The board is a game surface: a right-click there never opens the browser's menu. One that
+   * cancelled a live gesture was the gesture's, so it goes no further — the board's own card menu
+   * (`card-menu/CardMenu.tsx`, listening above this) does not open on it.
+   */
   function onContextMenu(event: Event): void {
     event.preventDefault();
+    if (!cancelledByRightClick) return;
+    cancelledByRightClick = false;
+    event.stopPropagation();
   }
 
   const unguardText = guardTextSelection(canvas);

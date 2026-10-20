@@ -416,6 +416,7 @@ import { installPlaced } from './live/placed.ts';
 import { DEPARTURE_MAX_MS, departuresOf, installDepartures, LEAVING_GAP_ATTR, type Departure } from './live/departures.ts';
 import { HiddenCard } from './HiddenCard.tsx';
 import { PileView } from './PileView.tsx';
+import { useCardMenu } from './card-menu/CardMenu.tsx';
 import { CheckMark, PlayerMark } from './marks.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
@@ -625,7 +626,7 @@ const BOARD_ROWS = ['lands', 'artifacts', 'creatures', 'other'] as const;
  * goes by default — a player may put any card in either row (Q4b).
  */
 const SINGLE_ROWS = ['front', 'back'] as const;
-type BoardRow = (typeof BOARD_ROWS)[number] | (typeof SINGLE_ROWS)[number];
+export type BoardRow = (typeof BOARD_ROWS)[number] | (typeof SINGLE_ROWS)[number];
 
 /** Which rows a layout draws, and in what order `--cols` sums them. */
 function rowsForLayout(layout: BoardLayout): readonly BoardRow[] {
@@ -4140,6 +4141,21 @@ export function Board({
     redraw();
   };
   useArrangeDrag(root, viewer !== undefined, commit);
+  const cardMenu = useCardMenu(
+    root,
+    viewer === undefined
+      ? null
+      : {
+          cards: viewer.battlefield,
+          playerId: viewer.id,
+          arranged,
+          layout: boardLayout,
+          commit: (next) => {
+            setArranged(key, viewer.id, next);
+            redraw();
+          },
+        },
+  );
   useZoneBoxes(root);
 
   /*
@@ -4258,6 +4274,7 @@ export function Board({
         </p>
       )}
       <div className="board__overlay" data-board-overlay="">
+        {cardMenu}
         {shownPile !== null && pileOwner !== undefined && (
           <PileView
             ownerSide={pileOwner.isViewer ? 'you' : 'them'}

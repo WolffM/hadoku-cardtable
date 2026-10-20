@@ -143,6 +143,17 @@ export const GAP = 8;
 /** How long a touch must hold before the press counts as a long-press. */
 export const LONG_PRESS_MS = 450;
 
+/**
+ * Fired on the card a touch long-press opened the inspector on, bubbling, with where the press was:
+ * the same press is the board's context menu on touch (`card-menu/CardMenu.tsx`), so the two decide
+ * at the same hold and the same drift instead of each timing its own.
+ */
+export const CARD_LONG_PRESS = 'cardtable:card-long-press';
+export interface CardLongPress {
+  readonly x: number;
+  readonly y: number;
+}
+
 
 /** A board id: digits only (`data-card-id`). */
 const BOARD_ID = /^\d+$/;
@@ -654,13 +665,15 @@ export function mountInspector(root: ParentNode): () => void {
     pressing = target;
     pressTimer = setTimeout(() => {
       pressTimer = null;
-      if (pressing === null) return;
+      if (pressing === null || pressAnchor === null) return;
       const opened = pressing;
+      const detail: CardLongPress = pressAnchor;
       pressing = null;
       pressAnchor = null;
       playRole('ui.inspect');
       show(opened);
       swallowClickIn = opened.card;
+      opened.card.dispatchEvent(new CustomEvent(CARD_LONG_PRESS, { bubbles: true, detail }));
     }, LONG_PRESS_MS);
   }
 
