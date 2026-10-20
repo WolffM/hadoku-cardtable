@@ -186,3 +186,63 @@ export function mutations(fixture: PlayFixture): Mutation[] {
 
   return out;
 }
+
+export interface UnseenCase {
+  name: string;
+  /** Alice's log, as the case leaves it. */
+  alice: PlaySeatLog;
+  /** The names asked about. */
+  names: string[];
+  /** The violation it must report, or null for a case that must pass. */
+  expect: RegExp | null;
+}
+
+function libraryOf(state: State, playerId: number): number[] {
+  return ((state.get(keyOf(TYPE.player, playerId))?.Library as { v?: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+}
+
+/**
+ * The cases `unseenNamed` must tell apart, on alice's real stream: a card of bob's named where alice
+ * may not look — in his hand, in his library — is a leak; the same name on a card in alice's own
+ * hand is not. That last is what a scenario match's opening precon hand looks like: dealt to alice,
+ * hers to read, before the scenario replaces it — and a check by text alone calls it bob's card.
+ */
+export function unseenCases(fixture: PlayFixture): UnseenCase[] {
+  const [alice, bob] = fixture.logs;
+  const at = lastDelta(alice);
+  const bobCard = ownHandCard(bob, alice, at);
+  const aliceId = playerIdOf(alice);
+  const bobId = playerIdOf(bob);
+  const theirs: State = foldStream(alice.messages.slice(0, at + 1)).final;
+  const named = (id: number, name: string): Partial<WireObj> => ({ _type: TYPE.card, _id: id, Name: { t: 'str', v: name } });
+  const withDelta = (objectDeltas: Record<string, Partial<WireObj>>): PlaySeatLog => {
+    const env = structuredClone(alice.messages[at].msg) as ServerEnvelope;
+    const packet = (env.frame.payload as { packet: { objectDeltas: Record<string, Partial<WireObj>> } }).packet;
+    Object.assign(packet.objectDeltas, objectDeltas);
+    return replaceAt(alice, at, reserialise(alice.messages[at], env));
+  };
+  const ownCard = handOf(theirs, aliceId)[0];
+  const bobLibraryCard = libraryOf(theirs, bobId)[0];
+  if (ownCard === undefined || bobLibraryCard === undefined) throw new Error('the fixture has no hand card of alice’s or no library card of bob’s — regenerate it');
+  return [
+    { name: 'the real capture', alice, names: [bobCard.name], expect: null },
+    {
+      name: `alice's own hand card ${ownCard} named "${bobCard.name}", the name of a card in bob's hand`,
+      alice: withDelta({ [keyOf(TYPE.card, ownCard)]: named(ownCard, bobCard.name) }),
+      names: [bobCard.name],
+      expect: null,
+    },
+    {
+      name: `bob's hand card ${bobCard.id} named on alice's side`,
+      alice: withDelta({ [keyOf(TYPE.card, bobCard.id)]: named(bobCard.id, bobCard.name) }),
+      names: [bobCard.name],
+      expect: new RegExp(`player ${bobId}'s hand card ${bobCard.id} is named "${bobCard.name}"`),
+    },
+    {
+      name: `bob's library card ${bobLibraryCard} named "${bobCard.name}" on alice's side`,
+      alice: withDelta({ [keyOf(TYPE.card, bobLibraryCard)]: named(bobLibraryCard, bobCard.name) }),
+      names: [bobCard.name],
+      expect: new RegExp(`player ${bobId}'s library card ${bobLibraryCard} is named "${bobCard.name}"`),
+    },
+  ];
+}

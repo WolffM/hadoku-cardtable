@@ -139,8 +139,8 @@ import {
   startPlayStack,
   type PlayStack,
 } from './play/harness.ts';
-import { checkPlayIsolation, foldStream, type PlaySeatLog } from './play/isolation.ts';
-import { FIXTURE_FILE, load, mutations } from './play/fixture.ts';
+import { checkPlayIsolation, foldStream, unseenNamed, type PlaySeatLog } from './play/isolation.ts';
+import { FIXTURE_FILE, load, mutations, unseenCases } from './play/fixture.ts';
 import { TURN_TEXT, turnNumber } from './play/turn.ts';
 
 test.describe.configure({ mode: 'serial' });
@@ -649,6 +649,17 @@ test('the play isolation check FAILS when one seat is sent the other seat’s ha
     console.log(`[play-isolation] ${m.name}: ${report.ok ? 'pass' : 'FAIL'} — ${report.violations.length} violations, first: ${report.violations[0] ?? '-'}`);
     expect(report.ok, `${m.name} must fail the check`).toBe(false);
     expect(report.violations.join('\n')).toMatch(m.expect);
+  }
+});
+
+test('a name is a secret only on the card that is hidden: unseenNamed flags bob\'s hidden cards and never alice\'s own (committed fixture)', () => {
+  const fixture = load(JSON.parse(readFileSync(FIXTURE_FILE, 'utf8')) as Parameters<typeof load>[0]);
+  for (const c of unseenCases(fixture)) {
+    const report = unseenNamed(c.alice.messages, c.names);
+    console.log(`[unseen-named] ${c.name}: ${report.violations.length} violations over ${report.states} states, ${report.closedCards} closed cards — ${report.violations[0] ?? '-'}`);
+    expect(report.closedCards, `${c.name}: the check looked at hidden cards`).toBeGreaterThan(0);
+    if (c.expect === null) expect(report.violations, `${c.name} must pass`).toEqual([]);
+    else expect(report.violations.join('\n'), `${c.name} must be flagged`).toMatch(c.expect);
   }
 });
 

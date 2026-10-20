@@ -279,6 +279,72 @@ function nameIn(state: State, id: number): string | null {
   return null;
 }
 
+/** The zones a viewer may look into only when a card there names it in `PlayerMayLook`: another player's hand, sideboard and library, and its own library. */
+function closedTo(viewer: number, holder: number, zone: string): boolean {
+  return zone === 'Library' || (holder !== viewer && PRIVATE_ZONES.includes(zone));
+}
+
+export interface UnseenNamedReport {
+  /** One line per card that carried one of the names where the viewer may not look. */
+  violations: string[];
+  /** Folded states examined — every state frame the browser received, one at a time. */
+  states: number;
+  /** Closed-zone card slots examined, summed over states. */
+  closedCards: number;
+}
+
+/**
+ * Whether a browser was sent any of `names` on a card it had no right to see: at every state frame
+ * it received, folded one at a time (a snapshot's frames too, so a name sent and wiped inside one
+ * history still counts), each card in a zone {@link closedTo} the viewer — by its zone list, or by
+ * its own `Zone` when it is in none — must carry none of `names` unless its `PlayerMayLook` names
+ * the viewer (Forge's reveal, and the projector's mark for a card the seat knows).
+ *
+ * By card, not by text: a name is a secret only on the card that is hidden. The same name on a card
+ * the viewer holds or saw is not a leak — two decks can both run a Mountain, and a scenario match
+ * deals each seat a random precon before the scenario replaces it, whose opening hand is the
+ * viewer's own to read.
+ */
+export function unseenNamed(messages: readonly PlayMessage[], names: readonly string[]): UnseenNamedReport {
+  const out: UnseenNamedReport = { violations: [], states: 0, closedCards: 0 };
+  const snapshot = messages.find((m) => m.dir === 'in' && m.kind === 'ack' && isSnapshot(m.msg));
+  if (snapshot === undefined || !isSnapshot(snapshot.msg)) throw new Error('unseenNamed: the browser received no match snapshot, so there is nothing to check');
+  const viewer = snapshot.msg.playerId;
+  const secret = new Set(names);
+  let state: State = new Map();
+
+  const check = (): void => {
+    out.states += 1;
+    const listed = new Map<number, { zone: string; holder: number }>();
+    for (const p of players(state)) {
+      for (const zone of ['Hand', 'Library', 'Sideboard', 'Battlefield', 'Graveyard', 'Exile', 'Command']) {
+        for (const id of idList(p, zone)) listed.set(id, { zone, holder: p._id });
+      }
+    }
+    for (const o of state.values()) {
+      if (o._type !== TYPE.card) continue;
+      const at = listed.get(o._id);
+      const zone = at?.zone ?? ((o.Zone as { v?: unknown } | undefined)?.v as string | undefined);
+      const holder = at?.holder ?? ((o.Controller as { v?: unknown } | undefined)?.v as number | undefined) ?? ((o.Owner as { v?: unknown } | undefined)?.v as number | undefined);
+      if (zone === undefined || holder === undefined || !closedTo(viewer, holder, zone) || mayLook(o, viewer)) continue;
+      out.closedCards += 1;
+      const named = everyString(state, o._id).filter((s) => secret.has(s));
+      for (const name of new Set(named)) out.violations.push(`state #${out.states}: player ${holder}'s ${zone.toLowerCase()} card ${o._id} is named "${name}"`);
+    }
+  };
+
+  for (const m of messages) {
+    if (m.dir !== 'in') continue;
+    if (m.kind === 'ack' && isSnapshot(m.msg)) {
+      state = new Map();
+      for (const f of m.msg.frames) if (applyFrame(state, f)) check();
+    } else if (m.kind === 's2c' && applyFrame(state, (m.msg as ServerEnvelope).frame)) {
+      check();
+    }
+  }
+  return out;
+}
+
 export function checkPlayIsolation(logs: readonly PlaySeatLog[]): PlayIsolationReport {
   const violations: string[] = [];
   const counts = { messages: 0, snapshots: 0, states: 0, opponentHandCards: 0, revealed: 0, handCards: 0, secrets: 0, probes: 0 };
