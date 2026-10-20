@@ -1361,7 +1361,7 @@ describe('receiving', () => {
     handle.dispose();
   });
 
-  it('a cleared message (held false, no `placing`) takes a following back down at once, and a point wait down after a short grace — never a placement’s gap', () => {
+  it('a cleared message (held false, no `placing`) takes a following back down at once, and a point wait down after a short grace', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     const t = fakeTransport();

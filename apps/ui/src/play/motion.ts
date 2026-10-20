@@ -2,8 +2,9 @@
  * How long a released card's placement is waited for — the row's reserved gap
  * (`Board.tsx`), the other seat's back standing in it (`live/presence.ts`) and
  * the stack layer's record of the release point (`live/placed.ts`) are one
- * fact, so one clock: none of them may give up while another still holds. A
- * cast that never resolves (countered, cancelled, a land) just ages out.
+ * fact, so one clock: none of them may give up while another still holds. It is
+ * a safety clock: a cast that is cancelled ends its wait itself (the card back in
+ * its owner's hand, or their screen saying it is no longer parked — `presence.ts`).
  * On the other seat's screen it runs from the LAST word that their card is
  * still parked (`presence.ts` restates a parked card), not from the release:
  * a target or a payment may take a player as long as they like.

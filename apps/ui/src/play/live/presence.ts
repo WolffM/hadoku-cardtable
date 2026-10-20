@@ -81,7 +81,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
 } from '@hadoku/shared';
 
 import { newArrow, positionArrow } from './gestures/arrow.ts';
-import { expectPlacement, pendingPlacementFor, renewPlacement } from '../Board.tsx';
+import { cancelPlacement, expectPlacement, pendingPlacementFor, renewPlacement } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
@@ -110,6 +110,8 @@ export const CLEARED_GRACE_MS = 1500;
 export const UNHANDED_MS = 5000;
 /** How many frames a placement's stand-in looks for the gap the board reserves for it before giving up. */
 const GAP_FRAMES = 30;
+/** How a wait ends when its card is not coming (`stopWaiting`'s `why`): sent home by Forge, or a clock. */
+const ENDED_WITHOUT_CARD: ReadonlySet<string> = new Set(['home', 'grace', 'timeout']);
 
 /**
  * `live/gestures/hand.ts`'s own seam into this module: a hand reorder
@@ -668,12 +670,13 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * reserved for a PERMANENT (`forBattlefield: true`, `Board`'s own
    * reservation clears it below), or at the exact point for a SPELL
    * (`forBattlefield: false`, cleared by `handoff`'s id check instead) —
-   * or this times out. `hand` is the fewest backs their hand has had since the
-   * wait began: one more than that is the card coming home (`flyHome`).
-   * `cleared`: the sender has said the card is no longer parked, and the
-   * short grace is running.
+   * or this times out. `owner`: the player whose column a permanent's wait
+   * reserved (null for a spell's). `hand` is the fewest backs their hand has
+   * had since the wait began: one more than that is the card coming home
+   * (`flyHome`). `cleared`: the sender has said the card is no longer parked,
+   * and the short grace is running.
    */
-  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; hand: number; cleared: boolean; since: number; diag: WaitDiag } | null = null;
+  let waiting: { timer: ReturnType<typeof setTimeout>; forBattlefield: boolean; card: number | null; owner: number | null; hand: number; cleared: boolean; since: number; diag: WaitDiag } | null = null;
   /** Telemetry: how the previous wait ended and when, and when their card was last held — a timed-out wait's context. */
   let lastEnd: { at: number; how: string } | null = null;
   let heldAt: number | null = null;
@@ -788,8 +791,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     clearTimeout(waiting.timer);
     waiting.timer = setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS);
     if (stackBound !== null) boundUntil = Date.now() + PLACEMENT_WAIT_MS;
-    const theirs = host.theirPlayerId?.() ?? null;
-    if (waiting.forBattlefield && waiting.card !== null && theirs !== null) renewPlacement(theirs, waiting.card);
+    if (waiting.card !== null && waiting.owner !== null) renewPlacement(waiting.owner, waiting.card);
   }
 
   function stopWaiting(why: string): void {
@@ -803,6 +805,9 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (waiting === null) return;
     lastEnd = { at: Date.now(), how: why };
     clearTimeout(waiting.timer);
+    // A permanent's play that ended without its card — home to their hand, or a clock — leaves
+    // nothing to arrive in the column it reserved.
+    if (waiting.card !== null && waiting.owner !== null && ENDED_WITHOUT_CARD.has(why)) cancelPlacement(waiting.owner, waiting.card);
     waiting = null;
     back?.remove();
     back = null;
@@ -982,7 +987,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     // from that alone. Parked (`placing.at`): a back stands THERE, and nothing their pointer does
     // moves it. Held: a back follows their pointer. Neither: no back — unless a wait already owns
     // one (the placement's gap, or this very point), which only its own ending takes down
-    // (`onPlacement`'s reservation, `handoff`'s id, or the timeout). Four days of a phantom
+    // (its card arriving, its card home, a cancel's grace, or the timeout). Four days of a phantom
     // attached to the cursor came from inferring the first state from the second.
     if (waiting !== null) {
       waiting.diag.echoes++;
@@ -998,7 +1003,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
         standBack(root, box, placingAt);
         back!.setAttribute('data-waiting', '');
         play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
-        waiting = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: false, card: null, hand: theirHandBacks().length, cleared: false, since: Date.now(), diag: newDiag() };
+        waiting = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: false, card: null, owner: null, hand: theirHandBacks().length, cleared: false, since: Date.now(), diag: newDiag() };
         // AE26: their spell beat this message here (Forge's frame won the race against presence):
         // it is already a placed card, drawn pending at nobody's point. Hand the point over NOW —
         // the one object, in place — never a back beside a face until a timer ends it.
@@ -1018,12 +1023,14 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     } else if (waiting === null) {
       back?.remove();
       back = null;
-    } else if (!waiting.forBattlefield && !waiting.cleared) {
-      // Their parked card is gone from their screen with no placement and no id yet. Forge says
-      // which: the id on the stack (`handoff` hands over), or the card back in their hand
-      // (`flyHome`). The grace only covers a cast Forge never took at all, so it starts once —
-      // every pointer move after a cancel carries this same state, and restarting it on each one
-      // kept the back on the board for as long as they kept moving.
+    } else if (!waiting.cleared) {
+      // Their parked card is gone from their screen and nothing has arrived here yet. Forge says
+      // which: the id on the stack (`handoff` hands over), the permanent in its column (its
+      // `flyWhenDrawn`), or the card back in their hand (`flyHome`). The grace only covers a play
+      // Forge's frames never say ended — a cancelled payment for a permanent leaves no trace this
+      // screen can read (table-fit's Compulsion: its stand-in stood in the gap until the safety
+      // clock) — so it starts once: every pointer move after a cancel carries this same state, and
+      // restarting it on each one kept the back on the board for as long as they kept moving.
       waiting.cleared = true;
       clearTimeout(waiting.timer);
       waiting.timer = setTimeout(() => expire('grace'), CLEARED_GRACE_MS);
@@ -1159,16 +1166,28 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
       if (spell !== undefined) unhanded = { id: spell, at: Date.now() };
     }
     if (waiting !== null && back !== null) {
+      if (fresh.length === 0) {
+        // Nothing of theirs arrived: past React's commit, their hand's backs are what Forge says
+        // now — one more than the fewest of the wait is the card home, a spell's or a permanent's.
+        const standIn = back;
+        requestAnimationFrame(() => {
+          if (waiting === null || back !== standIn) return;
+          const n = theirHandBacks().length;
+          if (n < waiting.hand) waiting.hand = n;
+          else if (n > waiting.hand) flyHome();
+        });
+        return;
+      }
       // A PERMANENT (`forBattlefield`): `Board` consumes the reservation when it draws the card in
       // the gap, and `onPlacement`'s watch flies it there on that commit. That commit may be AFTER
       // this listener runs — so the reservation is read on the next frame, past it: still pending
       // means the card went to the stack. A SPELL's wait has no reservation to read; only the id
       // check below clears it.
       if (waiting.forBattlefield) {
-        const theirs = host.theirPlayerId?.() ?? null;
+        const owner = waiting.owner;
         const standIn = back;
         requestAnimationFrame(() => {
-          if (waiting === null || back !== standIn || theirs === null || pendingPlacementFor(theirs) === null) return;
+          if (waiting === null || back !== standIn || owner === null || pendingPlacementFor(owner) === null) return;
           // AE26 (the Mana Leak screenshot): a CREATURE dragged to the battlefield carries a
           // placement (a column is reserved, this wait expects it there) — but while the other
           // seat holds priority it sits on the STACK first. Past React's commit (this frame) a
@@ -1202,17 +1221,6 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
             if (at !== null) flyWhenDrawn(onStack, () => at);
           };
           settle();
-        });
-        return;
-      }
-      if (fresh.length === 0) {
-        // Past React's commit, their hand's backs are what Forge says now.
-        const standIn = back;
-        requestAnimationFrame(() => {
-          if (waiting === null || waiting.forBattlefield || back !== standIn) return;
-          const n = theirHandBacks().length;
-          if (n < waiting.hand) waiting.hand = n;
-          else if (n > waiting.hand) flyHome();
         });
         return;
       }
@@ -1307,7 +1315,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const standIn = back!;
     standIn.setAttribute('data-waiting', '');
     standIn.setAttribute(PRESENCE_CARD_ATTR, String(card));
-    const wait = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: true, card, hand: theirHandBacks().length, cleared: false, since: Date.now(), diag: newDiag() };
+    const wait = { timer: setTimeout(() => expire('timeout'), PLACEMENT_WAIT_MS), forBattlefield: true, card, owner, hand: theirHandBacks().length, cleared: false, since: Date.now(), diag: newDiag() };
     waiting = wait;
     // The card reaching its column while the stand-in still waits — straight from the hand, or a
     // spell resolving before the glide let it hand over to the stack — finishes the stand-in's

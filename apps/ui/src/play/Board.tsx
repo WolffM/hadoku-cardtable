@@ -1554,6 +1554,13 @@ export function renewPlacement(playerId: number, cardId: number): void {
   if (p !== undefined && p.cardId === cardId && p.expiresAt >= Date.now()) PENDING_PLACEMENTS.set(playerId, { ...p, expiresAt: Date.now() + PLACEMENT_WAIT_MS });
 }
 
+/** Their play of `cardId` ended without it (cancelled): its column stops waiting, and the row closes the gap. */
+export function cancelPlacement(playerId: number, cardId: number): void {
+  if (PENDING_PLACEMENTS.get(playerId)?.cardId !== cardId) return;
+  PENDING_PLACEMENTS.delete(playerId);
+  for (const wake of MOUNTED_BOARDS) wake();
+}
+
 /** The placement waiting for a player, if one is (tests, and the stand-ins' clean-up). */
 export function pendingPlacementFor(playerId: number): { cardId: number; slot: BoardRow; target: DropTarget } | null {
   const p = PENDING_PLACEMENTS.get(playerId);
