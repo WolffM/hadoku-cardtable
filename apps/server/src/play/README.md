@@ -351,7 +351,9 @@ pass. The guard mutation (below) still fails them.
 The JVM runs are now repeatable. The fixed run uses the red run's decks and seed
 20260918. The variety run prints its seed; rerun it with `CARDTABLE_PLAY_SEED`.
 The seed drives Forge's `MyRandom` (shuffles, the coin toss) and the precon
-pick. The AI and thread timing are not seeded, so a seed narrows a failure down
+pick, which is the same on every host: the precon files go in name order before
+the seeded shuffle, since a directory lists in the filesystem's own order
+(`precon-pick.jvm.test.ts`). The AI and thread timing are not seeded, so a seed narrows a failure down
 but does not replay it exactly.
 
 **Measured, not argued** (`seed.jvm.test.ts`, 2026-09-27): two cold matches on

@@ -383,9 +383,14 @@ public final class PlayBridge {
         return randomPrecon(files, random);
     }
 
-    /** {@link #randomPrecon(Random)} over the precon files {@code listing}, in the order a directory listing gave them. */
+    /**
+     * {@link #randomPrecon(Random)} over the precon files {@code listing}, in the order a directory
+     * listing gave them. That order is the filesystem's and differs between hosts, so the files are
+     * put in name order before the shuffle: the same seed deals the same precon on every machine.
+     */
     static Deck randomPrecon(final File[] listing, final Random random) {
         final List<File> shuffled = new ArrayList<>(Arrays.asList(listing));
+        shuffled.sort(java.util.Comparator.comparing(File::getName));
         Collections.shuffle(shuffled, random);
         for (final File f : shuffled) {
             final Deck d = DeckSerializer.fromFile(f);
