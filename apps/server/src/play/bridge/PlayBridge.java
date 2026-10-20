@@ -2614,7 +2614,45 @@ public final class PlayBridge {
             f.addProperty("enable1", enable1);
             f.addProperty("enable2", enable2);
             f.addProperty("focus1", focus1);
+            final String refusal = enable1 ? buttonOneRefusal() : null;
+            if (refusal != null) { f.addProperty("refusal1", refusal); }
             frame(f);
+        }
+
+        /**
+         * Why Forge would refuse this seat's button one if it were pressed now, in Forge's own words;
+         * null when it would take it.
+         *
+         * {@code InputBlock} enables its OK whatever the blocks are ({@code InputBlock.java:77}) and
+         * only checks them once it is pressed: {@code onOk} runs {@code CombatUtil.validateBlocks}
+         * and, on an error, shows it as a message and keeps the input open
+         * ({@code InputBlock.java:100-111}) — a menace attacker with one blocker, a creature that
+         * must block, one that can't block alone. {@code InputAttack}'s OK stops the input and
+         * {@code PhaseHandler} then runs {@code CombatUtil.validateAttackers}, asking again on a
+         * failure ({@code PhaseHandler.java:545-550}). Both validators are read here, against the
+         * input that is live right now, on every bar the input sends: each click re-sends it
+         * ({@code InputBlock.onCardSelected} → {@code showMessage}), after the click has changed
+         * the combat. The game thread is parked on the input, so its combat is stable for the read.
+         */
+        private String buttonOneRefusal() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            final Object input = human.getInputQueue().getInput();
+            try {
+                if (input instanceof forge.gamemodes.match.input.InputBlock) {
+                    final var combat = (forge.game.combat.Combat) field(input, forge.gamemodes.match.input.InputBlock.class, "combat");
+                    final var defender = (forge.game.player.Player) field(input, forge.gamemodes.match.input.InputBlock.class, "defender");
+                    return combat == null ? null : forge.game.combat.CombatUtil.validateBlocks(combat, defender);
+                }
+                if (input instanceof forge.gamemodes.match.input.InputAttack) {
+                    final var combat = (forge.game.combat.Combat) field(input, forge.gamemodes.match.input.InputAttack.class, "combat");
+                    // PhaseHandler's own words for the same failure (`PhaseHandler.java:548`).
+                    return combat == null || forge.game.combat.CombatUtil.validateAttackers(combat) ? null : "Attack declaration invalid";
+                }
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] buttonOneRefusal: could not read the open input (" + e + "); button one stays as Forge set it");
+            }
+            return null;
         }
 
         @Override public void setSelectables(final Iterable<CardView> cards, final int min, final int max) {

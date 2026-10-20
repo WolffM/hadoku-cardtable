@@ -3774,7 +3774,17 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             testId="live-decision"
             message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(question, match.view?.stack[0] ?? null)}
             context={mulliganPick ? null : context}
-            button1={decisionOk ? { label: combatDoneLabel(match) ?? bar.label1, enabled: !mulliganPick || bar.enable1, testId: 'live-decision-ok', onClick: () => pressWithSound(match, 'ok') } : undefined}
+            button1={
+              decisionOk
+                ? {
+                    label: combatDoneLabel(match) ?? bar.label1,
+                    enabled: (!mulliganPick || bar.enable1) && bar.refusal1 === undefined,
+                    ...(bar.refusal1 === undefined ? {} : { tip: promptText(bar.refusal1) }),
+                    testId: 'live-decision-ok',
+                    onClick: () => pressWithSound(match, 'ok'),
+                  }
+                : undefined
+            }
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') } : undefined}
             check={sameTargetCheck}
           />

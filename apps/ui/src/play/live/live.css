@@ -752,6 +752,15 @@
   border-color: var(--accent);
 }
 
+/* A button that says why it is disabled: the wrapper is what the pointer hovers (`ConfirmPrompt.tsx`). */
+.confirm__tip {
+  display: inline-flex;
+}
+
+.confirm__tip > .confirm__button:disabled {
+  pointer-events: none;
+}
+
 /*
  * The coin-toss decoration, never a question (`../prompts/ConfirmPrompt.tsx`'s
  * own header: Forge has already decided the winner before this draws a

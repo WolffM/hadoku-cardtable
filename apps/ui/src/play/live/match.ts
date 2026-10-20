@@ -480,6 +480,8 @@ export interface LiveButtons {
   label2: string;
   enable1: boolean;
   enable2: boolean;
+  /** Why Forge would refuse button one now (the wire's `refusal1`): a press is not sent while it is set. */
+  refusal1?: string;
 }
 
 /** Why a held card may not be cast: the card whose effect forbids it, and for how long (Forge's `Duration`, counted from `durationPlayer`). */
@@ -1245,11 +1247,12 @@ export function answerAsk(match: LiveMatch, callId: string, method: BlockingMeth
  * Refuses when that button is disabled, so a stale bar cannot send an act the
  * game is not waiting for — the frame that disabled it is the authority, and
  * Forge would otherwise take the click as an answer to whatever it asks next.
+ * Refuses button one while Forge says it would refuse it (`refusal1`).
  */
 export function pressButton(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
   const bar = liveBar(match);
   if (bar === null) return false;
-  if (which === 'ok' ? !bar.enable1 : !bar.enable2) return false;
+  if (which === 'ok' ? !bar.enable1 || bar.refusal1 !== undefined : !bar.enable2) return false;
   // Forge's game thread is parked on the open question; a press now would
   // reach whichever input is current once it is answered.
   if (match.asks.length > 0) return false;
@@ -3133,6 +3136,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
       label2: typeof frame.label2 === 'string' ? frame.label2 : 'Cancel',
       enable1: frame.enable1 === true,
       enable2: frame.enable2 === true,
+      ...(frame.refusal1 === undefined ? {} : { refusal1: frame.refusal1 }),
     };
     match.barHold = null;
     match.inputLive = true;

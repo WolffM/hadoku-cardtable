@@ -336,6 +336,13 @@ export const UpdateButtonsSchema = z.strictObject({
   enable1: z.boolean(),
   enable2: z.boolean(),
   focus1: z.boolean(),
+  /**
+   * Ours: why Forge would refuse button one if it were pressed now, in its own validator's words —
+   * `CombatUtil.validateBlocks` while blocking, `validateAttackers` while attacking
+   * (`PlayBridge.java`'s `buttonOneRefusal`). Forge enables that OK whatever the declaration is and
+   * checks it only once pressed. Absent when the press would be taken.
+   */
+  refusal1: z.string().min(1).optional(),
 });
 
 /** `void hideZones(PlayerView controller, Iterable<PlayerZoneUpdate> zonesToUpdate)` — IGuiGame.java:121. */
