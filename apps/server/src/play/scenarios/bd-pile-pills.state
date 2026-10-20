@@ -1,0 +1,18 @@
+# e2e/bd-pile-pills.spec.ts — the operator, 2026-10-20: piles of 1/1 tokens on a crowded board drew
+# their 1/1 below the stack, and Kappa Cannoneer wore one hourglass per "can't be blocked this turn".
+# Alice (human, seat 0) has Kappa Cannoneer and 24 Servo tokens (a front row squeezed well under its
+# card width at 1280x800), four Plains and Sram's Expertise: three Servos enter at once, so Kappa
+# triggers three times and is left three identical effects.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Sram's Expertise
+humanbattlefield=Kappa Cannoneer;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;T:c_1_1_a_servo;Plains;Plains;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=

@@ -2265,6 +2265,36 @@ describe('drag to stack (#1, #19)', () => {
     expect(countOn(container, 8), 'a lone card has no count').toBeNull();
   });
 
+  /*
+   * The operator, 2026-10-20: "notice the extra 1/1 below the stacks of tokens causing a new row? …
+   * the stacks of tokens have become very small and cannot fit both the 2x and the 1/1". A crowded
+   * row squeezes its columns under `--card-w` (the grid's `minmax`), so anything sized from
+   * `--card-w` is sized for a card wider than the one drawn: the pile's `<li>` stood taller than
+   * its face and the P/T hung below the stack. jsdom lays nothing out, so this pins the rules;
+   * `zone-box.ts` measures the drawn width and `e2e/bd-pile-pills.spec.ts` the result in a real browser.
+   */
+  it('a pile is sized from the width it is drawn at, never the column ceiling, and its count stacks clear of the P/T', () => {
+    const rules = (css: string, selector: RegExp) =>
+      [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, sel]) => selector.test(sel!)).map(([, sel, body]) => `${sel!.trim()} { ${body!.trim()} }`);
+    const pileRules = rules(BOARD_CSS, /\.board-card\[data-pile-size\]/);
+    expect(pileRules.length, 'board.css sizes a pile').toBeGreaterThan(0);
+    for (const rule of pileRules) expect(rule, 'a pile’s box never reads the column ceiling').not.toMatch(/--card-w/);
+    expect(pileRules.join('\n'), 'the fan is added below the face, which is as tall as the card drawn').toMatch(/padding-bottom:\s*var\(--pile-fan\)/);
+    const sized = rules(CARD_CSS, /^\s*\.board-card\[data-pile-size\],\s*\.board-card__pile > \.board-card\s*$/).join('\n');
+    expect(sized, 'every card of a pile measures the face it draws, from the width it was drawn at').toMatch(/--face-w:\s*calc\(var\(--card-drawn-w/);
+    expect(sized, 'the credit strip is a tenth of that face').toMatch(/--credit-strip:\s*calc\(var\(--face-w\)/);
+    const count = rules(CARD_CSS, /\.board-card\[data-pile-size\]\s*>\s*\.board-card__copies\s*$/).join('\n');
+    expect(count, 'the count stops above the P/T badge').toMatch(/var\(--pt-h\)/);
+  });
+
+  it('what a combat-ready card wears rises with its face, a flyer’s on top of its loop', () => {
+    const css = CARD_CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+    const lift = (selector: string) => css.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+    expect(lift('.board-card[data-combat-ready] > .board-card__face'), 'the face rises 4px').toMatch(/translate:\s*0 -4px/);
+    expect(lift('.board-card[data-combat-ready] > :not(.board-card__face, .board-card__pile)'), 'and its badges with it').toMatch(/translate:\s*0 -4px/);
+    expect(lift('.board-card[data-flying][data-combat-ready] > :not(.board-card__face, .board-card__pile)'), 'a flyer’s on its loop').toMatch(/translate:\s*var\(--fly-x\) calc\(-7px \+ var\(--fly-y\)\)/);
+  });
+
   it('a pile that mixes cards has no count', () => {
     const view = withCopiesOf8(1);
     const { container } = renderBoard(view);
@@ -5196,6 +5226,33 @@ describe('effect tags: what a resolved ability left waiting sits on its source u
     expect(column.map((t) => t.dataset.effect ?? t.dataset.choice)).toEqual(['trigger', 'effect', 'type']);
     const css = styled();
     expect(css(effects(container)[0]!, 'background-color'), 'ink on the card: the family’s one inverted chip').toBe(css(effects(container)[0]!, 'border-color'));
+  });
+
+  /*
+   * The operator, 2026-10-20: "notice the many white hourglass effects of kappa cannoneer? once the
+   * white hourglass happens more than once, let's just display it once and show a number next to it
+   * that we increment rather than continuing to stack the icon lower."
+   */
+  it('the same mark twice or more is one mark with its count beside it, and its tip still lists each', () => {
+    const cant = "Kappa Cannoneer can't be blocked this turn.";
+    const view = withWaiting([
+      { kind: 'effect', text: cant },
+      { kind: 'effect', text: cant },
+      { kind: 'trigger', text: 'At the beginning of the next end step, sacrifice it.' },
+      { kind: 'effect', text: cant },
+      { kind: 'effect', text: 'Creatures you control get +1/+1.' },
+    ]);
+    const { container } = renderBoard(view);
+    const chips = effects(container);
+    expect(chips.map((t) => t.dataset.effect), 'one chip per kind of mark, in the order each first appears').toEqual(['effect', 'trigger']);
+    const [effect, trigger] = chips as [HTMLElement, HTMLElement];
+    expect(effect.dataset.count, 'four effects on the one chip').toBe('4');
+    expect(effect.querySelectorAll('svg'), 'drawn once').toHaveLength(1);
+    expect(effect.querySelector('.board-card__tag-count')?.textContent, 'the number beside it').toBe('4');
+    expect(effect.dataset.tip, 'the tip lists what they are').toBe(`In effect: ${cant} (×3)\nIn effect: Creatures you control get +1/+1.`);
+    expect(trigger.dataset.count, 'a lone mark has no count').toBeUndefined();
+    expect(trigger.textContent, 'nor a number').toBe('');
+    expect(container.querySelector('[data-card-id="21"] > .board-card__tags')!.getAttribute('aria-label'), 'and the column still says each').toContain(`In effect: ${cant} (×3)`);
   });
 
   it('used up, it is gone: no waiting, no chip', () => {
