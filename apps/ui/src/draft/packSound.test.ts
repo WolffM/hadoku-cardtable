@@ -7,7 +7,7 @@ import type { SoundEvent } from '../sound/mix.ts';
 import pick1 from './fixtures/seat0-pack1-pick1.json';
 import pick2 from './fixtures/seat0-pack1-pick2.json';
 import spectator from './fixtures/spectator-pack2-pick5.json';
-import { freshPackKey, useNewPackSound } from './packSound.ts';
+import { nextPackKey, useNewPackSound } from './packSound.ts';
 import type { DraftView } from './types.ts';
 import { expectDraftView } from './validate.ts';
 
@@ -22,21 +22,25 @@ function recorded(): string[] {
 }
 
 describe('the New pack sound', () => {
-  it('names a whole pack at its first pick, for a seat only', () => {
-    expect(freshPackKey(view(pick1))).not.toBeNull();
-    expect(freshPackKey(view(pick2))).toBeNull();
-    expect(freshPackKey(view(spectator))).toBeNull();
+  it('names the pack in front of a seat that still owes a pick from it, and nothing for a spectator', () => {
+    expect(nextPackKey(view(pick1))).not.toBeNull();
+    expect(nextPackKey(view(pick2))).not.toBe(nextPackKey(view(pick1)));
+    expect(nextPackKey(view(spectator))).toBeNull();
+    const picked = view(pick1);
+    expect(nextPackKey({ ...picked, waitingOn: picked.waitingOn.filter((s) => s !== 0) }), 'already picked from it').toBeNull();
   });
 
-  it('plays once for a fresh pack, not again for its later picks or a re-render, and again for the next round', () => {
+  it('plays once for each pack that lands, not again for a re-render or while waiting on the table', () => {
     const roles = recorded();
     const first = view(pick1);
     const { rerender } = renderHook((v: DraftView) => useNewPackSound(v), { initialProps: first });
     expect(roles).toEqual(['ui.draft-pack']);
     rerender({ ...first });
-    rerender(view(pick2));
+    rerender({ ...first, waitingOn: first.waitingOn.filter((s) => s !== 0) });
     expect(roles).toEqual(['ui.draft-pack']);
-    rerender({ ...first, packNumber: 2 });
+    rerender(view(pick2));
     expect(roles).toEqual(['ui.draft-pack', 'ui.draft-pack']);
+    rerender({ ...first, packNumber: 2 });
+    expect(roles).toHaveLength(3);
   });
 });

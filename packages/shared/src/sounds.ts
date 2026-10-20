@@ -210,7 +210,7 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			ui('ui.priority', 'Priority back to you', 'You hold priority again: a later window of your own turn, or any window on theirs.'),
 			ui('ui.inspect', 'Inspect', 'The expanded card view opens.'),
 			ui('ui.draft-pick', 'Draft pick', 'A pick is taken in the draft.'),
-			ui('ui.draft-pack', 'New pack', 'A fresh pack is opened in the draft: the first, and each new round.'),
+			ui('ui.draft-pack', 'New pack', 'A pack lands in front of you to pick from: each round\'s fresh booster and every pack passed to you.'),
 			ui('ui.draft-scroll', 'Fan scroll', 'The open card moves along a fanned pack in the draft: the wheel, the arrows or a click on another card.'),
 		],
 	},
