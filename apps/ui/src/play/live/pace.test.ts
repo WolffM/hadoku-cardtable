@@ -71,6 +71,12 @@ describe('classify', () => {
   it('a card arriving in a hand is draw', () => expect(classify(DRAW)).toBe('draw'));
   it('an unrecognised delta is default', () => expect(classify(DEFAULT_DELTA)).toBe('default'));
   it('a delta of nothing the board draws is unseen', () => expect(classify(CAST_FLAG)).toBe('unseen'));
+  it('a mana pool paying a cost is cast', () =>
+    expect(classify(deltaOf({ p0: { _type: 1, _id: 0, MindSlaveMaster: { t: 'int', v: 0 }, Mana: { t: 'map', v: [] } } }))).toBe('cast'));
+  it('Forge closing the zones it showed for a question draws nothing: unseen', () => {
+    expect(classify({ frame: { kind: 'notify', method: 'hideZones' } })).toBe('unseen');
+    expect(classify({ frame: { kind: 'notify', method: 'restoreOldZones' } })).toBe('unseen');
+  });
   it('a card leaving a hand is cast', () => expect(classify(HAND_OUT)).toBe('cast'));
   it('a land tapping is cast', () => expect(classify(TAPS)).toBe('cast'));
   it('a card untapping is not', () => expect(classify(deltaOf({ c1: { _type: 0, _id: 1, Tapped: { t: 'bool', v: false } } }))).toBe('default'));
