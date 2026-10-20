@@ -1,0 +1,24 @@
+# bob (ai, seat 1) is the active player with Boggart Brute (3/2, menace)
+# already attacking alice (human, seat 0) directly; alice holds two Walls of
+# Stone (0/8), either of which may block it, and both of which must for the
+# block to be legal. Landed at Declare ATTACKERS Step, for the reason
+# `w54-b-two-blockers.state` gives: the attacker's own priority stop there is
+# driven through the ordinary main loop, so state effects have run before
+# Forge decides who may block.
+#
+# Walls, not 1/1s: the double block deals the Brute's 3 damage to an 0/8 wall
+# and none back, so every creature is still on the board at Combat Damage,
+# where the declared block is read. Unblocked, the Brute's 3 reach alice.
+turn=1
+activeplayer=ai
+activephase=COMBAT_DECLARE_ATTACKERS
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Wall of Stone;Wall of Stone
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Boggart Brute|Attacking
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

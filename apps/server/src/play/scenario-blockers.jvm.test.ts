@@ -41,7 +41,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, forgeFrames, scenarioText, startScenario, timeline, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, forgeFrames, scenarioText, startScenario, timeline, waitUntil, type Card, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'Declare Blockers, set up by a scenario, against real Forge'
@@ -177,6 +177,95 @@ describe.skipIf(!available.ok)(title, () => {
 				);
 			} catch (err) {
 				console.log(`[q12-timeline]\n${timeline(s, 1)}`);
+				throw err;
+			} finally {
+				await s.stop();
+			}
+		},
+		180_000,
+	);
+
+	it(
+		"a menace attacker with one blocker: the defender's OK carries Forge's refusal until a second blocker joins or the one leaves, and Forge takes it then",
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 13, decks: DECKS, scenario: scenarioText('menace-block') });
+			const refusal = (): string | undefined => s.buttons(0)?.refusal1;
+			const blocking = (id: number): boolean => {
+				const view = [...s.state(0).values()].find((o) => o._type === 0 && o._id === id);
+				return (view?.Blocking as { v?: boolean } | undefined)?.v === true;
+			};
+			try {
+				await finishMulligan(s);
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						return s.zone(0, 'Battlefield').filter((c) => c.creature).length === 2;
+					},
+					"the defender's two walls on the board",
+					20_000,
+					s,
+				);
+				const [x, y] = s.zone(0, 'Battlefield').filter((c) => c.creature) as [Card, Card];
+				await passDeclareAttackers(s, 1);
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						return /^Select creatures to block/.test(s.prompt(0));
+					},
+					'the block-assignment input to open for the defender',
+					30_000,
+					s,
+				);
+				const say = (step: string): void => console.log(`[menace-block] ${step} | ${JSON.stringify(s.buttons(0))}`);
+				say('opened');
+				expect(s.buttons(0)?.enable1, 'Forge enables its OK').toBe(true);
+				expect(refusal(), 'no block is a legal block').toBeUndefined();
+
+				s.select(0, x.id);
+				await waitUntil(() => blocking(x.id), 'the wall to be assigned', 10_000, s);
+				// What Forge does with the press: refuses it with a message, and keeps the block window open.
+				const linesBeforeRefusedOk = s.lines.length;
+				s.ok(0);
+				await waitUntil(
+					() => forgeFrames(s, 0, linesBeforeRefusedOk).some((f) => f.method === 'message'),
+					"Forge's answer to OK with one blocker on the menace attacker",
+					10_000,
+					s,
+				);
+				const answer = forgeFrames(s, 0, linesBeforeRefusedOk).map((f) => `${f.method}${f.method === 'message' ? ` "${String(f.message)}"` : ''}`);
+				console.log(`[menace-block] OK with one blocker: ${JSON.stringify(answer)} | prompt ${JSON.stringify(s.prompt(0))}`);
+				expect(answer.find((a) => a.startsWith('message'))).toMatch(/Boggart Brute \(\d+\) cannot be blocked with 1 creatures/);
+				expect(s.prompt(0), 'the block window stays open').toMatch(/^Select creatures to block/);
+				expect(blocking(x.id), 'with the wall still assigned').toBe(true);
+				await waitUntil(() => refusal() !== undefined, 'one blocker on the menace attacker to be refused', 10_000, s);
+				say('one blocker');
+				expect(refusal()).toMatch(/^Boggart Brute \(\d+\) cannot be blocked with 1 creatures/);
+
+				s.select(0, y.id);
+				await waitUntil(() => blocking(y.id) && refusal() === undefined, 'a second blocker to make the block legal', 10_000, s);
+				say('two blockers');
+
+				s.select(0, y.id);
+				await waitUntil(() => !blocking(y.id) && refusal() !== undefined, 'the block to be refused again with one blocker', 10_000, s);
+				s.select(0, x.id);
+				await waitUntil(() => !blocking(x.id) && refusal() === undefined, 'no blocker to be legal again', 10_000, s);
+				say('none');
+
+				s.select(0, x.id);
+				s.select(0, y.id);
+				await waitUntil(() => blocking(x.id) && blocking(y.id) && refusal() === undefined, 'both walls blocking', 10_000, s);
+				const linesBeforeOk = s.lines.length;
+				s.ok(0);
+				await waitUntil(
+					() => forgeFrames(s, 0, linesBeforeOk).some((f) => f.method === 'showPromptMessage' && /^Priority:[\s\S]*Declare Blockers Step/.test(f.message ?? '')),
+					'Forge to take the double block and move on to priority',
+					10_000,
+					s,
+				);
+				expect(blocking(x.id) && blocking(y.id), 'both walls block the Brute').toBe(true);
+			} catch (err) {
+				console.log(`[menace-block-timeline]\n${timeline(s, 0)}`);
 				throw err;
 			} finally {
 				await s.stop();

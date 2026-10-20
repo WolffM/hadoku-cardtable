@@ -2306,6 +2306,44 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
       'Concede',
     ]);
   });
+
+  /*
+   * The operator: *"when a menace creature is attacking, if i only assign one creature to block then
+   * it should not allow me to click 'Done Blocking'"*. Forge enables `InputBlock`'s OK whatever the
+   * blocks are; the bridge sends what `CombatUtil.validateBlocks` says (`refusal1`), and Done
+   * Blocking is off while it is set, saying why on hover.
+   */
+  it('Done Blocking is off while Forge would refuse the blocks, and says why on hover; on again once it would take them', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const opponent = m.view!.players.find((p) => !p.isViewer)!;
+    const blockBar = (refusal1?: string) =>
+      notify({
+        kind: 'notify',
+        method: 'updateButtons',
+        owner: { kind: 'player', id: 0 },
+        label1: 'OK',
+        label2: 'Cancel',
+        enable1: true,
+        enable2: false,
+        focus1: true,
+        ...(refusal1 === undefined ? {} : { refusal1 }),
+      });
+    const done = () => getByTestId('live-decision-ok') as HTMLButtonElement;
+
+    s.send(phase(m, 'COMBAT_DECLARE_BLOCKERS', opponent.id));
+    s.send(blockBar("Boggart Brute (57) cannot be blocked with 1 creatures you've assigned"));
+    await waitFor(() => expect(done().disabled, 'one blocker on a menace attacker').toBe(true));
+    expect(done().textContent).toBe('Done Blocking');
+    expect(done().closest('[data-tip]')?.getAttribute('data-tip'), 'Forge’s reason, without its card id').toBe(
+      "Boggart Brute cannot be blocked with 1 creatures you've assigned",
+    );
+    expect(pressButton(m, 'ok'), 'no press is sent while Forge would refuse it').toBe(false);
+
+    s.send(blockBar());
+    await waitFor(() => expect(done().disabled, 'a second blocker, or none').toBe(false));
+    expect(done().closest('[data-tip]'), 'nothing to explain').toBeNull();
+    expect(pressButton(m, 'ok')).toBe(true);
+  });
 });
 
 /* ── §A.11 — the log, as something you can read ──────────────────────── */

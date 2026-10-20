@@ -1,0 +1,19 @@
+# alice (human, seat 0) is the active player in her first main phase with
+# Juggernaut ("attacks each combat if able") and Grizzly Bears; bob (ai,
+# seat 1) has no creature. Forge's InputAttack enables its OK whatever is
+# declared and PhaseHandler checks the declaration only after the press
+# (`CombatUtil.validateAttackers`), so the declaration is invalid until
+# Juggernaut attacks: with nothing declared, and with only the Bears.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Juggernaut;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

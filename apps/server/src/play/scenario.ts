@@ -246,6 +246,7 @@ export interface Buttons {
 	label2: string;
 	enable1: boolean;
 	enable2: boolean;
+	refusal1?: string;
 }
 
 export interface Card {

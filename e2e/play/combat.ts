@@ -160,3 +160,23 @@ export const blockArrowKey = (blockerId: number, attackerId: number): string => 
 export function blockArrow(page: Page, blockerId: number, attackerId: number): Locator {
   return page.locator(`[data-testid="stack-target-arrow"][data-key="${blockArrowKey(blockerId, attackerId)}"]`);
 }
+
+/** The decision pop-up's button one: Done Attacking / Done Blocking while declaring. */
+export function decisionOk(page: Page): Locator {
+  return page.getByTestId('live-decision-ok');
+}
+
+/**
+ * The board's tooltip with the pointer over the decision pop-up's button one, or null when none shows.
+ * A disabled button takes no pointer, so the pointer is moved there rather than hovering the button.
+ */
+export async function decisionOkTip(page: Page): Promise<string | null> {
+  const box = await decisionOk(page).boundingBox();
+  if (box === null) return null;
+  await page.mouse.move(box.x + box.width / 2 - 3, box.y + box.height / 2);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  return page
+    .waitForFunction(() => document.querySelector('[data-testid="board-tip"]')?.textContent ?? null, null, { timeout: 3_000 })
+    .then((h) => h.jsonValue())
+    .catch(() => null);
+}
