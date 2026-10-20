@@ -283,18 +283,33 @@ test(
  * `[data-zone="stack"]`'s own `data-count`, which the placed-cards layer leaves
  * as it was.
  *
- * Four independent Opt casts (alice, bob, alice, bob — an INSTANT, so each
+ * Four independent Quicken casts (alice, bob, alice, bob — an INSTANT, so each
  * can be cast in response to the one before it; see `scenarios/w59-keiga
  * .state`'s own header for why a 0-cost CREATURE version of this does not
  * work: sorcery speed only, refused the instant anything else is on the
  * stack), then the whole four-item stack is let drain — each departure a
- * separate `data-count` mutation, timestamped in the PAGE by
+ * separate `data-count` mutation, timestamped in EACH page by
  * `performance.now()` and read back into Node, which is what actually
  * reaches a CI runner's job log (`console.log` INSIDE `page.evaluate` writes to
  * the browser's own console, never this process's stdout).
+ *
+ * Two of the operator's rulings meet here, and each screen is held to both:
+ *
+ * - 2026-10-08 (AD4 decision c): *"with several things on the stack they resolve one at a time with a
+ *   small delay each — a chain reaction."* Every departure is its own mutation, one item at a time, and
+ *   another player's item leaves after the pacer's `resolve` gap (600 ms, read here as ≥ 500).
+ * - 2026-10-20 (AF216): *"shorten own-resolve pauses"* — *"i like the idea of lots of animations
+ *   happening at the same time, seems fun."* The seat's OWN item resolving keeps no class gap
+ *   (`pace.ts`, "The seat's own acts go out as Forge sends them"): it still leaves on its own, in order,
+ *   but as soon as Forge sends it. How soon that is after the departure before it is Forge's timing, not
+ *   the pacer's (measured: 160–190 ms on the seat whose previous departure was held, 440–680 ms on the
+ *   other), so it is logged, not bounded; `pace.test.ts` pins that an own frame is never held.
+ *
+ * The stack drains top first, so the departures are bob's, alice's, bob's, alice's: on alice's screen
+ * bob's are paced and hers are not, and on bob's the other way round.
  */
 test(
-  titled('the chain reaction: a four-item stack drains one departure at a time, each spaced by the pacer’s own 600 ms'),
+  titled('the chain reaction: a four-item stack drains one departure at a time, the other player’s spaced by the pacer’s 600 ms'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -322,19 +337,23 @@ test(
       await castQuicken(alice.page);
       await expect.poll(() => offered(bob.page), { timeout: 15_000, message: 'bob is offered his second Quicken' }).not.toEqual([]);
       await castQuicken(bob.page);
-      await expect.poll(() => stackCount(alice.page), { timeout: 15_000, message: 'all four Quickens are on the stack' }).toBe(4);
+      for (const page of [alice.page, bob.page]) {
+        await expect.poll(() => stackCount(page), { timeout: 15_000, message: 'all four Quickens are on the stack, on both screens' }).toBe(4);
+      }
 
-      // THE MEASUREMENT: start logging only now, so the climb to four (0→1→2→3→4, each already
-      // spaced by the SAME pacer) never pollutes the drain-phase numbers below.
-      await alice.page.evaluate(() => {
-        const w = window as unknown as { __w59Chain: { t: number; count: string }[] };
-        w.__w59Chain = [];
-        const el = document.querySelector('[data-zone="stack"]');
-        if (el === null) return;
-        const log = () => w.__w59Chain.push({ t: performance.now(), count: el.getAttribute('data-count') ?? '0' });
-        log();
-        new MutationObserver(log).observe(el, { attributes: true, attributeFilter: ['data-count'] });
-      });
+      // THE MEASUREMENT: start logging only now, on both screens, so the climb to four (0→1→2→3→4)
+      // never pollutes the drain-phase numbers below.
+      for (const page of [alice.page, bob.page]) {
+        await page.evaluate(() => {
+          const w = window as unknown as { __w59Chain: { t: number; count: string }[] };
+          w.__w59Chain = [];
+          const el = document.querySelector('[data-zone="stack"]');
+          if (el === null) return;
+          const log = () => w.__w59Chain.push({ t: performance.now(), count: el.getAttribute('data-count') ?? '0' });
+          log();
+          new MutationObserver(log).observe(el, { attributes: true, attributeFilter: ['data-count'] });
+        });
+      }
 
       // Nobody has anything left (every Quicken and every land that paid for one is spent); let it drain,
       // pressing whatever bar either screen shows (never a cast of our own) until it is empty. Quicken, not
@@ -346,23 +365,27 @@ test(
               const text = await says(page);
               await clickOnce(page, text, 'ok');
             }
-            return stackCount(alice.page);
+            return Math.max(await stackCount(alice.page), await stackCount(bob.page));
           },
-          { timeout: 30_000, message: 'the four-item stack drains unattended' },
+          { timeout: 30_000, message: 'the four-item stack drains unattended, on both screens' },
         )
         .toBe(0);
 
-      const log = await alice.page.evaluate(() => (window as unknown as { __w59Chain: { t: number; count: string }[] }).__w59Chain);
-      for (const entry of log) console.log('[w59-chain]', entry.t.toFixed(1), entry.count);
-
-      // Every departure (a strictly DECREASING count — the pacer never reorders) is at least ~500 ms
-      // after the one before it: 600 ms minus render/delivery slop, read generously so a real CI runner's
-      // own jitter does not fail this on its own. The exact gaps go in `docs/planning/wave59-evidence/
-      // P/chain.md`, read off THIS test's own `[w59-chain]` lines in the job log, not off this bound.
-      const departures = log.filter((e) => e.count !== '4').map((e) => e.t);
-      expect(departures.length, 'four items left the stack, four separate mutations').toBeGreaterThanOrEqual(4);
-      for (let i = 1; i < departures.length; i++) {
-        expect(departures[i]! - departures[i - 1]!, `departure ${i} is spaced from departure ${i - 1}`).toBeGreaterThanOrEqual(500);
+      // Bottom to top, the order they were cast in; the stack drains from the top.
+      const casters = ['alice', 'bob', 'alice', 'bob'] as const;
+      for (const [who, page] of [['alice', alice.page], ['bob', bob.page]] as const) {
+        const log = await page.evaluate(() => (window as unknown as { __w59Chain: { t: number; count: string }[] }).__w59Chain);
+        for (const entry of log) console.log(`[w59-chain] ${who}`, entry.t.toFixed(1), entry.count);
+        const counts = log.map((e) => Number(e.count));
+        // One item at a time: every mutation after the first reading takes exactly one item away.
+        expect(counts, `${who}: the stack drains 4, 3, 2, 1, 0 — one departure per mutation`).toEqual([4, 3, 2, 1, 0]);
+        const at = log.map((e) => e.t);
+        for (let k = 1; k < casters.length; k++) {
+          const gap = at[k + 1]! - at[k]!;
+          const owner = casters[casters.length - 1 - k]!;
+          console.log(`[w59-chain] ${who} departure ${k} (${owner}'s Quicken) ${gap.toFixed(1)} ms after departure ${k - 1}`);
+          if (owner !== who) expect(gap, `${who}: ${owner}'s Quicken's departure ${k} is spaced by the resolve gap`).toBeGreaterThanOrEqual(500);
+        }
       }
     } finally {
       await seated?.alice.context.close();
