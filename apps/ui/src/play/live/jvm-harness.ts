@@ -45,6 +45,7 @@ import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type Matc
 import { withEndStepStop } from '../../../../server/src/play/auto.ts';
 import { WATCHER_SEAT, createMatchRegistry, type Match } from '../../../../server/src/play/match.ts';
 import { dumpTimeoutReport, scenarioText, summarizeFrame } from '../../../../server/src/play/scenario.ts';
+import type { BoardView, DamageHit, FaceHit } from '../adapter.ts';
 import { closeMatch, startMatch, type LiveMatch, type MatchTransport } from './match.ts';
 import { MATCH_EVENTS, type MatchSnapshot, type ServerEnvelope, type WireCursor } from './transport.ts';
 
@@ -247,8 +248,39 @@ export async function expectNoDesync(h: DesyncSource): Promise<void> {
     expect(lastError).toBeNull();
     const fresh = await freshFold(server);
     expect(Object.fromEntries(state)).toEqual(Object.fromEntries(fresh.state));
-    expect(view).toEqual(fresh.view);
+    const { hits = [], faceHits = [], ...board } = view ?? {};
+    const { hits: freshHits = [], faceHits: freshFaceHits = [], ...freshBoard } = fresh.view ?? {};
+    expect(view === null ? null : board).toEqual(fresh.view === null ? null : freshBoard);
+    expect({ hits: freshHits, faceHits: freshFaceHits }, `seat ${s.seat}: a fresh fold owes no hit, its history's damage is not news`).toEqual({ hits: [], faceHits: [] });
+    expectHitsDealt(s.seat, { hits, faceHits }, server.frames);
   }
+}
+
+/**
+ * A board's hits are events, not state: a live seat numbers each one as its frame arrives, and a
+ * fresh fold of the same history owes none (`adoptSnapshot`: a reconnect must not ram the last fight
+ * again). So the two folds hold different hits by design, and the seat's are checked against what the
+ * server dealt instead: the latest damage in its history, in the order dealt, numbered upward.
+ */
+function expectHitsDealt(seat: number, held: Pick<BoardView, 'hits' | 'faceHits'>, history: readonly ServerFrame[]): void {
+  const dealt: { hits: Omit<DamageHit, 'seq'>[]; faceHits: Omit<FaceHit, 'seq'>[] } = { hits: [], faceHits: [] };
+  for (const frame of history) {
+    if (frame.method !== 'applyDelta') continue;
+    for (const [cardId, sourceId, amount] of frame.payload.damage ?? []) dealt.hits.push({ cardId, sourceId: sourceId >= 0 ? sourceId : null, amount });
+    for (const [playerId, sourceId, amount, combat] of frame.payload.faceDamage ?? []) dealt.faceHits.push({ playerId, sourceId: sourceId >= 0 ? sourceId : null, amount, combat });
+  }
+  const hits = held.hits ?? [];
+  const faceHits = held.faceHits ?? [];
+  const seqs = [...hits, ...faceHits].map((h) => h.seq);
+  expect(new Set(seqs).size, `seat ${seat}: every hit has its own seq`).toBe(seqs.length);
+  for (const list of [hits, faceHits]) {
+    expect(list.every((h, i) => i === 0 || h.seq > list[i - 1]!.seq), `seat ${seat}: hits are numbered in the order dealt`).toBe(true);
+  }
+  const unseq = <T extends { seq: number }>(list: readonly T[]) => list.map(({ seq: _, ...rest }) => rest);
+  expect(
+    { hits: unseq(hits), faceHits: unseq(faceHits) },
+    `seat ${seat}: its hits are the latest damage the server dealt it, in order`,
+  ).toEqual({ hits: dealt.hits.slice(dealt.hits.length - hits.length), faceHits: dealt.faceHits.slice(dealt.faceHits.length - faceHits.length) });
 }
 
 /**
