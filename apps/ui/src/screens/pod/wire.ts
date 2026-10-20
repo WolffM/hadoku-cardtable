@@ -24,6 +24,9 @@ export type { PodMember, PodSeats, PodStandingsRow, PodView };
 /** The AI's seat occupant (`apps/server/src/room/lobby.ts`'s `POD_AI`). */
 export const POD_AI = 'ai';
 
+/** A seat the owner closed (`lobby.ts`'s `POD_CLOSED`): nobody sits there, and the draft deals one fewer. */
+export const POD_CLOSED = 'closed';
+
 /**
  * Whether the draft deals: no seat open — every one a member or the AI — and
  * every seated member ready. A member who never sat is watching, and is not
@@ -31,7 +34,7 @@ export const POD_AI = 'ai';
  */
 export function podDealable(seats: PodSeats | undefined, members: readonly { id: string; ready: boolean }[]): boolean {
   if (seats === undefined || seats.some((s) => s === null)) return false;
-  const humans = seats.filter((s) => s !== null && s.memberId !== POD_AI).map((s) => s!.memberId);
+  const humans = seats.filter((s) => s !== null && s.memberId !== POD_AI && s.memberId !== POD_CLOSED).map((s) => s!.memberId);
   return humans.length > 0 && humans.every((id) => members.find((m) => m.id === id)?.ready === true);
 }
 

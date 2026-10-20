@@ -41,6 +41,7 @@ import {
 	NO_FORMAT,
 	openLobby,
 	POD_AI,
+	POD_CLOSED,
 	randomFormat,
 	POD_SPARED_MS,
 	ROOM_IDLE_MS,
@@ -2236,7 +2237,7 @@ describe('the AI seats play as the room’s characters', () => {
 		expect(new Set(names).size, 'seven different characters').toBe(7);
 		expect(names.map((n) => n.toLowerCase()), 'none of them the one Alice wears').not.toContain(worn);
 		expect(names.every((n) => /^[A-Z][a-z]+$/.test(n))).toBe(true);
-		expect(lobby.podBotNames(id)).toEqual(names);
+		expect(lobby.podDraft(id)).toEqual({ seats: 8, botNames: names });
 		// Across the table from the one human (draft seat 4, the fourth bot): who the AI plays as.
 		expect(lobby.get(id)!.ai.name).toBe(names[3]);
 
@@ -2258,5 +2259,58 @@ describe('the AI seats play as the room’s characters', () => {
 		const worn = made.room.members[0]!.avatarId;
 		expect(made.room.ai.avatarId).not.toBe(worn);
 		expect(made.room.ai.name.toLowerCase()).toBe(made.room.ai.avatarId);
+	});
+});
+
+describe('closed pod seats', () => {
+	async function draftRoom(): Promise<{ lobby: Lobby; id: string }> {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		return { lobby, id: made.room.id };
+	}
+
+	it('the owner closes an empty seat and opens it again; nobody else may, and a taken seat cannot be', async () => {
+		const { lobby, id } = await draftRoom();
+		expect(lobby.closePod(id, BOB.id, 5, true)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.sitPod(id, BOB.id, 4).ok).toBe(true);
+		expect(lobby.closePod(id, ALICE.id, 4, true)).toEqual({ ok: false, reason: 'seat-taken' });
+		expect(lobby.closePod(id, ALICE.id, 5, true).ok).toBe(true);
+		expect(lobby.get(id)?.pod?.seats[5]).toEqual({ memberId: POD_CLOSED, name: '' });
+		expect(lobby.sitPod(id, BOB.id, 5)).toMatchObject({ ok: false });
+		expect(lobby.aiPod(id, BOB.id, 5, true)).toEqual({ ok: false, reason: 'seat-taken' });
+		expect(lobby.closePod(id, ALICE.id, 5, false).ok).toBe(true);
+		expect(lobby.get(id)?.pod?.seats[5]).toBeNull();
+	});
+
+	it('leaves at least two seats open', async () => {
+		const { lobby, id } = await draftRoom();
+		for (let seat = 2; seat < 8; seat++) expect(lobby.closePod(id, ALICE.id, seat, true).ok).toBe(true);
+		expect(lobby.closePod(id, ALICE.id, 1, true)).toEqual({ ok: false, reason: 'too-few' });
+	});
+
+	it('a pod of four deals a draft of four — two players and two AI — and is dealt once the four are filled', async () => {
+		const { lobby, id } = await draftRoom();
+		for (const seat of [4, 5, 6, 7]) expect(lobby.closePod(id, ALICE.id, seat, true).ok).toBe(true);
+		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+		for (const m of [ALICE, BOB]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		expect(lobby.startDraft(id, ALICE.id), 'two seats still open').toEqual({ ok: false, reason: 'not-ready' });
+		for (const seat of [2, 3]) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
+		const deal = lobby.podDraft(id)!;
+		expect(deal.seats).toBe(4);
+		expect(deal.botNames).toHaveLength(2);
+		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
+		expect(lobby.podHumans(id).map((h) => h.id)).toEqual([ALICE.id, BOB.id]);
+
+		const load = loadPool(CUBE_FILE);
+		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
+		const draftRooms = createDraftRooms({ pool: load.pool.cards, cube: load.pool.meta, now: () => 1_700_000_000_000 });
+		draftRooms.setHumansLookup((podId) => lobby.podHumans(podId).map((h) => ({ participantId: h.id, displayName: h.name })));
+		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
+		const room = draftRooms.open(id);
+		expect(room.seats.capacity ?? room.seats.seats.length).toBe(4);
+		expect(humanSeats(room.seats).map((s) => s.participantId).sort()).toEqual([ALICE.id, BOB.id].sort());
 	});
 });

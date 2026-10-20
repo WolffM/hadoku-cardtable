@@ -105,6 +105,7 @@ import {
 	DEFAULT_ROOM_SETTINGS,
 	DRAFT_POOL_PREFIX,
 	GAME_TYPES,
+	POD_MIN_OPEN,
 	ROOM_ID_RE,
 	draftIdOfPool,
 	watchpartyRoomId,
@@ -737,6 +738,37 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 					: result.reason === 'not-lobby'
 						? 'the pod has already started — seats are fixed'
 						: 'that seat is already taken';
+			return res.status(409).json({ error });
+		}
+		res.json(roomBody(result.room, caller.id));
+	});
+
+	/** Close an empty pod seat, or open a closed one: the owner's, before the draft (`Lobby.closePod`). */
+	rooms.post('/:id/pod/close', (req: Request, res: Response) => {
+		const o = asObject(req.body);
+		if (o === null) return badRequest(res, 'body must be a JSON object');
+		const extra = unknownKeys(o, ['seat', 'closed']);
+		if (extra.length > 0) return badRequest(res, `unknown field(s): ${extra.join(', ')}`);
+		if (typeof o.seat !== 'number' || !Number.isInteger(o.seat) || o.seat < 0 || o.seat >= POD_SEATS) {
+			return badRequest(res, `seat must be an integer 0..${POD_SEATS - 1}`);
+		}
+		if (typeof o.closed !== 'boolean') return badRequest(res, 'closed must be true or false');
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id)) return noMatch(res);
+		const result = lobby.closePod(id, caller.id, o.seat, o.closed);
+		if (!result.ok) {
+			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
+			if (result.reason === 'not-leader') return res.status(403).json({ error: 'only the room owner closes seats' });
+			const error =
+				result.reason === 'not-draft'
+					? 'this room does not have a pod'
+					: result.reason === 'not-lobby'
+						? 'the pod has already started — seats are fixed'
+						: result.reason === 'too-few'
+							? `a pod keeps at least ${POD_MIN_OPEN} seats`
+							: 'that seat is taken';
 			return res.status(409).json({ error });
 		}
 		res.json(roomBody(result.room, caller.id));

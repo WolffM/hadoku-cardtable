@@ -36,9 +36,9 @@ import { useState } from 'react';
 
 import type { RoomMember } from '../rooms/api.ts';
 import { StatusPill } from './ConstructedScreen.tsx';
-import { aiPod, sitPod, standPod } from './pod/client.ts';
+import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
-import { POD_AI, podDealable, type PodView } from './pod/wire.ts';
+import { POD_AI, POD_CLOSED, podDealable, type PodView } from './pod/wire.ts';
 
 export { podDealable };
 
@@ -97,6 +97,15 @@ export function DraftLobby({
       })
       .finally(() => setSeatBusy(false));
   };
+  const doClose = (seat: number, closed: boolean): void => {
+    setSeatBusy(true);
+    setSeatError(null);
+    closePod(roomId, seat, closed)
+      .then((r) => {
+        if (!r.ok) setSeatError(r.message);
+      })
+      .finally(() => setSeatBusy(false));
+  };
   const doStand = (): void => {
     setSeatBusy(true);
     setSeatError(null);
@@ -121,6 +130,7 @@ export function DraftLobby({
             onSit={doSit}
             onStand={doStand}
             onAi={doAi}
+            onClose={doClose}
           />
           {seatError !== null && (
             <p className="lobby__error" role="alert" data-testid="pod-seat-error">
@@ -195,7 +205,7 @@ export function DraftLobby({
 function draftStateText(pod: PodView | null, members: RoomMember[], dealing: boolean): string {
   if (dealing) return 'Dealing the draft…';
   const seats = pod?.seats ?? [];
-  const seatedIds = seats.filter((s) => s !== null && s.memberId !== POD_AI).map((s) => s!.memberId);
+  const seatedIds = seats.filter((s) => s !== null && s.memberId !== POD_AI && s.memberId !== POD_CLOSED).map((s) => s!.memberId);
   const waiting = members.filter((m) => seatedIds.includes(m.id) && !m.ready).map((m) => m.name);
   if (waiting.length > 0) return `Waiting for ${listOf(waiting)}.`;
   const open = seats.filter((s) => s === null).length;

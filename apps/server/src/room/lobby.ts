@@ -541,6 +541,10 @@ export type SitPodResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'pod-full' };
 
+export type ClosePodResult =
+	| { ok: true; room: RoomView }
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'too-few' };
+
 export type StandPodResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' };
@@ -559,6 +563,21 @@ export type PlayPodResult =
  * member id would, and is never a member — but once it has played, a row of the standings.
  */
 export const POD_AI = 'ai';
+
+/**
+ * A pod seat its owner closed (the operator, 2026-10-19: *"closing seats changes
+ * how many people are in the tournament and draft"*): no one sits there, and the
+ * draft deals one seat fewer.
+ */
+export const POD_CLOSED = 'closed';
+
+/** The fewest seats a pod is left with: one player and one more. */
+export const POD_MIN_OPEN = 2;
+
+/** The seats the draft deals: every one not closed. */
+function podSize(room: RoomRecord): number {
+	return room.podSeats.filter((id) => id !== POD_CLOSED).length;
+}
 
 /** An AI seat as a player: one of the room's characters, by its own name (the operator, 2026-10-19). */
 export interface AiPersona {
@@ -600,7 +619,7 @@ export function roomAi(room: RoomRecord): AiPersona {
 function aiOpponent(room: RoomRecord): AiPersona | null {
 	const bots = aiPersonas(room);
 	const humans = seatedHumans(room).length;
-	const across = Math.floor(POD_SEATS / 2);
+	const across = Math.floor(podSize(room) / 2);
 	return bots[across - humans] ?? bots[0] ?? null;
 }
 
@@ -707,13 +726,14 @@ const EMPTY_POD_SEATS: PodView['seats'] = new Array(POD_SEATS).fill(null) as Pod
  * *"i need an AI button same as how it's used in the constructed 1v1 lobby"*).
  */
 function seatedHumans(room: RoomRecord): string[] {
-	return room.podSeats.filter((id): id is string => id !== null && id !== POD_AI);
+	return room.podSeats.filter((id): id is string => id !== null && id !== POD_AI && id !== POD_CLOSED);
 }
 
 function podSeatsView(room: RoomRecord): PodView['seats'] {
 	return room.podSeats.map((id, i) => {
 		if (id === null) return null;
 		if (id === POD_AI) return { memberId: POD_AI, name: personaOf(room.podAi[i] ?? AVATAR_POOL[0]).name } as PodMember;
+		if (id === POD_CLOSED) return { memberId: POD_CLOSED, name: '' } as PodMember;
 		const member = room.members.find((m) => m.id === id);
 		return member === undefined ? null : ({ memberId: id, name: member.name } as PodMember);
 	}) as PodView['seats'];
@@ -1080,8 +1100,8 @@ export interface Lobby {
 	 * members to connect evict one, same as a room with no pod lobby at all).
 	 */
 	podHumans(roomId: string): { id: string; name: string }[];
-	/** The names the draft's bot seats take, in seat order after the humans: the pod's AI seats' characters. */
-	podBotNames(roomId: string): string[];
+	/** How the draft is dealt: its seat count (the seats not closed) and its bots' names, in seat order after the humans. */
+	podDraft(roomId: string): { seats: number; botNames: string[] } | null;
 	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[];
 	/**
@@ -1096,6 +1116,8 @@ export interface Lobby {
 	standPod(roomId: string, memberId: string): StandPodResult;
 	/** Put the AI in an open pod seat (`on`), or take it out — lobby phase only, any member. */
 	aiPod(roomId: string, memberId: string, seat: number, on: boolean): SitPodResult;
+	/** Close an empty pod seat, or open a closed one — lobby phase only, the owner's; never fewer than `POD_MIN_OPEN` open. */
+	closePod(roomId: string, memberId: string, seat: number, closed: boolean): ClosePodResult;
 	/**
 	 * A drafter is done building — the deck editor's Play. Refused unless their
 	 * saved deck is legal (`PodChecks.built`). Once EVERY human drafter has
@@ -2389,9 +2411,9 @@ class FileLobby implements Lobby {
 		return out;
 	}
 
-	podBotNames(roomId: string): string[] {
+	podDraft(roomId: string): { seats: number; botNames: string[] } | null {
 		const room = this.#rooms.get(roomId);
-		return room === undefined ? [] : aiPersonas(room).map((p) => p.name);
+		return room === undefined ? null : { seats: podSize(room), botNames: aiPersonas(room).map((p) => p.name) };
 	}
 
 	sitPod(roomId: string, memberId: string, seat?: number): SitPodResult {
@@ -2456,6 +2478,24 @@ class FileLobby implements Lobby {
 		return { ok: true, room: this.#view(room) };
 	}
 
+	closePod(roomId: string, memberId: string, seat: number, closed: boolean): ClosePodResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!room.members.some((m) => m.id === memberId)) return { ok: false, reason: 'not-member' };
+		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
+		if (room.draftStartedAt !== null) return { ok: false, reason: 'not-lobby' };
+		if (!Number.isInteger(seat) || seat < 0 || seat >= POD_SEATS) return { ok: false, reason: 'bad-seat' };
+		const now = room.podSeats[seat] ?? null;
+		if (closed ? now === POD_CLOSED : now === null) return { ok: true, room: this.#view(room) };
+		if (now !== (closed ? null : POD_CLOSED)) return { ok: false, reason: 'seat-taken' };
+		if (closed && podSize(room) <= POD_MIN_OPEN) return { ok: false, reason: 'too-few' };
+		room.podSeats = room.podSeats.map((id, i) => (i === seat ? (closed ? POD_CLOSED : null) : id));
+		this.#persist(room);
+		this.#log({ event: closed ? 'pod-seat-closed' : 'pod-seat-opened', roomId, memberId, seat, size: podSize(room) });
+		return { ok: true, room: this.#view(room) };
+	}
+
 	playPod(roomId: string, memberId: string): PlayPodResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
@@ -2482,7 +2522,7 @@ class FileLobby implements Lobby {
 		}
 		const rounds = roundsFor(humans.length);
 		const players: PodPlayer[] = room.podSeats
-			.map((id, i) => (id === null || id === POD_AI ? null : { id, podSeat: i }))
+			.map((id, i) => (id === null || id === POD_AI || id === POD_CLOSED ? null : { id, podSeat: i }))
 			.filter((p): p is PodPlayer => p !== null);
 		const paired = pairRound({ players, results: [], round: 1 });
 		const pairings = paired.tables.map(([a, b]) => ({ tableId: this.#newPodTable(room, a, b), players: [a, b] as [string, string] }));

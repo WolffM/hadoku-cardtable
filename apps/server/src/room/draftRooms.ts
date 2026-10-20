@@ -292,8 +292,14 @@ export interface DraftRooms {
 	 * registry and the lobby) — `index.ts` is not touched for this.
 	 */
 	setHumansLookup(lookup: (draftId: string) => readonly HumanSeat[]): void;
-	/** What a new draft's bot seats are called (`room/lobby.ts`'s `podBotNames`: the pod's AI characters). Unwired, `Bot <seat>`. */
-	setBotNamesLookup(lookup: (draftId: string) => readonly string[]): void;
+	/** How a new draft is dealt (`room/lobby.ts`'s `podDraft`): its seat count, and its bots' names. Unwired, the params' seats and `Bot <seat>`. */
+	setPodLookup(lookup: (draftId: string) => PodDeal | null): void;
+}
+
+/** A pod's say in its draft: how many seats, and what the bots are called. */
+export interface PodDeal {
+	seats: number;
+	botNames: readonly string[];
 }
 
 /*
@@ -402,7 +408,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	// advance, so `build` deals every seat to a bot and the first humans to
 	// connect evict one each — see `setHumansLookup`'s own doc.
 	let humansLookup: (draftId: string) => readonly HumanSeat[] = () => [];
-	let botNamesLookup: (draftId: string) => readonly string[] = () => [];
+	let podLookup: (draftId: string) => PodDeal | null = () => null;
 
 	/** Write-through. A no-op while persistence is off or before `open()` has dealt the draft. */
 	function persistRoom(room: DraftRoom): void {
@@ -520,8 +526,9 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		}
 	}
 
-	const build = (draftId: string): DraftState =>
-		createDraft({
+	const build = (draftId: string): DraftState => {
+		const pod = podLookup(draftId);
+		return createDraft({
 			draftId,
 			// A new INCARNATION every time a draft is built, so a client holding
 			// state from the process that died before this one is told the draft
@@ -532,7 +539,8 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// what makes a bug report reproducible and a restore possible.
 			seed: draftId,
 			pool: options.pool,
-			seatCount: params.seatCount,
+			// A pod with seats closed deals that many fewer (`room/lobby.ts`'s `podDraft`).
+			seatCount: pod?.seats ?? params.seatCount,
 			packCount: params.packCount,
 			packSize: params.packSize,
 			// Wave 72 §P: the pod's SEATED members (`room/lobby.ts`'s `podSeats`,
@@ -540,9 +548,10 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// nobody ever sat — the pre-wave behaviour, unchanged: all eight
 			// seats start as bots, and every human who connects evicts one.
 			humans: humansLookup(draftId),
-			botNames: botNamesLookup(draftId),
+			botNames: pod?.botNames ?? [],
 			reservationTtlMs: params.reservationTtlMs,
 		});
+	};
 
 	return {
 		cube: options.cube,
@@ -582,8 +591,8 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		setHumansLookup(lookup) {
 			humansLookup = lookup;
 		},
-		setBotNamesLookup(lookup) {
-			botNamesLookup = lookup;
+		setPodLookup(lookup) {
+			podLookup = lookup;
 		},
 	};
 }

@@ -25,7 +25,7 @@
  */
 
 import { StatusPill } from '../ConstructedScreen.tsx';
-import { POD_AI, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
+import { POD_AI, POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
 import './PodSeats.css';
 
 export interface PodSeatsProps {
@@ -41,9 +41,12 @@ export interface PodSeatsProps {
   onStand: () => void;
   /** The AI button on an open seat (`on`), or the AI's own seat given back. */
   onAi: (seat: number, on: boolean) => void;
+  /** The owner's: close an open seat (`closed`), or open a closed one. */
+  onClose: (seat: number, closed: boolean) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, busy, onSit, onStand, onAi }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, busy, onSit, onStand, onAi, onClose }: PodSeatsProps) {
+  const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
 
@@ -71,7 +74,28 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, busy, onSit, on
                   <button type="button" className="tables__sit" data-testid="pod-seat-ai" data-seat={seat} disabled={busy} onClick={() => onAi(seat, true)}>
                     AI
                   </button>
+                  {iLead && (
+                    <button type="button" className="tables__sit" data-testid="pod-seat-close" data-seat={seat} disabled={busy} onClick={() => onClose(seat, true)}>
+                      Close
+                    </button>
+                  )}
                 </span>
+              </span>
+            </li>
+          );
+        }
+        if (occupant.memberId === POD_CLOSED) {
+          return (
+            <li key={seat} className="tables__row tables__row--closed" data-testid={`pod-seat-${seat}`} data-closed="">
+              <span className="tables__who tables__who--seat">
+                <span className="tables__name">Closed</span>
+                {iLead && (
+                  <span className="tables__actions">
+                    <button type="button" className="tables__sit" data-testid="pod-seat-open" data-seat={seat} disabled={busy} onClick={() => onClose(seat, false)}>
+                      Open
+                    </button>
+                  </span>
+                )}
               </span>
             </li>
           );

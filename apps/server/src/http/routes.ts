@@ -329,8 +329,8 @@ export interface TablesRooms {
 	 * Optional like `onAvatarChange`, for the same reason.
 	 */
 	podHumans?(roomId: string): { id: string; name: string }[];
-	/** The pod's AI characters' names, for the draft's bot seats. Optional like `podHumans`. */
-	podBotNames?(roomId: string): string[];
+	/** How the pod's draft is dealt: its open seats and its AI characters' names. Optional like `podHumans`. */
+	podDraft?(roomId: string): { seats: number; botNames: string[] } | null;
 	/** Wires `PodChecks` into the room registry — see its own doc (`room/lobby.ts`). Optional like `onAvatarChange`. */
 	setPodChecks?(checks: PodChecks): void;
 }
@@ -950,7 +950,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	deps.draftRooms?.setHumansLookup((podId) =>
 		(rooms?.podHumans?.(podId) ?? []).map((m) => ({ participantId: m.id, displayName: m.name })),
 	);
-	deps.draftRooms?.setBotNamesLookup((podId) => rooms?.podBotNames?.(podId) ?? []);
+	deps.draftRooms?.setPodLookup((podId) => rooms?.podDraft?.(podId) ?? null);
 
 	/**
 	 * The room this caller may act in, or null. One answer covers "no such

@@ -1019,9 +1019,13 @@ test(
       const roomName = `e2e solo ${Date.now()}`;
       const roomId = await createDraftRoom(alice, roomName, stack.origin);
       await expectLobbyNotPod(alice);
+      // She owns the room and closes two seats: the draft deals six (the operator, 2026-10-19).
+      for (const seat of [6, 7]) await alice.page.locator(`[data-testid="pod-seat-close"][data-seat="${seat}"]`).click();
+      await expect(alice.page.locator('[data-testid^="pod-seat-"][data-closed]')).toHaveCount(2);
       await alice.page.getByTestId('ready-toggle').click();
       await fillWithAi(alice.page, UI_TIMEOUT);
       await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(alice.page.locator('[data-testid="seat-bar"] [data-testid^="seat-"][data-occupant]'), 'a draft of six').toHaveCount(6);
       // The AI plays as one of the room's characters, by name and face (the operator, 2026-10-19).
       const ai = (await roomState(alice, roomId, stack.origin)).ai;
       expect(ai.name, 'a character, not "AI"').toMatch(/^[A-Z][a-z]+$/);

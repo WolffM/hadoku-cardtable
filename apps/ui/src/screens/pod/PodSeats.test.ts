@@ -11,13 +11,41 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
 import { PodSeats } from './PodSeats.tsx';
-import { POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
+import { POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
 
 afterEach(cleanup);
 
 const emptySeats = (): PodSeatsValue => Array.from({ length: POD_SEATS }, () => null);
 
 describe('the pod seat grid', () => {
+  it('offers the owner Close on an open seat and Open on a closed one, and nobody else either', () => {
+    const seats = emptySeats();
+    seats[7] = { memberId: POD_CLOSED, name: '' };
+    const onClose = vi.fn();
+    const props = {
+      seats,
+      leaderId: 'u-alice',
+      readyOf: () => false,
+      busy: false,
+      onSit: () => undefined,
+      onStand: () => undefined,
+      onAi: () => undefined,
+      onClose,
+    };
+    const { rerender } = render(createElement(PodSeats, { ...props, myMemberId: 'u-bob' }));
+    expect(screen.getByTestId('pod-seat-7').textContent).toContain('Closed');
+    expect(screen.queryByTestId('pod-seat-close')).toBeNull();
+    expect(screen.queryByTestId('pod-seat-open')).toBeNull();
+    expect(screen.getAllByTestId('pod-seat-sit')).toHaveLength(POD_SEATS - 1);
+
+    rerender(createElement(PodSeats, { ...props, myMemberId: 'u-alice' }));
+    expect(screen.getAllByTestId('pod-seat-close')).toHaveLength(POD_SEATS - 1);
+    screen.getAllByTestId('pod-seat-close')[0]!.click();
+    expect(onClose).toHaveBeenCalledWith(0, true);
+    screen.getByTestId('pod-seat-open').click();
+    expect(onClose).toHaveBeenCalledWith(7, false);
+  });
+
   it('draws all 8 seats, empty ones offering Sit', () => {
     render(
       createElement(PodSeats, {
@@ -27,7 +55,9 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         busy: false,
         onSit: () => undefined,
-        onStand: () => undefined, onAi: () => undefined,
+        onStand: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
       }),
     );
     expect(screen.getAllByTestId('pod-seat-sit')).toHaveLength(POD_SEATS);
@@ -45,7 +75,9 @@ describe('the pod seat grid', () => {
         readyOf: (id) => id === 'u-alice',
         busy: false,
         onSit: () => undefined,
-        onStand: () => undefined, onAi: () => undefined,
+        onStand: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
       }),
     );
     const row = screen.getByTestId('pod-seat-2');
@@ -66,7 +98,9 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         busy: false,
         onSit: () => undefined,
-        onStand: () => undefined, onAi: () => undefined,
+        onStand: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
       }),
     );
     expect(screen.getByTestId('pod-seat-0').textContent).toContain('Me (you)');
@@ -85,7 +119,9 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         busy: false,
         onSit: () => undefined,
-        onStand: () => undefined, onAi: () => undefined,
+        onStand: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
       }),
     );
     expect(screen.getByTestId('pod-seat-5-leader')).toBeTruthy();
@@ -102,7 +138,9 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         busy: false,
         onSit: () => undefined,
-        onStand: () => undefined, onAi: () => undefined,
+        onStand: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
       }),
     );
     for (const btn of screen.getAllByTestId('pod-seat-sit')) {
@@ -120,7 +158,9 @@ describe('the pod seat grid', () => {
         readyOf: () => false,
         busy: false,
         onSit,
-        onStand: () => undefined, onAi: () => undefined,
+        onStand: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
       }),
     );
     screen.getByTestId('pod-seat-3').querySelector('button')?.click();
@@ -141,6 +181,7 @@ describe('the pod seat grid', () => {
         onSit: () => undefined,
         onStand,
         onAi: () => undefined,
+        onClose: () => undefined,
       }),
     );
     screen.getByTestId('pod-seat-stand').click();

@@ -804,6 +804,27 @@ describe('PATCH /api/rooms/:id { format }', () => {
 	});
 });
 
+/* ── closed pod seats ───────────────────────────────────────────────── */
+
+describe('POST /api/rooms/:id/pod/close', () => {
+	it('is the owner’s, before the draft: a member who is not gets 403, a stranger 404, a bad body 400, and the seat reads closed', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+		const close = (as: string, body: unknown) => call(h, 'POST', `/api/rooms/${room.id}/pod/close`, { as, body });
+
+		expect((await close('carol', { seat: 7, closed: true })).status).toBe(404);
+		expect((await close('bob', { seat: 7, closed: true })).status).toBe(403);
+		expect((await close('alice', { seat: 8, closed: true })).status).toBe(400);
+		expect((await close('alice', { seat: 7, closed: 'yes' })).status).toBe(400);
+		const ok = await close('alice', { seat: 7, closed: true });
+		expect(ok.status).toBe(200);
+		expect((ok.json() as import('../room/lobby.ts').RoomView).pod?.seats[7]).toEqual({ memberId: 'closed', name: '' });
+		expect((await close('alice', { seat: 7, closed: false })).status).toBe(200);
+	});
+});
+
 /* ── close ───────────────────────────────────────────────────────────── */
 
 describe('POST /api/rooms/:id/close', () => {
