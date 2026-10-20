@@ -206,9 +206,18 @@ test(titled('W16 — World Breaker’s cast trigger shows Forge’s own prompt t
     await castAndReachTheSelection(alice.page, cardId, 8);
     await expect(selectionTiles(alice.page)).toHaveCount(8);
 
-    // Forge's own words for the trigger, verbatim — not drawn anywhere
-    // before this wave except the collapsed log.
-    await expect(alice.page.getByRole('dialog', { name: /exile target artifact, enchantment, or land/i })).toBeVisible();
+    // The pop-up asks the decision, and the trigger's own words — drawn
+    // nowhere before this wave except the collapsed log — are the line under
+    // it (the operator, 2026-10-19, AF193: "ideally the text here is just for
+    // the decision that has to be made … if we have to show both can we put a
+    // line break between the effect and what is actually being asked?"; a
+    // target keeps the effect). None of the trigger objects Forge appends to
+    // a trigger's text (the operator, 2026-10-16, AF100: "this text seems
+    // useless").
+    const sheet = alice.page.getByRole('dialog', { name: /^Select target artifact, enchantment or land/i });
+    await expect(sheet).toBeVisible();
+    const effect = sheet.getByTestId('prompt-source-text');
+    await expect(effect).toHaveText(/^When you cast this spell, exile target artifact, enchantment, or land\.$/);
   } finally {
     await stack.stop();
   }
