@@ -1880,7 +1880,11 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * (`recordGameResult`). Either way `showSideboard` tracks `phase ===
  * 'sideboarding'` alone, so the sideboard step appears with no second press.
  * Between the games of a series that does not sideboard (`between`, a
- * Gauntlet) the button reads `Next game`. **In a pod room there is no Rematch at
+ * Gauntlet) the button reads `Next game`, and the next game is set up in the
+ * room (a Gauntlet's secret choice of decks), so it opens the room as Back to
+ * room does and readies nothing: the room starts that game once it is set up
+ * (the operator, 2026-10-21: *"when players select 'Next Game' it should take
+ * them back to the deck picker"*). **In a pod room there is no Rematch at
  * all** (`room.pod !== null`) — Back to room already opens the pod
  * (`#/room/<id>` renders `PodScreen` for a draft room), so there is nothing
  * else for this button to do.
@@ -2359,6 +2363,9 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
     void left.finally(() => navigate({ kind: 'lobby' }));
   };
 
+  /** The next game is set up in the room, not agreed here (`between`). */
+  const nextInRoom = phase === 'between';
+
   const choice = myChoice(table);
   /**
    * The outcome is shown first, and Next opens the sideboard step — the
@@ -2438,12 +2445,12 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
               type="button"
               className="button"
               data-testid="game-result-rematch"
-              aria-pressed={rematch.mine}
-              data-highlight={rematch.highlight ? 'true' : undefined}
-              disabled={!rematch.possible || busy || leaving}
-              onClick={onRematch}
+              aria-pressed={nextInRoom ? undefined : rematch.mine}
+              data-highlight={nextInRoom || rematch.highlight ? 'true' : undefined}
+              disabled={nextInRoom ? roomId === null || leaving : !rematch.possible || busy || leaving}
+              onClick={nextInRoom ? onBackToRoom : onRematch}
             >
-              {phase === 'between' ? 'Next game' : 'Rematch'}
+              {nextInRoom ? 'Next game' : 'Rematch'}
             </button>
           )}
           {backButtons}

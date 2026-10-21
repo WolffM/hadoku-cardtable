@@ -236,10 +236,11 @@
 }
 
 /*
- * A ban: the tile greys where it lies — a layer of the ground over it, never a filter on the art
- * (`cardImageRules.test.ts`) — and a cross is drawn over that.
+ * A ban, and a deck whose game is over: the tile greys where it lies — a layer of the ground over
+ * it, never a filter on the art (`cardImageRules.test.ts`). A ban's cross is drawn over that.
  */
-.gauntlet-tile[data-status='banned']::after {
+.gauntlet-tile[data-status='banned']::after,
+.gauntlet-tile[data-played]::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -254,7 +255,8 @@
   }
 }
 
-.gauntlet-tile[data-status='banned'] {
+.gauntlet-tile[data-status='banned'],
+.gauntlet-tile[data-played] {
   color: var(--ink-dim);
 }
 
@@ -288,11 +290,6 @@
   }
 }
 
-/* A deck already played in this Gauntlet: still shown, never chosen again. */
-.gauntlet-tile[data-played] {
-  opacity: 0.5;
-}
-
 /* Choose: each seat's three picks, P1's beside P2's. */
 .gauntlet__seats {
   display: grid;
@@ -318,7 +315,8 @@
   aspect-ratio: 1;
 }
 
-.gauntlet__match-seat > .deckpick__option {
+.gauntlet__match-seat > .deckpick__option,
+.gauntlet__match-seat > .gauntlet__slot {
   aspect-ratio: 5 / 4;
 }
 

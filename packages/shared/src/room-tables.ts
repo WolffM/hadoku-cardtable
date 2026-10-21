@@ -31,7 +31,8 @@ export type SeriesLength = z.infer<typeof SeriesLengthSchema>;
  * first game has started (a freshly added table, or a room that has never
  * played one); `playing` is a game under way; `sideboarding` is the room step
  * between two games of the SAME series, and `between` is that step for a
- * series that does not sideboard (a Gauntlet); `done` is a finished series,
+ * series that does not sideboard (a Gauntlet), whose next game is set up in
+ * the room rather than agreed on the result screen; `done` is a finished series,
  * one Rematch away from either its conversion to Bo3 (a Bo1) or a new one.
  */
 export const SERIES_PHASES = ['seating', 'playing', 'sideboarding', 'between', 'done'] as const;

@@ -12,11 +12,16 @@
  * - **banpick**: `GAUNTLET_SNAKE`, one deck per act. Out-of-turn acts, the
  *   wrong act and taken decks are refused.
  * - **choose**: before every game both seats secretly choose one of their own
- *   unplayed picks; once both have, the two are revealed together and the
- *   game is `playing`. A seat with one unplayed pick has nothing to choose.
+ *   unplayed picks; once both have, the game is `playing`. A seat with one
+ *   unplayed pick has nothing to choose.
  * - **playing**: one normal Forge match with the two chosen decks. The room's
  *   series says whether that game decided it — `gameOver` is told, never
  *   counts wins itself.
+ *
+ * A deck choice is its chooser's alone until its game is over (ruling 9):
+ * `viewOfGauntlet` is the one place the state is shown to anyone, and it names
+ * the game under way's decks only to the seat that chose each, and marks a
+ * deck played only once its game is over.
  *
  * Every function returns a new state and never mutates its input. Randomness
  * is injected (`random`, [0, 1)), so the draw and the AI are reproducible in
@@ -335,9 +340,18 @@ export function aiMove(state: GauntletState, random: () => number): { kind: 'act
 	return null;
 }
 
-/** What `viewer` (a table seat, or null for anyone else in the room) is shown. */
+/** The game under way, while `playing`: the last of `games`, the one game that is not over. */
+function underWay(state: GauntletState, index: number): boolean {
+	return state.phase === 'playing' && index === state.games.length - 1;
+}
+
+/**
+ * What `viewer` (a table seat, or null for anyone else in the room) is shown.
+ * The game under way names only the viewer's own deck, and only a game that is
+ * over plays its decks: before then nothing here depends on the other seat's choice.
+ */
 export function viewOfGauntlet(state: GauntletState, viewer: GauntletSeatIndex | null, deckInfo: (id: string) => GauntletDeckInfo): GauntletView {
-	const played = new Set(state.games.flatMap((g) => g.decks));
+	const played = new Set(state.games.flatMap((g, i) => (underWay(state, i) ? [] : g.decks)));
 	const step = state.phase === 'banpick' ? GAUNTLET_SNAKE[state.stepIndex]! : null;
 	return {
 		phase: state.phase,
@@ -357,7 +371,7 @@ export function viewOfGauntlet(state: GauntletState, viewer: GauntletSeatIndex |
 			};
 		}),
 		step: step === null ? null : { index: state.stepIndex, seat: stepSeat(state, step.player), act: step.act, count: step.count, taken: state.taken },
-		games: state.games,
+		games: state.games.map((g, i) => (underWay(state, i) ? { ...g, decks: [viewer === 0 ? g.decks[0] : null, viewer === 1 ? g.decks[1] : null] } : g)),
 		choice:
 			state.phase === 'choose'
 				? { mine: viewer === null ? null : state.choices[viewer], chosen: [state.choices[0] !== null, state.choices[1] !== null] }

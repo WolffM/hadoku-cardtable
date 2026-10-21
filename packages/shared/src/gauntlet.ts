@@ -4,13 +4,16 @@
  *
  * A Gauntlet is a best-of-three over ten library decks of one era: the two
  * seats ban and pick from them in a fixed snake ({@link GAUNTLET_SNAKE}), then
- * before every game each secretly chooses one of their own unplayed picks and
- * both choices are revealed together. Each deck is played once; nothing is
- * sideboarded.
+ * before every game each secretly chooses one of their own unplayed picks.
+ * Each deck is played once; nothing is sideboarded.
  *
- * The view is per viewer: `choice.mine` is the viewer's own pending choice and
- * nobody else's. Until both seats have chosen, the other seat's choice crosses
- * the wire only as `choice.chosen[seat] === true`; a watcher sees neither.
+ * The view is per viewer, and a deck choice is its chooser's alone until its
+ * game is over (the operator, 2026-10-21: *"even when the game starts we
+ * shouldn't know what deck they picked"*). While choosing, the other seat's
+ * choice crosses the wire only as `choice.chosen[seat] === true`; while the
+ * game is played, `games`' last names the viewer's own deck and `null` for the
+ * other seat's; no deck is `played` until its game is over. Then both decks
+ * are on record for everyone. A watcher is told no choice before that either.
  *
  * Seats are the room table's seats, 0 and 1. P1 and P2 are the coin flip's:
  * `first` names the table seat that is P1, and every step already says which
@@ -72,7 +75,7 @@ export type GauntletDeckStatus = z.infer<typeof GauntletDeckStatusSchema>;
  * One of the ten decks: what the room's deck tile and its peek draw (the
  * library deck's own fields, colours folded on the server), and where it
  * stands. `by` is the seat that banned or picked it, `null` while open.
- * `played` is true once the deck has been revealed for a game.
+ * `played` is true once a game played with it is over.
  */
 export const GauntletDeckSchema = z.strictObject({
   id: z.string().min(1),
@@ -117,9 +120,12 @@ export const GauntletStepSchema = z.strictObject({
 });
 export type GauntletStep = z.infer<typeof GauntletStepSchema>;
 
-/** A game whose decks have been revealed, by table seat, and the seat that won it once it is over. */
+/**
+ * A game whose decks have been chosen, by table seat, and the seat that won it once it is over.
+ * While it is played, a deck the viewer did not choose is `null`.
+ */
 export const GauntletGameSchema = z.strictObject({
-  decks: z.tuple([z.string().min(1), z.string().min(1)]),
+  decks: z.tuple([z.string().min(1).nullable(), z.string().min(1).nullable()]),
   winner: GauntletSeatIndexSchema.nullable(),
 });
 export type GauntletGame = z.infer<typeof GauntletGameSchema>;
@@ -152,7 +158,7 @@ export const GauntletViewSchema = z.strictObject({
   decks: z.array(GauntletDeckSchema).max(GAUNTLET_DECKS),
   /** The ban/pick step under way; null outside `banpick`. */
   step: GauntletStepSchema.nullable(),
-  /** Every game whose decks have been revealed, in order — the last is the one being played in `playing`. */
+  /** Every game whose decks have been chosen, in order — the last is the one being played in `playing`. */
   games: z.array(GauntletGameSchema).max(3),
   /** The hidden choice under way; null outside `choose`. */
   choice: GauntletChoiceSchema.nullable(),

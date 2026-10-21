@@ -232,6 +232,17 @@ interface PlayClient {
 
 type PlayRoom = CoreRoomState<PlayApp, PlayClient>;
 
+/**
+ * The match's seats as `caller` may see them. A seat's deck is hidden
+ * information until the game is over (the operator, 2026-10-21: *"even when
+ * the game starts we shouldn't know what deck they picked"*): its name goes to
+ * the seat's own holder, and to everyone once the match is no longer being played.
+ */
+function seatsSeenBy(match: Match, caller: ParticipantId): { seat: number; kind: 'ai' | 'human'; deck: string | null }[] {
+	const playing = match.status === 'starting' || match.status === 'running';
+	return match.seats.map((s) => ({ seat: s.seat, kind: s.ai ? 'ai' : 'human', deck: !playing || s.owner === caller ? s.deck : null }));
+}
+
 function defaultLog(entry: Record<string, unknown>): void {
 	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-play', ...entry }));
 }
@@ -598,7 +609,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		res.status(201).json({
 			matchId: match.id,
 			epoch: match.epoch,
-			seats: match.seats.map((s) => ({ seat: s.seat, kind: s.ai ? 'ai' : 'human', deck: s.deck })),
+			seats: seatsSeenBy(match, identityFromHeaders(req.headers, `http-${randomUUID()}`)),
 		});
 	});
 
@@ -608,15 +619,14 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			res.status(404).json({ error: 'no such match' });
 			return;
 		}
+		const seen = seatsSeenBy(match, identityFromHeaders(req.headers, `http-${randomUUID()}`));
 		res.json({
 			matchId: match.id,
 			status: match.status,
 			failure: match.failure,
 			winner: match.winner,
-			seats: match.seats.map((s) => ({
-				seat: s.seat,
-				kind: s.ai ? 'ai' : 'human',
-				deck: s.deck,
+			seats: match.seats.map((s, i) => ({
+				...seen[i]!,
 				// The digest handle only — never the id itself.
 				claimedBy: s.owner === null ? null : participantHandle(s.owner),
 			})),
