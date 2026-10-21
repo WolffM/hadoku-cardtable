@@ -57,6 +57,7 @@ import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { DOOR_TIP, faceCropStyle, type DoorState, type TileCard, type TileFace } from './faceCrop.ts';
 import { ManaCost, ManaPip, SetSymbol } from './ManaPip.tsx';
+import { wubrgKey } from './ColorSymbol.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { playRole, roleHandler } from '../sound/index.ts';
 import { documentScope } from '../dom.ts';
@@ -242,7 +243,7 @@ function CardTileImpl({ card, onPick, disabled = false, liveText, pickRole = 'ui
 
 /** A face's printed content: art over the text tile. */
 function CardBody({ card, liveText, conditionMet = false }: { card: TileFace; liveText?: string | null | undefined; conditionMet?: boolean }) {
-  const identity = card.colors.length === 0 ? 'colorless' : card.colors.join('').toLowerCase();
+  const identity = wubrgKey(card.colors).toLowerCase() || 'colorless';
   const shownText = liveText != null && liveText.trim() !== card.oracleText.trim() ? liveText : card.oracleText;
   // Splitting rules text runs a regex per line. It is small per card and
   // ruinous in aggregate: a late-draft screen holds 15 pack tiles plus a pool

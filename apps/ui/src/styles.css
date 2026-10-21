@@ -1232,3 +1232,8 @@ button {
   background: color-mix(in srgb, var(--scrim) 70%, transparent);
   pointer-events: none;
 }
+
+/* Mana's gold multicolour glyph overlays its second half absolutely: give it the box. */
+.colorsym {
+  position: relative;
+}

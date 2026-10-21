@@ -56,6 +56,7 @@ import { groupCards, type GroupBy, type GroupId } from '../deck/cardOrder.ts';
 import { DropArea, startCardDrag, type Area } from '../deck/dragMove.tsx';
 import { CardTile } from './CardTile.tsx';
 import { PILE_PEEK, columnsOf, cssPx, fitPiles, outerHeight, useBox } from './cardFit.ts';
+import { ColorSymbol, type ColorSymbolId } from './ColorSymbol.tsx';
 import { ManaPip } from './ManaPip.tsx';
 
 const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
@@ -64,10 +65,8 @@ const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
 const MAX_POOL_W = 140;
 
 function GroupHead({ id }: { id: GroupId }) {
-  if (id === 'M') return <ManaPip token="W/U" />;
-  if (id === 'C') return <ManaPip token="C" />;
   if (id === 'L') return <i className="ms ms-land" aria-label="lands" />;
-  if (/^[WUBRG]$/.test(id)) return <ManaPip token={id} />;
+  if (/^[WUBRGMC]$/.test(id)) return <ColorSymbol symbol={id as ColorSymbolId} />;
   return <span className="pool__bucket-mv">{id === '6' ? '6+' : id}</span>;
 }
 
@@ -202,7 +201,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
             {(
               [
                 ['mv', <span key="mv">0–6</span>, 'by mana value'],
-                ['color', <ManaPip key="c" token="W/U" />, 'by colour'],
+                ['color', <ColorSymbol key="c" symbol="M" />, 'by colour'],
               ] as const
             ).map(([by, glyph, label]) => (
               <button

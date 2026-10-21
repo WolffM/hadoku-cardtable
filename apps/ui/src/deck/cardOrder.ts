@@ -9,7 +9,8 @@
  * orders the cards, then the name.
  */
 
-import type { DraftCard, ManaColor } from '../draft/types.ts';
+import { colorSymbolOf, type ColorSymbolId } from '../components/ColorSymbol.tsx';
+import type { DraftCard } from '../draft/types.ts';
 
 /** The highest mana-value pile; higher mana values join it. */
 export const MV_CAP = 6;
@@ -17,14 +18,11 @@ export const MV_CAP = 6;
 export const isLandFace = (card: DraftCard): boolean => /\bLand\b/.test(card.typeLine);
 export const isCreatureFace = (card: DraftCard): boolean => /\bCreature\b/.test(card.typeLine);
 
-export type ColorGroup = ManaColor | 'M' | 'C' | 'L';
+export type ColorGroup = ColorSymbolId | 'L';
 const COLOR_GROUPS: readonly ColorGroup[] = ['W', 'U', 'B', 'R', 'G', 'M', 'C', 'L'];
 
 export function colorGroupOf(card: DraftCard): ColorGroup {
-  if (isLandFace(card)) return 'L';
-  if (card.colors.length === 0) return 'C';
-  if (card.colors.length > 1) return 'M';
-  return card.colors[0]!;
+  return isLandFace(card) ? 'L' : colorSymbolOf(card.colors);
 }
 export const colorRank = (card: DraftCard): number => COLOR_GROUPS.indexOf(colorGroupOf(card));
 export const typeRank = (card: DraftCard): number => (isCreatureFace(card) ? 0 : isLandFace(card) ? 2 : 1);

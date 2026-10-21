@@ -68,6 +68,7 @@ import {
 import { CardTile } from '../components/CardTile.tsx';
 import { mainDeckColors } from '../components/DeckView.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
+import { ColorSymbol } from '../components/ColorSymbol.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { cardRequestOf, deckFromPool, dckTextOf, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
 import type { DraftCard, ManaColor } from '../draft/types.ts';
@@ -466,7 +467,7 @@ export function DeckEditor({
             {(
               [
                 ['mv', <span key="mv" className="deck-editor__sortglyph">0–{MV_CAP}</span>, 'by mana value'],
-                ['color', <ManaPip key="c" token="W/U" />, 'by colour'],
+                ['color', <ColorSymbol key="c" symbol="M" />, 'by colour'],
                 ['type', <i key="t" className="ms ms-creature" aria-hidden="true" />, 'by type'],
               ] as Array<[SortKey, ReactNode, string]>
             ).map(([k, glyph, label]) => (
