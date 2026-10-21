@@ -3514,6 +3514,24 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(plain.querySelectorAll('.card__ability-word'), 'and no word is singled out').toHaveLength(0);
   });
 
+  // The operator, 2026-10-21: "yeah show the anger glow in the gy".
+  it('a graveyard card whose condition is on glows on the pile’s top card and in the pile’s view; the card under it does not', () => {
+    const viewer = base.players.find((p) => p.isViewer)!;
+    const seed = viewer.battlefield[0]!;
+    const under = { ...seed, id: 7100 };
+    const anger = { ...seed, id: 7101, conditionMet: true as const };
+    const view: BoardView = { ...base, players: base.players.map((p) => (p.isViewer ? { ...p, graveyard: [under, anger] } : p)) };
+    const { container, zone } = renderBoard(view);
+    const pile = zone(viewer.id, 'graveyard');
+    const tile = (root: ParentNode, id: number) => root.querySelector<HTMLElement>(`[data-board-card="${id}"] .card`)!;
+    expect(tile(pile, anger.id).hasAttribute('data-condition-met'), 'the pile’s top card').toBe(true);
+    expect(tile(pile, under.id).hasAttribute('data-condition-met'), 'the card under it').toBe(false);
+    fireEvent.click(pile.querySelector(`[data-board-card="${anger.id}"]`)!);
+    const opened = container.querySelector<HTMLElement>('[data-testid="pile-view"]')!;
+    expect(tile(opened, anger.id).hasAttribute('data-condition-met'), 'its entry in the pile’s view').toBe(true);
+    expect(tile(opened, under.id).hasAttribute('data-condition-met'), 'the other entry').toBe(false);
+  });
+
   it('a creature that can’t block wears its own corner mark — a struck shield, said in words — and keeps it when it turns', () => {
     const { container } = renderBoard(withState({ cantBlock: true, summoningSick: true }));
     const marks = [...card(container).querySelectorAll<HTMLElement>(':scope > .board-card__marks > .board-card__mark')];

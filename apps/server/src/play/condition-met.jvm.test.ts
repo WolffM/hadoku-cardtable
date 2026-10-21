@@ -43,13 +43,20 @@
  *
  * The operator, 2026-10-20: "yes do the anger and name sticker glows." A card shows its condition
  * where the condition works. Anger's haste works from the graveyard (`EffectZone$ Graveyard`), so on
- * the battlefield or in hand beside a Mountain it stays dark (Brawn, the same shape, sits in the
- * graveyard, which the frame does not read). A trigger whose event can no longer happen for the card
+ * the battlefield or in hand beside a Mountain it stays dark. A trigger whose event can no longer happen for the card
  * is spent: Name Sticker Goblin's "when this enters, if …" (`LE9`), Acclaimed Contender's and Blizzard
  * Strix's "when this enters, if you control another …", Kozilek's "when you cast this spell, if …" —
  * all met, all on the battlefield, all dark. In hand an "enters" condition still lights, as what the
  * card would do when cast (Acclaimed Contender beside two Knights), and Carapace Forger's metalcraft
  * still lights on the battlefield.
+ *
+ * The operator, 2026-10-21: "yeah show the anger glow in the gy". The frame reads every zone the
+ * board draws a card in — graveyard and exile beside hand and battlefield — and the same rule decides
+ * there: Anger, Brawn, Wonder and Filth (`EffectZone$ Graveyard` + `IsPresent$` a basic land type)
+ * light in seat 0's graveyard beside a Mountain, Forest, Island and Swamp, and stay dark in seat 1's
+ * beside only Plains. Anger exiled beside a Mountain stays dark (its haste does not work from exile),
+ * and a spell is asked only where it is cast from: Calculated Dismissal and Fiery Impulse in a
+ * graveyard of three instants stay dark although their spell mastery is met.
  *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
@@ -125,14 +132,18 @@ const WHERE_IT_WORKS = [
 	'humanlife=20',
 	'ailife=20',
 	'humanhand=Anger;Acclaimed Contender',
-	'humanbattlefield=Ornithopter;Ornithopter;Ornithopter;Carapace Forger;Anger;"Name Sticker" Goblin;Acclaimed Contender;Acclaimed Contender;Blizzard Strix;Snow-Covered Mountain;Kozilek, the Great Distortion;Mountain;Forest',
+	'humanbattlefield=Ornithopter;Ornithopter;Ornithopter;Carapace Forger;Anger;"Name Sticker" Goblin;Acclaimed Contender;Acclaimed Contender;Blizzard Strix;Snow-Covered Mountain;Kozilek, the Great Distortion;Mountain;Forest;Island;Swamp',
 	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
-	'humangraveyard=Anger;Brawn',
+	'humangraveyard=Anger;Brawn;Wonder;Filth;Calculated Dismissal;Fiery Impulse;Lightning Bolt',
+	'humanexile=Anger',
 	'aihand=',
 	'aibattlefield=Plains',
 	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
-	'aigraveyard=',
+	'aigraveyard=Anger;Brawn;Wonder;Filth',
 ].join('\n');
+
+/** The graveyard incarnations: each lights from its owner's graveyard while its owner controls its basic land type. */
+const INCARNATIONS = ['Anger', 'Brawn', 'Wonder', 'Filth'];
 
 /** The latest `conditionMet` snapshot `seat` was sent, or null when none has been. */
 function latestConditionMet(s: Scenario, seat: number): number[] | null {
@@ -271,7 +282,7 @@ describe.skipIf(!available.ok)(title, () => {
 	);
 
 	it(
-		'a card shows its condition where it works: Anger on the battlefield and a spent "when this enters, if …" stay dark',
+		'a card shows its condition where it works: Anger lights in the graveyard beside a Mountain, and stays dark on the battlefield, in exile and without one; a spent "when this enters, if …" stays dark',
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, { seed: 86, decks: DECKS, scenario: WHERE_IT_WORKS });
@@ -279,13 +290,21 @@ describe.skipIf(!available.ok)(title, () => {
 				await finishMulligan(s);
 				await waitUntil(() => {
 					s.answerAsks();
-					return inOwnMain(s, 0, 1) && s.zone(0, 'Battlefield').some((c) => c.name === '"Name Sticker" Goblin') && s.zone(0, 'Graveyard').some((c) => c.name === 'Brawn');
+					return (
+						inOwnMain(s, 0, 1) &&
+						s.zone(0, 'Battlefield').some((c) => c.name === '"Name Sticker" Goblin') &&
+						s.zone(0, 'Graveyard').some((c) => c.name === 'Brawn') &&
+						s.zone(0, 'Exile').some((c) => c.name === 'Anger') &&
+						s.zone(1, 'Graveyard').some((c) => c.name === 'Filth')
+					);
 				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
 				const board = s.zone(0, 'Battlefield');
 				const hand = s.zone(0, 'Hand');
 				const graveyard = s.zone(0, 'Graveyard');
+				const exile = s.zone(0, 'Exile');
+				const theirGraveyard = s.zone(1, 'Graveyard');
 				const seat0 = latestConditionMet(s, 0);
-				const lit = [...board, ...hand, ...graveyard].filter((c) => seat0?.includes(c.id)).map((c) => `${c.name}#${c.id}`);
+				const lit = [...board, ...hand, ...graveyard, ...exile, ...theirGraveyard].filter((c) => seat0?.includes(c.id)).map((c) => `${c.name}#${c.id}`);
 				console.log(`[cg-condition-met.jvm] where it works: conditionMet=${JSON.stringify(seat0)} → [${lit.join(', ')}]`);
 				expect(seat0, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
 				const off = [
@@ -295,11 +314,15 @@ describe.skipIf(!available.ok)(title, () => {
 					...board.filter((c) => c.name === 'Acclaimed Contender'),
 					named(board, 'Blizzard Strix'),
 					named(board, 'Kozilek, the Great Distortion'),
-					named(graveyard, 'Anger'),
-					named(graveyard, 'Brawn'),
+					named(exile, 'Anger'),
+					named(graveyard, 'Calculated Dismissal'),
+					named(graveyard, 'Fiery Impulse'),
+					named(graveyard, 'Lightning Bolt'),
+					...INCARNATIONS.map((name) => named(theirGraveyard, name)),
 				];
 				for (const c of off) expect(seat0, `${c.name}#${c.id} is off`).not.toContain(c.id);
-				for (const c of [named(board, 'Carapace Forger'), named(hand, 'Acclaimed Contender')]) expect(seat0, `${c.name}#${c.id} is on`).toContain(c.id);
+				const on = [named(board, 'Carapace Forger'), named(hand, 'Acclaimed Contender'), ...INCARNATIONS.map((name) => named(graveyard, name))];
+				for (const c of on) expect(seat0, `${c.name}#${c.id} is on`).toContain(c.id);
 			} finally {
 				await s.stop();
 			}
