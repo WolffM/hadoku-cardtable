@@ -3546,6 +3546,23 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect((await sent(s, m)), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
   }, 20_000);
 
+  it('a picked-up hand card Forge takes out of the hand leaves no slot behind: the hand draws its gap only beside its card', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const hand = mineOf(m).hand!.map((c) => c.id);
+    const graveyard = mineOf(m).graveyard.map((c) => c.id);
+    const gaps = () => canvas.querySelectorAll('[data-zone="hand"][data-owner="you"] [data-hand-gap]');
+    for (const f of notify([prompt('Priority'), actionable([hand[1]!])])) s.send(f);
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+    fireEvent.pointerDown(cardEl(canvas, hand[1]!), { button: 0, clientX: 10, clientY: 10 });
+    expect(gaps(), 'the slot it left is held open').toHaveLength(1);
+    expect(gaps()[0]!.nextElementSibling, 'right where the card was').toBe(cardEl(canvas, hand[1]!));
+    // Forge discards it while it is up (an opponent's effect): its element goes, and so must its slot.
+    s.send(zones({ Hand: hand.filter((id) => id !== hand[1]), Graveyard: [...graveyard, hand[1]!] }));
+    await untilMatch(m, () => expect(mineOf(m).hand!.some((c) => c.id === hand[1])).toBe(false));
+    await waitFor(() => expect(canvas.querySelector(`[data-zone="hand"][data-owner="you"] [data-card-id="${hand[1]}"]`)).toBeNull());
+    expect(gaps(), 'no slot is held for a card the hand no longer has').toHaveLength(0);
+  });
+
   it('a play that floats home gives up the column it reserved: the row closes the gap at once', async () => {
     // jsdom has no geometry for `placementAt`: the release reserves the row's end through the same store.
     vi.spyOn(BoardModule, 'notePlayedTo').mockImplementation((id) => BoardModule.expectPlacement(0, 'back', { kind: 'end' }, id));
