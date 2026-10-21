@@ -14,6 +14,10 @@ import type { DraftCard } from '../draft/types.ts';
 
 /** The highest mana-value pile; higher mana values join it. */
 export const MV_CAP = 6;
+/** A mana value as its pile is headed: the last pile, which holds every higher value, as `6+`. */
+export const mvLabel = (mv: number | string): string => (Number(mv) >= MV_CAP ? `${MV_CAP}+` : String(mv));
+/** The mana-value piles' span, as a sort's glyph. */
+export const MV_SPAN = `0–${MV_CAP}`;
 
 export const isLandFace = (card: DraftCard): boolean => /\bLand\b/.test(card.typeLine);
 export const isCreatureFace = (card: DraftCard): boolean => /\bCreature\b/.test(card.typeLine);

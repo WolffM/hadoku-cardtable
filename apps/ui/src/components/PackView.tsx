@@ -33,11 +33,12 @@
  * is what mounts the inspector.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '../sound/index.ts';
-import { relatedCards, withRelatedFaces } from '../draft/related.ts';
+import { relatedCards } from '../draft/related.ts';
+import { uiPx } from '../settings/ui-scale.ts';
 import { CARD_RATIO, cssPx, fitGrid, useBox } from './cardFit.ts';
 import { CardTile } from './CardTile.tsx';
 import { RelatedRow, type RelatedPlace } from './RelatedRow.tsx';
@@ -60,7 +61,7 @@ const BOTTOM = 8;
 /** The visible share of each card: never less than a name's worth, never so much the cards stop overlapping. */
 const MIN_SHOW = 0.17;
 const MAX_SHOW = 0.62;
-/** The largest a card is drawn, however much room there is. */
+/** The largest a card is drawn, however much room there is, at 100%. */
 const MAX_CARD_H = 420;
 /** Below this width there is no readable fan: the grid. */
 export const FAN_MIN_WIDTH = 480;
@@ -90,8 +91,8 @@ export interface FanGeometry {
  * The row that fits a `width` x `height` box: `FAN_SLOTS` places, the card as
  * tall as the box allows, each a step from the next — the same size for any pack.
  */
-export function fanGeometry(width: number, height: number): FanGeometry {
-  let cardH = Math.min(MAX_CARD_H, height - LIFT - BOTTOM);
+export function fanGeometry(width: number, height: number, maxH = MAX_CARD_H): FanGeometry {
+  let cardH = Math.min(maxH, height - LIFT - BOTTOM);
   let cardW = cardH * CARD_RATIO;
   let step = Math.min(cardW * MAX_SHOW, (width - cardW) / (FAN_SLOTS - 1));
   if (step < cardW * MIN_SHOW) {
@@ -142,25 +143,16 @@ function typing(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 }
 
-export function PackView({ cards: dealt, layout, onPick, disabled, emptyNote }: PackViewProps) {
-  // Each card's tokens and meld cards ride as faces, for the inspector's wheel in the grid.
-  const cards = useMemo(() => dealt.map(withRelatedFaces), [dealt]);
-  const [measure, box] = useBox();
+export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackViewProps) {
+  const [measure, box, root] = useBox<HTMLDivElement>();
   /** The open card, or the grid's cursor. `null` is the first in the fan: where a pack opens (the operator, 2026-10-19); in the grid, no cursor yet. */
   const [focus, setFocus] = useState<number | null>(null);
-  const root = useRef<HTMLDivElement | null>(null);
-  const attach = useCallback(
-    (el: HTMLDivElement | null) => {
-      root.current = el;
-      measure(el);
-    },
-    [measure],
-  );
   // Unmeasured (the first frame, or a test environment) draws the plain grid: a
   // layout drawn at a guessed size is the overflow this replaced.
   const measured = box.width > 0 && box.height > 0;
-  const fan = layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height) : null;
-  const grid = fan === null && measured ? fitGrid(cards.length, box, cssPx(root.current, 'column-gap', GRID_GAP), MAX_CARD_H * CARD_RATIO) : null;
+  const maxH = uiPx(MAX_CARD_H, root);
+  const fan = layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height, maxH) : null;
+  const grid = fan === null && measured ? fitGrid(cards.length, box, cssPx(root, 'column-gap', GRID_GAP), maxH * CARD_RATIO) : null;
   const shown = fan === null || cards.length === 0 ? null : Math.min(focus ?? 0, cards.length - 1);
   const cursor = fan !== null || focus === null || cards.length === 0 ? null : Math.min(focus, cards.length - 1);
   const cols = grid?.cols ?? 1;
@@ -190,7 +182,7 @@ export function PackView({ cards: dealt, layout, onPick, disabled, emptyNote }: 
   const count = cards.length;
   const wheelLeft = useRef(0);
   useEffect(() => {
-    const el = root.current;
+    const el = root;
     if (!fanOn || el === null) return;
     const onWheel = (event: WheelEvent): void => {
       event.preventDefault();
@@ -242,7 +234,7 @@ export function PackView({ cards: dealt, layout, onPick, disabled, emptyNote }: 
   useEffect(() => {
     if (!keyed.current || cursor === null) return;
     keyed.current = false;
-    root.current?.querySelector('.pack__slot[data-focused]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    root?.querySelector('.pack__slot[data-focused]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }, [cursor]);
   const highlightedRef = useRef(highlighted);
   highlightedRef.current = highlighted;
@@ -275,7 +267,7 @@ export function PackView({ cards: dealt, layout, onPick, disabled, emptyNote }: 
 
   if (cards.length === 0) {
     return (
-      <div className="pack pack--empty" data-testid="pack" ref={attach}>
+      <div className="pack pack--empty" data-testid="pack" ref={measure}>
         <p className="pack__note">{emptyNote}</p>
       </div>
     );
@@ -297,7 +289,7 @@ export function PackView({ cards: dealt, layout, onPick, disabled, emptyNote }: 
       data-testid="pack"
       data-layout={layout}
       data-card-count={cards.length}
-      ref={attach}
+      ref={measure}
       style={style}
       onPointerLeave={() => {
         setHovered(null);
@@ -339,7 +331,7 @@ export function PackView({ cards: dealt, layout, onPick, disabled, emptyNote }: 
       })}
       {/* The hovered card's back face, tokens and meld cards, in a row under it. */}
       {fan !== null && shown !== null && related !== null && (
-        <RelatedRow cards={related.cards} anchor={root.current} place={relatedPlace(fan, related.at, shown, cards.length, box.width, related.cards.length)} />
+        <RelatedRow cards={related.cards} anchor={root} place={relatedPlace(fan, related.at, shown, cards.length, box.width, related.cards.length)} />
       )}
     </div>
   );

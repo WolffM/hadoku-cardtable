@@ -12,7 +12,7 @@
 import { expect, type Page } from '@playwright/test';
 
 /** The card on top of a deck pile: the one whose whole face shows, so a click lands on it. */
-export const deckPileTop = (page: Page) => page.locator('[data-testid="main-grid"] .deck-editor__stack > :last-child [data-testid="card"]');
+export const deckPileTop = (page: Page) => page.locator('[data-testid="main-grid"] .pile__stack > :last-child [data-testid="card"]');
 
 /**
  * Sideboard cards out of the main deck, one click per card (the editor's own

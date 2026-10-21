@@ -24,7 +24,7 @@
  * shrinks together and nothing in it scrolls.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 /** A Magic card's width over its height (488 x 680). */
 export const CARD_RATIO = 488 / 680;
@@ -206,13 +206,14 @@ export function useFitScale(): (el: HTMLElement | null) => void {
   }, []);
 }
 
-/** The box an element draws in, kept current. Zero until it has been measured (and in a test environment). */
-export function useBox(): [(el: HTMLElement | null) => void, Box] {
+/**
+ * The box an element draws in, kept current, and the element: give it the
+ * ref. Zero until it has been measured (and in a test environment).
+ */
+export function useBox<E extends HTMLElement = HTMLElement>(): [(el: E | null) => void, Box, E | null] {
+  const [el, setEl] = useState<E | null>(null);
   const [box, setBox] = useState<Box>({ width: 0, height: 0 });
-  const observer = useRef<ResizeObserver | null>(null);
-  const ref = useCallback((el: HTMLElement | null) => {
-    observer.current?.disconnect();
-    observer.current = null;
+  useLayoutEffect(() => {
     if (el === null || typeof ResizeObserver === 'undefined') return;
     const measure = (): void => {
       // The content box: what a child laid out inside the border and padding gets.
@@ -223,9 +224,10 @@ export function useBox(): [(el: HTMLElement | null) => void, Box] {
       const height = r.height - px('padding-top', 'padding-bottom', 'border-top-width', 'border-bottom-width');
       setBox((was) => (was.width === width && was.height === height ? was : { width, height }));
     };
-    observer.current = new ResizeObserver(measure);
-    observer.current.observe(el);
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
     measure();
-  }, []);
-  return [ref, box];
+    return () => observer.disconnect();
+  }, [el]);
+  return [setEl, box, el];
 }

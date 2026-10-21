@@ -22,6 +22,9 @@
 }
 
 :root {
+  /* A Magic card's width over its height, and the share of its width a pile shows of each card under the next (`components/cardFit.ts`'s `CARD_RATIO`, `PILE_PEEK`). */
+  --card-ratio: 488 / 680;
+  --pile-peek: 0.205;
   --ui-scale: 1;
   --ui-px: calc(1px * var(--ui-scale));
   --ui-rem: calc(1rem * var(--ui-scale));
@@ -544,7 +547,7 @@ button {
 
 .pack__related-card {
   width: var(--related-w);
-  aspect-ratio: 488 / 680;
+  aspect-ratio: var(--card-ratio);
   border-radius: var(--radius);
   box-shadow: 0 10px 22px var(--shadow);
 }
@@ -564,7 +567,7 @@ button {
 /* The grid at the size that shows the whole pack (`fitGrid`): no scroll. */
 .pack--grid[style] .pack__slot {
   --card-w: var(--grid-w);
-  --card-h: calc(var(--grid-w) / 0.7176);
+  --card-h: calc(var(--grid-w) / (var(--card-ratio)));
 }
 
 .pack--grid[style] {
@@ -819,12 +822,12 @@ button {
 
 .pool__curve {
   /* Until measured (and in a test environment); measured, `PoolView` sets both. */
-  --pool-w: 140px;
-  --pool-show: 30px;
+  --cw: 140px;
+  --pile-gap: 12px;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
-  gap: 12px;
+  gap: var(--pile-gap);
   align-items: stretch;
   overflow: hidden;
 }
@@ -834,7 +837,7 @@ button {
 .pool__main,
 .pool__sideboard {
   display: flex;
-  gap: 12px;
+  gap: var(--pile-gap);
   align-items: flex-start;
   border-radius: var(--radius);
   outline: 2px dashed transparent;
@@ -847,7 +850,7 @@ button {
 }
 
 .pool__sideboard {
-  min-width: var(--pool-w);
+  min-width: var(--cw);
 }
 
 .pool__main[data-drop-over],
@@ -855,81 +858,30 @@ button {
   outline-color: var(--accent);
 }
 
-.pool__bucket {
-  flex: 0 0 auto;
-}
-
-.pool__bucket-title {
-  height: 14px;
-  line-height: 14px;
-  font-size: 11px;
-  color: var(--ink-dim);
-  margin: 0 0 6px;
-  text-align: center;
-  white-space: nowrap;
-  /* As wide as the pile's cards, never wider: a heading must not widen its pile past the fit. */
-  width: 0;
-  min-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.pool__bucket-n {
-  color: var(--ink-faint);
-}
-
-/* A pile taller than the box is split into columns side by side (`cardFit.ts`'s `pilesAt`). */
-.pool__bucket-cols {
-  display: flex;
-  gap: 12px;
-}
-
-/*
- * A column of picks, overlapped the way a deck builder stacks them: every
- * card shows its name strip, the last shows whole, and hovering any of them
- * opens the shared inspector at full size. One size for every tile, art or
- * not, so the columns line up.
- */
-.pool__bucket-cards {
-  --pool-h: calc(var(--pool-w) / 0.7176);
-  display: flex;
-  flex-direction: column;
-  width: var(--pool-w);
-}
-
-.pool__bucket-cards .card {
-  width: var(--pool-w);
-  height: var(--pool-h);
+/* A pick is a reference, not a decision: one size for every tile, art or not, its name strip, cost and stat. */
+.pool .pile__stack .card {
+  height: calc(var(--cw) / (var(--card-ratio)));
   min-height: 0;
-  --card-h: var(--pool-h);
+  --card-h: calc(var(--cw) / (var(--card-ratio)));
   padding: 5px 7px 5px 11px;
   font-size: 11px;
   flex: none;
 }
 
-.pool__bucket-cards .card:has(.card__art) {
-  height: var(--pool-h);
-}
-
-.pool__bucket-cards > .pool__tile + .pool__tile {
-  margin-top: calc(var(--pool-show) - var(--pool-h));
-}
-
 /* The strip each card shows: its name on one line. */
-.pool__bucket-cards .card__name {
+.pool .pile__stack .card__name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
 }
 
-/* A pool card is a reference, not a decision: its name strip, cost and stat. */
-.pool__bucket-cards .card__rules,
-.pool__bucket-cards .card__print {
+.pool .pile__stack .card__rules,
+.pool .pile__stack .card__print {
   display: none;
 }
 
-.pool__bucket-cards .card__type {
+.pool .pile__stack .card__type {
   border-bottom: 0;
   padding-bottom: 0;
 }
@@ -941,7 +893,66 @@ button {
  */
 .pool__tile {
   display: block;
-  width: var(--pool-w);
+  width: var(--cw);
+}
+
+/*
+ * ── a pile of cards (`components/CardPile.tsx`): the draft's picks and the deck builder's piles ──
+ *
+ * Its heading, then its cards overlapped in a column, every card showing its name strip and the last
+ * one whole, at the `--cw` its screen fits. A pile never moves under the pointer: each card's top
+ * shows, and hovering it opens the inspector (the operator, 2026-10-19: "when cards are stacked,
+ * just don't bring them forward. that way it's always easy to hover all cards").
+ */
+.pile {
+  flex: 0 0 auto;
+  min-width: var(--cw);
+}
+
+.pile__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px;
+  /* As wide as the pile's cards, never wider: a heading must not widen its pile past the fit. */
+  width: 0;
+  min-width: 100%;
+  margin: 0;
+  padding: 0 2px 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.pile[data-empty] .pile__head {
+  opacity: 0.45;
+}
+
+.pile__label {
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pile__cols {
+  display: flex;
+  gap: var(--pile-gap, 8px);
+}
+
+.pile__stack {
+  display: flex;
+  flex-direction: column;
+  width: var(--cw);
+  padding-bottom: 4px;
+}
+
+.pile__stack > * + * {
+  margin-top: calc(var(--cw) * (var(--pile-peek) - 1 / (var(--card-ratio))));
 }
 
 /*
@@ -1158,7 +1169,7 @@ button {
  * failed fetch — keep their content-sized layout.
  */
 .card:has(.card__art) {
-  aspect-ratio: 488 / 680;
+  aspect-ratio: var(--card-ratio);
   height: auto;
 }
 

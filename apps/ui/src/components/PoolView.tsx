@@ -49,25 +49,27 @@
  * header for the mechanics. `DraftScreen.tsx`'s header has the rest.
  */
 
-import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 
 import type { DraftCard, ManaColor } from '../draft/types.ts';
-import { groupCards, type GroupBy, type GroupId } from '../deck/cardOrder.ts';
-import { DropArea, startCardDrag, useCardSplit, type Area } from '../deck/dragMove.tsx';
+import { MV_SPAN, groupCards, mvLabel, type GroupBy, type GroupId } from '../deck/cardOrder.ts';
+import { DraggableCard, DropArea, useCardSplit, type Area } from '../deck/dragMove.tsx';
+import { uiPx } from '../settings/ui-scale.ts';
+import { CardPile, pileChrome } from './CardPile.tsx';
 import { CardTile } from './CardTile.tsx';
-import { PILE_PEEK, columnsOf, cssPx, fitPiles, outerHeight, useBox } from './cardFit.ts';
+import { cssPx, fitPiles, useBox } from './cardFit.ts';
 import { ColorSymbol, type ColorSymbolId } from './ColorSymbol.tsx';
 import { ManaPip } from './ManaPip.tsx';
 
 const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
 
-/** The largest a pick is drawn. */
+/** The largest a pick is drawn, at 100%. */
 const MAX_POOL_W = 140;
 
 function GroupHead({ id }: { id: GroupId }) {
   if (id === 'L') return <i className="ms ms-land" aria-label="lands" />;
   if (/^[WUBRGMC]$/.test(id)) return <ColorSymbol symbol={id as ColorSymbolId} />;
-  return <span className="pool__bucket-mv">{id === '6' ? '6+' : id}</span>;
+  return <>{mvLabel(id)}</>;
 }
 
 /** See the header: disjoint from `PackView.tsx`'s `w0..w14`-ish numbering. */
@@ -113,15 +115,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
   const counts = COLORS.map(
     (c) => [c, cards.filter((card) => card.colors.includes(c)).length] as const,
   );
-  const [measure, box] = useBox();
-  const curve = useRef<HTMLElement | null>(null);
-  const attach = useCallback(
-    (el: HTMLElement | null) => {
-      curve.current = el;
-      measure(el);
-    },
-    [measure],
-  );
+  const [measure, box, curve] = useBox<HTMLDivElement>();
 
   // The whole pool takes a drop: a pick let go anywhere off its own area moves to the other.
   const split = useCardSplit((cardId, to) => onMove?.(cardId, to));
@@ -134,51 +128,38 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
   );
   const piles = sideboard === undefined ? groups : [...groups, ['side', [...sideboard]] as [GroupId, DraftCard[]]];
   const measured = box.width > 0 && box.height > 0;
-  // The gap between piles and a pile's heading, as the stylesheet draws them (at the UI scale).
-  const gap = cssPx(curve.current, 'column-gap', 12);
-  const head = outerHeight(curve.current?.querySelector('.pool__bucket-title'), 20);
+  // The gap between piles and what a pile adds to its cards, as the stylesheet draws them (at the UI scale).
   const fit = measured
     ? fitPiles(
         piles.map(([, pile]) => pile.length),
-        { width: box.width, height: box.height - head },
-        gap,
-        MAX_POOL_W,
+        { width: box.width, height: box.height - pileChrome(curve) },
+        cssPx(curve, 'column-gap', 12),
+        uiPx(MAX_POOL_W, curve),
       )
     : null;
-  const style =
-    fit === null
-      ? undefined
-      : ({ '--pool-w': `${fit.cardW.toFixed(1)}px`, '--pool-show': `${(fit.cardW * PILE_PEEK).toFixed(1)}px` } as CSSProperties);
+  const style = fit === null ? undefined : ({ '--cw': `${fit.cardW.toFixed(1)}px` } as CSSProperties);
 
   // The synthetic inspector id is a running count over every tile this view
   // draws, in the ORDER THEY RENDER — not a index derived from `cards`, which
   // would collide once a bucket skips the first few indices.
   let tileAt = POOL_ID_OFFSET;
   const pile = (id: GroupId, bucket: readonly DraftCard[], at: number, from: Area) => (
-    <div key={id} className="pool__bucket" data-testid={id === 'side' ? 'pool-side' : `pool-bucket-${id}`}>
-      <h3 className="pool__bucket-title">
-        {id === 'side' ? 'Sideboard' : <GroupHead id={id} />}{' '}
-        <span className="pool__bucket-n">({bucket.length})</span>
-      </h3>
-      <div className="pool__bucket-cols">
-        {columnsOf(bucket, fit?.cols[at] ?? 1).map((column, i) => (
-          <div key={i} className="pool__bucket-cards">
-            {column.map((card) => {
-              const tileId = `w${tileAt++}`;
-              return (
-                <PoolTile
-                  key={card.cardId}
-                  card={card}
-                  tileId={tileId}
-                  enterFrom={card.cardId === recentlyAdded?.cardId ? recentlyAdded.from : null}
-                  from={onMove === undefined ? null : from}
-                />
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
+    <CardPile
+      key={id}
+      testid={id === 'side' ? 'pool-side' : `pool-bucket-${id}`}
+      head={id === 'side' ? 'Sideboard' : <GroupHead id={id} />}
+      items={bucket}
+      cols={fit?.cols[at] ?? 1}
+      render={(card) => (
+        <PoolTile
+          key={card.cardId}
+          card={card}
+          tileId={`w${tileAt++}`}
+          enterFrom={card.cardId === recentlyAdded?.cardId ? recentlyAdded.from : null}
+          from={onMove === undefined ? null : from}
+        />
+      )}
+    />
   );
 
   return (
@@ -203,7 +184,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
           <div className="segmented pool__sort" role="group" aria-label="group picks">
             {(
               [
-                ['mv', <span key="mv">0–6</span>, 'by mana value'],
+                ['mv', <span key="mv">{MV_SPAN}</span>, 'by mana value'],
                 ['color', <ColorSymbol key="c" symbol="M" />, 'by colour'],
               ] as const
             ).map(([by, glyph, label]) => (
@@ -227,7 +208,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
       {cards.length === 0 ? (
         <p className="pool__note">Nothing picked yet.</p>
       ) : (
-        <div className="pool__curve" ref={attach} style={style}>
+        <div className="pool__curve" ref={measure} style={style}>
           {onMove === undefined ? (
             groups.map(([id, bucket], at) => pile(id, bucket, at, 'deck'))
           ) : (
@@ -307,14 +288,8 @@ function PoolTile({ card, tileId, enterFrom, from }: { card: DraftCard; tileId: 
   }, [enterFrom]);
 
   return (
-    <div
-      ref={ref}
-      className={entering ? 'pool__tile pool__tile--enter' : 'pool__tile'}
-      data-card-id={tileId}
-      draggable={from !== null}
-      onDragStart={from === null ? undefined : (e) => startCardDrag(e, from, card.cardId)}
-    >
+    <DraggableCard ref={ref} className={entering ? 'pool__tile pool__tile--enter' : 'pool__tile'} data-card-id={tileId} from={from} dragKey={card.cardId}>
       <CardTile card={card} />
-    </div>
+    </DraggableCard>
   );
 }

@@ -394,7 +394,7 @@ describe('DeckEditor — limited', () => {
     expect(piles.reduce((n, p) => n + within(p).queryAllByTestId('card').length, 0)).toBe(12);
     for (const pile of piles) {
       const n = within(pile).queryAllByTestId('card').length;
-      expect(pile.querySelector('.deck-editor__pilen')!.textContent).toBe(String(n));
+      expect(pile.querySelector('.pile__n')!.textContent).toBe(String(n));
     }
     // Six Plains are one card with a ×6 badge, in the lands pile after the curve.
     const lands = screen.getByTestId('land-pile');

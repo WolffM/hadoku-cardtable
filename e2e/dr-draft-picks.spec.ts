@@ -139,7 +139,7 @@ test(titled('the picks sort by colour or mana value, a pick dragged to the sideb
 
     /* ── 3: a pick dragged onto the sideboard ── */
     // The bottom card of a pile shows whole; any card's name strip is its top.
-    const tile = page.locator('[data-testid="pool-main"] .pool__bucket-cards > .pool__tile').last();
+    const tile = page.locator('[data-testid="pool-main"] .pile__stack > .pool__tile').last();
     const sided = (await tile.locator('.card__name').first().textContent())!.trim();
     const saved = page.waitForResponse((r) => r.url().includes('/api/drafts/') && r.url().endsWith('/deck') && r.request().method() === 'PUT');
     await tile.dragTo(page.getByTestId('pool-sideboard'), { sourcePosition: { x: 12, y: 6 } });
@@ -193,7 +193,7 @@ test(titled('the picks sort by colour or mana value, a pick dragged to the sideb
     for (const state of ['opened', 'everything sideboarded'] as const) {
       if (state === 'everything sideboarded') {
         for (let n = 44; n > 0; n -= 1) {
-          await page.locator('[data-testid="main-grid"] .deck-editor__stack > :last-child [data-testid="card"]').first().click();
+          await page.locator('[data-testid="main-grid"] .pile__stack > :last-child [data-testid="card"]').first().click();
           await expect(page.getByTestId('main-count')).toHaveText(String(n - 1));
         }
       }

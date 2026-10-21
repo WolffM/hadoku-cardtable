@@ -30,7 +30,7 @@ describe('a multicolour pick is drawn gold, never as a colour pair', () => {
     expect(FLAME.colors).toEqual(['R', 'U']);
     render(createElement(PoolView, { cards: [FLAME, named('Lutri, the Spellchaser')], recentlyAdded: null, groupBy: 'color' }));
     const pile = screen.getByTestId('pool-bucket-M');
-    const head = pile.querySelector('.pool__bucket-title')!;
+    const head = pile.querySelector('.pile__head')!;
     expect(head.querySelector(PAIR_CLASSES)).toBeNull();
     expect(head.querySelectorAll('.ms-multicolor')).toHaveLength(1);
   });

@@ -15,7 +15,7 @@
  * cards back out of the side-board in drafting view").
  */
 
-import { useState, type DragEvent, type ReactNode } from 'react';
+import { useState, type ComponentProps, type DragEvent, type ReactNode } from 'react';
 
 export type Area = 'pool' | 'deck';
 
@@ -25,10 +25,28 @@ const DRAG_FROM: Record<Area, string> = {
 };
 const other = (area: Area): Area => (area === 'pool' ? 'deck' : 'pool');
 
-/** A card's drag, from `from`, carrying `key` (whatever the screen moves cards by). */
-export function startCardDrag(e: DragEvent, from: Area, key: string): void {
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData(DRAG_FROM[from], key);
+/**
+ * A card a split's drag picks up, from `from`, carrying `dragKey` (whatever the
+ * screen moves cards by); marked `data-lifted` while it is dragged. `from`
+ * null: it does not drag.
+ */
+export function DraggableCard({ from, dragKey, ...rest }: { from: Area | null; dragKey: string } & ComponentProps<'div'>) {
+  return (
+    <div
+      {...rest}
+      draggable={from !== null}
+      onDragStart={
+        from === null
+          ? undefined
+          : (e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData(DRAG_FROM[from], dragKey);
+              e.currentTarget.setAttribute('data-lifted', '');
+            }
+      }
+      onDragEnd={(e) => e.currentTarget.removeAttribute('data-lifted')}
+    />
+  );
 }
 
 /** The area a card drag left, read off its types (a drag's data is unreadable until the drop); null for any other drag. */

@@ -19,6 +19,7 @@
 import type { CSSProperties } from 'react';
 
 import type { CardFace, DraftCard } from '../draft/types.ts';
+import { CARD_RATIO } from './cardFit.ts';
 
 export type FacePart = 'split-left' | 'split-right' | 'aftermath-top' | 'aftermath-bottom' | 'adventure';
 
@@ -58,8 +59,6 @@ export const FACE_REGIONS: Readonly<Record<FacePart, FaceRegion>> = {
   adventure: { x: 0.045, y: 0.61, w: 0.465, h: 0.29, rotate: 0 },
 };
 
-/** A card image's own proportion, width over height — the tile's too (`styles.css`, `.card:has(.card__art)`). */
-const CARD_ASPECT = 488 / 680;
 
 const pct = (n: number): string => `${+(n * 100).toFixed(4)}%`;
 
@@ -70,11 +69,11 @@ const pct = (n: number): string => `${+(n * 100).toFixed(4)}%`;
  */
 export function faceCropStyle(part: FacePart): CSSProperties {
   const { x, y, w, h, rotate } = FACE_REGIONS[part];
-  // In tile widths: the image is 1 wide and 1/CARD_ASPECT tall at scale 1, as the tile is.
+  // In tile widths: the image is 1 wide and 1/CARD_RATIO tall at scale 1, as the tile is.
   const regionW = w;
-  const regionH = h / CARD_ASPECT;
+  const regionH = h / CARD_RATIO;
   const [uprightW, uprightH] = rotate === 0 ? [regionW, regionH] : [regionH, regionW];
-  const scale = Math.min(1 / uprightW, 1 / CARD_ASPECT / uprightH);
+  const scale = Math.min(1 / uprightW, 1 / CARD_RATIO / uprightH);
   const cx = x + w / 2;
   const cy = y + h / 2;
   return {

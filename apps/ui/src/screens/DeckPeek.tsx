@@ -35,6 +35,7 @@ import { ManaCost } from '../components/ManaPip.tsx';
 import type { DeckColor } from '@hadoku/deck';
 import type { DeckStyle } from '@hadoku/deck/library';
 
+import { sortCards } from '../deck/cardOrder.ts';
 import { uiPx } from '../settings/ui-scale.ts';
 import { DeckStyleTag } from './DeckStyleTag.tsx';
 
@@ -152,13 +153,10 @@ const LINE_PX = 18;
 /** The rows a list column takes before the main deck splits into two. */
 const ROWS_RESERVED = 5;
 
-/** Costed cards by mana value then name, then the cost-free ones by name. */
+/** The builder's order (`sortCards` by mana value), the costed cards first, then the cost-free ones. */
 export function peekOrder(lines: readonly PeekLine[]): { spells: PeekLine[]; free: PeekLine[] } {
-  const byName = (a: PeekLine, b: PeekLine) => a.name.localeCompare(b.name);
-  return {
-    spells: lines.filter((l) => l.cost.length > 0).sort((a, b) => a.manaValue - b.manaValue || byName(a, b)),
-    free: lines.filter((l) => l.cost.length === 0).sort(byName),
-  };
+  const sorted = sortCards(lines, 'mv', (l) => l.face);
+  return { spells: sorted.filter((l) => l.cost.length > 0), free: sorted.filter((l) => l.cost.length === 0) };
 }
 
 const total = (lines: readonly PeekLine[]) => lines.reduce((n, l) => n + l.count, 0);

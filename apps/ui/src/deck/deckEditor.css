@@ -5,11 +5,12 @@
  * the pool grid and the piles and sets one card width, `--cw`, at which both
  * fit (`components/cardFit.ts`), and the pool grid's height. A pile overlaps
  * its cards to show each one's name bar: the overlap is the card's height
- * (488:680) less a fifth of its width; a pile taller than its room splits
+ * less a fifth of its width (`.pile`, `styles.css`); a pile taller than its room splits
  * into columns side by side.
  */
 
 .deck-editor {
+  --pile-gap: 8px;
   position: relative;
   box-sizing: border-box;
   height: 100%;
@@ -203,7 +204,7 @@
 
 /* A tile whose art has not arrived is the text card underneath: at these widths, small type. */
 .deck-editor__card .card:not(:has(.card__art)) {
-  aspect-ratio: 488 / 680;
+  aspect-ratio: var(--card-ratio);
   height: auto;
   padding: 6px 6px 6px 10px;
   gap: 3px;
@@ -343,58 +344,9 @@
   min-width: 0;
   overflow: hidden;
   display: flex;
-  gap: 8px;
+  gap: var(--pile-gap);
   padding-top: 2px;
 }
-
-.deck-editor__pile {
-  flex: 0 0 auto;
-  min-width: var(--cw);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.deck-editor__pile[data-empty] .deck-editor__pilehead {
-  opacity: 0.45;
-}
-
-.deck-editor__pilehead {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding: 0 2px 4px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-dim);
-}
-
-.deck-editor__pilemv {
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.deck-editor__cols {
-  display: flex;
-  gap: 8px;
-}
-
-.deck-editor__stack {
-  --peek: calc(var(--cw) * 0.205);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-bottom: 4px;
-}
-
-.deck-editor__stack > * + * {
-  margin-top: calc(var(--cw) * -1.3934 + var(--peek));
-}
-
-/* A pile never moves under the pointer: each card's top shows, and hovering
-   it opens the inspector (the operator, 2026-10-19: "when cards are stacked,
-   just don't bring them forward. that way it's always easy to hover all cards"). */
 
 .deck-editor__landcard {
   position: relative;

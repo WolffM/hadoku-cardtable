@@ -48,7 +48,7 @@
  * `CardRequest`.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import type { CardRequest, DeckEntry } from '@hadoku/carddata/dck';
 import {
@@ -72,9 +72,11 @@ import { ColorSymbol } from '../components/ColorSymbol.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { cardRequestOf, deckFromPool, dckTextOf, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
 import type { DraftCard, ManaColor } from '../draft/types.ts';
-import { DropArea, startCardDrag, useCardSplit, type Area } from './dragMove.tsx';
-import { cardHeightOf, columnsOf, cssPx, gridAt, largestCard, outerHeight, pilesAt, useBox } from '../components/cardFit.ts';
-import { MV_CAP, groupCards, isCreatureFace, isLandFace, sortCards, type SortKey } from './cardOrder.ts';
+import { DraggableCard, DropArea, useCardSplit, type Area } from './dragMove.tsx';
+import { CardPile, pileChrome } from '../components/CardPile.tsx';
+import { uiPx } from '../settings/ui-scale.ts';
+import { cardHeightOf, cssPx, gridAt, largestCard, pilesAt, useBox } from '../components/cardFit.ts';
+import { MV_CAP, MV_SPAN, groupCards, mvLabel, isCreatureFace, isLandFace, sortCards, type SortKey } from './cardOrder.ts';
 import { cardIndex, draftedSeat, mainSummary, namedCardPool, suggestBasics } from './build.ts';
 import type { TablesClient, Verdict } from '../screens/tables.ts';
 import './deckEditor.css';
@@ -110,7 +112,7 @@ export interface DeckEditorProps {
 }
 
 const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
-/** The largest a card is drawn here. */
+/** The largest a card is drawn here, at 100%. */
 const MAX_CARD_W = 150;
 const BASIC_OF: Record<ManaColor, string> = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
 const PIP_OF: Record<string, ManaColor> = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
@@ -120,23 +122,8 @@ const BASIC_FACES: ReadonlyMap<string, DraftCard> = new Map(
   namedCardPool(BASIC_LAND_NAMES).map((f) => [f.name, { ...f, typeLine: `Basic Land — ${f.name}`, colors: [], manaValue: 0 }]),
 );
 
-/** A card with no copy of its name in `pool` — a stale save. Enough to draw, never to pick from. */
-function fallbackFace(card: CardRequest): DraftCard {
-  return (
-    BASIC_FACES.get(card.name) ?? {
-      cardId: 'fallback',
-      name: card.name,
-      manaCost: [],
-      manaValue: 0,
-      colors: [],
-      typeLine: '',
-      oracleText: '',
-      setCode: card.set ?? '',
-      collectorNumber: card.collectorNumber ?? '',
-      rarity: 'common',
-    }
-  );
-}
+/** A card with no copy of its name in `pool` — a stale save — drawn by its name, as a library card is. Never picked from. */
+const fallbackFace = (card: CardRequest): DraftCard => BASIC_FACES.get(card.name) ?? namedCardPool([card.name])[0]!;
 
 function facesByKey(pool: readonly DraftCard[]): Map<string, DraftCard[]> {
   const index = new Map<string, DraftCard[]>();
@@ -304,15 +291,7 @@ export function DeckEditor({
    */
   const landGroups = useMemo(() => groupLands(lands), [lands]);
   const [measureGrid, gridBox] = useBox();
-  const [measurePilesBox, pilesBox] = useBox();
-  const pilesEl = useRef<HTMLElement | null>(null);
-  const measurePiles = useCallback(
-    (el: HTMLElement | null) => {
-      pilesEl.current = el;
-      measurePilesBox(el);
-    },
-    [measurePilesBox],
-  );
+  const [measurePiles, pilesBox, pilesEl] = useBox<HTMLDivElement>();
   const strip = useRef<HTMLElement | null>(null);
   const fit = useMemo(() => {
     if (gridBox.width <= 0 || pilesBox.width <= 0) return null;
@@ -324,13 +303,13 @@ export function DeckEditor({
     const stripH = beside && last != null ? last.getBoundingClientRect().bottom - strip.current!.getBoundingClientRect().top : 0;
     const counts = [...piles.map((p) => p.length), landGroups.length];
     // The gaps, a pile's head and the room under its last card, as the stylesheet draws them (at the UI scale).
-    const gridEl = pilesEl.current?.closest('.deck-editor')?.querySelector('[data-testid="side-grid"]');
+    const gridEl = pilesEl?.closest('.deck-editor')?.querySelector('[data-testid="side-grid"]');
     const gridGap = cssPx(gridEl, 'column-gap', 6);
-    const pileGap = cssPx(pilesEl.current, 'column-gap', 8);
-    const head = outerHeight(pilesEl.current?.querySelector('.deck-editor__pilehead'), 22) + cssPx(pilesEl.current?.querySelector('.deck-editor__stack'), 'padding-bottom', 4);
+    const pileGap = cssPx(pilesEl, 'column-gap', 8);
+    const head = pileChrome(pilesEl);
     const gridH = (w: number): number => Math.ceil(Math.max(gridAt(sideTiles.length, w, gridBox.width, gridGap).height, cardHeightOf(w)));
     const deckH = (w: number): number => Math.max(pilesAt(counts, w, pilesBox.width, pileGap).height + head, stripH);
-    const cardW = largestCard((w) => gridH(w) + deckH(w) <= total, MAX_CARD_W);
+    const cardW = largestCard((w) => gridH(w) + deckH(w) <= total, uiPx(MAX_CARD_W, pilesEl));
     return { cardW, gridH: gridH(cardW), cols: pilesAt(counts, cardW, pilesBox.width, pileGap).cols };
   }, [gridBox, pilesBox, piles, landGroups, sideTiles.length]);
 
@@ -460,7 +439,7 @@ export function DeckEditor({
                 aria-pressed={filter.mv === mv}
                 onClick={() => setFilter((f) => ({ ...f, mv: f.mv === mv ? null : mv }))}
               >
-                {mv === MV_CAP ? `${mv}+` : mv}
+                {mvLabel(mv)}
               </button>
             ))}
           </div>
@@ -468,7 +447,7 @@ export function DeckEditor({
           <div className="deck-editor__chips deck-editor__chips--seg" role="group" aria-label="sort">
             {(
               [
-                ['mv', <span key="mv" className="deck-editor__sortglyph">0–{MV_CAP}</span>, 'by mana value'],
+                ['mv', <span key="mv" className="deck-editor__sortglyph">{MV_SPAN}</span>, 'by mana value'],
                 ['color', <ColorSymbol key="c" symbol="M" />, 'by colour'],
                 ['type', <i key="t" className="ms ms-creature" aria-hidden="true" />, 'by type'],
               ] as Array<[SortKey, ReactNode, string]>
@@ -522,38 +501,33 @@ export function DeckEditor({
         <div className="deck-editor__body">
           <div className="deck-editor__piles" data-testid="main-grid" ref={measurePiles}>
             {piles.map((pile, mv) => (
-              <div key={mv} className="deck-editor__pile" data-testid="curve-bucket" data-mv={mv} data-empty={pile.length === 0 ? '' : undefined}>
-                <PileHead label={mv === MV_CAP ? `${mv}+` : String(mv)} n={pile.length} />
-                <div className="deck-editor__cols">
-                  {columnsOf(pile, fit?.cols[mv] ?? 1).map((column, i) => (
-                    <div key={i} className="deck-editor__stack">
-                      {column.map((t) => (
-                        <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="deck" onMove={toSide} flash={flash(t, 'deck') ? landed!.n : 0} />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <CardPile
+                key={mv}
+                testid="curve-bucket"
+                mv={mv}
+                head={mvLabel(mv)}
+                items={pile}
+                cols={fit?.cols[mv] ?? 1}
+                render={(t) => <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="deck" onMove={toSide} flash={flash(t, 'deck') ? landed!.n : 0} />}
+              />
             ))}
-            <div className="deck-editor__pile" data-testid="land-pile" data-empty={lands.length === 0 ? '' : undefined}>
-              <PileHead label={<i className="ms ms-land" aria-label="lands" />} n={lands.length} />
-              <div className="deck-editor__cols">
-                {columnsOf(landGroups, fit?.cols[piles.length] ?? 1).map((column, i) => (
-                  <div key={i} className="deck-editor__stack">
-                    {column.map(({ tile, n }) => (
-                      <div key={`${tile.key}#${tile.basic ? 'b' : 'm'}`} className="deck-editor__landcard">
-                        <EditorCard tile={tile} from="deck" onMove={toSide} flash={flash(tile, 'deck') ? landed!.n : 0} />
-                        {n > 1 && (
-                          <span className="deck-editor__badge" data-testid="land-count">
-                            ×{n}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <CardPile
+              testid="land-pile"
+              head={<i className="ms ms-land" aria-label="lands" />}
+              items={landGroups}
+              n={lands.length}
+              cols={fit?.cols[piles.length] ?? 1}
+              render={({ tile, n }) => (
+                <div key={`${tile.key}#${tile.basic ? 'b' : 'm'}`} className="deck-editor__landcard">
+                  <EditorCard tile={tile} from="deck" onMove={toSide} flash={flash(tile, 'deck') ? landed!.n : 0} />
+                  {n > 1 && (
+                    <span className="deck-editor__badge" data-testid="land-count">
+                      ×{n}
+                    </span>
+                  )}
+                </div>
+              )}
+            />
           </div>
           <aside className="deck-editor__strip" ref={strip}>
             <Curve curve={curve} />
@@ -605,29 +579,10 @@ function groupLands(lands: readonly Tile[]): Array<{ tile: Tile; n: number }> {
 /** A tile in either area: click moves it, and it drags to the other area. */
 function EditorCard({ tile, from, onMove, flash }: { tile: Tile; from: Area; onMove: (t: Tile) => void; flash: number }) {
   return (
-    <div
-      className="deck-editor__card"
-      // Re-keyed by the move counter so the landing flash replays on every move of the same card.
-      data-flash={flash > 0 ? flash % 2 : undefined}
-      draggable
-      data-name={tile.face.name}
-      onDragStart={(e) => {
-        startCardDrag(e, from, tile.key);
-        e.currentTarget.setAttribute('data-lifted', '');
-      }}
-      onDragEnd={(e) => e.currentTarget.removeAttribute('data-lifted')}
-    >
+    // Re-keyed by the move counter so the landing flash replays on every move of the same card.
+    <DraggableCard className="deck-editor__card" data-flash={flash > 0 ? flash % 2 : undefined} data-name={tile.face.name} from={from} dragKey={tile.key}>
       <CardTile card={tile.face} onPick={() => onMove(tile)} />
-    </div>
-  );
-}
-
-function PileHead({ label, n }: { label: ReactNode; n: number }) {
-  return (
-    <div className="deck-editor__pilehead">
-      <span className="deck-editor__pilemv">{label}</span>
-      <span className="deck-editor__pilen">{n}</span>
-    </div>
+    </DraggableCard>
   );
 }
 
@@ -657,10 +612,10 @@ function Curve({ curve }: { curve: readonly number[] }) {
   return (
     <div className="deck-editor__curve" data-testid="curve" aria-label={`curve ${curve.join(' ')}`}>
       {curve.map((n, mv) => (
-        <span key={mv} className="deck-editor__curvecol" title={`${n} at ${mv === MV_CAP ? `${mv}+` : mv}`}>
+        <span key={mv} className="deck-editor__curvecol" title={`${n} at ${mvLabel(mv)}`}>
           <span className="deck-editor__curven">{n > 0 ? n : ''}</span>
           <span className="deck-editor__curvebar" style={{ height: `${(n / max) * 100}%` }} />
-          <span className="deck-editor__curvemv">{mv === MV_CAP ? `${mv}+` : mv}</span>
+          <span className="deck-editor__curvemv">{mvLabel(mv)}</span>
         </span>
       ))}
     </div>
