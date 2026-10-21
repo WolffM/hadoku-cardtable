@@ -28,6 +28,12 @@ export type GauntletPhase = z.infer<typeof GauntletPhaseSchema>;
 /** How many decks a Gauntlet is drawn with, and the fewest an era must hold to be offered. */
 export const GAUNTLET_DECKS = 10;
 
+/**
+ * How long the reveal plays, from `revealAt`: the server opens the first ban
+ * this long after the draw, and the screen fits its animation inside it.
+ */
+export const GAUNTLET_REVEAL_MS = 6000;
+
 export const GauntletSeatIndexSchema = z.union([z.literal(0), z.literal(1)]);
 export type GauntletSeatIndex = z.infer<typeof GauntletSeatIndexSchema>;
 
@@ -111,9 +117,10 @@ export const GauntletStepSchema = z.strictObject({
 });
 export type GauntletStep = z.infer<typeof GauntletStepSchema>;
 
-/** A game whose decks have been revealed, by table seat. */
+/** A game whose decks have been revealed, by table seat, and the seat that won it once it is over. */
 export const GauntletGameSchema = z.strictObject({
   decks: z.tuple([z.string().min(1), z.string().min(1)]),
+  winner: GauntletSeatIndexSchema.nullable(),
 });
 export type GauntletGame = z.infer<typeof GauntletGameSchema>;
 
@@ -137,6 +144,8 @@ export const GauntletViewSchema = z.strictObject({
   /** Which seats have readied in `options`. */
   ready: z.tuple([z.boolean(), z.boolean()]),
   era: GauntletEraSchema.nullable(),
+  /** When the reveal started, server epoch ms; a screen that opens mid-reveal joins it there. Null before the draw. */
+  revealAt: z.number().int().nullable(),
   /** The coin flip: the table seat that is P1. Null before the draw. */
   first: GauntletSeatIndexSchema.nullable(),
   /** The ten decks in the order they were drawn; empty before the draw. */
