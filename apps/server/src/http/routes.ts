@@ -1759,7 +1759,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	/** `{ room }`: the product's start. Both players' own decks, assembled here. */
 	function startFromRoom(req: Request, res: Response, next: NextFunction, body: Record<string, unknown>): void {
 		for (const key of Object.keys(body)) {
-			if (key !== 'room' && key !== 'bot' && key !== 'table') {
+			if (key !== 'room' && key !== 'bot' && key !== 'table' && key !== 'rematch') {
 				res.status(400).json({ error: `body: unknown field ${key}` });
 				return;
 			}
@@ -1768,7 +1768,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(400).json({ error: 'body.bot is true or absent' });
 			return;
 		}
+		if (body.rematch !== undefined && body.rematch !== true) {
+			res.status(400).json({ error: 'body.rematch is true or absent' });
+			return;
+		}
 		const vsBot = body.bot === true;
+		// Pressed on a finished game's Rematch: the bot keeps its deck, even into a new series.
+		const rematch = body.rematch === true;
 		const roomId = body.room;
 		if (typeof roomId !== 'string' || roomId.trim() === '') {
 			res.status(400).json({ error: 'body.room is a room id' });
@@ -1908,15 +1914,17 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// once the series is over — never a sideboarded load; and only a new series
 		// draws the bot a deck.
 		const newSeries = table.series.phase === 'seating' || table.series.phase === 'done';
-		// The bot's deck (`aiDeck`): the one its series already plays, or the one a
-		// dealt table dealt it. Otherwise a new series draws a random one of the
+		// The bot's deck (`aiDeck`): the one its series already plays, the one a
+		// Rematch plays again (the operator: "if rematch is clicked, yes the bot
+		// keeps the same deck"), or the one a dealt table dealt it. Any other start
+		// of a new series — after Back to room, say — draws a random one of the
 		// decks the room's pool offers a player (`legalLibraryDecks` — the era's
 		// own, or the whole library on Free pick), checked by the same gate as the
 		// player's. A drafted pool offers no library deck, so there the bot plays
 		// what a bot at that draft took (`botDeck.ts`).
 		let botDeck: string | null = null;
 		const held = players[0]!.state.aiDeck;
-		const botKept = vsBot && held !== undefined && (dealsDecks(room) || !newSeries);
+		const botKept = vsBot && held !== undefined && (dealsDecks(room) || !newSeries || rematch);
 		if (vsBot) {
 			const owner = loaded[0]!.member.id;
 			const draftId = draftIdOfPool(pool);

@@ -302,8 +302,10 @@ export interface TablesClient {
    * for the bot's seat (`apps/server/src/http/routes.ts`'s `startFromRoom`,
    * `vsBot` arm). Refused with a second member in the room, before a deck is
    * loaded, or for a drafted pool (no library deck is legal in one).
+   * `rematch` says the start is a finished game's Rematch, so the bot plays
+   * the deck it just played; any other start of a new series draws a new one.
    */
-  startVsBot(roomId: string, tableId?: string): Promise<StartOutcome>;
+  startVsBot(roomId: string, tableId?: string, opts?: { rematch?: boolean }): Promise<StartOutcome>;
 }
 
 async function readJson(res: Response): Promise<Record<string, unknown>> {
@@ -417,10 +419,10 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       if ((status === 201 || status === 200) && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
       return { ok: false, error: errorOf(body, status), seats: null };
     },
-    startVsBot: async (roomId, tableId) => {
+    startVsBot: async (roomId, tableId, opts) => {
       // Always 201: a bot match is yours alone to start, so there is no other
       // player's already-started match to catch up to, unlike `startRoom`.
-      const { status, body } = await post('play/matches', withTable({ room: roomId, bot: true }, tableId));
+      const { status, body } = await post('play/matches', withTable({ room: roomId, bot: true, ...(opts?.rematch === true ? { rematch: true } : {}) }, tableId));
       if (status === 201 && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
       return { ok: false, error: errorOf(body, status), seats: null };
     },

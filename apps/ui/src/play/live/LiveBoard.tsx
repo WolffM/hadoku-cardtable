@@ -2348,7 +2348,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
         return;
       }
       asked.current = true;
-      (tableId === undefined ? tables.startVsBot(roomId) : tables.startVsBot(roomId, tableId)).then(started, unreachable);
+      tables.startVsBot(roomId, tableId, { rematch: true }).then(started, unreachable);
     }, unreachable);
   };
 
