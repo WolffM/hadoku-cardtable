@@ -19,7 +19,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { parseRoute, routeUrl, routeHash, type Route } from './route.ts';
+import { canonicalAddress, parseRoute, routeUrl, routeHash, type Route } from './route.ts';
 
 describe('parseRoute', () => {
   it('reads the routes', () => {
@@ -164,5 +164,29 @@ describe('room routes', () => {
     for (const hash of ['#/room', '#/room/', '#/room/a/b']) {
       expect(parseRoute(hash), hash).toEqual({ kind: 'lobby' });
     }
+  });
+});
+
+describe('canonicalAddress', () => {
+  const at = (pathname: string, hash = '', search = '') => canonicalAddress({ pathname, search, hash }, '/cardtable/');
+
+  it('leaves the app page alone', () => {
+    expect(at('/cardtable/')).toBeNull();
+    expect(at('/cardtable/', '#/room/r-2d29801ec7ed')).toBeNull();
+  });
+
+  it('drops a stray path under a hash, keeping the hash', () => {
+    expect(at('/cardtable/sounds/music', '#/room/r-2d29801ec7ed')).toBe('/cardtable/#/room/r-2d29801ec7ed');
+  });
+
+  it('moves a stray path that is a route into the hash', () => {
+    expect(at('/cardtable/sounds/music')).toBe('/cardtable/#/sounds/music');
+    expect(at('/cardtable/sounds/music', '#/')).toBe('/cardtable/#/sounds/music');
+    expect(at('/cardtable/room/r-2d29801ec7ed/')).toBe('/cardtable/#/room/r-2d29801ec7ed');
+  });
+
+  it('drops a stray path that is no route', () => {
+    expect(at('/cardtable/index.html')).toBe('/cardtable/');
+    expect(at('/cardtable', '', '?x=1')).toBe('/cardtable/?x=1');
   });
 });

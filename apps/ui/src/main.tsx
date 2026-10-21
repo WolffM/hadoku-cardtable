@@ -1,7 +1,8 @@
 /*
  * The mount, the stylesheet order, and nothing else.
  *
- * No app logic lives here on purpose: `App.tsx` routes and
+ * No app logic lives here on purpose (the one exception is putting a stray
+ * path back into the hash before the first render reads the route): `App.tsx` routes and
  * `chrome/AppChrome.tsx` frames, and that file's header states the boundary a
  * replacement wrapper lands on. The one app-specific value on this path is the
  * catalogue token, and it is not read here — vite's `define` substitutes
@@ -42,6 +43,9 @@ import '@wolffm/task-ui-components/theme-picker.css';
 import '@wolffm/task-ui-components/app-header.css';
 import './styles.css';
 import { App } from './App.tsx';
+import { canonicalizeAddress } from './screens/route.ts';
+
+canonicalizeAddress();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('index.html is missing #root');

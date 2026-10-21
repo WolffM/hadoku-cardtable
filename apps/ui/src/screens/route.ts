@@ -181,6 +181,33 @@ export function routeUrl(route: Route, location: { origin: string; pathname: str
   return `${location.origin}${location.pathname}${routeHash(route)}`;
 }
 
+/**
+ * The address this page should be on, or null when it already is.
+ *
+ * Every route lives in the hash, but the server answers any path under the
+ * prefix with the app, so `/cardtable/sounds/music` loads too, and every hash
+ * navigation after it keeps the stray path: `…/sounds/music#/room/x`, and an
+ * invite link copied from that tab carries it. The path goes into the hash
+ * when there is no hash yet, and is dropped when there is one, since the hash is
+ * what the person navigated to since.
+ */
+export function canonicalAddress(
+  location: { pathname: string; search: string; hash: string },
+  base: string,
+): string | null {
+  if (location.pathname === base) return null;
+  const stray = location.pathname.startsWith(base) ? location.pathname.slice(base.length) : '';
+  if (location.hash.replace(/^#\/?/, '') !== '') return `${base}${location.search}${location.hash}`;
+  const route = parseRoute(stray);
+  return `${base}${location.search}${route.kind === 'lobby' ? '' : routeHash(route)}`;
+}
+
+/** Moves a stray path into the hash, before anything reads the route. */
+export function canonicalizeAddress(): void {
+  const next = canonicalAddress(globalThis.location, import.meta.env.BASE_URL);
+  if (next !== null) globalThis.history.replaceState(globalThis.history.state, '', next);
+}
+
 /* ── the browser half ────────────────────────────────────────────────── */
 
 const listeners = new Set<() => void>();
