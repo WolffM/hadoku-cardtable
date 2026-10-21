@@ -518,6 +518,13 @@ button {
   display: none;
 }
 
+/* The grid's cursor: the card the arrow keys and Enter act on. */
+.pack--grid .pack__slot[data-focused] .card--pickable:not(:disabled) {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* The grid at the size that shows the whole pack (`gridGeometry`): no scroll. */
 .pack--grid[style] .pack__slot {
   --card-w: var(--grid-w);

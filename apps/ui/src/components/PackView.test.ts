@@ -219,4 +219,42 @@ describe('the grid', () => {
     fireEvent.keyDown(window, { key: 'Enter' });
     expect(onPick).toHaveBeenCalledTimes(1);
   });
+  // 15 cards in two rows of 8 columns at the stubbed 1000 x 600.
+  it('moves a cursor with the arrow keys, a card along or a row up and down, and Enter picks it', () => {
+    const onPick = vi.fn();
+    render(createElement(PackView, { cards: PACK, layout: 'grid', onPick, disabled: false, emptyNote: '' }));
+    expect(open()).toBe(-1);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(open()).toBe(0);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(open()).toBe(2);
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    expect(open()).toBe(10);
+    // Past the bottom row it stays put.
+    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    expect(open()).toBe(10);
+    fireEvent.keyDown(window, { key: 'ArrowUp' });
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(open()).toBe(1);
+    // The pointer moves the same cursor, and the keys go on from there.
+    fireEvent.pointerEnter(tile(6).parentElement!);
+    expect(open()).toBe(6);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onPick).toHaveBeenCalledWith('c7');
+  });
+
+  // The operator, 2026-10-20: the wheel over a hovered grid card should turn to its tokens too.
+  it("gives a card's tokens to the inspector's wheel after its back face", () => {
+    const fable: DraftCard = {
+      ...card(0),
+      scryfallId: '24c0d87b-0049-4beb-b9cb-6f813b7aa7dc',
+      faces: [{ ...card(1), scryfallId: '24c0d87b-0049-4beb-b9cb-6f813b7aa7dc#back', name: 'Reflection of Kiki-Jiki' }],
+    };
+    render(createElement(PackView, { cards: [fable], layout: 'grid', onPick: vi.fn(), disabled: false, emptyNote: '' }));
+    const key = tile(0).getAttribute('data-faces');
+    const faces = [...document.querySelectorAll(`[data-faces-of="${key}"] .card`)].map((el) => el.querySelector('.card__name')?.textContent);
+    expect(faces).toEqual(['Reflection of Kiki-Jiki', 'Treasure', 'Goblin Shaman', 'Copy']);
+  });
 });

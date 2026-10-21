@@ -9,8 +9,9 @@
  * cards until they are scrolled to"*). The wheel and the arrow keys move the
  * open card one along, and the row slides with it. The pointer opens nothing by
  * passing over a card — that was too easy to misclick: a card that is not open
- * opens on a click, and is picked on the next. Enter picks the open card, or in
- * the grid the card under the pointer.
+ * opens on a click, and is picked on the next. Enter picks the open card. The
+ * grid has a cursor of its own: the arrow keys move it a card along or a row up
+ * and down, the pointer moves it to the card it is over, and Enter picks it.
  *
  * Both layouts are measured, not guessed: `fanGeometry` and `gridGeometry` size
  * the cards to the box they are drawn in, so neither spills nor scrolls. Below
@@ -31,11 +32,11 @@
  * is what mounts the inspector.
  */
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '../sound/index.ts';
-import { relatedCards } from '../draft/related.ts';
+import { relatedCards, withRelatedFaces } from '../draft/related.ts';
 import { CardTile } from './CardTile.tsx';
 import { RelatedRow } from './RelatedRow.tsx';
 
@@ -177,9 +178,11 @@ function typing(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 }
 
-export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackViewProps) {
+export function PackView({ cards: dealt, layout, onPick, disabled, emptyNote }: PackViewProps) {
+  // Each card's tokens and meld cards ride as faces, for the inspector's wheel in the grid.
+  const cards = useMemo(() => dealt.map(withRelatedFaces), [dealt]);
   const [measure, box] = useBox();
-  /** The open card. `null` is the first: where a pack opens (the operator, 2026-10-19). */
+  /** The open card, or the grid's cursor. `null` is the first in the fan: where a pack opens (the operator, 2026-10-19); in the grid, no cursor yet. */
   const [focus, setFocus] = useState<number | null>(null);
   const root = useRef<HTMLDivElement | null>(null);
   const attach = useCallback(
@@ -195,6 +198,8 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
   const fan = layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height) : null;
   const grid = fan === null && measured ? gridGeometry(cards.length, box.width, box.height) : null;
   const shown = fan === null || cards.length === 0 ? null : Math.min(focus ?? 0, cards.length - 1);
+  const cursor = fan !== null || focus === null || cards.length === 0 ? null : Math.min(focus, cards.length - 1);
+  const cols = grid?.cols ?? 1;
 
   // A new pack opens on its first card.
   const packKey = cards.map((c) => c.cardId).join(',');
@@ -211,7 +216,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
     if (focus !== null && shown !== null && was !== null && was.pack === packKey && was.at !== shown) playRole('ui.draft-scroll');
   }, [focus, shown, packKey]);
 
-  /** The card under the pointer: what Enter picks in the grid, and whose related cards the fan draws. */
+  /** The card under the pointer: whose related cards the fan draws. */
   const [hovered, setHovered] = useState<number | null>(null);
   useEffect(() => setHovered(null), [packKey]);
 
@@ -266,8 +271,15 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
     [onPick],
   );
 
-  // Enter picks the open card (the grid: the one under the pointer); the arrows move along the row.
-  const highlighted = fan === null ? hovered : shown;
+  // Enter picks the open card, or the grid's cursor; the arrows move it.
+  const highlighted = fan === null ? cursor : shown;
+  /** A cursor the keys moved is brought into view; one the pointer moved already is. */
+  const keyed = useRef(false);
+  useEffect(() => {
+    if (!keyed.current || cursor === null) return;
+    keyed.current = false;
+    root.current?.querySelector('.pack__slot[data-focused]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [cursor]);
   const highlightedRef = useRef(highlighted);
   highlightedRef.current = highlighted;
   useEffect(() => {
@@ -280,15 +292,22 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
         if (card === undefined || onPick === undefined) return;
         event.preventDefault();
         onPick(card.cardId);
-      } else if (fanOn && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault();
+        keyed.current = true;
         const by = event.key === 'ArrowLeft' ? -1 : 1;
-        setFocus((was) => Math.max(0, Math.min(count - 1, (was ?? 0) + by)));
+        setFocus((was) => (was === null && !fanOn ? 0 : Math.max(0, Math.min(count - 1, (was ?? 0) + by))));
+      } else if (!fanOn && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+        event.preventDefault();
+        keyed.current = true;
+        const by = event.key === 'ArrowUp' ? -cols : cols;
+        // Past the top or bottom row the cursor stays put.
+        setFocus((was) => (was === null ? 0 : was + by < 0 || was + by >= count ? was : was + by));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [disabled, count, fanOn, onPick]);
+  }, [disabled, count, fanOn, cols, onPick]);
 
   if (cards.length === 0) {
     return (
@@ -316,7 +335,11 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
       data-card-count={cards.length}
       ref={attach}
       style={style}
-      onPointerLeave={() => setHovered(null)}
+      onPointerLeave={() => {
+        setHovered(null);
+        // The pointer's cursor goes with it: Enter never picks a card nobody is looking at.
+        if (fan === null) setFocus(null);
+      }}
     >
       {cards.map((card, i) => {
         const x = fan === null || shown === null ? null : fanX(fan, i, shown, cards.length);
@@ -326,10 +349,17 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
             key={card.cardId}
             className="pack__slot"
             data-card-id={fan === null ? `w${i}` : undefined}
-            data-focused={shown === i ? '' : undefined}
+            data-focused={highlighted === i ? '' : undefined}
             data-off={off ? '' : undefined}
-            onFocus={fan === null || off ? undefined : () => setFocus(i)}
-            onPointerEnter={off ? undefined : () => setHovered(i)}
+            onFocus={off ? undefined : () => setFocus(i)}
+            onPointerEnter={
+              off
+                ? undefined
+                : () => {
+                    setHovered(i);
+                    if (fan === null) setFocus(i);
+                  }
+            }
             onPointerLeave={fan === null ? undefined : () => setHovered((was) => (was === i ? null : was))}
             style={
               x === null || shown === null
