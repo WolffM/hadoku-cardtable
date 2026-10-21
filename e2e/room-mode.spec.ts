@@ -123,9 +123,7 @@ async function createRoomChecked(f: Friend, name: string, mode: 'builtin' | 'str
 
   // Draft is offered and pickable now (since 2026-10-17); this file never
   // picks it — it stays on constructed, which `createRoom` below selects.
-  const draftOption = f.page.locator('[data-testid="room-create-type"] option[value="draft"]');
-  await expect(draftOption).toBeEnabled();
-  await expect(draftOption).toHaveText('Draft');
+  await expect(f.page.getByRole('radio', { name: 'Draft' })).toBeEnabled();
   if (mode === 'streamed') await f.page.keyboard.press('Escape');
 
   const id = await createRoom(f, name, { mode });
@@ -148,9 +146,7 @@ test.describe('the room decides which client', () => {
     const builtinId = await createRoomChecked(alice, `e2e builtin ${Date.now()}`, 'builtin');
     await expect(alice.page.getByTestId('constructed')).toBeVisible();
     // The mode in the header, and the deck picker a builtin room has always had.
-    await expect(alice.page.getByTestId('room-client-mode')).toHaveText(
-      'Constructed 1v1',
-    );
+    await expect(alice.page.getByTestId('room-client-mode')).toHaveText('Constructed');
     await expect(alice.page.getByTestId('deck-mine')).toBeVisible();
     await expect(alice.page.getByTestId('room-players')).toBeVisible();
     await expect(alice.page.getByTestId('room-streams')).toHaveCount(0);

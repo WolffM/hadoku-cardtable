@@ -133,7 +133,7 @@ import { confirmYes } from './play/confirm.ts';
 import { connectHands, type Hands } from './play/hands.ts';
 import { forgeAvailability, RUN_DIR, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
-import { openCreateRoom } from './play/rooms.ts';
+import { submitCreateRoom } from './play/rooms.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { turnNumber } from './play/turn.ts';
 import { boxOf, chooseLanes, DRAG_HOOKS, endOfSlot, onTopPoint, pointerDrag, touchDrag, viewerSlot } from './play/w32.ts';
@@ -632,10 +632,7 @@ async function enterMatch(alice: Friend, bob: Friend, origin: string, summary: R
   const choice = await twoLegalDecks(alice.context.request, origin);
   summary.choice = choice;
   await alice.page.goto(`${origin}${PREFIX}/`);
-  await openCreateRoom(alice.page);
-  await alice.page.getByTestId('room-create-name').fill(`e2e table fit ${Date.now()}`);
-  await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-  await alice.page.getByTestId('room-create-submit').click();
+  await submitCreateRoom(alice.page, { name: `e2e table fit ${Date.now()}` });
   await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
   await bob.page.goto(alice.page.url());
   /*

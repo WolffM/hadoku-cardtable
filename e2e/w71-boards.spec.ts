@@ -63,7 +63,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { openFriend } from './play/browser.ts';
 import { resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { openCreateRoom } from './play/rooms.ts';
+import { submitCreateRoom } from './play/rooms.ts';
 import { twoLegalDecks } from './play/enter.ts';
 
 const PREFIX = '/cardtable';
@@ -146,10 +146,7 @@ test('a room with two live tables: a watcher is carried in once, stays in the ro
 
     // ── the room, and its second table ──────────────────────────────────
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
-    await openCreateRoom(alice.page);
-    await alice.page.getByTestId('room-create-name').fill(`e2e w71 boards ${Date.now()}`);
-    await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-    await alice.page.getByTestId('room-create-submit').click();
+    await submitCreateRoom(alice.page, { name: `e2e w71 boards ${Date.now()}` });
     await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     const roomUrl = alice.page.url();
     const roomId = roomUrl.split('/room/')[1]!;

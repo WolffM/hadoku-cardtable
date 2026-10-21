@@ -71,7 +71,7 @@ import { makeTitled, resizeWindow, roomIdFromHash, serverLog as readServerLog } 
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { specVideoSlug } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { openCreateRoom } from './play/rooms.ts';
+import { openCreateRoom, submitCreateRoom } from './play/rooms.ts';
 import { turnNumber } from './play/turn.ts';
 
 test.describe.configure({ mode: 'serial' });
@@ -333,12 +333,8 @@ async function createDraftRoom(p: Player, name: string, origin: string = EDGE_OR
   await expect(p.page.getByTestId('join-id')).toHaveCount(0);
 
   await openCreateRoom(p.page);
-  const draftOption = p.page.locator('[data-testid="room-create-type"] option[value="draft"]');
-  await expect(draftOption).toBeEnabled();
-  await expect(draftOption).toHaveText('Draft');
-  await p.page.getByTestId('room-create-name').fill(name);
-  await p.page.getByTestId('room-create-type').selectOption('draft');
-  await p.page.getByTestId('room-create-submit').click();
+  await expect(p.page.getByRole('radio', { name: 'Draft' })).toBeEnabled();
+  await submitCreateRoom(p.page, { name, gameType: 'draft' });
 
   const id = await roomIdFromHash(p.page);
   expect(id, 'the room id is server-minted').toMatch(ROOM_ID);
@@ -350,7 +346,7 @@ async function createDraftRoom(p: Player, name: string, origin: string = EDGE_OR
  *
  * The list accumulates across runs (see the header), so the row is located by
  * the id this run created. `gameType` is what the row's own label must read —
- * `'Draft'` for a pod, `'Constructed 1v1'` for the room the full-journey spec
+ * `'Draft'` for a pod, `'Constructed'` for the room the full-journey spec
  * opens afterward to play the built decks. `origin` — see `roomState`.
  */
 async function enterFromList(

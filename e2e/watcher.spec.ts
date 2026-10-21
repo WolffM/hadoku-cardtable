@@ -17,7 +17,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch, resizeWindow, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { openCreateRoom } from './play/rooms.ts';
+import { submitCreateRoom } from './play/rooms.ts';
 import { matchUrl, startScenarioMatch } from './play/scenario.ts';
 import { connectSio } from './play/sio.ts';
 
@@ -65,10 +65,7 @@ const gaps = (page: Page, side: 'you' | 'them') => page.locator(`${side === 'you
 
 async function createConstructedRoom(alice: Friend, origin: string): Promise<string> {
   await alice.page.goto(`${origin}${PREFIX}/`);
-  await openCreateRoom(alice.page);
-  await alice.page.getByTestId('room-create-name').fill(`e2e seats ${Date.now()}`);
-  await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-  await alice.page.getByTestId('room-create-submit').click();
+  await submitCreateRoom(alice.page, { name: `e2e seats ${Date.now()}` });
   await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
   return alice.page.url();
 }

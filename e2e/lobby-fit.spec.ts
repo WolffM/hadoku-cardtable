@@ -33,7 +33,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { makeTitled, resizeWindow } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { openCreateRoom } from './play/rooms.ts';
+import { submitCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -159,10 +159,7 @@ test(titled('the page and the chat stay the window’s height on the front page 
     await expect(alice.page.getByTestId('room-row')).toHaveCount(ROOMS_OPEN);
     await fitsAt(alice.page, 'alice', 'front', '[data-testid="room-list"] > :first-child', FRONT_MAY_SCROLL, failures);
 
-    await openCreateRoom(alice.page);
-    await alice.page.getByTestId('room-create-name').fill(`lobby fit ${Date.now()}`);
-    await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-    await alice.page.getByTestId('room-create-submit').click();
+    await submitCreateRoom(alice.page, { name: `lobby fit ${Date.now()}` });
     await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     await bob.page.goto(alice.page.url());
     await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: 30_000 });

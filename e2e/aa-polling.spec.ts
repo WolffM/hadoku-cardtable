@@ -26,7 +26,7 @@ import { keepPrefsLocal } from './prefsLocal.ts';
 import { enterMatch, makeTitled, readyFromSideboard } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { openCreateRoom } from './play/rooms.ts';
+import { submitCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -85,10 +85,7 @@ test('an open room, the lobby and a hidden tab: no polling, and a change arrives
     // Alice's room, open in two tabs; one of them goes to the background.
     const room = await alice.newPage();
     await room.goto(`${EDGE_ORIGIN}${PREFIX}/`);
-    await openCreateRoom(room);
-    await room.getByTestId('room-create-name').fill(`aa poll ${Date.now()}`);
-    await room.getByTestId('room-create-type').selectOption('constructed-1v1');
-    await room.getByTestId('room-create-submit').click();
+    await submitCreateRoom(room, { name: `aa poll ${Date.now()}` });
     await room.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
     const roomUrl = room.url();
     await expect(room.getByTestId('play-vs-bot'), 'alice is alone in her room').toBeVisible({ timeout: 30_000 });

@@ -85,7 +85,7 @@ display name, which is `e2e-alice` (`identities.ts`).
 **The draft** (test 2):
 
 - **The door.** There is one, and this is the spec that drives it. Alice makes a
-  draft room with the front page's create form (`room-create-type` = `draft`)
+  draft room with the front page's create form (the `room-create-type-draft` radio)
   and lands on `#/room/<id>`; the old "Start a pod" button and paste-an-id box
   are asserted **absent**. Bob opens the front page and enters that same room
   from the **room list**, located by its `data-room-id`. Neither of them ever

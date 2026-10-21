@@ -26,7 +26,7 @@ import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { openCreateRoom } from './play/rooms.ts';
+import { submitCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -88,11 +88,8 @@ test(
 
       /* ── alice makes the pod, bob and carol find it ────────────────── */
       await alice.page.goto(`${origin}${PREFIX}/`);
-      await openCreateRoom(alice.page);
       const podName = `e2e w72 pod ${Date.now()}`;
-      await alice.page.getByTestId('room-create-name').fill(podName);
-      await alice.page.getByTestId('room-create-type').selectOption('draft');
-      await alice.page.getByTestId('room-create-submit').click();
+      await submitCreateRoom(alice.page, { name: podName, gameType: 'draft' });
       const roomId = await roomIdFromHash(alice.page);
       const roomUrl = `${origin}${PREFIX}/#/room/${roomId}`;
       await bob.page.goto(roomUrl);

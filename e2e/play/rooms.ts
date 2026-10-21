@@ -17,6 +17,29 @@ export async function openCreateRoom(page: Page): Promise<void> {
   await expect(form, 'the create-room dialog opened').toBeVisible();
 }
 
+/** A Constructed room's mode, as the create form's radios name it. */
+export type CreateMode = 'classic' | 'gauntlet' | 'random';
+
+/**
+ * Fill the create form and submit it: the name, the type radio, for a
+ * Constructed room the mode radio, and an optional password. A Constructed room
+ * is Classic unless the caller says otherwise — `mode: null` leaves the mode
+ * unchosen, for the leader to pick in the room. The caller is already on the
+ * front page; this does not wait for the room to open.
+ */
+export async function submitCreateRoom(
+  page: Page,
+  room: { name: string; gameType?: 'constructed-1v1' | 'draft'; mode?: CreateMode | null; password?: string },
+): Promise<void> {
+  const { name, gameType = 'constructed-1v1', mode = 'classic', password } = room;
+  await openCreateRoom(page);
+  await page.getByTestId('room-create-name').fill(name);
+  await page.getByTestId(`room-create-type-${gameType}`).check();
+  if (gameType === 'constructed-1v1' && mode !== null) await page.getByTestId(`room-create-constructed-mode-${mode}`).check();
+  if (password !== undefined) await page.getByTestId('room-create-password').fill(password);
+  await page.getByTestId('room-create-submit').click();
+}
+
 /**
  * Make a room the form will not make — a streamed one, or a draft (Coming
  * Soon since 2026-10-10) — from the front page's own origin, and go to it as
@@ -26,6 +49,8 @@ export async function createRoomByApi(
   page: Page,
   room: { name: string; gameType: 'constructed-1v1' | 'draft'; clientMode: 'builtin' | 'streamed' },
 ): Promise<void> {
+  // A Constructed room made here is Classic, as the form's helper makes it.
+  const body = room.gameType === 'constructed-1v1' ? { ...room, mode: 'classic' } : room;
   await page.evaluate(async (body) => {
     const res = await fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms`, {
       method: 'POST',
@@ -36,7 +61,7 @@ export async function createRoomByApi(
     if (!res.ok) throw new Error(`POST /api/rooms answered ${String(res.status)}`);
     const made = (await res.json()) as { id: string };
     window.location.hash = `#/room/${made.id}`;
-  }, room);
+  }, body);
 }
 
 /** A streamed room: the form offers no client any more. */

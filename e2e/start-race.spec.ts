@@ -20,7 +20,7 @@ import { expect, test } from '@playwright/test';
 import { makeTitled, twoLegalDecks } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
-import { openCreateRoom } from './play/rooms.ts';
+import { submitCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -53,10 +53,7 @@ async function recordErrors(f: Friend, seen: string[]): Promise<void> {
 async function seat(alice: Friend, bob: Friend, stack: PlayStack): Promise<void> {
   const choice = await twoLegalDecks(alice.context.request, stack.origin);
   await alice.page.goto(`${stack.origin}${PREFIX}/`);
-  await openCreateRoom(alice.page);
-  await alice.page.getByTestId('room-create-name').fill(`start race ${Date.now()}`);
-  await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-  await alice.page.getByTestId('room-create-submit').click();
+  await submitCreateRoom(alice.page, { name: `start race ${Date.now()}` });
   await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
   await bob.page.goto(alice.page.url());
   await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: 30_000 });

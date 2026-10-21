@@ -27,7 +27,7 @@ import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { openCreateRoom } from './play/rooms.ts';
+import { submitCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -103,10 +103,7 @@ test(titled('the picks sort by colour or mana value, a pick dragged to the sideb
     const alice = await openFriend(browser, 'alice');
     const page = alice.page;
     await page.goto(`${stack.origin}${PREFIX}/`);
-    await openCreateRoom(page);
-    await page.getByTestId('room-create-name').fill(`e2e dr ${Date.now()}`);
-    await page.getByTestId('room-create-type').selectOption('draft');
-    await page.getByTestId('room-create-submit').click();
+    await submitCreateRoom(page, { name: `e2e dr ${Date.now()}`, gameType: 'draft' });
     const roomId = await roomIdFromHash(page);
     await expect(page.getByTestId('draft-lobby')).toBeVisible({ timeout: UI_TIMEOUT });
     // "Which seat is mine" reads `/session/whoami`, which this edge does not serve (`w72-pod.spec.ts`'s note).

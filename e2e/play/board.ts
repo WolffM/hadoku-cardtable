@@ -15,7 +15,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { ZONE_BOXES } from '../../apps/ui/src/play/zone-box.ts';
 import { E2E_ERA, enterMatch, twoLegalDecks } from './enter.ts';
-import { createStreamedRoomByApi, openCreateRoom } from './rooms.ts';
+import { createStreamedRoomByApi, submitCreateRoom } from './rooms.ts';
 import type { ForgeAvailability } from './harness.ts';
 import { answerPrompt } from './prompts.ts';
 
@@ -684,11 +684,7 @@ export async function createRoom(
     await createStreamedRoomByApi(f.page, name);
     return roomIdFromHash(f.page);
   }
-  await openCreateRoom(f.page);
-  await f.page.getByTestId('room-create-name').fill(name);
-  await f.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-  if (opts.password !== undefined) await f.page.getByTestId('room-create-password').fill(opts.password);
-  await f.page.getByTestId('room-create-submit').click();
+  await submitCreateRoom(f.page, { name, password: opts.password });
   return roomIdFromHash(f.page);
 }
 

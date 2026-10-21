@@ -34,7 +34,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 import { STREAM_NAME_PREFIX } from './streamNamespace.ts';
-import { createStreamedRoomByApi, openCreateRoom } from './play/rooms.ts';
+import { createStreamedRoomByApi, submitCreateRoom } from './play/rooms.ts';
 
 const run = promisify(execFile);
 
@@ -291,10 +291,7 @@ test('a builtin room costs no container at all', async ({ browser }) => {
 
   const alice = await open(browser, 'alice');
   await alice.page.goto(`${PREFIX}/`);
-  await openCreateRoom(alice.page);
-  await alice.page.getByTestId('room-create-name').fill(`e2e builtin ${Date.now()}`);
-  await alice.page.getByTestId('room-create-type').selectOption('constructed-1v1');
-  await alice.page.getByTestId('room-create-submit').click();
+  await submitCreateRoom(alice.page, { name: `e2e builtin ${Date.now()}` });
   await expect(alice.page.getByTestId('deck-mine')).toBeVisible();
   const roomId = (await alice.page.evaluate(() => window.location.hash)).replace('#/room/', '');
 

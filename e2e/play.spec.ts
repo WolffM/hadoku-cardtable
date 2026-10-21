@@ -752,7 +752,7 @@ test(LIVE_TITLE, async ({ browser }) => {
     const row = roomRow(bob, roomId);
     await expect(row, "bob's own list holds the room alice just made").toBeVisible({ timeout: 20_000 });
     await expect(row.getByTestId('room-name')).toHaveText(roomName);
-    await expect(row.getByTestId('room-type')).toHaveText('Constructed 1v1');
+    await expect(row.getByTestId('room-type')).toHaveText('Constructed');
     await expect(row.getByTestId('room-members')).toContainText('e2e-alice');
     expect(await row.getByTestId('room-locked').count(), 'an open room shows no lock').toBe(0);
     await row.getByTestId('room-enter').click();
