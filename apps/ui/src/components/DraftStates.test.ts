@@ -149,6 +149,18 @@ describe("a watcher payload shows one drafter's pack and picks, read-only", () =
 
 /* ── 2. Rejoin: held seats and recovery ──────────────────────────────── */
 
+describe('a seat that has picked and waits for the pass', () => {
+  it('shows the wait in place of the cards left in the pack', () => {
+    const view = seatView();
+    if (view.viewer.kind !== 'seat') throw new Error('expected a seat viewer');
+    const { seatId, pack } = view.viewer;
+    expect(pack.length).toBeGreaterThan(0);
+    mount(initialState({ ...view, waitingOn: view.waitingOn.filter((s) => s !== seatId) }));
+    expect(within(screen.getByTestId('pack')).queryAllByTestId('card')).toHaveLength(0);
+    expect(screen.getByTestId('pack').textContent).toContain('Waiting for the next pack.');
+  });
+});
+
 describe('a seat the table is holding', () => {
   /** What the server does on a drop: unseat, keep the remembered name. */
   const withDropped = (view: DraftView, id: number): DraftView => ({

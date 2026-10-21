@@ -165,6 +165,9 @@ export function DraftScreen({
   // then look, to the player, like it was taken. The connection says whether
   // the table is stalled; when it is, the cards do not respond.
   const stalled = connection?.stalled ?? false;
+  // Picked, and the pack not yet passed: the cards left in it are not this
+  // seat's to take, so the pack gives way to the wait rather than sitting dimmed.
+  const waiting = blocked?.reason === 'not-your-turn';
 
   // Referentially stable, because `CardTile` is memoised and this is the prop
   // it compares. A fresh closure per render would make every tile re-render on
@@ -219,8 +222,8 @@ export function DraftScreen({
       ? 'Waiting for the next pack.'
       : stalled
         ? 'Reconnecting — seat held.'
-        : awaiting
-          ? 'Picked — waiting for the next pack.'
+        : awaiting || waiting
+          ? 'Waiting for the next pack.'
           : 'This pack is empty.';
 
   return (
@@ -251,7 +254,7 @@ export function DraftScreen({
           ) : (
             <>
               <PackView
-                cards={visiblePack(state)}
+                cards={waiting ? [] : visiblePack(state)}
                 layout={layout}
                 onPick={watching ? undefined : handlePick}
                 disabled={!watching && (blocked !== null || stalled)}
