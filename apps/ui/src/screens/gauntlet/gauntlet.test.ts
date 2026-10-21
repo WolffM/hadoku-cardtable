@@ -299,19 +299,19 @@ describe('the result', () => {
       view({
         phase: 'done',
         decks,
-        winner: 1,
+        winner: 0,
         games: [
-          { decks: [IDS[4], IDS[5]], winner: 1 },
-          { decks: [IDS[6], IDS[7]], winner: 0 },
-          { decks: [IDS[8], IDS[9]], winner: 1 },
+          { decks: [IDS[4], IDS[5]], winner: 0 },
+          { decks: [IDS[6], IDS[7]], winner: 1 },
+          { decks: [IDS[8], IDS[9]], winner: 0 },
         ],
       }),
     );
     const result = getByTestId('gauntlet-result');
-    expect(within(result).getByTestId('gauntlet-winner').textContent).toContain('Bob');
+    expect(within(result).getByTestId('gauntlet-winner').textContent).toContain('Alice');
     expect(result.querySelectorAll('[data-testid="gauntlet-game"]')).toHaveLength(3);
-    expect(within(result).getByTestId('gauntlet-score').textContent, 'the series score, P1 (Bob) first').toBe('2–1');
+    expect(within(result).getByTestId('gauntlet-score').textContent, 'the series score beside the winner, theirs first').toBe('2–1');
     const won = [...result.querySelectorAll<HTMLElement>('[data-testid="gauntlet-game"]')].map((g) => g.dataset.winner);
-    expect(won, 'each game says who won it').toEqual(['1', '0', '1']);
+    expect(won, 'each game says who won it').toEqual(['0', '1', '0']);
   });
 });

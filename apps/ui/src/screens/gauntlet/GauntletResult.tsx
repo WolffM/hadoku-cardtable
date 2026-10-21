@@ -4,12 +4,10 @@ import type { GauntletView } from '@hadoku/shared';
 import { CROWN, type DeckOption } from '../ConstructedScreen.tsx';
 import { RevealedGame } from './GauntletChoose.tsx';
 import { useTilePeek } from './peek.tsx';
-import { seatOrder } from './seats.tsx';
 
 export function GauntletResult({ view, options }: { view: GauntletView; options: ReadonlyMap<string, DeckOption> }) {
   const { bind, peek } = useTilePeek(options);
   const wins = (seat: number): number => view.games.filter((g) => g.winner === seat).length;
-  const [p1, p2] = seatOrder(view);
   return (
     <section className="gauntlet gauntlet--result" data-testid="gauntlet-result" data-phase={view.phase}>
       <h2 className="gauntlet__title" data-testid="gauntlet-title">
@@ -22,7 +20,7 @@ export function GauntletResult({ view, options }: { view: GauntletView; options:
           </svg>
           {view.players?.[view.winner].name}
           <span className="gauntlet__score" data-testid="gauntlet-score">
-            {wins(p1)}–{wins(p2)}
+            {wins(view.winner)}–{wins(view.winner === 0 ? 1 : 0)}
           </span>
         </p>
       )}
