@@ -2266,9 +2266,9 @@ function ChoiceWord({ word }: { word: string }) {
  *
  * `entry.changedFrom` is `adapter.ts`'s own comparison — the wire's CURRENT
  * `Type` against the PRINTED type line Forge names for it (`PlayBridge.java`'s
- * `printedTypes`) — set only when they disagree. The pill's own visible text is the CURRENT type line —
- * Forge's words, read live, exactly as `CardTile`'s own (art-covered)
- * `.card__type` would draw it — so a glance says what the permanent IS now;
+ * `printedTypes`) — set only when they disagree, a token's line led by `Token` on either side. The
+ * pill's own visible text is the CURRENT type line — Forge's words, read live — so a glance says
+ * what the permanent IS now, a token copy drawn with its card's art included;
  * hovering it (its `data-tip`, the board's one tooltip, `tip/index.ts`) says
  * what it was PRINTED as.
  *
@@ -2282,7 +2282,7 @@ function TypePill({ entry }: { entry: BoardCard }) {
   if (changed == null) return null;
   return (
     <span className="board-card__type-pill" data-tip={`Printed as ${changed.printed}`}>
-      {entry.card.typeLine}
+      {changed.current}
     </span>
   );
 }

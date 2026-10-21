@@ -441,12 +441,12 @@ describe('printedTypes', () => {
 		const onField = ids(1, 'Battlefield')[0]!;
 		const inTheirHand = ids(1, 'Hand')[0]!;
 		const land = { t: 'cardtype', sup: [], core: ['Land'], sub: [], all: false, exc: [] };
-		const printedTypes = [[onField, land], [inTheirHand, land]] as const;
+		const printedTypes = [[onField, land, false], [inTheirHand, land, false]] as const;
 		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, printedTypes } }) as Extract<
 			StateFrame,
 			{ method: 'setGameView' }
 		>;
-		expect(out.payload.printedTypes).toEqual([[onField, land]]);
+		expect(out.payload.printedTypes).toEqual([[onField, land, false]]);
 		const owner = createProjector(1);
 		owner.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
 		const delta = owner.project({

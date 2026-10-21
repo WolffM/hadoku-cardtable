@@ -260,7 +260,7 @@ import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, followOffer, OFFER_HOLD_MAX_MS, type OfferHold } from './offer-hold.ts';
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import type { PromptParts } from '../prompts/lookup.ts';
-import { foldPackets, type PendingTriggers, type WaitingEffects, type WireState } from '../fold.ts';
+import { foldPackets, type PendingTriggers, type PrintedCard, type WaitingEffects, type WireState } from '../fold.ts';
 import { expectWirePackets, WireType, type Tagged, type WirePacket } from '../wire.ts';
 import {
   abortFrame,
@@ -766,7 +766,7 @@ export interface LiveMatch {
   /** The battlefield creatures that can't block (`../fold.ts`'s `cantBlock`), drawn as a mark on each. */
   cantBlock: ReadonlySet<number>;
   /** The printed type line of each permanent whose type line is not its printed one (`../fold.ts`'s `printedTypes`), drawn as the type pill. */
-  printedTypes: ReadonlyMap<number, Tagged>;
+  printedTypes: ReadonlyMap<number, PrintedCard>;
   /** The printed power and toughness of each creature whose numbers are not its printed ones (`../fold.ts`'s `printedPT`): a number above it is drawn buffed. */
   printedPT: ReadonlyMap<number, { power: number; toughness: number }>;
   /** The life each player has committed to an open payment and Forge has not taken yet (`../fold.ts`'s `lifePaying`), taken off the life drawn. */
@@ -2771,7 +2771,7 @@ function statePacket(match: LiveMatch): WirePacket & {
   waitingEffects: WaitingEffects;
   tokenSources: readonly (readonly [number, number])[];
   cantBlock: readonly number[];
-  printedTypes: readonly (readonly [number, Tagged])[];
+  printedTypes: readonly (readonly [number, Tagged, boolean])[];
   printedPT: readonly (readonly [number, number, number])[];
   lifePaying: readonly (readonly [number, number])[];
   conditionMet: readonly number[];
@@ -2793,7 +2793,7 @@ function statePacket(match: LiveMatch): WirePacket & {
     waitingEffects: match.waitingEffects,
     tokenSources: [...match.tokenSources],
     cantBlock: [...match.cantBlock],
-    printedTypes: [...match.printedTypes],
+    printedTypes: [...match.printedTypes].map(([id, printed]) => [id, printed.type, printed.token] as const),
     printedPT: [...match.printedPT].map(([id, pt]) => [id, pt.power, pt.toughness] as const),
     lifePaying: [...match.lifePaying],
     conditionMet: [...match.conditionMet],

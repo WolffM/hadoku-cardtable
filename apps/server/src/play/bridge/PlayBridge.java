@@ -800,11 +800,13 @@ public final class PlayBridge {
 
     /**
      * The permanents on a battlefield whose type line is not the one printed on them, as
-     * {@code [cardId, printedType]} pairs ({@code printedType} in the same {@code cardtype} encoding
-     * the view's own {@code Type} uses). The view carries only the current line ({@code Type},
-     * {@code CardState.getTypeWithChanges}); the printed one is Forge's own too, read here:
-     * {@link #printedType}. Face-down permanents are left out: their printed line is the hidden
-     * face's. A full snapshot each time.
+     * {@code [cardId, printedType, printedToken]} ({@code printedType} in the same {@code cardtype}
+     * encoding the view's own {@code Type} uses; {@code printedToken} whether the printed card is a
+     * token). The view carries only the current line ({@code Type}, {@code CardState.getTypeWithChanges})
+     * and the current {@code Token} flag; the printed card is Forge's own too, read here: {@link #printed}.
+     * A permanent is named when either differs — a token copy of a card is a token printed as a card,
+     * whatever its types. Face-down permanents are left out: their printed line is the hidden face's. A
+     * full snapshot each time.
      *
      * <p>Null when the battlefields cannot be read (the game thread moved them under the read): the
      * frame then omits the field and the client keeps what it had.
@@ -816,12 +818,14 @@ public final class PlayBridge {
             for (final forge.game.player.Player p : game.getPlayers()) {
                 for (final forge.game.card.Card c : p.getCardsIn(ZoneType.Battlefield)) {
                     if (c.isFaceDown()) { continue; }
-                    final JsonElement printed = encode(printedType(c));
-                    if (printed.equals(encode(c.getType()))) { continue; }
-                    final JsonArray pair = new JsonArray();
-                    pair.add(c.getId());
-                    pair.add(printed);
-                    out.add(pair);
+                    final Printed printed = printed(c);
+                    final JsonElement type = encode(printed.type());
+                    if (type.equals(encode(c.getType())) && printed.token() == c.isToken()) { continue; }
+                    final JsonArray row = new JsonArray();
+                    row.add(c.getId());
+                    row.add(type);
+                    row.add(printed.token());
+                    out.add(row);
                 }
             }
             return out;
@@ -878,38 +882,61 @@ public final class PlayBridge {
         return Integer.valueOf(s);
     }
 
+    /** A permanent's printed card: its type line, and whether that card is a token. */
+    record Printed(CardTypeView type, boolean token) {}
+
     /**
-     * A permanent's printed type line: the type of the face it shows before any effect changed it,
-     * plus its own characteristic-defining abilities (Changeling's every creature type is printed,
-     * CR 604.3). A copy's printed line is the copied card's ({@link #copiedBaseType}), so the copy
-     * effect's own exception — Phyrexian Metamorph's "it's an artifact in addition" — reads as the
-     * change it is.
+     * A permanent's printed card: the type of the face it shows before any effect changed it, plus its
+     * own characteristic-defining abilities (Changeling's every creature type is printed, CR 604.3).
+     * A copy's printed card is the copied one ({@link #printedBase}), so the copy effect's own exception
+     * — Phyrexian Metamorph's or Vaultborn Tyrant's "it's an artifact in addition" — reads as the change
+     * it is, and a token copy of a card was printed as that card, not as a token.
      */
-    static CardTypeView printedType(final forge.game.card.Card c) throws ReflectiveOperationException {
+    static Printed printed(final forge.game.card.Card c) throws ReflectiveOperationException {
         final java.lang.reflect.Field cda = forge.game.card.Card.class.getDeclaredField("changedCardTypesCharacterDefining");
         cda.setAccessible(true);
         @SuppressWarnings("unchecked")
         final com.google.common.collect.Table<Long, Long, forge.card.ICardChangedType> own =
                 (com.google.common.collect.Table<Long, Long, forge.card.ICardChangedType>) cda.get(c);
-        return copiedBaseType(c, c.getCurrentStateName(), 0).getTypeWithChanges(own.values());
+        final Printed base = printedBase(c, c.getCurrentStateName(), 0);
+        return new Printed(base.type().getTypeWithChanges(own.values()), base.token());
     }
 
     /**
-     * The base type of {@code state} on {@code c}, before Layer 4: for a card that is a copy, the card
-     * it copied ({@code CardCloneStates.getOrigin}, followed through a copy of a copy, bounded so two
-     * copies of each other cannot loop); for any other card, its own state ({@code getOriginalState},
-     * never a clone's). A copy shows its origin's CURRENT face as its own front face
-     * ({@code CardFactory.getCloneStates}), so the front face is looked up on the origin as that.
+     * The printed card behind {@code state} on {@code c}, before Layer 4. A permanent that became a copy
+     * ({@code CardCloneStates.getOrigin}) is the card it copied, followed through a copy of a copy,
+     * bounded so two copies of each other cannot loop; a copy shows its origin's CURRENT face as its own
+     * front face ({@code CardFactory.getCloneStates}), so the front face is looked up on the origin as
+     * that. A token that was CREATED as a copy ({@code CopyPermanentEffect.getProtoType}: Vaultborn
+     * Tyrant, Cackling Counterpart, embalm, myriad) has no origin — its own faces are the copiable values
+     * with the exception already in them — but it is built from the copied card's paper card, whose
+     * rules are the printed face ({@link #paperFaceType}). Any other card is its own state
+     * ({@code getOriginalState}, never a clone's).
      */
-    static CardTypeView copiedBaseType(final forge.game.card.Card c, final forge.card.CardStateName state, final int depth) {
+    static Printed printedBase(final forge.game.card.Card c, final forge.card.CardStateName state, final int depth) {
         if (c.isCloned() && depth < 8 && c.getCloneStates() instanceof java.util.NavigableMap<Long, forge.game.card.CardCloneStates> clones) {
             final forge.game.card.Card origin = clones.lastEntry().getValue().getOrigin();
             if (origin != null && origin != c) {
-                return copiedBaseType(origin, state == forge.card.CardStateName.Original ? origin.getCurrentStateName() : state, depth + 1);
+                return printedBase(origin, state == forge.card.CardStateName.Original ? origin.getCurrentStateName() : state, depth + 1);
             }
         }
+        final forge.item.IPaperCard paper = c.getPaperCard();
+        if (c.isToken() && c.getCopiedPermanent() != null && paper != null && paper.getRules() != null) {
+            return new Printed(paperFaceType(paper.getRules(), state), paper.isToken());
+        }
         final forge.game.card.CardState own = c.getOriginalState(state);
-        return (own != null ? own : c.getState(state)).getType();
+        return new Printed((own != null ? own : c.getState(state)).getType(), c.isToken());
+    }
+
+    /** The printed type of {@code state}'s face in {@code rules}: the whole card for its front, the matching part for any other face. */
+    static CardTypeView paperFaceType(final CardRules rules, final forge.card.CardStateName state) {
+        final ICardFace face = switch (state) {
+            case Original -> null;
+            case LeftSplit -> rules.getMainPart();
+            case RightSplit, Backside, Flipped, Secondary, Meld -> rules.getOtherPart();
+            default -> rules.getSpecializeParts() == null ? null : rules.getSpecializeParts().get(state);
+        };
+        return face != null ? face.getType() : rules.getType();
     }
 
     /**

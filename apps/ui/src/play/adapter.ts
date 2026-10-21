@@ -173,7 +173,7 @@ import type { FacePart, TileCard } from '../components/faceCrop.ts';
 
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import poolData from '../draft/pool.json' with { type: 'json' };
-import type { PendingTriggers, WaitingEffects, WireState } from './fold.ts';
+import type { PendingTriggers, PrintedCard, WaitingEffects, WireState } from './fold.ts';
 import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from './wire.ts';
 
 /** One effect a permanent's resolved ability left waiting — {@link BoardCard.waiting}. */
@@ -242,14 +242,17 @@ export interface BoardCard {
    * permanent (`PlayBridge.java`'s `printedTypes`: the face's own type before any effect, plus its
    * characteristic-defining abilities; a copy's is the copied card's, so Phyrexian Metamorph's
    * "an artifact in addition" is a change). Magus of the Moon's nonbasic land reads `Land — Mountain`
-   * against a printed `Land`; Urborg's Plains reads `Basic Land — Plains Swamp`. `name` is the
-   * card's own; `printed` the printed line, drawn as the pill's hover text. `null` when nothing
-   * changed.
+   * against a printed `Land`; Urborg's Plains reads `Basic Land — Plains Swamp`. A token says so
+   * on both lines, as a token's own card does (`Token Artifact Creature — Servo`), so a token copy
+   * of a card — drawn with that card's art (Vaultborn Tyrant's death copy, a Cackling Counterpart
+   * copy) — is a change too: `Token Artifact Creature — Dinosaur` against a printed
+   * `Creature — Dinosaur`. `name` is the card's own; `current` the line the pill draws; `printed`
+   * the printed line, drawn as the pill's hover text. `null` when nothing changed.
    *
    * `ChangedTypes` (`tier-c.ts`, Forge's `Card.getChangedTextTypeWords()`) is NOT this fact: it
    * is a word-substitution map for RULES TEXT (`forge-game/.../card/Card.java:5477`).
    */
-  changedFrom?: { name: string; printed: string } | null;
+  changedFrom?: { name: string; printed: string; current: string } | null;
   /**
    * The operator, 2026-10-12: *"any card that selects a color or makes a
    * decision that becomes a permanent thing about it on the battlefield should
@@ -813,8 +816,8 @@ export interface AdaptOptions {
   tokenSources?: ReadonlyMap<number, number>;
   /** `PlayBridge.java`'s `cantBlock` (`../fold.ts`), read onto each battlefield creature's `BoardCard.cantBlock`. */
   cantBlock?: ReadonlySet<number>;
-  /** `PlayBridge.java`'s `printedTypes` (`../fold.ts`): each changed permanent's printed type, read onto its `BoardCard.changedFrom`. */
-  printedTypes?: ReadonlyMap<number, Tagged>;
+  /** `PlayBridge.java`'s `printedTypes` (`../fold.ts`): each changed permanent's printed card, read onto its `BoardCard.changedFrom`. */
+  printedTypes?: ReadonlyMap<number, PrintedCard>;
   /**
    * `PlayBridge.java`'s `printedPT` (`../fold.ts`): each battlefield creature whose numbers are not its
    * printed ones, with Forge's own printed base — read onto its `BoardCard.printed` over `printedPT`'s
@@ -1117,6 +1120,11 @@ function typeLineOf(t: Tagged | undefined): string {
   const all = ct.all ? [ct.exc.length > 0 ? `(All except ${ct.exc.join(' ')})` : '(All)'] : [];
   const tail = [...ct.sub, ...all];
   return tail.length > 0 ? `${head} — ${tail.join(' ')}` : head;
+}
+
+/** A type line as a token's own card prints it: `Token Artifact Creature — Servo`. */
+function tokenLine(token: boolean, line: string): string {
+  return token ? `Token ${line}` : line;
 }
 
 function coreTypes(t: Tagged | undefined): string[] {
@@ -1563,7 +1571,7 @@ function toBoardCard(
   artIds: ArtIdIndex,
   printedPT: PrintedPTIndex,
   onBattlefield = false,
-  printedType?: Tagged,
+  printedCard?: PrintedCard,
   playerName: (pid: number) => string = (pid) => wirePlayerName(state, pid),
 ): BoardCard | null {
   const view = state.get(deltaKey(WireType.Card, id));
@@ -1585,9 +1593,11 @@ function toBoardCard(
   // a creature on the battlefield, so it is only reported there.
   const arrivedThisTurn = onBattlefield && core.includes('Creature') && readBool(view, 'Sickness');
   const printedBase = core.includes('Creature') ? printedPT.get(name.trim().toLowerCase()) : undefined;
-  // Forge names a battlefield permanent's printed type only when it differs from the current one.
-  const printedLine = printedType !== undefined ? typeLineOf(printedType) : undefined;
-  const changedFrom = printedLine !== undefined && printedLine !== card.typeLine ? { name, printed: printedLine } : null;
+  // Forge names a battlefield permanent's printed card only when its type line or token-ness differs from the current one.
+  const token = readBool(view, 'Token');
+  const currentLine = tokenLine(token, card.typeLine);
+  const printedLine = printedCard !== undefined ? tokenLine(printedCard.token, typeLineOf(printedCard.type)) : undefined;
+  const changedFrom = printedLine !== undefined && printedLine !== currentLine ? { name, printed: printedLine, current: currentLine } : null;
   const choices = readChoices(state, view, playerName);
   const relations = readRelations(state, view);
   const abilityText = readAbilityText(face);
@@ -1610,7 +1620,7 @@ function toBoardCard(
     counters: counters.filter((c) => c.name !== 'Loyalty' || !core.includes('Planeswalker')),
     attacking: readBool(view, 'Attacking'),
     blocking: readBool(view, 'Blocking'),
-    token: readBool(view, 'Token'),
+    token,
     changedFrom,
     choices,
     relations,

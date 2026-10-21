@@ -2842,8 +2842,8 @@ describe('printedTypes — the bridge’s own wire fact', () => {
     expect(changed(), 'nothing is changed before a frame says so').toEqual([]);
     const permanent = m.view!.players.find((p) => p.isViewer)!.battlefield[0]!;
     const printed = { t: 'cardtype', sup: ['Legendary'], core: ['Tribal'], sub: [], all: false, exc: [] };
-    await sendAndApply(s, m, [applyDeltaWith({ printedTypes: [[permanent.id, printed]] })]);
-    expect(changed().map((c) => [c.id, c.changedFrom])).toEqual([[permanent.id, { name: permanent.card.name, printed: 'Legendary Tribal' }]]);
+    await sendAndApply(s, m, [applyDeltaWith({ printedTypes: [[permanent.id, printed, permanent.token]] })]);
+    expect(changed().map((c) => [c.id, c.changedFrom])).toEqual([[permanent.id, { name: permanent.card.name, printed: 'Legendary Tribal', current: permanent.card.typeLine }]]);
     await sendAndApply(s, m, [phase('MAIN2', m.view!.players.find((p) => p.isViewer)!.id)]);
     expect(changed().map((c) => c.id)).toEqual([permanent.id]);
     await sendAndApply(s, m, [applyDeltaWith({ printedTypes: [] })]);

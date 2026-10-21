@@ -56,8 +56,14 @@ export type TokenSources = readonly (readonly [number, number])[];
 /** `PlayBridge.java`'s `cantBlock`, the packet's fifth sibling: the battlefield creatures that can't block (`packages/forge-wire`'s `CantBlockSchema`). */
 export type CantBlock = readonly number[];
 
-/** `PlayBridge.java`'s `printedTypes`, the packet's sixth sibling: `[cardId, printedType]` for each permanent whose type line is not its printed one (`packages/forge-wire`'s `PrintedTypesSchema`). */
-export type PrintedTypes = readonly (readonly [number, Tagged])[];
+/** `PlayBridge.java`'s `printedTypes`, the packet's sixth sibling: `[cardId, printedType, printedToken]` for each permanent whose type line or token-ness is not its printed card's (`packages/forge-wire`'s `PrintedTypesSchema`). */
+export type PrintedTypes = readonly (readonly [number, Tagged, boolean])[];
+
+/** A permanent's printed card, as `printedTypes` names it: its type line, and whether it is a token. */
+export interface PrintedCard {
+  readonly type: Tagged;
+  readonly token: boolean;
+}
 
 /** `PlayBridge.java`'s `printedPT`, beside `printedTypes`: `[cardId, printedPower, printedToughness]` for each creature whose numbers are not its printed ones (`packages/forge-wire`'s `PrintedPTSchema`). */
 export type PrintedPT = readonly (readonly [number, number, number])[];
@@ -105,8 +111,8 @@ export interface FoldResult {
   tokenSources: ReadonlyMap<number, number>;
   /** The latest `cantBlock` snapshot folded, as a set of card ids — replaced when present. */
   cantBlock: ReadonlySet<number>;
-  /** The latest `printedTypes` snapshot folded, as a `cardId → printedType` map — replaced when present. */
-  printedTypes: ReadonlyMap<number, Tagged>;
+  /** The latest `printedTypes` snapshot folded, as a `cardId → printed card` map — replaced when present. */
+  printedTypes: ReadonlyMap<number, PrintedCard>;
   /** The latest `printedPT` snapshot folded, as a `cardId → printed power and toughness` map — replaced when present. */
   printedPT: ReadonlyMap<number, { power: number; toughness: number }>;
   /** The latest `lifePaying` snapshot folded, as a `playerId → life` map — replaced when present. */
@@ -124,7 +130,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
   let waitingEffects: WaitingEffects = [];
   let tokenSources = new Map<number, number>();
   let cantBlock = new Set<number>();
-  let printedTypes = new Map<number, Tagged>();
+  let printedTypes = new Map<number, PrintedCard>();
   let printedPT = new Map<number, { power: number; toughness: number }>();
   let lifePaying = new Map<number, number>();
   let conditionMet = new Set<number>();
@@ -137,7 +143,7 @@ export function foldPackets(packets: readonly FoldablePacket[]): FoldResult {
     if (packet.waitingEffects !== undefined) waitingEffects = packet.waitingEffects;
     if (packet.tokenSources !== undefined) tokenSources = new Map(packet.tokenSources);
     if (packet.cantBlock !== undefined) cantBlock = new Set(packet.cantBlock);
-    if (packet.printedTypes !== undefined) printedTypes = new Map(packet.printedTypes);
+    if (packet.printedTypes !== undefined) printedTypes = new Map(packet.printedTypes.map(([id, type, token]) => [id, { type, token }]));
     if (packet.printedPT !== undefined) printedPT = new Map(packet.printedPT.map(([id, power, toughness]) => [id, { power, toughness }]));
     if (packet.lifePaying !== undefined) lifePaying = new Map(packet.lifePaying);
     if (packet.conditionMet !== undefined) conditionMet = new Set(packet.conditionMet);

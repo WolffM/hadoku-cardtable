@@ -155,9 +155,9 @@ describe('printedTypes', () => {
   it('is empty before any packet carries it, replaced by each that does, kept by one that does not', () => {
     const land = { t: 'cardtype', sup: [], core: ['Land'], sub: [], all: false, exc: [] } as const;
     expect(foldPackets([opening!]).printedTypes.size).toBe(0);
-    const first = { ...opening!, printedTypes: [[87, land]] as const };
-    expect([...foldPackets([first, { ...delta!, printedTypes: [[91, land]] as const }]).printedTypes.keys()]).toEqual([91]);
-    expect(foldPackets([first, delta!]).printedTypes.get(87)).toEqual(land);
+    const first = { ...opening!, printedTypes: [[87, land, false]] as const };
+    expect([...foldPackets([first, { ...delta!, printedTypes: [[91, land, true]] as const }]).printedTypes.keys()]).toEqual([91]);
+    expect(foldPackets([first, delta!]).printedTypes.get(87)).toEqual({ type: land, token: false });
     expect(foldPackets([first, { ...delta!, printedTypes: [] }]).printedTypes.size).toBe(0);
   });
 });

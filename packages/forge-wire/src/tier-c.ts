@@ -744,12 +744,12 @@ export type CantBlock = z.infer<typeof CantBlockSchema>;
 
 /**
  * The bridge's eighth addition beside the packet: the permanents on a battlefield whose type line
- * is not the one printed on them, as `[cardId, printedType]` (`PlayBridge.java`'s
+ * or token-ness is not the printed card's, as `[cardId, printedType, printedToken]` (`PlayBridge.java`'s
  * `printedTypesJson`: the face's own type before any effect, plus its characteristic-defining
- * abilities; a copy's is the copied card's). The view's `Type` is only ever the current line. A
- * full snapshot each time.
+ * abilities; a copy's is the copied card's, and a token copy of a card was printed as that card, not
+ * a token). The view's `Type` and `Token` are only ever the current ones. A full snapshot each time.
  */
-export const PrintedTypesSchema = z.array(z.tuple([JavaInt, CardTypeValue]));
+export const PrintedTypesSchema = z.array(z.tuple([JavaInt, CardTypeValue, z.boolean()]));
 
 export type PrintedTypes = z.infer<typeof PrintedTypesSchema>;
 

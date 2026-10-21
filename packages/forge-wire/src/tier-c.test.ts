@@ -553,22 +553,23 @@ describe('Tier C — cantBlock', () => {
 describe('Tier C — printedTypes', () => {
   const land = { t: 'cardtype', sup: [], core: ['Land'], sub: [], all: false, exc: [] };
 
-  it('accepts [cardId, cardtype] pairs and rejects anything else', () => {
+  it('accepts [cardId, cardtype, printedToken] rows and rejects anything else', () => {
     expect(PrintedTypesSchema.safeParse([]).success).toBe(true);
-    expect(PrintedTypesSchema.safeParse([[101, land]]).success).toBe(true);
-    expect(PrintedTypesSchema.safeParse([[101, 'Land']]).success).toBe(false);
-    expect(PrintedTypesSchema.safeParse([[101, { ...land, t: 'str' }]]).success).toBe(false);
+    expect(PrintedTypesSchema.safeParse([[101, land, false]]).success).toBe(true);
+    expect(PrintedTypesSchema.safeParse([[101, land]]).success).toBe(false);
+    expect(PrintedTypesSchema.safeParse([[101, 'Land', false]]).success).toBe(false);
+    expect(PrintedTypesSchema.safeParse([[101, { ...land, t: 'str' }, false]]).success).toBe(false);
   });
 
   it('is optional on setGameView and applyDelta, and carried when present', () => {
     const view = SetGameViewSchema.safeParse({
       kind: 'notify',
       method: 'setGameView',
-      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, printedTypes: [[101, land]] },
+      payload: { gameView: FULL_SYNC.packet.newObjects, sequenceNumber: FULL_SYNC.packet.seq, printedTypes: [[101, land, false]] },
     });
-    expect(view.success && view.data.payload.printedTypes).toEqual([[101, land]]);
-    const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, printedTypes: [[101, land]] } });
-    expect(delta.success && delta.data.payload.printedTypes).toEqual([[101, land]]);
+    expect(view.success && view.data.payload.printedTypes).toEqual([[101, land, false]]);
+    const delta = ApplyDeltaSchema.safeParse({ kind: 'notify', method: 'applyDelta', payload: { packet: DELTA.packet, printedTypes: [[101, land, false]] } });
+    expect(delta.success && delta.data.payload.printedTypes).toEqual([[101, land, false]]);
   });
 });
 

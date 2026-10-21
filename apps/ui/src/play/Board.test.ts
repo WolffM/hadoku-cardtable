@@ -3556,12 +3556,10 @@ describe('§A.15 — a card’s state is drawn', () => {
    * carries the PRINTED one.
    */
   it('a changed permanent (R15) wears a pill over the type bar: current type visible, printed type on hover', () => {
-    const state = withState({ changedFrom: { name: 'Wasteland', printed: 'Land' } });
-    const currentTypeLine = state.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === 21)!.card.typeLine;
-    const { container } = renderBoard(state);
+    const { container } = renderBoard(withState({ changedFrom: { name: 'Wasteland', printed: 'Land', current: 'Land — Mountain' } }));
     const pill = card(container).querySelector<HTMLElement>('.board-card__type-pill')!;
     expect(pill, 'the pill is drawn').not.toBeNull();
-    expect(pill.textContent, 'the visible text is the CURRENT type line').toBe(currentTypeLine);
+    expect(pill.textContent, 'the visible text is the CURRENT type line').toBe('Land — Mountain');
     expect(pill.dataset.tip, 'the printed line is in the tooltip').toBe('Printed as Land');
     // No corner mark duplicates the same fact any more (wave 35's was dropped
     // in favour of this pill).
@@ -3585,23 +3583,39 @@ describe('§A.15 — a card’s state is drawn', () => {
     const state = foldPackets(loadPackets(fixture)).state;
     const guildgateId = 8;
     const land = (v: BoardView) => v.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === guildgateId)!;
-    const printed = (sub: string[]) => new Map([[guildgateId, { t: 'cardtype', sup: [], core: ['Land'], sub, all: false, exc: [] } as const]]);
+    const printed = (sub: string[], token = false) => new Map([[guildgateId, { type: { t: 'cardtype', sup: [], core: ['Land'], sub, all: false, exc: [] } as const, token }]]);
 
     const unnamed = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
     expect(land(unnamed).card.typeLine, 'a precondition: this is really the wire’s current type line').toBe('Land — Gate');
     expect(land(unnamed).changedFrom, 'Forge names no printed type: nothing changed').toBeNull();
 
     const changed = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes: printed([]) });
-    expect(land(changed).changedFrom, 'a printed line that differs sets it, naming the card and carrying the printed line').toEqual({
+    expect(land(changed).changedFrom, 'a printed line that differs sets it, naming the card and carrying both lines').toEqual({
       name: 'Izzet Guildgate',
       printed: 'Land',
+      current: 'Land — Gate',
     });
 
     const same = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes: printed(['Gate']) });
     expect(land(same).changedFrom, 'a printed line equal to the current one is no change').toBeNull();
 
+    // A token copy of a card: the same types, but a token printed as a card — Vaultborn Tyrant's death copy,
+    // a Cackling Counterpart copy. Drawn with the card's own art, so the pill says what the art does not.
+    const asToken = new Map(state);
+    const view = deltaKey(WireType.Card, guildgateId);
+    asToken.set(view, { ...asToken.get(view)!, Token: { t: 'bool', v: true } } as WireObject);
+    const copy = land(toBoardView(asToken, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes: printed(['Gate']) }));
+    expect(copy.token).toBe(true);
+    expect(copy.changedFrom, 'a token printed as a card is a change, its line led by Token').toEqual({
+      name: 'Izzet Guildgate',
+      printed: 'Land — Gate',
+      current: 'Token Land — Gate',
+    });
+    const tokenPrinted = land(toBoardView(asToken, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes: printed(['Gate'], true) }));
+    expect(tokenPrinted.changedFrom, 'a token printed as a token, types unchanged, is no change').toBeNull();
+
     // Off the battlefield a printed type is never read: Fire Urchin (id 20) is this fixture's graveyard card.
-    const grave = new Map([[20, { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Something'], all: false, exc: [] } as const]]);
+    const grave = new Map([[20, { type: { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Something'], all: false, exc: [] } as const, token: false }]]);
     const fireUrchin = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes: grave })
       .players.find((p) => p.isViewer)!
       .graveyard.find((c) => c.id === 20)!;
@@ -3616,14 +3630,14 @@ describe('§A.15 — a card’s state is drawn', () => {
    */
   it('AF74: a creature given every creature type is changed', () => {
     const gateId = 8;
-    const printedTypes = new Map([[gateId, { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Elemental'], all: false, exc: [] } as const]]);
+    const printedTypes = new Map([[gateId, { type: { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Elemental'], all: false, exc: [] } as const, token: false }]]);
     const state = new Map(foldPackets(loadPackets(fixture)).state);
     const key = cardStateKey(gateId, 0);
     state.set(key, { ...state.get(key)!, Type: { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Elemental'], all: true, exc: [] } } as WireObject);
     const nexus = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes }).players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === gateId)!;
 
     expect(nexus.card.typeLine).toBe('Creature — Elemental (All)');
-    expect(nexus.changedFrom).toEqual({ name: 'Izzet Guildgate', printed: 'Creature — Elemental' });
+    expect(nexus.changedFrom).toEqual({ name: 'Izzet Guildgate', printed: 'Creature — Elemental', current: 'Creature — Elemental (All)' });
     const { container } = renderBoard(withState({ card: nexus.card, changedFrom: nexus.changedFrom }));
     expect(card(container).querySelector('.board-card__type-pill')?.textContent).toBe('Creature — Elemental (All)');
   });

@@ -213,8 +213,8 @@ export type TokenSources = readonly (readonly [number, number])[];
 /** `PlayBridge.java`'s `cantBlock` — `packages/forge-wire/src/tier-c.ts`'s `CantBlockSchema`: battlefield creature ids. */
 export type CantBlock = readonly number[];
 
-/** `PlayBridge.java`'s `printedTypes` — `packages/forge-wire/src/tier-c.ts`'s `PrintedTypesSchema`: `[cardId, printedType]`. */
-export type PrintedTypes = readonly (readonly [number, unknown])[];
+/** `PlayBridge.java`'s `printedTypes` — `packages/forge-wire/src/tier-c.ts`'s `PrintedTypesSchema`: `[cardId, printedType, printedToken]`. */
+export type PrintedTypes = readonly (readonly [number, unknown, boolean])[];
 /** `PlayBridge.java`'s `printedPT` — `packages/forge-wire/src/tier-c.ts`'s `PrintedPTSchema`: `[cardId, printedPower, printedToughness]`. */
 export type PrintedPT = readonly (readonly [number, number, number])[];
 /** `PlayBridge.java`'s `lifePaying` — `packages/forge-wire/src/tier-c.ts`'s `LifePayingSchema`: `[playerId, life]`. Public: life is. */
