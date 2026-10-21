@@ -1,0 +1,18 @@
+# The operator, 2026-10-20: Vaultborn Tyrant dies and comes back as a token copy
+# "except it's an artifact in addition to its other types" — the copy must read as
+# a token and wear the type pill. Alice (seat 0) controls Vaultborn Tyrant with
+# three Swamps and holds Murder ({1}{B}{B}); her Tyrant is the only creature on
+# the battlefield, so Murder has one target. Bob (seat 1) has nothing to do.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Murder
+humanbattlefield=Vaultborn Tyrant;Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
