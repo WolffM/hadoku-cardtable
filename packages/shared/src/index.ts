@@ -283,6 +283,37 @@ export {
   type RoomWatch,
   type RoomChanged,
 } from './room-feed.ts';
+export {
+  GAUNTLET_PHASES,
+  GAUNTLET_DECKS,
+  GAUNTLET_ACTS,
+  GAUNTLET_SNAKE,
+  GAUNTLET_DECK_STATUSES,
+  GauntletPhaseSchema,
+  GauntletSeatIndexSchema,
+  GauntletActSchema,
+  GauntletDeckLineSchema,
+  GauntletDeckStatusSchema,
+  GauntletDeckSchema,
+  GauntletEraSchema,
+  GauntletPlayerSchema,
+  GauntletStepSchema,
+  GauntletGameSchema,
+  GauntletChoiceSchema,
+  GauntletViewSchema,
+  type GauntletPhase,
+  type GauntletSeatIndex,
+  type GauntletAct,
+  type GauntletDeckLine,
+  type GauntletDeckStatus,
+  type GauntletDeck,
+  type GauntletEra,
+  type GauntletPlayer,
+  type GauntletStep,
+  type GauntletGame,
+  type GauntletChoice,
+  type GauntletView,
+} from './gauntlet.ts';
 export { oneAbility, selfAnswer, type SelfAnswer } from './self-answer.ts';
 export { LIFE_PAYMENT, LIFE_PAYMENT_LINE, LIFE_PER_CLICK } from './life-payment.ts';
 export {
