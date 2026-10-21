@@ -67,10 +67,15 @@ describe('the gear outside a match', () => {
     const slider = screen.getByTestId('settings-ui-scale') as HTMLInputElement;
     expect(slider.type).toBe('range');
     expect([slider.min, slider.max, slider.value]).toEqual([String(UI_SCALE.min * 100), String(UI_SCALE.max * 100), '110']);
-    fireEvent.change(slider, { target: { value: '120' } });
-    // Not while the thumb is still held: the page would re-scale under the pointer.
+    // A drag sends `input`; not saved while the thumb is still held, the page would re-scale under the pointer.
+    fireEvent.input(slider, { target: { value: '120' } });
     expect(store.saved).toEqual([]);
+    // Nor on `pointerup`, which comes before the browser has finished the press.
     fireEvent.pointerUp(slider);
+    expect(store.saved).toEqual([]);
+    expect(screen.getByTestId('settings-ui-scale-value').textContent).toBe('120%');
+    // Let go is the input's own `change`.
+    fireEvent(slider, new Event('change', { bubbles: true }));
     expect(store.saved).toEqual([{ uiScale: 1.2 }]);
   });
 });

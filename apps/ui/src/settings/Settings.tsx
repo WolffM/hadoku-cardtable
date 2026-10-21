@@ -116,17 +116,29 @@ export function SettingsPopover({ trigger, onClose, children }: SettingsPopoverP
  * The UI scale, the slider the sound levels' own design is (`ct-settings__level`). Saved once the
  * thumb is let go, not on every step of a drag: the whole page re-scales on a save, and a slider
  * that moves under the pointer while it is held is a slider that cannot be aimed.
+ *
+ * Let go is the input's own `change`, not `pointerup`: `pointerup` is dispatched before the
+ * browser has finished the press, and a save there re-scaled the slider while the browser was
+ * still reading the pointer against it — a click on 110% came back as 90%.
  */
 function DisplaySettings() {
   const { prefs, save } = usePrefs(getPlayPrefsClient());
   const saved = clampUiScale(prefs?.uiScale ?? PLAY_PREFS_DEFAULTS.uiScale);
   const [held, setHeld] = useState<number | null>(null);
   const shown = held ?? saved;
-  const commit = (): void => {
-    if (held === null) return;
-    setHeld(null);
-    if (held !== saved) void save({ uiScale: held });
-  };
+  const slider = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = slider.current;
+    if (el === null) return undefined;
+    // The native `change` is the one sent on let go; React's onChange also runs for every `input`.
+    const commit = (): void => {
+      setHeld(null);
+      const chosen = clampUiScale(Number(el.value) / 100);
+      if (chosen !== saved) void save({ uiScale: chosen });
+    };
+    el.addEventListener('change', commit);
+    return () => el.removeEventListener('change', commit);
+  }, [saved, save]);
   return (
     <fieldset className="ct-settings__section" data-testid="settings-display">
       <legend>Display</legend>
@@ -139,10 +151,11 @@ function DisplaySettings() {
           step={UI_SCALE.step * 100}
           value={Math.round(shown * 100)}
           data-testid="settings-ui-scale"
-          onChange={(event) => setHeld(clampUiScale(Number(event.currentTarget.value) / 100))}
-          onPointerUp={commit}
-          onKeyUp={commit}
-          onBlur={commit}
+          ref={slider}
+          onChange={(event) => {
+            // React runs this for the let-go `change` too, after it has been saved; only a step is held.
+            if (event.nativeEvent.type === 'input') setHeld(clampUiScale(Number(event.currentTarget.value) / 100));
+          }}
         />
         <output data-testid="settings-ui-scale-value">{Math.round(shown * 100)}%</output>
       </label>
