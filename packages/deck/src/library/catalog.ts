@@ -41,6 +41,8 @@
  * data edit to that tool, not an edit here.
  */
 
+import type { FormatFamily } from '@hadoku/carddata/formats';
+
 /** One deck file in a collection. */
 export interface LibraryEntry {
   /** Stable id, used in reports and test names. */
@@ -50,12 +52,12 @@ export interface LibraryEntry {
 }
 
 /**
- * The three format families the deck library draws eras from (wave 48).
- * Standard rotates its own sets; Modern and Legacy do not, and their eras are
- * pinned to the same year's Standard era's dates (Settled, wave48 plan) —
- * `@hadoku/carddata/formats`' `formatPoolAt` dispatches on this same union.
+ * The format families the deck library draws eras from (wave 48) — the one
+ * `@hadoku/carddata/formats`' `formatPoolAt` dispatches on. Standard rotates
+ * its own sets; Modern and Legacy do not, and their eras are pinned to the same
+ * year's Standard era's dates (Settled, wave48 plan).
  */
-export type FormatFamily = 'standard' | 'modern' | 'legacy';
+export type { FormatFamily };
 
 /** A set of decks that share a format, a date and an event. */
 export interface LibraryCollection {
