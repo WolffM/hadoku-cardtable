@@ -238,7 +238,9 @@ describe('POST /api/play/matches', () => {
 		expect(status).toBe(201);
 		expect(typeof body.matchId).toBe('string');
 		const ready = TRANSCRIPT.find((l) => l.t === 'ready') as Extract<BridgeLine, { t: 'ready' }>;
-		expect(body.seats).toEqual(ready.seats.map((s) => ({ seat: s.seat, kind: 'human', deck: s.deck })));
+		// Nobody holds a seat yet when the start answers, so it names no deck: whoever asked for it
+		// is not necessarily who chose both (a room's start), and a deck is its chooser's alone.
+		expect(body.seats).toEqual(ready.seats.map((s) => ({ seat: s.seat, kind: 'human', deck: null })));
 		expect(h.hosts[0]?.spec.seats.map((s) => s.ai)).toEqual([false, false]);
 	});
 
@@ -325,6 +327,30 @@ describe('POST /api/play/matches', () => {
 		const res = await response;
 		expect(res.status).toBe(500);
 		expect(((await res.json()) as { error: string }).error).toContain('precon');
+	});
+});
+
+describe('GET /api/play/matches/:id', () => {
+	const seatDecks = async (h: Harness, matchId: string, user: string) => {
+		const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches/${matchId}`, { headers: edgeHeaders(user) });
+		return ((await res.json()) as { seats: { deck: string | null }[] }).seats.map((s) => s.deck);
+	};
+
+	it('names a seat’s deck to the one who holds it, and to everyone once the game is over', async () => {
+		const h = await boot();
+		const matchId = (await startMatch(h)).body.matchId as string;
+		const ready = TRANSCRIPT.find((l) => l.t === 'ready') as Extract<BridgeLine, { t: 'ready' }>;
+		const [first, second] = ready.seats.map((s) => s.deck);
+		const alice = await connect(h.port, edgeHeaders('alice'));
+		const bob = await connect(h.port, edgeHeaders('bob'));
+		await alice.request('forge:join', { matchId });
+		await bob.request('forge:join', { matchId });
+		expect(await seatDecks(h, matchId, 'alice')).toEqual([first, null]);
+		expect(await seatDecks(h, matchId, 'bob')).toEqual([null, second]);
+		expect(await seatDecks(h, matchId, 'carol'), 'a watcher is told neither').toEqual([null, null]);
+		h.hosts[0]!.push({ t: 'gameover', winner: 'Seat 1' });
+		await waitUntil(() => h.handle.matches.get(matchId)?.status === 'over', 'the game to be over');
+		for (const user of ['alice', 'bob', 'carol']) expect(await seatDecks(h, matchId, user), user).toEqual([first, second]);
 	});
 });
 

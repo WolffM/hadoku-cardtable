@@ -3760,6 +3760,27 @@ describe('R16 — the result screen, drawn over the board', () => {
       await waitFor(() => expect(rematch().textContent).toBe('Next game'));
     });
 
+    it.each([
+      ['a person', false],
+      ['the AI', true],
+    ])('Next game between the games of a series whose next game is set up in the room goes back to the room, and starts nothing (against %s)', async (_who, alone) => {
+      if (alone) tableState.other = { ready: false, present: false };
+      roomsClientState.room = {
+        settings: { handSmoothing: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [1, 0], games: [], phase: 'between' } }],
+        pod: null,
+      };
+      const { rematch } = await victoryInRoom();
+      await waitFor(() => expect(rematch().textContent).toBe('Next game'));
+      await waitFor(() => expect(rematch().disabled).toBe(false));
+      globalThis.location.hash = '#/match/m-1';
+      fireEvent.click(rematch());
+      await waitFor(() => expect(globalThis.location.hash).toBe('#/room/r-1'));
+      expect(tableState.ready).not.toHaveBeenCalled();
+      expect(tableState.startRoom).not.toHaveBeenCalled();
+      expect(tableState.startVsBot).not.toHaveBeenCalled();
+    });
+
     it('a finished Bo3 reads "Rematch"', async () => {
       roomsClientState.room = {
         settings: { handSmoothing: true },

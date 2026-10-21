@@ -10,6 +10,11 @@
  * its own, chooses her first pick, and starts the room's match the way the room screen does. The
  * match's board comes up, and the table holds the deck she chose.
  *
+ * Ruling 9 (2026-10-21): a deck choice is its chooser's alone until its game is over. While game 1
+ * is played alice is told her own deck and not the AI's, by the Gauntlet and by the match; nothing
+ * is played yet. She concedes, and the result's Next game takes her back to the room, where the
+ * Gauntlet is choosing game 2 with game 1's two decks on record and played.
+ *
  * `[cm-gauntlet]` lines are the evidence. Needs a Forge build; without one the test SKIPS and its title says why.
  */
 import { expect, test, type APIRequestContext } from '@playwright/test';
@@ -28,7 +33,7 @@ async function send<T>(request: APIRequestContext, origin: string, method: 'GET'
   return { status: res.status(), body: (await res.json()) as T };
 }
 
-test(titled('a Gauntlet vs the AI: the draw, the snake with the AI taking its own steps, both choices, and game 1 starts with the chosen deck'), async ({ browser }) => {
+test(titled('a Gauntlet vs the AI: the draw, the snake with the AI taking its own steps, both choices hidden through game 1, and Next game back to the room to choose game 2'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -81,9 +86,9 @@ test(titled('a Gauntlet vs the AI: the draw, the snake with the AI taking its ow
     const mine = v.decks.find((d) => d.status === 'picked' && d.by === 0)!;
     const chosen = await api<GauntletView>('POST', `/tables/rooms/${roomId}/gauntlet/choose`, { deck: mine.id });
     expect(chosen.body.phase).toBe('playing');
-    expect(chosen.body.games).toHaveLength(1);
-    expect(chosen.body.games[0]!.decks[0]).toBe(mine.id);
-    console.log(`[cm-gauntlet] game 1: ${chosen.body.games[0]!.decks.join(' vs ')}`);
+    expect(chosen.body.games, 'her own deck, and not the AI’s').toEqual([{ decks: [mine.id, null], winner: null }]);
+    expect(chosen.body.decks.filter((d) => d.played), 'nothing is played until its game is over').toEqual([]);
+    console.log(`[cm-gauntlet] game 1: ${mine.id} vs (hidden)`);
 
     const table = await api<{ you: { deck: { name: string } | null } }>('GET', `/tables/rooms/${roomId}`);
     expect(JSON.stringify(table.body)).toContain(mine.name);
@@ -93,6 +98,32 @@ test(titled('a Gauntlet vs the AI: the draw, the snake with the AI taking its ow
     await alice.page.goto(`${stack.origin}${PREFIX}/#/match/${started.body.matchId}`);
     await expect(alice.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 60_000 });
     console.log(`[cm-gauntlet] match ${started.body.matchId} up`);
+
+    const match = await api<{ seats: { kind: string; deck: string | null }[] }>('GET', `/play/matches/${started.body.matchId}`);
+    expect(match.body.seats.map((seat) => seat.kind)).toEqual(['human', 'ai']);
+    expect(match.body.seats[0]!.deck, 'the match names her own deck').not.toBeNull();
+    expect(match.body.seats[1]!.deck, 'and not the AI’s').toBeNull();
+
+    await alice.page.getByTestId('live-concede').click();
+    await alice.page.getByTestId('live-concede-yes').click();
+    await expect(alice.page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });
+    const next = alice.page.getByTestId('game-result-rematch');
+    await expect(next).toHaveText('Next game', { timeout: 15_000 });
+    await expect(next).toBeEnabled();
+    await next.click();
+    await expect.poll(() => new URL(alice.page.url()).hash, { message: 'Next game goes back to the room' }).toBe(`#/room/${roomId}`);
+
+    v = await view();
+    const theirs = v.games[0]?.decks[1] ?? null;
+    console.log(`[cm-gauntlet] game 2 choose: phase=${v.phase} game1=${JSON.stringify(v.games[0])} played=${v.decks.filter((d) => d.played).map((d) => d.id).join(',')}`);
+    expect(v.phase).toBe('choose');
+    expect(v.games).toEqual([{ decks: [mine.id, theirs], winner: 1 }]);
+    expect(theirs, 'game 1 over: the AI’s deck is on record').not.toBeNull();
+    expect(v.decks.filter((d) => d.played).map((d) => d.id).sort(), 'both played decks are greyed').toEqual([mine.id, theirs!].sort());
+    const after = await api<{ seats: { deck: string | null }[] }>('GET', `/play/matches/${started.body.matchId}`);
+    expect(after.body.seats.every((seat) => seat.deck !== null), 'the finished match names both decks').toBe(true);
+    const live = await api<{ room: { matchId: string | null; phase: string } }>('GET', `/tables/rooms/${roomId}`);
+    expect(live.body.room, 'Next game started nothing').toMatchObject({ matchId: null, phase: 'between' });
   } finally {
     await alice.context.close();
     await stack.stop();

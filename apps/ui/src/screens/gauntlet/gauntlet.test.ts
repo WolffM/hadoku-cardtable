@@ -275,12 +275,34 @@ describe('choosing a deck for the next game', () => {
     expect(theirs.querySelector('[data-chosen-deck]')).toBeNull();
   });
 
-  it('once both are revealed, both decks of the game are drawn face up', () => {
-    const decks = picks().map((d) => (d.id === IDS[6] || d.id === IDS[5] ? { ...d, played: true } : d));
-    const { getByTestId } = draw(view({ phase: 'playing', decks, games: [{ decks: [IDS[6], IDS[5]], winner: null }], choice: null }));
+  it('while the game is played, your own deck is drawn and theirs is face down', () => {
+    const { getByTestId } = draw(view({ phase: 'playing', decks: picks(), games: [{ decks: [IDS[6], null], winner: null }], choice: null }));
     const shown = getByTestId('gauntlet-game');
     expect(shown.querySelector(`[data-seat="0"] [data-deck-id="${IDS[6]}"]`)).not.toBeNull();
-    expect(shown.querySelector(`[data-seat="1"] [data-deck-id="${IDS[5]}"]`)).not.toBeNull();
+    expect(shown.querySelector('[data-seat="1"] [data-testid="gauntlet-deck"]'), 'no deck of theirs').toBeNull();
+    expect(shown.querySelector('[data-seat="1"] [data-testid="gauntlet-hidden"]')).not.toBeNull();
+  });
+
+  it('game 2: both seats’ played decks are greyed, your unplayed ones pressable, theirs shown as available', () => {
+    const onChoose = vi.fn();
+    const decks = picks().map((d) => (d.id === IDS[4] || d.id === IDS[5] ? { ...d, played: true } : d));
+    const { getByTestId } = draw(view({ phase: 'choose', decks, games: [{ decks: [IDS[4], IDS[5]], winner: 0 }], choice: { mine: null, chosen: [false, true] } }), { onChoose });
+    expect(getByTestId('gauntlet-title').textContent).toContain('Game 2');
+    const at = (side: string, id: string) => getByTestId(side).querySelector<HTMLButtonElement>(`[data-deck-id="${id}"]`)!;
+    expect(at('gauntlet-choose-mine', IDS[4]).dataset.played).toBe('true');
+    expect(at('gauntlet-choose-theirs', IDS[5]).dataset.played).toBe('true');
+    for (const id of [IDS[6], IDS[8]]) {
+      expect(at('gauntlet-choose-mine', id).dataset.played).toBeUndefined();
+      expect(at('gauntlet-choose-mine', id).disabled).toBe(false);
+    }
+    fireEvent.click(at('gauntlet-choose-mine', IDS[4]));
+    expect(onChoose, 'a played deck is not chosen again').not.toHaveBeenCalled();
+    for (const id of [IDS[7], IDS[9]]) {
+      const tile = at('gauntlet-choose-theirs', id);
+      expect(tile.dataset.played, 'theirs, not yet played').toBeUndefined();
+      expect(tile.getAttribute('aria-checked'), 'never shown as chosen').toBeNull();
+    }
+    expect(getByTestId('gauntlet-choose-theirs').dataset.chosen).toBe('true');
   });
 
   it('a watcher sees whether each seat has chosen, and no deck chosen', () => {

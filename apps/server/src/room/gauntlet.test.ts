@@ -207,7 +207,7 @@ describe('choosing each game deck', () => {
 		s = two.state;
 		expect(s.phase).toBe('playing');
 		expect(gameDecks(s)).toEqual([a, b]);
-		expect(viewOfGauntlet(s, null, info).games).toEqual([{ decks: [a, b], winner: null }]);
+		expect(viewOfGauntlet(s, null, info).games, 'revealed to the table, never to the room').toEqual([{ decks: [null, null], winner: null }]);
 	});
 
 	it('refuses a deck that is not the seat’s own pick', () => {
@@ -241,7 +241,7 @@ describe('choosing each game deck', () => {
 		// One unplayed deck each: nothing to choose, so game 3 is dealt at once.
 		expect(s.phase).toBe('playing');
 		expect(gameDecks(s)).toEqual([a3, b3]);
-		expect(viewOfGauntlet(s, null, info).decks.filter((d) => d.played)).toHaveLength(6);
+		expect(viewOfGauntlet(s, null, info).decks.filter((d) => d.played), 'game 3’s decks are played once it is over').toHaveLength(4);
 		after = gameOver(s, { seriesOver: true, winner: 0 });
 		if (!after.ok) throw new Error(after.reason);
 		expect(after.state.phase).toBe('done');
@@ -258,6 +258,56 @@ describe('choosing each game deck', () => {
 		}
 		const after = gameOver(s, { seriesOver: true, winner: 1 });
 		expect(after.ok && after.state.phase).toBe('done');
+	});
+});
+
+describe('a deck choice is its chooser’s alone until its game is over', () => {
+	/** Every state from `seat`'s choice of `deck` to the end of game 1, the other seat choosing its first pick. */
+	function game1(seat: GauntletSeatIndex, deck: string): GauntletState[] {
+		const start = banpickAll(drawn());
+		const other = (1 - seat) as GauntletSeatIndex;
+		const one = choose(start, seat, deck);
+		if (!one.ok) throw new Error(one.reason);
+		const two = choose(one.state, other, picksOf(start, other)[0]!);
+		if (!two.ok) throw new Error(two.reason);
+		const over = gameOver(two.state, { seriesOver: false, winner: seat });
+		if (!over.ok) throw new Error(over.reason);
+		return [one.state, two.state, over.state];
+	}
+
+	it('the other seat and a watcher are shown the same thing whichever deck a seat chose, until its game is over', () => {
+		const start = banpickAll(drawn());
+		for (const seat of [0, 1] as const) {
+			const other = (1 - seat) as GauntletSeatIndex;
+			const runs = picksOf(start, seat).map((deck) => game1(seat, deck));
+			for (const viewer of [other, null]) {
+				for (const [step, phase] of [[0, 'choose'], [1, 'playing']] as const) {
+					const seen = runs.map((run) => viewOfGauntlet(run[step]!, viewer, info));
+					expect(seen[0]!.phase).toBe(phase);
+					expect(seen[1], `seat ${seat}'s choice, seen by ${String(viewer)} in ${phase}`).toEqual(seen[0]);
+					expect(seen[2], `seat ${seat}'s choice, seen by ${String(viewer)} in ${phase}`).toEqual(seen[0]);
+				}
+				const after = runs.map((run) => viewOfGauntlet(run[2]!, viewer, info));
+				expect(after[1], 'once the game is over its decks are on record').not.toEqual(after[0]);
+			}
+		}
+	});
+
+	it('in the game a seat sees its own deck and not the other’s, and no deck is played until the game is over', () => {
+		const start = banpickAll(drawn());
+		const a = picksOf(start, 0)[1]!;
+		const b = picksOf(start, 1)[0]!;
+		const [, playing, over] = game1(0, a);
+		expect(viewOfGauntlet(playing!, 0, info).games).toEqual([{ decks: [a, null], winner: null }]);
+		expect(viewOfGauntlet(playing!, 1, info).games).toEqual([{ decks: [null, b], winner: null }]);
+		expect(viewOfGauntlet(playing!, null, info).games).toEqual([{ decks: [null, null], winner: null }]);
+		for (const viewer of [0, 1, null] as const) {
+			expect(viewOfGauntlet(playing!, viewer, info).decks.filter((d) => d.played), `nothing played yet, for ${String(viewer)}`).toEqual([]);
+			const after = viewOfGauntlet(over!, viewer, info);
+			expect(after.phase).toBe('choose');
+			expect(after.games).toEqual([{ decks: [a, b], winner: 0 }]);
+			expect(after.decks.filter((d) => d.played).map((d) => d.id), `both played decks, for ${String(viewer)}`).toEqual(start.decks.filter((d) => d === a || d === b));
+		}
 	});
 });
 

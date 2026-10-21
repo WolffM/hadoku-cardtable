@@ -222,7 +222,7 @@ describe('the Gauntlet routes', () => {
 		expect(again.body.reason).toBe('played');
 	});
 
-	it('hides a seat’s choice from the other seat and the room until both have chosen', async () => {
+	it('hides a seat’s choice from the other seat and the room until its game is over', async () => {
 		const h = await boot([...ME]);
 		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true });
 		await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true });
@@ -243,6 +243,22 @@ describe('the Gauntlet routes', () => {
 		}
 		expect(h.logs.filter((l) => l.evt === 'gauntlet-chose')).toEqual([{ evt: 'gauntlet-chose', room: 'r-1', seat: 0 }]);
 		expect(h.dealt).toEqual([]);
+
+		// Both chosen: the game is dealt, and still nobody but its chooser is told a deck until it is over.
+		const theirs = v.decks.find((d) => d.by === 1 && d.status === 'picked')!.id;
+		await call(h, 'bob', '/rooms/r-1/gauntlet/choose', { deck: theirs });
+		expect(h.dealt.map((d) => d.decks)).toEqual([[mine, theirs]]);
+		const games = async (user: string) => (await view(h, user)).games.map((g) => g.decks);
+		expect(await games('alice')).toEqual([[mine, null]]);
+		expect(await games('bob')).toEqual([[null, theirs]]);
+		expect(await games('carol')).toEqual([[null, null]]);
+		for (const user of ['alice', 'bob', 'carol']) expect((await view(h, user)).decks.filter((d) => d.played), `nothing played yet, for ${user}`).toEqual([]);
+		h.handle.afterGame('r-1', { seriesOver: false, winner: 0 });
+		for (const user of ['alice', 'bob', 'carol']) {
+			const after = await view(h, user);
+			expect(after.games, `game 1 on record, for ${user}`).toEqual([{ decks: [mine, theirs], winner: 0 }]);
+			expect(new Set(after.decks.filter((d) => d.played).map((d) => d.id)), `both played decks greyed, for ${user}`).toEqual(new Set([mine, theirs]));
+		}
 	});
 
 	it('answers a room that is not playing a Gauntlet with a refusal', async () => {
