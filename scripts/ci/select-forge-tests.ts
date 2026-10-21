@@ -26,34 +26,41 @@
  *            by guards the code it fixed — and, weaker, with any earlier edit to
  *            the file. A land is the run of commits `land.sh` closes with its
  *            version bump; one carrying many specs says little about each.
- *   renders  the test ids and `data-*` attributes in the declarations the diff
- *            touches, or (weighing less) in what uses them, each weighted by how
- *            few specs touch it. A key more than a quarter of the specs touch
- *            tells nothing about any of them and is left to the smoke set.
- *   imports  an e2e helper's importers; a server module's route callers.
+ *   renders  the test ids and `data-*` attributes near the lines the diff
+ *            touches, or (weighing less) near where what uses them names them,
+ *            each weighted by how few specs touch it; a spec counts its rarest
+ *            key once. A key more than a quarter of the specs touch tells
+ *            nothing about any of them and is left to the smoke set.
+ *   uses     the specs and jvm suites that use a declaration the diff touches,
+ *            by name; a server module's route callers.
  *
  * The rules, in order, per changed file:
  *   a package.json whose only edit is "version"         nothing
  *   an edit to comments or whitespace only              nothing
  *   docs, *.md, .claude, scripts/sfx, other workflows   nothing
  *   a unit test                                         nothing (`check` runs it)
- *   the engine pin, packages, dependencies, workspace config, forge.yml, this
+ *   the engine pin, a package manifest, dependencies, workspace config, forge.yml, this
  *   script, card data                                   every spec + every jvm suite (a push: the
  *                                                       smoke set, and the engine's guards for the pin)
  *   an e2e spec, a jvm suite                            itself
- *   an e2e helper                                       the specs that import it
+ *   an e2e helper                                       the specs that use what it touched
  *   a scenario (`*.state`)                              the specs + jvm suites that name it
  *   a hot-path module, or a server play module one
- *   import below one                                    its guard family
- *   apps/server                                         history, route callers, the jvm suites importing it
- *   apps/ui source                                      history, what it renders, the jvm suites importing it
+ *   import below one                                    its guard family (the bridge's Java: and, like the
+ *                                                       engine pin, everything on a dispatch)
+ *   apps/server                                         history, route callers, the jvm suites using it
+ *   apps/ui source, a package's source                  history, what it renders, the specs and jvm suites
+ *                                                       using it (a package: and the guards of a hot path using it)
  *   anything else                                       every spec + every jvm suite
  *
- * "What it renders" is mechanical: the test ids and `data-*` attributes in
- * the declarations the diff touches. A declaration that renders none passes
- * the question to the declarations that use it — in its own file or one that
- * imports it — until each path reaches one that renders; `interface` and
- * `type` declarations lead nowhere. A stylesheet's edited rules name classes,
+ * "What it renders" is mechanical: the test ids and `data-*` attributes near
+ * the lines the diff touches, in the declarations holding them. A declaration
+ * that renders none passes the question to the declarations that use it — in
+ * its own file or one that imports it — until each path reaches one that
+ * renders, which names the keys near where it is used; `interface` and `type`
+ * declarations lead nowhere. "Uses" follows the same chains to the end: a spec
+ * or jvm suite is picked for naming what the diff touched, not for importing a
+ * file that some other part of the chain reaches. A stylesheet's edited rules name classes,
  * and the components that use those classes render the ids near each use. A
  * spec "touches" a key when the key appears in the spec or in the e2e helper
  * functions the spec actually calls.
@@ -187,7 +194,7 @@ const NOTHING: RegExp[] = [
 const EVERYTHING: RegExp[] = [
   /^forge$/,
   /^\.gitmodules$/,
-  /^packages\//,
+  /^packages\/[^/]+\/(package\.json|tsconfig[^/]*\.json)$/,
   /^(pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|tsconfig\.base\.json|vitest\.config\.ts|\.npmrc|\.nvmrc)$/,
   /^apps\/(ui|server)\/(package\.json|tsconfig[^/]*\.json|vite\.config\.ts|index\.html)$/,
   /^\.github\/workflows\/forge\.yml$/,
@@ -235,6 +242,18 @@ export function commentsOnly(repo: Repo, c: Change): boolean {
   if (after === null) return false;
   const css = c.filename.endsWith('.css');
   return code(beforePatch(after, c.patch), css) === code(after, css);
+}
+
+const EXPORT_FROM = /(?:^|\n)\s*export\s[^'"]*?from\s*['"][^'"]+['"];?/g;
+
+/** An edit to a module's `export … from` statements and nothing else: a new re-export is used by files changed with it, a dropped one fails tsc. */
+export function reexportsOnly(repo: Repo, c: Change): boolean {
+  if (c.status !== 'modified' || !c.patch || !/\.tsx?$/.test(c.filename)) return false;
+  const after = repo.read(c.filename);
+  if (after === null) return false;
+  const rest = (src: string): string => code(src.replace(EXPORT_FROM, '\n'), false);
+  const before = beforePatch(after, c.patch);
+  return before !== after && rest(before) === rest(after);
 }
 
 /* ── the repository, read once ────────────────────────────────────────── */
@@ -336,7 +355,7 @@ export function touchedNames(file: string, src: string, patch: string): string[]
 
 const IMPORT = /(?:^|\n)\s*(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|(?:^|\n)\s*import\s*['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-/** The repo paths `file` imports by relative specifier (packages and npm modules are not followed). */
+/** The repo paths `file` imports: by relative specifier, or a workspace package by its name (npm modules are not followed). */
 export function importsOf(repo: Repo, file: string): string[] {
   const src = repo.read(file);
   if (src === null) return [];
@@ -348,27 +367,18 @@ export function importsOf(repo: Repo, file: string): string[] {
   return out;
 }
 
-/** The repo path a relative specifier in `from` names (`./x.js` may be `x.ts`), or null. */
+/** The repo path a specifier in `from` names (`./x.js` may be `x.ts`; `@hadoku/deck/library` is what that package exports as `./library`), or null. */
 export function resolveImport(repo: Repo, from: string, spec: string): string | null {
+  const pkg = /^@hadoku\/([\w-]+)(\/.+)?$/.exec(spec);
+  if (pkg) {
+    const manifest = repo.read(`packages/${pkg[1]}/package.json`);
+    const exported = manifest === null ? undefined : (JSON.parse(manifest) as { exports?: Record<string, string> }).exports?.[`.${pkg[2] ?? ''}`];
+    return typeof exported === 'string' ? normalize(join(`packages/${pkg[1]}`, exported)) : null;
+  }
   if (!spec.startsWith('.')) return null;
   const base = normalize(join(dirname(from), spec));
   const stem = base.replace(/\.(js|ts|tsx|jsx)$/, '');
   return [base, `${stem}.ts`, `${stem}.tsx`, `${base}/index.ts`, `${base}/index.tsx`].find((c) => repo.read(c) !== null) ?? null;
-}
-
-/** Every file `root` imports, transitively, with how many imports away it is (the root is 0). */
-function closure(repo: Repo, root: string): Map<string, number> {
-  const depth = new Map([[root, 0]]);
-  const todo = [root];
-  while (todo.length) {
-    const f = todo.shift()!;
-    for (const g of importsOf(repo, f)) {
-      if (depth.has(g)) continue;
-      depth.set(g, depth.get(f)! + 1);
-      todo.push(g);
-    }
-  }
-  return depth;
 }
 
 /* ── what a UI file renders ───────────────────────────────────────────── */
@@ -687,11 +697,11 @@ export function universe(repo: Repo): Universe {
   return { specs, jvm };
 }
 
-/** Every file under apps/ui, mapped to the files there that import it. */
-function importersIn(repo: Repo, dir: string): Map<string, string[]> {
+/** Every TS file under `dirs`, mapped to the files there that import it; unit tests import nothing that matters here, jvm suites do. */
+function importersIn(repo: Repo, ...dirs: string[]): Map<string, string[]> {
   const rev = new Map<string, string[]>();
-  for (const f of repo.list(dir)) {
-    if (!/\.(tsx?)$/.test(f) || /\.test\.tsx?$/.test(f)) continue;
+  for (const f of dirs.flatMap((d) => repo.list(d))) {
+    if (!/\.(tsx?)$/.test(f) || isUnitTest(f)) continue;
     for (const dep of importsOf(repo, f)) {
       if (!rev.has(dep)) rev.set(dep, []);
       rev.get(dep)!.push(f);
@@ -706,9 +716,7 @@ export function bindings(repo: Repo, importer: string, file: string): Map<string
   const src = repo.read(importer) ?? '';
   const re = /(?:^|\n)\s*import\s+(type\s+)?([^'"]*?)\s*from\s*['"]([^'"]+)['"]/g;
   for (const m of src.matchAll(re)) {
-    if (m[1] || !m[3].startsWith('.')) continue;
-    const target = resolveImport(repo, importer, m[3]);
-    if (target !== file) continue;
+    if (m[1] || resolveImport(repo, importer, m[3]) !== file) continue;
     const clause = m[2];
     const def = /^([A-Za-z_$][\w$]*)\s*(?:,|$)/.exec(clause);
     if (def) out.set('default', def[1]);
@@ -718,6 +726,21 @@ export function bindings(repo: Repo, importer: string, file: string): Map<string
     for (const part of named ? named[1].split(',') : []) {
       const [orig, local] = part.replace(/^\s*type\s+/, '').split(/\s+as\s+/).map((x) => x.trim());
       if (orig && !/^type\s/.test(part.trim())) out.set(orig, local ?? orig);
+    }
+  }
+  return out;
+}
+
+/** The names `importer` re-exports from `file` (`export { a as b } from`, `export * from`): original name to exported name, `*` for all. */
+export function reexports(repo: Repo, importer: string, file: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const src = repo.read(importer) ?? '';
+  for (const m of src.matchAll(/(?:^|\n)\s*export\s+(type\s+)?(\*|\{[^}]*\})\s*from\s*['"]([^'"]+)['"]/g)) {
+    if (m[1] || resolveImport(repo, importer, m[3]) !== file) continue;
+    if (m[2] === '*') out.set('*', '*');
+    for (const part of m[2] === '*' ? [] : m[2].slice(1, -1).split(',')) {
+      const [orig, alias] = part.split(/\s+as\s+/).map((x) => x.trim());
+      if (orig && !/^type\s/.test(orig)) out.set(orig, alias ?? orig);
     }
   }
   return out;
@@ -734,62 +757,119 @@ export interface Reached {
   typesOnly: boolean;
 }
 
+/** An `import … from '…'` or `export … from '…'` statement, however many lines it spans. */
+const STATEMENT_FROM = /(?:^|\n)\s*(?:import|export)\s[^'"]*?from\s*['"][^'"]+['"];?/g;
+
+/** A step of a use chain: a declaration (null: a file's top-level code), the lines in it that touch or name what led here (null: all of it), and how many imports from the changed file. */
+interface Use {
+  file: string;
+  decl: Decl | null;
+  lines: number[] | null;
+  depth: number;
+}
+
 /**
- * What a change to a TS module puts on screen, followed symbol by symbol: the
- * top-level declarations its diff touches; for each one that renders (names a
- * test id or a `data-*` attribute) its keys, and for each one that does not,
- * the declarations that use it — in the same file, or in a file that imports
- * it — until every path reaches something that renders. The keys of the
- * touched declarations themselves are `direct`; the rest are `reached`. Edits outside every
- * declaration (the imports) act through the declarations that use them; with
- * no diff, or only such edits, every declaration counts. `interface` and
- * `type` declarations are erased at build and lead nowhere.
+ * Walks from the top-level declarations a diff of `file` touches to whatever
+ * uses them, by name: the declarations naming one in its own file, and in each
+ * file importing (or re-exporting) it the declarations naming its binding, and
+ * so on. `visit` sees each use once and returns true to end that path there.
+ * Edits outside every declaration (the imports) act through the declarations
+ * that use them; with no diff, or only such edits, every declaration counts.
+ * `interface` and `type` declarations are erased at build and lead nowhere.
  */
-export function reachedKeys(
-  repo: Repo,
-  importers: Map<string, string[]>,
-  file: string,
-  patch: string | undefined,
-): Reached {
-  const direct = emptyKeys();
-  const reached = emptyKeys();
-  const via: string[] = [];
+function walkUses(repo: Repo, importers: Map<string, string[]>, file: string, patch: string | undefined, visit: (u: Use, start: boolean) => boolean): { typesOnly: boolean } {
   const declCache = new Map<string, Decl[]>();
   const declsOf = (f: string): Decl[] => {
     if (!declCache.has(f)) declCache.set(f, f.endsWith('.json') ? [] : declarations(repo.read(f) ?? ''));
     return declCache.get(f)!;
   };
-  type Node = { file: string; decl: Decl | null };
+  const mentionLines = (d: Decl, name: string): number[] => d.text.split('\n').flatMap((l, i) => (mentions(l, name) ? [d.start + i] : []));
   const own = declsOf(file);
   const lines = patch ? changedLines(patch, repo.read(file) ?? undefined) : [];
-  let touched = own.filter((d) => lines.some((l) => l >= d.start && l <= d.end));
-  if (!patch || touched.length === 0) touched = own;
-  const start: Node[] = own.length ? touched.filter((d) => !d.isType).map((d) => ({ file, decl: d })) : [{ file, decl: null }];
+  const hit = own.filter((d) => lines.some((l) => l >= d.start && l <= d.end));
+  const start: Use[] = !own.length
+    ? [{ file, decl: null, lines: null, depth: 0 }]
+    : (hit.length && patch ? hit : own).filter((d) => !d.isType).map((d) => ({ file, decl: d, lines: hit.length && patch ? lines.filter((l) => l >= d.start && l <= d.end) : null, depth: 0 }));
   const seen = new Set<string>();
   const todo = [...start];
   while (todo.length) {
-    const n = todo.shift()!;
-    const id = `${n.file}#${n.decl?.name ?? '*'}#${n.decl?.start ?? 0}`;
+    const u = todo.shift()!;
+    const id = `${u.file}#${u.decl?.name ?? '*'}#${u.decl?.start ?? 0}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    if (n.decl?.isType) continue;
-    if (n.decl) {
-      const k = tsxKeys(n.decl.text);
-      if (keyCount(k) > 0) {
-        merge(start.includes(n) ? direct : reached, k);
-        if (!via.includes(n.file)) via.push(n.file);
-        continue;
-      }
-      for (const d of declsOf(n.file)) if (d !== n.decl && mentions(d.text, n.decl.name)) todo.push({ file: n.file, decl: d });
-    }
-    for (const g of importers.get(n.file) ?? []) {
-      const b = bindings(repo, g, n.file);
-      const local = n.decl === null ? [...b.values()] : [b.get(n.decl.name), n.decl.isDefault ? b.get('default') : undefined, b.get('*')].filter((x): x is string => Boolean(x));
-      if (!local.length) continue;
-      for (const d of declsOf(g)) if (local.some((x) => mentions(d.text, x))) todo.push({ file: g, decl: d });
+    if (visit(u, start.includes(u))) continue;
+    const name = u.decl?.name;
+    if (u.decl) for (const d of declsOf(u.file)) if (d !== u.decl && d.start > 0 && mentions(d.text, name!)) todo.push({ file: u.file, decl: d, lines: mentionLines(d, name!), depth: u.depth });
+    for (const g of importers.get(u.file) ?? []) {
+      const b = bindings(repo, g, u.file);
+      const local = u.decl === null ? [...b.values()] : [b.get(name!), u.decl.isDefault ? b.get('default') : undefined, b.get('*')].filter((x): x is string => Boolean(x));
+      const users = declsOf(g).filter((d) => local.some((x) => mentions(d.text, x)));
+      for (const d of users) todo.push({ file: g, decl: d, lines: local.flatMap((x) => mentionLines(d, x)), depth: u.depth + 1 });
+      // Top-level code before any declaration: a test file's `describe`, an entry's render.
+      const body = (repo.read(g) ?? '').split('\n').slice(0, (declsOf(g)[0]?.start ?? Infinity) - 1).join('\n').replace(STATEMENT_FROM, '');
+      if (!users.length && local.some((x) => mentions(body, x))) todo.push({ file: g, decl: null, lines: null, depth: u.depth + 1 });
+      const rx = reexports(repo, g, u.file);
+      const out = u.decl === null ? [...rx.values()] : [rx.get(name!) ?? (rx.has('*') ? name! : undefined)].filter((x): x is string => Boolean(x));
+      for (const x of out) todo.push({ file: g, decl: x === '*' ? null : { name: x, start: 0, end: 0, text: '', isDefault: false, isType: false }, lines: [], depth: u.depth + 1 });
     }
   }
-  return { direct, reached, via, typesOnly: own.length > 0 && start.length === 0 };
+  return { typesOnly: own.length > 0 && start.length === 0 };
+}
+
+/**
+ * The keys a declaration renders near `lines` (all of them for null): within
+ * `RADIUS` lines of each, or else the nearest above and below. A component
+ * drawing half the board names, near any one edit, the few ids that edit moves.
+ */
+export function keysNear(d: Decl, lines: number[] | null): Keys {
+  if (lines === null) return tsxKeys(d.text);
+  const text = d.text.split('\n');
+  const rel = lines.map((l) => l - d.start).filter((r) => r >= 0 && r < text.length);
+  const window = (from: number, to: number): Keys => tsxKeys(text.slice(Math.max(0, from), to + 1).join('\n'));
+  const k = emptyKeys();
+  for (const r of rel) merge(k, window(r - RADIUS, r + RADIUS));
+  if (keyCount(k) > 0) return k;
+  const keyed = text.flatMap((l, i) => (keyCount(tsxKeys(l)) > 0 ? [i] : []));
+  for (const r of rel) {
+    const below = keyed.find((i) => i > r);
+    const above = keyed.findLast((i) => i < r);
+    for (const i of [above, below]) if (i !== undefined) merge(k, window(i, i));
+  }
+  return k;
+}
+
+/**
+ * What a change to a TS module puts on screen, followed symbol by symbol
+ * (`walkUses`): a declaration the diff touches that renders (names a test id
+ * or a `data-*` attribute) gives the keys near the edit (`direct`); one that
+ * does not passes the question to what uses it, which gives the keys near where
+ * it is named (`reached`), and so on until every path reaches something that
+ * renders.
+ */
+export function reachedKeys(repo: Repo, importers: Map<string, string[]>, file: string, patch: string | undefined): Reached {
+  const direct = emptyKeys();
+  const reached = emptyKeys();
+  const via: string[] = [];
+  const { typesOnly } = walkUses(repo, importers, file, patch, (u, start) => {
+    if (!u.decl) return false;
+    const k = keysNear(u.decl, u.lines);
+    if (keyCount(k) === 0) return false;
+    merge(start ? direct : reached, k);
+    if (!via.includes(u.file)) via.push(u.file);
+    return true;
+  });
+  return { direct, reached, via, typesOnly };
+}
+
+/** The files that use what a diff of `file` touched (`walkUses`), each with how many imports away. */
+export function usersOf(repo: Repo, importers: Map<string, string[]>, file: string, patch: string | undefined): Map<string, number> {
+  const out = new Map<string, number>();
+  walkUses(repo, importers, file, patch, (u) => {
+    const d = out.get(u.file);
+    if (u.file !== file && (d === undefined || u.depth < d)) out.set(u.file, u.depth);
+    return false;
+  });
+  return out;
 }
 
 export interface Options {
@@ -823,7 +903,25 @@ const reason = (p: Pick): string => {
   return p.tier < 2 ? top.text : `${top.text}${p.why.length > 1 ? ` (+${p.why.length - 1} more)` : ''}; score ${p.score.toFixed(1)}`;
 };
 
-/** Score weights: a key's is log(specs / specs touching it); history weighs a one-spec land like a rare key; an import or a route call is enough alone. */
+/** A router registration: `router.get('/api/x', …)`, `app.use('/rooms', …)`. */
+const ROUTE = /\.(?:get|post|put|patch|delete|all|use)\(\s*['"`](\/[^'"`]*)['"`]/g;
+
+/**
+ * The static parts of the routes a server change registers, in the
+ * declarations its diff touches (all of them, without a diff): `/:id/join`
+ * is called as `/rooms/abc/join`, so `/join` is what a spec's text holds.
+ */
+export function registeredRoutes(repo: Repo, c: Change): string[] {
+  const src = repo.read(c.filename) ?? '';
+  const lines = c.patch ? changedLines(c.patch, src) : [];
+  const hit = declarations(src).filter((d) => lines.some((l) => l >= d.start && l <= d.end));
+  const text = c.patch && hit.length ? hit.map((d) => d.text).join('\n') : src;
+  const out = new Set<string>();
+  for (const m of text.matchAll(ROUTE)) for (const part of m[1].split(/\/:[^/]+/)) if (part.replace(/\/$/, '').length >= 4) out.add(part.replace(/\/$/, ''));
+  return [...out];
+}
+
+/** Score weights: a key's is log(specs / specs touching it); history weighs a one-spec land like a rare key; a use or a route call is enough alone. */
 const W = { reachedKey: 0.75, landDecl: 4, landFile: 1.5, importer: 3 };
 
 export function select(repo: Repo, changes: Change[], { deferFull = false, fullShare = FULL_SHARE, guards = GUARDS }: Options = {}): Selection {
@@ -859,28 +957,33 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
     for (const j of g.jvm) addJvm(j, 1, `guards ${g.name} (${why})`);
   };
 
-  let jvmClosures: Map<string, Map<string, number>> | null = null;
-  /** The jvm suites importing `f`, each scored by how directly. */
-  const jvmImporting = (f: string): void => {
-    jvmClosures ??= new Map(all.jvm.map((s) => [s, closure(repo, s)]));
-    for (const s of all.jvm) {
-      const d = jvmClosures.get(s)!.get(f);
-      if (s !== f && d !== undefined) addJvm(s, 2, `imports ${f}${d > 1 ? ` (${d} deep)` : ''}`, 1 / d);
-    }
+  let allImporters: Map<string, string[]> | null = null;
+  const users = new Map<Change, Map<string, number>>();
+  /** The files using what change `c` touched, by name (`usersOf`). */
+  const usersOfChange = (c: Change): Map<string, number> => {
+    allImporters ??= importersIn(repo, 'apps', 'packages', 'e2e');
+    if (!users.has(c)) users.set(c, usersOf(repo, allImporters, c.filename, c.patch));
+    return users.get(c)!;
+  };
+  /** The jvm suites using what `c` touched, each scored by how directly. */
+  const jvmUsing = (c: Change): void => {
+    for (const [s, d] of usersOfChange(c)) if (all.jvm.includes(s)) addJvm(s, 2, `uses ${c.filename}${d > 1 ? ` (${d} deep)` : ''}`, 1 / d);
   };
   const specScans = new Map<string, SpecScan>();
   const scanOf = (s: string): SpecScan => {
     if (!specScans.has(s)) specScans.set(s, scanSpec(specText(repo, `e2e/${s}`)));
     return specScans.get(s)!;
   };
-  let specClosures: Map<string, Map<string, number>> | null = null;
-  const specsImporting = (f: string): string[] => {
-    specClosures ??= new Map(all.specs.map((s) => [s, closure(repo, `e2e/${s}`)]));
-    return all.specs.filter((s) => specClosures!.get(s)!.has(f));
-  };
+  /** The specs using what `c` touched. */
+  const specsUsing = (c: Change): string[] => all.specs.filter((s) => usersOfChange(c).has(`e2e/${s}`));
   let uiImporters: Map<string, string[]> | null = null;
-  /** Score the specs touching each key by how few do; a key most specs touch is left to the smoke set. */
+  /**
+   * Score the specs touching a key by how few do, each by its rarest key: ten
+   * keys of one component a spec happens to read are one piece of evidence,
+   * not ten. A key most specs touch is left to the smoke set.
+   */
   const byKeys = (label: string, keys: Keys, weight: number): void => {
+    const best = new Map<string, { name: string; score: number }>();
     for (const [name, one] of singleKeys(keys)) {
       const users = all.specs.filter((s) => touched(scanOf(s), one).length > 0);
       if (users.length === 0) continue;
@@ -888,13 +991,16 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
         reasons.push(`${label}: ${name} is in ${users.length} specs — the smoke set covers it`);
         continue;
       }
-      for (const s of users) addSpec(s, 2, `${label}: ${name}`, weight * Math.log(all.specs.length / users.length));
+      const score = weight * Math.log(all.specs.length / users.length);
+      for (const s of users) if ((best.get(s)?.score ?? -1) < score) best.set(s, { name, score });
     }
+    for (const [s, { name, score }] of best) addSpec(s, 2, `${label}: ${name}`, score);
   };
   /** The specs that landed with earlier edits to `f`: to the same declarations, or to the file at all. */
   let historyRead = false;
   const history = (f: string, names: string[]): void => {
     historyRead = true;
+    const fileOnly = new Map<string, { sha: string; score: number }>();
     for (const land of repo.lands()) {
       const landed = [...new Set(land.commits.flatMap((c) => c.files).filter((g) => /^e2e\/[^/]+\.spec\.ts$/.test(g)).map((g) => g.slice('e2e/'.length)))].filter((s) =>
         all.specs.includes(s),
@@ -905,9 +1011,11 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       const same = names.length > 0 ? edits.flatMap((c) => repo.touchedAt(c.sha, f)).find((n) => names.includes(n)) : undefined;
       for (const s of landed) {
         if (same) addSpec(s, 2, `${f}: landed with an edit to ${same.length > 60 ? `${same.slice(0, 57)}…` : same} (${edits[0].sha.slice(0, 8)})`, W.landDecl / landed.length);
-        else addSpec(s, 2, `${f}: landed with an edit to it (${edits[0].sha.slice(0, 8)})`, W.landFile / landed.length);
+        else if (!fileOnly.has(s) || fileOnly.get(s)!.score < W.landFile / landed.length) fileOnly.set(s, { sha: edits[0].sha, score: W.landFile / landed.length });
       }
     }
+    // Landing beside another edit to a file many lands edit is one hint, however often it happened.
+    for (const [s, { sha, score }] of fileOnly) addSpec(s, 2, `${f}: landed with an edit to it (${sha.slice(0, 8)})`, score);
   };
   /** The current diff's own touched names, for `history`. */
   const namesOf = (c: Change): string[] => {
@@ -923,6 +1031,10 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
     }
     if (commentsOnly(repo, c)) {
       reasons.push(`${f}: comments only`);
+      continue;
+    }
+    if (reexportsOnly(repo, c)) {
+      reasons.push(`${f}: re-exports only`);
       continue;
     }
     if (NOTHING.some((r) => r.test(f))) {
@@ -951,9 +1063,10 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       continue;
     }
     if (/^e2e\//.test(f)) {
-      const users = specsImporting(f);
-      if (c.status === 'removed' || users.length === 0) everything(`${f}: an e2e file no spec imports (or a removed one)`);
-      for (const s of users) addSpec(s, 2, `imports ${f}`, W.importer);
+      if (c.status === 'removed') everything(`${f}: a removed e2e file`);
+      const users = specsUsing(c);
+      if (users.length === 0) reasons.push(`${f}: no spec uses what it touched`);
+      for (const s of users) addSpec(s, 2, `uses ${f}`, W.importer);
       continue;
     }
     if (/^apps\/server\/src\/play\/scenarios\/[^/]+\.state$/.test(f)) {
@@ -969,8 +1082,9 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
     if (guards.some((g) => paths.some((p) => g.paths.test(p)))) {
       // A hot path: its family above, and what history adds.
       smoke(f);
+      if (/^apps\/server\/src\/play\/bridge\/.*\.java$/.test(f)) everything(`${f}: the engine's own layer, which every match runs through`);
       history(f, namesOf(c));
-      if (isSource(f)) jvmImporting(f);
+      if (isSource(f)) jvmUsing(c);
       continue;
     }
     if (/^apps\/server\//.test(f)) {
@@ -979,24 +1093,23 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
         continue;
       }
       smoke(f);
-      jvmImporting(f);
+      jvmUsing(c);
       history(f, namesOf(c));
       // One import below a hot module: what guards that module guards this.
       for (const g of guards) {
         const hot = repo.list('apps/server/src/play').filter((h) => g.paths.test(h) && importsOf(repo, h).includes(f));
         if (hot.length) guard(g, `${f}, imported by ${hot[0]}`);
       }
-      // Room, HTTP and stats scaffolding: the specs that call one of its routes.
-      const routes = new Set<string>();
-      for (const m of (repo.read(f) ?? '').matchAll(/['"`](\/[a-z][\w/-]*)/g)) if (m[1].length >= 4) routes.add(m[1].replace(/\/$/, ''));
+      // Room, HTTP and stats scaffolding: the specs that call a route the diff registers.
+      const routes = registeredRoutes(repo, c);
       const callers = all.specs.flatMap((s) => {
-        const hit = [...routes].find((r) => scanOf(s).text.includes(r));
+        const hit = routes.find((r) => scanOf(s).text.includes(r));
         return hit ? [[s, hit]] : [];
       });
       for (const [s, hit] of callers) addSpec(s, 2, `${f}: route ${hit}`, W.importer);
       continue;
     }
-    if (/^apps\/ui\//.test(f)) {
+    if (/^(apps\/ui|packages)\//.test(f)) {
       if (c.status === 'removed') {
         allSpecs ??= `${f}: removed — what it rendered may be gone`;
         allJvm ??= `${f}: removed`;
@@ -1006,16 +1119,18 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
         reasons.push(`${f}: not part of the bundle`);
         continue;
       }
-      jvmImporting(f);
+      jvmUsing(c);
       history(f, namesOf(c));
+      // A package the server runs a hot path through: what guards that path guards this.
+      if (/^packages\//.test(f)) for (const g of guards) for (const [u] of usersOfChange(c)) if (g.paths.test(u)) guard(g, `${f}, used by ${u}`);
       if (f.endsWith('.json')) {
         smoke(f);
         // Data: the components importing it render it, but every key they render is theirs, not its.
         reasons.push(`${f}: data — the smoke set, and what landed with it`);
         continue;
       }
-      for (const s of specsImporting(f)) addSpec(s, 2, `imports ${f}`, W.importer);
-      uiImporters ??= importersIn(repo, 'apps/ui');
+      for (const s of specsUsing(c)) addSpec(s, 2, `uses ${f}`, W.importer);
+      uiImporters ??= importersIn(repo, 'apps/ui', 'packages');
       const r = f.endsWith('.css') ? cssChangeKeys(repo, f, c.patch) : reachedKeys(repo, uiImporters, f, c.patch);
       if (keyCount(r.direct) + keyCount(r.reached) === 0) {
         if (r.typesOnly) reasons.push(`${f}: type declarations only — tsc covers them`);
