@@ -2377,3 +2377,132 @@ describe('the pod seat is the draft table', () => {
 		expect(lobby.get(id)!.ai.name).toBe(lobby.get(id)!.pod!.seats[7]!.name);
 	});
 });
+
+describe('a constructed room’s mode', () => {
+	/** ALICE leading, BOB in it, both holding a deck; `seated` sits them at the first table. */
+	async function constructedRoom(lobby: Lobby, seated: boolean): Promise<{ id: string; tableId: string }> {
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(made.ok).toBe(true);
+		if (!made.ok) throw new Error(made.reason);
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		const tableId = made.room.tables[0]!.id;
+		for (const who of [ALICE, BOB]) {
+			expect(lobby.setPlayerState(made.room.id, who.id, { v: 1, table: tableId, ready: false, verdict: { legal: true } })).toBe(true);
+		}
+		if (seated) expect(lobby.setTableSeats(made.room.id, tableId, [ALICE.id, BOB.id])).toBe(true);
+		return { id: made.room.id, tableId };
+	}
+
+	it('is null until chosen, and a create may choose it with its options', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		const open = lobby.create(ALICE, { name: 'Open', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		expect(open.ok && [open.room.mode, open.room.modeOptions]).toEqual([null, null]);
+
+		const chosen = lobby.create(ALICE, {
+			name: 'Gauntlet night',
+			gameType: 'constructed-1v1',
+			clientMode: 'builtin',
+			mode: { mode: 'gauntlet', modeOptions: { family: 'modern' } },
+		});
+		expect(chosen.ok).toBe(true);
+		if (!chosen.ok) return;
+		expect([chosen.room.mode, chosen.room.modeOptions]).toEqual(['gauntlet', { family: 'modern' }]);
+		const second = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		expect([second.get(chosen.room.id)?.mode, second.get(chosen.room.id)?.modeOptions]).toEqual(['gauntlet', { family: 'modern' }]);
+	});
+
+	it('is the leader’s to set, and only in a constructed room', async () => {
+		const lobby = await openLobby({ dir: await tempDir(), defaultFormat: POOLS[POOLS.length - 1] });
+		const { id } = await constructedRoom(lobby, false);
+		const random = { mode: 'random', modeOptions: { pool: 'legacy' } } as const;
+		expect(lobby.setMode(id, BOB.id, random)).toEqual({ ok: false, reason: 'not-leader' });
+		expect(lobby.setMode('r-000000000000', ALICE.id, random)).toEqual({ ok: false, reason: 'no-room' });
+		expect(lobby.get(id)?.mode).toBeNull();
+
+		const draft = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!draft.ok) throw new Error(draft.reason);
+		expect(lobby.setMode(draft.room.id, ALICE.id, random)).toEqual({ ok: false, reason: 'not-constructed' });
+	});
+
+	it('clears every readiness flag and every deck hold when it changes, and nothing when it does not', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		const { id, tableId } = await constructedRoom(lobby, false);
+		expect(lobby.setReady(id, BOB.id, true)).toBe(true);
+
+		const set = lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'full' } });
+		expect(set.ok).toBe(true);
+		if (!set.ok) return;
+		expect([set.room.mode, set.room.modeOptions]).toEqual(['random', { pool: 'full' }]);
+		expect(set.room.members.map((m) => m.ready)).toEqual([false, false]);
+		expect(lobby.playerState(id, ALICE.id)).toBeUndefined();
+		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
+
+		// The same mode with the same options again changes nothing and clears nothing.
+		expect(lobby.setPlayerState(id, BOB.id, { v: 1, table: tableId, ready: false })).toBe(true);
+		expect(lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'full' } }).ok).toBe(true);
+		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, table: tableId, ready: false });
+		// New options for the same mode are a change.
+		expect(lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'modern' } }).ok).toBe(true);
+		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
+
+		const second = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		expect([second.get(id)?.mode, second.get(id)?.modeOptions]).toEqual(['random', { pool: 'modern' }]);
+	});
+
+	it('is locked once any seated player is ready, and the refusal changes nothing', async () => {
+		const lobby = await openLobby({ dir: await tempDir(), defaultFormat: POOLS[POOLS.length - 1] });
+		const { id, tableId } = await constructedRoom(lobby, true);
+		expect(lobby.setMode(id, ALICE.id, { mode: 'classic', modeOptions: {} }).ok).toBe(true);
+		expect(lobby.setPlayerState(id, BOB.id, { v: 1, table: tableId, ready: true, verdict: { legal: true } })).toBe(true);
+
+		expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} })).toEqual({ ok: false, reason: 'mode-locked' });
+		expect(lobby.get(id)?.mode).toBe('classic');
+		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, table: tableId, ready: true, verdict: { legal: true } });
+
+		// Standing down unlocks it.
+		expect(lobby.setPlayerState(id, BOB.id, { v: 1, table: tableId, ready: false, verdict: { legal: true } })).toBe(true);
+		expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
+	});
+
+	it('goes back to unchosen when the room switches game type', async () => {
+		const lobby = await openLobby({ dir: await tempDir(), defaultFormat: POOLS[POOLS.length - 1] });
+		const { id } = await constructedRoom(lobby, false);
+		expect(lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'standard' } }).ok).toBe(true);
+		const drafted = lobby.setGameType(id, ALICE.id, 'draft');
+		expect(drafted.ok && [drafted.room.mode, drafted.room.modeOptions]).toEqual([null, null]);
+	});
+
+	it('restores a constructed room stored before modes existed as classic, and logs it', async () => {
+		const dir = await tempDir();
+		writeFixtureRoom(dir, 'r-mmmmmmmmmmm1', legacyApp());
+		writeFixtureRoom(dir, 'r-mmmmmmmmmmm2', legacyApp({ gameType: 'draft' }));
+		expect(Object.keys(legacyApp())).not.toContain('mode');
+		const logged: Record<string, unknown>[] = [];
+		const lobby = await openLobby({ dir, log: (e) => void logged.push(e) });
+
+		expect([lobby.get('r-mmmmmmmmmmm1')?.mode, lobby.get('r-mmmmmmmmmmm1')?.modeOptions]).toEqual(['classic', {}]);
+		expect([lobby.get('r-mmmmmmmmmmm2')?.mode, lobby.get('r-mmmmmmmmmmm2')?.modeOptions]).toEqual([null, null]);
+		expect(logged.filter((e) => e.event === 'room-mode-restored')).toEqual([
+			{ event: 'room-mode-restored', roomId: 'r-mmmmmmmmmmm1', mode: 'classic' },
+		]);
+	});
+
+	it('restores a stored unchosen mode as unchosen, and quarantines a mode it does not know', async () => {
+		const dir = await tempDir();
+		writeFixtureRoom(dir, 'r-mmmmmmmmmmm3', legacyApp({ mode: null, modeOptions: null }));
+		writeFixtureRoom(dir, 'r-mmmmmmmmmmm4', legacyApp({ mode: 'sealed', modeOptions: {} }));
+		writeFixtureRoom(dir, 'r-mmmmmmmmmmm5', legacyApp({ mode: 'random', modeOptions: { pool: 'vintage' } }));
+		const logged: Record<string, unknown>[] = [];
+		const lobby = await openLobby({ dir, log: (e) => void logged.push(e) });
+
+		expect(lobby.get('r-mmmmmmmmmmm3')?.mode).toBeNull();
+		expect(logged.filter((e) => e.event === 'room-mode-restored')).toEqual([]);
+		expect(lobby.get('r-mmmmmmmmmmm4')).toBeUndefined();
+		expect(lobby.get('r-mmmmmmmmmmm5')).toBeUndefined();
+		const quarantined = logged.filter((e) => e.event === 'room-quarantined');
+		expect(quarantined.map((e) => e.roomId).sort()).toEqual(['r-mmmmmmmmmmm4', 'r-mmmmmmmmmmm5']);
+		expect(quarantined.every((e) => String(e.reason).includes('app.mode'))).toBe(true);
+	});
+});

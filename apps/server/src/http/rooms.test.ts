@@ -1682,3 +1682,73 @@ describe('GET /api/rooms/of-match/:matchId', () => {
 		expect((await call(h, 'GET', '/api/rooms/of-match/NOT_AN_ID', { as: 'alice' })).status).toBe(404);
 	});
 });
+
+describe('a constructed room’s mode over HTTP', () => {
+	it('POST takes an optional mode with its options, and refuses an unknown one', async () => {
+		const h = await openApp(await tempDir());
+		const plain = await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } });
+		expect(plain.status).toBe(201);
+		expect(plain.json()).toMatchObject({ mode: null, modeOptions: null });
+
+		const chosen = await call(h, 'POST', '/api/rooms', {
+			as: 'alice',
+			body: { name: 'Random', mode: 'random', modeOptions: { pool: 'modern' } },
+		});
+		expect(chosen.status).toBe(201);
+		expect(chosen.json()).toMatchObject({ mode: 'random', modeOptions: { pool: 'modern' } });
+
+		const classic = await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Classic', mode: 'classic' } });
+		expect(classic.json()).toMatchObject({ mode: 'classic', modeOptions: {} });
+
+		for (const body of [
+			{ name: 'x', mode: 'sealed' },
+			{ name: 'x', mode: 'random' },
+			{ name: 'x', mode: 'random', modeOptions: { pool: 'vintage' } },
+			{ name: 'x', mode: 'gauntlet', modeOptions: { pool: 'full' } },
+			{ name: 'x', modeOptions: { pool: 'full' } },
+			{ name: 'x', gameType: 'draft', mode: 'classic' },
+		]) {
+			const res = await call(h, 'POST', '/api/rooms', { as: 'alice', body });
+			expect(res.status, JSON.stringify(body)).toBe(400);
+		}
+	});
+
+	it('PATCH { mode, modeOptions } is the leader’s, and refuses an unknown mode', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as { id: string };
+		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
+
+		const byMember = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'bob', body: { mode: 'classic' } });
+		expect(byMember.status).toBe(403);
+		expect((byMember.json() as { error: string }).error).toBe('only the room leader can change the mode');
+
+		const unknown = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { mode: 'sealed' } });
+		expect(unknown.status).toBe(400);
+		const mixed = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { mode: 'classic', format: OLDEST_POOL } });
+		expect(mixed.status).toBe(400);
+
+		const byLeader = await call(h, 'PATCH', `/api/rooms/${created.id}`, {
+			as: 'alice',
+			body: { mode: 'gauntlet', modeOptions: { family: 'legacy' } },
+		});
+		expect(byLeader.status).toBe(200);
+		expect(byLeader.json()).toMatchObject({ mode: 'gauntlet', modeOptions: { family: 'legacy' } });
+	});
+
+	it('PATCH refuses a mode change with 409 mode-locked once a seated player is ready', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open', mode: 'classic' } })).json() as {
+			id: string;
+			tables: { id: string }[];
+		};
+		const tableId = created.tables[0]!.id;
+		const alice = (created as unknown as { you: { id: string } }).you.id;
+		h.lobby.setPlayerState(created.id, alice, { v: 1, table: tableId, ready: true });
+		h.lobby.setTableSeats(created.id, tableId, [alice, null]);
+
+		const locked = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { mode: 'random', modeOptions: { pool: 'full' } } });
+		expect(locked.status).toBe(409);
+		expect(locked.json()).toMatchObject({ reason: 'mode-locked' });
+		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { mode: string }).mode).toBe('classic');
+	});
+});
