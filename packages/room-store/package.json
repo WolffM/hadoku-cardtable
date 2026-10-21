@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@wolffm/rooms-protocol": "0.42.8",
-    "@wolffm/rooms-server": "0.42.8"
+    "@wolffm/rooms-protocol": "0.42.9",
+    "@wolffm/rooms-server": "0.42.9"
   },
   "devDependencies": {
     "@hadoku/draft": "workspace:*",
