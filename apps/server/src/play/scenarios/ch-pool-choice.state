@@ -1,0 +1,21 @@
+# Floating mana that can pay a cost more than one way is the player's to spend (the operator,
+# 2026-10-21): "when playing a spell, if there is more mana in the pool than is needed, we should
+# require the player to click on the mana symbols in their pool to pay for the spell rather than
+# auto-pay. lets highlight the mana pool area when this happens".
+#
+# Seat 0 (human) holds Sol Ring ({1}) and Goblin Guide ({R}) with two Mountains and a Forest out.
+# Tapping a Mountain and the Forest floats {R}{G}: Sol Ring's {1} takes either, a choice. Once {G}
+# pays it, tapping the other Mountain floats {R}{R}: Goblin Guide's {R} is paid one way, no choice.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Sol Ring;Goblin Guide
+humanbattlefield=Mountain;Mountain;Forest
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
