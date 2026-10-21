@@ -873,6 +873,11 @@ button {
   margin: 0 0 6px;
   text-align: center;
   white-space: nowrap;
+  /* As wide as the pile's cards, never wider: a heading must not widen its pile past the fit. */
+  width: 0;
+  min-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pool__bucket-n {

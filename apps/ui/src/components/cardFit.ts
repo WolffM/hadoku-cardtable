@@ -118,6 +118,23 @@ export function fitPiles(piles: readonly number[], box: Box, gap: number, maxW: 
   return { cardW, ...pilesAt(piles, cardW, box.width, gap) };
 }
 
+/**
+ * A length the stylesheet gives `el` (`column-gap`, `margin-bottom`, …) in px
+ * as drawn, so a fit follows the UI scale (`settings/ui-scale.ts` rewrites
+ * every authored px); `fallback` before there is an element to ask.
+ */
+export function cssPx(el: Element | null | undefined, property: string, fallback: number): number {
+  if (el == null) return fallback;
+  const n = parseFloat(getComputedStyle(el).getPropertyValue(property));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/** The height `el` takes in its column: its box and its vertical margins. */
+export function outerHeight(el: Element | null | undefined, fallback: number): number {
+  if (el == null) return fallback;
+  return el.getBoundingClientRect().height + cssPx(el, 'margin-top', 0) + cssPx(el, 'margin-bottom', 0);
+}
+
 /** `items` cut into columns of `perCol`, in order. */
 export function columnsOf<T>(items: readonly T[], cols: number): T[][] {
   const per = Math.max(1, Math.ceil(items.length / Math.max(1, cols)));

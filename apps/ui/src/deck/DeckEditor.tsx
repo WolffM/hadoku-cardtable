@@ -48,7 +48,7 @@
  * `CardRequest`.
  */
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import type { CardRequest, DeckEntry } from '@hadoku/carddata/dck';
 import {
@@ -72,7 +72,7 @@ import { mountInspector } from '../play/inspect/index.ts';
 import { cardRequestOf, deckFromPool, dckTextOf, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
 import type { DraftCard, ManaColor } from '../draft/types.ts';
 import { DropArea, startCardDrag, type Area } from './dragMove.tsx';
-import { cardHeightOf, columnsOf, gridAt, largestCard, pilesAt, useBox } from '../components/cardFit.ts';
+import { cardHeightOf, columnsOf, cssPx, gridAt, largestCard, outerHeight, pilesAt, useBox } from '../components/cardFit.ts';
 import { MV_CAP, groupCards, isCreatureFace, isLandFace, sortCards, type SortKey } from './cardOrder.ts';
 import { cardIndex, draftedSeat, mainSummary, namedCardPool, suggestBasics } from './build.ts';
 import type { TablesClient, Verdict } from '../screens/tables.ts';
@@ -109,11 +109,6 @@ export interface DeckEditorProps {
 }
 
 const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
-/** The pool grid's gap and the piles' (`deckEditor.css`). */
-const GRID_GAP = 6;
-const PILE_GAP = 8;
-/** A pile's head over its cards, and the room under its last card. */
-const PILE_HEAD = 26;
 /** The largest a card is drawn here. */
 const MAX_CARD_W = 150;
 const BASIC_OF: Record<ManaColor, string> = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
@@ -307,7 +302,15 @@ export function DeckEditor({
    */
   const landGroups = useMemo(() => groupLands(lands), [lands]);
   const [measureGrid, gridBox] = useBox();
-  const [measurePiles, pilesBox] = useBox();
+  const [measurePilesBox, pilesBox] = useBox();
+  const pilesEl = useRef<HTMLElement | null>(null);
+  const measurePiles = useCallback(
+    (el: HTMLElement | null) => {
+      pilesEl.current = el;
+      measurePilesBox(el);
+    },
+    [measurePilesBox],
+  );
   const strip = useRef<HTMLElement | null>(null);
   const fit = useMemo(() => {
     if (gridBox.width <= 0 || pilesBox.width <= 0) return null;
@@ -318,10 +321,15 @@ export function DeckEditor({
     const last = strip.current?.lastElementChild;
     const stripH = beside && last != null ? last.getBoundingClientRect().bottom - strip.current!.getBoundingClientRect().top : 0;
     const counts = [...piles.map((p) => p.length), landGroups.length];
-    const gridH = (w: number): number => Math.ceil(Math.max(gridAt(sideTiles.length, w, gridBox.width, GRID_GAP).height, cardHeightOf(w)));
-    const deckH = (w: number): number => Math.max(pilesAt(counts, w, pilesBox.width, PILE_GAP).height + PILE_HEAD, stripH);
+    // The gaps, a pile's head and the room under its last card, as the stylesheet draws them (at the UI scale).
+    const gridEl = pilesEl.current?.closest('.deck-editor')?.querySelector('[data-testid="side-grid"]');
+    const gridGap = cssPx(gridEl, 'column-gap', 6);
+    const pileGap = cssPx(pilesEl.current, 'column-gap', 8);
+    const head = outerHeight(pilesEl.current?.querySelector('.deck-editor__pilehead'), 22) + cssPx(pilesEl.current?.querySelector('.deck-editor__stack'), 'padding-bottom', 4);
+    const gridH = (w: number): number => Math.ceil(Math.max(gridAt(sideTiles.length, w, gridBox.width, gridGap).height, cardHeightOf(w)));
+    const deckH = (w: number): number => Math.max(pilesAt(counts, w, pilesBox.width, pileGap).height + head, stripH);
     const cardW = largestCard((w) => gridH(w) + deckH(w) <= total, MAX_CARD_W);
-    return { cardW, gridH: gridH(cardW), cols: pilesAt(counts, cardW, pilesBox.width, PILE_GAP).cols };
+    return { cardW, gridH: gridH(cardW), cols: pilesAt(counts, cardW, pilesBox.width, pileGap).cols };
   }, [gridBox, pilesBox, piles, landGroups, sideTiles.length]);
 
   const count = mainDeckSize(deck);

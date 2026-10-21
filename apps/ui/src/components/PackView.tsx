@@ -38,7 +38,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '../sound/index.ts';
 import { relatedCards, withRelatedFaces } from '../draft/related.ts';
-import { CARD_RATIO, fitGrid, useBox } from './cardFit.ts';
+import { CARD_RATIO, cssPx, fitGrid, useBox } from './cardFit.ts';
 import { CardTile } from './CardTile.tsx';
 import { RelatedRow } from './RelatedRow.tsx';
 
@@ -76,6 +76,7 @@ const RELATED_DROP = 6;
 export const FAN_SIDE = 3;
 /** The row's places: the open card in the middle of them, `FAN_SIDE` either side, but at the pack's ends. */
 const FAN_SLOTS = 2 * FAN_SIDE + 1;
+/** The grid's gap until the stylesheet's own (`.pack--grid`, at the UI scale) can be read. */
 const GRID_GAP = 10;
 
 export interface FanGeometry {
@@ -159,7 +160,7 @@ export function PackView({ cards: dealt, layout, onPick, disabled, emptyNote }: 
   // layout drawn at a guessed size is the overflow this replaced.
   const measured = box.width > 0 && box.height > 0;
   const fan = layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height) : null;
-  const grid = fan === null && measured ? fitGrid(cards.length, box, GRID_GAP, MAX_CARD_H * CARD_RATIO) : null;
+  const grid = fan === null && measured ? fitGrid(cards.length, box, cssPx(root.current, 'column-gap', GRID_GAP), MAX_CARD_H * CARD_RATIO) : null;
   const shown = fan === null || cards.length === 0 ? null : Math.min(focus ?? 0, cards.length - 1);
   const cursor = fan !== null || focus === null || cards.length === 0 ? null : Math.min(focus, cards.length - 1);
   const cols = grid?.cols ?? 1;

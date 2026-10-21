@@ -49,21 +49,17 @@
  * header for the mechanics. `DraftScreen.tsx`'s header has the rest.
  */
 
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 
 import type { DraftCard, ManaColor } from '../draft/types.ts';
 import { groupCards, type GroupBy, type GroupId } from '../deck/cardOrder.ts';
 import { DropArea, startCardDrag, type Area } from '../deck/dragMove.tsx';
 import { CardTile } from './CardTile.tsx';
-import { PILE_PEEK, columnsOf, fitPiles, useBox } from './cardFit.ts';
+import { PILE_PEEK, columnsOf, cssPx, fitPiles, outerHeight, useBox } from './cardFit.ts';
 import { ManaPip } from './ManaPip.tsx';
 
 const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
 
-/** Between piles and between a pile's columns. */
-const PILE_GAP = 12;
-/** A pile's heading, over its cards. */
-const PILE_HEAD = 20;
 /** The largest a pick is drawn. */
 const MAX_POOL_W = 140;
 
@@ -119,6 +115,14 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
     (c) => [c, cards.filter((card) => card.colors.includes(c)).length] as const,
   );
   const [measure, box] = useBox();
+  const curve = useRef<HTMLElement | null>(null);
+  const attach = useCallback(
+    (el: HTMLElement | null) => {
+      curve.current = el;
+      measure(el);
+    },
+    [measure],
+  );
 
   const side = new Set((sideboard ?? []).map((c) => c.cardId));
   const groups = groupCards(
@@ -128,11 +132,14 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
   );
   const piles = sideboard === undefined ? groups : [...groups, ['side', [...sideboard]] as [GroupId, DraftCard[]]];
   const measured = box.width > 0 && box.height > 0;
+  // The gap between piles and a pile's heading, as the stylesheet draws them (at the UI scale).
+  const gap = cssPx(curve.current, 'column-gap', 12);
+  const head = outerHeight(curve.current?.querySelector('.pool__bucket-title'), 20);
   const fit = measured
     ? fitPiles(
         piles.map(([, pile]) => pile.length),
-        { width: box.width, height: box.height - PILE_HEAD },
-        PILE_GAP,
+        { width: box.width, height: box.height - head },
+        gap,
         MAX_POOL_W,
       )
     : null;
@@ -218,7 +225,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
       {cards.length === 0 ? (
         <p className="pool__note">Nothing picked yet.</p>
       ) : (
-        <div className="pool__curve" ref={measure} style={style}>
+        <div className="pool__curve" ref={attach} style={style}>
           {onMove === undefined ? (
             groups.map(([id, bucket], at) => pile(id, bucket, at, 'deck'))
           ) : (

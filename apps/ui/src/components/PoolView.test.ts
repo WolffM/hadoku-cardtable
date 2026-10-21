@@ -134,7 +134,11 @@ describe('the picks fit their box', () => {
         disconnect(): void {}
       },
     );
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ width: 990, height: 250, left: 0, top: 0, right: 990, bottom: 250, x: 0, y: 0, toJSON: () => ({}) });
+    // The picks' box, and a pile heading's own line.
+    const rect = (width: number, height: number) => ({ width, height, left: 0, top: 0, right: width, bottom: height, x: 0, y: 0, toJSON: () => ({}) });
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      return this.classList.contains('pool__bucket-title') ? rect(80, 14) : rect(990, 250);
+    });
     render(createElement(Picks, { store: null }));
     const curve = document.querySelector<HTMLElement>('.pool__curve')!;
     const w = parseFloat(curve.style.getPropertyValue('--pool-w'));
