@@ -2479,8 +2479,7 @@ describe('a constructed room’s mode', () => {
 		expect(lobby.setMode(id, ALICE.id, classic)).toEqual({ ok: false, reason: 'mode-locked' });
 
 		const revealing = { ...readied, phase: 'reveal' as const, ready: [false, false] as [boolean, boolean] };
-		expect(lobby.setGauntlet(id, revealing, POOLS[0])).toBe(true);
-		expect(lobby.get(id)?.format).toBe(POOLS[0]);
+		expect(lobby.setGauntlet(id, revealing)).toBe(true);
 		expect(lobby.setMode(id, ALICE.id, classic)).toEqual({ ok: false, reason: 'mode-locked' });
 		// A restart keeps the draw and the lock.
 		const second = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });

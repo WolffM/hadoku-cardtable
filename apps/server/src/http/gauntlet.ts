@@ -22,7 +22,7 @@
 
 import express, { type Request, type Response, type Router } from 'express';
 import { deckColorsByName } from '@hadoku/deck';
-import { GauntletActSchema, GauntletOptionsSchema, type GauntletPlayer, type GauntletSeatIndex } from '@hadoku/shared';
+import { GAUNTLET_REVEAL_MS, GauntletActSchema, GauntletOptionsSchema, type GauntletPlayer, type GauntletSeatIndex, type RoomModeState } from '@hadoku/shared';
 
 import {
 	act,
@@ -47,15 +47,13 @@ import { deckLines, type TablesLibrary } from './library.js';
 
 /** How long the AI waits before each of its moves. */
 export const GAUNTLET_AI_BEAT_MS = 600;
-/** How long the reveal plays before the first ban is open. */
-export const GAUNTLET_REVEAL_MS = 5000;
 
 /** The room, as this file reads it. */
 export interface GauntletRoom {
 	id: string;
 	gameType: string;
-	mode?: string | null;
-	modeOptions?: unknown;
+	mode?: RoomModeState['mode'];
+	modeOptions?: RoomModeState['modeOptions'];
 	members: { id: string; name: string }[];
 	ai?: { name: string };
 	tables: { id: string; matchId: string | null }[];
@@ -66,16 +64,18 @@ export interface GauntletDeps {
 		get(roomId: string): GauntletRoom | undefined;
 		list(): GauntletRoom[];
 		gauntlet(roomId: string): GauntletState | null;
-		setGauntlet(roomId: string, gauntlet: GauntletState | null, format?: string): boolean;
+		setGauntlet(roomId: string, gauntlet: GauntletState | null): boolean;
 	};
 	library: TablesLibrary;
 	/** Who sits at the room's first table, in seat order. */
 	seated(room: GauntletRoom): { memberId: string; name: string }[];
-	/** Hand the game's two decks to their seats (`http/routes.ts`). */
-	dealGame(room: GauntletRoom, decks: [string, string], players: [GauntletPlayer, GauntletPlayer]): void;
+	/** Deal the game's two decks, by seat, at the room's first table in the Gauntlet's era (`http/routes.ts`'s `dealDecks`). */
+	dealGame(room: GauntletRoom, decks: [string, string], players: [GauntletPlayer, GauntletPlayer], era: string): void;
 	/** The caller's participant id. */
 	callerOf(req: Request): string;
 	random: () => number;
+	/** Epoch ms; `Date.now` unless a test holds the clock. */
+	now?: () => number;
 	log: (entry: Record<string, unknown>) => void;
 	/** Injected for tests; `setTimeout` otherwise. */
 	schedule?: (fn: () => void, ms: number) => void;
@@ -88,8 +88,6 @@ export interface GauntletHandle {
 	holdsTable(room: GauntletRoom): boolean;
 	/** Why a match may not start in this room now, or null. Null for any room that is not a Gauntlet. */
 	startRefusal(room: GauntletRoom): string | null;
-	/** The `.dck` the AI plays this game, or null when this is not a Gauntlet against the AI. */
-	aiDeck(room: GauntletRoom): string | null;
 	/** A table game of this room has ended; `seriesOver` is the room series' own verdict. */
 	afterGame(roomId: string, result: { seriesOver: boolean; winner: 0 | 1 | null }): void;
 	/** At boot: restart every timer the stored Gauntlets are waiting on. */
@@ -117,6 +115,7 @@ const REFUSALS: Record<string, [number, string]> = {
 export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHandle {
 	const { rooms, library, log } = deps;
 	const schedule = deps.schedule ?? ((fn: () => void, ms: number) => void setTimeout(fn, ms));
+	const now = deps.now ?? Date.now;
 	const eras = gauntletEras(library.formats, library.decks);
 	const costs = roomDeckCosts(library, null);
 
@@ -142,11 +141,11 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 	const stateOf = (room: GauntletRoom): GauntletState => rooms.gauntlet(room.id) ?? newGauntlet();
 
 	/** Store a move, and whatever follows from it: a dealt game, the reveal's end, the AI's next move. */
-	function commit(room: GauntletRoom, before: GauntletState, after: GauntletState, format?: string): void {
-		rooms.setGauntlet(room.id, after, format);
+	function commit(room: GauntletRoom, before: GauntletState, after: GauntletState): void {
+		rooms.setGauntlet(room.id, after);
 		if (after.phase === 'playing' && after.games.length !== before.games.length) {
 			const decks = gameDecks(after)!;
-			deps.dealGame(room, decks, after.players!);
+			deps.dealGame(room, decks, after.players!, after.era!.id);
 			log({ evt: 'gauntlet-game-dealt', room: room.id, game: after.games.length, decks });
 		}
 		if (after.phase !== before.phase) log({ evt: 'gauntlet-phase', room: room.id, phase: after.phase });
@@ -158,27 +157,27 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 		if (state.phase === 'reveal') {
 			schedule(() => {
 				const room = rooms.get(roomId);
-				const now = room === undefined ? null : rooms.gauntlet(roomId);
-				if (room === undefined || now === null || now.phase !== 'reveal' || now.decks.join() !== state.decks.join()) return;
-				commit(room, now, startBanpick(now));
-			}, GAUNTLET_REVEAL_MS);
+				const current = room === undefined ? null : rooms.gauntlet(roomId);
+				if (room === undefined || current === null || current.phase !== 'reveal' || current.decks.join() !== state.decks.join()) return;
+				commit(room, current, startBanpick(current));
+			}, Math.max(0, (state.revealAt ?? 0) + GAUNTLET_REVEAL_MS - now()));
 			return;
 		}
 		if (aiMove(state, deps.random) === null) return;
 		schedule(() => {
 			const room = rooms.get(roomId);
-			const now = room === undefined ? null : rooms.gauntlet(roomId);
-			if (room === undefined || now === null || !isGauntlet(room)) return;
-			const move = aiMove(now, deps.random);
+			const current = room === undefined ? null : rooms.gauntlet(roomId);
+			if (room === undefined || current === null || !isGauntlet(room)) return;
+			const move = aiMove(current, deps.random);
 			if (move === null) return;
-			const seat = aiSeat(now)!;
-			const out = move.kind === 'act' ? act(now, seat, move.act, move.deck) : choose(now, seat, move.deck);
+			const seat = aiSeat(current)!;
+			const out = move.kind === 'act' ? act(current, seat, move.act, move.deck) : choose(current, seat, move.deck);
 			if (!out.ok) {
 				log({ evt: 'gauntlet-ai-refused', room: roomId, reason: out.reason });
 				return;
 			}
 			log({ evt: 'gauntlet-ai', room: roomId, move: move.kind === 'act' ? move.act : 'choose' });
-			commit(room, now, out.state);
+			commit(room, current, out.state);
 		}, GAUNTLET_AI_BEAT_MS);
 	}
 
@@ -264,12 +263,13 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 			eras,
 			options: options.success ? options.data : {},
 			random: deps.random,
+			now: now(),
 		});
 		if (!drawn.ok) {
 			refuse(res, drawn);
 			return;
 		}
-		commit(room, state, drawn.state, drawn.state.era!.id);
+		commit(room, state, drawn.state);
 		log({ evt: 'gauntlet-drawn', room: room.id, era: drawn.state.era!.id, first: drawn.state.first, decks: drawn.state.decks, ai: vsAi });
 		answer(res, room, me);
 	});
@@ -328,13 +328,6 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 		startRefusal(room) {
 			if (!isGauntlet(room)) return null;
 			return stateOf(room).phase === 'playing' ? null : 'a Gauntlet game starts once both decks are chosen';
-		},
-		aiDeck(room) {
-			if (!isGauntlet(room)) return null;
-			const state = stateOf(room);
-			const seat = aiSeat(state);
-			const decks = gameDecks(state);
-			return seat === null || decks === null ? null : (library.deck(decks[seat])?.text ?? null);
 		},
 		afterGame(roomId, result) {
 			const room = rooms.get(roomId);

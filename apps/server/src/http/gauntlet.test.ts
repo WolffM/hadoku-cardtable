@@ -34,7 +34,7 @@ afterEach(async () => {
 	open = null;
 });
 
-async function boot(seated: string[], modeOptions: unknown = { family: 'modern' }): Promise<Harness> {
+async function boot(seated: string[], modeOptions: GauntletRoom['modeOptions'] = { family: 'modern' }): Promise<Harness> {
 	let gauntlet: GauntletState | null = null;
 	const room: GauntletRoom & { format: string } = {
 		id: 'r-1',
@@ -61,9 +61,8 @@ async function boot(seated: string[], modeOptions: unknown = { family: 'modern' 
 			get: (id) => (id === room.id ? room : undefined),
 			list: () => [room],
 			gauntlet: () => gauntlet,
-			setGauntlet: (_id, g, format) => {
+			setGauntlet: (_id, g) => {
 				gauntlet = g;
-				if (format !== undefined) room.format = format;
 				return true;
 			},
 		},

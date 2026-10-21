@@ -48,6 +48,8 @@ export interface GauntletState {
 	/** Fixed at the draw. */
 	players: [GauntletPlayer, GauntletPlayer] | null;
 	era: GauntletEra | null;
+	/** When the reveal started, epoch ms; null before the draw. */
+	revealAt: number | null;
 	/** The coin flip: the table seat that is P1. */
 	first: GauntletSeatIndex | null;
 	/** The ten drawn deck ids, in draw order. */
@@ -57,8 +59,8 @@ export interface GauntletState {
 	/** Into `GAUNTLET_SNAKE`; `taken` is how many decks the current step has taken. */
 	stepIndex: number;
 	taken: number;
-	/** Every game whose decks have been revealed, by table seat. */
-	games: { decks: [string, string] }[];
+	/** Every game whose decks have been revealed, by table seat, and its winner once it is over. */
+	games: { decks: [string, string]; winner: GauntletSeatIndex | null }[];
 	/** The hidden choices of the game about to be played. */
 	choices: [string | null, string | null];
 	winner: GauntletSeatIndex | null;
@@ -96,7 +98,8 @@ export function isGauntletState(v: unknown): v is GauntletState {
 		Number.isInteger(g.stepIndex) &&
 		Number.isInteger(g.taken) &&
 		Array.isArray(g.games) &&
-		g.games.every((x) => typeof x === 'object' && x !== null && isPair((x as { decks: unknown }).decks, isString)) &&
+		(g.revealAt === null || Number.isInteger(g.revealAt)) &&
+		g.games.every((x) => typeof x === 'object' && x !== null && isPair((x as { decks: unknown }).decks, isString) && ((x as { winner: unknown }).winner === null || isSeat((x as { winner: unknown }).winner))) &&
 		isPair(g.choices, (x) => x === null || isString(x)) &&
 		(g.winner === null || isSeat(g.winner))
 	);
@@ -156,6 +159,7 @@ export function newGauntlet(): GauntletState {
 		ready: [false, false],
 		players: null,
 		era: null,
+		revealAt: null,
 		first: null,
 		decks: [],
 		marks: [],
@@ -187,7 +191,7 @@ export function setGauntletReady(state: GauntletState, seat: GauntletSeatIndex, 
  */
 export function drawGauntlet(
 	state: GauntletState,
-	input: { players: [GauntletPlayer, GauntletPlayer]; eras: readonly GauntletEraPool[]; options: GauntletOptions; random: () => number },
+	input: { players: [GauntletPlayer, GauntletPlayer]; eras: readonly GauntletEraPool[]; options: GauntletOptions; random: () => number; now: number },
 ): GauntletResult {
 	if (state.phase !== 'options') return { ok: false, reason: 'drawn' };
 	const { options, random } = input;
@@ -214,6 +218,7 @@ export function drawGauntlet(
 			phase: 'reveal',
 			players: input.players,
 			era: { id: pool.id, family: pool.family, title: pool.title },
+			revealAt: input.now,
 			first: random() < 0.5 ? 0 : 1,
 			decks,
 			marks: decks.map(() => null),
@@ -255,7 +260,7 @@ function enterChoose(state: GauntletState): GauntletState {
 function revealIfBoth(state: GauntletState): GauntletState {
 	const [a, b] = state.choices;
 	if (a === null || b === null) return state;
-	return { ...state, phase: 'playing', games: [...state.games, { decks: [a, b] }], choices: [null, null] };
+	return { ...state, phase: 'playing', games: [...state.games, { decks: [a, b], winner: null }], choices: [null, null] };
 }
 
 /** A seat bans or picks one deck. */
@@ -295,10 +300,11 @@ export function gameDecks(state: GauntletState): [string, string] | null {
 /** The game under way has ended. The room's series says whether it decided the match. */
 export function gameOver(state: GauntletState, result: { seriesOver: boolean; winner: GauntletSeatIndex | null }): GauntletResult {
 	if (state.phase !== 'playing') return { ok: false, reason: 'not-playing' };
-	if (result.seriesOver || unplayedPicks(state, 0).length === 0 || unplayedPicks(state, 1).length === 0) {
-		return { ok: true, state: { ...state, phase: 'done', winner: result.winner } };
+	const played = { ...state, games: state.games.map((g, i) => (i === state.games.length - 1 ? { ...g, winner: result.winner } : g)) };
+	if (result.seriesOver || unplayedPicks(played, 0).length === 0 || unplayedPicks(played, 1).length === 0) {
+		return { ok: true, state: { ...played, phase: 'done', winner: result.winner } };
 	}
-	return { ok: true, state: enterChoose(state) };
+	return { ok: true, state: enterChoose(played) };
 }
 
 /** The AI's seat, or null in a Gauntlet between two people. */
@@ -339,6 +345,7 @@ export function viewOfGauntlet(state: GauntletState, viewer: GauntletSeatIndex |
 		players: state.players,
 		ready: state.ready,
 		era: state.era,
+		revealAt: state.revealAt,
 		first: state.first,
 		decks: state.decks.map((id, i) => {
 			const mark = state.marks[i] ?? null;

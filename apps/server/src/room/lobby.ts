@@ -1145,12 +1145,10 @@ export interface Lobby {
 	gauntlet(roomId: string): GauntletState | null;
 	/**
 	 * Store the room's Gauntlet — `http/gauntlet.ts` is its only writer, and
-	 * `gauntlet.ts` decides every move. `format`, given at the draw, moves the
-	 * room onto the drawn era in the same write, so the decks dealt for each
-	 * game are checked against it; no seat holds a deck yet, so nothing is
-	 * dropped. `null` forgets the Gauntlet. False when there is no such room.
+	 * `gauntlet.ts` decides every move. `null` forgets it. False when there is
+	 * no such room.
 	 */
-	setGauntlet(roomId: string, gauntlet: GauntletState | null, format?: FormatId): boolean;
+	setGauntlet(roomId: string, gauntlet: GauntletState | null): boolean;
 	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[];
 	/**
@@ -2549,11 +2547,10 @@ class FileLobby implements Lobby {
 		return this.#rooms.get(roomId)?.gauntlet ?? null;
 	}
 
-	setGauntlet(roomId: string, gauntlet: GauntletState | null, format?: FormatId): boolean {
+	setGauntlet(roomId: string, gauntlet: GauntletState | null): boolean {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return false;
 		room.gauntlet = gauntlet;
-		if (format !== undefined) room.format = format;
 		this.#persist(room);
 		return true;
 	}

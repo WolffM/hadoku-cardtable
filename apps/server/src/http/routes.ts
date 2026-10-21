@@ -232,9 +232,6 @@ export interface RoomViewLike {
 	modeOptions?: RoomModeState['modeOptions'];
 	/** How the room's matches are dealt (`room/lobby.ts`'s `RoomSettings`). */
 	settings: { handSmoothing: boolean };
-	/** A Constructed room's mode and its options (`@hadoku/shared`'s `room-modes.ts`); absent or null before one is chosen. */
-	mode?: string | null;
-	modeOptions?: unknown;
 	/** The one member who may change the room's settings. `you.leader` is this, per caller. */
 	leader: string;
 	/**
@@ -335,7 +332,7 @@ export interface TablesRooms {
 	setPodChecks?(checks: PodChecks): void;
 	/** A Gauntlet room's stored Gauntlet (`room/lobby.ts`). Both optional: a registry without them serves no Gauntlet routes. */
 	gauntlet?(roomId: string): GauntletState | null;
-	setGauntlet?(roomId: string, gauntlet: GauntletState | null, format?: string): boolean;
+	setGauntlet?(roomId: string, gauntlet: GauntletState | null): boolean;
 }
 
 /** The subset of `play`'s `MatchRegistry` a table uses, for the same reason. */
@@ -876,9 +873,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		relayAvatarToMatch(rooms, deps.matches?.() ?? null, change);
 	});
 
-	// A Gauntlet deals each game's decks into the same per-member blob a loaded
-	// deck lives in, checked by the same gate, and readies the seat: from there
-	// the match starts exactly as any room match does.
+	// A Gauntlet deals each game's decks the way All Random does (`dealDecks`),
+	// and readies the seat: from there the match starts as any room match does.
 	const gauntletRooms = rooms?.gauntlet !== undefined && rooms.setGauntlet !== undefined ? rooms : null;
 	const gauntlets: GauntletHandle | null =
 		gauntletRooms === null
@@ -888,29 +884,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 						get: (id) => gauntletRooms.get(id),
 						list: () => gauntletRooms.list(),
 						gauntlet: (id) => gauntletRooms.gauntlet!(id),
-						setGauntlet: (id, g, format) => gauntletRooms.setGauntlet!(id, g, format),
+						setGauntlet: (id, g) => gauntletRooms.setGauntlet!(id, g),
 					},
 					library,
 					seated: (room) => playersOf(gauntletRooms, room as RoomViewLike).map((p) => ({ memberId: p.member.id, name: p.member.name })),
-					dealGame: (dealt, decks, players) => {
+					dealGame: (dealt, decks, players, era) => {
 						const room = gauntletRooms.get(dealt.id);
 						if (room === undefined) return;
-						const seated = playersOf(gauntletRooms, room);
-						for (const [seat, player] of players.entries()) {
-							const mine = seated.find((p) => p.member.id === player.memberId);
-							if (mine === undefined) continue;
-							const choice: SeatRequest = { deck: { library: decks[seat]! }, rules: roomRules(room) };
-							const verdict = checkSeat(choice, contextFor(mine.member.id));
-							if ('error' in verdict) {
-								log({ evt: 'gauntlet-deal-failed', room: room.id, seat, error: verdict.error });
-								continue;
-							}
-							gauntletRooms.setPlayerState(room.id, mine.member.id, {
-								...mine.state,
-								deck: { choice, verdict: publicVerdict(verdict), text: verdict.text },
-								ready: true,
-							});
-						}
+						const table = room.tables[0]!;
+						const out = dealDecks(room, table.id, playersOf(gauntletRooms, room, table.id), decks, era, { vsBot: players[1].memberId === null, ready: true });
+						if (!out.ok) log({ evt: 'gauntlet-deal-failed', room: room.id, error: out.error });
 					},
 					callerOf: callerIdOf,
 					random: deps.random ?? secureRandom,
@@ -1251,14 +1234,19 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return options.success ? options.data.pool : null;
 	}
 
+	/** A room whose decks the server deals rather than its seats pick: All Random and Gauntlet. */
+	function dealsDecks(room: RoomViewLike): boolean {
+		return randomPoolOf(room) !== null || gauntlets?.isGauntlet(room) === true;
+	}
+
 	/**
-	 * The pool ONE table plays: the room's (`effectivePoolOf`), except at a dealt
-	 * All Random table, where it is the era its decks were drawn from. Every deck
-	 * `dealRandom` holds records that era in its `choice.rules`, so two tables of
-	 * one room play their own eras and a Rematch keeps its own.
+	 * The pool ONE table plays: the room's (`effectivePoolOf`), except at a table
+	 * whose decks the server dealt, where it is the era they were dealt in. Every
+	 * deck `dealDecks` holds records that era in its `choice.rules`, so two tables
+	 * of one room play their own eras and a Rematch keeps its own.
 	 */
 	function tablePoolOf(room: RoomViewLike, players: TablePlayer[]): string {
-		if (randomPoolOf(room) !== null) {
+		if (dealsDecks(room)) {
 			for (const p of players) {
 				const rules = p.state.deck?.choice.rules;
 				if (rules?.kind === 'standard') return rules.format;
@@ -1268,15 +1256,47 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	/**
+	 * Deal `ids` (by seat) at a table, in `era`: each checked by the gate in its
+	 * owner's context and held exactly as a picked Classic deck is, so everything
+	 * after (the start's legality check, the registered deck, a Rematch) reads it
+	 * the same way. Against the AI the second deck is held beside its one human's
+	 * (`aiDeck`). `ready` readies the seats too. The one way the server puts decks
+	 * in seats: All Random's deal and each Gauntlet game both come here. Answers
+	 * the table's players as they stand after the deal.
+	 */
+	function dealDecks(
+		room: RoomViewLike,
+		tableId: string,
+		players: TablePlayer[],
+		ids: readonly string[],
+		era: string,
+		opts: { vsBot: boolean; ready?: boolean },
+	): { ok: true; players: TablePlayer[] } | { ok: false; error: string } {
+		if (rooms === null) return { ok: true, players };
+		const rules: DeckRules = { kind: 'standard', format: era };
+		const decks: TableDeck[] = [];
+		for (const [seat, id] of ids.entries()) {
+			const owner = players[seat]?.member.id ?? players[0]!.member.id;
+			const verdict = checkSeat({ deck: { library: id }, rules }, contextFor(owner));
+			if ('error' in verdict) return { ok: false, error: verdict.error };
+			if (!verdict.legal) return { ok: false, error: refusalLine(seat, verdict) };
+			decks.push({ choice: { deck: { library: id }, rules }, verdict: publicVerdict(verdict), text: verdict.text });
+		}
+		for (const [seat, p] of players.entries()) {
+			const state: TablePlayerState = { ...p.state, deck: decks[seat]!, ...(opts.ready === undefined ? {} : { ready: opts.ready }) };
+			if (opts.vsBot) state.aiDeck = decks[1]!.text;
+			else delete state.aiDeck;
+			rooms.setPlayerState(room.id, p.member.id, state);
+		}
+		return { ok: true, players: playersOf(rooms, room, tableId) };
+	}
+
+	/**
 	 * Deal an All Random table (rulings 3 and 4): one random era of the room's
-	 * pool, and a different deck from it for each seat — the AI's included,
-	 * held beside its one human's (`aiDeck`). Held exactly as a picked Classic
-	 * deck is, so everything after (the start's legality check, the registered
-	 * deck, a Rematch) reads it the same way.
+	 * pool, and a different deck from it for each seat, the AI's included.
 	 *
 	 * A no-op for any other room, and for a table whose seats already hold their
-	 * decks: that is a Rematch, and it plays the same two. Answers the table's
-	 * players as they stand after the deal.
+	 * decks: that is a Rematch, and it plays the same two.
 	 */
 	function dealRandom(
 		room: RoomViewLike,
@@ -1290,23 +1310,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		if (held) return { ok: true, players };
 		const draw = drawRandomDecks(random, pool, library);
 		if (draw === null) return { ok: false, error: `no ${pool} era holds two decks` };
-		const rules: DeckRules = { kind: 'standard', format: draw.era };
-		const decks: TableDeck[] = [];
-		for (const [seat, id] of draw.decks.entries()) {
-			const owner = players[seat]?.member.id ?? players[0]!.member.id;
-			const verdict = checkSeat({ deck: { library: id }, rules }, contextFor(owner));
-			if ('error' in verdict) return { ok: false, error: verdict.error };
-			if (!verdict.legal) return { ok: false, error: refusalLine(seat, verdict) };
-			decks.push({ choice: { deck: { library: id }, rules }, verdict: publicVerdict(verdict), text: verdict.text });
-		}
-		for (const [seat, p] of players.entries()) {
-			const state: TablePlayerState = { ...p.state, deck: decks[seat]! };
-			if (vsBot) state.aiDeck = decks[1]!.text;
-			else delete state.aiDeck;
-			rooms.setPlayerState(room.id, p.member.id, state);
-		}
-		log({ evt: 'room-random-dealt', room: room.id, table: tableId, pool, era: draw.era, decks: draw.decks, ...(vsBot ? { opponent: 'ai' } : {}) });
-		return { ok: true, players: playersOf(rooms, room, tableId) };
+		const dealt = dealDecks(room, tableId, players, draw.decks, draw.era, { vsBot });
+		if (dealt.ok) log({ evt: 'room-random-dealt', room: room.id, table: tableId, pool, era: draw.era, decks: draw.decks, ...(vsBot ? { opponent: 'ai' } : {}) });
+		return dealt;
 	}
 
 	/**
@@ -1417,15 +1423,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: 'the match has already started' });
 			return;
 		}
-		if (gauntlets?.isGauntlet(room) === true) {
-			res.status(409).json({ error: 'a Gauntlet deals its decks' });
-			return;
-		}
 		if (unknownPool(room, res)) return;
-		// An All Random table's decks are dealt (`dealRandom`); a seat changes its own
-		// only by sideboarding it, in the era it was dealt.
-		if (randomPoolOf(room) !== null && table.series.phase !== 'sideboarding') {
-			res.status(409).json({ error: 'the decks at an All Random table are dealt' });
+		// A dealt table's decks are the server's (`dealDecks`); a seat changes its own
+		// only by sideboarding it, in the era it was dealt — and a Gauntlet never sideboards.
+		if (dealsDecks(room) && (gauntlets?.isGauntlet(room) === true || table.series.phase !== 'sideboarding')) {
+			res.status(409).json({ error: "this table's decks are dealt" });
 			return;
 		}
 		const players = playersOf(rooms, room, table.id);
@@ -1902,11 +1904,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// (`legalLibraryDecks` — the era's own, or the whole library on Free pick),
 		// checked by the same gate as the player's. A drafted pool offers no library
 		// deck, so there the bot plays what a bot at that draft took (`botDeck.ts`).
-		let botDeck: string | null = gauntlets?.aiDeck(room) ?? null;
-		if (vsBot && botDeck === null) {
+		let botDeck: string | null = null;
+		if (vsBot) {
 			const owner = loaded[0]!.member.id;
 			const draftId = draftIdOfPool(pool);
-			if (players[0]!.state.aiDeck !== undefined && randomPoolOf(room) !== null) {
+			if (players[0]!.state.aiDeck !== undefined && dealsDecks(room)) {
 				botDeck = players[0]!.state.aiDeck;
 			} else if (draftId !== null) {
 				const draftRoom = deps.draftRooms?.find(draftId);
