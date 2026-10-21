@@ -78,9 +78,21 @@ async function boltAlice(s: Scenario): Promise<void> {
 	);
 }
 
-/** Every `updateButtons` alice's OWN wire carried from send-index `sentFrom`. */
+/**
+ * Every window bar alice's OWN wire carried from send-index `sentFrom`. Not the bar of Forge's
+ * "Waiting for bob…" prompt: `AbstractGuiGame.awaitNextInput` draws that, OK and Cancel both off,
+ * when no input of alice's has opened 250 ms after her last one closed. It is the waiting state, not
+ * a window, and whether it falls inside the Bolt is the host's speed (runs 38707045761, 38962592446,
+ * 39002879818, 39024892576: alice's wire seq 17, a dead OK | Cancel).
+ */
 function aliceBars(s: Scenario, sentFrom: number): unknown[] {
-	return s.sent.slice(sentFrom).filter((x) => x.seat === ALICE && x.envelope.frame.method === 'updateButtons');
+	let prompt = '';
+	return s.sent.filter((x, i) => {
+		if (x.seat !== ALICE) return false;
+		const f = x.envelope.frame as { method: string; message?: string };
+		if (f.method === 'showPromptMessage') prompt = f.message ?? '';
+		return i >= sentFrom && f.method === 'updateButtons' && !/^Waiting for /.test(prompt);
+	});
 }
 
 describe.skipIf(!available.ok)(title, () => {
