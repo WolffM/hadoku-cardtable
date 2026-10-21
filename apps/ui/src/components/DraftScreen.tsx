@@ -63,11 +63,7 @@ import type { GroupBy } from '../deck/cardOrder.ts';
 import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
 import { SeatBar } from './SeatBar.tsx';
 import { SpectatorNotice } from './SpectatorNotice.tsx';
-
-/** The same check `play/live/numbers.ts`, `placed.ts` and `departures.ts` each make; not theirs to import from here. */
-function prefersReducedMotion(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
+import { prefersReducedMotion } from '../play/motion.ts';
 
 const rectOf = (r: DOMRect): PoolEnterRect => ({ left: r.left, top: r.top, width: r.width, height: r.height });
 

@@ -49,6 +49,7 @@ import type { ManaColor } from '@hadoku/shared';
 import type { BoardCard, BoardView, DeathCause } from '../adapter.ts';
 import './departures.css';
 import { seedOf } from './projectile.ts';
+import { prefersReducedMotion } from '../motion.ts';
 
 /**
  * Why a permanent died. Forge's `GameEventCardDied` says it (`DeathCause`, folded here); before a Forge
@@ -309,10 +310,6 @@ export interface DeparturesHandle {
   /** The gap where `departure`'s card was: start its exit `delayMs` from now. */
   leave(departure: Departure, delayMs: number): void;
   dispose(): void;
-}
-
-function prefersReducedMotion(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 /** On a destination's own element while a stand-in travels to it: hidden, so the card is drawn once. */

@@ -114,6 +114,7 @@ import {
   noteExitBeat,
   noteLifeImpact,
   noteResolutionEffects,
+  prefersReducedMotion,
   REVEAL_BEAT_MS,
 } from '../motion.ts';
 import { DEPARTURE_ATTR, departureCause, departuresOf, exitMotionFor, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
@@ -399,10 +400,6 @@ export interface NumbersHandle {
    */
   noteStack(view: BoardView): void;
   dispose(): void;
-}
-
-function prefersReducedMotion(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 /** Anything with a box: a live element, or a snapshot of one taken before it left the DOM (`lastSeenBox`, below). */

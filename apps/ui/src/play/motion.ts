@@ -18,6 +18,11 @@ export const PLACEMENT_WAIT_MS = 15_000;
  */
 export const GLIDE_MS = 300;
 
+/** The viewer asked for less motion: every animated surface draws its end state instead. */
+export function prefersReducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 /**
  * Runs `done` once `el`'s glide has come to rest: its running `left`/`top` transitions finished,
  * timed by the transitions themselves. A clock started when the style was set runs ahead of a

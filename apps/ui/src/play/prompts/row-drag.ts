@@ -52,7 +52,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
 import { centreOf, flip, liftGhost, pinFixed, type At, type Ghost } from '../lift.ts';
-import { GLIDE_MS } from '../motion.ts';
+import { GLIDE_MS, prefersReducedMotion } from '../motion.ts';
 import { clickLatch, pastSlop } from '../live/gestures/types.ts';
 import { eventTarget, hitAt, scopeOf } from '../../dom.ts';
 
@@ -387,8 +387,7 @@ export function useRowDrag(opts: RowDragOptions): RowDrag {
     end();
     ghost.el.style.transition = `left ${GLIDE_MS}ms ease-out, top ${GLIDE_MS}ms ease-out`;
     ghost.move(p.press);
-    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) ghost.remove();
+    if (prefersReducedMotion()) ghost.remove();
     else setTimeout(() => ghost.remove(), GLIDE_MS);
   }
 

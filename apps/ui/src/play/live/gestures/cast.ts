@@ -21,7 +21,7 @@
 import { clearPlacementColumns, showPlacementColumns } from '../../Board.tsx';
 import type { LiveMatch } from '../match.ts';
 import { handCardWidth, sizeAsCard } from '../../card-size.ts';
-import { GLIDE_MS } from '../../motion.ts';
+import { GLIDE_MS, prefersReducedMotion } from '../../motion.ts';
 import { cardBox } from './targets.ts';
 import type { Point } from './types.ts';
 
@@ -210,8 +210,7 @@ export function floatCastLiftHome(
     clearCastLift(root, id);
     onDone();
   };
-  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduced) return done();
+  if (prefersReducedMotion()) return done();
   const timer = setTimeout(done, GLIDE_MS);
   if (id !== null) returnTimers.set(id, { timer, onDone });
 }
