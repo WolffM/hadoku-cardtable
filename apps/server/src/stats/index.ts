@@ -14,9 +14,10 @@
  */
 
 import type { Match } from '../play/match.js';
+import type { SeriesEnd } from '../room/lobby.js';
 import { matchFacts } from './facts.js';
 import type { KeyBook } from './keys.js';
-import { buildMatchReport, type MatchStart, type SeatStart } from './report.js';
+import { buildMatchReport, buildSeriesReport, type MatchStart, type SeatStart, type SeriesSeatStart } from './report.js';
 import type { StatsReporter } from './reporter.js';
 
 export { createKeyBook, type KeyBook } from './keys.js';
@@ -30,6 +31,8 @@ export type MatchStartInput = Omit<MatchStart, 'seats'> & { seats: SeatStartInpu
 
 export interface MatchStats {
 	gameOver(match: Match): void;
+	/** A room's series ended (`Lobby`'s `SeriesEnd`): recorded as one report of its own. */
+	seriesEnd(end: SeriesEnd): void;
 }
 
 export function createMatchStats(deps: {
@@ -38,7 +41,15 @@ export function createMatchStats(deps: {
 	/** The match's start as the room that started it sees it, or null for a match no room started. */
 	startOf(match: Match): MatchStartInput | null;
 	log(entry: Record<string, unknown>): void;
+	now?: () => number;
 }): MatchStats {
+	const now = deps.now ?? Date.now;
+	/** Forge's AI, a member with a key the book holds (a user), or one without (a guest). */
+	const kindOf = (ai: boolean, memberId: string | null): Pick<SeatStart, 'kind' | 'userKey'> => {
+		if (ai) return { kind: 'bot' };
+		const userKey = memberId === null ? null : deps.keys.keyOf(memberId);
+		return userKey === null ? { kind: 'guest' } : { kind: 'user', userKey };
+	};
 	return {
 		gameOver(match) {
 			try {
@@ -47,11 +58,7 @@ export function createMatchStats(deps: {
 					deps.log({ evt: 'stats-skipped', matchId: match.id, reason: 'no room started this match' });
 					return;
 				}
-				const seats = input.seats.map(({ ai, memberId, ...rest }): SeatStart => {
-					if (ai) return { ...rest, kind: 'bot' };
-					const userKey = memberId === null ? null : deps.keys.keyOf(memberId);
-					return userKey === null ? { ...rest, kind: 'guest' } : { ...rest, kind: 'user', userKey };
-				});
+				const seats = input.seats.map(({ ai, memberId, ...rest }): SeatStart => ({ ...rest, ...kindOf(ai, memberId) }));
 				const start: MatchStart = { ...input, seats };
 				const facts = matchFacts(match);
 				const report = facts === null ? null : buildMatchReport(facts, start);
@@ -63,6 +70,26 @@ export function createMatchStats(deps: {
 			} catch (err) {
 				deps.log({ evt: 'stats-skipped', matchId: match.id, reason: (err as Error).message });
 			}
+		},
+		seriesEnd(end) {
+			const seat = (s: SeriesEnd['seats'][number]): SeriesSeatStart =>
+				s === null ? { ...kindOf(true, null), displayName: 'Forge AI' } : { ...kindOf(false, s.memberId), displayName: s.name };
+			const report = buildSeriesReport({
+				roomId: end.roomId,
+				mode: end.mode,
+				bestOf: end.bestOf,
+				seats: [seat(end.seats[0]), seat(end.seats[1])],
+				wins: end.wins,
+				games: end.games.map((g) => g.matchId),
+				winner: end.winner,
+				complete: end.complete,
+				endedAt: now(),
+			});
+			if (report === null) {
+				deps.log({ evt: 'stats-skipped', roomId: end.roomId, reason: 'the series has no game to key it' });
+				return;
+			}
+			void deps.reporter.report(report);
 		},
 	};
 }

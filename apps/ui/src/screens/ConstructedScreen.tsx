@@ -1169,10 +1169,6 @@ function RoomTableScreen({
   /** Free pick: every library deck, whatever its era. No tab is the table's while it is on. */
   const freePick = poolId === FREE_PICK;
   const handSmoothing = view?.settings.handSmoothing ?? true;
-  /** `bo1` (default) or forced-rematch `bo3`. The leader's to change (`setSettings`). */
-  const matchLength = view?.settings.matchLength ?? 'bo1';
-  /** A `bo3` room always reads this true, regardless of what is stored (the server's own rule). */
-  const sideboarding = view?.settings.sideboarding ?? false;
   /** Which tab the table is actually on: its era's family. */
   const tabOfPool = poolFormat?.family ?? 'standard';
   /**
@@ -1847,47 +1843,6 @@ function RoomTableScreen({
       .finally(() => setBusy(false));
   };
 
-  /** The LEADER flipped the series length: `bo1` ⇄ `bo3`, the same write shape as hand smoothing. */
-  const toggleMatchLength = (): void => {
-    if (queued(() => toggleMatchLength())) return;
-    setBusy(true);
-    setActionError(null);
-    rooms
-      .setSettings(roomId, { matchLength: matchLength === 'bo3' ? 'bo1' : 'bo3' })
-      .then((outcome) => {
-        if (!outcome.ok) {
-          setActionError(outcome.message);
-          return;
-        }
-        writes.current += 1;
-        setView(outcome.room);
-      })
-      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setBusy(false));
-  };
-
-  /**
-   * The LEADER flipped sideboarding. Only reachable under `bo1` — the control is
-   * disabled under `bo3` (it is a settled `true` there, not a choice).
-   */
-  const toggleSideboarding = (): void => {
-    if (queued(() => toggleSideboarding())) return;
-    setBusy(true);
-    setActionError(null);
-    rooms
-      .setSettings(roomId, { sideboarding: !sideboarding })
-      .then((outcome) => {
-        if (!outcome.ok) {
-          setActionError(outcome.message);
-          return;
-        }
-        writes.current += 1;
-        setView(outcome.room);
-      })
-      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setBusy(false));
-  };
-
   /*
    * The pool moved under a deck we are holding, so the hold is re-sent.
    *
@@ -2383,29 +2338,6 @@ function RoomTableScreen({
                           onClick={toggleHandSmoothing}
                         >
                           Hand smoothing
-                        </button>
-                        {/* Best-of-one (default) or forced-rematch best-of-three (wave 72 §Q). */}
-                        <button
-                          type="button"
-                          className="lobby__free-pick"
-                          aria-pressed={matchLength === 'bo3'}
-                          data-testid="match-length"
-                          disabled={underway}
-                          onClick={toggleMatchLength}
-                        >
-                          {matchLength === 'bo3' ? 'Best of 3' : 'Best of 1'}
-                        </button>
-                        {/* Sideboarding between games. A `bo3` room reads this on and
-                            locked — it is `bo3`'s own rule, not a choice there. */}
-                        <button
-                          type="button"
-                          className="lobby__free-pick"
-                          aria-pressed={sideboarding}
-                          data-testid="sideboarding"
-                          disabled={underway || matchLength === 'bo3'}
-                          onClick={toggleSideboarding}
-                        >
-                          Sideboarding
                         </button>
                       </span>
                     )}

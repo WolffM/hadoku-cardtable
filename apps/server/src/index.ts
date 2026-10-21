@@ -355,12 +355,34 @@ const tournaments = await openTournaments(
 	process.env.CARDTABLE_TOURNAMENTS_FILE ?? resolve(CONFIG.logDir, '../data/tournaments.json'),
 	(entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
 );
+// ── Match stats ──────────────────────────────────────────────────────────────
+// A finished room match is reported with this server's service key; without
+// one, nothing is recorded. Its start is read from the room and the match at
+// game over (`tables.matchStart`), so a match taken back after a restart is
+// reported too. Built before the lobby, which reports every series result
+// (`onSeriesEnd`) from its first sweep on; `tables` exists before any game ends.
+const statsLog = (entry: Record<string, unknown>): void =>
+	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-stats', ...entry }));
+const matchStats = createMatchStats({
+	keys: statsKeys,
+	log: statsLog,
+	startOf: (match) => tables.matchStart(match),
+	reporter: createStatsReporter({
+		log: statsLog,
+		record:
+			CONFIG.statsServiceKey === ''
+				? null
+				: (report) => recordMatch({ gameId: 'cardtable', baseUrl: CONFIG.statsBaseUrl, serviceKey: CONFIG.statsServiceKey }, report),
+	}),
+});
+
 const lobby = await openLobby({
 	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
 	formats: library.formats,
 	...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat(library.formats) } : {}),
 	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
 	onTournament: (t) => tournaments.record(t),
+	onSeriesEnd: (end) => matchStats.seriesEnd(end),
 });
 attachRooms(api, {
 	lobby,
@@ -470,26 +492,6 @@ attachDrafts(api, { draftRooms });
 
 // GET/PATCH/DELETE /api/decks — every finished draft as the drafter's deck.
 attachDecks(api, { draftRooms, room: (id) => lobby.get(id) });
-
-// ── Match stats ──────────────────────────────────────────────────────────────
-// A finished room match is reported with this server's service key; without
-// one, nothing is recorded. Its start is read from the room and the match at
-// game over (`tables.matchStart`), so a match taken back after a restart is
-// reported too.
-const statsLog = (entry: Record<string, unknown>): void =>
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-stats', ...entry }));
-const matchStats = createMatchStats({
-	keys: statsKeys,
-	log: statsLog,
-	startOf: tables.matchStart,
-	reporter: createStatsReporter({
-		log: statsLog,
-		record:
-			CONFIG.statsServiceKey === ''
-				? null
-				: (report) => recordMatch({ gameId: 'cardtable', baseUrl: CONFIG.statsBaseUrl, serviceKey: CONFIG.statsServiceKey }, report),
-	}),
-});
 
 // ── Matches ──────────────────────────────────────────────────────────────────
 // One child JVM per match; see src/play/README.md. Without a configured Forge

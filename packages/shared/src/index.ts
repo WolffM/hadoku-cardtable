@@ -327,10 +327,6 @@ export {
   type CombatDamageRules,
 } from './combat-damage.ts';
 export {
-  MATCH_LENGTHS,
-  MatchLengthSchema,
-  DEFAULT_MATCH_LENGTH,
-  DEFAULT_SIDEBOARDING,
   SeriesLengthSchema,
   SERIES_PHASES,
   SeriesPhaseSchema,
@@ -339,7 +335,6 @@ export {
   RoomTableSeriesSchema,
   RoomTableSchema,
   RoomTablesSchema,
-  type MatchLength,
   type SeriesLength,
   type SeriesPhase,
   type RoomTablePlayer,

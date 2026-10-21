@@ -60,10 +60,8 @@ import {
   RoomTablesSchema,
   RoomPodSchema,
   RoomModeSchema,
-  DEFAULT_MATCH_LENGTH,
   type ConstructedMode,
   type GameType,
-  type MatchLength,
   type ModeOptions,
   type RoomMode,
   type RoomPod,
@@ -326,25 +324,11 @@ function parseYou(v: unknown): RoomYou {
 export interface RoomSettings {
   /** The opening hand nearer the deck's land ratio, and each mulligan weighted toward it. On by default. */
   handSmoothing: boolean;
-  /** Best-of-one (default) or forced-rematch best-of-three. The leader's to change (`setSettings`). */
-  matchLength: MatchLength;
-  /**
-   * Sideboarding between games. The server's own rule (`lobby.ts`'s
-   * `effectiveSideboarding`): a `bo3` room reads `true` here no matter what
-   * is stored, because bo3 implies it; `bo1` reads whatever was set, off by
-   * default.
-   */
-  sideboarding: boolean;
 }
 
 function parseSettings(v: unknown): RoomSettings {
   const o = isRecord(v) ? v : {};
-  const matchLength: MatchLength = o.matchLength === 'bo3' ? 'bo3' : DEFAULT_MATCH_LENGTH;
-  return {
-    handSmoothing: o.handSmoothing !== false,
-    matchLength,
-    sideboarding: matchLength === 'bo3' ? true : o.sideboarding === true,
-  };
+  return { handSmoothing: o.handSmoothing !== false };
 }
 
 /** `RoomView.tables`, or none when the body does not carry a parseable list — see the field's own note. */

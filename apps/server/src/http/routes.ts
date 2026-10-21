@@ -53,27 +53,20 @@
  * the same cards, only re-split between main and board — basics excepted on
  * a DRAFTED pool, where they are free at every other step too.
  *
- * **A `done` table's own Rematch** — bo1 with sideboarding on, and both
- * players press it — is the ONE OTHER door into `sideboarding`
- * (`lobby.ts`'s `beginSideboarding`, called from `POST …/ready` on every
- * `ready: true`, unconditionally; the lobby decides whether anything
- * happens). It is a NEW series from the moment it begins: `wins`/`games`
- * reset there, not later. Beginning it spends both Readys, as a start does:
- * agreeing to sideboard is not agreeing to the next game, so every way into
- * `sideboarding` starts with nobody ready, and each seat readies again from
- * the sideboard step itself. A `done` bo3 table's Rematch, and a `done`
- * bo1-without-sideboarding table's, both skip it and start a new series
- * directly — bo3's own sideboarding happens BETWEEN a series' games, never
- * between two series.
+ * **Rematch converts a finished Bo1** (`lobby.ts`'s `beginSideboarding`,
+ * called from `POST …/ready` on every `ready: true` that leaves the table's
+ * seats all ready; the lobby decides whether anything happens): the series
+ * becomes Bo3 in place, the game just played is game 1, and the table goes to
+ * `sideboarding`. Beginning it spends every Ready, as a start does: agreeing
+ * to sideboard is not agreeing to the next game, so each seat readies again
+ * from the sideboard step itself. A finished Bo3's Rematch, and any start
+ * after the room has moved on, is a new series.
  *
  * The next game of a series is asked play-or-draw by the LOSER of the one
- * before it (`startFromRoom`'s `chooser`, computed from `series.games.at(-1)`
- * and carried on the start body for lane E's bridge rig,
- * `MatchSpec.chooser?: 0 | 1`) — but ONLY when `!newSeries`: a `done` table's
- * `games` still holds its OLD series' last game until `setTableMatch` resets
- * it, so reading `games.at(-1)` unguarded would rig a brand-new series'
- * first game to the previous series' loser. The first game of a series
- * always leaves `chooser` unset.
+ * before it (`startFromRoom`'s `chooser`, from `series.games.at(-1)`) — but
+ * ONLY when the series is not new: a `done` table's `games` still holds its
+ * OLD series' last game until `setTableMatch` replaces it. The first game of
+ * a series always leaves `chooser` unset.
  *
  * ## The POOL belongs to the room, and the leader sets it
  *
@@ -188,6 +181,7 @@ import { botDeckText } from '../room/botDeck.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { FREE_PICK, draftIdOfPool, draftPoolId, type PodChecks } from '../room/lobby.js';
 import { drawRandomDecks } from '../room/random-decks.js';
+import { statsModeOf } from '../room/series.js';
 import type { MatchSpec } from '../play/host.js';
 import { AI_SEAT_OWNER } from '../play/match.js';
 import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
@@ -227,7 +221,7 @@ export interface RoomViewLike {
 	gameType: string;
 	/** The room's pool: a `TableFormat.id`, and the rules for BOTH seats. */
 	format: string;
-	/** A Constructed room's mode and its options; absent or null until chosen. */
+	/** A Constructed room's mode and its options; absent or null until chosen (a game then reports as Classic, `statsModeOf`). */
 	mode?: RoomModeState['mode'];
 	modeOptions?: RoomModeState['modeOptions'];
 	/** How the room's matches are dealt (`room/lobby.ts`'s `RoomSettings`). */
@@ -288,29 +282,18 @@ export interface TablesRooms {
 	releaseTableMatch(roomId: string, tableId: string): boolean;
 	/**
 	 * The match ACTUALLY ended: records the game, advances the series
-	 * (`sideboarding` or `done`), clears `matchId`, un-readies the table's own
+	 * (`sideboarding`, `between` or `done`), clears `matchId`, un-readies the table's own
 	 * seated members. False only when there is no such room or table.
 	 */
 	recordGameResult(roomId: string, tableId: string, result: { matchId: string; winner: 0 | 1 | null }): { ok: boolean };
 	/**
-	 * The operator's "both players press Rematch" (§D bullet 3): called
-	 * UNCONDITIONALLY from `POST …/ready` every time a `ready: true` leaves a
-	 * table's two seats both ready — the lobby decides whether that is bo1
-	 * with sideboarding on and a just-finished series (the only case this
-	 * does anything) and answers whether it moved the table into
-	 * `sideboarding`. A no-op `false` is not a failure.
+	 * Rematch: called UNCONDITIONALLY from `POST …/ready` every time a
+	 * `ready: true` leaves every seat of a table ready — the lobby decides
+	 * whether that converts a finished Bo1 to Bo3 (the only case this does
+	 * anything) and answers whether it moved the table into `sideboarding`. A
+	 * no-op `false` is not a failure.
 	 */
 	beginSideboarding(roomId: string, tableId: string): boolean;
-	/**
-	 * The winner `beginSideboarding` carried past its own `games` reset — see
-	 * `room/lobby.ts`'s `SeriesRecord` doc (claw run 39046554773, 2026-10-17).
-	 * `startFromRoom` reads this as the chooser source for a bo1-with-
-	 * sideboarding rematch's game, which `games.at(-1)` can no longer answer
-	 * once `beginSideboarding` has reset it to `[]`. `null` once that game has
-	 * started, for a bo3's own mid-series sideboarding, and for no such room
-	 * or table.
-	 */
-	rematchOf(roomId: string, tableId: string): 0 | 1 | null;
 	/** Leader only. Appends an empty table and answers its `RoomTable`. */
 	addTable(roomId: string, callerId: string): { ok: true; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
 	/** Leader only. Removes a table other than the first, when it is empty and idle. */
@@ -587,6 +570,16 @@ function ownDeckView(deck: TableDeck | null): { name: string; rulesName: string;
 /** The registered deck's text, whichever shape the row holds it in. */
 function seriesTextOf(state: TablePlayerState): string | null {
 	return typeof state.seriesDeck === 'string' ? state.seriesDeck : (state.seriesDeck?.text ?? null);
+}
+
+/**
+ * `PodChecks.holdsSeriesDeck`: the seat still holds the deck it registered for
+ * its series, so a finished Bo1 is still open to a Rematch. A deck change, and
+ * the format or mode change that drops the hold, both end it.
+ */
+export function holdsSeriesDeck(raw: unknown): boolean {
+	const state = readPlayerState(raw);
+	return state !== null && state.deck !== null && state.deck.text === seriesTextOf(state);
 }
 
 /** A seated player whose seat holds a deck: what a start needs. */
@@ -926,6 +919,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	// late-bound wires `PodChecks`'s own doc describes are made — `index.ts`
 	// is not touched for either.
 	rooms?.setPodChecks?.({
+		holdsSeriesDeck,
 		draftComplete(podId) {
 			const room = deps.draftRooms?.find(podId);
 			return room !== undefined && stateOf(room).status === 'complete';
@@ -1525,27 +1519,30 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			notFound(res);
 			return;
 		}
-		// The operator's "both players press Rematch" (§D bullet 3): whenever a
-		// `ready: true` leaves BOTH of this table's seats ready, offer the
-		// lobby the chance to begin a sideboarding step. It is a no-op unless
-		// the table is a just-finished bo1-with-sideboarding series — see
-		// `Lobby.beginSideboarding`'s own doc. When it does begin one, the
-		// step spends both Readys, the same as a start does (`startFromRoom`):
-		// the answer below, and every read after it, shows nobody ready.
+		// Rematch: whenever a `ready: true` leaves every seat of this table ready
+		// (one, against the AI), offer the lobby the chance to convert a
+		// finished Bo1 to Bo3 — see `Lobby.beginSideboarding`'s own doc. When it
+		// does, the sideboarding step spends every Ready, the same as a start
+		// does (`startFromRoom`): the answer below, and every read after it,
+		// shows nobody ready.
 		//
-		// At an All Random table the same moment deals the decks (`dealRandom`),
-		// so both seats hold theirs before either browser asks to start.
+		// At an All Random table with both seats taken the same moment deals the
+		// decks (`dealRandom`), so both hold theirs before either browser asks to
+		// start; against the AI the start deals them.
 		if (body.ready) {
-			const nowPlayers = playersOf(rooms, room, table.id);
-			if (nowPlayers.length === TABLE_SEATS && nowPlayers.every((p) => p.state.ready)) {
-				const deal = dealRandom(room, table.id, nowPlayers, false);
-				if (!deal.ok) {
-					rooms.setPlayerState(room.id, me, { ...mine.state, ready: false });
-					res.status(409).json({ error: deal.error });
-					return;
+			let nowPlayers = playersOf(rooms, room, table.id);
+			if (nowPlayers.every((p) => p.state.ready)) {
+				if (nowPlayers.length === TABLE_SEATS) {
+					const deal = dealRandom(room, table.id, nowPlayers, false);
+					if (!deal.ok) {
+						rooms.setPlayerState(room.id, me, { ...mine.state, ready: false });
+						res.status(409).json({ error: deal.error });
+						return;
+					}
+					nowPlayers = deal.players;
 				}
 				if (rooms.beginSideboarding(room.id, table.id)) {
-					for (const p of deal.players) rooms.setPlayerState(room.id, p.member.id, { ...p.state, ready: false });
+					for (const p of nowPlayers) rooms.setPlayerState(room.id, p.member.id, { ...p.state, ready: false });
 				}
 			}
 		}
@@ -1956,41 +1953,20 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// launching a second JVM.
 		res.on('finish', () => settle(res.statusCode, { error: 'the match could not be started' }));
 
-		// A new series by the ledger: `seating`/`done` (the series about to
-		// start has no game of its own yet), OR `series.games` already empty,
-		// which is what `Lobby.beginSideboarding` leaves a bo1 Rematch's
-		// sideboarding step in. **Both halves of this OR matter** for `chooser`
-		// below: `phase` alone misses a bo1 Rematch's reset-but-still-
-		// `sideboarding` table; `games.length` alone misses a `done` table whose
-		// OLD series' games are still sitting there (not yet reset by
-		// `setTableMatch`).
-		const newSeries = table.series.phase === 'seating' || table.series.phase === 'done' || table.series.games.length === 0;
-		// The registered deck (`seriesDeck`) is taken only when a series begins
-		// from the room — `seating` or `done` — never on a bo1 Rematch's
-		// sideboarding step, whose own load is the sideboarded 75: the deck a
-		// seat goes back to once the series is over is the one it registered.
-		const registers = table.series.phase === 'seating' || table.series.phase === 'done';
+		// A new series by the ledger: `seating` or `done` (a Rematch that converts
+		// a Bo1 leaves it `sideboarding`, the same series). Only a new series
+		// registers each seat's deck (`seriesDeck`) — the deck a seat goes back to
+		// once the series is over — never a sideboarded load.
+		const newSeries = table.series.phase === 'seating' || table.series.phase === 'done';
 		// The next game of a series is asked play-or-draw by the LOSER of the
 		// previous one (`draft-pods-plan.md`, "The loser of the previous game
 		// chooses play or draw"). The first game of a series has no previous
 		// game, so `chooser` stays unset and Forge's own unrigged coin toss runs
-		// (lane E's `MatchSpec.chooser?: 0 | 1`, `play/host.ts`) — **and `newSeries`
-		// is what actually says "first game of a series", not merely "there is
-		// no game after this one in the array": a `done` series' `games` still
-		// holds its LAST game until `setTableMatch` resets it, so reading
-		// `games.at(-1)` without this guard would rig a brand-new series'
-		// opening game to the PREVIOUS series' loser.
-		const previousGame = newSeries ? undefined : table.series.games.at(-1);
-		// `newSeries && phase === 'sideboarding'` is exactly `beginSideboarding`'s
-		// own reset (claw run 39046554773, 2026-10-17): `games` is already `[]`
-		// (so `previousGame` above is `undefined`), but the game that just
-		// decided this bo1-with-sideboarding rematch still has a loser owed
-		// play-or-draw — `rooms.rematchOf` is where `beginSideboarding` carried
-		// that winner through. A bo3's own mid-series sideboarding step never
-		// reaches here with `newSeries` true (its `games` is never emptied), so
-		// this never touches that path or a sideboarding-OFF rematch.
-		const previousWinner: 0 | 1 | null =
-			newSeries && table.series.phase === 'sideboarding' ? rooms.rematchOf(room.id, table.id) : (previousGame?.winner ?? null);
+		// (`MatchSpec.chooser?: 0 | 1`, `play/host.ts`) — and a `done` series'
+		// `games` still holds its LAST game until `setTableMatch` replaces it, so
+		// `newSeries` is what keeps a brand-new series' opening game from being
+		// rigged to the PREVIOUS series' loser.
+		const previousWinner = newSeries ? null : (table.series.games.at(-1)?.winner ?? null);
 		const chooser: 0 | 1 | undefined = previousWinner === 0 ? 1 : previousWinner === 1 ? 0 : undefined;
 
 		// Play answers through `res.json`, below. A response that ends any other way
@@ -2015,7 +1991,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					rooms.setPlayerState(room.id, p.member.id, {
 						...p.state,
 						ready: false,
-						seriesDeck: registers || p.state.seriesDeck === null ? p.state.deck : p.state.seriesDeck,
+						seriesDeck: newSeries || p.state.seriesDeck === null ? p.state.deck : p.state.seriesDeck,
 					});
 				}
 				log({
@@ -2162,6 +2138,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			if (room === undefined) return null;
 			// The pool the match was dealt in, from its own spec: the room's can move on after it.
 			const pool = match.spec.format ?? 'unknown';
+			// The series this game was played in, as it stood when the game ended.
+			const bestOf = room.tables.find((t) => t.matchId === match.id)?.series.length;
 			const format = library.format(pool);
 			const costs = format === undefined ? LIBRARY_CARD_COSTS : { ...LIBRARY_CARD_COSTS, ...format.fixture.manaCost };
 			const family = draftIdOfPool(pool) !== null ? 'draft' : pool === FREE_PICK ? 'free' : (format?.family ?? 'unknown');
@@ -2186,7 +2164,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				mode: 'constructed',
 				roomId: room.id,
 				startedAt: match.startedAt,
-				attrs: { format: family, pool, opponent: match.spec.seats.some((s) => s.ai) ? 'bot' : 'human' },
+				attrs: {
+					format: family,
+					pool,
+					opponent: match.spec.seats.some((s) => s.ai) ? 'bot' : 'human',
+					mode: statsModeOf(room),
+					...(bestOf === undefined ? {} : { bestOf }),
+				},
 				seats,
 			};
 		},

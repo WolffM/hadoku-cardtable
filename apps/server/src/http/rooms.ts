@@ -101,7 +101,6 @@ import {
 	CONSTRUCTED_MODES,
 	DEFAULT_GAME_TYPE,
 	GAME_TYPES,
-	MATCH_LENGTHS,
 	POD_SEATS,
 	RoomModeSchema,
 	type GameType,
@@ -370,9 +369,8 @@ function parseFormat(v: unknown): Parsed<FormatId> {
 }
 
 /**
- * Some of the room's settings. Every one but `matchLength` is a boolean;
- * `matchLength` is `'bo1'` or `'bo3'` (wave 71). An empty object is refused: a
- * PATCH that changes nothing is a client that meant something else.
+ * Some of the room's settings, every one a boolean. An empty object is
+ * refused: a PATCH that changes nothing is a client that meant something else.
  */
 function parseSettings(v: unknown): Parsed<Partial<RoomSettings>> {
 	const o = asObject(v);
@@ -380,15 +378,8 @@ function parseSettings(v: unknown): Parsed<Partial<RoomSettings>> {
 	const extra = unknownKeys(o, Object.keys(DEFAULT_ROOM_SETTINGS));
 	if (extra.length > 0) return { ok: false, error: `unknown setting(s): ${extra.join(', ')}` };
 	if (Object.keys(o).length === 0) return { ok: false, error: 'settings names no setting' };
-	for (const [k, value] of Object.entries(o)) {
-		if (k === 'matchLength') {
-			if (!(MATCH_LENGTHS as readonly string[]).includes(value as string)) {
-				return { ok: false, error: `settings.matchLength must be one of: ${MATCH_LENGTHS.join(', ')}` };
-			}
-			continue;
-		}
-		if (typeof value !== 'boolean') return { ok: false, error: `settings.${k} must be a boolean` };
-	}
+	const bad = Object.keys(o).find((k) => typeof o[k] !== 'boolean');
+	if (bad !== undefined) return { ok: false, error: `settings.${bad} must be a boolean` };
 	return { ok: true, value: o as Partial<RoomSettings> };
 }
 

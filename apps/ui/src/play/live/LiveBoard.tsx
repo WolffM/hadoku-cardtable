@@ -1873,17 +1873,14 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * ready at: Rematch and Back to room are
  * disabled and Main menu goes straight to the lobby.
  *
- * **Series on screen, wave 72 §Q.** The button's label is the room's own
- * `matchLength`: `Rematch` for `bo1`, `Next game` for `bo3` (the operator's
- * `draft-pods-plan.md`: *"bo3 just means that rematch is forced after a
- * round ends"*) — otherwise unchanged, still an agreement, still the table's
- * `ready`. The agreement itself is what MOVES the table to `sideboarding`
- * when `sideboarding` is on (`lobby.ts`'s `beginSideboarding`, from `done`)
- * — `bo3` reaches `sideboarding` on its own instead, the instant an
- * undecided game ends (`recordGameResult`). Either way `showSideboard`
- * tracks `phase === 'sideboarding'` alone, so the sideboard step appears
- * with no second press: "Rematch goes to the sideboard step", and a forced
- * `bo3` "goes there on its own". **In a pod room there is no Rematch at
+ * **Series on screen.** Every Constructed series starts as Bo1, and the
+ * Rematch agreement is what converts it to Bo3 and MOVES the table to
+ * `sideboarding` (`lobby.ts`'s `beginSideboarding`, from `done`); a Bo3
+ * reaches `sideboarding` on its own, the instant an undecided game ends
+ * (`recordGameResult`). Either way `showSideboard` tracks `phase ===
+ * 'sideboarding'` alone, so the sideboard step appears with no second press.
+ * Between the games of a series that does not sideboard (`between`, a
+ * Gauntlet) the button reads `Next game`. **In a pod room there is no Rematch at
  * all** (`room.pod !== null`) — Back to room already opens the pod
  * (`#/room/<id>` renders `PodScreen` for a draft room), so there is nothing
  * else for this button to do.
@@ -2170,7 +2167,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
 
   /**
    * THIS match's own table (wave 71 §D's wire shape, via `@hadoku/shared`) —
-   * for `series.phase`, `settings.matchLength`/`.sideboarding` and `pod`,
+   * for `series.phase` and `pod`,
    * none of which `./tables.ts`'s own `RoomTable` (`table`, above) carries,
    * and — in a pod — for the table id every `tables.ts` call below now
    * passes, so a pod player's table 2+ is never addressed as `tables[0]`.
@@ -2179,8 +2176,6 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const myTable = findMyTable(room, match.matchId);
   const tableId = myTable?.id;
   const phase = myTable?.series.phase ?? null;
-  const matchLength = room?.settings.matchLength ?? 'bo1';
-  const sideboarding = room?.settings.sideboarding ?? false;
   /**
    * No Rematch in a pod (wave 72 §Q.3), a pod of one against the AI included:
    * Back to room opens the pod, whose rounds decide who plays whom, and whose
@@ -2278,10 +2273,9 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
    * table's phase. A server that never lets them agree still gets the screen,
    * late, rather than none.
    */
-  // The same test the step itself is shown on (`showSideboard`, below).
-  const willSideboard = sideboarding && phase === 'sideboarding';
+  const showSideboard = phase === 'sideboarding';
   // By content: every table read is a fresh object, and the 75 is read once per choice, not once per read.
-  const choiceKey = willSideboard ? JSON.stringify(myChoice(table)) : null;
+  const choiceKey = showSideboard ? JSON.stringify(myChoice(table)) : null;
   const sideboardChoice = useMemo(() => (choiceKey === null ? null : (JSON.parse(choiceKey) as SeatChoice | null)), [choiceKey]);
   const sideboardInputs = useSideboardInputs(sideboardChoice, tables);
   const settled =
@@ -2290,7 +2284,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
       roomAnswered &&
       (myTable == null || myTable.series.phase === table.room.phase) &&
       // The sideboard step opens whole: its 75 (and drafted pool) already read.
-      (!willSideboard || myChoice(table) === null || sideboardInputs !== undefined));
+      (!showSideboard || myChoice(table) === null || sideboardInputs !== undefined));
   const [waitedOut, setWaitedOut] = useState(false);
   useEffect(() => {
     if (settled) return;
@@ -2332,20 +2326,25 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
     if (roomId === null) return;
     setRefusal(null);
     setBusy(true);
-    if (alone === true) {
+    // The agreement (`beginSideboarding`'s own door, server-side). Once every
+    // seat has pressed it a finished Bo1 converts and the table moves to
+    // `sideboarding`, and the sideboard step below appears on its own the
+    // moment `phase` says so — no second press. Against the AI the one press
+    // is the agreement: a series that did not convert starts the next bot game.
+    const ready = alone === true || !rematch.mine;
+    (tableId === undefined ? tables.ready(roomId, ready) : tables.ready(roomId, ready, tableId)).then((answer) => {
+      if (!answer.ok) {
+        setBusy(false);
+        setRefusal(answer.error);
+        return;
+      }
+      setTable(answer.table);
+      if (alone !== true || answer.table.room.phase === 'sideboarding') {
+        setBusy(false);
+        return;
+      }
       asked.current = true;
       (tableId === undefined ? tables.startVsBot(roomId) : tables.startVsBot(roomId, tableId)).then(started, unreachable);
-      return;
-    }
-    // Unchanged whether sideboarding is on or off: this still is the
-    // agreement (`beginSideboarding`'s own door, server-side). Once both
-    // have pressed it the table itself moves to `sideboarding` (if it is
-    // on) or straight to the next match, and the sideboard step below
-    // appears on its own the moment `phase` says so — no second press.
-    (tableId === undefined ? tables.ready(roomId, !rematch.mine) : tables.ready(roomId, !rematch.mine, tableId)).then((answer) => {
-      setBusy(false);
-      if (answer.ok) setTable(answer.table);
-      else setRefusal(answer.error);
     }, unreachable);
   };
 
@@ -2360,7 +2359,6 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
     void left.finally(() => navigate({ kind: 'lobby' }));
   };
 
-  const showSideboard = sideboarding && phase === 'sideboarding';
   const choice = myChoice(table);
   /**
    * The outcome is shown first, and Next opens the sideboard step — the
@@ -2445,7 +2443,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
               disabled={!rematch.possible || busy || leaving}
               onClick={onRematch}
             >
-              {matchLength === 'bo3' ? 'Next game' : 'Rematch'}
+              {phase === 'between' ? 'Next game' : 'Rematch'}
             </button>
           )}
           {backButtons}

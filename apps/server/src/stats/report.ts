@@ -163,3 +163,61 @@ export function buildMatchReport(facts: MatchFacts, start: MatchStart): MatchRep
 		seats,
 	};
 }
+
+/** The rating pool a series result is recorded in, apart from its games' own (`constructed`), so no game counts twice. */
+export const SERIES_STATS_MODE = 'constructed-series';
+
+/** A series' seat, as `buildSeriesReport` takes it: who it was, already resolved to a stats kind. */
+export interface SeriesSeatStart {
+	kind: 'user' | 'guest' | 'bot';
+	userKey?: string;
+	displayName: string;
+}
+
+export interface SeriesStart {
+	roomId: string;
+	mode: string;
+	bestOf: 1 | 3;
+	seats: [SeriesSeatStart, SeriesSeatStart];
+	wins: [number, number];
+	/** Every game's match id, in order; the first keys the report. */
+	games: string[];
+	winner: 0 | 1 | null;
+	/** False for a series its room went away from undecided. */
+	complete: boolean;
+	endedAt: number;
+}
+
+/**
+ * A series as one report: each seat placed by the series' winner (both first
+ * when it has none), its game wins counted, and the score, mode and length as
+ * match attrs. Keyed `<first game>-series`, so a resend is the store's no-op.
+ */
+export function buildSeriesReport(series: SeriesStart): MatchReport | null {
+	const matchId = `${series.games[0] ?? ''}-series`;
+	if (!MATCH_ID_PATTERN.test(matchId)) return null;
+	const seats: MatchSeatReport[] = series.seats.map((s, seat) => ({
+		seat,
+		kind: s.kind,
+		...(s.kind === 'user' && s.userKey !== undefined ? { userKey: s.userKey } : {}),
+		displayName: clip(s.displayName),
+		placement: series.winner === null || series.winner === seat ? 1 : 2,
+		counters: { wins: series.wins[seat] ?? 0 },
+	}));
+	return {
+		matchId,
+		mode: SERIES_STATS_MODE,
+		rated: series.complete && seats.every(ranks),
+		roomId: series.roomId,
+		endedAt: series.endedAt,
+		attrs: {
+			mode: series.mode,
+			bestOf: series.bestOf,
+			score: `${String(series.wins[0])}-${String(series.wins[1])}`,
+			complete: series.complete,
+			opponent: series.seats.some((s) => s.kind === 'bot') ? 'bot' : 'human',
+		},
+		counters: { games: series.games.length },
+		seats,
+	};
+}
