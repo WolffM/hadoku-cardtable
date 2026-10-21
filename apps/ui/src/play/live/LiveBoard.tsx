@@ -320,7 +320,9 @@ import {
   choosingMulligan,
   clickCard,
   payingMana,
+  payFromPool,
   payWithLife,
+  poolPays,
   pickedOf,
   pressButton,
   relayout,
@@ -2994,6 +2996,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     },
     onSelectPlayer: (playerId) => {
       if (!spectator) selectPlayer(match, playerId);
+    },
+    poolPays: spectator ? undefined : poolPays(match),
+    onPayFromPool: (color) => {
+      if (!spectator) payFromPool(match, color);
     },
   };
 

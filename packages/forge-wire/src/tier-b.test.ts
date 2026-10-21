@@ -404,6 +404,14 @@ describe('wave 52 §S — the offer facts and the confirm ability are strict and
     expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7) } }).success).toBe(false);
   });
 
+  it('poolChoice names the pool colours a press pays with, strictly', () => {
+    const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Pay Mana Cost: {1}', card: card(9) };
+    expect(ShowPromptMessageSchema.safeParse({ ...base, poolChoice: ['R', 'G'] }).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, poolChoice: ['C'] }).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, poolChoice: [] }).success).toBe(false);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, poolChoice: ['X'] }).success).toBe(false);
+  });
+
   it('parts split a prompt into its question and the ability text, from one of the four inputs, strictly', () => {
     const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, card: card(121) };
     const message = 'Bone Shards (121)\n - Destroy target creature or planeswalker. (Additional cost: Sacrifice a creature)\nSelect creature to sacrifice (1 left)';

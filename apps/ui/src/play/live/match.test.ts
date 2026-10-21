@@ -39,6 +39,8 @@ import {
   lifePayer,
   payingMana,
   payWithLife,
+  payFromPool,
+  poolPays,
   genuinelyAsked,
   isBlockAssignment,
   ingest,
@@ -2004,6 +2006,25 @@ describe('payingMana: the payment input, and not a bar that outlived it', () => 
     await sendAndApply(s, m, [payBar(false), promptFor('Pay {7}', mine[0]!), actionable([mine[0]!])]);
     expect(m.buttons!.enable1).toBe(false);
     expect(payingMana(m)).toBe(true);
+  });
+
+  it('a pool that pays the cost two ways is spent by a press on its colour: Forge’s own useMana, once per prompt', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    const choice = parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Pay Mana Cost: {1}', card: { kind: 'card', id: mine[0]! }, poolChoice: ['R', 'G'] });
+    await sendAndApply(s, m, [payBar(true), choice, actionable([])]);
+    expect(poolPays(m)).toEqual(['R', 'G']);
+    expect(payFromPool(m, 'U')).toBe(false);
+    const before = s.clientFrames().length;
+    expect(payFromPool(m, 'G')).toBe(true);
+    await until('the pool payment reached the server', () => s.clientFrames().length > before);
+    expect(s.clientFrames().at(-1)).toMatchObject({ ok: true, value: { kind: 'act', method: 'useMana', color: 16 } });
+    // Spent until Forge's next prompt.
+    expect(poolPays(m)).toEqual([]);
+    expect(payFromPool(m, 'R')).toBe(false);
+    // A prompt with no pool choice offers none.
+    await sendAndApply(s, m, [payBar(true), promptFor('Pay Mana Cost: {1}', mine[0]!), actionable([])]);
+    expect(poolPays(m)).toEqual([]);
   });
 
   it('a press pays what Forge names: 2 life a Phyrexian shard, the named life for Channel’s life-paid mana', async () => {

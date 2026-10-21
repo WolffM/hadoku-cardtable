@@ -253,7 +253,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { drawsFaceUp, manaCostTokens, toBoardView, type BoardView, type DamageHit, type DeathCause, type FaceHit } from '../adapter.ts';
+import { drawsFaceUp, manaCostTokens, toBoardView, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
@@ -592,6 +592,12 @@ export interface LiveMatch {
   promptTrigger: { key: string; name: string } | null;
   /** {@link prompt} split into its decision and the ability text before it (`promptLines`), or null. From the same frame. */
   promptParts: PromptParts | null;
+  /**
+   * The floating pool's colours a press pays the open payment with, when the pool pays it more than
+   * one way (`PlayBridge.java`'s `poolChoice`), or null. From the same frame as {@link prompt};
+   * spent ({@link payFromPool}) until Forge's next one.
+   */
+  promptPoolChoice: readonly PoolColor[] | null;
   /** The optional triggers Forge answers for this seat, from the server's `forge:trigger-decisions`. */
   triggerDecisions: readonly RememberedTrigger[];
   /**
@@ -1076,6 +1082,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     promptCard: null,
     promptTrigger: null,
     promptParts: null,
+    promptPoolChoice: null,
     triggerDecisions: [],
     deckColors: undefined,
     buttons: null,
@@ -2097,6 +2104,30 @@ export function payWithLife(match: LiveMatch): boolean {
   if (me === null) return false;
   match.spent.players.add(me);
   return sendAct(match, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: me }, triggerEvent: null });
+}
+
+/** `ManaAtom`'s byte for each pool letter (`ManaAtom.java:7-12`): what `useMana` names a colour by. */
+const POOL_ATOM: Readonly<Record<PoolColor, number>> = { W: 1, U: 2, B: 4, R: 8, G: 16, C: 32 };
+
+/**
+ * The colours of the viewer's floating pool a press pays the open payment with, while the pool pays
+ * it more than one way, else empty. The operator, 2026-10-21: *"if there is more mana in the pool
+ * than is needed, we should require the player to click on the mana symbols in their pool to pay
+ * for the spell rather than auto-pay. lets highlight the mana pool area when this happens"*.
+ */
+export function poolPays(match: LiveMatch): readonly PoolColor[] {
+  return payingMana(match) ? (match.promptPoolChoice ?? []) : [];
+}
+
+/**
+ * Pay the open payment with one `color` from the viewer's pool: Forge's own pool payment
+ * (`IGameController.useMana` → `InputPayMana.useManaFromPool`). Spent until Forge's next prompt.
+ */
+export function payFromPool(match: LiveMatch, color: PoolColor): boolean {
+  if (!poolPays(match).includes(color)) return false;
+  match.promptPoolChoice = null;
+  redraw(match);
+  return sendAct(match, { kind: 'act', method: 'useMana', color: POOL_ATOM[color] });
 }
 
 /** The viewer's player while a press of {@link payWithLife} would be taken, else null. */
@@ -3196,6 +3227,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     if (redrawBoard) redraw(match);
     match.promptTrigger = frame.confirmAbility?.trigger ?? null;
     match.promptParts = frame.parts ?? null;
+    match.promptPoolChoice = frame.poolChoice ?? null;
     match.promptTargetMore = frame.targetAbility?.more ?? 0;
     match.promptSelection = frame.selection === undefined ? null : { targets: frame.selection.targets, aimed: frame.selection.aimed ?? [] };
     match.sameTarget = false;
@@ -3330,6 +3362,7 @@ function discardLocal(match: LiveMatch): void {
   match.promptCard = null;
   match.promptTrigger = null;
   match.promptParts = null;
+  match.promptPoolChoice = null;
   match.buttons = null;
   match.barHold = null;
   match.windowHalf = null;

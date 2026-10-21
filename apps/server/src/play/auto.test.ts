@@ -1748,6 +1748,7 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 		confirmLive: true,
 		cost: null,
 		alternativePayment: false,
+		poolChoice: false,
 		noWayToPay: false,
 		sources,
 		nonManaSources: sources,
@@ -2338,6 +2339,8 @@ describe('item 6 — the guard that asked, and the policy value that stops askin
 		expect(decidePay({ ...galvanicBlast, confirmLive: false }, forgeAuto)).toBeNull();
 		// And it keeps every guard that is not about counting sources.
 		expect(decidePay({ ...galvanicBlast, alternativePayment: true }, forgeAuto)).toBeNull();
+		// A pool that pays the cost two ways is the player's to spend (operator, 2026-10-21).
+		expect(decidePay({ ...galvanicBlast, poolChoice: true }, forgeAuto)).toBeNull();
 		expect(decidePay({ ...galvanicBlast, openAsks: 1 }, forgeAuto)).toBeNull();
 		expect(decidePay({ ...galvanicBlast, mine: false }, forgeAuto)).toBeNull();
 		expect(decidePay({ ...galvanicBlast, window: 'priority' }, forgeAuto)).toBeNull();

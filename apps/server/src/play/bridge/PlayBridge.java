@@ -2515,6 +2515,8 @@ public final class PlayBridge {
             if (selection != null) { f.add("selection", selection); }
             final JsonObject parts = promptParts(message);
             if (parts != null) { f.add("parts", parts); }
+            final JsonArray pool = poolChoice();
+            if (pool != null) { f.add("poolChoice", pool); }
             frame(f);
             broadcastIfWaiting();
             // A press of a payment's life button re-shows its prompt and changes nothing else, and
@@ -2772,6 +2774,73 @@ public final class PlayBridge {
                 }
             }
             return texts;
+        }
+
+        /** The pool's mana types, as {@code ManaAtom.MANATYPES} orders them, and their letters. */
+        private static final String[] POOL_LETTERS = { "W", "U", "B", "R", "G", "C" };
+
+        /**
+         * The colours in this seat's floating pool a press would pay the open payment with, when
+         * the pool pays it more than one way, else null. The operator, 2026-10-21: *"if there is
+         * more mana in the pool than is needed, we should require the player to click on the mana
+         * symbols in their pool to pay for the spell rather than auto-pay"*.
+         *
+         * "More than one way" is Forge's own arithmetic on the open {@code InputPayMana}'s cost:
+         * every order of spending the pool one mana at a time ({@code ManaCostBeingPaid.ai_payMana},
+         * which applies what a press applies) ends in some set of mana spent; the sets that spend
+         * the most are the payments the pool can make. Two different sets ({R} or {G} for {1}) is
+         * a choice; one set ({R} for {R}, or either {R} of {R}{R}) is not, and the server's
+         * auto-pay takes it. A press is {@code useMana} ({@code InputPayMana.useManaFromPool}),
+         * Forge's own pool payment.
+         */
+        private JsonArray poolChoice() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
+            if (!(human.getInputQueue().getInput() instanceof InputPayMana pay) || pay.isPaid()) { return null; }
+            try {
+                final forge.game.mana.ManaCostBeingPaid cost = (forge.game.mana.ManaCostBeingPaid) field(pay, InputPayMana.class, "manaCost");
+                final forge.game.mana.ManaPool pool = mine.getManaPool();
+                if (cost == null || cost.isPaid() || pool.isEmpty()) { return null; }
+                final int[] left = new int[POOL_LETTERS.length];
+                int total = 0;
+                for (int i = 0; i < left.length; i++) { left[i] = pool.getAmountOfColor(forge.card.mana.ManaAtom.MANATYPES[i]); total += left[i]; }
+                // Each mana is one step; a pool past this size is not searched, and is the player's.
+                if (total > 12) { return null; }
+                final java.util.Set<String> ends = new java.util.HashSet<>();
+                spendPool(cost, left, new int[left.length], pool, ends, new int[] { 0 }, new java.util.HashSet<>());
+                if (ends.size() < 2) { return null; }
+                final JsonArray out = new JsonArray();
+                for (int i = 0; i < left.length; i++) {
+                    if (left[i] > 0 && cost.isAnyPartPayableWith(forge.card.mana.ManaAtom.MANATYPES[i], pool)) { out.add(POOL_LETTERS[i]); }
+                }
+                return out.isEmpty() ? null : out;
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] poolChoice: could not read the open payment (" + e + "); the pool is not offered");
+                return null;
+            }
+        }
+
+        /** {@link #poolChoice}'s walk: every way to spend {@code left} on {@code cost}, keeping the sets that spend the most. */
+        private static void spendPool(final forge.game.mana.ManaCostBeingPaid cost, final int[] left, final int[] used, final forge.game.mana.ManaPool pool,
+                                      final java.util.Set<String> ends, final int[] most, final java.util.Set<String> seen) {
+            if (!seen.add(java.util.Arrays.toString(used))) { return; }
+            boolean spent = false;
+            for (int i = 0; i < left.length; i++) {
+                if (left[i] == 0) { continue; }
+                final forge.game.mana.ManaCostBeingPaid next = new forge.game.mana.ManaCostBeingPaid(cost);
+                if (!next.ai_payMana(POOL_LETTERS[i], pool)) { continue; }
+                spent = true;
+                left[i]--;
+                used[i]++;
+                spendPool(next, left, used, pool, ends, most, seen);
+                left[i]++;
+                used[i]--;
+            }
+            if (spent) { return; }
+            int n = 0;
+            for (final int u : used) { n += u; }
+            if (n > most[0]) { most[0] = n; ends.clear(); }
+            if (n == most[0]) { ends.add(java.util.Arrays.toString(used)); }
         }
 
         private JsonObject confirmAbility() {

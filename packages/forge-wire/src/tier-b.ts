@@ -323,6 +323,13 @@ export const ShowPromptMessageSchema = z.strictObject({
       input: z.enum(['select', 'target', 'confirm', 'pay']),
     })
     .optional(),
+  /**
+   * Ours: the colours in the seat's floating pool a press pays the open payment with, when the pool
+   * pays it more than one way (`PlayBridge.java`'s `poolChoice`): {R} or {G} for {1}. Spending it
+   * is the player's — the server never auto-pays over it — and a press is Forge's own `useMana`.
+   * Absent when the pool pays the cost one way or not at all, and on every other prompt.
+   */
+  poolChoice: z.array(z.enum(['W', 'U', 'B', 'R', 'G', 'C'])).min(1).optional(),
 });
 
 /**

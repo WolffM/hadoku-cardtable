@@ -884,6 +884,12 @@ export interface PromptFacts {
 	/** This payment offers a NON-mana alternative (life), so it has two answers. */
 	readonly alternativePayment: boolean;
 	/**
+	 * The floating pool pays this cost more than one way (`PlayBridge.java`'s `poolChoice`): which
+	 * mana to spend is the player's (the operator, 2026-10-21), so Forge's Auto, which would pick
+	 * for them, is never pressed over it.
+	 */
+	readonly poolChoice: boolean;
+	/**
 	 * **Forge says this cost cannot be paid** — item 7.
 	 *
 	 * Forge's payment input enables its own `Auto` button ONLY once
@@ -1066,6 +1072,7 @@ const UNKNOWN_WINDOW: PromptFacts = {
 	confirmLive: false,
 	cost: null,
 	alternativePayment: false,
+	poolChoice: false,
 	noWayToPay: false,
 	sources: null,
 	nonManaSources: null,
@@ -1128,6 +1135,7 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		confirmLive: buttons.enable1 === true,
 		cost,
 		alternativePayment: LIFE_INSTEAD.test(message),
+		poolChoice: prompt.poolChoice !== undefined,
 		noWayToPay: window === 'payment' && buttons.enable1 !== true && all !== null && all.length === 0,
 		sources: all === null ? null : [...new Set(all)],
 		nonManaSources: all === null ? null : [...new Set(all)].filter((id) => !(manaOnly?.has(id) ?? false)),
@@ -1372,6 +1380,7 @@ export function decidePay(facts: PromptFacts, policy: StopPolicy): string | null
 	if (!facts.confirmLive) return null;
 	if (facts.cost === null) return null;
 	if (facts.alternativePayment) return null;
+	if (facts.poolChoice) return null;
 	if (policy.unambiguousPayment === 'ask') return null;
 	// A live Auto is Forge saying it found a payment for what is left. That alone
 	// is what `'forgeAuto'` presses on; the two shapes below are the narrower
