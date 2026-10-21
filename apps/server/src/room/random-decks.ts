@@ -12,11 +12,10 @@
  * both. The server passes `secureRandom` and its own `TablesLibrary`.
  */
 
-import type { FormatFamily, TableDeck } from '../http/library.js';
-import { randomFormat, type CatalogFormat, type FormatId } from './lobby.js';
+import type { RandomPool } from '@hadoku/shared';
 
-/** Which eras All Random draws from: one family, or every family. */
-export type RandomPool = FormatFamily | 'full';
+import type { TableDeck } from '../http/library.js';
+import { randomFormat, type CatalogFormat, type FormatId } from './lobby.js';
 
 export interface RandomCatalog {
 	readonly formats: readonly CatalogFormat[];
