@@ -1,0 +1,20 @@
+# Channel pays for Emrakul with life (the operator, 2026-10-21): "the card "Channel" my opponent
+# played it, then tried to play emrakul but couldn't." Ruling: "have channel work like phyrexian
+# mana".
+#
+# Seat 0 (human) holds Channel ({G}{G}) and Emrakul, the Aeons Torn ({15}) with two Forests out.
+# The Forests pay for Channel; Emrakul is then paid with 15 life through Channel's effect, which
+# sits in the Command zone with no card on the table to click.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Channel;Emrakul, the Aeons Torn
+humanbattlefield=Forest;Forest
+humanlibrary=Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
