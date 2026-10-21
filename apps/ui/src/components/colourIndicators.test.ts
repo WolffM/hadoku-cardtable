@@ -1,0 +1,64 @@
+// @vitest-environment jsdom
+/*
+ * A card's colour, drawn as a symbol (the operator, 2026-10-21): "i picked
+ * 'Flame of Anor' and it's showing a white/blue symbol above it. that's a
+ * red/blue card." — then: "just show a gold symbol for multi-color not what
+ * you chose". A card or group of two or more colours shows ONE gold symbol,
+ * never a pair; a mono card its colour; a colourless card the colourless one.
+ * Hybrid pips inside a mana cost are cost symbols and are not touched.
+ */
+import { afterEach, describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { cleanup, render, screen, within } from '@testing-library/react';
+
+import poolData from '../draft/pool.json';
+import type { DraftCard } from '../draft/types.ts';
+import { DeckEditor } from '../deck/DeckEditor.tsx';
+import { PoolView } from './PoolView.tsx';
+
+afterEach(cleanup);
+
+const POOL = (poolData as { cards: DraftCard[] }).cards;
+const named = (name: string): DraftCard => POOL.find((c) => c.name === name)!;
+const FLAME = named('Flame of Anor');
+
+/** Every hybrid / guild pair class Mana has: none of them may stand for a card's colour. */
+const PAIR_CLASSES = ['wu', 'wb', 'ub', 'ur', 'br', 'bg', 'rw', 'rg', 'gw', 'gu'].map((p) => `.ms-${p}`).join(',');
+
+describe('a multicolour pick is drawn gold, never as a colour pair', () => {
+  it('Flame of Anor (red/blue) sits under one gold symbol in the colour piles', () => {
+    expect(FLAME.colors).toEqual(['R', 'U']);
+    render(createElement(PoolView, { cards: [FLAME, named('Lutri, the Spellchaser')], recentlyAdded: null, groupBy: 'color' }));
+    const pile = screen.getByTestId('pool-bucket-M');
+    const head = pile.querySelector('.pool__bucket-title')!;
+    expect(head.querySelector(PAIR_CLASSES)).toBeNull();
+    expect(head.querySelectorAll('.ms-multicolor')).toHaveLength(1);
+  });
+
+  it("the picks' and the builder's colour sort buttons draw gold, not a pair", () => {
+    render(createElement(PoolView, { cards: [FLAME], recentlyAdded: null, groupBy: 'color', onGroupBy: () => undefined }));
+    const pickSort = screen.getByTestId('pool-sort-color');
+    expect(pickSort.querySelector(PAIR_CLASSES)).toBeNull();
+    expect(pickSort.querySelector('.ms-multicolor')).not.toBeNull();
+    cleanup();
+    render(createElement(DeckEditor, { mode: 'limited', draftId: 'd-cs', pool: [FLAME] }));
+    const buildSort = screen.getByTestId('sort-color');
+    expect(buildSort.querySelector(PAIR_CLASSES)).toBeNull();
+    expect(buildSort.querySelector('.ms-multicolor')).not.toBeNull();
+  });
+
+  it("a mono pile keeps its colour's symbol, the colourless pile the colourless one", () => {
+    const mono = POOL.find((c) => c.colors.length === 1 && c.colors[0] === 'R' && !/\bLand\b/.test(c.typeLine))!;
+    const colourless = POOL.find((c) => c.colors.length === 0 && !/\bLand\b/.test(c.typeLine))!;
+    render(createElement(PoolView, { cards: [mono, colourless], recentlyAdded: null, groupBy: 'color' }));
+    expect(within(screen.getByTestId('pool-bucket-R')).getAllByRole('img')[0]!.className).toContain('ms-r');
+    expect(within(screen.getByTestId('pool-bucket-C')).getAllByRole('img')[0]!.className).toContain('ms-c');
+  });
+});
+
+describe("a card's colour stripe reads the colours in WUBRG order", () => {
+  it('Flame of Anor, whose colours arrive as R then U, gets the blue/red stripe', () => {
+    render(createElement(PoolView, { cards: [FLAME], recentlyAdded: null, groupBy: 'color' }));
+    expect(screen.getByTestId('pool-bucket-M').querySelector('.card__stripe')!.getAttribute('data-identity')).toBe('ur');
+  });
+});
