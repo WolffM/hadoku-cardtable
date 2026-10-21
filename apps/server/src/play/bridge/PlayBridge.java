@@ -1227,7 +1227,7 @@ public final class PlayBridge {
         private static boolean among(final forge.game.CardTraitBase trait, final String key, final ZoneType zone, final boolean absent) {
             final String zones = trait.getParam(key);
             if (zones == null || zones.equals("Any")) { return absent; }
-            return Arrays.asList(zones.split(",")).contains(zone.name());
+            return ZoneType.listValueOf(zones).contains(zone);
         }
 
         private static void name(final Map<String, forge.game.CardTraitBase> named, final forge.game.CardTraitBase trait) {
@@ -2707,9 +2707,7 @@ public final class PlayBridge {
          */
         private JsonObject promptParts(final String message) {
             if (message == null) { return null; }
-            final forge.game.player.Player mine = liveSelf(liveGame());
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
-            final Object input = human.getInputQueue().getInput();
+            final Object input = myInput();
             final String kind;
             final SpellAbility sa;
             try {
@@ -2763,12 +2761,10 @@ public final class PlayBridge {
             raw.add(sa.getStackDescription());
             if (sa.getPayCosts() != null) { raw.add(sa.getPayCosts().toString()); }
             final java.util.List<String> texts = new java.util.ArrayList<>();
-            final String name = sa.getHostCard() == null ? null : sa.getHostCard().getTranslatedName();
             for (final String r : raw) {
                 if (r == null) { continue; }
                 // `InputSelectTargets` and `InputPayManaOfCostPayment` rewrite these in the whole string.
-                String t = r.replace("(Targeting ERROR)", "");
-                if (name != null) { t = t.replace("CARDNAME", name).replace("NICKNAME", forge.util.Lang.getInstance().getNickName(name)); }
+                final String t = withCardName(r.replace("(Targeting ERROR)", ""), sa.getHostCard());
                 for (final String s : new String[] { r, t }) {
                     if (s.strip().length() > 1 && !texts.contains(s)) { texts.add(s); }
                 }
@@ -2776,8 +2772,8 @@ public final class PlayBridge {
             return texts;
         }
 
-        /** The pool's mana types, as {@code ManaAtom.MANATYPES} orders them, and their letters. */
-        private static final String[] POOL_LETTERS = { "W", "U", "B", "R", "G", "C" };
+        /** The letter of the pool's {@code i}th mana type in {@code ManaAtom.MANATYPES}' order: Forge's own short name, {@code C} for colourless. */
+        private static String poolLetter(final int i) { return forge.card.MagicColor.toShortString(forge.card.mana.ManaAtom.MANATYPES[i]); }
 
         /**
          * The colours in this seat's floating pool a press would pay the open payment with, when
@@ -2794,14 +2790,13 @@ public final class PlayBridge {
          * Forge's own pool payment.
          */
         private JsonArray poolChoice() {
+            if (!(myInput() instanceof InputPayMana pay) || pay.isPaid()) { return null; }
             final forge.game.player.Player mine = liveSelf(liveGame());
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
-            if (!(human.getInputQueue().getInput() instanceof InputPayMana pay) || pay.isPaid()) { return null; }
             try {
                 final forge.game.mana.ManaCostBeingPaid cost = (forge.game.mana.ManaCostBeingPaid) field(pay, InputPayMana.class, "manaCost");
                 final forge.game.mana.ManaPool pool = mine.getManaPool();
                 if (cost == null || cost.isPaid() || pool.isEmpty()) { return null; }
-                final int[] left = new int[POOL_LETTERS.length];
+                final int[] left = new int[forge.card.mana.ManaAtom.MANATYPES.length];
                 int total = 0;
                 for (int i = 0; i < left.length; i++) { left[i] = pool.getAmountOfColor(forge.card.mana.ManaAtom.MANATYPES[i]); total += left[i]; }
                 // Each mana is one step; a pool past this size is not searched, and is the player's.
@@ -2811,7 +2806,7 @@ public final class PlayBridge {
                 if (ends.size() < 2) { return null; }
                 final JsonArray out = new JsonArray();
                 for (int i = 0; i < left.length; i++) {
-                    if (left[i] > 0 && cost.isAnyPartPayableWith(forge.card.mana.ManaAtom.MANATYPES[i], pool)) { out.add(POOL_LETTERS[i]); }
+                    if (left[i] > 0 && cost.isAnyPartPayableWith(forge.card.mana.ManaAtom.MANATYPES[i], pool)) { out.add(poolLetter(i)); }
                 }
                 return out.isEmpty() ? null : out;
             } catch (final ReflectiveOperationException | RuntimeException e) {
@@ -2828,7 +2823,7 @@ public final class PlayBridge {
             for (int i = 0; i < left.length; i++) {
                 if (left[i] == 0) { continue; }
                 final forge.game.mana.ManaCostBeingPaid next = new forge.game.mana.ManaCostBeingPaid(cost);
-                if (!next.ai_payMana(POOL_LETTERS[i], pool)) { continue; }
+                if (!next.ai_payMana(poolLetter(i), pool)) { continue; }
                 spent = true;
                 left[i]--;
                 used[i]++;
@@ -2844,10 +2839,9 @@ public final class PlayBridge {
         }
 
         private JsonObject confirmAbility() {
-            final forge.game.player.Player mine = liveSelf(liveGame());
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
-            final Object input = human.getInputQueue().getInput();
+            final Object input = myInput();
             if (!(input instanceof forge.gamemodes.match.input.InputConfirm)) { return null; }
+            final forge.game.player.Player mine = liveSelf(liveGame());
             try {
                 final var sa = (SpellAbility) field(input, forge.gamemodes.match.input.InputConfirm.class, "sa");
                 if (sa == null || sa.getHostCard() == null) { return null; }
@@ -2909,6 +2903,12 @@ public final class PlayBridge {
             return null;
         }
 
+        /** This seat's open input, which the game thread is parked on; null when it has none or is not human. */
+        private Object myInput() {
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            return mine != null && mine.getController() instanceof PlayerControllerHuman human ? human.getInputQueue().getInput() : null;
+        }
+
         /** This seat's own live {@code Player}, or null when the game or the seat is not readable. */
         private forge.game.player.Player liveSelf(final Game game) {
             if (game == null) { return null; }
@@ -2957,9 +2957,7 @@ public final class PlayBridge {
          * the combat. The game thread is parked on the input, so its combat is stable for the read.
          */
         private String buttonOneRefusal() {
-            final forge.game.player.Player mine = liveSelf(liveGame());
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
-            final Object input = human.getInputQueue().getInput();
+            final Object input = myInput();
             try {
                 if (input instanceof forge.gamemodes.match.input.InputBlock) {
                     final var combat = (forge.game.combat.Combat) field(input, forge.gamemodes.match.input.InputBlock.class, "combat");
@@ -3001,9 +2999,7 @@ public final class PlayBridge {
 
         /** Whether this seat's open input is one of the two that publish a selection, so {@link #legalPlayers} reads it. */
         private boolean selectionOpen() {
-            final forge.game.player.Player mine = liveSelf(liveGame());
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return false; }
-            final Object input = human.getInputQueue().getInput();
+            final Object input = myInput();
             return input instanceof forge.gamemodes.match.input.InputSelectTargets || input instanceof forge.gamemodes.match.input.InputSelectEntitiesFromList;
         }
 
@@ -3049,8 +3045,7 @@ public final class PlayBridge {
          * for this one.
          */
         private void syncConvokeSelectables() {
-            final forge.game.player.Player mine = liveSelf(liveGame());
-            final Object input = mine != null && mine.getController() instanceof PlayerControllerHuman human ? human.getInputQueue().getInput() : null;
+            final Object input = myInput();
             if (input == convokeOffered) { return; }
             if (convokeOffered != null) { clearSelectables(); }
             if (!(input instanceof forge.gamemodes.match.input.InputSelectCardsForConvokeOrImprovise)) { return; }
@@ -3082,9 +3077,7 @@ public final class PlayBridge {
          */
         private JsonArray legalPlayers() {
             final Game game = liveGame();
-            final forge.game.player.Player mine = liveSelf(game);
-            if (mine == null || !(mine.getController() instanceof PlayerControllerHuman human)) { return null; }
-            final Object input = human.getInputQueue().getInput();
+            final Object input = myInput();
             try {
                 final JsonArray out = new JsonArray();
                 if (input instanceof forge.gamemodes.match.input.InputSelectTargets) {
@@ -3901,6 +3894,13 @@ public final class PlayBridge {
             return o;
         }
 
+        /** {@code text} with Forge's {@code CARDNAME} and {@code NICKNAME} written as {@code host}'s name, as its inputs write them; as it is without a host. */
+        static String withCardName(final String text, final forge.game.card.Card host) {
+            if (host == null) { return text; }
+            final String name = host.getTranslatedName();
+            return text.replace("CARDNAME", name).replace("NICKNAME", forge.util.Lang.getInstance().getNickName(name));
+        }
+
         /**
          * A {@code Dig}'s own written text, as its card says it: the {@code SpellDescription} of the
          * dig or of the ability it hangs off, else its trigger's description (Dragonlord Ojutai's dig
@@ -3910,12 +3910,9 @@ public final class PlayBridge {
          */
         static String digText(final SpellAbility dig) {
             final SpellAbility own = dig instanceof WrappedAbility w ? w.getWrappedAbility() : dig;
-            final String name = own.getHostCard() == null ? null : own.getHostCard().getTranslatedName();
             for (SpellAbility s = own; s != null; s = s.getParent()) {
                 final String said = s.getParam("SpellDescription");
-                if (said != null && !said.isBlank()) {
-                    return name == null ? said : said.replace("CARDNAME", name).replace("NICKNAME", forge.util.Lang.getInstance().getNickName(name));
-                }
+                if (said != null && !said.isBlank()) { return withCardName(said, own.getHostCard()); }
             }
             final String triggered = own.getTrigger() == null ? "" : own.getTrigger().toString();
             return triggered.isBlank() ? null : triggered;
@@ -4404,8 +4401,7 @@ public final class PlayBridge {
          * is paid, finished, or being paid by Auto.
          */
         void cancelPayment() {
-            final forge.game.player.Player mine = liveSelf(liveGame());
-            final Object open = mine != null && mine.getController() instanceof PlayerControllerHuman human ? human.getInputQueue().getInput() : null;
+            final Object open = myInput();
             if (!(open instanceof InputPayMana pay)) {
                 System.err.println("[bridge] cancel-payment: seat " + seat + " has no open payment (" + open + "), nothing pressed");
                 return;
