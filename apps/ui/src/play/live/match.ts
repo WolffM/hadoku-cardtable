@@ -2058,17 +2058,27 @@ export function payingMana(match: LiveMatch): boolean {
 /**
  * Forge's payment input naming the payer's own life total as a way to pay
  * (`InputPayManaOfCostPayment.getMessage`, the `lblClickOnYourLifeTotalToPayLife…`
- * line): a Phyrexian shard, or black mana under "pay life instead". The server
+ * line): a Phyrexian shard, black mana under "pay life instead", or a life-paid
+ * mana ability with no card on the table (Channel's effect). The server
  * reads the same line (`apps/server/src/play/auto.ts`'s `LIFE_INSTEAD`); the
  * window's display drops it (`../prompts/lookup.ts`'s `LIFE_PAYMENT_LINE`).
  */
 const LIFE_PAYMENT = /^\(?Click on your life total to pay life for /m;
 
 /**
- * Life one press of {@link payWithLife} pays: Forge's fixed 2 per shard
- * (`InputPayManaOfCostPayment.onPlayerSelected`, `phyLifeToLose += 2`).
+ * Forge naming what one click on the life total pays when it is a life-paid mana ability with no
+ * card on the table (Channel's effect: `lblClickOnYourLifeTotalToPayLifeForMana`).
  */
-export const LIFE_PER_SHARD = 2;
+const LIFE_PER_CLICK = /^\(?Click on your life total to pay life for mana, (\d+) life a click\./m;
+
+/**
+ * Life one press of {@link payWithLife} pays: what Forge names for a life-paid mana ability, else
+ * its fixed 2 per Phyrexian shard (`InputPayManaOfCostPayment.onPlayerSelected`, `phyLifeToLose += 2`).
+ */
+export function lifePerPress(match: LiveMatch): number {
+  const named = LIFE_PER_CLICK.exec(match.prompt ?? '')?.[1];
+  return named === undefined ? 2 : Number(named);
+}
 
 /** A payment is open that the viewer may pay with life. */
 export function lifePayable(match: LiveMatch): boolean {

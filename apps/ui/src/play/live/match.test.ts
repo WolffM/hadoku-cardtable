@@ -35,6 +35,7 @@ import {
   declaringCombat,
   dismissReveal,
   lifePayable,
+  lifePerPress,
   lifePayer,
   payingMana,
   payWithLife,
@@ -2003,6 +2004,17 @@ describe('payingMana: the payment input, and not a bar that outlived it', () => 
     await sendAndApply(s, m, [payBar(false), promptFor('Pay {7}', mine[0]!), actionable([mine[0]!])]);
     expect(m.buttons!.enable1).toBe(false);
     expect(payingMana(m)).toBe(true);
+  });
+
+  it('a press pays what Forge names: 2 life a Phyrexian shard, the named life for Channel’s life-paid mana', async () => {
+    const { s, m } = await fullGame();
+    const { mine } = ids(m);
+    await sendAndApply(s, m, [payBar(false), promptFor('Pay Mana Cost: {U/P}\n(Click on your life total to pay life for phyrexian mana.)', mine[0]!), actionable([])]);
+    expect(lifePerPress(m)).toBe(2);
+    // `InputPayManaOfCostPayment.getMessage`: a Command-zone mana ability paid only with life.
+    await sendAndApply(s, m, [payBar(false), promptFor('Pay Mana Cost: {15}\n(Click on your life total to pay life for mana, 1 life a click.)', mine[0]!), actionable([])]);
+    expect(lifePayable(m)).toBe(true);
+    expect(lifePerPress(m)).toBe(1);
   });
 
   it('a payment Forge says takes life is paid with a press, one shard each, and the life total is no target', async () => {

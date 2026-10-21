@@ -313,9 +313,9 @@ import {
   genuinelyAsked,
   isAutoYieldOn,
   liveBar,
-  LIFE_PER_SHARD,
   lifePayable,
   lifePayer,
+  lifePerPress,
   nothingToDecide,
   choosingMulligan,
   clickCard,
@@ -1579,10 +1579,10 @@ function combatDoneLabel(match: LiveMatch): string | null {
  * (`InputPayMana.java:405`), and a cost that cannot be auto-paid has no default
  * answer at all — the player taps sources on the board instead.
  *
- * A cost Forge lets the payer pay with life (a Phyrexian shard, or black mana
- * under "pay life instead") gets a third button, labelled with what one press
- * pays: `payWithLife`, one shard per press, refused while the last press is
- * unanswered.
+ * A cost Forge lets the payer pay with life (a Phyrexian shard, black mana
+ * under "pay life instead", or Channel's life-for-{C}) gets a third button,
+ * labelled with what one press pays: `payWithLife`, one shard or one activation
+ * per press, refused while the last press is unanswered.
  *
  * No title. Forge's message is the question, and a heading here would be this
  * lane inventing a word for a window whose whole point is that it says what
@@ -1612,7 +1612,7 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
               disabled={bar === null || lifePayer(match) === null}
               onClick={() => payWithLife(match)}
             >
-              <ManaPip token="P" /> {LIFE_PER_SHARD} life
+              <ManaPip token="P" /> {lifePerPress(match)} life
             </button>
           )}
           <button
