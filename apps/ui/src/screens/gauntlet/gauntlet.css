@@ -171,19 +171,16 @@
   contain: size;
 }
 
-/* A column's pick is the same tile with its art band shorter and no pilot line. */
+/* A column's pick is the same tile with its art band shorter and no pilot line; its row
+   is taller by the space the pilot line's absence leaves under it. */
 .gauntlet__column .deckpick__option {
   grid-template:
     'art art art' minmax(0, 1fr)
-    'name style colors' auto / minmax(0, 1fr) auto auto;
+    'name style colors' calc(var(--deckpick-line) + 4px) / minmax(0, 1fr) auto auto;
 }
 
 .gauntlet__column .deckpick__pilot {
   display: none;
-}
-
-.gauntlet__column .deckpick__name {
-  margin-bottom: 6px;
 }
 
 .gauntlet__slot {

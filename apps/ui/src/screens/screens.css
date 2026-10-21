@@ -1088,13 +1088,20 @@
  * mark and the colours share the footer's first row, the player its second, and
  * the footer is a fixed height so every deck's art band is the same size whatever
  * its name's length and whether it has a player.
+ *
+ * The first row is a fixed track and its three cells are centred in it, with no
+ * vertical offsets of their own: the name, the mark and the pips sit on one line
+ * whatever their heights (the operator, 2026-10-21: "vertically justify the
+ * decktype icon and deck name so that it looks better with the color icons").
  */
 .deckpick__option {
+  --deckpick-line: 26px;
+
   position: relative;
   display: grid;
   grid-template:
     'art art art' minmax(0, 1fr)
-    'name style colors' auto
+    'name style colors' var(--deckpick-line)
     'pilot pilot pilot' 22px / minmax(0, 1fr) auto auto;
   align-items: center;
   min-width: 0;
@@ -1192,7 +1199,7 @@
  */
 .deckpick__name {
   grid-area: name;
-  margin: 6px 0 2px 8px;
+  margin-left: 8px;
   font-weight: 600;
   font-size: 13px;
   line-height: 1.3;
@@ -1218,8 +1225,7 @@
 
 .deckpick__option .deckcolors {
   grid-area: colors;
-  align-self: start;
-  padding: 6px 8px 0 6px;
+  padding: 0 8px 0 6px;
 }
 
 /*
@@ -1266,8 +1272,6 @@
 
 .deckpick__option .decktag {
   grid-area: style;
-  align-self: start;
-  padding-top: 9px;
   padding-left: 6px;
 }
 
