@@ -170,22 +170,14 @@ export interface RoomView {
   pod: RoomPod;
 }
 
-/**
- * The types the create form offers, and whether it lets you pick them. Draft
- * was offered but not pickable from 2026-10-10 to 2026-10-17 (the operator:
- * *"make 'Draft' unselectable … and add a "(Coming Soon)" behind it"*). The
- * glue that was missing — building a deck from the pool and playing it — now
- * exists, so both types are pickable.
- */
-export const GAME_TYPES: readonly { value: GameType; label: string; ready: boolean }[] = [
-  { value: 'constructed-1v1', label: 'Constructed 1v1', ready: true },
-  { value: 'draft', label: 'Draft', ready: true },
+/** The types the create form offers, as the operator named them (2026-10-21). The wire ids stay. */
+export const GAME_TYPES: readonly { value: GameType; label: string }[] = [
+  { value: 'constructed-1v1', label: 'Constructed' },
+  { value: 'draft', label: 'Draft' },
 ];
 
 export function gameTypeLabel(gameType: string): string {
-  if (gameType === 'constructed-1v1') return 'Constructed 1v1';
-  if (gameType === 'draft') return 'Draft';
-  return gameType;
+  return GAME_TYPES.find((t) => t.value === gameType)?.label ?? gameType;
 }
 
 /** The mode in two or three words, for a list row or a header. */

@@ -163,7 +163,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
  * name if both were imported bare into this file.
  */
-import type { RoomTable as SharedRoomTable } from '@hadoku/shared';
+import type { ConstructedMode, GauntletOptions as GauntletModeOptions, RoomTable as SharedRoomTable } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
@@ -182,17 +182,21 @@ import { dckTextOf, deckFromPool, draftBuild, savedBuild } from '../draft/deckFr
 import type { DraftTransport } from '../draft/socket.ts';
 import type { DraftCard } from '../draft/types.ts';
 import {
+  gameTypeLabel,
   roomsClient,
   streamPath,
   streamReachable,
   type ClientMode,
   type Fetch,
   type RoomMember,
+  type RoomOutcome,
   type RoomView,
   type RoomsClient,
 } from '../rooms/api.ts';
+import { ClassicOptions, type Browse } from './constructed-mode/ClassicOptions.tsx';
+import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
+import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import {
-  FORMAT_TABS,
   FREE_PICK,
   RANDOM_DECK,
   isEra,
@@ -202,13 +206,13 @@ import {
   secureRandom,
   tablesClient,
   type DeckRef,
-  type FormatFamily,
   type LegalSweep,
   type RoomPlayer,
   type SeatDeck,
   type RoomTable,
   type DeckLine,
   type TableDeck,
+  type GauntletEraOption,
   type TableFormat,
   type TablesClient,
 } from './tables.ts';
@@ -361,55 +365,8 @@ const LIBRARY_ART_IDS: ArtIdIndex = artIdIndexFromTable(artIdsData as ArtIdTable
 /** Rarity and card type of each library card, for the art rule (`scripts/art/build-deck-art-traits.ts`). */
 const LIBRARY_ART_TRAITS: Readonly<Record<string, string>> = deckArtTraits.traits;
 
-function poolLabel(formats: readonly TableFormat[], id: string): string {
-  const found = formats.find((f) => f.id === id);
-  if (found === undefined) return id;
-  return found.source === 'free' ? found.name : `${found.id} — ${found.name}`;
-}
-
-/* ── the format tab selector (wave 48 §U) ─────────────────────────────── */
-
-/** Free pick's browse: a format's library, or the decks you drafted (`#/decks`). */
-type BrowseTab = FormatFamily | 'mine';
-const BROWSE_TABS: ReadonlyArray<{ id: BrowseTab; label: string }> = [...FORMAT_TABS, { id: 'mine', label: 'My decks' }];
-
 /** A "My decks" option's value: the pod it was drafted in, never a library id. */
 const MY_DECK = 'mine:';
-
-/**
- * `formats`, narrowed to one tab's own eras, newest year first.
- *
- * Grouped on `family` — data the server sends — never on a parsed name
- * (brief item 2): a `Standard (ORI)` string tells a person which card frame
- * it was, not which of three tabs it belongs on.
- *
- * Sorted by `id` descending rather than by a parsed date: a Standard id IS its
- * bare `YYYY-MM-DD` date, and a Modern/Legacy id is `<family>-<date>` with the
- * SAME family prefix for every era in one tab's own list, so lexicographic
- * order on `id` is chronological order within the tab either way.
- */
-export function erasOf(formats: readonly TableFormat[], tab: FormatFamily): TableFormat[] {
-  return formats
-    .filter((f) => isEra(f) && f.family === tab)
-    .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
-}
-
-/**
- * Whether `poolId` — the room's ACTUAL pool — is one of the options `tab`
- * itself offers.
- *
- * Found live (w48 §U): a native `<select>` whose `value` matches none of its
- * `<option>`s falls back to showing the FIRST option as already selected, so
- * a leader browsing a tab the room is not on would see an era highlighted
- * that was never chosen — and clicking that exact one fires no `change`
- * event (the browser already considered it selected), so the room could
- * never be moved to it. The caller uses this to render no selection at all
- * on a tab the room's own era is not part of, rather than let the DOM invent
- * one.
- */
-export function poolIsOnTab(formats: readonly TableFormat[], tab: FormatFamily, poolId: string): boolean {
-  return erasOf(formats, tab).some((f) => f.id === poolId);
-}
 
 /* ── a drafted deck ───────────────────────────────────────────────────── */
 
@@ -1169,31 +1126,6 @@ function RoomTableScreen({
   /** Free pick: every library deck, whatever its era. No tab is the table's while it is on. */
   const freePick = poolId === FREE_PICK;
   const handSmoothing = view?.settings.handSmoothing ?? true;
-  /** Which tab the table is actually on: its era's family. */
-  const tabOfPool = poolFormat?.family ?? 'standard';
-  /**
-   * The LEADER's format tab (operator, 2026-10-05: *"i'll need a tab selector
-   * at the top for picking the format as well obviously"*).
-   *
-   * Opens on the table's own era's family and FOLLOWS it there — the effect
-   * below re-syncs whenever `poolId` moves (every write that moved the room's
-   * pool, mine or another browser's) and whenever `tabOfPool` does, which
-   * without a pool move is only the catalogue arriving after the room and
-   * naming the era's family at last. Switching tabs by hand changes neither,
-   * so it only BROWSES which eras the `<select>` below offers; nothing is sent
-   * until an option in it is chosen, same as the control always worked.
-   */
-  const [formatTab, setFormatTab] = useState<FormatFamily>(tabOfPool);
-  useEffect(() => setFormatTab(tabOfPool), [poolId, tabOfPool]);
-  /**
-   * Whether the room's actual pool is one of THIS tab's own options.
-   *
-   * False while browsing a tab the room is not on (its own era is a different
-   * family). The `<select>` below reads this to decide whether to show
-   * `poolId` as chosen or nothing at all — see the comment on the select
-   * itself for why "nothing at all" is the one safe answer.
-   */
-  const poolOnTab = poolIsOnTab(loaded?.formats ?? [], formatTab, poolId);
 
   // The formats and the decks — for a constructed table only. A draft room has
   // no deck to hold, and `routes.ts` refuses every table write it could make.
@@ -1374,6 +1306,23 @@ function RoomTableScreen({
   /** A start asked for or a match running: the table is no longer anyone's to change. */
   const underway = starting || matchId !== null;
   /**
+   * The room's Constructed mode, or null until the leader picks one. A room
+   * record that could not be read leaves the mode unknown, and the table then
+   * draws as Classic — the table it has always drawn without that record.
+   */
+  const mode = view === null ? 'classic' : view.mode;
+  /**
+   * The mode is the leader's to change until somebody readies or the game is
+   * under way (ruling 8); the server's `mode-locked` is the same rule, and the
+   * refusal it answers a late press with is shown like any other.
+   */
+  const modeLocked = underway || players.some((p) => p.ready);
+  /**
+   * What stands between my seat and Ready: in Classic, a legal deck of my
+   * own; in Gauntlet and All Random the room deals the decks, so only the seat.
+   */
+  const canReady = mode === 'classic' ? deckId !== '' && myLegal : seated;
+  /**
    * The room's own table record (wave 71 §D's wire shape, via `@hadoku/shared`),
    * for the SERIES it carries — `wins`, `games`, `phase` — none of which
    * `./tables.ts`'s own `RoomTable` (`table`, above) has. A constructed 1v1
@@ -1394,7 +1343,7 @@ function RoomTableScreen({
   const pending = !streamed && !settled && (!resolved || (!draftRoom && table === null));
   /** Whether the deck card is on the screen at all: nothing below asks for it otherwise. */
   const picking =
-    !streamed && !draftRoom && resolved && locked === null && table !== null && !spectating && loaded !== null;
+    !streamed && !draftRoom && mode === 'classic' && resolved && locked === null && table !== null && !spectating && loaded !== null;
 
   // Which decks the ROOM's pool offers. One sweep per pool, remembered — see
   // `legalDecksIn`. Gated on the card being drawn, so a streamed room, a
@@ -1551,7 +1500,7 @@ function RoomTableScreen({
    * room: it filters what THIS screen shows. `deckOptions` stays the whole
    * offer, so a deck you hold is still yours while you look at another tab.
    */
-  const [browse, setBrowse] = useState<{ family: BrowseTab; era: string }>({ family: 'standard', era: '' });
+  const [browse, setBrowse] = useState<Browse>({ family: 'standard', era: '' });
   /** A library deck's era, by the era id the server gives each deck. */
   const eraOfDeck = useMemo(() => {
     const out = new Map<string, TableFormat>();
@@ -1805,32 +1754,15 @@ function RoomTableScreen({
    * that is drafting — is shown in the server's own words, and nothing local
    * has moved, so the screen still reads what the table is actually on.
    */
-  const choosePool = (value: string): void => {
-    if (value === poolId) return;
-    if (queued(() => choosePool(value))) return;
+  /**
+   * One LEADER write to the room (its pool, its mode, a setting), answered
+   * with the room as it now is or the server's own refusal.
+   */
+  const writeRoom = (write: () => Promise<RoomOutcome>): void => {
+    if (queued(() => writeRoom(write))) return;
     setBusy(true);
     setActionError(null);
-    rooms
-      .setFormat(roomId, value)
-      .then((outcome) => {
-        if (!outcome.ok) {
-          setActionError(outcome.message);
-          return;
-        }
-        writes.current += 1;
-          setView(outcome.room);
-      })
-      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setBusy(false));
-  };
-
-  /** The LEADER flipped hand smoothing: a room write, answered like `choosePool`. */
-  const toggleHandSmoothing = (): void => {
-    if (queued(() => toggleHandSmoothing())) return;
-    setBusy(true);
-    setActionError(null);
-    rooms
-      .setSettings(roomId, { handSmoothing: !handSmoothing })
+    write()
       .then((outcome) => {
         if (!outcome.ok) {
           setActionError(outcome.message);
@@ -1841,6 +1773,37 @@ function RoomTableScreen({
       })
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
       .finally(() => setBusy(false));
+  };
+
+  const choosePool = (value: string): void => {
+    if (value !== poolId) writeRoom(() => rooms.setFormat(roomId, value));
+  };
+
+  /** The LEADER flipped hand smoothing. */
+  const toggleHandSmoothing = (): void => writeRoom(() => rooms.setSettings(roomId, { handSmoothing: !handSmoothing }));
+
+  /** The eras a Gauntlet is offered in, read once the room is on Gauntlet. */
+  const [gauntletEras, setGauntletEras] = useState<GauntletEraOption[] | null>(null);
+  const wantsGauntletEras = mode === 'gauntlet' && gauntletEras === null;
+  useEffect(() => {
+    if (!wantsGauntletEras) return;
+    let live = true;
+    client
+      .gauntletEras()
+      .then((eras) => {
+        if (live) setGauntletEras(eras);
+      })
+      .catch((err: unknown) => {
+        if (live) setActionError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      live = false;
+    };
+  }, [client, wantsGauntletEras]);
+
+  /** The LEADER picked a mode: the room moves to it with that mode's first options. */
+  const chooseMode = (next: ConstructedMode): void => {
+    if (next !== mode) writeRoom(() => rooms.setRoomMode(roomId, freshRoomMode(next)));
   };
 
   /*
@@ -1974,11 +1937,7 @@ function RoomTableScreen({
             names our table. */}
         {resolved ? (
           <p className="shell__sub" data-testid="room-client-mode">
-            {streamed
-              ? 'Forge’s full client'
-              : draftRoom
-                ? 'Draft'
-                : 'Constructed 1v1'}
+            {streamed ? 'Forge’s full client' : gameTypeLabel(view?.gameType ?? 'constructed-1v1')}
           </p>
         ) : (
           <span className="skeleton skeleton--sub" />
@@ -2065,6 +2024,44 @@ function RoomTableScreen({
 
         {!draftRoom && table !== null && (
           <>
+            {/* The mode, and the chosen mode's options beside it. With no mode
+                chosen this row is the whole room (the operator, 2026-10-21). */}
+            <section className="lobby__card">
+              <div className="lobby__modeline">
+                <ModeRow mode={mode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
+                {mode === 'classic' && loaded !== null && (
+                  <ClassicOptions
+                    formats={loaded.formats}
+                    poolId={poolId}
+                    leader={iAmLeader}
+                    disabled={underway}
+                    onPool={choosePool}
+                    browse={browse}
+                    onBrowse={setBrowse}
+                    handSmoothing={handSmoothing}
+                    onHandSmoothing={toggleHandSmoothing}
+                  />
+                )}
+                {mode === 'gauntlet' && gauntletEras !== null && (
+                  <GauntletOptions
+                    eras={gauntletEras}
+                    // The pair parsed together (`parseRoomView`), so a Gauntlet's options are Gauntlet's.
+                    options={(view?.modeOptions ?? {}) as GauntletModeOptions}
+                    leader={iAmLeader}
+                    disabled={modeLocked}
+                    onChange={(options) => writeRoom(() => rooms.setRoomMode(roomId, { mode: 'gauntlet', modeOptions: options }))}
+                  />
+                )}
+              </div>
+              {actionError !== null && (
+                <p className="lobby__error" role="alert" data-testid="table-error">
+                  {actionError}
+                </p>
+              )}
+            </section>
+
+            {mode !== null && (
+              <>
             <section className="lobby__card">
               {/* Where the table stands sits on its heading's line, which has the
                   width to spare: a line added under the seats comes off the room's height. */}
@@ -2118,7 +2115,7 @@ function RoomTableScreen({
                           type="button"
                           className="tables__sit"
                           data-testid="play-vs-bot"
-                          disabled={!myLegal || underway}
+                          disabled={!canReady || underway}
                           onClick={startVsBot}
                         >
                           AI
@@ -2134,7 +2131,7 @@ function RoomTableScreen({
                       player={player}
                       leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
                       {...(player.you
-                        ? { onReady: () => setReady(!player.ready), readyDisabled: deckId === '' || !myLegal || underway }
+                        ? { onReady: () => setReady(!player.ready), readyDisabled: !canReady || underway }
                         : {})}
                       {...(player.you ? { onStand: standUp, standDisabled: tableLocked || underway } : {})}
                     />
@@ -2168,181 +2165,10 @@ function RoomTableScreen({
               <section className="lobby__card">
                 <TableSideboard key={`${myTable.id}:${myTable.series.games.length}`} roomId={roomId} tableId={myTable.id} refresh={view} tables={client} />
               </section>
-            ) : loaded === null ? (
+            ) : mode !== 'classic' ? null : loaded === null ? (
               loadError === null && <DeckCardSkeleton />
             ) : (
                 <section className="lobby__card lobby__decks">
-                  {/* The card's heading opens the pool's row: Ready is on my seat, Forge's AI
-                      on the empty one, and Random among the filters (the operator,
-                      2026-10-16), so the heading has no line of its own to fill. */}
-                  <div className="lobby__deckformat">
-                    <h2>Your deck</h2>
-                    {/* The table's pool: "Format" — one pool, both seats, checked
-                        against the same list, across Standard, Modern and Legacy
-                        alike (wave 48 §U). The LEADER gets a control; everybody else reads
-                        the same text and cannot move it, which is the whole of
-                        *"people who join can only select from the deck
-                        dropdown"*. */}
-                    {iAmLeader ? (
-                      <>
-                        {/* On Free pick the leader's switch says so and the browse tabs
-                            name themselves; the label would only push the switch onto
-                            a second line, and that line comes off the deck grid. */}
-                        {!freePick && (
-                          <label className="lobby__field" htmlFor="format">
-                            Format
-                          </label>
-                        )}
-                        {/* The format tab selector (wave 48 §U), replacing the single
-                            "Matched Standard" optgroup: Standard, Modern, Legacy. The active tab opens
-                            on the table's own era and only browses which eras the
-                            select below offers; nothing moves the room until an option
-                            in it is chosen. No prose: the tabs are the explanation. */}
-                        {!freePick && (
-                          <div className="lobby__format-tabs" role="tablist" data-testid="format-tabs">
-                            {FORMAT_TABS.map((tab) => (
-                              <button
-                                key={tab.id}
-                                type="button"
-                                role="tab"
-                                aria-selected={formatTab === tab.id}
-                                data-testid={`format-tab-${tab.id}`}
-                                disabled={underway}
-                                onClick={() => {
-                                  setFormatTab(tab.id);
-                                  // A tab whose eras do not include the room's pool chooses its first era
-                                  // (newest, the list's order) at once, rather than showing nothing chosen
-                                  // until the leader picks (the operator, 2026-10-07: "selecting modern
-                                  // should default the year selection to the first available").
-                                  if (loaded !== null && !poolIsOnTab(loaded.formats, tab.id, poolId)) {
-                                    const first = erasOf(loaded.formats, tab.id)[0];
-                                    if (first !== undefined) choosePool(first.id);
-                                  }
-                                }}
-                              >
-                                {tab.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {/* The era the room is ACTUALLY on is not always one this
-                            tab offers (you are browsing Modern while the room
-                            sits on a Standard era), and a native `<select>`
-                            whose `value` matches none of its `<option>`s falls
-                            back to showing the FIRST one as already selected —
-                            which then fires no `change` event if that is the
-                            very one you click, so the room could never be moved
-                            to it (found live, w48 §U: `selectOption` on that
-                            first option sent no PATCH). A disabled, hidden,
-                            EMPTY placeholder option — never any text — keeps
-                            the select correctly showing nothing chosen on this
-                            tab, so every real era here is a genuine change. */}
-                        {!freePick && (
-                          <select
-                            id="format"
-                            data-testid="format"
-                            value={poolOnTab ? poolId : ''}
-                            disabled={underway}
-                            onChange={(e) => choosePool(e.target.value)}
-                          >
-                            {!poolOnTab && <option value="" disabled hidden />}
-                            {erasOf(loaded.formats, formatTab).map((f) => (
-                              <option key={f.id} value={f.id}>
-                                {f.id} — {f.name}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {/* "Free pick" names itself; the label beside it would wrap
-                            the browse row (found at 1024x700 on the CI runner's fonts). */}
-                        {!freePick && <span className="lobby__field">Format</span>}
-                        <span className="lobby__pool" data-testid="format-fixed" data-format={poolId}>
-                          {poolLabel(loaded.formats, poolId)}
-                        </span>
-                      </>
-                    )}
-                    {/* On Free pick, everybody's own browse — see `shownOptions`. */}
-                    {freePick && (
-                      <>
-                        <div className="lobby__format-tabs" role="tablist" data-testid="browse-tabs">
-                          {BROWSE_TABS.map((tab) => (
-                            <button
-                              key={tab.id}
-                              type="button"
-                              role="tab"
-                              aria-selected={browse.family === tab.id}
-                              data-testid={`browse-tab-${tab.id}`}
-                              onClick={() => setBrowse({ family: tab.id, era: '' })}
-                            >
-                              {tab.label}
-                            </button>
-                          ))}
-                        </div>
-                        {/* My decks have no years. */}
-                        {browse.family !== 'mine' && (
-                          <select
-                            data-testid="browse-era"
-                            aria-label={`${browse.family} year`}
-                            value={browse.era}
-                            onChange={(e) => setBrowse({ family: browse.family, era: e.target.value })}
-                          >
-                            <option value="">All years</option>
-                            {/* A format has one era a year, so the year names it, and a
-                                short option keeps this row one line high. */}
-                            {erasOf(loaded.formats, browse.family).map((f) => (
-                              <option key={f.id} value={f.id} title={f.name}>
-                                {f.effective.slice(0, 4)}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </>
-                    )}
-                    {/* The leader's switches, together at the row's far end. */}
-                    {iAmLeader && (
-                      <span className="lobby__switches">
-                        {/* Free pick is a switch of its own, not a fourth tab: on, the
-                            whole library is the pool and everyone browses it by format
-                            on this row; off, the leader's tabs pick the room's era again. Off
-                            lands on the era being browsed, else that format's newest. */}
-                        <button
-                          type="button"
-                          className="lobby__free-pick"
-                          aria-pressed={freePick}
-                          data-testid="free-pick"
-                          disabled={underway}
-                          onClick={() => {
-                            if (!freePick) {
-                              setBrowse({ family: formatTab, era: '' });
-                              choosePool(FREE_PICK);
-                              return;
-                            }
-                            const family = browse.family === 'mine' ? 'standard' : browse.family;
-                            const era = browse.era || erasOf(loaded.formats, family)[0]?.id;
-                            choosePool(era ?? newestFormat(loaded.formats));
-                          }}
-                        >
-                          Free pick
-                        </button>
-                        {/* The room's first match setting: the opening hand nearer the
-                            deck's land ratio, each mulligan weighted toward it. */}
-                        <button
-                          type="button"
-                          className="lobby__free-pick"
-                          aria-pressed={handSmoothing}
-                          data-testid="hand-smoothing"
-                          disabled={underway}
-                          onClick={toggleHandSmoothing}
-                        >
-                          Hand smoothing
-                        </button>
-                      </span>
-                    )}
-
-                  </div>
                   {/* The sets the chosen era is made of, as symbols — the operator's
                       own ask, for a Standard era. An
                       eternal format's forty-odd sets drew a strip the operator called
@@ -2366,12 +2192,6 @@ function RoomTableScreen({
                     </button>
                   </div>
 
-                  {actionError !== null && (
-                    <p className="lobby__error" role="alert" data-testid="table-error">
-                      {actionError}
-                    </p>
-                  )}
-
                   {/* Only the decks the room's pool offers, and the pool's
                       answer is the gate's. Disabled until it has answered: an
                       option list assembled before the answer would offer decks
@@ -2389,6 +2209,8 @@ function RoomTableScreen({
                     onChoose={chooseDeck}
                   />
                 </section>
+            )}
+              </>
             )}
           </>
         )}

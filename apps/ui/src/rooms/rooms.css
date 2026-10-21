@@ -140,7 +140,8 @@
 }
 
 .rooms__password label,
-.rooms__create label {
+.rooms__create label,
+.rooms__caption {
   flex-basis: 100%;
   color: var(--ink-faint);
   font-size: 12px;

@@ -1065,10 +1065,10 @@
   align-items: stretch;
 }
 
-/* A card's heading shares its line: "At the table" with where the table
-   stands, "Your deck" with the pool's controls, on one wrapping line. */
+/* A line that wraps: "At the table" with where the table stands, and the
+   room's mode with that mode's options. */
 .lobby__deckhead,
-.lobby__deckformat {
+.lobby__modeline {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1079,7 +1079,7 @@
   justify-content: space-between;
 }
 
-.lobby__deckformat .lobby__format-tabs {
+.lobby__modeline .lobby__format-tabs {
   margin-bottom: 0;
 }
 

@@ -70,6 +70,13 @@ export function isEra(f: TableFormat): boolean {
   return f.source !== 'free';
 }
 
+/** One era a Gauntlet may be played in, as `GET /api/tables/gauntlet/eras` names it ("Modern — 2022"). */
+export interface GauntletEraOption {
+  id: string;
+  family: FormatFamily;
+  title: string;
+}
+
 export interface TableFormat {
   id: string;
   name: string;
@@ -80,6 +87,41 @@ export interface TableFormat {
   source: string;
   /** Which tab this era belongs to. The server sends it; this is never parsed from `name`. */
   family: FormatFamily;
+}
+
+/**
+ * `formats`, narrowed to one tab's own eras, newest year first.
+ *
+ * Grouped on `family` — data the server sends — never on a parsed name
+ * (brief item 2): a `Standard (ORI)` string tells a person which card frame
+ * it was, not which of three tabs it belongs on.
+ *
+ * Sorted by `id` descending rather than by a parsed date: a Standard id IS its
+ * bare `YYYY-MM-DD` date, and a Modern/Legacy id is `<family>-<date>` with the
+ * SAME family prefix for every era in one tab's own list, so lexicographic
+ * order on `id` is chronological order within the tab either way.
+ */
+export function erasOf(formats: readonly TableFormat[], tab: FormatFamily): TableFormat[] {
+  return formats
+    .filter((f) => isEra(f) && f.family === tab)
+    .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+}
+
+/**
+ * Whether `poolId` — the room's ACTUAL pool — is one of the options `tab`
+ * itself offers.
+ *
+ * Found live (w48 §U): a native `<select>` whose `value` matches none of its
+ * `<option>`s falls back to showing the FIRST option as already selected, so
+ * a leader browsing a tab the room is not on would see an era highlighted
+ * that was never chosen — and clicking that exact one fires no `change`
+ * event (the browser already considered it selected), so the room could
+ * never be moved to it. The caller uses this to render no selection at all
+ * on a tab the room's own era is not part of, rather than let the DOM invent
+ * one.
+ */
+export function poolIsOnTab(formats: readonly TableFormat[], tab: FormatFamily, poolId: string): boolean {
+  return erasOf(formats, tab).some((f) => f.id === poolId);
 }
 
 export interface DeckLine {
@@ -218,6 +260,8 @@ export interface TablesClient {
   check(seat: SeatChoice): Promise<Verdict>;
   /** Which library decks are legal in a Standard-family era: the gate's answer, in one call. */
   legal(formatId: string): Promise<string[]>;
+  /** The eras a Gauntlet can be played in: the server's own list, each with ten decks or more. */
+  gauntletEras(): Promise<GauntletEraOption[]>;
   /** Against Forge's AI only. A match against a person starts from a room. */
   start(opponent: 'human' | 'ai', seats: [SeatChoice, SeatChoice]): Promise<StartOutcome>;
   /**
@@ -320,6 +364,10 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       const body = await readJson(res);
       if (res.status !== 200) throw new Error(errorOf(body, res.status));
       return Array.isArray(body.legal) ? body.legal.filter((id): id is string => typeof id === 'string') : [];
+    },
+    gauntletEras: async () => {
+      const eras = (await get('tables/gauntlet/eras')).eras;
+      return Array.isArray(eras) ? (eras as GauntletEraOption[]) : [];
     },
     start: async (opponent, seats) => {
       const { status, body } = await post('play/matches', { opponent, seats });

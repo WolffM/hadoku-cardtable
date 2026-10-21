@@ -48,6 +48,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@wolffm/themes';
+import type { ConstructedMode } from '@hadoku/shared';
 
 import { navigate } from '../screens/route.ts';
 import { warmRoom } from './warm.ts';
@@ -63,6 +64,8 @@ import {
   type RoomsClient,
 } from './api.ts';
 import { avatarSquareUrl } from '../room/avatar.ts';
+import { RadioCards } from '../components/RadioCards.tsx';
+import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
 import './rooms.css';
 import { uiLength } from '../settings/ui-scale.ts';
 
@@ -379,6 +382,8 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
 function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: () => void }) {
   const [name, setName] = useState('');
   const [gameType, setGameType] = useState<GameType>('constructed-1v1');
+  /** Optional: a Constructed room created with none asks its leader first. */
+  const [mode, setMode] = useState<ConstructedMode | null>(null);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -394,7 +399,13 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
     playRole('ui.select');
     setBusy(true);
     setError(null);
-    const outcome = await client.create({ name: trimmed, gameType, clientMode: 'builtin', password });
+    const outcome = await client.create({
+      name: trimmed,
+      gameType,
+      clientMode: 'builtin',
+      password,
+      ...(gameType === 'constructed-1v1' && mode !== null ? { mode: freshRoomMode(mode) } : {}),
+    });
     if (!outcome.ok) {
       setBusy(false);
       playRole('ui.deny');
@@ -456,19 +467,22 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
           }}
         />
 
-        <label htmlFor="room-create-type">Game type</label>
-        <select
-          id="room-create-type"
-          data-testid="room-create-type"
-          value={gameType}
-          onChange={(e) => setGameType(e.target.value as GameType)}
-        >
-          {GAME_TYPES.map((t) => (
-            <option key={t.value} value={t.value} disabled={!t.ready}>
-              {t.ready ? t.label : `${t.label} (Coming Soon)`}
-            </option>
-          ))}
-        </select>
+        <span className="rooms__caption">Game type</span>
+        <RadioCards name="room-create-type" label="Game type" options={GAME_TYPES} value={gameType} onChange={setGameType} testId="room-create-type" />
+
+        {gameType === 'constructed-1v1' && (
+          <>
+            <span className="rooms__caption">Mode (optional)</span>
+            <RadioCards
+              name="room-create-constructed-mode"
+              label="Mode"
+              options={MODE_CARDS}
+              value={mode}
+              onChange={setMode}
+              testId="room-create-constructed-mode"
+            />
+          </>
+        )}
 
         <label htmlFor="room-create-password">Password (optional)</label>
         <input

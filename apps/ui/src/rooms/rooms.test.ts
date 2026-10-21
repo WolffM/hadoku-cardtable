@@ -175,7 +175,7 @@ describe('the list', () => {
 
     const open = rowFor('r-open');
     expect(within(open).getByTestId('room-name').textContent).toBe('Friday night');
-    expect(within(open).getByTestId('room-type').textContent).toBe('Constructed 1v1');
+    expect(within(open).getByTestId('room-type').textContent).toBe('Constructed');
     expect(within(open).getByTestId('room-members').textContent).toBe('alice');
     expect(within(open).queryByTestId('room-locked')).toBeNull();
 
@@ -297,9 +297,11 @@ describe('the room’s readiness', () => {
     expect(within(rowFor('r-open')).queryByTestId('room-drafting')).toBeNull();
   });
 
-  it('offers draft and constructed as the two pickable game types', () => {
-    expect(GAME_TYPES.find((t) => t.value === 'draft')).toEqual({ value: 'draft', label: 'Draft', ready: true });
-    expect(GAME_TYPES.find((t) => t.value === 'constructed-1v1')?.ready).toBe(true);
+  it('offers Constructed and Draft, by the names the operator gave them', () => {
+    expect(GAME_TYPES).toEqual([
+      { value: 'constructed-1v1', label: 'Constructed' },
+      { value: 'draft', label: 'Draft' },
+    ]);
   });
 });
 
@@ -602,14 +604,15 @@ describe('a seat\u2019s stream', () => {
 /* ── create ──────────────────────────────────────────────────────────── */
 
 describe('creating a room', () => {
-  it('sends the name, the chosen game type and the password, then enters the room', async () => {
+  it('sends the name, the chosen game type and mode and the password, then enters the room', async () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
     openCreate();
 
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: '  Friday night  ' } });
-    fireEvent.change(screen.getByTestId('room-create-type'), { target: { value: 'constructed-1v1' } });
+    fireEvent.click(screen.getByTestId('room-create-type-constructed-1v1'));
+    fireEvent.click(screen.getByTestId('room-create-constructed-mode-classic'));
     fireEvent.change(screen.getByTestId('room-create-password'), { target: { value: 'hunter2' } });
     await act(async () => {
       fireEvent.click(screen.getByTestId('room-create-submit'));
@@ -619,22 +622,31 @@ describe('creating a room', () => {
     expect(post).toEqual({
       url: '/cardtable/api/rooms',
       method: 'POST',
-      body: { name: 'Friday night', gameType: 'constructed-1v1', clientMode: 'builtin', password: 'hunter2' },
+      body: { name: 'Friday night', gameType: 'constructed-1v1', clientMode: 'builtin', password: 'hunter2', mode: 'classic', modeOptions: {} },
     });
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
   });
 
-  it('omits an empty password, and offers Draft as a plain, pickable option', async () => {
+  it('omits an empty password and an unchosen mode: the type is two radios, Constructed first and chosen, and no mode is', async () => {
     const { client, calls } = server([]);
     mount(client);
     await screen.findByTestId('rooms-empty');
     openCreate();
 
-    const draft = within(screen.getByTestId('room-create-type')).getByRole('option', { name: 'Draft' }) as HTMLOptionElement;
-    expect(draft.disabled).toBe(false);
-    expect(draft.value).toBe('draft');
-    // Constructed is still the one the form opens on.
-    expect((screen.getByTestId('room-create-type') as HTMLSelectElement).value).toBe('constructed-1v1');
+    const types = within(screen.getByTestId('room-create-type')).getAllByRole('radio') as HTMLInputElement[];
+    expect(types.map((r) => [r.value, r.checked, r.disabled])).toEqual([
+      ['constructed-1v1', true, false],
+      ['draft', false, false],
+    ]);
+    expect(screen.getByRole('radiogroup', { name: 'Game type' }).textContent).toBe('ConstructedDraft');
+    const modes = within(screen.getByTestId('room-create-constructed-mode')).getAllByRole('radio') as HTMLInputElement[];
+    expect(modes.map((r) => [r.value, r.checked])).toEqual([
+      ['classic', false],
+      ['gauntlet', false],
+      ['random', false],
+    ]);
+    expect(screen.getByTestId('room-create-constructed-mode').textContent).toBe('ClassicGauntletAll Random');
+    expect(screen.queryByRole('combobox')).toBeNull();
 
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Open table' } });
     await act(async () => {
@@ -654,8 +666,11 @@ describe('creating a room', () => {
     openCreate();
 
     fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Cube night' } });
-    fireEvent.change(screen.getByTestId('room-create-type'), { target: { value: 'draft' } });
-    expect((screen.getByTestId('room-create-type') as HTMLSelectElement).value).toBe('draft');
+    // A mode picked for Constructed is not sent with a draft: a draft room has none.
+    fireEvent.click(screen.getByTestId('room-create-constructed-mode-gauntlet'));
+    fireEvent.click(screen.getByTestId('room-create-type-draft'));
+    expect((screen.getByTestId('room-create-type-draft') as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByTestId('room-create-constructed-mode')).toBeNull();
     await act(async () => {
       fireEvent.click(screen.getByTestId('room-create-submit'));
     });
@@ -686,6 +701,25 @@ describe('creating a room', () => {
     expect(parseRoomView({ ...OPEN, mode: 'random', modeOptions: { pool: 'vintage' } })).toMatchObject({ mode: null, modeOptions: null });
     const { mode: _m, modeOptions: _o, ...older } = OPEN;
     expect(parseRoomView(older)).toMatchObject({ mode: null, modeOptions: null });
+  });
+
+  it('All Random is created on the whole library, and Gauntlet with no options (a random era)', async () => {
+    for (const [mode, modeOptions] of [
+      ['random', { pool: 'full' }],
+      ['gauntlet', {}],
+    ] as const) {
+      const { client, calls } = server([]);
+      mount(client);
+      await screen.findByTestId('rooms-empty');
+      openCreate();
+      fireEvent.change(screen.getByTestId('room-create-name'), { target: { value: 'Shuffle' } });
+      fireEvent.click(screen.getByTestId(`room-create-constructed-mode-${mode}`));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('room-create-submit'));
+      });
+      expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ name: 'Shuffle', gameType: 'constructed-1v1', clientMode: 'builtin', mode, modeOptions });
+      cleanup();
+    }
   });
 
   it('a draft room made through the API still lands as a room, not a pod route', async () => {

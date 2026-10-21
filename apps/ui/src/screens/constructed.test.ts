@@ -36,7 +36,7 @@ import { forgetMatchesFollowed } from '../play/live/matchStart.ts';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
-import type { DraftCard } from '@hadoku/shared';
+import type { DraftCard, RoomMode } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
 import { BASIC_LAND_NAMES, deckColorsByName, mainDeckSize } from '@hadoku/deck';
 import {
@@ -55,11 +55,9 @@ import {
   ConstructedScreen,
   DRAFTED_BASICS,
   draftedDeckOf,
-  erasOf,
   openDraftedDeck,
   groupSetsByBlock,
   manaValueOf,
-  poolIsOnTab,
 } from './ConstructedScreen.tsx';
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import ART_IDS from '../draft/art-ids.json';
@@ -78,6 +76,8 @@ import type { RoomFeed } from '../rooms/feed.ts';
 import {
   RANDOM_DECK,
   apiBase,
+  erasOf,
+  poolIsOnTab,
   tablesClient,
   type DeckRef,
   type Fetch,
@@ -250,6 +250,8 @@ interface Table {
   series?: { length: 1 | 3; wins: [number, number]; games: { matchId: string; winner: 0 | 1 | null }[]; phase: 'seating' | 'playing' | 'sideboarding' | 'between' | 'done' };
   /** `PATCH /api/rooms/:id` refuses with this, as it does for a non-leader. */
   refusePatch?: { status: number; error: string };
+  /** The room's mode with its options; null until the leader picks one. Absent ⇒ Classic, which is every test above. */
+  mode?: RoomMode | null;
   /** What `GET /api/rooms/:id` says this room is. Absent ⇒ the field is not sent at all. */
   clientMode?: ClientMode;
   /** What the room PLAYS. Absent ⇒ `constructed-1v1`, which is every test above. */
@@ -325,6 +327,7 @@ function stubServer(table: Table) {
     gameType,
     format: table.format,
     settings: table.settings ?? { handSmoothing: true },
+    ...(table.mode === undefined ? { mode: 'classic', modeOptions: {} } : table.mode === null ? { mode: null, modeOptions: null } : table.mode),
     // Caller-scoped, as `http/rooms.ts` serialises it: whether the leader is
     // this caller, and whether this caller is ready. `p-alice` is us.
     you: { id: 'p-alice', leader: iAmLeader(), ready: membersOf().some((m) => m.id === 'p-alice' && m.ready === true) },
@@ -388,7 +391,14 @@ function stubServer(table: Table) {
        */
       if ((init?.method ?? 'GET') === 'PATCH') {
         if (table.refusePatch !== undefined) return json(table.refusePatch.status, { error: table.refusePatch.error });
-        const asked = body as { format?: unknown; settings?: { handSmoothing?: boolean } };
+        const asked = body as { format?: unknown; mode?: unknown; settings?: { handSmoothing?: boolean } };
+        // The mode, as `lobby.ts` sets it: refused once anybody is ready, and a change clears readiness.
+        if (asked.mode !== undefined) {
+          if (table.players.some((p) => p.ready)) return json(409, { error: 'mode-locked' });
+          table.mode = body as RoomMode;
+          table.players = table.players.map((p) => ({ ...p, ready: false }));
+          return json(200, roomRecord());
+        }
         // A setting is not a deck question: nobody's readiness or verdict moves.
         if (asked.settings !== undefined) {
           table.settings = { ...(table.settings ?? { handSmoothing: true }), ...asked.settings };
@@ -439,6 +449,15 @@ function stubServer(table: Table) {
       }
       table.draftStartedAt = '2026-09-26T10:00:00.000Z';
       return json(200, roomRecord());
+    }
+    if (url.endsWith('/tables/gauntlet/eras')) {
+      return json(200, {
+        eras: [
+          { id: 'modern-2014-07-18', family: 'modern', title: 'Modern — 2014' },
+          { id: 'modern-2012-07-13', family: 'modern', title: 'Modern — 2012' },
+          { id: 'legacy-2016-07-22', family: 'legacy', title: 'Legacy — 2016' },
+        ],
+      });
     }
     if (url.endsWith('/tables/formats')) {
       return json(200, { formats: [FREE, ...FORMATS, MODERN] });
@@ -755,7 +774,7 @@ describe('a room that has not answered yet', () => {
     // The operator, 2026-10-20: twelve deck outlines, not eight.
     expect(screen.getByTestId('deck-skeleton').querySelectorAll('.skeleton--tile')).toHaveLength(12);
     expect(room.querySelector('main')?.getAttribute('aria-busy')).toBe('true');
-    expect(room.textContent, 'no words while it waits').not.toMatch(/Waiting|Loading|Constructed 1v1/);
+    expect(room.textContent, 'no words while it waits').not.toMatch(/Waiting|Loading|Constructed/);
 
     expect((await screen.findByTestId('room-name')).textContent).toBe('Friday night');
     await deckPicker();
@@ -2350,10 +2369,101 @@ describe('a streamed room', () => {
   });
 });
 
+/* ── the room's mode (constructed-modes plan, ruling 8) ───────────────── */
+
+describe('the room’s mode', () => {
+  /** Mounts a room whose seats card may be absent (no mode yet): waits for the mode row instead. */
+  async function mountModeRoom(table: Table) {
+    const server = stubServer(table);
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, myDecks: server.myDecks, roomId: ROOM, feed: everyMs(10) }));
+    await screen.findByTestId('constructed-mode');
+    return server;
+  }
+  const radio = (mode: string) => screen.getByTestId(`constructed-mode-${mode}`) as HTMLInputElement;
+
+  it('with no mode chosen, the mode row is the whole room: no seats, no deck picker, nothing chosen', async () => {
+    await mountModeRoom({ players: [], matchId: null, mode: null });
+    expect(['classic', 'gauntlet', 'random'].map((m) => [radio(m).checked, radio(m).disabled])).toEqual([
+      [false, false],
+      [false, false],
+      [false, false],
+    ]);
+    expect(screen.getByTestId('constructed-mode').textContent).toBe('ClassicGauntletAll Random');
+    expect(screen.queryByTestId('room-players')).toBeNull();
+    expect(screen.queryByTestId('deck-mine')).toBeNull();
+    expect(screen.queryByTestId('format-tabs')).toBeNull();
+  });
+
+  it('is the leader’s: everybody else sees the row disabled, and no words about it', async () => {
+    await mountModeRoom({ players: [], matchId: null, mode: null, leader: false });
+    for (const m of ['classic', 'gauntlet', 'random']) expect(radio(m).disabled).toBe(true);
+    expect(screen.getByTestId('constructed').textContent).not.toMatch(/leader|wait/i);
+  });
+
+  it('the leader picks Classic: the room moves to it, and the format row and the deck picker appear', async () => {
+    const server = await mountModeRoom({ players: [], matchId: null, mode: null });
+    fireEvent.click(radio('classic'));
+    await screen.findByTestId('deck-mine');
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ mode: 'classic', modeOptions: {} }]);
+    expect(radio('classic').checked).toBe(true);
+    expect(screen.getByTestId('format-tabs')).toBeTruthy();
+    expect(screen.getByTestId('room-players')).toBeTruthy();
+  });
+
+  it('All Random deals the decks: no deck picker, and my seat may ready without one', async () => {
+    const server = await mountModeRoom({ players: [], matchId: null, mode: null });
+    fireEvent.click(radio('random'));
+    await screen.findByTestId('room-players');
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ mode: 'random', modeOptions: { pool: 'full' } }]);
+    expect(screen.queryByTestId('deck-mine')).toBeNull();
+    expect(screen.queryByTestId('format-tabs')).toBeNull();
+    server.table.players = [{ ...mySeat(), deck: null }];
+    expect(await screen.findByTestId('ready-toggle')).toHaveProperty('disabled', false);
+  });
+
+  it('changing the mode is picking another card, until somebody is ready', async () => {
+    const server = await mountModeRoom({ players: [opponent()], matchId: null });
+    expect(radio('classic').checked).toBe(true);
+    fireEvent.click(radio('gauntlet'));
+    await waitFor(() => expect(radio('gauntlet').checked).toBe(true));
+    expect(screen.queryByTestId('deck-mine')).toBeNull();
+    server.table.players = [opponent({ ready: true })];
+    await waitFor(() => expect(radio('classic').disabled).toBe(true));
+    for (const m of ['classic', 'gauntlet', 'random']) expect(radio(m).disabled).toBe(true);
+  });
+
+  it('Gauntlet offers the server’s families and years, or Random: the leader’s picks are the room’s options', async () => {
+    const server = await mountModeRoom({ players: [], matchId: null, mode: { mode: 'gauntlet', modeOptions: {} } });
+    const families = await screen.findByTestId('gauntlet-family');
+    // Standard has no era with ten decks here, so it is not offered.
+    expect(families.textContent).toBe('ModernLegacyRandom');
+    expect((screen.getByTestId('gauntlet-family-random') as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByTestId('gauntlet-era')).toBeNull();
+    expect(screen.queryByTestId('deck-mine')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('gauntlet-family-modern'));
+    const era = (await screen.findByTestId('gauntlet-era')) as HTMLSelectElement;
+    expect([...era.options].map((o) => o.textContent)).toEqual(['Random', '2014', '2012']);
+    fireEvent.change(era, { target: { value: 'modern-2012-07-13' } });
+    await waitFor(() => expect((screen.getByTestId('gauntlet-era') as HTMLSelectElement).value).toBe('modern-2012-07-13'));
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([
+      { mode: 'gauntlet', modeOptions: { family: 'modern' } },
+      { mode: 'gauntlet', modeOptions: { family: 'modern', era: 'modern-2012-07-13' } },
+    ]);
+  });
+
+  it('a mode change the server refuses says so in its words', async () => {
+    await mountModeRoom({ players: [], matchId: null, refusePatch: { status: 409, error: 'mode-locked' } });
+    fireEvent.click(radio('random'));
+    expect((await screen.findByTestId('table-error')).textContent).toContain('mode-locked');
+    expect(radio('classic').checked).toBe(true);
+  });
+});
+
 describe('a builtin room is what it has always been', () => {
   it('says the same sentence in its header, and draws no stream anywhere', async () => {
     await mountRoom({ players: [opponent()], matchId: null, clientMode: 'builtin' });
-    expect(screen.getByTestId('room-client-mode').textContent).toBe('Constructed 1v1');
+    expect(screen.getByTestId('room-client-mode').textContent).toBe('Constructed');
     expect(screen.queryByTestId('room-streams')).toBeNull();
     expect(screen.queryByTestId('stream-seat')).toBeNull();
     expect(screen.getByTestId('deck-mine')).toBeTruthy();

@@ -1,0 +1,56 @@
+/*
+ * `RadioCards`: the format tabs' look (`.lobby__format-tabs button`) for a row
+ * of native radios. Two classes per selector, so the create form's generic
+ * `.rooms__create label` / `.rooms__create input` rules never reach a card.
+ */
+.radio-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.radio-cards .radio-cards__card {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0.35rem 0.75rem;
+  background: var(--color-bg-alt);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  font: inherit;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.radio-cards .radio-cards__card:has(:checked) {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}
+
+.radio-cards .radio-cards__card:has(:disabled) {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.radio-cards .radio-cards__card:has(:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* The input is the whole card, and invisible: the card is what is drawn. */
+.radio-cards .radio-cards__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: inherit;
+}
