@@ -69,7 +69,8 @@ describe('the draft lobby', () => {
 
     expect(screen.queryByTestId('pod-seats')).toBeNull();
     expect(screen.getByText('In the room')).toBeTruthy();
-    expect(screen.getAllByTestId(/^draft-member-\d+$/)).toHaveLength(2);
+    expect(screen.getAllByTestId('spectator-row')).toHaveLength(2);
+    expect(screen.getAllByTestId('spectator-open')).toHaveLength(1);
   });
 
   it('draws the seat grid in its first frame, with unseated members as spectators', () => {
@@ -81,8 +82,31 @@ describe('the draft lobby', () => {
     expect(screen.getByTestId('pod-seat-0').textContent).toContain('Alice (you)');
     expect(screen.getByTestId('pod-seat-0-ready').getAttribute('data-state')).toBe('yes');
     expect(screen.getByText('Spectators')).toBeTruthy();
-    expect(screen.getAllByTestId(/^draft-member-\d+$/)).toHaveLength(1);
-    expect(screen.getByTestId('draft-member-1').textContent).toContain('Bob');
+    expect(screen.getAllByTestId('spectator-row')).toHaveLength(1);
+    expect(screen.getByTestId('spectator-row').textContent).toContain('Bob');
+  });
+
+  it.each([0, 1, 2])('a pod with %i spectators always offers one open spectator row', (n) => {
+    const others = Array.from({ length: n }, (_, i) => member(`u-${i}`, `Watcher ${i}`));
+    const pod = podFixture({ seats: Array.from({ length: POD_SEATS }, (_, i) => (i === 0 ? { memberId: 'u-alice', name: 'Alice' } : null)) });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [member('u-alice', 'Alice'), ...others] }));
+
+    expect(screen.queryAllByTestId('spectator-row')).toHaveLength(n);
+    expect(screen.getAllByTestId('spectator-open')).toHaveLength(1);
+  });
+
+  it('a seated member takes the open spectator row by giving the seat back; an unseated one is already in a row', async () => {
+    standPod.mockResolvedValue({ ok: true, message: null });
+    const seatedAlice = podFixture({ seats: Array.from({ length: POD_SEATS }, (_, i) => (i === 0 ? { memberId: 'u-alice', name: 'Alice' } : null)) });
+    const { rerender } = render(createElement(DraftLobby, { ...baseProps, pod: seatedAlice, members: [member('u-alice', 'Alice')] }));
+
+    screen.getByTestId('spectator-watch').click();
+    await waitFor(() => expect(standPod).toHaveBeenCalledWith('r-cube'));
+
+    rerender(createElement(DraftLobby, { ...baseProps, pod: podFixture(), members: [member('u-alice', 'Alice')] }));
+    expect(screen.getByTestId('spectator-row').textContent).toContain('Alice (you)');
+    expect((screen.getByTestId('spectator-watch') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('the ready-toggle keeps its own meaning regardless of seating', () => {

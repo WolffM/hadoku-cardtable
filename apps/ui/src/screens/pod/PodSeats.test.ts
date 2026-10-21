@@ -179,4 +179,29 @@ describe('the pod seat grid', () => {
     screen.getByTestId('pod-seat-stand').click();
     expect(onStand).toHaveBeenCalledWith();
   });
+
+  // The operator, 2026-10-21: "rows change in size slightly when someone enters them" — every seat, open,
+  // closed, the AI's or a person's, is the same one-line row (its height is the row's own, `screens.css`).
+  it('draws every kind of seat as the same one-line row', () => {
+    const seats = emptySeats();
+    seats[1] = { memberId: 'u-me', name: 'A name long enough to need its ellipsis at any width this list is drawn' };
+    seats[2] = { memberId: 'ai', name: 'AI' };
+    seats[3] = { memberId: POD_CLOSED, name: '' };
+    render(
+      createElement(PodSeats, {
+        seats,
+        myMemberId: 'u-me',
+        leaderId: 'u-me',
+        readyOf: () => true,
+        onSit: () => undefined,
+        onStand: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
+      }),
+    );
+    for (const row of screen.getByTestId('pod-seats').children) {
+      expect(row.classList.contains('tables__row'), row.getAttribute('data-testid') ?? '').toBe(true);
+      expect(row.classList.contains('tables__row--line'), row.getAttribute('data-testid') ?? '').toBe(true);
+    }
+  });
 });

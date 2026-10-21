@@ -326,7 +326,8 @@ function stubServer(table: Table) {
     tables: [
       {
         id: 't-stub0001',
-        players: [],
+        // The seated players as members, as `http/rooms.ts` sends them: who holds a seat is what tells a spectator apart.
+        players: table.players.map((p) => ({ memberId: membersOf().find((m) => m.name === p.name)?.id ?? `p-${p.name}`, name: p.name })),
         matchId: table.matchId,
         series: table.series ?? { length: 1, wins: [0, 0], games: [], phase: 'seating' },
       },
@@ -857,6 +858,33 @@ describe('a room’s table', () => {
     });
     expect(screen.getByTestId('play-vs-bot')).toBeTruthy();
     expect(screen.getByTestId('constructed').getAttribute('data-members')).toBe('2');
+  });
+
+  // The operator, 2026-10-21: "spectator seats should be takable in any room. whenever one spectator seat is
+  // taken, just add another row so theres always one to click on."
+  it.each([0, 1, 2])('a 1v1 room with %i spectators lists them under the seats, then one open spectator row', async (n) => {
+    const watchers = Array.from({ length: n }, (_, i) => ({ id: `p-w${i}`, name: `user-w${i}` }));
+    await mountRoom({
+      players: [opponent({ you: true, name: 'user-alice' }), opponent()],
+      matchId: null,
+      members: [{ id: 'p-alice', name: 'user-alice' }, { id: 'p-bob', name: 'user-bob' }, ...watchers],
+    });
+    await waitFor(() => expect(screen.getAllByTestId('spectator-open')).toHaveLength(1));
+    expect(screen.queryAllByTestId('spectator-row').map((r) => r.querySelector('.tables__name')?.textContent)).toEqual(watchers.map((w) => w.name));
+  });
+
+  it('the open spectator row gives my seat back, and is dead once I hold none', async () => {
+    const server = await mountRoom({
+      players: [opponent({ you: true, name: 'user-alice' })],
+      matchId: null,
+      members: [{ id: 'p-alice', name: 'user-alice' }, { id: 'p-bob', name: 'user-bob' }],
+    });
+    const watch = (await screen.findByTestId('spectator-watch')) as HTMLButtonElement;
+    expect(watch.disabled).toBe(false);
+    fireEvent.click(watch);
+    await waitFor(() => expect(lastCall(server.calls, `/tables/rooms/${ROOM}/stand`)?.method).toBe('POST'));
+    await waitFor(() => expect(screen.getAllByTestId('spectator-row')).toHaveLength(2));
+    expect((screen.getByTestId('spectator-watch') as HTMLButtonElement).disabled).toBe(true);
   });
 
   /*
