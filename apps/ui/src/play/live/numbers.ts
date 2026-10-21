@@ -39,7 +39,8 @@
  * colour for `LIFE_COLOUR_MS` and is stepped through `tickSteps` at
  * `TICK_STEP_MS` apart (at once in Fast Mode) before settling back to whatever
  * the next React render put there (which is already the same number, so
- * nothing visibly snaps). Nothing is drawn beside it: the operator, 2026-10-10,
+ * nothing visibly snaps). A hit that lands after a newer change to the same
+ * total was drawn writes nothing: its number is history by then. Nothing is drawn beside it: the operator, 2026-10-10,
  * of a struck-through old value that sat above the counter, *"let's just remove
  * teh weird crossed out number so the UI doesn't shift"*.
  *
@@ -529,15 +530,27 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }, layout.delayMs + riseMs);
   }
 
-  /** The seat bar's own life span: coloured, and stepped through on its way to what React already rendered there. */
-  function animateLifeCounter(playerId: number, from: number, to: number): void {
+  /**
+   * Each life change gets the next number in the order the views brought them; `lifeLanded` is, per
+   * player, the newest one whose hit has landed. A hit in flight can land after a newer change was drawn
+   * (a bolt still travelling when combat damage arrives, which lands at once): its total is history by
+   * then, and writing it would leave the counter on it, since React, drawing the same newer total again,
+   * never writes the span back.
+   */
+  let lifeOrder = 0;
+  const lifeLanded = new Map<number, number>();
+
+  /** The seat bar's own life span: coloured, and stepped through on its way to what React already rendered there — unless a newer change has landed first. */
+  function animateLifeCounter(playerId: number, from: number, to: number, order: number): void {
     const face = faceEl(playerId);
     const lifeSpan = face?.querySelector<HTMLElement>('[data-testid="life"]') ?? null;
-    if (lifeSpan === null) return;
+    if (lifeSpan === null || (lifeLanded.get(playerId) ?? 0) > order) return;
+    lifeLanded.set(playerId, order);
+    const newest = (): boolean => lifeLanded.get(playerId) === order;
     const colour = lifeColour(to - from);
     lifeSpan.dataset.numberLifeColour = colour;
     schedule(() => {
-      delete lifeSpan.dataset.numberLifeColour;
+      if (newest()) delete lifeSpan.dataset.numberLifeColour;
     }, LIFE_COLOUR_MS);
 
     const steps = tickSteps(from, to);
@@ -547,7 +560,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }
     steps.forEach((value, i) => {
       schedule(() => {
-        lifeSpan.textContent = String(value);
+        if (newest()) lifeSpan.textContent = String(value);
       }, (i + 1) * TICK_STEP_MS);
     });
   }
@@ -752,8 +765,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     for (const change of diff.life) {
       const face = faceEl(change.playerId);
       if (face === null) continue;
+      const order = ++lifeOrder;
       const land = (): void => {
-        animateLifeCounter(change.playerId, change.from, change.to);
+        animateLifeCounter(change.playerId, change.from, change.to, order);
         spawn({ anchorKey: `face:${change.playerId}`, at: face, delta: change.to - change.from });
       };
       // Until the hit lands, the counter still reads what it read before the resolution (or the ram).
