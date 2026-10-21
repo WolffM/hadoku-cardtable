@@ -23,10 +23,18 @@
  *
  * The screen itself is `@wolffm/game-stats-ui`, shared by every hadoku game.
  * This file is where Magic comes in: the colour pips, the deck on each seat,
- * the turn count.
+ * the turn count, and the Decks section's filters and peek (`StatsDecks.tsx`).
+ *
+ * **Rated matches only** — the operator, 2026-10-20: *"let's hide all bot
+ * results/stats … noone should have their rating affected by bot data"*. The
+ * server reports a match unrated when Forge's AI, a guest or a test account
+ * sat in it (`apps/server/src/stats/report.ts`), and every read here asks for
+ * rated matches only (`ratedOnly`), so the record, the history, every
+ * breakdown and the picker's deck order count none of them. The store keeps
+ * them (the operator, 2026-10-16: *"we should keep the logs"*).
  */
 
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from '@wolffm/themes';
 import {
   createStatsCache,
@@ -44,6 +52,7 @@ import { createGameStatsClient, GameStatsError, type GameStatsClient } from '@wo
 
 import { ManaPip } from '../components/ManaPip.tsx';
 import type { DeckRecords } from './deckOrder.ts';
+import { DeckPeekHost, DeckStatsFilterBar, deckLookup, decksSpec, NO_DECK_FILTER, StatsDeckName, type DeckLookup, type DeckStatsFilter } from './StatsDecks.tsx';
 import { navigate, routeHash } from '../screens/route.ts';
 import { Tournaments } from './Tournaments.tsx';
 import './stats.css';
@@ -51,14 +60,17 @@ import './stats.css';
 /** The rating pool every room match is reported in. */
 export const STATS_MODE = 'constructed';
 
-const BREAKDOWNS: readonly BreakdownSpec[] = [
-  { attr: 'colors', title: 'Colours', label: 'Colour' },
-  { attr: 'deck', title: 'Decks', label: 'Deck' },
-  { attr: 'deck', title: 'Decks that win', label: 'Deck', everyone: true, wide: true },
-];
+const COLOURS: BreakdownSpec = { attr: 'colors', title: 'Colours', label: 'Colour' };
 
-/** A seat's `colors` is a set; a colour breakdown row is one colour. Both draw as pips. */
-const renderAttr: RenderAttr = (key, value) => {
+/** The sections a screen opens with: the Decks section unfiltered. */
+const breakdownsFor = (decks: BreakdownSpec = decksSpec()): readonly BreakdownSpec[] => [COLOURS, decks];
+
+/**
+ * A seat's `colors` is a set; a colour breakdown row is one colour. Both draw
+ * as pips. A Decks row draws its colours beside its name (`StatsDeckName`).
+ */
+const renderAttr: RenderAttr = (key, value, carried) => {
+  if (key === 'deck' && carried !== undefined) return <StatsDeckName name={String(value)} carried={carried} />;
   if (key !== 'colors') return formatAttr(value);
   const colors = Array.isArray(value) ? value : [String(value)];
   return (
@@ -150,15 +162,15 @@ function sharedSource(): StatsSource {
   return shared;
 }
 
-/** Everyone's record per library deck, keyed by the deck id a room match reports — `deckOrder.ts` sorts the picker by it. */
+/** Everyone's record per library deck in rated matches, keyed by the deck id a room match reports — `deckOrder.ts` sorts the picker by it. */
 export async function fetchDeckRecords(source: StatsSource = sharedSource()): Promise<DeckRecords> {
-  const { rows } = await source.client.breakdown('deckId', { player: '*', mode: STATS_MODE });
+  const { rows } = await source.client.breakdown('deckId', { player: '*', mode: STATS_MODE, rated: true });
   return new Map(rows.map(({ value, ...totals }) => [value, totals]));
 }
 
 /** Starts every read the popout opens with, for the viewer, so it draws at once. */
 export function prefetchStats(source: StatsSource = sharedSource()): void {
-  prefetchGameStats({ ...source, mode: STATS_MODE, breakdowns: BREAKDOWNS });
+  prefetchGameStats({ ...source, mode: STATS_MODE, ratedOnly: true, breakdowns: breakdownsFor() });
 }
 
 /** The trophy beside the settings gear: opens the viewer's stats, and warms them first. */
@@ -186,11 +198,21 @@ export interface StatsPopoutProps {
   tournaments?: boolean;
   /** Tests pass a client over a stub fetch, and its cache. Production passes nothing. */
   source?: StatsSource;
+  /** Where a deck row's list comes from. Tests pass a stub; production the API's. */
+  decks?: DeckLookup;
 }
 
-export function StatsPopout({ player, tournaments = false, source = sharedSource() }: StatsPopoutProps) {
+let sharedLookup: DeckLookup | undefined;
+
+export function StatsPopout({ player, tournaments = false, source = sharedSource(), decks }: StatsPopoutProps) {
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
+  const lookup = useMemo(() => decks ?? (sharedLookup ??= deckLookup()), [decks]);
+  const [deckFilter, setDeckFilter] = useState<DeckStatsFilter>(NO_DECK_FILTER);
+  const breakdowns = useMemo(
+    () => breakdownsFor(decksSpec(deckFilter, <DeckStatsFilterBar filter={deckFilter} onChange={setDeckFilter} />)),
+    [deckFilter],
+  );
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -237,19 +259,22 @@ export function StatsPopout({ player, tournaments = false, source = sharedSource
         {tournaments ? (
           <Tournaments />
         ) : (
-          <GameStats
-            key={player ?? ''}
-            client={source.client}
-            cache={source.cache}
-            mode={STATS_MODE}
-            player={player}
-            seatAttrs={['colors', 'deck']}
-            matchCounters={['turns']}
-            counterLabels={{ turns: 'Turns' }}
-            breakdowns={BREAKDOWNS}
-            renderAttr={renderAttr}
-            renderName={renderName}
-          />
+          <DeckPeekHost lookup={lookup} ownDecks={player === undefined}>
+            <GameStats
+              key={player ?? ''}
+              client={source.client}
+              cache={source.cache}
+              mode={STATS_MODE}
+              ratedOnly
+              player={player}
+              seatAttrs={['colors', 'deck']}
+              matchCounters={['turns']}
+              counterLabels={{ turns: 'Turns' }}
+              breakdowns={breakdowns}
+              renderAttr={renderAttr}
+              renderName={renderName}
+            />
+          </DeckPeekHost>
         )}
       </div>
     </div>

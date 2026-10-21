@@ -126,3 +126,15 @@
   font-size: 0.85rem;
   font-weight: normal;
 }
+
+/* The Decks section (`StatsDecks.tsx`): its filter bar under the heading, and a row's pips after its name. */
+.gs-section > .deckfilter {
+  flex: none;
+  margin-bottom: 8px;
+}
+
+.ct-stats-deck {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

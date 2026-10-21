@@ -22,7 +22,7 @@
  * log line names a board card, and the inspector stands the enlargement
  * beside the list rather than on it. No second big-card view exists.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEventHandler } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEventHandler } from 'react';
 
 import type { DraftCard, ManaColor } from '@hadoku/shared';
 import { BACK_FACE } from '@hadoku/carddata/art';
@@ -62,6 +62,88 @@ export const PEEK_DELAY_MS = 400;
  * than {@link PEEK_DELAY_MS}, so a list never outlives the next one opening.
  */
 export const PEEK_GRACE_MS = 200;
+
+/** An open list: what it is for, and where its tile and the screen were when it opened. */
+export interface OpenPeek<K> {
+  readonly key: K;
+  readonly anchor: DOMRect;
+  readonly bounds: DOMRect;
+}
+
+/**
+ * The hover a list opens and closes on, for every surface that shows one (the
+ * room's picker, the stats page's deck rows): it opens once the pointer has
+ * rested {@link PEEK_DELAY_MS} on a tile, and closes {@link PEEK_GRACE_MS}
+ * after the pointer has left both the tile and the list, so the list can be
+ * reached and hovered.
+ *
+ * `openSoon`'s `locate` is asked when the delay ends, not when the pointer
+ * arrives, so the list opens beside where the tile is then.
+ */
+export function usePeekHover<K>(): PeekHover<K> {
+  const [peek, setPeek] = useState<OpenPeek<K> | null>(null);
+  /** The open list, for the handlers below: they stay one identity across renders. */
+  const open = useRef<OpenPeek<K> | null>(null);
+  open.current = peek;
+  const openTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** The tile the timer is running for, so a pointer moving within it does not restart it. */
+  const pending = useRef<{ key: K } | null>(null);
+  /** The close that leaving the tile or the list starts, which entering either cancels. */
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(
+    () => () => {
+      clearTimeout(openTimer.current);
+      clearTimeout(leaveTimer.current);
+    },
+    [],
+  );
+  const handlers = useMemo(() => {
+    const cancelPending = (): void => {
+      clearTimeout(openTimer.current);
+      pending.current = null;
+    };
+    const isOpen = (key: K): boolean => open.current !== null && Object.is(open.current.key, key);
+    return {
+      close(): void {
+        cancelPending();
+        clearTimeout(leaveTimer.current);
+        setPeek(null);
+      },
+      closeSoon(): void {
+        cancelPending();
+        clearTimeout(leaveTimer.current);
+        leaveTimer.current = setTimeout(() => setPeek(null), PEEK_GRACE_MS);
+      },
+      hold(): void {
+        cancelPending();
+        clearTimeout(leaveTimer.current);
+      },
+      openSoon(key: K, locate: () => { anchor: DOMRect; bounds: DOMRect } | null): void {
+        if (isOpen(key)) clearTimeout(leaveTimer.current);
+        if ((pending.current !== null && Object.is(pending.current.key, key)) || isOpen(key)) return;
+        clearTimeout(openTimer.current);
+        pending.current = { key };
+        openTimer.current = setTimeout(() => {
+          pending.current = null;
+          clearTimeout(leaveTimer.current);
+          const at = locate();
+          if (at !== null) setPeek({ key, ...at });
+        }, PEEK_DELAY_MS);
+      },
+    };
+  }, []);
+  return { peek, ...handlers };
+}
+
+export interface PeekHover<K> {
+  peek: OpenPeek<K> | null;
+  close(): void;
+  /** Off the tile or the list: closed once the grace passes without the pointer reaching either. */
+  closeSoon(): void;
+  /** On the list: it stays, and a tile crossed on the way there opens nothing. */
+  hold(): void;
+  openSoon(key: K, locate: () => { anchor: DOMRect; bounds: DOMRect } | null): void;
+}
 
 const GAP = 8;
 const LINE_PX = 18;

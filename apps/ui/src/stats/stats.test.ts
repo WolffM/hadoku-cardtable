@@ -70,10 +70,10 @@ const COLORS: BreakdownRow[] = [
   { value: 'U', ...totals(4, 1) },
   { value: 'W', ...totals(5, 2) },
 ];
-const DECKS: BreakdownRow[] = [{ value: 'Azorius Fliers', ...totals(5, 2) }];
-const WINNERS: BreakdownRow[] = [
-  { value: 'Mono Red', ...totals(3, 6) },
-  { value: 'Azorius Fliers', ...totals(9, 4) },
+const DECKS: BreakdownRow[] = [
+  { value: 'Azorius Fliers', ...totals(5, 2), attrs: { colors: ['W', 'U'], deckId: 'power-2016-1-azorius' } },
+  { value: 'Cube draft r-0123456789ab', ...totals(1, 1), attrs: { colors: ['B'], deckId: 'draft:r-0123456789ab' } },
+  { value: 'Mono Red', ...totals(0, 1), attrs: { colors: ['R'] } },
 ];
 const RATINGS: LeaderboardRow[] = [
   { rank: 1, name: 'Bella', isMe: true, value: 1562.4, totals: totals(7, 3) },
@@ -93,8 +93,7 @@ function stub() {
     if (path === '/leaderboard') return json({ by: 'rating', rows: RATINGS });
     if (path === '/breakdown') {
       const attr = url.searchParams.get('attr');
-      const everyone = url.searchParams.get('player') === '*';
-      return json({ attr, rows: attr === 'colors' ? COLORS : everyone ? WINNERS : DECKS });
+      return json({ attr, rows: attr === 'colors' ? COLORS : DECKS });
     }
     return json({ message: 'not found' }, 404);
   }) as typeof globalThis.fetch;
@@ -136,14 +135,26 @@ describe('the stats popout', () => {
     const colorRows = within(colors).getAllByRole('row').slice(1);
     expect(colorRows.map((r) => r.querySelector('[data-colors]')?.getAttribute('data-colors'))).toEqual(['W', 'U']);
 
-    const winners = await screen.findByTestId('gs-breakdown-deck-everyone');
-    expect(within(winners).getAllByRole('row')[1]!.textContent).toContain('Azorius Fliers');
+    const decks = await screen.findByTestId('gs-breakdown-deck');
+    const deckRow = within(decks).getAllByRole('row')[1]!;
+    expect(deckRow.textContent).toContain('Azorius Fliers');
+    expect(deckRow.querySelector('[data-testid="stats-deck"] [data-colors="WU"]'), 'a deck row keeps its pips').not.toBeNull();
+    expect(screen.queryByTestId('gs-breakdown-deck-everyone'), 'one Decks section').toBeNull();
 
     const board = await screen.findByTestId('gs-leaderboard-rating');
     expect(within(board).getByRole('link', { name: 'Ash' }).getAttribute('href')).toBe('#/stats/Ash');
 
-    await waitFor(() => expect(asked).toHaveLength(6));
+    await waitFor(() => expect(asked).toHaveLength(5));
     for (const url of asked) expect(url.searchParams.get('mode')).toBe('constructed');
+  });
+
+  it('reads rated matches only, so no bot, guest or test-account match reaches the page', async () => {
+    const { source, asked } = stub();
+    render(lobby(source, {}));
+    await waitFor(() => expect(asked).toHaveLength(5));
+    const reads = asked.filter((u) => !u.pathname.endsWith('/leaderboard'));
+    expect(reads.map((u) => u.pathname.split('/').pop()).sort()).toEqual(['breakdown', 'breakdown', 'matches', 'profile']);
+    for (const url of reads) expect(url.searchParams.get('rated'), url.pathname).toBe('1');
   });
 
   it("is headed by the named player's name, with a way back to the viewer's own", () => {
@@ -158,7 +169,7 @@ describe('the stats popout', () => {
     const { source, asked } = stub();
     const { rerender } = render(lobby(source));
     expect(screen.queryByTestId('stats')).toBeNull();
-    await waitFor(() => expect(asked).toHaveLength(6));
+    await waitFor(() => expect(asked).toHaveLength(5));
     await act(async () => {
       await Promise.resolve();
     });
@@ -166,7 +177,7 @@ describe('the stats popout', () => {
     rerender(lobby(source, {}));
     expect(document.querySelectorAll('.gs-section[aria-busy="true"]'), 'drawn on its first render').toHaveLength(0);
     expect(screen.getByTestId('gs-record').textContent).toContain('1562');
-    expect(asked).toHaveLength(6);
+    expect(asked).toHaveLength(5);
   });
 
   it('Escape, the close button and a press on the backdrop each go back to the lobby', () => {
@@ -227,8 +238,8 @@ describe('a viewer the store will refuse', () => {
   it('a 401 is final: each read is asked once, and neither hovering nor opening asks again', async () => {
     const { source, asked } = refusing(401, true);
     const { rerender } = render(lobby(source));
-    await waitFor(() => expect(asked).toHaveLength(6));
-    expect(new Set(asked.map((u) => `${u.pathname}${u.search}`)).size, 'six different reads, each once').toBe(6);
+    await waitFor(() => expect(asked).toHaveLength(5));
+    expect(new Set(asked.map((u) => `${u.pathname}${u.search}`)).size, 'five different reads, each once').toBe(5);
 
     fireEvent.pointerEnter(screen.getByTestId('lobby-stats'));
     rerender(lobby(source, {}));
@@ -237,7 +248,7 @@ describe('a viewer the store will refuse', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(asked, 'nothing asked after the refusal').toHaveLength(6);
+    expect(asked, 'nothing asked after the refusal').toHaveLength(5);
   });
 
   it('a refusal of another kind is not final: the next read asks again', async () => {

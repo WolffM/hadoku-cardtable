@@ -212,7 +212,7 @@ import {
   type TablesClient,
 } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
-import { DeckPeek, PEEK_DELAY_MS, PEEK_GRACE_MS, namedFace, type PeekLine, type PeekList } from './DeckPeek.tsx';
+import { DeckPeek, namedFace, usePeekHover, type PeekLine, type PeekList } from './DeckPeek.tsx';
 import { DeckStyleTag } from './DeckStyleTag.tsx';
 import { DeckFilterBar } from './DeckFilterBar.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
@@ -807,60 +807,22 @@ export function DeckChooser({
   const [focus, setFocus] = useState<number | null>(null);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  /** The tile whose list is open, and where it and the screen were when it opened. */
-  const [peek, setPeek] = useState<{ index: number; anchor: DOMRect; bounds: DOMRect } | null>(null);
-  const peekTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  /** The tile the timer is running for, so a pointer moving within it does not restart it. */
-  const peekPending = useRef<number | null>(null);
-  /** The close that leaving the tile or the list starts, which entering either cancels. */
-  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const cancelPending = (): void => {
-    clearTimeout(peekTimer.current);
-    peekPending.current = null;
-  };
-  const closePeek = (): void => {
-    cancelPending();
-    clearTimeout(leaveTimer.current);
-    setPeek(null);
-  };
-  /** Off the tile or the list: closed once {@link PEEK_GRACE_MS} passes without the pointer reaching either. */
-  const closePeekSoon = (): void => {
-    cancelPending();
-    clearTimeout(leaveTimer.current);
-    leaveTimer.current = setTimeout(() => setPeek(null), PEEK_GRACE_MS);
-  };
-  /** On the list: it stays, and a tile crossed on the way there opens nothing. */
-  const holdPeek = (): void => {
-    cancelPending();
-    clearTimeout(leaveTimer.current);
-  };
-  useEffect(
-    () => () => {
-      clearTimeout(peekTimer.current);
-      clearTimeout(leaveTimer.current);
-    },
-    [],
-  );
-  const openPeekSoon = (index: number): void => {
-    if (peek?.index === index) clearTimeout(leaveTimer.current);
-    if (peekPending.current === index || peek?.index === index) return;
-    clearTimeout(peekTimer.current);
-    peekPending.current = index;
-    peekTimer.current = setTimeout(() => {
-      peekPending.current = null;
-      clearTimeout(leaveTimer.current);
+  /** The tile whose list is open, by index (`usePeekHover`). */
+  const hover = usePeekHover<number>();
+  const peek = hover.peek;
+  const openPeekSoon = (index: number): void =>
+    hover.openSoon(index, () => {
       const tile = refs.current[index];
-      if (tile === null || tile === undefined) return;
+      if (tile === null || tile === undefined) return null;
       const screen = tile.closest('[data-testid="constructed"]') ?? document.documentElement;
-      setPeek({ index, anchor: tile.getBoundingClientRect(), bounds: screen.getBoundingClientRect() });
-    }, PEEK_DELAY_MS);
-  };
-  const peeked = peek === null ? undefined : options[peek.index];
+      return { anchor: tile.getBoundingClientRect(), bounds: screen.getBoundingClientRect() };
+    });
+  const peeked = peek === null ? undefined : options[peek.key];
   /** Where the pointer last was over the grid, so a scroll can find the tile now under it. */
   const pointerAt = useRef<{ x: number; y: number } | null>(null);
   const grid = useRef<HTMLDivElement | null>(null);
   const onScrolled = (): void => {
-    closePeek();
+    hover.close();
     const at = pointerAt.current;
     if (at === null) return;
     const tile = document.elementFromPoint(at.x, at.y)?.closest<HTMLElement>('[data-deck-id]');
@@ -894,13 +856,11 @@ export function DeckChooser({
   const optionKey = options.map((o) => o.value).join('\u0000');
   // A filter changes which tiles there are, so an index into the old list means
   // nothing: Tab goes back to following the choice, and an open list closes.
+  const closeHover = hover.close;
   useEffect(() => {
     setFocus(null);
-    clearTimeout(peekTimer.current);
-    clearTimeout(leaveTimer.current);
-    peekPending.current = null;
-    setPeek(null);
-  }, [optionKey]);
+    closeHover();
+  }, [optionKey, closeHover]);
 
   const chosen = options.findIndex((o) => o.value === value);
   const stop = focus !== null && focus < options.length ? focus : chosen >= 0 ? chosen : 0;
@@ -975,8 +935,8 @@ export function DeckChooser({
           onPointerEnter={(event) => {
             if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(index);
           }}
-          onPointerLeave={closePeekSoon}
-          aria-describedby={peek?.index === index ? 'deck-peek' : undefined}
+          onPointerLeave={hover.closeSoon}
+          aria-describedby={peek?.key === index ? 'deck-peek' : undefined}
         >
           <DeckArt artId={option.artId} />
           <span className="deckpick__name" title={option.label}>
@@ -1023,8 +983,8 @@ export function DeckChooser({
           list={peeked.list}
           anchor={peek.anchor}
           bounds={peek.bounds}
-          onPointerEnter={holdPeek}
-          onPointerLeave={closePeekSoon}
+          onPointerEnter={hover.hold}
+          onPointerLeave={hover.closeSoon}
         />
       )}
     </div>
