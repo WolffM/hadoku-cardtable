@@ -35,6 +35,14 @@ export function podDealable(seats: PodSeats | undefined, members: readonly { id:
   return humans.length > 0 && humans.every((id) => members.find((m) => m.id === id)?.ready === true);
 }
 
+/**
+ * The pod's players, by member id: the members in its seats while it is in its
+ * lobby, then its `drafters` — the server sends the seats only in the lobby.
+ */
+export function podPlayers(pod: PodView): Set<string> {
+  if (pod.phase !== 'lobby') return new Set(pod.drafters);
+  return new Set(pod.seats.flatMap((s) => (s === null || s.memberId === POD_AI || s.memberId === POD_CLOSED ? [] : [s.memberId])));
+}
 
 /**
  * `RoomView.pod`, narrowed. `null` for a constructed room, for a body this

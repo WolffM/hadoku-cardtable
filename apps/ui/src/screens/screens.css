@@ -210,7 +210,8 @@
   gap: 12px;
 }
 
-.lobby__card h2 {
+.lobby__card h2,
+.pod-spectators h2 {
   font-size: 17px;
 }
 

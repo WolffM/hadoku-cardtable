@@ -38,6 +38,7 @@ import type { RoomMember } from '../rooms/api.ts';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
+import { PodSpectators } from './pod/PodSpectators.tsx';
 import { POD_AI, POD_CLOSED, podDealable, type PodView } from './pod/wire.ts';
 
 export { podDealable };
@@ -125,6 +126,7 @@ export function DraftLobby({
               {seatError}
             </p>
           )}
+          <PodSpectators pod={pod} members={members} myId={myMemberId} leaderId={leaderId} />
         </>
       )}
 

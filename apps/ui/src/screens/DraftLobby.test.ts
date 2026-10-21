@@ -64,16 +64,24 @@ const podFixture = (over: Partial<PodView> = {}): PodView => ({
 });
 
 describe('the draft lobby', () => {
-  // The operator, 2026-10-21: "spectators dont need to take seats, anyone who loads the page is a
-  // spectator by default. we dont need to represent this in the UI at all."
-  it('draws the seat grid in its first frame, and nobody who holds no seat', () => {
+  // The operator, 2026-10-21: spectators take no seat, and "i like showing that there are spectators in the draft process".
+  it('draws the seat grid in its first frame, and names who holds no seat as a spectator, with no button', () => {
     const pod = podFixture({ seats: Array.from({ length: POD_SEATS }, (_, i) => (i === 0 ? { memberId: 'u-alice', name: 'Alice' } : null)) });
 
     render(createElement(DraftLobby, { ...baseProps, pod, members: [member('u-alice', 'Alice', true), member('u-bob', 'Bob')] }));
 
     expect(screen.getByTestId('pod-seat-0').textContent).toContain('Alice (you)');
     expect(screen.getByTestId('pod-seat-0-ready').getAttribute('data-state')).toBe('yes');
-    expect(screen.getByTestId('draft-lobby').textContent).not.toMatch(/Bob|Spectator/);
+    expect(screen.getAllByTestId('pod-spectator').map((r) => r.dataset['member'])).toEqual(['u-bob']);
+    expect(screen.getByTestId('pod-spectators').querySelector('button')).toBeNull();
+  });
+
+  it('draws no spectator list while everyone is seated', () => {
+    const pod = podFixture({ seats: Array.from({ length: POD_SEATS }, (_, i) => (i === 0 ? { memberId: 'u-alice', name: 'Alice' } : i === 1 ? { memberId: 'u-bob', name: 'Bob' } : null)) });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [member('u-alice', 'Alice'), member('u-bob', 'Bob')] }));
+
+    expect(screen.queryByTestId('pod-spectators')).toBeNull();
   });
 
   it('the ready-toggle keeps its own meaning regardless of seating', () => {

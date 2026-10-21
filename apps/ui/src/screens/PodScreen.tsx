@@ -83,6 +83,7 @@ import { PodStandings } from './pod/PodStandings.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { PodBracket } from './pod/PodBracket.tsx';
 import { PodBuilding } from './pod/PodBuilding.tsx';
+import { PodSpectators } from './pod/PodSpectators.tsx';
 import { followMatchOnce } from '../play/live/matchStart.ts';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
@@ -260,6 +261,12 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   const rounds = ctx?.pod !== null && ctx?.pod !== undefined && inRounds;
   /** The draft's layout, drawn or still coming: the room's bar is in its side column, not on top. */
   const drafting = !rounds && !done && !inRounds;
+  const side = (
+    <div className="pod__bar pod__bar--side">
+      {bar}
+      {ctx?.pod != null && <PodSpectators pod={ctx.pod} members={ctx.members} myId={myMemberId} leaderId={ctx.leaderId} />}
+    </div>
+  );
 
   return (
     <div className="shell" data-testid="pod" ref={host}>
@@ -275,7 +282,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
       {rounds || (done && ready) ? (
         <PodRoom ctx={ctx!} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} startTableError={startTableError} retryTable={retryTable} />
       ) : done || inRounds ? null : table === null ? (
-        <DraftSkeleton side={<div className="pod__bar pod__bar--side">{bar}</div>} />
+        <DraftSkeleton side={side} />
       ) : (
         <DraftScreen
           state={table}
@@ -287,7 +294,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           layout={layout}
           onLayoutChange={setLayout}
           buildStore={buildStore}
-          side={<div className="pod__bar pod__bar--side">{bar}</div>}
+          side={side}
           onWatch={(seatId) => {
             if (draft !== null) watchSeat(draft, seatId);
           }}
@@ -393,6 +400,7 @@ function PodRoom({
           />
           {!sideboarding && !building && <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} myMemberId={myMemberId} />}
         </div>
+        <PodSpectators pod={pod} members={ctx.members} myId={myMemberId} leaderId={ctx.leaderId} />
       </div>
     </div>
   );

@@ -102,6 +102,8 @@ const ctxOf = (p: PodView | null, tables: PodContext['tables'] = []): PodContext
   pod: p,
   tables,
   names: { 'u-alice': 'Alice', 'u-bob': 'Bob' },
+  members: [],
+  leaderId: '',
   avatars: {},
   me: 'u-alice',
   name: 'Cube night',
@@ -241,16 +243,31 @@ describe('entering a pod before its table has arrived', () => {
   });
 });
 
-/* ── no spectators drawn (the operator, 2026-10-21: "we dont need to represent this in the UI at all") ── */
+/* ── spectators (the operator, 2026-10-21: "i like showing that there are spectators in the draft process") ── */
 
-describe('the running pod', () => {
-  it('draws nobody who holds no seat', () => {
+describe('the pod names its spectators', () => {
+  const members = [
+    { id: 'u-alice', name: 'Alice' },
+    { id: 'u-bob', name: 'Bob' },
+    { id: 'u-carol', name: 'Carol' },
+  ];
+  // Past the lobby the server sends every seat empty and the players as `drafters`.
+  const spectated = (phase: PodView['phase']) => ({ ...ctxOf(pod({ phase, round: 1, drafters: ['u-alice', 'u-bob'] })), members, leaderId: 'u-carol' });
+  const named = () => screen.getAllByTestId('pod-spectator').map((r) => r.dataset['member']);
+
+  it.each(['drafting', 'rounds'] as const)('while %s: each member who is not a drafter, the owner with the crown', (phase) => {
+    const { draft, room } = mountPod();
+    room.read(spectated(phase));
+    if (phase === 'drafting') draft.send(MID);
+    expect(named()).toEqual(['u-carol']);
+    expect(screen.getByTestId('pod-spectator').querySelector('.tables__crown'), 'the room owner wears the crown').not.toBeNull();
+  });
+
+  it('draws nothing while nobody is watching', () => {
     const { room } = mountPod();
-    const seats = pod({}).seats.map((_, i) => (i === 0 ? { memberId: 'u-alice', name: 'Alice' } : i === 1 ? { memberId: 'u-bob', name: 'Bob' } : null));
-    const ctx = ctxOf(pod({ phase: 'rounds', round: 1, seats }));
-    room.read({ ...ctx, names: { ...ctx.names, 'u-carol': 'Carol' } });
+    room.read({ ...spectated('rounds'), members: members.slice(0, 2) });
     expect(screen.getAllByTestId('pod-bracket-round').length).toBeGreaterThan(0);
-    expect(document.body.textContent).not.toMatch(/Carol|Spectator/);
+    expect(screen.queryByTestId('pod-spectators')).toBeNull();
   });
 });
 
