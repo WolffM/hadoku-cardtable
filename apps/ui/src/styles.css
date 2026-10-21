@@ -329,7 +329,12 @@ button {
   overflow: hidden;
 }
 
+/* Centred as a box, not set on the text's baseline: a glyph from an icon font (the
+   pool's "by colour") otherwise sits low beside a word (the operator, 2026-10-21). */
 .segmented button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: 0;
   padding: 4px 12px;
@@ -819,7 +824,9 @@ button {
 }
 
 /* The deck in progress and the sideboard: the picks fill the row up to the sideboard, so the row has no
-   space that belongs to neither (`deck/dragMove.tsx`). */
+   space that belongs to neither (`deck/dragMove.tsx`). The drop cue is drawn inside each box: the row
+   clips (`overflow: hidden`), and an outline outside a box that meets its edge was cut off there (the
+   operator, 2026-10-21). */
 .pool__main,
 .pool__sideboard {
   display: flex;
@@ -827,7 +834,7 @@ button {
   align-items: flex-start;
   border-radius: var(--radius);
   outline: 2px dashed transparent;
-  outline-offset: 2px;
+  outline-offset: -2px;
   transition: outline-color 120ms;
 }
 
