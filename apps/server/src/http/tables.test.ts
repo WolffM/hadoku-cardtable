@@ -2531,13 +2531,13 @@ describe('a room table', () => {
 		 * deck; a start from a `done` series is a new one, and draws again.
 		 * `Math.random` is pinned so a re-draw cannot land on the same deck by luck.
 		 */
-		it('against the AI in Classic: a Rematch keeps the bot’s deck for the whole Bo3, and a new series draws a new one', async () => {
+		it('against the AI in Classic: a Rematch keeps the bot’s deck, for the whole Bo3 and after it; any other start of a new series draws a new one', async () => {
 			const h = await boot();
 			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
 			expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
-			const startBot = async () => {
+			const startBot = async (extra: Record<string, unknown> = {}) => {
 				const before = h.hosts.length;
-				const pending = call(h, 'POST', '/api/play/matches', { room: ROOM, bot: true }, edgeHeaders('alice'));
+				const pending = call(h, 'POST', '/api/play/matches', { room: ROOM, bot: true, ...extra }, edgeHeaders('alice'));
 				await untilHost(h, before + 1, pending);
 				if (h.hosts.length > before) (h.hosts.at(-1) as ReplayHost).push(...OPENING);
 				return pending;
@@ -2567,6 +2567,12 @@ describe('a room table', () => {
 				expect(botDeck(), 'game 3').toBe(first);
 				await gameOver('user-alice');
 				expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ phase: 'done' });
+				// Rematch on the decided Bo3's result screen: a new series, the same bot deck.
+				expect((await call(h, 'POST', '/api/play/matches', { room: ROOM, bot: true, rematch: 'yes' }, edgeHeaders('alice'))).status).toBe(400);
+				expect((await startBot({ rematch: true })).status).toBe(201);
+				expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 1, games: [] });
+				expect(botDeck(), 'a Rematch after a decided Bo3').toBe(first);
+				await gameOver('user-alice');
 				// Back to room, then a new match: a new series, and a new bot deck.
 				expect((await startBot()).status).toBe(201);
 				expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 1, games: [] });

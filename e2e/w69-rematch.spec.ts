@@ -222,13 +222,14 @@ test(titled("alice presses Rematch, then Main menu: her checkmark and bob's high
  * The operator, 2026-10-21: "if rematch is clicked, yes the bot keeps the same
  * deck. if we go back to room then it picks a new deck". Alice plays the AI in
  * Classic and concedes; Rematch converts the Bo1, and game 2 of that Bo3 plays
- * the bot's same deck. She concedes again (the AI takes the Bo3), goes Back to
- * room and starts the AI again: a new series, so the bot's deck is drawn anew.
+ * the bot's same deck. She concedes again (the AI takes the Bo3) and presses
+ * Rematch: a new series, and still the same deck. Then she concedes, goes Back
+ * to room and starts the AI again: a new series, so the bot's deck is drawn anew.
  * The server's `room-match-started` rows name the bot's deck (a hash) and
  * whether it was kept or drawn; a fresh draw can land on the same deck by
  * chance, so the rows' `botDeckFrom` is what this reads.
  */
-test(titled('against the AI in Classic: a Rematch keeps the bot’s deck; Back to room and a new match draws a new one'), async ({ browser }) => {
+test(titled('against the AI in Classic: a Rematch keeps the bot’s deck, after a decided Bo3 too; Back to room and a new match draws a new one'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(6 * 60_000);
@@ -277,12 +278,19 @@ test(titled('against the AI in Classic: a Rematch keeps the bot’s deck; Back t
     expect(botOf(game2), 'game 2 of the Bo3 the Rematch made plays the same bot deck').toEqual({ deck: first.deck, from: 'kept' });
     await concede();
 
+    // The AI took the Bo3 2-0. Rematch on its result screen: a new series, the same bot deck.
+    await expect(rematch(alice)).toBeEnabled({ timeout: 15_000 });
+    await press(alice.page, 'game-result-rematch');
+    const game3 = await onNewBoard(game2);
+    expect(botOf(game3), 'a Rematch after a decided Bo3 plays the same bot deck').toEqual({ deck: first.deck, from: 'kept' });
+    await concede();
+
     await alice.page.getByTestId('game-result-room').click();
     await expect(alice.page.getByTestId('constructed')).toBeVisible({ timeout: 15_000 });
-    const game3 = await playBot();
-    const fresh = botOf(game3);
+    const game4 = await playBot();
+    const fresh = botOf(game4);
     expect(fresh.from, 'a new series draws the bot a new deck').toBe('drawn');
-    expect(starts().filter((r) => r.opponent === 'ai'), 'three bot games started').toHaveLength(3);
+    expect(starts().filter((r) => r.opponent === 'ai'), 'four bot games started').toHaveLength(4);
   } finally {
     await stack.stop();
   }

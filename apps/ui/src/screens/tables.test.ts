@@ -65,5 +65,7 @@ describe('TablesClient — the table id every call takes', () => {
     expect(calls[1]!.body).toEqual({ room: 'r-1', table: 't-abc12345' });
     await client.startVsBot('r-1', 't-abc12345');
     expect(calls[2]!.body).toEqual({ room: 'r-1', bot: true, table: 't-abc12345' });
+    await client.startVsBot('r-1', undefined, { rematch: true });
+    expect(calls[3]!.body, 'a Rematch says so').toEqual({ room: 'r-1', bot: true, rematch: true });
   });
 });

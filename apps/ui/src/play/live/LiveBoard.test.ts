@@ -3698,7 +3698,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     fireEvent.click(rematch());
     await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-bot000000000'));
     expect(tableState.ready).toHaveBeenCalledWith('r-1', true);
-    expect(tableState.startVsBot).toHaveBeenCalledWith('r-1');
+    expect(tableState.startVsBot, 'the start says it is a Rematch, so the bot keeps its deck').toHaveBeenCalledWith('r-1', undefined, { rematch: true });
   });
 
   it('Main menu leaves the room first, then goes to the lobby', async () => {
