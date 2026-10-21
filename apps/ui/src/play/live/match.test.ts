@@ -282,6 +282,30 @@ describe('a board that never gets its snapshot says so', () => {
   });
 });
 
+describe('a first join that times out before the socket connects', () => {
+  it('is sent again on the first connect, and only when none is still waiting', () => {
+    const handlers = new Map<string, (payload: unknown) => void>();
+    const acks: ((err: Error | null, response: unknown) => void)[] = [];
+    const transport: MatchTransport = {
+      on: (event, handler) => void handlers.set(event, handler),
+      emit: () => {},
+      request: (_event, _payload, onAck) => acks.push(onAck),
+      disconnect: () => {},
+    };
+    const m = startMatch({ matchId: 'm', transport });
+    expect(acks).toHaveLength(1);
+    acks.shift()!(new Error('operation has timed out'), undefined);
+    handlers.get('connect')!(undefined);
+    expect(m.stats.joins).toBe(2);
+    handlers.get('disconnect')!('transport close');
+    handlers.get('connect')!(undefined);
+    expect(m.stats.joins).toBe(2);
+    acks.shift()!(null, { matchId: 'm', seat: 0, playerId: 0, cursor: { epoch: 'e', seq: 1 }, frames: [FRAMES[0]] });
+    expect(m.stats.snapshots).toBe(1);
+    closeMatch(m);
+  });
+});
+
 describe('showConfirmDialog, end to end', () => {
   it('the ask arrives, and the answer — the opposite of the default — reaches the server', async () => {
     const { s, m } = await fullGame();

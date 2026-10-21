@@ -1194,7 +1194,8 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
   });
 
   match.transport.on('connect', () => {
-    const rejoin = match.everConnected;
+    // A reconnect re-joins, and so does a first connect whose first join timed out before it.
+    const rejoin = match.everConnected || match.stats.snapshots === 0;
     match.connected = true;
     match.everConnected = true;
     if (rejoin) fetchSnapshot(match, 'join');
