@@ -114,6 +114,39 @@ describe('the picks: the deck in progress and its sideboard', () => {
     expect(screen.getByTestId('main-count').textContent).toBe(String(PICKS.length - 1));
   });
 
+  // The operator, 2026-10-21: "i am not able to drag cards back out of the side-board in drafting view".
+  it('drags a sideboarded pick back out anywhere off the sideboard: it leaves the sideboard and the save stops naming it', async () => {
+    let saved: string | null = null;
+    const store: DeckStoreClient = {
+      mine: vi.fn(async () => ({ pool: PICKS, deck: saved })),
+      save: vi.fn(async (_pod: string, dck: string) => {
+        saved = dck;
+        return { ok: true as const, deck: dck };
+      }),
+    };
+    render(createElement(Picks, { store }));
+    await act(async () => undefined);
+    const card = within(screen.getByTestId('pool-main')).getAllByTestId('card')[2]!;
+    const name = card.querySelector('.card__name')!.textContent!;
+    drag(card, screen.getByTestId('pool-sideboard'));
+    await waitFor(() => expect(saved).toContain(name));
+
+    // Out of the sideboard onto the picks' open row, beside the piles; then out onto the pool's heading.
+    drag(within(screen.getByTestId('pool-side')).getByTestId('card'), document.querySelector<HTMLElement>('.pool__curve')!);
+    expect(names(screen.getByTestId('pool-side'))).toEqual([]);
+    expect(names(screen.getByTestId('pool-main'))).toContain(name);
+    await waitFor(() => expect(store.save).toHaveBeenCalledTimes(2));
+    expect(saved).not.toContain(name);
+
+    drag(within(screen.getByTestId('pool-main')).getAllByTestId('card')[0]!, screen.getByTestId('pool-sideboard'));
+    drag(within(screen.getByTestId('pool-side')).getByTestId('card'), screen.getByTestId('pool-count'));
+    expect(names(screen.getByTestId('pool-side'))).toEqual([]);
+
+    // A pick dropped off the picks, beside the sideboard, still goes to the sideboard: the move is the same both ways.
+    drag(within(screen.getByTestId('pool-main')).getAllByTestId('card')[0]!, document.querySelector<HTMLElement>('.pool__curve')!);
+    expect(names(screen.getByTestId('pool-side'))).toHaveLength(1);
+  });
+
   it('a watcher’s view of someone else’s picks drags nothing', () => {
     render(createElement(PoolView, { cards: PICKS, recentlyAdded: null, owner: 'bob' }));
     expect(document.querySelector('[draggable="true"]')).toBeNull();

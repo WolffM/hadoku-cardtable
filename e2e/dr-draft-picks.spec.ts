@@ -14,7 +14,8 @@
  *
  * One drafter against seven AI seats, on the real built server, in grid mode:
  * the picks toggle between colour and mana-value piles; a pick dragged onto
- * the sideboard is in the builder's sideboard when the draft ends, every other
+ * the sideboard comes back out by a drag dropped anywhere off it, and one
+ * left there is in the builder's sideboard when the draft ends, every other
  * pick in its main deck; and with a full pool (44 picks, then the builder's
  * 45) no box on the pick screen or in the builder scrolls or clips its cards,
  * at 1280×800 and 1366×768. `[dr]` lines are the evidence.
@@ -145,6 +146,26 @@ test(titled('the picks sort by colour or mana value, a pick dragged to the sideb
     await expect(page.getByTestId('pool-side').locator('.card__name')).toHaveText([sided]);
     expect((await saved).status(), 'the split is saved as the pod deck').toBe(200);
     console.log(`[dr] sideboarded during the draft: ${sided}`);
+
+    // And back out (the operator: "i am not able to drag cards back out of the side-board in drafting view"):
+    // dropped on the open row beside the piles, off the sideboard, it is a pick in the deck again.
+    const curve = await page.locator('.pool__curve').boundingBox();
+    const piles = await page.getByTestId('pool-main').boundingBox();
+    const side = await page.getByTestId('pool-sideboard').boundingBox();
+    const unsaved = page.waitForResponse((r) => r.url().includes('/api/drafts/') && r.url().endsWith('/deck') && r.request().method() === 'PUT');
+    await page
+      .getByTestId('pool-side')
+      .locator('.pool__tile')
+      .first()
+      .dragTo(page.locator('.pool__curve'), { sourcePosition: { x: 12, y: 6 }, targetPosition: { x: Math.round((Math.min(piles!.x + piles!.width, side!.x - 8) + side!.x) / 2 - curve!.x), y: Math.round(curve!.height / 2) } });
+    await expect(page.getByTestId('pool-side').locator('.card__name')).toHaveCount(0);
+    await expect(page.getByTestId('pool-main').locator('.card__name', { hasText: sided })).toHaveCount(1);
+    expect((await unsaved).status(), 'the un-sideboard is saved').toBe(200);
+    console.log(`[dr] dragged back out of the sideboard: ${sided}`);
+    const resaved = page.waitForResponse((r) => r.url().includes('/api/drafts/') && r.url().endsWith('/deck') && r.request().method() === 'PUT');
+    await page.getByTestId('pool-main').locator('.pool__tile', { has: page.locator('.card__name', { hasText: sided }) }).dragTo(page.getByTestId('pool-sideboard'), { sourcePosition: { x: 12, y: 6 } });
+    await expect(page.getByTestId('pool-side').locator('.card__name')).toHaveText([sided]);
+    expect((await resaved).status()).toBe(200);
 
     /* ── 4: a full pool on the pick screen, in grid mode ── */
     await pickUntil(alice, 44);

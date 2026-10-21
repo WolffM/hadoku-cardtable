@@ -366,6 +366,15 @@ describe('DeckEditor — limited', () => {
     expect(screen.getByTestId('side-count').textContent).toBe('44');
   });
 
+  it('a card dragged out of its area and dropped anywhere off it moves to the other area, both ways', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED }));
+    drag(cardsIn('side-grid')[0]!, 'deck-editor');
+    expect(screen.getByTestId('main-count').textContent).toBe('1');
+    drag(within(screen.getByTestId('main-grid')).getAllByTestId('card')[0]!, 'deck-editor');
+    expect(screen.getByTestId('main-count').textContent).toBe('0');
+    expect(screen.getByTestId('side-count').textContent).toBe('45');
+  });
+
   it('highlights the area a drag can drop on, and only while it is over it', () => {
     render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED }));
     const dt = dataTransfer();
