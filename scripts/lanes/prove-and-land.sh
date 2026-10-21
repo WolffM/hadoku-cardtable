@@ -42,7 +42,8 @@ if ! git -C "$W" rebase -q origin/main >/dev/null 2>&1; then
 fi
 SHA=$(git -C "$W" rev-parse HEAD)
 echo "prove: $B at ${SHA:0:12}, $(git -C "$W" rev-list --count origin/main..HEAD) commit(s) on origin/main $(git -C "$W" rev-parse --short origin/main)"
-git -C "$W" push -q -f origin "HEAD:refs/heads/$V"
+# A new branch makes the remote print a pull-request hint; only a refused push says anything.
+out=$(git -C "$W" push -q -f origin "HEAD:refs/heads/$V" 2>&1) || { echo "$out" >&2; exit 3; }
 
 # Three jdk21 claws: more cardtable dispatches than that only queue (memory: one dispatch per proof).
 busy() { gh run list -R "$R" --workflow forge.yml --event workflow_dispatch --limit 40 --json status \
@@ -62,7 +63,7 @@ done
 echo "prove: run $id https://github.com/$R/actions/runs/$id"
 
 set +e; bash "$HERE/watch-run.sh" "$id"; red=$?; set -e
-git -C "$W" push -q origin ":refs/heads/$V" || echo "prove: could not delete $V" >&2
+git -C "$W" push -q origin ":refs/heads/$V" 2>/dev/null || echo "prove: could not delete $V" >&2
 [ $red = 0 ] || { echo "prove: run $id is not green — nothing landed" >&2; [ $red = 1 ] && exit 1; exit 3; }
 
 # The manager's invocation: the dev-vault wrapper supplies the GitHub Packages token a land's
@@ -74,7 +75,7 @@ set +e
 (cd "$MAIN" && env -u NODE_AUTH_TOKEN node ../hadoku_site/scripts/secrets/dev-vault.mjs -- \
   bash -c "cd '$W' && bash scripts/land.sh $DRY") > "$LOG" 2>&1
 rc=$?; set -e
-grep -E '^land: (ledger|bumped|art rows|pushed|dry run|nothing)|FAILED|refused|moved|apply' "$LOG" || true
+grep -E '^land: (ledger|bumped|art rows|pushed|dry run|nothing|.*(FAILED|refused|moved|apply|rejected))' "$LOG" || true
 if [ $rc != 0 ]; then tail -20 "$LOG"; echo "prove: land.sh exited $rc — nothing landed (log $LOG)" >&2; exit 4; fi
 if [ -z "$DRY" ] && ! grep -q '^land: pushed\|^land: nothing to land' "$LOG"; then
   echo "prove: land.sh exited 0 without a 'land: pushed' line — treat it as not landed (log $LOG)" >&2; exit 4
