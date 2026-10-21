@@ -626,6 +626,29 @@
   fill: currentColor;
 }
 
+/*
+ * A state Forge tracks on the permanent (`Board.tsx`'s `CardTags`): so many of so many, a pip per
+ * step, the reached ones in the tag's ink and the rest in its line colour — the damage meter's own
+ * filled/empty split (`prompts.css`'s `.prompt__pip`).
+ */
+.board-card__tag[data-state] {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+}
+
+.board-card__state-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.board-card__state-pip[data-filled] {
+  background: currentColor;
+}
+
 .board-card__tag[data-cost-change='less'] {
   border-color: var(--accent-ink);
 }

@@ -398,6 +398,7 @@ import {
   keywordTags,
   type BoardCard,
   type BoardCardChoice,
+  type BoardCardState,
   type BoardCardWaiting,
   type BoardDoor,
   type BoardEmblem,
@@ -408,7 +409,7 @@ import {
 } from './adapter.ts';
 import { mountInspector } from './inspect/index.ts';
 import { mountTips } from './tip/index.ts';
-import { choiceTip, emblemsTip, keywordTip, MARK_TIP, SEEN_TIP, waitingTip } from './tip/words.ts';
+import { choiceTip, emblemsTip, keywordTip, MARK_TIP, SEEN_TIP, stateTip, waitingTip } from './tip/words.ts';
 import { documentScope, eventTarget } from '../dom.ts';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers, type Revealed } from './live/numbers.ts';
@@ -2130,7 +2131,8 @@ function Counters({
 }
 
 /**
- * The card's top-right tag column, in this order: a held card's changed cost,
+ * The card's top-right tag column, in this order: what a resolved ability left
+ * waiting, the state Forge tracks a permanent is in, a held card's changed cost,
  * what was chosen for a permanent, a flash an effect grants a held card, an eye
  * on a held card the opponent was shown, then each evergreen keyword the card
  * has NOW and was not printed with.
@@ -2146,6 +2148,10 @@ function Counters({
  *     `choices` — every choice property Forge tracks on the card
  *     (`CHOICE_PROPS`) — one tag each; a colour is its mana symbol, anything
  *     else its words.
+ *   - States, the operator, 2026-10-21: *"class cards should show their
+ *     current level as a pip"*. `adapter.ts`'s `states` (`STATE_PROPS`), one
+ *     tag each: a pip per step when Forge's card names the top, the reached
+ *     ones filled, else the number in the same count a collapsed mark wears.
  *   - Keywords, the operator: *"a tag on the creature when they gain
  *     flying."* (`keywordTags`).
  *   - Seen, the operator, 2026-10-15: *"much like how we created a pill for
@@ -2158,12 +2164,15 @@ function Counters({
 function CardTags({
   entry,
   choices,
+  states,
   waiting,
   held,
   seen = false,
 }: {
   entry: BoardCard;
   choices: readonly BoardCardChoice[];
+  /** What Forge tracks the permanent is in (`BoardCard.states`). */
+  states: readonly BoardCardState[];
   waiting: readonly BoardCardWaiting[];
   held?: HeldTags;
   /** Draw the eye: a card of the viewer's the opponent was shown (`BoardCard.seenByOpponent`). */
@@ -2172,10 +2181,11 @@ function CardTags({
   const keywords = keywordTags(entry.keywords, entry.card.oracleText);
   const cost = held?.cost;
   const flash = held?.flash;
-  if (choices.length === 0 && waiting.length === 0 && keywords.length === 0 && cost === undefined && flash === undefined && !seen) return null;
+  if (choices.length === 0 && states.length === 0 && waiting.length === 0 && keywords.length === 0 && cost === undefined && flash === undefined && !seen) return null;
   const waits = sameMarks(waiting, (w) => w.kind).map((group) => ({ kind: group[0]!.kind, count: group.length, tip: listed(group.map(waitingTip)) }));
   const said = [
     ...waits.map((w) => w.tip),
+    ...states.map(stateTip),
     ...(cost === undefined ? [] : [`costs ${cost.tokens.join(' ')}`]),
     ...choices.map(choiceTip),
     ...(flash === undefined ? [] : ['Flash']),
@@ -2193,6 +2203,15 @@ function CardTags({
             <span className="board-card__tag-count" aria-hidden="true">
               {w.count}
             </span>
+          )}
+        </li>
+      ))}
+      {states.map((state) => (
+        <li key={state.kind} className="board-card__tag" data-state={state.kind} data-value={state.value} data-max={state.max} data-tip={stateTip(state)}>
+          {state.max === undefined || state.value > state.max ? (
+            <span className="board-card__tag-count">{state.value}</span>
+          ) : (
+            Array.from({ length: state.max }, (_, i) => <span key={i} className="board-card__state-pip" data-filled={i < state.value ? '' : undefined} aria-hidden="true" />)
           )}
         </li>
       ))}
@@ -2561,6 +2580,7 @@ function CardOnBoard({
         <CardTags
           entry={entry}
           choices={onBattlefield ? (entry.choices ?? []) : []}
+          states={onBattlefield ? (entry.states ?? []) : []}
           waiting={onBattlefield ? (entry.waiting ?? []) : []}
           held={slot === 'hand' ? interaction?.held?.get(entry.id) : undefined}
           seen={(slot === 'hand' || libraryTop) && entry.seenByOpponent === true}

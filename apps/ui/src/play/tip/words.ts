@@ -3,7 +3,7 @@
  * what the mark means for play, not the comprehensive rules.
  */
 import { artCredit } from '../../draft/artists.ts';
-import type { BoardCardChoice, BoardCardWaiting, BoardEmblem, ChoiceKind } from '../adapter.ts';
+import type { BoardCardChoice, BoardCardState, BoardCardWaiting, BoardEmblem, ChoiceKind, StateKind } from '../adapter.ts';
 
 /** A corner mark (`Board.tsx`'s `StateMarks`). */
 export const MARK_TIP: Readonly<Record<'sick' | 'cantBlock' | 'attacking' | 'blocking', string>> = {
@@ -57,6 +57,16 @@ const CHOICE_WHAT: Readonly<Record<ChoiceKind, string>> = {
 /** A choice tag's tip: what was chosen, then the choice itself. */
 export function choiceTip(choice: BoardCardChoice): string {
   return `${CHOICE_WHAT[choice.kind]}: ${choice.values.join(', ')}`;
+}
+
+/** What each state a permanent is in is called, before where it stands. */
+const STATE_WHAT: Readonly<Record<StateKind, string>> = {
+  classLevel: 'Level',
+};
+
+/** A state mark's tip: what it is and where it stands — of how many, when Forge's card says. */
+export function stateTip(state: BoardCardState): string {
+  return `${STATE_WHAT[state.kind]} ${state.value}${state.max === undefined ? '' : ` of ${state.max}`}`;
 }
 
 /** An effect tag's tip: Forge's own words for what this card's ability left waiting, or still in effect. */

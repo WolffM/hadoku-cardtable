@@ -263,6 +263,13 @@ export interface BoardCard {
    */
   choices?: BoardCardChoice[];
   /**
+   * The operator, 2026-10-21: *"class cards should show their current level as a pip, currently they
+   * show nothing"*. Every live state Forge tracks on this permanent's `CardView` that the board draws
+   * as a mark (`STATE_PROPS`: a Class's level…), one entry per property, in that table's order.
+   * Empty for a card with none, which is most cards.
+   */
+  states?: BoardCardState[];
+  /**
    * The operator, 2026-10-13: *"indicator for active affect of narset -2 effect … maybe on a black
    * chip on the planes walker?"* What a resolved ability of this permanent left waiting
    * (`PlayBridge.java`'s `waitingEffects`): a delayed trigger Forge holds until it fires, or an
@@ -358,6 +365,19 @@ export type ChoiceKind =
 export interface BoardCardChoice {
   kind: ChoiceKind;
   values: string[];
+}
+
+/** What a state a permanent is in is OF — one per row of `STATE_PROPS`. */
+export type StateKind = 'classLevel';
+
+/**
+ * One state Forge tracks on this permanent: where it stands, and — when Forge's card names it — the
+ * most it can reach, so the board can draw it as so many of so many.
+ */
+export interface BoardCardState {
+  kind: StateKind;
+  value: number;
+  max?: number;
 }
 
 /**
@@ -1386,6 +1406,48 @@ const CHOICE_PROPS: readonly { key: string; kind: ChoiceKind; read: 'str' | 'str
   { key: 'Sector', kind: 'sector', read: 'str' },
 ];
 
+// ── states ──────────────────────────────────────────────────────────────
+
+/**
+ * Every live state of a permanent Forge tracks as a number on its `CardView` (`TrackableProperty.java`)
+ * that the board draws as a mark. `on` is Forge's own rule for which cards the property means
+ * anything on — Forge sends some to every card (`Card.java` sets `ClassLevel` to 1 on each one it
+ * makes) and draws them only where it applies (`CardView.updateMarkerText`: a Class on the
+ * battlefield). `max`, when Forge's card names the top, reads it off the face's keywords. A state
+ * Forge adds is one more row here, never a per-card rule in the board.
+ */
+const STATE_PROPS: readonly {
+  key: string;
+  kind: StateKind;
+  on: (face: WireObject | undefined) => boolean;
+  max?: (keywords: readonly string[]) => number | undefined;
+}[] = [
+  // `Card.isClassCard` is the Class subtype; each level past the first is one `Class:<level>:…` keyword.
+  { key: 'ClassLevel', kind: 'classLevel', on: (face) => subtypes(face).includes('Class'), max: (keywords) => topParam(keywords, 'class') },
+];
+
+/** A face's subtypes, as Forge's `CardType` sends them. */
+function subtypes(face: WireObject | undefined): readonly string[] {
+  const t = prop(face, 'Type');
+  return t !== undefined && t.t === 'cardtype' ? (t as Extract<Tagged, { t: 'cardtype' }>).sub : [];
+}
+
+/** The largest first parameter of the keywords named `name` (`Class:3:…` → 3); undefined when it has none. */
+function topParam(keywords: readonly string[], name: string): number | undefined {
+  const params = keywords.filter((k) => keywordName(k) === name).map((k) => Number.parseInt(k.split(':')[1] ?? '', 10));
+  const known = params.filter((n) => Number.isFinite(n));
+  return known.length > 0 ? Math.max(...known) : undefined;
+}
+
+/** Every state this card's `view` carries that applies to its `face`, generically — `STATE_PROPS` is the whole rule. */
+function readStates(view: WireObject | undefined, face: WireObject | undefined, keywords: readonly string[]): BoardCardState[] {
+  return STATE_PROPS.flatMap(({ key, kind, on, max }): BoardCardState[] => {
+    if (prop(view, key) === undefined || !on(face)) return [];
+    const top = max?.(keywords);
+    return [{ kind, value: readInt(view, key), ...(top !== undefined && { max: top }) }];
+  });
+}
+
 /** A `StringListType` value's strings (`{ t: 'list', v: [{ t: 'str', v }] }`). */
 function readStrs(obj: WireObject | undefined, name: string): string[] {
   const v = prop(obj, name);
@@ -1599,6 +1661,7 @@ function toBoardCard(
   const printedLine = printedCard !== undefined ? tokenLine(printedCard.token, typeLineOf(printedCard.type)) : undefined;
   const changedFrom = printedLine !== undefined && printedLine !== currentLine ? { name, printed: printedLine, current: currentLine } : null;
   const choices = readChoices(state, view, playerName);
+  const states = readStates(view, face, keywords);
   const relations = readRelations(state, view);
   const abilityText = readAbilityText(face);
 
@@ -1623,6 +1686,7 @@ function toBoardCard(
     token,
     changedFrom,
     choices,
+    states,
     relations,
     abilityText,
     ...(doors !== null && { doors }),
