@@ -256,9 +256,11 @@ import { closePileView } from '../../PileView.tsx';
 import { aimedTarget, attackWith, clearTappedPending, commitDrag, commitMarquee, landsInBox, markTappedPending, rectOf, type Rect } from './commit.ts';
 import {
   clearHandIndicator,
+  closeHandGap,
   commitHandReorder,
   handCardPress,
   handOrderIds,
+  openHandGap,
   updateHandIndicator,
 } from './hand.ts';
 import { applyIntents, applyPending, clearIntents } from './intent.ts';
@@ -1355,10 +1357,16 @@ export function installGestures(options: GestureOptions): GestureHandle {
      * returns first, so it is repeated here); a selection that NAMES this
      * exact card as a choice (a discard, a reveal) — the `under.kind ===
      * 'card'` branch below still answers a click on it the way it always
-     * has; and a stack-ask or an attacker/tap box-draw in progress, which
-     * already claim a press anywhere on the table.
+     * has; and a stack-ask or the attacker box-draw, which claim a press
+     * anywhere on the table.
+     *
+     * Lands Forge would tap for mana do NOT stand this down: they are on the
+     * battlefield, and a tap box starts there, never on a hand card. With
+     * that check here, a press on any card Forge was not offering — every
+     * card on the other seat's turn — fell through to the tap box and
+     * picked nothing up.
      */
-    if (event.button === 0 && stackAsk(match) === null && !declaringAttackers(match) && landsToTap(match).length === 0) {
+    if (event.button === 0 && stackAsk(match) === null && !declaringAttackers(match)) {
       const press = handCardPress(eventTarget(event));
       if (
         press !== null &&
@@ -1375,6 +1383,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const box = cardBox(canvas, press.id);
         const from = box === null ? pressAt : centreOf(box);
         handPressIndex = handOrderIds(canvas).indexOf(press.id);
+        openHandGap(press.li);
         drag = { source: press.id, press: pressAt, from, at: pressAt, target: null, moved: false, lifted: 'hand', held: true };
         // Board-sized from this call itself (`drawCastLift`'s own `'lifted'` rule) — nothing
         // of this module's reads or writes that property.
@@ -1776,6 +1785,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearMarquee(overlay);
       clearIntents(canvas);
       clearAllCastLifts(canvas);
+      closeHandGap();
       clearDropCues(canvas);
       handPressIndex = null;
       scheduleHandIndicator(null);

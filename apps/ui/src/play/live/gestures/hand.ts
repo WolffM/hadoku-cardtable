@@ -49,12 +49,20 @@
  *
  * A release outside the hand is untouched: `install.ts`'s existing cast flow
  * takes it exactly as it always has.
+ *
+ * ## The slot it leaves
+ *
+ * A lifted card is `position: fixed`, out of the hand's grid, so without
+ * help the cards after it would close up the moment it is picked up: a click
+ * put back on the slot it came from would land it one card further on, and
+ * every other card would jump under the pointer. `openHandGap` holds that slot
+ * open with an empty `<li>` until the card is put down, cast, or floats home.
  */
 import type { Point } from './types.ts';
 import type { DropTarget } from '../../Board.tsx';
 import { commitHandMove } from '../../Board.tsx';
 import { queueHandMove } from '../presence.ts';
-import { clearCastLift } from './cast.ts';
+import { CAST_LIFT_ATTR, clearCastLift } from './cast.ts';
 import { centreOf, flip } from '../../lift.ts';
 import './hand.css';
 
@@ -118,6 +126,41 @@ function nearestHandSlot(canvas: ParentNode, cardId: number, point: Point): { ta
     }
   }
   return { target: { kind: 'end' }, index: siblings.length };
+}
+
+/** The empty `<li>` holding a picked-up card's slot (`openHandGap`); never a `.board-card`, so no hand reader counts it. */
+export const HAND_GAP_ATTR = 'data-hand-gap';
+
+let gap: HTMLElement | null = null;
+let gapWatch: MutationObserver | null = null;
+
+/** Close the slot `openHandGap` held open — idempotent. */
+export function closeHandGap(): void {
+  gapWatch?.disconnect();
+  gapWatch = null;
+  gap?.remove();
+  gap = null;
+}
+
+/**
+ * Hold `li`'s slot in the hand open while it is picked up — called at the
+ * press, before the lift takes it out of the grid. The slot closes by itself
+ * once the card is neither lifted nor floating home (`./cast.ts`'s own
+ * attribute): cast, parked, or let go wherever it was.
+ */
+export function openHandGap(li: HTMLElement): void {
+  closeHandGap();
+  const el = document.createElement('li');
+  el.setAttribute(HAND_GAP_ATTR, '');
+  el.setAttribute('aria-hidden', 'true');
+  el.style.height = `${li.getBoundingClientRect().height}px`;
+  li.before(el);
+  gap = el;
+  gapWatch = new MutationObserver(() => {
+    const mode = li.getAttribute(CAST_LIFT_ATTR);
+    if (mode !== 'lifted' && mode !== 'returning') closeHandGap();
+  });
+  gapWatch.observe(li, { attributes: true, attributeFilter: [CAST_LIFT_ATTR] });
 }
 
 let indicator: HTMLElement | null = null;
@@ -243,6 +286,8 @@ export function commitHandReorder(canvas: ParentNode, cardId: number, fromIndex:
     // where `Board.tsx`'s re-render actually put it, the same box `flipHand`
     // measures every other hand card's "after" from.
     clearCastLift(canvas, cardId);
+    // Closed here, not by its own watcher: that runs after this frame's FLIP has measured.
+    closeHandGap();
     flipHand(canvas, before);
   });
 }

@@ -1,0 +1,18 @@
+# the same click-click hand reorder as `hc-hand-click-own.state`, on the
+# OTHER seat's turn: Bob (seat 1) holds priority in his own Main Phase 1 with
+# a free Memnite to cast, so he stops there; Alice's five distinct sorcery-speed
+# cards are offered nothing. The TEST reorders her hand while nothing of hers is
+# castable.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Memnite;Ornithopter;Grizzly Bears;Mountain;Island
+humanbattlefield=Forest;Forest
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Memnite
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -1218,6 +1218,20 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     return { ...board, lands, other, offered, sweep };
   }
 
+  /** Mutation: put `landsToTap` back in the hand press's guard (`install.ts`) → the press starts the box instead, and this fails. */
+  it('a click on a hand card Forge is not offering still picks it up while the lands are tappable — no box, nothing sent', async () => {
+    const { s, m, canvas } = await landsOffered();
+    const card = mineOf(m).hand![0]!.id;
+    expect(boardInteraction(m).selectable.has(card), 'the hand card is not offered').toBe(false);
+    const face = cardEl(canvas, card).querySelector<HTMLButtonElement>('button')!;
+    fireEvent.pointerDown(face, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(face, { clientX: 10, clientY: 10 });
+    expect(cardEl(canvas, card).getAttribute('data-cast-lift'), 'picked up by the click').toBe('lifted');
+    fireEvent.pointerMove(canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="you"]')!, { clientX: 40, clientY: 20 });
+    expect(overlayOf(canvas).querySelector('[data-testid="marquee"]'), 'no tap box').toBeNull();
+    expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
   it('the first land goes out at the release, and each next one only after the board shows the one before it tapped', async () => {
     const { s, m, lands, offered, sweep } = await landsOffered();
     sweep(700, 300);

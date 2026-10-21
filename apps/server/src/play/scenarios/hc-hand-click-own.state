@@ -1,0 +1,19 @@
+# "click to drag the order of cards in hand. so click to pick up a card,
+# and click to put the card back down". Alice (seat 0, human) is at her own
+# uncontested Main Phase 1 with five distinct cards in hand, every one of them
+# offered: two free artifacts, a creature her two Forests pay for, and two
+# lands she may still play. The TEST reorders them by click-click and reads
+# that nothing is cast or played.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Memnite;Ornithopter;Grizzly Bears;Mountain;Island
+humanbattlefield=Forest;Forest
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
