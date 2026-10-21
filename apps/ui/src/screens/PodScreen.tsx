@@ -71,6 +71,7 @@ import {
 } from '../draft/socket.ts';
 import { initialState, type TableState } from '../draft/table.ts';
 import { DraftScreen, fitToWindow } from '../components/DraftScreen.tsx';
+import { useFitScale } from '../components/cardFit.ts';
 import type { PackLayout } from '../components/PackView.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { navigate, routeHash } from './route.ts';
@@ -308,12 +309,13 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
  * change so many times?"*).
  */
 function DraftSkeleton({ side }: { side: ReactNode }) {
+  const fitAside = useFitScale();
   return (
     <div className="draft" data-testid="pod-waiting" aria-busy="true">
       <div className="draft__body" ref={fitToWindow}>
         <span className="skeleton pod__skeleton-pack" />
         <span className="skeleton pod__skeleton-pool" />
-        <aside className="draft__aside">{side}</aside>
+        <aside className="draft__aside fit-scale" ref={fitAside}>{side}</aside>
       </div>
     </div>
   );

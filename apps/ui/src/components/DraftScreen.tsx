@@ -54,6 +54,7 @@ import {
 } from '../draft/table.ts';
 import { ConnectionBanner } from './ConnectionBanner.tsx';
 import { DeckView } from './DeckView.tsx';
+import { useFitScale } from './cardFit.ts';
 import { DraftCounters } from './DraftCounters.tsx';
 import { useNewPackSound } from '../draft/packSound.ts';
 import { PackView, type PackLayout } from './PackView.tsx';
@@ -155,6 +156,7 @@ export function DraftScreen({
   buildStore = null,
 }: DraftScreenProps) {
   const [localLayout, setLocalLayout] = useState<PackLayout>('fan');
+  const fitAside = useFitScale();
   const layout = layoutProp ?? localLayout;
   const setLayout = onLayoutChange ?? setLocalLayout;
 
@@ -286,7 +288,7 @@ export function DraftScreen({
         {/* One column beside the pack and the picks, the whole height: the room's bar,
             the draft's, and the seats (the operator, 2026-10-19: "we could reclaim a lot
             of vertical space in that way"). */}
-        <aside className="draft__aside">
+        <aside className="draft__aside fit-scale" ref={fitAside}>
           {side}
           <header className="draft__bar">
             {/* The room's bar names the room already. */}

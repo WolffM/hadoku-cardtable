@@ -16,6 +16,12 @@
  * whose areas share one height (the deck builder's pool over its deck) hands
  * `largestCard` the sum of its parts, so the split between them follows what
  * each one holds instead of a fixed share.
+ *
+ * A COLUMN of controls (the draft's side column: the room's bar, the draft's,
+ * the seats) is the same rule for what is not a card: it draws at the largest
+ * scale at which its content fits its box (`fitScale`), by redefining the UI
+ * scale's units inside it (`.fit-scale`, `styles.css`), so every length in it
+ * shrinks together and nothing in it scrolls.
  */
 
 import { useCallback, useRef, useState } from 'react';
@@ -141,6 +147,63 @@ export function columnsOf<T>(items: readonly T[], cols: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += per) out.push(items.slice(i, i + per));
   return out.length === 0 ? [[]] : out;
+}
+
+/** A fit column never draws its lengths smaller than this share of the UI scale; under it, it clips. */
+export const MIN_FIT = 0.6;
+const FIT_STEP = 0.01;
+
+/**
+ * The scale a column draws at so its content fits `available`: `content` is
+ * how tall it measured drawn at `fit`, and every length in it is a multiple of
+ * that scale, so at 1 it would be `content / fit`. The largest hundredth that
+ * fits, at most 1. A rise of a single step is not taken: text that rewraps at
+ * the new size could take it straight back, and the column would flicker.
+ */
+export function fitScale(content: number, fit: number, available: number): number {
+  if (!(content > 0) || !(available > 0) || !(fit > 0)) return 1;
+  const fits = Math.min(1, Math.floor(((available * fit) / content) / FIT_STEP + 1e-9) * FIT_STEP);
+  const next = Math.max(MIN_FIT, Math.round(fits * 100) / 100);
+  return next > fit && next - fit < 2 * FIT_STEP - 1e-9 ? fit : next;
+}
+
+/** How tall `el`'s children reach inside its content box, whatever the box's own height. */
+function contentHeight(el: HTMLElement): number {
+  const style = getComputedStyle(el);
+  const top = el.getBoundingClientRect().top + (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.paddingTop) || 0);
+  let bottom = top;
+  for (const child of el.children) bottom = Math.max(bottom, child.getBoundingClientRect().bottom + cssPx(child, 'margin-bottom', 0));
+  return bottom - top;
+}
+
+/**
+ * A column that fits its box (`fitScale`): give it the `fit-scale` class and
+ * this ref. It writes `--fit` on the element whenever the box or anything in
+ * it changes size.
+ */
+export function useFitScale(): (el: HTMLElement | null) => void {
+  const observer = useRef<ResizeObserver | null>(null);
+  return useCallback((el: HTMLElement | null) => {
+    observer.current?.disconnect();
+    observer.current = null;
+    if (el === null || typeof ResizeObserver === 'undefined') return;
+    const watched = new Set<Element>();
+    const measure = (): void => {
+      const fit = parseFloat(el.style.getPropertyValue('--fit')) || 1;
+      const style = getComputedStyle(el);
+      const available = el.clientHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0);
+      const next = fitScale(contentHeight(el), fit, available);
+      if (next !== fit) el.style.setProperty('--fit', String(next));
+      for (const child of el.children) {
+        if (watched.has(child)) continue;
+        watched.add(child);
+        observer.current?.observe(child);
+      }
+    };
+    observer.current = new ResizeObserver(measure);
+    observer.current.observe(el);
+    measure();
+  }, []);
 }
 
 /** The box an element draws in, kept current. Zero until it has been measured (and in a test environment). */

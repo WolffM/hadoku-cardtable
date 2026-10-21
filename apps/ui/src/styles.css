@@ -28,6 +28,17 @@
 }
 
 /*
+ * A column that fits its box (`components/cardFit.ts`'s `useFitScale`, which writes `--fit`):
+ * inside it the units are the UI scale times `--fit`, so every length it holds shrinks together
+ * until its content fits, and it never scrolls. Under `MIN_FIT` it clips.
+ */
+.fit-scale {
+  --ui-px: calc(1px * var(--ui-scale) * var(--fit, 1));
+  --ui-rem: calc(1rem * var(--ui-scale) * var(--fit, 1));
+  overflow: hidden;
+}
+
+/*
  * Draft table styling.
  *
  * Two rules drive everything here, and both are legal rather than aesthetic:
@@ -423,13 +434,14 @@ button {
   overflow: hidden;
 }
 
+/* The whole height beside the pack and the picks, and what it holds draws at the scale that fits it
+   (`.fit-scale`): with eight seats, the room's bar and the draft's, it is taller than a 768px window. */
 .draft__aside {
   grid-area: seats;
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-height: 0;
-  overflow: auto;
 }
 
 /* In the side column the bars stack: one thing to a row. */

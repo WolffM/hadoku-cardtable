@@ -475,6 +475,15 @@
    */
   --pile-weight: 1;
   --top-weight: 1.1;
+  /* The strip each buried card of a pile shows, as a share of the card's width. */
+  --pile-peek: 0.575;
+  /*
+   * The least of the column the piles keep when the avatar block and the library's top card would
+   * take all of it (a large UI scale in a short window): the newest card's name line. The top card
+   * gives way instead (`.zone--library`). Small on purpose: on a 1366×768 match at 100% the column
+   * holds the avatar block, a whole top card and about this much more (`e2e/table-fit.spec.ts`).
+   */
+  --pile-floor: calc(var(--who-w) * 0.15);
   /* Whose turn it is (below): neither lit nor shaded until the section says so. */
   --turn-lit: 0;
   --turn-shade: 0;
@@ -912,7 +921,12 @@
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 2px;
   min-width: 0;
-  min-height: 0;
+  min-height: var(--pile-floor);
+}
+
+/* With an exile strip, the floor is the graveyard's beside the strip at its tallest. */
+.board .seat .seat__piles:has(> .zone--exile:not([data-count='0'])) {
+  min-height: calc(var(--pile-floor) + 2px + 3.6rem);
 }
 
 .seat:not([data-viewer]) .seat__piles {
@@ -937,18 +951,34 @@
  * the mirrored column puts it on the far side of the opponent's avatar from the centre line, as its
  * graveyard is. One card the box's width, measured like a pile (`zone-box.ts`); the box is
  * `--top-weight` of the column where a pile is `--pile-weight`, the difference taken from the gutter.
+ *
+ * And no taller than the column leaves it. Its basis is its cards at that width, written from the
+ * box's WIDTH rather than `auto`, so the height it is given never depends on the card drawn from that
+ * height; when the avatar block and the piles' floor leave less (a large UI scale in a short window),
+ * it is the box that gives way, and its cards are drawn at the size its measured height allows.
  */
 .board .seat .zone--library {
+  /* How many cards it draws: the top one whole, each under it a strip. */
+  --top-n: 1;
+
   contain: inline-size style;
-  flex: none;
+  flex: 0 1 calc(var(--zone-w) * (var(--card-tall) + (var(--top-n) - 1) * var(--pile-peek)));
   min-height: 0;
   margin-inline-end: calc(-1 * min(var(--side-gap), var(--who-w) * (var(--top-weight) - var(--pile-weight))));
 }
 
+.board .seat .zone--library:has(.zone__cards > li + li) {
+  --top-n: 2;
+}
+
+.board .seat .zone--library:has(.zone__cards > li + li + li) {
+  --top-n: 3;
+}
+
 .board .seat .zone--library .zone__cards {
-  --card-w: var(--zone-w);
+  --card-w: min(var(--zone-w), var(--zone-h) / (var(--card-tall) + (var(--top-n) - 1) * var(--pile-peek)));
   /* The strip each card under the top one shows, as a pile's (`zone--graveyard`). */
-  --peek: calc(var(--card-w) * 0.575);
+  --peek: calc(var(--card-w) * var(--pile-peek));
 
   display: flex;
   flex-direction: column-reverse;
@@ -1542,7 +1572,7 @@
   /* The strip each buried card shows, in proportion to the card rather than a
      fixed 1.15rem: a wider card deserves a taller name strip, and at the
      previous 2rem/1.15rem ratio this is the same pile it always was. */
-  --peek: calc(var(--pile-card-w) * 0.575);
+  --peek: calc(var(--pile-card-w) * var(--pile-peek));
 
   flex: 0 1 auto;
   display: grid;
