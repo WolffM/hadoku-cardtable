@@ -23,7 +23,7 @@
  */
 
 import { deckIssues, newDeck, type Deck } from '@hadoku/deck';
-import { oneEachFill, type BlockingMethod, type ZoneType } from '@hadoku/forge-wire';
+import { oneEachFit, type BlockingMethod, type ZoneType } from '@hadoku/forge-wire';
 import type { CombatAssignment, CombatDamageRules } from '@hadoku/shared';
 
 import type { AskOf, ReplyOf } from './types.ts';
@@ -507,7 +507,7 @@ export function orderProblems(ask: AskOf<'order'>, reply: ReplyOf<'order'>): Pro
   }
   const locked = new Set(ask.locked ?? []);
   for (const key of reply.ordered) if (locked.has(key)) problems.push(`"${key}" may not be moved there`);
-  if (ask.oneEach !== undefined && oneEachFill(ask.oneEach, reply.ordered) === null) problems.push('two cards for one type');
+  if (ask.oneEach !== undefined && oneEachFit(ask.oneEach, reply.ordered) === null) problems.push('two cards for one type');
   if (reply.rememberDecision && !ask.showRememberCheckbox) problems.push('"remember" was not offered');
   return problems;
 }

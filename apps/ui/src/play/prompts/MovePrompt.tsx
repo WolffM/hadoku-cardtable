@@ -29,8 +29,9 @@
  * Forge's bounds on how many go where gate OK (`rules.ts` `orderProblems`), drawn rather
  * than written: a zone that must hold an exact count shows it, and a zone short of or
  * over its bounds is marked (`data-short`). A pick of one card per type (`oneEach`, Atraxa's
- * "for each card type") draws each type over the answer's zone, filled once a card in it
- * fills that type; a card no type is left for does not go in.
+ * "for each card type") draws each type over the answer's zone, filled once the cards in it
+ * fill that type whichever way they are read, open while a card of several types could; a card
+ * goes in only while the cards still each fill a type of their own.
  *
  * ## The gesture
  *
@@ -55,7 +56,7 @@
  * A row of words (a trigger's ability) keeps its ↑/↓ on its own tile.
  */
 
-import { oneEachFill } from '@hadoku/forge-wire';
+import { oneEachFit } from '@hadoku/forge-wire';
 import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import { cardOrWordsFace, PromptShell } from './PromptShell.tsx';
@@ -172,7 +173,7 @@ function ZonesSheet({
    */
   const move = (key: string, to: Side, before: string | null): boolean => {
     if (to === 'dest' && locked.has(key)) return false;
-    if (to === 'dest' && oneEach !== undefined && !lists.dest.includes(key) && oneEachFill(oneEach, [...lists.dest, key]) === null) return false;
+    if (to === 'dest' && oneEach !== undefined && !lists.dest.includes(key) && oneEachFit(oneEach, [...lists.dest, key]) === null) return false;
     let at = before;
     if (turned(to)) {
       const rest = lists[to].filter((k) => k !== key);
@@ -207,8 +208,10 @@ function ZonesSheet({
     ask.remainingObjectsMax < 0 || single ? null : [n - ask.remainingObjectsMax, n - Math.max(ask.remainingObjectsMin, 0)];
   const exact = bounds !== null && bounds[0] === bounds[1] ? bounds[0] : null;
   const destShort = bounds !== null && (lists.dest.length < bounds[0] || lists.dest.length > bounds[1]);
-  /** Which card fills each type, for a pick of one per type. */
-  const filled = oneEach === undefined ? null : (oneEachFill(oneEach, lists.dest) ?? new Map<string, string>());
+  /** What the answer fills, for a pick of one per type: a type is filled once every reading of it fills the type. */
+  const fit = oneEach === undefined ? null : oneEachFit(oneEach, lists.dest);
+  /** The types some pick could still be, not yet decided. */
+  const open = new Set([...(fit?.could.values() ?? [])].flat().filter((type) => !fit!.filled.has(type)));
 
   /** Enter or Space does what a click does; in an ordered zone the arrows move the card the way they point. */
   const onKey = (act: () => void, side: Side, i: number, ordered: boolean) => (e: ReactKeyboardEvent) => {
@@ -251,6 +254,7 @@ function ZonesSheet({
             data-key={key}
             data-card-id={liftIdOf.get(key)}
             data-locked={locked.has(key) || undefined}
+            data-types={(side === 'dest' && fit?.could.get(key)?.join(' ')) || undefined}
             role="button"
             tabIndex={0}
             aria-label={nameOf(key)}
@@ -306,8 +310,15 @@ function ZonesSheet({
         {side === 'dest' && oneEach !== undefined && (
           <ul className="zone__types">
             {oneEach.map(({ type }) => (
-              <li key={type} className="zone__type" data-testid="zone-type" data-type={type} data-filled={filled?.has(type) || undefined}>
-                {type} <span className="zone__count">{filled?.has(type) ? 1 : 0}/1</span>
+              <li
+                key={type}
+                className="zone__type"
+                data-testid="zone-type"
+                data-type={type}
+                data-filled={fit?.filled.has(type) || undefined}
+                data-could={open.has(type) || undefined}
+              >
+                {type} <span className="zone__count">{fit?.filled.has(type) ? 1 : 0}/1</span>
               </li>
             ))}
           </ul>

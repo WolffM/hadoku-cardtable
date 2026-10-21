@@ -16,7 +16,7 @@
  * seat like any other.
  */
 
-import { oneEachFill, type ServerFrame } from '@hadoku/forge-wire';
+import { oneEachFit, type ServerFrame } from '@hadoku/forge-wire';
 
 import { digQuestion } from './arrange.js';
 
@@ -78,8 +78,8 @@ export function eachTypeAsk(frame: Ask): OrderAsk | null {
  * filled go first, so Forge's later questions all have the card they ask for.
  */
 export function firstEachType(ask: ChoicesAsk, sheet: OrderAsk, ordered: readonly string[]): { result: string[]; left: EachTypeLeft } | null {
-	const fill = oneEachFill(sheet.oneEach ?? [], ordered);
-	if (fill === null) return null;
+	const fill = oneEachFit(sheet.oneEach ?? [], ordered)?.fill;
+	if (fill === undefined) return null;
 	const idOf = new Map(sheet.sourceChoices.flatMap((c) => (c.ref !== null && c.ref.kind === 'card' ? [[c.key, c.ref.id] as const] : [])));
 	const steps: Step[] = ask.choices.map((c) => ({ type: c.label, card: idOf.get(fill.get(c.label) ?? '') ?? null }));
 	steps.sort((a, b) => Number(b.card !== null) - Number(a.card !== null));

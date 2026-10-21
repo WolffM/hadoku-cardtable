@@ -924,7 +924,8 @@
   font-size: 13px;
 }
 
-/* A pick of one card per type: each type over the answer's zone, filled once a card fills it. */
+/* A pick of one card per type: each type over the answer's zone, filled once the cards fill it
+   whichever way they are read, dashed while a card of several types could fill it. */
 .zone__types {
   display: flex;
   flex-wrap: wrap;
@@ -946,6 +947,11 @@
 .zone__type[data-filled] {
   border-color: var(--success);
   color: var(--success-ink);
+}
+
+.zone__type[data-could] {
+  border-style: dashed;
+  border-color: var(--success);
 }
 
 .prompt__problems {
