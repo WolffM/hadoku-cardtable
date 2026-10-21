@@ -40,7 +40,7 @@ import { playRole } from '../sound/index.ts';
 import { relatedCards, withRelatedFaces } from '../draft/related.ts';
 import { CARD_RATIO, cssPx, fitGrid, useBox } from './cardFit.ts';
 import { CardTile } from './CardTile.tsx';
-import { RelatedRow } from './RelatedRow.tsx';
+import { RelatedRow, type RelatedPlace } from './RelatedRow.tsx';
 
 export type PackLayout = 'fan' | 'grid';
 
@@ -124,14 +124,14 @@ export function fanLayer(i: number, open: number, count: number): number {
   return count - Math.abs(i - open);
 }
 
-/** The related row of card `at`, with `open` open: just under its bottom edge, from its left edge, kept inside the pack's width. */
-export function relatedStyle(fan: FanGeometry, at: number, open: number, count: number, width: number, n: number): CSSProperties {
+/** The related row of card `at`, with `open` open, in the pack's coordinates: just under its bottom edge, from its left edge, kept inside the pack's width. */
+export function relatedPlace(fan: FanGeometry, at: number, open: number, count: number, width: number, n: number): RelatedPlace {
   const w = fan.cardW * RELATED_SCALE;
   const row = n * w + Math.max(0, n - 1) * RELATED_GAP;
   const cardLeft = width / 2 + (fanX(fan, at, open, count) ?? 0) - fan.cardW / 2;
   const left = Math.max(0, Math.min(cardLeft, width - row));
   const top = LIFT + fan.cardH - (at === open ? RISE : 0) + RELATED_DROP;
-  return { '--related-w': `${w.toFixed(1)}px`, '--related-left': `${left.toFixed(1)}px`, '--related-top': `${top.toFixed(1)}px` } as CSSProperties;
+  return { left, top, width: w };
 }
 
 /** Trackpad travel per card; any single wheel event this big is one mouse notch, one card. */
@@ -339,7 +339,7 @@ export function PackView({ cards: dealt, layout, onPick, disabled, emptyNote }: 
       })}
       {/* The hovered card's back face, tokens and meld cards, in a row under it. */}
       {fan !== null && shown !== null && related !== null && (
-        <RelatedRow cards={related.cards} style={relatedStyle(fan, related.at, shown, cards.length, box.width, related.cards.length)} />
+        <RelatedRow cards={related.cards} anchor={root.current} place={relatedPlace(fan, related.at, shown, cards.length, box.width, related.cards.length)} />
       )}
     </div>
   );

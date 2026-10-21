@@ -70,7 +70,7 @@
  *
  * ## Where it draws, and what it may never cover
  *
- * Only into the board's `[data-board-zoom]` layer — looked up, never moved —
+ * Only into the screen's top layer (`../../topLayer.ts`) — looked up, never moved —
  * which is `position: absolute; inset: 0; pointer-events: none` over the whole
  * canvas at `--z-zoom` (`../board.css`, `.board__zoom`): the one layer above
  * everything on the table, the phase rail, the controls and a decision window
@@ -128,6 +128,7 @@
 
 import { pastSlop } from '../live/gestures/types.ts';
 import { scopeOf } from '../../dom.ts';
+import { topLayerIn } from '../../topLayer.ts';
 import { playRole } from '../../sound/index.ts';
 import './inspect.css';
 
@@ -513,7 +514,7 @@ export function mountInspector(root: ParentNode): () => void {
   /** The card a press or Escape put the preview away on: it opens nothing until the pointer or focus leaves it. */
   let quiet: Element | null = null;
 
-  const layer = (): HTMLElement | null => root.querySelector('[data-board-zoom]');
+  const layer = (): HTMLElement | null => topLayerIn(root);
 
   /** The viewer's own hand — the one zone the panel may never cover. */
   const handRect = (): Rect | null => {

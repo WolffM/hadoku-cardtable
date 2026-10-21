@@ -8,12 +8,27 @@
  * at a time is the flash the operator asked never to see — and only the ones
  * that decoded: a related card has no text tile to fall back on. Never in the
  * way: the picks under it still take the pointer.
+ *
+ * Drawn in the screen's top layer (`../topLayer.ts`), not in the pack: the
+ * operator, 2026-10-21, *"they need to render on top of everything else"*. Inside
+ * the pack no z-index could lift the row out of the pack's stacking context, and
+ * the picks' card art, later in the page, painted over it. Placed from the pack's
+ * measured rect, at `place` in the pack's own coordinates.
  */
 
 import { useEffect, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 
 import { cardImageUrl } from '../draft/cardImage.ts';
 import type { RelatedCard } from '../draft/related.ts';
+import { originIn, topLayerOf } from '../topLayer.ts';
+
+/** The row's place in the pack's own coordinates, and each related card's width. */
+export interface RelatedPlace {
+  left: number;
+  top: number;
+  width: number;
+}
 
 /** Whether `url` loads and decodes; no `Image` that can decode (a non-DOM test) is a no. */
 function decodes(url: string | null): Promise<boolean> {
@@ -26,7 +41,7 @@ function decodes(url: string | null): Promise<boolean> {
   );
 }
 
-export function RelatedRow({ cards, style }: { cards: readonly RelatedCard[]; style: CSSProperties }) {
+export function RelatedRow({ cards, anchor, place }: { cards: readonly RelatedCard[]; anchor: HTMLElement | null; place: RelatedPlace }) {
   const key = cards.map((c) => c.id).join('|');
   const [drawn, setDrawn] = useState<{ key: string; cards: { card: RelatedCard; url: string }[] } | null>(null);
   useEffect(() => {
@@ -41,11 +56,20 @@ export function RelatedRow({ cards, style }: { cards: readonly RelatedCard[]; st
     // `key` names the cards; the array itself is a fresh one each render.
   }, [key]);
   if (drawn === null || drawn.key !== key || drawn.cards.length === 0) return null;
-  return (
+  const layer = anchor === null ? null : topLayerOf(anchor);
+  if (anchor === null || layer === null) return null;
+  const origin = originIn(layer, anchor);
+  const style = {
+    left: `${+(origin.left + place.left).toFixed(1)}px`,
+    top: `${+(origin.top + place.top).toFixed(1)}px`,
+    '--related-w': `${+place.width.toFixed(1)}px`,
+  } as CSSProperties;
+  return createPortal(
     <div className="pack__related" data-testid="pack-related" style={style}>
       {drawn.cards.map(({ card, url }) => (
         <img key={card.id} className="pack__related-card" src={url} alt={card.name} title={card.name} data-kind={card.kind} draggable={false} />
       ))}
-    </div>
+    </div>,
+    layer,
   );
 }

@@ -27,6 +27,7 @@
  * with `data-tip` shows it the same way.
  */
 import { scopeOf } from '../../dom.ts';
+import { topLayerIn } from '../../topLayer.ts';
 
 import './tip.css';
 
@@ -83,7 +84,7 @@ export function mountTips(root: HTMLElement): () => void {
 
   function show(host: HTMLElement, x: number, y: number): void {
     const text = host.dataset.tip ?? '';
-    const layer = root.querySelector<HTMLElement>('[data-board-zoom]');
+    const layer = topLayerIn(root);
     if (text === '' || layer === null) {
       hide();
       return;

@@ -496,8 +496,8 @@ button {
  */
 .pack--fan {
   position: relative;
-  /* Above the picks, so the open card's related row (`.pack__related`) draws over them. */
-  z-index: 1;
+  /* The cards' own layers (`fanLayer`) order them against each other, never against the page. */
+  isolation: isolate;
   height: 100%;
   min-height: 0;
   margin: 0;
@@ -522,13 +522,9 @@ button {
   box-shadow: 0 14px 26px var(--shadow);
 }
 
-/* The hovered card's related cards, just under it and over the picks, never taking the pointer from them. */
+/* The hovered card's related cards, in the screen's top layer (`RelatedRow.tsx`), placed by `RelatedRow`; never taking the pointer. */
 .pack__related {
   position: absolute;
-  top: var(--related-top, 100%);
-  left: var(--related-left, 0px);
-  /* Over every card of the fan, whose layers (`fanLayer`) count up to the pack's size. */
-  z-index: 100;
   display: flex;
   gap: 8px;
   pointer-events: none;

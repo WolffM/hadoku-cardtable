@@ -397,6 +397,8 @@ export function DebugHarness() {
           app&rsquo;s own origin, which serves no image at all (D15).
         </p>
       </footer>
+      {/* The top layer the draft screen's related row draws into, as `PodScreen`'s. */}
+      <div className="pod__zoom" data-board-zoom="" />
     </div>
   );
 }
