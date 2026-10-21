@@ -3,6 +3,9 @@
  * The UI scale: one number, written on the root our stylesheet's tokens resolve on, that every
  * length the app's own CSS authors is a multiple of.
  */
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { PlayPrefsSchema } from '../play/live/prefs.ts';
@@ -95,5 +98,29 @@ describe('the scale itself', () => {
     expect(PlayPrefsSchema.safeParse({ uiScale: 1.15 }).success).toBe(true);
     expect(PlayPrefsSchema.safeParse({ uiScale: UI_SCALE.max + 0.5 }).success).toBe(false);
     expect(PlayPrefsSchema.safeParse({ uiScale: 'big' }).success).toBe(false);
+  });
+});
+
+describe('a property Chromium will not take as calc()', () => {
+  // `overflow-clip-margin` written as calc() is dropped to 0px (measured), and the rewrite makes every
+  // authored px a calc(): main's run on b98ddd62 clipped every combat-ready creature by its battlefield
+  // (cr-combat-clip.spec.ts) once `--emphasis-room: 28px` became `calc(28 * var(--ui-px))`.
+  const src = resolve(import.meta.dirname ?? 'apps/ui/src/settings', '..');
+  const sheets = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? sheets(join(dir, e.name)) : e.name.endsWith('.css') ? [join(dir, e.name)] : []));
+  const all = sheets(src)
+    .map((file) => readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''))
+    .join('\n');
+
+  it('reads its length from a custom property registered as a <length>, so the scaled calc() reaches it as plain px', () => {
+    const uses = [...all.matchAll(/overflow-clip-margin:\s*([^;]+);/g)].map((m) => m[1]!.trim());
+    expect(uses.length, 'the battlefield and its lanes').toBeGreaterThan(0);
+    for (const value of uses) {
+      expect(scaleCssValue(value), `${value}: nothing the rewrite turns into calc()`).toBe(value);
+      const name = /^var\((--[\w-]+)\)$/.exec(value)?.[1];
+      expect(name, `${value} is one custom property`).toBeDefined();
+      const registered = new RegExp(`@property ${name} \\{[^}]*syntax:\\s*'<length>'`).test(all);
+      expect(registered, `${name} is registered as a <length>`).toBe(true);
+    }
   });
 });
