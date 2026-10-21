@@ -1,0 +1,20 @@
+# e2e/ax-atraxa.spec.ts, apps/server/src/play/ax-atraxa.jvm.test.ts — the operator, 2026-10-20, on
+# Atraxa, Grand Unifier: "would be much better if we just showed all 7 cards and let me pick all of
+# them at once rather than one at a time" and "it seems to show a pill of the chosen card on top of
+# atraxa after she resolves". Alice (seat 0) holds Atraxa with seven untapped lands of her colours
+# in her main phase; her top ten hold seven card types: Ornithopter (artifact creature), Sol Ring
+# (artifact), Llanowar Elves (creature), Lightning Bolt (instant), Divination (sorcery), Pacifism
+# (enchantment), Forest (land), Jace Beleren (planeswalker), Island, Shock. Five Mountains under them.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Atraxa, Grand Unifier
+humanbattlefield=Forest;Plains;Island;Swamp;Forest;Plains;Island
+humanlibrary=Ornithopter;Sol Ring;Llanowar Elves;Lightning Bolt;Divination;Pacifism;Forest;Jace Beleren;Island;Shock;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Mountain
+aibattlefield=
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
