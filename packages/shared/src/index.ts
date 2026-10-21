@@ -214,6 +214,7 @@ export { PLACEMENT_EVENT, PlacementEchoSchema, PlacementSchema, PlacementTargetS
 export { PLACED_EVENT, PlacedEchoSchema, PlacedSchema, type PlacedEcho, type PlacedMessage } from './placed.ts';
 export { ART_EVENT, ArtCardSchema, ArtPreloadSchema, type ArtCard, type ArtPreload } from './art.ts';
 export { DECK_COLORS_EVENT, DeckColorsSchema, type DeckColors } from './deck-colors.ts';
+export { pickRandom, secureRandom } from './random.ts';
 export {
   ARRANGEMENT_EVENT,
   ARRANGEMENT_MAX_PER_SECOND,

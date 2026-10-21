@@ -364,28 +364,7 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
  */
 export const RANDOM_DECK = '__random__';
 
-/**
- * A uniform [0,1) from `crypto`, never `Math.random`.
- *
- * The same rule `route.ts` states for a draft id, for the same reason: one
- * rule, one place, no exception to remember.
- */
-export function secureRandom(): number {
-  const buf = new Uint32Array(1);
-  globalThis.crypto.getRandomValues(buf);
-  return buf[0] / 2 ** 32;
-}
-
-/**
- * One of `items`, or undefined when there are none.
- *
- * `rand` is injectable so "Random picks one of the decks on offer" can be
- * asserted against a pinned source rather than sampled and hoped about.
- */
-export function pickRandom<T>(items: readonly T[], rand: () => number = secureRandom): T | undefined {
-  if (items.length === 0) return undefined;
-  return items[Math.min(items.length - 1, Math.floor(rand() * items.length))];
-}
+export { pickRandom, secureRandom } from '@hadoku/shared';
 
 /**
  * The newest STANDARD era — never just "the last element".
