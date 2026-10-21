@@ -407,7 +407,7 @@ import {
   type PoolColor,
   type PTState,
 } from './adapter.ts';
-import { mountInspector } from './inspect/index.ts';
+import { LONG_PRESS_MS, mountInspector } from './inspect/index.ts';
 import { mountTips } from './tip/index.ts';
 import { choiceTip, emblemsTip, keywordTip, MARK_TIP, SEEN_TIP, stateTip, waitingTip } from './tip/words.ts';
 import { documentScope, eventTarget } from '../dom.ts';
@@ -1249,7 +1249,7 @@ export function virtualColumns(row: { readonly left: number; readonly right: num
   return n;
 }
 
-export function snapTo(slots: readonly SlotGeometry[], x: number, y: number, dragging: number | null = null): Snap | null {
+export function snapTo(slots: readonly SlotGeometry[], x: number, y: number, dragging: number | null = null, whole = false): Snap | null {
   let best: SlotGeometry | null = null;
   let bestDistance = Infinity;
   for (const slot of slots) {
@@ -1278,8 +1278,8 @@ export function snapTo(slots: readonly SlotGeometry[], x: number, y: number, dra
       },
     };
   }
-  // The dragged card's own column (a pile of just itself) is never the target.
-  const own = (p: { readonly id: number | null; readonly size?: number }): boolean => dragging !== null && p.id === dragging && (p.size ?? 1) <= 1;
+  // The dragged card's own column (a pile of just itself, or the pile it heads when `whole` carries all of it) is never the target.
+  const own = (p: { readonly id: number | null; readonly size?: number }): boolean => dragging !== null && p.id === dragging && (whole || (p.size ?? 1) <= 1);
   let at = -1;
   let nearest = Infinity;
   piles.forEach((pile, i) => {
@@ -1715,7 +1715,9 @@ export function previewPlayedTo(point: { x: number; y: number } | null): void {
 }
 
 /**
- * The arrangement after a drag: `cardId` lands in `row`, at `target`.
+ * The arrangement after a drag: `cardId` lands in `row`, at `target`. Several ids are a whole pile
+ * carried at once (a long press, `useArrangeDrag`), bottom first: they land together, as one pile in
+ * that order, wherever one card would.
  *
  * Every row the ACTIVE LAYOUT draws is written out, not just the two the card
  * moved between: what the player is looking at becomes what is stored, so the
@@ -1730,11 +1732,13 @@ export function withMove(
   rows: Grouped,
   playerId: number,
   arranged: Arrangement,
-  cardId: number,
+  cardId: number | readonly number[],
   row: BoardRow,
   target: DropTarget,
   layout: BoardLayout,
 ): Arrangement {
+  const moving = typeof cardId === 'number' ? [cardId] : [...cardId];
+  const carried = new Set(moving);
   const active = rowsForLayout(layout);
   const piles: Record<BoardRow, number[][]> = emptyRows();
   // A gap the player left stays a gap. So does the column a card leaves within its own row, so that no
@@ -1745,29 +1749,29 @@ export function withMove(
   const keepsColumn = target.kind !== 'before' && target.kind !== 'end';
   for (const r of active) {
     piles[r] = rows[r]
-      .map((p) => ({ was: p.length, ids: p.map((c) => c.id).filter((id) => id !== cardId) }))
+      .map((p) => ({ was: p.length, ids: p.map((c) => c.id).filter((id) => !carried.has(id)) }))
       .filter((p) => p.was === 0 || p.ids.length > 0 || (keepsColumn && r === row))
       .map((p) => p.ids);
   }
   const into = piles[row];
-  if ((target.kind === 'before' || target.kind === 'stack') && target.id === cardId) {
+  if ((target.kind === 'before' || target.kind === 'stack') && carried.has(target.id)) {
     // Dropped back on its own column: it stays exactly where it was.
     for (const r of active) piles[r] = rows[r].map((p) => p.map((c) => c.id));
   } else if (target.kind === 'at') {
     while (into.length < target.column) into.push([]);
-    if (into.length === target.column) into.push([cardId]);
-    else if (into[target.column]!.length === 0) into[target.column] = [cardId];
-    else into.splice(target.column, 0, [cardId]);
+    if (into.length === target.column) into.push(moving);
+    else if (into[target.column]!.length === 0) into[target.column] = moving;
+    else into.splice(target.column, 0, moving);
   } else if (target.kind === 'end') {
-    into.push([cardId]);
+    into.push(moving);
   } else {
     const index = into.findIndex((p) => p.includes(target.id));
-    if (index === -1) into.push([cardId]);
-    else if (target.kind === 'before') into.splice(index, 0, [cardId]);
+    if (index === -1) into.push(moving);
+    else if (target.kind === 'before') into.splice(index, 0, moving);
     else {
       const pile = into[index]!;
       const at = pile.indexOf(target.id);
-      pile.splice(target.onTop ? at + 1 : at, 0, cardId);
+      pile.splice(target.onTop ? at + 1 : at, 0, ...moving);
     }
   }
   // Trailing gaps hold no column anyone can see; only the ones between cards stay.
@@ -3693,6 +3697,13 @@ function PlayerArea({
  *   4. `pointerup` commits to the snap; `pointercancel` and Escape do not. The
  *      `click` that follows a real drag is swallowed once (`clickLatch`).
  *
+ * A press held still for `LONG_PRESS_MS` on a card of a pile picks up the WHOLE pile (the operator,
+ * 2026-10-21: *"when i have cards stacked, allow me to 'long press' to pick up the whole stack and
+ * move it"*): the drag begins right there, its ghost is the pile as drawn, and the release puts every
+ * card of it down together, in its order (`withMove` takes the pile's ids). A press that moves before
+ * then is the one card under it, as before. Not on touch: there a long press is the inspector's and
+ * the card menu's (`inspect/index.ts`'s `CARD_LONG_PRESS`).
+ *
  * Nothing is sent to Forge. Everything it draws is removed again on every exit.
  */
 
@@ -3715,7 +3726,7 @@ function useZoneBoxes(root: { readonly current: HTMLElement | null }): void {
 function useArrangeDrag(
   root: { readonly current: HTMLElement | null },
   enabled: boolean,
-  commit: (cardId: number, slot: ArrangeSlot, target: DropTarget) => void,
+  commit: (cardIds: readonly number[], slot: ArrangeSlot, target: DropTarget) => void,
 ): void {
   /** Always the latest `commit`: the listeners are installed once and must not go stale. */
   const latest = useRef(commit);
@@ -3727,8 +3738,13 @@ function useArrangeDrag(
 
     interface Press {
       readonly pointerId: number;
-      readonly li: HTMLElement;
-      readonly cardId: number;
+      /** The card pressed; once a long press has taken its pile, the pile's bottom card. */
+      li: HTMLElement;
+      cardId: number;
+      /** Every card of the pile a long press picked up, bottom first; null for one card. */
+      pile: readonly number[] | null;
+      /** The long press's timer, while it may still fire. */
+      hold: ReturnType<typeof setTimeout> | null;
       readonly slot: ArrangeSlot;
       readonly x: number;
       readonly y: number;
@@ -3758,7 +3774,7 @@ function useArrangeDrag(
 
     const draw = (p: Press, x: number, y: number): void => {
       p.ghost?.move({ x, y });
-      const found = snapTo(geometry(), x, y, p.cardId);
+      const found = snapTo(geometry(), x, y, p.cardId, p.pile !== null);
       /*
        * `p.slot` is never `'hand'` (no hand card is ever arrangeable, so this
        * drag never starts from one) — a permanent dropped over the hand is
@@ -3773,8 +3789,16 @@ function useArrangeDrag(
     /** The press has moved far enough to be a drag: draw the ghost and the indicator. */
     const begin = (p: Press, x: number, y: number): void => {
       const ghost = liftGhost(p.li, board, { x: p.x, y: p.y }, String(p.cardId));
-      // A card lifted out of a pile is one card: neither the pile nor its count travels with it.
-      for (const el of ghost.el.querySelectorAll(':scope > .board-card__pile, :scope > .board-card__copies')) el.remove();
+      if (p.pile === null) {
+        // A card lifted out of a pile is one card: neither the pile nor its count travels with it.
+        for (const el of ghost.el.querySelectorAll(':scope > .board-card__pile, :scope > .board-card__copies')) el.remove();
+      } else {
+        // The whole pile travels, drawn as it was: the copy gets back the pile marks `liftGhost` strips.
+        ghost.el.setAttribute('data-pile-size', p.li.dataset.pileSize ?? String(p.pile.length));
+        const above = (el: Element) => [...el.querySelectorAll<HTMLElement>(':scope > .board-card__pile > li.board-card')];
+        const depths = above(p.li).map((li) => li.dataset.pileDepth ?? '');
+        above(ghost.el).forEach((li, i) => li.setAttribute('data-pile-depth', depths[i] ?? ''));
+      }
       const indicator = document.createElement('div');
       indicator.setAttribute('data-arrange-indicator', '');
       indicator.setAttribute('aria-hidden', 'true');
@@ -3793,6 +3817,7 @@ function useArrangeDrag(
       press = null;
       window.removeEventListener('keydown', onKey, true);
       if (p === null) return;
+      if (p.hold !== null) clearTimeout(p.hold);
       for (const el of p.marked) el.removeAttribute('data-arrange-target');
       p.ghost?.remove();
       p.indicator?.remove();
@@ -3813,10 +3838,12 @@ function useArrangeDrag(
       if (li === null || li === undefined || slot === null || slot === undefined) return;
       // Ours now: the press selects no text.
       if (event.cancelable) event.preventDefault();
-      press = {
+      const p: Press = {
         pointerId: event.pointerId,
         li,
         cardId: Number(li.dataset.cardId),
+        pile: null,
+        hold: null,
         slot: slot as ArrangeSlot,
         x: event.clientX,
         y: event.clientY,
@@ -3825,6 +3852,19 @@ function useArrangeDrag(
         snap: null,
         marked: [],
       };
+      press = p;
+      // The pile this card is in: its bottom card is the row's own `<li>`, the rest are in that card's `.board-card__pile`.
+      const base = li.parentElement?.classList.contains('board-card__pile') === true ? li.parentElement.closest<HTMLElement>('li.board-card') : li;
+      if (event.pointerType !== 'touch' && base?.dataset.pileSize !== undefined) {
+        p.hold = setTimeout(() => {
+          p.hold = null;
+          if (press !== p || p.ghost !== null) return;
+          p.li = base;
+          p.cardId = Number(base.dataset.cardId);
+          p.pile = [base, ...base.querySelectorAll<HTMLElement>(':scope > .board-card__pile > li.board-card')].map((el) => Number(el.dataset.cardId));
+          begin(p, p.x, p.y);
+        }, LONG_PRESS_MS);
+      }
       window.addEventListener('keydown', onKey, true);
     };
 
@@ -3833,6 +3873,8 @@ function useArrangeDrag(
       if (p === null || event.pointerId !== p.pointerId) return;
       if (p.ghost === null) {
         if (!pastSlop(p, { x: event.clientX, y: event.clientY })) return;
+        if (p.hold !== null) clearTimeout(p.hold);
+        p.hold = null;
         begin(p, event.clientX, event.clientY);
         return;
       }
@@ -3849,7 +3891,7 @@ function useArrangeDrag(
       if (!dragged) return;
       // The release of a real drag is not a click on what it ended over.
       clicks.arm();
-      if (snap !== null) latest.current(p.cardId, snap.slot, snap.target);
+      if (snap !== null) latest.current(p.pile ?? [p.cardId], snap.slot, snap.target);
     };
 
     function onKey(event: KeyboardEvent): void {
@@ -4174,14 +4216,14 @@ export function Board({
    * the second lock, not the first) — moving a card between zones is
    * Forge's, never ours.
    */
-  const commit = (cardId: number, slot: ArrangeSlot, target: DropTarget): void => {
+  const commit = (cardIds: readonly number[], slot: ArrangeSlot, target: DropTarget): void => {
     if (viewer === undefined) return;
-    if ('id' in target && target.id === cardId) return;
+    if ('id' in target && cardIds.includes(target.id)) return;
     // Never reached — `slot` narrows `withMove`'s own `BoardRow` for the type checker, the
     // runtime fact being that `useArrangeDrag` never starts a drag from a hand card at all.
     if (slot === 'hand') return;
-    if (!viewer.battlefield.some((c) => c.id === cardId)) return;
-    setArranged(key, viewer.id, withMove(group(viewer.battlefield, viewer.id, arranged, boardLayout), viewer.id, arranged, cardId, slot, target, boardLayout));
+    if (!cardIds.every((id) => viewer.battlefield.some((c) => c.id === id))) return;
+    setArranged(key, viewer.id, withMove(group(viewer.battlefield, viewer.id, arranged, boardLayout), viewer.id, arranged, cardIds, slot, target, boardLayout));
     redraw();
   };
   useArrangeDrag(root, viewer !== undefined, commit);

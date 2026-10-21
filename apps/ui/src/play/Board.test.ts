@@ -55,6 +55,7 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
   type Grouped,
   type BoardLayout,
   type DropTarget,
+  type SlotGeometry,
 } from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
@@ -4313,6 +4314,29 @@ describe('wave 32 §B — Q4b: the drag that is ours', () => {
     // A reorder is still a reorder: the card takes a column, so the one it left closes up.
     expect(back(withMove(rowOf([[1], [2], [3]]), 0, {}, 1, 'back', { kind: 'before', id: 3 }, 'single'))).toEqual([[2], [1], [3]]);
     expect(back(withMove(rowOf([[1], [2], [3]]), 0, {}, 1, 'back', { kind: 'end' }, 'single'))).toEqual([[2], [3], [1]]);
+  });
+
+  it('withMove: a whole pile carried at once lands as one pile, in its order, wherever one card would', () => {
+    // The operator, 2026-10-21: "allow me to 'long press' to pick up the whole stack and move it".
+    const empty = { lands: [], artifacts: [], creatures: [], other: [], front: [], back: [] } as const;
+    const rowOf = (piles: number[][]): Grouped => ({ ...empty, back: piles.map((p) => p.map((id) => ({ id }) as BoardCard)) });
+    const back = (a: Arrangement) => a[slotKey(0, 'back')];
+    const row = rowOf([[1, 2, 3], [4], [5]]);
+    expect(back(withMove(row, 0, {}, [1, 2, 3], 'back', { kind: 'end' }, 'single')), 'to the end').toEqual([[4], [5], [1, 2, 3]]);
+    expect(back(withMove(row, 0, {}, [1, 2, 3], 'back', { kind: 'before', id: 5 }, 'single')), 'before a card').toEqual([[4], [1, 2, 3], [5]]);
+    expect(back(withMove(row, 0, {}, [1, 2, 3], 'back', { kind: 'stack', id: 5, onTop: true }, 'single')), 'onto another pile, keeping its column open').toEqual([[], [4], [5, 1, 2, 3]]);
+    expect(back(withMove(row, 0, {}, [1, 2, 3], 'back', { kind: 'at', column: 4 }, 'single')), 'at a column past the end').toEqual([[], [4], [5], [], [1, 2, 3]]);
+    expect(back(withMove(row, 0, {}, [1, 2, 3], 'back', { kind: 'stack', id: 2, onTop: true }, 'single')), 'onto one of its own cards it stays').toEqual([[1, 2, 3], [4], [5]]);
+  });
+
+  it('snapTo: a whole pile carried is not a place to drop itself, a card lifted out of it still may go back', () => {
+    const pile = { id: 1, size: 3, box: { left: 0, top: 0, right: 100, bottom: 140 } };
+    const lone = { id: 4, box: { left: 110, top: 0, right: 210, bottom: 140 } };
+    const slot: SlotGeometry = { slot: 'back', box: { left: 0, top: 0, right: 400, bottom: 140 }, piles: [pile, lone] };
+    // Over the pile it came from, carried whole: the pile stays where it is.
+    expect(snapTo([slot], 50, 40, 1, true)?.target).toEqual({ kind: 'before', id: 1 });
+    // One card out of that pile (its base, pressed briefly) may stack back onto it, as before.
+    expect(snapTo([slot], 50, 40, 1)?.target).toEqual({ kind: 'stack', id: 1, onTop: true });
   });
 
   it('group: a card nobody placed takes the first free column of its row from the left, else the row’s end', () => {
