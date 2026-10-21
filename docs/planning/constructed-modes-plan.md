@@ -59,7 +59,7 @@ not.
    picks 1, P2 picks 2 · P2 ban, P1 ban · P1 picks 2, P2 picks 1. Of the 10
    decks, 4 are banned and 6 picked.
 2. **Gauntlet, games 2 and 3:** before every game, both players secretly choose
-   one of their unplayed decks, and the choices are revealed together.
+   one of their unplayed decks. *("Revealed together" is superseded by ruling 9.)*
 3. **All Random has no reveal**, verbatim: *"all random doesn't need a reveal,
    it should just go straight into the game. that reveal of the format/year and
    then the decks is just the interim gauntlet phase. all pick can skip that."*
@@ -78,6 +78,16 @@ not.
    can ready up. i guess in the case of classic we need space for the whole
    deck picker thing. so we gotta rethink the UI for the room a bit so it
    fits."*
+9. **A Gauntlet choice stays hidden until its game is over** (2026-10-21), verbatim:
+   *"when decks are being chosen we need to make sure the opponent cannot see
+   it. it's good to show the avaliable decks, but we shouldn't reveal what decks
+   are chosen."* *"no, we shouldn't reveal the deck to the opponent. even when
+   the game starts we shouldn't know what deck they picked. only after the game
+   is over and we record stats and potentially go to a new game can it be seen
+   what deck they played by it being greyed out or the recorded match result."*
+   *"also make sure that this page works when we go to game 2. when players
+   select 'Next Game' it should take them back to the deck picker with the
+   previously chosen decks (for both the player and the opponent) greyed out."*
 
 ## Design
 
@@ -137,8 +147,8 @@ Its phases are `options → reveal → banpick → choose → playing → done`.
    server refuses an act out of turn or on a taken deck. The AI seat acts at
    random after a short beat.
 4. **Choose:** before each game, both players submit a hidden choice from their
-   unplayed picks, and both are revealed together (ruling 2). The AI chooses at
-   random.
+   unplayed picks (ruling 2). A choice is its chooser's alone until its game is
+   over (ruling 9). The AI chooses at random.
 5. **Playing:** a Bo3 of normal Forge matches, each using its chosen `.dck`.
    Played decks are struck off. After a game, it's back to Choose until the
    series is decided.
@@ -226,5 +236,6 @@ dialog, and the UI's duplicate `GameType`.
 ## Open (decide during the build, report in the lane's ledger row)
 
 - The AI's beat between Gauntlet acts (proposal: 600 ms).
-- Whether the rest of the room sees a Gauntlet's hidden per-game choices
-  (proposal: no; they're revealed together, as for the players).
+- Whether the rest of the room sees a Gauntlet's hidden per-game choices:
+  decided no (ruling 9) — a watcher is told no choice until its game is over,
+  the same as the other seat.
