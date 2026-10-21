@@ -155,6 +155,17 @@ async function residue(page: Page): Promise<{ shadowChildren: number; shadowShee
 /** The character alice picked in watchparty, as its picker leaves it in the prefs cache (`room/avatar.ts`). */
 const ALICE_SPRITE = 'e2e-sprite-embed';
 
+/**
+ * The bound room is made by the binding (`lobby.bindWatchparty`) with no mode, so it opens on the
+ * leader's mode row with no seats yet, as any room created without one does; its leader picks
+ * Classic, as `e2e/play/rooms.ts`'s create helper does for every other spec's room.
+ */
+async function chooseClassic(page: Page): Promise<void> {
+  const classic = page.getByTestId('constructed-mode-classic');
+  await classic.click();
+  await expect(classic).toBeChecked();
+}
+
 test('the embed binds one watchparty room to one table and leaves the host page as it found it', async ({ browser }) => {
   const roomKey = `embed-${Date.now()}`;
   const alice = await contextFor(browser, 'alice');
@@ -182,6 +193,7 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     await expect(embed).toHaveAttribute('data-bound-room', /^wp-[0-9a-f]{20}$/);
     const roomId = await embed.getAttribute('data-bound-room');
     await expect(a.getByTestId('constructed'), 'the bound room is a table').toBeVisible();
+    await chooseClassic(a);
     await expect(a.getByTestId('play-vs-bot'), 'alice is alone at it').toBeVisible({ timeout: 30_000 });
 
     // Chromeless: neither the fleet header nor watchparty's room chrome.
@@ -313,6 +325,7 @@ test(titled('the embed plays a match against Forge’s AI, and unmount closes it
     const before = await leaks(page);
     await mount(page);
     await expect(page.getByTestId('constructed')).toBeVisible({ timeout: 30_000 });
+    await chooseClassic(page);
     await page.getByTestId('format').selectOption(choice.format);
     await expect(page.getByTestId('deck-mine')).toBeEnabled();
     await page.getByTestId('deck-mine').locator(`[data-deck-id="${choice.decks[0]}"]`).click();
