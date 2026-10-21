@@ -58,7 +58,8 @@ function view(over: Partial<GauntletView> = {}): GauntletView {
     ],
     ready: [true, true],
     era: { id: 'modern-2022', family: 'modern', title: 'Modern — 2022' },
-    revealAt: Date.now(),
+    // A board drawn in ban/pick or later opened after the reveal; one in `reveal` opens as it starts.
+    revealAt: over.phase === undefined || over.phase === 'reveal' ? Date.now() : Date.now() - GAUNTLET_REVEAL_MS,
     first: 1,
     decks: IDS.map((id) => deck(id)),
     step: null,

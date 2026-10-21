@@ -32,7 +32,7 @@ function PlayingGame({ view, options }: { view: GauntletView; options: ReturnTyp
       <h2 className="gauntlet__title" data-testid="gauntlet-title">
         {view.era?.title}
       </h2>
-      {game !== undefined && <RevealedGame view={view} game={game.decks} options={options} bind={bind} index={view.games.length - 1} />}
+      {game !== undefined && <RevealedGame view={view} game={game} options={options} bind={bind} index={view.games.length - 1} />}
       {peek}
     </section>
   );

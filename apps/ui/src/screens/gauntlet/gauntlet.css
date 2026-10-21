@@ -21,7 +21,7 @@
 }
 
 .gauntlet[data-revealing] .gauntlet__title {
-  animation: gauntlet-title var(--title-ms, 900ms) cubic-bezier(0.3, 0.7, 0.3, 1) both;
+  animation: gauntlet-title var(--title-ms, 900ms) cubic-bezier(0.3, 0.7, 0.3, 1) var(--title-delay, 0ms) both;
 }
 
 @keyframes gauntlet-title {
@@ -210,7 +210,7 @@
 
 /* A deck dealt into its slot: from above the pool, turning as it falls. */
 .gauntlet-tile[data-dealing] {
-  animation: gauntlet-deal var(--deal-ms, 600ms) cubic-bezier(0.3, 0.7, 0.3, 1) both;
+  animation: gauntlet-deal var(--deal-ms, 600ms) cubic-bezier(0.3, 0.7, 0.3, 1) var(--deal-delay, 0ms) both;
 }
 
 @keyframes gauntlet-deal {
@@ -379,6 +379,18 @@
   font-size: 1.2rem;
   font-weight: 700;
   color: var(--ink);
+}
+
+.gauntlet__score {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+/* The game's winner: the room's accent ring on their deck. */
+.gauntlet__match-seat[data-won] > .deckpick__option {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .gauntlet__crown {

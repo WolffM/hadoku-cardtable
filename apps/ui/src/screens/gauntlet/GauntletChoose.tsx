@@ -5,7 +5,7 @@
  * have (`choice.chosen`), and this draws only that. Once both have chosen, the server reveals the
  * game's two decks (`games`' last), and `RevealedGame` draws them face to face.
  */
-import type { GauntletSeatIndex, GauntletView } from '@hadoku/shared';
+import type { GauntletGame, GauntletSeatIndex, GauntletView } from '@hadoku/shared';
 
 import { StatusPill, type DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
@@ -87,15 +87,15 @@ export function GauntletChoose({ view, options, onChoose }: { view: GauntletView
 }
 
 /** One game's two decks, face to face, P1's first. */
-export function RevealedGame({ view, game, options, bind, index }: { view: GauntletView; game: readonly [string, string]; options: ReadonlyMap<string, DeckOption>; bind: (id: string) => TileBinding; index: number }) {
+export function RevealedGame({ view, game, options, bind, index }: { view: GauntletView; game: GauntletGame; options: ReadonlyMap<string, DeckOption>; bind: (id: string) => TileBinding; index: number }) {
   const order = seatOrder(view);
   return (
-    <div className="gauntlet__match" data-testid="gauntlet-game" data-game={index + 1}>
+    <div className="gauntlet__match" data-testid="gauntlet-game" data-game={index + 1} data-winner={game.winner ?? undefined}>
       <span className="gauntlet__game">Game {index + 1}</span>
       {order.map((seat, i) => {
-        const option = options.get(game[seat]);
+        const option = options.get(game.decks[seat]);
         return (
-          <div key={seat} className="gauntlet__match-seat" data-seat={seat}>
+          <div key={seat} className="gauntlet__match-seat" data-seat={seat} data-won={game.winner === seat || undefined}>
             <PlayerName view={view} seat={seat} player={i === 0 ? 'p1' : 'p2'} />
             {option !== undefined && <DeckTile option={option} className="gauntlet-tile" data-testid="gauntlet-deck" tabIndex={-1} {...bind(option.value)} />}
           </div>

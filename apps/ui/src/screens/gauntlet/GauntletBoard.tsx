@@ -18,7 +18,7 @@ import { prefersReducedMotion } from '../../play/motion.ts';
 import type { DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
 import { useTilePeek } from './peek.tsx';
-import { DEAL_MS, TITLE_MS, useReveal } from './reveal.ts';
+import { DEAL_MS, TITLE_MS, dealtAt, useReveal } from './reveal.ts';
 import { PlayerName, seatOrder } from './seats.tsx';
 
 /** Each player's picks: three. */
@@ -37,7 +37,7 @@ export function GauntletBoard({
   onBan: (deckId: string) => void;
   onPick: (deckId: string) => void;
 }) {
-  const reveal = useReveal(view.phase === 'reveal');
+  const reveal = useReveal(view.revealAt);
   const [p1, p2] = seatOrder(view);
   const step = view.phase === 'banpick' ? view.step : null;
   const acting = step !== null && reveal.done && view.you === step.seat;
@@ -63,7 +63,9 @@ export function GauntletBoard({
     const option = options.get(deck.id);
     if (option === undefined) return null;
     const press = acting && deck.status === 'open' ? () => (step.act === 'ban' ? onBan : onPick)(deck.id) : undefined;
-    const fresh = !reveal.done && reveal.startedAt !== null;
+    // Dealt during the reveal: it falls into its slot, joined part-way if it was already falling when this screen opened.
+    const since = reveal.joinedAt - dealtAt(view.decks.indexOf(deck));
+    const fresh = !reveal.done && since < DEAL_MS;
     return (
       <DeckTile
         key={deck.id}
@@ -73,7 +75,7 @@ export function GauntletBoard({
         data-status={deck.status}
         data-played={deck.played || undefined}
         data-dealing={fresh || undefined}
-        style={fresh ? ({ '--deal-ms': `${DEAL_MS}ms` } as CSSProperties) : undefined}
+        style={fresh ? ({ '--deal-ms': `${DEAL_MS}ms`, '--deal-delay': `${-Math.max(0, since)}ms` } as CSSProperties) : undefined}
         disabled={press === undefined}
         onClick={press}
         {...bind(deck.id)}
@@ -102,7 +104,7 @@ export function GauntletBoard({
 
   return (
     <section className="gauntlet" data-testid="gauntlet" data-phase={view.phase} data-revealing={!reveal.done || undefined}>
-      <h2 className="gauntlet__title" data-testid="gauntlet-title" style={{ '--title-ms': `${TITLE_MS}ms` } as CSSProperties}>
+      <h2 className="gauntlet__title" data-testid="gauntlet-title" style={{ '--title-ms': `${TITLE_MS}ms`, '--title-delay': `${-reveal.joinedAt}ms` } as CSSProperties}>
         {view.era?.title}
       </h2>
       <div className="gauntlet__board">
@@ -135,14 +137,14 @@ export function GauntletBoard({
               tile(d)
             ),
           )}
-          {reveal.coin && reveal.startedAt !== null && view.first !== null && (
+          {reveal.coin && view.revealAt !== null && view.first !== null && (
             <div className="gauntlet__coin">
               <CoinToss
                 winner={view.first}
                 name={view.players?.[view.first].name ?? ''}
                 avatarId={avatars?.[view.first]}
                 loserAvatarId={avatars?.[view.first === 0 ? 1 : 0]}
-                at={reveal.startedAt + TITLE_MS}
+                at={view.revealAt + TITLE_MS}
               />
             </div>
           )}
