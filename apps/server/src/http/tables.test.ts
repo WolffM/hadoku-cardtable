@@ -3143,7 +3143,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 		expect(h.specs.at(-1)?.seats.map((s) => s.deck)).toEqual([built(pools.alice, PODTABLE), built(pools.bob, PODTABLE)]);
 
 		// Reverted (read `room.format` instead of `effectivePoolOf(room)` in
-		// `roomRules`/`unknownPool`): the PUT above 409s ("this room's format
+		// `tablePoolOf`/`unknownPool`): the PUT above 409s ("this room's format
 		// ... is not one this server has" — `${POWER_2010}` names no pod) and
 		// nothing past it runs. 1 failed. Restored: passes, 201. 1 passed.
 	});

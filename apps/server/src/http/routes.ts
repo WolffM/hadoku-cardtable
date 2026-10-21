@@ -93,7 +93,7 @@
  * ## A pod's tables play a DRAFTED pool (wave 26 §F, wave 72 §P)
  *
  * A `draft` room's tables play `draft:<podId>` (`effectivePoolOf`, from the
- * room's game type — never its stored format), and `roomRules` turns that into
+ * room's game type — never its stored format), and `rulesOf` turns that into
  * the gate's own `{ kind: 'draft' }`. A constructed room is never on a pod
  * (operator, 2026-10-20): a drafted deck is played there on Free pick.
  *
@@ -180,13 +180,14 @@ import { deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseDck } from '@hadoku/carddata/dck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
-import type { RoomTable } from '@hadoku/shared';
+import { RandomOptionsSchema, secureRandom, type RandomPool, type RoomModeState, type RoomTable } from '@hadoku/shared';
 
 import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { FREE_PICK, draftIdOfPool, draftPoolId, type PodChecks } from '../room/lobby.js';
+import { drawRandomDecks } from '../room/random-decks.js';
 import type { MatchSpec } from '../play/host.js';
 import { AI_SEAT_OWNER } from '../play/match.js';
 import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
@@ -224,6 +225,9 @@ export interface RoomViewLike {
 	gameType: string;
 	/** The room's pool: a `TableFormat.id`, and the rules for BOTH seats. */
 	format: string;
+	/** A Constructed room's mode and its options; absent or null until chosen. */
+	mode?: RoomModeState['mode'];
+	modeOptions?: RoomModeState['modeOptions'];
 	/** How the room's matches are dealt (`room/lobby.ts`'s `RoomSettings`). */
 	settings: { handSmoothing: boolean };
 	/** The one member who may change the room's settings. `you.leader` is this, per caller. */
@@ -380,6 +384,8 @@ export interface TablesDeps {
 	 * the two seats their decks are in.
 	 */
 	matches?: () => TablesMatches | null;
+	/** A uniform [0, 1) for the server's own draws (All Random's deal). `secureRandom` unless a test pins it. */
+	random?: () => number;
 }
 
 /** What `matchStart` reads off a match: all of it in `jvm.json`, so a restart keeps it. */
@@ -553,6 +559,12 @@ interface TablePlayerState {
 	 * serves as the baseline, and there is nothing to put back.
 	 */
 	seriesDeck: TableDeck | string | null;
+	/**
+	 * The AI's `.dck` at an All Random table against the AI, dealt with this
+	 * seat's own deck (`dealRandom`) and held beside it so a Rematch plays the
+	 * same two. Absent everywhere else: a Classic AI draws its deck per game.
+	 */
+	aiDeck?: string;
 }
 
 /**
@@ -627,15 +639,16 @@ function readPlayerState(raw: unknown): TablePlayerState | null {
 	const ready = s.ready === true;
 	const table = typeof s.table === 'string' ? s.table : undefined;
 	const seriesDeck = typeof s.seriesDeck === 'string' ? s.seriesDeck : readDeck(s.seriesDeck);
+	const ai = typeof s.aiDeck === 'string' ? { aiDeck: s.aiDeck } : {};
 	// A row written before seats were their own act: the deck's fields sit flat
 	// beside `ready`. It still reads as a seat that holds that deck.
 	if (!('deck' in s)) {
 		const deck = readDeck(s);
-		return deck === null ? null : { v: 1, table, deck, ready, seatedAt: s.seatedAt, seriesDeck };
+		return deck === null ? null : { v: 1, table, deck, ready, seatedAt: s.seatedAt, seriesDeck, ...ai };
 	}
-	if (s.deck === null) return { v: 1, table, deck: null, ready, seatedAt: s.seatedAt, seriesDeck };
+	if (s.deck === null) return { v: 1, table, deck: null, ready, seatedAt: s.seatedAt, seriesDeck, ...ai };
 	const deck = readDeck(s.deck);
-	return deck === null ? null : { v: 1, table, deck, ready, seatedAt: s.seatedAt, seriesDeck };
+	return deck === null ? null : { v: 1, table, deck, ready, seatedAt: s.seatedAt, seriesDeck, ...ai };
 }
 
 /** The players whose seats hold a deck, in seat order; a seat without one is left out. */
@@ -736,6 +749,7 @@ export function winnerSeatOf(match: {
 export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	const log = deps.log ?? defaultLog;
 	const { library } = deps;
+	const random = deps.random ?? secureRandom;
 	log({ evt: 'library', formats: library.formats.length, decks: library.decks.length, faults: library.faults });
 
 	/**
@@ -1043,8 +1057,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return room.gameType === 'draft' ? draftPoolId(room.id) : room.format;
 	}
 
-	function poolName(room: RoomViewLike): string {
-		const pool = effectivePoolOf(room);
+	function poolName(pool: string): string {
 		const draftId = draftIdOfPool(pool);
 		if (draftId !== null) return `their own pool from ${draftId}`;
 		if (pool === FREE_PICK) return 'Free pick';
@@ -1096,8 +1109,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// The pool both decks are checked in — a pod's own drafted pool for a
 				// draft room (`effectivePoolOf`), `room.format` otherwise. The screen
 				// shows it, and only the leader's copy of the screen may change it
-				// (`PATCH /api/rooms/:id`) for a constructed room.
-				format: effectivePoolOf(room),
+				// (`PATCH /api/rooms/:id`) for a constructed room. A dealt All Random
+				// table's is the era its decks came from (`tablePoolOf`).
+				format: tablePoolOf(room, players),
 				// The pod behind a drafted pool, or null for a frozen era. Derived from
 				// `format` and sent anyway, so a client does not have to know the
 				// spelling of the prefix to draw a table on a drafted pool.
@@ -1164,7 +1178,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	/**
-	 * The rules every deck at this room's table is checked against.
+	 * The rules every deck at a table is checked against, from the table's pool
+	 * (`tablePoolOf`).
 	 *
 	 * One RULE, both seats, whoever is asking — and for a drafted pool that rule
 	 * still resolves to two different card lists, because the draft arm resolves
@@ -1172,11 +1187,75 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * the cards: nobody at this table can be checked against a pod they did not
 	 * draft in, and nobody can be checked against another player's 45.
 	 */
-	function roomRules(room: RoomViewLike): DeckRules {
-		const pool = effectivePoolOf(room);
+	function rulesOf(pool: string): DeckRules {
 		if (pool === FREE_PICK) return { kind: 'free' };
 		const draftId = draftIdOfPool(pool);
 		return draftId === null ? { kind: 'standard', format: pool } : { kind: 'draft', draftId };
+	}
+
+	/** An All Random room's pool, or null for every other room. */
+	function randomPoolOf(room: RoomViewLike): RandomPool | null {
+		if (room.gameType !== CONSTRUCTED || room.mode !== 'random') return null;
+		const options = RandomOptionsSchema.safeParse(room.modeOptions);
+		return options.success ? options.data.pool : null;
+	}
+
+	/**
+	 * The pool ONE table plays: the room's (`effectivePoolOf`), except at a dealt
+	 * All Random table, where it is the era its decks were drawn from. Every deck
+	 * `dealRandom` holds records that era in its `choice.rules`, so two tables of
+	 * one room play their own eras and a Rematch keeps its own.
+	 */
+	function tablePoolOf(room: RoomViewLike, players: TablePlayer[]): string {
+		if (randomPoolOf(room) !== null) {
+			for (const p of players) {
+				const rules = p.state.deck?.choice.rules;
+				if (rules?.kind === 'standard') return rules.format;
+			}
+		}
+		return effectivePoolOf(room);
+	}
+
+	/**
+	 * Deal an All Random table (rulings 3 and 4): one random era of the room's
+	 * pool, and a different deck from it for each seat — the AI's included,
+	 * held beside its one human's (`aiDeck`). Held exactly as a picked Classic
+	 * deck is, so everything after (the start's legality check, the registered
+	 * deck, a Rematch) reads it the same way.
+	 *
+	 * A no-op for any other room, and for a table whose seats already hold their
+	 * decks: that is a Rematch, and it plays the same two. Answers the table's
+	 * players as they stand after the deal.
+	 */
+	function dealRandom(
+		room: RoomViewLike,
+		tableId: string,
+		players: TablePlayer[],
+		vsBot: boolean,
+	): { ok: true; players: TablePlayer[] } | { ok: false; error: string } {
+		const pool = randomPoolOf(room);
+		if (pool === null || rooms === null) return { ok: true, players };
+		const held = players.every((p) => p.state.deck !== null) && (!vsBot || players[0]?.state.aiDeck !== undefined);
+		if (held) return { ok: true, players };
+		const draw = drawRandomDecks(random, pool, library);
+		if (draw === null) return { ok: false, error: `no ${pool} era holds two decks` };
+		const rules: DeckRules = { kind: 'standard', format: draw.era };
+		const decks: TableDeck[] = [];
+		for (const [seat, id] of draw.decks.entries()) {
+			const owner = players[seat]?.member.id ?? players[0]!.member.id;
+			const verdict = checkSeat({ deck: { library: id }, rules }, contextFor(owner));
+			if ('error' in verdict) return { ok: false, error: verdict.error };
+			if (!verdict.legal) return { ok: false, error: refusalLine(seat, verdict) };
+			decks.push({ choice: { deck: { library: id }, rules }, verdict: publicVerdict(verdict), text: verdict.text });
+		}
+		for (const [seat, p] of players.entries()) {
+			const state: TablePlayerState = { ...p.state, deck: decks[seat]! };
+			if (vsBot) state.aiDeck = decks[1]!.text;
+			else delete state.aiDeck;
+			rooms.setPlayerState(room.id, p.member.id, state);
+		}
+		log({ evt: 'room-random-dealt', room: room.id, table: tableId, pool, era: draw.era, decks: draw.decks, ...(vsBot ? { opponent: 'ai' } : {}) });
+		return { ok: true, players: playersOf(rooms, room, tableId) };
 	}
 
 	/**
@@ -1288,8 +1367,14 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return;
 		}
 		if (unknownPool(room, res)) return;
-		const seat: SeatRequest = { deck: parsed.deck, rules: roomRules(room) };
+		// An All Random table's decks are dealt (`dealRandom`); a seat changes its own
+		// only by sideboarding it, in the era it was dealt.
+		if (randomPoolOf(room) !== null && table.series.phase !== 'sideboarding') {
+			res.status(409).json({ error: 'the decks at an All Random table are dealt' });
+			return;
+		}
 		const players = playersOf(rooms, room, table.id);
+		const seat: SeatRequest = { deck: parsed.deck, rules: rulesOf(tablePoolOf(room, players)) };
 		const mine = players.find((p) => p.member.id === me);
 		if (mine === undefined && players.length >= TABLE_SEATS) {
 			res.status(409).json({ error: 'this table already has two players' });
@@ -1364,14 +1449,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const seat = players.findIndex((p) => p.member.id === me);
 		const mine = players[seat];
 		// A seat without a deck readies nothing: the same sentence for "not
-		// seated" and "seated, no deck", because the fix is the same.
-		if (mine === undefined || mine.state.deck === null) {
-			res.status(409).json({ error: 'load a deck before you ready up' });
+		// seated" and "seated, no deck", because the fix is the same. An All
+		// Random seat readies with none: both Readys deal the decks, below.
+		const dealt = randomPoolOf(room) !== null;
+		if (mine === undefined || (mine.state.deck === null && !dealt)) {
+			res.status(409).json({ error: dealt ? 'take a seat before you ready up' : 'load a deck before you ready up' });
 			return;
 		}
 		// An illegal deck blocks THIS player's ready and nobody else's, and says
 		// which card did it — the same sentence the gate refuses a match with.
-		if (body.ready && !mine.state.deck.verdict.legal) {
+		if (body.ready && mine.state.deck !== null && !mine.state.deck.verdict.legal) {
 			const line = refusalLine(seat, { ...mine.state.deck.verdict, text: mine.state.deck.text });
 			log({ evt: 'room-ready-refused', room: room.id, table: table.id, issues: mine.state.deck.verdict.issues.length });
 			res.status(422).json({ error: line });
@@ -1388,10 +1475,21 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// `Lobby.beginSideboarding`'s own doc. When it does begin one, the
 		// step spends both Readys, the same as a start does (`startFromRoom`):
 		// the answer below, and every read after it, shows nobody ready.
+		//
+		// At an All Random table the same moment deals the decks (`dealRandom`),
+		// so both seats hold theirs before either browser asks to start.
 		if (body.ready) {
 			const nowPlayers = playersOf(rooms, room, table.id);
-			if (nowPlayers.length === TABLE_SEATS && nowPlayers.every((p) => p.state.ready) && rooms.beginSideboarding(room.id, table.id)) {
-				for (const p of nowPlayers) rooms.setPlayerState(room.id, p.member.id, { ...p.state, ready: false });
+			if (nowPlayers.length === TABLE_SEATS && nowPlayers.every((p) => p.state.ready)) {
+				const deal = dealRandom(room, table.id, nowPlayers, false);
+				if (!deal.ok) {
+					rooms.setPlayerState(room.id, me, { ...mine.state, ready: false });
+					res.status(409).json({ error: deal.error });
+					return;
+				}
+				if (rooms.beginSideboarding(room.id, table.id)) {
+					for (const p of deal.players) rooms.setPlayerState(room.id, p.member.id, { ...p.state, ready: false });
+				}
 			}
 		}
 		log({ evt: 'room-ready', room: room.id, table: table.id, ready: body.ready });
@@ -1648,7 +1746,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			joiners.push((status, payload) => res.status(status).json(payload));
 			return;
 		}
-		const players = playersOf(rooms, room, table.id);
+		let players = playersOf(rooms, room, table.id);
 		if (vsBot) {
 			// One person against Forge's AI, from a room (the operator, 2026-10-02:
 			// "would be nice to be able to add a bot so i dont have to play against
@@ -1664,6 +1762,12 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				res.status(409).json({ error: 'a bot game is for a table with one seated player' });
 				return;
 			}
+			const deal = dealRandom(room, table.id, players, true);
+			if (!deal.ok) {
+				res.status(409).json({ error: deal.error });
+				return;
+			}
+			players = deal.players;
 			if (players[0]!.state.deck === null) {
 				res.status(409).json({ error: 'load a deck first' });
 				return;
@@ -1714,9 +1818,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// caller for the seat that is not making the request, and a room member's id
 		// is exactly that.
 		if (unknownPool(room, res)) return;
+		const pool = tablePoolOf(room, players);
 		for (const player of loaded) {
 			const verdict = checkSeat(
-				{ deck: { dck: player.deck.text }, rules: roomRules(room) },
+				{ deck: { dck: player.deck.text }, rules: rulesOf(pool) },
 				contextFor(player.member.id),
 			);
 			if ('error' in verdict) {
@@ -1725,7 +1830,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			}
 			if (!verdict.legal) {
 				log({ evt: 'room-start-refused', room: room.id, issues: verdict.issues.length });
-				res.status(422).json({ error: `${player.member.name}'s deck is not legal in ${poolName(room)}` });
+				res.status(422).json({ error: `${player.member.name}'s deck is not legal in ${poolName(pool)}` });
 				return;
 			}
 		}
@@ -1736,9 +1841,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		let botDeck: string | null = null;
 		if (vsBot) {
 			const owner = loaded[0]!.member.id;
-			const pool = effectivePoolOf(room);
 			const draftId = draftIdOfPool(pool);
-			if (draftId !== null) {
+			if (players[0]!.state.aiDeck !== undefined && randomPoolOf(room) !== null) {
+				botDeck = players[0]!.state.aiDeck;
+			} else if (draftId !== null) {
 				const draftRoom = deps.draftRooms?.find(draftId);
 				const botPool = draftRoom === undefined ? null : botPoolAcross(draftRoom, owner);
 				if (botPool === null || botPool.length === 0) {
@@ -1750,7 +1856,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				const swept = legalLibraryDecks(pool, contextFor(owner));
 				const offered = 'error' in swept ? [] : swept.ids;
 				if (offered.length === 0) {
-					res.status(409).json({ error: `no deck in the library is legal in ${poolName(room)}, so the bot has nothing to play` });
+					res.status(409).json({ error: `no deck in the library is legal in ${poolName(pool)}, so the bot has nothing to play` });
 					return;
 				}
 				botDeck = library.deck(offered[Math.floor(Math.random() * offered.length)]!)!.text;
@@ -1876,7 +1982,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				opponent: 'ai',
 				decks: [loaded[0]!.deck.text, botDeck!],
 				names: [loaded[0]!.member.name, room.ai?.name],
-				format: effectivePoolOf(room),
+				format: pool,
 				handSmoothing: room.settings.handSmoothing,
 				...(chooser === undefined ? {} : { chooser }),
 			};
@@ -1891,7 +1997,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			names: loaded.map((p) => p.member.name),
 			// The pool a card-name ask is narrowed to (`play/names.ts`) — a pod's
 			// own drafted pool for a draft room, never `room.format` unmodified.
-			format: effectivePoolOf(room),
+			format: pool,
 			handSmoothing: room.settings.handSmoothing,
 			...(chooser === undefined ? {} : { chooser }),
 		};
