@@ -38,7 +38,7 @@
  * and a `null` `from` is `PoolView`'s whole "skip it" signal.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import type { ConnectionState } from '../draft/connection.ts';
 import type { DraftView } from '../draft/types.ts';
@@ -58,6 +58,8 @@ import { DraftCounters } from './DraftCounters.tsx';
 import { useNewPackSound } from '../draft/packSound.ts';
 import { PackView, type PackLayout } from './PackView.tsx';
 import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
+import type { GroupBy } from '../deck/cardOrder.ts';
+import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
 import { SeatBar } from './SeatBar.tsx';
 import { SpectatorNotice } from './SpectatorNotice.tsx';
 
@@ -105,6 +107,8 @@ export interface DraftScreenProps {
   side?: ReactNode;
   /** A spectator's choice of whose pack and picks to watch. Absent: the seats are not pressable. */
   onWatch?: (seatId: number) => void;
+  /** Where the drafter's build is kept (`useDraftBuild`). Absent: the split lives in this screen only (the debug harness). */
+  buildStore?: DraftBuildStore | null;
 }
 
 /**
@@ -148,12 +152,14 @@ export function DraftScreen({
   title = 'Draft',
   side,
   onWatch,
+  buildStore = null,
 }: DraftScreenProps) {
   const [localLayout, setLocalLayout] = useState<PackLayout>('fan');
   const layout = layoutProp ?? localLayout;
   const setLayout = onLayoutChange ?? setLocalLayout;
 
   const [message, setMessage] = useState<string | null>(null);
+  const [groupBy, setGroupBy] = useState<GroupBy>('color');
   const { view } = state;
   useNewPackSound(view);
   const spectating = view.viewer.kind === 'spectator';
@@ -168,6 +174,10 @@ export function DraftScreen({
   // Picked, and the pack not yet passed: the cards left in it are not this
   // seat's to take, so the pack gives way to the wait rather than sitting dimmed.
   const waiting = blocked?.reason === 'not-your-turn';
+
+  // The viewer's own picks are their build; a watched drafter's are only looked at.
+  const pool = useMemo(() => visiblePool(state), [state]);
+  const build = useDraftBuild(view.draftId, pool, watching ? null : buildStore);
 
   // Referentially stable, because `CardTile` is memoised and this is the prop
   // it compares. A fresh closure per render would make every tile re-render on
@@ -248,7 +258,7 @@ export function DraftScreen({
           {complete ? (
             <DeckView
               draftId={view.draftId}
-              pool={visiblePool(state)}
+              pool={pool}
               {...(onDownloadDeck ? { onDownload: onDownloadDeck } : {})}
             />
           ) : (
@@ -262,8 +272,11 @@ export function DraftScreen({
               />
               {!spectating && (
                 <PoolView
-                  cards={visiblePool(state)}
+                  cards={pool}
                   recentlyAdded={recentlyAdded}
+                  groupBy={groupBy}
+                  onGroupBy={setGroupBy}
+                  {...(watching ? {} : { sideboard: build.sideboard, onMove: build.move })}
                   owner={view.viewer.kind === 'watcher' ? (view.seats[view.viewer.seatId]?.displayName ?? null) : null}
                 />
               )}

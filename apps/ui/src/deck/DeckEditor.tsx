@@ -48,15 +48,14 @@
  * `CardRequest`.
  */
 
-import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
-import { parseDck, type CardRequest, type DeckEntry } from '@hadoku/carddata/dck';
+import type { CardRequest, DeckEntry } from '@hadoku/carddata/dck';
 import {
   BASIC_LAND_NAMES,
   LIMITED_MIN_MAIN_DECK_SIZE,
   basicLand,
   cardKey,
-  deckFromDeckFile,
   isBasicLand,
   mainDeckSize,
   moveToMain,
@@ -70,9 +69,12 @@ import { CardTile } from '../components/CardTile.tsx';
 import { mainDeckColors } from '../components/DeckView.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
-import { cardRequestOf, deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
+import { cardRequestOf, deckFromPool, dckTextOf, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
 import type { DraftCard, ManaColor } from '../draft/types.ts';
-import { cardIndex, draftedSeat, mainSummary, namedCardPool, splitBasics, suggestBasics } from './build.ts';
+import { DropArea, startCardDrag, type Area } from './dragMove.tsx';
+import { cardHeightOf, columnsOf, gridAt, largestCard, pilesAt, useBox } from '../components/cardFit.ts';
+import { MV_CAP, groupCards, isCreatureFace, isLandFace, sortCards, type SortKey } from './cardOrder.ts';
+import { cardIndex, draftedSeat, mainSummary, namedCardPool, suggestBasics } from './build.ts';
 import type { TablesClient, Verdict } from '../screens/tables.ts';
 import './deckEditor.css';
 
@@ -107,6 +109,13 @@ export interface DeckEditorProps {
 }
 
 const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
+/** The pool grid's gap and the piles' (`deckEditor.css`). */
+const GRID_GAP = 6;
+const PILE_GAP = 8;
+/** A pile's head over its cards, and the room under its last card. */
+const PILE_HEAD = 26;
+/** The largest a card is drawn here. */
+const MAX_CARD_W = 150;
 const BASIC_OF: Record<ManaColor, string> = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
 const PIP_OF: Record<string, ManaColor> = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
 
@@ -155,30 +164,14 @@ interface Tile {
   basic: boolean;
 }
 
-const isLandFace = (card: DraftCard): boolean => /\bLand\b/.test(card.typeLine);
-const isCreatureFace = (card: DraftCard): boolean => /\bCreature\b/.test(card.typeLine);
+const faceOf = (t: Tile): DraftCard => t.face;
 
-type ColorGroup = ManaColor | 'M' | 'C' | 'L';
-const GROUP_RANK: readonly ColorGroup[] = ['W', 'U', 'B', 'R', 'G', 'M', 'C', 'L'];
-function colorGroupOf(card: DraftCard): ColorGroup {
-  if (isLandFace(card)) return 'L';
-  if (card.colors.length === 0) return 'C';
-  if (card.colors.length > 1) return 'M';
-  return card.colors[0]!;
-}
-const colorRank = (card: DraftCard): number => GROUP_RANK.indexOf(colorGroupOf(card));
-const typeRank = (card: DraftCard): number => (isCreatureFace(card) ? 0 : isLandFace(card) ? 2 : 1);
-
-export type SortKey = 'mv' | 'color' | 'type';
 type TypeFilter = 'creature' | 'spell' | 'land';
 interface PoolFilter {
   colors: ReadonlySet<ManaColor | 'C'>;
   type: TypeFilter | null;
   mv: number | null;
 }
-
-/** The highest pile; higher mana values join it. */
-const MV_CAP = 6;
 
 function matchesFilter(card: DraftCard, f: PoolFilter): boolean {
   if (f.colors.size > 0) {
@@ -191,37 +184,11 @@ function matchesFilter(card: DraftCard, f: PoolFilter): boolean {
   return true;
 }
 
-function sortTiles(tiles: readonly Tile[], key: SortKey): Tile[] {
-  const byName = (a: Tile, b: Tile): number => a.face.name.localeCompare(b.face.name);
-  const mv = (a: Tile, b: Tile): number => a.face.manaValue - b.face.manaValue;
-  const col = (a: Tile, b: Tile): number => colorRank(a.face) - colorRank(b.face);
-  const ty = (a: Tile, b: Tile): number => typeRank(a.face) - typeRank(b.face);
-  const order = key === 'mv' ? [mv, col, byName] : key === 'color' ? [col, mv, byName] : [ty, mv, col, byName];
-  return [...tiles].sort((a, b) => {
-    for (const f of order) {
-      const r = f(a, b);
-      if (r !== 0) return r;
-    }
-    return 0;
-  });
-}
-
-/** Drag payloads name the area a card left, so a drop target can accept only the other one's. */
-const DRAG_FROM_POOL = 'application/x-cardtable-from-pool';
-const DRAG_FROM_DECK = 'application/x-cardtable-from-deck';
-type Area = 'pool' | 'deck';
-const dragType = (from: Area): string => (from === 'pool' ? DRAG_FROM_POOL : DRAG_FROM_DECK);
-
-function openDeck(savedDeck: string | null | undefined, draftId: string, pool: readonly DraftCard[], allowBasics: boolean): Deck {
-  if (typeof savedDeck === 'string') {
-    try {
-      const deck = deckFromDeckFile(parseDck(savedDeck));
-      return allowBasics ? splitBasics(deck) : deck;
-    } catch {
-      // A corrupt save opens a fresh build rather than crashing the editor.
-    }
-  }
-  return deckFromPool(draftId, pool);
+/** A limited build is the drafter's one build (`draftBuild`); a sideboard step opens on the 75 it was given. */
+function openDeck(savedDeck: string | null | undefined, mode: DeckEditorMode, draftId: string, pool: readonly DraftCard[], allowBasics: boolean): Deck {
+  const saved = savedBuild(savedDeck, allowBasics);
+  if (mode === 'limited') return draftBuild(draftId, pool, saved);
+  return saved ?? deckFromPool(draftId, pool);
 }
 
 export function DeckEditor({
@@ -239,7 +206,7 @@ export function DeckEditor({
   allowBasics = mode === 'limited',
   minMain = LIMITED_MIN_MAIN_DECK_SIZE,
 }: DeckEditorProps) {
-  const [deck, setDeck] = useState<Deck>(() => openDeck(savedDeck, draftId, pool, allowBasics));
+  const [deck, setDeck] = useState<Deck>(() => openDeck(savedDeck, mode, draftId, pool, allowBasics));
   /** The card that last moved, and where to — its tiles there flash once. */
   const [landed, setLanded] = useState<{ key: string; to: Area; n: number } | null>(null);
 
@@ -312,18 +279,13 @@ export function DeckEditor({
       else colors.add(c);
       return { ...f, colors };
     });
-  const shownPool = useMemo(() => sortTiles(sideTiles.filter((t) => matchesFilter(t.face, filter)), sort), [sideTiles, filter, sort]);
+  const shownPool = useMemo(() => sortCards(sideTiles.filter((t) => matchesFilter(t.face, filter)), sort, faceOf), [sideTiles, filter, sort]);
 
   /* ── the deck's piles ── */
   const { piles, lands } = useMemo(() => {
-    const byMv: Tile[][] = Array.from({ length: MV_CAP + 1 }, () => []);
-    const landTiles: Tile[] = [];
-    for (const t of mainTiles) {
-      if (t.basic || isBasicLand(t.request) || isLandFace(t.face)) landTiles.push(t);
-      else byMv[Math.min(MV_CAP, t.face.manaValue)]!.push(t);
-    }
-    for (const pile of byMv) pile.sort((a, b) => colorRank(a.face) - colorRank(b.face) || a.face.name.localeCompare(b.face.name));
-    return { piles: byMv, lands: landTiles };
+    // A basic drawn from a counter may have no face of its own to say it is a land.
+    const groups = groupCards(mainTiles, 'mv', (t) => (t.basic || isBasicLand(t.request) ? { ...t.face, typeLine: 'Basic Land' } : t.face), true);
+    return { piles: groups.filter(([id]) => id !== 'L').map(([, tiles]) => tiles), lands: groups.find(([id]) => id === 'L')![1] };
   }, [mainTiles]);
 
   /* ── the inspector, over this editor's own root (`DeckPeek.tsx`'s pattern) ── */
@@ -332,6 +294,35 @@ export function DeckEditor({
     const el = host.current;
     return el === null ? undefined : mountInspector(el);
   }, []);
+
+  /*
+   * ── the sizes: the pool's grid and the deck's piles share the editor's height ──
+   *
+   * One card width for both areas, the largest at which the pool (at least a
+   * row, so it is somewhere to drop) and the piles (beside the strip, never
+   * shorter than it) fit together (`components/cardFit.ts`). The pool takes
+   * the height its cards need and the deck the rest, so nothing scrolls, and
+   * the split follows where the cards are, not a fixed share. Counted on the
+   * whole pool, not the filtered one, so a filter never resizes the page.
+   */
+  const landGroups = useMemo(() => groupLands(lands), [lands]);
+  const [measureGrid, gridBox] = useBox();
+  const [measurePiles, pilesBox] = useBox();
+  const strip = useRef<HTMLElement | null>(null);
+  const fit = useMemo(() => {
+    if (gridBox.width <= 0 || pilesBox.width <= 0) return null;
+    const total = gridBox.height + pilesBox.height;
+    // Beside the piles (not under them, as on a phone), the strip's own height is the deck's floor.
+    const beside = strip.current?.parentElement != null && getComputedStyle(strip.current.parentElement).flexDirection === 'row';
+    // Its content, not its box: the box is stretched to the piles' height.
+    const last = strip.current?.lastElementChild;
+    const stripH = beside && last != null ? last.getBoundingClientRect().bottom - strip.current!.getBoundingClientRect().top : 0;
+    const counts = [...piles.map((p) => p.length), landGroups.length];
+    const gridH = (w: number): number => Math.ceil(Math.max(gridAt(sideTiles.length, w, gridBox.width, GRID_GAP).height, cardHeightOf(w)));
+    const deckH = (w: number): number => Math.max(pilesAt(counts, w, pilesBox.width, PILE_GAP).height + PILE_HEAD, stripH);
+    const cardW = largestCard((w) => gridH(w) + deckH(w) <= total, MAX_CARD_W);
+    return { cardW, gridH: gridH(cardW), cols: pilesAt(counts, cardW, pilesBox.width, PILE_GAP).cols };
+  }, [gridBox, pilesBox, piles, landGroups, sideTiles.length]);
 
   const count = mainDeckSize(deck);
   const complete = count >= minMain;
@@ -405,8 +396,16 @@ export function DeckEditor({
   const flash = (t: Tile, area: Area): boolean => landed !== null && landed.to === area && landed.key === t.key;
 
   return (
-    <div className="deck-editor" data-testid="deck-editor" data-mode={mode} data-save={saveState} ref={host}>
-      <DropArea accept="deck" onDropKey={(k) => dropOnto('pool', k)} className="deck-editor__pool" testid="pool-area">
+    <div
+      className="deck-editor"
+      data-testid="deck-editor"
+      data-mode={mode}
+      data-save={saveState}
+      ref={host}
+      data-fit={fit === null ? undefined : ''}
+      style={fit === null ? undefined : ({ '--cw': `${fit.cardW}px` } as CSSProperties)}
+    >
+      <DropArea area="pool" onDropKey={(k) => dropOnto('pool', k)} className="deck-editor__pool" testid="pool-area">
         <div className="deck-editor__bar">
           <span className="deck-editor__n" data-testid="side-count" title="pool">
             {sideboardSize(deck)}
@@ -469,14 +468,14 @@ export function DeckEditor({
             ))}
           </div>
         </div>
-        <div className="deck-editor__grid" data-testid="side-grid">
+        <div className="deck-editor__grid" data-testid="side-grid" ref={measureGrid} style={fit === null ? undefined : { flexBasis: `${fit.gridH}px` }}>
           {shownPool.map((t) => (
             <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="pool" onMove={toMain} flash={flash(t, 'pool') ? landed!.n : 0} />
           ))}
         </div>
       </DropArea>
 
-      <DropArea accept="pool" onDropKey={(k) => dropOnto('deck', k)} className="deck-editor__deck" testid="deck-area">
+      <DropArea area="deck" onDropKey={(k) => dropOnto('deck', k)} className="deck-editor__deck" testid="deck-area">
         <div className="deck-editor__bar">
           <span className="deck-editor__types">
             <span title="creatures" data-testid="count-creatures">
@@ -510,34 +509,42 @@ export function DeckEditor({
           />
         </div>
         <div className="deck-editor__body">
-          <div className="deck-editor__piles" data-testid="main-grid">
+          <div className="deck-editor__piles" data-testid="main-grid" ref={measurePiles}>
             {piles.map((pile, mv) => (
               <div key={mv} className="deck-editor__pile" data-testid="curve-bucket" data-mv={mv} data-empty={pile.length === 0 ? '' : undefined}>
                 <PileHead label={mv === MV_CAP ? `${mv}+` : String(mv)} n={pile.length} />
-                <div className="deck-editor__stack">
-                  {pile.map((t) => (
-                    <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="deck" onMove={toSide} flash={flash(t, 'deck') ? landed!.n : 0} />
+                <div className="deck-editor__cols">
+                  {columnsOf(pile, fit?.cols[mv] ?? 1).map((column, i) => (
+                    <div key={i} className="deck-editor__stack">
+                      {column.map((t) => (
+                        <EditorCard key={`${t.key}#${t.copy}`} tile={t} from="deck" onMove={toSide} flash={flash(t, 'deck') ? landed!.n : 0} />
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>
             ))}
             <div className="deck-editor__pile" data-testid="land-pile" data-empty={lands.length === 0 ? '' : undefined}>
               <PileHead label={<i className="ms ms-land" aria-label="lands" />} n={lands.length} />
-              <div className="deck-editor__stack">
-                {groupLands(lands).map(({ tile, n }) => (
-                  <div key={`${tile.key}#${tile.basic ? 'b' : 'm'}`} className="deck-editor__landcard">
-                    <EditorCard tile={tile} from="deck" onMove={toSide} flash={flash(tile, 'deck') ? landed!.n : 0} />
-                    {n > 1 && (
-                      <span className="deck-editor__badge" data-testid="land-count">
-                        ×{n}
-                      </span>
-                    )}
+              <div className="deck-editor__cols">
+                {columnsOf(landGroups, fit?.cols[piles.length] ?? 1).map((column, i) => (
+                  <div key={i} className="deck-editor__stack">
+                    {column.map(({ tile, n }) => (
+                      <div key={`${tile.key}#${tile.basic ? 'b' : 'm'}`} className="deck-editor__landcard">
+                        <EditorCard tile={tile} from="deck" onMove={toSide} flash={flash(tile, 'deck') ? landed!.n : 0} />
+                        {n > 1 && (
+                          <span className="deck-editor__badge" data-testid="land-count">
+                            ×{n}
+                          </span>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
             </div>
           </div>
-          <aside className="deck-editor__strip">
+          <aside className="deck-editor__strip" ref={strip}>
             <Curve curve={curve} />
             {allowBasics && (
               <div className="deck-editor__basics" data-testid="basics">
@@ -594,57 +601,13 @@ function EditorCard({ tile, from, onMove, flash }: { tile: Tile; from: Area; onM
       draggable
       data-name={tile.face.name}
       onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData(dragType(from), tile.key);
+        startCardDrag(e, from, tile.key);
         e.currentTarget.setAttribute('data-lifted', '');
       }}
       onDragEnd={(e) => e.currentTarget.removeAttribute('data-lifted')}
     >
       <CardTile card={tile.face} onPick={() => onMove(tile)} />
     </div>
-  );
-}
-
-/** A drop target that takes a card from the OTHER area only. */
-function DropArea({
-  accept,
-  onDropKey,
-  className,
-  testid,
-  children,
-}: {
-  accept: Area;
-  onDropKey: (key: string) => void;
-  className: string;
-  testid: string;
-  children: ReactNode;
-}) {
-  const [over, setOver] = useState(false);
-  const carries = (e: DragEvent): boolean => [...(e.dataTransfer?.types ?? [])].includes(dragType(accept));
-  return (
-    <section
-      className={className}
-      data-testid={testid}
-      data-drop-over={over ? '' : undefined}
-      onDragOver={(e) => {
-        if (!carries(e)) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        setOver(true);
-      }}
-      onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
-      }}
-      onDrop={(e) => {
-        setOver(false);
-        e.preventDefault();
-        // Only a drag from the other area carries this type; anything else reads ''.
-        const key = e.dataTransfer.getData(dragType(accept));
-        if (key !== '') onDropKey(key);
-      }}
-    >
-      {children}
-    </section>
   );
 }
 

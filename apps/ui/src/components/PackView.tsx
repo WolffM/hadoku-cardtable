@@ -13,8 +13,9 @@
  * grid has a cursor of its own: the arrow keys move it a card along or a row up
  * and down, the pointer moves it to the card it is over, and Enter picks it.
  *
- * Both layouts are measured, not guessed: `fanGeometry` and `gridGeometry` size
- * the cards to the box they are drawn in, so neither spills nor scrolls. Below
+ * Both layouts are measured, not guessed: `fanGeometry` and `cardFit.ts`'s
+ * `fitGrid` size the cards to the box they are drawn in, so neither spills nor
+ * scrolls — the grid takes as many rows as gives the largest cards. Below
  * `FAN_MIN_WIDTH` the fan draws the grid. "fan"/"grid" is still a control, the
  * grid is what the tests read, and both render the same `CardTile`s in order.
  *
@@ -37,6 +38,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '../sound/index.ts';
 import { relatedCards, withRelatedFaces } from '../draft/related.ts';
+import { CARD_RATIO, fitGrid, useBox } from './cardFit.ts';
 import { CardTile } from './CardTile.tsx';
 import { RelatedRow } from './RelatedRow.tsx';
 
@@ -52,8 +54,6 @@ export interface PackViewProps {
   emptyNote: string;
 }
 
-/** A Magic card's width over its height (488 x 680). */
-const CARD_RATIO = 488 / 680;
 /** Room above the row for the open card's rise, and below it. */
 const LIFT = 22;
 const BOTTOM = 8;
@@ -77,10 +77,6 @@ export const FAN_SIDE = 3;
 /** The row's places: the open card in the middle of them, `FAN_SIDE` either side, but at the pack's ends. */
 const FAN_SLOTS = 2 * FAN_SIDE + 1;
 const GRID_GAP = 10;
-/** The grid's rows (the operator, 2026-10-19: "just enough space so grid view can show two rows"). */
-export const GRID_ROWS = 2;
-/** Room left under a grid that scrolls sideways, for its scroll bar. */
-const SCROLLBAR = 16;
 
 export interface FanGeometry {
   cardW: number;
@@ -127,20 +123,6 @@ export function fanLayer(i: number, open: number, count: number): number {
   return count - Math.abs(i - open);
 }
 
-/**
- * The grid: `GRID_ROWS` rows of cards as tall as the box allows, as many
- * columns as the pack needs — a pack wider than the box scrolls sideways,
- * never down.
- */
-export function gridGeometry(count: number, width: number, height: number): { cols: number; cardW: number } {
-  const rows = Math.min(GRID_ROWS, Math.max(1, count));
-  const cols = Math.ceil(Math.max(1, count) / rows);
-  const fit = (h: number): number => Math.min(((h - (rows - 1) * GRID_GAP) / rows) * CARD_RATIO, MAX_CARD_H * CARD_RATIO);
-  // Wider than the box, the row scrolls sideways, and its scroll bar comes out of the height.
-  const cardW = cols * fit(height) + (cols - 1) * GRID_GAP > width ? fit(height - SCROLLBAR) : fit(height);
-  return { cols, cardW };
-}
-
 /** The related row of card `at`, with `open` open: just under its bottom edge, from its left edge, kept inside the pack's width. */
 export function relatedStyle(fan: FanGeometry, at: number, open: number, count: number, width: number, n: number): CSSProperties {
   const w = fan.cardW * RELATED_SCALE;
@@ -149,25 +131,6 @@ export function relatedStyle(fan: FanGeometry, at: number, open: number, count: 
   const left = Math.max(0, Math.min(cardLeft, width - row));
   const top = LIFT + fan.cardH - (at === open ? RISE : 0) + RELATED_DROP;
   return { '--related-w': `${w.toFixed(1)}px`, '--related-left': `${left.toFixed(1)}px`, '--related-top': `${top.toFixed(1)}px` } as CSSProperties;
-}
-
-/** The box the pack draws in, kept current. Zero until it has been measured. */
-function useBox(): [(el: HTMLDivElement | null) => void, { width: number; height: number }] {
-  const [box, setBox] = useState({ width: 0, height: 0 });
-  const observer = useRef<ResizeObserver | null>(null);
-  const ref = useCallback((el: HTMLDivElement | null) => {
-    observer.current?.disconnect();
-    observer.current = null;
-    if (el === null || typeof ResizeObserver === 'undefined') return;
-    const measure = (): void => {
-      const r = el.getBoundingClientRect();
-      setBox((was) => (was.width === r.width && was.height === r.height ? was : { width: r.width, height: r.height }));
-    };
-    observer.current = new ResizeObserver(measure);
-    observer.current.observe(el);
-    measure();
-  }, []);
-  return [ref, box];
 }
 
 /** Trackpad travel per card; any single wheel event this big is one mouse notch, one card. */
@@ -196,7 +159,7 @@ export function PackView({ cards: dealt, layout, onPick, disabled, emptyNote }: 
   // layout drawn at a guessed size is the overflow this replaced.
   const measured = box.width > 0 && box.height > 0;
   const fan = layout === 'fan' && measured && box.width >= FAN_MIN_WIDTH ? fanGeometry(box.width, box.height) : null;
-  const grid = fan === null && measured ? gridGeometry(cards.length, box.width, box.height) : null;
+  const grid = fan === null && measured ? fitGrid(cards.length, box, GRID_GAP, MAX_CARD_H * CARD_RATIO) : null;
   const shown = fan === null || cards.length === 0 ? null : Math.min(focus ?? 0, cards.length - 1);
   const cursor = fan !== null || focus === null || cards.length === 0 ? null : Math.min(focus, cards.length - 1);
   const cols = grid?.cols ?? 1;

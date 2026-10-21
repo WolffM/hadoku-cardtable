@@ -178,8 +178,8 @@ import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
 import { assignDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
 import { artCredit, useArtist } from '../draft/artists.ts';
 import { cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
-import { cardIndex, mainSummary, splitBasics } from '../deck/build.ts';
-import { deckFromPool } from '../draft/deckFromPool.ts';
+import { cardIndex, mainSummary } from '../deck/build.ts';
+import { deckFromPool, splitBasics } from '../draft/deckFromPool.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 import type { DraftCard } from '../draft/types.ts';
 import {

@@ -45,8 +45,8 @@
 // TS2345 at `scryfall/bulk.ts:200` and, in a bundle, `node:fs` in the browser.
 // `dck.ts` has no node builtins, so the browser reaches exactly the parser it
 // needs. Same pattern as `cardImage.ts`'s `@hadoku/carddata/art`.
-import { DEFAULT_ART_INDEX, type CardRequest, type DeckEntry } from '@hadoku/carddata/dck';
-import { newDeck, toDeckFile, writeDck, type Deck } from '@hadoku/deck';
+import { DEFAULT_ART_INDEX, parseDck, type CardRequest, type DeckEntry } from '@hadoku/carddata/dck';
+import { cardKey, deckFromDeckFile, isBasicLand, newDeck, toDeckFile, writeDck, type Deck } from '@hadoku/deck';
 
 import type { DraftCard } from './types.ts';
 
@@ -90,6 +90,100 @@ export function defaultDeckName(draftId: string): string {
  */
 export function deckFromPool(draftId: string, pool: readonly DraftCard[], name?: string): Deck {
   return newDeck(name ?? defaultDeckName(draftId), poolEntries(pool));
+}
+
+/**
+ * A drafter's build: which picks are the deck and which the sideboard — ONE
+ * piece of state from the first pick to the last game, saved as the pod's
+ * deck (`PUT /api/drafts/:podId/deck`) by the draft's picks and the deck
+ * builder alike.
+ *
+ * Picks are the deck in progress (the operator, 2026-10-21, Arena-style:
+ * *"while drafting, picks are the deck in progress; the drafter drags the ones
+ * they won't play into a sideboard area; the deck builder opens with picks =
+ * main deck and the dragged ones in the sideboard"*). So the saved deck says
+ * where the cards it names are, and every pick it does not account for — one
+ * made since it was saved, or every pick when nothing was — is in the main
+ * deck. A card the pool does not hold leaves the build (basics excepted: they
+ * are never drafted), and no card is ever counted twice.
+ */
+export function draftBuild(draftId: string, pool: readonly DraftCard[], saved: Deck | null): Deck {
+  const left = new Map<string, { card: CardRequest; n: number }>();
+  for (const card of pool) {
+    const request = cardRequestOf(card);
+    const key = cardKey(request);
+    const had = left.get(key);
+    if (had) had.n += 1;
+    else left.set(key, { card: request, n: 1 });
+  }
+  const take = (entries: readonly DeckEntry[]): DeckEntry[] =>
+    entries.flatMap((entry) => {
+      if (isBasicLand(entry.card) && !left.has(cardKey(entry.card))) return [entry];
+      const have = left.get(cardKey(entry.card));
+      const count = Math.min(entry.count, have?.n ?? 0);
+      if (have === undefined || count === 0) return [];
+      have.n -= count;
+      return [{ count, card: entry.card }];
+    });
+  const sideboard = take(saved?.sideboard ?? []);
+  const main = take(saved?.main ?? []);
+  for (const { card, n } of left.values()) if (n > 0) main.push({ count: n, card });
+  return { name: saved?.name ?? defaultDeckName(draftId), main: merge(main), sideboard: merge(sideboard), basics: saved?.basics ?? [] };
+}
+
+function merge(entries: readonly DeckEntry[]): DeckEntry[] {
+  const out = new Map<string, DeckEntry>();
+  for (const e of entries) {
+    const key = cardKey(e.card);
+    const had = out.get(key);
+    out.set(key, { count: (had?.count ?? 0) + e.count, card: had?.card ?? e.card });
+  }
+  return [...out.values()];
+}
+
+/** The picks as the build splits them, in pick order: of N copies with S sideboarded, the first S picked are the sideboard's. */
+export function splitPicks(pool: readonly DraftCard[], build: Deck): { main: DraftCard[]; side: DraftCard[] } {
+  const side = new Map<string, number>();
+  for (const e of build.sideboard) side.set(cardKey(e.card), (side.get(cardKey(e.card)) ?? 0) + e.count);
+  const out = { main: [] as DraftCard[], side: [] as DraftCard[] };
+  for (const card of pool) {
+    const key = cardKey(cardRequestOf(card));
+    const n = side.get(key) ?? 0;
+    if (n > 0) {
+      side.set(key, n - 1);
+      out.side.push(card);
+    } else out.main.push(card);
+  }
+  return out;
+}
+
+/**
+ * The one thing a `.dck` round trip loses: a `.dck` file has no basics
+ * section — `toDeckFile` merges the basics pile into `main`, and
+ * `deckFromDeckFile` reads a main section back as one pile. A saved build's
+ * readers pull the basics back out, because no fold can find a basic land's
+ * colour in a drafted pool's own index (basics are not drafted), and the
+ * basics counters need them apart.
+ */
+export function splitBasics(deck: Deck): Deck {
+  const main: DeckEntry[] = [];
+  const basics: DeckEntry[] = [...deck.basics];
+  for (const entry of deck.main) {
+    if (isBasicLand(entry.card)) basics.push(entry);
+    else main.push(entry);
+  }
+  return { ...deck, main, basics };
+}
+
+/** A saved build's `.dck` text as a deck (basics in their own pile when `allowBasics`), or null for none — or for a save that cannot be read, which opens a fresh build rather than crashing. */
+export function savedBuild(text: string | null | undefined, allowBasics: boolean): Deck | null {
+  if (typeof text !== 'string') return null;
+  try {
+    const deck = deckFromDeckFile(parseDck(text));
+    return allowBasics ? splitBasics(deck) : deck;
+  } catch {
+    return null;
+  }
 }
 
 /**

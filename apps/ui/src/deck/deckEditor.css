@@ -1,13 +1,12 @@
 /*
  * `DeckEditor.tsx` — the pool grid on top, the deck's piles below, a strip of
  * curve and basics at the right. The editor fills the box its caller gives it
- * and never grows past it: the pool grid and the piles scroll inside.
- *
- * Card width is one custom property per area, `--cw`, sized from the window's
- * height and the editor's own width (a container query unit), so the same
- * layout fits 1280×720, a 1920 screen, and the width left beside the room's
- * chat. A pile overlaps its cards to show each one's name bar: the overlap is
- * the card's height (488:680) less a fifth of its width.
+ * and never grows past it, and nothing in it scrolls: `DeckEditor` measures
+ * the pool grid and the piles and sets one card width, `--cw`, at which both
+ * fit (`components/cardFit.ts`), and the pool grid's height. A pile overlaps
+ * its cards to show each one's name bar: the overlap is the card's height
+ * (488:680) less a fifth of its width; a pile taller than its room splits
+ * into columns side by side.
  */
 
 .deck-editor {
@@ -50,13 +49,23 @@
   background-color: color-mix(in srgb, var(--accent) 8%, var(--bg-raised));
 }
 
+/* Until measured: a fixed share and a size from the window. Measured
+   (`data-fit`), `DeckEditor` sets one `--cw` for both and the pool grid's
+   height, and the deck takes the rest. */
 .deck-editor__pool {
-  flex: 0 0 38%;
-  --cw: clamp(76px, min(12.5vh, (100cqi - 40px) / 9 - 6px), 140px);
+  flex: 0 0 auto;
 }
 
 .deck-editor__deck {
   flex: 1 1 auto;
+}
+
+.deck-editor:not([data-fit]) .deck-editor__pool {
+  flex: 0 0 38%;
+  --cw: clamp(76px, min(12.5vh, (100cqi - 40px) / 9 - 6px), 140px);
+}
+
+.deck-editor:not([data-fit]) .deck-editor__deck {
   --cw: clamp(72px, min(13.6vh, (100cqi - 196px) / 8 - 8px), 150px);
 }
 
@@ -241,10 +250,11 @@
 /* ── the pool ── */
 
 .deck-editor__grid {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
-  overflow-y: auto;
-  scrollbar-width: thin;
+  overflow: hidden;
+  /* `DeckEditor` sets its basis to the height its cards take, padding apart. */
+  box-sizing: content-box;
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
@@ -331,15 +341,15 @@
 .deck-editor__piles {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: auto;
-  scrollbar-width: thin;
+  overflow: hidden;
   display: flex;
   gap: 8px;
   padding-top: 2px;
 }
 
 .deck-editor__pile {
-  flex: 0 0 var(--cw);
+  flex: 0 0 auto;
+  min-width: var(--cw);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -363,6 +373,11 @@
 .deck-editor__pilemv {
   font-weight: 700;
   color: var(--ink);
+}
+
+.deck-editor__cols {
+  display: flex;
+  gap: 8px;
 }
 
 .deck-editor__stack {

@@ -85,6 +85,7 @@ import { followMatchOnce } from '../play/live/matchStart.ts';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { roomsClient } from '../rooms/api.ts';
+import { deckStoreClient } from '../deck/deckStore.ts';
 import './PodScreen.css';
 
 export interface PodScreenProps {
@@ -160,6 +161,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   const inRounds = phase === 'rounds' || phase === 'done';
 
   const closeClient = useMemo(() => roomsClient(), []);
+  const buildStore = useMemo(() => ({ podId: draftId, client: deckStoreClient() }), [draftId]);
   // Closed by its owner: there is nothing left here to show.
   const gone = ctx?.gone === true;
   useEffect(() => {
@@ -284,6 +286,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           nextPayload={null}
           layout={layout}
           onLayoutChange={setLayout}
+          buildStore={buildStore}
           side={<div className="pod__bar pod__bar--side">{bar}</div>}
           onWatch={(seatId) => {
             if (draft !== null) watchSeat(draft, seatId);

@@ -417,7 +417,10 @@ button {
   grid-area: pool;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  /* The piles are sized to fit (`PoolView`'s `fitPiles`): nothing to scroll. */
+  overflow: hidden;
 }
 
 .draft__aside {
@@ -550,7 +553,7 @@ button {
   outline-offset: 2px;
 }
 
-/* The grid at the size that shows the whole pack (`gridGeometry`): no scroll. */
+/* The grid at the size that shows the whole pack (`fitGrid`): no scroll. */
 .pack--grid[style] .pack__slot {
   --card-w: var(--grid-w);
   --card-h: calc(var(--grid-w) / 0.7176);
@@ -561,9 +564,9 @@ button {
   align-content: start;
 }
 
-/* The grid is two rows, as tall as the half allows: more cards scroll sideways, never down. */
+/* The grid is sized to fit (`PackView`'s `fitGrid`): nothing to scroll, and its cursor's outline is not clipped. */
 .draft__main > .pack--grid {
-  overflow: auto hidden;
+  overflow: visible;
 }
 
 .pack--empty {
@@ -825,10 +828,37 @@ button {
 }
 
 .pool__curve {
+  /* Until measured (and in a test environment); measured, `PoolView` sets both. */
+  --pool-w: 140px;
+  --pool-show: 30px;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+/* The deck in progress and the sideboard: each a drop target for the other's cards (`deck/dragMove.tsx`). */
+.pool__main,
+.pool__sideboard {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  padding-bottom: 8px;
+  border-radius: var(--radius);
+  outline: 2px dashed transparent;
+  outline-offset: 2px;
+  transition: outline-color 120ms;
+}
+
+.pool__sideboard {
+  min-width: var(--pool-w);
+  margin-left: auto;
+}
+
+.pool__main[data-drop-over],
+.pool__sideboard[data-drop-over] {
+  outline-color: var(--accent);
 }
 
 .pool__bucket {
@@ -836,14 +866,23 @@ button {
 }
 
 .pool__bucket-title {
+  height: 14px;
+  line-height: 14px;
   font-size: 11px;
   color: var(--ink-dim);
-  margin-bottom: 6px;
+  margin: 0 0 6px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .pool__bucket-n {
   color: var(--ink-faint);
+}
+
+/* A pile taller than the box is split into columns side by side (`cardFit.ts`'s `pilesAt`). */
+.pool__bucket-cols {
+  display: flex;
+  gap: 12px;
 }
 
 /*
@@ -853,9 +892,7 @@ button {
  * not, so the columns line up.
  */
 .pool__bucket-cards {
-  --pool-w: 140px;
   --pool-h: calc(var(--pool-w) / 0.7176);
-  --pool-show: 30px;
   display: flex;
   flex-direction: column;
   width: var(--pool-w);
@@ -875,8 +912,7 @@ button {
   height: var(--pool-h);
 }
 
-.pool__bucket-cards > :not(:first-child) .card,
-.pool__bucket-cards > .card:not(:first-child) {
+.pool__bucket-cards > .pool__tile + .pool__tile {
   margin-top: calc(var(--pool-show) - var(--pool-h));
 }
 
@@ -901,26 +937,24 @@ button {
 
 /*
  * The wrapper the shared inspector's synthetic id sits on (`PoolView.tsx`'s
- * header). `display: contents` drops it from the box tree entirely, so the
- * `.card` inside is still the direct flex item `.pool__bucket-cards` lays
- * out — unchanged from before the wrapper existed.
+ * header), and what a drag picks up: a real box, so the browser finds it
+ * draggable under the card, and the column's overlap is its own margin.
  */
 .pool__tile {
-  display: contents;
+  display: block;
+  width: var(--pool-w);
 }
 
 /*
  * A pick is a FLIP, not a pop (`PoolView.tsx`'s `PoolTile`, which does the
- * actual inverting): the just-added card gets a real box back for
- * `POOL_ENTER_MS` so it has something to apply a transform to, then reverts
- * to `display: contents` once React drops the class. The TRANSITION lives
+ * actual inverting): the just-added card wears this class for
+ * `POOL_ENTER_MS`. The TRANSITION lives
  * here, not a keyframe — `PoolTile` sets the inverted `transform` inline with
  * no transition, forces layout, then clears both inline properties; clearing
  * `transition` falls through to this rule, which is what actually animates
  * the fall from the inverted value back to `transform: none`.
  */
 .pool__tile--enter {
-  display: block;
   transition: transform 280ms ease;
   /* In flight it is drawn over the pack it came from: the next pick's click
      goes through it to the card underneath, never to the card on its way. */

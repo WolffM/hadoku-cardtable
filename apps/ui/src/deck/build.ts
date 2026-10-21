@@ -13,20 +13,6 @@
  * `draftedSeat` is the only place a drafted deck becomes a request: the gate's
  * own `{ deck: { dck }, rules: { kind: 'draft', draftId } }`, the arm that
  * checks the text against the CALLER's pool, with the text from `dckTextOf`.
- *
- * ## `splitBasics` — the one thing a `.dck` round trip loses
- *
- * A `.dck` file has no separate basics section: `toDeckFile` merges the
- * basics pile into `main` on export, and `deckFromDeckFile` reads a main
- * section back as ONE pile (see that function's own header in
- * `@hadoku/deck`). Both this wave's readers of a SAVED build —
- * `DeckEditor.tsx`'s own load, and `ConstructedScreen.tsx`'s `DRAFTED_DECK`
- * — parse exactly that file, so both need the inverse: pull the basics back
- * out before anything downstream asks `cardIndex`/`mainDeckColors` about them,
- * because neither fold can find a basic land's colour in a drafted pool's own
- * index (basics are not drafted) and a basic left in `main` therefore drops
- * out of the deck's own colour — the same fact `setBasicLand`'s counters need
- * it split for, one level up.
  */
 
 import { cardKey, isBasicLand, manaTokensOf, type Deck } from '@hadoku/deck';
@@ -46,16 +32,7 @@ export function draftedSeat(draftId: string, deck: Deck): SeatChoice {
   return { deck: { dck: dckTextOf(deck) }, rules: { kind: 'draft', draftId } };
 }
 
-/** The inverse of `toDeckFile` merging basics into `main` — see the header. */
-export function splitBasics(deck: Deck): Deck {
-  const main: DeckEntry[] = [];
-  const basics: DeckEntry[] = [...deck.basics];
-  for (const entry of deck.main) {
-    if (isBasicLand(entry.card)) basics.push(entry);
-    else main.push(entry);
-  }
-  return { ...deck, main, basics };
-}
+
 
 /**
  * A library deck's two halves (`screens/tables.ts`'s `TableDeck.main`/
