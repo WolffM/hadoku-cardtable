@@ -87,8 +87,9 @@
  *    closed in between means Forge takes it as an answer to something else. A
  *    whole-suite run latched Mountain 62 as played with an EMPTY `declined`, and
  *    the card was still in hand and still in Forge's actionable set at turn 5.
- *    Every latch now expires (`EFFECT_GRACE_MS`, or at once when the card is
- *    still in hand), and the re-clicks are counted and bounded.
+ *    Every latch now expires (`EFFECT_GRACE_MS`, or at once when Forge names
+ *    the card again in a newer actionable set), and the re-clicks are counted
+ *    and bounded.
  *  - **Phase 1 is no longer nailed to one turn number.** It used to run only on
  *    the turn the actor was first seen at its own main; a run that missed that
  *    window between two 150 ms ticks pressed OK to turn 108 and failed with the
@@ -160,8 +161,8 @@ const DECLINED_CLICK_LIMIT = 10;
  * in the actor's hand, still in Forge's own actionable set, at turn 5. So "the
  * act left the client" is not enough on its own, and a latch that never expires
  * turns one lost act into two minutes of silence. Generous on purpose: under
- * that load Forge itself is slow, and where the card is STILL IN HAND the
- * driver has a positive signal and does not wait for the clock at all.
+ * that load Forge itself is slow, and where Forge names the card again, still
+ * in hand, the driver has a positive signal and does not wait for the clock.
  */
 const EFFECT_GRACE_MS = 8_000;
 
@@ -264,8 +265,11 @@ describe.skipIf(!available.ok)(title, () => {
       let targeting: LiveSelectables | null = null;
       /** Clicks the product declined because the affordance had gone stale. */
       const declined: string[] = [];
-      /** When each latched click was sent, so the latch on it can expire. */
-      const sentAt = new Map<string, number>();
+      /**
+       * When each latched click was sent, and the actionable set Forge had named when it was, so
+       * the latch can tell Forge answering it from Forge not having got to it yet.
+       */
+      const sentAt = new Map<string, { at: number; under: ReadonlySet<number> | null }>();
       /** Acts Forge did not act on, which this driver made again. */
       const redone: string[] = [];
 
@@ -287,9 +291,13 @@ describe.skipIf(!available.ok)(title, () => {
         return sent;
       };
 
-      /** Click a card of this name in hand. Returns its id only when the click was sent. */
+      /**
+       * Click a card of this name in hand that Forge offers now. Returns its id only when the click
+       * was sent. Never one Forge does not name: once the land drop is spent no Mountain is offered,
+       * and a click on one is a decline that no retry can turn into a play.
+       */
       function fromHand(s: SeatClient, name: string): number | null {
-        const card = me(s).hand?.find(named(name));
+        const card = me(s).hand?.find((c) => named(name)(c) && isOffered(roots[s.seat]!, c.id));
         const button = card === undefined ? null : cardButton(roots[s.seat]!, card.id);
         if (card === undefined || button === null) return null;
         return click(button, `${name} ${card.id} in hand`, s) ? card.id : null;
@@ -303,25 +311,33 @@ describe.skipIf(!available.ok)(title, () => {
         return click(button, `Mountain ${land.id} on the battlefield to pay: ${JSON.stringify(s.live.prompt)}`, s);
       }
 
-      /** Latch `id` under `key`, remembering when its click was sent. */
-      const mark = (key: string, id: number | null): number | null => {
-        if (id !== null) sentAt.set(key, Date.now());
+      /** Latch `id` under `key`, remembering when its click was sent and what Forge offered then. */
+      const latch = (s: SeatClient, key: string): void => {
+        sentAt.set(key, { at: Date.now(), under: s.live.weaklySelectable });
+      };
+      const mark = (s: SeatClient, key: string, id: number | null): number | null => {
+        if (id !== null) latch(s, key);
         return id;
       };
       /**
        * Has the effect of the click latched under `key` failed to arrive?
        *
-       * `stillInHand` is the positive signal — a card Forge acted on is not in
-       * the hand any more — and it is trusted after a second. Without one, the
-       * grace decides. Either way the latch drops so the click is made again.
+       * The positive signal is Forge naming the card `id` again, in hand, in an actionable set NEWER
+       * than the one it was clicked under: Forge came back to this seat's priority and the card did
+       * not move. A card merely still in hand is not one — on a loaded claw the play takes longer
+       * than a tick to fold, and a latch dropped then re-clicked a second Mountain after the first
+       * had landed, which Forge (one land a turn) never offers (runs 39376063049, 39508268581).
+       * Without the signal, the grace decides. Either way the latch drops so the click is made again.
        */
-      const lost = (key: string, what: string, stillInHand: boolean): boolean => {
-        const at = sentAt.get(key);
-        if (at === undefined) return false;
-        const waited = Date.now() - at;
-        if (waited < (stillInHand ? 1_000 : EFFECT_GRACE_MS)) return false;
+      const lost = (s: SeatClient, key: string, what: string, id: number | null): boolean => {
+        const sent = sentAt.get(key);
+        if (sent === undefined) return false;
+        const waited = Date.now() - sent.at;
+        const offered = s.live.weaklySelectable;
+        const renamed = id !== null && inHand(s, id) && offered !== null && offered !== sent.under && offered.has(id);
+        if (!renamed && waited < EFFECT_GRACE_MS) return false;
         sentAt.delete(key);
-        redone.push(`${what} — ${stillInHand ? `still in hand after ${waited} ms` : `${waited} ms and nothing happened`}`);
+        redone.push(`${what} — ${renamed ? `named again, still in hand, after ${waited} ms` : `${waited} ms and nothing happened`}`);
         log.push(`re-clicking: ${what}`);
         return true;
       };
@@ -476,11 +492,11 @@ describe.skipIf(!available.ok)(title, () => {
         }
         if (s === actor && myMain && !phase1Done()) {
           phase1Turn = v.turn;
-          if (clicked.land === null) clicked.land = mark('land', fromHand(s, 'Mountain'));
+          if (clicked.land === null) clicked.land = mark(s, 'land', fromHand(s, 'Mountain'));
           else if (!p.battlefield.some((c) => c.id === clicked.land)) {
-            if (lost('land', `Mountain ${clicked.land} never reached the battlefield`, inHand(s, clicked.land))) clicked.land = null;
-          } else if (clicked.goblin === null) clicked.goblin = mark('goblin', fromHand(s, 'Raging Goblin'));
-          else if (lost('goblin', `Raging Goblin ${clicked.goblin} never left the hand`, inHand(s, clicked.goblin))) clicked.goblin = null;
+            if (lost(s, 'land', `Mountain ${clicked.land} never reached the battlefield`, clicked.land)) clicked.land = null;
+          } else if (clicked.goblin === null) clicked.goblin = mark(s, 'goblin', fromHand(s, 'Raging Goblin'));
+          else if (lost(s, 'goblin', `Raging Goblin ${clicked.goblin} never left the hand`, clicked.goblin)) clicked.goblin = null;
           /*
            * Nothing pays here. With one Mountain in play there is exactly one
            * way to pay {R} — one source, which even the STRICT policy these
@@ -494,27 +510,27 @@ describe.skipIf(!available.ok)(title, () => {
           return;
         }
         if (s === actor && myMain && v.turn > phase1Turn && phase1Checked && !phase2Done()) {
-          if (clicked.land2 === null) clicked.land2 = mark('land2', fromHand(s, 'Mountain'));
+          if (clicked.land2 === null) clicked.land2 = mark(s, 'land2', fromHand(s, 'Mountain'));
           else if (!p.battlefield.some((c) => c.id === clicked.land2)) {
-            if (lost('land2', `Mountain ${clicked.land2} never reached the battlefield`, inHand(s, clicked.land2))) clicked.land2 = null;
-          } else if (clicked.shock === null) clicked.shock = mark('shock', fromHand(s, 'Shock'));
+            if (lost(s, 'land2', `Mountain ${clicked.land2} never reached the battlefield`, clicked.land2)) clicked.land2 = null;
+          } else if (clicked.shock === null) clicked.shock = mark(s, 'shock', fromHand(s, 'Shock'));
           else if (!clicked.targeted) {
             // Forge's own list of what Shock may target, as it arrived.
             if (s.live.selectables === null) {
-              if (lost('shock', `Shock ${clicked.shock} never asked for a target`, inHand(s, clicked.shock))) clicked.shock = null;
+              if (lost(s, 'shock', `Shock ${clicked.shock} never asked for a target`, clicked.shock)) clicked.shock = null;
               return;
             }
             targeting = s.live.selectables;
             const target = seatButton(root, opponent(s).id);
             if (target === null) return;
             clicked.targeted = click(target, `the opponent's seat (player ${opponent(s).id}) as Shock's target`, s);
-            if (clicked.targeted) sentAt.set('targeted', Date.now());
+            if (clicked.targeted) latch(s, 'targeted');
           } else if (!clicked.shockPaid) {
             if (s.live.selectables === null) {
               clicked.shockPaid = payWithLand(s);
-              if (clicked.shockPaid) sentAt.set('shockPaid', Date.now());
-            } else if (lost('targeted', 'the target click never closed Forge’s selection', false)) clicked.targeted = false;
-          } else if (lost('shockPaid', `Shock ${clicked.shock} never reached the stack after it was paid for`, false)) {
+              if (clicked.shockPaid) latch(s, 'shockPaid');
+            } else if (lost(s, 'targeted', 'the target click never closed Forge’s selection', null)) clicked.targeted = false;
+          } else if (lost(s, 'shockPaid', `Shock ${clicked.shock} never reached the stack after it was paid for`, null)) {
             clicked.shockPaid = false;
           }
           return;
