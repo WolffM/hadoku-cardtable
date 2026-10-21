@@ -1279,7 +1279,6 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 					{ matchId: 'm-game-3', winner: 1 },
 				],
 				winner: 1,
-				complete: true,
 			},
 		]);
 		// Recorded once: nothing the room does afterwards records it again.
@@ -1366,7 +1365,7 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 		expect(swept.ended).toEqual([expect.objectContaining({ bestOf: 1, winner: null, wins: [0, 0] })]);
 	});
 
-	it('against the AI: the AI seat is null, the one player’s Rematch converts it, and a Bo3 the room closes on is recorded unfinished', async () => {
+	it('against the AI: the AI seat is null, the one player’s Rematch converts it, and a Bo3 the room closes on records its finished game as a Bo1', async () => {
 		const ended: SeriesEnd[] = [];
 		const lobby = await openLobby({ dir: await tempDir(), onSeriesEnd: (end) => ended.push(end) });
 		const made = lobby.create(ALICE, { name: 'Solo', gameType: 'constructed-1v1', clientMode: 'builtin' });
@@ -1379,7 +1378,99 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
 		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 3, wins: [1, 0], phase: 'sideboarding' });
 		expect(lobby.close(id, ALICE.id).ok).toBe(true);
-		expect(ended).toEqual([expect.objectContaining({ bestOf: 3, seats: [{ memberId: ALICE.id, name: ALICE.name }, null], winner: null, complete: false })]);
+		expect(ended).toEqual([
+			{
+				roomId: id,
+				tableId,
+				mode: 'classic',
+				bestOf: 1,
+				seats: [{ memberId: ALICE.id, name: ALICE.name }, null],
+				wins: [1, 0],
+				games: [{ matchId: 'm-bot-1', winner: 0 }],
+				winner: 0,
+			},
+		]);
+	});
+
+	/*
+	 * The operator, 2026-10-21: "in that case we just record the completed games
+	 * as Bo1, uncompleted games are trashed". A Bo3 whose players leave before it
+	 * is decided is not recorded as a Bo3 at all: each finished game is its own
+	 * Bo1, keyed by its own match, and a game still in play counts for nothing.
+	 */
+	describe('a Bo3 its players leave undecided records each finished game as a Bo1', () => {
+		/** Alice and Bob in a Bo3 (a Rematch) at 1-1, game 3 under way. */
+		async function oneAllAndPlaying() {
+			const t = await playingTable();
+			t.lobby.recordGameResult(t.id, t.tableId, { matchId: 'm-game-1', winner: 0 });
+			expect(t.lobby.beginSideboarding(t.id, t.tableId)).toBe(true);
+			expect(t.lobby.setTableMatch(t.id, t.tableId, 'm-game-2')).toBe(true);
+			t.lobby.recordGameResult(t.id, t.tableId, { matchId: 'm-game-2', winner: 1 });
+			expect(t.lobby.setTableMatch(t.id, t.tableId, 'm-game-3')).toBe(true);
+			return t;
+		}
+		const bo1 = (id: string, tableId: string, matchId: string, winner: 0 | 1) => ({
+			roomId: id,
+			tableId,
+			mode: 'classic',
+			bestOf: 1,
+			seats: [
+				{ memberId: ALICE.id, name: ALICE.name },
+				{ memberId: BOB.id, name: BOB.name },
+			],
+			wins: winner === 0 ? [1, 0] : [0, 1],
+			games: [{ matchId, winner }],
+			winner,
+		});
+
+		it('a player leaves the room mid-game: the two finished games are two Bo1s, game 3 is discarded, and the table moves on', async () => {
+			const { lobby, id, tableId, ended } = await oneAllAndPlaying();
+			expect(lobby.leave(id, BOB.id).ok).toBe(true);
+			expect(ended).toEqual([bo1(id, tableId, 'm-game-1', 0), bo1(id, tableId, 'm-game-2', 1)]);
+			expect(lobby.get(id)?.tables[0]?.series, 'the abandoned series is over').toMatchObject({ phase: 'done', games: [{ matchId: 'm-game-1' }, { matchId: 'm-game-2' }] });
+			// Game 3 ends after the leave: nothing is recorded for it.
+			expect(lobby.recordGameResult(id, tableId, { matchId: 'm-game-3', winner: 0 })).toMatchObject({ ok: true, phase: 'done' });
+			expect(lobby.get(id)?.tables[0]).toMatchObject({ matchId: null, series: { wins: [1, 1], games: [{ matchId: 'm-game-1' }, { matchId: 'm-game-2' }] } });
+			expect(lobby.beginSideboarding(id, tableId)).toBe(false);
+			// The next start is a new Bo1 series, and closing the room records nothing more.
+			expect(lobby.setTableMatch(id, tableId, 'm-next')).toBe(true);
+			expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 1, wins: [0, 0], games: [], phase: 'playing' });
+			expect(lobby.close(id, ALICE.id).ok).toBe(true);
+			expect(ended).toHaveLength(2);
+		});
+
+		it('a player stands up between games: the same, the way a Bo1 ends when its seat is left', async () => {
+			const { lobby, id, tableId, ended } = await playingTable();
+			lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });
+			expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+			expect(lobby.setTableSeats(id, tableId, [ALICE.id, null])).toBe(true);
+			expect(ended).toEqual([bo1(id, tableId, 'm-game-1', 1)]);
+			expect(lobby.get(id)?.tables[0]?.series.phase).toBe('done');
+		});
+
+		it('a Gauntlet left after game 1 records game 1 as a Gauntlet Bo1', async () => {
+			const { lobby, id, tableId, ended } = await playingTable();
+			lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
+			expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
+			ended.length = 0;
+			expect(lobby.setTableMatch(id, tableId, 'm-gauntlet-1')).toBe(true);
+			expect(lobby.recordGameResult(id, tableId, { matchId: 'm-gauntlet-1', winner: 1 })).toMatchObject({ phase: 'between' });
+			expect(lobby.leave(id, ALICE.id).ok).toBe(true);
+			expect(ended).toEqual([{ ...bo1(id, tableId, 'm-gauntlet-1', 1), mode: 'gauntlet' }]);
+		});
+
+		it('the room is swept mid-series: each finished game is a Bo1, and a game in play is not one', async () => {
+			const { lobby, id, tableId, ended } = await oneAllAndPlaying();
+			expect(lobby.sweep(-1)).toEqual([id]);
+			expect(ended).toEqual([bo1(id, tableId, 'm-game-1', 0), bo1(id, tableId, 'm-game-2', 1)]);
+		});
+
+		it('a decided Bo3 is still one Bo3 when a player leaves after it', async () => {
+			const { lobby, id, tableId, ended } = await oneAllAndPlaying();
+			lobby.recordGameResult(id, tableId, { matchId: 'm-game-3', winner: 1 });
+			expect(lobby.leave(id, BOB.id).ok).toBe(true);
+			expect(ended).toEqual([expect.objectContaining({ bestOf: 3, wins: [1, 2], winner: 1 })]);
+		});
 	});
 
 	it('a draft pod table is Bo3 with sideboarding from its first game', async () => {

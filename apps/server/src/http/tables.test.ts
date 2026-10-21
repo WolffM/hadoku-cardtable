@@ -2525,6 +2525,56 @@ describe('a room table', () => {
 		});
 
 		/**
+		 * The operator, 2026-10-21: "if rematch is clicked, yes the bot keeps the
+		 * same deck. if we go back to room then it picks a new deck". Every game
+		 * of the Bo3 a Rematch converts into is the same series, so the same bot
+		 * deck; a start from a `done` series is a new one, and draws again.
+		 * `Math.random` is pinned so a re-draw cannot land on the same deck by luck.
+		 */
+		it('against the AI in Classic: a Rematch keeps the bot’s deck for the whole Bo3, and a new series draws a new one', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
+			expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
+			const startBot = async () => {
+				const before = h.hosts.length;
+				const pending = call(h, 'POST', '/api/play/matches', { room: ROOM, bot: true }, edgeHeaders('alice'));
+				await untilHost(h, before + 1, pending);
+				if (h.hosts.length > before) (h.hosts.at(-1) as ReplayHost).push(...OPENING);
+				return pending;
+			};
+			const botDeck = () => h.specs.at(-1)!.seats[1]!.deck;
+			const gameOver = async (winner: string | null) => {
+				(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner });
+				await view(h, 'alice');
+			};
+			const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+			try {
+				expect((await startBot()).status).toBe(201);
+				const first = botDeck();
+				await gameOver('user-alice');
+				random.mockReturnValue(0.999);
+				// Rematch: the one Ready converts the Bo1, the sideboard step's Ready starts game 2.
+				await setReady(h, 'alice');
+				expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 3, phase: 'sideboarding' });
+				await setReady(h, 'alice');
+				expect((await startBot()).status).toBe(201);
+				expect(botDeck(), 'game 2 of the Bo3 the Rematch made').toBe(first);
+				await gameOver(null);
+				await setReady(h, 'alice');
+				expect((await startBot()).status).toBe(201);
+				expect(botDeck(), 'game 3').toBe(first);
+				await gameOver('user-alice');
+				expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ phase: 'done' });
+				// Back to room, then a new match: a new series, and a new bot deck.
+				expect((await startBot()).status).toBe(201);
+				expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 1, games: [] });
+				expect(botDeck()).not.toBe(first);
+			} finally {
+				random.mockRestore();
+			}
+		});
+
+		/**
 		 * Full Forge run 39086503872: a client-side "clear my stale ready" on
 		 * the sideboard step raced a Ready that had already landed, and game 2
 		 * started 409 "not ready yet". The step's own ready flags are the

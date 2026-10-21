@@ -376,7 +376,6 @@ describe('a series result', () => {
 			wins: [1, 2],
 			games: GAMES,
 			winner: 1,
-			complete: true,
 		});
 		await vi.waitFor(() => expect(sent).toHaveLength(1));
 		const report = sent[0]!;
@@ -385,30 +384,30 @@ describe('a series result', () => {
 			mode: 'constructed-series',
 			roomId: 'r-abcdefabcdef',
 			rated: false,
-			attrs: { mode: 'classic', bestOf: 3, score: '1-2', complete: true, opponent: 'human' },
+			attrs: { mode: 'classic', bestOf: 3, score: '1-2', opponent: 'human' },
 			counters: { games: 3 },
 		});
+		expect(report.attrs, 'every recorded series is a finished one').not.toHaveProperty('complete');
 		expect(report.seats.map((s) => [s.seat, s.kind, s.userKey, s.displayName, s.placement, s.counters?.wins])).toEqual([
 			[0, 'user', 'k-alice', 'Alice', 2, 1],
 			[1, 'guest', undefined, 'Bob', 1, 2],
 		]);
 	});
 
-	it('names the AI seat a bot, and an undecided series places both seats first', async () => {
+	it('names the AI seat a bot, and a drawn Bo1 places both seats first', async () => {
 		const { stats, sent } = seriesStats();
 		stats.seriesEnd({
 			roomId: 'r-abcdefabcdef',
 			tableId: 't-00000001',
 			mode: 'random',
-			bestOf: 3,
+			bestOf: 1,
 			seats: [{ memberId: ALICE_ID, name: 'Alice' }, null],
-			wins: [1, 0],
+			wins: [0, 0],
 			games: GAMES.slice(0, 1),
 			winner: null,
-			complete: false,
 		});
 		await vi.waitFor(() => expect(sent).toHaveLength(1));
-		expect(sent[0]).toMatchObject({ rated: false, attrs: { mode: 'random', bestOf: 3, score: '1-0', complete: false, opponent: 'bot' } });
+		expect(sent[0]).toMatchObject({ rated: false, attrs: { mode: 'random', bestOf: 1, score: '0-0', opponent: 'bot' } });
 		expect(sent[0]!.seats.map((s) => [s.kind, s.placement])).toEqual([
 			['user', 1],
 			['bot', 1],
