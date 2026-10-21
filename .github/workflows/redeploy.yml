@@ -69,8 +69,12 @@ on:
 
 permissions: {}
 
+# Only a run that can deploy (a green CI, a dispatch) joins the group. A red or
+# cancelled CI's run skips every job, and in a shared group it took the pending
+# slot: on 2026-10-21 the run for d76469e5's cancelled CI replaced 7972ff9c's
+# green deploy, queued for a runner, and that commit never deployed.
 concurrency:
-  group: redeploy-cardtable
+  group: ${{ (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') && 'redeploy-cardtable' || format('redeploy-cardtable-skip-{0}', github.run_id) }}
   cancel-in-progress: true
 
 jobs:
