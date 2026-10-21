@@ -760,18 +760,6 @@ describe('§A.3 #12/#18 — printed versus current power and toughness', () => {
     expect(faces, 'the capture has faces with P/T').toBeGreaterThan(0);
   });
 
-  it('carries LethalDamage, which is Forge’s own and is not "toughness left"', () => {
-    // Fire Urchin is 1/3 with no damage, so Forge's LethalDamage is 3 — it is
-    // `getLethal() - getDamage() - getTotalAssignedDamage()` and it returns 0
-    // outright against deathtouch (`Card.java:5978`), which is why the board
-    // computes the number it draws from Toughness and Damage instead.
-    const by = cardsById(adapt(baseState()));
-    expect(by.get(21)!.card.toughness).toBe('3');
-    expect(by.get(21)!.lethalDamage).toBe(3);
-    expect(by.get(99)!.lethalDamage).toBe(5);
-    expect(by.get(8)!.lethalDamage, 'a land has none').toBe(0);
-  });
-
   it('gives every card of the capture NO printed base, because our data has none of them', () => {
     const view = adapt(baseState());
     for (const card of allCards(view)) {

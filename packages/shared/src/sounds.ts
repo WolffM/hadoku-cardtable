@@ -48,6 +48,8 @@
 
 import { z } from 'zod';
 
+import { COLOR_NAMES, ManaColorSchema } from './draft.ts';
+
 /* ── Rows, columns, roles — the one shared matrix ──────────────────── */
 
 /** A colour-identity row's grouping. Mirrors the artifact's own `family` tag. */
@@ -134,7 +136,7 @@ const game = (id: string, name: string, sub: string, duck?: boolean): SoundRole 
 	duck === true ? { id, name, sub, bus: 'game', duck } : { id, name, sub, bus: 'game' };
 
 type ManaColour = Exclude<ManaPip, 'C'>;
-const MONO_COLOURS: readonly ManaColour[] = ['W', 'U', 'B', 'R', 'G'];
+const MONO_COLOURS: readonly ManaColour[] = ManaColorSchema.options;
 
 /**
  * The ten colour pairs, in the order (and spelling) of `COLOUR_IDS`'s guild rows: each pair written the way
@@ -163,8 +165,6 @@ export const MATCH_MUSIC_ROLES: readonly string[] = [
 	...MONO_COLOURS.map((c) => matchMusicRole(c)),
 	...COLOUR_PAIRS.map((p) => matchMusicRole(p)),
 ];
-
-const COLOUR_NAME: Readonly<Record<ManaColour, string>> = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' };
 
 /**
  * A blow to a player sounds as big as its damage (the operator, 2026-10-20: *"we need different sounds based on
@@ -327,11 +327,11 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			music('music.lobby', 'Lobby and draft', 'Loops on the room list, in a draft and while building a deck.'),
 			music('music.match', 'In a match', 'Loops for the length of a game.'),
 			...MONO_COLOURS.map((colour) => {
-				const name = COLOUR_NAME[colour];
+				const name = COLOR_NAMES[colour];
 				return music(matchMusicRole(colour), `In a match: ${name}`, `Loops for a game played with a ${name} deck.`);
 			}),
 			...COLOUR_PAIRS.map((pair) => {
-				const name = `${COLOUR_NAME[pair[0] as ManaColour]}-${COLOUR_NAME[pair[1] as ManaColour]}`;
+				const name = `${COLOR_NAMES[pair[0] as ManaColour]}-${COLOR_NAMES[pair[1] as ManaColour]}`;
 				return music(
 					matchMusicRole(pair),
 					`In a match: ${name}`,
@@ -416,7 +416,7 @@ export const SOUND_MATRIX: {
 const COLOUR_ID_SET: ReadonlySet<string> = new Set(COLOUR_IDS);
 const PARADIGM_ID_SET: ReadonlySet<string> = new Set(PARADIGM_IDS);
 /** The rows that carry a `basic` cell: one basic land each. */
-export const MONO_COLOUR_IDS: readonly ColourId[] = ['W', 'U', 'B', 'R', 'G'];
+export const MONO_COLOUR_IDS: readonly ColourId[] = MONO_COLOURS;
 const MONO_SET: ReadonlySet<string> = new Set(MONO_COLOUR_IDS);
 
 /** The columns only the colourless row carries: an artifact sounds the same whatever its colours (2026-10-10). */

@@ -78,6 +78,7 @@ export {
 
 export {
   DECK_COLORS,
+  POOL_COLORS,
   deckColorsByName,
   foldDeckColors,
   manaTokensOf,

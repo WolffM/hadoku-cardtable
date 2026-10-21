@@ -151,7 +151,7 @@
  */
 
 import { PHASE_TYPES, REPLY_SCHEMAS, type ClientFrame, type PhaseType, type ServerFrame, type ZoneType } from '@hadoku/forge-wire';
-import { oneAbility, onlyCombatDamage } from '@hadoku/shared';
+import { LIFE_PAYMENT, oneAbility, onlyCombatDamage } from '@hadoku/shared';
 import { copyTargets, type SpellCopy } from './spell-copiers.js';
 
 /** An ask that admits exactly one answer, and why. */
@@ -1038,17 +1038,6 @@ const PHASE_LINE = /^Phase: (.+)$/m;
 export const PAY_MANA = /^Pay Mana Cost: (.+)$/m;
 
 /**
- * Life is a second way to pay, and it is not a mana source
- * (`InputPayManaOfCostPayment.getMessage`, `en-US.properties:1799-1801`), so a
- * prompt offering it has more than one payment however few lands are out.
- */
-// Forge wraps the line in parentheses (`InputPayManaOfCostPayment.java:106`:
-// `{U/P}\n(Click on your life total to pay life for phyrexian mana.)`), so the
-// opening one is optional. Unanchored on the paren alone it never matched the
-// real prompt, and `decideCancel` cancelled a payable phyrexian cost.
-const LIFE_INSTEAD = /^\(?Click on your life total to pay life for /m;
-
-/**
  * Forge's own word for button 1 of the payment input
  * (`InputPayMana.updateButtons` → `lblAuto`, `en-US.properties:518`). Enabled
  * only once `ensureAutoPayManaSources` has found a payment
@@ -1155,7 +1144,8 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		mine,
 		confirmLive: buttons.enable1 === true,
 		cost,
-		alternativePayment: LIFE_INSTEAD.test(message),
+		// Life is a second way to pay, and not a mana source: a prompt offering it has more than one payment however few lands are out.
+		alternativePayment: LIFE_PAYMENT.test(message),
 		poolChoice: prompt.poolChoice !== undefined,
 		noWayToPay: window === 'payment' && buttons.enable1 !== true && all !== null && all.length === 0,
 		sources: all === null ? null : [...new Set(all)],

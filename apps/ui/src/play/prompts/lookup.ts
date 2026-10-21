@@ -22,11 +22,12 @@
  */
 
 import type { ServerFrame } from '@hadoku/forge-wire';
+import { LIFE_PAYMENT_LINE } from '@hadoku/shared';
 import type { TileCard } from '../../components/faceCrop.ts';
 
 import { cardFaces } from '../adapter.ts';
 import type { WireState } from '../fold.ts';
-import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from '../wire.ts';
+import { cardStateKey, deltaKey, readInt, readIntOrNull, readStr, WireType } from '../wire.ts';
 
 export interface PromptCardFacts {
   /**
@@ -71,23 +72,6 @@ export const EMPTY_LOOKUP: PromptLookup = {
   ability: () => undefined,
 };
 
-function prop(obj: WireObject | undefined, name: string): Tagged | undefined {
-  const v = obj?.[name];
-  return typeof v === 'object' && v !== null ? v : undefined;
-}
-
-function readInt(obj: WireObject | undefined, name: string): number | null {
-  const v = prop(obj, name);
-  return v !== undefined && (v.t === 'int' || v.t === 'long' || v.t === 'byte') && typeof v.v === 'number'
-    ? v.v
-    : null;
-}
-
-function readStr(obj: WireObject | undefined, name: string): string | null {
-  const v = prop(obj, name);
-  return v !== undefined && v.t === 'str' && typeof v.v === 'string' ? v.v : null;
-}
-
 /**
  * A lookup over folded Tier C state. Card facts come from the `CardView` and
  * its current `CardStateView` (`cardId*16 + CurrentState`, `../wire.ts`).
@@ -97,7 +81,7 @@ export function lookupFromState(state: WireState): PromptLookup {
     card(id) {
       const view = state.get(deltaKey(WireType.Card, id));
       if (view === undefined) return undefined;
-      const face = state.get(cardStateKey(id, readInt(view, 'CurrentState') ?? 0));
+      const face = state.get(cardStateKey(id, readInt(view, 'CurrentState')));
       return {
         name: readStr(face, 'Name') ?? readStr(view, 'Name'),
         setCode: readStr(face, 'SetCode') ?? '',
@@ -106,7 +90,7 @@ export function lookupFromState(state: WireState): PromptLookup {
     player(id) {
       const view = state.get(deltaKey(WireType.Player, id));
       if (view === undefined) return undefined;
-      return { name: readStr(view, 'Name') ?? `player #${id}`, life: readInt(view, 'Life') };
+      return { name: readStr(view, 'Name') ?? `player #${id}`, life: readIntOrNull(view, 'Life') };
     },
     ability: () => undefined,
     faces: (id) => cardFaces(state, id),
@@ -216,15 +200,10 @@ const ATTACK_PROMPT = /^Select creatures to attack [^\n]*? or select player\/car
 const BLOCK_PROMPT = /^Select creatures to block [^\n]*? or select another attacker to declare blockers for\.$/m;
 
 /**
- * `InputPayManaOfCostPayment.getMessage`'s last line, `(Click on your life total
- * to pay life for phyrexian mana.)` and its black-mana variants
- * (`lblClickOnYourLifeTotalToPayLife…`), with the newline before it. The
- * payment window pays life with a button (the operator, 2026-10-15: *"why not
- * just show a button on the card decision modal"*), so the sentence goes.
+ * Forge's lines and what every surface says instead — display only; the wire keeps Forge's words. The
+ * payment window pays life with a button (the operator, 2026-10-15: *"why not just show a button on the
+ * card decision modal"*), so Forge's life-payment sentence goes.
  */
-const LIFE_PAYMENT_LINE = /\n?^\(?Click on your life total to pay life for [^\n]*$/m;
-
-/** Forge's lines and what every surface says instead — display only; the wire keeps Forge's words. */
 const PROMPT_REWRITES: readonly (readonly [RegExp, string])[] = [
   [ATTACK_PROMPT, 'Select creatures to attack.'],
   [BLOCK_PROMPT, 'Select creatures to block.'],

@@ -79,6 +79,8 @@
  * delete this style object with it.**
  */
 
+import { COLOR_NAMES } from '@hadoku/shared';
+
 /** Mana's hybrid pairs, in the order the font names its classes. */
 const HYBRID_PAIRS = ['WU', 'WB', 'UB', 'UR', 'BR', 'BG', 'RW', 'RG', 'GW', 'GU'] as const;
 
@@ -94,13 +96,7 @@ for (const pair of HYBRID_PAIRS) {
   HYBRID[`${pair[1]}${pair[0]}`] = pair.toLowerCase();
 }
 
-const COLOR_NAME: Record<string, string> = {
-  W: 'white',
-  U: 'blue',
-  B: 'black',
-  R: 'red',
-  G: 'green',
-};
+const COLOR_NAME: Readonly<Record<string, string>> = COLOR_NAMES;
 
 /** Single-character (and a couple of symbol) tokens → the font's class suffix. */
 const SINGLE: Record<string, string> = {

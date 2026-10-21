@@ -174,6 +174,8 @@
  * would break every reference Forge makes — recorded in `README.md`, not fixed.
  */
 
+import type { CantBlock, ConditionMet, Damage, Deaths, FaceDamage, PendingTriggers, PrintedPT, PrintedTypes, StateSiblings, TokenSources, WaitingEffects } from '@hadoku/forge-wire';
+
 /** A property bag as the Tier C wire carries it. Values are tagged JSON. */
 export interface WireObj {
 	_type: number;
@@ -192,51 +194,11 @@ export interface DeltaPacketJson {
 	events: unknown[];
 }
 
-/**
- * `PlayBridge.java`'s `stackTargetSpells` — `[fromStackItemId,
- * toStackItemId]` pairs, a SIBLING of `gameView`/`packet` in the frame's own
- * payload, not a `TrackableProperty` (`packages/forge-wire/src/tier-c.ts`'s
- * `StackTargetSpellsSchema`). Optional: a frame from before this addition, or
- * one built by hand in a test, carries none.
- */
-export type StackTargetSpells = readonly (readonly [number, number])[];
-
-/** `PlayBridge.java`'s `pendingTriggers` — `packages/forge-wire/src/tier-c.ts`'s `PendingTriggersSchema`. */
-export type PendingTriggers = readonly { id: number; hostCard: number; controller: number; key: string; current?: true }[];
-
-/** `PlayBridge.java`'s `waitingEffects` — `packages/forge-wire/src/tier-c.ts`'s `WaitingEffectsSchema`. */
-export type WaitingEffects = readonly { source: number; text: string; kind: 'trigger' | 'effect' }[];
-
-/** `PlayBridge.java`'s `tokenSources` — `packages/forge-wire/src/tier-c.ts`'s `TokenSourcesSchema`: `[tokenId, sourceId]`. */
-export type TokenSources = readonly (readonly [number, number])[];
-
-/** `PlayBridge.java`'s `cantBlock` — `packages/forge-wire/src/tier-c.ts`'s `CantBlockSchema`: battlefield creature ids. */
-export type CantBlock = readonly number[];
-
-/** `PlayBridge.java`'s `printedTypes` — `packages/forge-wire/src/tier-c.ts`'s `PrintedTypesSchema`: `[cardId, printedType, printedToken]`. */
-export type PrintedTypes = readonly (readonly [number, unknown, boolean])[];
-/** `PlayBridge.java`'s `printedPT` — `packages/forge-wire/src/tier-c.ts`'s `PrintedPTSchema`: `[cardId, printedPower, printedToughness]`. */
-export type PrintedPT = readonly (readonly [number, number, number])[];
-/** `PlayBridge.java`'s `lifePaying` — `packages/forge-wire/src/tier-c.ts`'s `LifePayingSchema`: `[playerId, life]`. Public: life is. */
-export type LifePaying = readonly (readonly [number, number])[];
-
-/** `PlayBridge.java`'s `conditionMet` — `packages/forge-wire/src/tier-c.ts`'s `ConditionMetSchema`: hand and battlefield card ids. */
-export type ConditionMet = readonly number[];
-
-/** `PlayBridge.java`'s `damage` — `packages/forge-wire/src/tier-c.ts`'s `DamageSchema`: `[targetId, sourceId, amount]`, sourceId -1 for none. */
-export type Damage = readonly (readonly [number, number, number])[];
-
-/** `PlayBridge.java`'s `deaths` — `packages/forge-wire/src/tier-c.ts`'s `DeathsSchema`: `[cardId, cause]`. */
-export type Deaths = readonly (readonly [number, string])[];
-
-/** `PlayBridge.java`'s `faceDamage` — `packages/forge-wire/src/tier-c.ts`'s `FaceDamageSchema`: `[playerId, sourceId, amount, combat]`, sourceId -1 for none. */
-export type FaceDamage = readonly (readonly [number, number, number, boolean])[];
-
 /** The three Tier C frames, loosely typed for the projector's own use. */
 export type StateFrame =
-	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; printedPT?: PrintedPT; lifePaying?: LifePaying; conditionMet?: ConditionMet } }
+	| { kind: 'notify'; method: 'setGameView'; payload: { gameView: ObjTable; sequenceNumber: number } & StateSiblings }
 	| { kind: 'notify'; method: 'openView'; payload: { myPlayers: number[] } }
-	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; stackTargetSpells?: StackTargetSpells; pendingTriggers?: PendingTriggers; waitingEffects?: WaitingEffects; tokenSources?: TokenSources; cantBlock?: CantBlock; printedTypes?: PrintedTypes; printedPT?: PrintedPT; lifePaying?: LifePaying; conditionMet?: ConditionMet; damage?: Damage; deaths?: Deaths; faceDamage?: FaceDamage } };
+	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; damage?: Damage; deaths?: Deaths; faceDamage?: FaceDamage } & StateSiblings };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
 
@@ -1067,7 +1029,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 						payload: {
 							gameView: projectTable(frame.payload.gameView, vis),
 							sequenceNumber: frame.payload.sequenceNumber,
-							// Passed through UNREDACTED — see `StackTargetSpells`'s own note: both
+							// Passed through UNREDACTED: both
 							// ids name stack items, and the Stack zone is in `PUBLIC_ZONES`, so a
 							// pairing of two ids already on the public stack hides nothing a card
 							// redaction elsewhere in this same frame has not already hidden (the

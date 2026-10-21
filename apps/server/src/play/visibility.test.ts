@@ -28,7 +28,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ApplyDeltaSchema, GameEventListSchema, safeParseServerFrame } from '@hadoku/forge-wire';
+import { ApplyDeltaSchema, GameEventListSchema, safeParseServerFrame, type PrintedPT, type PrintedTypes } from '@hadoku/forge-wire';
 
 import {
 	TYPE,
@@ -424,7 +424,7 @@ describe('printedPT', () => {
 		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 		const onField = ids(1, 'Battlefield')[0]!;
 		const inTheirHand = ids(1, 'Hand')[0]!;
-		const printedPT = [[onField, 2, 2], [inTheirHand, 1, 1]] as const;
+		const printedPT: PrintedPT = [[onField, 2, 2], [inTheirHand, 1, 1]];
 		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, printedPT } }) as Extract<
 			StateFrame,
 			{ method: 'setGameView' }
@@ -440,8 +440,8 @@ describe('printedTypes', () => {
 		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 		const onField = ids(1, 'Battlefield')[0]!;
 		const inTheirHand = ids(1, 'Hand')[0]!;
-		const land = { t: 'cardtype', sup: [], core: ['Land'], sub: [], all: false, exc: [] };
-		const printedTypes = [[onField, land, false], [inTheirHand, land, false]] as const;
+		const land = { t: 'cardtype' as const, sup: [], core: ['Land'], sub: [], all: false, exc: [] };
+		const printedTypes: PrintedTypes = [[onField, land, false], [inTheirHand, land, false]];
 		const out = createProjector(0).project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1, printedTypes } }) as Extract<
 			StateFrame,
 			{ method: 'setGameView' }

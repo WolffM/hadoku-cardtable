@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { manaCostTokens, toBoardView } from './adapter.ts';
-import { foldPackets } from './fold.ts';
+import { foldPackets, type FoldablePacket } from './fold.ts';
 import { deltaKey, expectWirePackets, WireType } from './wire.ts';
 import { loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 
@@ -119,14 +119,14 @@ describe('stackTargetSpells (wave 49 §A)', () => {
   });
 
   it('replaces the snapshot on each packet that carries it, never merges', () => {
-    const first = { ...opening!, stackTargetSpells: [[50, 49]] as const };
-    const second = { ...delta!, stackTargetSpells: [[12, 7]] as const };
+    const first = { ...opening!, stackTargetSpells: [[50, 49]] } satisfies FoldablePacket;
+    const second = { ...delta!, stackTargetSpells: [[12, 7]] } satisfies FoldablePacket;
     const { stackTargetSpells } = foldPackets([first, second]);
     expect([...stackTargetSpells]).toEqual([[12, 7]]);
   });
 
   it('a packet that does not carry the field leaves the last snapshot untouched', () => {
-    const first = { ...opening!, stackTargetSpells: [[50, 49]] as const };
+    const first = { ...opening!, stackTargetSpells: [[50, 49]] } satisfies FoldablePacket;
     // `delta` itself carries no `stackTargetSpells` at all (every packet
     // before wave 49, and the committed spike samples among them).
     const { stackTargetSpells } = foldPackets([first, delta!]);
@@ -134,8 +134,8 @@ describe('stackTargetSpells (wave 49 §A)', () => {
   });
 
   it('an explicit empty array clears it, same as `newObjects` replacing a bag', () => {
-    const first = { ...opening!, stackTargetSpells: [[50, 49]] as const };
-    const cleared = { ...delta!, stackTargetSpells: [] as const };
+    const first = { ...opening!, stackTargetSpells: [[50, 49]] } satisfies FoldablePacket;
+    const cleared = { ...delta!, stackTargetSpells: [] } satisfies FoldablePacket;
     const { stackTargetSpells } = foldPackets([first, cleared]);
     expect(stackTargetSpells.size).toBe(0);
   });
@@ -153,10 +153,10 @@ describe('cantBlock', () => {
 
 describe('printedTypes', () => {
   it('is empty before any packet carries it, replaced by each that does, kept by one that does not', () => {
-    const land = { t: 'cardtype', sup: [], core: ['Land'], sub: [], all: false, exc: [] } as const;
+    const land = { t: 'cardtype' as const, sup: [], core: ['Land'], sub: [], all: false, exc: [] };
     expect(foldPackets([opening!]).printedTypes.size).toBe(0);
-    const first = { ...opening!, printedTypes: [[87, land, false]] as const };
-    expect([...foldPackets([first, { ...delta!, printedTypes: [[91, land, true]] as const }]).printedTypes.keys()]).toEqual([91]);
+    const first = { ...opening!, printedTypes: [[87, land, false]] } satisfies FoldablePacket;
+    expect([...foldPackets([first, { ...delta!, printedTypes: [[91, land, true]] } satisfies FoldablePacket]).printedTypes.keys()]).toEqual([91]);
     expect(foldPackets([first, delta!]).printedTypes.get(87)).toEqual({ type: land, token: false });
     expect(foldPackets([first, { ...delta!, printedTypes: [] }]).printedTypes.size).toBe(0);
   });
@@ -165,8 +165,8 @@ describe('printedTypes', () => {
 describe('printedPT', () => {
   it('is empty before any packet carries it, replaced by each that does, kept by one that does not', () => {
     expect(foldPackets([opening!]).printedPT.size).toBe(0);
-    const first = { ...opening!, printedPT: [[87, 2, 2]] as const };
-    expect([...foldPackets([first, { ...delta!, printedPT: [[91, 1, 1]] as const }]).printedPT.keys()]).toEqual([91]);
+    const first = { ...opening!, printedPT: [[87, 2, 2]] } satisfies FoldablePacket;
+    expect([...foldPackets([first, { ...delta!, printedPT: [[91, 1, 1]] } satisfies FoldablePacket]).printedPT.keys()]).toEqual([91]);
     expect(foldPackets([first, delta!]).printedPT.get(87)).toEqual({ power: 2, toughness: 2 });
     expect(foldPackets([first, { ...delta!, printedPT: [] }]).printedPT.size).toBe(0);
   });

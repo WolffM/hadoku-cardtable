@@ -26,6 +26,7 @@
  * so they carry `delayMs` to stay in that order.
  */
 
+import { DECK_COLORS } from '@hadoku/deck';
 import { COLOUR_IDS, type ColourId, type DraftCard, type ParadigmId } from '@hadoku/shared';
 
 import type { BoardCard, BoardCardChoice, BoardPlayer, BoardView } from '../adapter.ts';
@@ -89,7 +90,7 @@ function types(entry: BoardCard): string {
 
 const isType = (entry: BoardCard, t: string): boolean => types(entry).includes(t);
 
-const ALL_COLOURS = ['W', 'U', 'B', 'R', 'G'];
+const ALL_COLOURS = [...DECK_COLORS];
 const BASIC_TYPE = /\b(Plains|Island|Swamp|Mountain|Forest)\b/g;
 const basicTypeColours = (text: string): string[] => [...text.matchAll(BASIC_TYPE)].map((m) => BASIC_LAND[m[1]!]!);
 

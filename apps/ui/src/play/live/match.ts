@@ -235,8 +235,9 @@
  * hand can be drawn before the client knows whose hand it is.
  */
 
+import { POOL_COLORS } from '@hadoku/deck';
 import type { ManaColor, Placement, RememberedTrigger } from '@hadoku/shared';
-import { ART_EVENT, asSeqCursor, DECK_COLORS_EVENT, DeckColorsSchema, selfAnswer } from '@hadoku/shared';
+import { ART_EVENT, asSeqCursor, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, selfAnswer } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
   safeParseServerFrame,
@@ -260,8 +261,8 @@ import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
 import { drawnOfferOf, followOffer, OFFER_HOLD_MAX_MS, type OfferHold } from './offer-hold.ts';
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import type { PromptParts } from '../prompts/lookup.ts';
-import { foldPackets, type PendingTriggers, type PrintedCard, type WaitingEffects, type WireState } from '../fold.ts';
-import { expectWirePackets, WireType, type Tagged, type WirePacket } from '../wire.ts';
+import { foldPackets, type FoldablePacket, type FoldResult, type WireState } from '../fold.ts';
+import { expectWirePackets, WireType } from '../wire.ts';
 import {
   abortFrame,
   autoYieldFrame,
@@ -505,7 +506,8 @@ export interface HeldChange {
   readonly flashBy?: string;
 }
 
-export interface LiveMatch {
+/** Its folded state and the bridge's state facts beside it (`../fold.ts`), which `../adapter.ts`'s `toBoardView` draws. */
+export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   readonly matchId: string;
   /** From the snapshot. Null until one lands. */
   seat: number | null;
@@ -513,12 +515,8 @@ export interface LiveMatch {
   playerId: number | null;
   /** Where we are in OUR stream (per recipient). Null: nothing applied yet. */
   cursor: WireCursor | null;
-  /** The folded state channel. */
-  state: WireState;
   /** Forge's own `DeltaPacket.seq` of the last packet folded. */
   forgeSeq: number;
-  /** Deltas addressed to objects never created (fold rule 4), cumulative. */
-  skippedDeltas: number;
   /** What `Board` draws. Null until there is a state AND a viewer. */
   view: BoardView | null;
   /**
@@ -739,46 +737,6 @@ export interface LiveMatch {
    * the first, so the mark is drawn again.
    */
   refused: { card: number; seq: number } | null;
-  /**
-   * Wave 49 §A — the bridge's OWN wire fact for the counterspell arc (X3,
-   * wave 46 §B): `fromId → toId`, straight off `PlayBridge.java`'s own
-   * `stackTargetSpells` (`../fold.ts`'s `FoldResult.stackTargetSpells`, folded
-   * here in {@link foldFrames}). True for EVERY seat, including one that
-   * never saw a `getChoices` ask at all (the opponent of the caster) — there
-   * is no wire fact for this on the STACK ITEM's own property bag, proven
-   * against the real jar
-   * (`apps/server/src/play/scenario-w46-b-counterspell.jvm.test.ts`,
-   * `docs/planning/wave46-evidence/B/README.md`): a target that is ANOTHER
-   * spell on the stack is added to Forge's `TargetChoices` as a bare
-   * `SpellAbility` (`TargetChoices.java:45-97`), which fails BOTH
-   * `getTargetCards()`'s and `getTargetPlayers()`'s runtime-type filter — so
-   * the countering stack item's own `TargetCards`/`TargetPlayers` read EMPTY
-   * once it is on the stack, even though the ability plainly targeted
-   * something. `../adapter.ts`'s `toBoardView` reads it onto each
-   * `StackEntry.targetStackItemId`, and `live/placed.ts`'s `.placed__arrow`s
-   * draw the arc straight off that field (wave 64/J6 deleted the CASTER's own
-   * client-side pairing this once needed unioning with — `stackTargetIntent`/
-   * `stackTargetArcs`, claimed from inside `answerAsk` before this wire fact's
-   * own frame could land — once `gestures/auto-targets.ts`'s `stackTargetArrows`,
-   * its one reader, had none left either).
-   */
-  stackTargetSpells: ReadonlyMap<number, number>;
-  /** The triggers Forge has collected and not yet put on the stack (`../fold.ts`'s `PendingTriggers`), drawn as chips already. */
-  pendingTriggers: PendingTriggers;
-  /** What resolved abilities left waiting on the cards that made them (`../fold.ts`'s `WaitingEffects`), drawn as tags on those cards. */
-  waitingEffects: WaitingEffects;
-  /** Which card made each token on a battlefield (`../fold.ts`'s `tokenSources`): a created token arrives from it. */
-  tokenSources: ReadonlyMap<number, number>;
-  /** The battlefield creatures that can't block (`../fold.ts`'s `cantBlock`), drawn as a mark on each. */
-  cantBlock: ReadonlySet<number>;
-  /** The printed type line of each permanent whose type line is not its printed one (`../fold.ts`'s `printedTypes`), drawn as the type pill. */
-  printedTypes: ReadonlyMap<number, PrintedCard>;
-  /** The printed power and toughness of each creature whose numbers are not its printed ones (`../fold.ts`'s `printedPT`): a number above it is drawn buffed. */
-  printedPT: ReadonlyMap<number, { power: number; toughness: number }>;
-  /** The life each player has committed to an open payment and Forge has not taken yet (`../fold.ts`'s `lifePaying`), taken off the life drawn. */
-  lifePaying: ReadonlyMap<number, number>;
-  /** The hand and battlefield cards whose condition is on (`../fold.ts`'s `conditionMet`), drawn glowing. */
-  conditionMet: ReadonlySet<number>;
   /**
    * The latest damage hits each `applyDelta` carried (`PlayBridge.java`'s `damage`), numbered as they
    * came (`DamageHit.seq`) and kept to the last {@link HITS_KEPT}: an event, never folded into state,
@@ -1064,14 +1022,14 @@ function send(match: LiveMatch, frame: ClientEnvelope['frame'], placement?: Plac
  * would fetch two snapshots for nothing. Same rule as the draft's driver.
  */
 export function startMatch(options: LiveMatchOptions): LiveMatch {
+  const { seq: forgeSeq, ...folded } = foldPackets([]);
   const match: LiveMatch = {
     matchId: options.matchId,
     seat: null,
     playerId: null,
     cursor: null,
-    state: new Map(),
-    forgeSeq: 0,
-    skippedDeltas: 0,
+    ...folded,
+    forgeSeq,
     view: null,
     asks: [],
     settled: new Set(),
@@ -1104,15 +1062,6 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     lastSelectedCard: null,
     actCard: null,
     refused: null,
-    stackTargetSpells: new Map(),
-    pendingTriggers: [],
-    waitingEffects: [],
-    tokenSources: new Map(),
-    cantBlock: new Set(),
-    printedTypes: new Map(),
-    printedPT: new Map(),
-    lifePaying: new Map(),
-    conditionMet: new Set(),
     hits: [],
     faceHits: [],
     nextHitSeq: 1,
@@ -2064,22 +2013,6 @@ export function payingMana(match: LiveMatch): boolean {
 }
 
 /**
- * Forge's payment input naming the payer's own life total as a way to pay
- * (`InputPayManaOfCostPayment.getMessage`, the `lblClickOnYourLifeTotalToPayLife…`
- * line): a Phyrexian shard, black mana under "pay life instead", or a life-paid
- * mana ability with no card on the table (Channel's effect). The server
- * reads the same line (`apps/server/src/play/auto.ts`'s `LIFE_INSTEAD`); the
- * window's display drops it (`../prompts/lookup.ts`'s `LIFE_PAYMENT_LINE`).
- */
-const LIFE_PAYMENT = /^\(?Click on your life total to pay life for /m;
-
-/**
- * Forge naming what one click on the life total pays when it is a life-paid mana ability with no
- * card on the table (Channel's effect: `lblClickOnYourLifeTotalToPayLifeForMana`).
- */
-const LIFE_PER_CLICK = /^\(?Click on your life total to pay life for mana, (\d+) life a click\./m;
-
-/**
  * Life one press of {@link payWithLife} pays: what Forge names for a life-paid mana ability, else
  * its fixed 2 per Phyrexian shard (`InputPayManaOfCostPayment.onPlayerSelected`, `phyLifeToLose += 2`).
  */
@@ -2107,9 +2040,6 @@ export function payWithLife(match: LiveMatch): boolean {
   return sendAct(match, { kind: 'act', method: 'selectPlayer', player: { kind: 'player', id: me }, triggerEvent: null });
 }
 
-/** `ManaAtom`'s byte for each pool letter (`ManaAtom.java:7-12`): what `useMana` names a colour by. */
-const POOL_ATOM: Readonly<Record<PoolColor, number>> = { W: 1, U: 2, B: 4, R: 8, G: 16, C: 32 };
-
 /**
  * The colours of the viewer's floating pool a press pays the open payment with, while the pool pays
  * it more than one way, else empty. The operator, 2026-10-21: *"if there is more mana in the pool
@@ -2128,7 +2058,7 @@ export function payFromPool(match: LiveMatch, color: PoolColor): boolean {
   if (!poolPays(match).includes(color)) return false;
   match.promptPoolChoice = null;
   redraw(match);
-  return sendAct(match, { kind: 'act', method: 'useMana', color: POOL_ATOM[color] });
+  return sendAct(match, { kind: 'act', method: 'useMana', color: 1 << POOL_COLORS.indexOf(color) });
 }
 
 /** The viewer's player while a press of {@link payWithLife} would be taken, else null. */
@@ -2858,17 +2788,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
  * Rule 1 ("newObjects replace") makes that exact: every object is re-created
  * as it stands, in the order it stands.
  */
-function statePacket(match: LiveMatch): WirePacket & {
-  stackTargetSpells: readonly (readonly [number, number])[];
-  pendingTriggers: PendingTriggers;
-  waitingEffects: WaitingEffects;
-  tokenSources: readonly (readonly [number, number])[];
-  cantBlock: readonly number[];
-  printedTypes: readonly (readonly [number, Tagged, boolean])[];
-  printedPT: readonly (readonly [number, number, number])[];
-  lifePaying: readonly (readonly [number, number])[];
-  conditionMet: readonly number[];
-} {
+function statePacket(match: LiveMatch): FoldablePacket {
   return {
     seq: match.forgeSeq,
     checksum: 0,
@@ -2909,30 +2829,12 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[], source: 'l
   let changed = false;
   for (const frame of frames) {
     if (frame.method === 'setGameView') {
-      const { gameView, sequenceNumber, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet } = frame.payload;
-      packets = [
-        {
-          seq: sequenceNumber,
-          checksum: 0,
-          checksumProperties: [],
-          newObjects: gameView,
-          objectDeltas: {},
-          events: [],
-          stackTargetSpells,
-          pendingTriggers,
-          waitingEffects,
-          tokenSources,
-          cantBlock,
-          printedTypes,
-          printedPT,
-          lifePaying,
-          conditionMet,
-        },
-      ];
+      const { gameView, sequenceNumber, ...siblings } = frame.payload;
+      packets = [{ seq: sequenceNumber, checksum: 0, checksumProperties: [], newObjects: gameView, objectDeltas: {}, events: [], ...siblings }];
       changed = true;
     } else if (frame.method === 'applyDelta') {
-      const { stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet, damage, deaths, faceDamage } = frame.payload;
-      packets.push({ ...frame.payload.packet, stackTargetSpells, pendingTriggers, waitingEffects, tokenSources, cantBlock, printedTypes, printedPT, lifePaying, conditionMet });
+      const { packet, damage, deaths, faceDamage, ...siblings } = frame.payload;
+      packets.push({ ...packet, ...siblings });
       if (damage !== undefined && source === 'live') noteHits(match, damage);
       if (deaths !== undefined) noteDeaths(match, deaths);
       if (faceDamage !== undefined && source === 'live') noteFaceHits(match, faceDamage);
@@ -2950,19 +2852,10 @@ function foldFrames(match: LiveMatch, frames: readonly ServerFrame[], source: 'l
   }
   // The boundary check the fixture path uses, on the live path too: the fold
   // is handed the same structure whichever source produced it.
-  const folded = foldPackets(expectWirePackets(packets, `match ${match.matchId}`));
-  match.state = folded.state;
-  match.forgeSeq = folded.seq;
-  match.skippedDeltas += folded.skippedDeltas;
-  match.stackTargetSpells = folded.stackTargetSpells;
-  match.pendingTriggers = folded.pendingTriggers;
-  match.waitingEffects = folded.waitingEffects;
-  match.tokenSources = folded.tokenSources;
-  match.cantBlock = folded.cantBlock;
-  match.printedTypes = folded.printedTypes;
-  match.printedPT = folded.printedPT;
-  match.lifePaying = folded.lifePaying;
-  match.conditionMet = folded.conditionMet;
+  const { seq, skippedDeltas, ...folded } = foldPackets(expectWirePackets(packets, `match ${match.matchId}`));
+  Object.assign(match, folded);
+  match.forgeSeq = seq;
+  match.skippedDeltas += skippedDeltas;
   redraw(match);
 }
 
@@ -3351,9 +3244,9 @@ function unspend(match: LiveMatch): void {
 
 function discardLocal(match: LiveMatch): void {
   match.cursor = null;
-  match.state = new Map();
-  match.forgeSeq = 0;
-  match.skippedDeltas = 0;
+  const { seq, ...empty } = foldPackets([]);
+  Object.assign(match, empty);
+  match.forgeSeq = seq;
   match.view = null;
   match.asks = [];
   match.settled.clear();
@@ -3382,15 +3275,6 @@ function discardLocal(match: LiveMatch): void {
   match.refused = null;
   match.offerHold = null;
   match.deferredSelect = null;
-  match.stackTargetSpells = new Map();
-  match.pendingTriggers = [];
-  match.waitingEffects = [];
-  match.tokenSources = new Map();
-  match.cantBlock = new Set();
-  match.printedTypes = new Map();
-  match.printedPT = new Map();
-  match.lifePaying = new Map();
-  match.conditionMet = new Set();
   match.hits = [];
   match.faceHits = [];
   match.deathCauses = new Map();

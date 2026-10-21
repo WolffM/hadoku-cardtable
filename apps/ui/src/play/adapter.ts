@@ -118,8 +118,7 @@
  * same way. Guessing a base would paint a plain creature blue, which is worse
  * than drawing it plain.
  *
- * `LethalDamage` (:63) arrives too and is carried, but the board does not draw
- * its number: it is `getLethal() - getDamage() - getTotalAssignedDamage()` and
+ * `LethalDamage` (:63) arrives too and is not read: it is `getLethal() - getDamage() - getTotalAssignedDamage()` and
  * returns **0** outright when any assigned damage has deathtouch
  * (`Card.java:5978-5986`), so it is not "remaining toughness".
  *
@@ -168,13 +167,15 @@ import {
   type ArtIdSource,
   type ArtIdTableFile,
 } from '@hadoku/carddata/art';
+import { DECK_COLORS, POOL_COLORS } from '@hadoku/deck';
 import type { DraftCard, ManaColor, Rarity } from '@hadoku/shared';
 import type { FacePart, TileCard } from '../components/faceCrop.ts';
 
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import poolData from '../draft/pool.json' with { type: 'json' };
-import type { PendingTriggers, PrintedCard, WaitingEffects, WireState } from './fold.ts';
-import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from './wire.ts';
+import type { PendingTriggers, WaitingEffects } from '@hadoku/forge-wire';
+import type { PrintedCard, WireState } from './fold.ts';
+import { cardStateKey, deltaKey, prop, readBool, readEnum, readInt, readStr, WireType, type Tagged, type WireObject } from './wire.ts';
 
 /** One effect a permanent's resolved ability left waiting — {@link BoardCard.waiting}. */
 export interface BoardCardWaiting {
@@ -220,8 +221,6 @@ export interface BoardCard {
   onlyViewer?: true;
   /** Each keyword's `original()` text, off the current face (`Keywords`). */
   keywords?: readonly string[];
-  /** Forge's `LethalDamage`. Carried, not drawn — see the header. */
-  lethalDamage?: number;
   /** `AttachedCards`: what Forge says is attached TO this card. The stack's authority. */
   attachedCardIds?: readonly number[];
   /**
@@ -939,18 +938,6 @@ export const KNOWN_ART_IDS: ArtIdIndex = mergeArtIdIndexes(
 
 // ── reading tagged values ───────────────────────────────────────────────────
 
-function prop(obj: WireObject | undefined, name: string): Tagged | undefined {
-  const v = obj?.[name];
-  return typeof v === 'object' && v !== null ? v : undefined;
-}
-
-function readInt(obj: WireObject | undefined, name: string, fallback = 0): number {
-  const v = prop(obj, name);
-  return v !== undefined && (v.t === 'int' || v.t === 'long' || v.t === 'byte') && typeof v.v === 'number'
-    ? v.v
-    : fallback;
-}
-
 /**
  * `CombatView`: parallel lists, `def` as `[marker, id]` with 0 = card,
  * 1 = player, `pblk` the live blockers — see {@link CombatBand} for why `blk`
@@ -970,21 +957,6 @@ function readCombat(game: WireObject | undefined): CombatBand[] {
   });
 }
 
-function readBool(obj: WireObject | undefined, name: string): boolean {
-  const v = prop(obj, name);
-  return v !== undefined && v.t === 'bool' && v.v === true;
-}
-
-function readStr(obj: WireObject | undefined, name: string): string | null {
-  const v = prop(obj, name);
-  return v !== undefined && v.t === 'str' && typeof v.v === 'string' ? v.v : null;
-}
-
-function readEnum(obj: WireObject | undefined, name: string): string | null {
-  const v = prop(obj, name);
-  return v !== undefined && v.t === 'enum' && typeof v.v === 'string' ? v.v : null;
-}
-
 /**
  * A single entity reference: one int id, or `null`. Forge's `-1` is "nothing"
  * (`resolveFromNetwork` skips it), and so is a value of any other shape.
@@ -1001,17 +973,7 @@ function readEntityId(obj: WireObject | undefined, name: string): number | null 
  * `MagicColor.COLORLESS` — which is 0 — is a different constant that never
  * reaches this map. The committed capture's keys are exactly these six.
  */
-const MANA_ATOM: ReadonlyMap<number, PoolColor> = new Map<number, PoolColor>([
-  [1, 'W'],
-  [2, 'U'],
-  [4, 'B'],
-  [8, 'R'],
-  [16, 'G'],
-  [32, 'C'],
-]);
-
-/** The order a pool is drawn in: WUBRG, then colourless. */
-const POOL_ORDER: readonly PoolColor[] = ['W', 'U', 'B', 'R', 'G', 'C'];
+const MANA_ATOM: ReadonlyMap<number, PoolColor> = new Map(POOL_COLORS.map((c, i) => [1 << i, c]));
 
 /**
  * A `ManaMapType` — `{ t: 'map', v: [[byte, int], …] }` — as the pool the board
@@ -1034,7 +996,7 @@ function readManaPool(obj: WireObject | undefined, name: string): ManaInPool[] {
     if (color === undefined || value.v <= 0) continue;
     counts.set(color, (counts.get(color) ?? 0) + value.v);
   }
-  return POOL_ORDER.filter((c) => counts.has(c)).map((c) => ({ color: c, count: counts.get(c)! }));
+  return POOL_COLORS.filter((c) => counts.has(c)).map((c) => ({ color: c, count: counts.get(c)! }));
 }
 
 /** A `list` of `int` — how every collection of entities crosses the wire. */
@@ -1118,12 +1080,10 @@ const RARITY: Record<string, Rarity> = {
   Token: 'special',
 };
 
-const WUBRG: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
-
 /** `ColorSet` crosses as an enum name built from its letters (`BGU`, `R`, `C`). */
 function colorsOf(enumName: string | null): ManaColor[] {
   if (enumName === null) return [];
-  return WUBRG.filter((c) => enumName.includes(c));
+  return DECK_COLORS.filter((c) => enumName.includes(c));
 }
 
 /**
@@ -1676,7 +1636,6 @@ function toBoardCard(
     arrivedThisTurn,
     keywords,
     damage: readInt(view, 'Damage'),
-    lethalDamage: readInt(view, 'LethalDamage'),
     attachedCardIds: readIds(view, 'AttachedCards'),
     attachedToId: readEntityId(view, 'EntityAttachedTo'),
     printed: printedBase ?? null,

@@ -3599,7 +3599,7 @@ describe('§A.15 — a card’s state is drawn', () => {
     const state = foldPackets(loadPackets(fixture)).state;
     const guildgateId = 8;
     const land = (v: BoardView) => v.players.find((p) => p.isViewer)!.battlefield.find((c) => c.id === guildgateId)!;
-    const printed = (sub: string[], token = false) => new Map([[guildgateId, { type: { t: 'cardtype', sup: [], core: ['Land'], sub, all: false, exc: [] } as const, token }]]);
+    const printed = (sub: string[], token = false) => new Map([[guildgateId, { type: { t: 'cardtype' as const, sup: [], core: ['Land'], sub, all: false, exc: [] }, token }]]);
 
     const unnamed = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId });
     expect(land(unnamed).card.typeLine, 'a precondition: this is really the wire’s current type line').toBe('Land — Gate');
@@ -3631,7 +3631,7 @@ describe('§A.15 — a card’s state is drawn', () => {
     expect(tokenPrinted.changedFrom, 'a token printed as a token, types unchanged, is no change').toBeNull();
 
     // Off the battlefield a printed type is never read: Fire Urchin (id 20) is this fixture's graveyard card.
-    const grave = new Map([[20, { type: { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Something'], all: false, exc: [] } as const, token: false }]]);
+    const grave = new Map([[20, { type: { t: 'cardtype' as const, sup: [], core: ['Creature'], sub: ['Something'], all: false, exc: [] }, token: false }]]);
     const fireUrchin = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes: grave })
       .players.find((p) => p.isViewer)!
       .graveyard.find((c) => c.id === 20)!;
@@ -3646,7 +3646,7 @@ describe('§A.15 — a card’s state is drawn', () => {
    */
   it('AF74: a creature given every creature type is changed', () => {
     const gateId = 8;
-    const printedTypes = new Map([[gateId, { type: { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Elemental'], all: false, exc: [] } as const, token: false }]]);
+    const printedTypes = new Map([[gateId, { type: { t: 'cardtype' as const, sup: [], core: ['Creature'], sub: ['Elemental'], all: false, exc: [] }, token: false }]]);
     const state = new Map(foldPackets(loadPackets(fixture)).state);
     const key = cardStateKey(gateId, 0);
     state.set(key, { ...state.get(key)!, Type: { t: 'cardtype', sup: [], core: ['Creature'], sub: ['Elemental'], all: true, exc: [] } } as WireObject);

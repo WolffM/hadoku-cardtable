@@ -15,7 +15,7 @@
  * checks the text against the CALLER's pool, with the text from `dckTextOf`.
  */
 
-import { cardKey, isBasicLand, manaTokensOf, type Deck } from '@hadoku/deck';
+import { cardKey, DECK_COLORS, isBasicLand, manaTokensOf, type Deck } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseCardRequest, type DeckEntry } from '@hadoku/carddata/dck';
 import { artIdIndexFromTable, backFaceNames, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
@@ -103,7 +103,7 @@ export function mainSummary(deck: Deck, index: ReadonlyMap<string, DraftCard>): 
     else if (/\bCreature\b/.test(type)) summary.creatures += entry.count;
     else summary.spells += entry.count;
     for (const token of card?.manaCost ?? []) {
-      for (const color of ['W', 'U', 'B', 'R', 'G'] as const) {
+      for (const color of DECK_COLORS) {
         if (token.split('/').includes(color)) summary.pips[color] += entry.count;
       }
     }
@@ -153,7 +153,7 @@ export function suggestBasics(deck: Deck, index: ReadonlyMap<string, DraftCard>,
   if (toAdd <= 0 || total === 0) return none;
 
   const out: BasicCounts = { ...none };
-  for (const c of ['W', 'U', 'B', 'R', 'G'] as const) {
+  for (const c of DECK_COLORS) {
     // A colour with no symbols takes none (Forge's share of 0, without its 0/0
     // once every coloured colour has been served); one with any takes at least one.
     const n = shards[c] === 0 ? 0 : Math.max(1, Math.round((toAdd * shards[c]) / total));

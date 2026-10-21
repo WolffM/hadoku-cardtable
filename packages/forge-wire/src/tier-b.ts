@@ -107,6 +107,7 @@
  * event), so `SendYieldUpdate` types that command and nothing a seat sends.
  */
 
+import { POOL_COLORS } from '@hadoku/deck';
 import { z } from 'zod';
 
 import {
@@ -126,6 +127,9 @@ import {
   ZoneTypeSchema,
 } from './refs.ts';
 import { CardPoolSchema, DeckEntrySchema } from './sideboard.ts';
+
+/** A mana pool's colours on the wire, WUBRG then colourless (`@hadoku/deck`'s `POOL_COLORS`). */
+export const PoolColorSchema = z.enum(POOL_COLORS);
 
 /** The 23 Tier B method names, in `ProtocolMethod` declaration order per direction. */
 export const TIER_B_METHODS = [
@@ -329,7 +333,7 @@ export const ShowPromptMessageSchema = z.strictObject({
    * is the player's — the server never auto-pays over it — and a press is Forge's own `useMana`.
    * Absent when the pool pays the cost one way or not at all, and on every other prompt.
    */
-  poolChoice: z.array(z.enum(['W', 'U', 'B', 'R', 'G', 'C'])).min(1).optional(),
+  poolChoice: z.array(PoolColorSchema).min(1).optional(),
 });
 
 /**

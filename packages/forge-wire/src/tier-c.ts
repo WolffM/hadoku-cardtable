@@ -819,6 +819,24 @@ export const FaceDamageSchema = z.array(z.tuple([JavaInt, JavaInt, JavaInt, z.bo
 
 export type FaceDamage = z.infer<typeof FaceDamageSchema>;
 
+/**
+ * The bridge's state facts beside both state frames' packet, each a snapshot the fold replaces when
+ * a frame names it (the UI's `fold.ts`). Optional, so a frame from before an addition still parses.
+ */
+export const StateSiblingsSchema = z.strictObject({
+  stackTargetSpells: StackTargetSpellsSchema.optional(),
+  pendingTriggers: PendingTriggersSchema.optional(),
+  waitingEffects: WaitingEffectsSchema.optional(),
+  tokenSources: TokenSourcesSchema.optional(),
+  cantBlock: CantBlockSchema.optional(),
+  printedTypes: PrintedTypesSchema.optional(),
+  printedPT: PrintedPTSchema.optional(),
+  lifePaying: LifePayingSchema.optional(),
+  conditionMet: ConditionMetSchema.optional(),
+});
+
+export type StateSiblings = z.infer<typeof StateSiblingsSchema>;
+
 /* ── The three frames ────────────────────────────────────────────────── */
 
 /**
@@ -831,18 +849,9 @@ export type FaceDamage = z.infer<typeof FaceDamageSchema>;
 export const SetGameViewSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('setGameView'),
-  payload: z.strictObject({
+  payload: StateSiblingsSchema.extend({
     gameView: GameStateSchema,
     sequenceNumber: SequenceNumber,
-    stackTargetSpells: StackTargetSpellsSchema.optional(),
-    pendingTriggers: PendingTriggersSchema.optional(),
-    waitingEffects: WaitingEffectsSchema.optional(),
-    tokenSources: TokenSourcesSchema.optional(),
-    cantBlock: CantBlockSchema.optional(),
-    printedTypes: PrintedTypesSchema.optional(),
-    printedPT: PrintedPTSchema.optional(),
-    lifePaying: LifePayingSchema.optional(),
-    conditionMet: ConditionMetSchema.optional(),
   }),
 });
 
@@ -871,17 +880,8 @@ export const OpenViewSchema = z.strictObject({
 export const ApplyDeltaSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('applyDelta'),
-  payload: z.strictObject({
+  payload: StateSiblingsSchema.extend({
     packet: DeltaPacketSchema,
-    stackTargetSpells: StackTargetSpellsSchema.optional(),
-    pendingTriggers: PendingTriggersSchema.optional(),
-    waitingEffects: WaitingEffectsSchema.optional(),
-    tokenSources: TokenSourcesSchema.optional(),
-    cantBlock: CantBlockSchema.optional(),
-    printedTypes: PrintedTypesSchema.optional(),
-    printedPT: PrintedPTSchema.optional(),
-    lifePaying: LifePayingSchema.optional(),
-    conditionMet: ConditionMetSchema.optional(),
     damage: DamageSchema.optional(),
     deaths: DeathsSchema.optional(),
     faceDamage: FaceDamageSchema.optional(),

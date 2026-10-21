@@ -74,6 +74,37 @@ export interface WireObject {
   [property: string]: Tagged | null | number;
 }
 
+/** A property's tagged value, absent for a missing or null one. */
+export function prop(obj: WireObject | undefined, name: string): Tagged | undefined {
+  const v = obj?.[name];
+  return typeof v === 'object' && v !== null ? v : undefined;
+}
+
+/** An int, long or byte property, null when it is not one. */
+export function readIntOrNull(obj: WireObject | undefined, name: string): number | null {
+  const v = prop(obj, name);
+  return v !== undefined && (v.t === 'int' || v.t === 'long' || v.t === 'byte') && typeof v.v === 'number' ? v.v : null;
+}
+
+export function readInt(obj: WireObject | undefined, name: string, fallback = 0): number {
+  return readIntOrNull(obj, name) ?? fallback;
+}
+
+export function readBool(obj: WireObject | undefined, name: string): boolean {
+  const v = prop(obj, name);
+  return v !== undefined && v.t === 'bool' && v.v === true;
+}
+
+export function readStr(obj: WireObject | undefined, name: string): string | null {
+  const v = prop(obj, name);
+  return v !== undefined && v.t === 'str' && typeof v.v === 'string' ? v.v : null;
+}
+
+export function readEnum(obj: WireObject | undefined, name: string): string | null {
+  const v = prop(obj, name);
+  return v !== undefined && v.t === 'enum' && typeof v.v === 'string' ? v.v : null;
+}
+
 /** One `DeltaPacket` in the spike's JSON encoding. */
 export interface WirePacket {
   seq: number;

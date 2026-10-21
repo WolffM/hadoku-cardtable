@@ -23,68 +23,20 @@
  * battlefield is — that is `adapter.ts`.
  */
 
-import { isAnnotationKey, type Tagged, type WireObject, type WirePacket } from './wire.ts';
+import type { PendingTriggers, PrintedTypes, StateSiblings, WaitingEffects } from '@hadoku/forge-wire';
+
+import { isAnnotationKey, type WireObject, type WirePacket } from './wire.ts';
 
 /** Every object the client knows about, by delta key. */
 export type WireState = ReadonlyMap<string, WireObject>;
 
-/**
- * Wave 49 §A — `PlayBridge.java`'s `stackTargetSpells`, a SIBLING of the
- * packet rather than a property inside it (`visibility.ts`'s own note on why:
- * not a `TrackableProperty`, `forge/` being stock upstream). `[fromStackItemId,
- * toStackItemId]` pairs. `./live/match.ts`'s `foldFrames` merges this field
- * from each `ServerFrame.payload` into the packet it hands `foldPackets`,
- * since this module only knows packets, never frames.
- */
-export type StackTargetSpellPairs = readonly (readonly [number, number])[];
-
-/**
- * `PlayBridge.java`'s `pendingTriggers`, the packet's other sibling: the triggers Forge has
- * collected and not yet put on the stack (`packages/forge-wire`'s `PendingTriggersSchema`).
- */
-export type PendingTriggers = readonly { id: number; hostCard: number; controller: number; key: string; current?: true }[];
-
-/**
- * `PlayBridge.java`'s `waitingEffects`, the packet's third sibling: what a resolved ability left
- * waiting on the card that made it (`packages/forge-wire`'s `WaitingEffectsSchema`).
- */
-export type WaitingEffects = readonly { source: number; text: string; kind: 'trigger' | 'effect' }[];
-
-/** `PlayBridge.java`'s `tokenSources`, the packet's fourth sibling: `[tokenId, sourceId]`, which card made each token (`packages/forge-wire`'s `TokenSourcesSchema`). */
-export type TokenSources = readonly (readonly [number, number])[];
-
-/** `PlayBridge.java`'s `cantBlock`, the packet's fifth sibling: the battlefield creatures that can't block (`packages/forge-wire`'s `CantBlockSchema`). */
-export type CantBlock = readonly number[];
-
-/** `PlayBridge.java`'s `printedTypes`, the packet's sixth sibling: `[cardId, printedType, printedToken]` for each permanent whose type line or token-ness is not its printed card's (`packages/forge-wire`'s `PrintedTypesSchema`). */
-export type PrintedTypes = readonly (readonly [number, Tagged, boolean])[];
+/** A packet with the bridge's state facts beside it (`packages/forge-wire`'s `StateSiblingsSchema`), each replacing the last folded. */
+export interface FoldablePacket extends WirePacket, StateSiblings {}
 
 /** A permanent's printed card, as `printedTypes` names it: its type line, and whether it is a token. */
 export interface PrintedCard {
-  readonly type: Tagged;
+  readonly type: PrintedTypes[number][1];
   readonly token: boolean;
-}
-
-/** `PlayBridge.java`'s `printedPT`, beside `printedTypes`: `[cardId, printedPower, printedToughness]` for each creature whose numbers are not its printed ones (`packages/forge-wire`'s `PrintedPTSchema`). */
-export type PrintedPT = readonly (readonly [number, number, number])[];
-
-/** `PlayBridge.java`'s `lifePaying`, the packet's seventh sibling: `[playerId, life]`, the life each player has committed to an open payment and Forge has not taken yet (`packages/forge-wire`'s `LifePayingSchema`). */
-export type LifePaying = readonly (readonly [number, number])[];
-
-/** `PlayBridge.java`'s `conditionMet`, the packet's eighth sibling: the hand and battlefield cards whose condition is on (`packages/forge-wire`'s `ConditionMetSchema`). */
-export type ConditionMet = readonly number[];
-
-/** A packet that MAY carry {@link StackTargetSpellPairs}, {@link PendingTriggers}, {@link WaitingEffects}, {@link TokenSources}, {@link CantBlock}, {@link PrintedTypes}, {@link PrintedPT}, {@link LifePaying} and {@link ConditionMet} as sibling fields. */
-export interface FoldablePacket extends WirePacket {
-  stackTargetSpells?: StackTargetSpellPairs;
-  pendingTriggers?: PendingTriggers;
-  waitingEffects?: WaitingEffects;
-  tokenSources?: TokenSources;
-  cantBlock?: CantBlock;
-  printedTypes?: PrintedTypes;
-  printedPT?: PrintedPT;
-  lifePaying?: LifePaying;
-  conditionMet?: ConditionMet;
 }
 
 export interface FoldResult {

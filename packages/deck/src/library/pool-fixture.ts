@@ -49,6 +49,7 @@
  * `poolFromFixture` reads none of it, so nothing about legality moved.
  */
 
+import { DECK_COLORS } from '../colors.ts';
 import { poolNameKeys, type FormatPool } from '../format.ts';
 
 /** A `standardPoolAt` result, reduced to what a legality check needs. */
@@ -108,9 +109,6 @@ export interface PoolFixture {
   readonly restricted?: readonly string[];
 }
 
-/** The five real colours, in the order every Magic UI writes them. */
-const COLOR_ORDER = ['W', 'U', 'B', 'R', 'G'] as const;
-
 /** A projected Scryfall record, read as data and nothing more. */
 type Printing = Readonly<Record<string, unknown>>;
 
@@ -148,7 +146,7 @@ function colorsOf(printing: Printing): string {
   const face = frontFace(printing)?.['colors'];
   const raw = Array.isArray(own) ? own : Array.isArray(face) ? face : [];
   const held = new Set(raw.filter((c): c is string => typeof c === 'string'));
-  return COLOR_ORDER.filter((c) => held.has(c)).join('');
+  return DECK_COLORS.filter((c) => held.has(c)).join('');
 }
 
 /**

@@ -6,11 +6,14 @@
  * the server reports the same colours as a match's `colors` stat.
  */
 
-/** One of the five, and never a token. */
-export type DeckColor = 'W' | 'U' | 'B' | 'R' | 'G';
+/** WUBRG: the order every Magic interface writes the colours in — the one list of them every package reads. */
+export const DECK_COLORS = ['W', 'U', 'B', 'R', 'G'] as const;
 
-/** WUBRG: the order every Magic interface writes the colours in. */
-export const DECK_COLORS: readonly DeckColor[] = ['W', 'U', 'B', 'R', 'G'];
+/** One of the five, and never a token. */
+export type DeckColor = (typeof DECK_COLORS)[number];
+
+/** A mana pool's letters: the colours, then colourless — Forge's `ManaAtom.MANATYPES` order. */
+export const POOL_COLORS = [...DECK_COLORS, 'C'] as const;
 
 function isDeckColor(value: string): value is DeckColor {
   return (DECK_COLORS as readonly string[]).includes(value);

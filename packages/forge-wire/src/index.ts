@@ -171,6 +171,7 @@ export {
   SelectPlayerSchema,
   SelectCardSchema,
   SelectAbilitySchema,
+  PoolColorSchema,
   type TierBMethod,
   type YieldUpdate,
 } from './tier-b.ts';
@@ -192,6 +193,7 @@ export {
   PrintedPTSchema,
   LifePayingSchema,
   ConditionMetSchema,
+  StateSiblingsSchema,
   DamageSchema,
   DeathCauseSchema,
   DeathsSchema,
@@ -225,6 +227,7 @@ export {
   type PrintedPT,
   type LifePaying,
   type ConditionMet,
+  type StateSiblings,
   type Damage,
   type DeathCause,
   type Deaths,

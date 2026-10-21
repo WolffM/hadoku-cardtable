@@ -37,6 +37,7 @@
  * No images, ever (D13). `DraftCard` has no image field and must never grow one.
  */
 
+import { PoolColorSchema } from '@hadoku/forge-wire';
 import { z } from 'zod';
 import { formatPath, semanticIssues, type ValidationFailure } from './semantics.ts';
 
@@ -62,8 +63,11 @@ export const SeatOccupantSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('bot'), botId: z.string().min(1) }),
 ]);
 
-/** The five colours. Colourless and generic are not colours. */
-export const ManaColorSchema = z.enum(['W', 'U', 'B', 'R', 'G']);
+/** The five colours, WUBRG. Colourless and generic are not colours. */
+export const ManaColorSchema = PoolColorSchema.exclude(['C']);
+
+/** Each colour's name, as a mana symbol's title and a sound role write it. */
+export const COLOR_NAMES: Readonly<Record<ManaColor, string>> = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' };
 
 export const RaritySchema = z.enum(['common', 'uncommon', 'rare', 'mythic', 'special']);
 
