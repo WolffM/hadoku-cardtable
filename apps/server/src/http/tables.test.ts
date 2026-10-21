@@ -38,6 +38,7 @@ import { isBotSeat } from '@hadoku/draft';
 import { draftPoolId } from '../room/lobby.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
+import { act, choose, drawGauntlet, gauntletEras, newGauntlet, startBanpick, viewOfGauntlet, type GauntletState } from '../room/gauntlet.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from '../stats/index.js';
 import type { DraftCard, RoomModeState, RoomTable } from '@hadoku/shared';
 import { checkSeat, type SeatVerdict } from './gate.js';
@@ -306,6 +307,8 @@ interface FakeRoom {
 	modeOptions?: RoomModeState['modeOptions'];
 	/** `Lobby.rematchOf`'s own carry-through, by table id — mirrors `room/lobby.ts`'s `SeriesRecord.rematchOf`, server-internal and never on the wire `RoomTable.series`. */
 	rematchOf: Map<string, 0 | 1 | null>;
+	/** `Lobby.gauntlet`'s stored Gauntlet; absent reads as none. */
+	gauntlet?: GauntletState | null;
 }
 
 interface FakeLobby extends TablesRooms {
@@ -349,6 +352,13 @@ function fakeLobby(): FakeLobby {
 			return room;
 		},
 		room: (id) => held.get(id),
+		gauntlet: (id) => held.get(id)?.gauntlet ?? null,
+		setGauntlet(id, gauntlet) {
+			const room = held.get(id);
+			if (room === undefined) return false;
+			room.gauntlet = gauntlet;
+			return true;
+		},
 		get: (id) => held.get(id),
 		list: () => [...held.values()],
 		roomOfMatch: (matchId) => [...held.values()].find((r) => r.tables.some((t) => t.matchId === matchId) || r.matches.includes(matchId)),
@@ -3275,3 +3285,66 @@ describe('an All Random table', () => {
 		expect(dealt(h.specs[1]).ids).toEqual(game1);
 	});
 });
+
+/**
+ * A Gauntlet's games are dealt to its table the way an All Random table's are:
+ * the two chosen decks held in the seats, checked in the Gauntlet's own era
+ * (the table's pool, never the room's), the AI's beside its human's.
+ */
+describe('a Gauntlet table', () => {
+	const ROOM = 'r-gauntlet';
+
+	/** A Gauntlet against the AI at its first choice, the AI's choice made, built with the state machine itself. */
+	function atChoice(): GauntletState {
+		const eras = gauntletEras(library.formats, library.decks).filter((e) => e.family === 'modern');
+		const drawn = drawGauntlet(newGauntlet(), {
+			players: [
+				{ memberId: ALICE, name: 'user-alice' },
+				{ memberId: null, name: 'Sage' },
+			],
+			eras,
+			options: {},
+			random: () => 0.3,
+			now: 0,
+		});
+		if (!drawn.ok) throw new Error(drawn.reason);
+		let g = startBanpick(drawn.state);
+		const stub = (id: string) => ({ id, name: id, archetype: id, pilot: '', colors: [], main: [], sideboard: [] });
+		while (g.phase === 'banpick') {
+			const step = viewOfGauntlet(g, null, stub).step!;
+			const out = act(g, step.seat, step.act, g.decks.find((_, i) => g.marks[i] === null)!);
+			if (!out.ok) throw new Error(out.reason);
+			g = out.state;
+		}
+		const aiPick = g.decks.find((_, i) => g.marks[i]?.act === 'pick' && g.marks[i]?.by === 1)!;
+		const chose = choose(g, 1, aiPick);
+		if (!chose.ok) throw new Error(chose.reason);
+		return chose.state;
+	}
+
+	it("deals the chosen decks in the Gauntlet's era at the table, leaves the room's pool alone, and the AI plays its own choice", async () => {
+		const h = await boot();
+		const room = Object.assign(h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]), { mode: 'gauntlet' as const, modeOptions: { family: 'modern' as const } });
+		expect((await call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, {}, edgeHeaders('alice'))).status).toBe(200);
+		const g = atChoice();
+		h.lobby.setGauntlet!(ROOM, g);
+		const mine = g.decks.find((_, i) => g.marks[i]?.act === 'pick' && g.marks[i]?.by === 0)!;
+		const aiDeck = g.choices[1]!;
+
+		const picked = await call(h, 'PUT', `/api/tables/rooms/${ROOM}/deck`, { deck: { library: mine } }, edgeHeaders('alice'));
+		expect(picked.status, 'a Gauntlet deals its decks').toBe(409);
+		const chosen = await call(h, 'POST', `/api/tables/rooms/${ROOM}/gauntlet/choose`, { deck: mine }, edgeHeaders('alice'));
+		expect(chosen.status).toBe(200);
+		expect(chosen.body.phase).toBe('playing');
+
+		const pending = call(h, 'POST', '/api/play/matches', { room: ROOM, bot: true }, edgeHeaders('alice'));
+		await untilHost(h, 1, pending);
+		(h.hosts.at(-1) as ReplayHost | undefined)?.push(...OPENING);
+		expect((await pending).status).toBe(201);
+		const spec = h.specs[0]!;
+		expect(spec.seats.map((s) => s.deck)).toEqual([library.deck(mine)!.text, library.deck(aiDeck)!.text]);
+		expect(spec.format, "the match plays the Gauntlet's era").toBe(g.era!.id);
+		expect(room.format, "the room's own pool is untouched").toBe(POWER_2010);
+	});
+});
+

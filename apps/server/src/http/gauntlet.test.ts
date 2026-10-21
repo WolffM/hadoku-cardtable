@@ -4,10 +4,10 @@ import type { AddressInfo } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { GAUNTLET_DECKS, GauntletViewSchema, type GauntletPlayer, type GauntletView } from '@hadoku/shared';
+import { GAUNTLET_DECKS, GAUNTLET_REVEAL_MS, GauntletViewSchema, type GauntletPlayer, type GauntletView } from '@hadoku/shared';
 
 import type { GauntletState } from '../room/gauntlet.ts';
-import { GAUNTLET_AI_BEAT_MS, GAUNTLET_REVEAL_MS, attachGauntlet, type GauntletHandle, type GauntletRoom } from './gauntlet.ts';
+import { GAUNTLET_AI_BEAT_MS, attachGauntlet, type GauntletHandle, type GauntletRoom } from './gauntlet.ts';
 import { loadTablesLibrary } from './library.ts';
 
 // @reads decks/
@@ -21,7 +21,8 @@ interface Harness {
 	/** Run every timer that is due, in order, as often as they re-arm. */
 	flush: () => void;
 	timers: { ms: number; fn: () => void }[];
-	dealt: { decks: [string, string]; players: [GauntletPlayer, GauntletPlayer] }[];
+	dealt: { decks: [string, string]; players: [GauntletPlayer, GauntletPlayer]; era: string }[];
+	clock: { now: number };
 	logs: Record<string, unknown>[];
 	handle: GauntletHandle;
 	server: Server;
@@ -53,6 +54,7 @@ async function boot(seated: string[], modeOptions: unknown = { family: 'modern' 
 	const dealt: Harness['dealt'] = [];
 	const logs: Record<string, unknown>[] = [];
 	let n = 0;
+	const clock = { now: 1_760_000_000_000 };
 	const tables = express.Router();
 	const handle = attachGauntlet(tables, {
 		rooms: {
@@ -67,7 +69,8 @@ async function boot(seated: string[], modeOptions: unknown = { family: 'modern' 
 		},
 		library,
 		seated: () => seated.map((id) => ({ memberId: id, name: room.members.find((m) => m.id === id)!.name })),
-		dealGame: (_room, decks, players) => dealt.push({ decks, players }),
+		dealGame: (_room, decks, players, era) => dealt.push({ decks, players, era }),
+		now: () => clock.now,
 		callerOf: (req) => String(req.headers['x-test-user']),
 		// A fixed walk through [0, 1), so a run is the same every time.
 		random: () => ((n = (n * 7 + 3) % 11), n / 11),
@@ -88,6 +91,7 @@ async function boot(seated: string[], modeOptions: unknown = { family: 'modern' 
 		flush,
 		timers,
 		dealt,
+		clock,
 		logs,
 		handle,
 		server,
@@ -124,7 +128,7 @@ describe('the Gauntlet routes', () => {
 		expect(eras.map((e) => e.id)).not.toContain('1998-07-01');
 	});
 
-	it('draws once both seats are ready, moves the room onto the era, and keeps the draw', async () => {
+	it('draws once both seats are ready, keeps the draw, and leaves the room’s own pool alone', async () => {
 		const h = await boot([...ME]);
 		expect((await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true })).status).toBe(200);
 		expect(h.stored()?.phase).toBe('options');
@@ -132,7 +136,8 @@ describe('the Gauntlet routes', () => {
 		const v = await view(h, 'alice');
 		expect(v.phase).toBe('reveal');
 		expect(v.era?.family).toBe('modern');
-		expect(h.room.format).toBe(v.era!.id);
+		expect(h.room.format, 'the era is the table’s, from its dealt decks, never the room’s pool').toBe('2016-07-22');
+		expect(v.revealAt).toBe(h.clock.now);
 		expect(v.decks).toHaveLength(GAUNTLET_DECKS);
 		expect(v.decks.every((d) => d.main.length > 0 && d.name !== '')).toBe(true);
 		// A reconnect reads the same draw.
@@ -140,6 +145,20 @@ describe('the Gauntlet routes', () => {
 		expect(h.timers.map((t) => t.ms)).toEqual([GAUNTLET_REVEAL_MS]);
 		h.flush();
 		expect((await view(h, 'alice')).phase).toBe('banpick');
+	});
+
+	it('a restart mid-reveal opens the first ban when the reveal would have ended, not a whole reveal later', async () => {
+		const h = await boot([...ME]);
+		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true });
+		await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true });
+		h.timers.length = 0;
+		h.clock.now += 2000;
+		h.handle.resume();
+		expect(h.timers.map((t) => t.ms)).toEqual([GAUNTLET_REVEAL_MS - 2000]);
+		h.timers.length = 0;
+		h.clock.now += GAUNTLET_REVEAL_MS;
+		h.handle.resume();
+		expect(h.timers.map((t) => t.ms)).toEqual([0]);
 	});
 
 	it('refuses an act out of turn and a deck already taken', async () => {
@@ -192,12 +211,13 @@ describe('the Gauntlet routes', () => {
 		expect(v.phase).toBe('playing');
 		expect(h.dealt).toHaveLength(1);
 		expect(h.dealt[0]!.decks[0]).toBe(mine);
+		expect(h.dealt[0]!.era).toBe(v.era!.id);
 		expect(h.handle.startRefusal(h.room)).toBeNull();
-		expect(h.handle.aiDeck(h.room)).toBe(library.deck(h.dealt[0]!.decks[1])!.text);
 		// The game ends without deciding the series: back to choosing, the played decks struck off.
 		h.handle.afterGame('r-1', { seriesOver: false, winner: 1 });
 		v = await view(h, 'alice');
 		expect(v.phase).toBe('choose');
+		expect(v.games[0]!.winner).toBe(1);
 		expect(v.decks.filter((d) => d.played)).toHaveLength(2);
 		const again = await call(h, 'alice', '/rooms/r-1/gauntlet/choose', { deck: mine });
 		expect(again.body.reason).toBe('played');
@@ -231,6 +251,5 @@ describe('the Gauntlet routes', () => {
 		h.room.mode = 'classic';
 		expect((await call(h, 'alice', '/rooms/r-1/gauntlet')).status).toBe(409);
 		expect(h.handle.startRefusal(h.room)).toBeNull();
-		expect(h.handle.aiDeck(h.room)).toBeNull();
 	});
 });

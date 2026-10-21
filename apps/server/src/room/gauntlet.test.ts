@@ -31,6 +31,8 @@ function era(id: string, family: string, decks: number): GauntletEraPool {
 	return { id, family, title: `${family} ${id}`, decks: Array.from({ length: decks }, (_, i) => `${id}-d${i}`) };
 }
 
+const NOW = 1_760_000_000_000;
+
 const ERAS: GauntletEraPool[] = [era('1998-07-01', 'standard', 6), era('2022-04-29', 'standard', 24), era('modern-2022-04-29', 'modern', 24), era('legacy-2005-08-20', 'legacy', 9)];
 
 const HUMANS = [
@@ -47,7 +49,7 @@ function info(id: string): GauntletDeckInfo {
 }
 
 function drawn(players: typeof HUMANS | typeof VS_AI = HUMANS, random = seeded()): GauntletState {
-	const out = drawGauntlet(newGauntlet(), { players: [...players], eras: ERAS, options: {}, random });
+	const out = drawGauntlet(newGauntlet(), { players: [...players], eras: ERAS, now: NOW, options: {}, random });
 	if (!out.ok) throw new Error(out.reason);
 	return startBanpick(out.state);
 }
@@ -96,23 +98,24 @@ describe('the eras a Gauntlet is drawn from', () => {
 
 	it('draws a random era only from the eligible ones, and refuses a chosen era below ten decks', () => {
 		for (let seed = 1; seed < 40; seed++) {
-			const out = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, options: {}, random: seeded(seed) });
+			const out = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, now: NOW, options: {}, random: seeded(seed) });
 			expect(out.ok && ['2022-04-29', 'modern-2022-04-29'].includes(out.state.era!.id)).toBe(true);
 		}
-		const small = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, options: { era: '1998-07-01' }, random: seeded() });
+		const small = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, now: NOW, options: { era: '1998-07-01' }, random: seeded() });
 		expect(small).toEqual({ ok: false, reason: 'no-era' });
-		const family = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, options: { family: 'legacy' }, random: seeded() });
+		const family = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, now: NOW, options: { family: 'legacy' }, random: seeded() });
 		expect(family).toEqual({ ok: false, reason: 'no-era' });
 	});
 
 	it('draws ten distinct decks of the era and a coin flip, and keeps them', () => {
-		const s = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, options: { family: 'modern' }, random: seeded(3) });
+		const s = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, now: NOW, options: { family: 'modern' }, random: seeded(3) });
 		if (!s.ok) throw new Error(s.reason);
 		expect(s.state.phase).toBe('reveal');
 		expect(s.state.era!.id).toBe('modern-2022-04-29');
 		expect(new Set(s.state.decks).size).toBe(GAUNTLET_DECKS);
 		expect(s.state.decks.every((d) => d.startsWith('modern-2022-04-29-'))).toBe(true);
 		expect([0, 1]).toContain(s.state.first);
+		expect(viewOfGauntlet(s.state, null, info).revealAt, 'the reveal starts at the draw').toBe(NOW);
 		// Both coin faces come up across seeds.
 		const firsts = new Set(Array.from({ length: 20 }, (_, i) => drawn(HUMANS, seeded(i + 1)).first));
 		expect(firsts).toEqual(new Set([0, 1]));
@@ -120,7 +123,7 @@ describe('the eras a Gauntlet is drawn from', () => {
 
 	it('draws only once: a second draw is refused', () => {
 		const s = drawn();
-		expect(drawGauntlet(s, { players: [...HUMANS], eras: ERAS, options: {}, random: seeded() })).toEqual({ ok: false, reason: 'drawn' });
+		expect(drawGauntlet(s, { players: [...HUMANS], eras: ERAS, now: NOW, options: {}, random: seeded() })).toEqual({ ok: false, reason: 'drawn' });
 	});
 });
 
@@ -178,7 +181,7 @@ describe('the ban/pick snake', () => {
 	});
 
 	it('refuses acts during the reveal', () => {
-		const out = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, options: {}, random: seeded() });
+		const out = drawGauntlet(newGauntlet(), { players: [...HUMANS], eras: ERAS, now: NOW, options: {}, random: seeded() });
 		if (!out.ok) throw new Error(out.reason);
 		expect(act(out.state, out.state.first!, 'ban', out.state.decks[0]!)).toEqual({ ok: false, reason: 'not-banpick' });
 	});
@@ -204,7 +207,7 @@ describe('choosing each game deck', () => {
 		s = two.state;
 		expect(s.phase).toBe('playing');
 		expect(gameDecks(s)).toEqual([a, b]);
-		expect(viewOfGauntlet(s, null, info).games).toEqual([{ decks: [a, b] }]);
+		expect(viewOfGauntlet(s, null, info).games).toEqual([{ decks: [a, b], winner: null }]);
 	});
 
 	it('refuses a deck that is not the seat’s own pick', () => {
@@ -243,6 +246,7 @@ describe('choosing each game deck', () => {
 		if (!after.ok) throw new Error(after.reason);
 		expect(after.state.phase).toBe('done');
 		expect(after.state.winner).toBe(0);
+		expect(viewOfGauntlet(after.state, null, info).games.map((g) => g.winner), 'each game keeps its winner: 2-1').toEqual([0, 1, 0]);
 	});
 
 	it('ends after two games when the series is decided', () => {
