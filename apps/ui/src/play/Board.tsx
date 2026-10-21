@@ -1563,9 +1563,13 @@ export function renewPlacement(playerId: number, cardId: number): void {
   if (p !== undefined && p.cardId === cardId && p.expiresAt >= Date.now()) PENDING_PLACEMENTS.set(playerId, { ...p, expiresAt: Date.now() + PLACEMENT_WAIT_MS });
 }
 
-/** Their play of `cardId` ended without it (cancelled): its column stops waiting, and the row closes the gap. */
+/** A play of `cardId` — either side's — ended without it (cancelled, gone home): its column stops waiting, and the row closes the gap. */
 export function cancelPlacement(playerId: number, cardId: number): void {
-  if (PENDING_PLACEMENTS.get(playerId)?.cardId !== cardId) return;
+  if (PENDING_PLACEMENTS.get(playerId)?.cardId === cardId) dropPlacement(playerId);
+}
+
+/** `playerId`'s placement stops waiting, and every mounted row redraws without its gap. */
+function dropPlacement(playerId: number): void {
   PENDING_PLACEMENTS.delete(playerId);
   for (const wake of MOUNTED_BOARDS) wake();
 }
@@ -4262,27 +4266,21 @@ export function Board({
     const now = Date.now();
     let next = arranged;
     let ownChanged = false;
-    let changed = false;
     for (const player of view.players) {
       const pending = PENDING_PLACEMENTS.get(player.id);
       if (pending === undefined) continue;
-      if (pending.expiresAt < now) {
-        PENDING_PLACEMENTS.delete(player.id);
-        continue;
-      }
       // A placement takes its card whenever it is on the battlefield — already there, or arriving
       // later: the message is the authority, whichever came first.
-      const card = player.battlefield.find((c) => c.id === pending.cardId);
-      if (card === undefined) continue;
-      PENDING_PLACEMENTS.delete(player.id);
-      next = withMove(group(player.battlefield, player.id, next, boardLayout), player.id, next, card.id, pending.slot, pending.target, boardLayout);
-      changed = true;
-      if (player.id === viewer?.id) ownChanged = true;
+      const card = pending.expiresAt < now ? undefined : player.battlefield.find((c) => c.id === pending.cardId);
+      if (card !== undefined) {
+        next = withMove(group(player.battlefield, player.id, next, boardLayout), player.id, next, card.id, pending.slot, pending.target, boardLayout);
+        if (player.id === viewer?.id) ownChanged = true;
+      }
+      if (card !== undefined || pending.expiresAt < now) dropPlacement(player.id);
     }
-    if (changed) {
+    if (next !== arranged) {
       if (ownChanged && viewer !== undefined) setArranged(key, viewer.id, next);
       else ARRANGED.set(key, next);
-      redraw();
     }
   }, [view, viewer, arranged, key, boardLayout]);
 
