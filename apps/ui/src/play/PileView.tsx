@@ -19,10 +19,10 @@
  *     `overflow: clip`, so it can never widen the board either.
  *   - **Local.** Nothing here is sent: it is this screen's look at a public zone.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { battlefieldCardWidth } from './card-size.ts';
-import { eventTarget } from '../dom.ts';
+import { clampSpan, useDismiss } from '../popover.ts';
 import './pile-view.css';
 
 /** A card's height over its width — `card.css`'s 488 × 680. */
@@ -68,10 +68,8 @@ export function fitPile(count: number, preferredW: number, room: { width: number
  * shifted as little as needed to stay a `gap` inside `bounds`. Client coordinates in, client out.
  */
 export function placePile(pile: Box, bounds: Box, size: { width: number; height: number }, gap = PILE_GAP): { left: number; top: number } {
-  const left = Math.max(bounds.left + gap, Math.min(pile.right + gap, bounds.right - gap - size.width));
   const centre = (pile.top + pile.bottom) / 2 - size.height / 2;
-  const top = Math.max(bounds.top + gap, Math.min(centre, bounds.bottom - gap - size.height));
-  return { left, top };
+  return { left: clampSpan(pile.right + gap, size.width, bounds.left, bounds.right, gap), top: clampSpan(centre, size.height, bounds.top, bounds.bottom, gap) };
 }
 
 type Layout = PileFit & { left: number; top: number };
@@ -138,26 +136,14 @@ export function PileView({
     return () => window.removeEventListener('resize', measure);
   }, [count, ownerSide, pileSelector]);
 
+  // A press anywhere but the view — or the pile that opened it, whose own click toggles it — closes it.
+  useDismiss(onClose, useCallback((target: Node) => panel.current?.contains(target) === true || (target instanceof Element && target.closest(pileSelector) !== null), [pileSelector]));
   useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose();
-    };
-    // A press anywhere but the view — or the pile that opened it, whose own click toggles it — closes it.
-    const onPress = (event: PointerEvent): void => {
-      const target = eventTarget(event);
-      if (!(target instanceof Element)) return;
-      if (panel.current?.contains(target) === true || target.closest(pileSelector) !== null) return;
-      onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPress, true);
     closers.add(onClose);
     return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPress, true);
       closers.delete(onClose);
     };
-  }, [onClose, pileSelector]);
+  }, [onClose]);
 
   const style =
     layout === null

@@ -31,6 +31,7 @@ import { usePrefs } from '@wolffm/prefs-client/react';
 import { SettingsPanel } from '../play/live/SettingsPanel.tsx';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { SoundSettings } from './SoundSettings.tsx';
+import { useDismiss } from '../popover.ts';
 import { applyUiScale, clampUiScale, UI_SCALE, uiLength } from './ui-scale.ts';
 import './settings.css';
 
@@ -67,25 +68,8 @@ export function SettingsPopover({ trigger, onClose, children }: SettingsPopoverP
   const [placement, setPlacement] = useState<Placement>(() => place(trigger.getBoundingClientRect()));
   useLayoutEffect(() => setPlacement(place(trigger.getBoundingClientRect())), [trigger]);
 
-  useEffect(() => {
-    const doc = globalThis.document;
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose();
-    };
-    const onPress = (event: PointerEvent): void => {
-      const target = event.target;
-      if (!(target instanceof Node) || ref.current === null) return;
-      if (!ref.current.contains(target) && !trigger.contains(target)) onClose();
-    };
-    doc.addEventListener('keydown', onKey);
-    // Capture, so a board gesture that stops propagation still closes it.
-    doc.addEventListener('pointerdown', onPress, true);
-    ref.current?.focus();
-    return () => {
-      doc.removeEventListener('keydown', onKey);
-      doc.removeEventListener('pointerdown', onPress, true);
-    };
-  }, [onClose, trigger]);
+  useDismiss(onClose, useCallback((target: Node) => ref.current?.contains(target) !== false || trigger.contains(target), [trigger]));
+  useEffect(() => ref.current?.focus(), []);
 
   return (
     <div

@@ -128,6 +128,7 @@
 
 import { pastSlop } from '../live/gestures/types.ts';
 import { scopeOf } from '../../dom.ts';
+import { clampSpan } from '../../popover.ts';
 import { topLayerIn } from '../../topLayer.ts';
 import { playRole } from '../../sound/index.ts';
 import './inspect.css';
@@ -328,9 +329,7 @@ export function placeInspector(
   const isHandCard = hand !== null && hover.top >= hand.top;
 
   let left = isHandCard ? hover.left : hover.right + GAP;
-  let top = isHandCard
-    ? hover.top - height
-    : Math.min(Math.max(hover.top, ceilingTop + GAP), Math.max(ceilingTop + GAP, floorTop - GAP - height));
+  let top = isHandCard ? hover.top - height : clampSpan(hover.top, height, ceilingTop, floorTop, GAP);
 
   // Past the board's right edge: to the card's LEFT when it fits there (a
   // stack thumbnail sits in a column at 59-84% of the board, and shifting the

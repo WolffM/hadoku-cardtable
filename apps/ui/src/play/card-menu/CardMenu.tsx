@@ -18,6 +18,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Keyboar
 import type { Arrangement, BoardLayout } from '../Board.tsx';
 import type { BoardCard } from '../adapter.ts';
 import { eventTarget, scopeOf } from '../../dom.ts';
+import { clampSpan, useDismiss } from '../../popover.ts';
 import { CARD_LONG_PRESS, type CardLongPress } from '../inspect/index.ts';
 import { actionsFor, pilesOf, withStacked, type CardAction, type CardActionContext } from './actions.ts';
 import './card-menu.css';
@@ -125,8 +126,7 @@ function CardMenu({
     const overlay = menu?.parentElement;
     if (menu === null || overlay === null || overlay === undefined) return;
     const box = overlay.getBoundingClientRect();
-    const clamp = (v: number, size: number, room: number) => Math.max(GAP, Math.min(v, room - size - GAP));
-    setPlace({ left: clamp(at.x - box.left, menu.offsetWidth, box.width), top: clamp(at.y - box.top, menu.offsetHeight, box.height) });
+    setPlace({ left: clampSpan(at.x - box.left, menu.offsetWidth, 0, box.width, GAP), top: clampSpan(at.y - box.top, menu.offsetHeight, 0, box.height, GAP) });
   }, [at]);
   // Once placed: a browser does not focus an element that is still `visibility: hidden`.
   const placed = place !== null;
@@ -134,17 +134,7 @@ function CardMenu({
     if (placed) ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [placed]);
 
-  useEffect(() => {
-    if (ref.current === null) return undefined;
-    const scope = scopeOf(ref.current);
-    const onPress = (event: Event): void => {
-      const target = eventTarget(event);
-      if (!(target instanceof Node) || ref.current === null || !ref.current.contains(target)) onClose();
-    };
-    // Capture, so a board gesture that stops propagation still closes it.
-    scope.addEventListener('pointerdown', onPress, true);
-    return () => scope.removeEventListener('pointerdown', onPress, true);
-  }, [onClose]);
+  useDismiss(onClose, useCallback((target: Node) => ref.current?.contains(target) === true, []));
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];

@@ -5,7 +5,9 @@
  * answers nobody else's) and opens it as the room's own deck peek (`screens/DeckPeek.tsx`), beside
  * the count. A press on the count again, anywhere outside the list, or Escape closes it.
  */
-import { useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { documentScope } from '../../dom.ts';
+import { useDismiss } from '../../popover.ts';
 
 import { deckColorsByName } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
@@ -42,22 +44,8 @@ export function OwnDeckPeek({ deck, from, onClose }: { deck: OwnDeck; from: Elem
   const anchor = useMemo(() => from.getBoundingClientRect(), [from]);
   const bounds = useMemo(() => document.documentElement.getBoundingClientRect(), []);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    // The count's own press toggles, so a press on it is left to its click.
-    const onDown = (event: PointerEvent) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (target !== null && !from.contains(target) && document.getElementById('own-deck')?.contains(target) !== true) onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('pointerdown', onDown, true);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('pointerdown', onDown, true);
-    };
-  }, [from, onClose]);
+  // The count's own press toggles, so a press on it is left to its click.
+  useDismiss(onClose, useCallback((target: Node) => from.contains(target) || documentScope().getElementById('own-deck')?.contains(target) === true, [from]));
 
   return <DeckPeek id="own-deck" label={deck.name} name={deck.name || undefined} colors={colors} list={list} anchor={anchor} bounds={bounds} />;
 }
