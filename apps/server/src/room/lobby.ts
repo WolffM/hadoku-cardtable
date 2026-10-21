@@ -85,7 +85,8 @@ import {
 // `@hadoku/draft` depends on `@hadoku/shared`, never the reverse, so `pod.ts`
 // (which `@hadoku/shared` holds) cannot import these — this file is the one
 // place both sides meet (wave 72 §P).
-import { pairRound, roundsFor, standings, type MatchResult, type PodPlayer, type StandingsRow } from '@hadoku/draft';
+import { botSeatAcross, pairRound, roundsFor, standings, type MatchResult, type PodPlayer, type StandingsRow } from '@hadoku/draft';
+import type { PodDeal } from './draftRooms.ts';
 
 import type { Tournament } from './tournaments.ts';
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
@@ -579,7 +580,7 @@ export const POD_MIN_OPEN = 2;
 
 /** The seats the draft deals: every one not closed. */
 function podSize(room: RoomRecord): number {
-	return room.podSeats.filter((id) => id !== POD_CLOSED).length;
+	return podTable(room).length;
 }
 
 /** An AI seat as a player: one of the room's characters, by its own name (the operator, 2026-10-19). */
@@ -600,9 +601,27 @@ function freeAiAvatar(room: RoomRecord): string {
 	return AVATAR_POOL.find((a) => !ai.has(a) && !worn.has(a)) ?? AVATAR_POOL.find((a) => !ai.has(a)) ?? AVATAR_POOL[0];
 }
 
-/** The personas of the pod's AI seats, in pod seat order — the order the draft deals its bot seats in. */
-function aiPersonas(room: RoomRecord): AiPersona[] {
-	return room.podSeats.flatMap((id, i) => (id === POD_AI && room.podAi[i] !== null && room.podAi[i] !== undefined ? [personaOf(room.podAi[i]!)] : []));
+/** One place at the pod's table: a member, or the AI (with no character for a seat nobody filled). */
+type PodPlace = { kind: 'human'; id: string } | { kind: 'ai'; persona: AiPersona | null };
+
+/**
+ * The pod's table: every seat not closed, in seat order. Index === the seat the
+ * draft deals, so this is the one order behind everything that depends on
+ * where someone sits — who passes packs to whom, the AI across the table, and
+ * round 1's pairings. Nothing else orders a pod.
+ */
+function podTable(room: RoomRecord): PodPlace[] {
+	return room.podSeats.flatMap((id, i): PodPlace[] => {
+		if (id === POD_CLOSED) return [];
+		if (id !== null && id !== POD_AI) return [{ kind: 'human', id }];
+		const avatar = id === POD_AI ? room.podAi[i] : null;
+		return [{ kind: 'ai', persona: avatar === null || avatar === undefined ? null : personaOf(avatar) }];
+	});
+}
+
+/** These members as pairing players, each at their place at the pod's table. */
+function podPlayers(room: RoomRecord, humans: readonly string[]): PodPlayer[] {
+	return podTable(room).flatMap((place, podSeat) => (place.kind === 'human' && humans.includes(place.id) ? [{ id: place.id, podSeat }] : []));
 }
 
 /** The AI this room's games are played against: a pod's across-the-table bot, or for a 1v1 room a character nobody here wears. */
@@ -615,15 +634,13 @@ export function roomAi(room: RoomRecord): AiPersona {
 	return personaOf(AVATAR_POOL.find((a) => !worn.has(a)) ?? AVATAR_POOL[0]);
 }
 
-/**
- * The AI a pod of one plays: the bot that drafted across the table (`draftRooms.ts`'s `botPoolAcross` —
- * the one human holds draft seat 0, its bots seats 1 onward in pod seat order).
- */
+/** The AI a pod of one plays: the bot that drafted across the table from its human (`draftRooms.ts`'s `botPoolAcross`, by the same rule). */
 function aiOpponent(room: RoomRecord): AiPersona | null {
-	const bots = aiPersonas(room);
-	const humans = seatedHumans(room).length;
-	const across = Math.floor(podSize(room) / 2);
-	return bots[across - humans] ?? bots[0] ?? null;
+	const table = podTable(room);
+	const human = table.findIndex((place) => place.kind === 'human');
+	const seat = botSeatAcross(Math.max(0, human), table.length, (s) => table[s]?.kind === 'ai');
+	const place = seat === null ? undefined : table[seat];
+	return place?.kind === 'ai' ? place.persona : null;
 }
 
 /**
@@ -729,7 +746,7 @@ const EMPTY_POD_SEATS: PodView['seats'] = new Array(POD_SEATS).fill(null) as Pod
  * *"i need an AI button same as how it's used in the constructed 1v1 lobby"*).
  */
 function seatedHumans(room: RoomRecord): string[] {
-	return room.podSeats.filter((id): id is string => id !== null && id !== POD_AI && id !== POD_CLOSED);
+	return podTable(room).flatMap((place) => (place.kind === 'human' ? [place.id] : []));
 }
 
 function podSeatsView(room: RoomRecord): PodView['seats'] {
@@ -1095,16 +1112,13 @@ export interface Lobby {
 	/** Wires `PodChecks` — see its own doc. Called once, from `http/routes.ts`'s `attachTables`. */
 	setPodChecks(checks: PodChecks): void;
 	/**
-	 * The pod's seated humans, in POD SEAT order — `draftRooms.ts`'s humans
-	 * lookup reads this (wired the same way as `setPodChecks`), so the draft is
-	 * dealt only to members who actually sat. Empty for a non-draft room, or a
-	 * draft room nobody has sat in yet (`draftRooms.ts` then deals to nobody,
-	 * exactly as before this wave — bots fill every seat, and the first
-	 * members to connect evict one, same as a room with no pod lobby at all).
+	 * How the pod's draft is dealt (`draftRooms.ts`'s pod lookup, wired the same
+	 * way as `setPodChecks`), read off `podTable`: the seats not closed, each
+	 * member who sat at the seat they chose, and the AI seats' names in seat
+	 * order. No humans for a room nobody sat in — the draft then deals every
+	 * seat to a bot, and the first members to connect evict one each.
 	 */
-	podHumans(roomId: string): { id: string; name: string }[];
-	/** How the draft is dealt: its seat count (the seats not closed) and its bots' names, in seat order after the humans. */
-	podDraft(roomId: string): { seats: number; botNames: string[] } | null;
+	podDraft(roomId: string): PodDeal | null;
 	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[];
 	/**
@@ -1968,10 +1982,7 @@ class FileLobby implements Lobby {
 			return;
 		}
 		const nextRound = pod.round + 1;
-		const players: PodPlayer[] = room.podSeats
-			.map((id, i) => (id === null || !pod.humans.includes(id) ? null : { id, podSeat: i }))
-			.filter((p): p is PodPlayer => p !== null);
-		const paired = pairRound({ players, results: pod.results, round: nextRound });
+		const paired = pairRound({ players: podPlayers(room, pod.humans), results: pod.results, round: nextRound });
 		const pairings = paired.tables.map(([a, b]) => ({ tableId: this.#newPodTable(room, a, b), players: [a, b] as [string, string] }));
 		const results = paired.bye === null ? pod.results : [...pod.results, { round: nextRound, playerA: paired.bye, playerB: null, gamesA: 2, gamesB: 0 }];
 		room.pod = { ...pod, round: nextRound, results, pairings, bye: paired.bye };
@@ -2403,20 +2414,19 @@ class FileLobby implements Lobby {
 		return released;
 	}
 
-	podHumans(roomId: string): { id: string; name: string }[] {
+	podDraft(roomId: string): PodDeal | null {
 		const room = this.#rooms.get(roomId);
-		if (room === undefined) return [];
-		const out: { id: string; name: string }[] = [];
-		for (const id of seatedHumans(room)) {
-			const member = room.members.find((m) => m.id === id);
-			if (member !== undefined) out.push({ id, name: member.name });
-		}
-		return out;
-	}
-
-	podDraft(roomId: string): { seats: number; botNames: string[] } | null {
-		const room = this.#rooms.get(roomId);
-		return room === undefined ? null : { seats: podSize(room), botNames: aiPersonas(room).map((p) => p.name) };
+		if (room === undefined) return null;
+		const table = podTable(room);
+		return {
+			seats: table.length,
+			humans: table.flatMap((place, seat) => {
+				if (place.kind !== 'human') return [];
+				const member = room.members.find((m) => m.id === place.id);
+				return member === undefined ? [] : [{ participantId: place.id, displayName: member.name, seat }];
+			}),
+			botNames: table.flatMap((place, seat) => (place.kind === 'ai' ? [place.persona?.name ?? `Bot ${seat}`] : [])),
+		};
 	}
 
 	sitPod(roomId: string, memberId: string, seat?: number): SitPodResult {
@@ -2524,10 +2534,7 @@ class FileLobby implements Lobby {
 			return;
 		}
 		const rounds = roundsFor(humans.length);
-		const players: PodPlayer[] = room.podSeats
-			.map((id, i) => (id === null || id === POD_AI || id === POD_CLOSED ? null : { id, podSeat: i }))
-			.filter((p): p is PodPlayer => p !== null);
-		const paired = pairRound({ players, results: [], round: 1 });
+		const paired = pairRound({ players: podPlayers(room, humans), results: [], round: 1 });
 		const pairings = paired.tables.map(([a, b]) => ({ tableId: this.#newPodTable(room, a, b), players: [a, b] as [string, string] }));
 		room.pod = {
 			humans,

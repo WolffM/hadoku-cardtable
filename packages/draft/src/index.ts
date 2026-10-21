@@ -24,6 +24,7 @@ export {
   createDraft,
   pick,
   waitingOn,
+  botSeatAcross,
   directionFor,
   poolShortfall,
   isBotSeat,

@@ -51,6 +51,12 @@ import { derive, rngFromSeed, shuffle, type Rng } from './rng.ts';
 export interface HumanSeat {
   participantId: string;
   displayName: string;
+  /**
+   * The seat this human drafts from: a pod player's chosen place at the table,
+   * which is what decides who they pass to and receive from. Absent, the first
+   * free seat.
+   */
+  seat?: SeatId;
 }
 
 export interface DraftConfig {
@@ -70,7 +76,7 @@ export interface DraftConfig {
   packCount: number;
   /** `Booster: N Any`. */
   packSize: number;
-  /** Humans, seated in the order given. Remaining seats are filled with bots. */
+  /** Humans, each in their `seat`, else in the first free seat. Remaining seats are filled with bots. */
   humans: readonly HumanSeat[];
   /** What the bots are called, the first bot seat first; a seat past the list is `Bot <seat>`. */
   botNames?: readonly string[];
@@ -166,7 +172,7 @@ export function poolShortfall(config: Pick<DraftConfig, 'pool' | 'seatCount' | '
   return Math.max(0, needed - config.pool.length);
 }
 
-/** Build a draft. Seats humans in order, then pads the rest with bots. */
+/** Build a draft. Seats the humans, then pads the rest with bots. */
 export function createDraft(config: DraftConfig): DraftState {
   const rng = rngFromSeed(config.seed);
   const table = createSeatTable(config.seatCount, {
@@ -175,6 +181,9 @@ export function createDraft(config: DraftConfig): DraftState {
 
   const displayNames: Record<SeatId, string> = {};
   for (const human of config.humans) {
+    // A chosen seat is the one they "last held": `seatParticipant` puts them
+    // there, and a reconnect brings them back to it.
+    if (human.seat !== undefined) table.remembered[human.participantId] = human.seat;
     const id = seatParticipant(table, human.participantId);
     if (id !== null) displayNames[id] = human.displayName;
   }
@@ -311,6 +320,17 @@ function advance(state: DraftState, events: DraftEvent[]): DraftState {
     packs: (state.rounds[nextPack - 1] as DraftCard[][]).map((p) => p.slice()),
     picked: [],
   };
+}
+
+/**
+ * The bot seat a player's AI opponent drafted: the seat across the table, or
+ * the first bot seat when a person sits there. Null with no bot at the table.
+ */
+export function botSeatAcross(seat: SeatId, seatCount: number, isBot: (seat: SeatId) => boolean): SeatId | null {
+  const across = (seat + Math.floor(seatCount / 2)) % seatCount;
+  if (isBot(across)) return across;
+  for (let s = 0; s < seatCount; s++) if (isBot(s)) return s;
+  return null;
 }
 
 /** Whether a seat is held by a bot. */

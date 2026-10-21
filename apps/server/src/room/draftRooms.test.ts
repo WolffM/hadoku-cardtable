@@ -54,6 +54,7 @@ import {
 	viewForParticipant,
 	type DraftRoom,
 	type DraftRooms,
+	type PodDeal,
 } from './draftRooms.js';
 import { loadPool, type CubePool } from './pool.js';
 
@@ -75,6 +76,11 @@ beforeAll(() => {
 	if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
 	pool = load.pool;
 });
+
+/** An eight-seat pod dealt to these players, its bots unnamed. */
+function podDeal(humans: PodDeal['humans']): PodDeal {
+	return { seats: 8, humans, botNames: [] };
+}
 
 function rooms(
 	overrides: {
@@ -166,16 +172,16 @@ describe('opening a draft room', () => {
 		expect(rooms().find('never-opened')).toBeUndefined();
 	});
 
-	describe('setHumansLookup — wave 72 §P', () => {
-		it('deals to exactly the ids the lookup names, in the order it names them, when wired BEFORE open', () => {
+	describe("the pod lookup's humans", () => {
+		it('deals to exactly the players the lookup names, each at the seat it names, when wired BEFORE open', () => {
 			const r = rooms();
-			r.setHumansLookup((draftId) => (draftId === 'pod-seated' ? [{ participantId: ALICE, displayName: 'Alice' }, { participantId: BOB, displayName: 'Bob' }] : []));
+			r.setPodLookup((draftId) => (draftId === 'pod-seated' ? podDeal([{ participantId: ALICE, displayName: 'Alice', seat: 5 }, { participantId: BOB, displayName: 'Bob', seat: 2 }]) : null));
 			const room = r.open('pod-seated');
 			const seats = humanSeats(room.seats);
 			expect(seats).toHaveLength(2);
 			const seated = new Set(seats.map((s) => s.id));
-			expect(seatOf(room.seats, ALICE)).toBe(seats[0]?.id);
-			expect(seatOf(room.seats, BOB)).toBe(seats[1]?.id);
+			expect(seatOf(room.seats, ALICE)).toBe(5);
+			expect(seatOf(room.seats, BOB)).toBe(2);
 			// Every other seat is a bot, same as an unseated pod.
 			for (let s = 0; s < 8; s++) {
 				if (seated.has(s as SeatId)) continue;
@@ -189,7 +195,7 @@ describe('opening a draft room', () => {
 			for (let s = 0; s < 8; s++) expect(occupantOf(unwired.seats, s)?.kind).toBe('bot');
 
 			const r = rooms();
-			r.setHumansLookup(() => []);
+			r.setPodLookup(() => podDeal([]));
 			const wiredEmpty = r.open('pod-wired-empty');
 			expect(humanSeats(wiredEmpty.seats)).toEqual([]);
 			for (let s = 0; s < 8; s++) expect(occupantOf(wiredEmpty.seats, s)?.kind).toBe('bot');
@@ -197,11 +203,11 @@ describe('opening a draft room', () => {
 
 		it('is read once, at the moment `open` deals the draft — a later call does not re-deal an existing room', () => {
 			const r = rooms();
-			r.setHumansLookup(() => []);
+			r.setPodLookup(() => podDeal([]));
 			const dealt = r.open('pod-already-dealt');
 			expect(humanSeats(dealt.seats)).toEqual([]);
 
-			r.setHumansLookup((draftId) => (draftId === 'pod-already-dealt' ? [{ participantId: ALICE, displayName: 'Alice' }] : []));
+			r.setPodLookup((draftId) => podDeal(draftId === 'pod-already-dealt' ? [{ participantId: ALICE, displayName: 'Alice', seat: 0 }] : []));
 			const again = r.open('pod-already-dealt');
 			expect(again).toBe(dealt);
 			expect(humanSeats(again.seats)).toEqual([]);
@@ -258,7 +264,7 @@ describe('joining', () => {
 describe('a pod dealt to the members who sat', () => {
 	it('takes nobody else: another member joins as a watcher, every bot stays, and the cursor does not move', () => {
 		const r = rooms();
-		r.setHumansLookup((draftId) => (draftId === 'pod-sat' ? [{ participantId: ALICE, displayName: 'Alice' }] : []));
+		r.setPodLookup((draftId) => podDeal(draftId === 'pod-sat' ? [{ participantId: ALICE, displayName: 'Alice', seat: 0 }] : []));
 		const room = r.open('pod-sat');
 		expect(r.drafters('pod-sat')).toHaveLength(1);
 		const seq = stateOf(room).seq;
@@ -292,7 +298,7 @@ describe('a pod dealt to the members who sat', () => {
 	// The operator, 2026-10-20, after a restart mid-draft: "our names died?"
 	it("keeps a drafter's name through a seat released and reclaimed, and mends a seat already renamed", () => {
 		const r = rooms();
-		r.setHumansLookup((draftId) => (draftId === 'pod-sat' ? [{ participantId: ALICE, displayName: 'Alice' }] : []));
+		r.setPodLookup((draftId) => podDeal(draftId === 'pod-sat' ? [{ participantId: ALICE, displayName: 'Alice', seat: 0 }] : []));
 		const room = r.open('pod-sat');
 		expect(stateOf(room).displayNames[0]).toBe('Alice');
 

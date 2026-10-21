@@ -182,7 +182,7 @@ import { parseDck } from '@hadoku/carddata/dck';
 import type { DeckEntry } from '@hadoku/carddata/dck';
 import type { RoomTable } from '@hadoku/shared';
 
-import type { DraftRooms } from '../room/draftRooms.js';
+import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
 import { identityFromHeaders } from '../room/identity.js';
@@ -320,14 +320,8 @@ export interface TablesRooms {
 	onAvatarChange?(
 		listener: (change: { roomId: string; memberId: string; avatarId: string | null }) => void,
 	): () => void;
-	/**
-	 * Wave 72 §P: who is seated in the pod's lobby, in POD SEAT order —
-	 * `attachTables` composes `draftRooms.ts`'s humans lookup from this.
-	 * Optional like `onAvatarChange`, for the same reason.
-	 */
-	podHumans?(roomId: string): { id: string; name: string }[];
-	/** How the pod's draft is dealt: its open seats and its AI characters' names. Optional like `podHumans`. */
-	podDraft?(roomId: string): { seats: number; botNames: string[] } | null;
+	/** How the pod's draft is dealt: its open seats, who sits where, and its AI characters' names (`room/lobby.ts`). Optional like `onAvatarChange`. */
+	podDraft?(roomId: string): PodDeal | null;
 	/** Wires `PodChecks` into the room registry — see its own doc (`room/lobby.ts`). Optional like `onAvatarChange`. */
 	setPodChecks?(checks: PodChecks): void;
 }
@@ -895,9 +889,6 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return state;
 		},
 	});
-	deps.draftRooms?.setHumansLookup((podId) =>
-		(rooms?.podHumans?.(podId) ?? []).map((m) => ({ participantId: m.id, displayName: m.name })),
-	);
 	deps.draftRooms?.setPodLookup((podId) => rooms?.podDraft?.(podId) ?? null);
 
 	/**

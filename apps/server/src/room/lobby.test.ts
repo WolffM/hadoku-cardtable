@@ -67,7 +67,7 @@ const POOLS = CATALOG.filter((f) => f.family === 'standard').map((f) => f.id);
 
 const CAROL = { id: 'fk:3333333333333333', name: 'user-carol' };
 
-/** The cube the app ships with — for the one test that drives a REAL `DraftRooms` off `podHumans` (wave 72 §P). */
+/** The cube the app ships with — for the tests that drive a REAL `DraftRooms` off `podDraft`. */
 const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
 
 /** A draft room with `members` in it, all of them ready, and its draft started. */
@@ -1961,7 +1961,7 @@ describe('Lobby.playPod', () => {
 	it('a member who never sat is auto-seated by startDraft, so playPod deals her a table against the AI', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const id = await startedDraft(lobby, [ALICE]);
-		expect(lobby.podHumans(id).map((h) => h.id)).toEqual([ALICE.id]);
+		expect(lobby.podDraft(id)?.humans.map((h) => h.participantId)).toEqual([ALICE.id]);
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id]) }));
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
 		const started = lobby.playPod(id, ALICE.id);
@@ -2087,14 +2087,14 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 	/**
 	 * The gap the manager caught in review: the fallback ready gate ("nobody
 	 * sat → every member") lets `startDraft` succeed with `podSeats` all
-	 * null — and every LATER reader of `podSeats` (`podHumans`, `built`,
+	 * null — and every LATER reader of `podSeats` (`podDraft`, `built`,
 	 * `playPod`) would then see nobody seated, so a room that never
 	 * pressed Sit could draft but could never reach `rounds`. `startDraft`
 	 * now seats the fallback's own members, in join order, at the moment it
 	 * sets `draftStartedAt` — this proves the WHOLE chain agrees from
-	 * there: `podHumans`, `playPod`'s pairing, AND a REAL `DraftRooms`
-	 * wired to `podHumans` exactly as `http/routes.ts`'s `attachTables` wires
-	 * it (`setHumansLookup`), with the actual shipped cube.
+	 * there: `podDraft`, `playPod`'s pairing, AND a REAL `DraftRooms`
+	 * wired to `podDraft` exactly as `http/routes.ts`'s `attachTables` wires
+	 * it (`setPodLookup`), with the actual shipped cube.
 	 */
 	it("auto-seats every member at startDraft, so playPod pairs them and a REAL DraftRooms deals to exactly those three", async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
@@ -2110,7 +2110,7 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 
 		// The fallback gate's own gap, closed: without the auto-seat this would
 		// be `[]`, and the pod could never pair a round.
-		expect(lobby.podHumans(id).map((h) => h.id)).toEqual([ALICE.id, BOB.id, CAROL.id]);
+		expect(lobby.podDraft(id)?.humans.map((h) => h.participantId)).toEqual([ALICE.id, BOB.id, CAROL.id]);
 
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 		expect(lobby.get(id)?.pod?.phase).toBe('building');
@@ -2125,16 +2125,15 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 			new Set([ALICE.id, BOB.id, CAROL.id]),
 		);
 
-		// `humansLookup` reads `Lobby.podHumans`, exactly as `http/routes.ts`'s
-		// `attachTables` wires it (`deps.draftRooms?.setHumansLookup((podId) =>
-		// (rooms?.podHumans?.(podId) ?? []).map(...))`) — wired here by hand,
+		// The pod lookup reads `Lobby.podDraft`, exactly as `http/routes.ts`'s
+		// `attachTables` wires it — wired here by hand,
 		// against the REAL cube and a REAL `DraftRooms`, to prove the data
 		// `startDraft`'s auto-seat produced is what the draft engine actually
 		// deals to.
 		const load = loadPool(CUBE_FILE);
 		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
 		const draftRooms = createDraftRooms({ pool: load.pool.cards, cube: load.pool.meta, now: () => 1_700_000_000_000 });
-		draftRooms.setHumansLookup((podId) => lobby.podHumans(podId).map((h) => ({ participantId: h.id, displayName: h.name })));
+		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
 		const room = draftRooms.open(id);
 		expect(
 			humanSeats(room.seats)
@@ -2143,7 +2142,7 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 		).toEqual([ALICE.id, BOB.id, CAROL.id].sort());
 
 		// Reverted (comment out the `if (seated.length === 0) { ... }` auto-seat
-		// block in `Lobby.startDraft`): `podHumans(id)` above comes back `[]`,
+		// block in `Lobby.startDraft`): `podDraft(id)` above has no humans,
 		// `playPod` refuses `not-drafter`, and the `DraftRooms` deals to
 		// nobody (every seat a bot). 3 failed (the three assertions after the
 		// gap would first bite). Restored: passes, all assertions above hold.
@@ -2247,7 +2246,7 @@ describe('the AI seats play as the room’s characters', () => {
 		expect(new Set(names).size, 'seven different characters').toBe(7);
 		expect(names.map((n) => n.toLowerCase()), 'none of them the one Alice wears').not.toContain(worn);
 		expect(names.every((n) => /^[A-Z][a-z]+$/.test(n))).toBe(true);
-		expect(lobby.podDraft(id)).toEqual({ seats: 8, botNames: names });
+		expect(lobby.podDraft(id)).toEqual({ seats: 8, humans: [{ participantId: ALICE.id, displayName: ALICE.name, seat: 0 }], botNames: names });
 		// Across the table from the one human (draft seat 4, the fourth bot): who the AI plays as.
 		expect(lobby.get(id)!.ai.name).toBe(names[3]);
 
@@ -2312,12 +2311,11 @@ describe('closed pod seats', () => {
 		expect(deal.seats).toBe(4);
 		expect(deal.botNames).toHaveLength(2);
 		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
-		expect(lobby.podHumans(id).map((h) => h.id)).toEqual([ALICE.id, BOB.id]);
+		expect(lobby.podDraft(id)?.humans.map((h) => h.participantId)).toEqual([ALICE.id, BOB.id]);
 
 		const load = loadPool(CUBE_FILE);
 		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
 		const draftRooms = createDraftRooms({ pool: load.pool.cards, cube: load.pool.meta, now: () => 1_700_000_000_000 });
-		draftRooms.setHumansLookup((podId) => lobby.podHumans(podId).map((h) => ({ participantId: h.id, displayName: h.name })));
 		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
 		const room = draftRooms.open(id);
 		expect(room.seats.capacity ?? room.seats.seats.length).toBe(4);
@@ -2354,7 +2352,6 @@ describe('the pod seat is the draft table', () => {
 		const load = loadPool(CUBE_FILE);
 		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
 		const draftRooms = createDraftRooms({ pool: load.pool.cards, cube: load.pool.meta, now: () => 1_700_000_000_000 });
-		draftRooms.setHumansLookup((podId) => lobby.podHumans(podId).map((h) => ({ participantId: h.id, displayName: h.name })));
 		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
 		const room = draftRooms.open(id);
 		const dealt = stateOf(room);
@@ -2367,5 +2364,16 @@ describe('the pod seat is the draft table', () => {
 		expect(passed.packs[1]!.map((c) => c.cardId)).toEqual(opened[0]!.slice(1));
 		// ... and the player in seat 4 holds what seat 3 opened.
 		expect(passed.packs[seatOf(passed.table, BOB.id)!]!.map((c) => c.cardId)).toEqual(opened[2]!.slice(1));
+	});
+
+	it('a player alone at the pod plays the AI that drafted across the table from the seat they chose', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(lobby.sitPod(id, ALICE.id, 3).ok).toBe(true);
+		for (const seat of [0, 1, 2, 4, 5, 6, 7]) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
+		// Seat 4 of eight faces seat 8.
+		expect(lobby.get(id)!.ai.name).toBe(lobby.get(id)!.pod!.seats[7]!.name);
 	});
 });

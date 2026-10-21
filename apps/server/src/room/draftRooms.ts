@@ -128,7 +128,7 @@ import {
 	type SeatId,
 	type SeatTable,
 } from '@wolffm/rooms-protocol';
-import { createDraft, isBotSeat, spectatorView, viewFor, watcherView, type DraftState, type HumanSeat } from '@hadoku/draft';
+import { botSeatAcross, createDraft, isBotSeat, spectatorView, viewFor, watcherView, type DraftState, type HumanSeat } from '@hadoku/draft';
 import { cursorOf, type CubeMeta, type DraftCard, type DraftView, type WireCursor } from '@hadoku/shared';
 import {
 	applySnapshot,
@@ -284,20 +284,6 @@ export interface DraftRooms {
 	 */
 	delete(draftId: string): void;
 	/**
-	 * Wires WHICH members `open` deals the draft to as humans (wave 72 §P):
-	 * everyone else's socket `join` still evicts a bot exactly as before this
-	 * wave, since a draft room's real seat table has no concept of "pod seat"
-	 * — it only has room to take whoever asks, up to `seatCount`. The lookup
-	 * answering `[]` for a `draftId` (the default, and every room nobody has
-	 * ever sat in) is the OLD behaviour, byte for byte: all eight seats start
-	 * as bots, and the first humans to connect evict one each.
-	 *
-	 * Called once, from `http/routes.ts`'s `attachTables` (composed from
-	 * `room/lobby.ts`'s `podHumans`, the one file that holds both this
-	 * registry and the lobby) — `index.ts` is not touched for this.
-	 */
-	setHumansLookup(lookup: (draftId: string) => readonly HumanSeat[]): void;
-	/**
 	 * The members a pod was dealt to, with their names — `joinDraftRoom`'s say in
 	 * who sits and what their seat is called. Empty for a draft nobody sat in,
 	 * where a `join` from someone holding no seat takes one, evicting a bot. A
@@ -306,13 +292,24 @@ export interface DraftRooms {
 	 * and 2026-10-20, on watching a draft).
 	 */
 	drafters(draftId: string): readonly HumanSeat[];
-	/** How a new draft is dealt (`room/lobby.ts`'s `podDraft`): its seat count, and its bots' names. Unwired, the params' seats and `Bot <seat>`. */
+	/**
+	 * How a new draft is dealt (`room/lobby.ts`'s `podDraft`, wired once by
+	 * `http/routes.ts`'s `attachTables`). Unwired, or `null` for a room nobody
+	 * sat in: the params' seats, all of them bots named `Bot <seat>`, and the
+	 * first humans to connect evict one each.
+	 */
 	setPodLookup(lookup: (draftId: string) => PodDeal | null): void;
 }
 
-/** A pod's say in its draft: how many seats, and what the bots are called. */
+/**
+ * A pod's say in its draft, read off its seats: how many there are, which
+ * player drafts from which (their pod seat is their place at the draft table,
+ * so it decides who they pass to and receive from), and what the bots in the
+ * rest are called, in seat order.
+ */
 export interface PodDeal {
 	seats: number;
+	humans: readonly HumanSeat[];
 	botNames: readonly string[];
 }
 
@@ -418,10 +415,6 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	const now = options.now ?? Date.now;
 	const onDeferredChange = options.onDeferredChange ?? (() => undefined);
 	const storeDir = options.storeDir ?? null;
-	// Wave 72 §P. The default is the pre-wave behaviour: nobody is seated in
-	// advance, so `build` deals every seat to a bot and the first humans to
-	// connect evict one each — see `setHumansLookup`'s own doc.
-	let humansLookup: (draftId: string) => readonly HumanSeat[] = () => [];
 	let podLookup: (draftId: string) => PodDeal | null = () => null;
 
 	/** Write-through. A no-op while persistence is off or before `open()` has dealt the draft. */
@@ -557,11 +550,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			seatCount: pod?.seats ?? params.seatCount,
 			packCount: params.packCount,
 			packSize: params.packSize,
-			// Wave 72 §P: the pod's SEATED members (`room/lobby.ts`'s `podSeats`,
-			// via `setHumansLookup`), or nobody when the lookup is unwired or
-			// nobody ever sat — the pre-wave behaviour, unchanged: all eight
-			// seats start as bots, and every human who connects evicts one.
-			humans: humansLookup(draftId),
+			humans: pod?.humans ?? [],
 			botNames: pod?.botNames ?? [],
 			reservationTtlMs: params.reservationTtlMs,
 		});
@@ -602,11 +591,8 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// one time something does call it. §4.6: both halves, always together.
 			if (storeDir !== null) rmSnapshotSync(storeDir, draftId);
 		},
-		setHumansLookup(lookup) {
-			humansLookup = lookup;
-		},
 		drafters(draftId) {
-			return humansLookup(draftId);
+			return podLookup(draftId)?.humans ?? [];
 		},
 		setPodLookup(lookup) {
 			podLookup = lookup;
@@ -676,10 +662,8 @@ export function botPoolAcross(room: DraftRoom, participantId: ParticipantId): Dr
 	const state = stateOf(room);
 	const seat = seatOf(room.seats, participantId) ?? finishedSeatOf(state, room.seats, participantId);
 	if (seat === null) return null;
-	const across = (seat + Math.floor(state.seatCount / 2)) % state.seatCount;
-	const bots = state.pools.map((_, i) => i).filter((i) => isBotSeat(state, i));
-	const chosen = bots.includes(across) ? across : bots[0];
-	return chosen === undefined ? null : [...state.pools[chosen]!];
+	const chosen = botSeatAcross(seat, state.seatCount, (s) => isBotSeat(state, s));
+	return chosen === null ? null : [...state.pools[chosen]!];
 }
 
 /**
