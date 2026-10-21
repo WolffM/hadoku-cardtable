@@ -446,6 +446,31 @@ describe('installNumbers: a resolution’s hits', () => {
     handle.dispose();
   });
 
+  /*
+   * lg-gamelog, run 39378286337: Lightning Bolt's hit (22 → 19) was still in flight when the Bears'
+   * combat damage (19 → 17) arrived and was drawn at once; the bolt landed after it and wrote its own 19
+   * over the 17 React had already drawn, and React, rendering 17 again, never wrote it back.
+   */
+  it.each([
+    ['Fast Mode', true],
+    ['at full motion', false],
+  ])('%s: a hit that lands after a newer life change leaves the counter on the newer total', (_, fast) => {
+    vi.useFakeTimers();
+    const { canvas, life } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => fast });
+    const at = (n: number, stack: StackEntry[] = []) => withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, n)]), stack);
+    handle.notify(at(22, [item(40, 8)]));
+    life.textContent = '19'; // React draws each frame's total as it arrives
+    handle.notify(at(19));
+    expect(life.textContent, 'the bolt is in flight: the counter still reads the old total').toBe('22');
+    vi.advanceTimersByTime(HIT_MS / 2);
+    life.textContent = '17';
+    handle.notify(at(17));
+    vi.advanceTimersByTime(HIT_MS + LIFE_COLOUR_MS);
+    expect(life.textContent, 'the newest total, once every hit has landed').toBe('17');
+    handle.dispose();
+  });
+
   it('notes when the life hit lands, and the board is still only once it has, for what must wait for the hit (the result screen, a life total’s sound)', async () => {
     vi.useFakeTimers();
     const { canvas } = sorinBoard();
