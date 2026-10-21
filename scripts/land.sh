@@ -70,13 +70,22 @@ for c in "${PICKS[@]}"; do
       exit 4
     fi
     git checkout -q HEAD -- "$LEDGER"
-    git diff "$c~1" "$c" -- "$LEDGER" | perl -ne 'print "| AF??? |$1\n" if /^\+\| AF[0-9?]+ \|(.*)$/' > "$TMP.rows"
+    # A `-` row paired with a `+` row is the commit editing a row its branch added earlier, which
+    # an earlier pick has already numbered: rewrite that row in place, keeping its number.
+    git diff "$c~1" "$c" -- "$LEDGER" > "$TMP.diff"
     perl -e '
-      my ($rows, $f) = @ARGV; open my $r, "<", $rows or die; my @rows = <$r>;
-      open my $in, "<", $f or die; my @l = <$in>; close $in; my $last;
-      for my $i (0 .. $#l) { $last = $i if $l[$i] =~ /^\| AF\d+ \|/ }
+      my ($diff, $f, $rows) = @ARGV; open my $d, "<", $diff or die; my (@gone, @new);
+      while (<$d>) { push @gone, $1 if /^-\| AF[0-9?]+ \|(.*)$/; push @new, $1 if /^\+\| AF[0-9?]+ \|(.*)$/ }
+      open my $in, "<", $f or die; my @l = <$in>; close $in; my @add;
+      for my $text (@new) {
+        my $old = shift @gone; my $hit;
+        if (defined $old) { for (@l) { if (/^(\| AF\d+ \|)\Q$old\E$/) { $_ = "$1$text\n"; $hit = 1; last } } }
+        push @add, "| AF??? |$text\n" unless $hit;
+      }
+      my $last; for my $i (0 .. $#l) { $last = $i if $l[$i] =~ /^\| AF\d+ \|/ }
       defined $last or die "land: no AF row in the ledger\n";
-      splice @l, $last + 1, 0, @rows; open my $out, ">", $f or die; print $out @l; close $out or die' "$TMP.rows" "$LEDGER"
+      splice @l, $last + 1, 0, @add; open my $out, ">", $f or die; print $out @l; close $out or die;
+      open my $r, ">", $rows or die; print $r @add; close $r or die' "$TMP.diff" "$LEDGER" "$TMP.rows"
     git add "$LEDGER"
     if git diff --cached --quiet; then
       git cherry-pick --skip; echo "land: $(git rev-parse --short "$c") only edited ledger rows main has since changed — skipped"; continue
