@@ -26,6 +26,12 @@ export interface GestureOptions {
    * guessed. Absent: nothing is recorded.
    */
   report?: Report;
+  /**
+   * The attack marks found by walking every card on the board after each
+   * notify and redraw, instead of only the cards that carry one (`./intent.ts`).
+   * Absent: what this browser's `MARK_SCAN_KEY` says, and tracked by default.
+   */
+  markScan?: boolean;
 }
 
 export interface GestureHandle {

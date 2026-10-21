@@ -263,7 +263,7 @@ import {
   releaseLiftedSlot,
   updateHandIndicator,
 } from './hand.ts';
-import { applyIntents, applyPending, clearIntents } from './intent.ts';
+import { installMarks, markScanWanted } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
 import { guardTextSelection } from './text-press.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
@@ -421,6 +421,7 @@ function blockArrows(canvas: ParentNode, match: LiveMatch): AutoTargetArrow[] {
 
 export function installGestures(options: GestureOptions): GestureHandle {
   const { canvas, match } = options;
+  const marks = installMarks(canvas, { scan: options.markScan ?? markScanWanted() });
   let drag: DragState | null = null;
   let marquee: MarqueeState | null = null;
   /**
@@ -769,8 +770,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   /** Forge's attack intents, and the held group's own mark — on every paint, and again whenever React redraws a card. */
   function applyMarks(): void {
-    applyIntents(canvas, match);
-    applyPending(canvas, aim?.ids ?? []);
+    marks.apply(match, aim?.ids ?? []);
   }
 
   /** The centre of the group's own cards, or `fallback` when none of them is drawn. */
@@ -1717,7 +1717,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
    * Forge spoke, or React redrew. Both change what this layer must show — the
    * offered set moved under an open drag, or the `<li>` carrying an intent mark
    * was remounted and lost it — and both are answered by painting again.
-   * `applyIntents` writes only where the value differs, so this is cheap.
+   * `marks.apply` writes only where the value differs, so this is cheap.
    */
   const unsubscribe = subscribe(match, () => {
     if (!live) return;
@@ -1785,7 +1785,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearArrow(overlay);
       clearAutoTargetArrows(overlay);
       clearMarquee(overlay);
-      clearIntents(canvas);
+      marks.clear();
       clearAllCastLifts(canvas);
       releaseLiftedSlot();
       clearDropCues(canvas);

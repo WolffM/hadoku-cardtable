@@ -33,7 +33,7 @@
  * away from it can reach. `e2e/arrow.spec.ts` is where real boxes are measured.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement, useSyncExternalStore } from 'react';
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
@@ -84,6 +84,7 @@ let match: LiveMatch | null = null;
 let gestures: GestureHandle | null = null;
 
 afterEach(async () => {
+  markScan = undefined;
   vi.useRealTimers();
   delete (globalThis as { jest?: unknown }).jest;
   gestures?.dispose();
@@ -137,6 +138,8 @@ function Canvas({ match: m }: { match: LiveMatch }) {
 }
 
 let changes = 0;
+/** Which way `gestureBoard` keeps the attack marks (`./intent.ts`); a block that runs both sets it. */
+let markScan: boolean | undefined;
 
 async function gestureBoard(playerId = 0) {
   changes = 0;
@@ -160,6 +163,7 @@ async function gestureBoard(playerId = 0) {
   gestures = installGestures({
     canvas,
     match: m,
+    markScan,
     onChange: () => {
       changes += 1;
     },
@@ -1005,7 +1009,14 @@ async function declaringAttackersBoard() {
   return ctx;
 }
 
-describe('§B.1 — an attacker is marked at SELECTION, and the mark is not Forge’s tapped state', () => {
+describe.each([
+  ['tracked', false],
+  ['scanned', true],
+])('§B.1 — an attacker is marked at SELECTION, and the mark is not Forge’s tapped state (%s)', (_how, scan) => {
+  beforeEach(() => {
+    markScan = scan;
+  });
+
   it('a click marks the card the moment the frame leaves, and the wire carries exactly one selectCard', async () => {
     const { s, m, canvas } = await declaringAttackersBoard();
     const attacker = mineOf(m).battlefield.find((c) => !c.tapped)!.id;
@@ -1072,6 +1083,35 @@ describe('§B.1 — an attacker is marked at SELECTION, and the mark is not Forg
     await untilMatch(m, () => expect(boardInteraction(m).selectable.has(card)).toBe(true));
     fireEvent.click(cardEl(canvas, card).querySelector('button')!);
     await s.untilClientFrames(1);
+    expect(canvas.querySelector('[data-attack-intent]')).toBeNull();
+  });
+
+  it('a card React draws again as a new element gets its mark back', async () => {
+    const { s, m, canvas } = await declaringAttackersBoard();
+    const attacker = mineOf(m).battlefield.find((c) => !c.tapped)!.id;
+    for (const f of notify([prompt('Declare attackers'), actionable([attacker])])) s.send(f);
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
+    fireEvent.click(cardEl(canvas, attacker).querySelector('button')!);
+    await waitFor(() => expect(cardEl(canvas, attacker).dataset.attackIntent).toBe('sent'));
+
+    // What a remount does to the `<li>`: the same card, a new element, none of this layer's attributes.
+    const old = cardEl(canvas, attacker);
+    const fresh = old.cloneNode(true) as HTMLElement;
+    fresh.removeAttribute('data-attack-intent');
+    old.replaceWith(fresh);
+    await waitFor(() => expect(fresh.dataset.attackIntent).toBe('sent'));
+  });
+
+  it('dispose takes every mark away', async () => {
+    const { s, m, canvas } = await declaringAttackersBoard();
+    const attacker = mineOf(m).battlefield.find((c) => !c.tapped)!.id;
+    for (const f of notify([prompt('Declare attackers'), actionable([attacker])])) s.send(f);
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(attacker)).toBe(true));
+    fireEvent.click(cardEl(canvas, attacker).querySelector('button')!);
+    await waitFor(() => expect(cardEl(canvas, attacker).dataset.attackIntent).toBe('sent'));
+
+    gestures!.dispose();
+    gestures = null;
     expect(canvas.querySelector('[data-attack-intent]')).toBeNull();
   });
 });
@@ -2749,6 +2789,9 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     fireEvent.pointerDown(myHand, { button: 0, clientX: 20, clientY: 20 });
     vi.advanceTimersByTime(GLIDE_MS);
     expect(await s.framesFrom(m), 'nothing reached Forge').toHaveLength(0);
+    // The reorder lets the card go in the next animation frame (`commitHandReorder`): wait for that
+    // frame, not for the round trip above to happen to outlast it.
+    await frame();
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'settled, not mid-cast').toBeNull();
     expect(myHand.hasAttribute('data-cancel-hint'), 'the cue clears with the release').toBe(false);
   });
