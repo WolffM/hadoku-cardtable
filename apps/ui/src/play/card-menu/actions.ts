@@ -14,7 +14,7 @@
  * mirrors to the other screen) and sends nothing to Forge.
  */
 
-import { group, withMove, type Arrangement, type BoardLayout, type BoardRow, type Grouped } from '../Board.tsx';
+import { group, sameCard, withMove, type Arrangement, type BoardLayout, type BoardRow, type Grouped } from '../Board.tsx';
 import type { BoardCard } from '../adapter.ts';
 
 /** Cards to gather into the pile `onto` is in. */
@@ -64,9 +64,8 @@ export function sameToken(a: BoardCard, b: BoardCard): boolean {
 
 /** The same token but for whether it is tapped. */
 function kin(a: BoardCard, b: BoardCard): boolean {
-  if (!a.token || !b.token || a.hidden === true || b.hidden === true || attached(a) || attached(b)) return false;
+  if (!a.token || !sameCard(a, b) || attached(a) || attached(b)) return false;
   return (
-    a.card.name === b.card.name &&
     a.card.power === b.card.power &&
     a.card.toughness === b.card.toughness &&
     a.summoningSick === b.summoningSick &&

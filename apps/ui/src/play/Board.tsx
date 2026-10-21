@@ -712,20 +712,23 @@ function visualRow(card: BoardCard, layout: BoardLayout): BoardRow {
 type Pile = readonly BoardCard[];
 
 /**
+ * The same card, as a player names one: the same name, and both tokens or both cards (a Goblin token
+ * is not a Goblin card). A card this seat cannot see is never the same as anything — its name says
+ * nothing about which card it is. Whether two are also INTERCHANGEABLE (counters, tapped, text) is
+ * the card menu's stricter question (`card-menu/actions.ts`'s `sameToken`), built on this one.
+ */
+export function sameCard(a: BoardCard, b: BoardCard): boolean {
+  return a.hidden !== true && b.hidden !== true && a.card.name === b.card.name && a.token === b.token;
+}
+
+/**
  * How many copies of one card a pile is, for its `×N` badge — the operator, 2026-10-12: *"when
  * multiple copies of the same creature or token are stacked let's show an xN on top so it's clear
- * how many there are."* `null` unless the pile holds two or more cards that are all the same card:
- * the same name, and all tokens or all cards (a Goblin token is not a Goblin card). A pile that mixes
- * cards — gear on a creature, a land under a creature — is not copies, so it has no count; nor does
- * one holding a card this seat cannot see, whose name says nothing about which card it is.
+ * how many there are."* `null` unless the pile holds two or more cards that are all the same card
+ * (`sameCard`): a pile that mixes cards — gear on a creature, a land under a creature — is not copies.
  */
 export function copiesIn(pile: Pile): number | null {
-  if (pile.length < 2) return null;
-  const [first] = pile;
-  for (const card of pile) {
-    if (card.hidden === true || card.card.name !== first!.card.name || card.token !== first!.token) return null;
-  }
-  return pile.length;
+  return pile.length >= 2 && pile.every((card) => sameCard(card, pile[0]!)) ? pile.length : null;
 }
 
 /**
