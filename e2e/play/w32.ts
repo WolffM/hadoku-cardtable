@@ -243,7 +243,7 @@ export async function pointerDrag(
  * card of the same id); this half makes a drag press the card it names, or fail saying
  * what covers it, instead of pressing whatever is on top and timing out on the arm.
  */
-async function pressPoint(card: Locator): Promise<{ x: number; y: number }> {
+export async function pressPoint(card: Locator): Promise<{ x: number; y: number }> {
   const last: { at: { x: number; y: number } | null } = { at: null };
   await expect
     .poll(
