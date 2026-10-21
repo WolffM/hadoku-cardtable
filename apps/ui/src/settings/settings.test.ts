@@ -73,7 +73,8 @@ describe('the gear outside a match', () => {
     // Nor on `pointerup`, which comes before the browser has finished the press.
     fireEvent.pointerUp(slider);
     expect(store.saved).toEqual([]);
-    expect(screen.getByTestId('settings-ui-scale-value').textContent).toBe('120%');
+    expect(slider.value, 'the thumb stays where it was dragged').toBe('120');
+    expect(slider.closest('label')!.querySelector('output'), 'no number beside it, as the sound levels have none').toBeNull();
     // Let go is the input's own `change`.
     fireEvent(slider, new Event('change', { bubbles: true }));
     expect(store.saved).toEqual([{ uiScale: 1.2 }]);

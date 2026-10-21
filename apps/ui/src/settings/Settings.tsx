@@ -97,7 +97,8 @@ export function SettingsPopover({ trigger, onClose, children }: SettingsPopoverP
 }
 
 /**
- * The UI scale, the slider the sound levels' own design is (`ct-settings__level`). Saved once the
+ * The UI scale, the slider the sound levels' own design is (`ct-settings__level`), with no number
+ * beside it as they have none (the operator, 2026-10-21). Saved once the
  * thumb is let go, not on every step of a drag: the whole page re-scales on a save, and a slider
  * that moves under the pointer while it is held is a slider that cannot be aimed.
  *
@@ -141,7 +142,6 @@ function DisplaySettings() {
             if (event.nativeEvent.type === 'input') setHeld(clampUiScale(Number(event.currentTarget.value) / 100));
           }}
         />
-        <output data-testid="settings-ui-scale-value">{Math.round(shown * 100)}%</output>
       </label>
     </fieldset>
   );
