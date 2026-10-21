@@ -170,7 +170,7 @@ import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
-import { SpectatorRows } from './SpectatorRows.tsx';
+import { SpectatorRows, spectatorsOf } from './SpectatorRows.tsx';
 import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
@@ -1380,9 +1380,6 @@ function RoomTableScreen({
    * room is the one-table case, so this is always `tables[0]`.
    */
   const myTable: SharedRoomTable | null = view?.tables[0] ?? null;
-  /** The room's members seated at none of its tables: its spectators. */
-  const seatedIds = new Set(view?.tables.flatMap((t) => t.players.map((p) => p.memberId)) ?? []);
-  const spectators = members.filter((m) => !seatedIds.has(m.id));
   /** Between games of my series: the room is where the sideboard step is, whichever page I came back by (`TableSideboard`). */
   const mySideboarding = myTable !== null && myTable.matchId === null && myTable.series.phase === 'sideboarding';
   const seriesScore = seriesScoreText(players, myTable);
@@ -2186,7 +2183,7 @@ function RoomTableScreen({
               </ul>
               {/* Whoever holds no seat at any of the room's tables, and one open row to take by standing up. */}
               <SpectatorRows
-                spectators={spectators}
+                spectators={spectatorsOf(members, new Set(view?.tables.flatMap((t) => t.players.map((p) => p.memberId))))}
                 myId={view?.you.id ?? null}
                 leaderId={view?.leader ?? ''}
                 onWatch={standUp}

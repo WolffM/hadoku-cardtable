@@ -68,6 +68,10 @@ export interface PodContext {
   tables: RoomTable[];
   /** Every member's display name, by id — for resolving `pod.built`/`pod.bye`/`pod.standings[].id`. */
   names: Record<string, string>;
+  /** The room's members, in the room's order. */
+  members: { id: string; name: string }[];
+  /** The room owner's member id (`RoomView.leader`); `''` while unknown. */
+  leaderId: string;
   /** Every member's watchparty character, by id, the room's AI's under `POD_AI`. Absent for one without. */
   avatars: Record<string, string>;
   /**
@@ -93,7 +97,7 @@ export interface PodContext {
  */
 export async function fetchPodContext(roomId: string): Promise<PodContext> {
   const body = await fetchRoomRaw(roomId);
-  if (body === null || body === 'gone') return { pod: null, tables: [], names: {}, avatars: {}, me: null, name: '', leader: false, gone: body === 'gone' };
+  if (body === null || body === 'gone') return { pod: null, tables: [], names: {}, members: [], leaderId: '', avatars: {}, me: null, name: '', leader: false, gone: body === 'gone' };
   const tables = RoomTablesSchema.safeParse(body.tables);
   const members = Array.isArray(body.members) ? body.members.filter(isNamed) : [];
   const ai = aiAvatarOf(body.ai);
@@ -101,6 +105,8 @@ export async function fetchPodContext(roomId: string): Promise<PodContext> {
     pod: parsePodView(body.pod),
     tables: tables.success ? tables.data : [],
     names: { ...Object.fromEntries(members.map((m) => [m.id, m.name])), [POD_AI]: aiNameOf(body.ai) },
+    members: members.map((m) => ({ id: m.id, name: m.name })),
+    leaderId: typeof body.leader === 'string' ? body.leader : '',
     avatars: { ...Object.fromEntries(members.flatMap((m) => (typeof m.avatarId === 'string' ? [[m.id, m.avatarId]] : []))), ...(ai === null ? {} : { [POD_AI]: ai }) },
     name: typeof body.name === 'string' ? body.name : '',
     me: typeof body.you === 'object' && body.you !== null && typeof (body.you as { id?: unknown }).id === 'string' ? (body.you as { id: string }).id : null,

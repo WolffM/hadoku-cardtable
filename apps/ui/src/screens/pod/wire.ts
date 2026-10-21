@@ -35,6 +35,10 @@ export function podDealable(seats: PodSeats | undefined, members: readonly { id:
   return humans.length > 0 && humans.every((id) => members.find((m) => m.id === id)?.ready === true);
 }
 
+/** Who holds a pod seat, by member id. */
+export function podSeatHolders(seats: PodSeats | undefined): Set<string> {
+  return new Set((seats ?? []).flatMap((s) => (s === null ? [] : [s.memberId])));
+}
 
 /**
  * `RoomView.pod`, narrowed. `null` for a constructed room, for a body this

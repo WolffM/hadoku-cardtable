@@ -4,8 +4,9 @@
  * *"spectator seats should be takable in any room. whenever one spectator seat
  * is taken, just add another row so theres always one to click on."*).
  *
- * One rule for every room kind — a 1v1 table (`ConstructedScreen`) and a draft
- * pod (`DraftLobby`) draw this same list. A spectator holds no seat (the
+ * One rule for every room kind — a 1v1 table (`ConstructedScreen`), a draft
+ * pod's lobby (`DraftLobby`) and the pod after its draft (`PodScreen`) draw
+ * this same list. A spectator holds no seat (the
  * 2026-10-12 contract; `docs/planning/draft-pods-plan.md` ruling 4), so there
  * is nothing for the server to count: every member of a room who is not seated
  * IS a spectator, and the room's member list has no cap. Taking the open row is
@@ -26,10 +27,15 @@ export interface SpectatorRowsProps {
   leaderId: string;
   /** A room whose deal waits on every member (a draft room read with no pod) shows their readiness. */
   readyOf?: (memberId: string) => boolean;
-  /** Take the open row: give my seat back. */
-  onWatch: () => void;
+  /** Take the open row: give my seat back. Absent where no seat is ever given back (a pod past its draft). */
+  onWatch?: () => void;
   /** No seat of mine to give back, or the table will not let me stand. */
   watchDisabled: boolean;
+}
+
+/** The room's members who hold none of these seats, in the room's order. */
+export function spectatorsOf<M extends { id: string }>(members: readonly M[], seated: ReadonlySet<string>): M[] {
+  return members.filter((m) => !seated.has(m.id));
 }
 
 export function SpectatorRows({ spectators, myId, leaderId, readyOf, onWatch, watchDisabled }: SpectatorRowsProps) {
