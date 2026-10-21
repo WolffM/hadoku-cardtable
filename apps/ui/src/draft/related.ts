@@ -27,8 +27,9 @@ export function relatedCards(scryfallId: string | undefined): readonly RelatedCa
  */
 export function withRelatedFaces(card: DraftCard): DraftCard {
   const faces = card.faces ?? [];
-  const known = new Set(faces.map((f) => f.scryfallId));
-  const extra = relatedCards(card.scryfallId).filter((r) => !known.has(r.id));
+  // By id and by name: a board card's back face is Forge's, under its own id.
+  const known = new Set([card.name, ...faces.flatMap((f) => [f.scryfallId, f.name])]);
+  const extra = relatedCards(card.scryfallId).filter((r) => !known.has(r.id) && !known.has(r.name));
   if (extra.length === 0) return card;
   const added = extra.map(
     (r): CardFace => ({

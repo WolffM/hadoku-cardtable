@@ -59,6 +59,7 @@ import { DOOR_TIP, faceCropStyle, type DoorState, type TileCard, type TileFace }
 import { ManaCost, ManaPip, SetSymbol } from './ManaPip.tsx';
 import { stripeOf, wubrgKey } from './ColorSymbol.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
+import { withRelatedFaces } from '../draft/related.ts';
 import { playRole, roleHandler } from '../sound/index.ts';
 import { documentScope } from '../dom.ts';
 
@@ -158,7 +159,8 @@ let facesSeq = 0;
 
 /** A card's other faces, drawn into {@link facesHost} under the name its tile carries. */
 function useFaces(card: TileCard): { key: string | undefined; drawn: ReactNode } {
-  const faces = card.faces ?? [];
+  // Its related cards (tokens, a meld's partner) ride after its own faces, wherever the tile is drawn.
+  const faces: readonly TileFace[] = useMemo(() => withRelatedFaces(card).faces ?? [], [card]);
   const [key] = useState(() => `cf${++facesSeq}`);
   const [host, setHost] = useState<HTMLElement | null>(null);
   const has = faces.length > 0;
