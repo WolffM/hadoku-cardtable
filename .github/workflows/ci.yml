@@ -163,13 +163,13 @@ jobs:
         run: pnpm --filter @hadoku/ui build
 
       # Two browser contexts draft one pod against the built server (e2e/).
-      # Idempotent browser install: on the self-hosted runner Chromium is cached
-      # in ~/.cache/ms-playwright and this is a no-op. No --with-deps (D14).
+      # Idempotent browser install of exactly the browsers `e2e/playwright.config.ts`'s
+      # projects name: a warm ~/.cache/ms-playwright makes it a no-op. No --with-deps (D14).
       - name: Build the server
         run: pnpm --filter @hadoku/server build
 
       - name: E2E — browser
-        run: pnpm --filter @hadoku/e2e exec playwright install chromium
+        run: pnpm --filter @hadoku/e2e run install-browsers
 
       # Every spec runs here, and the two that need Forge — `play.spec.ts`'s
       # match and `table-fit.spec.ts` — SELF-SKIP, on purpose: this job runs on

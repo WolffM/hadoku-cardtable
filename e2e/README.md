@@ -27,9 +27,11 @@ That builds `@hadoku/ui` and `@hadoku/server`, then runs `@hadoku/e2e`'s
 | `node --test isolation.test.ts` | the checker against committed fixtures, including the mutations that must fail | Node 24 only |
 | `playwright test -c playwright.config.ts` | the browser run | built `apps/*/dist`, Chromium |
 
-The browser is Playwright 1.62.1's Chromium (revision 1234, headless shell).
-If it is not in `~/.cache/ms-playwright`, install it once:
-`pnpm --filter @hadoku/e2e exec playwright install chromium`. Don't use
+The browser is Playwright 1.62.1's Chromium (revision 1234, headless shell), or
+another browser where `playwright.config.ts` lists a spec under that browser's
+project. If they are not in `~/.cache/ms-playwright`, install them once:
+`pnpm --filter @hadoku/e2e run install-browsers` (it installs what the config's
+projects name). Don't use
 `--with-deps`: it calls `apt` through sudo, and D14 rules out host mutation.
 
 The driver picks every 400 ms. The server allows a burst of 15 picks, then one
@@ -258,8 +260,8 @@ and keeping them would have read as pending work that is in fact done.
 Three consequences of that wiring are still worth knowing, because nothing else
 states them:
 
-- **CI does need a browser-install step** (`playwright install chromium`, no
-  `--with-deps`, per D14). It is idempotent and a no-op once
+- **CI does need a browser-install step** (`install-browsers`, the config's
+  projects' browsers, no `--with-deps`, per D14). It is idempotent and a no-op once
   `~/.cache/ms-playwright` is warm.
 - **The ports are fixed by default** (19108 edge, 19008 server). Two runs
   sharing a host must be given distinct `CARDTABLE_E2E_EDGE_PORT` /

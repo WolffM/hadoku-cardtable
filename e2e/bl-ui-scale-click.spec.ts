@@ -3,7 +3,7 @@
  * it to 90?"). Firefox, because it is the browser that showed it: a save on `pointerup` re-scaled
  * the page, and Firefox then sent one more `input`, read off the pointer against the re-scaled
  * slider (110% → 115%, 90% → 80%). Chromium sends none, and kept the click either way. A file of
- * its own because the browser is chosen per file.
+ * its own because the browser is chosen per file, in `playwright.config.ts`.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -12,8 +12,6 @@ import { makeTitled, offeredNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 import { closeSettings, openSettings } from './play/w32.ts';
-
-test.use({ browserName: 'firefox' });
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);

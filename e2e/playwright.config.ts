@@ -1,14 +1,22 @@
 /**
  * Two browser contexts, one pod, the real built server. See `README.md`.
  *
- * Headless Chromium, one worker, no retries: a retry would turn a flaky
- * isolation failure into a green run, and this test exists to report exactly
- * that kind of failure rather than to absorb it.
+ * Headless, one worker, no retries: a retry would turn a flaky isolation
+ * failure into a green run, and this test exists to report exactly that kind of
+ * failure rather than to absorb it.
+ *
+ * The browser is chosen per spec file, here and only here: a spec runs in
+ * Chromium unless it is listed under a project of another browser. CI installs
+ * exactly the browsers these projects name (`install-browsers.ts` reads them
+ * from this config), so a spec cannot need a browser the runner lacks.
  */
 
 import { defineConfig } from '@playwright/test';
 
 import { EDGE_ORIGIN, PREFIX } from './identities.ts';
+
+/** Firefox, because it is the browser a report came from: it sends pointer events Chromium does not. */
+const FIREFOX_SPECS = ['bl-ui-scale-click.spec.ts'];
 
 export default defineConfig({
   testDir: '.',
@@ -23,13 +31,22 @@ export default defineConfig({
   timeout: 6 * 60_000,
   expect: { timeout: 15_000 },
   reporter: [['list']],
+  projects: [
+    {
+      name: 'chromium',
+      testIgnore: FIREFOX_SPECS,
+      use: {
+        browserName: 'chromium',
+        // One renderer for the room edge and the play edge: Chromium's site isolation moves a
+        // cross-origin navigation to a new process and Playwright's screencast stops at the hop,
+        // so every recording ended at the moment the match began (the operator's review page,
+        // 2026-10-09: "there's still a ton of just white screen" — the room, then nothing).
+        launchOptions: { args: ['--disable-site-isolation-trials', '--disable-features=IsolateOrigins,site-per-process'] },
+      },
+    },
+    { name: 'firefox', testMatch: FIREFOX_SPECS, use: { browserName: 'firefox' } },
+  ],
   use: {
-    // One renderer for the room edge and the play edge: Chromium's site isolation moves a
-    // cross-origin navigation to a new process and Playwright's screencast stops at the hop,
-    // so every recording ended at the moment the match began (the operator's review page,
-    // 2026-10-09: "there's still a ton of just white screen" — the room, then nothing).
-    launchOptions: { args: ['--disable-site-isolation-trials', '--disable-features=IsolateOrigins,site-per-process'] },
-    browserName: 'chromium',
     headless: true,
     baseURL: EDGE_ORIGIN,
     actionTimeout: 20_000,

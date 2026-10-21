@@ -9,7 +9,8 @@
     "test": "node --test isolation.test.ts && playwright test -c playwright.config.ts",
     "test:checker": "node --test isolation.test.ts",
     "test:browser": "playwright test -c playwright.config.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "install-browsers": "node install-browsers.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

@@ -331,7 +331,7 @@ jobs:
         run: pnpm --filter @hadoku/server build
 
       - name: E2E — browser
-        run: pnpm --filter @hadoku/e2e exec playwright install chromium firefox
+        run: pnpm --filter @hadoku/e2e run install-browsers
 
       # Per-pin bundle (ledger Y26, carried forward by wave forge-claws): the
       # jar and res/ are shared across every claw that has built this pin, so
