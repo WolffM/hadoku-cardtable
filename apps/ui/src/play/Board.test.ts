@@ -3191,7 +3191,7 @@ describe('the inspector', () => {
     // root — and nowhere else on the board.
     const zoom = board.querySelector<HTMLElement>('[data-board-zoom]')!;
     expect(zoom.parentElement, 'at the board’s top level').toBe(board);
-    expect(zoom.className).toBe('board__zoom');
+    expect(zoom.className).toBe('top-layer');
     expect(zoom.querySelectorAll('[data-inspect]')).toHaveLength(0);
     fireEvent.pointerOver(board.querySelector<HTMLElement>('[data-card-id="8"]')!, { pointerType: 'mouse' });
     expect(zoom.querySelectorAll('[data-inspect]'), 'the enlargement is in the zoom layer').toHaveLength(1);

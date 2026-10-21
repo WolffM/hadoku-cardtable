@@ -75,6 +75,7 @@ import { useFitScale } from '../components/cardFit.ts';
 import type { PackLayout } from '../components/PackView.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { navigate, routeHash } from './route.ts';
+import { TopLayer } from '../topLayer.tsx';
 import { SettingsGear } from '../settings/Settings.tsx';
 import type { RoomTable } from '@hadoku/shared';
 import { livePodSource, startMyTable, usePodContext, type PodContext, type PodSource } from './pod/client.ts';
@@ -294,7 +295,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           }}
         />
       )}
-      <div className="pod__zoom" data-board-zoom="" />
+      <TopLayer fixed />
     </div>
   );
 }

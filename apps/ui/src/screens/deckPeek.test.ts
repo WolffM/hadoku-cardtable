@@ -54,7 +54,7 @@ describe('hovering a line of a peeked list', () => {
     );
     const lineOf = (name: string) =>
       [...screen.getByTestId('deck-peek').querySelectorAll('.peek__line')].find((li) => li.textContent?.includes(name))!;
-    const panel = () => document.querySelector('.peek__zoom [data-inspect]');
+    const panel = () => document.querySelector('[data-board-zoom] [data-inspect]');
     return { lineOf, panel };
   }
 
@@ -87,7 +87,7 @@ describe('hovering a line of a peeked list', () => {
     render(createElement(DeckPeek, { id: 'deck-peek', label: 'Red', colors: ['R'], list: { main: [etali], sideboard: [] }, anchor: box, bounds: new DOMRect(0, 0, 1280, 800) }));
     const li = screen.getByTestId('deck-peek').querySelector('.peek__line')!;
     fireEvent.pointerOver(li, { pointerType: 'mouse' });
-    const panel = () => document.querySelector('.peek__zoom [data-inspect]');
+    const panel = () => document.querySelector('[data-board-zoom] [data-inspect]');
     expect(panel()?.querySelector('.card__name')?.textContent).toBe('Etali, Primal Conqueror');
     fireEvent.wheel(li, { deltaY: 100 });
     expect(panel()?.querySelector('.card__name')?.textContent).toBe('Etali, Primal Sickness');

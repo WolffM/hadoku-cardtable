@@ -270,22 +270,6 @@ button {
   margin: 0;
 }
 
-/*
- * ── pod ───────────────────────────────────────────────────────────────
- * Most of `.pod__*` is `screens/screens.css`'s (the bar, the invite, the
- * waiting frame). This one is specific to the inspector, so it lives beside
- * `.pack`/`.pool`/`.draft` instead.
- */
-
-/* Fixed, the same as `screens.css`'s `.peek__zoom`: no live board canvas here
-   to be `position: absolute` inside. */
-.pod__zoom {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-zoom, 60);
-  pointer-events: none;
-}
-
 /* ── draft header ──────────────────────────────────────────────────── */
 
 .draft__bar {

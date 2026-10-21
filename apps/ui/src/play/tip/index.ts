@@ -27,7 +27,7 @@
  * with `data-tip` shows it the same way.
  */
 import { scopeOf } from '../../dom.ts';
-import { topLayerIn } from '../../topLayer.ts';
+import { topLayerIn } from '../../topLayer.tsx';
 
 import './tip.css';
 

@@ -361,23 +361,6 @@
   overflow: clip;
 }
 
-/*
- * The top layer: the overlay's box, at `--z-zoom`. The inspector's enlarged card
- * and the board's tooltip draw here and nowhere else, so they are above every
- * other layer on the table — the phase rail and the controls (`--z-overlay`,
- * which the overlay above shares and, drawn after it, the rail won), a decision
- * window (`--z-popover`) — by this one declaration, not by a number each of
- * them carries. It is a sibling of the overlay, not inside it: inside, any
- * z-index only ranks within the overlay's own layer.
- */
-.board__zoom {
-  position: absolute;
-  inset: 0;
-  z-index: var(--z-zoom, 60);
-  pointer-events: none;
-  overflow: clip;
-}
-
 .board__opponents {
   grid-area: them;
   display: grid;

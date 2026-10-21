@@ -72,7 +72,7 @@
  *
  * Only into the screen's top layer (`../../topLayer.ts`) — looked up, never moved —
  * which is `position: absolute; inset: 0; pointer-events: none` over the whole
- * canvas at `--z-zoom` (`../board.css`, `.board__zoom`): the one layer above
+ * canvas at `--z-zoom` (`../../top-layer.css`): the one layer above
  * everything on the table, the phase rail, the controls and a decision window
  * included (the operator, 2026-10-13: *"the hovering a card expand should render
  * on top of everything else. currently it renders below the phase tracker"*).
@@ -129,7 +129,7 @@
 import { pastSlop } from '../live/gestures/types.ts';
 import { scopeOf } from '../../dom.ts';
 import { clampSpan } from '../../popover.ts';
-import { topLayerIn } from '../../topLayer.ts';
+import { topLayerIn } from '../../topLayer.tsx';
 import { playRole } from '../../sound/index.ts';
 import './inspect.css';
 

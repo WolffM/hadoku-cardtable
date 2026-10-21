@@ -1,0 +1,22 @@
+/*
+ * The screen's top layer (`./topLayer.tsx`). The inspector's enlarged card and
+ * the board's tooltip draw here and nowhere else, so they are above every other
+ * layer — on the table the phase rail and the controls (`--z-overlay`) and a
+ * decision window (`--z-popover`) — by this one declaration, not by a number
+ * each of them carries. On the board it is a sibling of the overlay, not inside
+ * it: inside, any z-index only ranks within the overlay's own layer.
+ */
+.top-layer {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-zoom, 60);
+  pointer-events: none;
+}
+
+.top-layer[data-fixed] {
+  position: fixed;
+}
+
+.top-layer[data-clip] {
+  overflow: clip;
+}

@@ -21,7 +21,7 @@ import { createPortal } from 'react-dom';
 
 import { cardImageUrl } from '../draft/cardImage.ts';
 import type { RelatedCard } from '../draft/related.ts';
-import { originIn, topLayerOf } from '../topLayer.ts';
+import { originIn, topLayerOf } from '../topLayer.tsx';
 
 /** The row's place in the pack's own coordinates, and each related card's width. */
 export interface RelatedPlace {

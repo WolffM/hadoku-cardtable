@@ -1338,13 +1338,6 @@
   display: contents;
 }
 
-.peek__zoom {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-zoom, 60);
-  pointer-events: none;
-}
-
 .peek {
   position: fixed;
   z-index: 40;

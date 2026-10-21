@@ -412,6 +412,7 @@ import { LONG_PRESS_MS, mountInspector } from './inspect/index.ts';
 import { mountTips } from './tip/index.ts';
 import { choiceTip, emblemsTip, keywordTip, MARK_TIP, SEEN_TIP, stateTip, waitingTip } from './tip/words.ts';
 import { documentScope, eventTarget } from '../dom.ts';
+import { TopLayer } from '../topLayer.tsx';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers, type Revealed } from './live/numbers.ts';
 import { installPlaced } from './live/placed.ts';
@@ -4391,7 +4392,7 @@ export function Board({
           </PileView>
         )}
       </div>
-      <div className="board__zoom" data-board-zoom="" />
+      <TopLayer clip />
     </section>
   );
 }

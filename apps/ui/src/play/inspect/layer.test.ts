@@ -9,7 +9,7 @@ const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), 'utf8'
 // carried `--z-zoom` inside the board overlay, whose own layer the rail won.
 describe('the hover zoom is the top layer', () => {
   it('the zoom layer is --z-zoom, and --z-zoom is above every other --z-* layer', () => {
-    expect(read('../board.css')).toMatch(/\.board__zoom\s*\{[^}]*z-index:\s*var\(--z-zoom/);
+    expect(read('../../top-layer.css')).toMatch(/\.top-layer\s*\{[^}]*z-index:\s*var\(--z-zoom/);
     const scale = [...read('../../styles.css').matchAll(/--z-([a-z-]+):\s*(\d+)/g)].map(([, name, v]) => [name, Number(v)] as const);
     const zoom = scale.find(([name]) => name === 'zoom');
     expect(zoom, '--z-zoom is defined').toBeDefined();

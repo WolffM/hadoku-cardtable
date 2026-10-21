@@ -4,7 +4,7 @@
  * file is the look, plus the two guarantees the look must keep:
  *
  *   - **the subtree enables no pointer-events.** The zoom layer is already
- *     `pointer-events: none` (`../board.css`, `.board__zoom`), so having
+ *     `pointer-events: none` (`../../top-layer.css`), so having
  *     nothing to re-enable is the whole trick: the panel can never become the
  *     element under the pointer, dismiss-on-leave simply works, and no click
  *     the game needs is ever blocked. The declaration below is belt and
@@ -27,7 +27,7 @@
  */
 
 .inspect {
-  /* Above every other layer because the zoom layer it is drawn in is (`.board__zoom`). */
+  /* Above every other layer because the zoom layer it is drawn in is (`top-layer.css`). */
   position: absolute;
   /* The floor; `index.ts` sets the real width inline from the placement math. */
   width: 20.625rem;

@@ -1301,7 +1301,7 @@
  *
  * `--z-overlay` puts it over the table's own cards (they are positioned with
  * `z-index: auto`, which paints below any positive layer) and under the
- * board's zoom layer (`--z-zoom`, `board.css` `.board__zoom`) — so the
+ * board's zoom layer (`--z-zoom`, `top-layer.css`) — so the
  * inspector's enlarged card comes out on top of the rail.
  */
 .live__phases {

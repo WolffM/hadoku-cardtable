@@ -77,6 +77,7 @@ import {
 } from '../draft/socket.ts';
 import { DraftScreen } from '../components/DraftScreen.tsx';
 import { navigate } from './route.ts';
+import { TopLayer } from '../topLayer.tsx';
 import type { PackLayout } from '../components/PackView.tsx';
 
 type Source = 'live' | 'fixtures' | 'socket';
@@ -398,7 +399,7 @@ export function DebugHarness() {
         </p>
       </footer>
       {/* The top layer the draft screen's related row draws into, as `PodScreen`'s. */}
-      <div className="pod__zoom" data-board-zoom="" />
+      <TopLayer fixed />
     </div>
   );
 }

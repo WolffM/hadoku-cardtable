@@ -1,7 +1,7 @@
 /*
  * The board's tooltip (`index.ts`): a small capsule in the theme's raised
  * surface, at the pointer, over everything on the board — the inspector's layer
- * (`.board__zoom`), and over the inspector within it — and never the element
+ * (`top-layer.css`), and over the inspector within it — and never the element
  * under the pointer.
  */
 .board-tip {

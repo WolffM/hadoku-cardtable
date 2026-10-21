@@ -557,13 +557,6 @@
   }
 }
 
-.deck-editor__zoom {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: var(--z-zoom, 60);
-}
-
 /* ── `#/deck/<podId>`: the editor takes the whole fitted screen ── */
 
 .shell.deck-screen {
