@@ -17,7 +17,8 @@
  */
 
 import { FileRoomStore, STORE_VERSION, type RoomSnapshot } from '@hadoku/room-store';
-import { createSeatTable, humanSeats } from '@wolffm/rooms-protocol';
+import { createSeatTable, humanSeats, seatOf } from '@wolffm/rooms-protocol';
+import { pick, type DraftState } from '@hadoku/draft';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -26,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from '../http/library.ts';
-import { createDraftRooms } from './draftRooms.ts';
+import { createDraftRooms, stateOf } from './draftRooms.ts';
 import type { Tournament } from './tournaments.ts';
 import { loadPool } from './pool.ts';
 import { POD_SEATS } from '@hadoku/shared';
@@ -2321,5 +2322,50 @@ describe('closed pod seats', () => {
 		const room = draftRooms.open(id);
 		expect(room.seats.capacity ?? room.seats.seats.length).toBe(4);
 		expect(humanSeats(room.seats).map((s) => s.participantId).sort()).toEqual([ALICE.id, BOB.id].sort());
+	});
+});
+
+describe('the pod seat is the draft table', () => {
+	/** Every seat takes the first card of the pack in front of it. */
+	function everyonePicks(state: DraftState): DraftState {
+		let next = state;
+		for (let seat = 0; seat < next.seatCount; seat++) {
+			const result = pick(next, seat, next.packs[seat]![0]!.cardId);
+			if (!result.ok) throw new Error(`seat ${seat} could not pick: ${result.reason}`);
+			next = result.state;
+		}
+		return next;
+	}
+
+	it('players in seats 1, 4 and 6 draft from those seats: pack 1 passes from seat 1 to seat 2, and seat 4 receives from seat 3', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		for (const m of [BOB, CAROL]) expect(lobby.join(id, m).ok).toBe(true);
+		// Seats 1, 4 and 6 of the table, 0-based.
+		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		expect(lobby.sitPod(id, BOB.id, 3).ok).toBe(true);
+		expect(lobby.sitPod(id, CAROL.id, 5).ok).toBe(true);
+		for (const seat of [1, 2, 4, 6, 7]) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
+		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
+
+		const load = loadPool(CUBE_FILE);
+		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
+		const draftRooms = createDraftRooms({ pool: load.pool.cards, cube: load.pool.meta, now: () => 1_700_000_000_000 });
+		draftRooms.setHumansLookup((podId) => lobby.podHumans(podId).map((h) => ({ participantId: h.id, displayName: h.name })));
+		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
+		const room = draftRooms.open(id);
+		const dealt = stateOf(room);
+		expect([ALICE, BOB, CAROL].map((m) => seatOf(dealt.table, m.id)), 'each player drafts from the seat they sat in').toEqual([0, 3, 5]);
+
+		const opened = dealt.packs.map((p) => p.map((c) => c.cardId));
+		const passed = everyonePicks(dealt);
+		expect(passed.pickNumber).toBe(2);
+		// Pack 1 passes left: seat 1's pack, less its first pick, is now in front of seat 2 ...
+		expect(passed.packs[1]!.map((c) => c.cardId)).toEqual(opened[0]!.slice(1));
+		// ... and the player in seat 4 holds what seat 3 opened.
+		expect(passed.packs[seatOf(passed.table, BOB.id)!]!.map((c) => c.cardId)).toEqual(opened[2]!.slice(1));
 	});
 });
