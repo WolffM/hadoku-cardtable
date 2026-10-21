@@ -61,4 +61,20 @@ describe("a card's colour stripe reads the colours in WUBRG order", () => {
     render(createElement(PoolView, { cards: [FLAME], recentlyAdded: null, groupBy: 'color' }));
     expect(screen.getByTestId('pool-bucket-M').querySelector('.card__stripe')!.getAttribute('data-identity')).toBe('ur');
   });
+
+  // Every colour a card has gets its band: a stripe of three, four or five colours is not colourless.
+  it('a card of three or more colours draws a band of each, in WUBRG order', () => {
+    const base = POOL.find((c) => !/\bLand\b/.test(c.typeLine))!;
+    const cards: DraftCard[] = [
+      { ...base, cardId: 'c3', name: 'Three', colors: ['G', 'W', 'U'] },
+      { ...base, cardId: 'c5', name: 'Five', colors: ['W', 'U', 'B', 'R', 'G'] },
+    ];
+    render(createElement(PoolView, { cards, recentlyAdded: null, groupBy: 'color' }));
+    const stripes = [...screen.getByTestId('pool-bucket-M').querySelectorAll<HTMLElement>('.card__stripe')];
+    const bands = (el: HTMLElement) => [...el.style.getPropertyValue('--stripe').matchAll(/--c-(\w+)/g)].map((m) => m[1]);
+    expect(stripes.map(bands)).toEqual([
+      ['white', 'blue', 'black', 'red', 'green'],
+      ['white', 'blue', 'green'],
+    ]);
+  });
 });
