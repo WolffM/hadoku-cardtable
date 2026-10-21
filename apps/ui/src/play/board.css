@@ -440,10 +440,12 @@
   --who-w: 4.5rem;
   /*
    * The mana pool's track: two rows of up to three pips at 10px, which is every
-   * colour Forge's pool can hold (`ManaAtom.MANATYPES` is six). Named, like every
+   * colour Forge's pool can hold (`ManaAtom.MANATYPES` is six), and the pool's
+   * ring above and below them (`--pool-ring`, `.seat__mana`). Named, like every
    * other track here, so mana arriving mid-turn cannot move the portrait above it.
    */
-  --mana-h: 1.9rem;
+  --pool-ring: 2px;
+  --mana-h: calc(2 * 14px + 2px + 2 * var(--pool-ring));
   /*
    * The counts' track: the two marks on one line and, under them, the player's
    * counters. Fixed, so a counter arriving mid-game cannot
@@ -854,7 +856,7 @@
   min-width: 0;
   min-height: 0;
   margin: 0;
-  padding: 0;
+  padding: var(--pool-ring) 0;
   list-style: none;
   overflow: hidden;
 }
@@ -880,12 +882,15 @@
 /*
  * The pool pays the open payment more than one way, so which mana to spend is the player's to
  * press (operator, 2026-10-21: "lets highlight the mana pool area when this happens"): the
- * library's can-act outline on the pool, the cards' can-act glow on each pressable pip. Inset,
- * because the pool's track clips what is drawn outside it.
+ * library's can-act ring on the pool, the cards' can-act glow on each pressable pip. The ring is
+ * inside the pool, because the column clips what is drawn outside it, and it is the pool's own
+ * padding (`--pool-ring`) and painted under the pips: an outline is painted over them, and inset
+ * on a pool its pips fill edge to edge it cut the tops off the first row's symbols (operator,
+ * 2026-10-21). A full row of three still meets the ring's sides, and covers them, never the
+ * other way round.
  */
 .board .seat__mana[data-pool-pays] {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  box-shadow: inset 0 0 0 var(--pool-ring) var(--accent);
 }
 
 .seat__mana-pip[data-pool-pay] {

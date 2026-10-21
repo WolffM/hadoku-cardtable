@@ -2180,7 +2180,7 @@ test(CROWD_TITLE, async ({ browser }) => {
           // order — so the column is now THREE adjacent pairs, not two, and
           // each pair keeps its own `GAP_MAX` margin rather than widening the
           // tolerance to swallow the mana pool's own fixed height (`--mana-h`,
-          // 30.4px) — that would silently stop catching a real gap regression
+          // 34px at scale 1) — that would silently stop catching a real gap regression
           // of the same size in the future. (Lane B confirmed this precisely:
           // the old single check's "57.28px against a ≤32px max" was exactly
           // the mana pool's own track sitting in what the check assumed was
