@@ -78,3 +78,19 @@ describe("a card's colour stripe reads the colours in WUBRG order", () => {
     ]);
   });
 });
+
+// A card's related cards ride as faces wherever its tile is drawn, so the inspector's wheel turns to them
+// in the picks and the builder as it does in the pack — not only where one screen remembered to add them.
+describe("a card's tokens are on its inspector wheel wherever it is drawn", () => {
+  const OCELOT = named('Ocelot Pride');
+  const facesOf = (tile: Element) =>
+    [...document.querySelectorAll(`[data-faces-of="${tile.getAttribute('data-faces')}"] .card__name`)].map((el) => el.textContent);
+
+  it('in the picks and in the builder', () => {
+    render(createElement(PoolView, { cards: [OCELOT], recentlyAdded: null, groupBy: 'color' }));
+    expect(facesOf(screen.getByTestId('pool').querySelector('[data-testid="card"]')!)).toEqual(['Cat']);
+    cleanup();
+    render(createElement(DeckEditor, { mode: 'limited', draftId: 'd-rf', pool: [OCELOT] }));
+    expect(facesOf(screen.getByTestId('deck-editor').querySelector('[data-testid="card"]')!)).toEqual(['Cat']);
+  });
+});
