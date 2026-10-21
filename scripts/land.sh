@@ -7,10 +7,11 @@
 # Lanes share the manager's worktree and leave uncommitted files in it while another lane
 # lands, so this never rebases the wave branch. It builds a throwaway worktree on the latest
 # origin/main, cherry-picks the commits main lacks (by patch id, so a second land skips what
-# the first one already pushed), derives the art rows for any card they add, bumps the app
-# versions the commits touched, runs typecheck, lint and the unit suites the change reaches
-# (by import, or by an `@reads` declaration), and pushes with an explicit refspec. One land
-# at a time: the lock is held from fetch to push, so two waves never bump the same version.
+# the first one already pushed), numbers any `| AF??? |` ledger rows they add, derives the
+# art rows for any card they add, bumps the app versions the commits touched, runs
+# typecheck, lint and the unit suites the change reaches (by import, or by an `@reads`
+# declaration), and pushes with an explicit refspec. One land at a
+# time: the lock is held from fetch to push, so two waves never bump the same version.
 #
 # It does NOT wait for CI (memory: never wait inside a lock). CI is the combined gate: a red
 # run on the pushed sha belongs to the wave that pushed it.
@@ -36,19 +37,39 @@ git -C "$SRC" fetch -q origin main
 mapfile -t PICKS < <(git -C "$SRC" cherry origin/main HEAD | sed -n 's/^+ //p')
 # Merge commits cannot be cherry-picked and carry nothing of their own here.
 mapfile -t PICKS < <(for c in "${PICKS[@]}"; do [ "$(git -C "$SRC" rev-list --parents -n1 "$c" | wc -w)" = 2 ] && echo "$c"; done)
+# A commit this script amended (ledger numbering, below) no longer shares its patch id with
+# main's copy, but that copy's -x trailer still names it.
+[ ${#PICKS[@]} = 0 ] || mapfile -t PICKS < <(printf '%s\n' "${PICKS[@]}" | grep -vxFf <(git -C "$SRC" log -1000 --format=%B origin/main \
+  | sed -n 's/^(cherry picked from commit \([0-9a-f]\{40\}\))$/\1/p') || true)
 [ ${#PICKS[@]} = 0 ] && { echo "land: nothing to land — main already has every commit on $BRANCH"; exit 0; }
 echo "land: ${#PICKS[@]} commit(s) from $BRANCH:"; git -C "$SRC" log --oneline --no-walk "${PICKS[@]}"
 
 TMP=$(mktemp -d /tmp/claude-1000/land-XXXXXX)
+# shellcheck disable=SC2317 # run by the EXIT trap
 cleanup() { git -C "$MAIN" worktree remove --force "$TMP" 2>/dev/null || rm -rf "$TMP"; }
 trap cleanup EXIT
 git -C "$MAIN" worktree add -q --detach "$TMP" origin/main
 cd "$TMP"
-if ! git cherry-pick -x "${PICKS[@]}" >/dev/null; then
-  git cherry-pick --abort || true
-  echo "land: a commit does not apply on the latest main — merge origin/main into $BRANCH, resolve, and land again" >&2
-  exit 4
-fi
+# Ledger rows are numbered here, not in the lane: two lanes that each took "the next AF" on
+# their own base collided eight times in a week. A commit may add rows as `| AF??? |`; once it
+# is on the latest main, each placeholder becomes the next free number (max + 1, in file
+# order), in the file and the commit's message, and the commit is amended. The lock makes the
+# numbers final. Explicit ids are left as they are.
+LEDGER=docs/planning/playtest-ledger.md
+for c in "${PICKS[@]}"; do
+  if ! git cherry-pick -x "$c" >/dev/null; then
+    git cherry-pick --abort || true
+    echo "land: a commit does not apply on the latest main — merge origin/main into $BRANCH, resolve, and land again" >&2
+    exit 4
+  fi
+  grep -q '^| AF??? |' "$LEDGER" 2>/dev/null || continue
+  max=$(grep -oE '^\| AF[0-9]+ ' "$LEDGER" | grep -oE '[0-9]+' | sort -n | tail -1)
+  ids=$(perl -ne 'BEGIN { $n = shift } print "AF", ++$n, " " if /^\| AF\?\?\? \|/' "${max:-0}" "$LEDGER")
+  perl -i -pe 'BEGIN { $n = shift } s/^\| AF\?\?\? \|/sprintf("| AF%d |", ++$n)/e' "${max:-0}" "$LEDGER"
+  git log -1 --format=%B | perl -pe 'BEGIN { @ids = split " ", shift } s{AF\?\?\?}{shift(@ids) // $&}ge' "$ids" > "$TMP.msg"
+  git commit -q --amend -F "$TMP.msg" -- "$LEDGER"
+  echo "land: ledger ${ids% }"
+done
 
 # Dependencies first: the art step below runs code that imports them. Linking borrows the
 # deploy tree's node_modules, which match the deploy tree's lockfile, not this one. When the
@@ -95,7 +116,8 @@ BUMPS=()
 grep -qE '^(apps/ui/|packages/)' <<<"$CHANGED" && BUMPS+=("$(bump apps/ui)")
 grep -qE '^(apps/server/|packages/)' <<<"$CHANGED" && BUMPS+=("$(bump apps/server)")
 if [ ${#BUMPS[@]} -gt 0 ]; then
-  git commit -qam "$(IFS=,; echo "${BUMPS[*]}" | sed 's/,/, /g')"
+  msg=$(IFS=,; echo "${BUMPS[*]}")
+  git commit -qam "${msg//,/, }"
   echo "land: bumped ${BUMPS[*]}"
 fi
 
@@ -141,7 +163,7 @@ fi
 if [ $DRY = 1 ]; then echo "land: dry run — would push $(git rev-parse --short HEAD)"; exit 0; fi
 # The lock keeps other waves out, but the auto-update bot can still move main. Its commits
 # touch only @wolffm/* dependency pins, so rebase over them; anything else means start over.
-for try in 1 2 3; do
+for _ in 1 2 3; do
   if git push -q origin HEAD:main; then
     echo "land: pushed $(git rev-parse HEAD) to main $(date -u +%T)"
     echo "land: CI — gh run list -R WolffM/hadoku-cardtable --workflow CI --commit $(git rev-parse HEAD)"
