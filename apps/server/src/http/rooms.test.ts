@@ -265,6 +265,8 @@ describe('POST /api/rooms', () => {
 			'locked',
 			'matchId',
 			'members',
+			'mode',
+			'modeOptions',
 			'name',
 			'pod',
 			'settings',
@@ -616,7 +618,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 			[{ settings: { matchLength: 'bo5' } }, 'settings.matchLength must be one of: bo1, bo3'],
 			[{ settings: {} }, 'settings names no setting'],
 			[{ settings: null }, 'settings must be an object'],
-			[{ settings: { handSmoothing: false }, format: OLDEST_POOL }, 'patch one field at a time: gameType, format or settings'],
+			[{ settings: { handSmoothing: false }, format: OLDEST_POOL }, 'patch one field at a time: gameType, format, settings or mode'],
 		];
 		for (const [body, error] of cases) {
 			const res = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body });
@@ -740,7 +742,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } }))
 			.json() as import('../room/lobby.ts').RoomView;
 		const cases: Array<[unknown, string]> = [
-			[{ gameType: 'draft', format: OLDEST_POOL }, 'patch one field at a time: gameType, format or settings'],
+			[{ gameType: 'draft', format: OLDEST_POOL }, 'patch one field at a time: gameType, format, settings or mode'],
 			[{ format: '' }, 'format must be a format id'],
 			[{ format: '   ' }, 'format must be a format id'],
 			[{ format: null }, 'format must be a format id'],

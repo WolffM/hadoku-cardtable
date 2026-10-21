@@ -70,12 +70,19 @@ import {
 } from '@hadoku/room-store';
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
 import {
+	DEFAULT_GAME_TYPE,
 	DEFAULT_MATCH_LENGTH,
 	DEFAULT_SIDEBOARDING,
+	GAME_TYPES,
 	MATCH_LENGTHS,
 	POD_SEATS,
+	RoomModeSchema,
 	SERIES_PHASES,
+	type ConstructedMode,
+	type GameType,
 	type MatchLength,
+	type ModeOptions,
+	type RoomMode,
 	type PodMember,
 	type PodPhase,
 	type PodView,
@@ -92,17 +99,6 @@ import type { Tournament } from './tournaments.ts';
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';
-
-export type GameType = 'constructed-1v1' | 'draft';
-/**
- * Every game type a room may be set to.
- *
- * A `draft` room is a room like any other: it has members, a leader and a
- * readiness flag per member, and `startDraft` is what turns it into a live pod
- * (wave 23). Nothing is dealt before that call — see `room/socket.ts`.
- */
-export const GAME_TYPES: readonly GameType[] = ['constructed-1v1', 'draft'];
-export const DEFAULT_GAME_TYPE: GameType = 'constructed-1v1';
 
 /**
  * Which client the room's players sit in front of: our own React table
@@ -377,6 +373,13 @@ export interface RoomView {
 	format: FormatId;
 	/** How the room's matches are dealt. Only the leader changes it (`setSettings`). */
 	settings: RoomSettings;
+	/**
+	 * A constructed room's mode, null until the leader chooses one (at create or
+	 * with `setMode`); always null for a draft room. `modeOptions` is that mode's
+	 * own options, and null exactly when `mode` is.
+	 */
+	mode: ConstructedMode | null;
+	modeOptions: ModeOptions | null;
 	/** Fixed at create. Every client sees it before joining, from `list()` as well as `get()`. */
 	clientMode: ClientMode;
 	/** Whether a password is set — never the password, never any hash of it. */
@@ -432,6 +435,8 @@ export interface CreateRoomInput {
 	clientMode: ClientMode;
 	/** Absent or empty: an open room. */
 	password?: string;
+	/** A constructed room's mode, chosen at create. Absent: the leader chooses it in the room. */
+	mode?: RoomMode;
 }
 
 export type CreateResult =
@@ -449,6 +454,11 @@ export type JoinResult =
 export type SetGameTypeResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' };
+
+/** `setFormat`'s refusals, plus a draft room (which has no mode) and `modeLocked`. */
+export type SetModeResult =
+	| { ok: true; room: RoomView }
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'mode-locked' };
 
 /** Deliberately the same three refusals as `SetGameTypeResult`: one leader, one shape. */
 export type SetFormatResult =
@@ -1069,9 +1079,10 @@ export interface Lobby {
 	/** Idempotent for an existing member, who needs no password again. */
 	join(roomId: string, caller: Caller, password?: string): JoinResult;
 	/**
-	 * Leader only. Changes the game type and NOTHING else — a room's `clientMode`
-	 * is immutable. Every member's `ready` is cleared: readiness is readiness for
-	 * a particular game, so changing the game invalidates it. Refused with
+	 * Leader only. Changes the game type — a room's `clientMode` is immutable.
+	 * Every member's `ready` is cleared: readiness is readiness for a particular
+	 * game, so changing the game invalidates it. A real change also puts the
+	 * mode back to unchosen: a mode belongs to a constructed room. Refused with
 	 * `draft-started` while a draft is running.
 	 */
 	setGameType(roomId: string, callerId: string, gameType: GameType): SetGameTypeResult;
@@ -1090,6 +1101,13 @@ export interface Lobby {
 	 * the lobby is not the place to half-change a room a pod is being played in.
 	 */
 	setFormat(roomId: string, callerId: string, format: FormatId): SetFormatResult;
+	/**
+	 * Leader only, constructed rooms only. Sets the room's mode and its options.
+	 * A change drops every member's readiness and table state exactly as
+	 * `setFormat` does; the same mode with the same options changes nothing.
+	 * Refused with `mode-locked` while `modeLocked` says so.
+	 */
+	setMode(roomId: string, callerId: string, mode: RoomMode): SetModeResult;
 	/**
 	 * The leader changes some of the room's match settings; the rest stay as they
 	 * are. Unlike the pool, a setting says nothing about anybody's deck, so it
@@ -1281,6 +1299,8 @@ interface RoomRecord {
 	gameType: GameType;
 	format: FormatId;
 	settings: RoomSettings;
+	mode: ConstructedMode | null;
+	modeOptions: ModeOptions | null;
 	clientMode: ClientMode;
 	/** Always at least one — wave 71. The first table's id is stable for the room's life. */
 	tables: TableRecord[];
@@ -1318,6 +1338,12 @@ interface StoredApp {
 	format: FormatId | null;
 	/** Absent on disk for a room written before the field; `deserialize` fills in the defaults. */
 	settings: RoomSettings;
+	/**
+	 * Undefined ONLY on the way out of `deserialize`, for a record written before
+	 * modes existed: `openLobby` restores that room as Classic, which it was.
+	 */
+	mode: ConstructedMode | null | undefined;
+	modeOptions: ModeOptions | null;
 	clientMode: ClientMode;
 	/**
 	 * Always resolved by `deserialize`: a record written before wave 71 (which
@@ -1363,6 +1389,18 @@ function isFormatId(v: unknown): v is FormatId {
 
 function isGameType(v: unknown): v is GameType {
 	return typeof v === 'string' && (GAME_TYPES as readonly string[]).includes(v);
+}
+
+/**
+ * A stored mode and its options: both null (unchosen), or a pair `RoomModeSchema`
+ * accepts. Undefined when the record predates modes.
+ */
+function storedMode(a: Record<string, unknown>): Pick<StoredApp, 'mode' | 'modeOptions'> {
+	if (a.mode === undefined && a.modeOptions === undefined) return { mode: undefined, modeOptions: null };
+	if (a.mode === null && a.modeOptions === null) return { mode: null, modeOptions: null };
+	const parsed = RoomModeSchema.safeParse({ mode: a.mode, modeOptions: a.modeOptions });
+	if (!parsed.success) throw new Error('app.mode is not a known mode with its options');
+	return parsed.data;
 }
 
 function isClientMode(v: unknown): v is ClientMode {
@@ -1471,6 +1509,7 @@ const appCodec: AppCodec<StoredApp> = {
 			throw new Error('app.podPlaying is not a list of member ids');
 		}
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
+		const mode = storedMode(a);
 		const settings: RoomSettings = { ...DEFAULT_ROOM_SETTINGS, ...(a.settings as Partial<RoomSettings> | undefined) };
 		const matchId = a.matchId as string | null;
 		// Migrated from the pre-wave-71 shape: one table, holding the room's old
@@ -1505,6 +1544,7 @@ const appCodec: AppCodec<StoredApp> = {
 			gameType: a.gameType,
 			format: a.format === undefined ? null : (a.format as FormatId),
 			settings,
+			...mode,
 			clientMode: a.clientMode === undefined ? DEFAULT_CLIENT_MODE : a.clientMode,
 			tables,
 			matchId,
@@ -1561,6 +1601,8 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 			matchLength: effectiveMatchLength(room),
 			sideboarding: effectiveSideboarding(room),
 		},
+		mode: room.mode,
+		modeOptions: room.modeOptions === null ? null : { ...room.modeOptions },
 		clientMode: room.clientMode,
 		locked,
 		members: room.members.map((m) => ({
@@ -1630,6 +1672,47 @@ export function watchpartyRoomId(watchpartyRoom: string): string {
 
 /** What a bound room is made as. The leader changes the game type and pool afterwards. */
 const WATCHPARTY_ROOM: CreateRoomInput = { name: 'Watchparty table', gameType: DEFAULT_GAME_TYPE, clientMode: DEFAULT_CLIENT_MODE };
+
+/**
+ * BOTH readiness flags, and the deck hold with them — what a change to the
+ * table's pool or mode costs everybody. The room's `ready` is readiness for
+ * this table; the table's own ready flag and the deck verdict live inside the
+ * per-member blob `http/routes.ts` owns, and every part of that blob — the
+ * choice, the verdict, the checked `.dck` — was produced for the table that
+ * just changed. So the blob is dropped whole rather than edited.
+ */
+function dropHolds(room: RoomRecord): void {
+	for (const member of room.members) {
+		member.ready = false;
+		member.state = undefined;
+	}
+}
+
+/** Two option objects are the same when every key holds the same value. Options are flat. */
+function sameOptions(a: ModeOptions, b: ModeOptions): boolean {
+	const ka = Object.keys(a) as (keyof typeof a)[];
+	const kb = Object.keys(b);
+	return ka.length === kb.length && ka.every((k) => (a as Record<string, unknown>)[k] === (b as Record<string, unknown>)[k]);
+}
+
+/**
+ * Whether a seated member has said they are ready: the room's own flag, or the
+ * table's, which is the one field of `http/routes.ts`'s per-member blob this
+ * file reads (`ready: true`, the same test `unboxReady` makes on disk).
+ */
+function seatedReady(room: RoomRecord): boolean {
+	const seated = new Set(room.tables.flatMap((t) => t.seats).filter((id): id is string => id !== null));
+	return room.members.some((m) => seated.has(m.id) && (m.ready || unboxReady(m.state)));
+}
+
+/**
+ * Whether a constructed room's mode can no longer change (operator ruling 8:
+ * *"not anymore once players ready up"*). Every reason a mode freezes is one
+ * line here, so `setMode` asks one question.
+ */
+function modeLocked(room: RoomRecord): boolean {
+	return seatedReady(room);
+}
 
 function unboxState(app: unknown): unknown {
 	if (typeof app !== 'object' || app === null || !('state' in app)) return undefined;
@@ -1726,6 +1809,8 @@ class FileLobby implements Lobby {
 			gameType: room.gameType,
 			format: room.format,
 			settings: { ...room.settings },
+			mode: room.mode,
+			modeOptions: room.modeOptions === null ? null : { ...room.modeOptions },
 			clientMode: room.clientMode,
 			tables: room.tables.map((t) => ({ ...t, seats: [...t.seats] as [string | null, string | null], series: { ...t.series, wins: [...t.series.wins] as [number, number], games: t.series.games.map((g) => ({ ...g })) } })),
 			// Restated for a rollback to a pre-wave-71 build (see `StoredApp.matchId`'s doc).
@@ -2125,6 +2210,8 @@ class FileLobby implements Lobby {
 			// setting has one mutator.
 			format: this.#newRoomFormat(),
 			settings: { ...DEFAULT_ROOM_SETTINGS },
+			mode: input.mode?.mode ?? null,
+			modeOptions: input.mode === undefined ? null : { ...input.mode.modeOptions },
 			clientMode: input.clientMode,
 			tables: [
 				{
@@ -2160,6 +2247,7 @@ class FileLobby implements Lobby {
 			roomId: id,
 			gameType: room.gameType,
 			format: room.format,
+			mode: room.mode,
 			clientMode: room.clientMode,
 			locked: this.#secrets.has(id),
 		});
@@ -2283,6 +2371,10 @@ class FileLobby implements Lobby {
 		// Switching the game under it would leave a live pod in a room that says
 		// it is playing constructed, and nothing would ever close the pod.
 		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
+		if (room.gameType !== gameType) {
+			room.mode = null;
+			room.modeOptions = null;
+		}
 		room.gameType = gameType;
 		// Readiness is readiness for a particular game: a member who readied for
 		// a draft has not agreed to a constructed match. Cleared for everyone,
@@ -2303,19 +2395,28 @@ class FileLobby implements Lobby {
 		// the table under everybody.
 		if (room.format === format) return { ok: true, room: this.#view(room) };
 		room.format = format;
-		// BOTH readiness flags, and the deck hold with them. The room's `ready` is
-		// readiness for this table; the table's own ready flag and the deck verdict
-		// live inside the per-member blob `http/routes.ts` owns, and every part of
-		// that blob — the choice, the verdict, the checked `.dck` — was produced
-		// against the pool that just went away. So the blob is dropped whole rather
-		// than edited: this file does not read its shape, and a verdict from another
-		// pool is not a verdict here.
-		for (const member of room.members) {
-			member.ready = false;
-			member.state = undefined;
-		}
+		dropHolds(room);
 		this.#persist(room);
 		this.#log({ event: 'room-format', roomId, format });
+		return { ok: true, room: this.#view(room) };
+	}
+
+	setMode(roomId: string, callerId: string, mode: RoomMode): SetModeResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
+		if (room.gameType !== 'constructed-1v1') return { ok: false, reason: 'not-constructed' };
+		if (room.mode === mode.mode && room.modeOptions !== null && sameOptions(room.modeOptions, mode.modeOptions)) {
+			return { ok: true, room: this.#view(room) };
+		}
+		if (modeLocked(room)) return { ok: false, reason: 'mode-locked' };
+		room.mode = mode.mode;
+		room.modeOptions = { ...mode.modeOptions };
+		// A deck held for one mode was chosen for that mode's table, exactly as a
+		// deck held in one pool was checked in that pool.
+		dropHolds(room);
+		this.#persist(room);
+		this.#log({ event: 'room-mode', roomId, mode: mode.mode, modeOptions: mode.modeOptions });
 		return { ok: true, room: this.#view(room) };
 	}
 
@@ -2597,6 +2698,9 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 			// checked against a pool a constructed room can be on now.
 			const offPod = app.gameType !== 'draft' && app.format !== null && app.format.startsWith(DRAFT_POOL_PREFIX);
 			if (offPod) log({ event: 'room-format-off-pod', roomId, format: app.format });
+			// A constructed room stored before modes existed was a Classic room.
+			const restoredAsClassic = app.mode === undefined && app.gameType === 'constructed-1v1';
+			if (restoredAsClassic) log({ event: 'room-mode-restored', roomId, mode: 'classic' });
 			const members: MemberRecord[] = decoded.members.map((m) => {
 				// Re-normalised on the way in rather than trusted. `decodeSnapshot`
 				// already drops a non-string, but a record written by a build with a
@@ -2630,6 +2734,9 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// they were checked in has to come back with them.
 					format: (offPod ? null : app.format) ?? fixed ?? newestFormat(formats),
 					settings: app.settings,
+					...(restoredAsClassic
+						? { mode: 'classic' as const, modeOptions: {} }
+						: { mode: app.mode ?? null, modeOptions: app.modeOptions }),
 					clientMode: app.clientMode,
 					// **Restored, tables and all** — already migrated into the one-table
 					// shape by `appCodec.deserialize` for a pre-wave-71 record. Each

@@ -49,6 +49,8 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   // are asserted in "the pool and the caller" below.
   format: '2011-02-13',
   settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: false },
+  mode: null,
+  modeOptions: null,
   you: { id: 'http-a', leader: true, ready: false },
   clientMode: 'builtin',
   locked: false,
@@ -413,6 +415,16 @@ describe('the room writes', () => {
     expect(calls).toEqual([{ url: '/cardtable/api/rooms/r-open', method: 'PATCH', body: { settings: { handSmoothing: false } } }]);
   });
 
+  it('chooses the room mode with the same PATCH, carrying `mode` and its options and nothing else', async () => {
+    const moved = room({ id: 'r-open', name: 'Friday night', mode: 'random', modeOptions: { pool: 'modern' } });
+    const { calls, client } = writes(() => json(200, moved));
+    const outcome = await client.setRoomMode('r-open', { mode: 'random', modeOptions: { pool: 'modern' } });
+    expect(outcome.ok && [outcome.room.mode, outcome.room.modeOptions]).toEqual(['random', { pool: 'modern' }]);
+    expect(calls).toEqual([
+      { url: '/cardtable/api/rooms/r-open', method: 'PATCH', body: { mode: 'random', modeOptions: { pool: 'modern' } } },
+    ]);
+  });
+
   it('hands back the leader refusal in the server’s own words', async () => {
     const refused = writes(() => json(403, { error: 'only the room leader can change the game type' }));
     expect(await refused.client.setFormat('r-open', '2011-07-01')).toEqual({
@@ -671,6 +683,26 @@ describe('creating a room', () => {
       clientMode: 'builtin',
     });
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-new' }));
+  });
+
+  it('sends a mode chosen at create with its options, and none when none was chosen', async () => {
+    const { client, calls } = server([]);
+    await client.create({ name: 'Gauntlet', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'gauntlet', modeOptions: { family: 'legacy' } } });
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
+      name: 'Gauntlet',
+      gameType: 'constructed-1v1',
+      clientMode: 'builtin',
+      mode: 'gauntlet',
+      modeOptions: { family: 'legacy' },
+    });
+  });
+
+  it('reads a room’s mode and options, and an unknown pair as unchosen', () => {
+    expect(parseRoomView({ ...OPEN, mode: 'gauntlet', modeOptions: { era: '2022-07-08' } })).toMatchObject({ mode: 'gauntlet', modeOptions: { era: '2022-07-08' } });
+    expect(parseRoomView({ ...OPEN, mode: 'sealed', modeOptions: {} })).toMatchObject({ mode: null, modeOptions: null });
+    expect(parseRoomView({ ...OPEN, mode: 'random', modeOptions: { pool: 'vintage' } })).toMatchObject({ mode: null, modeOptions: null });
+    const { mode: _m, modeOptions: _o, ...older } = OPEN;
+    expect(parseRoomView(older)).toMatchObject({ mode: null, modeOptions: null });
   });
 
   it('a draft room made through the API still lands as a room, not a pod route', async () => {

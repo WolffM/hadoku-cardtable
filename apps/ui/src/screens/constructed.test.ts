@@ -1097,6 +1097,7 @@ describe('a room’s table', () => {
         start: async () => ({ ok: false as const, message: 'not used' }),
         setFormat: async () => ({ ok: false as const, message: 'not used' }),
         setSettings: async () => ({ ok: false as const, message: 'not used' }),
+        setRoomMode: async () => ({ ok: false as const, message: 'not used' }),
         leave: async () => ({ ok: false as const, message: 'not used' }),
         close: async () => ({ ok: false as const, message: 'not used' }),
         join: async (roomId: string, password?: string) => {
@@ -1115,6 +1116,8 @@ describe('a room’s table', () => {
                   gameType: 'constructed-1v1',
                   format: '2010-07-16',
                   settings: { handSmoothing: true, matchLength: 'bo1' as const, sideboarding: false },
+                  mode: null,
+                  modeOptions: null,
                   you: { id: 'p-alice', leader: true, ready: false },
                   clientMode: 'builtin' as const,
                   locked: false,

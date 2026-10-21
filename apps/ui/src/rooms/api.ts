@@ -56,12 +56,24 @@
  * one.
  */
 
-import { RoomTablesSchema, RoomPodSchema, DEFAULT_MATCH_LENGTH, type MatchLength, type RoomPod, type RoomTable } from '@hadoku/shared';
+import {
+  RoomTablesSchema,
+  RoomPodSchema,
+  RoomModeSchema,
+  DEFAULT_MATCH_LENGTH,
+  type ConstructedMode,
+  type GameType,
+  type MatchLength,
+  type ModeOptions,
+  type RoomMode,
+  type RoomPod,
+  type RoomTable,
+} from '@hadoku/shared';
 
 import { apiBase } from '../screens/tables.ts';
 import { normalizeAvatarId } from '../room/avatar.ts';
 
-export type GameType = 'constructed-1v1' | 'draft';
+export type { GameType };
 
 /**
  * Which client a room's players sit in front of. The server's own
@@ -119,6 +131,13 @@ export interface RoomView {
   format: string;
   /** How the room's matches are dealt; the leader's to change (`setSettings`). */
   settings: RoomSettings;
+  /**
+   * A constructed room's mode, null until the leader chooses one (`setRoomMode`)
+   * and for a draft room. `modeOptions` is null exactly when `mode` is; a pair
+   * this build does not know reads as unchosen.
+   */
+  mode: ConstructedMode | null;
+  modeOptions: ModeOptions | null;
   /** Caller-scoped. Both halves default false; see the header. */
   you: RoomYou;
   /** Fixed at create, for the room's whole life. Missing on the wire ⇒ builtin. */
@@ -340,10 +359,15 @@ function parsePod(v: unknown): RoomPod {
   return parsed.success ? parsed.data : null;
 }
 
+function parseMode(mode: unknown, modeOptions: unknown): Pick<RoomView, 'mode' | 'modeOptions'> {
+  const parsed = RoomModeSchema.safeParse({ mode, modeOptions });
+  return parsed.success ? parsed.data : { mode: null, modeOptions: null };
+}
+
 /** A RoomView, or null when the body is not one. */
 export function parseRoomView(v: unknown): RoomView | null {
   if (!isRecord(v)) return null;
-  const { id, name, creator, leader, gameType, format, settings, you, clientMode, locked, members, matchId, draftStartedAt, createdAt, tables, pod } = v;
+  const { id, name, creator, leader, gameType, format, settings, mode, modeOptions, you, clientMode, locked, members, matchId, draftStartedAt, createdAt, tables, pod } = v;
   if (typeof id !== 'string' || !ROOM_ID.test(id)) return null;
   if (typeof name !== 'string' || typeof gameType !== 'string' || typeof locked !== 'boolean') return null;
   if (!Array.isArray(members)) return null;
@@ -355,6 +379,7 @@ export function parseRoomView(v: unknown): RoomView | null {
     gameType,
     format: typeof format === 'string' ? format : '',
     settings: parseSettings(settings),
+    ...parseMode(mode, modeOptions),
     you: parseYou(you),
     clientMode: parseClientMode(clientMode),
     locked,
@@ -398,6 +423,8 @@ export interface CreateRequest {
   clientMode: ClientMode;
   /** Omitted from the body when empty: an empty string is not a password. */
   password?: string;
+  /** A constructed room's mode, chosen at create. Omitted: the leader chooses it in the room. */
+  mode?: RoomMode;
 }
 
 export interface RoomsClient {
@@ -437,6 +464,11 @@ export interface RoomsClient {
   setFormat(roomId: string, format: string): Promise<RoomOutcome>;
   /** Change some of the room's settings. The LEADER's call, through the same PATCH as `setFormat`. */
   setSettings(roomId: string, settings: Partial<RoomSettings>): Promise<RoomOutcome>;
+  /**
+   * Choose a constructed room's mode and its options. The LEADER's call, through
+   * the same PATCH as `setFormat`; refused once a seated player is ready.
+   */
+  setRoomMode(roomId: string, mode: RoomMode): Promise<RoomOutcome>;
   /**
    * Deal the draft. Any member may ask — like constructed, where either browser
    * may start the match and the server answers one start to both — and asking
@@ -594,8 +626,9 @@ export function roomsClient(
     },
 
     async create(req) {
-      const payload: Record<string, string> = { name: req.name, gameType: req.gameType, clientMode: req.clientMode };
+      const payload: Record<string, unknown> = { name: req.name, gameType: req.gameType, clientMode: req.clientMode };
       if (req.password !== undefined && req.password !== '') payload.password = req.password;
+      if (req.mode !== undefined) Object.assign(payload, req.mode);
       let res: Response;
       try {
         res = await fetchImpl(url(''), {
@@ -660,6 +693,10 @@ export function roomsClient(
 
     setSettings(roomId, settings) {
       return write(`/${encodeURIComponent(roomId)}`, { settings }, 'Could not change the room settings', 'PATCH');
+    },
+
+    setRoomMode(roomId, mode) {
+      return write(`/${encodeURIComponent(roomId)}`, mode, 'Could not change the room mode', 'PATCH');
     },
 
     start(roomId) {

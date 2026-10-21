@@ -7,7 +7,7 @@
  * `room/lobby.ts`'s header.
  *
  *   GET   /api/rooms            → 200 { rooms: RoomView[] }
- *   POST  /api/rooms            { name, gameType?, clientMode?, password? } → 201 RoomView
+ *   POST  /api/rooms            { name, gameType?, clientMode?, password?, mode?, modeOptions? } → 201 RoomView
  *   GET   /api/rooms/:id        → 200 RoomView | 404
  *   GET   /api/rooms/of-match/:matchId → 200 RoomView (the room that started it, members only) | 404
  *   POST  /api/rooms/:id/join   { password? }                   → 200 RoomView | 404 | 429
@@ -15,7 +15,7 @@
  *   POST  /api/rooms/:id/leave  {} or no body                   → 200 RoomView | 403 | 404
  *   POST  /api/rooms/:id/identity { avatarId }                 → 200 RoomView | 400 | 403 | 404
  *   POST  /api/rooms/:id/start  {} or no body                   → 200 RoomView | 403 | 404 | 409
- *   PATCH /api/rooms/:id        { gameType } | { format } | { settings } → 200 RoomView | 403 | 404 | 409
+ *   PATCH /api/rooms/:id        { gameType } | { format } | { settings } | { mode, modeOptions? } → 200 RoomView | 403 | 404 | 409
  *   POST  /api/rooms/:id/pod/sit    {} or { seat }               → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
  *   POST  /api/rooms/:id/pod/stand  {} or no body                → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
  *   POST  /api/rooms/:id/pod/play   {} or no body                → 200 RoomView | 403 | 404 | 409 (done building; the last drafter's press deals round 1)
@@ -97,22 +97,28 @@ import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { userNameOf } from '../edge-auth.js';
 import { identityFromHeaders } from '../room/identity.js';
-import { MATCH_LENGTHS, POD_SEATS } from '@hadoku/shared';
+import {
+	CONSTRUCTED_MODES,
+	DEFAULT_GAME_TYPE,
+	GAME_TYPES,
+	MATCH_LENGTHS,
+	POD_SEATS,
+	RoomModeSchema,
+	type GameType,
+	type RoomMode,
+} from '@hadoku/shared';
 import {
 	AVATAR_ID_MAX,
 	CLIENT_MODES,
 	DEFAULT_CLIENT_MODE,
-	DEFAULT_GAME_TYPE,
 	DEFAULT_ROOM_SETTINGS,
 	DRAFT_POOL_PREFIX,
-	GAME_TYPES,
 	POD_MIN_OPEN,
 	ROOM_ID_RE,
 	watchpartyRoomId,
 	type Caller,
 	type ClientMode,
 	type FormatId,
-	type GameType,
 	type Lobby,
 	type RoomSettings,
 	type RoomView,
@@ -186,6 +192,19 @@ function parseClientMode(v: unknown): Parsed<ClientMode> {
 }
 
 /**
+ * A constructed room's mode with its options (`RoomModeSchema`): Classic and
+ * Gauntlet may leave `modeOptions` out, All Random may not. Options that belong
+ * to another mode are refused, never dropped.
+ */
+function parseMode(mode: unknown, modeOptions: unknown): Parsed<RoomMode> {
+	if (!(CONSTRUCTED_MODES as readonly unknown[]).includes(mode)) {
+		return { ok: false, error: `mode must be one of: ${CONSTRUCTED_MODES.join(', ')}` };
+	}
+	const parsed = RoomModeSchema.safeParse(modeOptions === undefined ? { mode } : { mode, modeOptions });
+	return parsed.success ? { ok: true, value: parsed.data } : { ok: false, error: `modeOptions are not ${String(mode)}'s options` };
+}
+
+/**
  * `undefined`, `null` and `""` all mean "no password" — a blank form field is
  * an open room, not an error. Anything else must be a string of 1–200 chars.
  * The error messages never echo the value.
@@ -201,10 +220,10 @@ function parsePassword(v: unknown): Parsed<string | undefined> {
 
 function parseCreate(
 	body: unknown,
-): Parsed<{ name: string; gameType: GameType; clientMode: ClientMode; password: string | undefined }> {
+): Parsed<{ name: string; gameType: GameType; clientMode: ClientMode; password: string | undefined; mode: RoomMode | undefined }> {
 	const o = asObject(body);
 	if (o === null) return { ok: false, error: 'body must be a JSON object' };
-	const extra = unknownKeys(o, ['name', 'gameType', 'clientMode', 'password']);
+	const extra = unknownKeys(o, ['name', 'gameType', 'clientMode', 'password', 'mode', 'modeOptions']);
 	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
 	if (typeof o.name !== 'string') return { ok: false, error: 'name must be a string' };
 	const name = o.name.trim();
@@ -222,9 +241,16 @@ function parseCreate(
 	if (!clientMode.ok) return clientMode;
 	const password = parsePassword(o.password);
 	if (!password.ok) return password;
+	let mode: RoomMode | undefined;
+	if (o.mode !== undefined || o.modeOptions !== undefined) {
+		if (gameType.value !== 'constructed-1v1') return { ok: false, error: 'only a constructed room has a mode' };
+		const parsed = parseMode(o.mode, o.modeOptions);
+		if (!parsed.ok) return parsed;
+		mode = parsed.value;
+	}
 	return {
 		ok: true,
-		value: { name, gameType: gameType.value, clientMode: clientMode.value, password: password.value },
+		value: { name, gameType: gameType.value, clientMode: clientMode.value, password: password.value, mode },
 	};
 }
 
@@ -366,20 +392,26 @@ function parseSettings(v: unknown): Parsed<Partial<RoomSettings>> {
 	return { ok: true, value: o as Partial<RoomSettings> };
 }
 
-/** One field, one mutation. `{ gameType }`, `{ format }` or `{ settings }` — exactly one. */
-type PatchBody = { gameType: GameType } | { format: FormatId } | { settings: Partial<RoomSettings> };
+/** One field, one mutation. `{ gameType }`, `{ format }`, `{ settings }` or `{ mode }` (with its options) — exactly one. */
+type PatchBody = { gameType: GameType } | { format: FormatId } | { settings: Partial<RoomSettings> } | { mode: RoomMode };
 
 function parsePatch(body: unknown): Parsed<PatchBody> {
 	const o = asObject(body);
 	if (o === null) return { ok: false, error: 'body must be a JSON object' };
 	// The allow-list is the refusal: `clientMode` is not on it, so a PATCH
 	// carrying it is a 400 rather than a write nobody notices. See the header.
-	const extra = unknownKeys(o, ['gameType', 'format', 'settings']);
+	const extra = unknownKeys(o, ['gameType', 'format', 'settings', 'mode', 'modeOptions']);
 	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
 	// Two fields is refused rather than applied in some order: each has its own
-	// refusal, and a body whose halves disagree must not half-land.
-	if ([o.gameType, o.format, o.settings].filter((v) => v !== undefined).length > 1) {
-		return { ok: false, error: 'patch one field at a time: gameType, format or settings' };
+	// refusal, and a body whose halves disagree must not half-land. `modeOptions`
+	// is not a field of its own: it rides with `mode`.
+	const modeField = o.mode !== undefined || o.modeOptions !== undefined ? true : undefined;
+	if ([o.gameType, o.format, o.settings, modeField].filter((v) => v !== undefined).length > 1) {
+		return { ok: false, error: 'patch one field at a time: gameType, format, settings or mode' };
+	}
+	if (modeField) {
+		const mode = parseMode(o.mode, o.modeOptions);
+		return mode.ok ? { ok: true, value: { mode: mode.value } } : mode;
 	}
 	if (o.settings !== undefined) {
 		const settings = parseSettings(o.settings);
@@ -802,17 +834,25 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		// Two settings, one leader, one refusal shape. The noun in each sentence is
 		// the setting the caller asked for, because the room screen shows it.
 		const v = parsed.value;
-		const what = 'format' in v ? 'format' : 'settings' in v ? 'settings' : 'game type';
+		const what = 'format' in v ? 'format' : 'settings' in v ? 'settings' : 'mode' in v ? 'mode' : 'game type';
 		const result =
 			'format' in v
 				? lobby.setFormat(id, me, v.format)
 				: 'settings' in v
 					? lobby.setSettings(id, me, v.settings)
-					: lobby.setGameType(id, me, v.gameType);
+					: 'mode' in v
+						? lobby.setMode(id, me, v.mode)
+						: lobby.setGameType(id, me, v.gameType);
 		if (!result.ok) {
 			if (result.reason === 'no-room') return noMatch(res);
 			if (result.reason === 'draft-started') {
 				return res.status(409).json({ error: `this room is drafting; the ${what} cannot change now` });
+			}
+			if (result.reason === 'not-constructed') {
+				return res.status(409).json({ error: 'only a constructed room has a mode', reason: result.reason });
+			}
+			if (result.reason === 'mode-locked') {
+				return res.status(409).json({ error: 'a seated player is ready; the mode cannot change now', reason: result.reason });
 			}
 			return res.status(403).json({ error: `only the room leader can change the ${what}` });
 		}
