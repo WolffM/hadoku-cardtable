@@ -113,8 +113,9 @@ function fixtureRepo(extra: Record<string, string> = {}, history: History = NO_H
       'apps/server/src/play/match.ts': "import { rule } from './rules.ts';\nexport const m = rule;\n",
       'apps/server/src/play/rules.ts': 'export const rule = 1;\n',
       'apps/server/src/play/host.ts': "import { m } from './match.ts';\nexport const h = m;\n",
-      'apps/server/src/http/sounds.ts': "export const routes = ['/api/sounds/catalogue'];\n",
-      'apps/server/src/play/bolt.jvm.test.ts': "import { h } from './host.ts';\nstartScenario('bolt-player');\n",
+      'apps/server/src/http/sounds.ts':
+        "export function catalogue(router) {\n  router.get('/api/sounds/catalogue', list);\n}\nexport function upload(router) {\n  router.post('/api/sounds/upload', put);\n}\n",
+      'apps/server/src/play/bolt.jvm.test.ts': "import { h } from './host.ts';\nstartScenario('bolt-player', h);\n",
       'apps/ui/src/play/live/CoinToss.tsx':
         "import { flip } from './coin.ts';\nimport './coin.css';\nexport function CoinToss() {\n  return <div data-testid=\"coin-toss\" className=\"coin\">{flip()}</div>;\n}\n",
       'apps/ui/src/play/live/coin.ts': 'export interface Coin {\n  side: string;\n}\nexport function flip(): string {\n  return "heads";\n}\n',
@@ -127,6 +128,39 @@ function fixtureRepo(extra: Record<string, string> = {}, history: History = NO_H
     history,
   );
 }
+
+/** A component long enough that its two test ids sit far apart, and a helper it uses beside one of them. */
+const BIG: Record<string, string> = {
+  'e2e/far.spec.ts': FORGE_SPEC("page.getByTestId('far-away');"),
+  'apps/ui/src/play/live/far.ts': "export function farLabel(): string {\n  return 'b';\n}\n",
+  'apps/ui/src/play/live/Big.tsx': [
+    "import { farLabel } from './far.ts';",
+    'export function Big() {',
+    '  return (',
+    '    <div data-testid="coin-toss">',
+    ...Array.from({ length: 25 }, (_, i) => `      {'filler ${i}'}`),
+    "      {'new'}",
+    '      <p data-testid="far-away">{farLabel()}</p>',
+    '    </div>',
+    '  );',
+    '}',
+    '',
+  ].join('\n'),
+};
+
+/** A workspace package, imported by its name: one export a component renders, one nothing uses. */
+const WIRE: Record<string, string> = {
+  'packages/wire/package.json': '{ "name": "@hadoku/wire", "exports": { ".": "./src/index.ts" } }\n',
+  'packages/wire/src/index.ts': "export * from './coin.ts';\n",
+  'packages/wire/src/coin.ts': "export function coinFace(): string {\n  return 'h';\n}\nexport function other(): number {\n  return 1;\n}\n",
+  'apps/ui/src/play/live/CoinToss.tsx': "import { coinFace } from '@hadoku/wire';\nexport function CoinToss() {\n  return <div data-testid=\"coin-toss\">{coinFace()}</div>;\n}\n",
+};
+
+/** A server module with one export the jvm suite's chain uses and one nothing uses. */
+const UTIL: Record<string, string> = {
+  'apps/server/src/play/util.ts': 'export const used = 1;\nexport const unused = 2;\n',
+  'apps/server/src/play/host.ts': "import { m } from './match.ts';\nimport { used } from './util.ts';\nexport const h = m + used;\n",
+};
 
 const modified = (filename: string, patch?: string): Change => ({ filename, status: 'modified', patch });
 const diff = (start: number, minus: string[], plus: string[], context: string[] = []): string =>
@@ -149,8 +183,8 @@ describe('the per-file rules', () => {
     expect(select(fixtureRepo(), [modified('apps/ui/package.json', diff(9, ['  "x": "1"'], ['  "x": "2"']))]).specs).toBeNull();
   });
 
-  it('the engine pin and packages run everything', () => {
-    for (const f of ['forge', 'packages/forge-wire/src/tier-a.ts']) {
+  it("the engine pin and a package's manifest run everything", () => {
+    for (const f of ['forge', 'packages/forge-wire/package.json']) {
       const sel = select(fixtureRepo(), [modified(f)]);
       expect(sel, f).toMatchObject({ e2e: true, specs: null, jvm: true, jvmFiles: null });
     }
@@ -180,6 +214,15 @@ describe('the per-file rules', () => {
     }
   });
 
+  it('a bridge change runs everything on a dispatch, like the engine pin, and the engine guards on a push', () => {
+    const f = 'apps/server/src/play/bridge/PlayBridge.java';
+    const dispatch = select(fixtureRepo(), [modified(f)]);
+    expect(dispatch).toMatchObject({ specs: null, jvmFiles: null });
+    expect(dispatch.reasons).toContain(`jvm: every suite — ${f}: the engine's own layer, which every match runs through`);
+    const push = select(fixtureRepo({ 'apps/server/src/play/match-frames.jvm.test.ts': '' }), [modified(f)], { deferFull: true });
+    expect(push.jvmFiles).toEqual(['apps/server/src/play/match-frames.jvm.test.ts']);
+  });
+
   it('a server play module one import below a hot module inherits its guard family; one above it does not', () => {
     const below = select(fixtureRepo(), [modified('apps/server/src/play/rules.ts')], guarded);
     expect(below.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
@@ -193,6 +236,15 @@ describe('the per-file rules', () => {
     expect(sel.specs).toEqual(['bars.spec.ts', ...SMOKE].sort());
   });
 
+  it('server scaffolding runs the specs calling a route the diff registers, not every path the module names', () => {
+    const other = select(fixtureRepo(), [modified('apps/server/src/http/sounds.ts', diff(5, ["  router.post('/api/sounds/put', put);"], ["  router.post('/api/sounds/upload', put);"]))]);
+    expect(other.specs).toEqual([...SMOKE].sort());
+    const named = select(fixtureRepo({ 'apps/server/src/play/log.ts': "export function where(): string {\n  return '/api/sounds/catalogue';\n}\n" }), [
+      modified('apps/server/src/play/log.ts', diff(2, ["  return '/api/sounds';"], ["  return '/api/sounds/catalogue';"])),
+    ]);
+    expect(named.specs).toEqual([...SMOKE].sort());
+  });
+
   it('a component runs the specs that name its test id, and the smoke set', () => {
     const sel = select(fixtureRepo(), [modified('apps/ui/src/play/live/CoinToss.tsx')]);
     expect(sel.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
@@ -202,6 +254,53 @@ describe('the per-file rules', () => {
   it('a helper module acts through the component that calls it', () => {
     const sel = select(fixtureRepo(), [modified('apps/ui/src/play/live/coin.ts', diff(5, ['  return "tails";'], ['  return "heads";']))]);
     expect(sel.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
+  });
+
+  it('an edit inside a component runs the specs naming the keys near the edit, not every key it renders', () => {
+    const sel = select(fixtureRepo(BIG), [modified('apps/ui/src/play/live/Big.tsx', diff(30, ["      {'old'}"], ["      {'new'}"]))]);
+    expect(sel.specs).toEqual(['far.spec.ts', ...SMOKE].sort());
+  });
+
+  it('a module reached through a component runs the specs naming the keys near where it is used', () => {
+    const sel = select(fixtureRepo(BIG), [modified('apps/ui/src/play/live/far.ts', diff(2, ["  return 'a';"], ["  return 'b';"]))]);
+    expect(sel.specs).toEqual(['far.spec.ts', ...SMOKE].sort());
+  });
+
+  it('an e2e helper edit runs the specs that call the edited function, not every importer', () => {
+    expect(select(fixtureRepo(), [modified('e2e/play/board.ts', diff(2, ["export const pile = (page) => page.locator('[data-pile]' );"], ["export const pile = (page) => page.locator('[data-pile]');"]))]).specs).toEqual(['pile.spec.ts']);
+  });
+
+  it('a jvm suite runs when it uses what the diff touched, not because it imports the file', () => {
+    const repo = fixtureRepo(UTIL);
+    const unused = select(repo, [modified('apps/server/src/play/util.ts', diff(2, ['export const unused = 3;'], ['export const unused = 2;']))]);
+    expect(unused.jvmFiles).toEqual([]);
+    const used = select(repo, [modified('apps/server/src/play/util.ts', diff(1, ['export const used = 0;'], ['export const used = 1;']))]);
+    expect(used.jvmFiles).toEqual(['apps/server/src/play/bolt.jvm.test.ts']);
+  });
+
+  it('a jvm suite reaches a module through a re-export', () => {
+    const repo = fixtureRepo({
+      ...UTIL,
+      'apps/server/src/play/index.ts': "export { used as usedHere } from './util.ts';\n",
+      'apps/server/src/play/host.ts': "import { usedHere } from './index.ts';\nexport const h = usedHere;\n",
+    });
+    const used = select(repo, [modified('apps/server/src/play/util.ts', diff(1, ['export const used = 0;'], ['export const used = 1;']))]);
+    expect(used.jvmFiles).toEqual(['apps/server/src/play/bolt.jvm.test.ts']);
+  });
+
+  it('a workspace package edit runs what uses the edited export, through the package name', () => {
+    const repo = fixtureRepo(WIRE);
+    const used = select(repo, [modified('packages/wire/src/coin.ts', diff(2, ["  return 't';"], ["  return 'h';"]))]);
+    expect(used.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
+    const unused = select(repo, [modified('packages/wire/src/coin.ts', diff(5, ['  return 2;'], ['  return 1;']))]);
+    expect(unused.specs).toEqual([...SMOKE].sort());
+  });
+
+  it("an edit to a barrel's re-exports alone selects nothing — what uses a new export changed with it", () => {
+    const repo = fixtureRepo({ ...WIRE, 'packages/wire/src/index.ts': "export * from './coin.ts';\nexport * from './more.ts';\n", 'packages/wire/src/more.ts': 'export const more = 1;\n' });
+    const sel = select(repo, [modified('packages/wire/src/index.ts', diff(1, [], ["export * from './more.ts';"], ["export * from './coin.ts';"]))]);
+    expect(sel).toMatchObject({ e2e: false, jvm: false });
+    expect(sel.reasons).toContain('packages/wire/src/index.ts: re-exports only');
   });
 
   it('an edit to an interface alone selects nothing — tsc covers it', () => {
@@ -276,9 +375,9 @@ describe('history: the specs that landed with earlier edits', () => {
 
 describe('on a push to main (--defer-full)', () => {
   it('never runs the full set: everything becomes the smoke set, and says it was deferred', () => {
-    const sel = select(fixtureRepo(), [modified('packages/forge-wire/src/tier-a.ts'), modified('e2e/coin.spec.ts')], { deferFull: true });
+    const sel = select(fixtureRepo(), [modified('pnpm-lock.yaml'), modified('e2e/coin.spec.ts')], { deferFull: true });
     expect(sel).toMatchObject({ specs: ['coin.spec.ts', ...SMOKE].sort(), jvm: false, jvmFiles: [], deferred: true });
-    expect(sel.reasons.some((r) => r.startsWith('every spec needed (packages/forge-wire/src/tier-a.ts'))).toBe(true);
+    expect(sel.reasons.some((r) => r.startsWith('every spec needed (pnpm-lock.yaml'))).toBe(true);
   });
 
   it(`keeps what changed itself and the guards whatever their number, and fills to ${PUSH_BUDGET} with the best-scored rest`, () => {
@@ -296,12 +395,12 @@ describe('on a push to main (--defer-full)', () => {
     expect(sel.deferred).toBe(true);
   });
 
-  it('runs a jvm suite that imports a changed module directly, not one that imports it from afar', () => {
+  it('runs a jvm suite that uses a changed module directly, not one that uses it from afar', () => {
     const sel = select(fixtureRepo(), [modified('apps/server/src/play/host.ts')], { deferFull: true });
     expect(sel.jvmFiles).toEqual(['apps/server/src/play/bolt.jvm.test.ts']);
     const far = select(fixtureRepo(), [modified('apps/server/src/play/rules.ts')], { deferFull: true });
     expect(far.jvmFiles).toEqual([]);
-    expect(far.reasons).toContain('apps/server/src/play/bolt.jvm.test.ts: deferred to the batched full run (imports apps/server/src/play/rules.ts (3 deep); score 0.3)');
+    expect(far.reasons).toContain('apps/server/src/play/bolt.jvm.test.ts: deferred to the batched full run (uses apps/server/src/play/rules.ts (3 deep); score 0.3)');
   });
 });
 
@@ -389,11 +488,13 @@ describe('real landed ranges', { timeout: 20_000 }, () => {
     expect(select(treeOf('auto-update-wolffm'), fixture('auto-update-wolffm'))).toMatchObject({ specs: null, jvmFiles: null });
   });
 
-  it('modal spell arrows through PlayBridge (da8026aa): the new spec, its scenarios\' suite and the engine guards, on a push as on a dispatch', () => {
+  it('modal spell arrows through PlayBridge (da8026aa): everything on a dispatch; the new spec, its scenarios\' suite and the engine guards on a push', () => {
     for (const deferFull of [false, true]) {
       const sel = select(treeOf('modal-arrows-bridge'), fixture('modal-arrows-bridge'), { deferFull });
-      expect(sel.specs).toEqual(expect.arrayContaining(['modal-arrows.spec.ts', 'w68-untap.spec.ts', ...SMOKE]));
-      expect(sel.jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/modal-targets.jvm.test.ts', 'apps/server/src/play/match-frames.jvm.test.ts']));
+      if (deferFull) {
+        expect(sel.specs).toEqual(expect.arrayContaining(['modal-arrows.spec.ts', 'w68-untap.spec.ts', ...SMOKE]));
+        expect(sel.jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/modal-targets.jvm.test.ts', 'apps/server/src/play/match-frames.jvm.test.ts']));
+      } else expect(sel).toMatchObject({ specs: null, jvmFiles: null });
     }
   });
 
