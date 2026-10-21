@@ -1582,9 +1582,32 @@ export function renewPlacement(playerId: number, cardId: number): void {
   if (p !== undefined && p.cardId === cardId && p.expiresAt >= Date.now()) PENDING_PLACEMENTS.set(playerId, { ...p, expiresAt: Date.now() + PLACEMENT_WAIT_MS });
 }
 
-/** A play of `cardId` — either side's — ended without it (cancelled, gone home): its column stops waiting, and the row closes the gap. */
-export function cancelPlacement(playerId: number, cardId: number): void {
-  if (PENDING_PLACEMENTS.get(playerId)?.cardId === cardId) dropPlacement(playerId);
+/** The ends of a play that leave nothing to arrive in the column its release reserved. */
+const ENDS_WITHOUT_CARD = [
+  // Home to the hand: a cancel, a park Forge never answered, a question about the card itself, Forge giving it back.
+  'cancel',
+  'floated-unanswered',
+  'offered',
+  'settled',
+  'home',
+  // Countered into a graveyard.
+  'elsewhere',
+  // The other seat's clocks giving up on it.
+  'grace',
+  'timeout',
+] as const;
+/** The ends that leave the column waiting: the card took it, or the play only moved on — onto the stack, behind the seat's next cast, off a screen that went away. */
+type EndWithCardStillComing = 'landed' | 'drawn' | 'spell' | 'placement' | 'next-play' | 'disposed' | 'dispose';
+/** How a play of a permanent stops being followed — the viewer's own park (`gestures/install.ts`) or the other seat's wait (`live/presence.ts`). */
+export type PlayEnd = (typeof ENDS_WITHOUT_CARD)[number] | EndWithCardStillComing;
+const WITHOUT_CARD: ReadonlySet<PlayEnd> = new Set(ENDS_WITHOUT_CARD);
+
+/**
+ * Either seat's play of `cardId` ended `how`. One that ended without its card gives up its column and the row
+ * closes the gap; any other keeps it waiting until the card arrives or the clock runs out.
+ */
+export function endPlacement(playerId: number, cardId: number, how: PlayEnd): void {
+  if (WITHOUT_CARD.has(how) && PENDING_PLACEMENTS.get(playerId)?.cardId === cardId) dropPlacement(playerId);
 }
 
 /** `playerId`'s placement stops waiting, and every mounted row redraws without its gap. */

@@ -81,7 +81,7 @@ import { PLACED_EVENT, PlacedEchoSchema,
 } from '@hadoku/shared';
 
 import { newArrow, positionArrow } from './gestures/arrow.ts';
-import { cancelPlacement, expectPlacement, pendingPlacementFor, renewPlacement } from '../Board.tsx';
+import { endPlacement, expectPlacement, pendingPlacementFor, renewPlacement, type PlayEnd } from '../Board.tsx';
 import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cast.ts';
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
@@ -110,8 +110,6 @@ export const CLEARED_GRACE_MS = 1500;
 export const UNHANDED_MS = 5000;
 /** How many frames a placement's stand-in looks for the gap the board reserves for it before giving up. */
 const GAP_FRAMES = 30;
-/** How a wait ends when its card is not coming (`stopWaiting`'s `why`): sent home by Forge, or a clock. */
-const ENDED_WITHOUT_CARD: ReadonlySet<string> = new Set(['home', 'grace', 'timeout']);
 
 /**
  * `live/gestures/hand.ts`'s own seam into this module: a hand reorder
@@ -794,7 +792,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (waiting.card !== null && waiting.owner !== null) renewPlacement(waiting.owner, waiting.card);
   }
 
-  function stopWaiting(why: string): void {
+  function stopWaiting(why: PlayEnd): void {
     lifted = false;
     stopGlide?.();
     stopGlide = null;
@@ -805,9 +803,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     if (waiting === null) return;
     lastEnd = { at: Date.now(), how: why };
     clearTimeout(waiting.timer);
-    // A permanent's play that ended without its card — home to their hand, or a clock — leaves
-    // nothing to arrive in the column it reserved.
-    if (waiting.card !== null && waiting.owner !== null && ENDED_WITHOUT_CARD.has(why)) cancelPlacement(waiting.owner, waiting.card);
+    if (waiting.card !== null && waiting.owner !== null) endPlacement(waiting.owner, waiting.card, why);
     waiting = null;
     back?.remove();
     back = null;

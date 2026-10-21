@@ -223,7 +223,7 @@ import {
 } from '../match.ts';
 // Where a cast lands on the battlefield — a plain function, not a component,
 // read across the lane boundary.
-import { cancelPlacement, carryCastOffStack, notePlayedTo, placementAt, previewPlayedTo } from '../../Board.tsx';
+import { carryCastOffStack, endPlacement, notePlayedTo, placementAt, previewPlayedTo, type PlayEnd } from '../../Board.tsx';
 // §S's seam: the park registers the point every stack item draws at
 // (`placeSpell`); a drag of the viewer's own placed spell moves it
 // (`moveSpell`), which is also what tells lane W to relay it; `onSpellDrawn`
@@ -353,7 +353,7 @@ function describeNode(node: EventTarget | null): string {
   return `${node.tagName.toLowerCase()}.${node.getAttribute('class') ?? ''}`;
 }
 
-type ParkEnd = 'landed' | 'settled' | 'elsewhere' | 'offered' | 'floated-unanswered' | 'cancel' | 'next-play' | 'disposed';
+type ParkEnd = Extract<PlayEnd, 'landed' | 'settled' | 'elsewhere' | 'offered' | 'floated-unanswered' | 'cancel' | 'next-play' | 'disposed'>;
 
 /** Where Forge's state holds the card now: still in the zone it was lifted out of, another zone the board draws, or nowhere it draws (mid-cast). */
 function whereIs(match: LiveMatch, id: number, home: CastZone): 'home' | 'drawn' | 'limbo' {
@@ -967,9 +967,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function endPark(how: ParkEnd, cause: Record<string, string> = {}): Parked | null {
     const p = parked;
     parked = null;
-    // However it ended, the card is not arriving in the column its release reserved — or has already taken it.
     const me = match.view?.players.find((player) => player.isViewer)?.id;
-    if (p !== null && me !== undefined) cancelPlacement(me, p.source);
+    if (p !== null && me !== undefined) endPlacement(me, p.source, how);
     if (p !== null) options.report?.('park', { how, card: p.source, ms: Date.now() - p.releasedAt, played: p.played, ask: match.asks[0]?.method ?? '-', selection: match.selectables !== null, paying: payingMana(match), ...cause });
     stopGlide?.();
     stopGlide = null;
