@@ -41,6 +41,16 @@
  * (Durkwood Tracker), and Edgar Markov's `Card.StrictlySelf` ("this object, not a new one") — beside a metalcraft card with three artifacts and Guardian Beast, whose
  * "as long as it is untapped" (`Card.Self+untapped`) is a condition the card itself can turn off.
  *
+ * The operator, 2026-10-20: "yes do the anger and name sticker glows." A card shows its condition
+ * where the condition works. Anger's haste works from the graveyard (`EffectZone$ Graveyard`), so on
+ * the battlefield or in hand beside a Mountain it stays dark (Brawn, the same shape, sits in the
+ * graveyard, which the frame does not read). A trigger whose event can no longer happen for the card
+ * is spent: Name Sticker Goblin's "when this enters, if …" (`LE9`), Acclaimed Contender's and Blizzard
+ * Strix's "when this enters, if you control another …", Kozilek's "when you cast this spell, if …" —
+ * all met, all on the battlefield, all dark. In hand an "enters" condition still lights, as what the
+ * card would do when cast (Acclaimed Contender beside two Knights), and Carapace Forger's metalcraft
+ * still lights on the battlefield.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
@@ -102,6 +112,22 @@ const SELF_PRESENCE = [
 	'humanbattlefield=Ornithopter;Ornithopter;Kappa Cannoneer;Carapace Forger;Steelfin Whale;Oubliette;Durkwood Tracker;Edgar Markov;Guardian Beast;Swamp',
 	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
 	'humangraveyard=',
+	'aihand=',
+	'aibattlefield=Plains',
+	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+	'aigraveyard=',
+].join('\n');
+
+const WHERE_IT_WORKS = [
+	'turn=1',
+	'activeplayer=human',
+	'activephase=MAIN1',
+	'humanlife=20',
+	'ailife=20',
+	'humanhand=Anger;Acclaimed Contender',
+	'humanbattlefield=Ornithopter;Ornithopter;Ornithopter;Carapace Forger;Anger;"Name Sticker" Goblin;Acclaimed Contender;Acclaimed Contender;Blizzard Strix;Snow-Covered Mountain;Kozilek, the Great Distortion;Mountain;Forest',
+	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
+	'humangraveyard=Anger;Brawn',
 	'aihand=',
 	'aibattlefield=Plains',
 	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
@@ -237,6 +263,43 @@ describe.skipIf(!available.ok)(title, () => {
 					const c = named(board, name);
 					expect(seat0, `${c.name}#${c.id} is on`).toContain(c.id);
 				}
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		'a card shows its condition where it works: Anger on the battlefield and a spent "when this enters, if …" stay dark',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 86, decks: DECKS, scenario: WHERE_IT_WORKS });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Battlefield').some((c) => c.name === '"Name Sticker" Goblin') && s.zone(0, 'Graveyard').some((c) => c.name === 'Brawn');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const board = s.zone(0, 'Battlefield');
+				const hand = s.zone(0, 'Hand');
+				const graveyard = s.zone(0, 'Graveyard');
+				const seat0 = latestConditionMet(s, 0);
+				const lit = [...board, ...hand, ...graveyard].filter((c) => seat0?.includes(c.id)).map((c) => `${c.name}#${c.id}`);
+				console.log(`[cg-condition-met.jvm] where it works: conditionMet=${JSON.stringify(seat0)} → [${lit.join(', ')}]`);
+				expect(seat0, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
+				const off = [
+					named(board, 'Anger'),
+					named(hand, 'Anger'),
+					named(board, '"Name Sticker" Goblin'),
+					...board.filter((c) => c.name === 'Acclaimed Contender'),
+					named(board, 'Blizzard Strix'),
+					named(board, 'Kozilek, the Great Distortion'),
+					named(graveyard, 'Anger'),
+					named(graveyard, 'Brawn'),
+				];
+				for (const c of off) expect(seat0, `${c.name}#${c.id} is off`).not.toContain(c.id);
+				for (const c of [named(board, 'Carapace Forger'), named(hand, 'Acclaimed Contender')]) expect(seat0, `${c.name}#${c.id} is on`).toContain(c.id);
 			} finally {
 				await s.stop();
 			}
