@@ -48,6 +48,7 @@ import { LIBRARY, deckPath, poolFixturePath, type FormatFamily, type LibraryColl
 
 import type { DraftCard } from '../draft/types.ts';
 import { DeckEditor } from '../deck/DeckEditor.tsx';
+import { deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
 import { deckColorsByName, foldDeckColors, manaTokensOf, type DeckColor } from '@hadoku/deck';
 import { DeckColors, DeckView } from './DeckView.tsx';
 
@@ -409,6 +410,8 @@ describe('DeckEditor shows the same colours over the same model', () => {
         mode: 'limited',
         draftId: 'uw-delver-as-a-pool',
         pool: poolOfLibraryDeck(deck, fixture),
+        // Every card in the pool to start, so each click adds one to the deck.
+        savedDeck: dckTextOf(deckFromPool('uw-delver-as-a-pool', poolOfLibraryDeck(deck, fixture))),
       }),
     );
     expect(screen.getByTestId('deck-editor')).toBeTruthy();

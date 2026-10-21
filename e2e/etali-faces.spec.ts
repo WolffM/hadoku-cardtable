@@ -72,6 +72,11 @@ test(titled('the wheel turns an enlarged Etali to Etali, Primal Sickness — in 
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ pool: [...pool.slice(0, 20), etali], deck: null }) }),
     );
     await builder.page.goto(`${stack.origin}${PREFIX}/#/deck/r-e7a11e7a11e7`);
+    // The builder opens with every pick in the main deck (the operator, 2026-10-21, Arena-style); Etali is put back in the pool, whole.
+    const inDeck = builder.page.locator('[data-testid="main-grid"] [data-testid="card"]', { has: builder.page.locator('.card__name', { hasText: FRONT }) });
+    await expect(inDeck, 'Etali is in the builder’s deck').toHaveCount(1, { timeout: 30_000 });
+    // By its name strip: in a pile, the card's top is what shows.
+    await inDeck.dragTo(builder.page.getByTestId('pool-area'), { sourcePosition: { x: 12, y: 6 } });
     const tile = builder.page.locator('[data-testid="side-grid"] [data-testid="card"]', { has: builder.page.locator('.card__name', { hasText: FRONT }) });
     await expect(tile, 'Etali is in the builder’s pool').toHaveCount(1, { timeout: 30_000 });
     expect(await wheelOver(builder.page, tile, 'deck builder')).toEqual([etali!.name, BACK, etali!.name]);

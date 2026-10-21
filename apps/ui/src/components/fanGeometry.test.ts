@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, gridGeometry, type FanGeometry } from './PackView.tsx';
+import { FAN_MIN_WIDTH, fanGeometry, fanLayer, fanX, type FanGeometry } from './PackView.tsx';
 
 // The operator's window, a laptop, a wide screen, and the narrowest a fan is drawn at.
 const BOXES = [
@@ -81,21 +81,5 @@ describe('the open card', () => {
         if (away >= 0 && away < 15) expect(fanLayer(away, open, 15)).toBeLessThan(fanLayer(j, open, 15));
       }
     }
-  });
-});
-
-describe('the grid is two rows, scrolling sideways only', () => {
-  for (const { width, height } of BOXES) {
-    it(`draws 15 cards in two rows that fit the height of ${width}x${height}, with room for a sideways scroll bar when wider`, () => {
-      const { cols, cardW } = gridGeometry(15, width, height);
-      expect(cols).toBe(8);
-      const tall = 2 * (cardW / (488 / 680)) + 10;
-      const wide = cols * cardW + (cols - 1) * 10;
-      expect(tall).toBeLessThanOrEqual(height - (wide > width ? 16 : 0) + 0.5);
-    });
-  }
-
-  it('one card is one row', () => {
-    expect(gridGeometry(1, 1050, 640).cols).toBe(1);
   });
 });

@@ -59,6 +59,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { trimMainDeck } from './deckBuilder.ts';
 import { fillWithAi } from './podSeats.ts';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
@@ -724,11 +725,11 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
     expect(pool).toHaveLength(PICKS);
     // The server's pool is exactly what this browser clicked, in click order.
     expect(pool.map((c) => c.cardId)).toEqual(p.picks);
-    // The builder opens on exactly that pool: every pick in the sideboard,
-    // nothing in the main deck yet.
+    // The builder opens on exactly that pool: every pick in the main deck,
+    // nothing sideboarded (the operator, 2026-10-21, Arena-style: *while drafting, picks are the deck in progress; the drafter drags the ones they won't play into a sideboard area; the deck builder opens with picks = main deck and the dragged ones in the sideboard*).
     await expect(p.page.getByTestId('deck-editor')).toBeVisible({ timeout: UI_TIMEOUT });
-    await expect(p.page.getByTestId('side-count')).toHaveText(String(PICKS));
-    await expect(p.page.getByTestId('main-count')).toHaveText('0');
+    await expect(p.page.getByTestId('main-count')).toHaveText(String(PICKS));
+    await expect(p.page.getByTestId('side-count')).toHaveText('0');
 
     // No pick was refused — not rate-limited, not stale, not out of turn.
     const errors = received(p).filter((m) => m.type === 'error');
@@ -950,21 +951,6 @@ test('a player drafts from the seat they sat in: pack 1 passes along the table, 
 /* ── §Acceptance: draft, build, leave and return, then real Forge ────── */
 
 /**
- * Move cards from the sideboard into the maindeck, one click per card (the
- * editor's own gesture — `DeckEditor.tsx`'s header), until the maindeck
- * reaches `n`; then wait for the debounced save to actually land
- * (the editor's own `data-save` state, not a sleep — the save fires `saveDelayMs`
- * after the LAST move, not after each one).
- */
-async function buildMainDeck(p: Player, n: number): Promise<void> {
-  const mainCount = p.page.getByTestId('main-count');
-  const sideCard = p.page.locator('[data-testid="side-grid"] button[data-testid="card"]').first();
-  for (let i = 0; i < n; i++) await sideCard.click();
-  await expect(mainCount, `${p.name}: the maindeck reaches ${n}`).toHaveText(String(n));
-  await expect(p.page.getByTestId('deck-editor'), `${p.name}: the build is saved`).toHaveAttribute('data-save', 'saved', { timeout: UI_TIMEOUT });
-}
-
-/**
  * The room leave the UI has no button for (`PodScreen`'s "← Lobby" only
  * navigates away; it never calls this) — the same route `rooms/api.ts`'s
  * `leave()` sends, by the caller's own page so the identity is theirs. This
@@ -1068,7 +1054,7 @@ test(
       /* ── both land in the builder, and build and save a 40-card deck ── */
       for (const p of [alice, bob]) {
         await expect(p.page.getByTestId('deck-editor'), `${p.name}: the editor opens`).toBeVisible({ timeout: UI_TIMEOUT });
-        await buildMainDeck(p, 40);
+        await trimMainDeck(p.page, 40, p.name);
       }
 
       /* ── alice leaves the pod and comes back: her build is still there ── */
@@ -1160,7 +1146,7 @@ test(
       });
       expect(restartedAt, 'the restart happened mid-draft').toBe(5);
       await expect(alice.page.getByTestId('deck-editor'), 'the finished draft opens the editor').toBeVisible({ timeout: UI_TIMEOUT });
-      await buildMainDeck(alice, 40);
+      await trimMainDeck(alice.page, 40, alice.name);
       // And mid-build: the saved build and the pod both come back.
       await stack.restart();
       await alice.page.reload();

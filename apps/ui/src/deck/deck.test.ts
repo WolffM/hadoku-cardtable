@@ -17,17 +17,18 @@ import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { DraftCard } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
-import { basicLand, type Deck, deckFromDeckFile, moveToMain, setBasicLand } from '@hadoku/deck';
+import { basicLand, type Deck, deckFromDeckFile, moveToMain, moveToSideboard, setBasicLand } from '@hadoku/deck';
 
 import poolData from '../draft/pool.json';
-import { cardRequestOf, deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
+import { cardRequestOf, deckFromPool, dckTextOf, draftBuild } from '../draft/deckFromPool.ts';
 import { DeckEditor, type SaveOutcome } from './DeckEditor.tsx';
 import { DeckScreen } from '../screens/DeckScreen.tsx';
 import type { RoomsClient } from '../rooms/api.ts';
 import { parseRoute } from '../screens/route.ts';
 import type { DeckStoreClient, Mine } from './deckStore.ts';
 import { tablesClient, type Fetch, type Verdict } from '../screens/tables.ts';
-import { draftedSeat, cardIndex, mainSummary, splitBasics, libraryDeckPool, libraryDeckText, suggestBasics } from './build.ts';
+import { draftedSeat, cardIndex, mainSummary, libraryDeckPool, libraryDeckText, suggestBasics } from './build.ts';
+import { splitBasics } from '../draft/deckFromPool.ts';
 
 afterEach(() => {
   cleanup();
@@ -101,6 +102,10 @@ function savedWith(pool: readonly DraftCard[], n: number, basics: Record<string,
   for (const [name, count] of Object.entries(basics)) deck = setBasicLand(deck, basicLand(name), count);
   return dckTextOf(deck);
 }
+
+/** A build with every pick sideboarded — for the tests of moving cards out of the pool, which start there. */
+const sideboarded = (pool: readonly DraftCard[]): string => dckTextOf(deckFromPool(DRAFT_ID, pool));
+const ALL_SIDEBOARDED = sideboarded(POOL);
 
 /** A stand-in `DataTransfer`: jsdom has none, and the editor's drag reads only these members. */
 function dataTransfer() {
@@ -296,8 +301,24 @@ describe('build.ts', () => {
 /* ── `DeckEditor` — `limited` ────────────────────────────────────────────── */
 
 describe('DeckEditor — limited', () => {
-  it('opens with the whole pool in the pool grid, nothing played, and a meter rather than Play', () => {
+  // The operator, 2026-10-21, Arena-style: "the deck builder opens with picks = main deck and the dragged ones in the sideboard".
+  it('opens with every pick in the main deck when nothing was sideboarded, and a meter rather than Play below the floor', () => {
     render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    expect(screen.getByTestId('main-count').textContent).toBe('45');
+    expect(screen.getByTestId('side-count').textContent).toBe('0');
+  });
+
+  it('opens with the picks sideboarded during the draft in the sideboard, and later picks in the main deck', () => {
+    // Saved as the draft saves it: the sideboard only (`useDraftBuild`).
+    const sided = moveToSideboard(draftBuild(DRAFT_ID, POOL.slice(0, 10), null), cardRequestOf(POOL[4]!));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: dckTextOf({ ...sided, main: [] }) }));
+    expect(screen.getByTestId('side-count').textContent).toBe('1');
+    expect(screen.getByTestId('main-count').textContent).toBe('44');
+    expect(within(screen.getByTestId('side-grid')).getByTestId('card').querySelector('.card__name')!.textContent).toBe(POOL[4]!.name);
+  });
+
+  it('shows a meter rather than Play below the floor', () => {
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED }));
     expect(screen.getByTestId('main-count').textContent).toBe('0');
     expect(screen.getByTestId('side-count').textContent).toBe('45');
     expect(screen.getByTestId('deck-meter').textContent).toBe('0/40');
@@ -312,7 +333,7 @@ describe('DeckEditor — limited', () => {
   });
 
   it('moves a card by a click, pool → deck and back', () => {
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED }));
     const name = cardsIn('side-grid')[0]!.querySelector('.card__name')!.textContent;
     fireEvent.click(cardsIn('side-grid')[0]!);
     expect(screen.getByTestId('main-count').textContent).toBe('1');
@@ -328,7 +349,7 @@ describe('DeckEditor — limited', () => {
   });
 
   it('moves a card by a drag onto the other area, and only onto the other area', () => {
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED }));
     // Dropped back onto its own area: nothing moves.
     drag(cardsIn('side-grid')[0]!, 'pool-area');
     expect(screen.getByTestId('main-count').textContent).toBe('0');
@@ -346,7 +367,7 @@ describe('DeckEditor — limited', () => {
   });
 
   it('highlights the area a drag can drop on, and only while it is over it', () => {
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED }));
     const dt = dataTransfer();
     fireEvent.dragStart(cardsIn('side-grid')[0]!.closest('[draggable]')!, { dataTransfer: dt });
     fireEvent.dragOver(screen.getByTestId('pool-area'), { dataTransfer: dt });
@@ -376,7 +397,7 @@ describe('DeckEditor — limited', () => {
   });
 
   it('gives every tile a distinct synthetic id when both areas are on screen, so the inspector never finds the wrong one', () => {
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED }));
     promote(10);
     const ids = screen.getAllByTestId('card').map((el) => el.getAttribute('data-card-id'));
     expect(new Set(ids).size).toBe(ids.length);
@@ -390,7 +411,8 @@ describe('DeckEditor — limited', () => {
    */
   it('turns an enlarged Etali, Primal Conqueror to Etali, Primal Sickness on the wheel, its own back art', () => {
     const etali = (poolData as { cards: DraftCard[] }).cards.find((c) => c.name.startsWith('Etali, Primal Conqueror'))!;
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: [...POOL.slice(0, 20), { ...etali, cardId: `draft:${DRAFT_ID}/etali` }] }));
+    const pool = [...POOL.slice(0, 20), { ...etali, cardId: `draft:${DRAFT_ID}/etali` }];
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool, savedDeck: sideboarded(pool) }));
     const tile = cardsIn('side-grid').find((t) => t.querySelector('.card__name')?.textContent?.startsWith('Etali'))!;
     fireEvent.pointerOver(tile, { pointerType: 'mouse' });
     const shown = (): string | null | undefined => document.querySelector('[data-inspect] .card__name')?.textContent;
@@ -404,7 +426,7 @@ describe('DeckEditor — limited', () => {
   });
 
   it('filters the pool by colour', () => {
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL_MIXED }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL_MIXED, savedDeck: sideboarded(POOL_MIXED) }));
     const before = cardsIn('side-grid').length;
     fireEvent.click(screen.getByTestId('filter-W'));
     const afterWhite = cardsIn('side-grid');
@@ -418,7 +440,7 @@ describe('DeckEditor — limited', () => {
   });
 
   it('filters the pool by type and by mana value', () => {
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED }));
     const all = cardsIn('side-grid').length;
     fireEvent.click(screen.getByTestId('type-creature'));
     const creatures = cardsIn('side-grid');
@@ -431,7 +453,7 @@ describe('DeckEditor — limited', () => {
   });
 
   it('sorts the pool by mana value by default, and by colour or type on request', () => {
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL_MIXED }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL_MIXED, savedDeck: sideboarded(POOL_MIXED) }));
     const values = (): number[] =>
       cardsIn('side-grid').map((t) => POOL_MIXED.find((c) => c.name === t.querySelector('.card__name')!.textContent)!.manaValue);
     const mvs = values();
@@ -468,7 +490,7 @@ describe('DeckEditor — limited', () => {
   });
 
   it('the basics counters add and remove one land at a time', () => {
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED }));
     expect((screen.getByTestId('basic-Island-less') as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByTestId('basic-Island-more'));
     fireEvent.click(screen.getByTestId('basic-Island-more'));
@@ -551,7 +573,7 @@ describe('DeckEditor — limited', () => {
 
   it('saves silently as cards move, only what changed, and marks the editor’s root', async () => {
     const onSave = vi.fn<(dck: string) => Promise<SaveOutcome>>(() => Promise.resolve({ ok: true }));
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, saveDelayMs: 0, onSave }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED, saveDelayMs: 0, onSave }));
     const root = screen.getByTestId('deck-editor');
     expect(root.dataset['save']).toBe('idle');
     expect(onSave).not.toHaveBeenCalled();
@@ -572,7 +594,7 @@ describe('DeckEditor — limited', () => {
 
   it('a failed save is one quiet line, never an alert', async () => {
     const onSave = vi.fn<(dck: string) => Promise<SaveOutcome>>(() => Promise.resolve({ ok: false, issues: ['Could not reach the server.'] }));
-    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, saveDelayMs: 0, onSave }));
+    render(createElement(DeckEditor, { mode: 'limited', draftId: DRAFT_ID, pool: POOL, savedDeck: ALL_SIDEBOARDED, saveDelayMs: 0, onSave }));
     expect(screen.queryByTestId('deck-fault')).toBeNull();
     promote(1);
     expect((await screen.findByTestId('deck-fault')).textContent).toBe('Could not reach the server.');
@@ -699,17 +721,17 @@ describe('DeckScreen', () => {
     expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'draft', draftId: DRAFT_ID });
   });
 
-  it('opens a fresh build when GET …/mine has no save, and saves as cards move', async () => {
+  it('opens a fresh build when GET …/mine has no save — every pick in the main deck — and saves as cards move', async () => {
     const { store, calls } = stubStore({ pool: POOL, deck: null });
     render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: stubApi({ check: () => legal }).client, checkDelayMs: 0, saveDelayMs: 0 }));
     await screen.findByTestId('deck-editor');
-    expect(screen.getByTestId('main-count').textContent).toBe('0');
+    expect(screen.getByTestId('main-count').textContent).toBe(String(POOL.length));
 
-    promote(1);
-    await waitFor(() => expect(calls).toHaveLength(1));
-    expect(calls[0]!.podId).toBe(DRAFT_ID);
-    const sent = deckFromDeckFile(parseDck(calls[0]!.dck));
-    expect(sent.main.reduce((n, e) => n + e.count, 0)).toBe(1);
+    // Sideboard all but one.
+    for (let i = 1; i < POOL.length; i += 1) fireEvent.click(cardsIn('main-grid')[0]!);
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    expect(calls.at(-1)!.podId).toBe(DRAFT_ID);
+    await waitFor(() => expect(deckFromDeckFile(parseDck(calls.at(-1)!.dck)).main.reduce((n, e) => n + e.count, 0)).toBe(1));
     // One card of forty, saved: nothing to say about it but the count.
     await waitFor(() => expect(screen.getByTestId('deck-editor').dataset['save']).toBe('saved'));
     expect(screen.getByTestId('main-count').parentElement?.dataset['complete']).toBe('false');

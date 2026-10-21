@@ -18,6 +18,7 @@
  * Games end by concede (not a real finish) to keep the run fast — the
  * acceptance text only needs a round to RESOLVE, not a full game.
  */
+import { trimMainDeck } from './deckBuilder.ts';
 import { fillWithAi } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
@@ -53,15 +54,6 @@ async function draftUntilDone(p: Player): Promise<void> {
     // 250 ms — `PICK_RATE_LIMIT`).
     await p.page.waitForTimeout(400);
   }
-}
-
-/** Moves `n` cards from the side grid to the main deck and waits for the debounced save. */
-async function buildMainDeck(p: Player, n: number): Promise<void> {
-  const mainCount = p.page.getByTestId('main-count');
-  const sideCard = p.page.locator('[data-testid="side-grid"] button[data-testid="card"]').first();
-  for (let i = 0; i < n; i++) await sideCard.click();
-  await expect(mainCount, `${p.name}: the maindeck reaches ${n}`).toHaveText(String(n));
-  await expect(p.page.getByTestId('deck-editor'), `${p.name}: the build is saved`).toHaveAttribute('data-save', 'saved', { timeout: UI_TIMEOUT });
 }
 
 test(
@@ -150,7 +142,7 @@ test(
       await Promise.all(players.map((p) => draftUntilDone(p)));
       for (const p of players) {
         await expect(p.page.getByTestId('deck-editor'), `${p.name}: the finished draft opens the editor`).toBeVisible({ timeout: UI_TIMEOUT });
-        await buildMainDeck(p, 40);
+        await trimMainDeck(p.page, 40, p.name);
         // Play: done building. The builder stays up, showing who else is.
         await p.page.getByTestId('play-deck').click();
       }

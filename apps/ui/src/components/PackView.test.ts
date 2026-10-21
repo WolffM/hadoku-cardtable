@@ -229,12 +229,16 @@ describe('the grid', () => {
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(open()).toBe(2);
+    // A row is as many cards as the fitted grid draws across.
+    const cols = Number(/repeat\((\d+)/.exec(screen.getByTestId('pack').style.gridTemplateColumns)![1]);
+    expect(cols).toBeGreaterThan(1);
     fireEvent.keyDown(window, { key: 'ArrowDown' });
-    expect(open()).toBe(10);
+    expect(open()).toBe(2 + cols);
     // Past the bottom row it stays put.
-    fireEvent.keyDown(window, { key: 'ArrowDown' });
-    expect(open()).toBe(10);
-    fireEvent.keyDown(window, { key: 'ArrowUp' });
+    const bottom = 2 + cols * Math.floor((PACK.length - 1 - 2) / cols);
+    for (let i = 0; i < 4; i++) fireEvent.keyDown(window, { key: 'ArrowDown' });
+    expect(open()).toBe(bottom);
+    for (let i = 0; i < 4; i++) fireEvent.keyDown(window, { key: 'ArrowUp' });
     fireEvent.keyDown(window, { key: 'ArrowLeft' });
     expect(open()).toBe(1);
     // The pointer moves the same cursor, and the keys go on from there.
