@@ -1,0 +1,407 @@
+/*
+ * The Gauntlet's screens (`GauntletScreen.tsx`). Theme tokens only; the tiles are the room's own
+ * (`screens.css` `.deckpick__option`), and every length here is px or rem so the UI scale reaches
+ * it. The board is sized by its width, never its content: ten tiles and six picks fit 1280×800
+ * whatever is chosen.
+ */
+.gauntlet {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.gauntlet__title {
+  margin: 0;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.gauntlet[data-revealing] .gauntlet__title {
+  animation: gauntlet-title var(--title-ms, 900ms) cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+
+@keyframes gauntlet-title {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(1.25);
+    letter-spacing: 0.3em;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    letter-spacing: 0.02em;
+  }
+}
+
+.gauntlet__game {
+  margin-left: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+
+/*
+ * P1's picks, the pool, P2's picks: seven equal tracks, the pool five of them. A pool tile is a
+ * little wider than tall; a column's three picks share the pool's two rows of height.
+ */
+.gauntlet__board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 5fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 8px 14px;
+  align-items: center;
+}
+
+.gauntlet__player {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink);
+  transition: opacity 300ms ease-out;
+}
+
+.gauntlet__player[data-unknown] {
+  opacity: 0;
+}
+
+.gauntlet__board > .gauntlet__player[data-player='p2'] {
+  justify-content: flex-end;
+}
+
+.gauntlet__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gauntlet__player[data-you] .gauntlet__name {
+  color: var(--accent-ink);
+}
+
+.gauntlet__badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: var(--hdk-radius);
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.gauntlet__player[data-player='p1'] .gauntlet__badge {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Whose turn, and what: the pool's own heading. Its line is kept while idle so nothing moves when it appears. */
+.gauntlet__turn {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding: 4px 14px;
+  justify-self: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--ink);
+  animation: gauntlet-turn 300ms ease-out;
+}
+
+.gauntlet__turn[data-idle] {
+  visibility: hidden;
+}
+
+.gauntlet__turn[data-idle]::before {
+  content: '\00a0';
+}
+
+.gauntlet__turn[data-you] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.gauntlet__who {
+  font-weight: 600;
+}
+
+.gauntlet__act {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-ink);
+}
+
+@keyframes gauntlet-turn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.gauntlet__pool {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gauntlet__pool > :not(.gauntlet__coin) {
+  aspect-ratio: 5 / 4;
+}
+
+.gauntlet__column {
+  display: grid;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-self: stretch;
+  /* The pool sets the row's height; a column's picks never grow it. */
+  contain: size;
+}
+
+/* A column's pick is the same tile with its art band shorter and no pilot line. */
+.gauntlet__column .deckpick__option {
+  grid-template:
+    'art art art' minmax(0, 1fr)
+    'name style colors' auto / minmax(0, 1fr) auto auto;
+}
+
+.gauntlet__column .deckpick__pilot {
+  display: none;
+}
+
+.gauntlet__column .deckpick__name {
+  margin-bottom: 6px;
+}
+
+.gauntlet__slot {
+  display: block;
+  min-height: 0;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--hdk-radius);
+}
+
+/* The coin flips over the empty pool, before the first deck is dealt. */
+.gauntlet__coin {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.gauntlet__coin .coin-toss {
+  border-radius: var(--hdk-radius);
+  background: color-mix(in srgb, var(--bg-raised) 88%, transparent);
+  box-shadow: 0 6px 24px var(--shadow);
+}
+
+/* A deck dealt into its slot: from above the pool, turning as it falls. */
+.gauntlet-tile[data-dealing] {
+  animation: gauntlet-deal var(--deal-ms, 600ms) cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+
+@keyframes gauntlet-deal {
+  from {
+    opacity: 0;
+    transform: translateY(-60px) rotate(-6deg) scale(0.85);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    transform: none;
+  }
+}
+
+.gauntlet-tile:disabled {
+  cursor: default;
+}
+
+.gauntlet-tile:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+/*
+ * A ban: the tile greys where it lies — a layer of the ground over it, never a filter on the art
+ * (`cardImageRules.test.ts`) — and a cross is drawn over that.
+ */
+.gauntlet-tile[data-status='banned']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 68%, transparent);
+  pointer-events: none;
+  animation: gauntlet-grey 300ms ease-out both;
+}
+
+@keyframes gauntlet-grey {
+  from {
+    opacity: 0;
+  }
+}
+
+.gauntlet-tile[data-status='banned'] {
+  color: var(--ink-dim);
+}
+
+.gauntlet-tile__cross {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.gauntlet-tile__cross path {
+  fill: none;
+  stroke: var(--danger);
+  stroke-width: 5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: gauntlet-cross 260ms ease-out both;
+}
+
+.gauntlet-tile__cross path:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+@keyframes gauntlet-cross {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* A deck already played in this Gauntlet: still shown, never chosen again. */
+.gauntlet-tile[data-played] {
+  opacity: 0.5;
+}
+
+/* Choose: each seat's three picks, P1's beside P2's. */
+.gauntlet__seats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.gauntlet__seat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.gauntlet__picks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gauntlet__picks > * {
+  aspect-ratio: 1;
+}
+
+.gauntlet__match-seat > .deckpick__option {
+  aspect-ratio: 5 / 4;
+}
+
+/* A revealed game: the two decks face to face. */
+.gauntlet__match {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas: 'p1 game p2';
+  align-items: center;
+  gap: 16px;
+  max-width: 560px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.gauntlet__match > .gauntlet__game {
+  grid-area: game;
+  margin: 0;
+}
+
+.gauntlet__match-seat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gauntlet__match-seat:first-of-type {
+  grid-area: p1;
+}
+
+.gauntlet__match-seat:last-of-type {
+  grid-area: p2;
+}
+
+.gauntlet--playing .gauntlet__match {
+  animation: gauntlet-turn 400ms ease-out;
+}
+
+/* The result: every game side by side, so three fit the height one does. */
+.gauntlet__games {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 420px);
+  justify-content: center;
+  gap: 24px;
+}
+
+.gauntlet--result .gauntlet__match {
+  gap: 10px;
+}
+
+.gauntlet__winner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.gauntlet__crown {
+  width: 22px;
+  height: 22px;
+  fill: var(--warn);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gauntlet[data-revealing] .gauntlet__title,
+  .gauntlet-tile[data-dealing],
+  .gauntlet__turn,
+  .gauntlet-tile__cross path,
+  .gauntlet-tile[data-status='banned']::after,
+  .gauntlet--playing .gauntlet__match {
+    animation: none;
+  }
+
+  .gauntlet__player {
+    transition: none;
+  }
+
+  .gauntlet-tile:not(:disabled):hover {
+    transform: none;
+  }
+}
