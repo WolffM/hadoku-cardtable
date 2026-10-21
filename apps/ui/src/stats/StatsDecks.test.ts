@@ -89,11 +89,12 @@ const popout = (source: StatsSource, decks: DeckLookup, player?: string) =>
   createElement(StatsPopout, { source, decks, ...(player === undefined ? {} : { player }) });
 
 describe('the Decks filter', () => {
+  // A match whose pool is no library format, draft or Free pick reports `unknown` (`routes.ts`'s matchStart): a constructed room's.
   it('a format keeps that format; a room keeps its formats; a format wins over a room', () => {
     expect(matchFormats(NO_DECK_FILTER)).toBeUndefined();
     expect(matchFormats({ ...NO_DECK_FILTER, formats: new Set(['modern']) })).toEqual(['modern']);
     expect(matchFormats({ ...NO_DECK_FILTER, rooms: new Set(['draft']) })).toEqual(['draft']);
-    expect(matchFormats({ ...NO_DECK_FILTER, rooms: new Set(['constructed']) })).toEqual(['standard', 'modern', 'legacy', 'free']);
+    expect(matchFormats({ ...NO_DECK_FILTER, rooms: new Set(['constructed']) })).toEqual(['standard', 'modern', 'legacy', 'free', 'unknown']);
     expect(matchFormats({ formats: new Set(['legacy']), rooms: new Set(['constructed']), text: '' })).toEqual(['legacy']);
   });
 
