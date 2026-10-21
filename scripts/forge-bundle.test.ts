@@ -17,6 +17,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   utimesSync,
   writeFileSync,
@@ -25,16 +26,16 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(HERE, 'forge-bundle.sh');
 
-// A scratch root for this whole file's fixtures, named for the lane so two
-// concurrent test runs (or a stray leftover) are easy to spot and never
-// collide with another lane's scratch.
-const LANE_SCRATCH = join(tmpdir(), 'forge-runners-A', 'vitest');
-mkdirSync(LANE_SCRATCH, { recursive: true });
+// A scratch root for this whole file's fixtures, unique per run so two
+// concurrent test runs never collide, and removed when the file finishes —
+// /tmp is RAM-backed on the host, and a fixed path here used to grow forever.
+const LANE_SCRATCH = mkdtempSync(join(tmpdir(), 'forge-bundle-test-'));
+afterAll(() => rmSync(LANE_SCRATCH, { recursive: true, force: true }));
 
 // The CI runners (jdk21 label) carry Temurin 21 here; absent elsewhere. The
 // no-unzip/no-strings test below is skipped, not failed, when this host
@@ -233,9 +234,9 @@ exit 0
   symlinkSync(process.execPath, join(noUnzipBinDir, 'node'));
 });
 
-// Each test makes its own cache root under LANE_SCRATCH; fixtures are left on
-// disk for post-mortem rather than cleaned per-test. The whole LANE_SCRATCH
-// tree is disposable and never touches the real ~/.cache or ~/.m2.
+// Each test makes its own cache root under LANE_SCRATCH; fixtures stay on
+// disk until the file finishes rather than being cleaned per-test. The whole
+// LANE_SCRATCH tree is disposable and never touches the real ~/.cache or ~/.m2.
 
 function freshCacheRoot(): string {
   return mkdtempSync(join(LANE_SCRATCH, 'cache-'));

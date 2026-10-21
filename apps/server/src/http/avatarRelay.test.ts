@@ -11,11 +11,11 @@
  */
 
 import express from 'express';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { openLobby } from '../room/lobby.js';
 import { attachTables, relayAvatarToMatch, type TablesMatches, type TablesRooms } from './routes.js';
 
@@ -102,10 +102,16 @@ describe('an avatar change reaches the running match (Q6)', () => {
 describe('a room and its match across a restart', () => {
 	const ALICE = { id: 'fk:1111111111111111', name: 'user-alice' };
 	const BOB = { id: 'fk:2222222222222222', name: 'user-bob' };
+	const dirs: string[] = [];
+
+	afterAll(async () => {
+		for (const dir of dirs) await rm(dir, { recursive: true, force: true });
+	});
 
 	/** Two rooms, each mid-match, written to disk by the process that is about to die. */
 	async function beforeTheDeploy() {
 		const dir = await mkdtemp(join(tmpdir(), 'cardtable-restart-test-'));
+		dirs.push(dir);
 		const first = await openLobby({ dir, log: () => undefined });
 		const rooms: string[] = [];
 		for (const matchId of ['m-adopted0001', 'm-died0000001']) {
