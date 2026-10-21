@@ -392,6 +392,13 @@
   grid-area: you;
 }
 
+/* How far a card's emphasis may paint past its lane (`--emphasis-room`, below): a `<length>`, so it computes to px. */
+@property --emphasis-room {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
 /* ── a player's side of the table ─────────────────────────────────── */
 
 /*
@@ -1114,8 +1121,10 @@
    * lane or tier it rests against. The most is a combat-ready card wearing the can-act glow, above
    * it: 6% of the tallest card (`--card-max` · `--card-tall`, 10px) grown upward, 4px of lift and
    * the 13px glow at 1.06×. Sideways it is 3.6px of growth and the same glow; below, the glow or
-   * the 17px drop shadow less the lift; the block focus is 12px all round. A plain length, because
-   * Chromium drops an `overflow-clip-margin` written as `calc()` to 0px (measured).
+   * the 17px drop shadow less the lift; the block focus is 12px all round. Registered as a
+   * `<length>` (below), because Chromium drops an `overflow-clip-margin` written as `calc()` to 0px
+   * (measured) and the UI scale writes this one as `calc(28 * var(--ui-px))`: registered, it reaches
+   * `overflow-clip-margin` as the px it computes to, at every scale.
    */
   --emphasis-room: 28px;
 
