@@ -145,6 +145,18 @@ scaffolding still to build. Read it before scaffolding or managing a wave.
   assumption (P1's Forge-independence).
 - Don't modify `forge/` until the fork exists. Right now it's stock upstream and
   keeping it that way is what makes forking clean.
+- **Concurrent work: claims.** Several sessions and lanes work this repo at once.
+  Before touching an area (a path, a glob, or a topic like `cost-payment`), run
+  `scripts/lanes/claim.sh list`, then `scripts/lanes/claim.sh claim <area> <you> [note]`;
+  it refuses (exit 1, naming the holder) when someone else's claim overlaps, and
+  then you report instead of colliding. `release <area|--all> <you>` when done.
+  The file is host-wide (`~/.local/state/cardtable/claims.tsv`); claims older
+  than 24 h list as stale and stop blocking.
+- **Waiting on CI and landing.** Wait for a run with ONE background
+  `scripts/lanes/watch-run.sh <run-id>`, never a poll loop in your own context.
+  `scripts/lanes/prove-and-land.sh <worktree> -f only=… -f specs=…` rebases onto
+  origin/main, proves that exact HEAD on the claws, and lands only on green. A new
+  ledger row in a landing commit is `| AF??? |`; `scripts/land.sh` numbers it.
 
 ## Does NOT
 
