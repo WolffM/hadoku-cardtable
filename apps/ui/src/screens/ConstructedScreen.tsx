@@ -145,11 +145,9 @@ import {
   type ArtIdIndex,
   type ArtIdTableFile,
 } from '@hadoku/carddata/art';
-import { parseDck } from '@hadoku/carddata/dck';
 import {
   basicLand,
   deckColorsByName,
-  deckFromDeckFile,
   LIMITED_MIN_MAIN_DECK_SIZE,
   mainDeckSize,
   manaTokensOf,
@@ -180,7 +178,7 @@ import { assignDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } fro
 import { artCredit, useArtist } from '../draft/artists.ts';
 import { cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
 import { cardIndex, mainSummary } from '../deck/build.ts';
-import { deckFromPool, splitBasics } from '../draft/deckFromPool.ts';
+import { dckTextOf, deckFromPool, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 import type { DraftCard } from '../draft/types.ts';
 import {
@@ -715,16 +713,10 @@ export function draftedDeckOption(value: string, label: string, deck: Deck, pool
   };
 }
 
-/** A drafter's saved build as a deck, or the auto-built one (`draftedDeckOf`) when there is none or it cannot be read. */
+/** A drafter's saved build as the deck builder opens it (`draftBuild`), or the auto-built one (`draftedDeckOf`) when there is none or it cannot be read. */
 export function openDraftedDeck(saved: string | null | undefined, draftId: string, pool: readonly DraftCard[]): Deck {
-  if (typeof saved === 'string') {
-    try {
-      return splitBasics(deckFromDeckFile(parseDck(saved)));
-    } catch {
-      // A corrupt save falls back to the auto-built deck rather than a crash.
-    }
-  }
-  return draftedDeckOf(draftId, pool);
+  const build = savedBuild(saved, true);
+  return build === null ? draftedDeckOf(draftId, pool) : draftBuild(draftId, pool, build);
 }
 
 /**
@@ -1514,7 +1506,7 @@ function RoomTableScreen({
       myDecks?.flatMap((d) => {
         if (d.deck === null) return [];
         const deck = openDraftedDeck(d.deck, d.id, d.pool);
-        return mainDeckSize(deck) < LIMITED_MIN_MAIN_DECK_SIZE ? [] : [{ option: draftedDeckOption(`${MY_DECK}${d.id}`, d.name, deck, d.pool), dck: d.deck }];
+        return mainDeckSize(deck) < LIMITED_MIN_MAIN_DECK_SIZE ? [] : [{ option: draftedDeckOption(`${MY_DECK}${d.id}`, d.name, deck, d.pool), dck: dckTextOf(deck) }];
       }) ?? null,
     [myDecks],
   );
@@ -1779,8 +1771,8 @@ function RoomTableScreen({
   /**
    * The chosen option as a deck reference.
    *
-   * A "My decks" value is the `.dck` text of that draft's saved build, the bytes
-   * `#/deck/<podId>` saved; every other value is a library id. Null for a "My
+   * A "My decks" value is the `.dck` text of that draft's build as the builder
+   * opens it (`openDraftedDeck`); every other value is a library id. Null for a "My
    * decks" value whose list has not answered.
    */
   const deckRefOf = (value: string): DeckRef | null => {

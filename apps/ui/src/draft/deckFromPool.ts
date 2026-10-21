@@ -46,7 +46,7 @@
 // `dck.ts` has no node builtins, so the browser reaches exactly the parser it
 // needs. Same pattern as `cardImage.ts`'s `@hadoku/carddata/art`.
 import { DEFAULT_ART_INDEX, parseDck, type CardRequest, type DeckEntry } from '@hadoku/carddata/dck';
-import { cardKey, deckFromDeckFile, isBasicLand, newDeck, toDeckFile, writeDck, type Deck } from '@hadoku/deck';
+import { cardKey, deckFromDeckFile, isBasicLand, mergeEntries, newDeck, toDeckFile, writeDck, type Deck } from '@hadoku/deck';
 
 import type { DraftCard } from './types.ts';
 
@@ -128,17 +128,7 @@ export function draftBuild(draftId: string, pool: readonly DraftCard[], saved: D
   const sideboard = take(saved?.sideboard ?? []);
   const main = take(saved?.main ?? []);
   for (const { card, n } of left.values()) if (n > 0) main.push({ count: n, card });
-  return { name: saved?.name ?? defaultDeckName(draftId), main: merge(main), sideboard: merge(sideboard), basics: saved?.basics ?? [] };
-}
-
-function merge(entries: readonly DeckEntry[]): DeckEntry[] {
-  const out = new Map<string, DeckEntry>();
-  for (const e of entries) {
-    const key = cardKey(e.card);
-    const had = out.get(key);
-    out.set(key, { count: (had?.count ?? 0) + e.count, card: had?.card ?? e.card });
-  }
-  return [...out.values()];
+  return { name: saved?.name ?? defaultDeckName(draftId), main: mergeEntries(main), sideboard: mergeEntries(sideboard), basics: saved?.basics ?? [] };
 }
 
 /** The picks as the build splits them, in pick order: of N copies with S sideboarded, the first S picked are the sideboard's. */

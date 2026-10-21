@@ -39,6 +39,7 @@ export {
   deckProblems,
   isBasicLand,
   mainDeckSize,
+  mergeEntries,
   moveToMain,
   moveToSideboard,
   newDeck,

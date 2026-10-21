@@ -359,7 +359,7 @@ export function basicLand(name: string, set: string | null = null): CardRequest 
 }
 
 /** Collapse repeated references to the same card into one entry, keeping order. */
-function mergeEntries(entries: readonly DeckEntry[]): DeckEntry[] {
+export function mergeEntries(entries: readonly DeckEntry[]): DeckEntry[] {
   const out: DeckEntry[] = [];
   const at = new Map<string, number>();
   for (const entry of entries) {
