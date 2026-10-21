@@ -19,9 +19,12 @@
  *   one it played last.
  * - **Reversed.** A `REVERSED_ROLES` event (Untap) plays its other role's
  *   cell backwards, and collapses only with itself.
+ * - **Fallback.** A role with an empty cell plays its `FALLBACK_ROLES` role's
+ *   cell, down the chain to the first that has a take (an impact tier
+ *   nobody has filled plays the tier below), and collapses as itself.
  */
 
-import { REVERSED_ROLES, SOUND_ROLES, type SoundBus } from '@hadoku/shared';
+import { FALLBACK_ROLES, REVERSED_ROLES, SOUND_ROLES, type SoundBus } from '@hadoku/shared';
 
 import { pickRandom } from './builderClient.ts';
 
@@ -113,7 +116,9 @@ export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
     plan(event, nowMs, settings) {
       const seat = event.seat ?? 'me';
       const reversedFrom = REVERSED_ROLES[event.role];
-      const roleCell = `${reversedFrom ?? event.role}|play`;
+      let played = reversedFrom ?? event.role;
+      while ((cells[`${played}|play`]?.length ?? 0) === 0 && FALLBACK_ROLES[played] !== undefined) played = FALLBACK_ROLES[played]!;
+      const roleCell = `${played}|play`;
       const role = SOUND_ROLES.get(reversedFrom ?? event.role);
       if (role === undefined) return { voices: [], skipped: [{ cell: roleCell, reason: 'unknown-role' }] };
       if (seat === 'opp' && role.bus === 'ui') {

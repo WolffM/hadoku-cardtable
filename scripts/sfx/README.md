@@ -255,6 +255,25 @@ clean mid-weight hit that still reads pitched down.
 python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r9 --to apps/server/data/sounds --add
 ```
 
+## Round 11: the blow to a player, by damage (2026-10-20)
+
+The operator: *"we have swing at the player but what happens on colliding with them? … it should be varrying
+explosion sounds"*, *"a complex crashing/explosion sound for every level of damage"*, and *"maybe at 5 damage is
+when the cheering comes in"*. A charge's blow now plays `g.impact.<tier>` for its damage (1, 2, 3, 4, 5–6, 7–9,
+10+) and, from 5, `g.cheer.<tier>` on top (5–6, 7–9, 10+): `impactRole` and `cheerRole` in
+`packages/shared/src/sounds.ts`. An empty tier plays the tier below (`FALLBACK_ROLES`), the smallest falling back to
+`g.crash`, which is still the creature-on-creature blow. `round11-impact.json` escalates from a body blow to a
+castle coming down; `round11-cheer.json` from a tavern to a stadium. Four prompts × two seeds per tier; several takes
+on a cell already vary at random, never the last one twice, and `intensityVoice` still shades each within its tier.
+`finish.py`'s `TIER_CAP` and `TIER_LOUDNESS` let the big tiers ring past `GAME_CAP` and sit louder.
+
+```sh
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round11-impact.json --takes 2 --seed 11000
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round11-cheer.json --takes 2 --seed 11000
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 11000 --only g.impact.,g.cheer. --out finished-r11-impact
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r11-impact --to apps/server/data/sounds --add
+```
+
 ## Match music, generated locally (2026-10-17)
 
 The operator: *"we can use local models to generate better stuff … keep the variance high. not everything should

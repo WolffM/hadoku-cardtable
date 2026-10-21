@@ -282,9 +282,11 @@ async function lethalCharge(browser: Browser, jar: { jar: string; res: string },
     }
     // "sound effects didn't trigger as expected": the charge, the blow, the life lost, and the end, on each screen.
     for (const [who, seat] of [['alice', 0], ['bob', 1]] as const) {
-      const want = ['g.charge', 'g.crash', 'g.damage-player', who === defender ? 'g.lose' : 'g.win'];
+      // The blow to a player is its damage tier's impact (`impactRole`), whichever tier that is.
+      const want = ['g.charge', 'g.impact.', 'g.damage-player', who === defender ? 'g.lose' : 'g.win'];
+      const heard = (role: string) => [...soundRoles(stack, seat)].some((r) => r === role || (role.endsWith('.') && r.startsWith(role)));
       await expect.soft
-        .poll(() => want.filter((role) => !soundRoles(stack, seat).has(role)), { timeout: 10_000, message: `${who}: every sound of the killing blow` })
+        .poll(() => want.filter((role) => !heard(role)), { timeout: 10_000, message: `${who}: every sound of the killing blow` })
         .toEqual([])
         .finally(() => console.log(`[cp] sounds ${scenario} ${who} ${[...soundRoles(stack, seat)].sort().join(',')}`));
     }

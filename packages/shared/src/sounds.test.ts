@@ -24,6 +24,11 @@ import {
 	COLOUR_PAIRS,
 	MATCH_MUSIC_ROLES,
 	parseCellId,
+	CHEER_TIERS,
+	FALLBACK_ROLES,
+	IMPACT_TIERS,
+	cheerRole,
+	impactRole,
 } from './sounds.ts';
 
 const VALID_TAKE = {
@@ -36,6 +41,36 @@ const VALID_TAKE = {
 	seconds: 1.2,
 	prompt: 'A triumphant chord.',
 };
+
+describe('impact and cheer tiers', () => {
+	it('a blow to a player maps to its damage tier: each point up to 4, then 5–6, 7–9 and 10 or more', () => {
+		expect([0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 25].map(impactRole)).toEqual([
+			'g.impact.1',
+			'g.impact.1',
+			'g.impact.2',
+			'g.impact.3',
+			'g.impact.4',
+			'g.impact.5',
+			'g.impact.5',
+			'g.impact.7',
+			'g.impact.7',
+			'g.impact.10',
+			'g.impact.10',
+		]);
+		expect([4, 5, 6, 7, 9, 10, 25].map(cheerRole)).toEqual([null, 'g.cheer.5', 'g.cheer.5', 'g.cheer.7', 'g.cheer.7', 'g.cheer.10', 'g.cheer.10']);
+	});
+
+	it('every tier is a builder role with a cell, named by its range, and falls back down to Creatures collide', () => {
+		for (const t of IMPACT_TIERS) expect(isCellId(`g.impact.${t}|play`)).toBe(true);
+		for (const t of CHEER_TIERS) expect(isCellId(`g.cheer.${t}|play`)).toBe(true);
+		expect(SOUND_ROLES.get('g.impact.5')?.name).toBe('Hit a player: 5–6 damage');
+		expect(SOUND_ROLES.get('g.impact.10')?.name).toBe('Hit a player: 10 or more damage');
+		expect(SOUND_ROLES.get('g.cheer.7')?.name).toBe('Crowd cheers: 7–9 damage');
+		const chain = (role: string): string[] => (FALLBACK_ROLES[role] === undefined ? [role] : [role, ...chain(FALLBACK_ROLES[role]!)]);
+		expect(chain('g.impact.10')).toEqual(['g.impact.10', 'g.impact.7', 'g.impact.5', 'g.impact.4', 'g.impact.3', 'g.impact.2', 'g.impact.1', 'g.crash']);
+		expect(chain('g.cheer.10')).toEqual(['g.cheer.10', 'g.cheer.7', 'g.cheer.5']);
+	});
+});
 
 describe('CellId', () => {
 	it('accepts a colour row paired with a paradigm column', () => {

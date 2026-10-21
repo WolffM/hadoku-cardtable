@@ -54,12 +54,22 @@ ROLE_CAP = {'ui.prompt': 1.0, 'g.turn-mine': 2.5, 'g.game-start': 2.5, 'g.match-
             'g.phase': 0.4, 'g.draw': 0.5, 'g.discard': 0.6, 'g.mill': 0.8, 'g.attach': 0.6,
             'g.destroy': 0.9, 'g.dies': 1.0, 'g.exile': 0.9, 'g.bounce': 0.8, 'g.counter': 0.9, 'g.damage': 0.8}
 UI_CAP, GAME_CAP = 0.6, 2.0
+# A blow to a player sounds as big as its damage (2026-10-20, round 11): each tier rings longer and sits louder than
+# the one below, from a body blow to a castle coming down, and the crowd over the heaviest ones swells longer still.
+# Past GAME_CAP from tier 5 up, which would have cut the big tails; the small tiers sit under `game` on purpose.
+TIER_CAP = {'g.impact.1': 1.0, 'g.impact.2': 1.2, 'g.impact.3': 1.5, 'g.impact.4': 1.8, 'g.impact.5': 2.2,
+            'g.impact.7': 2.8, 'g.impact.10': 3.5, 'g.cheer.5': 3.0, 'g.cheer.7': 4.0, 'g.cheer.10': 4.5}
+TIER_LOUDNESS = {'g.impact.1': -28.0, 'g.impact.2': -27.0, 'g.impact.3': -26.0, 'g.impact.4': -25.0,
+                 'g.impact.5': -24.0, 'g.impact.7': -23.0, 'g.impact.10': -22.0,
+                 'g.cheer.5': -29.0, 'g.cheer.7': -28.0, 'g.cheer.10': -27.0}
 
 
 def cap_for(folder):
     base = folder.split('.')[0]
     if base in MOMENT_CAP:
         return MOMENT_CAP[base]
+    if folder in TIER_CAP:
+        return TIER_CAP[folder]
     if folder in ROLE_CAP:
         return ROLE_CAP[folder]
     if folder.startswith('ui.'):
@@ -68,6 +78,8 @@ def cap_for(folder):
 
 
 def loudness_for(folder):
+    if folder in TIER_LOUDNESS:
+        return TIER_LOUDNESS[folder]
     if folder.split('.')[0] in MOMENT_CAP or folder in MOMENT_ROLES:
         return LOUDNESS['moment']
     if folder.startswith('ui.hover'):

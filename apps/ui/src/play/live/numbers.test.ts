@@ -842,7 +842,7 @@ describe('installNumbers: a ram', () => {
     handle.dispose();
   });
 
-  it('a charge plays its whoosh as it launches, once turned to face the player, and its crash on the blow, as heavy as the damage, on the attacker’s side', () => {
+  it('a charge plays its whoosh as it launches, once turned to face the player, and its damage tier’s impact on the blow, as heavy as the damage, on the attacker’s side', () => {
     vi.useFakeTimers();
     const { canvas } = board();
     canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
@@ -855,8 +855,28 @@ describe('installNumbers: a ram', () => {
       faceHits: [{ seq: 1, playerId: 0, sourceId: 50, amount: 3, combat: true }],
     });
     expect(boardSoundsAt(1).map((s) => [s.role, s.at - now, s.intensity, s.mine])).toEqual([
-      ['g.crash', contactMs('charge'), damagePower(3), false],
+      ['g.impact.3', contactMs('charge'), damagePower(3), false],
       ['g.charge', ALIGN_MS, damagePower(3), false],
+    ]);
+    handle.dispose();
+  });
+
+  it('a charge of 5 or more brings the crowd in on the blow, by its own tier', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = card(50, 0);
+    handle.notify(view([player(0, 20, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]));
+    const now = Date.now();
+    handle.notify({
+      ...view([player(0, 12, { isViewer: true }), player(1, 20, { battlefield: [attacker] })]),
+      faceHits: [{ seq: 1, playerId: 0, sourceId: 50, amount: 8, combat: true }],
+    });
+    expect(boardSoundsAt(1).map((s) => [s.role, s.at - now])).toEqual([
+      ['g.impact.7', contactMs('charge')],
+      ['g.cheer.7', contactMs('charge')],
+      ['g.charge', ALIGN_MS],
     ]);
     handle.dispose();
   });

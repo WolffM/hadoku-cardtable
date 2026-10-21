@@ -1,0 +1,44 @@
+{
+ "note": "Round 11 (2026-10-20): crowd cheers layered on a big hit to a player (the operator: \"would be nice to have cheering as an extra sound too ... maybe at 5 damage is when the cheering comes in\"). Three sizes: 5-6, 7-9, 10+.",
+ "suffix": "High-quality, stereo, 44.1kHz, field recording of a crowd, no music.",
+ "negative": "low quality, muffled, lo-fi, hiss, clipping, distortion, music, melody, song, singing, chant melody, announcer, speech, single voice, booing",
+ "seconds": 4.0,
+ "sounds": {
+  "g.cheer.5": {
+   "group": "Round 11",
+   "name": "Big hit: crowd cheers (5-6)",
+   "section": "Moments",
+   "seconds": 3.5,
+   "prompts": [
+    "A small tavern crowd cheering and clapping after a good blow, a short burst of whoops",
+    "A few dozen spectators at a village fair cheering, a quick excited roar",
+    "A small crowd in a hall shouting hooray and clapping, a short lively cheer",
+    "Spectators at a local wrestling match cheering a big hit, a short burst of cheers and claps"
+   ]
+  },
+  "g.cheer.7": {
+   "group": "Round 11",
+   "name": "Huge hit: crowd roars (7-9)",
+   "section": "Moments",
+   "seconds": 4.5,
+   "prompts": [
+    "A large arena crowd roaring and cheering after a huge hit, loud excited shouting",
+    "A packed colosseum crowd erupting in cheers, roaring and stomping",
+    "Thousands of fans in a sports arena cheering loudly, a big swelling roar",
+    "A big crowd at a jousting tournament roaring in excitement, cheers and applause"
+   ]
+  },
+  "g.cheer.10": {
+   "group": "Round 11",
+   "name": "Massive hit: stadium erupts (10+)",
+   "section": "Moments",
+   "seconds": 5.0,
+   "prompts": [
+    "A huge stadium crowd erupting in a massive roar, tens of thousands of fans screaming and cheering",
+    "A packed football stadium exploding with cheers after a winning goal, deafening roar and air horns",
+    "An enormous colosseum crowd going wild, thunderous roaring, stomping and chanting",
+    "A massive festival crowd screaming and cheering at full volume, a huge wall of roaring noise"
+   ]
+  }
+ }
+}

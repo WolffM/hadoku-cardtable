@@ -74,6 +74,16 @@ describe('plan', () => {
     expect(p.plan({ role: 'g.untap' }, 20, MIX).skipped).toEqual([{ cell: 'g.tap|play', reason: 'collapsed' }]);
   });
 
+  it('an empty impact tier plays the nearest filled tier below it, then Creatures collide; an empty cheer the cheer below', () => {
+    const p = planner({ 'g.crash|play': ['crash/take-1.ogg'], 'g.impact.3|play': ['impact-3/take-1.ogg'], 'g.cheer.5|play': ['cheer-5/take-1.ogg'] });
+    expect(p.plan({ role: 'g.impact.4' }, 0, MIX).voices.map((v) => v.cell)).toEqual(['g.impact.3|play']);
+    expect(p.plan({ role: 'g.impact.2' }, 0, MIX).voices.map((v) => v.cell)).toEqual(['g.crash|play']);
+    expect(p.plan({ role: 'g.cheer.10' }, 0, MIX).voices.map((v) => v.cell)).toEqual(['g.cheer.5|play']);
+    // Each collapses as itself: the 4 above and a 5 at the same moment are two blows.
+    expect(p.plan({ role: 'g.impact.5' }, 0, MIX).voices).toHaveLength(1);
+    expect(planner({}).plan({ role: 'g.cheer.5' }, 0, MIX).skipped).toEqual([{ cell: 'g.cheer.5|play', reason: 'empty' }]);
+  });
+
   it('plays a music role on the music bus', () => {
     const p = planner({ 'music.match|play': ['music-x/take-1.ogg'] });
     expect(p.plan({ role: 'music.match' }, 0, { ...MIX, bus: { ...MIX.bus, music: 0.3 } }).voices).toEqual([

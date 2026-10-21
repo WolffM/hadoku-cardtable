@@ -96,7 +96,7 @@
  * declarations are theirs to see as they click. Fast Mode: no beat.
  */
 
-import type { ManaColor } from '@hadoku/shared';
+import { cheerRole, impactRole, type ManaColor } from '@hadoku/shared';
 
 import type { BoardView, DamageHit, FaceHit, StackEntry } from '../adapter.ts';
 import {
@@ -874,7 +874,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         const hitPoint = plan.kind === 'charge' ? to : { x: (from.x + strike.x + to.x) / 2, y: (from.y + strike.y + to.y) / 2 };
         const at = plan.kind === 'meet' ? { x: from.x + strike.x, y: from.y + strike.y } : hitPoint;
         atBeat(() => bang(target, `crash:${plan.sourceId}`, plan.amount, at), plan.delayMs + contactMs(plan.kind));
-        sounds.push({ role: 'g.crash', ms: plan.delayMs + contactMs(plan.kind), intensity: plan.power, mine: viewers(plan.sourceId) });
+        const contact = plan.delayMs + contactMs(plan.kind);
+        const mine = viewers(plan.sourceId);
+        // On a player the blow is as big as its damage, and a crowd cheers from 5 (`impactRole`, `cheerRole`).
+        sounds.push({ role: plan.kind === 'charge' ? impactRole(plan.amount) : 'g.crash', ms: contact, intensity: plan.power, mine });
+        const cheer = plan.kind === 'charge' ? cheerRole(plan.amount) : null;
+        if (cheer !== null) sounds.push({ role: cheer, ms: contact, intensity: plan.power, mine });
       }
       if (plan.kind === 'charge') sounds.push({ role: 'g.charge', ms: plan.delayMs + ALIGN_MS, intensity: plan.power, mine: viewers(plan.sourceId) });
       // Blasted as hard as what struck it hit: its partner's power when they met.

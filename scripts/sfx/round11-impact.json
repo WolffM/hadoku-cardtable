@@ -1,0 +1,92 @@
+{
+ "note": "Round 11 (2026-10-20): the operator: \"we're missing an impact sound ... on colliding with them [a player]. it should be varying explosion sounds\", \"different sounds based on how much damage is dealt ... lots of different levels\", \"a complex crashing/explosion sound for every level of damage\". Seven tiers by damage: 1, 2, 3, 4, 5-6, 7-9, 10+ (MAX_DAMAGE = 10 in play/motion.ts). Each tier escalates from a body blow to a cataclysm; variance comes from several takes per cell (mix.ts plays one at random, never the last) plus intensityVoice's gain/rate. Explosion and fire are wanted here, unlike round 9.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, foley, full and punchy, clean tail.",
+ "negative": "low quality, muffled, lo-fi, hiss, clipping, distortion, music, melody, song, speech, voice, vocals, chime, chimes, bell, gong, laser, sci-fi, beeping, whoosh",
+ "seconds": 2.0,
+ "sounds": {
+  "g.impact.1": {
+   "group": "Round 11",
+   "name": "Player hit: 1 damage",
+   "section": "Moments",
+   "seconds": 1.2,
+   "prompts": [
+    "A single bare-knuckle punch into a heavy leather sandbag, one tight dull thump",
+    "A wooden practice sword striking a padded training dummy once, a short soft thud",
+    "A fist thumping a thick wooden door once, a short muffled knock",
+    "A small stone thrown hard against a wooden shield, one compact knock"
+   ]
+  },
+  "g.impact.2": {
+   "group": "Round 11",
+   "name": "Player hit: 2 damage",
+   "section": "Moments",
+   "seconds": 1.4,
+   "prompts": [
+    "A heavy wooden club striking a leather-armoured body, a solid thud with a creak of leather",
+    "A shoulder slamming hard into a wooden door, a deep thump and a rattle of the frame",
+    "A heavy wooden mallet hitting a thick wooden beam, a deep solid knock",
+    "A sack of grain thrown onto a wooden floor, a heavy full-bodied thud"
+   ]
+  },
+  "g.impact.3": {
+   "group": "Round 11",
+   "name": "Player hit: 3 damage",
+   "section": "Moments",
+   "seconds": 1.6,
+   "prompts": [
+    "A war hammer smashing into a steel shield, a heavy clang and rattle of chainmail",
+    "A wooden barrel smashed by a heavy blow, splintering wood and staves clattering",
+    "A large rock hurled into a wooden wall, a deep crash with splinters and a few stones falling",
+    "An armoured knight slammed onto a stone floor, a heavy crash of plate armour and scraping metal"
+   ]
+  },
+  "g.impact.4": {
+   "group": "Round 11",
+   "name": "Player hit: 4 damage",
+   "section": "Moments",
+   "seconds": 2.0,
+   "prompts": [
+    "A battering ram smashing through a wooden gate, a booming crash and splintering timber",
+    "A heavy boulder crashing into a stone wall, a deep crunch and rubble tumbling down",
+    "A small black powder charge going off against a wooden door, a sharp bang and flying splinters",
+    "A cart of iron pots and armour overturned onto cobblestones, a big metallic crash and clatter"
+   ]
+  },
+  "g.impact.5": {
+   "group": "Round 11",
+   "name": "Player hit: 5-6 damage",
+   "section": "Moments",
+   "seconds": 2.4,
+   "prompts": [
+    "A cannon ball striking a stone castle wall, a booming impact and stone chunks crashing down",
+    "A powder keg exploding, a deep boom with wood and debris raining down",
+    "A wooden watchtower struck and collapsing, a heavy crash of beams and planks tumbling",
+    "A dynamite blast in a quarry, a deep thump of explosion and rocks scattering across the ground"
+   ]
+  },
+  "g.impact.7": {
+   "group": "Round 11",
+   "name": "Player hit: 7-9 damage",
+   "section": "Moments",
+   "seconds": 3.0,
+   "prompts": [
+    "A huge explosion blasting apart a stone fortress wall, a massive boom, rumbling and heavy rubble crashing for a long tail",
+    "A large building demolition blast, a deep explosion followed by concrete and steel crashing down",
+    "A massive boulder avalanche slamming into a castle, thunderous crashing rock and splintering timber",
+    "A ship's powder magazine exploding, a huge boom, cracking timber and debris splashing and falling"
+   ]
+  },
+  "g.impact.10": {
+   "group": "Round 11",
+   "name": "Player hit: 10+ damage",
+   "section": "Moments",
+   "seconds": 3.8,
+   "prompts": [
+    "A colossal explosion, an enormous deep boom with a shockwave, a whole stone tower collapsing and a long rumbling tail of falling rubble",
+    "A meteor striking the earth, a gigantic impact boom, ground shaking rumble and rocks raining down",
+    "A huge mountainside blast in a mine, a thunderous explosion echoing, landslide of rock crashing for seconds",
+    "A massive castle keep detonated and collapsing, a gigantic boom, crumbling stone, crashing beams and a long deep rumble"
+   ]
+  }
+ }
+}

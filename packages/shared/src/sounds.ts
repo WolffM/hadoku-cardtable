@@ -166,6 +166,57 @@ export const MATCH_MUSIC_ROLES: readonly string[] = [
 
 const COLOUR_NAME: Readonly<Record<ManaColour, string>> = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' };
 
+/**
+ * A blow to a player sounds as big as its damage (the operator, 2026-10-20: *"we need different sounds based on
+ * how much damage is dealt … a complex crashing/explosion sound for every level of damage"*). Each tier is named by
+ * its lowest damage and runs to the next: one point at a time up to 4, where one point is the most audible, then
+ * 5–6, 7–9 and 10 or more, where `damagePower` stops growing (`apps/ui/src/play/motion.ts`). A crowd cheers on top
+ * from 5 (*"maybe at 5 damage is when the cheering comes in"*).
+ */
+export const IMPACT_TIERS = [1, 2, 3, 4, 5, 7, 10] as const;
+export const CHEER_TIERS = [5, 7, 10] as const;
+
+function impactTierRole(tier: number): string {
+	return `g.impact.${tier}`;
+}
+
+function cheerTierRole(tier: number): string {
+	return `g.cheer.${tier}`;
+}
+
+/** The tier `amount` falls in: the highest that is at most it, or `null` below the first. */
+function tierOf(tiers: readonly number[], amount: number): number | null {
+	return tiers.filter((t) => t <= amount).at(-1) ?? null;
+}
+
+function tierLabel(tiers: readonly number[], i: number): string {
+	const lo = tiers[i]!;
+	const next = tiers[i + 1];
+	if (next === undefined) return `${lo} or more damage`;
+	return next === lo + 1 ? `${lo} damage` : `${lo}–${next - 1} damage`;
+}
+
+/** The impact role for a blow of `amount` to a player; a blow of under 1 is still the smallest. */
+export function impactRole(amount: number): string {
+	return impactTierRole(tierOf(IMPACT_TIERS, amount) ?? IMPACT_TIERS[0]);
+}
+
+/** The crowd's role for a blow of `amount` to a player, or `null` under the first cheer tier. */
+export function cheerRole(amount: number): string | null {
+	const t = tierOf(CHEER_TIERS, amount);
+	return t === null ? null : cheerTierRole(t);
+}
+
+/**
+ * A role whose cell is empty plays this one's instead, and so on down: an impact tier the tier below it, the
+ * smallest Creatures collide (what a blow to a player played before the tiers); a cheer the cheer below it. So a
+ * tier nobody has filled yet still sounds.
+ */
+export const FALLBACK_ROLES: Readonly<Record<string, string>> = Object.fromEntries([
+	...IMPACT_TIERS.map((t, i) => [impactTierRole(t), i === 0 ? 'g.crash' : impactTierRole(IMPACT_TIERS[i - 1]!)]),
+	...CHEER_TIERS.slice(1).map((t, i) => [cheerTierRole(t), cheerTierRole(CHEER_TIERS[i]!)]),
+]);
+
 /** Every role, grouped the way the builder lists them. */
 export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 	{
@@ -244,7 +295,13 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			game('g.damage', 'Damage to a creature', 'A creature takes damage.'),
 			game('g.damage-player', 'Damage to a player', 'A player or planeswalker loses life to damage.'),
 			game('g.charge', 'Charge at a player', 'An unblocked attacker launches at the player it hits. Louder and lower the more damage it deals.'),
-			game('g.crash', 'Creatures collide', 'The blow of a creature ramming another, or a player: plays on top of the damage. Louder and lower the more damage.'),
+			game('g.crash', 'Creatures collide', 'The blow of a creature ramming another: plays on top of the damage. Louder and lower the more damage.'),
+			...IMPACT_TIERS.map((t, i) =>
+				game(impactTierRole(t), `Hit a player: ${tierLabel(IMPACT_TIERS, i)}`, `An attacker crashes into the player it hits for ${tierLabel(IMPACT_TIERS, i)}. Empty: the tier below plays, and below 2 Creatures collide.`),
+			),
+			...CHEER_TIERS.map((t, i) =>
+				game(cheerTierRole(t), `Crowd cheers: ${tierLabel(CHEER_TIERS, i)}`, `The crowd on top of the hit, when one attacker deals ${tierLabel(CHEER_TIERS, i)} to a player. Empty: the tier below plays.`),
+			),
 			game('g.crumble', 'Cracks and crumbles', 'A creature killed by damage cracks and crumbles to dust: plays on top of Creature dies.'),
 			game('g.lifegain', 'Life gain', 'A player gains life.'),
 		],
