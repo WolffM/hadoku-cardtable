@@ -28,7 +28,9 @@
  *
  * Forge's bounds on how many go where gate OK (`rules.ts` `orderProblems`), drawn rather
  * than written: a zone that must hold an exact count shows it, and a zone short of or
- * over its bounds is marked (`data-short`).
+ * over its bounds is marked (`data-short`). A pick of one card per type (`oneEach`, Atraxa's
+ * "for each card type") draws each type over the answer's zone, filled once a card in it
+ * fills that type; a card no type is left for does not go in.
  *
  * ## The gesture
  *
@@ -53,6 +55,7 @@
  * A row of words (a trigger's ability) keeps its ↑/↓ on its own tile.
  */
 
+import { oneEachFill } from '@hadoku/forge-wire';
 import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 import { cardOrWordsFace, PromptShell } from './PromptShell.tsx';
@@ -134,6 +137,7 @@ function ZonesSheet({
   /** The source's fixed order, when its order is not part of the answer. */
   const fixedSource = ask.rest === undefined ? all.map((c) => c.key) : undefined;
   const locked = new Set(ask.locked ?? []);
+  const oneEach = ask.oneEach;
 
   const [lists, setLists] = useState<OrderLists>(() =>
     single
@@ -168,6 +172,7 @@ function ZonesSheet({
    */
   const move = (key: string, to: Side, before: string | null): boolean => {
     if (to === 'dest' && locked.has(key)) return false;
+    if (to === 'dest' && oneEach !== undefined && !lists.dest.includes(key) && oneEachFill(oneEach, [...lists.dest, key]) === null) return false;
     let at = before;
     if (turned(to)) {
       const rest = lists[to].filter((k) => k !== key);
@@ -202,6 +207,8 @@ function ZonesSheet({
     ask.remainingObjectsMax < 0 || single ? null : [n - ask.remainingObjectsMax, n - Math.max(ask.remainingObjectsMin, 0)];
   const exact = bounds !== null && bounds[0] === bounds[1] ? bounds[0] : null;
   const destShort = bounds !== null && (lists.dest.length < bounds[0] || lists.dest.length > bounds[1]);
+  /** Which card fills each type, for a pick of one per type. */
+  const filled = oneEach === undefined ? null : (oneEachFill(oneEach, lists.dest) ?? new Map<string, string>());
 
   /** Enter or Space does what a click does; in an ordered zone the arrows move the card the way they point. */
   const onKey = (act: () => void, side: Side, i: number, ordered: boolean) => (e: ReactKeyboardEvent) => {
@@ -296,6 +303,15 @@ function ZonesSheet({
             </>
           )}
         </h4>
+        {side === 'dest' && oneEach !== undefined && (
+          <ul className="zone__types">
+            {oneEach.map(({ type }) => (
+              <li key={type} className="zone__type" data-testid="zone-type" data-type={type} data-filled={filled?.has(type) || undefined}>
+                {type} <span className="zone__count">{filled?.has(type) ? 1 : 0}/1</span>
+              </li>
+            ))}
+          </ul>
+        )}
         {anyCards ? (
           <div className="prompt__zone-row" data-ghost={ghost?.end}>
             {ghost?.end === 'bottom' && <ZoneGhost destination={ghost} />}

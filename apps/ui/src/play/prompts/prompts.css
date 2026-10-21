@@ -924,6 +924,30 @@
   font-size: 13px;
 }
 
+/* A pick of one card per type: each type over the answer's zone, filled once a card fills it. */
+.zone__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.zone__type {
+  padding: 1px 8px;
+  border: 1px solid var(--ink-dim);
+  border-radius: 999px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.zone__type[data-filled] {
+  border-color: var(--success);
+  color: var(--success-ink);
+}
+
 .prompt__problems {
   margin: 0;
   padding-left: 18px;

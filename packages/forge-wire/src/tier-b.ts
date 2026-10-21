@@ -682,6 +682,21 @@ export const ConfirmSchema = z.strictObject({
 export const ConfirmReplySchema = z.boolean();
 
 /**
+ * Where an order's cards go: `zone`, at its `end`; and `first`, which way the
+ * answer's first card lies from the others once they are there — `'top'`: it
+ * is the highest of them. The card that ends up next to the rest of the zone
+ * is the highest one when they go to the bottom, the lowest when they go on top.
+ */
+export const OrderDestinationSchema = z.strictObject({
+  zone: z.enum(['library', 'graveyard', 'hand', 'exile', 'battlefield']),
+  /** Absent for a zone with no ends (a hand, exile, the battlefield). */
+  end: z.enum(['top', 'bottom']).optional(),
+  first: z.enum(['top', 'bottom']).optional(),
+  /** Whose zone, when it is not the asked seat's own (a fateseal's opponent's library). */
+  owner: PlayerRefSchema.optional(),
+});
+
+/**
  * `<T> List<T> getChoices(String message, int min, int max, List<T> choices,
  * List<T> selected, FSerializableFunction<T, String> display)` —
  * IGuiGame.java:185. See the module header on the `<T>` and `display`
@@ -700,6 +715,15 @@ export const ConfirmReplySchema = z.boolean();
  * one question picking `min`..`max` and answers Forge's later mode questions
  * from that reply (`apps/server/src/play/modes.ts`).
  *
+ * `eachType` is ours too: the bridge sets it on the first card-type question of
+ * a `RepeatEach` over card types whose every turn is one optional `ChooseCard`
+ * (`PlayBridge.java`'s `eachTypeOf`; Atraxa, Grand Unifier). `cards` is every
+ * card a turn could offer, each with the types (of `choices`) it could be
+ * picked for; `chosen` is where picked cards go, `rest` where the others go,
+ * `text` the ability's own words. The server asks it as one `order`
+ * (`apps/server/src/play/each-type.ts`) and answers Forge's later type and card
+ * questions from that one reply.
+ *
  * `affordable` is ours too: on a number ask for a mana X (`PlayBridge.java`'s
  * `numberAsk`, which lists on past Forge's ten numbers and "Other…" entry),
  * the most X the seat can pay, by Forge's own payer.
@@ -716,6 +740,14 @@ export const GetChoicesSchema = z.strictObject({
   selected: z.array(z.string()),
   names: z.array(z.string()).optional(),
   modes: z.strictObject({ min: z.number().int(), max: z.number().int(), card: CardRefSchema }).optional(),
+  eachType: z
+    .strictObject({
+      cards: z.array(z.strictObject({ card: CardRefSchema, name: z.string(), types: z.array(z.string().min(1)).min(1) })).min(1),
+      chosen: OrderDestinationSchema,
+      rest: OrderDestinationSchema,
+      text: z.string().min(1).optional(),
+    })
+    .optional(),
   affordable: z.number().int().nonnegative().optional(),
 });
 
@@ -747,25 +779,14 @@ export const GetChoicesReplySchema = z.array(z.string());
  * `rest` group but not move into the answer — a `Dig`'s looked-at cards its
  * `ChangeValid` lets through no further (`apps/server/src/play/arrange.ts`).
  *
+ * `oneEach` is ours too: the answer holds at most one card of each `type`, a
+ * card filling one type it is listed under (`keys`) — "for each card type, you
+ * may put a card of that type" (`apps/server/src/play/each-type.ts`).
+ *
  * `question` is ours too: the action the seat takes, in the card's own words,
  * for an order the server composed from another question (a `Dig`'s,
  * `arrange.ts`'s `digQuestion`). The sheet leads with it.
  */
-/**
- * Where an order's cards go: `zone`, at its `end`; and `first`, which way the
- * answer's first card lies from the others once they are there — `'top'`: it
- * is the highest of them. The card that ends up next to the rest of the zone
- * is the highest one when they go to the bottom, the lowest when they go on top.
- */
-export const OrderDestinationSchema = z.strictObject({
-  zone: z.enum(['library', 'graveyard', 'hand', 'exile', 'battlefield']),
-  /** Absent for a zone with no ends (a hand, exile, the battlefield). */
-  end: z.enum(['top', 'bottom']).optional(),
-  first: z.enum(['top', 'bottom']).optional(),
-  /** Whose zone, when it is not the asked seat's own (a fateseal's opponent's library). */
-  owner: PlayerRefSchema.optional(),
-});
-
 export const OrderSchema = z.strictObject({
   kind: z.literal('ask'),
   callId: z.string().min(1),
@@ -783,6 +804,7 @@ export const OrderSchema = z.strictObject({
   destination: OrderDestinationSchema.optional(),
   rest: OrderDestinationSchema.optional(),
   locked: z.array(z.string()).optional(),
+  oneEach: z.array(z.strictObject({ type: z.string().min(1), keys: z.array(z.string()) })).optional(),
   question: z.string().min(1).optional(),
 });
 

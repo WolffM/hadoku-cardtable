@@ -136,6 +136,7 @@ import {
 	type StopWindow,
 } from './auto.js';
 import { answerPending, arrangeAsk, digAnswer, digAsk, pendingOrders, restOrder, sameCardsOrder, type PendingOrder } from './arrange.js';
+import { eachTypeAsk, firstEachType, nextEachType, type EachTypeLeft } from './each-type.js';
 import { firstMode, modesAsk, nextMode, type ModesLeft } from './modes.js';
 import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
 import { artOf } from './art.js';
@@ -579,6 +580,13 @@ export interface SeatState {
 	pendingOrders: PendingOrder[];
 	/** A `Dig`'s question shown as one `order` (`./arrange.ts`'s `digAsk`), by callId: the question Forge asked. */
 	digFolds: Map<string, Extract<ServerFrame, { kind: 'ask'; method: 'chooseEntitiesForEffect' }>>;
+	/** A per-type pick's first type question shown as one `order` (`./each-type.ts`'s `eachTypeAsk`), by callId: the question Forge asked. */
+	typeFolds: Map<string, Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>>;
+	/**
+	 * What a per-type pick's one reply still owes Forge's later type and card questions
+	 * (`./each-type.ts`). Cleared by the next ask it does not answer.
+	 */
+	eachTypeLeft: EachTypeLeft | null;
 	/**
 	 * The modes a modal spell's one prompt picked that Forge has not asked for
 	 * yet, until its later mode questions arrive and are answered with them
@@ -1206,6 +1214,8 @@ export class Match {
 			mergedChoice: new Map(),
 			pendingOrders: [],
 			digFolds: new Map(),
+			typeFolds: new Map(),
+			eachTypeLeft: null,
 			modesLeft: null,
 			pendingPrompt: null,
 			pendingButtons: null,
@@ -1793,6 +1803,12 @@ export class Match {
 					return { ok: false, error: 'reply names a card that was not offered' };
 				}
 				const dig = s.digFolds.get(frame.callId);
+				const typeFold = s.typeFolds.get(frame.callId);
+				// A per-type pick's one sheet: Forge is sent the first type, and its later type and
+				// card questions wait for the same reply (`./each-type.ts`).
+				const eachType =
+					typeFold === undefined || ask.frame.method !== 'order' ? null : firstEachType(typeFold, ask.frame, (frame.result as { ordered: string[] }).ordered);
+				if (typeFold !== undefined && eachType === null) return { ok: false, error: 'reply puts in two cards for one type' };
 				this.closeAsk(s, ask.callId);
 				const about = askGist(ask.frame);
 				const fallback = s.unparsed.get(frame.callId);
@@ -1835,6 +1851,12 @@ export class Match {
 					const abilityId = (frame.result as { id: number }).id;
 					s.lastAbilityToPlay = { hostCard, abilityId };
 					this.choose(s, s.lastAbilityToPlay);
+				}
+				if (eachType !== null) {
+					s.eachTypeLeft = eachType.left;
+					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: 'getChoices (one order for every card type)', ms: this.now() - ask.sentAt, ...about, picked: (frame.result as { ordered: string[] }).ordered });
+					this.command({ t: 'reply', seat, callId: frame.callId, result: eachType.result });
+					return { ok: true };
 				}
 				// A scry's, surveil's or dig's one prompt: Forge is sent its first
 				// question's answer, and the groups' orders wait for its later ones (`./arrange.ts`).
@@ -3353,6 +3375,7 @@ export class Match {
 	private closeAsk(s: SeatState, callId: string): void {
 		s.asks.delete(callId);
 		s.digFolds.delete(callId);
+		s.typeFolds.delete(callId);
 		this.checkWaitingOn();
 	}
 
@@ -3423,6 +3446,23 @@ export class Match {
 			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: pending.result });
 			return;
 		}
+		const owed = s.eachTypeLeft;
+		s.eachTypeLeft = null;
+		const typeAnswer = owed === null ? null : nextEachType(offered, owed);
+		if (typeAnswer !== null) {
+			s.eachTypeLeft = typeAnswer.left;
+			s.autoAnswered += 1;
+			this.deps.log({
+				evt: 'ask-auto-answered',
+				matchId: this.id,
+				seat: s.seat,
+				callId: offered.callId,
+				method: offered.method,
+				why: 'the cards the one per-type prompt already picked',
+			});
+			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: typeAnswer.result });
+			return;
+		}
 		const modes = s.modesLeft;
 		s.modesLeft = null;
 		const modeAnswer = modes === null ? null : nextMode(offered, modes);
@@ -3438,6 +3478,12 @@ export class Match {
 				why: 'the modes the modal spell prompt already picked',
 			});
 			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: modeAnswer.result });
+			return;
+		}
+		const sheet = eachTypeAsk(offered);
+		if (sheet !== null && offered.method === 'getChoices') {
+			s.typeFolds.set(offered.callId, offered);
+			this.openAskFrame(s, offered.callId, sheet.method, sheet);
 			return;
 		}
 		const frame = arrangeAsk(offered) ?? modesAsk(offered) ?? this.narrowNames(s, offered);

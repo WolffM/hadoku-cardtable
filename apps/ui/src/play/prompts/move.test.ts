@@ -328,6 +328,43 @@ describe('a dig: a fateseal and Impulse', () => {
   });
 });
 
+describe('one card per type (Atraxa, Grand Unifier): Hand | Bottom, the types over the Hand', () => {
+  /** s0 an artifact creature, s1 an artifact, s2 a creature. */
+  const ask = () =>
+    cardsAsk({
+      remainingObjectsMin: 1,
+      remainingObjectsMax: 3,
+      destination: { zone: 'hand' },
+      rest: LIBRARY_BOTTOM,
+      oneEach: [
+        { type: 'Artifact', keys: ['s0', 's1'] },
+        { type: 'Creature', keys: ['s0', 's2'] },
+      ],
+    });
+  const types = (container: HTMLElement) =>
+    [...container.querySelectorAll<HTMLElement>('[data-testid="zone-type"]')].map((t) => `${t.dataset.type}${t.hasAttribute('data-filled') ? '+' : ''}`);
+
+  it('draws each type empty, fills them as cards go in, and refuses a card no type is left for', () => {
+    const { source, dest, container, submit, answers } = zones(ask());
+    expect(types(container)).toEqual(['Artifact', 'Creature']);
+    fireEvent.click(rowsOf(source())[0]!);
+    expect(types(container).filter((t) => t.endsWith('+'))).toHaveLength(1);
+    fireEvent.click(rowsOf(source())[0]!);
+    expect(keysIn(dest())).toEqual(['s0', 's1']);
+    expect(types(container)).toEqual(['Artifact+', 'Creature+']);
+    fireEvent.click(rowsOf(source())[0]!);
+    expect(keysIn(dest()), 'the creature has no type left').toEqual(['s0', 's1']);
+    fireEvent.click(submit());
+    expect(answers).toEqual([{ ordered: ['s0', 's1'], rememberDecision: false, rest: ['s2'] }]);
+  });
+
+  it('nothing in the Hand is an answer too', () => {
+    const { submit, answers } = zones(ask());
+    fireEvent.click(submit());
+    expect(answers).toEqual([{ ordered: [], rememberDecision: false, rest: ['s0', 's1', 's2'] }]);
+  });
+});
+
 describe('a pick of some (Forge’s `many`)', () => {
   it('two zones under Forge’s caption; a chosen card goes back to its own place among the rest', () => {
     const ask = cardsAsk({ title: 'Choose cards', top: 'Chosen cards', remainingObjectsMin: 1, remainingObjectsMax: 2 });

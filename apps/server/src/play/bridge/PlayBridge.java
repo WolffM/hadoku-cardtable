@@ -660,9 +660,12 @@ public final class PlayBridge {
             props.addProperty("_type", DeltaPacket.getTypeFromDeltaKey(deltaKey));
             props.addProperty("_id", DeltaPacket.getIdFromDeltaKey(deltaKey));
             final boolean stackItem = DeltaPacket.getTypeFromDeltaKey(deltaKey) == DeltaPacket.TYPE_STACK_ITEM_VIEW;
+            final boolean card = DeltaPacket.getTypeFromDeltaKey(deltaKey) == DeltaPacket.TYPE_CARD_VIEW;
             for (final Map.Entry<TrackableProperty, Object> pe : e.getValue().entrySet()) {
                 final Object v = stackItem && pe.getKey() == TrackableProperty.Description
-                        ? liveStackText(DeltaPacket.getIdFromDeltaKey(deltaKey), pe.getValue()) : pe.getValue();
+                        ? liveStackText(DeltaPacket.getIdFromDeltaKey(deltaKey), pe.getValue())
+                        : card && pe.getKey() == TrackableProperty.ChosenCards && spentChoice(DeltaPacket.getIdFromDeltaKey(deltaKey))
+                        ? List.of() : pe.getValue();
                 props.add(pe.getKey().name(), encode(v));
             }
             // DeltaSyncManager never puts a propertyless object in either map (:257, :281).
@@ -671,6 +674,46 @@ public final class PlayBridge {
             }
         }
         return out;
+    }
+
+    /**
+     * Whether the cards card {@code id} chose are only what an effect of it chose while it resolved:
+     * nothing the card has that lasts (a static ability, a trigger, a replacement, an activated
+     * ability, or a count one of them names) reads its chosen cards. Forge keeps a card's
+     * {@code ChosenCards} until a {@code Cleanup} clears them ({@code ClearChosenCard}), and a
+     * {@code ChooseCard} whose card never clears them leaves the last card it picked on the card for
+     * good (Atraxa, Grand Unifier's last per-type pick; {@code CardDetailUtil} shows it as
+     * "(chosen card: …)"). The operator, 2026-10-20: <i>"it seems to show a pill of the chosen card on
+     * top of atraxa after she resolves"</i>. Such a choice is bookkeeping, so the board is sent none
+     * of it ({@link #objectTable}); one a lasting ability reads (Tyrannical Pitlord's, Koh's) is a
+     * fact about the permanent and is sent. False when the card cannot be read.
+     */
+    static boolean spentChoice(final int id) {
+        final Game game = liveGame();
+        final forge.game.card.Card c = game == null ? null : game.findById(id);
+        if (c == null) { return false; }
+        try {
+            final List<forge.game.CardTraitBase> lasting = new ArrayList<>();
+            lasting.addAll(c.getStaticAbilities());
+            lasting.addAll(c.getTriggers());
+            lasting.addAll(c.getReplacementEffects());
+            for (final SpellAbility sa : c.getSpellAbilities()) { if (sa.isActivatedAbility()) { lasting.add(sa); } }
+            for (final forge.game.CardTraitBase t : lasting) {
+                for (final String value : t.getMapParams().values()) {
+                    if (readsChosenCard(value)) { return false; }
+                    final String named = c.hasSVar(value) ? c.getSVar(value) : null;
+                    if (named != null && !named.startsWith("DB$") && readsChosenCard(named)) { return false; }
+                }
+            }
+            return true;
+        } catch (final RuntimeException ex) {
+            System.err.println("[bridge] spentChoice: could not read card " + id + " (" + ex + "); its chosen cards are sent");
+            return false;
+        }
+    }
+
+    private static boolean readsChosenCard(final String text) {
+        return text.contains("ChosenCard");
     }
 
     /**
@@ -3558,6 +3601,8 @@ public final class PlayBridge {
                 f.add("choices", choices(ask, "c", choices, display));
                 final JsonObject modes = modesOf(choices);
                 if (modes != null) { f.add("modes", modes); }
+                final JsonObject eachType = eachTypeOf(choices);
+                if (eachType != null) { f.add("eachType", eachType); }
             }
             final JsonArray sel = new JsonArray();
             if (selected != null && choices != null) {
@@ -3692,6 +3737,94 @@ public final class PlayBridge {
             final JsonObject rest = digZone(sa.getParamOrDefault("DestinationZone2", "Library"), sa.getParamOrDefault("LibraryPosition2", "-1"), whose);
             if (chosen == null || rest == null) { return null; }
             final JsonObject o = new JsonObject();
+            o.add("chosen", chosen);
+            o.add("rest", rest);
+            final String text = digText(sa);
+            if (text != null) { o.addProperty("text", text); }
+            return o;
+        }
+
+        /**
+         * The {@code ChooseCard} parameters a per-type pick may carry: none of them changes who picks, how
+         * many, or from what. {@code DB} is the script line's own record type ({@code DB$ ChooseCard}).
+         */
+        private static final java.util.Set<String> EACH_TYPE_PARAMS = java.util.Set.of(
+                "DB", "Choices", "ChoiceZone", "ChoiceTitle", "ChoiceTitleAppend", "RememberChosen", "ImprintChosen", "ForgetChosen",
+                "SpellDescription", "StackDescription", "AILogic");
+
+        /**
+         * A {@code RepeatEach} over card types whose every turn is one optional {@code ChooseCard}
+         * ({@code RepeatEachEffect.java:132}, Atraxa, Grand Unifier's "for each card type, you may put a
+         * card of that type … into your hand"): Forge asks this seat a card type ({@code chooseSomeType}),
+         * then a card of it, once per type. The first type question carries the whole of it
+         * ({@code GetChoicesSchema}'s {@code eachType}), so the server asks it as one sheet: every card any
+         * turn could offer with the types (of {@code choices}, the types left) it could be picked for —
+         * the {@code ChooseCard}'s own {@code Choices} without its {@code ChosenType}, the test
+         * {@code CardStateProperty} makes of it — where the picked cards go (the first {@code ChangeZone}
+         * after the repeat), and where the rest go (a later one from the zone the cards are picked in;
+         * else they stay there). Null for any other question, and for a {@code ChooseCard} that picks
+         * more than one card, must pick, or is another player's to make.
+         */
+        private JsonObject eachTypeOf(final List<?> choices) {
+            if (choices == null || choices.isEmpty() || !choices.stream().allMatch(c -> c instanceof String)) { return null; }
+            boolean repeating = false;
+            for (final StackTraceElement frame : askingStack("getChoices")) {
+                if (forge.game.ability.effects.RepeatEachEffect.class.getName().equals(frame.getClassName())) { repeating = true; break; }
+            }
+            final Game game = liveGame();
+            if (!repeating || game == null || !game.getStack().isResolving() || game.getStack().isEmpty()) { return null; }
+            SpellAbility sa = game.getStack().peek().getSpellAbility();
+            while (sa != null && !(sa.getApi() == forge.game.ability.ApiType.RepeatEach && sa.hasParam("RepeatTypesFrom"))) { sa = sa.getSubAbility(); }
+            if (sa == null || sa.hasParam("ChooseOrder") && !"True".equals(sa.getParam("ChooseOrder"))) { return null; }
+            final SpellAbility choose = sa.getAdditionalAbility("RepeatSubAbility");
+            if (choose == null || choose.getApi() != forge.game.ability.ApiType.ChooseCard || choose.getSubAbility() != null
+                    || !EACH_TYPE_PARAMS.containsAll(choose.getMapParams().keySet()) || !choose.hasParam("Choices")) { return null; }
+            final forge.game.player.Player picker = sa.getActivatingPlayer();
+            final PlayerView me = getCurrentPlayer();
+            if (picker == null || me == null || picker.getId() != me.getId()) { return null; }
+            final forge.game.card.Card host = sa.getHostCard();
+            final String choices0 = choose.getParam("Choices");
+            final int dot = choices0.indexOf('.');
+            String valid = choices0;
+            if (dot >= 0) {
+                final List<String> props = new ArrayList<>(java.util.Arrays.asList(choices0.substring(dot + 1).split("\\+")));
+                if (!props.remove("ChosenType")) { return null; }
+                valid = props.isEmpty() ? choices0.substring(0, dot) : choices0.substring(0, dot + 1) + String.join("+", props);
+            } else { return null; }
+            final List<ZoneType> zones = ZoneType.listValueOf(choose.getParamOrDefault("ChoiceZone", "Battlefield"));
+            final forge.game.card.CardCollectionView pool = forge.game.card.CardLists.getValidCards(game.getCardsIn(zones), valid, picker, host, choose);
+            final JsonArray cards = new JsonArray();
+            final java.util.Set<Integer> owners = new java.util.HashSet<>();
+            for (final forge.game.card.Card c : pool) {
+                final JsonArray types = new JsonArray();
+                for (final Object t : choices) { if (c.getType().hasStringType((String) t)) { types.add((String) t); } }
+                if (types.isEmpty()) { continue; }
+                final JsonObject one = new JsonObject();
+                one.add("card", ref("card", c.getId()));
+                one.addProperty("name", c.getName());
+                one.add("types", types);
+                cards.add(one);
+                owners.add(c.getOwner().getId());
+            }
+            if (cards.isEmpty() || zones.size() != 1) { return null; }
+            final JsonObject whose = owners.size() == 1 && owners.iterator().next() != me.getId() ? ref("player", owners.iterator().next()) : null;
+            final String from = zones.get(0).name();
+            SpellAbility chosenMove = null;
+            SpellAbility restMove = null;
+            for (SpellAbility next = sa.getSubAbility(); next != null; next = next.getSubAbility()) {
+                final forge.game.ability.ApiType api = next.getApi();
+                if (api != forge.game.ability.ApiType.ChangeZone && api != forge.game.ability.ApiType.ChangeZoneAll) { continue; }
+                if (chosenMove == null) { chosenMove = next; }
+                else if (restMove == null && from.equalsIgnoreCase(next.getParamOrDefault("Origin", ""))) { restMove = next; }
+            }
+            if (chosenMove == null || !chosenMove.hasParam("Destination")) { return null; }
+            final JsonObject chosen = digZone(chosenMove.getParam("Destination"), chosenMove.getParamOrDefault("LibraryPosition", "0"), whose);
+            final JsonObject rest = restMove == null
+                    ? digZone(from, "0", whose)
+                    : digZone(restMove.getParamOrDefault("Destination", from), restMove.getParamOrDefault("LibraryPosition", "0"), whose);
+            if (chosen == null || rest == null) { return null; }
+            final JsonObject o = new JsonObject();
+            o.add("cards", cards);
             o.add("chosen", chosen);
             o.add("rest", rest);
             final String text = digText(sa);

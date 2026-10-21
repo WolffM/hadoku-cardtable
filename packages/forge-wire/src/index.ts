@@ -90,6 +90,7 @@ export {
   type WireCardRequest,
   type WireDeckEntry,
 } from './sideboard.ts';
+export { oneEachFill, type OneEachType } from './one-each.ts';
 
 export {
   TIER_A_METHODS,
