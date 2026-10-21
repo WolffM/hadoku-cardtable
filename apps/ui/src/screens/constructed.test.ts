@@ -805,6 +805,20 @@ describe('a room’s table', () => {
   });
 
   /*
+   * The operator, 2026-10-21: "don't reveal the deck that someone has picked in
+   * constructed rooms … just showing whether or not they are ready is good
+   * enough." The server sends another seat as its name and its ready flag, and
+   * the row draws exactly that: no deck, format or legality cell to fill.
+   */
+  it('draws another player’s seat as their name and whether they are ready, nothing of their deck', async () => {
+    await mountRoom({ players: [{ seat: 0, name: 'user-bob', you: false, ready: true } as RoomPlayer], matchId: null });
+    const row = screen.getByTestId('room-seat-0');
+    expect([...row.children].map((c) => c.className.split(' ')[0])).toEqual(['tables__who', 'pill']);
+    for (const cell of ['deck', 'rules', 'legal']) expect(screen.queryByTestId(`room-seat-0-${cell}`)).toBeNull();
+    expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('ready');
+  });
+
+  /*
    * Sitting is its own act (the operator, 2026-10-12): an empty seat offers
    * Sit here, a seat without a deck is drawn as one, and the deck picker is
    * for the seated only.

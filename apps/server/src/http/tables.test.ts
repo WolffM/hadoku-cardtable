@@ -1801,19 +1801,61 @@ describe('a room table', () => {
 		});
 	});
 
-	it('shows the other player’s state without their issues or their .dck', async () => {
+	/*
+	 * The operator, 2026-10-21: "don't reveal the deck that someone has picked in
+	 * constructed rooms, that's giving away information. just showing whether or
+	 * not they are ready is good enough." Every member's read of the table — the
+	 * other player's, and a spectator's — carries another seat as its name and
+	 * its ready flag, and nothing about its deck.
+	 */
+	it('tells nobody another player’s deck, only whether they are ready', async () => {
 		const h = await boot();
-		openRoom(h, undefined, POWER_2011);
-		await putDeck(h, 'alice', deckBody(UG_POLYMORPH));
-		await putDeck(h, 'bob', deckBody(ELDRAZI_GREEN));
-		const seen = await view(h, 'bob');
-		const [mine, theirs] = [players(seen.body)[1], players(seen.body)[0]];
-		expect(mine).toMatchObject({ you: true, legal: true });
-		// Alice's faults reach Bob as a count and a name, never as a card list:
-		// a draft verdict would say what she drafted.
-		expect(theirs).toMatchObject({ you: false, legal: false, issueCount: 3, deckName: 'UG Polymorph (Antoine Ruel)' });
-		for (const row of [mine, theirs]) expect(row).not.toHaveProperty('verdict');
-		expect(JSON.stringify(seen.body)).not.toContain('[metadata]');
+		h.lobby.open(ROOM, [...MEMBERS, { id: CAROL, name: 'user-carol' }]);
+		await bothLoaded(h);
+		expect((await setReady(h, 'alice')).status).toBe(200);
+		const alicesDeck = ['UG Polymorph', UG_POLYMORPH];
+		const bobsDeck = ['Jund', SECOND_DECK];
+
+		const bobs = await view(h, 'bob');
+		expect(bobs.body.players).toEqual([
+			{ seat: 0, name: 'user-alice', you: false, ready: true },
+			{
+				seat: 1,
+				name: 'user-bob',
+				you: true,
+				ready: false,
+				deck: {
+					name: 'Jund (Emanuele Giusti)',
+					rulesName: expect.any(String),
+					legal: true,
+					issueCount: 0,
+					choice: { deck: { library: SECOND_DECK }, rules: expect.anything() },
+				},
+			},
+		]);
+		for (const word of alicesDeck) expect(JSON.stringify(bobs.body)).not.toContain(word);
+
+		const alices = await view(h, 'alice');
+		expect(players(alices.body)[1]).toEqual({ seat: 1, name: 'user-bob', you: false, ready: false });
+		for (const word of bobsDeck) expect(JSON.stringify(alices.body)).not.toContain(word);
+
+		// A member with no seat sees both seats the same way.
+		const carols = await view(h, 'carol');
+		expect(carols.body.players).toEqual([
+			{ seat: 0, name: 'user-alice', you: false, ready: true },
+			{ seat: 1, name: 'user-bob', you: false, ready: false },
+		]);
+
+		// The writes answer the same table: bob's own deck load tells him nothing of alice's.
+		const reloaded = await putDeck(h, 'bob', deckBody(SECOND_DECK));
+		for (const word of alicesDeck) expect(JSON.stringify(reloaded.body)).not.toContain(word);
+	});
+
+	it('names a seat without a deck to its owner as no deck', async () => {
+		const h = await boot();
+		openRoom(h);
+		const sat = await sit(h, 'alice');
+		expect(players(sat.body)).toEqual([{ seat: 0, name: 'user-alice', you: true, ready: false, deck: null }]);
 	});
 
 	it('refuses a table in a room that is not constructed 1v1', async () => {
