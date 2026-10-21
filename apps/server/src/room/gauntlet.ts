@@ -25,10 +25,13 @@
 
 import {
 	GAUNTLET_DECKS,
+	GAUNTLET_PHASES,
 	GAUNTLET_SNAKE,
+	pickRandom,
 	type GauntletAct,
 	type GauntletDeck,
 	type GauntletEra,
+	type GauntletOptions,
 	type GauntletPhase,
 	type GauntletPlayer,
 	type GauntletSeatIndex,
@@ -61,15 +64,47 @@ export interface GauntletState {
 	winner: GauntletSeatIndex | null;
 }
 
+function isSeat(v: unknown): v is GauntletSeatIndex {
+	return v === 0 || v === 1;
+}
+
+function isPair(v: unknown, item: (x: unknown) => boolean): boolean {
+	return Array.isArray(v) && v.length === 2 && v.every(item);
+}
+
+const isString = (v: unknown): v is string => typeof v === 'string';
+const isPlayer = (v: unknown): boolean =>
+	typeof v === 'object' && v !== null && isString((v as GauntletPlayer).name) && ((v as GauntletPlayer).memberId === null || isString((v as GauntletPlayer).memberId));
+const isMark = (v: unknown): boolean => v === null || (typeof v === 'object' && ((v as { act: unknown }).act === 'ban' || (v as { act: unknown }).act === 'pick') && isSeat((v as { by: unknown }).by));
+
+/** A stored Gauntlet this build understands. The lobby quarantines a room whose record fails it. */
+export function isGauntletState(v: unknown): v is GauntletState {
+	if (typeof v !== 'object' || v === null) return false;
+	const g = v as Record<string, unknown>;
+	const era = g.era as Record<string, unknown> | null;
+	return (
+		(GAUNTLET_PHASES as readonly unknown[]).includes(g.phase) &&
+		isPair(g.ready, (x) => typeof x === 'boolean') &&
+		(g.players === null || isPair(g.players, isPlayer)) &&
+		(era === null || (typeof era === 'object' && isString(era.id) && isString(era.family) && isString(era.title))) &&
+		(g.first === null || isSeat(g.first)) &&
+		Array.isArray(g.decks) &&
+		g.decks.every(isString) &&
+		Array.isArray(g.marks) &&
+		g.marks.length === g.decks.length &&
+		g.marks.every(isMark) &&
+		Number.isInteger(g.stepIndex) &&
+		Number.isInteger(g.taken) &&
+		Array.isArray(g.games) &&
+		g.games.every((x) => typeof x === 'object' && x !== null && isPair((x as { decks: unknown }).decks, isString)) &&
+		isPair(g.choices, (x) => x === null || isString(x)) &&
+		(g.winner === null || isSeat(g.winner))
+	);
+}
+
 /** An era a Gauntlet can be drawn in, with its library decks. */
 export interface GauntletEraPool extends GauntletEra {
 	readonly decks: readonly string[];
-}
-
-/** What the leader asked for. Both absent: any eligible era. */
-export interface GauntletOptions {
-	family?: string;
-	era?: string;
 }
 
 /** What the view says about a deck besides its status: the room deck tile's and its peek's data. */
@@ -132,8 +167,9 @@ export function newGauntlet(): GauntletState {
 	};
 }
 
+/** One of `items`, which is never empty where this is called. */
 function pickOne<T>(items: readonly T[], random: () => number): T {
-	return items[Math.min(items.length - 1, Math.floor(random() * items.length))]!;
+	return pickRandom(items, random)!;
 }
 
 export function setGauntletReady(state: GauntletState, seat: GauntletSeatIndex, ready: boolean): GauntletResult {

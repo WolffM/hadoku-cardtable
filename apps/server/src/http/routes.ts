@@ -206,7 +206,9 @@ import {
 	type SeatRequest,
 	type SeatVerdict,
 } from './gate.js';
-import type { TablesLibrary } from './library.js';
+import { attachGauntlet, type GauntletHandle } from './gauntlet.js';
+import { deckLines, type TablesLibrary } from './library.js';
+import type { GauntletState } from '../room/gauntlet.js';
 
 export type TablesLog = (entry: Record<string, unknown>) => void;
 
@@ -230,6 +232,9 @@ export interface RoomViewLike {
 	modeOptions?: RoomModeState['modeOptions'];
 	/** How the room's matches are dealt (`room/lobby.ts`'s `RoomSettings`). */
 	settings: { handSmoothing: boolean };
+	/** A Constructed room's mode and its options (`@hadoku/shared`'s `room-modes.ts`); absent or null before one is chosen. */
+	mode?: string | null;
+	modeOptions?: unknown;
 	/** The one member who may change the room's settings. `you.leader` is this, per caller. */
 	leader: string;
 	/**
@@ -328,6 +333,9 @@ export interface TablesRooms {
 	podDraft?(roomId: string): PodDeal | null;
 	/** Wires `PodChecks` into the room registry — see its own doc (`room/lobby.ts`). Optional like `onAvatarChange`. */
 	setPodChecks?(checks: PodChecks): void;
+	/** A Gauntlet room's stored Gauntlet (`room/lobby.ts`). Both optional: a registry without them serves no Gauntlet routes. */
+	gauntlet?(roomId: string): GauntletState | null;
+	setGauntlet?(roomId: string, gauntlet: GauntletState | null, format?: string): boolean;
 }
 
 /** The subset of `play`'s `MatchRegistry` a table uses, for the same reason. */
@@ -384,8 +392,10 @@ export interface TablesDeps {
 	 * the two seats their decks are in.
 	 */
 	matches?: () => TablesMatches | null;
-	/** A uniform [0, 1) for the server's own draws (All Random's deal). `secureRandom` unless a test pins it. */
+	/** A uniform [0, 1) for the server's own draws (All Random's deal, the Gauntlet's draw and its AI). `secureRandom` unless a test pins it. */
 	random?: () => number;
+	/** The Gauntlet's timers. `setTimeout` unless a test runs them itself. */
+	schedule?: (fn: () => void, ms: number) => void;
 }
 
 /** What `matchStart` reads off a match: all of it in `jvm.json`, so a restart keeps it. */
@@ -803,8 +813,6 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	});
 
 	tables.get('/decks', (_req: Request, res: Response) => {
-		const list = (section: string, file: TablesLibrary['decks'][number]['deck']['file']) =>
-			(file.sections.get(section) ?? []).map((e) => ({ count: e.count, name: e.card.name }));
 		res.json({
 			decks: library.decks.map((d) => ({
 				id: d.id,
@@ -819,8 +827,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				date: d.deck.date,
 				provenance: d.deck.provenance,
 				citation: d.deck.citation,
-				main: list('main', d.deck.file),
-				sideboard: list('sideboard', d.deck.file),
+				...deckLines(d),
 			})),
 		});
 	});
@@ -868,6 +875,49 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	rooms?.onAvatarChange?.((change) => {
 		relayAvatarToMatch(rooms, deps.matches?.() ?? null, change);
 	});
+
+	// A Gauntlet deals each game's decks into the same per-member blob a loaded
+	// deck lives in, checked by the same gate, and readies the seat: from there
+	// the match starts exactly as any room match does.
+	const gauntletRooms = rooms?.gauntlet !== undefined && rooms.setGauntlet !== undefined ? rooms : null;
+	const gauntlets: GauntletHandle | null =
+		gauntletRooms === null
+			? null
+			: attachGauntlet(tables, {
+					rooms: {
+						get: (id) => gauntletRooms.get(id),
+						list: () => gauntletRooms.list(),
+						gauntlet: (id) => gauntletRooms.gauntlet!(id),
+						setGauntlet: (id, g, format) => gauntletRooms.setGauntlet!(id, g, format),
+					},
+					library,
+					seated: (room) => playersOf(gauntletRooms, room as RoomViewLike).map((p) => ({ memberId: p.member.id, name: p.member.name })),
+					dealGame: (dealt, decks, players) => {
+						const room = gauntletRooms.get(dealt.id);
+						if (room === undefined) return;
+						const seated = playersOf(gauntletRooms, room);
+						for (const [seat, player] of players.entries()) {
+							const mine = seated.find((p) => p.member.id === player.memberId);
+							if (mine === undefined) continue;
+							const choice: SeatRequest = { deck: { library: decks[seat]! }, rules: roomRules(room) };
+							const verdict = checkSeat(choice, contextFor(mine.member.id));
+							if ('error' in verdict) {
+								log({ evt: 'gauntlet-deal-failed', room: room.id, seat, error: verdict.error });
+								continue;
+							}
+							gauntletRooms.setPlayerState(room.id, mine.member.id, {
+								...mine.state,
+								deck: { choice, verdict: publicVerdict(verdict), text: verdict.text },
+								ready: true,
+							});
+						}
+					},
+					callerOf: callerIdOf,
+					random: deps.random ?? secureRandom,
+					log,
+					...(deps.schedule === undefined ? {} : { schedule: deps.schedule }),
+				});
+	gauntlets?.resume();
 
 	/**
 	 * A seated drafter's saved build, already checked against their own pool
@@ -1002,6 +1052,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		rooms.recordGameResult(room.id, table.id, { matchId, winner });
 		log({ evt: 'table-game-over', room: room.id, table: table.id, matchId, winner });
 		const after = rooms.get(room.id);
+		if (table.id === room.tables[0]?.id) gauntlets?.afterGame(room.id, { seriesOver: after?.tables[0]?.series.phase === 'done', winner });
 		if (after?.tables.find((t) => t.id === table.id)?.series.phase !== 'done') return;
 		for (const p of playersOf(rooms, after, table.id)) {
 			const registered = p.state.seriesDeck;
@@ -1366,6 +1417,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: 'the match has already started' });
 			return;
 		}
+		if (gauntlets?.isGauntlet(room) === true) {
+			res.status(409).json({ error: 'a Gauntlet deals its decks' });
+			return;
+		}
 		if (unknownPool(room, res)) return;
 		// An All Random table's decks are dealt (`dealRandom`); a seat changes its own
 		// only by sideboarding it, in the era it was dealt.
@@ -1531,6 +1586,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.json(tableView(room, me, table));
 			return;
 		}
+		if (gauntlets?.holdsTable(room) === true) {
+			res.status(409).json({ error: 'the Gauntlet has started' });
+			return;
+		}
 		if (players.length >= TABLE_SEATS) {
 			res.status(409).json({ error: 'this table already has two players' });
 			return;
@@ -1581,7 +1640,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.json(tableView(room, me, table));
 			return;
 		}
-		if (tableLocked(players, matchId)) {
+		if (tableLocked(players, matchId) || gauntlets?.holdsTable(room) === true) {
 			res.status(409).json({ error: 'both players are ready — the table is locked' });
 			return;
 		}
@@ -1738,6 +1797,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.status(409).json({ error: 'this series is over — the standings are in the room' });
 			return;
 		}
+		const gauntletRefusal = gauntlets?.startRefusal(room) ?? null;
+		if (gauntletRefusal !== null) {
+			res.status(409).json({ error: gauntletRefusal });
+			return;
+		}
 		// Keyed by table, not room: two different tables of the same room start
 		// independently.
 		const startKey = `${room.id}:${table.id}`;
@@ -1838,8 +1902,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// (`legalLibraryDecks` — the era's own, or the whole library on Free pick),
 		// checked by the same gate as the player's. A drafted pool offers no library
 		// deck, so there the bot plays what a bot at that draft took (`botDeck.ts`).
-		let botDeck: string | null = null;
-		if (vsBot) {
+		let botDeck: string | null = gauntlets?.aiDeck(room) ?? null;
+		if (vsBot && botDeck === null) {
 			const owner = loaded[0]!.member.id;
 			const draftId = draftIdOfPool(pool);
 			if (players[0]!.state.aiDeck !== undefined && randomPoolOf(room) !== null) {

@@ -166,3 +166,9 @@ export function loadTablesLibrary(
 		deck: (id) => deckById.get(id),
 	};
 }
+
+/** A deck's main and sideboard as the wire sends them: `{ count, name }` lines, in file order. */
+export function deckLines(d: TableDeck): { main: { count: number; name: string }[]; sideboard: { count: number; name: string }[] } {
+	const list = (section: string) => (d.deck.file.sections.get(section) ?? []).map((e) => ({ count: e.count, name: e.card.name }));
+	return { main: list('main'), sideboard: list('sideboard') };
+}

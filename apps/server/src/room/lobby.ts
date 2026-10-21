@@ -94,6 +94,7 @@ import {
 // place both sides meet (wave 72 §P).
 import { botSeatAcross, pairRound, roundsFor, standings, type MatchResult, type PodPlayer, type StandingsRow } from '@hadoku/draft';
 import type { PodDeal } from './draftRooms.ts';
+import { isGauntletState, type GauntletState } from './gauntlet.ts';
 
 import type { Tournament } from './tournaments.ts';
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
@@ -1137,6 +1138,19 @@ export interface Lobby {
 	 * seat to a bot, and the first members to connect evict one each.
 	 */
 	podDraft(roomId: string): PodDeal | null;
+
+	/* ── the Gauntlet ───────────────────────────────────────────────────── */
+
+	/** The room's stored Gauntlet, or null when it has none (or there is no such room). */
+	gauntlet(roomId: string): GauntletState | null;
+	/**
+	 * Store the room's Gauntlet — `http/gauntlet.ts` is its only writer, and
+	 * `gauntlet.ts` decides every move. `format`, given at the draw, moves the
+	 * room onto the drawn era in the same write, so the decks dealt for each
+	 * game are checked against it; no seat holds a deck yet, so nothing is
+	 * dropped. `null` forgets the Gauntlet. False when there is no such room.
+	 */
+	setGauntlet(roomId: string, gauntlet: GauntletState | null, format?: FormatId): boolean;
 	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[];
 	/**
@@ -1316,6 +1330,8 @@ interface RoomRecord {
 	pod: PodRecord | null;
 	/** Who has pressed Play in `building` (`playPod`). Persisted with `pod`, so a restart mid-build keeps the presses. */
 	podPlaying: string[];
+	/** A Gauntlet room's Gauntlet (`gauntlet.ts`), kept whole so a reconnect replays the same draw. Null until it first moves. */
+	gauntlet: GauntletState | null;
 	createdAt: number;
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
 	updatedAt: number;
@@ -1369,6 +1385,8 @@ interface StoredApp {
 	pod: PodRecord | null;
 	/** Absent for a room written before it was persisted: nobody has pressed Play. */
 	podPlaying?: string[];
+	/** Absent for a room written before Gauntlets, or whose Gauntlet has never moved. */
+	gauntlet?: GauntletState | null;
 	secret: Secret | null;
 }
 
@@ -1508,6 +1526,7 @@ const appCodec: AppCodec<StoredApp> = {
 		if (a.podPlaying !== undefined && !(Array.isArray(a.podPlaying) && a.podPlaying.every((m) => typeof m === 'string'))) {
 			throw new Error('app.podPlaying is not a list of member ids');
 		}
+		if (a.gauntlet !== undefined && a.gauntlet !== null && !isGauntletState(a.gauntlet)) throw new Error('app.gauntlet is invalid');
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
 		const mode = storedMode(a);
 		const settings: RoomSettings = { ...DEFAULT_ROOM_SETTINGS, ...(a.settings as Partial<RoomSettings> | undefined) };
@@ -1554,6 +1573,7 @@ const appCodec: AppCodec<StoredApp> = {
 			podAi: a.podAi === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(a.podAi as (string | null)[])],
 			pod: a.pod === undefined || a.pod === null ? null : (a.pod as PodRecord),
 			podPlaying: a.podPlaying === undefined ? [] : [...(a.podPlaying as string[])],
+			gauntlet: (a.gauntlet as GauntletState | null | undefined) ?? null,
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 		};
 	},
@@ -1820,6 +1840,7 @@ class FileLobby implements Lobby {
 			podSeats: [...room.podSeats],
 			podAi: [...room.podAi],
 			podPlaying: [...room.podPlaying],
+			gauntlet: room.gauntlet,
 			pod:
 				room.pod === null
 					? null
@@ -2233,6 +2254,7 @@ class FileLobby implements Lobby {
 			podAi: new Array<string | null>(POD_SEATS).fill(null),
 			pod: null,
 			podPlaying: [],
+			gauntlet: null,
 			createdAt: now,
 			updatedAt: now,
 			members: [newMember([], caller, now)],
@@ -2515,6 +2537,19 @@ class FileLobby implements Lobby {
 		return released;
 	}
 
+	gauntlet(roomId: string): GauntletState | null {
+		return this.#rooms.get(roomId)?.gauntlet ?? null;
+	}
+
+	setGauntlet(roomId: string, gauntlet: GauntletState | null, format?: FormatId): boolean {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return false;
+		room.gauntlet = gauntlet;
+		if (format !== undefined) room.format = format;
+		this.#persist(room);
+		return true;
+	}
+
 	podDraft(roomId: string): PodDeal | null {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return null;
@@ -2762,6 +2797,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// Restored with `draftStartedAt`, and released with it.
 					pod: app.pod,
 					podPlaying: app.podPlaying ?? [],
+					gauntlet: app.gauntlet ?? null,
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.
