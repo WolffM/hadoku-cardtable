@@ -108,24 +108,40 @@ export function digAsk(frame: Extract<ServerFrame, { kind: 'ask' }>): OrderAsk |
 	}
 	if (looked.length === 0 || offered.size === 0) return null;
 	const n = looked.length;
+	return sheetAsk(frame, frame.title, frame.dig.text, {
+		remainingObjectsMin: n - frame.max,
+		remainingObjectsMax: n - frame.min,
+		sourceChoices: looked.map((c) => ({ key: digKey(c.id), label: '', ref: c })),
+		destination: frame.dig.chosen,
+		rest: frame.dig.rest,
+		...(offered.size < n && { locked: looked.filter((c) => !offered.has(c.id)).map((c) => digKey(c.id)) }),
+	});
+}
+
+/**
+ * The one `order` a seat is shown in place of a question Forge asks in parts (a dig's, a
+ * per-type pick's): `sheet`'s cards and groups under Forge's `title`, asking the action the
+ * card's `text` names (`digQuestion`), or `title` when the text has none to read.
+ */
+export function sheetAsk(
+	frame: Extract<ServerFrame, { kind: 'ask' }>,
+	title: string,
+	text: string | undefined,
+	sheet: Pick<OrderAsk, 'remainingObjectsMin' | 'remainingObjectsMax' | 'sourceChoices' | 'destination' | 'rest' | 'locked' | 'oneEach'>,
+): OrderAsk {
 	return {
 		kind: 'ask',
 		callId: frame.callId,
 		...(frame.source !== undefined && { source: frame.source }),
 		method: 'order',
-		title: frame.title,
-		top: frame.title,
-		remainingObjectsMin: n - frame.max,
-		remainingObjectsMax: n - frame.min,
-		sourceChoices: looked.map((c) => ({ key: digKey(c.id), label: '', ref: c })),
+		title,
+		top: title,
 		destChoices: [],
 		referenceCard: null,
 		sideboardingMode: false,
 		showRememberCheckbox: false,
-		destination: frame.dig.chosen,
-		rest: frame.dig.rest,
-		...(offered.size < n && { locked: looked.filter((c) => !offered.has(c.id)).map((c) => digKey(c.id)) }),
-		question: (frame.dig.text === undefined ? null : digQuestion(frame.dig.text)) ?? frame.title,
+		...sheet,
+		question: (text === undefined ? null : digQuestion(text)) ?? title,
 	};
 }
 
