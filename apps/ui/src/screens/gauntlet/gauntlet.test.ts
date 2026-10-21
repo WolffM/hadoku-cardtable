@@ -9,11 +9,12 @@ import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { GauntletDeck, GauntletView } from '@hadoku/shared';
+import { GAUNTLET_REVEAL_MS, type GauntletDeck, type GauntletView } from '@hadoku/shared';
 
 import { FLIP_MS } from '../../play/live/CoinToss.tsx';
 import { GauntletScreen } from './GauntletScreen.tsx';
-import { DEAL_FROM_MS, DEAL_STAGGER_MS, REVEAL_MS, TITLE_MS, revealStage } from './reveal.ts';
+import * as reveal from './reveal.ts';
+import { DEAL_FROM_MS, DEAL_STAGGER_MS, TITLE_MS, revealStage } from './reveal.ts';
 
 const IDS = [
   'power-modern-2022-1-maxx-kominowski-ur-aggro',
@@ -57,6 +58,7 @@ function view(over: Partial<GauntletView> = {}): GauntletView {
     ],
     ready: [true, true],
     era: { id: 'modern-2022', family: 'modern', title: 'Modern — 2022' },
+    revealAt: Date.now(),
     first: 1,
     decks: IDS.map((id) => deck(id)),
     step: null,
@@ -105,8 +107,13 @@ describe('the reveal’s timeline', () => {
     expect(revealStage(DEAL_FROM_MS)).toEqual({ coin: false, dealt: 1, done: false });
     expect(revealStage(DEAL_FROM_MS + 4 * DEAL_STAGGER_MS).dealt).toBe(5);
     expect(revealStage(DEAL_FROM_MS + 9 * DEAL_STAGGER_MS).dealt).toBe(10);
-    expect(revealStage(REVEAL_MS - 1).done).toBe(false);
-    expect(revealStage(REVEAL_MS)).toEqual({ coin: false, dealt: 10, done: true });
+    expect(revealStage(GAUNTLET_REVEAL_MS - 1).done).toBe(false);
+    expect(revealStage(GAUNTLET_REVEAL_MS - 1).dealt, 'the last deck lands inside the server’s reveal').toBe(10);
+    expect(revealStage(GAUNTLET_REVEAL_MS)).toEqual({ coin: false, dealt: 10, done: true });
+  });
+
+  it('has one reveal length, the server’s', () => {
+    expect('REVEAL_MS' in reveal, 'no second reveal length beside GAUNTLET_REVEAL_MS').toBe(false);
   });
 });
 
@@ -131,7 +138,7 @@ describe('the reveal on screen', () => {
     act(() => vi.advanceTimersByTime(8 * DEAL_STAGGER_MS));
     expect(tiles(container).map((t) => t.dataset.deckId)).toEqual([...IDS]);
 
-    act(() => vi.advanceTimersByTime(REVEAL_MS));
+    act(() => vi.advanceTimersByTime(GAUNTLET_REVEAL_MS));
     expect(queryByTestId('coin-toss'), 'the coin gives way to the board').toBeNull();
     expect(getByTestId('gauntlet-title').textContent).toBe('Modern — 2022');
   });
@@ -140,6 +147,24 @@ describe('the reveal on screen', () => {
     reduced = true;
     const { getByTestId, queryByTestId, container } = draw(view());
     expect(getByTestId('gauntlet-title').textContent).toBe('Modern — 2022');
+    expect(queryByTestId('coin-toss')).toBeNull();
+    expect(tiles(container)).toHaveLength(10);
+  });
+
+  it('runs from the server’s revealAt: a screen that opens mid-reveal joins it there', () => {
+    vi.useFakeTimers();
+    const { getByTestId, queryByTestId, container } = draw(view({ revealAt: Date.now() - (TITLE_MS + 500) }));
+    expect(getByTestId('coin-toss'), 'already past the title: the coin').toBeTruthy();
+    expect(tiles(container)).toHaveLength(0);
+    act(() => vi.advanceTimersByTime(DEAL_FROM_MS - TITLE_MS - 500 + 4 * DEAL_STAGGER_MS));
+    expect(tiles(container)).toHaveLength(5);
+    act(() => vi.advanceTimersByTime(GAUNTLET_REVEAL_MS));
+    expect(queryByTestId('coin-toss')).toBeNull();
+    expect(tiles(container)).toHaveLength(10);
+  });
+
+  it('a screen that opens once revealAt + the reveal has passed draws the end state, even before the phase moves on', () => {
+    const { queryByTestId, container } = draw(view({ revealAt: Date.now() - GAUNTLET_REVEAL_MS }));
     expect(queryByTestId('coin-toss')).toBeNull();
     expect(tiles(container)).toHaveLength(10);
   });
@@ -233,7 +258,7 @@ describe('choosing a deck for the next game', () => {
 
   it('a played deck cannot be chosen again', () => {
     const decks = picks().map((d) => (d.id === IDS[4] ? { ...d, played: true } : d));
-    const { getByTestId } = draw(view({ phase: 'choose', decks, games: [{ decks: [IDS[4], IDS[5]] }], choice: { mine: null, chosen: [false, false] } }));
+    const { getByTestId } = draw(view({ phase: 'choose', decks, games: [{ decks: [IDS[4], IDS[5]], winner: 0 }], choice: { mine: null, chosen: [false, false] } }));
     const played = getByTestId('gauntlet-choose-mine').querySelector<HTMLButtonElement>(`[data-deck-id="${IDS[4]}"]`)!;
     expect(played.disabled).toBe(true);
     expect(played.dataset.played).toBe('true');
@@ -251,7 +276,7 @@ describe('choosing a deck for the next game', () => {
 
   it('once both are revealed, both decks of the game are drawn face up', () => {
     const decks = picks().map((d) => (d.id === IDS[6] || d.id === IDS[5] ? { ...d, played: true } : d));
-    const { getByTestId } = draw(view({ phase: 'playing', decks, games: [{ decks: [IDS[6], IDS[5]] }], choice: null }));
+    const { getByTestId } = draw(view({ phase: 'playing', decks, games: [{ decks: [IDS[6], IDS[5]], winner: null }], choice: null }));
     const shown = getByTestId('gauntlet-game');
     expect(shown.querySelector(`[data-seat="0"] [data-deck-id="${IDS[6]}"]`)).not.toBeNull();
     expect(shown.querySelector(`[data-seat="1"] [data-deck-id="${IDS[5]}"]`)).not.toBeNull();
@@ -270,10 +295,22 @@ describe('the result', () => {
   it('names the winner and every game’s decks', () => {
     const decks = IDS.map((id) => deck(id, { status: 'picked', by: 0, played: true }));
     const { getByTestId } = draw(
-      view({ phase: 'done', decks, winner: 1, games: [{ decks: [IDS[4], IDS[5]] }, { decks: [IDS[6], IDS[7]] }] }),
+      view({
+        phase: 'done',
+        decks,
+        winner: 1,
+        games: [
+          { decks: [IDS[4], IDS[5]], winner: 1 },
+          { decks: [IDS[6], IDS[7]], winner: 0 },
+          { decks: [IDS[8], IDS[9]], winner: 1 },
+        ],
+      }),
     );
     const result = getByTestId('gauntlet-result');
     expect(within(result).getByTestId('gauntlet-winner').textContent).toContain('Bob');
-    expect(result.querySelectorAll('[data-testid="gauntlet-game"]')).toHaveLength(2);
+    expect(result.querySelectorAll('[data-testid="gauntlet-game"]')).toHaveLength(3);
+    expect(within(result).getByTestId('gauntlet-score').textContent, 'the series score, P1 (Bob) first').toBe('2–1');
+    const won = [...result.querySelectorAll<HTMLElement>('[data-testid="gauntlet-game"]')].map((g) => g.dataset.winner);
+    expect(won, 'each game says who won it').toEqual(['1', '0', '1']);
   });
 });

@@ -17,6 +17,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
+import type { GauntletView } from '../packages/shared/src/gauntlet.ts';
 import { makeTitled } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -72,9 +73,10 @@ test(titled('Gauntlet reveal: the era title first, then ten decks; a ban greys a
     expect((await alice.context.request.post(`${api}/sit`, { data: {} })).ok()).toBe(true);
     const ready = await alice.context.request.post(`${api}/gauntlet/ready`, { data: { ready: true, ai: true } });
     expect(ready.ok(), await ready.text()).toBe(true);
-    const view = (await ready.json()) as { you: number; era: { title: string } };
+    const view = (await ready.json()) as GauntletView;
+    expect(view.era, 'the draw named its era').not.toBeNull();
 
-    await expect(alice.page.getByTestId('gauntlet-title')).toHaveText(view.era.title, { timeout: 30_000 });
+    await expect(alice.page.getByTestId('gauntlet-title')).toHaveText(view.era!.title, { timeout: 30_000 });
     await expect(alice.page.getByTestId('gauntlet-pool').getByTestId('gauntlet-deck')).toHaveCount(10, { timeout: 30_000 });
     const seen = await seenOn(alice.page);
     console.log(`[gauntlet-reveal] first seen (ms): ${JSON.stringify(seen)}`);
