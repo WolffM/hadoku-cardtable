@@ -616,6 +616,39 @@ describe('choices, generically', () => {
   });
 });
 
+describe('card states, generically', () => {
+  /** Card 21's face made a Class: Wizard Class's type line, and the level keywords Forge's script gives it. */
+  const asClass = (state: Map<string, WireObject>, keywords: string[]) => {
+    const face = state.get(cardStateKey(21, 0))!;
+    state.set(cardStateKey(21, 0), {
+      ...face,
+      Type: { t: 'cardtype', sup: [], core: ['Enchantment'], sub: ['Class'], all: false, exc: [] },
+      Keywords: { t: 'keywords', v: keywords },
+    } as WireObject);
+  };
+  const WIZARD_CLASS = ['Class:2:2 U:AddTrigger$ TriggerClassLevel', 'Class:3:4 U:AddTrigger$ TriggerDrawn'];
+
+  it('Forge sends every card a ClassLevel of 1, and a card that is no Class wears no level', () => {
+    const json = JSON.stringify(loadPackets(fixture).map((p) => [p.newObjects, p.objectDeltas]));
+    expect(json, 'the capture carries ClassLevel on its cards').toContain('"ClassLevel":{"t":"int","v":1}');
+    for (const card of allCards(adapt(baseState()))) expect(card.states, `card ${card.id}`).toEqual([]);
+  });
+
+  it('a Class wears its level, of the top level its own level keywords name', () => {
+    const state = baseState();
+    asClass(state, WIZARD_CLASS);
+    setCard(state, 21, 'ClassLevel', { t: 'int', v: 2 });
+    expect(cardsById(adapt(state)).get(21)!.states).toEqual([{ kind: 'classLevel', value: 2, max: 3 }]);
+  });
+
+  it('a Class whose level keywords did not cross wears its level alone', () => {
+    const state = baseState();
+    asClass(state, []);
+    setCard(state, 21, 'ClassLevel', { t: 'int', v: 1 });
+    expect(cardsById(adapt(state)).get(21)!.states).toEqual([{ kind: 'classLevel', value: 1 }]);
+  });
+});
+
 describe('relations, generically', () => {
   /*
    * The committed capture has no haunt, encode, imprint or must-block

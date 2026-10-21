@@ -27,6 +27,7 @@ import {
   type ArtIdIndex,
   type BoardCard,
   type BoardCardChoice,
+  type BoardCardState,
   type BoardCardWaiting,
   type BoardView,
   type StackEntry,
@@ -5183,6 +5184,39 @@ describe('choice tags: a permanent wears what was chosen for it', () => {
     };
     const { zone } = renderBoard(withHand);
     expect(zone(0, 'hand').querySelector('.board-card__tags'), 'not off the battlefield').toBeNull();
+  });
+});
+
+describe('state marks: a permanent wears the state Forge tracks on it', () => {
+  const base = boardFromFixture(fixture);
+  const withStates = (states: BoardCardState[]): BoardView => ({
+    ...base,
+    players: base.players.map((p) => (!p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === 21 ? { ...c, states } : c)) })),
+  });
+  const mark = (container: HTMLElement) => container.querySelector<HTMLElement>('[data-card-id="21"] > .board-card__tags > [data-state]');
+
+  it('a level of a known top is a pip per level, the reached ones filled, and the tip says which', () => {
+    const tag = mark(renderBoard(withStates([{ kind: 'classLevel', value: 2, max: 3 }])).container)!;
+    expect(tag.dataset.state).toBe('classLevel');
+    expect([...tag.querySelectorAll('.board-card__state-pip')].map((p) => p.hasAttribute('data-filled'))).toEqual([true, true, false]);
+    expect(tag.textContent, 'pips, no words').toBe('');
+    expect(tag.dataset.tip).toBe('Level 2 of 3');
+  });
+
+  it('a level with no known top is its number', () => {
+    const tag = mark(renderBoard(withStates([{ kind: 'classLevel', value: 2 }])).container)!;
+    expect(tag.querySelectorAll('.board-card__state-pip')).toHaveLength(0);
+    expect(tag.textContent).toBe('2');
+    expect(tag.dataset.tip).toBe('Level 2');
+  });
+
+  it('is drawn on the battlefield only', () => {
+    const view = withStates([]);
+    const withHand: BoardView = {
+      ...view,
+      players: view.players.map((p) => (!p.isViewer || p.hand === null ? p : { ...p, hand: p.hand.map((c, i) => (i === 0 ? { ...c, states: [{ kind: 'classLevel', value: 1, max: 3 }] } : c)) })),
+    };
+    expect(renderBoard(withHand).zone(0, 'hand').querySelector('[data-state]')).toBeNull();
   });
 });
 
