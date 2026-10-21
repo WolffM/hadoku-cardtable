@@ -1155,16 +1155,15 @@ describe('a room table', () => {
 		seat: number;
 		name: string;
 		you: boolean;
-		/** Null for a seat taken ahead of a deck. */
-		deckName: string | null;
-		rulesName: string | null;
-		legal: boolean;
 		ready: boolean;
-		issueCount: number;
+		/** On your own row only; null for a seat taken ahead of a deck. */
+		deck?: { name: string; rulesName: string; legal: boolean; issueCount: number } | null;
 		/** Present only for a player who has one — see the avatar test below. */
 		avatarId?: string;
 	}
 	const players = (body: Record<string, unknown>): PlayerRow[] => body.players as PlayerRow[];
+	/** The caller's own row's deck, as the table answers it to them. */
+	const myDeck = (body: Record<string, unknown>) => players(body).find((p) => p.you)?.deck;
 
 	/** Both members seated with a legal deck, each choosing only their own. */
 	async function bothLoaded(h: Harness): Promise<void> {
@@ -1179,10 +1178,9 @@ describe('a room table', () => {
 		expect((await setReady(h, 'alice')).status).toBe(200);
 		const second = await setReady(h, 'bob');
 		expect(second.status).toBe(200);
-		expect(players(second.body).map((p) => [p.deckName, p.ready])).toEqual([
-			['UG Polymorph (Antoine Ruel)', true],
-			['Jund (Emanuele Giusti)', true],
-		]);
+		expect(players(second.body).map((p) => p.ready)).toEqual([true, true]);
+		expect(myDeck((await view(h, 'alice')).body)?.name).toBe('UG Polymorph (Antoine Ruel)');
+		expect(myDeck(second.body)?.name).toBe('Jund (Emanuele Giusti)');
 
 		const res = await startRoom(h, 'alice');
 		expect(res.status).toBe(201);
@@ -1258,12 +1256,9 @@ describe('a room table', () => {
 		openRoom(h, undefined, 'free');
 		const legacy = library.decks.find((d) => d.era.startsWith('legacy-'))!;
 		const modern = library.decks.find((d) => d.era.startsWith('modern-'))!;
-		expect((await putDeck(h, 'alice', deckBody(legacy.id))).status).toBe(200);
+		const first = await putDeck(h, 'alice', deckBody(legacy.id));
 		const loaded = await putDeck(h, 'bob', deckBody(modern.id));
-		expect(players(loaded.body).map((p) => [p.legal, p.rulesName])).toEqual([
-			[true, 'Free pick'],
-			[true, 'Free pick'],
-		]);
+		for (const res of [first, loaded]) expect(myDeck(res.body)).toMatchObject({ legal: true, rulesName: 'Free pick' });
 		await setReady(h, 'alice');
 		await setReady(h, 'bob');
 		expect((await startRoom(h, 'alice')).status).toBe(201);
@@ -1301,7 +1296,7 @@ describe('a room table', () => {
 			h.lobby.open('r-check', [{ id: ALICE, name: 'user-alice' }], undefined, h.lobby.room(ROOM)?.format);
 			const verdict = await putDeck(h, 'alice', deckBody(botDeck!.id), 'r-check');
 			expect(verdict.status).toBe(200);
-			expect(players(verdict.body)[0]?.legal).toBe(true);
+			expect(myDeck(verdict.body)?.legal).toBe(true);
 
 			const matchId = res.body.matchId as string;
 			expect(h.matches.get(matchId)?.seatOf(ALICE)).toBe(0);
@@ -1625,9 +1620,9 @@ describe('a room table', () => {
 		openRoom(h, undefined, POWER_2011);
 		const loaded = await putDeck(h, 'alice', deckBody(UG_POLYMORPH));
 		expect(loaded.status).toBe(200);
-		expect(players(loaded.body)[0]).toMatchObject({ legal: false, issueCount: 3 });
+		expect(myDeck(loaded.body)).toMatchObject({ legal: false, issueCount: 3 });
 		// A count, not a list: the card is named once, by the refusal below.
-		expect(players(loaded.body)[0]).not.toHaveProperty('verdict');
+		expect(myDeck(loaded.body)).not.toHaveProperty('issues');
 
 		const refused = await setReady(h, 'alice');
 		expect(refused.status).toBe(422);
@@ -1698,7 +1693,7 @@ describe('a room table', () => {
 			const sat = await sit(h, 'carol');
 			expect(sat.status).toBe(200);
 			expect(sat.body.you).toEqual({ player: true, leader: false });
-			expect(players(sat.body)).toMatchObject([{ seat: 0, you: true, deckName: null, rulesName: null, legal: false, issueCount: 0, ready: false }]);
+			expect(players(sat.body)).toEqual([{ seat: 0, name: 'user-carol', you: true, ready: false, deck: null }]);
 			expect(locked(sat.body)).toBe(false);
 			// Bob loads a deck without sitting first: that still takes the next seat,
 			// behind carol, who sat before him.
@@ -1707,9 +1702,9 @@ describe('a room table', () => {
 			expect(await setReady(h, 'carol')).toMatchObject({ status: 409, body: { error: 'load a deck before you ready up' } });
 			// Carol's deck lands in the seat she already holds.
 			const loaded = await putDeck(h, 'carol', deckBody(UG_POLYMORPH));
-			expect(players(loaded.body).map((p) => [p.name, p.deckName])).toEqual([
+			expect(players(loaded.body).map((p) => [p.name, p.deck?.name])).toEqual([
 				['user-carol', 'UG Polymorph (Antoine Ruel)'],
-				['user-bob', 'Jund (Emanuele Giusti)'],
+				['user-bob', undefined],
 			]);
 			// Alice, the third, is refused a seat and sees herself as no player.
 			expect(await sit(h, 'alice')).toMatchObject({ status: 409, body: { error: 'this table already has two players' } });
@@ -1791,9 +1786,9 @@ describe('a room table', () => {
 			const stored = h.lobby.room(ROOM)!.state.get(BOB) as { deck: Record<string, unknown> };
 			h.lobby.setPlayerState(ROOM, ALICE, { v: 1, ...stored.deck, ready: true, seatedAt: 1 });
 			const seen = await view(h, 'alice');
-			expect(players(seen.body).map((p) => [p.name, p.deckName, p.ready])).toEqual([
+			expect(players(seen.body).map((p) => [p.name, p.deck?.name, p.ready])).toEqual([
 				['user-alice', 'Jund (Emanuele Giusti)', true],
-				['user-bob', 'Jund (Emanuele Giusti)', false],
+				['user-bob', undefined, false],
 			]);
 			// And a start reads the migrated deck: both ready, it launches.
 			expect((await setReady(h, 'bob')).status).toBe(200);
@@ -2052,10 +2047,8 @@ describe('a room table', () => {
 		expect((seen.body.room as { matchId: string | null }).matchId).toBeNull();
 		// Un-matched, both decks still held for a Rematch, and nobody ready: the
 		// start spent both Readys.
-		expect(players(seen.body).map((p) => [p.deckName !== '', p.ready])).toEqual([
-			[true, false],
-			[true, false],
-		]);
+		expect(players(seen.body).map((p) => p.ready)).toEqual([false, false]);
+		for (const who of ['alice', 'bob']) expect(myDeck((await view(h, who)).body), who).not.toBeNull();
 		expect(h.lobby.room(ROOM)?.tables[0]?.matchId).toBeNull();
 
 		// Reverted (comment out the `=== 'over'` arm of `finished` in
@@ -2164,7 +2157,7 @@ describe('a room table', () => {
 		// rather than a pool of the caller's choosing.
 		const asIs = await putDeck(h, 'alice', { deck: { dck: text } });
 		expect(asIs.status).toBe(200);
-		expect(players(asIs.body)[0]).toMatchObject({ legal: false, rulesName: 'Standard (M11)' });
+		expect(myDeck(asIs.body)).toMatchObject({ legal: false, rulesName: 'Standard (M11)' });
 
 		// And `/api/tables/check` still takes rules, because it starts nothing and
 		// belongs to no room: this is where a drafted deck is still checked.
@@ -2235,12 +2228,12 @@ describe('a room table', () => {
 
 		const inMbs = await putDeck(h, 'alice', deckBody(UG_POLYMORPH), 'r-mbs');
 		expect(inMbs.status).toBe(200);
-		expect(players(inMbs.body)[0]).toMatchObject({ legal: true, rulesName: 'Standard (M11)' });
+		expect(myDeck(inMbs.body)).toMatchObject({ legal: true, rulesName: 'Standard (M11)' });
 		expect((inMbs.body.room as { format: string }).format).toBe(POWER_2010);
 
 		const inBans = await putDeck(h, 'alice', deckBody(UG_POLYMORPH), 'r-bans');
 		expect(inBans.status).toBe(200);
-		expect(players(inBans.body)[0]).toMatchObject({ legal: false, rulesName: 'Standard (M12)' });
+		expect(myDeck(inBans.body)).toMatchObject({ legal: false, rulesName: 'Standard (M12)' });
 		expect((inBans.body.room as { format: string }).format).toBe(POWER_2011);
 	});
 
@@ -2612,7 +2605,7 @@ describe('a room table', () => {
 				const h = await boot();
 				h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 1, true);
 				await bothLoaded(h);
-				const registeredName = players((await view(h, 'alice')).body)[0]!.deckName;
+				const registeredName = myDeck((await view(h, 'alice')).body)?.name;
 				await setReady(h, 'alice');
 				await setReady(h, 'bob');
 				expect((await startRoom(h, 'alice')).status).toBe(201);
@@ -2630,7 +2623,7 @@ describe('a room table', () => {
 				expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('done');
 				expect(aliceDeck(h)).toEqual({ library: UG_POLYMORPH });
 				const rows = players((await view(h, 'alice')).body);
-				expect(rows[0]).toMatchObject({ deckName: registeredName, legal: true, ready: false });
+				expect(rows[0]).toMatchObject({ deck: { name: registeredName, legal: true }, ready: false });
 				expect(rows[1]).toMatchObject({ ready: false });
 			});
 
@@ -2739,11 +2732,12 @@ describe('a pod table plays each drafter’s own pool', () => {
 	interface Row {
 		seat: number;
 		you: boolean;
-		legal: boolean;
-		rulesName: string;
-		issueCount: number;
+		ready: boolean;
+		/** On your own row only. */
+		deck?: { legal: boolean; rulesName: string; issueCount: number } | null;
 	}
 	const players = (body: Record<string, unknown>): Row[] => body.players as Row[];
+	const myDeck = (body: Record<string, unknown>) => players(body).find((p) => p.you)?.deck;
 
 	/**
 	 * One pod, both members seated, each holding 45 cards the other does not.
@@ -2810,8 +2804,8 @@ describe('a pod table plays each drafter’s own pool', () => {
 		expect(theirs.status).toBe(200);
 		// Each verdict is taken in that player's OWN pool, and each says so in the
 		// first person to its own owner.
-		expect(players(mine.body)[0]).toMatchObject({ legal: true, rulesName: `your pool from ${POD}` });
-		expect(players(theirs.body)[1]).toMatchObject({ legal: true, rulesName: `your pool from ${POD}` });
+		expect(myDeck(mine.body)).toMatchObject({ legal: true, rulesName: `your pool from ${POD}` });
+		expect(myDeck(theirs.body)).toMatchObject({ legal: true, rulesName: `your pool from ${POD}` });
 		// And the room says what pool it is on, without the client having to know
 		// how a drafted pool id is spelled.
 		expect(mine.body.room).toMatchObject({ format: draftPoolId(POD), draftId: POD });
@@ -2849,7 +2843,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 
 		const loaded = await putDeck(h, 'alice', short);
 		expect(loaded.status).toBe(200);
-		expect(players(loaded.body)[0]).toMatchObject({ legal: false, issueCount: 1 });
+		expect(myDeck(loaded.body)).toMatchObject({ legal: false, issueCount: 1 });
 		const refused = await setReady(h, 'alice');
 		expect(refused.status).toBe(422);
 		expect(refused.body.error).toContain('maindeck has 24 cards, needs at least 40');
@@ -2956,9 +2950,8 @@ describe('a pod table plays each drafter’s own pool', () => {
 
 		const stolen = await putDeck(h, 'bob', built(pools.alice));
 		expect(stolen.status).toBe(200);
-		const bobsRow = players(stolen.body)[1];
 		// Every card of it, because the two pools share none.
-		expect(bobsRow).toMatchObject({ you: true, legal: false, issueCount: 45 });
+		expect(players(stolen.body)[1]).toMatchObject({ you: true, deck: { legal: false, issueCount: 45 } });
 		// An illegal deck cannot be readied, so it can never reach a start — and
 		// the refusal names the card, to HIM: it is his deck, and the cards in it
 		// are the ones he sent.
@@ -2968,14 +2961,11 @@ describe('a pod table plays each drafter’s own pool', () => {
 		expect((await call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('bob'))).status).toBe(409);
 		expect(h.specs).toEqual([]);
 
-		// What ALICE is told about bob's row: a count, and the pool in the third
-		// person — never his issue list, and never his `.dck`. (Her own row echoes
-		// her own choice back to her, which is what restores her picker; the rule is
-		// about somebody ELSE's row.)
+		// What ALICE is told about bob's row: that he is not ready, and nothing of
+		// his deck. (Her own row echoes her own choice back to her, which is what
+		// restores her picker; the rule is about somebody ELSE's row.)
 		const seen = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
-		const hisRow = players(seen.body)[1];
-		expect(hisRow).toMatchObject({ you: false, legal: false, issueCount: 45, rulesName: `their own pool from ${POD}` });
-		expect(hisRow).not.toHaveProperty('verdict');
+		expect(players(seen.body)[1]).toEqual({ seat: 1, name: expect.any(String), you: false, ready: false });
 	});
 
 	/**
@@ -3136,7 +3126,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 		// The table's own pool is the POD (= the room's own id), not the room's
 		// unrelated `format`.
 		expect(mine.body.room).toMatchObject({ format: draftPoolId(PODTABLE), draftId: PODTABLE });
-		expect(players(mine.body)[0]).toMatchObject({ legal: true, rulesName: `your pool from ${PODTABLE}` });
+		expect(myDeck(mine.body)).toMatchObject({ legal: true, rulesName: `your pool from ${PODTABLE}` });
 		const theirs = await putPodDeck('bob', built(pools.bob, PODTABLE));
 		expect(theirs.status).toBe(200);
 

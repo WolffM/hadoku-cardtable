@@ -101,8 +101,9 @@
  *
  * ## Waiting for the other person is the job
  *
- * Both players' state — chosen, legal, ready — is read from the room again
- * whenever the server says it changed (`../rooms/feed.ts`): no timer reads it.
+ * The table — your own deck and verdict, and whether each player is ready —
+ * is read from the room again whenever the server says it changed
+ * (`../rooms/feed.ts`): no timer reads it.
  * When both are ready either browser asks the server to start; the
  * server answers one match to both, and `matchId` appearing on the table is
  * what sends each player to `#/match/<id>` — including a player who never
@@ -204,6 +205,7 @@ import {
   type FormatFamily,
   type LegalSweep,
   type RoomPlayer,
+  type SeatDeck,
   type RoomTable,
   type DeckLine,
   type TableDeck,
@@ -1362,6 +1364,8 @@ function RoomTableScreen({
 
   const players = table?.players ?? [];
   const mine = players.find((p) => p.you) ?? null;
+  /** Your own deck's verdict: the only deck this screen is ever told about. */
+  const myLegal = mine?.deck?.legal === true;
   const matchId = table?.room.matchId ?? null;
   const full = players.length >= (table?.room.seats ?? 2);
   /** I hold a seat (with or without a deck): sitting is its own act (2026-10-12). */
@@ -1369,7 +1373,8 @@ function RoomTableScreen({
   const spectating = table !== null && !seated && full;
   /** Nobody stands up: a match is live, or both players are ready (the operator's ruling, 2026-10-12). */
   const tableLocked = table?.room.locked === true || (table?.room.matchId ?? null) !== null;
-  const bothReady = players.length === 2 && players.every((p) => p.ready && p.legal);
+  // Ready already means a legal deck: the server refuses it without one.
+  const bothReady = players.length === 2 && players.every((p) => p.ready);
   /** A start asked for or a match running: the table is no longer anyone's to change. */
   const underway = starting || matchId !== null;
   /**
@@ -1722,8 +1727,9 @@ function RoomTableScreen({
   // The deck only — the pool is the room's, and reading it back off a stored
   // choice would be this screen holding a second opinion about the table.
   useEffect(() => {
-    if (restored.current || mine === null || mine.choice === null) return;
-    const { deck } = mine.choice;
+    const choice = mine?.deck?.choice ?? null;
+    if (restored.current || choice === null) return;
+    const { deck } = choice;
     if ('library' in deck) {
       restored.current = true;
       setDeckId(deck.library);
@@ -2157,7 +2163,7 @@ function RoomTableScreen({
                           type="button"
                           className="tables__sit"
                           data-testid="play-vs-bot"
-                          disabled={mine === null || !mine.legal || underway}
+                          disabled={!myLegal || underway}
                           onClick={startVsBot}
                         >
                           AI
@@ -2173,7 +2179,7 @@ function RoomTableScreen({
                       player={player}
                       leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
                       {...(player.you
-                        ? { onReady: () => setReady(!player.ready), readyDisabled: deckId === '' || !player.legal || underway }
+                        ? { onReady: () => setReady(!player.ready), readyDisabled: deckId === '' || !myLegal || underway }
                         : {})}
                       {...(player.you ? { onStand: standUp, standDisabled: tableLocked || underway } : {})}
                     />
@@ -2661,6 +2667,11 @@ export function StatusPill({
  * The name and `(you)` stay in ONE text node, with that space: `e2e/play.spec`
  * matches `e2e-alice (you)`, and cells in a grid put no whitespace between
  * themselves.
+ *
+ * Only your own row has deck cells, because only your own row has a deck: the
+ * server sends another seat as its name and its ready state (the operator,
+ * 2026-10-21: "don't reveal the deck that someone has picked"). The row keeps
+ * its two lines either way, so a seat does not change height when it is taken.
  */
 function PlayerRow({
   seat,
@@ -2682,9 +2693,8 @@ function PlayerRow({
   onStand?: () => void;
   standDisabled?: boolean;
 }) {
-  const noDeck = player.deckName === null;
   return (
-    <li className="tables__row" data-testid={`room-seat-${seat}`} data-no-deck={noDeck ? '' : undefined}>
+    <li className="tables__row" data-testid={`room-seat-${seat}`}>
       <span className="tables__who tables__who--seat">
         <strong className="tables__name">{player.you ? `${player.name} (you)` : player.name}</strong>
         {leader && (
@@ -2699,20 +2709,7 @@ function PlayerRow({
           </button>
         )}
       </span>
-      <span className="tables__deck" data-testid={`room-seat-${seat}-deck`}>
-        {player.deckName ?? '—'}
-      </span>
-      <span className="tables__rules" data-testid={`room-seat-${seat}-rules`}>
-        {player.rulesName ?? '—'}
-      </span>
-      <StatusPill
-        kind="legal"
-        testId={`room-seat-${seat}-legal`}
-        state={player.legal ? 'yes' : 'no'}
-        mark={player.legal ? 'tick' : noDeck ? 'ring' : 'cross'}
-        label={player.legal ? 'legal' : noDeck ? 'no deck' : 'illegal'}
-        {...(player.legal || noDeck ? {} : { count: player.issueCount })}
-      />
+      {player.deck !== undefined && <OwnDeckCells seat={seat} deck={player.deck} />}
       {onReady === undefined ? (
         <StatusPill
           kind="ready"
@@ -2739,6 +2736,28 @@ function PlayerRow({
         </button>
       )}
     </li>
+  );
+}
+
+/** Your own seat's deck: its name, the pool's words for it, and whether it is legal. */
+function OwnDeckCells({ seat, deck }: { seat: number; deck: SeatDeck | null }) {
+  return (
+    <>
+      <span className="tables__deck" data-testid={`room-seat-${seat}-deck`}>
+        {deck?.name ?? '—'}
+      </span>
+      <span className="tables__rules" data-testid={`room-seat-${seat}-rules`}>
+        {deck?.rulesName ?? '—'}
+      </span>
+      <StatusPill
+        kind="legal"
+        testId={`room-seat-${seat}-legal`}
+        state={deck?.legal === true ? 'yes' : 'no'}
+        mark={deck === null ? 'ring' : deck.legal ? 'tick' : 'cross'}
+        label={deck === null ? 'no deck' : deck.legal ? 'legal' : 'illegal'}
+        {...(deck === null || deck.legal ? {} : { count: deck.issueCount })}
+      />
+    </>
   );
 }
 

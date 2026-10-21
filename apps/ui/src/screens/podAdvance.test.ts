@@ -310,8 +310,8 @@ describe('the room is where a player comes back to', () => {
       const url = String(input);
       asked.push(`${init?.method ?? 'GET'} ${url}`);
       if (url.includes('/tables/rooms/') && (init?.method ?? 'GET') === 'GET') {
-        const you = { seat: 0, name: 'Alice', you: true, deckName: 'Mine', rulesName: 'pool', legal: true, issueCount: 0, ready: bothReady, choice: { deck: { dck: DCK }, rules: { kind: 'draft', draftId: ROOM } } };
-        const them = { ...you, seat: 1, name: 'Bob', you: false, choice: null };
+        const you = { seat: 0, name: 'Alice', you: true, ready: bothReady, deck: { name: 'Mine', rulesName: 'pool', legal: true, issueCount: 0, choice: { deck: { dck: DCK }, rules: { kind: 'draft', draftId: ROOM } } } };
+        const them = { seat: 1, name: 'Bob', you: false, ready: bothReady };
         return Promise.resolve(new Response(JSON.stringify({ room: { id: ROOM, name: 'Cube night', format: `draft:${ROOM}`, matchId: null, locked: false, phase: 'sideboarding' }, players: [you, them] }), { status: 200 }));
       }
       if (url.endsWith(`/drafts/${ROOM}/mine`)) return Promise.resolve(new Response(JSON.stringify({ pool: [], deck: DCK }), { status: 200 }));

@@ -555,6 +555,16 @@ interface TablePlayerState {
 	seriesDeck: TableDeck | string | null;
 }
 
+/**
+ * A seat's deck as its OWNER reads it at the table (`tableView`): no `.dck`
+ * text, and its faults as a count. Nobody else is ever sent this.
+ */
+function ownDeckView(deck: TableDeck | null): { name: string; rulesName: string; legal: boolean; issueCount: number; choice: TableDeck['choice'] } | null {
+	if (deck === null) return null;
+	const { deckName: name, rulesName, legal, issues } = deck.verdict;
+	return { name, rulesName, legal, issueCount: issues.length, choice: deck.choice };
+}
+
 /** The registered deck's text, whichever shape the row holds it in. */
 function seriesTextOf(state: TablePlayerState): string | null {
 	return typeof state.seriesDeck === 'string' ? state.seriesDeck : (state.seriesDeck?.text ?? null);
@@ -1052,16 +1062,19 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	/**
-	 * What both players may see: who has chosen what, whether it is legal,
-	 * whether they are ready.
+	 * The table as ONE caller may see it: every seat's name and ready flag, and
+	 * the caller's own deck — never anybody else's.
 	 *
-	 * A deck's faults are a count, for everybody; no issue list goes out. Your
-	 * own faults are named once, by the refusal when you try to ready. A draft
-	 * verdict names cards the other player did or did not draft, and a drafted
-	 * pool is hidden information until the draft is over — the same reason
-	 * `gate.ts` resolves a pool by the caller's identity and never by a seat
-	 * number. `rulesName` is your own verdict's words for you, and the ROOM's
-	 * pool in the third person for somebody else.
+	 * The operator, 2026-10-21: *"don't reveal the deck that someone has picked
+	 * in constructed rooms, that's giving away information. just showing whether
+	 * or not they are ready is good enough."* So another seat carries no deck
+	 * field at all — not its name, its legality, its fault count or its choice —
+	 * for the other player and for a member with no seat alike. Ready is enough
+	 * to know who is being waited on, and it already implies a legal deck:
+	 * `POST …/ready` refuses without one, and every deck load clears it.
+	 *
+	 * Your own deck's faults are a count; the list is named once, by the
+	 * refusal when you try to ready.
 	 */
 	function tableView(room: RoomViewLike, me: string, table: RoomTable): Record<string, unknown> {
 		// `liveMatchId` FIRST: it can write the table (`recordGameResult` /
@@ -1122,13 +1135,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// both readers means the fallback a client writes is one check.
 				...(p.member.avatarId === undefined ? {} : { avatarId: p.member.avatarId }),
 				you: p.member.id === me,
-				// A seat taken ahead of a deck: no name, not legal, nothing to count.
-				deckName: p.state.deck?.verdict.deckName ?? null,
-				rulesName: p.state.deck === null ? null : p.member.id === me ? p.state.deck.verdict.rulesName : poolName(room),
-				legal: p.state.deck?.verdict.legal ?? false,
-				issueCount: p.state.deck?.verdict.issues.length ?? 0,
 				ready: p.state.ready,
-				choice: p.member.id === me ? (p.state.deck?.choice ?? null) : null,
+				// Yours alone; null for a seat you took ahead of a deck.
+				...(p.member.id === me ? { deck: ownDeckView(p.state.deck) } : {}),
 			})),
 		};
 	}

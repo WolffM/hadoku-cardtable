@@ -144,25 +144,34 @@ export type StartOutcome =
 /* ── a room's table ──────────────────────────────────────────────────── */
 
 /**
- * One player at a room's table, as everyone in the room sees them.
+ * Your own deck at a room's table, as only you are told it: its name, the
+ * pool's words for it, whether it is legal and how many faults it has, and
+ * the choice that restores your picker.
+ */
+export interface SeatDeck {
+  name: string;
+  rulesName: string;
+  legal: boolean;
+  issueCount: number;
+  choice: SeatChoice;
+}
+
+/**
+ * One player at a room's table, as the CALLER is told it.
  *
- * `choice` is YOURS only — the server sends null for the other player, because
- * a drafted deck is cards from a pool that is hidden information until the draft
- * is over. What everyone sees of everyone is the
- * deck's name, whether it is legal, how many faults it has, and whether they
- * are ready: enough to know who is being waited on.
+ * Another player's row is their name and whether they are ready, and nothing
+ * of their deck (the operator, 2026-10-21: "don't reveal the deck that someone
+ * has picked … just showing whether or not they are ready is good enough").
+ * Ready already means a legal deck: the server refuses it without one.
+ * `deck` is on your own row only — `null` while your seat has none yet
+ * (2026-10-12: sitting is its own act).
  */
 export interface RoomPlayer {
   seat: number;
   name: string;
   you: boolean;
-  /** `null` while the seat is taken but no deck is loaded yet (2026-10-12: sitting is its own act). */
-  deckName: string | null;
-  rulesName: string | null;
-  legal: boolean;
-  issueCount: number;
   ready: boolean;
-  choice: SeatChoice | null;
+  deck?: SeatDeck | null;
 }
 
 /**

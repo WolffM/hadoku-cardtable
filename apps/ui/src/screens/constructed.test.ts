@@ -83,6 +83,7 @@ import {
   type Fetch,
   type RoomPlayer,
   type SeatChoice,
+  type SeatDeck,
   type TableDeck,
   type TableFormat,
   type Verdict,
@@ -200,13 +201,26 @@ function opponent(over: Partial<RoomPlayer> = {}): RoomPlayer {
     seat: 0,
     name: 'user-bob',
     you: false,
-    deckName: 'Jund (Emanuele Giusti)',
-    rulesName: 'Standard (M11)',
-    legal: true,
-    issueCount: 0,
     ready: false,
-    choice: null,
     ...over,
+  };
+}
+
+/** My own seat, holding a deck: the one row the server tells me a deck for. */
+function mySeat(deck: Partial<SeatDeck> = {}): RoomPlayer {
+  return {
+    seat: 0,
+    name: 'user-alice',
+    you: true,
+    ready: false,
+    deck: {
+      name: 'Jund (Emanuele Giusti)',
+      rulesName: 'Standard (M11)',
+      legal: true,
+      issueCount: 0,
+      choice: { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } },
+      ...deck,
+    },
   };
 }
 
@@ -383,7 +397,7 @@ function stubServer(table: Table) {
         if (typeof asked.format !== 'string') return json(400, { error: 'format must be a string' });
         table.format = asked.format;
         table.players = table.players.map((p) =>
-          p.you ? { ...p, ready: false, legal: false, verdict: null, choice: null } : { ...p, ready: false },
+          p.you ? { ...p, ready: false, deck: p.deck == null ? null : { ...p.deck, legal: false } } : { ...p, ready: false },
         );
         return json(200, roomRecord());
       }
@@ -474,12 +488,8 @@ function stubServer(table: Table) {
         seat: 0,
         name: 'user-alice',
         you: true,
-        deckName: verdict.deckName,
-        rulesName: verdict.rulesName,
-        legal: verdict.legal,
-        issueCount: verdict.issues.length,
         ready: false,
-        choice: body as SeatChoice,
+        deck: { name: verdict.deckName, rulesName: verdict.rulesName, legal: verdict.legal, issueCount: verdict.issues.length, choice: body as SeatChoice },
       };
       const at = table.players.findIndex((p) => p.you);
       if (at === -1) table.players.push(mine);
@@ -494,7 +504,7 @@ function stubServer(table: Table) {
       if (table.players.some((p) => p.you)) return json(200, view());
       if (table.matchId !== null) return json(409, { error: 'the match has already started' });
       if (table.players.length >= 2) return json(409, { error: 'this table already has two players' });
-      table.players.push({ seat: table.players.length, name: 'user-alice', you: true, deckName: null, rulesName: null, legal: false, issueCount: 0, ready: false, choice: null });
+      table.players.push({ seat: table.players.length, name: 'user-alice', you: true, ready: false, deck: null });
       return json(200, view());
     }
     if (url.endsWith(`/tables/rooms/${ROOM}/stand`)) {
@@ -507,9 +517,9 @@ function stubServer(table: Table) {
     }
     if (url.endsWith(`/tables/rooms/${ROOM}/ready`)) {
       const mine = table.players.find((p) => p.you);
-      if (mine === undefined || mine.deckName === null) return json(409, { error: 'load a deck before you ready up' });
+      if (mine?.deck == null) return json(409, { error: 'load a deck before you ready up' });
       const want = (body as { ready: boolean }).ready;
-      if (want && !mine.legal) return json(422, { error: REFUSAL });
+      if (want && !mine.deck.legal) return json(422, { error: REFUSAL });
       mine.ready = want;
       return json(200, view());
     }
@@ -795,10 +805,6 @@ describe('a room’s table', () => {
   it('shows both players, and says who is being waited on', async () => {
     await mountRoom({ players: [opponent()], matchId: null });
     expect(screen.getByTestId('room-seat-0').textContent).toContain('user-bob');
-    expect(screen.getByTestId('room-seat-0-deck').textContent).toBe('Jund (Emanuele Giusti)');
-    // The format is a cell, not a clause: "legal in Standard (M11)" is gone.
-    expect(screen.getByTestId('room-seat-0-rules').textContent).toBe('Standard (M11)');
-    expect(screen.getByTestId('room-seat-0-legal').textContent).toBe('legal');
     expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('not ready');
     expect(screen.getByTestId('room-seat-1-empty')).toBeTruthy();
     expect(screen.getByTestId('start-state').textContent).toContain('Waiting for a second player');
@@ -893,7 +899,7 @@ describe('a room’s table', () => {
    * middots for separators and `ready` as raw text: *"looks very cheap"*.
    */
   it('draws the seats as a table: no middots, and every state a shape AND a colour', async () => {
-    await mountRoom({ players: [opponent({ ready: true })], matchId: null });
+    await mountRoom({ players: [mySeat(), opponent({ seat: 1, ready: true })], matchId: null });
     const row = screen.getByTestId('room-seat-0');
     // No separator characters anywhere in the row: the cells are the separation.
     expect(row.textContent).not.toMatch(/[·—]/);
@@ -905,10 +911,12 @@ describe('a room’s table', () => {
       'pill',
       'pill',
     ]);
+    // The format is a cell, not a clause: "legal in Standard (M11)" is gone.
+    expect(screen.getByTestId('room-seat-0-rules').textContent).toBe('Standard (M11)');
 
     // Each state carries a drawn mark of its own, so colour is never the only
     // difference. Ready is a tick; not ready is an open ring.
-    const ready = screen.getByTestId('room-seat-0-ready');
+    const ready = screen.getByTestId('room-seat-1-ready');
     expect(ready.dataset.state).toBe('yes');
     expect(ready.dataset.mark).toBe('tick');
     expect(ready.querySelector('svg path')).not.toBeNull();
@@ -917,17 +925,16 @@ describe('a room’s table', () => {
     const legal = screen.getByTestId('room-seat-0-legal');
     expect(legal.dataset.state).toBe('yes');
     expect(legal.dataset.mark).toBe('tick');
-
   });
 
-  it('an unready, illegal seat reads as two failed states, with the count on the pill', async () => {
-    await mountRoom({ players: [opponent({ legal: false, issueCount: 3, ready: false })], matchId: null });
+  it('my unready, illegal seat reads as two failed states, with the count on the pill', async () => {
+    await mountRoom({ players: [mySeat({ legal: false, issueCount: 3 })], matchId: null });
     const legal = screen.getByTestId('room-seat-0-legal');
     expect(legal.dataset.state).toBe('no');
     expect(legal.dataset.mark).toBe('cross');
     expect(legal.textContent).toBe('illegal3');
     expect(legal.querySelector('.pill__count')!.textContent).toBe('3');
-    const ready = screen.getByTestId('room-seat-0-ready');
+    const ready = screen.getByTestId('ready-toggle');
     expect(ready.dataset.state).toBe('no');
     expect(ready.dataset.mark).toBe('ring');
     expect(ready.querySelector('svg circle')).not.toBeNull();
@@ -979,10 +986,8 @@ describe('a room’s table', () => {
     expect(chosen()).toBe('');
     // The other player was stood down BY THE POOL MOVING, which is the server's
     // rule and not this deck's fault: what they readied with is not what the
-    // table is on any more. Their deck is still legal — one player's illegal
-    // deck says nothing about the other's.
+    // table is on any more.
     await waitFor(() => expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('not ready'));
-    expect(screen.getByTestId('room-seat-0-legal').textContent).toBe('legal');
     // And nothing was started.
     expect(lastCall(server.calls, '/play/matches')).toBeUndefined();
     expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
@@ -1202,7 +1207,7 @@ describe('a room’s table', () => {
   });
 
   it('tells a third person there is no seat, rather than a picker that cannot work', async () => {
-    await mountRoom({ players: [opponent(), opponent({ name: 'user-carol', deckName: 'UG Polymorph (Antoine Ruel)' })], matchId: null });
+    await mountRoom({ players: [opponent(), opponent({ seat: 1, name: 'user-carol' })], matchId: null });
     expect(screen.getByTestId('room-spectator').textContent).toContain('Table full');
     expect(screen.queryByTestId('deck-mine')).toBeNull();
     expect(screen.getByTestId('room-seat-1').textContent).toContain('user-carol');
@@ -1609,12 +1614,8 @@ describe('the deck picker', () => {
       seat: 0,
       name: 'user-alice',
       you: true,
-      deckName: 'Jund (Emanuele Giusti)',
-      rulesName: 'Standard (M11)',
-      legal: true,
-      issueCount: 0,
       ready: true,
-      choice: { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } },
+      deck: { name: 'Jund (Emanuele Giusti)', rulesName: 'Standard (M11)', legal: true, issueCount: 0, choice: { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } } },
     };
     // The other player is NOT ready, so nothing starts while this is watched.
     const stepped = steppedFeed();
@@ -1858,12 +1859,8 @@ describe('the table’s pool', () => {
       seat: 1,
       name: 'user-alice',
       you: true,
-      deckName: 'Deck pod-a',
-      rulesName: 'Free pick',
-      legal: true,
-      issueCount: 0,
       ready: false,
-      choice: { deck: { dck: built }, rules: { kind: 'free' } },
+      deck: { name: 'Deck pod-a', rulesName: 'Free pick', legal: true, issueCount: 0, choice: { deck: { dck: built }, rules: { kind: 'free' } } },
     };
     const server = await mountRoom({
       players: [opponent(), held],
@@ -1977,7 +1974,7 @@ describe('the table’s pool', () => {
   it('between games of a series, the room opens my sideboard step in place of the deck card', async () => {
     const mine = { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } } as SeatChoice;
     await mountRoom({
-      players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false, choice: mine }), opponent({ seat: 1, ready: false })],
+      players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false, deck: { name: 'Jund (Emanuele Giusti)', rulesName: 'Standard (M11)', legal: true, issueCount: 0, choice: mine } }), opponent({ seat: 1, ready: false })],
       matchId: null,
       settings: { matchLength: 'bo3' },
       series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-0', winner: 0 }], phase: 'sideboarding' },

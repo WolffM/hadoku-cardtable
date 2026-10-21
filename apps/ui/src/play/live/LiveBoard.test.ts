@@ -165,12 +165,8 @@ vi.mock('../../screens/tables.ts', async (importOriginal) => {
     seat: you ? 0 : 1,
     name: you ? 'me' : 'them',
     you,
-    deckName: 'Deck',
-    rulesName: '',
-    legal: true,
-    issueCount: 0,
     ready,
-    choice: you ? tableState.me.choice : null,
+    ...(you ? { deck: tableState.me.choice === null ? null : { name: 'Deck', rulesName: '', legal: true, issueCount: 0, choice: tableState.me.choice } } : {}),
   });
   const table = () => ({
     room: { id: 'r-1', name: 'Room', gameType: 'constructed-1v1', matchId: tableState.matchId, seats: 2, phase: tableState.phase },
@@ -5450,12 +5446,7 @@ describe('rematchOf — who has pressed Rematch, read off the room table', () =>
     seat: you ? 0 : 1,
     name: '',
     you,
-    deckName: '',
-    rulesName: '',
-    legal: true,
-    issueCount: 0,
     ready,
-    choice: null,
   });
   const table = (...players: ReturnType<typeof row>[]) => ({
     room: { id: 'r-1', name: '', gameType: 'constructed-1v1', matchId: null, seats: 2 },

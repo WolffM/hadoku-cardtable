@@ -36,7 +36,7 @@
  *
  *   - the ROOM says so before the match exists: `GET /api/tables/rooms/:id`
  *     read from each browser's own context names a different `you` seat, and
- *     a different `deckName`, for each of them;
+ *     that browser's own deck on it — and never the other player's;
  *   - FORGE says so after it opens the game: `GET /api/play/matches/:id`
  *     reports `seats[i].deck`, which is `Deck.getName()` of the deck Forge
  *     actually loaded into that seat (`play/bridge/PlayBridge.java`), not our
@@ -802,17 +802,20 @@ test(LIVE_TITLE, async ({ browser }) => {
     }
 
     // The ROOM's own account of who plays what, read from each browser's own
-    // context: the same two seats, and a different `you` in each.
+    // context: the same two seats, a different `you` in each, and each told
+    // its own deck alone (the operator, 2026-10-21: "don't reveal the deck
+    // that someone has picked").
     const tableFor = async (f: Friend) =>
       (await (await f.context.request.get(`${origin}${PREFIX}/api/tables/rooms/${roomId}`)).json()) as {
-        players: { seat: number; name: string; you: boolean; deckName: string }[];
+        players: { seat: number; name: string; you: boolean; deck?: { name: string } | null }[];
       };
     const aliceTable = await tableFor(alice);
     const bobTable = await tableFor(bob);
-    const deckNames = aliceTable.players.map((p) => p.deckName);
     expect(aliceTable.players.map((p) => p.you), 'alice is seat 1 and bob is not').toEqual([true, false]);
     expect(bobTable.players.map((p) => p.you), 'bob is seat 2 and alice is not').toEqual([false, true]);
-    expect(bobTable.players.map((p) => p.deckName), 'both browsers are told the same two decks').toEqual(deckNames);
+    expect(aliceTable.players[1], 'alice is told nothing of bob’s deck').not.toHaveProperty('deck');
+    expect(bobTable.players[0], 'bob is told nothing of alice’s deck').not.toHaveProperty('deck');
+    const deckNames = [aliceTable.players[0]?.deck?.name, bobTable.players[1]?.deck?.name];
     expect(deckNames[0], 'the two decks must be tellable apart by name').not.toBe(deckNames[1]);
     summary.roomTable = { deckNames, names: aliceTable.players.map((p) => p.name) };
 

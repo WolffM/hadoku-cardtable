@@ -1968,7 +1968,7 @@ function useAfterTheBoard(over: boolean): boolean {
 
 /** The viewer's own held choice at this table — the editor's starting point. */
 export function myChoice(table: RoomTable | null): SeatChoice | null {
-  return table?.players.find((p) => p.you)?.choice ?? null;
+  return table?.players.find((p) => p.you)?.deck?.choice ?? null;
 }
 
 /**
@@ -2251,7 +2251,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
         matchId: answer.table.room.matchId,
         locked: answer.table.room.locked,
         phase: answer.table.room.phase,
-        players: answer.table.players.map((p) => ({ ready: p.ready, legal: p.legal })),
+        players: answer.table.players.map((p) => ({ ready: p.ready, legal: p.deck?.legal })),
       });
       // The room again when the table moved, or when the last room read is
       // behind it: read before the game was recorded, it still says `playing`
