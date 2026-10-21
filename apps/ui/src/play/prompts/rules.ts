@@ -24,8 +24,8 @@
 
 import { deckIssues, newDeck, type Deck } from '@hadoku/deck';
 import { oneEachFill, type BlockingMethod, type ZoneType } from '@hadoku/forge-wire';
+import type { CombatAssignment, CombatDamageRules } from '@hadoku/shared';
 
-import type { PromptLookup } from './lookup.ts';
 import type { AskOf, ReplyOf } from './types.ts';
 
 type Problems = string[];
@@ -335,60 +335,7 @@ export function zoneReplyProblems(requested: ZoneUpdates, reply: ZoneUpdates): P
 
 /* ── Dividing an amount ──────────────────────────────────────────────── */
 
-/**
- * The target of damage the attacker assigns past its blockers — the player or
- * planeswalker it attacked. Forge's reply map is `Map<CardView, Integer>` and
- * spells this entry as a `null` key or "key with -1"
- * (`PlayerControllerHuman.java:309-311`). The wire reply's `target` is a
- * `CardRef`, so the defender is `{ kind: 'card', id: -1 }`.
- */
-const DEFENDER_SENTINEL = { kind: 'card', id: -1 } as const;
-
-export interface CombatDamageRules {
-  /** Blockers in damage order, each with the damage that kills it. */
-  blockers: { id: number; lethal: number }[];
-  /** Whether a defender slot exists at all — trample, or divide-as-you-choose with override. */
-  defenderSlot: boolean;
-  /** "Assign combat damage as though it weren't blocked" with override: no ordering rule. */
-  unordered: boolean;
-  overrideOrder: boolean;
-  damage: number;
-}
-
-/**
- * Forge's combat facts for one ask (`VAssignCombatDamage.java:155-206,459-478`).
- * A blocker's lethal damage is its `LethalDamage` (a planeswalker's loyalty),
- * capped at 1 when the attacker has deathtouch; unknown lethal is treated as
- * 0, which lets damage flow past it — the lenient reading, stated here because
- * it is the one fact the dialog cannot get from the ask itself.
- */
-export function combatDamageRules(ask: AskOf<'assignCombatDamage'>, lookup: PromptLookup): CombatDamageRules {
-  const attacker = lookup.card(ask.attacker.id);
-  const keywords = attacker?.keywords ?? [];
-  const deathtouch = keywords.includes('Deathtouch');
-  const trample = ask.defender !== null && keywords.includes('Trample');
-  // `CardStateView.hasDivideDamage()`; Forge's keyword text for it, as matched at
-  // PlayerControllerHuman.java:290-291.
-  const divide = keywords.some((k) => k.startsWith('You may assign CARDNAME\'s combat damage divided as you choose'));
-  const blockers = ask.blockers.map((b) => {
-    const facts = lookup.card(b.id);
-    let lethal = Math.max(0, facts?.lethalDamage ?? 0);
-    if (facts?.isPlaneswalker) lethal = facts.loyalty ?? lethal;
-    else if (deathtouch) lethal = Math.min(lethal, 1);
-    return { id: b.id, lethal };
-  });
-  return {
-    blockers,
-    defenderSlot: trample || (divide && ask.overrideOrder),
-    unordered: divide && ask.overrideOrder,
-    overrideOrder: ask.overrideOrder,
-    damage: ask.damage,
-  };
-}
-
-/** One amount per slot: the blockers in order, then the defender if it has a slot. */
-export type CombatAssignment = { blockers: readonly number[]; defender: number };
-
+/** An assignment against Forge's facts for the ask (`@hadoku/shared`'s `combatDamageRules`). */
 export function combatDamageProblems(rules: CombatDamageRules, a: CombatAssignment): Problems {
   const problems: Problems = [];
   if (a.blockers.length !== rules.blockers.length) problems.push('one amount per blocker');
@@ -433,16 +380,6 @@ export function settleCombatAssignment(rules: CombatDamageRules, a: CombatAssign
     return amount;
   });
   return { blockers, defender: aliveBefore ? 0 : a.defender };
-}
-
-/** The wire reply for an assignment: every slot, zeros included, as Forge's `getDamageMap` does. */
-export function combatDamageReply(rules: CombatDamageRules, a: CombatAssignment): unknown[] {
-  const entries: unknown[] = rules.blockers.map((b, i) => ({
-    target: { kind: 'card', id: b.id },
-    amount: a.blockers[i] ?? 0,
-  }));
-  if (rules.defenderSlot) entries.push({ target: DEFENDER_SENTINEL, amount: a.defender });
-  return entries;
 }
 
 /**

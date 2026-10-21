@@ -617,6 +617,16 @@ export const AssignCombatDamageSchema = z.strictObject({
   defender: GameEntityRefSchema.nullable(),
   overrideOrder: z.boolean(),
   maySkip: z.boolean(),
+  /**
+   * Forge's own combat facts, as its dialog reads them off the views (`VAssignCombatDamage`'s
+   * constructor and `getDamageToKill`; the bridge's `combatFacts`): the damage that kills each
+   * blocker, in `blockers` order (a planeswalker's loyalty, a battle's defense, 1 against
+   * deathtouch); whether damage may go past them to the defender (trample, with a defender); and
+   * whether the attacker may divide its damage as it chooses.
+   */
+  lethal: z.array(z.number().int().nonnegative()),
+  trample: z.boolean(),
+  divide: z.boolean(),
 });
 
 export const AssignCombatDamageReplySchema = z.array(

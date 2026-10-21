@@ -6,16 +6,14 @@
 
 import { describe, expect, it } from 'vitest';
 import { cardRequest } from '@hadoku/forge-wire';
-import { oneAbility, selfAnswer } from '@hadoku/shared';
+import { combatDamageReply, combatDamageRules, oneAbility, onlyCombatAssignment, selfAnswer, type CombatAssignment, type CombatDamageRules } from '@hadoku/shared';
 
-import { askFor, asksFor, fixtureLookup } from './fixtures.ts';
+import { askFor, asksFor } from './fixtures.ts';
 import {
   abilityProblems,
   chooseEntitiesProblems,
   chooseSingleProblems,
   combatDamageProblems,
-  combatDamageReply,
-  combatDamageRules,
   confirmProblems,
   deckFromSideboardAsk,
   genericAmountProblems,
@@ -36,7 +34,6 @@ import {
 } from './rules.ts';
 import type { AskOf } from './types.ts';
 
-const lookup = fixtureLookup();
 const card = (id: number) => ({ kind: 'card', id }) as const;
 const player = (id: number) => ({ kind: 'player', id }) as const;
 
@@ -460,11 +457,11 @@ describe('tempShowZones / openZones', () => {
 
 describe('assignCombatDamage', () => {
   const ask = askFor('assignCombatDamage');
-  const rules = combatDamageRules(ask, lookup);
+  const rules = combatDamageRules(ask);
   // The same attack into Goblin Replica alone, so trample can reach the player.
-  const oneBlocker = combatDamageRules({ ...ask, blockers: [card(67)] }, lookup);
+  const oneBlocker = combatDamageRules({ ...ask, blockers: [card(67)], lethal: [2] });
 
-  it('reads Forge’s own facts off the real board', () => {
+  it('reads Forge’s own facts off the ask', () => {
     // Fire Urchin has Trample, so the defender gets a slot; Goblin Replica's
     // LethalDamage is 2 and Vulshok War Boar's 5 in the captured state.
     expect(rules.defenderSlot).toBe(true);
@@ -512,28 +509,19 @@ describe('assignCombatDamage', () => {
   });
 
   it('gives a non-trampler no defender slot', () => {
-    // Hellkite Whelp has Flying, not Trample.
-    expect(combatDamageRules({ ...ask, attacker: card(60) }, lookup).defenderSlot).toBe(false);
+    expect(combatDamageRules({ ...ask, trample: false }).defenderSlot).toBe(false);
   });
 
   it('lets blockers take damage in any order under overrideOrder, but still gates the defender', () => {
-    const override = combatDamageRules({ ...ask, overrideOrder: true }, lookup);
+    const override = combatDamageRules({ ...ask, overrideOrder: true });
     expect(combatDamageProblems(override, { blockers: [0, 5], defender: 0 })).toEqual([]);
     expect(combatDamageProblems(override, { blockers: [0, 4], defender: 1 })).toEqual([
       'every blocker needs lethal damage before any tramples over',
     ]);
   });
 
-  it('caps lethal at 1 for a deathtoucher', () => {
-    const deathtouch = {
-      ...lookup,
-      card: (id: number) => {
-        const facts = lookup.card(id);
-        return id === 21 && facts ? { ...facts, keywords: [...facts.keywords, 'Deathtouch'] } : facts;
-      },
-    };
-    const dt = combatDamageRules(ask, deathtouch);
-    expect(dt.blockers.map((b) => b.lethal)).toEqual([1, 1]);
+  it('lets a deathtoucher trample over a blocker whose lethal Forge says is 1', () => {
+    const dt = combatDamageRules({ ...ask, lethal: [1, 1] });
     expect(combatDamageProblems(dt, { blockers: [1, 1], defender: 3 })).toEqual([]);
   });
 
@@ -543,6 +531,58 @@ describe('assignCombatDamage', () => {
       { target: card(99), amount: 3 },
       { target: card(-1), amount: 0 },
     ]);
+  });
+});
+
+/** Every division of `rules.damage` over its slots that `combatDamageProblems` accepts. */
+function legalDivisions(rules: CombatDamageRules): CombatAssignment[] {
+  const slots = rules.blockers.length + (rules.defenderSlot ? 1 : 0);
+  const out: CombatAssignment[] = [];
+  const walk = (prefix: number[], left: number) => {
+    if (prefix.length === slots - 1) {
+      const all = [...prefix, left];
+      const a = rules.defenderSlot
+        ? { blockers: all.slice(0, -1), defender: all[all.length - 1]! }
+        : { blockers: all, defender: 0 };
+      if (combatDamageProblems(rules, a).length === 0) out.push(a);
+      return;
+    }
+    for (let n = 0; n <= left; n++) walk([...prefix, n], left - n);
+  };
+  if (slots > 0) walk([], rules.damage);
+  return out;
+}
+
+describe('onlyCombatAssignment', () => {
+  it('answers exactly when the dialog’s own rules leave one division, and with that division', () => {
+    let unique = 0;
+    for (const damage of [0, 1, 2, 3, 6])
+      for (const lethals of [[1], [2], [6], [7], [1, 1], [6, 2], [2, 6], [7, 1]])
+        for (const defenderSlot of [false, true])
+          for (const [overrideOrder, unordered] of [[false, false], [true, false], [true, true]] as const) {
+            const rules: CombatDamageRules = {
+              blockers: lethals.map((lethal, i) => ({ id: 60 + i, lethal })),
+              defenderSlot,
+              unordered,
+              overrideOrder,
+              damage,
+            };
+            const legal = legalDivisions(rules);
+            const only = onlyCombatAssignment(rules);
+            const what = JSON.stringify(rules);
+            if (legal.length === 1) {
+              unique += 1;
+              expect(only, what).toEqual(legal[0]);
+            } else expect(only, `${what}: ${legal.length} legal`).toBeNull();
+          }
+    expect(unique, 'the sweep includes one-answer cases').toBeGreaterThan(10);
+  });
+
+  it('the operator’s case: a 6/6 trampler blocked by a 7/7 has one division, all six to the blocker', () => {
+    const rules: CombatDamageRules = { blockers: [{ id: 5, lethal: 7 }], defenderSlot: true, unordered: false, overrideOrder: false, damage: 6 };
+    expect(onlyCombatAssignment(rules)).toEqual({ blockers: [6], defender: 0 });
+    expect(onlyCombatAssignment({ ...rules, blockers: [{ id: 5, lethal: 2 }] }), 'into a 2/2, four can trample over').toBeNull();
+    expect(onlyCombatAssignment({ ...rules, blockers: [{ id: 5, lethal: 1 }] }), 'with deathtouch, five can').toBeNull();
   });
 });
 

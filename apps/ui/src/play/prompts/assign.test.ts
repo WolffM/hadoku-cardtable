@@ -137,7 +137,7 @@ describe('assignCombatDamage', () => {
   });
 
   it('offers no defender slot to a non-trampler', () => {
-    const ask = { ...askFor('assignCombatDamage'), attacker: { kind: 'card', id: 60 } as const };
+    const ask = { ...askFor('assignCombatDamage'), trample: false };
     const { container, queryByTestId } = mountPrompt('assignCombatDamage', ask);
     expect(queryByTestId('prompt-defender')).toBeNull();
     expect(slots(container)).toHaveLength(2);

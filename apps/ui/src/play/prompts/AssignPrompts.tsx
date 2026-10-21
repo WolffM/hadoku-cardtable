@@ -33,6 +33,7 @@
  * "later", and this window offers none.
  */
 
+import { combatDamageReply, combatDamageRules, type CombatAssignment } from '@hadoku/shared';
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import { ManaCost } from '../../components/ManaPip.tsx';
@@ -41,13 +42,10 @@ import { OptionButton, promptThumb, PromptShell } from './PromptShell.tsx';
 import { refName } from './lookup.ts';
 import {
   combatDamageProblems,
-  combatDamageReply,
-  combatDamageRules,
   settleCombatAssignment,
   genericAmountProblems,
   MANA_COLOR,
   manaCombos,
-  type CombatAssignment,
   type ManaCombo,
 } from './rules.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
@@ -134,7 +132,7 @@ function AmountRow({
 }
 
 export function AssignCombatDamagePrompt({ ask, onAnswer, lookup, onPreview }: PromptProps<'assignCombatDamage'>) {
-  const rules = combatDamageRules(ask, lookup);
+  const rules = combatDamageRules(ask);
   const [assignment, setRaw] = useState<CombatAssignment>(() => ({
     blockers: rules.blockers.map(() => 0),
     defender: 0,

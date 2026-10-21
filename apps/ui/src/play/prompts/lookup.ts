@@ -4,13 +4,11 @@
  * An ask never carries a card; it carries `{ kind: 'card', id }`
  * (`@hadoku/forge-wire`'s `refs.ts`), because the client already holds the
  * object from the state channel. So a prompt needs a way back from an id to a
- * name — and, for combat damage, to the two facts Forge's own dialog reads off
- * the `CardView`: `LethalDamage` and the attacker's keywords
- * (`VAssignCombatDamage.java:163-166,459-478`).
+ * name. (Combat damage's facts — each blocker's lethal damage, trample — ride
+ * in the ask itself, read by the bridge as Forge's own dialog reads them.)
  *
  * `lookupFromState` reads those straight off the folded wire state
- * (`../fold.ts`), property by property, rather than off `BoardView`: the
- * adapter drops `LethalDamage` and `Keywords`, and neither belongs on a board.
+ * (`../fold.ts`), property by property, rather than off `BoardView`.
  *
  * ## Spell abilities are not on the wire
  *
@@ -50,12 +48,6 @@ export interface PromptCardFacts {
    * wave 24 §D.3. Empty when the wire did not carry one.
    */
   setCode: string;
-  /** Forge's `CardView.getLethalDamage()` — toughness minus damage already marked. */
-  lethalDamage: number | null;
-  /** Current loyalty, for a planeswalker; `null` otherwise. */
-  loyalty: number | null;
-  keywords: readonly string[];
-  isPlaneswalker: boolean;
 }
 
 export interface PromptPlayerFacts {
@@ -96,17 +88,6 @@ function readStr(obj: WireObject | undefined, name: string): string | null {
   return v !== undefined && v.t === 'str' && typeof v.v === 'string' ? v.v : null;
 }
 
-function readKeywords(obj: WireObject | undefined): string[] {
-  const v = prop(obj, 'Keywords');
-  if (v === undefined || v.t !== 'keywords' || !Array.isArray(v.v)) return [];
-  return (v.v as unknown[]).filter((k): k is string => typeof k === 'string');
-}
-
-function isPlaneswalkerType(obj: WireObject | undefined): boolean {
-  const v = prop(obj, 'Type');
-  return v !== undefined && v.t === 'cardtype' && Array.isArray(v.core) && v.core.includes('Planeswalker');
-}
-
 /**
  * A lookup over folded Tier C state. Card facts come from the `CardView` and
  * its current `CardStateView` (`cardId*16 + CurrentState`, `../wire.ts`).
@@ -117,15 +98,9 @@ export function lookupFromState(state: WireState): PromptLookup {
       const view = state.get(deltaKey(WireType.Card, id));
       if (view === undefined) return undefined;
       const face = state.get(cardStateKey(id, readInt(view, 'CurrentState') ?? 0));
-      const loyaltyText = readStr(face, 'Loyalty');
-      const loyalty = loyaltyText === null ? null : Number.parseInt(loyaltyText, 10);
       return {
         name: readStr(face, 'Name') ?? readStr(view, 'Name'),
         setCode: readStr(face, 'SetCode') ?? '',
-        lethalDamage: readInt(view, 'LethalDamage'),
-        loyalty: loyalty !== null && Number.isFinite(loyalty) ? loyalty : null,
-        keywords: readKeywords(face),
-        isPlaneswalker: isPlaneswalkerType(face),
       };
     },
     player(id) {

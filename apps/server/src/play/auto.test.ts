@@ -240,8 +240,25 @@ describe('onlyAnswer, where Forge left exactly one possibility', () => {
 		expect(onlyAnswer(slack)).toBeNull();
 	});
 
+	it('divides combat damage only when the blockers need all of it', () => {
+		// Fire Urchin's 5 into Goblin Replica alone: as Forge sends it with a 7/7's lethal, then a 2/2's.
+		const allOfIt = narrowed('assignCombatDamage.json', { blockers: [{ kind: 'card', id: 67 }], lethal: [7] }) as Extract<ServerFrame, { method: 'assignCombatDamage' }>;
+		expect(onlyAnswer(allOfIt)).toEqual({
+			callId: allOfIt.callId,
+			method: 'assignCombatDamage',
+			result: [
+				{ target: { kind: 'card', id: 67 }, amount: 5 },
+				{ target: { kind: 'card', id: -1 }, amount: 0 },
+			],
+			why: 'one legal division: the blockers need all of it',
+		});
+		expect(onlyAnswer(narrowed('assignCombatDamage.json', { blockers: [{ kind: 'card', id: 67 }], lethal: [2] })), 'three can trample over').toBeNull();
+		expect(onlyAnswer({ ...allOfIt, maySkip: true }), 'Skip is a second answer').toBeNull();
+	});
+
 	it('never produces an answer its own wire schema would refuse', () => {
 		const candidates = [
+			narrowed('assignCombatDamage.json', { lethal: [5, 5] }),
 			narrowed('getChoices.json', { min: 5, max: 5 }),
 			narrowed('showOptionDialog.json', { options: ['OK'], defaultOption: 0 }),
 		];

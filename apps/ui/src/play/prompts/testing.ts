@@ -74,7 +74,7 @@ export const poolLookup: PromptLookup = {
     const hit = POOL[id - POOL_ID_BASE];
     return hit === undefined
       ? undefined
-      : { name: hit.name, setCode: hit.setCode, lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false };
+      : { name: hit.name, setCode: hit.setCode };
   },
 };
 

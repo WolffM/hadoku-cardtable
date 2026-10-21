@@ -122,7 +122,7 @@ describe.skipIf(!available.ok)(title, () => {
 				const out = await attackInto(s, 'Grizzly Bears');
 				expect(out.asked, 'a real division reaches the seat').toBe(true);
 				expect(out.why).toBeNull();
-				expect(out.frame).toMatchObject({ damage: 6 });
+				expect(out.frame).toMatchObject({ damage: 6, lethal: [2], trample: true });
 			} finally {
 				await s.stop();
 			}
@@ -144,7 +144,7 @@ describe.skipIf(!available.ok)(title, () => {
 				const out = await attackInto(s, 'Atraxa, Grand Unifier');
 				expect(out.asked, 'a real division reaches the seat').toBe(true);
 				expect(out.why).toBeNull();
-				expect(out.frame).toMatchObject({ damage: 6 });
+				expect(out.frame).toMatchObject({ damage: 6, lethal: [1], trample: true });
 			} finally {
 				await s.stop();
 			}

@@ -283,6 +283,15 @@ export {
 } from './room-feed.ts';
 export { oneAbility, selfAnswer, type SelfAnswer } from './self-answer.ts';
 export {
+  combatDamageReply,
+  combatDamageRules,
+  onlyCombatAssignment,
+  onlyCombatDamage,
+  type CombatAssignment,
+  type CombatDamageAsk,
+  type CombatDamageRules,
+} from './combat-damage.ts';
+export {
   MATCH_LENGTHS,
   MatchLengthSchema,
   DEFAULT_MATCH_LENGTH,

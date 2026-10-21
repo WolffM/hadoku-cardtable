@@ -22,5 +22,11 @@
     "id": 1
   },
   "overrideOrder": false,
-  "maySkip": false
+  "maySkip": false,
+  "lethal": [
+    2,
+    5
+  ],
+  "trample": true,
+  "divide": false
 }

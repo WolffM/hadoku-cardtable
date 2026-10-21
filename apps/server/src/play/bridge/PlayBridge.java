@@ -4181,6 +4181,7 @@ public final class PlayBridge {
             f.add("defender", refOrNull(defender));
             f.addProperty("overrideOrder", overrideOrder);
             f.addProperty("maySkip", maySkip);
+            combatFacts(f, attacker, blockers, defender);
             final JsonElement r = await(ask, f);
             if (r == ABORTED) { return null; }
             final Map<CardView, Integer> out = new LinkedHashMap<>();
@@ -4189,6 +4190,31 @@ public final class PlayBridge {
                 out.put((CardView) lookup(ask, o.get("target")), o.get("amount").getAsInt());
             }
             return out;
+        }
+
+        /**
+         * Forge's own combat facts for a damage assignment, read off the views exactly as its
+         * dialog reads them (`VAssignCombatDamage`'s constructor and `getDamageToKill`): the damage
+         * that kills each blocker (`LethalDamage`; a planeswalker's loyalty, a battle's defense,
+         * 1 when the attacker has deathtouch), whether damage may go past them to the defender
+         * (trample, with a defender), and whether the attacker may divide as it chooses.
+         */
+        private void combatFacts(final JsonObject f, final CardView attacker, final List<CardView> blockers,
+                                 final GameEntityView defender) {
+            final CardView.CardStateView a = attacker.getCurrentState();
+            final boolean deathtouch = a.hasDeathtouch();
+            final JsonArray lethal = new JsonArray();
+            for (final CardView b : blockers) {
+                final CardView.CardStateView s = b.getCurrentState();
+                int kill = Math.max(0, b.getLethalDamage());
+                if (s.getType().isPlaneswalker()) { kill = Integer.parseInt(s.getLoyalty()); }
+                else if (s.getType().isBattle()) { kill = Integer.parseInt(s.getDefense()); }
+                else if (deathtouch) { kill = Math.min(kill, 1); }
+                lethal.add(kill);
+            }
+            f.add("lethal", lethal);
+            f.addProperty("trample", defender != null && a.hasTrample());
+            f.addProperty("divide", a.hasDivideDamage());
         }
 
         @Override

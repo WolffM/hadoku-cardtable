@@ -301,7 +301,7 @@ describe('getAbilityToPlay: a card’s faces', () => {
   const pass = scryfallIdFor(KNOWN_ART_IDS, 'Shatterskull, the Hammer Pass', 'ZNR');
   const lookup: PromptLookup = {
     ...EMPTY_LOOKUP,
-    card: (id) => (id === 82 ? { name: 'Shatterskull Smashing', setCode: 'ZNR', lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false } : undefined),
+    card: (id) => (id === 82 ? { name: 'Shatterskull Smashing', setCode: 'ZNR' } : undefined),
     faces: (id) => (id === 82 ? [card('Shatterskull Smashing', smashing), card('Shatterskull, the Hammer Pass', pass)] : []),
   };
   const ask = {
@@ -683,7 +683,7 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
       ...EMPTY_LOOKUP,
       card: (id) =>
         id === 47
-          ? { name: null, setCode: '', lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false }
+          ? { name: null, setCode: '' }
           : undefined,
     };
     const ask = {
@@ -741,7 +741,7 @@ describe('a prompt tile and the board resolve the same printing', () => {
       ...EMPTY_LOOKUP,
       card: (cardId) =>
         cardId === id
-          ? { name, setCode, lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false }
+          ? { name, setCode }
           : undefined,
     };
     const ask = { ...askFor('chooseSingleEntityForEffect'), optionList: [{ kind: 'card' as const, id }] };

@@ -17,8 +17,9 @@
  * - **Every card and player id** is from the committed real match
  *   (`../fixtures/tierc-game1-seq1-27.json`, turn 14): 99 is Alice's
  *   Vulshok War Boar, 21 Bob's Fire Urchin, 67 Goblin Replica, and so on. The
- *   lookup every test uses is folded from that stream, so names, lethal damage
- *   and keywords (Fire Urchin's Trample) are Forge's, not ours.
+ *   lookup every test uses is folded from that stream, so names are Forge's,
+ *   not ours, and the combat-damage ask's `lethal` (Goblin Replica 2, War Boar
+ *   5) and `trample` (Fire Urchin) are copied from that state.
  *   The SITUATIONS are hypothetical — Fire Urchin never attacked into Goblin
  *   Replica and the War Boar in that game.
  * - **Forge's strings, where Forge has one**: dialog titles from

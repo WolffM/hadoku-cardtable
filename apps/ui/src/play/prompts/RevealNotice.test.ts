@@ -70,7 +70,7 @@ describe('RevealNotice', () => {
     const forest: AskOf<'getChoices'> = { ...REVEAL, choices: [{ key: 'c0', label: 'Forest (89)', ref: { kind: 'card', id: 89 } }] };
     const known: PromptLookup = {
       ...EMPTY_LOOKUP,
-      card: (id) => (id === 89 ? { name: 'Forest', setCode: 'TRK', lethalDamage: null, loyalty: null, keywords: [], isPlaneswalker: false } : undefined),
+      card: (id) => (id === 89 ? { name: 'Forest', setCode: 'TRK' } : undefined),
     };
     const props = { reveal: forest, onDone: () => undefined };
     const { getByTestId, rerender } = render(createElement(RevealNotice, { ...props, lookup: known }));

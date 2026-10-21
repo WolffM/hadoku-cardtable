@@ -151,7 +151,7 @@
  */
 
 import { PHASE_TYPES, REPLY_SCHEMAS, type ClientFrame, type PhaseType, type ServerFrame, type ZoneType } from '@hadoku/forge-wire';
-import { oneAbility } from '@hadoku/shared';
+import { oneAbility, onlyCombatDamage } from '@hadoku/shared';
 import { copyTargets, type SpellCopy } from './spell-copiers.js';
 
 /** An ask that admits exactly one answer, and why. */
@@ -663,8 +663,11 @@ export function namedStopPolicy(name: string | undefined | null): StopPolicy | n
  * The single answer this ask admits, or null when the choice is real.
  *
  * Read each case as "Forge left one possibility", never as "this is the good
- * play". `confirm`, `showConfirmDialog`, `showInputDialog`, the two assignments
- * and `sideboard` are never auto-answered: each is a real question. There is no
+ * play". `confirm`, `showConfirmDialog`, `showInputDialog`, `assignGenericAmount`
+ * and `sideboard` are never auto-answered: each is a real question. Combat damage
+ * is answered only when Forge's own facts in the ask leave one division
+ * (`@hadoku/shared`'s `onlyCombatDamage`): a trampler blocked by a creature
+ * that needs every point of it. There is no
  * prose in here and there never was — the rules are bounds arithmetic.
  *
  * A one-ability `getAbilityToPlay` is answered with that ability, by `@hadoku/shared`'s
@@ -713,6 +716,11 @@ export function onlyAnswer(frame: ServerFrame, policy: StopPolicy = DEFAULT_STOP
 		case 'getAbilityToPlay': {
 			const only = oneAbility(frame);
 			return only === null ? null : ok(callId, frame.method, only, 'one ability');
+		}
+
+		case 'assignCombatDamage': {
+			const only = onlyCombatDamage(frame);
+			return only === null ? null : ok(callId, frame.method, only, 'one legal division: the blockers need all of it');
 		}
 
 		case 'order': {

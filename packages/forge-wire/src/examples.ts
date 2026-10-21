@@ -185,6 +185,9 @@ export const SERVER_FRAME_EXAMPLES: Readonly<Record<string, unknown>> = {
     defender: PLAYER,
     overrideOrder: false,
     maySkip: true,
+    lethal: [2],
+    trample: true,
+    divide: false,
   },
   assignGenericAmount: {
     kind: 'ask',
