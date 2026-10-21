@@ -35,6 +35,7 @@ export {
   type DraftEvent,
   type PickResult,
   type PickRejection,
+  type BotSeat,
   type HumanSeat,
 } from './engine.ts';
 

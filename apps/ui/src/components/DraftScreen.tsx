@@ -55,7 +55,6 @@ import {
 import { ConnectionBanner } from './ConnectionBanner.tsx';
 import { DeckView } from './DeckView.tsx';
 import { useFitScale } from './cardFit.ts';
-import { DraftCounters } from './DraftCounters.tsx';
 import { useNewPackSound } from '../draft/packSound.ts';
 import { PackView, type PackLayout } from './PackView.tsx';
 import { PoolView, POOL_ENTER_MS, type PoolEnterRect } from './PoolView.tsx';
@@ -282,18 +281,19 @@ export function DraftScreen({
           )}
         </main>
         {/* One column beside the pack and the picks, the whole height: the room's bar,
-            the draft's, and the seats (the operator, 2026-10-19: "we could reclaim a lot
-            of vertical space in that way"). */}
+            the pod as a circle with the pack and pick at its centre, and the pack's
+            layout (the operator, 2026-10-19: "we could reclaim a lot of vertical space
+            in that way"; 2026-10-21: the pod as a circle). */}
         <aside className="draft__aside fit-scale" ref={fitAside}>
           {side}
+          {/* The room's bar names the room already. */}
+          {side === undefined && (
+            <h1 className="draft__title" data-testid="draft-title">
+              {title}
+            </h1>
+          )}
+          <SeatBar view={view} onWatch={onWatch} />
           <header className="draft__bar">
-            {/* The room's bar names the room already. */}
-            {side === undefined && (
-              <h1 className="draft__title" data-testid="draft-title">
-                {title}
-              </h1>
-            )}
-            <DraftCounters view={view} />
             <div className="draft__controls">
               <div className="segmented" role="group" aria-label="Pack layout">
                 {(['fan', 'grid'] as const).map((option) => (
@@ -321,7 +321,6 @@ export function DraftScreen({
               )}
             </div>
           </header>
-          <SeatBar view={view} onWatch={onWatch} />
         </aside>
       </div>
     </div>

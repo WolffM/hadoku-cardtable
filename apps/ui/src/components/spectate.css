@@ -124,10 +124,15 @@
   color: var(--ink-dim);
 }
 
-/* A held seat in the seat bar. Dashed, because it is an inference. */
+/* A held seat in the pod. Its face ringed dashed, because it is an inference. */
 .seat--held {
-  border-style: dashed;
   opacity: 0.8;
+}
+
+.seat--held .seat__face {
+  box-shadow: none;
+  outline: 2px dashed var(--warn);
+  outline-offset: -2px;
 }
 
 .seat__held {

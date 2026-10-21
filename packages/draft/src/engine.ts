@@ -51,12 +51,20 @@ import { derive, rngFromSeed, shuffle, type Rng } from './rng.ts';
 export interface HumanSeat {
   participantId: string;
   displayName: string;
+  /** Their watchparty character, when they have one. */
+  avatarId?: string;
   /**
    * The seat this human drafts from: a pod player's chosen place at the table,
    * which is what decides who they pass to and receive from. Absent, the first
    * free seat.
    */
   seat?: SeatId;
+}
+
+/** A bot seat as the caller describes it: a pod's AI persona. */
+export interface BotSeat {
+  name: string;
+  avatarId?: string;
 }
 
 export interface DraftConfig {
@@ -78,8 +86,8 @@ export interface DraftConfig {
   packSize: number;
   /** Humans, each in their `seat`, else in the first free seat. Remaining seats are filled with bots. */
   humans: readonly HumanSeat[];
-  /** What the bots are called, the first bot seat first; a seat past the list is `Bot <seat>`. */
-  botNames?: readonly string[];
+  /** The bots as players, the first bot seat first: a name, and a character when it has one. A seat past the list is `Bot <seat>`. */
+  bots?: readonly BotSeat[];
   /** How long a dropped player's seat is held. 0 disables (the package default). */
   reservationTtlMs?: number;
 }
@@ -101,6 +109,8 @@ export interface DraftState {
   pickNumber: number;
   table: SeatTable;
   displayNames: Record<SeatId, string>;
+  /** Each seat's watchparty character, beside its name; a seat without one has no entry. */
+  avatarIds: Record<SeatId, string>;
   /** The pack currently in front of each seat. Index === SeatId. */
   packs: DraftCard[][];
   /** What each seat has taken, in pick order. Index === SeatId. */
@@ -180,12 +190,16 @@ export function createDraft(config: DraftConfig): DraftState {
   });
 
   const displayNames: Record<SeatId, string> = {};
+  const avatarIds: Record<SeatId, string> = {};
   for (const human of config.humans) {
     // A chosen seat is the one they "last held": `seatParticipant` puts them
     // there, and a reconnect brings them back to it.
     if (human.seat !== undefined) table.remembered[human.participantId] = human.seat;
     const id = seatParticipant(table, human.participantId);
-    if (id !== null) displayNames[id] = human.displayName;
+    if (id !== null) {
+      displayNames[id] = human.displayName;
+      if (human.avatarId !== undefined) avatarIds[id] = human.avatarId;
+    }
   }
   // Bots take every seat the humans left. `padWithBots` clears and re-fills, so
   // the count is a target: seatCount minus the humans actually seated.
@@ -193,7 +207,10 @@ export function createDraft(config: DraftConfig): DraftState {
   padWithBots(table, Math.max(0, config.seatCount - humansSeated));
   let bot = 0;
   for (const { id, occupant } of occupiedSeats(table)) {
-    if (occupant.kind === 'bot') displayNames[id] = config.botNames?.[bot++] ?? `Bot ${id}`;
+    if (occupant.kind !== 'bot') continue;
+    const persona = config.bots?.[bot++];
+    displayNames[id] = persona?.name ?? `Bot ${id}`;
+    if (persona?.avatarId !== undefined) avatarIds[id] = persona.avatarId;
   }
 
   const rounds = deal(config.pool, rng, config.packCount, config.seatCount, config.packSize);
@@ -210,6 +227,7 @@ export function createDraft(config: DraftConfig): DraftState {
     pickNumber: 1,
     table,
     displayNames,
+    avatarIds,
     packs: (rounds[0] as DraftCard[][]).map((p) => p.slice()),
     pools: Array.from({ length: config.seatCount }, () => []),
     rounds,

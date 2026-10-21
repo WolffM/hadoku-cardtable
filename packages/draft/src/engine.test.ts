@@ -307,10 +307,21 @@ describe('seating', () => {
     expect(bots.length).toBe(6);
   });
 
-  it('names the bots from botNames, the first bot seat first, and Bot <seat> past the list', () => {
-    const state = newDraft('seed-1', { botNames: ['Sage', 'Herald', 'Cleric'] });
+  it('names the bots from bots, the first bot seat first, and Bot <seat> past the list', () => {
+    const state = newDraft('seed-1', { bots: [{ name: 'Sage', avatarId: 'sage' }, { name: 'Herald', avatarId: 'herald' }, { name: 'Cleric' }] });
     expect([2, 3, 4, 5].map((id) => state.displayNames[id])).toEqual(['Sage', 'Herald', 'Cleric', 'Bot 5']);
     expect(state.displayNames[0]).toBe('alice');
+  });
+
+  it('carries each seat’s character to every viewer, and none for a seat that has none', () => {
+    const state = newDraft('seed-1', { bots: [{ name: 'Sage', avatarId: 'sage' }, { name: 'Herald' }] });
+    const seats = viewFor(state, 1).seats;
+    expect(seats.map((s) => s.avatarId)).toEqual([undefined, undefined, 'sage', undefined, undefined, undefined, undefined, undefined]);
+  });
+
+  it('a human’s own character is drawn at their seat', () => {
+    const state = newDraft('seed-1', { humans: [{ participantId: 'p-alice', displayName: 'alice', avatarId: 'rogue' }] });
+    expect(viewFor(state, 0).seats[0]?.avatarId).toBe('rogue');
   });
 
   it('the pod is exactly seatCount seats', () => {

@@ -142,6 +142,12 @@ export const DraftSeatViewSchema = z.object({
   occupant: SeatOccupantSchema.nullable(),
   /** Presentational only. Never an identity. */
   displayName: z.string(),
+  /**
+   * The watchparty character drawn for the seat: a member's own, or an AI seat's
+   * persona. Watchparty's own bound (`sprite: z.string().min(1).max(32)`). Absent
+   * for a seat with no character (a draft outside a room, a snapshot from before).
+   */
+  avatarId: z.string().min(1).max(32).optional(),
   pickedCount: z.number().int().nonnegative(),
 });
 

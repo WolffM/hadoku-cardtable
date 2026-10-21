@@ -2543,9 +2543,9 @@ class FileLobby implements Lobby {
 			humans: table.flatMap((place, seat) => {
 				if (place.kind !== 'human') return [];
 				const member = room.members.find((m) => m.id === place.id);
-				return member === undefined ? [] : [{ participantId: place.id, displayName: member.name, seat }];
+				return member === undefined ? [] : [{ participantId: place.id, displayName: member.name, seat, ...(member.avatarId === undefined ? {} : { avatarId: member.avatarId }) }];
 			}),
-			botNames: table.flatMap((place, seat) => (place.kind === 'ai' ? [place.persona?.name ?? `Bot ${seat}`] : [])),
+			bots: table.flatMap((place, seat) => (place.kind === 'ai' ? [place.persona === null ? { name: `Bot ${seat}` } : { name: place.persona.name, avatarId: place.persona.avatarId }] : [])),
 		};
 	}
 

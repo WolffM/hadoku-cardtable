@@ -387,7 +387,7 @@ button {
  */
 .draft__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
+  grid-template-columns: minmax(0, 1fr) 280px;
   /* Half for the pack, half for the picks (the operator, 2026-10-19: the fan no longer needs
      three quarters); the side column the whole height. */
   grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
@@ -964,81 +964,160 @@ button {
   pointer-events: none;
 }
 
-/* ── seats ─────────────────────────────────────────────────────────── */
+/* ── seats: the pod, as one table (`components/SeatBar.tsx`) ───────── */
 
 .seats {
   background: var(--bg-raised);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 12px;
+  padding: 8px;
 }
 
-.seats__head {
-  margin-bottom: 10px;
+/* A square the ring is drawn in; the seats and arcs are placed in its own 0-100 box. */
+.podcircle {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
 }
 
-.seats__title {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-dim);
+.podcircle__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
-.seats__capacity {
-  color: var(--ink);
-  margin-left: 4px;
+.podcircle__arc {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  marker-end: url(#podcircle-head);
 }
 
-.seats__pass {
-  margin: 4px 0 0;
-  font-size: 11px;
-  color: var(--ink-faint);
+/* The arc into the bottom seat: where the viewer's next pack comes from. */
+.podcircle__arc--in {
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  marker-end: url(#podcircle-head-in);
 }
 
-.seats__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
+.podcircle__head {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.podcircle__head--in {
+  stroke: var(--accent);
+}
+
+.podcircle__centre {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  transform: translate(-50%, -50%);
+}
+
+.podcircle__centre .counters {
   flex-direction: column;
+  align-items: center;
   gap: 2px;
 }
 
+.podcircle__seats {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Placed by its face's centre (`left`/`top` from SeatBar), its name and count under it. */
 .seat {
-  display: grid;
-  grid-template-columns: 18px 1fr auto;
-  grid-template-areas: 'id name meta' '. clock clock';
-  gap: 2px 8px;
+  position: absolute;
+  width: 72px;
+  transform: translate(-50%, -20px);
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  padding: 5px 6px;
-  border-radius: 5px;
-  border-left: 3px solid transparent;
-  font-size: 12px;
+  gap: 2px;
+  font-size: 11px;
+  text-align: center;
 }
 
-.seat--waiting {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border-left-color: var(--accent);
+.seat__face {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg-card);
+  box-shadow: 0 0 0 2px var(--line);
 }
 
-.seat--you {
-  outline: 1px solid var(--line);
+/* The characters are pixel art: keep their pixels square. */
+.seat__face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.seat__face .face__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.seat__face .face__plate {
+  fill: var(--bg-card);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.seat__face .face__brow,
+.seat__face .face__bust {
+  fill: var(--ink-faint);
+}
+
+/* Still owes a pick: the ring is lit and breathes. */
+.seat--waiting .seat__face {
+  box-shadow: 0 0 0 2px var(--accent);
+  animation: seat-picking 1.4s ease-in-out infinite;
+}
+
+@keyframes seat-picking {
+  50% {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat--waiting .seat__face {
+    animation: none;
+  }
+}
+
+.seat--you .seat__name {
+  color: var(--accent-ink);
 }
 
 /* A spectator's seats: the one watched, and the rest to press. */
-.seat--watched {
-  outline: 1px solid var(--accent);
-}
-
-.seat:has(.seat__watch) {
-  position: relative;
+.seat--watched .seat__face {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .seat__watch {
   position: absolute;
-  inset: 0;
+  inset: -4px;
   border: 0;
-  border-radius: inherit;
+  border-radius: var(--radius);
   background: transparent;
   cursor: pointer;
 }
@@ -1051,56 +1130,34 @@ button {
   outline: 2px solid var(--accent);
 }
 
-.seat__id {
-  grid-area: id;
-  color: var(--ink-faint);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
 .seat__name {
-  grid-area: name;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
 
-.seat__you {
-  color: var(--accent-ink);
-  font-size: 10px;
-}
-
-.seat__meta {
-  grid-area: meta;
+/* The name and the count on one line under the face; a long name gives way, never the count. */
+.seat__label {
   display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.seat__bot {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-faint);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0 3px;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
 }
 
 .seat__picked {
+  flex: none;
   font-variant-numeric: tabular-nums;
   color: var(--ink-dim);
 }
 
-.seat__clock {
-  grid-area: clock;
-  font-size: 10px;
-  color: var(--ink-faint);
+/* The pack's layout at the foot of the column, under the pod. */
+.draft__aside > .draft__bar {
+  margin-top: auto;
 }
 
-.seat--waiting .seat__clock {
-  color: var(--accent-ink);
-}
 
 /*
  * Card art — the image, from our CDN or upstream, covering the text tile.

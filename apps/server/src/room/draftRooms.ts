@@ -128,7 +128,7 @@ import {
 	type SeatId,
 	type SeatTable,
 } from '@wolffm/rooms-protocol';
-import { botSeatAcross, createDraft, isBotSeat, spectatorView, viewFor, watcherView, type DraftState, type HumanSeat } from '@hadoku/draft';
+import { botSeatAcross, createDraft, isBotSeat, spectatorView, viewFor, watcherView, type BotSeat, type DraftState, type HumanSeat } from '@hadoku/draft';
 import { cursorOf, type CubeMeta, type DraftCard, type DraftView, type WireCursor } from '@hadoku/shared';
 import {
 	applySnapshot,
@@ -310,7 +310,8 @@ export interface DraftRooms {
 export interface PodDeal {
 	seats: number;
 	humans: readonly HumanSeat[];
-	botNames: readonly string[];
+	/** The AI seats as players, in seat order: each persona's name and character. */
+	bots: readonly BotSeat[];
 }
 
 /*
@@ -477,7 +478,11 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 					// holding a pre-restart cursor gets `epoch-change` rather than
 					// reading the restored seq as a flood of duplicates. See this
 					// module's header and `draftRestore.test.ts`.
-					state: persisted.state === null ? null : { ...persisted.state, epoch: ctx.restoreId },
+					// A snapshot from before seats carried characters has no `avatarIds`.
+					state:
+						persisted.state === null
+							? null
+							: { ...persisted.state, avatarIds: (persisted.state as Partial<DraftState>).avatarIds ?? {}, epoch: ctx.restoreId },
 					builtDecks: persisted.builtDecks ?? {},
 					deckMeta: persisted.deckMeta ?? {},
 				});
@@ -551,7 +556,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			packCount: params.packCount,
 			packSize: params.packSize,
 			humans: pod?.humans ?? [],
-			botNames: pod?.botNames ?? [],
+			bots: pod?.bots ?? [],
 			reservationTtlMs: params.reservationTtlMs,
 		});
 	};
@@ -742,13 +747,17 @@ export function joinDraftRoom(
 		watching: null,
 	}));
 	const seat = seatOf(room.seats, participantId);
-	const name = drafters.find((h) => h.participantId === participantId)?.displayName ?? null;
+	const drafter = drafters.find((h) => h.participantId === participantId);
+	const name = drafter?.displayName ?? null;
 	const renamed = seat !== null && name !== null && state.displayNames[seat] !== name;
-	const changed = seat !== before || renamed;
+	// A character changed in the room since the deal is drawn at the seat from the next join.
+	const recharactered = seat !== null && drafter?.avatarId !== undefined && state.avatarIds[seat] !== drafter.avatarId;
+	const changed = seat !== before || renamed || recharactered;
 	if (seat !== null && changed) {
 		// Without a name in the pod, the digest handle — never the friend key and
 		// never the edge's `X-User-Id`. This string goes to every other seat.
 		state.displayNames[seat] = name ?? participantHandle(participantId);
+		if (drafter?.avatarId !== undefined) state.avatarIds[seat] = drafter.avatarId;
 		bumpSeq(state);
 		room.app.persist(room);
 	}

@@ -2094,7 +2094,7 @@ describe('Lobby.playPod', () => {
 		expect(lobby.sitPod(id, BOB.id, 3).ok).toBe(true);
 		for (const m of [ALICE, BOB]) expect(lobby.setReady(id, m.id, true)).toBe(true);
 		fillWithAi(lobby, id, ALICE.id);
-		expect(lobby.podDraft(id)?.botNames).toHaveLength(6);
+		expect(lobby.podDraft(id)?.bots).toHaveLength(6);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
 		const started = playAll(lobby, id, [ALICE, BOB]);
@@ -2361,7 +2361,13 @@ describe('the AI seats play as the room’s characters', () => {
 		expect(new Set(names).size, 'seven different characters').toBe(7);
 		expect(names.map((n) => n.toLowerCase()), 'none of them the one Alice wears').not.toContain(worn);
 		expect(names.every((n) => /^[A-Z][a-z]+$/.test(n))).toBe(true);
-		expect(lobby.podDraft(id)).toEqual({ seats: 8, humans: [{ participantId: ALICE.id, displayName: ALICE.name, seat: 0 }], botNames: names });
+		// Each seat is dealt as a player: the name, and the character drawn for it in the pod.
+		const avatars = lobby.get(id)!.pod!.seats.slice(1).map((s) => s!.name.toLowerCase());
+		expect(lobby.podDraft(id)).toEqual({
+			seats: 8,
+			humans: [{ participantId: ALICE.id, displayName: ALICE.name, seat: 0, ...(worn === undefined ? {} : { avatarId: worn }) }],
+			bots: names.map((name, i) => ({ name, avatarId: avatars[i] })),
+		});
 		// Across the table from the one human (draft seat 4, the fourth bot): who the AI plays as.
 		expect(lobby.get(id)!.ai.name).toBe(names[3]);
 
@@ -2424,7 +2430,7 @@ describe('closed pod seats', () => {
 		for (const seat of [2, 3]) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
 		const deal = lobby.podDraft(id)!;
 		expect(deal.seats).toBe(4);
-		expect(deal.botNames).toHaveLength(2);
+		expect(deal.bots).toHaveLength(2);
 		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
 		expect(lobby.podDraft(id)?.humans.map((h) => h.participantId)).toEqual([ALICE.id, BOB.id]);
 

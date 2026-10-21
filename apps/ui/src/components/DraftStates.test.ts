@@ -26,6 +26,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { parseDck } from '@hadoku/carddata/dck';
 
 import { connectionState, type ConnectionFacts } from '../draft/connection.ts';
+import { SEAT_HELD_NOTE } from '../draft/seatStatus.ts';
 import { loadFixtures } from '../draft/fixtures.ts';
 import { initialState, type TableState } from '../draft/table.ts';
 import type { DraftView } from '../draft/types.ts';
@@ -173,7 +174,7 @@ describe('a seat the table is holding', () => {
     mount(initialState(withDropped(view, 1)));
     expect(screen.getByTestId('seat-1').dataset.occupant).toBe('held');
     expect(screen.getByTestId('seat-1-held').textContent).toBe('held');
-    expect(screen.getByTestId('seat-1').textContent).toContain('away — seat held');
+    expect(screen.getByTestId('seat-1-held').title, 'what held means, on the mark itself').toBe(SEAT_HELD_NOTE);
     // The name is still there — that is what makes it held rather than free.
     expect(screen.getByTestId('seat-1').textContent).toContain(view.seats[1].displayName);
   });

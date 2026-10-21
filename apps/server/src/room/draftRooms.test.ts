@@ -79,7 +79,7 @@ beforeAll(() => {
 
 /** An eight-seat pod dealt to these players, its bots unnamed. */
 function podDeal(humans: PodDeal['humans']): PodDeal {
-	return { seats: 8, humans, botNames: [] };
+	return { seats: 8, humans, bots: [] };
 }
 
 function rooms(

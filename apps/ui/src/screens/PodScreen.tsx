@@ -241,17 +241,20 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           ← Lobby
         </a>
         {ctx !== null && ctx.name !== '' && <strong className="pod__name" data-testid="pod-name">{ctx.name}</strong>}
-        {draft !== null && cubeName(draft) !== null && <span className="pod__cube">{cubeName(draft)}</span>}
       </div>
 
-      <PodSeats
-        connected={draft?.connected === true}
-        everConnected={draft?.everConnected === true}
-        seated={seats.length}
-        humans={humans}
-        bots={bots}
-        open={open}
-      />
+      {/* What is being drafted and who is at the table, on one line under the room's name. */}
+      <div className="pod__meta">
+        {draft !== null && cubeName(draft) !== null && <span className="pod__cube">{cubeName(draft)}</span>}
+        <PodSeats
+          connected={draft?.connected === true}
+          everConnected={draft?.everConnected === true}
+          seated={seats.length}
+          humans={humans}
+          bots={bots}
+          open={open}
+        />
+      </div>
 
       {ctx?.leader === true && <CloseRoom roomId={draftId} rooms={closeClient} />}
       <SettingsGear />

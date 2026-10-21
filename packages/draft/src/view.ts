@@ -46,6 +46,7 @@ function seatView(state: DraftState, row: SeatRow): DraftSeatView {
     id,
     occupant,
     displayName: state.displayNames[id] ?? `Seat ${id}`,
+    ...(state.avatarIds[id] === undefined ? {} : { avatarId: state.avatarIds[id] }),
     // Optional index on purpose. A row is a SEAT, and the engine only has a
     // pool for a seat it dealt to, so a row can legitimately have no pool
     // entry — a padded seat nobody has taken, or a seat the table carries past

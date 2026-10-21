@@ -78,7 +78,12 @@ const IMAGE_FIELD_HINT = /image|imgur|img_|artcrop|picture|thumbnail/i;
 /** A URL pointing at a picture, whatever the field is called. */
 const IMAGE_URL_HINT = /https?:\/\/\S*(\.(jpe?g|png|webp|gif)|scryfall\.io)/i;
 
-const SEAT_FIELDS = new Set(['id', 'occupant', 'displayName', 'pickedCount']);
+/**
+ * Everything a seat summary may carry. `avatarId` is the seat's watchparty
+ * character, which every member of the room already sees on its owner: public,
+ * and nothing about any card.
+ */
+const SEAT_FIELDS = new Set(['id', 'occupant', 'displayName', 'avatarId', 'pickedCount']);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);

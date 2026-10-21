@@ -452,6 +452,16 @@ describe('rejections', () => {
     expect(draft.lastInvalid?.some((e) => e.path.includes('seats[1]'))).toBe(true);
   });
 
+  it('applies a payload whose seats wear their characters — a character is public, never a leak', () => {
+    const view = at(5);
+    const seats = view.seats.map((s, i) => ({ ...s, avatarId: ['sage', 'herald'][i % 2]! }));
+    ingest(draft, updateMessage({ ...view, seats }));
+
+    expect(draft.lastInvalid ?? []).toEqual([]);
+    expect(draft.stats.invalid).toBe(0);
+    expect(draft.stats.applied).toBe(2);
+  });
+
   it('refuses a payload carrying an image URL (D13)', () => {
     const view = at(5);
     if (view.viewer.kind !== 'seat') throw new Error('fixture 0 must be a seat view');
