@@ -14,9 +14,11 @@
  *      scroll, every zone lies inside the window and every battlefield card inside its zone, a hand
  *      card clicked onto the battlefield is played, and the board is drawn at that scale. After a
  *      reload the scale is still the one she chose.
+ *   3. The same slider, from the front page's gear: at either end the front page does not scroll.
  */
 import { expect, test, type Page } from '@playwright/test';
 
+import { openFriend } from './play/browser.ts';
 import { clickHandCard, handCardNamed, makeTitled, offeredNamed, ownNamed, resizeWindow } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -147,6 +149,40 @@ test(titled('a UI scale slider in the settings: at either end the table fits the
     await expect.poll(() => scaleOf(page), { timeout: 10_000, message: 'after a reload the page is still drawn at the scale she chose' }).toBe(chosen);
     expect(await (await openSettings(page)).getByTestId('settings-ui-scale').inputValue(), 'and the slider shows it').toBe(String(Number(chosen) * 100));
     console.log(`[bl] reload: still ${chosen}`);
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('the UI scale from the front page’s gear: at either end the front page does not scroll'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const alice = await openFriend(browser, 'alice');
+    await alice.page.route('**/session/whoami', (route) => route.fulfill({ json: { valid: true, userId: 'e2e-alice', userType: 'friend', name: 'alice' } }));
+    for (let i = 1; i <= 12; i++) {
+      const made = await alice.context.request.post(`${stack.origin}/cardtable/api/rooms`, { data: { name: `open table ${i}`, gameType: 'constructed-1v1' } });
+      expect(made.status()).toBe(201);
+    }
+    const page = alice.page;
+    await page.goto(`${stack.origin}/cardtable/`);
+    await expect(page.getByTestId('room-row').first()).toBeVisible({ timeout: 30_000 });
+    for (const key of ['Home', 'End'] as const) {
+      await page.getByTestId('settings-gear').click();
+      const slider = page.getByTestId('settings-ui-scale');
+      await slider.focus();
+      await page.keyboard.press(key);
+      const scale = String(Number(await slider.inputValue()) / 100);
+      await page.keyboard.press('Escape');
+      await expect.poll(() => scaleOf(page), { timeout: 5_000, message: `the front page is drawn at ${scale}` }).toBe(scale);
+      for (const size of SIZES) {
+        await resizeWindow(page, size);
+        await expect.poll(() => misfit(page), { timeout: 10_000, message: `scale ${scale} at ${size.width}x${size.height}: the front page fits` }).toEqual([]);
+        console.log(`[bl] front page at ${scale}, ${size.width}x${size.height}: fits`);
+      }
+    }
   } finally {
     await stack.stop();
   }
