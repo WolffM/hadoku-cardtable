@@ -191,12 +191,15 @@ const NOTHING: RegExp[] = [
   /^scripts\/ci\/fixtures\//,
 ];
 
+/** `run-all.txt`'s paths, which every unit suite runs on too (`scripts/land.sh`), and the engine's and the bundle's. */
 const EVERYTHING: RegExp[] = [
+  ...readFileSync(new URL('./run-all.txt', import.meta.url), 'utf8')
+    .split('\n')
+    .filter((l) => l !== '' && !l.startsWith('#'))
+    .map((l) => new RegExp(l)),
   /^forge$/,
   /^\.gitmodules$/,
-  /^packages\/[^/]+\/(package\.json|tsconfig[^/]*\.json)$/,
-  /^(pnpm-lock\.yaml|pnpm-workspace\.yaml|package\.json|tsconfig\.base\.json|vitest\.config\.ts|\.npmrc|\.nvmrc)$/,
-  /^apps\/(ui|server)\/(package\.json|tsconfig[^/]*\.json|vite\.config\.ts|index\.html)$/,
+  /^apps\/(ui|server)\/(vite\.config\.ts|index\.html)$/,
   /^\.github\/workflows\/forge\.yml$/,
   /^scripts\/ci\/select-forge-tests\.ts$/,
   /^scripts\/forge-bundle\.sh$/,

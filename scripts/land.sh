@@ -124,11 +124,11 @@ fi
 # Typecheck and lint run whole. The unit suites run only where the change reaches
 # (`vitest related`: the test files whose import graph holds a changed file) — CI's `check` on
 # the pushed commit runs every suite anyway. Whole when the change is to what every suite
-# runs on: a package, the vitest/TS config, the dependencies, the test setup — or a deleted
-# module, which `related` cannot follow to the suites that still import it.
+# runs on: `scripts/ci/run-all.txt`'s config and dependencies, a package, the test setup — or a
+# deleted module, which `related` cannot follow to the suites that still import it.
 TESTS="pnpm run test"
 GONE=$({ grep -E '\.tsx?$' <<<"$CHANGED" || true; } | while read -r f; do [ -f "$f" ] || echo "$f"; done)
-if [ -z "$GONE" ] && ! grep -qE '^(packages/|vitest\.config\.ts$|tsconfig[^/]*\.json$|(apps/[^/]+/)?package\.json$|pnpm-(lock|workspace)\.yaml$|apps/[^/]+/tsconfig[^/]*\.json$|apps/ui/src/test-setup\.ts$)' <<<"$CHANGED"; then
+if [ -z "$GONE" ] && ! grep -qE -e '^(packages/|apps/ui/src/test-setup\.ts$)' -f <(grep -v '^#' scripts/ci/run-all.txt) <<<"$CHANGED"; then
   mapfile -t RELATED < <(grep -E '\.(tsx?|css|json)$' <<<"$CHANGED" | while read -r f; do [ -f "$f" ] && echo "$f"; done)
   # Suites that read the tree from disk, not through an import, are out of `related`'s reach, so
   # they say what they read: a `// @reads <path>…` line (repo paths; `*` spans directories, a

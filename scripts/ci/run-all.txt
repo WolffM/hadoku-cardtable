@@ -1,0 +1,5 @@
+# What every suite runs on: a change to one of these paths runs every unit suite (scripts/land.sh)
+# and every Forge suite (scripts/ci/select-forge-tests.ts). One extended regex per line.
+^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|vitest\.config\.ts|\.npmrc|\.nvmrc)$
+^(apps|packages)/[^/]+/(package\.json|tsconfig[^/]*\.json)$
+^scripts/ci/run-all\.txt$
