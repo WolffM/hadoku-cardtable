@@ -18,7 +18,7 @@
 
 import { oneEachFit, type ServerFrame } from '@hadoku/forge-wire';
 
-import { digQuestion } from './arrange.js';
+import { sheetAsk } from './arrange.js';
 
 type Ask = Extract<ServerFrame, { kind: 'ask' }>;
 type ChoicesAsk = Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>;
@@ -51,25 +51,14 @@ export function eachTypeAsk(frame: Ask): OrderAsk | null {
 		.filter((t) => t.keys.length > 0);
 	if (oneEach.length === 0) return null;
 	const n = cards.length;
-	return {
-		kind: 'ask',
-		callId: frame.callId,
-		...(frame.source !== undefined && { source: frame.source }),
-		method: 'order',
-		title: frame.message,
-		top: frame.message,
+	return sheetAsk(frame, frame.message, text, {
 		remainingObjectsMin: Math.max(0, n - oneEach.length),
 		remainingObjectsMax: n,
 		sourceChoices: cards.map((c) => ({ key: sheetKey(c.card.id), label: c.name, ref: c.card })),
-		destChoices: [],
-		referenceCard: null,
-		sideboardingMode: false,
-		showRememberCheckbox: false,
 		destination: chosen,
 		rest,
 		oneEach,
-		question: (text === undefined ? null : digQuestion(text)) ?? frame.message,
-	};
+	});
 }
 
 /**

@@ -138,7 +138,7 @@ import {
 	type StopWindow,
 } from './auto.js';
 import { answerPending, arrangeAsk, digAnswer, digAsk, pendingOrders, restOrder, sameCardsOrder } from './arrange.js';
-import { eachTypeAsk, firstEachType, nextEachType, type EachTypeLeft } from './each-type.js';
+import { eachTypeAsk, firstEachType, nextEachType } from './each-type.js';
 import { firstMode, modesAsk, nextMode } from './modes.js';
 import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
 import { artOf } from './art.js';
@@ -576,7 +576,7 @@ export interface SeatState {
 	mergedChoice: Map<string, { chooseCallId: string; keyByRef: Map<string, string> }>;
 	/**
 	 * What a one-prompt reply still owes Forge's later questions — a scry's, surveil's or dig's
-	 * groups (`./arrange.ts`), a modal spell's modes (`./modes.ts`). Cleared by the first ask it does not answer.
+	 * groups (`./arrange.ts`), a modal spell's modes (`./modes.ts`), a per-type pick's cards (`./each-type.ts`). Cleared by the first ask it does not answer.
 	 */
 	owed: Owed | null;
 	/**
@@ -584,11 +584,6 @@ export interface SeatState {
 	 * `digAsk`) or a per-type pick's first type question (`./each-type.ts`'s `eachTypeAsk`).
 	 */
 	folds: Map<string, Extract<ServerFrame, { kind: 'ask'; method: 'chooseEntitiesForEffect' | 'getChoices' }>>;
-	/**
-	 * What a per-type pick's one reply still owes Forge's later type and card questions
-	 * (`./each-type.ts`). Cleared by the next ask it does not answer.
-	 */
-	eachTypeLeft: EachTypeLeft | null;
 	/**
 	 * Half of a window a decider can answer, held until the other half
 	 * arrives so the window is decided before either reaches the wire. A
@@ -1210,7 +1205,6 @@ export class Match {
 			mergedChoice: new Map(),
 			owed: null,
 			folds: new Map(),
-			eachTypeLeft: null,
 			pendingPrompt: null,
 			pendingButtons: null,
 			pendingTimer: null,
@@ -1848,7 +1842,7 @@ export class Match {
 					this.choose(s, s.lastAbilityToPlay);
 				}
 				if (eachType !== null) {
-					s.eachTypeLeft = eachType.left;
+					s.owed = owing('the cards the one per-type prompt already picked', eachType.left, nextEachType);
 					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: 'getChoices (one order for every card type)', ms: this.now() - ask.sentAt, ...about, picked: (frame.result as { ordered: string[] }).ordered });
 					this.command({ t: 'reply', seat, callId: frame.callId, result: eachType.result });
 					return { ok: true };
@@ -3420,14 +3414,6 @@ export class Match {
 		if (paid !== null) {
 			s.owed = paid.owed;
 			this.autoReply(s, offered.callId, offered.method, owed!.why, paid.result);
-			return;
-		}
-		const eachTypeOwed = s.eachTypeLeft;
-		s.eachTypeLeft = null;
-		const typeAnswer = eachTypeOwed === null ? null : nextEachType(offered, eachTypeOwed);
-		if (typeAnswer !== null) {
-			s.eachTypeLeft = typeAnswer.left;
-			this.autoReply(s, offered.callId, offered.method, 'the cards the one per-type prompt already picked', typeAnswer.result);
 			return;
 		}
 		const sheet = eachTypeAsk(offered);
