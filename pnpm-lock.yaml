@@ -224,6 +224,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@hadoku/carddata':
+        specifier: workspace:*
+        version: link:../carddata
       '@hadoku/forge-wire':
         specifier: workspace:*
         version: link:../forge-wire

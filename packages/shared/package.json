@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@hadoku/carddata": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
     "@wolffm/rooms-protocol": "0.42.10",
     "zod": "4.5.4"
