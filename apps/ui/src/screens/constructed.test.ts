@@ -56,6 +56,7 @@ import {
   DRAFTED_BASICS,
   draftedDeckOf,
   erasOf,
+  openDraftedDeck,
   groupSetsByBlock,
   manaValueOf,
   poolIsOnTab,
@@ -1811,6 +1812,27 @@ describe('the table’s pool', () => {
     await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
   });
 
+  // A pick dragged to the sideboard mid-draft saves the sideboard alone — picks are the deck in
+  // progress, so the save names only what is out of it. My decks reads it as the builder does.
+  it('Free pick: My decks offers a build saved with only a sideboard, and seats the picks as its main deck', async () => {
+    const pool = (poolJson as { cards: DraftCard[] }).cards.slice(0, 45).map((card, i) => ({ ...card, cardId: `draft:pod-s/p${i}` }));
+    const sideOnly = dckTextOf({ ...deckFromPool('pod-s', pool.slice(0, 1)), main: [] });
+    const server = await mountRoom({
+      players: [opponent()],
+      matchId: null,
+      leader: false,
+      format: 'free',
+      myDecks: [{ id: 'pod-s', name: 'Deck pod-s', cube: 'Cube', createdAt: 1, pool, deck: sideOnly, concluded: true }],
+    });
+    fireEvent.click(screen.getByTestId('browse-tab-mine'));
+    await waitFor(() => expect(offered()).toEqual(['mine:pod-s']));
+    await pick('mine:pod-s');
+    const sent = lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body as { deck: { dck: string } };
+    const seated = parseDck(sent.deck.dck);
+    const count = (section: string): number => (seated.sections.get(section) ?? []).reduce((n, e) => n + e.count, 0);
+    expect([count('main'), count('sideboard')]).toEqual([44, 1]);
+  });
+
   // The operator, 2026-10-20: "'drafted pool' should be 'my decks' and should only be visible if
   // freepick is enabled." A room's format is never a pod; a drafted deck is one of My decks.
   it('off Free pick there is no Drafted pool and no My decks, and your decks are never asked for', async () => {
@@ -2686,6 +2708,21 @@ describe('poolIsOnTab: the select never lets the DOM invent a selection', () => 
  * The auto-build, on its own: what a finished draft with no saved build is
  * shown as on the Decks page, so it has to be one deck and it has to be playable.
  */
+describe('openDraftedDeck', () => {
+  const POOL: DraftCard[] = (poolJson as { cards: DraftCard[] }).cards.slice(0, 45);
+
+  it('opens a build saved with only a sideboard with every other pick in the main deck', () => {
+    const sideOnly = dckTextOf({ ...deckFromPool('pod', POOL.slice(0, 1)), main: [] });
+    const deck = openDraftedDeck(sideOnly, 'pod', POOL);
+    expect(mainDeckSize(deck)).toBe(44);
+    expect(deck.sideboard.map((e) => [e.count, e.card.name])).toEqual([[1, POOL[0]!.name]]);
+  });
+
+  it('opens the auto-build when nothing is saved', () => {
+    expect(openDraftedDeck(null, 'pod', POOL)).toEqual(draftedDeckOf('pod', POOL));
+  });
+});
+
 describe('draftedDeckOf', () => {
   const POD = 'amber-lantern-k7q4';
   const POOL: DraftCard[] = (poolJson as { cards: DraftCard[] }).cards.slice(0, 45);
