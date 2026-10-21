@@ -231,10 +231,12 @@ describe('entering a pod before its table has arrived', () => {
     expect(screen.getByTestId('pod-seats').closest('.draft__aside'), 'the bar has not moved').not.toBeNull();
   });
 
-  it('draws the rounds as a skeleton, a column per round, while a pod in rounds waits for its table', () => {
+  // thyeggman, 2026-10-20: a member who never drafted opened the room in rounds and got nothing.
+  it('draws the rounds from the room alone — a member with no drafted pool watches them too', () => {
     const { room } = mountPod();
     room.read(ctxOf(pod({ phase: 'rounds', round: 1, rounds: 3 })));
-    expect(screen.getByTestId('pod-waiting').querySelectorAll('.pod__skeleton-round')).toHaveLength(3);
+    expect(screen.queryByTestId('pod-waiting')).toBeNull();
+    expect(screen.getAllByTestId('pod-bracket-round')).toHaveLength(3);
     expect(document.querySelector('header.pod__bar')).not.toBeNull();
   });
 });

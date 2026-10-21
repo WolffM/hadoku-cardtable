@@ -47,13 +47,3 @@
   grid-area: pool;
 }
 
-/* Until the rounds arrive (`RoundsSkeleton`): a column of cards per round. */
-.pod__skeleton-bracket {
-  display: flex;
-  gap: 20px;
-}
-
-.pod__skeleton-round {
-  width: 240px;
-  height: 230px;
-}

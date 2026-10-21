@@ -252,7 +252,8 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
       <SettingsGear />
     </>
   );
-  const rounds = done && ctx?.pod !== null && ctx?.pod !== undefined && inRounds;
+  // Not `done`: that is a drafter's own pool, and a member who never drafted watches the rounds too.
+  const rounds = ctx?.pod !== null && ctx?.pod !== undefined && inRounds;
   /** The draft's layout, drawn or still coming: the room's bar is in its side column, not on top. */
   const drafting = !rounds && !done && !inRounds;
 
@@ -271,9 +272,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
         <PodRoom ctx={ctx!} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} startTableError={startTableError} retryTable={retryTable} />
       ) : done && ready ? (
         <PodReady ctx={ctx!} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} />
-      ) : done ? null : inRounds ? (
-        <RoundsSkeleton rounds={ctx?.pod?.rounds ?? 1} />
-      ) : table === null ? (
+      ) : done || inRounds ? null : table === null ? (
         <DraftSkeleton side={<div className="pod__bar pod__bar--side">{bar}</div>} />
       ) : (
         <DraftScreen
@@ -317,21 +316,6 @@ function DraftSkeleton({ side }: { side: ReactNode }) {
   );
 }
 
-/** The rounds' layout with nothing in it yet: the heading's line, then a column of cards per round. */
-function RoundsSkeleton({ rounds }: { rounds: number }) {
-  return (
-    <div className="pod__room" data-testid="pod-waiting" aria-busy="true">
-      <div className="pod__rounds">
-        <span className="skeleton skeleton--heading" />
-        <div className="pod__skeleton-bracket">
-          {Array.from({ length: Math.max(1, rounds) }, (_, i) => (
-            <span key={i} className="skeleton pod__skeleton-round" />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ── the rounds: the round, my sideboard step or the standings, and the tables ── */
 
