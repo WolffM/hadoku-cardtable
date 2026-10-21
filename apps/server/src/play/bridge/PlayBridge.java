@@ -1009,12 +1009,16 @@ public final class PlayBridge {
         }
     }
 
+    /** The zones the board draws a card face in. A library is never read; the visibility layer keeps another seat's hand from it. */
+    private static final List<ZoneType> DRAWN_ZONES = List.of(ZoneType.Hand, ZoneType.Battlefield, ZoneType.Graveyard, ZoneType.Exile);
+
     /**
-     * The cards in a hand or on a battlefield whose own conditional ability is on right now —
+     * The cards the board draws ({@link #DRAWN_ZONES}) whose own conditional ability is on right now —
      * metalcraft with three artifacts, threshold with seven cards in the graveyard, delirium, hellbent,
      * revolt, morbid, raid, ferocious, spell mastery, coven, "as long as you control …". Never on the
      * view: {@code CardView} has no property for it. Every verdict is Forge's own check, on the card's
-     * own intrinsic traits ({@link ConditionsOn}); nothing here knows an ability word. A full snapshot
+     * own intrinsic traits ({@link ConditionsOn}), which asks each only in the zones it works in;
+     * nothing here knows an ability word or a zone a card's condition belongs to. A full snapshot
      * each time; a face-down card is never read.
      *
      * <p>Null when the cards cannot be read (the game thread moved them under the read): the frame
@@ -1027,7 +1031,7 @@ public final class PlayBridge {
         if (game == null) { return out; }
         try {
             for (final forge.game.player.Player p : game.getPlayers()) {
-                for (final forge.game.card.Card c : p.getCardsIn(List.of(ZoneType.Hand, ZoneType.Battlefield))) {
+                for (final forge.game.card.Card c : p.getCardsIn(DRAWN_ZONES)) {
                     if (!c.isFaceDown() && metOrUnaskable(c)) { out.add(c.getId()); }
                 }
             }
@@ -1091,9 +1095,10 @@ public final class PlayBridge {
      * {@link #self}): the card being where it is, not a condition it can meet.
      *
      * <p>A card shows its condition where the condition works ({@link #worksHere}): a static, trigger
-     * or replacement is asked only in the zones Forge makes it active in (Anger's haste works from
-     * the graveyard, so on the battlefield it never lights), and in hand also when it works on the
-     * battlefield — what the card would be once cast. And a trait whose event is this card itself
+     * or replacement is asked only in the zones Forge makes it active in, and a spell or activated
+     * ability only in the zone it is cast or activated from (Anger's haste works from the graveyard,
+     * so it lights there and never on the battlefield; a spell mastery in a graveyard is not asked),
+     * and in hand also when it works on the battlefield — what the card would be once cast. And a trait whose event is this card itself
      * doing something it can no longer do from where it is ({@link #spent}) is not asked: a
      * "when this enters, if …" on a card already on the battlefield, a "when you cast this spell,
      * if …" on a permanent.
@@ -1166,7 +1171,7 @@ public final class PlayBridge {
                 if (r.isIntrinsic() && !quiet.contains(r) && worksHere(r.getActiveZone(), here) && !spent(r, here) && commonOn(r)) { return true; }
             }
             for (final SpellAbility sa : c.getSpellAbilities()) {
-                if (!sa.isIntrinsic()) { continue; }
+                if (!sa.isIntrinsic() || !worksHere(sa, here)) { continue; }
                 for (SpellAbility s = sa; s != null; s = s.getSubAbility()) { name(named, s); }
                 if ((!quiet.contains(sa) && restrictionOn(sa, c, controller)) || chainOn(sa, controller, quiet)) { return true; }
             }
@@ -1177,6 +1182,20 @@ public final class PlayBridge {
         private static boolean worksHere(final forge.game.staticability.StaticAbility st, final ZoneType here) {
             if (st.isCharacteristicDefining()) { return true; }
             return worksHere(st.getActiveZone() == null ? EnumSet.of(ZoneType.Battlefield) : st.getActiveZone(), here);
+        }
+
+        /**
+         * {@link #worksHere(Set, ZoneType)} for a spell or ability: the zone Forge casts or activates it
+         * from ({@code SpellAbilityRestriction.checkZoneRestrictions}: a spell's hand, an ability's
+         * battlefield, an {@code ActivationZone$}, a flashback's graveyard) and its
+         * {@code AdditionalActivationZone$}.
+         */
+        private static boolean worksHere(final SpellAbility sa, final ZoneType here) {
+            final ZoneType from = sa.getRestrictions().getZone();
+            if (from == null) { return true; }
+            final Set<ZoneType> zones = EnumSet.of(from);
+            if (sa.hasParam("AdditionalActivationZone")) { zones.add(ZoneType.smartValueOf(sa.getParam("AdditionalActivationZone"))); }
+            return worksHere(zones, here);
         }
 
         /**

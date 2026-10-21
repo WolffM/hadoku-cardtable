@@ -849,7 +849,7 @@ export interface AdaptOptions {
    * now, so each press shows, and a cancelled payment gives it back.
    */
   lifePaying?: ReadonlyMap<number, number>;
-  /** `PlayBridge.java`'s `conditionMet` (`../fold.ts`), read onto each card's `BoardCard.conditionMet`: the bridge names only hand and battlefield cards. */
+  /** `PlayBridge.java`'s `conditionMet` (`../fold.ts`), read onto each card's `BoardCard.conditionMet`: the bridge names the cards in every zone the board draws (hand, battlefield, graveyard, exile) whose condition works there. */
   conditionMet?: ReadonlySet<number>;
   /** The latest damage hits (`live/match.ts`'s `hits`), carried onto `BoardView.hits` as they are. */
   hits?: readonly DamageHit[];

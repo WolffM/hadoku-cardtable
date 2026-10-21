@@ -775,10 +775,10 @@ export const LifePayingSchema = z.array(z.tuple([JavaInt, JavaInt]));
 export type LifePaying = z.infer<typeof LifePayingSchema>;
 
 /**
- * The bridge's tenth addition beside the packet: the ids of the cards in a hand or on a battlefield
- * whose own conditional ability is on right now — metalcraft, threshold, delirium, hellbent, "as long
- * as you control …" (`PlayBridge.java`'s `conditionMetJson`, every verdict Forge's own check). The
- * view itself never says. A full snapshot each time.
+ * The bridge's tenth addition beside the packet: the ids of the cards in a hand, on a battlefield, in a
+ * graveyard or in exile whose own conditional ability works there and is on right now — metalcraft,
+ * threshold, delirium, hellbent, "as long as you control …" (`PlayBridge.java`'s `conditionMetJson`,
+ * every verdict Forge's own check). The view itself never says. A full snapshot each time.
  */
 export const ConditionMetSchema = z.array(JavaInt);
 
