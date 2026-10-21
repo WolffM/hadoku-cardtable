@@ -48,7 +48,7 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   // always on the wire; `parseRoomView`'s defaults for a body that lost them
   // are asserted in "the pool and the caller" below.
   format: '2011-02-13',
-  settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: false },
+  settings: { handSmoothing: true },
   mode: null,
   modeOptions: null,
   you: { id: 'http-a', leader: true, ready: false },
@@ -408,10 +408,10 @@ describe('the room writes', () => {
   });
 
   it('changes a room setting with the same PATCH, carrying `settings` and nothing else', async () => {
-    const moved = room({ id: 'r-open', name: 'Friday night', settings: { handSmoothing: false, matchLength: 'bo1', sideboarding: false } });
+    const moved = room({ id: 'r-open', name: 'Friday night', settings: { handSmoothing: false } });
     const { calls, client } = writes(() => json(200, moved));
     const outcome = await client.setSettings('r-open', { handSmoothing: false });
-    expect(outcome.ok && outcome.room.settings).toEqual({ handSmoothing: false, matchLength: 'bo1', sideboarding: false });
+    expect(outcome.ok && outcome.room.settings).toEqual({ handSmoothing: false });
     expect(calls).toEqual([{ url: '/cardtable/api/rooms/r-open', method: 'PATCH', body: { settings: { handSmoothing: false } } }]);
   });
 
@@ -444,25 +444,8 @@ describe('the room settings', () => {
     expect(parseRoomView(older)?.settings.handSmoothing).toBe(true);
   });
 
-  /* ── wave 72 §Q: matchLength and sideboarding join handSmoothing ──────── */
-
-  it('reads matchLength as bo3 only when the body says so, bo1 for anything else', () => {
-    expect(parseRoomView({ ...OPEN, settings: { matchLength: 'bo3' } })?.settings.matchLength).toBe('bo3');
-    for (const near of [undefined, 'bo1', 'BO3', 1, null]) {
-      expect(parseRoomView({ ...OPEN, settings: { matchLength: near } })?.settings.matchLength).toBe('bo1');
-    }
-    const { settings: _gone, ...older } = OPEN;
-    expect(parseRoomView(older)?.settings.matchLength).toBe('bo1');
-  });
-
-  it('a bo3 room reads sideboarding true no matter what is stored; a bo1 room reads the stored flag', () => {
-    expect(parseRoomView({ ...OPEN, settings: { matchLength: 'bo3', sideboarding: false } })?.settings.sideboarding).toBe(true);
-    expect(parseRoomView({ ...OPEN, settings: { matchLength: 'bo1', sideboarding: true } })?.settings.sideboarding).toBe(true);
-    expect(parseRoomView({ ...OPEN, settings: { matchLength: 'bo1', sideboarding: false } })?.settings.sideboarding).toBe(false);
-    // Absent reads as off, same default `DEFAULT_SIDEBOARDING` states.
-    expect(parseRoomView({ ...OPEN, settings: { matchLength: 'bo1' } })?.settings.sideboarding).toBe(false);
-    const { settings: _gone, ...older } = OPEN;
-    expect(parseRoomView(older)?.settings.sideboarding).toBe(false);
+  it('reads no match length: a body still carrying the retired settings reads as hand smoothing alone', () => {
+    expect(parseRoomView({ ...OPEN, settings: { handSmoothing: false, matchLength: 'bo3', sideboarding: true } })?.settings).toEqual({ handSmoothing: false });
   });
 });
 

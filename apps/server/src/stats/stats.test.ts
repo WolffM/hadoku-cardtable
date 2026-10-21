@@ -340,3 +340,78 @@ describe('who a report names', () => {
 		expect(record).not.toHaveBeenCalled();
 	});
 });
+
+describe('a series result', () => {
+	const ALICE_ID = identityFromHeaders({ 'x-user-key': 'k-alice' }, 'unused');
+	const GAMES = [
+		{ matchId: 'm-aaaaaaaaaaaa', winner: 1 as const },
+		{ matchId: 'm-bbbbbbbbbbbb', winner: 0 as const },
+		{ matchId: 'm-cccccccccccc', winner: 1 as const },
+	];
+
+	function seriesStats() {
+		const book = createKeyBook();
+		book.remember({ headers: { 'x-user-key': 'k-alice' } } as unknown as Request, {} as Response, () => undefined);
+		const sent: MatchReport[] = [];
+		const stats = createMatchStats({
+			keys: book,
+			log: () => undefined,
+			reporter: createStatsReporter({ record: async (r) => (sent.push(r), { duplicate: false }), log: () => undefined }),
+			startOf: () => null,
+		});
+		return { stats, sent };
+	}
+
+	it('is one report in its own pool, keyed off its first game: the score, the mode and how many games it was best of', async () => {
+		const { stats, sent } = seriesStats();
+		stats.seriesEnd({
+			roomId: 'r-abcdefabcdef',
+			tableId: 't-00000001',
+			mode: 'classic',
+			bestOf: 3,
+			seats: [
+				{ memberId: ALICE_ID, name: 'Alice' },
+				{ memberId: 'fk:nobodyknowsme0', name: 'Bob' },
+			],
+			wins: [1, 2],
+			games: GAMES,
+			winner: 1,
+			complete: true,
+		});
+		await vi.waitFor(() => expect(sent).toHaveLength(1));
+		const report = sent[0]!;
+		expect(report).toMatchObject({
+			matchId: 'm-aaaaaaaaaaaa-series',
+			mode: 'constructed-series',
+			roomId: 'r-abcdefabcdef',
+			rated: false,
+			attrs: { mode: 'classic', bestOf: 3, score: '1-2', complete: true, opponent: 'human' },
+			counters: { games: 3 },
+		});
+		expect(report.seats.map((s) => [s.seat, s.kind, s.userKey, s.displayName, s.placement, s.counters?.wins])).toEqual([
+			[0, 'user', 'k-alice', 'Alice', 2, 1],
+			[1, 'guest', undefined, 'Bob', 1, 2],
+		]);
+	});
+
+	it('names the AI seat a bot, and an undecided series places both seats first', async () => {
+		const { stats, sent } = seriesStats();
+		stats.seriesEnd({
+			roomId: 'r-abcdefabcdef',
+			tableId: 't-00000001',
+			mode: 'random',
+			bestOf: 3,
+			seats: [{ memberId: ALICE_ID, name: 'Alice' }, null],
+			wins: [1, 0],
+			games: GAMES.slice(0, 1),
+			winner: null,
+			complete: false,
+		});
+		await vi.waitFor(() => expect(sent).toHaveLength(1));
+		expect(sent[0]).toMatchObject({ rated: false, attrs: { mode: 'random', bestOf: 3, score: '1-0', complete: false, opponent: 'bot' } });
+		expect(sent[0]!.seats.map((s) => [s.kind, s.placement])).toEqual([
+			['user', 1],
+			['bot', 1],
+		]);
+	});
+});

@@ -6,10 +6,6 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_MATCH_LENGTH,
-  DEFAULT_SIDEBOARDING,
-  MATCH_LENGTHS,
-  MatchLengthSchema,
   RoomTableGameSchema,
   RoomTableSchema,
   RoomTableSeriesSchema,
@@ -23,20 +19,6 @@ const GAME = { matchId: 'm-1', winner: 0 } as const;
 const SERIES = { length: 1, wins: [0, 0], games: [], phase: 'seating' } as const;
 const TABLE = { id: 't-abcd1234', players: [], matchId: null, series: SERIES } as const;
 
-describe('MatchLengthSchema', () => {
-  it('accepts bo1 and bo3 and nothing else', () => {
-    expect(MATCH_LENGTHS).toEqual(['bo1', 'bo3']);
-    for (const v of MATCH_LENGTHS) expect(MatchLengthSchema.safeParse(v).success).toBe(true);
-    expect(MatchLengthSchema.safeParse('bo5').success).toBe(false);
-    expect(MatchLengthSchema.safeParse(1).success).toBe(false);
-  });
-
-  it('defaults bo1, sideboarding off', () => {
-    expect(DEFAULT_MATCH_LENGTH).toBe('bo1');
-    expect(DEFAULT_SIDEBOARDING).toBe(false);
-  });
-});
-
 describe('SeriesLengthSchema', () => {
   it('accepts 1 and 3, and refuses 2 or a string', () => {
     expect(SeriesLengthSchema.safeParse(1).success).toBe(true);
@@ -47,8 +29,8 @@ describe('SeriesLengthSchema', () => {
 });
 
 describe('SeriesPhaseSchema', () => {
-  it('is exactly the four phases, in the order the series moves through them', () => {
-    expect(SERIES_PHASES).toEqual(['seating', 'playing', 'sideboarding', 'done']);
+  it('is exactly the five phases, in the order the series moves through them', () => {
+    expect(SERIES_PHASES).toEqual(['seating', 'playing', 'sideboarding', 'between', 'done']);
     for (const p of SERIES_PHASES) expect(SeriesPhaseSchema.safeParse(p).success).toBe(true);
     expect(SeriesPhaseSchema.safeParse('building').success).toBe(false);
   });

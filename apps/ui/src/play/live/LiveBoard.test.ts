@@ -99,7 +99,7 @@ const roomsClientState = vi.hoisted(() => ({
    * non-pod room, and that is exactly what a null room reads as,
    * `GameResultScreen`'s own defaults; the same direction a room that cannot
    * be reached falls back). Wave 72 §Q's own tests set this to a real
-   * `RoomView`-shaped record to drive `settings.matchLength`/`.sideboarding`,
+   * `RoomView`-shaped record to drive
    * `tables[0].series.phase` and `pod`.
    */
   room: null as Record<string, unknown> | null,
@@ -3691,14 +3691,14 @@ describe('R16 — the result screen, drawn over the board', () => {
     expect(rematch().disabled).toBe(true);
   });
 
-  it('a game played alone against the bot: Rematch starts the next one at once', async () => {
+  it('a game played alone against the bot: Rematch readies the one seat, and a series that did not convert starts the next bot game at once', async () => {
     tableState.other = { ready: false, present: false };
     const { rematch } = await victoryInRoom();
     await waitFor(() => expect(rematch().disabled).toBe(false));
     fireEvent.click(rematch());
     await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-bot000000000'));
+    expect(tableState.ready).toHaveBeenCalledWith('r-1', true);
     expect(tableState.startVsBot).toHaveBeenCalledWith('r-1');
-    expect(tableState.ready).not.toHaveBeenCalled();
   });
 
   it('Main menu leaves the room first, then goes to the lobby', async () => {
@@ -3750,19 +3750,29 @@ describe('R16 — the result screen, drawn over the board', () => {
   /* ── wave 72 §Q.3/§Q.4: series on screen, and the sideboard step ────────── */
 
   describe('series on screen (wave 72 §Q)', () => {
-    it('bo3: the button reads "Next game", not "Rematch" — the series is forced, not an agreement', async () => {
+    it('between the games of a series that does not sideboard, the button reads "Next game"', async () => {
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
-        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [1, 0], games: [], phase: 'done' } }],
+        settings: { handSmoothing: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [1, 0], games: [], phase: 'between' } }],
         pod: null,
       };
       const { rematch } = await victoryInRoom();
       await waitFor(() => expect(rematch().textContent).toBe('Next game'));
     });
 
+    it('a finished Bo3 reads "Rematch"', async () => {
+      roomsClientState.room = {
+        settings: { handSmoothing: true },
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [2, 0], games: [], phase: 'done' } }],
+        pod: null,
+      };
+      const { rematch } = await victoryInRoom();
+      await waitFor(() => expect(rematch().textContent).toBe('Rematch'));
+    });
+
     it('a pod room has no Rematch at all — Back to room already opens the pod', async () => {
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'done' } }],
         pod: { phase: 'rounds', seats: [], round: 1, rounds: 2, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [] },
       };
@@ -3780,7 +3790,7 @@ describe('R16 — the result screen, drawn over the board', () => {
      */
     it('Rematch that begins sideboarding: the answer reads both unready — no re-press, no start, the step opens unpressed', async () => {
       const sideboardingRoom = {
-        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
@@ -3820,7 +3830,7 @@ describe('R16 — the result screen, drawn over the board', () => {
      */
     it('Rematch that begins sideboarding when the other press was never seen: the phase alone opens the step', async () => {
       const sideboardingRoom = {
-        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
@@ -3846,7 +3856,7 @@ describe('R16 — the result screen, drawn over the board', () => {
 
     it('a pod of one has no Next game once its series is over — Back to room, to the standings', async () => {
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [2, 0], games: [], phase: 'done' } }],
         pod: { phase: 'done', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, built: [] },
       };
@@ -3860,7 +3870,7 @@ describe('R16 — the result screen, drawn over the board', () => {
 
     it('against the AI, my sideboard Ready alone starts the next game — the bot’s, not a two-player start', async () => {
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [0, 1], games: [], phase: 'sideboarding' } }],
         pod: { phase: 'rounds', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, built: [] },
       };
@@ -3888,7 +3898,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     it('a room read from before the game was recorded is read again, and nothing shows until it agrees with the table', async () => {
       const s = (server = await startReplayServer());
       const pod = { phase: 'rounds', seats: [], round: 1, rounds: 1, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [] };
-      const settings = { handSmoothing: true, matchLength: 'bo3', sideboarding: true };
+      const settings = { handSmoothing: true };
       // Before the game is recorded: the match is still the table's live game.
       roomsClientState.room = { settings, pod, tables: [{ id: 't-1', players: [], matchId: s.matchId, series: { length: 3, wins: [0, 0], games: [], phase: 'playing' } }] };
       // Two reads still from before; the one after that finds it recorded.
@@ -3936,7 +3946,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     // The operator, 2026-10-19: "victory screen should show when winning a match in pod … let the player click 'next'".
     it('between games, shows the outcome first, and Next opens the sideboard step', async () => {
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [1, 0], games: [], phase: 'sideboarding' } }],
         pod: { phase: 'rounds', seats: [], round: 1, rounds: 2, results: [], standings: [], pairings: [], bye: null, built: [] },
       };
@@ -3953,7 +3963,7 @@ describe('R16 — the result screen, drawn over the board', () => {
 
     it('mounting the sideboard step sends no ready request — the server already began it with nobody ready', async () => {
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
@@ -3969,7 +3979,7 @@ describe('R16 — the result screen, drawn over the board', () => {
 
     it('a drafted 75 sideboards with the basics counters and a floor of 40; a constructed one with neither', async () => {
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
@@ -3990,7 +4000,7 @@ describe('R16 — the result screen, drawn over the board', () => {
 
     it('a constructed 75 has no basics counters on its sideboard step', async () => {
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
@@ -4004,7 +4014,7 @@ describe('R16 — the result screen, drawn over the board', () => {
 
     it('both Ready on the sideboard step: the other seat readied first, mine completes the agreement and starts the next game on this table', async () => {
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
@@ -4032,7 +4042,7 @@ describe('R16 — the result screen, drawn over the board', () => {
      */
     it('Ready sits OUTSIDE the editor’s scrolling areas, in the deck’s own bar (the fix for the below-the-fold defect)', async () => {
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
@@ -4052,7 +4062,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     it('the sideboard editor: Ready submits the current 75 through PUT …/deck, then readies — an unchanged deck is a valid submission', async () => {
       const dck = '[Main]\n4 Lightning Bolt\n56 Island\n[Sideboard]\n2 Abrade\n';
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
@@ -4079,7 +4089,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     it('a 409 from the server’s 75 check shows its own sentence', async () => {
       tableState.loadDeckRefusal = 'during sideboarding you may only move cards between your main deck and sideboard';
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo1', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 1, wins: [0, 0], games: [], phase: 'sideboarding' } }],
         pod: null,
       };
@@ -4112,7 +4122,7 @@ describe('R16 — the result screen, drawn over the board', () => {
         transport: socketIoMatchTransport({ url: s.url, path: '/socket.io/', transports: ['websocket'] }),
       }));
       roomsClientState.room = {
-        settings: { handSmoothing: true, matchLength: 'bo3', sideboarding: true },
+        settings: { handSmoothing: true },
         tables: [
           {
             id: 't-other0000',

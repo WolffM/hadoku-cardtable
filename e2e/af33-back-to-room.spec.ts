@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test } from '@playwright/test';
 
-import { makeTitled } from './play/board.ts';
+import { makeTitled, readyFromSideboard } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { enterMatch } from './play/enter.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
@@ -68,6 +68,7 @@ test(titled('the result screen has Rematch, Back to room and Main menu; Back to 
     // Bob asks for a rematch from his result screen; alice readies in the room.
     await bob.page.getByTestId('game-result-rematch').click();
     await alice.page.getByTestId('ready-toggle').click();
+    for (const f of [alice, bob]) await readyFromSideboard(f.page);
     for (const f of [alice, bob]) {
       await expect.poll(() => MATCH_URL.exec(f.page.url())?.[1], { message: `${f.name} reaches a new match`, timeout: 120_000 }).not.toBe(matchId);
       await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 60_000 });

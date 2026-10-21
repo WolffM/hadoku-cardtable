@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { enterMatch, makeTitled } from './play/board.ts';
+import { enterMatch, makeTitled, readyFromSideboard } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 
@@ -105,9 +105,10 @@ async function aliceWaits(stack: PlayStack, alice: Friend, bob: Friend, matchId:
   await expect(check(alice, 'other'), 'bob has not pressed').toHaveCount(0);
 }
 
-/** Bob presses too: one new match, the same on both screens, no error. */
+/** Bob presses too: the Bo1 converts, both ready from the sideboard step, and one new match starts, the same on both screens, no error. */
 async function bobAgrees(stack: PlayStack, alice: Friend, bob: Friend, matchId: string, started: number, errors: string[]): Promise<void> {
   await press(bob.page, 'game-result-rematch');
+  for (const f of [alice, bob]) await readyFromSideboard(f.page);
   for (const f of [alice, bob]) {
     await expect.poll(() => MATCH_URL.exec(f.page.url())?.[1], { message: `${f.name} reaches a new match`, timeout: 120_000 }).not.toBe(matchId);
     await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 60_000 });

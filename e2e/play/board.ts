@@ -748,3 +748,19 @@ export function clickRecords(stack: { serverLogFile: string }, card: number): st
   const rows = serverLog(stack).filter((r) => r.evt === 'click' && r.card === card);
   return rows.map((r) => `${String(r.outcome)}${r.by === undefined ? '' : ` by ${String(r.by)}`} in ${String(r.ms)} ms`).join('; ') || 'none';
 }
+
+/**
+ * A Rematch of a finished Bo1 converts it to Bo3 and opens the sideboard step
+ * (`apps/server/src/room/series.ts`): on the result screen Next opens it, and
+ * Ready with the 75 unchanged is this seat's agreement to the next game. A
+ * seat in the room gets the same step in place of its deck card, so it only
+ * presses Ready.
+ */
+export async function readyFromSideboard(page: Page): Promise<void> {
+  const next = page.getByTestId('game-result-next');
+  const ready = page.getByTestId('sideboard-ready');
+  await expect(next.or(ready).first()).toBeVisible({ timeout: 30_000 });
+  if (await next.isVisible()) await next.click();
+  await expect(ready).toBeEnabled({ timeout: 20_000 });
+  await ready.click();
+}

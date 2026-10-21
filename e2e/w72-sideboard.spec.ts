@@ -1,11 +1,11 @@
 /**
  * The §Acceptance 1v1 sequence (wave 72 §Q, `docs/planning/wave72-2026-10-17.md`):
  *
- *   A 1v1 constructed room, bo1 with sideboarding on. Game 1 ends, and both
- *   players press Rematch. Each sees the sideboard step with their own 75,
- *   and one swaps a card. Game 2 starts with the swapped deck, and the loser
- *   of game 1 is asked play-or-draw. Then the same room set to bo3: after
- *   game 1 the sideboard step opens with no Rematch press.
+ *   A 1v1 constructed room: every series starts as Bo1. Game 1 ends, and both
+ *   players press Rematch, which makes the series Bo3. Each sees the sideboard
+ *   step with their own 75, and one swaps a card. Game 2 starts with the
+ *   swapped deck, and the loser of game 1 is asked play-or-draw. Game 2 leaves
+ *   the series 1-1, so the sideboard step opens with no Rematch press.
  *
  * `[w72-sideboard]` lines are the evidence: which screen pressed what, and
  * what each saw.
@@ -33,16 +33,14 @@ async function press(page: Page, testId: string): Promise<void> {
 }
 
 /**
- * Alice makes a room, toggles `sideboarding` on (the leader's control, before
- * anyone is seated — the operator's own rulings, `draft-pods-plan.md` §5b:
- * `bo1` is the default, `sideboarding` is a separate toggle), bob joins, each
- * loads a legal deck, and both ready — the server starts the match.
+ * Alice makes a room, bob joins, each loads a legal deck, and both ready —
+ * the server starts the match.
  */
 async function enterSideboardedMatch(
   alice: Friend,
   bob: Friend,
   origin: string,
-): Promise<{ matchId: string; roomUrl: string; decks: readonly [string, string] }> {
+): Promise<{ matchId: string }> {
   const choice = await twoLegalDecks(alice.context.request, origin);
   await alice.page.goto(`${origin}${PREFIX}/`);
   await openCreateRoom(alice.page);
@@ -51,11 +49,6 @@ async function enterSideboardedMatch(
   await alice.page.getByTestId('room-create-submit').click();
   await alice.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 30_000 });
   const roomUrl = alice.page.url();
-
-  await expect(alice.page.getByTestId('sideboarding')).toHaveAttribute('aria-pressed', 'false');
-  await alice.page.getByTestId('sideboarding').click();
-  await expect(alice.page.getByTestId('sideboarding'), 'bo1 + sideboarding on').toHaveAttribute('aria-pressed', 'true');
-  console.log('[w72-sideboard] sideboarding switched on (bo1)');
 
   await bob.page.goto(roomUrl);
   await expect(alice.page.getByTestId('constructed')).toBeVisible();
@@ -79,7 +72,7 @@ async function enterSideboardedMatch(
   if (matchId === undefined) throw new Error(`no match id in ${alice.page.url()}`);
   for (const f of [alice, bob]) await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 60_000 });
   console.log(`[w72-sideboard] game 1 live: ${matchId}, alice=${choice.decks[0]} bob=${choice.decks[1]}`);
-  return { matchId, roomUrl, decks: choice.decks };
+  return { matchId };
 }
 
 /** `loser` concedes; both screens show the result. Returns who won. */
@@ -92,7 +85,7 @@ async function concede(alice: Friend, bob: Friend, loser: Friend): Promise<void>
 
 test(
   titled(
-    'bo1 + sideboarding: Rematch opens the sideboard step, a swap carries into game 2, the loser of game 1 is asked play-or-draw; then bo3 opens it with no Rematch press',
+    'Bo1 → Rematch opens the sideboard step, a swap carries into game 2, the loser of game 1 is asked play-or-draw; at 1-1 it opens with no Rematch press',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -102,7 +95,7 @@ test(
     try {
       const alice = await openFriend(browser, 'alice'); // the room's leader
       const bob = await openFriend(browser, 'bob');
-      const { matchId: match1, roomUrl, decks } = await enterSideboardedMatch(alice, bob, stack.origin);
+      const { matchId: match1 } = await enterSideboardedMatch(alice, bob, stack.origin);
 
       /* ── game 1 ends; bob is the loser ───────────────────────────────── */
       await concede(alice, bob, bob);
@@ -168,40 +161,9 @@ test(
       await bob.page.getByTestId('live-play-or-draw-play').click();
       for (const f of [alice, bob]) await expect(f.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 60_000 });
 
-      /* ── end game 2, back to the room, and switch it to bo3 ───────────── */
+      /* ── game 2 ends 1-1: the series is not decided ─────────────────── */
       await concede(alice, bob, alice);
-      console.log('[w72-sideboard] game 2 ended: alice conceded');
-      await press(alice.page, 'game-result-room');
-      await expect(alice.page.getByTestId('constructed'), 'alice is back at the room').toBeVisible({ timeout: 15_000 });
-      // Sideboarding lasted one match: the series is over, so alice holds the
-      // deck she registered again — her own library deck, chosen in the picker.
-      await expect(alice.page.getByTestId('deck-mine').locator(`[data-deck-id="${decks[0]}"]`), 'alice’s registered deck is chosen again').toHaveAttribute(
-        'aria-checked',
-        'true',
-        { timeout: 15_000 },
-      );
-      await expect(alice.page.getByTestId('ready-toggle'), 'and Ready works').toBeEnabled({ timeout: 15_000 });
-      console.log(`[w72-sideboard] back in the room: alice holds ${decks[0]} again, Ready enabled`);
-      await expect(alice.page.getByTestId('match-length')).toHaveAttribute('aria-pressed', 'false');
-      await alice.page.getByTestId('match-length').click();
-      await expect(alice.page.getByTestId('match-length'), 'bo3 now').toHaveAttribute('aria-pressed', 'true');
-      await expect(alice.page.getByTestId('sideboarding'), 'bo3 forces sideboarding on, locked').toHaveAttribute('aria-pressed', 'true');
-      await expect(alice.page.getByTestId('sideboarding')).toBeDisabled();
-      console.log('[w72-sideboard] room switched to bo3');
-
-      /* ── bo3's own game 1: both ready up fresh, concede it ────────────── */
-      await bob.page.goto(roomUrl);
-      await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: 15_000 });
-      for (const f of [alice, bob]) {
-        await expect(f.page.getByTestId('ready-toggle')).toBeEnabled({ timeout: 15_000 });
-        await f.page.getByTestId('ready-toggle').click();
-      }
-      await alice.page.waitForURL(matchUrl, { timeout: 120_000 });
-      await bob.page.waitForURL(matchUrl, { timeout: 120_000 });
-      const match3 = matchUrl.exec(alice.page.url())?.[1];
-      console.log(`[w72-sideboard] bo3 game 1 live: ${match3}`);
-      await concede(alice, bob, bob);
-      console.log('[w72-sideboard] bo3 game 1 ended: bob conceded, series not decided (0-1 of 3)');
+      console.log('[w72-sideboard] game 2 ended: alice conceded, 1-1 of 3');
 
       /* ── no Rematch press: the outcome with Next, then the sideboard step ── */
       for (const f of [alice, bob]) {
@@ -211,7 +173,7 @@ test(
         await expect(f.page.getByTestId('game-result-rematch'), 'no Rematch/Next game press happened').toHaveCount(0);
         await expect(f.page.getByTestId('sideboard-ready'), `${f.name}: Ready is in the viewport, no scroll needed`).toBeInViewport();
       }
-      console.log('[w72-sideboard] bo3: the sideboard step opened with no Rematch press on either screen, Ready in view');
+      console.log('[w72-sideboard] 1-1: the sideboard step opened with no Rematch press on either screen, Ready in view');
     } finally {
       await stack.stop();
     }

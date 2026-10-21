@@ -194,8 +194,8 @@ test(
         await loser.page.getByTestId('live-concede-yes').click();
         await expect(winner.page.getByTestId('game-result')).toBeVisible({ timeout: UI_TIMEOUT });
         if (game === 0) {
-          // Pod tables are bo3 WITH sideboarding (the room setting every pod
-          // match carries), so after game 1 the result screen opens the
+          // Pod tables are bo3 WITH sideboarding (every pod series is,
+          // `room/series.ts`'s `seriesFormatOf`), so after game 1 the result screen opens the
           // sideboard step directly — no Rematch button in a pod (the
           // manager's own note). Both players press Ready with their
           // unchanged 75 before game 2 is dealt.

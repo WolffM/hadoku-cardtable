@@ -590,7 +590,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const dir = await tempDir();
 		const h = await openApp(dir);
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
-		expect(created.settings).toEqual({ handSmoothing: true, matchLength: 'bo1', sideboarding: false });
+		expect(created.settings).toEqual({ handSmoothing: true });
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'bob', body: { ready: true } });
 
@@ -601,12 +601,12 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const byLeader = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { settings: { handSmoothing: false } } });
 		expect(byLeader.status).toBe(200);
 		const after = byLeader.json() as View;
-		expect(after.settings).toEqual({ handSmoothing: false, matchLength: 'bo1', sideboarding: false });
+		expect(after.settings).toEqual({ handSmoothing: false });
 		// Not a deck question, so bob is still ready.
 		expect(after.members.map((m) => m.ready)).toEqual([false, true]);
 
 		const restored = (await call(await openApp(dir), 'GET', `/api/rooms/${created.id}`)).json() as View;
-		expect(restored.settings).toEqual({ handSmoothing: false, matchLength: 'bo1', sideboarding: false });
+		expect(restored.settings).toEqual({ handSmoothing: false });
 	});
 
 	it('refuses a setting it does not know, a value that is not a boolean, and an empty or mixed body', async () => {
@@ -615,7 +615,8 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const cases: Array<[unknown, string]> = [
 			[{ settings: { psychic: true } }, 'unknown setting(s): psychic'],
 			[{ settings: { handSmoothing: 'off' } }, 'settings.handSmoothing must be a boolean'],
-			[{ settings: { matchLength: 'bo5' } }, 'settings.matchLength must be one of: bo1, bo3'],
+			[{ settings: { matchLength: 'bo3' } }, 'unknown setting(s): matchLength'],
+			[{ settings: { sideboarding: true } }, 'unknown setting(s): sideboarding'],
 			[{ settings: {} }, 'settings names no setting'],
 			[{ settings: null }, 'settings must be an object'],
 			[{ settings: { handSmoothing: false }, format: OLDEST_POOL }, 'patch one field at a time: gameType, format, settings or mode'],
@@ -626,27 +627,16 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 			expect(res.json()).toEqual({ error });
 		}
 		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as View;
-		expect([after.settings, after.format]).toEqual([{ handSmoothing: true, matchLength: 'bo1', sideboarding: false }, NEWEST_POOL]);
+		expect([after.settings, after.format]).toEqual([{ handSmoothing: true }, NEWEST_POOL]);
 	});
 
-	it("lets the leader set bo3, which reads sideboarding as true without storing it", async () => {
+	it('sizes a Constructed room’s series Bo1 and a draft room’s Bo3', async () => {
 		const h = await openApp(await tempDir());
-		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
-		const after = (
-			await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { settings: { matchLength: 'bo3' } } })
-		).json() as View;
-		expect(after.settings).toEqual({ handSmoothing: true, matchLength: 'bo3', sideboarding: true });
-		// And the table's own series is sized to it (`RoomTable.series.length`).
-		expect(after.tables[0]?.series).toMatchObject({ length: 3, phase: 'seating' });
-	});
-
-	it('always reads bo3 and sideboarding on, for a draft room, whatever the stored setting says', async () => {
-		const h = await openApp(await tempDir());
-		const created = (
-			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Draft room', gameType: 'draft' } })
-		).json() as View;
-		expect(created.settings).toEqual({ handSmoothing: true, matchLength: 'bo3', sideboarding: true });
-		expect(created.tables[0]?.series).toMatchObject({ length: 3 });
+		const constructed = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
+		expect(constructed.tables[0]?.series).toMatchObject({ length: 1, phase: 'seating' });
+		const draft = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Draft room', gameType: 'draft' } })).json() as View;
+		expect(draft.settings).toEqual({ handSmoothing: true });
+		expect(draft.tables[0]?.series).toMatchObject({ length: 3 });
 	});
 });
 

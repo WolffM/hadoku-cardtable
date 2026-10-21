@@ -53,6 +53,7 @@ import {
 	type Lobby,
 	type PodChecks,
 	type RoomView,
+	type SeriesEnd,
 } from './lobby.ts';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -554,8 +555,8 @@ describe('Lobby.setSettings', () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error(made.reason);
-		expect(made.room.settings).toEqual({ handSmoothing: true, matchLength: 'bo1', sideboarding: false });
-		expect(lobby.list().map((r) => r.settings)).toEqual([{ handSmoothing: true, matchLength: 'bo1', sideboarding: false }]);
+		expect(made.room.settings).toEqual({ handSmoothing: true });
+		expect(lobby.list().map((r) => r.settings)).toEqual([{ handSmoothing: true }]);
 	});
 
 	it('lets only the leader change it, and leaves every readiness flag and deck hold alone', async () => {
@@ -566,7 +567,7 @@ describe('Lobby.setSettings', () => {
 		expect(lobby.get(id)?.settings.handSmoothing).toBe(true);
 
 		const off = lobby.setSettings(id, ALICE.id, { handSmoothing: false });
-		expect(off.ok && off.room.settings).toEqual({ handSmoothing: false, matchLength: 'bo1', sideboarding: false });
+		expect(off.ok && off.room.settings).toEqual({ handSmoothing: false });
 		// A setting is not a deck question: nobody is stood down by it.
 		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true, true]);
 		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, ready: true });
@@ -585,7 +586,7 @@ describe('Lobby.setSettings', () => {
 		if (!made.ok) throw new Error(made.reason);
 		expect(first.setSettings(made.room.id, ALICE.id, { handSmoothing: false }).ok).toBe(true);
 		const second = await openLobby({ dir });
-		expect(second.get(made.room.id)?.settings).toEqual({ handSmoothing: false, matchLength: 'bo1', sideboarding: false });
+		expect(second.get(made.room.id)?.settings).toEqual({ handSmoothing: false });
 	});
 
 	it('reads a record written before settings existed back on the defaults', async () => {
@@ -593,7 +594,7 @@ describe('Lobby.setSettings', () => {
 		writeFixtureRoom(dir, 'r-presettings01', legacyApp());
 		expect(Object.keys(legacyApp())).not.toContain('settings');
 		const lobby = await openLobby({ dir });
-		expect(lobby.get('r-presettings01')?.settings).toEqual({ handSmoothing: true, matchLength: 'bo1', sideboarding: false });
+		expect(lobby.get('r-presettings01')?.settings).toEqual({ handSmoothing: true });
 	});
 
 	it('quarantines a record whose settings hold a value this build does not understand', async () => {
@@ -1225,168 +1226,218 @@ describe('Lobby.releaseTableMatch', () => {
 	});
 });
 
-describe('Lobby.recordGameResult — the bo1/bo3 series transition (§D bullet 3)', () => {
-	/** A room with two members, the first table seated and a game under way. */
-	async function playingTable(matchLength?: 'bo1' | 'bo3') {
-		const lobby = await openLobby({ dir: await tempDir() });
+describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its result is recorded once', () => {
+	/** A room with Alice and Bob seated at the first table and game 1 under way; `ended` collects every series result. */
+	async function playingTable(opts: { checks?: PodChecks } = {}) {
+		const ended: SeriesEnd[] = [];
+		const lobby = await openLobby({ dir: await tempDir(), onSeriesEnd: (end) => ended.push(end) });
+		if (opts.checks !== undefined) lobby.setPodChecks(opts.checks);
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
 		const tableId = made.room.tables[0]!.id;
 		expect(lobby.join(id, BOB).ok).toBe(true);
-		if (matchLength !== undefined) expect(lobby.setSettings(id, ALICE.id, { matchLength }).ok).toBe(true);
 		expect(lobby.setTableSeats(id, tableId, [ALICE.id, BOB.id])).toBe(true);
 		expect(lobby.setTableMatch(id, tableId, 'm-game-1')).toBe(true);
-		return { lobby, id, tableId };
+		return { lobby, id, tableId, ended };
 	}
 
-	it('bo1: one decided game ends the series at once, phase done, no sideboarding step', async () => {
-		const { lobby, id, tableId } = await playingTable('bo1');
-		const result = lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
-		expect(result).toMatchObject({ ok: true, phase: 'done' });
-		const table = lobby.get(id)?.tables[0];
-		expect(table).toMatchObject({ matchId: null, series: { length: 1, wins: [1, 0], phase: 'done' } });
-		expect(table?.series.games).toEqual([{ matchId: 'm-game-1', winner: 0 }]);
+	it('starts as Bo1 and is done after one game; the result waits for the room to move on', async () => {
+		const { lobby, id, tableId, ended } = await playingTable();
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 1, phase: 'playing' });
+		expect(lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 })).toMatchObject({ ok: true, phase: 'done' });
+		expect(lobby.get(id)?.tables[0]).toMatchObject({ matchId: null, series: { length: 1, wins: [1, 0], games: [{ matchId: 'm-game-1', winner: 0 }], phase: 'done' } });
+		expect(ended).toEqual([]);
 	});
 
-	it('bo3: nobody has two wins yet, so a decided game goes straight to sideboarding — no Rematch press needed', async () => {
-		const { lobby, id, tableId } = await playingTable('bo3');
-		const result = lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });
-		expect(result).toMatchObject({ ok: true, phase: 'sideboarding' });
-		const table = lobby.get(id)?.tables[0];
-		expect(table).toMatchObject({ matchId: null, series: { length: 3, wins: [0, 1], phase: 'sideboarding' } });
-	});
-
-	it('bo3: the second win for the SAME seat ends the series 2–0, phase done', async () => {
-		const { lobby, id, tableId } = await playingTable('bo3');
+	it('Rematch converts it in place: Bo3, game 1 kept, 1-0, sideboarding — and game 2 continues the same series', async () => {
+		const { lobby, id, tableId, ended } = await playingTable();
 		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });
+		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+		expect(lobby.get(id)?.tables[0]?.series).toEqual({ length: 3, wins: [0, 1], games: [{ matchId: 'm-game-1', winner: 1 }], phase: 'sideboarding' });
+		expect(lobby.beginSideboarding(id, tableId), 'sideboarding, not done: a second press is a no-op').toBe(false);
 		expect(lobby.setTableMatch(id, tableId, 'm-game-2')).toBe(true);
-		// Continuing a series (from `sideboarding`) does not reset wins/games.
-		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ wins: [0, 1], phase: 'playing' });
-		const result = lobby.recordGameResult(id, tableId, { matchId: 'm-game-2', winner: 1 });
-		expect(result).toMatchObject({ ok: true, phase: 'done' });
-		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ wins: [0, 2], phase: 'done' });
-		expect(lobby.get(id)?.tables[0]?.series.games).toHaveLength(2);
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 3, wins: [0, 1], phase: 'playing' });
+		expect(lobby.recordGameResult(id, tableId, { matchId: 'm-game-2', winner: 0 })).toMatchObject({ phase: 'sideboarding' });
+		expect(ended).toEqual([]);
+		expect(lobby.setTableMatch(id, tableId, 'm-game-3')).toBe(true);
+		expect(lobby.recordGameResult(id, tableId, { matchId: 'm-game-3', winner: 1 })).toMatchObject({ phase: 'done' });
+		expect(ended).toEqual([
+			{
+				roomId: id,
+				tableId,
+				mode: 'classic',
+				bestOf: 3,
+				seats: [
+					{ memberId: ALICE.id, name: ALICE.name },
+					{ memberId: BOB.id, name: BOB.name },
+				],
+				wins: [1, 2],
+				games: [
+					{ matchId: 'm-game-1', winner: 1 },
+					{ matchId: 'm-game-2', winner: 0 },
+					{ matchId: 'm-game-3', winner: 1 },
+				],
+				winner: 1,
+				complete: true,
+			},
+		]);
+		// Recorded once: nothing the room does afterwards records it again.
+		expect(lobby.setTableSeats(id, tableId, [ALICE.id, null])).toBe(true);
+		expect(lobby.close(id, ALICE.id).ok).toBe(true);
+		expect(ended).toHaveLength(1);
 	});
 
-	it('a game with no attributable winner is recorded with winner null and still advances the phase', async () => {
-		const { lobby, id, tableId } = await playingTable('bo1');
-		const result = lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: null });
-		expect(result).toMatchObject({ ok: true, phase: 'done' });
-		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ wins: [0, 0] });
-	});
-
-	it('a new series (Rematch after done) resets wins and games and re-snapshots the length', async () => {
-		const { lobby, id, tableId } = await playingTable('bo1');
+	it('an All Random room’s Bo1 converts on Rematch exactly as a Classic one does', async () => {
+		const { lobby, id, tableId } = await playingTable();
 		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
-		// The leader switches the room to bo3 between series — the NEXT series is
-		// sized by the setting as it stands when that series starts, not when
-		// the room was created.
-		expect(lobby.setSettings(id, ALICE.id, { matchLength: 'bo3' }).ok).toBe(true);
+		expect(lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'modern' } }).ok).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-random-1')).toBe(true);
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 1, phase: 'playing' });
+		lobby.recordGameResult(id, tableId, { matchId: 'm-random-1', winner: 1 });
+		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 3, wins: [0, 1], phase: 'sideboarding' });
+	});
+
+	it('a finished Bo3’s Rematch is not converted again: the next series starts as Bo1', async () => {
+		const { lobby, id, tableId } = await playingTable();
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
+		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
 		expect(lobby.setTableMatch(id, tableId, 'm-game-2')).toBe(true);
-		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 3, wins: [0, 0], games: [], phase: 'playing' });
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-2', winner: 0 });
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 3, wins: [2, 0], phase: 'done' });
+		expect(lobby.beginSideboarding(id, tableId)).toBe(false);
+		expect(lobby.setTableMatch(id, tableId, 'm-game-3')).toBe(true);
+		expect(lobby.get(id)?.tables[0]?.series).toEqual({ length: 1, wins: [0, 0], games: [], phase: 'playing' });
+	});
+
+	it('a Bo1 ends as Bo1 when a seat leaves the table, and can no longer be converted', async () => {
+		const { lobby, id, tableId, ended } = await playingTable();
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
+		expect(lobby.setTableSeats(id, tableId, [ALICE.id, null])).toBe(true);
+		expect(ended).toEqual([
+			expect.objectContaining({ mode: 'classic', bestOf: 1, wins: [1, 0], winner: 0, games: [{ matchId: 'm-game-1', winner: 0 }] }),
+		]);
+		expect(lobby.setTableSeats(id, tableId, [ALICE.id, BOB.id])).toBe(true);
+		expect(lobby.beginSideboarding(id, tableId), 'Bob sitting back down does not revive a recorded series').toBe(false);
+		expect(ended).toHaveLength(1);
+	});
+
+	it('a Bo1 ends as Bo1 when a player leaves the room', async () => {
+		const { lobby, id, tableId, ended } = await playingTable();
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });
+		expect(lobby.leave(id, BOB.id).ok).toBe(true);
+		expect(ended).toEqual([expect.objectContaining({ bestOf: 1, winner: 1 })]);
+	});
+
+	it('a Bo1 ends as Bo1 when a seat no longer holds the deck it played (a deck or format change)', async () => {
+		const checks: PodChecks = { ...fakeChecks(), holdsSeriesDeck: (state) => (state as { same?: boolean } | undefined)?.same !== false };
+		const { lobby, id, tableId, ended } = await playingTable({ checks });
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
+		expect(lobby.setPlayerState(id, ALICE.id, { same: true })).toBe(true);
+		expect(ended).toEqual([]);
+		expect(lobby.setPlayerState(id, BOB.id, { same: false })).toBe(true);
+		expect(ended).toEqual([expect.objectContaining({ bestOf: 1, winner: 0 })]);
+		expect(lobby.beginSideboarding(id, tableId)).toBe(false);
+	});
+
+	it('a Bo1 ends as Bo1, under the mode it was played in, when the leader changes the mode — and a Gauntlet’s next series is Bo3', async () => {
+		const { lobby, id, tableId, ended } = await playingTable({ checks: { ...fakeChecks(), holdsSeriesDeck: (state) => state !== undefined } });
+		expect(lobby.setPlayerState(id, ALICE.id, { held: true })).toBe(true);
+		expect(lobby.setPlayerState(id, BOB.id, { held: true })).toBe(true);
+		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });
+		expect(ended).toEqual([]);
+		expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
+		expect(ended).toEqual([expect.objectContaining({ mode: 'classic', bestOf: 1, winner: 1 })]);
+		expect(lobby.setTableMatch(id, tableId, 'm-gauntlet-1')).toBe(true);
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 3, phase: 'playing' });
+		expect(lobby.recordGameResult(id, tableId, { matchId: 'm-gauntlet-1', winner: 0 })).toMatchObject({ phase: 'between' });
+	});
+
+	it('a Bo1 ends as Bo1 when the room closes, or is swept', async () => {
+		const closed = await playingTable();
+		closed.lobby.recordGameResult(closed.id, closed.tableId, { matchId: 'm-game-1', winner: 0 });
+		expect(closed.lobby.close(closed.id, ALICE.id).ok).toBe(true);
+		expect(closed.ended).toEqual([expect.objectContaining({ bestOf: 1, winner: 0 })]);
+
+		const swept = await playingTable();
+		swept.lobby.recordGameResult(swept.id, swept.tableId, { matchId: 'm-game-1', winner: null });
+		expect(swept.lobby.sweep(-1)).toEqual([swept.id]);
+		expect(swept.ended).toEqual([expect.objectContaining({ bestOf: 1, winner: null, wins: [0, 0] })]);
+	});
+
+	it('against the AI: the AI seat is null, the one player’s Rematch converts it, and a Bo3 the room closes on is recorded unfinished', async () => {
+		const ended: SeriesEnd[] = [];
+		const lobby = await openLobby({ dir: await tempDir(), onSeriesEnd: (end) => ended.push(end) });
+		const made = lobby.create(ALICE, { name: 'Solo', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		expect(lobby.setTableSeats(id, tableId, [ALICE.id, null])).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-bot-1')).toBe(true);
+		lobby.recordGameResult(id, tableId, { matchId: 'm-bot-1', winner: 0 });
+		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 3, wins: [1, 0], phase: 'sideboarding' });
+		expect(lobby.close(id, ALICE.id).ok).toBe(true);
+		expect(ended).toEqual([expect.objectContaining({ bestOf: 3, seats: [{ memberId: ALICE.id, name: ALICE.name }, null], winner: null, complete: false })]);
+	});
+
+	it('a draft pod table is Bo3 with sideboarding from its first game', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		expect(made.room.tables[0]?.series.length).toBe(3);
+		const tableId = made.room.tables[0]!.id;
+		expect(lobby.setTableSeats(made.room.id, tableId, [ALICE.id, BOB.id])).toBe(true);
+		expect(lobby.setTableMatch(made.room.id, tableId, 'm-pod-1')).toBe(true);
+		expect(lobby.recordGameResult(made.room.id, tableId, { matchId: 'm-pod-1', winner: 0 })).toMatchObject({ phase: 'sideboarding' });
 	});
 
 	it('false only for no such room or table', async () => {
-		const { lobby, id } = await playingTable('bo1');
+		const { lobby, id, tableId } = await playingTable();
 		expect(lobby.recordGameResult('r-000000000000', 'anything', { matchId: 'm-x', winner: 0 })).toEqual({ ok: false, reason: 'no-room' });
 		expect(lobby.recordGameResult(id, 'not-a-table', { matchId: 'm-x', winner: 0 })).toEqual({ ok: false, reason: 'no-such-table' });
-	});
-});
-
-describe('Lobby.beginSideboarding — the Rematch gesture into a bo1 sideboard step (§D bullet 3)', () => {
-	/** A room with two members, a table whose one-game series is already DONE. */
-	async function doneTable(opts: { matchLength?: 'bo1' | 'bo3'; sideboarding?: boolean; winner?: 0 | 1 | null } = {}) {
-		const lobby = await openLobby({ dir: await tempDir() });
-		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
-		if (!made.ok) throw new Error('create failed');
-		const id = made.room.id;
-		const tableId = made.room.tables[0]!.id;
-		expect(lobby.join(id, BOB).ok).toBe(true);
-		expect(lobby.setSettings(id, ALICE.id, { matchLength: opts.matchLength ?? 'bo1', sideboarding: opts.sideboarding ?? false }).ok).toBe(true);
-		expect(lobby.setTableSeats(id, tableId, [ALICE.id, BOB.id])).toBe(true);
-		const winner = opts.winner ?? 0;
-		// bo1 is done after its one game; bo3 needs the SAME seat to win twice.
-		const games = opts.matchLength === 'bo3' ? 2 : 1;
-		for (let i = 0; i < games; i += 1) {
-			expect(lobby.setTableMatch(id, tableId, `m-game-${String(i + 1)}`)).toBe(true);
-			expect(lobby.recordGameResult(id, tableId, { matchId: `m-game-${String(i + 1)}`, winner })).toMatchObject({ ok: true });
-		}
-		expect(lobby.get(id)?.tables[0]?.series.phase).toBe('done');
-		return { lobby, id, tableId };
-	}
-
-	it('bo1 + sideboarding on: a done table moves to sideboarding, wins/games reset, length re-snapshotted', async () => {
-		const { lobby, id, tableId } = await doneTable({ matchLength: 'bo1', sideboarding: true, winner: 0 });
-		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
-		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 1, wins: [0, 0], games: [], phase: 'sideboarding' });
-	});
-
-	it('bo1 + sideboarding off: a done table stays done — the no-sideboarding Rematch path, unchanged', async () => {
-		const { lobby, id, tableId } = await doneTable({ matchLength: 'bo1', sideboarding: false });
-		expect(lobby.beginSideboarding(id, tableId)).toBe(false);
-		expect(lobby.get(id)?.tables[0]?.series.phase).toBe('done');
-	});
-
-	it("bo3: a FINISHED series' Rematch is never routed through here — bo3's own sideboarding happens BETWEEN a series' games (`recordGameResult`), never between two series", async () => {
-		const { lobby, id, tableId } = await doneTable({ matchLength: 'bo3' }); // effectiveSideboarding is always true for bo3, which is exactly why matchLength alone must gate this
-		expect(lobby.beginSideboarding(id, tableId)).toBe(false);
-		expect(lobby.get(id)?.tables[0]?.series.phase).toBe('done');
-	});
-
-	it('no-ops for a table that is not (or is no longer) done, and for no such room or table', async () => {
-		const { lobby, id, tableId } = await doneTable({ matchLength: 'bo1', sideboarding: true });
-		expect(lobby.beginSideboarding(id, tableId)).toBe(true); // consumes the `done` state
-		expect(lobby.beginSideboarding(id, tableId), 'now sideboarding, not done — a second call is a no-op').toBe(false);
 		expect(lobby.beginSideboarding('r-000000000000', tableId)).toBe(false);
 		expect(lobby.beginSideboarding(id, 'not-a-table')).toBe(false);
 	});
 
-	/**
-	 * Claw run 39046554773, 2026-10-17: `beginSideboarding` resets `games` to
-	 * `[]`, which used to erase the just-finished game's winner along with
-	 * it — so `http/routes.ts`'s `startFromRoom` could never ask the LOSER
-	 * play-or-draw for this rematch's game (the operator's acceptance). Fixed
-	 * by `rematchOf`, carried past the reset and read exactly once.
-	 */
-	it('rematchOf carries the just-finished game’s winner past the reset, and setTableMatch clears it once the next game starts', async () => {
-		const { lobby, id, tableId } = await doneTable({ matchLength: 'bo1', sideboarding: true, winner: 1 });
-		expect(lobby.rematchOf(id, tableId)).toBeNull(); // nothing carried before the Rematch gesture
-		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
-		expect(lobby.rematchOf(id, tableId)).toBe(1); // seat 1 won the game that just ended
-		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ games: [], phase: 'sideboarding' });
-
-		expect(lobby.setTableMatch(id, tableId, 'm-rematch-game')).toBe(true);
-		expect(lobby.rematchOf(id, tableId)).toBeNull(); // read once, then cleared
-
-		expect(lobby.rematchOf('r-000000000000', tableId)).toBeNull();
-		expect(lobby.rematchOf(id, 'not-a-table')).toBeNull();
-	});
-
-	/**
-	 * The bo3 path this must NOT touch: its OWN mid-series sideboarding step
-	 * goes through `recordGameResult`, never `beginSideboarding` (the test
-	 * above's sibling, "bo3: a FINISHED series' Rematch is never routed
-	 * through here", already covers that `beginSideboarding` itself no-ops)
-	 * — so `rematchOf` stays `null` through a whole bo3 series.
-	 */
-	it('stays null through a bo3 series — recordGameResult never sets it', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
-		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+	it('survives a restart: a pending Bo1 still converts, and a recorded one is not recorded again', async () => {
+		const dir = await tempDir();
+		const ended: SeriesEnd[] = [];
+		const first = await openLobby({ dir, onSeriesEnd: (end) => ended.push(end) });
+		const made = first.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
 		const id = made.room.id;
 		const tableId = made.room.tables[0]!.id;
-		expect(lobby.join(id, BOB).ok).toBe(true);
-		expect(lobby.setSettings(id, ALICE.id, { matchLength: 'bo3', sideboarding: true }).ok).toBe(true);
-		expect(lobby.setTableSeats(id, tableId, [ALICE.id, BOB.id])).toBe(true);
-		expect(lobby.setTableMatch(id, tableId, 'm-1')).toBe(true);
-		expect(lobby.recordGameResult(id, tableId, { matchId: 'm-1', winner: 0 })).toMatchObject({ phase: 'sideboarding' });
-		expect(lobby.rematchOf(id, tableId)).toBeNull();
+		expect(first.join(id, BOB).ok).toBe(true);
+		expect(first.setTableSeats(id, tableId, [ALICE.id, BOB.id])).toBe(true);
+		expect(first.setTableMatch(id, tableId, 'm-game-1')).toBe(true);
+		first.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
+
+		const second = await openLobby({ dir, onSeriesEnd: (end) => ended.push(end) });
+		expect(second.beginSideboarding(id, tableId)).toBe(true);
+		expect(second.setTableMatch(id, tableId, 'm-game-2')).toBe(true);
+		second.recordGameResult(id, tableId, { matchId: 'm-game-2', winner: 0 });
+		expect(ended).toEqual([expect.objectContaining({ bestOf: 3, wins: [2, 0] })]);
+
+		const third = await openLobby({ dir, onSeriesEnd: (end) => ended.push(end) });
+		expect(third.close(id, ALICE.id).ok).toBe(true);
+		expect(ended).toHaveLength(1);
+	});
+});
+
+describe('a room stored with the old match-length settings', () => {
+	it('still parses, and its settings read as hand smoothing alone', async () => {
+		const dir = await tempDir();
+		writeFixtureRoom(dir, 'r-oldsettings1', legacyApp({ settings: { handSmoothing: false, matchLength: 'bo3', sideboarding: true } }));
+		const lobby = await openLobby({ dir });
+		expect(lobby.get('r-oldsettings1')?.settings).toEqual({ handSmoothing: false });
+		expect(lobby.get('r-oldsettings1')?.tables[0]?.series).toMatchObject({ length: 1, phase: 'seating' });
 	});
 });
 
 describe('Lobby.addTable / removeTable', () => {
-	it('leader only; a new table starts seating, empty, sized to the room\'s matchLength', async () => {
+	it('leader only; a new table starts seating, empty, sized to the room\'s series format', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Pod', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
@@ -1444,35 +1495,6 @@ describe('Lobby.setTableSeats', () => {
 		expect(lobby.get(id)?.tables[0]?.players).toEqual([{ memberId: ALICE.id, name: ALICE.name }]);
 		// A second identical write is a no-op (idempotent).
 		expect(lobby.setTableSeats(id, tableId, [ALICE.id, null])).toBe(true);
-	});
-});
-
-describe('RoomSettings.matchLength / sideboarding — wave 71', () => {
-	it('defaults bo1, no sideboarding; bo3 reads sideboarding as true without storing it', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
-		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
-		if (!made.ok) throw new Error('create failed');
-		expect(made.room.settings).toEqual({ handSmoothing: true, matchLength: 'bo1', sideboarding: false });
-
-		const bo3 = lobby.setSettings(made.room.id, ALICE.id, { matchLength: 'bo3' });
-		expect(bo3.ok).toBe(true);
-		if (!bo3.ok) return;
-		expect(bo3.room.settings).toEqual({ handSmoothing: true, matchLength: 'bo3', sideboarding: true });
-
-		// Explicitly turning sideboarding off under bo1 is honoured; under bo3 it
-		// is not — `bo3` IMPLIES it, per the operator's ruling.
-		const back = lobby.setSettings(made.room.id, ALICE.id, { matchLength: 'bo1', sideboarding: false });
-		expect(back.ok).toBe(true);
-		if (!back.ok) return;
-		expect(back.room.settings).toEqual({ handSmoothing: true, matchLength: 'bo1', sideboarding: false });
-	});
-
-	it('a draft room always reads bo3 / sideboarding true, whatever is stored', async () => {
-		const lobby = await openLobby({ dir: await tempDir() });
-		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
-		if (!made.ok) throw new Error('create failed');
-		expect(made.room.settings).toEqual({ handSmoothing: true, matchLength: 'bo3', sideboarding: true });
-		expect(made.room.tables[0]?.series.length).toBe(3);
 	});
 });
 
@@ -1727,6 +1749,7 @@ function fakeChecks(opts: { draftComplete?: boolean; built?: Set<string> } = {})
 		draftComplete: () => draftComplete,
 		built: (_podId, memberId) => built.has(memberId),
 		seatState: (_podId, memberId, tableId) => ({ seatedFor: memberId, table: tableId }),
+		holdsSeriesDeck: () => true,
 	};
 }
 

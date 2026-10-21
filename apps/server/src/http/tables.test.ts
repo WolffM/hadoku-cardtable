@@ -36,6 +36,7 @@ import { botPoolAcross, createDraftRooms, joinDraftRoom, stateOf, type DraftRoom
 import { botDeckText } from '../room/botDeck.js';
 import { isBotSeat } from '@hadoku/draft';
 import { draftPoolId } from '../room/lobby.js';
+import { convertToBo3, newSeries, recordGame, seriesFormatOf } from '../room/series.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
 import { act, choose, drawGauntlet, gauntletEras, newGauntlet, startBanpick, viewOfGauntlet, type GauntletState } from '../room/gauntlet.js';
@@ -293,26 +294,20 @@ interface FakeRoom {
 	members: { id: string; name: string; avatarId?: string }[];
 	/** Wave 71: always at least one. The real `RoomTable` shape — `players` already resolved, as `viewOf` resolves it. */
 	tables: RoomTable[];
-	/** The room-wide effective series length a NEW table/series starts at (fake-only convenience: the real lobby derives this from `RoomSettings.matchLength`/`gameType`, which `RoomViewLike` does not carry). */
-	matchLength: 1 | 3;
-	/** The room's `sideboarding` setting (fake-only convenience, mirroring `matchLength`'s reason for existing — `beginSideboarding` needs it and `RoomViewLike` carries neither). Meaningless when `matchLength === 3` (bo3 always reads sideboarding as on). */
-	sideboarding: boolean;
 	/** Every match this room started, on any table, as `Lobby.roomOfMatch` remembers them. */
 	matches: string[];
 	state: Map<string, unknown>;
 	/** Wave 72 §P: `RoomViewLike` carries it now, but no test in this file plays a pod — every fake room is constructed and this stays `null`. */
 	pod: { phase: string } | null;
-	/** A Constructed room's mode and its options (`@hadoku/shared`'s `RoomModeState`); absent reads as no mode chosen. */
+	/** A Constructed room's mode and its options (`@hadoku/shared`'s `RoomModeState`); absent reads as no mode chosen. The mode sizes its series (`room/series.ts`'s `seriesFormatOf`). */
 	mode?: RoomModeState['mode'];
 	modeOptions?: RoomModeState['modeOptions'];
-	/** `Lobby.rematchOf`'s own carry-through, by table id — mirrors `room/lobby.ts`'s `SeriesRecord.rematchOf`, server-internal and never on the wire `RoomTable.series`. */
-	rematchOf: Map<string, 0 | 1 | null>;
 	/** `Lobby.gauntlet`'s stored Gauntlet; absent reads as none. */
 	gauntlet?: GauntletState | null;
 }
 
 interface FakeLobby extends TablesRooms {
-	open(id: string, members: FakeRoom['members'], gameType?: string, format?: string, matchLength?: 1 | 3, sideboarding?: boolean): FakeRoom;
+	open(id: string, members: FakeRoom['members'], gameType?: string, format?: string): FakeRoom;
 	room(id: string): FakeRoom | undefined;
 }
 
@@ -330,7 +325,7 @@ function fakeLobby(): FakeLobby {
 	let nextTableId = 0;
 	const mintTable = () => `t-fake${String(nextTableId++).padStart(4, '0')}`;
 	return {
-		open(id, members, gameType = 'constructed-1v1', format = POWER_2010, matchLength = 1, sideboarding = false) {
+		open(id, members, gameType = 'constructed-1v1', format = POWER_2010) {
 			// The first member is the leader, as `lobby.create` makes the creator one.
 			const room: FakeRoom = {
 				id,
@@ -340,13 +335,10 @@ function fakeLobby(): FakeLobby {
 				settings: { handSmoothing: true },
 				leader: members[0]?.id ?? '',
 				members,
-				tables: [emptyTable(mintTable(), matchLength)],
-				matchLength,
-				sideboarding,
+				tables: [emptyTable(mintTable(), seriesFormatOf({ gameType }).length)],
 				matches: [],
 				state: new Map(),
 				pod: null,
-				rematchOf: new Map(),
 			};
 			held.set(id, room);
 			return room;
@@ -382,24 +374,22 @@ function fakeLobby(): FakeLobby {
 				.map((mid) => ({ memberId: mid, name: room.members.find((m) => m.id === mid)?.name ?? '' }));
 			return true;
 		},
+		// The series through `room/series.ts`'s own rules, so this fake never
+		// restates them; who played and whether it is recorded are the real
+		// lobby's, and are not kept here.
 		setTableMatch(roomId, tableId, matchId) {
 			const room = held.get(roomId);
 			const table = room?.tables.find((t) => t.id === tableId);
 			if (room === undefined || table === undefined || table.matchId !== null) return false;
 			if (table.series.phase === 'seating' || table.series.phase === 'done') {
-				table.series = { length: room.matchLength, wins: [0, 0], games: [], phase: 'playing' };
-			} else if (table.series.phase === 'sideboarding') {
+				const { length, wins, games } = newSeries(room, [], 'playing');
+				table.series = { length, wins, games, phase: 'playing' };
+			} else {
 				table.series = { ...table.series, phase: 'playing' };
 			}
-			// Mirrors the real `Lobby.setTableMatch`: cleared once read into this
-			// game's `chooser`.
-			room.rematchOf.delete(tableId);
 			table.matchId = matchId;
 			if (!room.matches.includes(matchId)) room.matches.push(matchId);
 			return true;
-		},
-		rematchOf(roomId, tableId) {
-			return held.get(roomId)?.rematchOf.get(tableId) ?? null;
 		},
 		releaseTableMatch(roomId, tableId) {
 			const room = held.get(roomId);
@@ -415,31 +405,24 @@ function fakeLobby(): FakeLobby {
 			const table = room?.tables.find((t) => t.id === tableId);
 			if (room === undefined || table === undefined) return { ok: false };
 			table.matchId = null;
-			table.series.games.push({ matchId: result.matchId, winner: result.winner });
-			if (result.winner === 0 || result.winner === 1) table.series.wins[result.winner] += 1;
-			const need = table.series.length === 3 ? 2 : 1;
-			const majority = table.series.wins[0] >= need || table.series.wins[1] >= need;
-			const exhausted = table.series.games.length >= table.series.length;
-			table.series.phase = majority || exhausted ? 'done' : 'sideboarding';
+			const { length, wins, games, phase } = recordGame({ ...table.series, played: [null, null], mode: 'classic', settled: false }, seriesFormatOf(room), result);
+			table.series = { length, wins, games, phase };
 			return { ok: true };
 		},
 		beginSideboarding(roomId, tableId) {
 			const room = held.get(roomId);
 			const table = room?.tables.find((t) => t.id === tableId);
-			if (room === undefined || table === undefined || table.series.phase !== 'done') return false;
-			// bo1 with sideboarding on, only — mirrors the real `Lobby.beginSideboarding`.
-			if (room.matchLength !== 1 || !room.sideboarding) return false;
-			// Mirrors the real `Lobby.beginSideboarding`: carry the just-finished
-			// game's winner past the reset below (claw run 39046554773).
-			room.rematchOf.set(tableId, table.series.games.at(-1)?.winner ?? null);
-			table.series = { length: room.matchLength, wins: [0, 0], games: [], phase: 'sideboarding' };
+			if (room === undefined || table === undefined) return false;
+			const converted = convertToBo3({ ...table.series, played: [null, null], mode: 'classic', settled: false });
+			if (converted === null) return false;
+			table.series = { length: converted.length, wins: converted.wins, games: converted.games, phase: converted.phase };
 			return true;
 		},
 		addTable(roomId, callerId) {
 			const room = held.get(roomId);
 			if (room === undefined) return { ok: false, reason: 'no-room' };
 			if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
-			const table = emptyTable(mintTable(), room.matchLength);
+			const table = emptyTable(mintTable(), seriesFormatOf(room).length);
 			room.tables.push(table);
 			return { ok: true, table };
 		},
@@ -1989,7 +1972,7 @@ describe('a room table', () => {
 				roomId: ROOM,
 				rated: true,
 				startedAt: Date.parse(startedAt),
-				attrs: { format: library.format(h.lobby.room(ROOM)!.format)!.family, pool: h.lobby.room(ROOM)!.format, opponent: 'human' },
+				attrs: { format: library.format(h.lobby.room(ROOM)!.format)!.family, pool: h.lobby.room(ROOM)!.format, opponent: 'human', mode: 'classic', bestOf: 1 },
 			});
 			expect(report.seats.map((s) => [s.seat, s.kind, s.userKey, s.displayName, s.placement, s.attrs?.deck, s.attrs?.deckId])).toEqual([
 				[0, 'user', 'friend-key-alice', 'user-alice', 1, 'UG Polymorph (Antoine Ruel)', UG_POLYMORPH],
@@ -2069,7 +2052,12 @@ describe('a room table', () => {
 		// back as the finished match's id instead of null. 1 failed.
 		// Restored: passes. 1 passed.
 
-		// A Rematch: both ready again with the decks they hold, and a new match starts.
+		// A Rematch: both ready again with the decks they hold, which converts
+		// the Bo1 and goes to sideboarding; both ready from there, and the next
+		// match starts.
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('sideboarding');
 		await setReady(h, 'alice');
 		await setReady(h, 'bob');
 		// NOT `startRoom`/`start()`: both assume `h.hosts` starts empty, which is
@@ -2458,37 +2446,6 @@ describe('a room table', () => {
 			// Restored: passes, 200. 1 passed.
 		});
 
-		it("sets chooser to the previous game's loser seat on the second game of a series; the first game leaves it unset", async () => {
-			const h = await boot();
-			h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 3);
-			await bothLoaded(h);
-			await setReady(h, 'alice');
-			await setReady(h, 'bob');
-
-			const first = await startRoom(h, 'alice');
-			expect(first.status).toBe(201);
-			expect(h.specs[0]).not.toHaveProperty('chooser');
-
-			const tableId = h.lobby.room(ROOM)!.tables[0]!.id;
-			// Game 1 ends: seat 0 (alice) wins, so seat 1 (bob) is the loser and
-			// is the one asked play-or-draw for game 2.
-			h.lobby.recordGameResult(ROOM, tableId, { matchId: first.body.matchId as string, winner: 0 });
-			expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('sideboarding');
-			await setReady(h, 'alice');
-			await setReady(h, 'bob');
-
-			// `start`'s own `untilHost` waits for the FIRST host unconditionally
-			// (fine for game 1, above); a second start needs to wait for a SECOND
-			// one, the same way the "sixth match" test above does.
-			const before = h.hosts.length;
-			const pending = call(h, 'POST', '/api/play/matches', { room: ROOM }, edgeHeaders('alice'));
-			await untilHost(h, before + 1, pending);
-			if (h.hosts.length > before) (h.hosts.at(-1) as ReplayHost).push(...OPENING);
-			const second = await pending;
-			expect(second.status).toBe(201);
-			expect(h.specs[1]).toMatchObject({ chooser: 1 });
-		});
-
 		/**
 		 * `start`'s own `untilHost` waits for the FIRST host unconditionally — fine
 		 * for a harness's first match, wrong for any match after it (it would see
@@ -2505,15 +2462,13 @@ describe('a room table', () => {
 		}
 
 		/**
-		 * §D bullet 3, the missing transition: "bo1 with `sideboarding` on and
-		 * both players press Rematch → `sideboarding`". The Rematch gesture IS
-		 * `POST …/ready` — there is no other one on this API — so
-		 * `Lobby.beginSideboarding` is wired into that same route, called on
-		 * every `ready: true` and deciding for itself whether anything happens.
+		 * Classic Bo1 → Rematch: the Rematch gesture IS `POST …/ready` — there is
+		 * no other one on this API — so `Lobby.beginSideboarding` is wired into
+		 * that route, called on every `ready: true` and deciding for itself.
 		 */
-		it('bo1 + sideboarding on: a done game is followed by a sideboarding step before the NEXT series — the deck gate applies, and the LOSER of game 1 is asked play-or-draw for game 2 (claw run 39046554773)', async () => {
+		it('Bo1 → Rematch: the finished game stays game 1, the series is Bo3 at 1-0 in sideboarding — the deck gate applies, and the LOSER of game 1 is asked play-or-draw for game 2', async () => {
 			const h = await boot();
-			h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 1, true);
+			openRoom(h);
 			await bothLoaded(h); // alice: UG_POLYMORPH, bob: SECOND_DECK
 			await setReady(h, 'alice');
 			await setReady(h, 'bob');
@@ -2524,20 +2479,22 @@ describe('a room table', () => {
 			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-alice' });
 			expect(h.matches.get(game1.body.matchId as string)?.status).toBe('over');
 			await view(h, 'alice'); // `liveMatchId` finalizes the game into the series ledger
-			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ phase: 'done', wins: [1, 0] });
+			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 1, phase: 'done', wins: [1, 0] });
 
-			// Both ready — the Rematch gesture — moves the table to `sideboarding`
-			// AT ONCE: a NEW series, wins/games reset, no Rematch-start needed to
-			// see it, and both Readys spent by it.
+			// Both ready — the Rematch gesture — converts the series AT ONCE, and
+			// spends both Readys.
 			await setReady(h, 'alice');
 			const bothReady = await setReady(h, 'bob');
 			expect(players(bothReady.body).map((p) => p.ready)).toEqual([false, false]);
-			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ phase: 'sideboarding', wins: [0, 0], games: [] });
+			expect(h.lobby.room(ROOM)?.tables[0]?.series).toEqual({
+				length: 3,
+				wins: [1, 0],
+				games: [{ matchId: game1.body.matchId, winner: 0 }],
+				phase: 'sideboarding',
+			});
 
 			// The deck gate runs during this step: the SAME deck is accepted; a
-			// DIFFERENT one is refused (the sideboard-multiset test below covers
-			// the refusal's own wording — this proves the gate is reached at all,
-			// via the real wiring, not a hand-set phase).
+			// DIFFERENT one is refused.
 			const different = await putDeck(h, 'alice', deckBody(SECOND_DECK));
 			expect(different.status).toBe(409);
 			expect(different.body.error).toContain('sideboard');
@@ -2549,16 +2506,22 @@ describe('a room table', () => {
 			const game2 = await startAnother(h, 'alice');
 			expect(game2.status).toBe(201);
 			expect(game2.body.matchId).not.toBe(game1.body.matchId);
-			// `games` is `[]` — a NEW series by `recordGameResult`'s own ledger —
-			// but this IS the operator's "game 2" of the same match, sideboard and
-			// all: alice (seat 0) won game 1, so bob (seat 1) is owed play-or-draw
-			// for it. `Lobby.rematchOf` is what carries that past the reset above.
+			// Alice (seat 0) won game 1, so Bob (seat 1) chooses play or draw.
 			expect(h.specs.at(-1)).toMatchObject({ chooser: 1 });
-			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ wins: [0, 0], games: [], length: 1 });
-			// And spent: a THIRD game of what is now this new series' own
-			// sideboarding (not reachable in bo1 without another full game, so
-			// asserted directly) would have no further winner to carry.
-			expect(h.lobby.rematchOf(ROOM, h.lobby.room(ROOM)!.tables[0]!.id)).toBeNull();
+			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 3, wins: [1, 0], phase: 'playing' });
+		});
+
+		it('against the AI: the one player’s Ready on a finished Bo1 converts it too', async () => {
+			const h = await boot();
+			h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
+			expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
+			expect((await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'))).status).toBe(201);
+			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-alice' });
+			await view(h, 'alice');
+			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 1, phase: 'done' });
+			const ready = await setReady(h, 'alice');
+			expect(players(ready.body).map((p) => p.ready)).toEqual([false]);
+			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 3, wins: [1, 0], phase: 'sideboarding' });
 		});
 
 		/**
@@ -2569,9 +2532,9 @@ describe('a room table', () => {
 		 * Readys, so nothing stale can start the next game, and only a fresh
 		 * Ready from each seat does.
 		 */
-		it('bo1 + sideboarding on: the Rematch agreement that begins sideboarding spends both Readys — no start until both ready again', async () => {
+		it('the Rematch agreement that begins sideboarding spends both Readys — no start until both ready again', async () => {
 			const h = await boot();
-			h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 1, true);
+			openRoom(h);
 			await bothLoaded(h);
 			await setReady(h, 'alice');
 			await setReady(h, 'bob');
@@ -2614,9 +2577,9 @@ describe('a room table', () => {
 			const sideboarded = () => ({ deck: { dck: library.deck(UG_POLYMORPH)!.text } });
 			const aliceDeck = (h: Harness) => (h.lobby.playerState(ROOM, ALICE) as { deck: { choice: { deck: unknown } } }).deck.choice.deck;
 
-			it('bo1 + sideboarding: after the Rematch game, alice holds her library deck again, by name, and nobody is ready', async () => {
+			it('after a Bo3 a Rematch made, decided 2-0 with a sideboarded game 2, alice holds her library deck again, by name, and nobody is ready', async () => {
 				const h = await boot();
-				h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 1, true);
+				openRoom(h);
 				await bothLoaded(h);
 				const registeredName = myDeck((await view(h, 'alice')).body)?.name;
 				await setReady(h, 'alice');
@@ -2631,38 +2594,19 @@ describe('a room table', () => {
 				await setReady(h, 'alice');
 				await setReady(h, 'bob');
 				expect((await startAnother(h, 'alice')).status).toBe(201);
-				await finish(h, 'bob');
+				expect(aliceDeck(h), 'game 2 holds the sideboarded load').toEqual({ dck: expect.any(String) });
+				await finish(h, 'alice');
 
-				expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('done');
+				expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ phase: 'done', wins: [2, 0] });
 				expect(aliceDeck(h)).toEqual({ library: UG_POLYMORPH });
 				const rows = players((await view(h, 'alice')).body);
 				expect(rows[0]).toMatchObject({ deck: { name: registeredName, legal: true }, ready: false });
 				expect(rows[1]).toMatchObject({ ready: false });
 			});
 
-			it('bo3: a series decided 2-0 puts alice back on her library deck after a sideboarded game 2', async () => {
-				const h = await boot();
-				h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 3);
-				await bothLoaded(h);
-				await setReady(h, 'alice');
-				await setReady(h, 'bob');
-				expect((await startRoom(h, 'alice')).status).toBe(201);
-				await finish(h, 'alice');
-				expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('sideboarding');
-				expect((await putDeck(h, 'alice', sideboarded())).status).toBe(200);
-				await setReady(h, 'alice');
-				await setReady(h, 'bob');
-				expect((await startAnother(h, 'alice')).status).toBe(201);
-				expect(aliceDeck(h), 'game 2 holds the sideboarded load').toEqual({ dck: expect.any(String) });
-				await finish(h, 'alice');
-
-				expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ phase: 'done', wins: [2, 0] });
-				expect(aliceDeck(h)).toEqual({ library: UG_POLYMORPH });
-			});
-
 			it('a row persisted with the registered deck as text alone: the series still finishes, and the seat keeps what it holds', async () => {
 				const h = await boot();
-				h.lobby.open(ROOM, [...MEMBERS], undefined, undefined, 1, true);
+				openRoom(h);
 				await bothLoaded(h);
 				await setReady(h, 'alice');
 				await setReady(h, 'bob');
@@ -2679,30 +2623,43 @@ describe('a room table', () => {
 			});
 		});
 
-		it('bo1 + sideboarding off: a done game goes straight to a new series on Rematch — no sideboarding step, chooser unset (the reported bug: a stale games.at(-1) would rig this to the old loser)', async () => {
+		it('a finished Bo3’s Rematch is a new Bo1 series, its first game with no chooser (a stale games.at(-1) would rig it to the old loser)', async () => {
 			const h = await boot();
-			openRoom(h); // default settings: bo1, sideboarding off
+			openRoom(h);
 			await bothLoaded(h);
 			await setReady(h, 'alice');
 			await setReady(h, 'bob');
-			const game1 = await startRoom(h, 'alice');
-			expect(game1.status).toBe(201);
-
+			expect((await startRoom(h, 'alice')).status).toBe(201);
 			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-bob' });
-			expect(h.matches.get(game1.body.matchId as string)?.status).toBe('over');
 			await view(h, 'alice');
-			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ phase: 'done', wins: [0, 1] });
-
-			// Both ready: NOT moved to sideboarding — sideboarding is off.
 			await setReady(h, 'alice');
 			await setReady(h, 'bob');
-			expect(h.lobby.room(ROOM)?.tables[0]?.series.phase, 'sideboarding off: stays done').toBe('done');
+			await setReady(h, 'alice');
+			await setReady(h, 'bob');
+			expect((await startAnother(h, 'alice')).status).toBe(201);
+			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-bob' });
+			await view(h, 'alice');
+			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 3, phase: 'done', wins: [0, 2] });
 
-			const game2 = await startAnother(h, 'alice');
-			expect(game2.status).toBe(201);
-			expect(game2.body.matchId).not.toBe(game1.body.matchId);
+			// Both ready: a finished Bo3 is not converted again.
+			await setReady(h, 'alice');
+			await setReady(h, 'bob');
+			expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('done');
+			const next = await startAnother(h, 'alice');
+			expect(next.status).toBe(201);
 			expect(h.specs.at(-1), 'a brand new series: no stale chooser from the old series it replaces').not.toHaveProperty('chooser');
-			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ wins: [0, 0], games: [] });
+			expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 1, wins: [0, 0], games: [] });
+		});
+
+		it('a seat holds its series deck until it loads another — what keeps a finished Bo1 open to a Rematch', () => {
+			const deck = { choice: { deck: { library: UG_POLYMORPH } }, verdict: { legal: true }, text: 'A' };
+			const row = { v: 1, seatedAt: 1, ready: false, deck, seriesDeck: deck };
+			expect(routesMod.holdsSeriesDeck(row)).toBe(true);
+			expect(routesMod.holdsSeriesDeck({ ...row, seriesDeck: 'A' }), 'a registered deck persisted as text alone').toBe(true);
+			expect(routesMod.holdsSeriesDeck({ ...row, deck: { ...deck, text: 'B' } }), 'another deck').toBe(false);
+			expect(routesMod.holdsSeriesDeck({ ...row, deck: null }), 'no deck').toBe(false);
+			expect(routesMod.holdsSeriesDeck({ ...row, seriesDeck: null }), 'no series registered').toBe(false);
+			expect(routesMod.holdsSeriesDeck(undefined), 'a hold dropped by a format or mode change').toBe(false);
 		});
 	});
 });
@@ -3261,7 +3218,7 @@ describe('an All Random table', () => {
 		expect(dealt(h.specs[1]).ids, 'the Rematch keeps both decks').toEqual(game1.ids);
 	});
 
-	it('a Rematch between two players keeps both decks', async () => {
+	it('a Rematch between two players converts the Bo1 and keeps both decks', async () => {
 		const h = await boot();
 		room(
 			h,
@@ -3279,6 +3236,9 @@ describe('an All Random table', () => {
 		const game1 = dealt(h.specs[0]).ids;
 		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-bob' });
 		await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 3, wins: [0, 1], phase: 'sideboarding' });
 		await setReady(h, 'alice');
 		await setReady(h, 'bob');
 		expect((await startNext(h, { room: ROOM })).status).toBe(201);

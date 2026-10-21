@@ -1,27 +1,21 @@
 /**
- * Wave 71 §D, the operator's bo3 acceptance sentence:
+ * The smart Bo1 → Bo3 (`docs/planning/constructed-modes-plan.md`, ruling 5):
  *
- *   > bo3 just means that rematch is forced after a round ends.
+ *   > if players select rematch then the room is converted to a Bo3 and we
+ *   > send them to sideboarding, otherwise we record the match result as Bo1.
  *
- * API-driven, no new UI (the room screen's own bo3/sideboard controls are
- * wave 72's, built on this): every room, settings, deck and ready call here
- * goes straight to the HTTP API through each friend's own browser-context
- * identity, never through a form or a button that does not exist yet. Only
- * the MATCH board, the play-or-draw prompt and the concede button are
- * pressed — all three already shipped, used the same way `e2e/w31.spec.ts`
- * and `e2e/w69-rematch.spec.ts` use them.
+ * Rooms, decks and Ready go straight to the HTTP API through each friend's
+ * own browser-context identity; the match board, the result screen's Rematch,
+ * the play-or-draw prompt and the concede button are pressed.
  *
- * The sequence is the wave file's §Acceptance item 2, verbatim:
+ *   1. A Classic room. Game 1 ends by concede: a Bo1, done at 1-0.
+ *   2. Both press Rematch: the series is Bo3 in place, game 1 kept, 1-0, and
+ *      both screens open the sideboard step.
+ *   3. Both re-submit and ready up; game 2 starts at 1-0 with the LOSER of
+ *      game 1 asked play-or-draw.
+ *   4. A second concede by the same player ends the series 2-0 (`done`).
  *
- *   1. A room is set to `bo3`.
- *   2. Game 1 ends by concede, and the table goes to `sideboarding` with no
- *      Rematch press.
- *   3. Both players re-submit and ready up.
- *   4. Game 2 starts with the LOSER of game 1 asked play-or-draw — proof that
- *      lane E's `MatchSpec.chooser` reaches the bridge and rigs the toss.
- *   5. A second concede by the SAME player ends the series 2–0 (`phase: 'done'`).
- *
- * `[w71-bo3]` lines are the evidence: the series after each game, and the
+ * `[w71-bo3]` lines are the evidence: the series after each step, and the
  * seat asked play-or-draw.
  */
 
@@ -40,7 +34,7 @@ interface RoomTableLike {
     length: 1 | 3;
     wins: [number, number];
     games: { matchId: string; winner: 0 | 1 | null }[];
-    phase: 'seating' | 'playing' | 'sideboarding' | 'done';
+    phase: 'seating' | 'playing' | 'sideboarding' | 'between' | 'done';
   };
 }
 interface RoomViewLike {
@@ -51,11 +45,6 @@ interface RoomViewLike {
 async function post<T>(request: APIRequestContext, origin: string, path: string, data: unknown): Promise<T> {
   const res = await request.post(`${origin}${PREFIX}/api${path}`, { data });
   if (!res.ok()) throw new Error(`POST ${path} -> ${res.status()}: ${await res.text()}`);
-  return (await res.json()) as T;
-}
-async function patch<T>(request: APIRequestContext, origin: string, path: string, data: unknown): Promise<T> {
-  const res = await request.patch(`${origin}${PREFIX}/api${path}`, { data });
-  if (!res.ok()) throw new Error(`PATCH ${path} -> ${res.status()}: ${await res.text()}`);
   return (await res.json()) as T;
 }
 async function put<T>(request: APIRequestContext, origin: string, path: string, data: unknown): Promise<T> {
@@ -99,7 +88,7 @@ async function concede(f: Friend): Promise<void> {
   await f.page.getByTestId('live-concede-yes').click();
 }
 
-test(titled('a bo3 series: concede ends game 1 into sideboarding with no Rematch press; game 2 asks the loser play-or-draw; a second concede ends it 2-0'), async ({ browser }) => {
+test(titled('Classic Bo1 → Rematch: game 1 stays, the series is Bo3 at 1-0 in sideboarding; game 2 asks the loser play-or-draw; a second concede ends it 2-0'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(6 * 60_000);
@@ -114,15 +103,14 @@ test(titled('a bo3 series: concede ends game 1 into sideboarding with no Rematch
     await alice.page.goto(`${stack.origin}${PREFIX}/`);
     await bob.page.goto(`${stack.origin}${PREFIX}/`);
 
-    // 1. A room, set to bo3 — entirely through the API. A new room's own
-    // format is RANDOM (`room/lobby.ts`'s `randomFormat`), so the decks have
-    // to be picked for WHATEVER era this one actually got, not a fixed one.
+    // 1. A Classic room. A new room's own format is RANDOM (`room/lobby.ts`'s
+    // `randomFormat`), so the decks are picked for whatever era it got.
     const created = await post<{ id: string; format: string }>(alice.context.request, stack.origin, '/rooms', {
       name: `e2e w71-bo3 ${Date.now()}`,
       gameType: 'constructed-1v1',
+      mode: 'classic',
     });
     const roomId = created.id;
-    await patch(alice.context.request, stack.origin, `/rooms/${roomId}`, { settings: { matchLength: 'bo3' } });
     await post(bob.context.request, stack.origin, `/rooms/${roomId}/join`, {});
 
     const decks = await twoLegalDecksFor(alice.context.request, stack.origin, created.format);
@@ -141,21 +129,29 @@ test(titled('a bo3 series: concede ends game 1 into sideboarding with no Rematch
     await boardUp(bob.page);
     console.log(`[w71-bo3] game 1 started: ${game1.matchId}`);
 
-    // 2. Bob concedes: the table goes to `sideboarding` AT ONCE, no Rematch press.
+    // Bob concedes: a Bo1, done.
     await concede(bob);
     await expect(alice.page.getByTestId('game-result'), "alice's result screen").toBeVisible({ timeout: 45_000 });
     await expect(bob.page.getByTestId('game-result'), "bob's result screen").toBeVisible({ timeout: 45_000 });
 
-    const afterGame1 = await get<RoomViewLike>(alice.context.request, stack.origin, `/rooms/${roomId}`);
-    const table = afterGame1.tables[0]!;
-    console.log(`[w71-bo3] after game 1 (bob conceded): ${JSON.stringify(table.series)}`);
-    expect(table.matchId, 'no live match between games').toBeNull();
-    expect(table.series.phase, 'straight to sideboarding — no Rematch press happened').toBe('sideboarding');
-    expect(table.series.wins, 'alice (seat 0) won the game bob conceded').toEqual([1, 0]);
-    expect(table.series.games).toEqual([{ matchId: game1.matchId, winner: 0 }]);
+    const afterGame1 = (await get<RoomViewLike>(alice.context.request, stack.origin, `/rooms/${roomId}`)).tables[0]!;
+    console.log(`[w71-bo3] after game 1 (bob conceded): ${JSON.stringify(afterGame1.series)}`);
+    expect(afterGame1.matchId, 'no live match between games').toBeNull();
+    expect(afterGame1.series).toEqual({ length: 1, wins: [1, 0], games: [{ matchId: game1.matchId, winner: 0 }], phase: 'done' });
 
-    // 3. Both players re-submit (the same deck — a legal sideboard move of
-    // itself) and ready up, through the API, during `sideboarding`.
+    // 2. Both press Rematch: converted in place, and the sideboard step opens.
+    for (const f of [alice, bob]) await f.page.getByTestId('game-result-rematch').click();
+    for (const f of [alice, bob]) await expect(f.page.getByTestId('game-result-next'), 'the sideboard step is next').toBeVisible({ timeout: 30_000 });
+    const converted = (await get<RoomViewLike>(alice.context.request, stack.origin, `/rooms/${roomId}`)).tables[0]!;
+    console.log(`[w71-bo3] after Rematch: ${JSON.stringify(converted.series)}`);
+    expect(converted.series, 'Bo3, game 1 kept, 1-0, sideboarding').toEqual({
+      length: 3,
+      wins: [1, 0],
+      games: [{ matchId: game1.matchId, winner: 0 }],
+      phase: 'sideboarding',
+    });
+
+    // 3. Both re-submit (the same deck — a legal sideboard move of itself) and ready up.
     await loadAndReady(alice, decks[0]);
     await loadAndReady(bob, decks[1]);
 
@@ -173,6 +169,9 @@ test(titled('a bo3 series: concede ends game 1 into sideboarding with no Rematch
     await bob.page.getByTestId('live-play-or-draw-play').click();
     await boardUp(alice.page);
     await boardUp(bob.page);
+    const during = (await get<RoomViewLike>(alice.context.request, stack.origin, `/rooms/${roomId}`)).tables[0]!;
+    console.log(`[w71-bo3] during game 2: ${JSON.stringify(during.series)}`);
+    expect(during.series, 'game 2 of the same series, at 1-0').toMatchObject({ length: 3, wins: [1, 0], phase: 'playing' });
 
     // 5. Bob concedes AGAIN: the series ends 2-0, phase `done`.
     await concede(bob);
