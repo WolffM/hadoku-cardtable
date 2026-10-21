@@ -123,11 +123,13 @@ import {
 	ONLY_SACRIFICE,
 	onlyAnswer,
 	onlySacrifice,
+	owing,
 	PAY_MANA,
 	paymentCost,
 	PRIORITY,
 	readPromptFacts,
 	repeatedAbilityToPlay,
+	type Owed,
 	type Payment,
 	type PromptFacts,
 	type SeatNotes,
@@ -135,9 +137,9 @@ import {
 	type StopPolicy,
 	type StopWindow,
 } from './auto.js';
-import { answerPending, arrangeAsk, digAnswer, digAsk, pendingOrders, restOrder, sameCardsOrder, type PendingOrder } from './arrange.js';
+import { answerPending, arrangeAsk, digAnswer, digAsk, pendingOrders, restOrder, sameCardsOrder } from './arrange.js';
 import { eachTypeAsk, firstEachType, nextEachType, type EachTypeLeft } from './each-type.js';
-import { firstMode, modesAsk, nextMode, type ModesLeft } from './modes.js';
+import { firstMode, modesAsk, nextMode } from './modes.js';
 import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
 import { artOf } from './art.js';
 import { fallbackFor, type Fallback } from './unparsed.js';
@@ -573,26 +575,20 @@ export interface SeatState {
 	 */
 	mergedChoice: Map<string, { chooseCallId: string; keyByRef: Map<string, string> }>;
 	/**
-	 * The groups a one-prompt scry, surveil or dig ordered, in the player's
-	 * order, until Forge's own later questions about them arrive and are
-	 * answered with them (`./arrange.ts`). Cleared by the first ask that is none of them.
+	 * What a one-prompt reply still owes Forge's later questions — a scry's, surveil's or dig's
+	 * groups (`./arrange.ts`), a modal spell's modes (`./modes.ts`). Cleared by the first ask it does not answer.
 	 */
-	pendingOrders: PendingOrder[];
-	/** A `Dig`'s question shown as one `order` (`./arrange.ts`'s `digAsk`), by callId: the question Forge asked. */
-	digFolds: Map<string, Extract<ServerFrame, { kind: 'ask'; method: 'chooseEntitiesForEffect' }>>;
-	/** A per-type pick's first type question shown as one `order` (`./each-type.ts`'s `eachTypeAsk`), by callId: the question Forge asked. */
-	typeFolds: Map<string, Extract<ServerFrame, { kind: 'ask'; method: 'getChoices' }>>;
+	owed: Owed | null;
+	/**
+	 * Forge's question behind an ask shown as one `order`, by callId: a `Dig`'s (`./arrange.ts`'s
+	 * `digAsk`) or a per-type pick's first type question (`./each-type.ts`'s `eachTypeAsk`).
+	 */
+	folds: Map<string, Extract<ServerFrame, { kind: 'ask'; method: 'chooseEntitiesForEffect' | 'getChoices' }>>;
 	/**
 	 * What a per-type pick's one reply still owes Forge's later type and card questions
 	 * (`./each-type.ts`). Cleared by the next ask it does not answer.
 	 */
 	eachTypeLeft: EachTypeLeft | null;
-	/**
-	 * The modes a modal spell's one prompt picked that Forge has not asked for
-	 * yet, until its later mode questions arrive and are answered with them
-	 * (`./modes.ts`). Cleared by the next ask either way.
-	 */
-	modesLeft: ModesLeft | null;
 	/**
 	 * Half of a window a decider can answer, held until the other half
 	 * arrives so the window is decided before either reaches the wire. A
@@ -1212,11 +1208,9 @@ export class Match {
 			pendingReveal: null,
 			behindReveal: [],
 			mergedChoice: new Map(),
-			pendingOrders: [],
-			digFolds: new Map(),
-			typeFolds: new Map(),
+			owed: null,
+			folds: new Map(),
 			eachTypeLeft: null,
-			modesLeft: null,
 			pendingPrompt: null,
 			pendingButtons: null,
 			pendingTimer: null,
@@ -1802,8 +1796,9 @@ export class Match {
 				if (named !== undefined && !(frame.result as string[]).every((name) => named.includes(name))) {
 					return { ok: false, error: 'reply names a card that was not offered' };
 				}
-				const dig = s.digFolds.get(frame.callId);
-				const typeFold = s.typeFolds.get(frame.callId);
+				const fold = s.folds.get(frame.callId);
+				const dig = fold?.method === 'chooseEntitiesForEffect' ? fold : undefined;
+				const typeFold = fold?.method === 'getChoices' ? fold : undefined;
 				// A per-type pick's one sheet: Forge is sent the first type, and its later type and
 				// card questions wait for the same reply (`./each-type.ts`).
 				const eachType =
@@ -1863,7 +1858,7 @@ export class Match {
 				if (frame.method === 'order' && ask.frame.kind === 'ask' && ask.frame.method === 'order' && ask.frame.rest !== undefined) {
 					const reply = frame.result as { ordered: string[]; rememberDecision: boolean; rest?: string[] };
 					const rest = restOrder(ask.frame, reply);
-					s.pendingOrders = pendingOrders(ask.frame, reply, dig !== undefined);
+					s.owed = owing('the order the one scry, surveil or dig prompt already gave', pendingOrders(ask.frame, reply, dig !== undefined), answerPending);
 					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: dig === undefined ? frame.method : 'chooseEntitiesForEffect (one order with the dig\'s rest)', ms: this.now() - ask.sentAt, ...about, rest });
 					const result = dig === undefined ? { ordered: reply.ordered, rememberDecision: reply.rememberDecision } : digAnswer(dig, reply);
 					this.command({ t: 'reply', seat, callId: frame.callId, result });
@@ -1873,7 +1868,7 @@ export class Match {
 				// wait for its later mode questions (`./modes.ts`).
 				if (frame.method === 'getChoices' && ask.frame.kind === 'ask' && ask.frame.method === 'getChoices' && ask.frame.modes !== undefined) {
 					const first = firstMode(ask.frame, frame.result as string[]);
-					s.modesLeft = first.left;
+					s.owed = owing('the modes the modal spell prompt already picked', first.left, nextMode);
 					this.deps.log({ evt: 'ask-answered', matchId: this.id, seat, callId: frame.callId, method: frame.method, ms: this.now() - ask.sentAt, ...about, modes: frame.result });
 					this.command({ t: 'reply', seat, callId: frame.callId, result: first.result });
 					return { ok: true };
@@ -2290,16 +2285,7 @@ export class Match {
 				if (ids.length > 0 && this.justDiscarded !== null && sameCardSet(ids, this.justDiscarded.ids)) {
 					clearTimeout(this.justDiscarded.timer);
 					this.justDiscarded = null;
-					s.autoAnswered += 1;
-					this.deps.log({
-						evt: 'ask-auto-answered',
-						matchId: this.id,
-						seat: s.seat,
-						callId: frame.callId,
-						method: frame.method,
-						why: 'reveals exactly what a discard choice just took — no confirmation needed (R4)',
-					});
-					this.command({ t: 'reply', seat: s.seat, callId: frame.callId, result: [] });
+					this.autoReply(s, frame.callId, frame.method, 'reveals exactly what a discard choice just took — no confirmation needed (R4)', []);
 					return;
 				}
 				if (s.pendingReveal !== null) {
@@ -2320,16 +2306,7 @@ export class Match {
 				}, PENDING_REVEAL_FOLD_MS);
 				timer.unref();
 				s.pendingReveal = { frame: reveal, timer };
-				s.autoAnswered += 1;
-				this.deps.log({
-					evt: 'ask-auto-answered',
-					matchId: this.id,
-					seat: s.seat,
-					callId: frame.callId,
-					method: frame.method,
-					why: 'a reveal — its one legal answer, held a moment for a possible R4 fold',
-				});
-				this.command({ t: 'reply', seat: s.seat, callId: frame.callId, result: [] });
+				this.autoReply(s, frame.callId, frame.method, 'a reveal — its one legal answer, held a moment for a possible R4 fold', []);
 				return;
 			}
 			const pending = s.pendingReveal;
@@ -3374,8 +3351,7 @@ export class Match {
 
 	private closeAsk(s: SeatState, callId: string): void {
 		s.asks.delete(callId);
-		s.digFolds.delete(callId);
-		s.typeFolds.delete(callId);
+		s.folds.delete(callId);
 		this.checkWaitingOn();
 	}
 
@@ -3420,6 +3396,13 @@ export class Match {
 		this.checkWaitingOn();
 	}
 
+	/** Answer an ask the seat is never shown, and log why. */
+	private autoReply(s: SeatState, callId: string, method: string, why: string, result: unknown): void {
+		s.autoAnswered += 1;
+		this.deps.log({ evt: 'ask-auto-answered', matchId: this.id, seat: s.seat, callId, method, why });
+		this.command({ t: 'reply', seat: s.seat, callId, result });
+	}
+
 	/**
 	 * Register and show one ask, after Forge's own re-ask shortcut and "one
 	 * legal reply is not a question" have each had a chance to answer it first
@@ -3431,58 +3414,25 @@ export class Match {
 	 * it here is complete, not a partial duplicate.
 	 */
 	private openAsk(s: SeatState, offered: Extract<ServerFrame, { kind: 'ask' }>): void {
-		const pending = answerPending(offered, s.pendingOrders);
-		s.pendingOrders = pending?.left ?? [];
-		if (pending !== null) {
-			s.autoAnswered += 1;
-			this.deps.log({
-				evt: 'ask-auto-answered',
-				matchId: this.id,
-				seat: s.seat,
-				callId: offered.callId,
-				method: offered.method,
-				why: 'the order the one scry, surveil or dig prompt already gave',
-			});
-			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: pending.result });
+		const owed = s.owed;
+		s.owed = null;
+		const paid = owed?.answer(offered) ?? null;
+		if (paid !== null) {
+			s.owed = paid.owed;
+			this.autoReply(s, offered.callId, offered.method, owed!.why, paid.result);
 			return;
 		}
-		const owed = s.eachTypeLeft;
+		const eachTypeOwed = s.eachTypeLeft;
 		s.eachTypeLeft = null;
-		const typeAnswer = owed === null ? null : nextEachType(offered, owed);
+		const typeAnswer = eachTypeOwed === null ? null : nextEachType(offered, eachTypeOwed);
 		if (typeAnswer !== null) {
 			s.eachTypeLeft = typeAnswer.left;
-			s.autoAnswered += 1;
-			this.deps.log({
-				evt: 'ask-auto-answered',
-				matchId: this.id,
-				seat: s.seat,
-				callId: offered.callId,
-				method: offered.method,
-				why: 'the cards the one per-type prompt already picked',
-			});
-			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: typeAnswer.result });
-			return;
-		}
-		const modes = s.modesLeft;
-		s.modesLeft = null;
-		const modeAnswer = modes === null ? null : nextMode(offered, modes);
-		if (modeAnswer !== null) {
-			s.modesLeft = modeAnswer.left;
-			s.autoAnswered += 1;
-			this.deps.log({
-				evt: 'ask-auto-answered',
-				matchId: this.id,
-				seat: s.seat,
-				callId: offered.callId,
-				method: offered.method,
-				why: 'the modes the modal spell prompt already picked',
-			});
-			this.command({ t: 'reply', seat: s.seat, callId: offered.callId, result: modeAnswer.result });
+			this.autoReply(s, offered.callId, offered.method, 'the cards the one per-type prompt already picked', typeAnswer.result);
 			return;
 		}
 		const sheet = eachTypeAsk(offered);
 		if (sheet !== null && offered.method === 'getChoices') {
-			s.typeFolds.set(offered.callId, offered);
+			s.folds.set(offered.callId, offered);
 			this.openAskFrame(s, offered.callId, sheet.method, sheet);
 			return;
 		}
@@ -3493,15 +3443,6 @@ export class Match {
 		const policy = s.fullControl ? FULL_CONTROL_POLICY : s.policy;
 		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (clicked ? null : (onlyAnswer(frame, policy) ?? sameCardsOrder(frame)));
 		if (auto !== null) {
-			s.autoAnswered += 1;
-			this.deps.log({
-				evt: 'ask-auto-answered',
-				matchId: this.id,
-				seat: s.seat,
-				callId: auto.callId,
-				method: auto.method,
-				why: auto.why,
-			});
 			// `chosenAbility` only for an offer the seat's own click opened (the same ability it chose
 			// on its last click of this card): an ability the server played (a trigger, an effect's
 			// cast) is not one the seat chose, and Forge's re-ask inside one activation is that choice already.
@@ -3512,12 +3453,12 @@ export class Match {
 			// Wave 35 §S, R4 — a discard choice Forge left only one legal reply for
 			// (`onlyAnswer`'s own "one option") still owes its later echo nothing.
 			if (frame.method === 'getChoices' && frame.min > 0) this.noteDiscardChoice(frame.choices, auto.result as string[]);
-			this.command({ t: 'reply', seat: s.seat, callId: auto.callId, result: auto.result });
+			this.autoReply(s, auto.callId, auto.method, auto.why, auto.result);
 			return;
 		}
 		const folded = digAsk(frame);
 		if (folded !== null && frame.method === 'chooseEntitiesForEffect') {
-			s.digFolds.set(frame.callId, frame);
+			s.folds.set(frame.callId, frame);
 			this.openAskFrame(s, frame.callId, folded.method, folded);
 			return;
 		}

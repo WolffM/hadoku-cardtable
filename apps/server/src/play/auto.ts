@@ -163,6 +163,27 @@ export interface AutoAnswer {
 	why: string;
 }
 
+/**
+ * What one prompt's reply still owes Forge's later questions (a scry's groups, a modal spell's
+ * modes): `answer` replies to the next of them, or is null when `frame` is none of them.
+ */
+export interface Owed {
+	why: string;
+	answer(frame: Extract<ServerFrame, { kind: 'ask' }>): { result: unknown; owed: Owed | null } | null;
+}
+
+/** An {@link Owed} from what is `left` of a reply and how one later question is answered from it; null when nothing is left. */
+export function owing<L>(why: string, left: L | null, next: (frame: Extract<ServerFrame, { kind: 'ask' }>, left: L) => { result: unknown; left: L | null } | null): Owed | null {
+	if (left === null) return null;
+	return {
+		why,
+		answer: (frame) => {
+			const paid = next(frame, left);
+			return paid === null ? null : { result: paid.result, owed: owing(why, paid.left, next) };
+		},
+	};
+}
+
 function ok(callId: string, method: string, result: unknown, why: string): AutoAnswer | null {
 	// A malformed auto-answer must never reach the bridge: it would be refused a
 	// hop later with no player to blame. Fall through to asking instead.
