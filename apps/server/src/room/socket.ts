@@ -328,7 +328,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 						return;
 					}
 					const room = rooms.open(msg.draftId);
-					const outcome = joinDraftRoom(room, socket.id, participantId, tier, rooms.seatsArrivals(room.roomId));
+					const outcome = joinDraftRoom(room, socket.id, participantId, tier, rooms.drafters(room.roomId));
 					log({
 						evt: 'join',
 						participantId,

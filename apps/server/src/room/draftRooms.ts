@@ -298,13 +298,14 @@ export interface DraftRooms {
 	 */
 	setHumansLookup(lookup: (draftId: string) => readonly HumanSeat[]): void;
 	/**
-	 * Whether a `join` from someone holding no seat here takes one — evicting a
-	 * bot. Only for a draft nobody sat in (the lookup answers `[]`). A pod dealt
-	 * to the members who sat takes nobody else: the rest of the room watches
-	 * (the operator, 2026-10-19: *"a member who never sat is watching"*; and
-	 * 2026-10-20, on watching a draft).
+	 * The members a pod was dealt to, with their names — `joinDraftRoom`'s say in
+	 * who sits and what their seat is called. Empty for a draft nobody sat in,
+	 * where a `join` from someone holding no seat takes one, evicting a bot. A
+	 * pod dealt to the members who sat takes nobody else: the rest of the room
+	 * watches (the operator, 2026-10-19: *"a member who never sat is watching"*;
+	 * and 2026-10-20, on watching a draft).
 	 */
-	seatsArrivals(draftId: string): boolean;
+	drafters(draftId: string): readonly HumanSeat[];
 	/** How a new draft is dealt (`room/lobby.ts`'s `podDraft`): its seat count, and its bots' names. Unwired, the params' seats and `Bot <seat>`. */
 	setPodLookup(lookup: (draftId: string) => PodDeal | null): void;
 }
@@ -604,8 +605,8 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		setHumansLookup(lookup) {
 			humansLookup = lookup;
 		},
-		seatsArrivals(draftId) {
-			return humansLookup(draftId).length === 0;
+		drafters(draftId) {
+			return humansLookup(draftId);
 		},
 		setPodLookup(lookup) {
 			podLookup = lookup;
@@ -716,12 +717,6 @@ function bumpSeq(state: DraftState): void {
 	state.seq += 1;
 }
 
-function nameSeat(state: DraftState, seat: SeatId, participantId: ParticipantId): void {
-	// The digest handle, never the friend key and never the edge's `X-User-Id`.
-	// This string goes to every other seat in the pod.
-	state.displayNames[seat] = participantHandle(participantId);
-}
-
 export interface JoinOutcome {
 	client: ClientMeta<DraftClient>;
 	/** Where they ended up, or null when the pod is full of people. */
@@ -738,13 +733,18 @@ export interface JoinOutcome {
  * moved. A re-join from a participant who is already seated is idempotent all
  * the way down — `seatParticipant` returns the seat they are in — so a
  * reconnect does not renumber the table.
+ *
+ * A pod's drafter is called by their name in the pod, whenever they sit: a
+ * seat reclaimed after a restart was renamed to the participant handle, and
+ * the pod lost every name (the operator, 2026-10-20: *"our names died?"*). A
+ * seat already wearing the handle takes the name on the next join.
  */
 export function joinDraftRoom(
 	room: DraftRoom,
 	clientId: string,
 	participantId: ParticipantId,
 	tier: string,
-	seatsArrivals = true,
+	drafters: readonly HumanSeat[] = [],
 ): JoinOutcome {
 	const state = stateOf(room);
 	// Back inside the grace: they never left the seat, so there is nothing to
@@ -752,15 +752,19 @@ export function joinDraftRoom(
 	cancelVacate(room, participantId);
 	const before = seatOf(room.seats, participantId);
 	const drafted = before !== null || room.seats.remembered[participantId] !== undefined;
-	if (!seatsArrivals && !drafted) return { client: watchRoom(room, clientId, participantId, tier), seat: null, changed: false };
+	if (drafters.length > 0 && !drafted) return { client: watchRoom(room, clientId, participantId, tier), seat: null, changed: false };
 	const client = joinRoom<DraftApp, DraftClient>(room, clientId, clientId, participantId, () => ({
 		tier,
 		watching: null,
 	}));
 	const seat = seatOf(room.seats, participantId);
-	const changed = seat !== before;
+	const name = drafters.find((h) => h.participantId === participantId)?.displayName ?? null;
+	const renamed = seat !== null && name !== null && state.displayNames[seat] !== name;
+	const changed = seat !== before || renamed;
 	if (seat !== null && changed) {
-		nameSeat(state, seat, participantId);
+		// Without a name in the pod, the digest handle — never the friend key and
+		// never the edge's `X-User-Id`. This string goes to every other seat.
+		state.displayNames[seat] = name ?? participantHandle(participantId);
 		bumpSeq(state);
 		room.app.persist(room);
 	}

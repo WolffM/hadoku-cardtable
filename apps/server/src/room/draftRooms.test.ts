@@ -260,12 +260,12 @@ describe('a pod dealt to the members who sat', () => {
 		const r = rooms();
 		r.setHumansLookup((draftId) => (draftId === 'pod-sat' ? [{ participantId: ALICE, displayName: 'Alice' }] : []));
 		const room = r.open('pod-sat');
-		expect(r.seatsArrivals('pod-sat')).toBe(false);
+		expect(r.drafters('pod-sat')).toHaveLength(1);
 		const seq = stateOf(room).seq;
 
-		const alice = joinDraftRoom(room, 'sock-a', ALICE, 'friend', r.seatsArrivals('pod-sat'));
+		const alice = joinDraftRoom(room, 'sock-a', ALICE, 'friend', r.drafters('pod-sat'));
 		expect(alice.seat).toBe(0);
-		const carol = joinDraftRoom(room, 'sock-c', CAROL, 'friend', r.seatsArrivals('pod-sat'));
+		const carol = joinDraftRoom(room, 'sock-c', CAROL, 'friend', r.drafters('pod-sat'));
 		expect(carol.seat).toBeNull();
 		expect(carol.changed).toBe(false);
 		expect(humanSeats(room.seats)).toEqual([{ id: 0, participantId: ALICE }]);
@@ -278,14 +278,37 @@ describe('a pod dealt to the members who sat', () => {
 		expect(viewForClient(room, carol.client).viewer).toMatchObject({ kind: 'watcher', seatId: 3 });
 
 		// A drafter coming back still gets their seat.
-		const back = joinDraftRoom(room, 'sock-a2', ALICE, 'friend', r.seatsArrivals('pod-sat'));
+		const back = joinDraftRoom(room, 'sock-a2', ALICE, 'friend', r.drafters('pod-sat'));
 		expect(back.seat).toBe(0);
 	});
 
 	it('a draft nobody sat in still seats whoever joins', () => {
 		const r = rooms();
-		r.open('pod-open');
-		expect(r.seatsArrivals('pod-open')).toBe(true);
+		const room = r.open('pod-open');
+		expect(r.drafters('pod-open')).toEqual([]);
+		expect(joinDraftRoom(room, 'sock-c', CAROL, 'friend', r.drafters('pod-open')).seat).not.toBeNull();
+	});
+
+	// The operator, 2026-10-20, after a restart mid-draft: "our names died?"
+	it("keeps a drafter's name through a seat released and reclaimed, and mends a seat already renamed", () => {
+		const r = rooms();
+		r.setHumansLookup((draftId) => (draftId === 'pod-sat' ? [{ participantId: ALICE, displayName: 'Alice' }] : []));
+		const room = r.open('pod-sat');
+		expect(stateOf(room).displayNames[0]).toBe('Alice');
+
+		joinDraftRoom(room, 'sock-a', ALICE, 'friend', r.drafters('pod-sat'));
+		expect(releaseSeat(room, ALICE)).toBe(true);
+		const back = joinDraftRoom(room, 'sock-a2', ALICE, 'friend', r.drafters('pod-sat'));
+		expect(back).toMatchObject({ seat: 0, changed: true });
+		expect(stateOf(room).displayNames[0]).toBe('Alice');
+
+		// A pod saved with the handle in place of the name takes the name on the next join, and says so.
+		stateOf(room).displayNames[0] = 'f00dfee';
+		const seq = stateOf(room).seq;
+		const mended = joinDraftRoom(room, 'sock-a3', ALICE, 'friend', r.drafters('pod-sat'));
+		expect(mended).toMatchObject({ seat: 0, changed: true });
+		expect(stateOf(room).displayNames[0]).toBe('Alice');
+		expect(stateOf(room).seq).toBe(seq + 1);
 	});
 });
 
