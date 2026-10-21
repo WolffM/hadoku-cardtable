@@ -607,6 +607,48 @@ export function inOwnMain(s: Scenario, seat: number, n: number): boolean {
 }
 
 /**
+ * The bar of the seat's CURRENT prompt: the last `updateButtons` its wire carried after its last
+ * `showPromptMessage`, or null while that bar is still on its way. A prompt and its bar are two
+ * frames, and `Scenario.buttons` is whatever bar came last — on a busy claw, the previous window's,
+ * read in the instant between them (scenario-combat's Juggernaut window read the priority bar's
+ * disabled OK). Only for a window whose bar follows its prompt, as every Forge input that rewrites
+ * its prompt sends them (`InputAttack.updateMessage`, `InputPassPriority.showNormalPrompt`).
+ */
+export function promptBar(s: Scenario, seat: number): Buttons | null {
+	for (let i = s.sent.length - 1; i >= 0; i--) {
+		const x = s.sent[i]!;
+		if (x.seat !== seat) continue;
+		if (x.envelope.frame.method === 'updateButtons') return x.envelope.frame as unknown as Buttons;
+		if (x.envelope.frame.method === 'showPromptMessage') return null;
+	}
+	return null;
+}
+
+/**
+ * Press the seat's own Main 1 stop once and wait for Forge's live declare-attackers window — its
+ * prompt and the bar `InputAttack` sends after it, both on the seat's wire. Never presses inside the
+ * window itself.
+ */
+export async function toDeclareAttackers(s: Scenario, seat: number): Promise<void> {
+	let pressedMain1 = false;
+	await waitUntil(
+		() => {
+			s.answerAsks();
+			const msg = s.prompt(seat);
+			if (/^Select creatures to attack/.test(msg)) return promptBar(s, seat) !== null;
+			if (!pressedMain1 && /^Priority:/.test(msg) && MAIN1.test(msg) && promptBar(s, seat)?.enable1 === true) {
+				pressedMain1 = true;
+				s.ok(seat);
+			}
+			return false;
+		},
+		"Forge's live declare-attackers window to open",
+		20_000,
+		s,
+	);
+}
+
+/**
  * Whether the seat's own policy STOPS it at this window — the only windows a
  * driver may press OK in, because every other one is passed by the server itself
  * and a second press would skip the stop after it. A phase that stops only for a

@@ -27,7 +27,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, castNamed, deck, finishMulligan, inOwnMain, landPayer, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, castNamed, deck, finishMulligan, inOwnMain, landPayer, startScenario, toDeclareAttackers, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'damage-hits: a sweeper’s hits reach both seats, killed creatures included, against real Forge'
@@ -152,17 +152,7 @@ describe.skipIf(!available.ok)(title, () => {
 				}, 'the scenario’s Bears and Jace on the battlefield', 30_000, s);
 				const bears = s.zone(0, 'Battlefield').find((c) => c.name === 'Grizzly Bears')!;
 				const jace = s.zone(1, 'Battlefield').find((c) => c.name === 'Jace Beleren')!;
-				let pressedMain1 = false;
-				await waitUntil(() => {
-					s.answerAsks();
-					if (/^Select creatures to attack/.test(s.prompt(0))) return true;
-					const msg = s.prompt(0);
-					if (!pressedMain1 && /^Priority:/.test(msg) && /Main phase, precombat/.test(msg) && s.buttons(0)?.enable1 === true) {
-						pressedMain1 = true;
-						s.ok(0);
-					}
-					return false;
-				}, 'Forge’s declare-attackers window to open', 20_000, s);
+				await toDeclareAttackers(s, 0);
 				// Jace first, as the defender (`InputAttack.java:225-230`), then the Bears at it.
 				s.select(0, jace.id);
 				s.select(0, bears.id);

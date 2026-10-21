@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, forgeFrames, scenarioText, startScenario, timeline, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, forgeFrames, promptBar, scenarioText, startScenario, timeline, toDeclareAttackers, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'the live declare-attackers window, set up by a scenario, against real Forge'
@@ -47,28 +47,11 @@ describe.skipIf(!available.ok)(title, () => {
 				).then(() => s.zone(0, 'Battlefield').find((c) => c.creature));
 				if (memnite === undefined) throw new Error('no attack-ready creature on seat 0’s battlefield');
 
-				// Press seat 0's own Main Phase 1 priority stop, ONCE, to let the
-				// normal main loop advance into combat — never touching the live
-				// declare-attackers prompt once it opens (checked first, each tick).
-				let pressedMain1 = false;
-				await waitUntil(
-					() => {
-						s.answerAsks();
-						if (/^Select creatures to attack/.test(s.prompt(0))) return true;
-						const msg = s.prompt(0);
-						if (!pressedMain1 && /^Priority:/.test(msg) && /Main phase, precombat/.test(msg) && s.buttons(0)?.enable1 === true) {
-							pressedMain1 = true;
-							s.ok(0);
-						}
-						return false;
-					},
-					"Forge's live declare-attackers window to open",
-					20_000,
-				);
+				await toDeclareAttackers(s, 0);
 
 				// The precondition: this is the LIVE input, not a GameState shortcut —
 				// nothing is declared yet, so "Call Back" cannot be showing already.
-				expect(s.buttons(0)?.label2, 'the window opened with an attacker already declared — not the claim under test').not.toBe('Call Back');
+				expect(promptBar(s, 0)?.label2, 'the window opened with an attacker already declared — not the claim under test').not.toBe('Call Back');
 
 				// Click the creature: declares it as an attacker.
 				s.select(0, memnite.id);
@@ -118,21 +101,7 @@ describe.skipIf(!available.ok)(title, () => {
 					20_000,
 				).then(() => s.zone(0, 'Battlefield').find((c) => c.creature));
 				if (memnite === undefined) throw new Error('no attack-ready creature on seat 0’s battlefield');
-				let pressedMain1 = false;
-				await waitUntil(
-					() => {
-						s.answerAsks();
-						if (/^Select creatures to attack/.test(s.prompt(0))) return true;
-						const msg = s.prompt(0);
-						if (!pressedMain1 && /^Priority:/.test(msg) && /Main phase, precombat/.test(msg) && s.buttons(0)?.enable1 === true) {
-							pressedMain1 = true;
-							s.ok(0);
-						}
-						return false;
-					},
-					"Forge's live declare-attackers window to open",
-					20_000,
-				);
+				await toDeclareAttackers(s, 0);
 				s.select(0, memnite.id);
 				await waitUntil(
 					() => {
@@ -186,24 +155,9 @@ describe.skipIf(!available.ok)(title, () => {
 				);
 				const juggernaut = s.zone(0, 'Battlefield').find((c) => c.name === 'Juggernaut')!;
 				const bears = s.zone(0, 'Battlefield').find((c) => c.name === 'Grizzly Bears')!;
-				let pressedMain1 = false;
-				await waitUntil(
-					() => {
-						s.answerAsks();
-						const msg = s.prompt(0);
-						if (/^Select creatures to attack/.test(msg)) return true;
-						if (!pressedMain1 && /^Priority:/.test(msg) && /Main phase, precombat/.test(msg) && s.buttons(0)?.enable1 === true) {
-							pressedMain1 = true;
-							s.ok(0);
-						}
-						return false;
-					},
-					"Forge's declare-attackers window to open",
-					20_000,
-					s,
-				);
+				await toDeclareAttackers(s, 0);
 				say('opened');
-				expect(s.buttons(0)?.enable1, 'Forge enables its OK').toBe(true);
+				expect(promptBar(s, 0)?.enable1, 'Forge enables its OK').toBe(true);
 
 				// What Forge does with the press: PhaseHandler finds the declaration invalid and asks again.
 				const linesBeforeRefusedOk = s.lines.length;
