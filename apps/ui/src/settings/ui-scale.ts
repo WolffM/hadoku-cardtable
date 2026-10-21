@@ -94,6 +94,18 @@ export function scaleRootOf(node: Node): HTMLElement {
   return node.ownerDocument?.documentElement ?? document.documentElement;
 }
 
+/**
+ * A length a component computes with, authored in px at 100% as its stylesheet would be, as the
+ * stylesheets draw it now: times the scale on `node`'s root. Every px constant a layout measures
+ * against reads through this, so it follows the slider with the CSS it stands beside.
+ */
+export function uiPx(px: number, node?: Node | null): number {
+  const at = node ?? (typeof document === 'undefined' ? null : document.documentElement);
+  if (at == null) return px;
+  const scale = parseFloat(getComputedStyle(scaleRootOf(at)).getPropertyValue('--ui-scale'));
+  return Number.isFinite(scale) && scale > 0 ? px * scale : px;
+}
+
 /** Write the scale on `root`; at 1 nothing is written, and the stylesheet's own default stands. */
 export function applyUiScale(root: HTMLElement, scale: number): void {
   const value = clampUiScale(scale);

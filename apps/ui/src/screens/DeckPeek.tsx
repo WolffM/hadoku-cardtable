@@ -35,6 +35,7 @@ import { ManaCost } from '../components/ManaPip.tsx';
 import type { DeckColor } from '@hadoku/deck';
 import type { DeckStyle } from '@hadoku/deck/library';
 
+import { uiPx } from '../settings/ui-scale.ts';
 import { DeckStyleTag } from './DeckStyleTag.tsx';
 
 /** One line of a list, with what the peek sorts and draws it by. */
@@ -146,6 +147,7 @@ export interface PeekHover<K> {
 }
 
 const GAP = 8;
+/** A list line's height at 100%, as `.peek__line` draws it. */
 const LINE_PX = 18;
 /** The rows a list column takes before the main deck splits into two. */
 const ROWS_RESERVED = 5;
@@ -240,7 +242,7 @@ export function DeckPeek({
   const { spells, free } = peekOrder(list.main);
   const mainLines = [...spells, ...free];
   // One column when the main deck fits the screen's height, two when it does not.
-  const rows = Math.max(8, Math.floor(bounds.height / LINE_PX) - ROWS_RESERVED);
+  const rows = Math.max(8, Math.floor(bounds.height / uiPx(LINE_PX, host.current)) - ROWS_RESERVED);
   const split = mainLines.length > rows ? Math.ceil(mainLines.length / 2) : mainLines.length;
   const columns = split < mainLines.length ? [mainLines.slice(0, split), mainLines.slice(split)] : [mainLines];
   const faces = [...new Map([...list.main, ...list.sideboard].map((l) => [l.name, l.face])).values()];
