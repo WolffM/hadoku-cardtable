@@ -53,7 +53,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties } fr
 
 import type { DraftCard, ManaColor } from '../draft/types.ts';
 import { groupCards, type GroupBy, type GroupId } from '../deck/cardOrder.ts';
-import { DropArea, startCardDrag, type Area } from '../deck/dragMove.tsx';
+import { DropArea, startCardDrag, useCardSplit, type Area } from '../deck/dragMove.tsx';
 import { CardTile } from './CardTile.tsx';
 import { PILE_PEEK, columnsOf, cssPx, fitPiles, outerHeight, useBox } from './cardFit.ts';
 import { ColorSymbol, type ColorSymbolId } from './ColorSymbol.tsx';
@@ -123,6 +123,9 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
     [measure],
   );
 
+  // The whole pool takes a drop: a pick let go anywhere off its own area moves to the other.
+  const split = useCardSplit((cardId, to) => onMove?.(cardId, to));
+
   const side = new Set((sideboard ?? []).map((c) => c.cardId));
   const groups = groupCards(
     cards.filter((c) => !side.has(c.cardId)),
@@ -179,7 +182,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
   );
 
   return (
-    <section className="pool" data-testid="pool" data-group-by={groupBy} aria-label="Your picked pool">
+    <section className="pool" data-testid="pool" data-group-by={groupBy} aria-label="Your picked pool" {...(onMove === undefined ? {} : split.handlers)}>
       <header className="pool__head">
         <h2 className="pool__title">
           {owner === null ? 'Your pool' : `${owner}'s pool`} <span data-testid="pool-count">{cards.length}</span>
@@ -229,10 +232,10 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
             groups.map(([id, bucket], at) => pile(id, bucket, at, 'deck'))
           ) : (
             <>
-              <DropArea area="deck" onDropKey={(id) => onMove(id, 'deck')} className="pool__main" testid="pool-main">
+              <DropArea area="deck" over={split.over} className="pool__main" testid="pool-main">
                 {groups.map(([id, bucket], at) => pile(id, bucket, at, 'deck'))}
               </DropArea>
-              <DropArea area="pool" onDropKey={(id) => onMove(id, 'pool')} className="pool__sideboard" testid="pool-sideboard">
+              <DropArea area="pool" over={split.over} className="pool__sideboard" testid="pool-sideboard">
                 {pile('side', sideboard ?? [], groups.length, 'pool')}
               </DropArea>
             </>

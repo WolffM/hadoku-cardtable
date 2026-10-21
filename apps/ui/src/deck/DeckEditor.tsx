@@ -72,7 +72,7 @@ import { ColorSymbol } from '../components/ColorSymbol.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { cardRequestOf, deckFromPool, dckTextOf, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
 import type { DraftCard, ManaColor } from '../draft/types.ts';
-import { DropArea, startCardDrag, type Area } from './dragMove.tsx';
+import { DropArea, startCardDrag, useCardSplit, type Area } from './dragMove.tsx';
 import { cardHeightOf, columnsOf, cssPx, gridAt, largestCard, outerHeight, pilesAt, useBox } from '../components/cardFit.ts';
 import { MV_CAP, groupCards, isCreatureFace, isLandFace, sortCards, type SortKey } from './cardOrder.ts';
 import { cardIndex, draftedSeat, mainSummary, namedCardPool, suggestBasics } from './build.ts';
@@ -256,6 +256,7 @@ export function DeckEditor({
     if (to === 'deck') toMain(tile);
     else toSide(tile);
   };
+  const split = useCardSplit((key, to) => dropOnto(to, key));
   const setBasic = (c: ManaColor, count: number): void => setDeck((d) => setBasicLand(d, basicLand(BASIC_OF[c]), Math.max(0, count)));
   const autoBasics = (): void =>
     setDeck((d) => {
@@ -413,8 +414,9 @@ export function DeckEditor({
       ref={host}
       data-fit={fit === null ? undefined : ''}
       style={fit === null ? undefined : ({ '--cw': `${fit.cardW}px` } as CSSProperties)}
+      {...split.handlers}
     >
-      <DropArea area="pool" onDropKey={(k) => dropOnto('pool', k)} className="deck-editor__pool" testid="pool-area">
+      <DropArea area="pool" over={split.over} className="deck-editor__pool" testid="pool-area">
         <div className="deck-editor__bar">
           <span className="deck-editor__n" data-testid="side-count" title="pool">
             {sideboardSize(deck)}
@@ -484,7 +486,7 @@ export function DeckEditor({
         </div>
       </DropArea>
 
-      <DropArea area="deck" onDropKey={(k) => dropOnto('deck', k)} className="deck-editor__deck" testid="deck-area">
+      <DropArea area="deck" over={split.over} className="deck-editor__deck" testid="deck-area">
         <div className="deck-editor__bar">
           <span className="deck-editor__types">
             <span title="creatures" data-testid="count-creatures">

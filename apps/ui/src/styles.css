@@ -839,7 +839,8 @@ button {
   overflow: hidden;
 }
 
-/* The deck in progress and the sideboard: each a drop target for the other's cards (`deck/dragMove.tsx`). */
+/* The deck in progress and the sideboard: the picks fill the row up to the sideboard, so the row has no
+   space that belongs to neither (`deck/dragMove.tsx`). */
 .pool__main,
 .pool__sideboard {
   display: flex;
@@ -851,9 +852,12 @@ button {
   transition: outline-color 120ms;
 }
 
+.pool__main {
+  flex: 1 1 auto;
+}
+
 .pool__sideboard {
   min-width: var(--pool-w);
-  margin-left: auto;
 }
 
 .pool__main[data-drop-over],
