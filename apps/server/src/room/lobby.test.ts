@@ -16,6 +16,7 @@
  * `data/rooms`, a deployed tree, or any file this process did not create.
  */
 
+import { newGauntlet } from './gauntlet.ts';
 import { FileRoomStore, STORE_VERSION, type RoomSnapshot } from '@hadoku/room-store';
 import { createSeatTable, humanSeats, seatOf } from '@wolffm/rooms-protocol';
 import { pick, type DraftState } from '@hadoku/draft';
@@ -2464,6 +2465,31 @@ describe('a constructed room’s mode', () => {
 		// Standing down unlocks it.
 		expect(lobby.setPlayerState(id, BOB.id, { v: 1, table: tableId, ready: false, verdict: { legal: true } })).toBe(true);
 		expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
+	});
+
+	it('is locked once a Gauntlet seat readies or its reveal has started, opens again when it is done, and a new mode forgets it', async () => {
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		const { id } = await constructedRoom(lobby, false);
+		expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
+		const classic = { mode: 'classic', modeOptions: {} } as const;
+
+		const readied = { ...newGauntlet(), ready: [true, false] as [boolean, boolean] };
+		expect(lobby.setGauntlet(id, readied)).toBe(true);
+		expect(lobby.setMode(id, ALICE.id, classic)).toEqual({ ok: false, reason: 'mode-locked' });
+
+		const revealing = { ...readied, phase: 'reveal' as const, ready: [false, false] as [boolean, boolean] };
+		expect(lobby.setGauntlet(id, revealing, POOLS[0])).toBe(true);
+		expect(lobby.get(id)?.format).toBe(POOLS[0]);
+		expect(lobby.setMode(id, ALICE.id, classic)).toEqual({ ok: false, reason: 'mode-locked' });
+		// A restart keeps the draw and the lock.
+		const second = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+		expect(second.gauntlet(id)?.phase).toBe('reveal');
+		expect(second.setMode(id, ALICE.id, classic)).toEqual({ ok: false, reason: 'mode-locked' });
+
+		expect(lobby.setGauntlet(id, { ...revealing, phase: 'done', winner: 0 })).toBe(true);
+		expect(lobby.setMode(id, ALICE.id, classic).ok).toBe(true);
+		expect(lobby.gauntlet(id)).toBeNull();
 	});
 
 	it('goes back to unchosen when the room switches game type', async () => {
