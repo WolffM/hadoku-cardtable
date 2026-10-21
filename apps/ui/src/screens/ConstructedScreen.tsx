@@ -192,6 +192,7 @@ import {
   type RoomsClient,
 } from '../rooms/api.ts';
 import {
+  FORMAT_TABS,
   FREE_PICK,
   RANDOM_DECK,
   isEra,
@@ -308,6 +309,24 @@ export function libraryPeekList(main: readonly DeckLine[], sideboard: readonly D
   return { main: main.map(namedPeekLine), sideboard: sideboard.map(namedPeekLine) };
 }
 
+/** What a deck's peek draws. */
+export type PeekedDeck = Pick<DeckOption, 'label' | 'name' | 'pilot' | 'colors' | 'deckStyle'> & { list: PeekList };
+
+/** A library deck as its tile and its peek draw it: the wire sends its lines by name. */
+export function libraryDeckPeek(d: TableDeck): PeekedDeck {
+  return {
+    label: d.name,
+    name: d.archetype,
+    pilot: d.pilot,
+    list: libraryPeekList(d.main, d.sideboard),
+    deckStyle: LIBRARY_DECK_STYLES[d.id],
+    colors: deckColorsByName(
+      d.main.map((line) => line.name),
+      LIBRARY_CARD_COSTS,
+    ),
+  };
+}
+
 /** Converted mana cost of one Scryfall cost token — `'3'` → 3, `'2/W'` → 2, `'X'` → 0. */
 function tokenValue(token: string): number {
   if (/^\d+$/.test(token)) return Number(token);
@@ -348,17 +367,6 @@ function poolLabel(formats: readonly TableFormat[], id: string): string {
 }
 
 /* ── the format tab selector (wave 48 §U) ─────────────────────────────── */
-
-/**
- * The three ruleset tabs, operator order (2026-10-05): *"i'll need a tab
- * selector at the top for picking the format as well obviously"*. A drafted
- * deck is never a room's format: it is one of Free pick's "My decks".
- */
-const FORMAT_TABS: ReadonlyArray<{ id: FormatFamily; label: string }> = [
-  { id: 'standard', label: 'Standard' },
-  { id: 'modern', label: 'Modern' },
-  { id: 'legacy', label: 'Legacy' },
-];
 
 /** Free pick's browse: a format's library, or the decks you drafted (`#/decks`). */
 type BrowseTab = FormatFamily | 'mine';
@@ -1516,15 +1524,7 @@ function RoomTableScreen({
     const mine = freePick ? (myDeckOptions ?? []).map((m) => m.option) : [];
     return [...byWinRate(offered.map((d) => ({
           value: d.id,
-          label: d.name,
-          name: d.archetype,
-          pilot: d.pilot,
-          list: libraryPeekList(d.main, d.sideboard),
-          deckStyle: LIBRARY_DECK_STYLES[d.id],
-          colors: deckColorsByName(
-            d.main.map((line) => line.name),
-            LIBRARY_CARD_COSTS,
-          ),
+          ...libraryDeckPeek(d),
           // A library deck is a list of NAMES on the wire, so both halves of the
           // art rule are lookups against committed data: the cost from the same
           // slice the colours come from, the id from the play board's own table.

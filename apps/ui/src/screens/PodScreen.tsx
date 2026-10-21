@@ -271,10 +271,8 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
         </p>
       )}
 
-      {rounds ? (
+      {rounds || (done && ready) ? (
         <PodRoom ctx={ctx!} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} startTableError={startTableError} retryTable={retryTable} />
-      ) : done && ready ? (
-        <PodReady ctx={ctx!} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} />
       ) : done || inRounds ? null : table === null ? (
         <DraftSkeleton side={<div className="pod__bar pod__bar--side">{bar}</div>} />
       ) : (
@@ -330,6 +328,7 @@ function myCurrentTable(ctx: PodContext, myMemberId: string): RoomTable | undefi
   return ctx.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === myMemberId));
 }
 
+/** The pod after the draft: building (who is ready, and Edit deck), the rounds (my sideboard step, the standings) or the final standings, over the bracket. */
 function PodRoom({
   ctx,
   draftId,
@@ -346,18 +345,35 @@ function PodRoom({
   retryTable: (tableId: string) => void;
 }) {
   const pod = ctx.pod!;
+  const building = pod.phase === 'building';
   const mine = myMemberId === null ? undefined : myCurrentTable(ctx, myMemberId);
   // Between games of my series, the room is where the sideboard step is, whichever page I came back by.
   const sideboarding = pod.phase === 'rounds' && mine !== undefined && mine.matchId === null && mine.series.phase === 'sideboarding';
   return (
     <div className="pod__room">
-      <div className="pod__rounds" data-testid={pod.phase === 'rounds' ? 'pod-rounds' : 'pod-final'}>
-        {pod.phase === 'rounds' ? (
-          <h2 data-testid="pod-round">
-            Round {pod.round} of {pod.rounds}
-          </h2>
-        ) : (
+      <div className="pod__rounds" data-testid={building ? 'pod-ready' : pod.phase === 'rounds' ? 'pod-rounds' : 'pod-final'}>
+        {pod.phase === 'done' ? (
           <h1>Standings</h1>
+        ) : (
+          <h2 data-testid="pod-round">
+            Round {building ? 1 : pod.round} of {pod.rounds}
+          </h2>
+        )}
+        {building && (
+          <>
+            <PodBuilding pod={pod} nameOf={nameOf} />
+            <a
+              className="shell__link"
+              href={routeHash({ kind: 'deck', draftId })}
+              data-testid="pod-edit-deck"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate({ kind: 'deck', draftId });
+              }}
+            >
+              Edit deck
+            </a>
+          </>
         )}
         {startTableError !== null && (
           <p className="pod__error" role="alert" data-testid="pod-table-start-error">
@@ -374,36 +390,7 @@ function PodRoom({
             avatarOf={(id) => ctx.avatars[id] ?? null}
             onPlay={startTableError === null ? undefined : retryTable}
           />
-          {!sideboarding && <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} myMemberId={myMemberId} />}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Done building, waiting on the rest of the pod: the round's own lines, who is ready, and the bracket still to be paired. */
-function PodReady({ ctx, draftId, myMemberId, nameOf }: { ctx: PodContext; draftId: string; myMemberId: string | null; nameOf: (id: string) => string }) {
-  const pod = ctx.pod!;
-  return (
-    <div className="pod__room">
-      <div className="pod__rounds" data-testid="pod-ready">
-        <h2 data-testid="pod-round">
-          Round 1 of {pod.rounds}
-        </h2>
-        <PodBuilding pod={pod} nameOf={nameOf} />
-        <a
-          className="shell__link"
-          href={routeHash({ kind: 'deck', draftId })}
-          data-testid="pod-edit-deck"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate({ kind: 'deck', draftId });
-          }}
-        >
-          Edit deck
-        </a>
-        <div className="pod__board">
-          <PodBracket pod={pod} tables={ctx.tables} myMemberId={myMemberId} nameOf={nameOf} avatarOf={(id) => ctx.avatars[id] ?? null} />
+          {!sideboarding && !building && <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} myMemberId={myMemberId} />}
         </div>
       </div>
     </div>

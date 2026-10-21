@@ -22,21 +22,20 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Icon } from '@wolffm/themes';
 
-import { myDecksClient, type DeckChange, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
+import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { cardImageUrl, artReady } from '../draft/cardImage.ts';
 import { useArtistLookup } from '../draft/artists.ts';
 import { DeckChooser, draftedDeckOption, openDraftedDeck } from './ConstructedScreen.tsx';
 import { assignDeckArt } from './deckArt.ts';
 import { DeckFilterBar } from './DeckFilterBar.tsx';
+import { DeleteConfirm } from './DeckManage.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
 import { navigate } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import type { DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
 import './DecksScreen.css';
-import { uiLength } from '../settings/ui-scale.ts';
 
 export interface DecksScreenProps {
   /** Tests pass stubs. Production passes nothing. */
@@ -157,57 +156,22 @@ export function DecksScreen({ decks: givenDecks, deckRecords = fetchDeckRecords 
               pending={!ready}
               empty={ready ? (options.length === 0 ? 'No decks yet' : 'No decks') : undefined}
               onChoose={(id) => navigate({ kind: 'decks', draftId: id })}
-              tileAction={(option) =>
-                decks?.find((d) => d.id === option.value)?.concluded === true ? (
-                  <TileDelete
-                    name={option.label}
-                    remove={() => client.remove(option.value)}
-                    onDeleted={() => setDecks((held) => held?.filter((d) => d.id !== option.value) ?? null)}
+              tileAction={(option) => {
+                const deck = decks?.find((d) => d.id === option.value);
+                return deck === undefined ? null : (
+                  <DeleteConfirm
+                    deck={deck}
+                    client={client}
+                    onDeleted={() => setDecks((held) => held?.filter((d) => d.id !== deck.id) ?? null)}
+                    testId="decks-tile-delete"
+                    className="decks__tile-actions"
                   />
-                ) : null
-              }
+                );
+              }}
             />
           </section>
         )}
       </main>
     </div>
-  );
-}
-
-/** A tile's own delete: the bin, then Delete or keep, over the tile's corner. */
-function TileDelete({ name, remove, onDeleted }: { name: string; remove: () => Promise<DeckChange>; onDeleted: () => void }) {
-  const [asking, setAsking] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [fault, setFault] = useState<string | null>(null);
-  const confirm = (): void => {
-    setBusy(true);
-    void remove().then((r) => {
-      setBusy(false);
-      if (r.ok) onDeleted();
-      else setFault(r.message);
-    });
-  };
-  return (
-    <span className="decks__tile-actions" data-asking={asking ? 'true' : undefined}>
-      {asking ? (
-        <>
-          <button type="button" className="decks__confirm" data-testid="decks-tile-delete-confirm" disabled={busy} onClick={confirm}>
-            Delete
-          </button>
-          <button type="button" className="decks__icon" aria-label="Keep" data-testid="decks-tile-delete-cancel" disabled={busy} onClick={() => setAsking(false)}>
-            <Icon name="close" size={uiLength('0.9rem')} />
-          </button>
-        </>
-      ) : (
-        <button type="button" className="decks__icon" aria-label={`Delete ${name}`} data-testid="decks-tile-delete" onClick={() => setAsking(true)}>
-          <Icon name="trash" size={uiLength('0.9rem')} />
-        </button>
-      )}
-      {fault !== null && (
-        <span className="lobby__error" role="alert" data-testid="decks-tile-fault">
-          {fault}
-        </span>
-      )}
-    </span>
   );
 }

@@ -5,7 +5,7 @@
  * rows keep the color icons and make it so the decks can be hovered and their
  * data can be seen as it can be in other places where decks are shown"*.
  *
- *   - **The filter bar** is the deck grid's own (`DeckFilterBar`'s chips and
+ *   - **The filter bar** is the deck grid's own (`ChipFilterBar`'s chips and
  *     search box). Format and room are match attrs the store narrows by
  *     (`match.format`); the name search narrows the rows it answered.
  *   - **Room type is the format's other half.** A draft room's tables always
@@ -23,16 +23,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { BreakdownSpec } from '@wolffm/game-stats-ui';
 import type { BreakdownRow, StatAttrs } from '@wolffm/prefs-client/games';
-import { deckColorsByName, type DeckColor } from '@hadoku/deck';
-import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku/deck/library';
 
 import { ManaPip } from '../components/ManaPip.tsx';
 import { myDecksClient, type MyDecksClient } from '../deck/myDecks.ts';
-import { draftedDeckOption, libraryPeekList, openDraftedDeck } from '../screens/ConstructedScreen.tsx';
-import { DeckPeek, usePeekHover, type PeekList } from '../screens/DeckPeek.tsx';
-import { tablesClient, type TablesClient } from '../screens/tables.ts';
+import { draftedDeckOption, libraryDeckPeek, openDraftedDeck, type PeekedDeck } from '../screens/ConstructedScreen.tsx';
+import { ChipFilterBar, toggled } from '../screens/DeckFilterBar.tsx';
+import { DeckPeek, usePeekHover } from '../screens/DeckPeek.tsx';
+import { FORMAT_TABS, FREE_PICK, tablesClient, type FormatFamily, type TablesClient } from '../screens/tables.ts';
 
-export type StatsFormat = 'standard' | 'modern' | 'legacy' | 'free';
+export type StatsFormat = FormatFamily | typeof FREE_PICK;
 export type StatsRoom = 'constructed' | 'draft';
 
 export interface DeckStatsFilter {
@@ -41,14 +40,12 @@ export interface DeckStatsFilter {
   text: string;
 }
 
-export const NO_DECK_FILTER: DeckStatsFilter = { formats: new Set(), rooms: new Set(), text: '' };
+export const NO_STATS_FILTER: DeckStatsFilter = { formats: new Set(), rooms: new Set(), text: '' };
 
-const FORMATS: readonly { id: StatsFormat; label: string }[] = [
-  { id: 'standard', label: 'Standard' },
-  { id: 'modern', label: 'Modern' },
-  { id: 'legacy', label: 'Legacy' },
-  { id: 'free', label: 'Free pick' },
-];
+/** The room's format tabs and Free pick: every format a constructed room plays. */
+const FORMATS: readonly { id: StatsFormat; label: string }[] = [...FORMAT_TABS, { id: FREE_PICK, label: 'Free pick' }];
+/** The format a match reports when its pool is none of those (`routes.ts`'s matchStart): a constructed room's too. */
+const UNKNOWN_FORMAT = 'unknown';
 
 const ROOMS: readonly { id: StatsRoom; label: string }[] = [
   { id: 'constructed', label: 'Constructed' },
@@ -59,7 +56,7 @@ const ROOMS: readonly { id: StatsRoom; label: string }[] = [
 export function matchFormats(filter: DeckStatsFilter): string[] | undefined {
   if (filter.formats.size > 0) return [...filter.formats];
   if (filter.rooms.size === 0) return undefined;
-  return [...filter.rooms].flatMap((room) => (room === 'draft' ? ['draft'] : FORMATS.map((f) => f.id)));
+  return [...filter.rooms].flatMap((room) => (room === 'draft' ? ['draft'] : [...FORMATS.map((f) => f.id), UNKNOWN_FORMAT]));
 }
 
 /** The rows whose deck name holds the search, ignoring case. */
@@ -75,7 +72,7 @@ export const DECK_ROW_ATTRS = ['colors', 'deckId'] as const;
  * The Decks section for a filter. The bare one (no filter) is what the lobby
  * prefetches, so the section opens drawn.
  */
-export function decksSpec(filter: DeckStatsFilter = NO_DECK_FILTER, toolbar?: ReactNode): BreakdownSpec {
+export function decksSpec(filter: DeckStatsFilter = NO_STATS_FILTER, toolbar?: ReactNode): BreakdownSpec {
   const formats = matchFormats(filter);
   return {
     attr: 'deck',
@@ -89,72 +86,35 @@ export function decksSpec(filter: DeckStatsFilter = NO_DECK_FILTER, toolbar?: Re
   };
 }
 
-function toggled<T>(set: ReadonlySet<T>, item: T): Set<T> {
-  const next = new Set(set);
-  if (!next.delete(item)) next.add(item);
-  return next;
-}
-
 /**
- * Format chips, room chips and a deck-name search, in the deck grid's own
- * style. A format is a constructed one, so the format chips stand down while
- * only Draft pod is chosen, and Draft pod while a format is.
+ * Format chips, room chips and a deck-name search, on the deck grid's own
+ * filter row. A format is a constructed one, so the format chips stand down
+ * while only Draft pod is chosen, and Draft pod while a format is.
  */
 export function DeckStatsFilterBar({ filter, onChange }: { filter: DeckStatsFilter; onChange: (next: DeckStatsFilter) => void }) {
   const draftOnly = filter.rooms.size === 1 && filter.rooms.has('draft');
   return (
-    <div className="deckfilter" role="group" aria-label="Filter decks" data-testid="stats-deck-filter">
-      <span className="deckfilter__set">
-        {FORMATS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            className="deckfilter__chip"
-            aria-pressed={filter.formats.has(id)}
-            disabled={draftOnly}
-            data-testid={`stats-deck-format-${id}`}
-            onClick={() => onChange({ ...filter, formats: toggled(filter.formats, id) })}
-          >
-            <span className="decktag">{label}</span>
-          </button>
-        ))}
-      </span>
-      <span className="deckfilter__set">
-        {ROOMS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            className="deckfilter__chip"
-            aria-pressed={filter.rooms.has(id)}
-            disabled={id === 'draft' && filter.formats.size > 0}
-            data-testid={`stats-deck-room-${id}`}
-            onClick={() => onChange({ ...filter, rooms: toggled(filter.rooms, id) })}
-          >
-            <span className="decktag">{label}</span>
-          </button>
-        ))}
-      </span>
-      <input
-        type="search"
-        className="deckfilter__search"
-        placeholder="Deck"
-        aria-label="Deck name"
-        data-testid="stats-deck-text"
-        value={filter.text}
-        onChange={(e) => onChange({ ...filter, text: e.target.value })}
-      />
-    </div>
+    <ChipFilterBar
+      testId="stats-deck-filter"
+      sets={[
+        FORMATS.map(({ id, label }) => ({
+          testId: `stats-deck-format-${id}`,
+          pressed: filter.formats.has(id),
+          disabled: draftOnly,
+          onToggle: () => onChange({ ...filter, formats: toggled(filter.formats, id) }),
+          label: <span className="decktag">{label}</span>,
+        })),
+        ROOMS.map(({ id, label }) => ({
+          testId: `stats-deck-room-${id}`,
+          pressed: filter.rooms.has(id),
+          disabled: id === 'draft' && filter.formats.size > 0,
+          onToggle: () => onChange({ ...filter, rooms: toggled(filter.rooms, id) }),
+          label: <span className="decktag">{label}</span>,
+        })),
+      ]}
+      search={{ testId: 'stats-deck-text', placeholder: 'Deck', ariaLabel: 'Deck name', value: filter.text, onChange: (text) => onChange({ ...filter, text }) }}
+    />
   );
-}
-
-/** What a deck's peek draws. */
-export interface PeekedDeck {
-  label: string;
-  name?: string;
-  pilot?: string;
-  colors: readonly DeckColor[];
-  deckStyle?: DeckStyle;
-  list: PeekList;
 }
 
 /** A deck's list by the id its seat reported, or null when this viewer cannot see it. */
@@ -181,19 +141,7 @@ export function deckLookup(tables: Pick<TablesClient, 'decks'> = tablesClient(),
     }
     library ??= tables.decks();
     const d = (await library).find((deck) => deck.id === deckId);
-    if (d === undefined) return null;
-    const deckStyle = LIBRARY_DECK_STYLES[d.id];
-    return {
-      label: d.name,
-      name: d.archetype,
-      pilot: d.pilot,
-      colors: deckColorsByName(
-        d.main.map((line) => line.name),
-        LIBRARY_CARD_COSTS,
-      ),
-      ...(deckStyle === undefined ? {} : { deckStyle }),
-      list: libraryPeekList(d.main, d.sideboard),
-    };
+    return d === undefined ? null : libraryDeckPeek(d);
   };
 }
 

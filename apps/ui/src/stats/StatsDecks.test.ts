@@ -15,7 +15,7 @@ import type { MyDeck } from '@hadoku/shared';
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from '../screens/DeckPeek.tsx';
 import type { TableDeck } from '../screens/tables.ts';
 import { StatsPopout, type StatsSource } from './StatsPopout.tsx';
-import { deckLookup, filterDeckRows, matchFormats, NO_DECK_FILTER, type DeckLookup } from './StatsDecks.tsx';
+import { deckLookup, filterDeckRows, matchFormats, NO_STATS_FILTER, type DeckLookup } from './StatsDecks.tsx';
 
 afterEach(() => {
   cleanup();
@@ -91,10 +91,10 @@ const popout = (source: StatsSource, decks: DeckLookup, player?: string) =>
 describe('the Decks filter', () => {
   // A match whose pool is no library format, draft or Free pick reports `unknown` (`routes.ts`'s matchStart): a constructed room's.
   it('a format keeps that format; a room keeps its formats; a format wins over a room', () => {
-    expect(matchFormats(NO_DECK_FILTER)).toBeUndefined();
-    expect(matchFormats({ ...NO_DECK_FILTER, formats: new Set(['modern']) })).toEqual(['modern']);
-    expect(matchFormats({ ...NO_DECK_FILTER, rooms: new Set(['draft']) })).toEqual(['draft']);
-    expect(matchFormats({ ...NO_DECK_FILTER, rooms: new Set(['constructed']) })).toEqual(['standard', 'modern', 'legacy', 'free', 'unknown']);
+    expect(matchFormats(NO_STATS_FILTER)).toBeUndefined();
+    expect(matchFormats({ ...NO_STATS_FILTER, formats: new Set(['modern']) })).toEqual(['modern']);
+    expect(matchFormats({ ...NO_STATS_FILTER, rooms: new Set(['draft']) })).toEqual(['draft']);
+    expect(matchFormats({ ...NO_STATS_FILTER, rooms: new Set(['constructed']) })).toEqual(['standard', 'modern', 'legacy', 'free', 'unknown']);
     expect(matchFormats({ formats: new Set(['legacy']), rooms: new Set(['constructed']), text: '' })).toEqual(['legacy']);
   });
 

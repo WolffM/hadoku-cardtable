@@ -48,6 +48,17 @@ export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 export type FormatFamily = 'standard' | 'modern' | 'legacy';
 
 /**
+ * The three ruleset tabs, operator order (2026-10-05): *"i'll need a tab
+ * selector at the top for picking the format as well obviously"*. A drafted
+ * deck is never a room's format: it is one of Free pick's "My decks".
+ */
+export const FORMAT_TABS: ReadonlyArray<{ id: FormatFamily; label: string }> = [
+  { id: 'standard', label: 'Standard' },
+  { id: 'modern', label: 'Modern' },
+  { id: 'legacy', label: 'Legacy' },
+];
+
+/**
  * The Free pick pool's id — any library deck, whatever its era. A mirror of the
  * server's `FREE_PICK` (`apps/server/src/room/lobby.ts`); its `/formats` row has
  * `source: 'free'` and a `family` nobody reads.

@@ -52,7 +52,7 @@ import { createGameStatsClient, GameStatsError, type GameStatsClient } from '@wo
 
 import { ManaPip } from '../components/ManaPip.tsx';
 import type { DeckRecords } from './deckOrder.ts';
-import { DeckPeekHost, DeckStatsFilterBar, deckLookup, decksSpec, NO_DECK_FILTER, StatsDeckName, type DeckLookup, type DeckStatsFilter } from './StatsDecks.tsx';
+import { DeckPeekHost, DeckStatsFilterBar, deckLookup, decksSpec, NO_STATS_FILTER, StatsDeckName, type DeckLookup, type DeckStatsFilter } from './StatsDecks.tsx';
 import { navigate, routeHash } from '../screens/route.ts';
 import { Tournaments } from './Tournaments.tsx';
 import './stats.css';
@@ -209,7 +209,7 @@ export function StatsPopout({ player, tournaments = false, source = sharedSource
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
   const lookup = useMemo(() => decks ?? (sharedLookup ??= deckLookup()), [decks]);
-  const [deckFilter, setDeckFilter] = useState<DeckStatsFilter>(NO_DECK_FILTER);
+  const [deckFilter, setDeckFilter] = useState<DeckStatsFilter>(NO_STATS_FILTER);
   const breakdowns = useMemo(
     () => breakdownsFor(decksSpec(deckFilter, <DeckStatsFilterBar filter={deckFilter} onChange={setDeckFilter} />)),
     [deckFilter],
