@@ -36,6 +36,7 @@ import type { BoardLayout } from '../Board.tsx';
 import { Icon } from '@wolffm/themes';
 import { sendStopPreference, setTriggerDecision, type LiveMatch } from './match.ts';
 import type { PlayPrefs } from './prefs.ts';
+import { uiLength } from '../../settings/ui-scale.ts';
 
 export interface SettingsPanelProps {
   /**
@@ -138,7 +139,7 @@ export function SettingsPanel({
                 disabled={inert}
                 onClick={() => setTriggerDecision(match, t.key, 'ASK')}
               >
-                <Icon name="close" size="0.875rem" />
+                <Icon name="close" size={uiLength('0.875rem')} />
               </button>
             </li>
           ))}

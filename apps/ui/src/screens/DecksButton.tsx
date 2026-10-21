@@ -4,11 +4,12 @@ import { Icon } from '@wolffm/themes';
 
 import { routeHash } from './route.ts';
 import './DecksScreen.css';
+import { uiLength } from '../settings/ui-scale.ts';
 
 export function DecksButton() {
   return (
     <a className="ct-decks-button" href={routeHash({ kind: 'decks' })} aria-label="Decks" title="Decks" data-testid="lobby-decks">
-      <Icon name="layers" size="1.1rem" />
+      <Icon name="layers" size={uiLength('1.1rem')} />
     </a>
   );
 }

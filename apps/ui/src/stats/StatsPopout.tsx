@@ -56,6 +56,7 @@ import { DeckPeekHost, DeckStatsFilterBar, deckLookup, decksSpec, NO_DECK_FILTER
 import { navigate, routeHash } from '../screens/route.ts';
 import { Tournaments } from './Tournaments.tsx';
 import './stats.css';
+import { uiLength } from '../settings/ui-scale.ts';
 
 /** The rating pool every room match is reported in. */
 export const STATS_MODE = 'constructed';
@@ -184,7 +185,7 @@ export function StatsButton({ source }: { source?: StatsSource }) {
       data-testid="lobby-stats"
       onPointerEnter={() => prefetchStats(source)}
     >
-      <Icon name="trophy" size="1.1rem" />
+      <Icon name="trophy" size={uiLength('1.1rem')} />
     </a>
   );
 }
@@ -253,7 +254,7 @@ export function StatsPopout({ player, tournaments = false, source = sharedSource
             </nav>
           )}
           <a className="ct-stats-popout__close" href={routeHash({ kind: 'lobby' })} aria-label="Close stats" data-testid="stats-close">
-            <Icon name="close" size="1rem" />
+            <Icon name="close" size={uiLength('1rem')} />
           </a>
         </header>
         {tournaments ? (

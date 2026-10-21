@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 
 import { APP_NAME } from './app-name.ts';
 import { BUILD_DEFINES } from './build-defines.ts';
+import { uiScaleCss } from './src/settings/ui-scale.ts';
 import { themeInitScript } from './theme-init.ts';
 
 /**
@@ -26,5 +27,7 @@ export default defineConfig({
       transformIndexHtml: () => [{ tag: 'script', attrs: { 'data-theme-init': '' }, children: themeInitScript(), injectTo: 'head-prepend' as const }],
     },
   ],
+  // Every length our own sheets author, as a multiple of the UI scale (`src/settings/ui-scale.ts`).
+  css: { postcss: { plugins: [uiScaleCss] } },
   build: { outDir: 'dist', sourcemap: true },
 });

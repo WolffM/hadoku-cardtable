@@ -43,7 +43,7 @@
  * lobby" means it.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HadokuThemeProvider, THEME_FAMILIES, type HadokuThemeValue } from '@wolffm/themes';
 
 import { useAvatarAssert } from '../room/avatarAssert.ts';
@@ -51,6 +51,8 @@ import { useWhoami } from '../room/whoami.ts';
 import { roomsClient, type RoomBindClient, type RoomIdentityClient } from '../rooms/api.ts';
 import { Screen } from '../screens/Screen.tsx';
 import { navigate, useRoute, type Route } from '../screens/route.ts';
+import { useUiScale } from '../settings/Settings.tsx';
+import { scaleRootOf } from '../settings/ui-scale.ts';
 import type { GameBundleContext } from './contract.ts';
 import './embed.css';
 
@@ -108,6 +110,9 @@ export function EmbedApp({ ctx, rooms: givenRooms }: EmbedAppProps) {
   const theme = useMemo(() => themeValue(ctx.theme), [ctx.theme]);
   const who = useWhoami();
   useAvatarAssert(binding.state === 'bound' ? binding.roomId : null, who === 'pending' || who === null ? null : who.userId, rooms);
+  // Embedded, the tokens resolve on the shadow host (`:root` is rewritten as `:host`).
+  const main = useRef<HTMLElement>(null);
+  useUiScale(useCallback(() => (main.current === null ? null : scaleRootOf(main.current)), []));
 
   let body = null;
   if (binding.state === 'failed') {
@@ -123,6 +128,7 @@ export function EmbedApp({ ctx, rooms: givenRooms }: EmbedAppProps) {
   return (
     <HadokuThemeProvider value={theme}>
       <main
+        ref={main}
         className="cardtable-chrome cardtable-chrome--embed"
         data-theme={ctx.theme}
         data-dark-theme={theme.isDarkTheme ? 'true' : 'false'}

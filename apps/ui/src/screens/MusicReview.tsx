@@ -40,6 +40,7 @@ import { musicReviewClient, soundsClient, type MusicReviewClient, type SoundsCli
 import { createMixer, type Mixer } from '../sound/mixer.ts';
 import { getLevel, subscribeSound } from '../sound/mute.ts';
 import './SoundBuilder.css';
+import { uiLength } from '../settings/ui-scale.ts';
 
 export interface MusicReviewProps {
   /** Tests pass stubs. Production builds the real fetch-backed clients and mixer. */
@@ -329,9 +330,9 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                         aria-label={`${on ? 'Stop' : 'Play'} ${c.label}`}
                         onClick={() => toggle(c.file)}
                       >
-                        <Icon name={on ? 'stop' : 'play'} size="0.85rem" />
+                        <Icon name={on ? 'stop' : 'play'} size={uiLength('0.85rem')} />
                         <span className="music-review__name">{trackName(c.label)}</span>
-                        {c.current && <Icon name="globe" size="0.8rem" title="Current" className="music-review__current" />}
+                        {c.current && <Icon name="globe" size={uiLength('0.8rem')} title="Current" className="music-review__current" />}
                       </button>
                       <div className="music-review__ratings" role="group" aria-label={`Rate ${c.label}`}>
                         {MUSIC_RATINGS.map((r) => (
@@ -352,7 +353,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                               })
                             }
                           >
-                            <Icon name={RATING_ICON[r]} size="0.85rem" />
+                            <Icon name={RATING_ICON[r]} size={uiLength('0.85rem')} />
                           </button>
                         ))}
                       </div>
@@ -370,7 +371,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                           }))
                         }
                       >
-                        <Icon name={picked ? 'tick' : 'plus'} size="0.85rem" />
+                        <Icon name={picked ? 'tick' : 'plus'} size={uiLength('0.85rem')} />
                       </button>
                     </li>
                   );

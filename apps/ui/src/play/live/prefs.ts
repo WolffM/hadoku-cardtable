@@ -43,10 +43,11 @@
 
 import { createPrefsClient, type PrefsClient } from '@wolffm/prefs-client';
 
-import { SeqCursorSchema } from '@hadoku/shared';
+import { GainSchema, SeqCursorSchema } from '@hadoku/shared';
 import { CallIdSchema, ShowConfirmDialogReplySchema } from '@hadoku/forge-wire';
 
 import type { BoardLayout } from '../Board.tsx';
+import { UI_SCALE } from '../../settings/ui-scale.ts';
 
 const borrowed = {
   /** A non-empty string: `CallIdSchema` is `z.string().min(1)`. */
@@ -55,6 +56,8 @@ const borrowed = {
   boolean: ShowConfirmDialogReplySchema,
   /** An empty object schema to extend — `z.object({})` by another route. */
   emptyObject: SeqCursorSchema.pick({}),
+  /** A finite number: `GainSchema` is `z.number().min(0).max(2)`, narrowed below. */
+  number: GainSchema,
 };
 
 /** `'single' | 'type-separated'` — refined off a string, the same device `apps/server/src/play/transport.ts`'s `StopPreferenceSchema` uses for its own literal. */
@@ -71,6 +74,8 @@ export const PlayPrefsSchema = borrowed.emptyObject
     endStepStop: borrowed.boolean.optional(),
     /** Wave 47: "Fast Mode" in the settings panel. Off (paced) by default. */
     fastMode: borrowed.boolean.optional(),
+    /** The UI scale (`../../settings/ui-scale.ts`), the whole app's, not only a match's. */
+    uiScale: borrowed.number.refine((v) => v >= UI_SCALE.min && v <= UI_SCALE.max, { message: 'outside the UI scale range' }).optional(),
   })
   .strict();
 
@@ -80,6 +85,7 @@ export interface PlayPrefs {
   boardLayout?: BoardLayout;
   endStepStop?: boolean;
   fastMode?: boolean;
+  uiScale?: number;
 }
 
 /**
@@ -100,10 +106,11 @@ function fastModeDefaultOverride(): boolean {
  * (paced) everywhere except inside the e2e harness — see this module's
  * header.
  */
-export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; endStepStop: boolean; fastMode: boolean } = {
+export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; endStepStop: boolean; fastMode: boolean; uiScale: number } = {
   boardLayout: 'single',
   endStepStop: true,
   fastMode: fastModeDefaultOverride(),
+  uiScale: 1,
 };
 
 /**

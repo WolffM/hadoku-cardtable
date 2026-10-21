@@ -2,6 +2,7 @@ import { defineConfig, type Plugin as VitePlugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 import { BUILD_DEFINES } from './build-defines.ts';
+import { uiScaleCss } from './src/settings/ui-scale.ts';
 
 /**
  * The second build: the game bundle a watchparty room imports (D21).
@@ -77,7 +78,7 @@ export default defineConfig({
   base: '/cardtable/',
   define: BUILD_DEFINES,
   plugins: [react(), requireOneStylesheet],
-  css: { postcss: { plugins: [shadowRootSelectors] } },
+  css: { postcss: { plugins: [shadowRootSelectors, uiScaleCss] } },
   build: {
     outDir: 'dist',
     emptyOutDir: false,

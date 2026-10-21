@@ -31,6 +31,7 @@ import { usePrefs } from '@wolffm/prefs-client/react';
 import { SettingsPanel } from '../play/live/SettingsPanel.tsx';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { SoundSettings } from './SoundSettings.tsx';
+import { applyUiScale, clampUiScale, UI_SCALE, uiLength } from './ui-scale.ts';
 import './settings.css';
 
 /** The gap between the popover and what opened it, and its distance from the viewport's edges. */
@@ -101,13 +102,67 @@ export function SettingsPopover({ trigger, onClose, children }: SettingsPopoverP
           Settings
         </h2>
         <button type="button" className="ct-settings__close" aria-label="Close settings" data-testid="settings-close" onClick={onClose}>
-          <Icon name="close" size="1rem" />
+          <Icon name="close" size={uiLength('1rem')} />
         </button>
       </div>
+      <DisplaySettings />
       <SoundSettings />
       {children}
     </div>
   );
+}
+
+/**
+ * The UI scale, the slider the sound levels' own design is (`ct-settings__level`). Saved once the
+ * thumb is let go, not on every step of a drag: the whole page re-scales on a save, and a slider
+ * that moves under the pointer while it is held is a slider that cannot be aimed.
+ */
+function DisplaySettings() {
+  const { prefs, save } = usePrefs(getPlayPrefsClient());
+  const saved = clampUiScale(prefs?.uiScale ?? PLAY_PREFS_DEFAULTS.uiScale);
+  const [held, setHeld] = useState<number | null>(null);
+  const shown = held ?? saved;
+  const commit = (): void => {
+    if (held === null) return;
+    setHeld(null);
+    if (held !== saved) void save({ uiScale: held });
+  };
+  return (
+    <fieldset className="ct-settings__section" data-testid="settings-display">
+      <legend>Display</legend>
+      <label className="ct-settings__level">
+        <span>UI scale</span>
+        <input
+          type="range"
+          min={UI_SCALE.min * 100}
+          max={UI_SCALE.max * 100}
+          step={UI_SCALE.step * 100}
+          value={Math.round(shown * 100)}
+          data-testid="settings-ui-scale"
+          onChange={(event) => setHeld(clampUiScale(Number(event.currentTarget.value) / 100))}
+          onPointerUp={commit}
+          onKeyUp={commit}
+          onBlur={commit}
+        />
+        <output data-testid="settings-ui-scale-value">{Math.round(shown * 100)}%</output>
+      </label>
+    </fieldset>
+  );
+}
+
+/**
+ * The saved UI scale, written where the stylesheet's tokens resolve (`./ui-scale.ts`). Called
+ * once per app — the standalone page's and the embed's — with the element that is.
+ */
+export function useUiScale(root: () => HTMLElement | null): void {
+  const { prefs } = usePrefs(getPlayPrefsClient());
+  const scale = prefs?.uiScale ?? PLAY_PREFS_DEFAULTS.uiScale;
+  useLayoutEffect(() => {
+    const el = root();
+    if (el === null) return undefined;
+    applyUiScale(el, scale);
+    return () => applyUiScale(el, 1);
+  }, [root, scale]);
 }
 
 /** Which trigger has the popover open, if any. Pressing that trigger again closes it. */
@@ -151,7 +206,7 @@ export function SettingsGear() {
         data-testid="settings-gear"
         onClick={(event) => toggle(event.currentTarget)}
       >
-        <Icon name="gear" size="1.15rem" />
+        <Icon name="gear" size={uiLength('1.15rem')} />
       </button>
       {trigger !== null && (
         <SettingsPopover trigger={trigger} onClose={close}>

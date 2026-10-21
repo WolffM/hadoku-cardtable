@@ -27,6 +27,7 @@ vi.mock('../play/live/prefs.ts', async (importOriginal) => ({
 }));
 
 import { SettingsGear } from './Settings.tsx';
+import { UI_SCALE } from './ui-scale.ts';
 
 afterEach(() => {
   cleanup();
@@ -41,7 +42,7 @@ describe('the gear outside a match', () => {
     fireEvent.click(screen.getByTestId('settings-gear'));
     const dialog = screen.getByTestId('settings');
     expect(dialog.querySelector('[data-testid="settings-sound"]')).not.toBeNull();
-    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Sound', 'Game']);
+    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Display', 'Sound', 'Game']);
     expect((screen.getByTestId('live-settings-fast-mode') as HTMLInputElement).checked).toBe(true);
     expect((screen.getByTestId('live-settings-stop-end-step') as HTMLInputElement).checked).toBe(false);
     expect((dialog.querySelector('input[name="board-layout"][value="type-separated"]') as HTMLInputElement).checked).toBe(true);
@@ -57,4 +58,20 @@ describe('the gear outside a match', () => {
     fireEvent.click(screen.getByTestId('settings').querySelector('input[name="board-layout"][value="type-separated"]')!);
     expect(store.saved).toEqual([{ fastMode: true }, { endStepStop: false }, { boardLayout: 'type-separated' }]);
   });
+
+  it('has a UI scale slider over its range, drawn from what is saved, saved once it is let go', () => {
+    store.prefs = { uiScale: 1.1 };
+    render(createElement(SettingsGear));
+    fireEvent.click(screen.getByTestId('settings-gear'));
+    expect([...screen.getByTestId('settings').querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Display', 'Sound', 'Game']);
+    const slider = screen.getByTestId('settings-ui-scale') as HTMLInputElement;
+    expect(slider.type).toBe('range');
+    expect([slider.min, slider.max, slider.value]).toEqual([String(UI_SCALE.min * 100), String(UI_SCALE.max * 100), '110']);
+    fireEvent.change(slider, { target: { value: '120' } });
+    // Not while the thumb is still held: the page would re-scale under the pointer.
+    expect(store.saved).toEqual([]);
+    fireEvent.pointerUp(slider);
+    expect(store.saved).toEqual([{ uiScale: 1.2 }]);
+  });
 });
+

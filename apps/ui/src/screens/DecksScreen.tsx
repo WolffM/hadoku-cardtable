@@ -36,6 +36,7 @@ import { SettingsGear } from '../settings/Settings.tsx';
 import type { DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
 import './DecksScreen.css';
+import { uiLength } from '../settings/ui-scale.ts';
 
 export interface DecksScreenProps {
   /** Tests pass stubs. Production passes nothing. */
@@ -194,12 +195,12 @@ function TileDelete({ name, remove, onDeleted }: { name: string; remove: () => P
             Delete
           </button>
           <button type="button" className="decks__icon" aria-label="Keep" data-testid="decks-tile-delete-cancel" disabled={busy} onClick={() => setAsking(false)}>
-            <Icon name="close" size="0.9rem" />
+            <Icon name="close" size={uiLength('0.9rem')} />
           </button>
         </>
       ) : (
         <button type="button" className="decks__icon" aria-label={`Delete ${name}`} data-testid="decks-tile-delete" onClick={() => setAsking(true)}>
-          <Icon name="trash" size="0.9rem" />
+          <Icon name="trash" size={uiLength('0.9rem')} />
         </button>
       )}
       {fault !== null && (

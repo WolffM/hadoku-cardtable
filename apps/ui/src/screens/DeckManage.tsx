@@ -11,6 +11,7 @@ import { DECK_NAME_MAX } from '@hadoku/shared';
 
 import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
 import './DecksScreen.css';
+import { uiLength } from '../settings/ui-scale.ts';
 
 export function DeckManage({ deck, client, onRenamed, onDeleted }: { deck: MyDeck; client: MyDecksClient; onRenamed: (deck: MyDeck) => void; onDeleted: () => void }) {
   const [naming, setNaming] = useState<string | null>(null);
@@ -67,7 +68,7 @@ export function DeckManage({ deck, client, onRenamed, onDeleted }: { deck: MyDec
             }}
           />
           <button type="submit" className="decks__icon" aria-label="Save name" data-testid="decks-name-save" disabled={busy}>
-            <Icon name="tick" size="0.9rem" />
+            <Icon name="tick" size={uiLength('0.9rem')} />
           </button>
         </form>
       ) : (
@@ -83,16 +84,16 @@ export function DeckManage({ deck, client, onRenamed, onDeleted }: { deck: MyDec
                 Delete
               </button>
               <button type="button" className="decks__icon" aria-label="Keep" data-testid="decks-delete-cancel" disabled={busy} onClick={() => setDeleting(false)}>
-                <Icon name="close" size="0.9rem" />
+                <Icon name="close" size={uiLength('0.9rem')} />
               </button>
             </>
           ) : (
             <>
               <button type="button" className="decks__icon" aria-label="Rename" data-testid="decks-rename" onClick={() => setNaming(deck.name)}>
-                <Icon name="edit" size="0.9rem" />
+                <Icon name="edit" size={uiLength('0.9rem')} />
               </button>
               <button type="button" className="decks__icon" aria-label="Delete" data-testid="decks-delete" onClick={() => setDeleting(true)}>
-                <Icon name="trash" size="0.9rem" />
+                <Icon name="trash" size={uiLength('0.9rem')} />
               </button>
             </>
           )}

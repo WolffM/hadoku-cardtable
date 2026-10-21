@@ -24,6 +24,7 @@ import {
   type LevelName,
 } from '../sound/index.ts';
 import { trackName } from '../sound/match-music.ts';
+import { uiLength } from './ui-scale.ts';
 
 function MusicTrackPicker({ disabled }: { disabled: boolean }) {
   const now = useSyncExternalStore(subscribeMusicTrack, getMusicTrack, () => null);
@@ -91,7 +92,7 @@ export function SoundSettings() {
             if (on) playRole('ui.select');
           }}
         />
-        <Icon name={muted ? 'volume-mute' : 'volume-high'} size="1rem" />
+        <Icon name={muted ? 'volume-mute' : 'volume-high'} size={uiLength('1rem')} />
         Sound on
       </label>
       <LevelSlider name="volume" label="Volume" disabled={muted} />

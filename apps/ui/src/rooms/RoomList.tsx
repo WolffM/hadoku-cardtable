@@ -64,6 +64,7 @@ import {
 } from './api.ts';
 import { avatarSquareUrl } from '../room/avatar.ts';
 import './rooms.css';
+import { uiLength } from '../settings/ui-scale.ts';
 
 type ListState =
   | { kind: 'loading' }
@@ -434,7 +435,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
         <div className="rooms__create-head">
           <h3 id="room-create-title">Create a room</h3>
           <button type="button" className="rooms__create-close" aria-label="Close" data-testid="room-create-close" onClick={onClose}>
-            <Icon name="close" size="1rem" />
+            <Icon name="close" size={uiLength('1rem')} />
           </button>
         </div>
 

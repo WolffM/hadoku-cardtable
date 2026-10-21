@@ -466,6 +466,15 @@
    * graveyard, which is `flex: 1` and gives up exactly this much.
    */
   --status-h: 1.1rem;
+  /* The gutter between the column and the battlefield: the most a box in the column may reach past it. */
+  --side-gap: 8px;
+  /*
+   * The column's boxes, weighted against its width: a pile is the column (1), the library's
+   * revealed top a little more (the operator, 2026-10-21: "revealed top of the deck area should be
+   * slightly larger than the graveyard area"), reaching into the gutter and never past it.
+   */
+  --pile-weight: 1;
+  --top-weight: 1.1;
   /* Whose turn it is (below): neither lit nor shaded until the section says so. */
   --turn-lit: 0;
   --turn-shade: 0;
@@ -478,7 +487,7 @@
   grid-template-areas:
     'side field'
     'side hand';
-  gap: 4px 8px;
+  gap: 4px var(--side-gap);
   min-width: 0;
   min-height: 0;
   padding: 5px 8px 6px;
@@ -579,7 +588,9 @@
   gap: 3px;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  /* Clipped top to bottom; sideways the library's top reaches into the gutter (below). */
+  overflow-x: visible;
+  overflow-y: clip;
 }
 
 .board .seat:not([data-viewer]) > .seat__side {
@@ -908,12 +919,14 @@
  * The library's top card while this screen may see it, under the avatar's block (the operator,
  * 2026-10-13: "when top of deck is revealed put it below the avatar") — between it and the piles, so
  * the mirrored column puts it on the far side of the opponent's avatar from the centre line, as its
- * graveyard is. One card the column's width, measured like a pile (`zone-box.ts`).
+ * graveyard is. One card the box's width, measured like a pile (`zone-box.ts`); the box is
+ * `--top-weight` of the column where a pile is `--pile-weight`, the difference taken from the gutter.
  */
 .board .seat .zone--library {
   contain: inline-size style;
   flex: none;
   min-height: 0;
+  margin-inline-end: calc(-1 * min(var(--side-gap), var(--who-w) * (var(--top-weight) - var(--pile-weight))));
 }
 
 .board .seat .zone--library .zone__cards {

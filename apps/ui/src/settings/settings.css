@@ -125,6 +125,11 @@
   gap: 8px;
 }
 
+/* A slider that reads its value back beside it. */
+.ct-settings__level:has(> input + output) {
+  grid-template-columns: 4rem 1fr 2.75rem;
+}
+
 .ct-settings__level input,
 .ct-settings__level select {
   width: 100%;

@@ -3,6 +3,31 @@
 @import "./symbols/keyrune.css";
 
 /*
+ * The UI scale's units (`settings/ui-scale.ts`). Every px and rem this app's own stylesheets
+ * author is rewritten at build time as a multiple of one of these, so `--ui-scale`, written on the
+ * root by the settings' slider, sizes everything at once. Registered, so a descendant inherits a
+ * length rather than the expression (a shadow tree ignores `@property`; the expression is the same
+ * answer there).
+ */
+@property --ui-px {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1px;
+}
+
+@property --ui-rem {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 16px;
+}
+
+:root {
+  --ui-scale: 1;
+  --ui-px: calc(1px * var(--ui-scale));
+  --ui-rem: calc(1rem * var(--ui-scale));
+}
+
+/*
  * Draft table styling.
  *
  * Two rules drive everything here, and both are legal rather than aesthetic:

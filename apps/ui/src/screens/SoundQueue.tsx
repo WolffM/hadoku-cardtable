@@ -22,6 +22,7 @@ import { Icon } from '@wolffm/themes';
 import type { RetireReason, SoundMark, SoundTake } from '@hadoku/shared';
 
 import { candidatesFor, freshFor, queueOrder } from '../sound/queue.ts';
+import { uiLength } from '../settings/ui-scale.ts';
 
 /** A prompt without the generator's stock tail ("High-quality, stereo, 44.1kHz, sound effect."); the full one is the tooltip. */
 export function promptGist(prompt: string): string {
@@ -186,7 +187,7 @@ function QueueItemView({ cell, current, title, sub, left, choices, play, onPlace
               aria-pressed={picked.has(t.file)}
               onClick={() => togglePick(t.file)}
             >
-              <Icon name="check" size="1rem" />
+              <Icon name="check" size={uiLength('1rem')} />
             </button>
           </li>
         ))}

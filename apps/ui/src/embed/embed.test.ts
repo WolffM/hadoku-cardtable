@@ -25,7 +25,8 @@ globalThis.Element.prototype.scrollTo ??= function scrollTo() {};
 // carries, so an avatar asserted under `u-test` proves which path it came by.
 vi.mock('@wolffm/prefs-client', () => ({
   whoami: () => Promise.resolve({ userId: 'u-test', userType: 'friend' as const, name: 'Test Friend' }),
-  createPrefsClient: () => ({ read: () => Promise.resolve({}) }),
+  // A client with nothing saved: the embed reads the UI scale from it on mount.
+  createPrefsClient: () => ({ read: () => Promise.resolve({}), subscribe: () => () => undefined, save: () => Promise.resolve() }),
 }));
 
 const ROOM: RoomView = {
