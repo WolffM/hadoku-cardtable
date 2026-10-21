@@ -358,15 +358,21 @@ export function touchedNames(file: string, src: string, patch: string): string[]
 
 const IMPORT = /(?:^|\n)\s*(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|(?:^|\n)\s*import\s*['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
 
+/** `importsOf`'s answers, per repo: a repo is read once, so what a file imports is parsed once. */
+const importCache = new WeakMap<Repo, Map<string, string[]>>();
+
 /** The repo paths `file` imports: by relative specifier, or a workspace package by its name (npm modules are not followed). */
 export function importsOf(repo: Repo, file: string): string[] {
-  const src = repo.read(file);
-  if (src === null) return [];
-  const out: string[] = [];
-  for (const m of src.matchAll(IMPORT)) {
+  let byFile = importCache.get(repo);
+  if (byFile === undefined) importCache.set(repo, (byFile = new Map()));
+  let out = byFile.get(file);
+  if (out !== undefined) return out;
+  out = [];
+  for (const m of (repo.read(file) ?? '').matchAll(IMPORT)) {
     const target = resolveImport(repo, file, m[1] ?? m[2] ?? m[3]);
     if (target) out.push(target);
   }
+  byFile.set(file, out);
   return out;
 }
 

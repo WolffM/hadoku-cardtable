@@ -504,7 +504,6 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 	// index.ts will have.
 	let attached: ReturnType<typeof playMod.attachPlay> | null = null;
 	const tables = routesMod.attachTables(api, {
-		repoRoot: REPO_ROOT,
 		// The library loaded once above, as production loads it once at boot: re-reading
 		// 67 eras' pools for every booted stack ran a 2 GB worker out of heap.
 		library,

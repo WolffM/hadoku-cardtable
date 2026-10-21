@@ -120,7 +120,7 @@ from play's parser (`unknown field seats`) and a raw `decks` body walks past.
 @@ import { loadPool } from './room/pool.js';
  import { attachDraftSocket } from './room/socket.js';
  import { attachPlay, jvmHostConfig, jvmHostFactory } from './play/index.js';
-+import { attachTables } from './http/index.js';
++import { attachTables, loadTablesLibrary } from './http/index.js';
  
 @@ const io = new SocketIOServer(httpServer, {
 -attachDraftSocket(io, {
@@ -136,7 +136,7 @@ from play's parser (`unknown field seats`) and a raw `decks` body walks past.
 +// Formats, the deck library, and the deck gate on POST /api/play/matches. MUST
 +// come before attachPlay: the gate is a handler on play's own path and runs
 +// only if it is registered first. See src/http/README.md.
-+attachTables(api, { repoRoot: resolve(PKG_ROOT, '../..'), draftRooms });
++attachTables(api, { library: loadTablesLibrary(resolve(PKG_ROOT, '../..')), draftRooms });
  
  // ── Matches ──────────────────────────────────────────────────────────────────
 ```
@@ -144,7 +144,8 @@ from play's parser (`unknown field seats`) and a raw `decks` body walks past.
 `resolve(PKG_ROOT, '../..')` is the repo root from both `dist/index.js` and
 `src/index.ts` (the same one-directory-below-the-package argument `index.ts`
 already makes for `POOL_FILE`); the deploy tree is a full checkout, so
-`decks/` is there.
+`decks/` is there. The library is loaded once, by the caller: `attachTables`
+takes it and never reads the disk itself.
 
 ### `apps/server/package.json` (+ `pnpm-lock.yaml`) — two workspace deps
 

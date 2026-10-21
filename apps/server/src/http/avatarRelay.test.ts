@@ -17,9 +17,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { openLobby } from '../room/lobby.js';
+import { loadTablesLibrary } from './library.js';
 import { attachTables, relayAvatarToMatch, type TablesMatches, type TablesRooms } from './routes.js';
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
+const library = loadTablesLibrary(resolve(dirname(fileURLToPath(import.meta.url)), '../../../..'));
 
 type Change = { roomId: string; memberId: string; avatarId: string | null };
 
@@ -88,7 +89,7 @@ describe('an avatar change reaches the running match (Q6)', () => {
 	it('is wired: attachTables subscribes to the room and relays through the lazy registry', () => {
 		const f = fixture();
 		attachTables(express.Router(), {
-			repoRoot: REPO_ROOT,
+			library,
 			draftRooms: null,
 			log: () => undefined,
 			rooms: f.rooms,
@@ -137,7 +138,7 @@ describe('a room and its match across a restart', () => {
 		const lobby = await openLobby({ dir: before.dir, log: () => undefined });
 		const matches = registry({ 'm-adopted0001': { owners: [ALICE.id, BOB.id] } });
 		const tables = attachTables(express.Router(), {
-			repoRoot: REPO_ROOT,
+			library,
 			draftRooms: null,
 			log: () => undefined,
 			rooms: lobby,

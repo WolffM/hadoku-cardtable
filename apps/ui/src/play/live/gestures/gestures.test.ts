@@ -70,6 +70,15 @@ import { installGestures } from './index.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
 import type { GestureHandle } from './types.ts';
 
+/*
+ * Every case here is a real socket server, a real match and lane A's whole Board in jsdom, and
+ * every frame it sends redraws that board: about a third of a second a case on a quiet host, and
+ * five to ten times that when the host is loaded, which is when #10 saw 44 of them time out at the
+ * 5 s default. Nothing waits on a wall clock (the board's own timers are held where a case needs
+ * them, `holdBoardClock`), so the time is all work, and the file gets the budget CI gives every file.
+ */
+vi.setConfig({ testTimeout: 30_000 });
+
 let server: ReplayServer | null = null;
 let match: LiveMatch | null = null;
 let gestures: GestureHandle | null = null;
@@ -139,12 +148,14 @@ async function gestureBoard(playerId = 0) {
   const canvas = document.createElement('div');
   canvas.className = 'live';
   document.body.append(canvas);
-  render(createElement(Canvas, { match: m }), { container: canvas });
   await untilMatch(m, () => expect(m.stats.snapshots).toBe(1));
   const frames = fixtureFrames();
   for (const f of frames) s.send(f);
-  // Delivery first, on the counter that says so, then what the delivery draws.
+  // Delivery first, on the counter that says so, then what the delivery draws. Mounted only now,
+  // so the board renders the game once rather than once per frame: those 27 renders were three
+  // quarters of this setup, which 44 of this file's cases timed out inside on a loaded host (#10).
   await untilMatch(m, () => expect(m.stats.applied).toBe(frames.length));
+  render(createElement(Canvas, { match: m }), { container: canvas });
   await waitFor(() => expect(canvas.querySelector('[data-board-overlay]')).not.toBeNull());
   gestures = installGestures({
     canvas,
@@ -2778,6 +2789,8 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
     s.send(selectables([theirsOf(m).battlefield[0]!.id], 1, 1));
     await untilMatch(m, () => expect(m.selectables).not.toBeNull());
 
+    // Held: the float home lasts `GLIDE_MS`, and the round trips below can outlast it on a loaded host.
+    holdBoardClock();
     fireEvent.keyDown(window, { key: 'Escape' });
     await s.untilClientFrames(2);
     expect(await sent(s, m)).toEqual([['selectCard', hand[2]!], ['selectButtonCancel']]);
@@ -2810,6 +2823,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
 
     fireEvent.pointerDown(cardEl(canvas, hand[0]!), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(myHand, { clientX: 20, clientY: 20 });
+    holdBoardClock();
     fireEvent.pointerDown(myHand, { button: 2, clientX: 20, clientY: 20 });
     expect((await sent(s, m)), 'nothing sent — not even the bar’s own End Turn').toEqual([]);
     expect(cardEl(canvas, hand[0]!).getAttribute('data-cast-lift'), 'floats back, same as any other cancel').toBe('returning');
@@ -2915,6 +2929,7 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
 
   it('a parked cast whose card the board no longer draws still answers a right-click with Forge’s Cancel', async () => {
     const { s, m, canvas, theirBattlefield } = await parkLikeForge();
+    holdBoardClock();
     fireEvent.pointerDown(theirBattlefield, { button: 2, clientX: 500, clientY: 50 });
     await s.untilClientFrames(2);
     expect((await sent(s, m)).at(-1)).toEqual(['selectButtonCancel']);
@@ -2923,13 +2938,20 @@ describe('casting a hand card: nothing reaches Forge until the release', () => {
 
   it('a cancelled cast lifted again while its stand-in is still floating home leaves no stand-in behind', async () => {
     const { s, m, canvas, cast, theirBattlefield } = await parkLikeForge();
+    // Held, so the float is still going after every round trip below, however long they take.
+    holdBoardClock();
     fireEvent.keyDown(window, { key: 'Escape' });
     await s.untilClientFrames(2);
     expect(canvas.querySelector(`[data-cast-ghost="${cast}"]`)?.getAttribute('data-cast-lift'), 'the stand-in floats home').toBe('returning');
     // Forge rolls the cast back: the card is in the hand again, offered again — and lifted again before the float is over.
     s.send(handDelta(mineOf(m).hand!.map((c) => c.id).concat(cast)));
     for (const f of notify([prompt('Priority'), actionable([cast]), okBar()])) s.send(f);
-    await waitFor(() => expect(canvas.querySelector(`[data-board-card="${cast}"]`)).not.toBeNull());
+    // On the match, not `waitFor`: under a held clock each of its polls moves the clock, and would end the float.
+    await untilMatch(m, () => {
+      expect(mineOf(m).hand!.some((c) => c.id === cast)).toBe(true);
+      expect(m.weaklySelectable?.has(cast)).toBe(true);
+    });
+    expect(canvas.querySelector(`[data-board-card="${cast}"]`)).not.toBeNull();
     fireEvent.pointerDown(cardEl(canvas, cast), { button: 0, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(theirBattlefield, { clientX: 500, clientY: 50 });
     expect(cardEl(canvas, cast).getAttribute('data-cast-lift'), 'the card is lifted again').toBe('lifted');
@@ -3433,7 +3455,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect(placed.style.left).toBe('400px');
     expect(stackEl(canvas).getAttribute('data-carried')).toBe('1');
     expect(canvas.querySelector(`[data-cast-ghost="${card}"]`), 'the ghost stays retired').toBeNull();
-  }, 15_000);
+  });
 
   it('a second thing on the stack: both are drawn, each at its own point', async () => {
     const { s, m, canvas, card, rest, battlefield } = await play();
@@ -3537,14 +3559,18 @@ describe('a played card waits where it was let go until Forge has it on the batt
   });
 
   it('a play Forge never answers floats back to the hand after PARK_UNANSWERED_MS', async () => {
-    const { s, m, canvas, card } = await play();
+    const { s, m, canvas, card } = await play(undefined, { holdClock: true });
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     expect(standIn.getAttribute('data-cast-lift')).toBe('parked');
-    await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
-    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull(), { timeout: GLIDE_MS + 1000 });
+    vi.advanceTimersByTime(PARK_UNANSWERED_MS - 1);
+    expect(standIn.getAttribute('data-cast-lift'), 'not a moment early').toBe('parked');
+    vi.advanceTimersByTime(1);
+    expect(standIn.getAttribute('data-cast-lift')).toBe('returning');
+    vi.advanceTimersByTime(GLIDE_MS);
+    expect(canvas.querySelector('[data-cast-lift]')).toBeNull();
     expect(canvas.querySelector('[data-cast-ghost]'), 'and the stand-in goes with it').toBeNull();
     expect((await sent(s, m)), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
-  }, 20_000);
+  });
 
   it('a picked-up hand card Forge takes out of the hand leaves no slot behind: the hand draws its gap only beside its card', async () => {
     const { s, m, canvas } = await gestureBoard();
@@ -3566,17 +3592,18 @@ describe('a played card waits where it was let go until Forge has it on the batt
   it('a play that floats home gives up the column it reserved: the row closes the gap at once', async () => {
     // jsdom has no geometry for `placementAt`: the release reserves the row's end through the same store.
     vi.spyOn(BoardModule, 'notePlayedTo').mockImplementation((id) => BoardModule.expectPlacement(0, 'back', { kind: 'end' }, id));
-    const { m, canvas, card } = await play();
+    const { m, canvas, card } = await play(undefined, { holdClock: true });
     const me = mineOf(m).id;
     expect(me, 'the seat the stub reserved for').toBe(0);
     const reserved = () => canvas.querySelector('[data-zone="battlefield"][data-owner="you"] li.zone__gap[data-expected]');
     expect(BoardModule.pendingPlacementFor(me)?.cardId, 'the release reserved its column').toBe(card);
     expect(reserved(), 'and the row draws the gap').not.toBeNull();
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
-    await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
+    vi.advanceTimersByTime(PARK_UNANSWERED_MS);
+    expect(standIn.getAttribute('data-cast-lift')).toBe('returning');
     expect(BoardModule.pendingPlacementFor(me), 'the card is going home: nothing is arriving').toBeNull();
     await waitFor(() => expect(reserved(), 'the gap closes with it').toBeNull());
-  }, 20_000);
+  });
 
   it('a play on the stack keeps the column it reserved through the next cast, and resolves into it', async () => {
     // CI run 39563790118 (w59-stack): Keiga on the stack lost its gap the moment the viewer cast Remand.
@@ -3612,7 +3639,8 @@ describe('a played card waits where it was let go until Forge has it on the batt
    * to be chosen.
    */
   it('a play Forge never answers goes home when a decision offers the card itself', async () => {
-    const { s, m, canvas, card, rest } = await play();
+    // Held: the park's own give-up never fires here, so going home can only be the discard's doing.
+    const { s, m, canvas, card, rest } = await play(undefined, { holdClock: true });
     const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
     expect(standIn.getAttribute('data-cast-lift')).toBe('parked');
     expect(cardEl(canvas, card).getAttribute('data-cast-lift'), 'the hand element is carried (hidden) while it waits').toBe('carried');
@@ -3620,10 +3648,11 @@ describe('a played card waits where it was let go until Forge has it on the batt
     s.send(prompt('Cleanup Phase\nSelect 1 card(s) to discard to bring your hand down to the maximum of 7 cards.'));
     s.send(selectables([card, ...rest], 1, 1));
     await untilMatch(m, () => expect(m.selectables).not.toBeNull());
-    await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
-    await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: GLIDE_MS + 1000 });
+    expect(standIn.getAttribute('data-cast-lift')).toBe('returning');
+    vi.advanceTimersByTime(GLIDE_MS);
+    expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull();
     expect((await sent(s, m)), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
-  }, 20_000);
+  });
 
   it('a play Forge took and gave back, then offered in a selection, goes home at once', async () => {
     // table-fit 2026-10-07: the hidden land sat in the hand through the cleanup discard; the 4-second
@@ -3643,7 +3672,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await untilMatch(m, () => expect(mineOf(m).hand!.some((c) => c.id === card)).toBe(true));
     await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: 1500 });
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: GLIDE_MS + 1000 });
-  }, 20_000);
+  });
 
   it('a play Forge IS asking about keeps waiting past PARK_UNANSWERED_MS', async () => {
     const { s, m, canvas, card } = await play(undefined, { holdClock: true });
@@ -3662,7 +3691,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await untilMatch(m, () => expect(m.asks).toHaveLength(1));
     vi.advanceTimersByTime(PARK_UNANSWERED_MS + 500);
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
-  }, 20_000);
+  });
 
   it('a modal spell keeps waiting past PARK_UNANSWERED_MS while its modes are chosen, the card still in the hand', async () => {
     // The operator on Cryptic Command, 2026-10-11: "it seems to go back to hand after doing the first selection".
@@ -3688,7 +3717,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await untilMatch(m, () => expect(m.asks).toHaveLength(1));
     vi.advanceTimersByTime(PARK_UNANSWERED_MS + 500);
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
-  }, 20_000);
+  });
 
   /*
    * The operator, 2026-10-15: Cavern of Souls floated home under its own creature-type question, a
@@ -3718,7 +3747,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     vi.advanceTimersByTime(PARK_UNANSWERED_MS * 2 + 500);
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
     expect(cardEl(canvas, card).getAttribute('data-cast-lift'), 'and not drawn in the hand').toBe('carried');
-  }, 20_000);
+  });
 
   it('a play keeps waiting past PARK_UNANSWERED_MS while a selection that does not offer it is open', async () => {
     const { s, m, canvas, card, rest } = await play(undefined, { holdClock: true });
@@ -3728,7 +3757,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await untilMatch(m, () => expect(m.selectables).not.toBeNull());
     vi.advanceTimersByTime(PARK_UNANSWERED_MS + 500);
     expect(standIn.getAttribute('data-cast-lift'), 'still parked').toBe('parked');
-  }, 20_000);
+  });
 
   it('a play goes home at once when an open question offers the card itself as an answer', async () => {
     const { s, m, canvas, card } = await play();
@@ -3748,7 +3777,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await untilMatch(m, () => expect(m.asks).toHaveLength(1));
     await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: 1500 });
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]'), 'the hand card is its own again').toBeNull(), { timeout: GLIDE_MS + 1000 });
-  }, 20_000);
+  });
 
   it('a card Forge stopped offering between the lift and the release is not sent, and floats back', async () => {
     const { s, m, canvas } = await gestureBoard();

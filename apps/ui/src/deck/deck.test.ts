@@ -731,13 +731,16 @@ describe('DeckScreen', () => {
   });
 
   it('opens a fresh build when GET …/mine has no save — every pick in the main deck — and saves as cards move', async () => {
-    const { store, calls } = stubStore({ pool: POOL, deck: null });
+    // Eight picks, not the whole pool: every click redraws the editor, and 44 of them were most of a
+    // second here and past the five-second budget on a loaded host (#10). The rule holds for any pool.
+    const pool = POOL.slice(0, 8);
+    const { store, calls } = stubStore({ pool, deck: null });
     render(createElement(DeckScreen, { draftId: DRAFT_ID, store, client: stubApi({ check: () => legal }).client, checkDelayMs: 0, saveDelayMs: 0 }));
     await screen.findByTestId('deck-editor');
-    expect(screen.getByTestId('main-count').textContent).toBe(String(POOL.length));
+    expect(screen.getByTestId('main-count').textContent).toBe(String(pool.length));
 
     // Sideboard all but one.
-    for (let i = 1; i < POOL.length; i += 1) fireEvent.click(cardsIn('main-grid')[0]!);
+    for (let i = 1; i < pool.length; i += 1) fireEvent.click(cardsIn('main-grid')[0]!);
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     expect(calls.at(-1)!.podId).toBe(DRAFT_ID);
     await waitFor(() => expect(deckFromDeckFile(parseDck(calls.at(-1)!.dck)).main.reduce((n, e) => n + e.count, 0)).toBe(1));

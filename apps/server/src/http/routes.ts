@@ -205,7 +205,7 @@ import {
 	type SeatRequest,
 	type SeatVerdict,
 } from './gate.js';
-import { loadTablesLibrary, type TablesLibrary } from './library.js';
+import type { TablesLibrary } from './library.js';
 
 export type TablesLog = (entry: Record<string, unknown>) => void;
 
@@ -359,13 +359,15 @@ export interface TablesMatches {
 }
 
 export interface TablesDeps {
-	/** The repository root; decks are read from `<repoRoot>/decks`. */
-	repoRoot: string;
 	/** The server's draft rooms, for the `draft` rule. Null when no cube pool loaded. */
 	draftRooms: DraftRooms | null;
 	log?: TablesLog;
-	/** Tests hand in a library directly. Production reads `repoRoot`. */
-	library?: TablesLibrary;
+	/**
+	 * The formats and decks, loaded once by the caller: production at boot, a
+	 * test at module level. Reading every era's pool costs most of a second, so
+	 * a test that let each `attachTables` load its own spent its budget on it.
+	 */
+	library: TablesLibrary;
 	/**
 	 * The room registry (lane A's `Lobby`). Optional: without it the room routes
 	 * answer 404 and `{ room }` cannot start a match, which is exactly what a
@@ -723,7 +725,7 @@ export function winnerSeatOf(match: {
 
 export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	const log = deps.log ?? defaultLog;
-	const library = deps.library ?? loadTablesLibrary(deps.repoRoot);
+	const { library } = deps;
 	log({ evt: 'library', formats: library.formats.length, decks: library.decks.length, faults: library.faults });
 
 	/**

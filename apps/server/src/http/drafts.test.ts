@@ -31,9 +31,11 @@ import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import { loadPool, type CubePool } from '../room/pool.ts';
 import { createDraftRooms, joinDraftRoom, releaseSeat, stateOf, type DraftRoom, type DraftRooms } from '../room/draftRooms.ts';
 import { identityFromHeaders } from '../room/identity.ts';
+import { loadTablesLibrary } from './library.ts';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 const POOL_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
+const library = loadTablesLibrary(resolve(dirname(fileURLToPath(import.meta.url)), '../../../..'));
 
 // `draftRooms.ts`/`identity.ts` read no env at import time, so they are
 // imported statically above — same split `tables.test.ts` uses. `drafts.ts`,
@@ -91,7 +93,7 @@ async function openApp(draftRooms: DraftRooms): Promise<Harness> {
 	draftsMod.attachDrafts(api, { draftRooms });
 	// The proof below reads `draftPoolForMember` through this route —
 	// `POST /api/tables/check` — without this file editing `routes.ts`.
-	routesMod.attachTables(api, { repoRoot: resolve(dirname(fileURLToPath(import.meta.url)), '../../../..'), draftRooms });
+	routesMod.attachTables(api, { library, draftRooms });
 	app.use('/api', api);
 
 	const server = createServer(app);

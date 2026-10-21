@@ -79,9 +79,15 @@ class Tree extends Repo {
     this.history = history;
     this.at = at;
   }
+  /** The snapshot files, read once each, as `Repo` reads the tree: a select reads the same file many times. */
+  private readonly snaps = new Map<string, string | null>();
   override read(path: string): string | null {
-    const snap = this.at === undefined ? null : snapshotPath(this.at, path);
-    return snap !== null && existsSync(snap) ? readFileSync(snap, 'utf8') : super.read(path);
+    if (this.at === undefined) return super.read(path);
+    if (!this.snaps.has(path)) {
+      const snap = snapshotPath(this.at, path);
+      this.snaps.set(path, snap !== null && existsSync(snap) ? readFileSync(snap, 'utf8') : null);
+    }
+    return this.snaps.get(path) ?? super.read(path);
   }
   override lands(): Land[] {
     return this.history.lands;
@@ -467,8 +473,9 @@ describe('the hot-path table', () => {
 
 /**
  * Real ranges landed on main, read against this checkout. Each replay reads git
- * history and walks the tree's imports, some 1.5-6 s on a busy host, so these and
- * the replays below get 20 s rather than the default 5.
+ * history and walks the tree's imports, up to 3 s on a quiet host and several
+ * times that on a loaded one, so these and the replays below get 20 s rather than
+ * the default 5.
  */
 describe('real landed ranges', { timeout: 20_000 }, () => {
   const ranges = new Map<string, { range: string; files: Change[] }>();
@@ -488,14 +495,14 @@ describe('real landed ranges', { timeout: 20_000 }, () => {
     expect(select(treeOf('auto-update-wolffm'), fixture('auto-update-wolffm'))).toMatchObject({ specs: null, jvmFiles: null });
   });
 
-  it('modal spell arrows through PlayBridge (da8026aa): everything on a dispatch; the new spec, its scenarios\' suite and the engine guards on a push', () => {
-    for (const deferFull of [false, true]) {
-      const sel = select(treeOf('modal-arrows-bridge'), fixture('modal-arrows-bridge'), { deferFull });
-      if (deferFull) {
-        expect(sel.specs).toEqual(expect.arrayContaining(['modal-arrows.spec.ts', 'w68-untap.spec.ts', ...SMOKE]));
-        expect(sel.jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/modal-targets.jvm.test.ts', 'apps/server/src/play/match-frames.jvm.test.ts']));
-      } else expect(sel).toMatchObject({ specs: null, jvmFiles: null });
-    }
+  it('modal spell arrows through PlayBridge (da8026aa): everything on a dispatch', () => {
+    expect(select(treeOf('modal-arrows-bridge'), fixture('modal-arrows-bridge'))).toMatchObject({ specs: null, jvmFiles: null });
+  });
+
+  it('modal spell arrows through PlayBridge (da8026aa): the new spec, its scenarios\' suite and the engine guards on a push', () => {
+    const sel = select(treeOf('modal-arrows-bridge'), fixture('modal-arrows-bridge'), { deferFull: true });
+    expect(sel.specs).toEqual(expect.arrayContaining(['modal-arrows.spec.ts', 'w68-untap.spec.ts', ...SMOKE]));
+    expect(sel.jvmFiles).toEqual(expect.arrayContaining(['apps/server/src/play/modal-targets.jvm.test.ts', 'apps/server/src/play/match-frames.jvm.test.ts']));
   });
 
   it('the prompt sheet as one column (da8026aa..ff959d3f): the prompt specs, not every spec; the version bumps and comment edit are ignored', () => {

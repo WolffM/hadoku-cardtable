@@ -457,7 +457,6 @@ setInterval(sweepRooms, ROOM_SWEEP_MS).unref();
 // must stay after this call for the gate to answer first at all.
 let play: PlayHandle | null = null;
 const tables = attachTables(api, {
-	repoRoot: REPO_ROOT,
 	library,
 	draftRooms,
 	rooms: lobby,
