@@ -39,7 +39,7 @@ import { draftPoolId } from '../room/lobby.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from '../stats/index.js';
-import type { DraftCard, RoomTable } from '@hadoku/shared';
+import type { DraftCard, RoomModeState, RoomTable } from '@hadoku/shared';
 import { checkSeat, type SeatVerdict } from './gate.js';
 import type { TablesRooms } from './routes.js';
 import { LIBRARY, formatIdOf, type LibraryCollection } from '@hadoku/deck/library';
@@ -301,6 +301,9 @@ interface FakeRoom {
 	state: Map<string, unknown>;
 	/** Wave 72 §P: `RoomViewLike` carries it now, but no test in this file plays a pod — every fake room is constructed and this stays `null`. */
 	pod: { phase: string } | null;
+	/** A Constructed room's mode and its options (`@hadoku/shared`'s `RoomModeState`); absent reads as no mode chosen. */
+	mode?: RoomModeState['mode'];
+	modeOptions?: RoomModeState['modeOptions'];
 	/** `Lobby.rematchOf`'s own carry-through, by table id — mirrors `room/lobby.ts`'s `SeriesRecord.rematchOf`, server-internal and never on the wire `RoomTable.series`. */
 	rematchOf: Map<string, 0 | 1 | null>;
 }
@@ -3170,5 +3173,105 @@ describe('a pod table plays each drafter’s own pool', () => {
 			expect(res.status).toBe(409);
 			expect(res.body.error).toContain('not constructed-1v1 or a pod at its tables');
 		}
+	});
+});
+
+/**
+ * All Random (ruling 3 and 4): the server deals both seats two different decks
+ * from one random era of the room's pool, and the table goes straight into the
+ * match with no picking and no reveal. A Rematch plays the same two decks.
+ */
+describe('an All Random table', () => {
+	const ROOM = 'r-random';
+	const room = (h: Harness, members: FakeRoom['members'], pool: 'full' | 'standard' | 'modern' | 'legacy' = 'modern') =>
+		Object.assign(h.lobby.open(ROOM, members), { mode: 'random' as const, modeOptions: { pool } });
+	const sit = (h: Harness, user: string) => call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, {}, edgeHeaders(user));
+	const setReady = (h: Harness, user: string) => call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: true }, edgeHeaders(user));
+	const myDeck = (body: Record<string, unknown>) => (body.players as { you: boolean; deck?: { name: string } | null }[]).find((p) => p.you)?.deck;
+	const libraryIdOf = (text: string | null | undefined) => library.decks.find((d) => d.text === text)?.id;
+	async function startNext(h: Harness, body: Record<string, unknown>, user = 'alice') {
+		const before = h.hosts.length;
+		const pending = call(h, 'POST', '/api/play/matches', body, edgeHeaders(user));
+		await untilHost(h, before + 1, pending);
+		if (h.hosts.length > before) (h.hosts.at(-1) as ReplayHost).push(...OPENING);
+		return pending;
+	}
+	/** The two decks a spec dealt, as library ids, and the era they share. */
+	function dealt(spec: MatchSpec | undefined): { ids: string[]; eras: string[] } {
+		const ids = (spec?.seats ?? []).map((s) => libraryIdOf(s.deck) ?? '?');
+		return { ids, eras: ids.map((id) => library.deck(id)?.era ?? '?') };
+	}
+
+	it('deals two seated players two different decks of one Modern era once both are ready, and starts with them', async () => {
+		const h = await boot();
+		room(h, [
+			{ id: ALICE, name: 'user-alice' },
+			{ id: BOB, name: 'user-bob' },
+		]);
+		expect((await sit(h, 'alice')).status).toBe(200);
+		expect((await sit(h, 'bob')).status).toBe(200);
+		const first = await setReady(h, 'alice');
+		expect(first.status, 'a seat readies with no deck: the server deals').toBe(200);
+		expect(myDeck(first.body), 'nothing is dealt until both are ready').toBeNull();
+		const second = await setReady(h, 'bob');
+		expect(second.status).toBe(200);
+		expect(myDeck(second.body)?.name).toEqual(expect.any(String));
+
+		expect((await startNext(h, { room: ROOM })).status).toBe(201);
+		const { ids, eras } = dealt(h.specs[0]);
+		expect(ids).not.toContain('?');
+		expect(ids[0]).not.toBe(ids[1]);
+		expect(eras[0]).toBe(eras[1]);
+		expect(library.format(eras[0]!)?.family).toBe('modern');
+		expect(h.specs[0]?.format, "the match is dealt in the decks' own era").toBe(eras[0]);
+	});
+
+	it('refuses a picked deck: the server deals', async () => {
+		const h = await boot();
+		room(h, [{ id: ALICE, name: 'user-alice' }]);
+		const res = await call(h, 'PUT', `/api/tables/rooms/${ROOM}/deck`, { deck: { library: UG_POLYMORPH } }, edgeHeaders('alice'));
+		expect(res.status).toBe(409);
+	});
+
+	it('against the AI: two different decks of one era, and a Rematch plays the same two', async () => {
+		const h = await boot();
+		room(h, [{ id: ALICE, name: 'user-alice' }], 'legacy');
+		expect((await sit(h, 'alice')).status).toBe(200);
+		expect((await startNext(h, { room: ROOM, bot: true })).status).toBe(201);
+		const game1 = dealt(h.specs[0]);
+		expect(game1.ids).not.toContain('?');
+		expect(game1.ids[0]).not.toBe(game1.ids[1]);
+		expect(game1.eras[0]).toBe(game1.eras[1]);
+		expect(library.format(game1.eras[0]!)?.family).toBe('legacy');
+		expect(h.specs[0]?.format).toBe(game1.eras[0]);
+
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-alice' });
+		await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		expect((await startNext(h, { room: ROOM, bot: true })).status).toBe(201);
+		expect(dealt(h.specs[1]).ids, 'the Rematch keeps both decks').toEqual(game1.ids);
+	});
+
+	it('a Rematch between two players keeps both decks', async () => {
+		const h = await boot();
+		room(
+			h,
+			[
+				{ id: ALICE, name: 'user-alice' },
+				{ id: BOB, name: 'user-bob' },
+			],
+			'full',
+		);
+		await sit(h, 'alice');
+		await sit(h, 'bob');
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		expect((await startNext(h, { room: ROOM })).status).toBe(201);
+		const game1 = dealt(h.specs[0]).ids;
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-bob' });
+		await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		expect((await startNext(h, { room: ROOM })).status).toBe(201);
+		expect(dealt(h.specs[1]).ids).toEqual(game1);
 	});
 });
