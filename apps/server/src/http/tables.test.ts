@@ -2556,6 +2556,8 @@ describe('a room table', () => {
 				// Rematch: the one Ready converts the Bo1, the sideboard step's Ready starts game 2.
 				await setReady(h, 'alice');
 				expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 3, phase: 'sideboarding' });
+				// The sideboard step resubmits the 75 before its Ready.
+				expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
 				await setReady(h, 'alice');
 				expect((await startBot()).status).toBe(201);
 				expect(botDeck(), 'game 2 of the Bo3 the Rematch made').toBe(first);

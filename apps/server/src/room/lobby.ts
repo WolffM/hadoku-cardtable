@@ -655,9 +655,9 @@ const NO_POD_CHECKS: PodChecks = {
 
 /**
  * A series' result, recorded once when the series ends (`#settleSeries`): a
- * Bo3 when it is decided, a Bo1 when the room moves on without a Rematch, and
- * anything unfinished when its room goes away (`complete: false`). A seat is
- * the member who played it, or `null` for Forge's AI.
+ * Bo3 when it is decided, a Bo1 when the room moves on without a Rematch. A
+ * Bo3 its players leave undecided is never one: each of its finished games is
+ * a Bo1 of its own. A seat is the member who played it, or `null` for Forge's AI.
  */
 export interface SeriesEnd {
 	roomId: string;
@@ -668,7 +668,6 @@ export interface SeriesEnd {
 	wins: [number, number];
 	games: SeriesGame[];
 	winner: 0 | 1 | null;
-	complete: boolean;
 }
 
 /**
@@ -1009,6 +1008,9 @@ export interface Lobby {
 	 * not simply the next one in the array, which happens to be join order
 	 * today but is restated by `joinedAt` so a future reordering cannot change
 	 * who leads by accident.
+	 *
+	 * A series the member played and left undecided ends here, before they go
+	 * (`#settleSeries`): each finished game a Bo1, the game in play discarded.
 	 *
 	 * A room left by its last member is not deleted here — the idle sweep still
 	 * owns deletion — but is dropped from `offered()` the instant it empties,
@@ -1969,7 +1971,8 @@ class FileLobby implements Lobby {
 		const table = room.tables.find((t) => t.id === tableId);
 		if (table === undefined) return { ok: false, reason: 'no-such-table' };
 		table.matchId = null;
-		table.series = recordGame(table.series, seriesFormatOf(room), { matchId: result.matchId, winner: result.winner });
+		// A game that ends after its series was left is discarded: that series is already recorded.
+		if (!table.series.settled) table.series = recordGame(table.series, seriesFormatOf(room), { matchId: result.matchId, winner: result.winner });
 		this.#unreadyTable(room, table);
 		// Wave 72 §P: a pod round advances ITSELF the instant every one of its
 		// tables is `done` — see `#finishPodTable`.
@@ -2072,46 +2075,65 @@ class FileLobby implements Lobby {
 	#rematchable(room: RoomRecord, table: TableRecord): boolean {
 		const { series } = table;
 		if (series.phase !== 'done' || series.length !== 1 || series.settled || seriesFormatOf(room).length !== 1) return false;
-		return series.played.every((id, seat) => {
-			if (table.seats[seat] !== id) return false;
-			if (id === null) return true;
-			const member = room.members.find((m) => m.id === id);
-			return member !== undefined && this.#podChecks.holdsSeriesDeck(member.state);
-		});
+		return this.#stillSeated(table) && series.played.every((id) => id === null || this.#podChecks.holdsSeriesDeck(room.members.find((m) => m.id === id)?.state));
+	}
+
+	/** Whoever played the table's series still holds the seat they played it in. */
+	#stillSeated(table: TableRecord): boolean {
+		return table.series.played.every((id, seat) => table.seats[seat] === id);
+	}
+
+	/**
+	 * Whether a series' players have left it: one stood up from their seat or
+	 * left the room (`leave`, which settles first, while the leaver is still a
+	 * member to name). A draft room's tables are the pod's: its rounds decide
+	 * who plays whom, so nobody leaves a pod series this way.
+	 */
+	#leftSeries(room: RoomRecord, table: TableRecord, leaving: string | null = null): boolean {
+		if (room.gameType === 'draft') return false;
+		return !this.#stillSeated(table) || (leaving !== null && table.series.played.includes(leaving));
 	}
 
 	/**
 	 * The ONE place a series result is recorded (`SeriesEnd`), run on every
-	 * write (`#persist`) and when a room goes away (`#forget`): a finished
-	 * series is recorded unless it is a Bo1 still open to a Rematch, and when
-	 * `over` (its room or record is going away) so is any series with a game
-	 * played. Once recorded, `settled` keeps it from being recorded or
-	 * converted again.
+	 * write (`#persist`), when a member leaves (`leave`, with `leaving`) and
+	 * when a room goes away (`#forget`, `over`). A decided series is recorded
+	 * unless it is a Bo1 still open to a Rematch. One its players have left
+	 * undecided (`#leftSeries`, or the room going away) is over too, and the
+	 * operator's ruling records each finished game as a Bo1 of its own and
+	 * discards a game still in play (`recordGameResult` adds nothing to a
+	 * settled series). Once recorded, `settled` (and `done`) keep it from being
+	 * recorded, continued or converted again.
 	 */
-	#settleSeries(room: RoomRecord, table: TableRecord, over: boolean): void {
+	#settleSeries(room: RoomRecord, table: TableRecord, over: boolean, leaving: string | null = null): void {
 		const { series } = table;
 		if (series.settled || series.games.length === 0) return;
-		const complete = series.phase === 'done';
-		if (!over && (!complete || this.#rematchable(room, table))) return;
-		table.series = { ...series, settled: true };
+		const decided = series.phase === 'done';
+		const left = over || this.#leftSeries(room, table, leaving);
+		if (!left && (!decided || this.#rematchable(room, table))) return;
+		table.series = { ...series, phase: 'done', settled: true };
 		const seat = (id: string | null) => (id === null ? null : { memberId: id, name: room.members.find((m) => m.id === id)?.name ?? '' });
-		const end: SeriesEnd = {
+		const result = (bestOf: 1 | 3, games: SeriesGame[], wins: [number, number]): SeriesEnd => ({
 			roomId: room.id,
 			tableId: table.id,
 			mode: series.mode,
-			bestOf: series.length,
+			bestOf,
 			seats: [seat(series.played[0]), seat(series.played[1])],
-			wins: [...series.wins],
-			games: series.games.map((g) => ({ ...g })),
-			winner: seriesWinner(series),
-			complete,
-		};
-		this.#log({ event: 'table-series-ended', roomId: room.id, tableId: table.id, bestOf: end.bestOf, wins: end.wins, complete });
-		try {
-			this.#onSeriesEnd(end);
-		} catch (err) {
-			// A broken subscriber must not undo the write that ended the series.
-			this.#log({ event: 'series-end-listener-failed', roomId: room.id, error: (err as Error).message });
+			wins,
+			games: games.map((g) => ({ ...g })),
+			winner: seriesWinner({ length: bestOf, wins }),
+		});
+		const ends = decided
+			? [result(series.length, series.games, [...series.wins])]
+			: series.games.map((g) => result(1, [g], [g.winner === 0 ? 1 : 0, g.winner === 1 ? 1 : 0]));
+		this.#log({ event: 'table-series-ended', roomId: room.id, tableId: table.id, bestOf: series.length, wins: series.wins, ...(decided ? {} : { left: true, recordedAsBo1: ends.length }) });
+		for (const end of ends) {
+			try {
+				this.#onSeriesEnd(end);
+			} catch (err) {
+				// A broken subscriber must not undo the write that ended the series.
+				this.#log({ event: 'series-end-listener-failed', roomId: room.id, error: (err as Error).message });
+			}
 		}
 	}
 
@@ -2154,6 +2176,7 @@ class FileLobby implements Lobby {
 		const index = room.members.findIndex((m) => m.id === memberId);
 		if (index === -1) return { ok: false, reason: 'not-member' };
 		const wasLeader = room.leader === memberId;
+		for (const table of room.tables) this.#settleSeries(room, table, false, memberId);
 		room.members.splice(index, 1);
 		// The operator's ruling: leadership passes to whoever remaining joined
 		// EARLIEST, not to array order (today the same thing, since `join`

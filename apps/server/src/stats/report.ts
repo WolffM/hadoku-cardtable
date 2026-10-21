@@ -183,8 +183,6 @@ export interface SeriesStart {
 	/** Every game's match id, in order; the first keys the report. */
 	games: string[];
 	winner: 0 | 1 | null;
-	/** False for a series its room went away from undecided. */
-	complete: boolean;
 	endedAt: number;
 }
 
@@ -207,14 +205,13 @@ export function buildSeriesReport(series: SeriesStart): MatchReport | null {
 	return {
 		matchId,
 		mode: SERIES_STATS_MODE,
-		rated: series.complete && seats.every(ranks),
+		rated: seats.every(ranks),
 		roomId: series.roomId,
 		endedAt: series.endedAt,
 		attrs: {
 			mode: series.mode,
 			bestOf: series.bestOf,
 			score: `${String(series.wins[0])}-${String(series.wins[1])}`,
-			complete: series.complete,
 			opponent: series.seats.some((s) => s.kind === 'bot') ? 'bot' : 'human',
 		},
 		counters: { games: series.games.length },

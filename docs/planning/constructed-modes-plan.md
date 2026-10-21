@@ -89,6 +89,18 @@ not.
    select 'Next Game' it should take them back to the deck picker with the
    previously chosen decks (for both the player and the opponent) greyed out."*
 
+10. **A Bo3 left before it is decided** (2026-10-21), verbatim: *"in that
+    case we just record the completed games as Bo1, uncompleted games are
+    trashed"*. "Left" is the lobby's own test for a Bo1 that can no longer be
+    rematched: a player leaves the room or stands up from the seat they played
+    in, or the room closes or is swept. A draft pod's tables are the pod's.
+11. **The bot's deck against the AI** (2026-10-21), verbatim: *"if rematch is
+    clicked, yes the bot keeps the same deck. if we go back to room then it
+    picks a new deck"*. A Rematch and every game of the Bo3 it converts into
+    keep it; a start that begins a new series draws a new one. All Random and
+    Gauntlet deal the bot's deck as before. Also ruled: Classic keeps the seats
+    above the deck picker (no change).
+
 ## Design
 
 ### Words and ids

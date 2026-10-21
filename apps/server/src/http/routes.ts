@@ -550,9 +550,12 @@ interface TablePlayerState {
 	 */
 	seriesDeck: TableDeck | string | null;
 	/**
-	 * The AI's `.dck` at an All Random table against the AI, dealt with this
-	 * seat's own deck (`dealRandom`) and held beside it so a Rematch plays the
-	 * same two. Absent everywhere else: a Classic AI draws its deck per game.
+	 * The AI's `.dck` against the AI, held beside its one human's seat: the ONE
+	 * place the bot's deck lives, in every mode. A dealt table (All Random, each
+	 * Gauntlet game) writes it with the deal (`dealDecks`); anywhere else the
+	 * start that begins a series draws it and every later game of that series
+	 * plays it (the operator, 2026-10-21: "if rematch is clicked, yes the bot
+	 * keeps the same deck. if we go back to room then it picks a new deck").
 	 */
 	aiDeck?: string;
 }
@@ -1462,6 +1465,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			ready: false,
 			seatedAt: mine?.state.seatedAt ?? nextSeatedAt(players),
 			seriesDeck: mine?.state.seriesDeck ?? null,
+			// The bot's deck stays with the seat: a sideboarded 75 is the same series.
+			...(mine?.state.aiDeck === undefined ? {} : { aiDeck: mine.state.aiDeck }),
 		};
 		if (!rooms.setPlayerState(room.id, me, state)) {
 			notFound(res);
@@ -1897,16 +1902,26 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				return;
 			}
 		}
-		// The bot's deck: a random one of the decks the room's pool offers a player
-		// (`legalLibraryDecks` — the era's own, or the whole library on Free pick),
-		// checked by the same gate as the player's. A drafted pool offers no library
-		// deck, so there the bot plays what a bot at that draft took (`botDeck.ts`).
+		// A new series by the ledger: `seating` or `done` (a Rematch that converts
+		// a Bo1 leaves it `sideboarding`, the same series). Only a new series
+		// registers each seat's deck (`seriesDeck`) — the deck a seat goes back to
+		// once the series is over — never a sideboarded load; and only a new series
+		// draws the bot a deck.
+		const newSeries = table.series.phase === 'seating' || table.series.phase === 'done';
+		// The bot's deck (`aiDeck`): the one its series already plays, or the one a
+		// dealt table dealt it. Otherwise a new series draws a random one of the
+		// decks the room's pool offers a player (`legalLibraryDecks` — the era's
+		// own, or the whole library on Free pick), checked by the same gate as the
+		// player's. A drafted pool offers no library deck, so there the bot plays
+		// what a bot at that draft took (`botDeck.ts`).
 		let botDeck: string | null = null;
+		const held = players[0]!.state.aiDeck;
+		const botKept = vsBot && held !== undefined && (dealsDecks(room) || !newSeries);
 		if (vsBot) {
 			const owner = loaded[0]!.member.id;
 			const draftId = draftIdOfPool(pool);
-			if (players[0]!.state.aiDeck !== undefined && dealsDecks(room)) {
-				botDeck = players[0]!.state.aiDeck;
+			if (botKept) {
+				botDeck = held;
 			} else if (draftId !== null) {
 				const draftRoom = deps.draftRooms?.find(draftId);
 				const botPool = draftRoom === undefined ? null : botPoolAcross(draftRoom, owner);
@@ -1953,11 +1968,6 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// launching a second JVM.
 		res.on('finish', () => settle(res.statusCode, { error: 'the match could not be started' }));
 
-		// A new series by the ledger: `seating` or `done` (a Rematch that converts
-		// a Bo1 leaves it `sideboarding`, the same series). Only a new series
-		// registers each seat's deck (`seriesDeck`) — the deck a seat goes back to
-		// once the series is over — never a sideboarded load.
-		const newSeries = table.series.phase === 'seating' || table.series.phase === 'done';
 		// The next game of a series is asked play-or-draw by the LOSER of the
 		// previous one (`draft-pods-plan.md`, "The loser of the previous game
 		// chooses play or draw"). The first game of a series has no previous
@@ -1992,6 +2002,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 						...p.state,
 						ready: false,
 						seriesDeck: newSeries || p.state.seriesDeck === null ? p.state.deck : p.state.seriesDeck,
+						...(botDeck === null ? {} : { aiDeck: botDeck }),
 					});
 				}
 				log({
@@ -2003,7 +2014,8 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 					// Which exact 75 each seat played, without the list: a name does
 					// not tell a sideboarded deck from the one it came from.
 					deckTexts: loaded.map((p) => createHash('sha256').update(p.deck.text).digest('hex').slice(0, 12)),
-					...(vsBot ? { opponent: 'ai' } : {}),
+					// The bot's deck the same way, and whether it was kept or drawn for this game.
+					...(botDeck === null ? {} : { opponent: 'ai', botDeck: createHash('sha256').update(botDeck).digest('hex').slice(0, 12), botDeckFrom: botKept ? 'kept' : 'drawn' }),
 					...(chooser === undefined ? {} : { chooser }),
 				});
 				settle(200, { matchId });

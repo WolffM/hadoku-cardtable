@@ -82,7 +82,6 @@ export function createMatchStats(deps: {
 				wins: end.wins,
 				games: end.games.map((g) => g.matchId),
 				winner: end.winner,
-				complete: end.complete,
 				endedAt: now(),
 			});
 			if (report === null) {
