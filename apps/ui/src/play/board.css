@@ -1623,7 +1623,7 @@
 .board .seat :is(.zone--graveyard, .zone--exile)[data-can-act] {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
-  box-shadow: inset 0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
+  box-shadow: inset var(--can-act-glow);
 }
 
 /* A pile with cards in it opens as a `PileView` on a click. */

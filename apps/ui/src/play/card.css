@@ -1082,15 +1082,22 @@
  * property outright. `data-can-act` and `data-selectable` are correlated but
  * not identical (`data-can-act` is unset the instant a real SELECTION opens,
  * `LiveBoard.tsx`), so both cases are written out rather than assumed.
+ *
+ * The glow is one token, so whatever else Forge offers — a pile, the pool — wears the same one
+ * (`inset` before it where a box clips what is drawn outside it).
  */
+:root {
+  --can-act-glow: 0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
+}
+
 .board-card[data-can-act] .card {
-  box-shadow: 0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
+  box-shadow: var(--can-act-glow);
 }
 
 .board-card[data-can-act][data-selectable] > .board-card__face .card {
   box-shadow:
     0 0 0 2px var(--accent),
-    0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
+    var(--can-act-glow);
 }
 
 /* ── condition met: this card's own condition is on ──────────────────── */
