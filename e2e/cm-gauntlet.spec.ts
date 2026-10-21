@@ -14,7 +14,7 @@
  */
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
-import type { GauntletView } from '@hadoku/shared';
+import type { GauntletView } from '../packages/shared/src/gauntlet.ts';
 
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
