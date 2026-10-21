@@ -783,6 +783,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			decks: library.decks.map((d) => ({
 				id: d.id,
 				collection: d.collection,
+				era: d.era,
 				name: d.deck.name,
 				// The name's two halves as the library records them, so a screen
 				// never splits a label to find who played the deck.

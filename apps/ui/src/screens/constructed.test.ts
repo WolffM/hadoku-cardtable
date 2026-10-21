@@ -46,6 +46,7 @@ import {
   LIBRARY_DECK_STYLES,
   LIBRARY_PILOT_KEY,
   deckPath,
+  formatIdOf,
   poolFixturePath,
   type LibraryCollection,
 } from '@hadoku/deck/library';
@@ -150,6 +151,7 @@ const MODERN = { id: 'modern-2014-07-18', name: 'Modern (M15)', effective: '2014
 const deck = (id: string, archetype: string, pilot: string) => ({
   id,
   collection: 'power-summer-2010',
+  era: '2010-07-16',
   name: `${archetype} (${pilot})`,
   archetype,
   pilot,
@@ -1721,6 +1723,15 @@ describe('the table’s pool', () => {
     expect(server.calls.filter((c) => c.method === 'PATCH')).toHaveLength(0);
   });
 
+  // The operator, 2026-10-20: "when i flip to legacy and year 2025 i see no decks". The event
+  // (2025-06-30) came after the ruleset it played (Legacy (FIN), from 2025-06-13).
+  it('Free pick: an era lists its decks when the event came after the ruleset began', async () => {
+    const late = { ...deck('power-modern-2014-1-late', 'Late', 'Lena'), era: MODERN.id, format: MODERN.name, date: '2014-07-25' };
+    await mountRoom({ players: [opponent()], matchId: null, leader: false, format: 'free', decks: [...DECKS, late] });
+    fireEvent.click(screen.getByTestId('browse-tab-modern'));
+    await waitFor(() => expect(offered()).toEqual([late.id]));
+  });
+
   it('Free pick: a deck you hold stays yours while you browse another format', async () => {
     await mountRoom({ players: [opponent()], matchId: null, leader: false, format: 'free' });
     await pick(SECOND_DECK);
@@ -2732,6 +2743,7 @@ function realDeck(collectionId: string, file: string): TableDeck {
   return {
     id: entry.id,
     collection: collection.id,
+    era: formatIdOf(collection),
     name: parsed.name,
     archetype,
     pilot,

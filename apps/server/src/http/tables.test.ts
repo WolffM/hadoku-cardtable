@@ -739,6 +739,18 @@ describe('the catalog routes', () => {
 		expect(list[0]?.main.reduce((n, e) => n + e.count, 0)).toBe(60);
 	});
 
+	// Free pick lists an era's decks by this id. Joined on name + date, Legacy 2019, 2020, 2023 and 2025
+	// and Modern 2020, 2023 and 2025 listed none: their events came after the ruleset began.
+	it('gives every library deck the id of an era it serves', async () => {
+		const h = await boot();
+		const formats = await call(h, 'GET', '/api/tables/formats');
+		const ids = new Set((formats.body.formats as { id: string }[]).map((f) => f.id));
+		const decks = await call(h, 'GET', '/api/tables/decks');
+		const list = decks.body.decks as { id: string; era: string }[];
+		expect(list.filter((d) => !ids.has(d.era) || d.era === 'free')).toEqual([]);
+		expect(list.find((d) => d.id === 'power-legacy-2025-1-ivan-ibanez-lands')?.era).toBe('legacy-2025-06-30');
+	});
+
 	it('names every library deck’s archetype and pilot apart, Goggles Ramp by Aleksa Telaron among them', async () => {
 		const h = await boot();
 		const decks = await call(h, 'GET', '/api/tables/decks');

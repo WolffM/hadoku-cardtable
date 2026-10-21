@@ -1559,13 +1559,13 @@ function RoomTableScreen({
    * offer, so a deck you hold is still yours while you look at another tab.
    */
   const [browse, setBrowse] = useState<{ family: BrowseTab; era: string }>({ family: 'standard', era: '' });
-  /** A library deck's era, joined on the name and date the catalogue gives both. */
+  /** A library deck's era, by the era id the server gives each deck. */
   const eraOfDeck = useMemo(() => {
     const out = new Map<string, TableFormat>();
     if (loaded === null) return out;
-    const eras = loaded.formats.filter(isEra);
+    const eras = new Map(loaded.formats.filter(isEra).map((f) => [f.id, f]));
     for (const d of loaded.decks) {
-      const era = eras.find((f) => f.name === d.format && f.effective === d.date);
+      const era = eras.get(d.era);
       if (era !== undefined) out.set(d.id, era);
     }
     return out;

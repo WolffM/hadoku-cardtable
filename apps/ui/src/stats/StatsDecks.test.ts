@@ -34,6 +34,7 @@ const DECKS: BreakdownRow[] = [
 const LIBRARY: TableDeck = {
   id: LIBRARY_ID,
   collection: 'power',
+  era: '2016-07-22',
   name: 'Azorius Fliers (Ana)',
   archetype: 'Azorius Fliers',
   pilot: 'Ana',

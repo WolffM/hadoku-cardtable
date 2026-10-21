@@ -79,6 +79,13 @@ export interface DeckLine {
 export interface TableDeck {
   id: string;
   collection: string;
+  /**
+   * The id of the era its collection was catalogued for. Not `format` + `date`:
+   * `date` is the event's and `effective` is when Forge's ruleset began, so the
+   * two differ whenever an event came weeks after a release (Legacy 2025: FIN
+   * from 2025-06-13, the event 2025-06-30).
+   */
+  era: string;
   name: string;
   /**
    * `name`'s two halves as the library records them (`Archetype` and `Pilot`
