@@ -17,8 +17,8 @@
  * of the submission on screen (`FRESH_KEY`), so a re-open no longer restores that one or anything older.
  * The server's file is untouched; the next submission is simply a later line.
  *
- * Built from the queue's own card (`.sound-queue__card`, `.sound-queue__choice`, `.sound-queue__pick`)
- * and the builder's header and buttons, so it reads as one of the sound screens.
+ * Each slot is a panel of track rows — play and name, three verdicts, the pick — under the builder's own
+ * header and buttons, so it reads as one of the sound screens.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -26,6 +26,7 @@ import { Icon } from '@wolffm/themes';
 
 import {
   MUSIC_RATINGS,
+  SOUND_MATRIX,
   musicReviewSlots,
   type MusicRating,
   type MusicReviewEntry,
@@ -34,6 +35,7 @@ import {
 } from '@hadoku/shared';
 
 import { ManaCost } from '../components/ManaPip.tsx';
+import { trackName } from '../sound/match-music.ts';
 import { musicReviewClient, soundsClient, type MusicReviewClient, type SoundsClient } from '../sound/builderClient.ts';
 import { createMixer, type Mixer } from '../sound/mixer.ts';
 import { getLevel, subscribeSound } from '../sound/mute.ts';
@@ -58,6 +60,9 @@ export const RESET_ARM_MS = 4000;
 type Review = Record<string, MusicReviewEntry>;
 
 const EMPTY: MusicReviewEntry = { picks: [], ratings: {}, note: '' };
+
+/** `WU` → `Azorius`: a slot by the name its colours go by. */
+const SLOT_NAME: ReadonlyMap<string, string> = new Map(SOUND_MATRIX.colour.map((c) => [c.id, c.name]));
 
 const RATING_ICON: Record<MusicRating, 'thumbs-up' | 'circle' | 'thumbs-down'> = {
   keep: 'thumbs-up',
@@ -293,17 +298,16 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
         </nav>
       </header>
 
-      <main className="sound-builder__main">
+      <main className="sound-builder__main music-review__slots">
         {slots.map((slot) => {
           const entry = review[slot.cell] ?? EMPTY;
-          const pips = slot.code.split('');
           return (
             <section key={slot.cell} className="music-review__slot" data-testid="music-review-slot" data-cell={slot.cell}>
-              <h2 className="music-review__code">
-                <ManaCost cost={pips} label={slot.code} />
-                <span>{slot.code}</span>
+              <h2 className="music-review__head">
+                <ManaCost cost={slot.code.split('')} label={slot.code} />
+                <span>{SLOT_NAME.get(slot.code) ?? slot.code}</span>
               </h2>
-              <ol className="sound-queue__choices">
+              <ol className="music-review__tracks">
                 {slot.candidates.map((c) => {
                   const on = playing === c.file;
                   const rating = entry.ratings[c.file];
@@ -311,43 +315,23 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                   return (
                     <li
                       key={c.file}
-                      className="sound-queue__card music-review__card"
+                      className="music-review__track"
                       data-file={c.file}
                       data-picked={picked ? '' : undefined}
                       data-current={c.current ? '' : undefined}
+                      data-playing={on ? '' : undefined}
                     >
                       <button
                         type="button"
-                        className="sound-queue__choice"
+                        className="music-review__play"
                         data-testid="music-review-play"
-                        data-heard={on ? '' : undefined}
                         aria-pressed={on}
                         aria-label={`${on ? 'Stop' : 'Play'} ${c.label}`}
                         onClick={() => toggle(c.file)}
                       >
-                        <span className="sound-queue__key" aria-hidden="true">
-                          <Icon name={on ? 'stop' : 'play'} size="0.9rem" />
-                        </span>
-                        <span className="sound-queue__label">
-                          {c.current && <Icon name="globe" size="0.9rem" title="Current" className="music-review__current" />}
-                          <span className="music-review__name">{c.label}</span>
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="music-review__pick"
-                        data-testid="music-review-pick"
-                        aria-label={`Pick ${c.label}`}
-                        title="Pick"
-                        aria-pressed={picked}
-                        onClick={() =>
-                          edit(slot.cell, (e) => ({
-                            ...e,
-                            picks: e.picks.includes(c.file) ? e.picks.filter((f) => f !== c.file) : [...e.picks, c.file],
-                          }))
-                        }
-                      >
-                        <Icon name="music" size="0.9rem" />
+                        <Icon name={on ? 'stop' : 'play'} size="0.85rem" />
+                        <span className="music-review__name">{trackName(c.label)}</span>
+                        {c.current && <Icon name="globe" size="0.8rem" title="Current" className="music-review__current" />}
                       </button>
                       <div className="music-review__ratings" role="group" aria-label={`Rate ${c.label}`}>
                         {MUSIC_RATINGS.map((r) => (
@@ -368,10 +352,26 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                               })
                             }
                           >
-                            <Icon name={RATING_ICON[r]} size="0.9rem" />
+                            <Icon name={RATING_ICON[r]} size="0.85rem" />
                           </button>
                         ))}
                       </div>
+                      <button
+                        type="button"
+                        className="music-review__pick"
+                        data-testid="music-review-pick"
+                        aria-label={`Pick ${c.label}`}
+                        title="Pick"
+                        aria-pressed={picked}
+                        onClick={() =>
+                          edit(slot.cell, (e) => ({
+                            ...e,
+                            picks: e.picks.includes(c.file) ? e.picks.filter((f) => f !== c.file) : [...e.picks, c.file],
+                          }))
+                        }
+                      >
+                        <Icon name={picked ? 'tick' : 'plus'} size="0.85rem" />
+                      </button>
                     </li>
                   );
                 })}

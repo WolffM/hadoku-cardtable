@@ -247,8 +247,8 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
     await expect(friend.page.getByTestId('music-review-slot')).toHaveCount(15);
 
     const slot = friend.page.locator(`[data-testid="music-review-slot"][data-cell="${MUSIC_CELL}"]`);
-    await expect(slot.locator('.music-review__card')).toHaveCount(2);
-    await expect(slot.locator('.music-review__card').first()).toHaveAttribute('data-current', '');
+    await expect(slot.locator('.music-review__track')).toHaveCount(2);
+    await expect(slot.locator('.music-review__track').first()).toHaveAttribute('data-current', '');
     // Not real audio: the play has to fail soft, never as a page error.
     await slot.getByRole('button', { name: 'Play W · w50 jig' }).click();
     await slot.getByRole('button', { name: 'Pick W · w50 jig' }).click();

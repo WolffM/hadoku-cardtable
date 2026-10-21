@@ -31,6 +31,12 @@ import { colourPair, matchMusicRole, MATCH_MUSIC_ROLES, type ManaColor } from '@
 
 import { setMatchMusic } from './index.ts';
 
+/** `UB · 16-bit infiltration` → `16-bit infiltration`: a track's name without the slot it was made for. */
+export function trackName(name: string): string {
+  const bare = name.replace(/^[WUBRG]{1,2} · /, '');
+  return bare.charAt(0).toUpperCase() + bare.slice(1);
+}
+
 /** One of `n`, the same for a match id every time it is asked. FNV-1a. */
 export function pickFor(matchId: string, n: number): number {
   let h = 0x811c9dc5;

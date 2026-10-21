@@ -99,23 +99,19 @@ describe('MusicReview', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('draws the fifteen slots, monos then pairs, each with its current take badged first and three more', async () => {
+  it('draws the fifteen slots by colour name, monos then pairs, each with its current take badged first and three more, named without the slot code', async () => {
     render(createElement(MusicReview, { client: stubClient(), reviews: stubReviews(), player: stubPlayer() }));
     await screen.findByText('Match Music');
     const slots = screen.getAllByTestId('music-review-slot');
     expect(slots.map((s) => s.dataset.cell)).toEqual(MUSIC_REVIEW_CODES.map((c) => `music.match.${c}|play`));
     for (const [i, s] of slots.entries()) {
       const code = MUSIC_REVIEW_CODES[i]!;
-      const cards = s.querySelectorAll<HTMLElement>('.music-review__card');
-      expect([...cards].map((c) => c.querySelector('.music-review__name')!.textContent)).toEqual([
-        `Web ${code}`,
-        `${code} · one`,
-        `${code} · two`,
-        `${code} · three`,
-      ]);
+      const cards = s.querySelectorAll<HTMLElement>('.music-review__track');
+      expect([...cards].map((c) => c.querySelector('.music-review__name')!.textContent)).toEqual([`Web ${code}`, 'One', 'Two', 'Three']);
       expect([...cards].map((c) => c.dataset.current !== undefined)).toEqual([true, false, false, false]);
       expect(within(cards[0]!).getByTitle('Current')).toBeTruthy();
     }
+    expect(slots.slice(0, 6).map((s) => s.querySelector('h2')!.textContent)).toEqual(['White', 'Blue', 'Black', 'Red', 'Green', 'Azorius']);
     expect(screen.getByRole('link', { name: 'Builder' }).getAttribute('href')).toBe('#/sounds');
     // Nothing to send yet.
     expect(submitButton().disabled).toBe(true);

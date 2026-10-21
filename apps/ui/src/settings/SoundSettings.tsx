@@ -23,12 +23,7 @@ import {
   subscribeSound,
   type LevelName,
 } from '../sound/index.ts';
-
-/** `UB · 16-bit infiltration` → `16-bit infiltration`: the slot is the deck's, not news to its player. */
-export function trackName(name: string): string {
-  const bare = name.replace(/^[WUBRG]{1,2} · /, '');
-  return bare.charAt(0).toUpperCase() + bare.slice(1);
-}
+import { trackName } from '../sound/match-music.ts';
 
 function MusicTrackPicker({ disabled }: { disabled: boolean }) {
   const now = useSyncExternalStore(subscribeMusicTrack, getMusicTrack, () => null);
