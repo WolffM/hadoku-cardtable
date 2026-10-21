@@ -58,6 +58,12 @@
  * and a spell is asked only where it is cast from: Calculated Dismissal and Fiery Impulse in a
  * graveyard of three instants stay dark although their spell mastery is met.
  *
+ * The operator, 2026-10-21: "just static abilities like anger is fine. castable cards like gravecrawler
+ * can just use the normal 'castable' glow logic". A static whose only effect is a permission to play
+ * the card (`MayPlay$`, `Mode$ CastWithFlash`) is not a condition: Gravecrawler in the graveyard beside
+ * a Zombie and Bard's Company in hand beside a Human stay dark, and Gravecrawler is in Forge's
+ * actionable set instead. Anger beside it still lights.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
@@ -140,6 +146,22 @@ const WHERE_IT_WORKS = [
 	'aibattlefield=Plains',
 	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
 	'aigraveyard=Anger;Brawn;Wonder;Filth',
+].join('\n');
+
+const PERMISSIONS = [
+	'turn=1',
+	'activeplayer=human',
+	'activephase=MAIN1',
+	'humanlife=20',
+	'ailife=20',
+	"humanhand=Bard's Company",
+	'humanbattlefield=Diregraf Ghoul;Elite Vanguard;Swamp;Mountain',
+	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
+	'humangraveyard=Gravecrawler;Anger',
+	'aihand=',
+	'aibattlefield=Plains',
+	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+	'aigraveyard=',
 ].join('\n');
 
 /** The graveyard incarnations: each lights from its owner's graveyard while its owner controls its basic land type. */
@@ -323,6 +345,50 @@ describe.skipIf(!available.ok)(title, () => {
 				for (const c of off) expect(seat0, `${c.name}#${c.id} is off`).not.toContain(c.id);
 				const on = [named(board, 'Carapace Forger'), named(hand, 'Acclaimed Contender'), ...INCARNATIONS.map((name) => named(graveyard, name))];
 				for (const c of on) expect(seat0, `${c.name}#${c.id} is on`).toContain(c.id);
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		'a permission to play the card is not a condition: Gravecrawler in the graveyard beside a Zombie stays dark and is offered instead; Anger beside it lights',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 87, decks: DECKS, scenario: PERMISSIONS });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Graveyard').some((c) => c.name === 'Gravecrawler') && s.zone(0, 'Battlefield').some((c) => c.name === 'Diregraf Ghoul');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const graveyard = s.zone(0, 'Graveyard');
+				const hand = s.zone(0, 'Hand');
+				const gravecrawler = named(graveyard, 'Gravecrawler');
+				const offered = (): number[] =>
+					s.sent
+						.filter((x) => x.seat === 0 && x.envelope.frame.method === 'setWeaklySelectable')
+						.map((x) => (x.envelope.frame as unknown as { cards: { id: number }[] }).cards.map((c) => c.id))
+						.at(-1) ?? [];
+				await waitUntil(
+					() => {
+						s.answerAsks();
+						return offered().includes(gravecrawler.id);
+					},
+					'Gravecrawler to be offered as actionable to seat 0 from its graveyard',
+					15_000,
+					s,
+				);
+				const seat0 = latestConditionMet(s, 0);
+				const lit = [...graveyard, ...hand, ...s.zone(0, 'Battlefield')].filter((c) => seat0?.includes(c.id)).map((c) => `${c.name}#${c.id}`);
+				console.log(`[gz-condition-met.jvm] permissions: offered=${JSON.stringify(offered())} conditionMet=${JSON.stringify(seat0)} → [${lit.join(', ')}]`);
+				expect(seat0, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
+				expect(seat0, `Gravecrawler#${gravecrawler.id} is off`).not.toContain(gravecrawler.id);
+				const company = named(hand, "Bard's Company");
+				expect(seat0, `Bard's Company#${company.id} is off`).not.toContain(company.id);
+				const anger = named(graveyard, 'Anger');
+				expect(seat0, `Anger#${anger.id} is on`).toContain(anger.id);
 			} finally {
 				await s.stop();
 			}
