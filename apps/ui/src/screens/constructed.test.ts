@@ -2414,9 +2414,13 @@ describe('the room’s mode', () => {
     const server = await mountModeRoom({ players: [], matchId: null, mode: null });
     fireEvent.click(radio('random'));
     await screen.findByTestId('room-players');
-    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ mode: 'random', modeOptions: { pool: 'full' } }]);
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)[0]).toEqual({ mode: 'random', modeOptions: { pool: 'full' } });
     expect(screen.queryByTestId('deck-mine')).toBeNull();
     expect(screen.queryByTestId('format-tabs')).toBeNull();
+    expect((screen.getByTestId('random-pool-full') as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByTestId('random-pool-modern'));
+    await waitFor(() => expect((screen.getByTestId('random-pool-modern') as HTMLInputElement).checked).toBe(true));
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body).at(-1)).toEqual({ mode: 'random', modeOptions: { pool: 'modern' } });
     server.table.players = [{ ...mySeat(), deck: null }];
     expect(await screen.findByTestId('ready-toggle')).toHaveProperty('disabled', false);
   });

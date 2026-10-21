@@ -163,7 +163,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
  * name if both were imported bare into this file.
  */
-import type { ConstructedMode, GauntletOptions as GauntletModeOptions, RoomTable as SharedRoomTable } from '@hadoku/shared';
+import type { ConstructedMode, GauntletOptions as GauntletModeOptions, RandomOptions, RoomTable as SharedRoomTable } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
@@ -195,6 +195,7 @@ import {
 } from '../rooms/api.ts';
 import { ClassicOptions, type Browse } from './constructed-mode/ClassicOptions.tsx';
 import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
+import { AllRandomOptions } from './random/AllRandomOptions.tsx';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import {
   FREE_PICK,
@@ -2050,6 +2051,14 @@ function RoomTableScreen({
                     leader={iAmLeader}
                     disabled={modeLocked}
                     onChange={(options) => writeRoom(() => rooms.setRoomMode(roomId, { mode: 'gauntlet', modeOptions: options }))}
+                  />
+                )}
+                {mode === 'random' && (
+                  <AllRandomOptions
+                    // The pair parsed together (`parseRoomView`), so an All Random room's options carry its pool.
+                    value={(view?.modeOptions as RandomOptions | null)?.pool ?? null}
+                    disabled={!iAmLeader || modeLocked}
+                    onChange={(pool) => writeRoom(() => rooms.setRoomMode(roomId, { mode: 'random', modeOptions: { pool } }))}
                   />
                 )}
               </div>
