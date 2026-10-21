@@ -131,7 +131,6 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand,
               )}
             </span>
             <StatusPill
-              kind="ready"
               testId={`pod-seat-${seat}-ready`}
               state={ready ? 'yes' : 'no'}
               mark={ready ? 'tick' : 'ring'}

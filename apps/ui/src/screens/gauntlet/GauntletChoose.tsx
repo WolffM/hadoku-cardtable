@@ -41,7 +41,7 @@ function ChoosingSeat({
     >
       <div className="gauntlet__seat-head">
         <PlayerName view={view} seat={seat} player={player} />
-        <StatusPill kind="ready" testId="gauntlet-chosen" state={chosen ? 'yes' : 'no'} mark={chosen ? 'tick' : 'ring'} label={chosen ? 'Chosen' : 'Choosing'} />
+        <StatusPill testId="gauntlet-chosen" state={chosen ? 'yes' : 'no'} mark={chosen ? 'tick' : 'ring'} label={chosen ? 'Chosen' : 'Choosing'} />
       </div>
       <div className="gauntlet__picks">
         {picks.map((d) => {

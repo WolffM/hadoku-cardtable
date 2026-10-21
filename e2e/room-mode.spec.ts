@@ -145,8 +145,8 @@ test.describe('the room decides which client', () => {
 
     const builtinId = await createRoomChecked(alice, `e2e builtin ${Date.now()}`, 'builtin');
     await expect(alice.page.getByTestId('constructed')).toBeVisible();
-    // The mode in the header, and the deck picker a builtin room has always had.
-    await expect(alice.page.getByTestId('room-client-mode')).toHaveText('Constructed');
+    // No mode line under the name (only a streamed room has one), and the deck picker a builtin room has always had.
+    await expect(alice.page.getByTestId('room-client-mode')).toHaveCount(0);
     await expect(alice.page.getByTestId('deck-mine')).toBeVisible();
     await expect(alice.page.getByTestId('room-players')).toBeVisible();
     await expect(alice.page.getByTestId('room-streams')).toHaveCount(0);

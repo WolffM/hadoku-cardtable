@@ -697,7 +697,8 @@ const myRow = (): HTMLElement => {
   return row;
 };
 const myRules = (): string => myRow().querySelector('[data-testid$="-rules"]')?.textContent ?? '';
-const myLegal = (): string => (myRow().querySelector('[data-testid$="-legal"]') as HTMLElement | null)?.dataset['state'] ?? '';
+/** Whether my Ready can be pressed: in a classic room, what the server's verdict on my deck decides. */
+const myReadyOpen = (): boolean => !(within(myRow()).getByTestId('ready-toggle') as HTMLButtonElement).disabled;
 
 /**
  * Choosing a deck. There is no Load button: this is the load.
@@ -852,7 +853,7 @@ describe('a room’s table', () => {
     await mountRoom({ players: [{ seat: 0, name: 'user-bob', you: false, ready: true } as RoomPlayer], matchId: null });
     const row = screen.getByTestId('room-seat-0');
     expect([...row.children].map((c) => c.className.split(' ')[0])).toEqual(['tables__who', 'pill']);
-    for (const cell of ['deck', 'rules', 'legal']) expect(screen.queryByTestId(`room-seat-0-${cell}`)).toBeNull();
+    for (const cell of ['deck', 'rules']) expect(screen.queryByTestId(`room-seat-0-${cell}`)).toBeNull();
     expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('ready');
   });
 
@@ -870,7 +871,7 @@ describe('a room’s table', () => {
     await screen.findByTestId('seat-stand');
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)?.method).toBe('POST');
     expect(screen.getByTestId('room-seat-0').textContent).toContain('user-alice (you)');
-    expect(screen.getByTestId('room-seat-0-legal').textContent).toBe('no deck');
+    expect(screen.getByTestId('room-seat-0-deck').textContent, 'no deck yet').toBe('—');
     // My own seat's ready state is the button that sets it.
     const ready = within(screen.getByTestId('room-seat-0')).getByTestId('ready-toggle');
     expect(ready.dataset.state).toBe('no');
@@ -941,7 +942,6 @@ describe('a room’s table', () => {
       'tables__deck',
       'tables__rules',
       'pill',
-      'pill',
     ]);
     // The format is a cell, not a clause: "legal in Standard (M11)" is gone.
     expect(screen.getByTestId('room-seat-0-rules').textContent).toBe('Standard (M11)');
@@ -953,19 +953,13 @@ describe('a room’s table', () => {
     expect(ready.dataset.mark).toBe('tick');
     expect(ready.querySelector('svg path')).not.toBeNull();
     expect(ready.querySelector('svg circle')).toBeNull();
-
-    const legal = screen.getByTestId('room-seat-0-legal');
-    expect(legal.dataset.state).toBe('yes');
-    expect(legal.dataset.mark).toBe('tick');
   });
 
-  it('my unready, illegal seat reads as two failed states, with the count on the pill', async () => {
+  /* The operator, 2026-10-21, of the legal / no deck pill: "it's ugly and unecessary". */
+  it('my unready, illegal seat draws no legality of its own: only its Ready, unpressed', async () => {
     await mountRoom({ players: [mySeat({ legal: false, issueCount: 3 })], matchId: null });
-    const legal = screen.getByTestId('room-seat-0-legal');
-    expect(legal.dataset.state).toBe('no');
-    expect(legal.dataset.mark).toBe('cross');
-    expect(legal.textContent).toBe('illegal3');
-    expect(legal.querySelector('.pill__count')!.textContent).toBe('3');
+    expect(screen.queryByTestId('room-seat-0-legal')).toBeNull();
+    expect(screen.getByTestId('room-seat-0').textContent).not.toMatch(/illegal|legal|no deck/);
     const ready = screen.getByTestId('ready-toggle');
     expect(ready.dataset.state).toBe('no');
     expect(ready.dataset.mark).toBe('ring');
@@ -995,7 +989,7 @@ describe('a room’s table', () => {
       body: { deck: { library: SECOND_DECK } },
     });
     expect(myRules()).toBe('Standard (M11)');
-    expect(myLegal()).toBe('yes');
+    expect(myReadyOpen()).toBe(true);
     expect(screen.getByTestId('room-seat-1').textContent).toContain('(you)');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
   });
@@ -1011,7 +1005,7 @@ describe('a room’s table', () => {
     await pick(UG_POLYMORPH);
     await pickPool('2011-07-15');
 
-    await waitFor(() => expect(myLegal()).toBe('no'));
+    await waitFor(() => expect(myReadyOpen()).toBe(false));
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
     // The pool that bans it no longer offers it, and nothing is chosen.
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
@@ -1566,7 +1560,7 @@ describe('the deck picker', () => {
     // The re-send is refused, in the server's own words.
     await waitFor(() => expect(screen.getByTestId('table-error').textContent).toContain('the room is restarting'));
     // Nothing was checked against the new pool, so the hold is not legal in it.
-    await waitFor(() => expect(myLegal()).toBe('no'));
+    await waitFor(() => expect(myReadyOpen()).toBe(false));
     // The deck is off the list, nothing is chosen, and Ready stays dead.
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     expect(chosen()).toBe('');
@@ -1592,7 +1586,7 @@ describe('the deck picker', () => {
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     await pressRandom();
     expect(chosen()).toBe(SECOND_DECK);
-    expect(myLegal()).toBe('yes');
+    expect(myReadyOpen()).toBe(true);
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: SECOND_DECK } });
   });
 
@@ -1990,7 +1984,7 @@ describe('the table’s pool', () => {
 
     // The held deck is re-sent — this seat's verdict was cleared by the change
     // too — and the pool that bans it marks it illegal and takes it off the list.
-    await waitFor(() => expect(myLegal()).toBe('no'));
+    await waitFor(() => expect(myReadyOpen()).toBe(false));
     expect(screen.getByTestId('format-fixed').textContent).toBe('2011-07-15 — Standard (M12)');
     await waitFor(() => expect(offered()).not.toContain(UG_POLYMORPH));
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
@@ -2518,9 +2512,10 @@ describe('the room’s mode', () => {
 });
 
 describe('a builtin room is what it has always been', () => {
-  it('says the same sentence in its header, and draws no stream anywhere', async () => {
+  it('says nothing under its name, and draws no stream anywhere', async () => {
+    // The operator, 2026-10-21: "i don't need the 'Constructed 1v1' title inside the room".
     await mountRoom({ players: [opponent()], matchId: null, clientMode: 'builtin' });
-    expect(screen.getByTestId('room-client-mode').textContent).toBe('Constructed');
+    expect(screen.queryByTestId('room-client-mode')).toBeNull();
     expect(screen.queryByTestId('room-streams')).toBeNull();
     expect(screen.queryByTestId('stream-seat')).toBeNull();
     expect(screen.getByTestId('deck-mine')).toBeTruthy();
@@ -3235,13 +3230,14 @@ describe('Ready and Random come before the deck list, and the era note is not pr
     expect(list.contains(random)).toBe(false);
   });
 
-  it('draws no verdict for an illegal deck: no card list, no era note, only the pill', async () => {
+  it('draws no verdict for an illegal deck: no card list, no era note, no pill', async () => {
     // The operator, 2026-10-10: "i dislike that verdict it's useless, just get rid of it".
     await mountRoom({ players: [], matchId: null });
     await pick(UG_POLYMORPH);
     await pickPool('2011-07-15');
-    await waitFor(() => expect(myLegal()).toBe('no'));
+    await waitFor(() => expect(myReadyOpen()).toBe(false));
     expect(screen.queryByTestId('verdict-mine')).toBeNull();
+    expect(screen.queryByTestId('room-seat-0-legal')).toBeNull();
     expect(document.body.textContent).not.toContain('Jace, the Mind Sculptor');
     expect(document.body.textContent).not.toContain('built for');
   });
@@ -3389,7 +3385,7 @@ describe('the deck chooser', () => {
 
     // The keyboard is not a second, quieter path: choosing by key loaded the deck
     // through the same call a click makes, and the server answered it legal.
-    await waitFor(() => expect(myLegal()).toBe('yes'));
+    await waitFor(() => expect(myReadyOpen()).toBe(true));
   });
 
   it('keeps the tab stop on the deck the server is already holding', async () => {

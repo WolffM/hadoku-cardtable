@@ -154,11 +154,6 @@
   height: 34px;
 }
 
-.skeleton--sub {
-  width: 8rem;
-  height: 1.2em;
-}
-
 .skeleton--heading {
   width: 8rem;
   height: 22px;
@@ -504,11 +499,11 @@
   --seat-line: 1.6rem;
   --seat-subline: 1.1rem;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: var(--seat-line) var(--seat-subline);
   grid-template-areas:
-    'who deck-legal deck-ready'
-    'deck deck rules';
+    'who deck-ready'
+    'deck rules';
   align-items: center;
   gap: 0.2rem 0.75rem;
   padding: 0.45rem 0.7rem;
@@ -517,16 +512,16 @@
   border-radius: var(--hdk-radius);
 }
 
-/* A phone's row is too narrow for a name, its button and two pills on one line:
-   the name gets the whole first line, the pills go under the deck. */
+/* A phone's row is too narrow for a name, its button and the pill on one line:
+   the name gets the whole first line, the pill goes under the deck. */
 @media (max-width: 600px) {
   .tables__row {
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: var(--seat-line) var(--seat-subline) var(--seat-line);
     grid-template-areas:
-      'who who who'
-      'deck deck deck'
-      'deck-legal deck-ready rules';
+      'who who'
+      'deck deck'
+      'deck-ready rules';
   }
 }
 
@@ -637,10 +632,6 @@
   white-space: nowrap;
 }
 
-.pill--legal {
-  grid-area: deck-legal;
-}
-
 .pill--ready {
   grid-area: deck-ready;
 }
@@ -654,7 +645,7 @@
 
 /*
  * A state, not a clause: a shape, a colour and a word. The SHAPE is the
- * primary signal — `ConstructedScreen.tsx` draws a tick, a cross or an open
+ * primary signal — `ConstructedScreen.tsx` draws a tick or an open
  * ring — and the border style is a second one, so nothing here depends on
  * telling green from amber.
  */
@@ -720,16 +711,6 @@
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-/* How many problems, on the pill that says there are some. */
-.pill__count {
-  padding: 0 0.3rem;
-  border: 1px solid currentcolor;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
 .tables__seat select,

@@ -182,7 +182,6 @@ import { dckTextOf, deckFromPool, draftBuild, savedBuild } from '../draft/deckFr
 import type { DraftTransport } from '../draft/socket.ts';
 import type { DraftCard } from '../draft/types.ts';
 import {
-  gameTypeLabel,
   roomsClient,
   streamPath,
   streamReachable,
@@ -1974,16 +1973,13 @@ function RoomTableScreen({
         ) : (
           <span className="skeleton skeleton--title" />
         )}
-        {/* The header states what this room is, so nobody who followed a link
-            has to work it out from what is drawn below. A builtin constructed
-            room says exactly what it has always said — that sentence already
-            names our table. */}
-        {resolved ? (
+        {/* A streamed room says so under its name: it is not our table. Ours
+            needs no line (the operator, 2026-10-21: "i don't need the
+            'Constructed 1v1' title inside the room"). */}
+        {resolved && streamed && (
           <p className="shell__sub" data-testid="room-client-mode">
-            {streamed ? 'Forge’s full client' : gameTypeLabel(view?.gameType ?? 'constructed-1v1')}
+            Forge’s full client
           </p>
-        ) : (
-          <span className="skeleton skeleton--sub" />
         )}
         {!streamed && iAmLeader && <CloseRoom roomId={roomId} rooms={rooms} />}
         <SettingsGear />
@@ -2430,7 +2426,7 @@ function seriesScoreText(players: RoomPlayer[], table: SharedRoomTable | null): 
 
 /** The leader's mark, our own five-point outline, on a 12-unit square. */
 export const CROWN = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
-/** A pass: the ready and legal pills' tick. */
+/** A pass: the ready pill's tick. */
 const TICK = 'M2.6 6.3 4.9 8.8 9.4 3.3';
 
 /**
@@ -2441,30 +2437,13 @@ const TICK = 'M2.6 6.3 4.9 8.8 9.4 3.3';
  * `<svg>` we own) and its own border style as well. `screens.css` colours it;
  * remove every colour from that file and this still reads.
  */
-export function StatusPill({
-  kind,
-  testId,
-  state,
-  mark,
-  label,
-  count,
-}: {
-  kind: 'legal' | 'ready';
-  testId: string;
-  state: 'yes' | 'no';
-  mark: 'tick' | 'cross' | 'ring';
-  label: string;
-  count?: number;
-}) {
+export function StatusPill({ testId, state, mark, label }: { testId: string; state: 'yes' | 'no'; mark: 'tick' | 'ring'; label: string }) {
   return (
-    <span className={`pill pill--${kind}`} data-testid={testId} data-state={state} data-mark={mark}>
+    <span className="pill pill--ready" data-testid={testId} data-state={state} data-mark={mark}>
       <svg className="pill__mark" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
-        {mark === 'tick' && <path d={TICK} />}
-        {mark === 'cross' && <path d="M3.5 3.5 8.5 8.5M8.5 3.5 3.5 8.5" />}
-        {mark === 'ring' && <circle cx="6" cy="6" r="3.4" />}
+        {mark === 'tick' ? <path d={TICK} /> : <circle cx="6" cy="6" r="3.4" />}
       </svg>
       {label}
-      {count !== undefined && <span className="pill__count">{count}</span>}
     </span>
   );
 }
@@ -2474,12 +2453,12 @@ export function StatusPill({
  *
  * The operator, 2026-09-25, of the shape this replaces — a sentence with
  * middots for separators and `ready` as raw text: *"looks very cheap"*. So the
- * separators are gone (the cells are the separation), the two states are
- * `StatusPill`s, and the format is a cell of its own rather than a clause in
+ * separators are gone (the cells are the separation), the ready state is a
+ * `StatusPill`, and the format is a cell of its own rather than a clause in
  * "legal in Standard (MBS)".
  *
  * The cells are laid out in named areas over two lines (`screens.css`): who
- * and the two states above, the deck and the format below. One line truncated
+ * and the ready state above, the deck and the format below. One line truncated
  * "4c Reveillark Control (Shouhei Yamamoto)" to "4c…" in the column this card
  * actually gets, which is the cheap look again by another route.
  *
@@ -2531,7 +2510,6 @@ function PlayerRow({
       {player.deck !== undefined && <OwnDeckCells seat={seat} deck={player.deck} />}
       {onReady === undefined ? (
         <StatusPill
-          kind="ready"
           testId={`room-seat-${seat}-ready`}
           state={player.ready ? 'yes' : 'no'}
           mark={player.ready ? 'tick' : 'ring'}
@@ -2558,7 +2536,12 @@ function PlayerRow({
   );
 }
 
-/** Your own seat's deck: its name, the pool's words for it, and whether it is legal. */
+/**
+ * Your own seat's deck: its name and the pool's words for it. Not whether it is
+ * legal: the picker offers only decks legal in the room's pool, and Ready is
+ * what an unplayable deck holds back (the operator, 2026-10-21, of the pill that
+ * said it: "ugly and unecessary").
+ */
 function OwnDeckCells({ seat, deck }: { seat: number; deck: SeatDeck | null }) {
   return (
     <>
@@ -2568,14 +2551,6 @@ function OwnDeckCells({ seat, deck }: { seat: number; deck: SeatDeck | null }) {
       <span className="tables__rules" data-testid={`room-seat-${seat}-rules`}>
         {deck?.rulesName ?? '—'}
       </span>
-      <StatusPill
-        kind="legal"
-        testId={`room-seat-${seat}-legal`}
-        state={deck?.legal === true ? 'yes' : 'no'}
-        mark={deck === null ? 'ring' : deck.legal ? 'tick' : 'cross'}
-        label={deck === null ? 'no deck' : deck.legal ? 'legal' : 'illegal'}
-        {...(deck === null || deck.legal ? {} : { count: deck.issueCount })}
-      />
     </>
   );
 }

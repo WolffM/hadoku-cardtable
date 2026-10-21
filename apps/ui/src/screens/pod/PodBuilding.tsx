@@ -26,7 +26,6 @@ export function PodBuilding({ pod, nameOf }: PodBuildingProps) {
           return (
             <li key={id} data-testid={`pod-built-${id}`} data-built={isBuilt ? '' : undefined}>
               <StatusPill
-                kind="ready"
                 testId={`pod-built-${id}-pill`}
                 state={isBuilt ? 'yes' : 'no'}
                 mark={isBuilt ? 'tick' : 'ring'}
