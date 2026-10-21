@@ -1967,6 +1967,26 @@ describe('Lobby.playPod', () => {
 		expect(started.ok).toBe(true);
 		if (started.ok) expect(started.room.pod?.pairings[0]?.players).toEqual([ALICE.id, POD_AI]);
 	});
+
+	it('two players in a pod of eight, six of them AI, play each other — the AI drafts but never takes a table', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.sitPod(id, ALICE.id, 2).ok).toBe(true);
+		expect(lobby.sitPod(id, BOB.id, 3).ok).toBe(true);
+		for (const m of [ALICE, BOB]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		fillWithAi(lobby, id, ALICE.id);
+		expect(lobby.podDraft(id)?.botNames).toHaveLength(6);
+		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
+		const started = playAll(lobby, id, [ALICE, BOB]);
+		expect(started.ok).toBe(true);
+		if (!started.ok) return;
+		expect(started.room.pod).toMatchObject({ phase: 'rounds', round: 1, rounds: 1, bye: null, results: [] });
+		expect(started.room.pod?.pairings.map((p) => p.players)).toEqual([[ALICE.id, BOB.id]]);
+	});
 });
 
 describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
