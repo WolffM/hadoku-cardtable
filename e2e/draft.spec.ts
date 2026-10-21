@@ -385,15 +385,16 @@ async function domPackIds(page: Page): Promise<string[]> {
 }
 
 /**
- * Pick until the draft is over.
+ * Pick until the draft is over, or until this player has made `picks`.
  *
  * Every pick waits for the server's own confirmation — an envelope whose pool
  * holds the card — before the next is considered. That is what makes the run
  * independent of timing: nothing here guesses how long a round trip takes.
  */
-async function draftAll(p: Player, hooks: { afterPick?: (n: number) => Promise<void> } = {}): Promise<void> {
+async function draftAll(p: Player, hooks: { afterPick?: (n: number) => Promise<void>; picks?: number } = {}): Promise<void> {
   let lastClick = 0;
   for (;;) {
+    if (hooks.picks !== undefined && p.picks.length >= hooks.picks) return;
     const next = await p.page.waitForFunction(
       (sel) => {
         if (window.location.hash.startsWith('#/deck/')) return 'done';
@@ -617,12 +618,9 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
   if (opening === null) throw new Error('alice has no view after the draft started');
   expect(opening.seats).toHaveLength(SEATS);
 
-  // Carried over from the fixed-seat version, and still guaranteed: the humans
-  // hold the two LOWEST seats. The draft is dealt with `humans: []`, so all
-  // eight seats are bots and `seatParticipant` reaches its last resort — the
-  // lowest bot's seat — for each arrival (rooms-protocol `seats.js`: step 2
-  // finds no empty seat and step 3 no room to grow). So the pair is {0,1};
-  // only which browser is which varies.
+  // Ready seats each player in the first open pod seat, and a player drafts
+  // from the pod seat they hold: so the pair is {0,1}, and only which browser
+  // is which varies.
   const humanSeats = opening.seats.filter((s) => s.occupant?.kind === 'human').map((s) => s.id);
   expect(humanSeats, 'the two humans hold the two lowest seats').toEqual([0, 1]);
   expect([aliceSeat, bobSeat].sort((x, y) => x - y)).toEqual(humanSeats);
@@ -903,6 +901,46 @@ test("a member who never sat watches the draft: a drafter's pack and picks, read
         return v?.kind === 'watcher' ? v.seatId : null;
       }, { message: 'the wire follows the press', timeout: UI_TIMEOUT })
       .toBe(bot);
+  } finally {
+    await finalizeVideo(alice);
+    await finalizeVideo(bob);
+  }
+});
+
+test('a player drafts from the seat they sat in: pack 1 passes along the table, through the AI between two players', async ({ browser }) => {
+  const alice = await join(browser, 'alice');
+  const bob = await join(browser, 'bob');
+  try {
+    const roomName = `e2e seats ${Date.now()}`;
+    const roomId = await createDraftRoom(alice, roomName);
+    await enterFromList(bob, roomId, roomName);
+    await expect
+      .poll(async () => (await roomState(alice, roomId)).members.length, { message: 'bob is a member', timeout: UI_TIMEOUT })
+      .toBe(2);
+
+    // Seats 2 and 4 of eight: not neighbours, the AI in seat 3 between them.
+    for (const [p, seat] of [[alice, 1], [bob, 3]] as const) {
+      await expect(p.page.getByTestId('pod-seats')).toBeVisible({ timeout: UI_TIMEOUT });
+      await p.page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).click();
+      await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds the seat they chose`).toBeVisible({ timeout: UI_TIMEOUT });
+    }
+    for (const p of [alice, bob]) await p.page.getByTestId('ready-toggle').click();
+    await fillWithAi(alice.page, UI_TIMEOUT);
+    for (const p of [alice, bob]) await expect(p.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
+    expect(await seatFromWire(alice), 'alice drafts from the seat she sat in').toBe(1);
+    expect(await seatFromWire(bob), 'bob drafts from the seat he sat in').toBe(3);
+
+    // Pack 1 passes left, seat s to seat s + 1: after two passes, the pack alice
+    // opened has gone through the AI in seat 3 and is in front of bob.
+    await Promise.all([draftAll(alice, { picks: 2 }), draftAll(bob, { picks: 2 })]);
+    await expect
+      .poll(() => offers(bob)[2]?.length ?? 0, { message: "bob is offered his third pick", timeout: UI_TIMEOUT })
+      .toBe(PACK_SIZE - 2);
+    const opened = offers(alice)[0]!;
+    const third = offers(bob)[2]!;
+    console.log(`[sp] alice seat 1 opened ${digest(opened)}; bob seat 3 third pack ${third.length} cards, ${third.filter((id) => opened.includes(id)).length} from alice's`);
+    expect(third.every((id) => opened.includes(id)), "bob's third pack is the one alice opened").toBe(true);
+    expect(third, 'less the card alice took from it').not.toContain(alice.picks[0]);
   } finally {
     await finalizeVideo(alice);
     await finalizeVideo(bob);
