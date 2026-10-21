@@ -103,3 +103,21 @@ describe('hovering a line of a peeked list', () => {
     expect(el.querySelector('[data-testid="card"]')!.closest('[hidden]')).not.toBeNull();
   });
 });
+
+// A list line is 18px at the UI scale, so at 125% fewer of them fit the screen and the main deck splits sooner.
+describe("a peeked list's columns follow the UI scale", () => {
+  const twenty = Array.from({ length: 20 }, (_, i) => line(`Card ${String(i).padStart(2, '0')}`, ['R'], 1));
+  const columns = () => screen.getByTestId('deck-peek').querySelectorAll('.peek__col:not(.peek__col--side)').length;
+  const peekAt = () =>
+    render(createElement(DeckPeek, { id: 'deck-peek', label: 'Red', colors: ['R'], list: { main: twenty, sideboard: [] }, anchor: new DOMRect(0, 0, 100, 100), bounds: new DOMRect(0, 0, 1280, 500) }));
+  afterEach(() => document.documentElement.style.removeProperty('--ui-scale'));
+
+  it('twenty lines in 500px are one column at 100% and two at 125%', () => {
+    peekAt();
+    expect(columns()).toBe(1);
+    cleanup();
+    document.documentElement.style.setProperty('--ui-scale', '1.25');
+    peekAt();
+    expect(columns()).toBe(2);
+  });
+});
