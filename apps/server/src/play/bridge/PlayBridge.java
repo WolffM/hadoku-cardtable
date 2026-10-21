@@ -1019,6 +1019,14 @@ public final class PlayBridge {
      * or a phase ("during your turn"): it is when an ability works, and would light the card every
      * turn. Nor does a presence check whose only subject is the card itself ({@code IsPresent$ Card.Self},
      * {@link #self}): the card being where it is, not a condition it can meet.
+     *
+     * <p>A card shows its condition where the condition works ({@link #worksHere}): a static, trigger
+     * or replacement is asked only in the zones Forge makes it active in (Anger's haste works from
+     * the graveyard, so on the battlefield it never lights), and in hand also when it works on the
+     * battlefield — what the card would be once cast. And a trait whose event is this card itself
+     * doing something it can no longer do from where it is ({@link #spent}) is not asked: a
+     * "when this enters, if …" on a card already on the battlefield, a "when you cast this spell,
+     * if …" on a permanent.
      */
     static final class ConditionsOn {
         private static final int IF = 1_000_001;
@@ -1052,7 +1060,8 @@ public final class PlayBridge {
 
         static boolean met(final forge.game.card.Card c) throws ReflectiveOperationException {
             final forge.game.player.Player controller = c.getController();
-            if (controller == null) { return false; }
+            if (controller == null || c.getZone() == null) { return false; }
+            final ZoneType here = c.getZone().getZoneType();
             /* Every parameter value of the traits asked below, with the trait it is on: the SVars they name are the amounts the branch probe asks. */
             final Map<String, forge.game.CardTraitBase> named = new HashMap<>();
             final List<forge.game.CardTraitBase> asked = new ArrayList<>();
@@ -1075,16 +1084,16 @@ public final class PlayBridge {
             for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
                 if (!st.isIntrinsic()) { continue; }
                 name(named, st);
-                if (!quiet.contains(st) && staticOn(st, c)) { return true; }
+                if (!quiet.contains(st) && worksHere(st, here) && staticOn(st, c)) { return true; }
             }
             for (final forge.game.trigger.Trigger t : c.getTriggers()) {
-                if (!t.isIntrinsic()) { continue; }
+                if (!t.isIntrinsic() || !worksHere(t.getActiveZone(), here) || spent(t, here)) { continue; }
                 name(named, t);
                 for (SpellAbility s = t.getOverridingAbility(); s != null; s = s.getSubAbility()) { name(named, s); }
                 if ((!quiet.contains(t) && commonOn(t)) || chainOn(t.getOverridingAbility(), controller, quiet)) { return true; }
             }
             for (final forge.game.replacement.ReplacementEffect r : c.getReplacementEffects()) {
-                if (r.isIntrinsic() && !quiet.contains(r) && commonOn(r)) { return true; }
+                if (r.isIntrinsic() && !quiet.contains(r) && worksHere(r.getActiveZone(), here) && !spent(r, here) && commonOn(r)) { return true; }
             }
             for (final SpellAbility sa : c.getSpellAbilities()) {
                 if (!sa.isIntrinsic()) { continue; }
@@ -1092,6 +1101,63 @@ public final class PlayBridge {
                 if ((!quiet.contains(sa) && restrictionOn(sa, c, controller)) || chainOn(sa, controller, quiet)) { return true; }
             }
             return branchOn(c, named);
+        }
+
+        /** {@link #worksHere(Set, ZoneType)} for a static, whose zone Forge leaves unset for "on the battlefield" ({@code StaticAbility.zonesCheck}). */
+        private static boolean worksHere(final forge.game.staticability.StaticAbility st, final ZoneType here) {
+            if (st.isCharacteristicDefining()) { return true; }
+            return worksHere(st.getActiveZone() == null ? EnumSet.of(ZoneType.Battlefield) : st.getActiveZone(), here);
+        }
+
+        /**
+         * Whether a trait Forge makes active in {@code zones} (null: anywhere) is asked of a card in
+         * {@code here}: where it works, or in hand when it works on the battlefield.
+         */
+        private static boolean worksHere(final Set<ZoneType> zones, final ZoneType here) {
+            return zones == null || zones.isEmpty() || zones.contains(here)
+                    || (here == ZoneType.Hand && zones.contains(ZoneType.Battlefield));
+        }
+
+        /** The trigger modes whose event is a spell being cast or copied. */
+        private static final Set<forge.game.trigger.TriggerType> CAST = EnumSet.of(
+                forge.game.trigger.TriggerType.SpellCast, forge.game.trigger.TriggerType.SpellCastOrCopy,
+                forge.game.trigger.TriggerType.SpellCopy, forge.game.trigger.TriggerType.SpellAbilityCast,
+                forge.game.trigger.TriggerType.SpellAbilityCopy);
+
+        /**
+         * Whether a trigger's or replacement's event is this card itself ({@code ValidCard$ Card.Self})
+         * doing something it can no longer do from {@code here}: moving from here to where the trait
+         * waits for it ({@link #movesFrom}), or being cast while it is on the battlefield. A card in
+         * hand is never spent: it is asked what it would do once cast.
+         */
+        private static boolean spent(final forge.game.CardTraitBase trait, final ZoneType here) {
+            if (here == ZoneType.Hand || !trait.hasParam("ValidCard") || !self(trait.getParam("ValidCard"))) { return false; }
+            if (trait instanceof final forge.game.trigger.Trigger t) {
+                if (CAST.contains(t.getMode())) { return here == ZoneType.Battlefield; }
+                return t.getMode() == forge.game.trigger.TriggerType.ChangesZone && !movesFrom(trait, here);
+            }
+            return trait instanceof final forge.game.replacement.ReplacementEffect r
+                    && r.getMode() == forge.game.replacement.ReplacementType.Moved && !movesFrom(trait, here);
+        }
+
+        /**
+         * Whether a move of the card from {@code here} to another zone meets the trait's zones, read as
+         * {@code TriggerChangesZone.performTest} reads them: {@code Origin$}, {@code Destination$}
+         * ({@code Any} or absent for every zone), {@code ExcludedOrigins$}, {@code ExcludedDestinations$}.
+         */
+        private static boolean movesFrom(final forge.game.CardTraitBase trait, final ZoneType here) {
+            if (!among(trait, "Origin", here, true) || among(trait, "ExcludedOrigins", here, false)) { return false; }
+            for (final ZoneType to : ZoneType.values()) {
+                if (to != here && among(trait, "Destination", to, true) && !among(trait, "ExcludedDestinations", to, false)) { return true; }
+            }
+            return false;
+        }
+
+        /** Whether the trait's zone list {@code key} names {@code zone}; {@code absent} when it has none or says {@code Any}. */
+        private static boolean among(final forge.game.CardTraitBase trait, final String key, final ZoneType zone, final boolean absent) {
+            final String zones = trait.getParam(key);
+            if (zones == null || zones.equals("Any")) { return absent; }
+            return Arrays.asList(zones.split(",")).contains(zone.name());
         }
 
         private static void name(final Map<String, forge.game.CardTraitBase> named, final forge.game.CardTraitBase trait) {
