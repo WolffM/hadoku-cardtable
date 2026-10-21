@@ -1,0 +1,18 @@
+# bl-ui-scale (the operator, 2026-10-21): "revealed top of the deck area should be slightly larger than the
+# graveyard area" and "add a slider to allow scaling the size of the UI". Alice has Courser of Kruphix (her
+# library's top card drawn on both screens) and a graveyard, bob a graveyard, at her own main phase.
+# Exploration gives her two land drops: one Forest played from her hand by a click at each end of the scale.
+# Divination keeps the main phase a real stop.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Forest;Forest;Divination
+humanbattlefield=Forest;Forest;Forest;Island;Courser of Kruphix;Exploration
+humanlibrary=Serra Angel;Swamp;Swamp;Swamp;Swamp;Swamp
+humangraveyard=Lightning Bolt;Shock;Giant Growth
+aihand=
+aibattlefield=Island
+ailibrary=Llanowar Elves;Grizzly Bears;Savannah Lions;Giant Growth;Dark Ritual;Counterspell
+aigraveyard=Counterspell;Dark Ritual
