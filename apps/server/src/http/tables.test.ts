@@ -461,6 +461,7 @@ interface Harness {
 	/** What the match stats sent to the game-stats store, wired as `index.ts` wires them. */
 	reports: MatchReport[];
 	statsLogs: Record<string, unknown>[];
+	playLogs: Record<string, unknown>[];
 	close: () => Promise<void>;
 }
 
@@ -494,6 +495,7 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 	api.use(keys.remember);
 	const reports: MatchReport[] = [];
 	const statsLogs: Record<string, unknown>[] = [];
+	const playLogs: Record<string, unknown>[] = [];
 	const http: HttpServer = createServer(app);
 	const io = new SocketIOServer(http, { serveClient: false });
 
@@ -525,7 +527,7 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 				specs.push(spec);
 				return factory(id, spec, events);
 			}),
-		log: () => {},
+		log: (e) => playLogs.push(e),
 		startTimeoutMs: 5000,
 		seatAvatar: tables.seatAvatar,
 		// The composition `index.ts` wires on its one `onGameOver` line (wave 72
@@ -551,6 +553,7 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 		matches: play.matches,
 		reports,
 		statsLogs,
+		playLogs,
 		close: async () => {
 			play.close();
 			io.close();
@@ -611,6 +614,25 @@ async function start(
 }
 
 const standard = (deck: string, format: string) => ({ deck: { library: deck }, rules: { kind: 'standard', format } });
+
+// The operator, 2026-10-20, after a watcher sat on "Connecting…" with nothing logged: "we absolutely need logging".
+describe('POST /api/play/matches/:id/report', () => {
+	it("logs a board's trouble with who sent it, and refuses a report it does not know", async () => {
+		const h = await boot();
+		try {
+			const ok = await call(h, 'POST', '/api/play/matches/m-0123456789ab/report', { what: 'no-snapshot', ui: '0.32.404', detail: { connected: false, afterMs: 10000 } });
+			expect(ok.status).toBe(204);
+			expect(h.playLogs.filter((e) => e.evt === 'client-report')).toEqual([
+				expect.objectContaining({ matchId: 'm-0123456789ab', what: 'no-snapshot', ui: '0.32.404', detail: { connected: false, afterMs: 10000 }, participantId: expect.any(String) }),
+			]);
+			const bad = await call(h, 'POST', '/api/play/matches/m-0123456789ab/report', { what: 'anything', detail: {} });
+			expect(bad.status).toBe(400);
+			expect(h.playLogs.filter((e) => e.evt === 'client-report')).toHaveLength(1);
+		} finally {
+			await h.close();
+		}
+	});
+});
 
 describe('POST /api/play/matches, gated', () => {
 	it('starts a match against the AI with two legal library decks, handing Forge the files byte for byte', async () => {

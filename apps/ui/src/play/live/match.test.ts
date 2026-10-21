@@ -10,7 +10,7 @@
  * the client AND as received by the server.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
 
 import type { BoardView } from '../adapter.ts';
@@ -43,6 +43,7 @@ import {
   ingest,
   isAutoYieldOn,
   MAX_RESYNCS_WITHOUT_PROGRESS,
+  NO_SNAPSHOT_REPORT_MS,
   nothingToDecide,
   attackersLeft,
   pressButton,
@@ -240,6 +241,41 @@ describe('sequencing: classifySeq, over the wire', () => {
     }
     expect(m.stats.resyncsRequested).toBe(MAX_RESYNCS_WITHOUT_PROGRESS);
     expect(m.lastError).toMatch(/stopped after 3 resyncs/);
+  });
+});
+
+// The operator, 2026-10-20, after a watcher sat on "Connecting…" with nothing logged: "we absolutely need logging".
+describe('a board that never gets its snapshot says so', () => {
+  it('reports a connect error, a refused join and, after the watchdog, no snapshot — and nothing once it has one', () => {
+    vi.useFakeTimers();
+    try {
+      const handlers = new Map<string, (payload: unknown) => void>();
+      const acks: ((err: Error | null, response: unknown) => void)[] = [];
+      const transport: MatchTransport = {
+        on: (event, handler) => void handlers.set(event, handler),
+        emit: () => {},
+        request: (_event, _payload, onAck) => acks.push(onAck),
+        disconnect: () => {},
+      };
+      const reports: { what: string; detail: Record<string, unknown> }[] = [];
+      const m = startMatch({ matchId: 'm', transport, report: (what, detail) => reports.push({ what, detail }) });
+      handlers.get('connect_error')!(new Error('xhr poll error'));
+      acks.shift()!(null, { error: 'match-starting' });
+      vi.advanceTimersByTime(NO_SNAPSHOT_REPORT_MS);
+      expect(reports.map((r) => r.what)).toEqual(['connect-error', 'snapshot-failed', 'no-snapshot']);
+      expect(reports[0]!.detail).toMatchObject({ message: 'xhr poll error', connected: false, everConnected: false });
+      expect(reports[1]!.detail.why).toMatch(/refused: match-starting/);
+      closeMatch(m);
+
+      const quiet: string[] = [];
+      const again = startMatch({ matchId: 'm', transport, report: (what) => quiet.push(what) });
+      acks.shift()!(null, { matchId: 'm', seat: 0, playerId: 0, cursor: { epoch: 'e', seq: 1 }, frames: [FRAMES[0]] });
+      vi.advanceTimersByTime(NO_SNAPSHOT_REPORT_MS);
+      expect(quiet).toEqual([]);
+      closeMatch(again);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

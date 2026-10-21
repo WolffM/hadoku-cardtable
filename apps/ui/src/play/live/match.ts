@@ -967,6 +967,37 @@ export interface LiveMatchOptions {
   matchId: string;
   /** Defaults to a same-origin socket.io connection. */
   transport?: MatchTransport;
+  /**
+   * Trouble before the board has a snapshot, told somewhere other than the socket — which is the
+   * thing in trouble. A watcher's page sat on "Connecting…" and the server had no line about it
+   * (the operator, 2026-10-20: *"we absolutely need logging"*).
+   */
+  report?: (what: MatchTrouble, detail: Record<string, unknown>) => void;
+}
+
+export type MatchTrouble = 'connect-error' | 'disconnected' | 'snapshot-failed' | 'no-snapshot';
+
+/** How long a board may go without its first snapshot before it says so. */
+export const NO_SNAPSHOT_REPORT_MS = 10_000;
+/** A socket that cannot connect retries for good: its first few errors are the story. */
+const CONNECT_ERRORS_REPORTED = 3;
+
+/** Each board's watchdog, so `closeMatch` can stop it. */
+const watchdogs = new WeakMap<LiveMatch, ReturnType<typeof setTimeout>>();
+/** Each board's reporter: `snapshotFailed` reports through it. */
+const reporters = new WeakMap<LiveMatch, NonNullable<LiveMatchOptions['report']>>();
+
+/** What the board knows about its connection, for a report. */
+function connectionFacts(match: LiveMatch): Record<string, unknown> {
+  return {
+    connected: match.connected,
+    everConnected: match.everConnected,
+    awaitingSnapshot: match.awaitingSnapshot,
+    seat: match.seat,
+    joins: match.stats.joins,
+    snapshots: match.stats.snapshots,
+    lastError: match.lastError,
+  };
 }
 
 function emptyStats(): MatchStats {
@@ -1163,10 +1194,28 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     notify(match);
   });
 
-  match.transport.on('disconnect', () => {
+  match.transport.on('disconnect', (reason) => {
     match.connected = false;
+    if (match.stats.snapshots === 0) options.report?.('disconnected', { reason: String(reason), ...connectionFacts(match) });
     notify(match);
   });
+
+  const report = options.report;
+  if (report !== undefined) {
+    reporters.set(match, report);
+    let connectErrors = 0;
+    match.transport.on('connect_error', (error) => {
+      connectErrors += 1;
+      if (connectErrors > CONNECT_ERRORS_REPORTED) return;
+      report('connect-error', { message: error instanceof Error ? error.message : String(error), attempt: connectErrors, ...connectionFacts(match) });
+    });
+    watchdogs.set(
+      match,
+      setTimeout(() => {
+        if (match.stats.snapshots === 0) report('no-snapshot', { afterMs: NO_SNAPSHOT_REPORT_MS, ...connectionFacts(match) });
+      }, NO_SNAPSHOT_REPORT_MS),
+    );
+  }
 
   fetchSnapshot(match, 'join');
   return match;
@@ -2617,6 +2666,7 @@ export function abortAsk(match: LiveMatch, callId: string, reason: ClientAbort['
  * pool is not left waiting on a tab that has gone.
  */
 export function closeMatch(match: LiveMatch): void {
+  clearTimeout(watchdogs.get(match));
   for (const ask of match.asks) sendAbort(match, ask.callId, 'cancelled', 'the player closed the board');
   match.asks = [];
   match.transport.disconnect();
@@ -2694,6 +2744,7 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
  * errors. The next live frame is what tries again.
  */
 function snapshotFailed(match: LiveMatch, why: string): void {
+  reporters.get(match)?.('snapshot-failed', { why, ...connectionFacts(match) });
   match.lastError = why;
   match.buffer = [];
   notify(match);

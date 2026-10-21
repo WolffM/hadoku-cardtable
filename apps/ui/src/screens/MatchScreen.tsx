@@ -57,7 +57,21 @@ import {
   startMatch,
   type LiveMatch,
   type MatchTransport,
+  type MatchTrouble,
 } from '../play/live/match.ts';
+import { apiBase } from './tables.ts';
+
+/** A board's trouble, to the server over HTTP: the socket is what is in trouble. */
+function reportTrouble(matchId: string, what: MatchTrouble, detail: Record<string, unknown>): void {
+  const base = import.meta.env?.BASE_URL;
+  const url = `${apiBase(typeof base === 'string' ? base : '/')}play/matches/${encodeURIComponent(matchId)}/report`;
+  void fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ what, ui: __HADOKU_UI_VERSION__, detail }),
+    keepalive: true,
+  }).catch((err: unknown) => console.warn('[match] could not report', what, err));
+}
 
 export interface MatchScreenProps {
   matchId: string;
@@ -71,7 +85,7 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
   useEffect(() => {
     const transport =
       makeTransport?.() ?? pacedMatchTransport(socketIoMatchTransport(), { initialFast: PLAY_PREFS_DEFAULTS.fastMode });
-    const handle = startMatch({ matchId, transport });
+    const handle = startMatch({ matchId, transport, report: (what, detail) => reportTrouble(matchId, what, detail) });
     setMatch(handle);
     return () => closeMatch(handle);
   }, [matchId, makeTransport]);

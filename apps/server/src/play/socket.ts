@@ -642,6 +642,35 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		res.json({ name: parsed.metadata.get('name') ?? '', main: lines('main'), sideboard: lines('sideboard') });
 	});
 
+	/*
+	 * A board's trouble before its first snapshot, told over HTTP because the socket is what is in
+	 * trouble (the operator, 2026-10-20, after a watcher sat on "Connecting…" with no line here: *"we
+	 * absolutely need logging"*). Logged and nothing else; bounded so a stuck page cannot flood the log.
+	 */
+	const REPORT_KINDS = new Set(['connect-error', 'disconnected', 'snapshot-failed', 'no-snapshot']);
+	const REPORT_MAX_CHARS = 2000;
+	const REPORTS_PER_MINUTE = 20;
+	const reported = new Map<string, { minute: number; count: number }>();
+	router.post('/matches/:id/report', (req: Request, res: Response) => {
+		const body = (req.body ?? {}) as { what?: unknown; ui?: unknown; detail?: unknown };
+		const detail = typeof body.detail === 'object' && body.detail !== null && !Array.isArray(body.detail) ? body.detail : {};
+		const text = JSON.stringify(detail);
+		if (typeof body.what !== 'string' || !REPORT_KINDS.has(body.what) || text.length > REPORT_MAX_CHARS) {
+			res.status(400).json({ error: 'a report is { what, ui, detail } with a known what' });
+			return;
+		}
+		const participantId = identityFromHeaders(req.headers, `http-${randomUUID()}`);
+		const minute = Math.floor(Date.now() / 60_000);
+		const seen = reported.get(participantId);
+		const count = seen !== undefined && seen.minute === minute ? seen.count + 1 : 1;
+		reported.set(participantId, { minute, count });
+		if (reported.size > 1000) reported.clear();
+		if (count <= REPORTS_PER_MINUTE) {
+			log({ evt: 'client-report', matchId: String(req.params.id), participantId, what: body.what, ui: typeof body.ui === 'string' ? body.ui.slice(0, 40) : null, detail });
+		}
+		res.status(204).end();
+	});
+
 	if (deps.probe === true) {
 		router.post('/matches/:id/probe', async (req: Request, res: Response) => {
 			const match = matches.get(String(req.params.id));
@@ -819,6 +848,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 				}
 				void snapshotFor(raw, event === 'join').then((result) => {
 					(ack as (r: unknown) => void)(result);
+					if ('error' in result) {
+						const matchId = typeof raw === 'object' && raw !== null ? (raw as { matchId?: unknown }).matchId : undefined;
+						log({ evt: `${event}-refused`, matchId: typeof matchId === 'string' ? matchId : null, participantId, error: result.error });
+					}
 					if ('frames' in result) {
 						const match = matches.get(result.matchId);
 						if (match === undefined) return;
