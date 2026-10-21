@@ -15,7 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, grindPriority, handCardNamed, makeTitled, says, serverLog } from './play/board.ts';
+import { clickHandCard, drawnText, grindPriority, handCardNamed, makeTitled, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -26,8 +26,7 @@ const titled = makeTitled(forge);
 async function wordings(page: Page): Promise<Record<string, string | null>> {
   const out: Record<string, string | null> = {};
   for (const id of ['live-says', 'live-decision-host', 'live-selection-host', 'live-target-host']) {
-    const el = page.getByTestId(id);
-    out[id] = (await el.count()) > 0 && (await el.first().isVisible()) ? ((await el.first().textContent()) ?? '').replace(/\s+/g, ' ').trim() : null;
+    out[id] = await drawnText(page, id);
   }
   return out;
 }

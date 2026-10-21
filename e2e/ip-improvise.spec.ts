@@ -19,7 +19,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { answerPrompt } from './play/prompts.ts';
-import { boardCard, clickHandCard, handCardNamed, isOffered, isTapped, makeTitled, offered, ownNamed, pressOffered, says, serverLog, stackCount } from './play/board.ts';
+import { boardCard, clickHandCard, drawnText, handCardNamed, isOffered, isTapped, makeTitled, offered, ownNamed, pressOffered, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -27,11 +27,7 @@ const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
 /** The selection pop-up's text, or null when it is not drawn. */
-async function selectionPopup(page: Page): Promise<string | null> {
-  const host = page.getByTestId('live-selection-host');
-  if ((await host.count()) === 0 || !(await host.first().isVisible())) return null;
-  return ((await host.first().textContent()) ?? '').replace(/\s+/g, ' ').trim();
-}
+const selectionPopup = (page: Page): Promise<string | null> => drawnText(page, 'live-selection-host');
 
 const drawn = async (page: Page): Promise<string> =>
   `says="${(await says(page)).replace(/\s+/g, ' ')}" popup=${JSON.stringify(await selectionPopup(page))} offered=${JSON.stringify(await offered(page))}`;

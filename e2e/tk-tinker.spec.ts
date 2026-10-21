@@ -30,7 +30,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { answerPrompt } from './play/prompts.ts';
-import { boardCard, clickHandCard, handCardNamed, isOffered, makeTitled, offered, ownNamed, pressOffered, says, serverLog, stackCount } from './play/board.ts';
+import { boardCard, clickHandCard, drawnText, handCardNamed, isOffered, makeTitled, offered, ownNamed, pressOffered, says, serverLog, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, startScenarioVsAi } from './play/scenario.ts';
 
@@ -40,8 +40,8 @@ const titled = makeTitled(forge);
 /** The pop-up a decision draws (the selection sheet, or the decision area's own), or null when none is. */
 async function popup(page: Page): Promise<string | null> {
   for (const id of ['live-selection-host', 'live-decision-host']) {
-    const host = page.getByTestId(id);
-    if ((await host.count()) > 0 && (await host.first().isVisible())) return `${id}: ${((await host.first().textContent()) ?? '').replace(/\s+/g, ' ').trim()}`;
+    const text = await drawnText(page, id);
+    if (text !== null) return `${id}: ${text}`;
   }
   return null;
 }

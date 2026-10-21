@@ -73,6 +73,18 @@ export async function resizeWindow(page: Page, size: { width: number; height: nu
 export const says = async (page: Page): Promise<string> => (await page.getByTestId('live-says').textContent()) ?? '';
 
 /**
+ * The whitespace-folded text of the first visible element with `testId`, or `null` when none is drawn.
+ * One read in the page, so it never waits: a pop-up that closes between a visibility check and a
+ * locator `textContent()` would otherwise block that read for its whole timeout.
+ */
+export async function drawnText(page: Page, testId: string): Promise<string | null> {
+  const texts = await page
+    .getByTestId(testId)
+    .evaluateAll((els) => els.filter((e) => e.checkVisibility()).map((e) => (e.textContent ?? '').replace(/\s+/g, ' ').trim()));
+  return texts[0] ?? null;
+}
+
+/**
  * Forge's button one wherever the page draws it, only while it is pressable
  * (wave 51): the control box's `Next Phase` at the empty-stack priority pass,
  * the payment window's or a selection pop-up's own, and the decision pop-up's
