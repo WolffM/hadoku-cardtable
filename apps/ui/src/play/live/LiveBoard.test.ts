@@ -3751,6 +3751,9 @@ describe('R16 — the result screen, drawn over the board', () => {
 
   describe('series on screen (wave 72 §Q)', () => {
     it('between the games of a series that does not sideboard, the button reads "Next game"', async () => {
+      // The table read says `between` too: a room and table that disagree are drawn only after
+      // RESULT_SETTLE_MS gives up waiting for them, and that is not the screen this case is about.
+      tableState.phase = 'between';
       roomsClientState.room = {
         settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [1, 0], games: [], phase: 'between' } }],
@@ -3765,6 +3768,7 @@ describe('R16 — the result screen, drawn over the board', () => {
       ['the AI', true],
     ])('Next game between the games of a series whose next game is set up in the room goes back to the room, and starts nothing (against %s)', async (_who, alone) => {
       if (alone) tableState.other = { ready: false, present: false };
+      tableState.phase = 'between';
       roomsClientState.room = {
         settings: { handSmoothing: true },
         tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [1, 0], games: [], phase: 'between' } }],
