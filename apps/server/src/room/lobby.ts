@@ -1731,7 +1731,13 @@ function seatedReady(room: RoomRecord): boolean {
  * line here, so `setMode` asks one question.
  */
 function modeLocked(room: RoomRecord): boolean {
-	return seatedReady(room);
+	return seatedReady(room) || gauntletUnderWay(room.gauntlet);
+}
+
+/** A Gauntlet a seat has readied for, or whose reveal has started, and that is not yet done. */
+function gauntletUnderWay(g: GauntletState | null): boolean {
+	if (g === null || g.phase === 'done') return false;
+	return g.phase !== 'options' || g.ready.some(Boolean);
 }
 
 function unboxState(app: unknown): unknown {
@@ -2396,6 +2402,7 @@ class FileLobby implements Lobby {
 		if (room.gameType !== gameType) {
 			room.mode = null;
 			room.modeOptions = null;
+			room.gauntlet = null;
 		}
 		room.gameType = gameType;
 		// Readiness is readiness for a particular game: a member who readied for
@@ -2434,6 +2441,7 @@ class FileLobby implements Lobby {
 		if (modeLocked(room)) return { ok: false, reason: 'mode-locked' };
 		room.mode = mode.mode;
 		room.modeOptions = { ...mode.modeOptions };
+		room.gauntlet = null;
 		// A deck held for one mode was chosen for that mode's table, exactly as a
 		// deck held in one pool was checked in that pool.
 		dropHolds(room);
