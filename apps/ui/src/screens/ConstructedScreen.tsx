@@ -163,7 +163,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
  * name if both were imported bare into this file.
  */
-import type { ConstructedMode, GauntletOptions as GauntletModeOptions, RandomOptions, RoomTable as SharedRoomTable } from '@hadoku/shared';
+import type { ConstructedMode, GauntletOptions as GauntletModeOptions, GauntletView, RandomOptions, RoomTable as SharedRoomTable } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
@@ -171,7 +171,7 @@ import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
-import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
+import { mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
 import { assignDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
@@ -196,6 +196,7 @@ import {
 import { ClassicOptions, type Browse } from './constructed-mode/ClassicOptions.tsx';
 import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
+import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import {
   FREE_PICK,
@@ -214,12 +215,13 @@ import {
   type DeckLine,
   type TableDeck,
   type GauntletEraOption,
+  type GauntletOutcome,
   type TableFormat,
   type TablesClient,
 } from './tables.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { DeckPeek, namedFace, usePeekHover, type PeekLine, type PeekList } from './DeckPeek.tsx';
-import { DeckStyleTag } from './DeckStyleTag.tsx';
+import { DeckTile } from './DeckTile.tsx';
 import { DeckFilterBar } from './DeckFilterBar.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
 import { byWinRate, type DeckRecords } from '../stats/deckOrder.ts';
@@ -313,6 +315,22 @@ function namedPeekLine({ name, count }: DeckLine): PeekLine {
 /** A library deck's lines: the wire sends names. */
 export function libraryPeekList(main: readonly DeckLine[], sideboard: readonly DeckLine[]): PeekList {
   return { main: main.map(namedPeekLine), sideboard: sideboard.map(namedPeekLine) };
+}
+
+/**
+ * A library deck's art, ranked by the room's rule (`rankDeckArt`). The wire
+ * sends a library deck by NAME, so both halves of the rule are lookups against
+ * committed data: the cost from the slice the colours come from, the id from
+ * the play board's own table (each line's face, `namedPeekLine`).
+ */
+export function libraryDeckArt(list: PeekList): DeckArtChoice[] {
+  return rankDeckArt(
+    list.main.flatMap((line) => {
+      const cost = LIBRARY_CARD_COSTS[line.name];
+      if (cost === undefined) return [];
+      return [{ name: line.name, count: line.count, manaValue: manaValueOf(cost), traits: LIBRARY_ART_TRAITS[line.name] ?? 'c', scryfallId: line.face.scryfallId }];
+    }),
+  );
 }
 
 /** What a deck's peek draws. */
@@ -875,47 +893,25 @@ export function DeckChooser({
     >
       {options.map((option, index) => {
         const tile = (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          className="deckpick__option"
-          data-testid="deck-option"
-          data-deck-id={option.value}
-          data-colors={option.colors.join('')}
-          data-style={option.deckStyle}
-          aria-checked={option.value === value}
-          tabIndex={stop === index ? 0 : -1}
-          disabled={disabled}
-          ref={(el) => {
-            refs.current[index] = el;
-          }}
-          onFocus={() => setFocus(index)}
-          onClick={() => onChoose(option.value)}
-          onPointerEnter={(event) => {
-            if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(index);
-          }}
-          onPointerLeave={hover.closeSoon}
-          aria-describedby={peek?.key === index ? 'deck-peek' : undefined}
-        >
-          <DeckArt artId={option.artId} />
-          <span className="deckpick__name" title={option.label}>
-            {option.name ?? option.label}
-          </span>
-          {option.deckStyle !== undefined && <DeckStyleTag style={option.deckStyle} markOnly />}
-          <DeckColors
-            colors={option.colors}
-            label={`${option.label}: ${
-              option.colors.length === 0 ? 'colourless' : option.colors.join(' ')
-            }`}
+          <DeckTile
+            key={option.value}
+            option={option}
+            checked={option.value === value}
+            role="radio"
+            data-testid="deck-option"
+            tabIndex={stop === index ? 0 : -1}
+            disabled={disabled}
+            ref={(el) => {
+              refs.current[index] = el;
+            }}
+            onFocus={() => setFocus(index)}
+            onClick={() => onChoose(option.value)}
+            onPointerEnter={(event) => {
+              if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(index);
+            }}
+            onPointerLeave={hover.closeSoon}
+            aria-describedby={peek?.key === index ? 'deck-peek' : undefined}
           />
-          {option.pilot !== undefined && <span className="deckpick__pilot">{option.pilot}</span>}
-          {option.value === value && (
-            <span className="deckpick__mark" aria-hidden="true">
-              chosen
-            </span>
-          )}
-        </button>
         );
         return tileAction === undefined ? (
           tile
@@ -1312,17 +1308,24 @@ function RoomTableScreen({
    * draws as Classic — the table it has always drawn without that record.
    */
   const mode = view === null ? 'classic' : view.mode;
+  /** A Gauntlet room's state as I may see it; null in any other mode. */
+  const [gauntlet, setGauntlet] = useState<GauntletView | null>(null);
+  /** The Gauntlet's seats have stopped being the table's to arrange: readied, or drawn and not yet done. */
+  const gauntletUnderway = gauntlet !== null && gauntlet.phase !== 'done' && (gauntlet.phase !== 'options' || gauntlet.ready.some(Boolean));
+  /** Whether a seat is ready: the Gauntlet keeps its own readiness, every other mode the table's. */
+  const readyAt = (seat: number): boolean => (mode === 'gauntlet' ? gauntlet?.ready[seat] === true : players[seat]?.ready === true);
   /**
    * The mode is the leader's to change until somebody readies or the game is
    * under way (ruling 8); the server's `mode-locked` is the same rule, and the
    * refusal it answers a late press with is shown like any other.
    */
-  const modeLocked = underway || players.some((p) => p.ready);
+  const modeLocked = underway || players.some((p) => p.ready) || gauntletUnderway;
   /**
    * What stands between my seat and Ready: in Classic, a legal deck of my
-   * own; in Gauntlet and All Random the room deals the decks, so only the seat.
+   * own; in Gauntlet and All Random the room deals the decks, so only the seat
+   * (and a Gauntlet only before its draw).
    */
-  const canReady = mode === 'classic' ? deckId !== '' && myLegal : seated;
+  const canReady = mode === 'classic' ? deckId !== '' && myLegal : mode === 'gauntlet' ? seated && (gauntlet?.phase ?? 'options') === 'options' : seated;
   /**
    * The room's own table record (wave 71 §D's wire shape, via `@hadoku/shared`),
    * for the SERIES it carries — `wins`, `games`, `phase` — none of which
@@ -1469,28 +1472,16 @@ function RoomTableScreen({
   const deckOptions = useMemo<DeckOption[] | null>(() => {
     if (offered === null) return null;
     const mine = freePick ? (myDeckOptions ?? []).map((m) => m.option) : [];
-    return [...byWinRate(offered.map((d) => ({
-          value: d.id,
-          ...libraryDeckPeek(d),
-          // A library deck is a list of NAMES on the wire, so both halves of the
-          // art rule are lookups against committed data: the cost from the same
-          // slice the colours come from, the id from the play board's own table.
-          art: rankDeckArt(
-            d.main.flatMap((line) => {
-              const cost = LIBRARY_CARD_COSTS[line.name];
-              if (cost === undefined) return [];
-              return [
-                {
-                  name: line.name,
-                  count: line.count,
-                  manaValue: manaValueOf(cost),
-                  traits: LIBRARY_ART_TRAITS[line.name] ?? 'c',
-                  scryfallId: scryfallIdFor(LIBRARY_ART_IDS, line.name, ''),
-                },
-              ];
-            }),
-          ),
-        })), deckRecords), ...mine];
+    return [
+      ...byWinRate(
+        offered.map((d) => {
+          const peek = libraryDeckPeek(d);
+          return { value: d.id, ...peek, art: libraryDeckArt(peek.list) };
+        }),
+        deckRecords,
+      ),
+      ...mine,
+    ];
   }, [offered, deckRecords, freePick, myDeckOptions]);
 
   /**
@@ -1612,12 +1603,30 @@ function RoomTableScreen({
   // Both ready: either browser may ask, and the server answers one match to both.
   // A draft room never reaches this — it seats nobody at the table — and says so
   // explicitly, because `startRoom` is one of the calls `routes.ts` 409s for it.
+  //
+  // A Gauntlet game starts the same way once both of its decks are chosen and
+  // dealt ('playing'); against the AI through the AI's start. Each game of the
+  // series asks once: the ask is cleared when a match ends.
+  const startAs: 'room' | 'ai' | null =
+    mode === 'gauntlet'
+      ? gauntlet?.phase === 'playing'
+        ? gauntlet.players?.some((p) => p.memberId === null) === true
+          ? 'ai'
+          : 'room'
+        : null
+      : bothReady
+        ? 'room'
+        : null;
+  const lastMatch = useRef<string | null>(null);
   useEffect(() => {
-    if (draftRoom || !bothReady || matchId !== null || mine === null || asked.current) return;
+    if (lastMatch.current !== null && matchId === null) asked.current = false;
+    lastMatch.current = matchId;
+  }, [matchId]);
+  useEffect(() => {
+    if (draftRoom || startAs === null || matchId !== null || mine === null || asked.current) return;
     asked.current = true;
     setStarting(true);
-    client
-      .startRoom(roomId)
+    (startAs === 'ai' ? client.startVsBot(roomId) : client.startRoom(roomId))
       .then((outcome) => {
         if (outcome.ok) {
           openNewMatch(outcome.matchId);
@@ -1630,7 +1639,7 @@ function RoomTableScreen({
         setStartRefusal(err instanceof Error ? err.message : String(err));
         setStarting(false);
       });
-  }, [draftRoom, bothReady, matchId, mine, client, roomId]);
+  }, [draftRoom, startAs, matchId, mine, client, roomId]);
 
   /*
    * Every member ready: deal the draft.
@@ -1801,6 +1810,39 @@ function RoomTableScreen({
       live = false;
     };
   }, [client, wantsGauntletEras]);
+
+  // A Gauntlet room's state, read on the room's own feed: every move the server
+  // stores pings it, so both screens and every watcher follow the board.
+  useEffect(() => {
+    if (mode !== 'gauntlet') {
+      setGauntlet(null);
+      return;
+    }
+    let live = true;
+    const read = (): void => {
+      client.gauntlet(roomId).then(
+        (next) => {
+          if (live) setGauntlet(next);
+        },
+        (err: unknown) => {
+          if (live) setActionError(err instanceof Error ? err.message : String(err));
+        },
+      );
+    };
+    const stopFollowing = feed.follow({ room: roomId }, read);
+    return () => {
+      live = false;
+      stopFollowing();
+    };
+  }, [client, feed, roomId, mode]);
+
+  /** One Gauntlet move (ready, ban, pick, choose): the board as it now stands, or the server's words. */
+  const gauntletMove = (move: () => Promise<GauntletOutcome>): void => {
+    setActionError(null);
+    move()
+      .then((outcome) => (outcome.ok ? setGauntlet(outcome.view) : setActionError(outcome.error)))
+      .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)));
+  };
 
   /** The LEADER picked a mode: the room moves to it with that mode's first options. */
   const chooseMode = (next: ConstructedMode): void => {
@@ -2125,7 +2167,7 @@ function RoomTableScreen({
                           className="tables__sit"
                           data-testid="play-vs-bot"
                           disabled={!canReady || underway}
-                          onClick={startVsBot}
+                          onClick={mode === 'gauntlet' ? () => gauntletMove(() => client.gauntletReady(roomId, true, true)) : startVsBot}
                         >
                           AI
                         </button>
@@ -2137,10 +2179,14 @@ function RoomTableScreen({
                     <PlayerRow
                       key={seat}
                       seat={seat}
-                      player={player}
+                      player={{ ...player, ready: readyAt(seat) }}
                       leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
                       {...(player.you
-                        ? { onReady: () => setReady(!player.ready), readyDisabled: !canReady || underway }
+                        ? {
+                            onReady: () =>
+                              mode === 'gauntlet' ? gauntletMove(() => client.gauntletReady(roomId, !readyAt(seat))) : setReady(!player.ready),
+                            readyDisabled: !canReady || underway,
+                          }
                         : {})}
                       {...(player.you ? { onStand: standUp, standDisabled: tableLocked || underway } : {})}
                     />
@@ -2164,7 +2210,17 @@ function RoomTableScreen({
               )}
             </section>
 
-            {spectating ? (
+            {mode === 'gauntlet' ? (
+              // The board between games too, from the choice onward; never beside a live match.
+              gauntlet !== null && matchId === null && (
+                <GauntletScreen
+                  view={gauntlet}
+                  onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck))}
+                  onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck))}
+                  onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
+                />
+              )
+            ) : spectating ? (
               <section className="lobby__card">
                 <p className="lobby__note" data-testid="room-spectator">
                   Table full &mdash; watching.

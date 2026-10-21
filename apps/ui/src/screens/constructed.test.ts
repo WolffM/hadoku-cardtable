@@ -36,7 +36,7 @@ import { forgetMatchesFollowed } from '../play/live/matchStart.ts';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
-import type { DraftCard, RoomMode } from '@hadoku/shared';
+import type { DraftCard, GauntletView, RoomMode } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
 import { BASIC_LAND_NAMES, deckColorsByName, mainDeckSize } from '@hadoku/deck';
 import {
@@ -252,6 +252,8 @@ interface Table {
   refusePatch?: { status: number; error: string };
   /** The room's mode with its options; null until the leader picks one. Absent ⇒ Classic, which is every test above. */
   mode?: RoomMode | null;
+  /** A Gauntlet room's view, as `GET …/gauntlet` answers it. Absent ⇒ undrawn, nobody ready. */
+  gauntlet?: GauntletView;
   /** What `GET /api/rooms/:id` says this room is. Absent ⇒ the field is not sent at all. */
   clientMode?: ClientMode;
   /** What the room PLAYS. Absent ⇒ `constructed-1v1`, which is every test above. */
@@ -295,6 +297,10 @@ interface Table {
  * A room server that holds state: loading a deck checks it, readying is
  * refused while it is illegal, and `{ room }` starts one match.
  */
+/** A Gauntlet nobody has readied, as the server answers it before the draw; I sit at seat 0. */
+const gauntletOf = (table: Table): GauntletView =>
+  table.gauntlet ?? { phase: 'options', you: 0, players: null, ready: [false, false], era: null, revealAt: null, first: null, decks: [], step: null, games: [], choice: null, winner: null };
+
 function stubServer(table: Table) {
   const calls: Call[] = [];
   const records = new Map<string, { games: number; wins: number; losses: number; draws: number }>();
@@ -449,6 +455,13 @@ function stubServer(table: Table) {
       }
       table.draftStartedAt = '2026-09-26T10:00:00.000Z';
       return json(200, roomRecord());
+    }
+    if (url.endsWith(`/tables/rooms/${ROOM}/gauntlet`)) return json(200, gauntletOf(table));
+    if (url.endsWith(`/tables/rooms/${ROOM}/gauntlet/ready`)) {
+      const { ready } = body as { ready: boolean };
+      const before = gauntletOf(table);
+      table.gauntlet = { ...before, ready: before.you === 1 ? [before.ready[0], ready] : [ready, before.ready[1]] };
+      return json(200, table.gauntlet);
     }
     if (url.endsWith('/tables/gauntlet/eras')) {
       return json(200, {
@@ -2454,6 +2467,46 @@ describe('the room’s mode', () => {
       { mode: 'gauntlet', modeOptions: { family: 'modern' } },
       { mode: 'gauntlet', modeOptions: { family: 'modern', era: 'modern-2012-07-13' } },
     ]);
+  });
+
+  it('a Gauntlet seat readies with the Gauntlet, not the table, and once it is ready the mode is fixed', async () => {
+    const server = await mountModeRoom({ players: [{ ...mySeat(), deck: null }, opponent()], matchId: null, mode: { mode: 'gauntlet', modeOptions: {} } });
+    const ready = await screen.findByTestId('ready-toggle');
+    await waitFor(() => expect(ready).toHaveProperty('disabled', false));
+    fireEvent.click(ready);
+    await waitFor(() => expect(radio('classic').disabled).toBe(true));
+    expect(server.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/gauntlet/ready')).map((c) => c.body)).toEqual([{ ready: true }]);
+    expect(server.calls.some((c) => c.url.endsWith(`/tables/rooms/${ROOM}/ready`))).toBe(false);
+    expect(screen.getByTestId('ready-toggle').getAttribute('aria-pressed')).toBe('true');
+    expect((screen.getByTestId('gauntlet-family-random') as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('a drawn Gauntlet draws its board in the room, and the mode stays fixed', async () => {
+    await mountModeRoom({
+      players: [{ ...mySeat(), deck: null }, opponent()],
+      matchId: null,
+      mode: { mode: 'gauntlet', modeOptions: { family: 'modern' } },
+      gauntlet: {
+        phase: 'reveal',
+        you: 0,
+        players: [
+          { memberId: 'p-alice', name: 'user-alice' },
+          { memberId: 'p-bob', name: 'user-bob' },
+        ],
+        ready: [true, true],
+        era: { id: 'modern-2014-07-18', family: 'modern', title: 'Modern — 2014' },
+        revealAt: Date.now(),
+        first: 0,
+        decks: [],
+        step: null,
+        games: [],
+        choice: null,
+        winner: null,
+      },
+    });
+    expect((await screen.findByTestId('gauntlet-title')).textContent).toBe('Modern — 2014');
+    for (const m of ['classic', 'gauntlet', 'random']) expect(radio(m).disabled).toBe(true);
+    expect(screen.getByTestId('ready-toggle')).toHaveProperty('disabled', true);
   });
 
   it('a mode change the server refuses says so in its words', async () => {

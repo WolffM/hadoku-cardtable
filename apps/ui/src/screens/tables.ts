@@ -39,6 +39,8 @@
  * absolute `/api/…` would reach `hadoku.me/api/…`, which is somebody else.
  */
 
+import { GauntletViewSchema, type GauntletAct, type GauntletView } from '@hadoku/shared';
+
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 /**
@@ -69,6 +71,8 @@ export const FREE_PICK = 'free';
 export function isEra(f: TableFormat): boolean {
   return f.source !== 'free';
 }
+
+export type GauntletOutcome = { ok: true; view: GauntletView } | { ok: false; error: string };
 
 /** One era a Gauntlet may be played in, as `GET /api/tables/gauntlet/eras` names it ("Modern — 2022"). */
 export interface GauntletEraOption {
@@ -262,6 +266,14 @@ export interface TablesClient {
   legal(formatId: string): Promise<string[]>;
   /** The eras a Gauntlet can be played in: the server's own list, each with ten decks or more. */
   gauntletEras(): Promise<GauntletEraOption[]>;
+  /** A Gauntlet room's state as this caller may see it. Throws with the server's sentence. */
+  gauntlet(roomId: string): Promise<GauntletView>;
+  /** Ready (or not) at a Gauntlet table; `ai` plays Forge's AI from the other seat. */
+  gauntletReady(roomId: string, ready: boolean, ai?: boolean): Promise<GauntletOutcome>;
+  /** A ban or a pick, on this seat's turn. */
+  gauntletAct(roomId: string, act: GauntletAct, deck: string): Promise<GauntletOutcome>;
+  /** This seat's hidden choice of its deck for the next game. */
+  gauntletChoose(roomId: string, deck: string): Promise<GauntletOutcome>;
   /** Against Forge's AI only. A match against a person starts from a room. */
   start(opponent: 'human' | 'ai', seats: [SeatChoice, SeatChoice]): Promise<StartOutcome>;
   /**
@@ -342,6 +354,13 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
     return { status: res.status, body: await readJson(res) };
   };
   const post = (path: string, payload: unknown) => send('POST', path, payload);
+  /** A Gauntlet move: the view as it now stands, or the server's refusal in its words. */
+  const gauntletWrite = async (roomId: string, move: 'ready' | 'act' | 'choose', payload: unknown): Promise<GauntletOutcome> => {
+    const { status, body } = await post(`tables/rooms/${encodeURIComponent(roomId)}/gauntlet/${move}`, payload);
+    if (status !== 200) return { ok: false, error: errorOf(body, status) };
+    const view = GauntletViewSchema.safeParse(body);
+    return view.success ? { ok: true, view: view.data } : { ok: false, error: 'the server answered with something that is not a Gauntlet' };
+  };
 
   /** A table call's answer: the whole table, or the server's sentence. */
   const table = ({ status, body }: { status: number; body: Record<string, unknown> }): TableOutcome => {
@@ -369,6 +388,10 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       const eras = (await get('tables/gauntlet/eras')).eras;
       return Array.isArray(eras) ? (eras as GauntletEraOption[]) : [];
     },
+    gauntlet: async (roomId) => GauntletViewSchema.parse(await get(`tables/rooms/${encodeURIComponent(roomId)}/gauntlet`)),
+    gauntletReady: (roomId, ready, ai) => gauntletWrite(roomId, 'ready', ai === true ? { ready, ai } : { ready }),
+    gauntletAct: (roomId, act, deck) => gauntletWrite(roomId, 'act', { act, deck }),
+    gauntletChoose: (roomId, deck) => gauntletWrite(roomId, 'choose', { deck }),
     start: async (opponent, seats) => {
       const { status, body } = await post('play/matches', { opponent, seats });
       if (status === 201 && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };

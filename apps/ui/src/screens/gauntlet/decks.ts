@@ -4,13 +4,10 @@
  * no two of the ten tiles showing the same card (`assignDeckArt`).
  */
 import type { GauntletDeck } from '@hadoku/shared';
-import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES } from '@hadoku/deck/library';
+import { LIBRARY_DECK_STYLES } from '@hadoku/deck/library';
 
-import deckArtTraits from '../../draft/deck-art-traits.json' with { type: 'json' };
-import { libraryPeekList, manaValueOf, type DeckOption } from '../ConstructedScreen.tsx';
-import { assignDeckArt, rankDeckArt } from '../deckArt.ts';
-
-const ART_TRAITS: Readonly<Record<string, string>> = deckArtTraits.traits;
+import { libraryDeckArt, libraryPeekList, type DeckOption } from '../ConstructedScreen.tsx';
+import { assignDeckArt } from '../deckArt.ts';
 
 function gauntletDeckOption(d: GauntletDeck): DeckOption {
   const list = libraryPeekList(d.main, d.sideboard);
@@ -23,13 +20,7 @@ function gauntletDeckOption(d: GauntletDeck): DeckOption {
     colors: d.colors,
     list,
     ...(deckStyle === undefined ? {} : { deckStyle }),
-    art: rankDeckArt(
-      list.main.flatMap((line) => {
-        const cost = LIBRARY_CARD_COSTS[line.name];
-        if (cost === undefined) return [];
-        return [{ name: line.name, count: line.count, manaValue: manaValueOf(cost), traits: ART_TRAITS[line.name] ?? 'c', scryfallId: line.face.scryfallId }];
-      }),
-    ),
+    art: libraryDeckArt(list),
   };
 }
 
