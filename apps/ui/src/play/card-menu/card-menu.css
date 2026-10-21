@@ -1,6 +1,6 @@
 /*
- * The board's card menu (`CardMenu.tsx`): the settings popover's card over the
- * page (`settings/settings.css`), painted only from `@wolffm/themes` tokens.
+ * The board's card menu (`CardMenu.tsx`): a `.ct-surface` card over the page
+ * (`chrome/chrome.css`), as the settings popover is.
  * It sits in `.board__overlay`, which takes no pointer; the menu takes it back.
  */
 
@@ -12,11 +12,6 @@
   min-width: 12rem;
   max-width: calc(100% - 16px);
   padding: 4px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius);
-  background: var(--color-bg-card);
-  color: var(--color-text);
-  box-shadow: var(--hdk-shadow-lg);
   font-size: 13px;
   pointer-events: auto;
 }

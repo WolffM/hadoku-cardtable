@@ -425,7 +425,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
       }}
     >
       <form
-        className="rooms__create"
+        className="rooms__create ct-surface"
         data-testid="room-create"
         role="dialog"
         aria-modal="true"

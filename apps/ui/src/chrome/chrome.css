@@ -12,6 +12,18 @@
  * them, and ESM evaluates imports in source order.
  */
 
+/*
+ * A card over the page — a popover, a dialog, a peek. Zero specificity, so a
+ * component's own rule (a larger radius, another fill) wins without a fight.
+ */
+:where(.ct-surface) {
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  box-shadow: var(--hdk-shadow-lg);
+}
+
 /* Explicit colour-scheme per variant. "dark only" also tells Dark Reader to
    keep its hands off a theme that is already dark. */
 .cardtable-chrome[data-dark-theme='false'] {

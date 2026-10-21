@@ -74,7 +74,7 @@ export function SettingsPopover({ trigger, onClose, children }: SettingsPopoverP
   return (
     <div
       ref={ref}
-      className="ct-settings"
+      className="ct-settings ct-surface"
       role="dialog"
       aria-labelledby={titleId}
       data-testid="settings"

@@ -155,7 +155,7 @@ function CardMenu({
   return (
     <div
       ref={ref}
-      className="card-menu"
+      className="card-menu ct-surface"
       role="menu"
       aria-label={label}
       data-testid="card-menu"
