@@ -1092,7 +1092,9 @@ public final class PlayBridge {
      * the branch Forge takes now is not the one it takes at 0. Nor does a check that is only a turn
      * or a phase ("during your turn"): it is when an ability works, and would light the card every
      * turn. Nor does a presence check whose only subject is the card itself ({@code IsPresent$ Card.Self},
-     * {@link #self}): the card being where it is, not a condition it can meet.
+     * {@link #self}): the card being where it is, not a condition it can meet. Nor does a static whose
+     * only effect is a permission to play a card ({@link #permission}): Gravecrawler castable from the
+     * graveyard is the can-act glow's, not a condition's.
      *
      * <p>A card shows its condition where the condition works ({@link #worksHere}): a static, trigger
      * or replacement is asked only in the zones Forge makes it active in, and a spell or activated
@@ -1113,6 +1115,7 @@ public final class PlayBridge {
          */
         private static final Set<String> RESTRICTION_CONDITIONS = Set.of("Activation", "CheckSVar", "IsPresent", "ActivationLifeTotal");
         private static java.lang.reflect.Method commonRequirements;
+        private static java.lang.reflect.Method generateLayer;
         private static java.lang.reflect.Field mapParams;
 
         /** A parameter map that remembers which of its keys a checker found. */
@@ -1159,7 +1162,7 @@ public final class PlayBridge {
             for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
                 if (!st.isIntrinsic()) { continue; }
                 name(named, st);
-                if (!quiet.contains(st) && worksHere(st, here) && staticOn(st, c)) { return true; }
+                if (!quiet.contains(st) && worksHere(st, here) && staticOn(st, c) && !permission(st)) { return true; }
             }
             for (final forge.game.trigger.Trigger t : c.getTriggers()) {
                 if (!t.isIntrinsic() || !worksHere(t.getActiveZone(), here) || spent(t, here)) { continue; }
@@ -1176,6 +1179,34 @@ public final class PlayBridge {
                 if ((!quiet.contains(sa) && restrictionOn(sa, c, controller)) || chainOn(sa, controller, quiet)) { return true; }
             }
             return branchOn(c, named);
+        }
+
+        /** The static modes whose whole effect is a permission to cast a spell. */
+        private static final Set<forge.game.staticability.StaticAbilityMode> PERMISSION_MODES =
+                EnumSet.of(forge.game.staticability.StaticAbilityMode.CastWithFlash);
+
+        /**
+         * Whether a static's only effect is a permission to play a card: {@code Mode$ CastWithFlash}
+         * (Bard's Company's "as though it had flash if you control a Human"), or a continuous effect
+         * whose only effect Forge's own layer sort ({@code StaticAbility.generateLayer}, read through a
+         * {@link Recorder}) finds is {@code MayPlay$} — Gravecrawler's "you may cast this from your
+         * graveyard as long as you control a Zombie", with its {@code MayPlayWithoutManaCost$},
+         * {@code MayPlayAltManaCost$}, {@code MayPlayWithFlash$}, {@code MayPlayLimit$} and
+         * {@code MayLookAt$}, which that sort does not read. Its being live is the card being
+         * playable, which Forge's actionable set already shows (the can-act glow), so it is not a
+         * condition.
+         */
+        private static boolean permission(final forge.game.staticability.StaticAbility st) throws ReflectiveOperationException {
+            for (final forge.game.staticability.StaticAbilityMode mode : st.getMode()) {
+                if (PERMISSION_MODES.contains(mode)) { continue; }
+                if (mode != forge.game.staticability.StaticAbilityMode.Continuous) { return false; }
+                final forge.game.staticability.StaticAbility copy = st.copy(st.getHostCard(), true);
+                final Recorder effects = new Recorder(copy.getMapParams());
+                mapParams().set(copy, effects);
+                generateLayer().invoke(copy);
+                if (!effects.found.equals(Set.of("MayPlay"))) { return false; }
+            }
+            return !st.getMode().isEmpty();
         }
 
         /** {@link #worksHere(Set, ZoneType)} for a static, whose zone Forge leaves unset for "on the battlefield" ({@code StaticAbility.zonesCheck}). */
@@ -1518,6 +1549,15 @@ public final class PlayBridge {
                 commonRequirements = m;
             }
             return commonRequirements;
+        }
+
+        private static java.lang.reflect.Method generateLayer() throws NoSuchMethodException {
+            if (generateLayer == null) {
+                final java.lang.reflect.Method m = forge.game.staticability.StaticAbility.class.getDeclaredMethod("generateLayer");
+                m.setAccessible(true);
+                generateLayer = m;
+            }
+            return generateLayer;
         }
 
         private static java.lang.reflect.Field mapParams() throws NoSuchFieldException {
