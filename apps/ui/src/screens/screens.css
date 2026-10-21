@@ -164,8 +164,16 @@
   height: 22px;
 }
 
+/* A seat's own height (`.tables__row`: its lines, the gaps between them, its
+   padding and border), so the loaded seats replace these without a jump. */
 .skeleton--seat {
-  height: 2.4rem;
+  height: calc(1.6rem + 0.2rem + 1.1rem + 0.9rem + 2px);
+}
+
+@media (max-width: 600px) {
+  .skeleton--seat {
+    height: calc(1.6rem + 0.2rem + 1.1rem + 0.2rem + 1.6rem + 0.9rem + 2px);
+  }
 }
 
 .skeleton--row {
@@ -482,8 +490,20 @@
 }
 
 .tables__row {
+  /*
+   * One height for every seat row, whatever is in it (the operator,
+   * 2026-10-21: *"rows change in size slightly when someone enters them"* —
+   * an empty seat was one line, a taken one two, and a pill, a button and bare
+   * text each sized a line differently). The row's lines are fixed slots:
+   * `--seat-line` holds the tallest thing a line carries (a seat button, a
+   * pill), `--seat-subline` the deck's line, and nothing in them can grow the
+   * row; a long name truncates instead.
+   */
+  --seat-line: 1.6rem;
+  --seat-subline: 1.1rem;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-rows: var(--seat-line) var(--seat-subline);
   grid-template-areas:
     'who deck-legal deck-ready'
     'deck deck rules';
@@ -500,6 +520,7 @@
 @media (max-width: 600px) {
   .tables__row {
     grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-rows: var(--seat-line) var(--seat-subline) var(--seat-line);
     grid-template-areas:
       'who who who'
       'deck deck deck'
@@ -507,11 +528,25 @@
   }
 }
 
+/* A row with no deck to show — a pod seat, a spectator — is the name's line
+   alone, at every width. After the phone rule so it wins there too. */
+.tables__row--line {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: var(--seat-line);
+  grid-template-areas: 'who deck-ready';
+}
+
+/* An open seat keeps its row's lines (the seat does not grow when it is
+   taken); its name and buttons take the first line's whole width. */
 .tables__row--empty {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'who';
   color: var(--color-text-secondary);
   border-style: dashed;
+}
+
+.tables__row--empty > .tables__who {
+  grid-area: auto;
+  grid-row: 1;
+  grid-column: 1 / -1;
 }
 
 /* A seat's name cell holds its one action too (2026-10-12): Sit here on an
@@ -532,8 +567,8 @@
   white-space: nowrap;
 }
 
-/* The leader's crown, the leader pill's own mark, beside the name it belongs to;
-   the seat's button stays at the row's far end. */
+/* The leader's crown (our own five-point outline, no WotC mark) beside the name
+   it belongs to; the seat's button stays at the row's far end. */
 .tables__crown {
   flex: none;
   width: 0.95rem;
@@ -608,14 +643,6 @@
   grid-area: deck-ready;
 }
 
-/* The leader's own cell in a draft room's member row. Named for the same reason
-   `deck-ready` is: an unnamed pill would be auto-placed and the column would
-   wander between the two rows. */
-.pill--leader {
-  grid-area: leader;
-  justify-self: start;
-}
-
 /* And the same pill on the constructed card, which is a flex COLUMN — a flex
    item's default `align-self: stretch` would blow an inline-flex pill out to
    the full width of the card and draw a 300px lozenge round two words. */
@@ -650,20 +677,6 @@
   color: var(--color-warning-dark);
   background: var(--color-warning-bg);
   border-style: dashed;
-}
-
-/*
- * The leader, which is not a pass or a fail.
- *
- * Its own state rather than borrowing `yes`, so the success/warning pair keeps
- * meaning exactly what it meant: a legal deck and a ready player. The crown is
- * the signal; this is the quietest colouring in the file, because who set the
- * table is a fact you look up, not one that should shout over a ready mark.
- */
-.pill[data-state='leader'] {
-  color: var(--color-text-secondary);
-  background: var(--color-bg-hover);
-  border-style: dotted;
 }
 
 /*
@@ -792,43 +805,6 @@
 }
 
 /* ── a draft room's lobby, before the cards exist ────────────────────── */
-
-/*
- * The members of a draft room, one row each: the name, and whether they are
- * ready. The same row shape as the constructed table's seats, minus the two
- * cells a draft has nothing to put in — there is no deck and no format until
- * the draft has been drafted.
- *
- * `deck-ready` is named here as well as in `.tables__row` because that is the
- * area `.pill--ready` is placed in; a row that did not name it would auto-place
- * the pill and the column would wander between the two screens.
- */
-.draft__members {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0 0 1rem;
-  padding: 0;
-  list-style: none;
-}
-
-.draft__member {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  grid-template-areas: 'who leader deck-ready';
-  align-items: center;
-  gap: 0.2rem 0.75rem;
-  padding: 0.45rem 0.7rem;
-  background: var(--color-bg-alt);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--hdk-radius);
-}
-
-.draft__member--empty {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: 'who';
-  color: var(--color-text-secondary);
-  border-style: dashed;
-}
 
 /* ── a streamed room: one screen per seat ────────────────────────────── */
 

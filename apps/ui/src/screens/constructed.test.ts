@@ -108,6 +108,14 @@ function styled(): (el: Element, property: string) => string {
   return (el, property) => getComputedStyle(el).getPropertyValue(property).trim();
 }
 
+/** A member's row in the room's spectator list (`SpectatorRows`), by member id. */
+function memberRow(memberId: string): HTMLElement {
+  const row = screen.getAllByTestId('spectator-row').find((r) => r.dataset.member === memberId);
+  if (row === undefined) throw new Error(`no spectator row for ${memberId}`);
+  return row;
+}
+const memberReady = (memberId: string): HTMLElement => within(memberRow(memberId)).getByTestId('spectator-ready');
+
 /** Every pill state on the page, by the border it is drawn with: a second signal besides its colour. */
 function pillBorders(css: (el: Element, property: string) => string): Map<string, string> {
   return new Map([...document.querySelectorAll<HTMLElement>('.pill[data-state]')].map((p) => [p.dataset.state!, css(p, 'border-style')]));
@@ -2095,10 +2103,10 @@ describe('a draft room', () => {
     await screen.findByTestId('draft-lobby');
 
     // Who is here, and who is ready — off the ROOM's record, not the table's.
-    expect(screen.getAllByTestId(/^draft-member-\d+$/)).toHaveLength(2);
-    expect(screen.getByTestId('draft-member-0').textContent).toContain('user-alice');
-    expect(screen.getByTestId('draft-member-0-ready').textContent).toBe('not ready');
-    expect(screen.getByTestId('draft-member-0-ready').dataset.mark).toBe('ring');
+    expect(screen.getAllByTestId('spectator-row')).toHaveLength(2);
+    expect(memberRow('p-alice').textContent).toContain('user-alice');
+    expect(memberReady('p-alice').textContent).toBe('not ready');
+    expect(memberReady('p-alice').dataset.mark).toBe('ring');
     expect(screen.getByTestId('draft-state').textContent).toBe('Nobody is seated.');
 
     // No pack, no pod, no seats: the draft does not exist yet.
@@ -2145,7 +2153,7 @@ describe('a draft room', () => {
     });
     // The room's own route, never the table's.
     expect(server.calls.filter((c) => c.url.endsWith(`/tables/rooms/${ROOM}/ready`))).toHaveLength(0);
-    await waitFor(() => expect(screen.getByTestId('draft-member-0-ready').textContent).toBe('ready'));
+    await waitFor(() => expect(memberReady('p-alice').textContent).toBe('ready'));
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).textContent).toBe('Stand down');
 
     // Standing down again is the same route with the other boolean.
@@ -2176,7 +2184,7 @@ describe('a draft room', () => {
     await mountDraft({ members: members(true, false) });
     await screen.findByTestId('draft-lobby');
     const borders = pillBorders(styled());
-    expect([...borders.keys()].sort()).toEqual(['leader', 'no', 'yes']);
+    expect([...borders.keys()].sort()).toEqual(['no', 'yes']);
     expect(new Set(borders.values()).size, JSON.stringify([...borders])).toBe(borders.size);
   });
 
@@ -2186,12 +2194,12 @@ describe('a draft room', () => {
 
     // `p-alice` is the room's `leader`, and a member's ID is the only thing
     // that identifies them — the display name is not unique.
-    const mark = screen.getByTestId('draft-member-0-leader');
-    expect(mark.dataset.mark).toBe('crown');
-    expect(mark.querySelector('svg path')).not.toBeNull();
+    // The seat rows' own crown, beside the name.
+    const mark = memberRow('p-alice').querySelector('.tables__crown');
+    expect(mark?.querySelector('path')).not.toBeNull();
     // Exactly one member carries it, and the other says nothing.
-    expect(screen.queryByTestId('draft-member-1-leader')).toBeNull();
-    expect(screen.getByTestId('draft-member-1').textContent).not.toMatch(/leader/i);
+    expect(memberRow('p-1').querySelector('.tables__crown')).toBeNull();
+    expect(memberRow('p-1').textContent).not.toMatch(/leader|owner/i);
   });
 
   it('starts the draft exactly once when every seated player is ready, and only then', async () => {

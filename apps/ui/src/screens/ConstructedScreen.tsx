@@ -172,6 +172,7 @@ import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
+import { SpectatorRows } from './SpectatorRows.tsx';
 import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
@@ -1379,6 +1380,9 @@ function RoomTableScreen({
    * room is the one-table case, so this is always `tables[0]`.
    */
   const myTable: SharedRoomTable | null = view?.tables[0] ?? null;
+  /** The room's members seated at none of its tables: its spectators. */
+  const seatedIds = new Set(view?.tables.flatMap((t) => t.players.map((p) => p.memberId)) ?? []);
+  const spectators = members.filter((m) => !seatedIds.has(m.id));
   /** Between games of my series: the room is where the sideboard step is, whichever page I came back by (`TableSideboard`). */
   const mySideboarding = myTable !== null && myTable.matchId === null && myTable.series.phase === 'sideboarding';
   const seriesScore = seriesScoreText(players, myTable);
@@ -2188,6 +2192,14 @@ function RoomTableScreen({
                   );
                 })}
               </ul>
+              {/* Whoever holds no seat at any of the room's tables, and one open row to take by standing up. */}
+              <SpectatorRows
+                spectators={spectators}
+                myId={view?.you.id ?? null}
+                leaderId={view?.leader ?? ''}
+                onWatch={standUp}
+                watchDisabled={!seated || tableLocked || underway}
+              />
               {startRefusal !== null && (
                 <div className="lobby__error" role="alert" data-testid="start-refused">
                   <p>{startRefusal}</p>
@@ -2612,7 +2624,7 @@ function seriesScoreText(players: RoomPlayer[], table: SharedRoomTable | null): 
 }
 
 /** The leader's mark, our own five-point outline, on a 12-unit square. */
-const CROWN = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
+export const CROWN = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
 /** A pass: the ready and legal pills' tick. */
 const TICK = 'M2.6 6.3 4.9 8.8 9.4 3.3';
 
@@ -2623,12 +2635,6 @@ const TICK = 'M2.6 6.3 4.9 8.8 9.4 3.3';
  * read it — so each state has its OWN SHAPE (`data-mark`, drawn in an inline
  * `<svg>` we own) and its own border style as well. `screens.css` colours it;
  * remove every colour from that file and this still reads.
- *
- * `leader` is a third kind (w25) and it is not a yes/no: it is on the one member
- * who has it and absent everywhere else. It gets its own `data-state`, so the
- * two success/warning colourings stay exactly what they were, and its own drawn
- * mark. The crown is our own five-point outline — no WotC mark, here or
- * anywhere in this file.
  */
 export function StatusPill({
   kind,
@@ -2638,10 +2644,10 @@ export function StatusPill({
   label,
   count,
 }: {
-  kind: 'legal' | 'ready' | 'leader';
+  kind: 'legal' | 'ready';
   testId: string;
-  state: 'yes' | 'no' | 'leader';
-  mark: 'tick' | 'cross' | 'ring' | 'crown';
+  state: 'yes' | 'no';
+  mark: 'tick' | 'cross' | 'ring';
   label: string;
   count?: number;
 }) {
@@ -2651,7 +2657,6 @@ export function StatusPill({
         {mark === 'tick' && <path d={TICK} />}
         {mark === 'cross' && <path d="M3.5 3.5 8.5 8.5M8.5 3.5 3.5 8.5" />}
         {mark === 'ring' && <circle cx="6" cy="6" r="3.4" />}
-        {mark === 'crown' && <path d={CROWN} />}
       </svg>
       {label}
       {count !== undefined && <span className="pill__count">{count}</span>}

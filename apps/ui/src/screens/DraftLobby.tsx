@@ -36,9 +36,9 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { RoomMember } from '../rooms/api.ts';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
-import { StatusPill } from './ConstructedScreen.tsx';
 import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
+import { SpectatorRows } from './SpectatorRows.tsx';
 import { POD_AI, POD_CLOSED, podDealable, type PodView } from './pod/wire.ts';
 
 export { podDealable };
@@ -86,6 +86,7 @@ export function DraftLobby({
 
   const seated = new Set((pod?.seats ?? []).filter((s) => s !== null).map((s) => s!.memberId));
   const spectators = members.filter((m) => !seated.has(m.id));
+  const iAmSeated = myMemberId !== null && seated.has(myMemberId);
 
   const act = (call: () => Promise<{ ok: boolean; message: string | null }>): void => {
     if (inFlight.current) {
@@ -133,32 +134,15 @@ export function DraftLobby({
       )}
 
       <h2>{pod !== null ? 'Spectators' : 'In the room'}</h2>
-      <ul className="draft__members" data-testid="draft-members">
-        {spectators.length === 0 ? (
-          <li className="draft__member draft__member--empty" data-testid="draft-nobody">
-            {members.length === 0 ? 'Nobody has joined yet.' : 'Everybody is seated.'}
-          </li>
-        ) : (
-          spectators.map((member) => {
-            const i = members.indexOf(member);
-            return (
-              <li key={member.id} className="draft__member" data-testid={`draft-member-${i}`}>
-                <strong className="tables__who">{member.name}</strong>
-                {member.id === leaderId && leaderId !== '' && (
-                  <StatusPill kind="leader" testId={`draft-member-${i}-leader`} state="leader" mark="crown" label="leader" />
-                )}
-                <StatusPill
-                  kind="ready"
-                  testId={`draft-member-${i}-ready`}
-                  state={member.ready ? 'yes' : 'no'}
-                  mark={member.ready ? 'tick' : 'ring'}
-                  label={member.ready ? 'ready' : 'not ready'}
-                />
-              </li>
-            );
-          })
-        )}
-      </ul>
+      {/* A room read with no pod deals on every member's readiness, so there the list shows it. */}
+      <SpectatorRows
+        spectators={spectators}
+        myId={myMemberId}
+        leaderId={leaderId}
+        {...(pod === null ? { readyOf: (id: string) => members.find((m) => m.id === id)?.ready === true } : {})}
+        onWatch={doStand}
+        watchDisabled={!iAmSeated}
+      />
 
       <p className="lobby__note" data-testid="draft-state">
         {draftStateText(pod, members, dealing)}

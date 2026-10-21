@@ -24,7 +24,7 @@
  * (`PodSeats.test.ts`) instead of a mocked server.
  */
 
-import { StatusPill } from '../ConstructedScreen.tsx';
+import { CROWN, StatusPill } from '../ConstructedScreen.tsx';
 import { POD_AI, POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
 import './PodSeats.css';
 
@@ -55,7 +55,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand,
         const occupant = seats[seat] ?? null;
         if (occupant === null) {
           return (
-            <li key={seat} className="tables__row tables__row--empty" data-testid={`pod-seat-${seat}`}>
+            <li key={seat} className="tables__row tables__row--line tables__row--empty" data-testid={`pod-seat-${seat}`}>
               <span className="tables__who tables__who--seat">
                 <span className="tables__name">Open seat</span>
                 <span className="tables__actions">
@@ -85,7 +85,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand,
         }
         if (occupant.memberId === POD_CLOSED) {
           return (
-            <li key={seat} className="tables__row tables__row--closed" data-testid={`pod-seat-${seat}`} data-closed="">
+            <li key={seat} className="tables__row tables__row--line tables__row--closed" data-testid={`pod-seat-${seat}`} data-closed="">
               <span className="tables__who tables__who--seat">
                 <span className="tables__name">Closed</span>
                 {iLead && (
@@ -101,7 +101,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand,
         }
         if (occupant.memberId === POD_AI) {
           return (
-            <li key={seat} className="tables__row" data-testid={`pod-seat-${seat}`} data-ai="">
+            <li key={seat} className="tables__row tables__row--line" data-testid={`pod-seat-${seat}`} data-ai="">
               <span className="tables__who tables__who--seat">
                 <strong className="tables__name">{occupant.name}</strong>
                 <button type="button" className="tables__stand" data-testid="pod-seat-ai-remove" data-seat={seat} onClick={() => onAi(seat, false)}>
@@ -115,13 +115,13 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand,
         const leads = occupant.memberId === leaderId && leaderId !== '';
         const ready = readyOf(occupant.memberId);
         return (
-          <li key={seat} className="tables__row" data-testid={`pod-seat-${seat}`}>
+          <li key={seat} className="tables__row tables__row--line" data-testid={`pod-seat-${seat}`}>
             <span className="tables__who tables__who--seat">
               <strong className="tables__name">{mine ? `${occupant.name} (you)` : occupant.name}</strong>
               {leads && (
                 <svg className="tables__crown" data-testid={`pod-seat-${seat}-leader`} viewBox="0 0 12 12" role="img" aria-label="Room owner">
                   <title>Room owner</title>
-                  <path d="M1 9.5 2 4l2.3 2.3L6 3l1.7 3.3L10 4l1 5.5z" />
+                  <path d={CROWN} />
                 </svg>
               )}
               {mine && (
