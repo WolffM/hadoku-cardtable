@@ -651,26 +651,6 @@
   --card-w: 5rem;
 }
 
-/*
- * A card's rules text scrolls inside its tile instead of stretching it.
- *
- * `styles.css`'s `.card__rules` is `flex: 1 1 auto` with `overflow-y: auto`,
- * and a flex item's default `min-height: auto` refuses to shrink below its
- * content — so on a board tile, which is sized by `aspect-ratio`
- * (`card.css`), a card with long rules grew its own tile instead of scrolling.
- * Measured by `e2e/table-fit.spec.ts`: a hand card 769px past its box, which
- * lifted the hand, the seat, the board, `.live` and finally the match shell out
- * of the window — and then the prompt sheet, anchored to `.live`, hung out with
- * it. The same one declaration fixes both.
- *
- * It belongs on `.card__rules` itself, in `styles.css`, where every card tile
- * would get it. It is scoped to the live board here because `styles.css` is
- * nobody's this wave; moving it up is a one-line change and loses nothing.
- */
-.live .card__rules {
-  min-height: 0;
-}
-
 .confirm {
   display: flex;
   flex-direction: column;

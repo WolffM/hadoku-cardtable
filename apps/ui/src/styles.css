@@ -666,10 +666,12 @@ button {
   font-size: 11px;
   line-height: 1.35;
   color: var(--ink);
-  overflow-y: auto;
+  /* Every face, at any size: shrinks to the room its tile has (a flex item's `min-height: auto` would grow
+     the tile instead), and text past it is cut off under a fade, never scrolled; the inspector draws it larger. */
   flex: 1 1 auto;
-  /* Long planeswalkers scroll rather than push the stat line off the panel. */
-  scrollbar-width: thin;
+  min-height: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1em), transparent);
 }
 
 .card__rules-line {

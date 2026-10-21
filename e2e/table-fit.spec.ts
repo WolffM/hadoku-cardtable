@@ -2444,11 +2444,7 @@ const W19_TITLE = forge.ok
  * here because this only asks "does anything scroll", not "what grew whom".
  *
  * And a box has to have a nonzero size on that axis to show a scroll bar at
- * all: `.card__rules` (`styles.css`) is a deliberate, pre-existing scroller
- * ("long planeswalkers scroll rather than push the stat line off the
- * panel") that a tiny board tile's `flex: 1 1 auto` routinely squeezes to
- * 0px tall — `overflow-y: auto` and real overflow both, by design, on a box
- * nobody can ever see a scroll bar on because there is no box.
+ * all: a box squeezed to 0px is no box anyone can scroll.
  */
 async function scrollingElements(page: import('@playwright/test').Page): Promise<string[]> {
   return page.evaluate(() => {
