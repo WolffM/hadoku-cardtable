@@ -632,27 +632,9 @@ button {
   position: absolute;
   inset: 0 auto 0 0;
   width: 5px;
-  background: var(--c-generic);
+  /* A band of each of the card's colours, in WUBRG order (`ColorSymbol.tsx`'s `stripeOf`). */
+  background: var(--stripe, var(--c-generic));
 }
-
-.card__stripe[data-identity='w'] { background: var(--c-white); }
-.card__stripe[data-identity='u'] { background: var(--c-blue); }
-.card__stripe[data-identity='b'] { background: var(--c-black); }
-.card__stripe[data-identity='r'] { background: var(--c-red); }
-.card__stripe[data-identity='g'] { background: var(--c-green); }
-.card__stripe[data-identity='colorless'] { background: var(--c-generic); }
-
-/* Two or more colours: a band of each, in WUBRG order. */
-.card__stripe[data-identity='wu'] { background: linear-gradient(var(--c-white) 50%, var(--c-blue) 50%); }
-.card__stripe[data-identity='wb'] { background: linear-gradient(var(--c-white) 50%, var(--c-black) 50%); }
-.card__stripe[data-identity='wr'] { background: linear-gradient(var(--c-white) 50%, var(--c-red) 50%); }
-.card__stripe[data-identity='wg'] { background: linear-gradient(var(--c-white) 50%, var(--c-green) 50%); }
-.card__stripe[data-identity='ub'] { background: linear-gradient(var(--c-blue) 50%, var(--c-black) 50%); }
-.card__stripe[data-identity='ur'] { background: linear-gradient(var(--c-blue) 50%, var(--c-red) 50%); }
-.card__stripe[data-identity='ug'] { background: linear-gradient(var(--c-blue) 50%, var(--c-green) 50%); }
-.card__stripe[data-identity='br'] { background: linear-gradient(var(--c-black) 50%, var(--c-red) 50%); }
-.card__stripe[data-identity='bg'] { background: linear-gradient(var(--c-black) 50%, var(--c-green) 50%); }
-.card__stripe[data-identity='rg'] { background: linear-gradient(var(--c-red) 50%, var(--c-green) 50%); }
 
 .card__head {
   display: flex;

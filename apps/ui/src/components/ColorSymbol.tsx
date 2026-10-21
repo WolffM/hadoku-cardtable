@@ -20,6 +20,16 @@ export function wubrgKey(colors: readonly ManaColor[]): string {
   return WUBRG.filter((c) => colors.includes(c)).join('');
 }
 
+const HUE: Record<ManaColor, string> = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' };
+
+/** A colour set as a card's identity stripe: an equal band of each colour, in WUBRG order; none is the colourless hue. */
+export function stripeOf(colors: readonly ManaColor[]): string {
+  const bands = WUBRG.filter((c) => colors.includes(c));
+  if (bands.length === 0) return 'var(--c-generic)';
+  const at = (i: number): string => `${Math.round((i * 10000) / bands.length) / 100}%`;
+  return `linear-gradient(${bands.map((c, i) => `var(--c-${HUE[c]}) ${at(i)} ${at(i + 1)}`).join(', ')})`;
+}
+
 /** A colour set's symbol: the colour itself, `'M'` (gold) for two or more, `'C'` for none. */
 export type ColorSymbolId = ManaColor | 'M' | 'C';
 

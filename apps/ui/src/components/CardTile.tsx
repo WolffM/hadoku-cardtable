@@ -54,10 +54,10 @@ import { createPortal } from 'react-dom';
  * of its own to remember. A face tile is not a card on screen: no test id, no card id, no sound.
  */
 
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { DOOR_TIP, faceCropStyle, type DoorState, type TileCard, type TileFace } from './faceCrop.ts';
 import { ManaCost, ManaPip, SetSymbol } from './ManaPip.tsx';
-import { wubrgKey } from './ColorSymbol.tsx';
+import { stripeOf, wubrgKey } from './ColorSymbol.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { playRole, roleHandler } from '../sound/index.ts';
 import { documentScope } from '../dom.ts';
@@ -288,7 +288,7 @@ function CardBody({ card, liveText, conditionMet = false }: { card: TileFace; li
         <CardArt url={imageUrl} crop={card.faceCrop} />
       )}
       {card.door !== undefined && <DoorMark door={card.door} />}
-      <span className="card__stripe" data-identity={identity} aria-hidden="true" />
+      <span className="card__stripe" data-identity={identity} style={{ '--stripe': stripeOf(card.colors) } as CSSProperties} aria-hidden="true" />
       <span className="card__head">
         <span className="card__name">{card.name}</span>
         <ManaCost cost={card.manaCost} label={`${card.name} costs ${card.manaCost.join(' ')}`} />
