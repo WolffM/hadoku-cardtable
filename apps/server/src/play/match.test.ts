@@ -3721,6 +3721,60 @@ describe("a modal spell's modes are one prompt", () => {
 	});
 });
 
+describe('a per-type pick is one prompt', () => {
+	const card = (id: number) => ({ kind: 'card' as const, id });
+	/** Forge's type question over `types`; the first carries the bridge's `eachType`, as `./each-type.test.ts` builds it. */
+	const typeAsk = (callId: string, types: string[], first = false) => ({
+		kind: 'ask' as const,
+		callId,
+		method: 'getChoices' as const,
+		message: 'Choose a card type',
+		min: 1,
+		max: 1,
+		choices: types.map((label, i) => ({ key: `c${i}`, label, ref: null })),
+		selected: [],
+		...(first && {
+			eachType: {
+				cards: [
+					{ card: card(1), name: 'Ornithopter', types: ['Artifact', 'Creature'] },
+					{ card: card(2), name: 'Sol Ring', types: ['Artifact'] },
+					{ card: card(4), name: 'Forest', types: ['Land'] },
+				],
+				chosen: { zone: 'hand' as const },
+				rest: { zone: 'library' as const, end: 'bottom' as const, first: 'top' as const },
+			},
+		}),
+	});
+	const cardAsk = (callId: string, ids: number[]) => ({
+		kind: 'ask' as const,
+		callId,
+		method: 'chooseSingleEntityForEffect' as const,
+		title: 'Choose a card ',
+		optionList: ids.map(card),
+		delayedReveal: null,
+		isOptional: true,
+	});
+	const shown = (h: Harness, callId: string) =>
+		h.sent.filter((s) => s.seat === 0 && s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === callId);
+
+	it("the sheet's one reply answers Forge's later type and card questions, never shown; the next ask it does not answer is", () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: typeAsk('x-type-1', ['Artifact', 'Creature', 'Land'], true) });
+		expect(shown(h, 'x-type-1')[0]?.envelope.frame).toMatchObject({ method: 'order', destination: { zone: 'hand' } });
+		const reply = ClientFrameSchema.parse({ kind: 'reply', callId: 'x-type-1', method: 'order', result: { ordered: ['t1', 't2'], rememberDecision: false } });
+		expect(h.match.fromClient(0, reply)).toEqual({ ok: true });
+
+		const later = [cardAsk('x-type-2', [1, 2]), typeAsk('x-type-3', ['Creature', 'Land']), cardAsk('x-type-4', [1]), cardAsk('x-type-5', [4])];
+		for (const frame of later) h.host.push({ t: 'frame', seat: 0, frame });
+		for (const frame of later) expect(shown(h, frame.callId), frame.callId).toEqual([]);
+		expect(h.host.commands.filter((c) => c.t === 'reply').map((c) => (c as { result: unknown }).result)).toEqual([['c0'], card(2), ['c0'], card(1), null]);
+
+		h.host.push({ t: 'frame', seat: 0, frame: cardAsk('x-type-6', [4]) });
+		expect(shown(h, 'x-type-6')).toHaveLength(1);
+	});
+});
+
 /**
  * The two records that answer "X wasn't clickable" from the match log: what Forge offered at each
  * window the seat was shown (`offered`, only when it changed), and what came of each card click
