@@ -3578,6 +3578,33 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await waitFor(() => expect(reserved(), 'the gap closes with it').toBeNull());
   }, 20_000);
 
+  it('a play on the stack keeps the column it reserved through the next cast, and resolves into it', async () => {
+    // CI run 39563790118 (w59-stack): Keiga on the stack lost its gap the moment the viewer cast Remand.
+    vi.spyOn(BoardModule, 'notePlayedTo').mockImplementation((id) => BoardModule.expectPlacement(0, 'back', { kind: 'end' }, id));
+    const { s, m, canvas, card, rest, battlefield, arrive } = await play();
+    const me = mineOf(m).id;
+    const reserved = () => canvas.querySelector('[data-zone="battlefield"][data-owner="you"] li.zone__gap[data-expected]');
+    s.send(zones({ Hand: rest, Battlefield: battlefield }));
+    s.send(stackItem(9101, card));
+    s.send(stackIs([9101]));
+    await untilMatch(m, () => expect(m.view!.stack).toHaveLength(1));
+    // The next cast: an instant, aimed — it reserves no column of its own.
+    const instant = rest[0]!;
+    s.send(retypeDelta(instant, ['Instant']));
+    for (const f of notify([prompt('Priority'), actionable([instant]), okBar()])) s.send(f);
+    await untilMatch(m, () => expect(mineOf(m).hand!.find((c) => c.id === instant)!.card.typeLine).toContain('Instant'));
+    await untilMatch(m, () => expect(m.weaklySelectable).not.toBeNull());
+    fireEvent.pointerDown(cardEl(canvas, instant), { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!, { clientX: 500, clientY: 300 });
+    fireEvent.pointerUp(canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!, { clientX: 500, clientY: 300 });
+    await s.untilClientFrames(2);
+    expect(BoardModule.pendingPlacementFor(me)?.cardId, 'the spell on the stack is still coming to its column').toBe(card);
+    expect(reserved(), 'and the row still draws its gap').not.toBeNull();
+    s.send(stackIs([]));
+    arrive();
+    await waitFor(() => expect(BoardModule.pendingPlacementFor(me), 'it arrived: the column is its').toBeNull());
+  });
+
   /*
    * CI run 37539089085 (2026-10-06): a land Forge never played was still parked
    * when the cleanup discard opened, and stayed hidden in the hand with the
