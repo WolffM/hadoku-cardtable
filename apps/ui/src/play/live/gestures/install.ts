@@ -256,11 +256,11 @@ import { closePileView } from '../../PileView.tsx';
 import { aimedTarget, attackWith, clearTappedPending, commitDrag, commitMarquee, landsInBox, markTappedPending, rectOf, type Rect } from './commit.ts';
 import {
   clearHandIndicator,
-  closeHandGap,
   commitHandReorder,
   handCardPress,
   handOrderIds,
-  openHandGap,
+  holdLiftedSlot,
+  releaseLiftedSlot,
   updateHandIndicator,
 } from './hand.ts';
 import { applyIntents, applyPending, clearIntents } from './intent.ts';
@@ -1386,7 +1386,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         const box = cardBox(canvas, press.id);
         const from = box === null ? pressAt : centreOf(box);
         handPressIndex = handOrderIds(canvas).indexOf(press.id);
-        openHandGap(press.li);
+        holdLiftedSlot(press.li, press.id);
         drag = { source: press.id, press: pressAt, from, at: pressAt, target: null, moved: false, lifted: 'hand', held: true };
         // Board-sized from this call itself (`drawCastLift`'s own `'lifted'` rule) — nothing
         // of this module's reads or writes that property.
@@ -1788,7 +1788,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       clearMarquee(overlay);
       clearIntents(canvas);
       clearAllCastLifts(canvas);
-      closeHandGap();
+      releaseLiftedSlot();
       clearDropCues(canvas);
       handPressIndex = null;
       scheduleHandIndicator(null);

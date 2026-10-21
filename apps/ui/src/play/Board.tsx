@@ -374,6 +374,7 @@
  */
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -891,6 +892,20 @@ export type OwnArrangementListener = (change: { readonly matchKey: string; reado
 const OWN_ARRANGEMENT_LISTENERS = new Set<OwnArrangementListener>();
 /** Mounted boards, woken when the other seat's arrangement arrives (`applyTheirArrangement`). */
 const MOUNTED_BOARDS = new Set<() => void>();
+
+/**
+ * The viewer's hand card picked up right now, and its height before it was: the hand holds its slot
+ * open with an empty `<li data-hand-gap>` in front of it (`Zone`), so the cards after it do not
+ * close up under the pointer while it is out of the grid. Written by the gestures lane
+ * (`live/gestures/hand.ts`); a card the hand no longer has holds nothing.
+ */
+let HELD_HAND_SLOT: { readonly cardId: number; readonly height: number } | null = null;
+
+export function holdHandSlot(slot: { cardId: number; height: number } | null): void {
+  if (HELD_HAND_SLOT?.cardId === slot?.cardId && HELD_HAND_SLOT?.height === slot?.height) return;
+  HELD_HAND_SLOT = slot;
+  for (const wake of MOUNTED_BOARDS) wake();
+}
 
 /**
  * Told of every arrangement this seat makes of its own battlefield (its
@@ -2761,14 +2776,10 @@ function Zone({
         data-arrange-slot={arranging === undefined ? undefined : 'hand'}
       >
         {cards.map((c) => (
-          <CardOnBoard
-            key={c.id}
-            entry={c}
-            interaction={interaction}
-            arranging={arranging}
-            slot={arranging === undefined ? undefined : 'hand'}
-            inExile={zone === 'exile'}
-          />
+          <Fragment key={c.id}>
+            {zone === 'hand' && HELD_HAND_SLOT?.cardId === c.id ? <li data-hand-gap="" aria-hidden="true" style={{ height: HELD_HAND_SLOT.height }} /> : null}
+            <CardOnBoard entry={c} interaction={interaction} arranging={arranging} slot={arranging === undefined ? undefined : 'hand'} inExile={zone === 'exile'} />
+          </Fragment>
         ))}
       </ul>
     </ZoneShell>

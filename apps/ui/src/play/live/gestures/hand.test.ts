@@ -13,13 +13,12 @@ import * as BoardModule from '../../Board.tsx';
 import * as presenceModule from '../presence.ts';
 import {
   clearHandIndicator,
-  closeHandGap,
   commitHandReorder,
   HAND_FLIP_ATTR,
-  HAND_GAP_ATTR,
   handCardPress,
   handOrderIds,
-  openHandGap,
+  holdLiftedSlot,
+  releaseLiftedSlot,
   updateHandIndicator,
 } from './hand.ts';
 
@@ -59,38 +58,39 @@ function board(n = 4): { canvas: HTMLElement; cards: HTMLElement[] } {
 afterEach(() => {
   document.body.innerHTML = '';
   clearHandIndicator();
-  closeHandGap();
+  releaseLiftedSlot();
   vi.restoreAllMocks();
 });
 
-describe('openHandGap — the slot a picked-up card leaves stays open', () => {
-  it('holds the slot with an empty li no hand reader counts, until the card is neither lifted nor floating home', async () => {
-    const { canvas, cards } = board(4);
+describe('holdLiftedSlot — the slot a picked-up card leaves stays open', () => {
+  it('has Board hold the slot at the card’s own height until the card is neither lifted nor floating home', async () => {
+    const hold = vi.spyOn(BoardModule, 'holdHandSlot');
+    const { cards } = board(4);
     cards[1]!.setAttribute('data-cast-lift', 'lifted');
-    openHandGap(cards[1]!);
-    const gap = cards[1]!.previousElementSibling as HTMLElement;
-    expect(gap.hasAttribute(HAND_GAP_ATTR), 'right where the card was').toBe(true);
-    expect(gap.style.height).toBe('84px');
-    expect(handOrderIds(canvas), 'never counted as a card').toEqual([100, 101, 102, 103]);
+    holdLiftedSlot(cards[1]!, 101);
+    expect(hold).toHaveBeenLastCalledWith({ cardId: 101, height: 84 });
     cards[1]!.setAttribute('data-cast-lift', 'returning');
     await Promise.resolve();
-    expect(gap.isConnected, 'still open while it floats home into it').toBe(true);
+    expect(hold, 'still held while it floats home into it').toHaveBeenLastCalledWith({ cardId: 101, height: 84 });
     cards[1]!.setAttribute('data-cast-lift', 'parked');
     await Promise.resolve();
-    expect(gap.isConnected, 'closed once it is cast').toBe(false);
+    expect(hold, 'let go once it is cast').toHaveBeenLastCalledWith(null);
   });
 
-  it('closes when the lift comes off, and a second lift moves it rather than leaving two', async () => {
-    const { canvas, cards } = board(4);
+  it('a second lift moves the slot, and only its own lift lets it go', async () => {
+    const hold = vi.spyOn(BoardModule, 'holdHandSlot');
+    const { cards } = board(4);
     cards[0]!.setAttribute('data-cast-lift', 'lifted');
-    openHandGap(cards[0]!);
+    holdLiftedSlot(cards[0]!, 100);
     cards[2]!.setAttribute('data-cast-lift', 'lifted');
-    openHandGap(cards[2]!);
-    expect(canvas.querySelectorAll(`[${HAND_GAP_ATTR}]`)).toHaveLength(1);
-    expect(cards[2]!.previousElementSibling!.hasAttribute(HAND_GAP_ATTR)).toBe(true);
+    holdLiftedSlot(cards[2]!, 102);
+    expect(hold).toHaveBeenLastCalledWith({ cardId: 102, height: 84 });
+    cards[0]!.removeAttribute('data-cast-lift');
+    await Promise.resolve();
+    expect(hold).toHaveBeenLastCalledWith({ cardId: 102, height: 84 });
     cards[2]!.removeAttribute('data-cast-lift');
     await Promise.resolve();
-    expect(canvas.querySelectorAll(`[${HAND_GAP_ATTR}]`)).toHaveLength(0);
+    expect(hold).toHaveBeenLastCalledWith(null);
   });
 });
 
