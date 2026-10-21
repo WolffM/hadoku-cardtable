@@ -595,6 +595,13 @@ export interface BoardInteraction {
    * stand apart from the everyday can-act glow. Absent outside those windows.
    */
   combatReady?: ReadonlySet<number>;
+  /**
+   * The viewer's floating pool pays the open payment more than one way: these colours of it are
+   * pressable and the pool is highlighted (`live/match.ts`'s `poolPays`). Absent otherwise.
+   */
+  poolPays?: readonly PoolColor[];
+  /** A colour of the viewer's pool was pressed. Only ever called for one in `poolPays`. */
+  onPayFromPool?(color: PoolColor): void;
   /** A card was clicked. Only ever called for an id in `selectable`. */
   onSelectCard(cardId: number): void;
   onSelectPlayer(playerId: number): void;
@@ -3341,30 +3348,47 @@ const MANA_WORD: Readonly<Record<PoolColor, string>> = {
   C: 'colourless',
 };
 
-function ManaPool({ player }: { player: BoardPlayer }) {
+function ManaPool({ player, interaction }: { player: BoardPlayer; interaction?: BoardInteraction }) {
   const pool = player.manaPool ?? [];
   const total = pool.reduce((n, m) => n + m.count, 0);
   const said = pool.map((m) => `${m.count} ${MANA_WORD[m.color]}`).join(', ');
+  // The pool pays the open payment more than one way: which mana is the player's to press
+  // (operator, 2026-10-21), and the pool wears the can-act glow while it is.
+  const pays = player.isViewer ? (interaction?.poolPays ?? []) : [];
   return (
     <ul
       className="seat__mana"
       data-mana-pool=""
       data-mana-total={total}
+      data-pool-pays={pays.length > 0 ? '' : undefined}
       aria-label={total === 0 ? `${player.name} mana pool` : `${player.name} mana pool: ${said}`}
     >
-      {pool.map((m) => (
-        <li key={m.color} className="seat__mana-pip" data-mana={m.color} data-mana-count={m.count}>
-          {/* The Mana font's own symbol (D20), never the letter (operator,
-              2026-10-06: "instead of showing 'U1' can we show the actual mana
-              symbol"). The list's own label already says it in words. */}
-          <span className="seat__mana-symbol" aria-hidden="true">
-            <ManaPip token={m.color} />
-          </span>
-          <span aria-hidden="true">
-            {m.count}
-          </span>
-        </li>
-      ))}
+      {pool.map((m) => {
+        const pressable = pays.includes(m.color);
+        return (
+          <li
+            key={m.color}
+            className="seat__mana-pip"
+            data-mana={m.color}
+            data-mana-count={m.count}
+            data-pool-pay={pressable ? '' : undefined}
+            role={pressable ? 'button' : undefined}
+            tabIndex={pressable ? 0 : undefined}
+            aria-label={pressable ? `Pay with ${MANA_WORD[m.color]}` : undefined}
+            onClick={pressable ? () => interaction?.onPayFromPool?.(m.color) : undefined}
+          >
+            {/* The Mana font's own symbol (D20), never the letter (operator,
+                2026-10-06: "instead of showing 'U1' can we show the actual mana
+                symbol"). The list's own label already says it in words. */}
+            <span className="seat__mana-symbol" aria-hidden="true">
+              <ManaPip token={m.color} />
+            </span>
+            <span aria-hidden="true">
+              {m.count}
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -3520,7 +3544,7 @@ function PlayerArea({
             </h3>
           </div>
           <SeatStatus player={player} />
-          <ManaPool player={player} />
+          <ManaPool player={player} interaction={interaction} />
           {/*
            * The library's count, as a MARK rather than a word (item 10: *"can we get
            * symbols to display hand/deck size instead of words?"*). The hand's count is

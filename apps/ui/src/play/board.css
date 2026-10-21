@@ -861,6 +861,22 @@
   overflow: hidden;
 }
 
+/*
+ * The pool pays the open payment more than one way, so which mana to spend is the player's to
+ * press (operator, 2026-10-21: "lets highlight the mana pool area when this happens"): the
+ * library's can-act outline on the pool, the cards' can-act glow on each pressable pip. Inset,
+ * because the pool's track clips what is drawn outside it.
+ */
+.board .seat__mana[data-pool-pays] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.seat__mana-pip[data-pool-pay] {
+  box-shadow: inset 0 0 4px 1px color-mix(in srgb, var(--warn) 62%, transparent);
+  cursor: pointer;
+}
+
 .seat__mana-symbol {
   display: inline-flex;
   align-items: center;
