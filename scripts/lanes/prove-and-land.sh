@@ -66,14 +66,12 @@ set +e; bash "$HERE/watch-run.sh" "$id"; red=$?; set -e
 git -C "$W" push -q origin ":refs/heads/$V" 2>/dev/null || echo "prove: could not delete $V" >&2
 [ $red = 0 ] || { echo "prove: run $id is not green — nothing landed" >&2; [ $red = 1 ] && exit 1; exit 3; }
 
-# The manager's invocation: the dev-vault wrapper supplies the GitHub Packages token a land's
-# install may need, and must start in the main checkout. Its exit status is land.sh's own, not
-# a pipe's: `land.sh | tail && cleanup` read a refused land as success twice. A zero exit with
-# no `land: pushed` line is not a land either.
+# The manager's invocation (`land-worktree.sh`: the dev-vault wrapper from the main checkout,
+# Node 24). Its exit status is land.sh's own, not a pipe's: `land.sh | tail && cleanup` read a
+# refused land as success twice. A zero exit with no `land: pushed` line is not a land either.
 LOG=$LOGS/$B.land.log
 set +e
-(cd "$MAIN" && env -u NODE_AUTH_TOKEN node ../hadoku_site/scripts/secrets/dev-vault.mjs -- \
-  bash -c "cd '$W' && bash scripts/land.sh $DRY") > "$LOG" 2>&1
+bash "$HERE/land-worktree.sh" $DRY "$W" > "$LOG" 2>&1
 rc=$?; set -e
 grep -E '^land: (ledger|bumped|art rows|pushed|dry run|nothing|.*(FAILED|refused|moved|apply|rejected))' "$LOG" || true
 if [ $rc != 0 ]; then tail -20 "$LOG"; echo "prove: land.sh exited $rc — nothing landed (log $LOG)" >&2; exit 4; fi
