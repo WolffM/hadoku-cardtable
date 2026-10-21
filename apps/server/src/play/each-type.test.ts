@@ -91,6 +91,41 @@ describe('a per-type pick is one sheet', () => {
 		expect(left).toBeNull();
 	});
 
+	it('an artifact creature picked before a creature is told to Forge as the artifact', () => {
+		const one = firstEachType(first, eachTypeAsk(first)!, ['t1', 't3'])!;
+		const told: unknown[] = [one.result];
+		let left: EachTypeLeft | null = one.left;
+		const forge: Ask[] = [cardAsk('s0-6', [1, 2]), typeAsk('s0-7', ['Creature', 'Land']), cardAsk('s0-8', [3]), cardAsk('s0-10', [4])];
+		for (const frame of forge) {
+			const next = nextEachType(frame, left!);
+			expect(next, frame.callId).not.toBeNull();
+			told.push(next!.result);
+			left = next!.left;
+		}
+		expect(told).toEqual([['c0'], card(1), ['c0'], card(3), null]);
+		expect(left).toBeNull();
+	});
+
+	it('every reply it accepts puts each card in a type of its own, one the card has', () => {
+		const sheet = eachTypeAsk(first)!;
+		const typesOf = new Map([
+			[1, ['Artifact', 'Creature']],
+			[2, ['Artifact']],
+			[3, ['Creature']],
+			[4, ['Land']],
+		]);
+		for (let mask = 1; mask < 16; mask++) {
+			const ordered = [1, 2, 3, 4].filter((id) => mask & (1 << (id - 1))).map((id) => `t${id}`);
+			const one = firstEachType(first, sheet, ordered);
+			if (one === null) continue;
+			const steps = [{ type: first.choices.find((c) => c.key === one.result[0])!.label, card: one.left.card }, ...one.left.steps];
+			const placed = steps.filter((s) => s.card !== null);
+			expect(placed.map((s) => `t${s.card}`).sort(), ordered.join()).toEqual([...ordered].sort());
+			for (const s of placed) expect(typesOf.get(s.card!), ordered.join()).toContain(s.type);
+			expect(new Set(steps.map((s) => s.type)).size).toBe(3);
+		}
+	});
+
 	it('refuses a reply that puts two cards in for one type', () => {
 		expect(firstEachType(first, eachTypeAsk(first)!, ['t2', 't1', 't3'])).toBeNull();
 	});

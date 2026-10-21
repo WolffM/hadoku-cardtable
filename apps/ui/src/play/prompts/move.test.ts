@@ -341,14 +341,17 @@ describe('one card per type (Atraxa, Grand Unifier): Hand | Bottom, the types ov
         { type: 'Creature', keys: ['s0', 's2'] },
       ],
     });
+  /** Each type chip: `+` filled by every way of reading the Hand, `?` filled by some, bare by none. */
   const types = (container: HTMLElement) =>
-    [...container.querySelectorAll<HTMLElement>('[data-testid="zone-type"]')].map((t) => `${t.dataset.type}${t.hasAttribute('data-filled') ? '+' : ''}`);
+    [...container.querySelectorAll<HTMLElement>('[data-testid="zone-type"]')].map(
+      (t) => `${t.dataset.type}${t.hasAttribute('data-filled') ? '+' : t.hasAttribute('data-could') ? '?' : ''}`,
+    );
 
   it('draws each type empty, fills them as cards go in, and refuses a card no type is left for', () => {
     const { source, dest, container, submit, answers } = zones(ask());
     expect(types(container)).toEqual(['Artifact', 'Creature']);
     fireEvent.click(rowsOf(source())[0]!);
-    expect(types(container).filter((t) => t.endsWith('+'))).toHaveLength(1);
+    expect(types(container), 'the artifact creature could be either').toEqual(['Artifact?', 'Creature?']);
     fireEvent.click(rowsOf(source())[0]!);
     expect(keysIn(dest())).toEqual(['s0', 's1']);
     expect(types(container)).toEqual(['Artifact+', 'Creature+']);
@@ -356,6 +359,20 @@ describe('one card per type (Atraxa, Grand Unifier): Hand | Bottom, the types ov
     expect(keysIn(dest()), 'the creature has no type left').toEqual(['s0', 's1']);
     fireEvent.click(submit());
     expect(answers).toEqual([{ ordered: ['s0', 's1'], rememberDecision: false, rest: ['s2'] }]);
+  });
+
+  it('an artifact creature first leaves both types open; a creature after it makes it the artifact', () => {
+    const { source, dest, container, submit, answers } = zones(ask());
+    fireEvent.click(rowsOf(source())[0]!);
+    expect(types(container)).toEqual(['Artifact?', 'Creature?']);
+    fireEvent.click(rowsOf(source())[1]!);
+    expect(keysIn(dest())).toEqual(['s0', 's2']);
+    expect(types(container)).toEqual(['Artifact+', 'Creature+']);
+    expect(dest().querySelector<HTMLElement>('[data-key="s0"]')!.dataset.types).toBe('Artifact');
+    fireEvent.click(rowsOf(source())[0]!);
+    expect(keysIn(dest()), 'the artifact has no type left').toEqual(['s0', 's2']);
+    fireEvent.click(submit());
+    expect(answers).toEqual([{ ordered: ['s0', 's2'], rememberDecision: false, rest: ['s1'] }]);
   });
 
   it('nothing in the Hand is an answer too', () => {
