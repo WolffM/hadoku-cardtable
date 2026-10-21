@@ -188,6 +188,24 @@ describe('a finished draft goes straight to the builder', () => {
     expect(screen.getByTestId('pod-final')).toBeTruthy();
   });
 
+  // The operator, 2026-10-20: "ideally it brings me to the game lobby until my opponent is ready".
+  it('keeps a drafter who has pressed Play on the pod — who is ready, the bracket, the way back to the deck — until round 1 is dealt', () => {
+    const { draft, room } = mountPod();
+    draft.send(complete());
+    room.read(ctxOf(pod({ phase: 'building', drafters: ['u-alice', 'u-bob'], built: ['u-alice'] })));
+    expect(route()).toEqual({ kind: 'room', roomId: ROOM });
+    expect(screen.getByTestId('pod-ready')).toBeTruthy();
+    expect(screen.getByTestId('pod-built-u-alice').hasAttribute('data-built')).toBe(true);
+    expect(screen.getByTestId('pod-built-u-bob').hasAttribute('data-built')).toBe(false);
+    expect(screen.getAllByTestId('pod-bracket-round').every((r) => r.dataset.state === 'next')).toBe(true);
+    expect(screen.getByTestId('pod-edit-deck').getAttribute('href')).toBe('#/deck/' + ROOM);
+
+    // Bob's Play deals round 1: the same screen becomes the rounds.
+    room.read(ctxOf(pod({ phase: 'rounds', round: 1, drafters: ['u-alice', 'u-bob'], built: ['u-alice', 'u-bob'] })));
+    expect(route()).toEqual({ kind: 'room', roomId: ROOM });
+    expect(screen.getByTestId('pod-rounds')).toBeTruthy();
+  });
+
   it('does not move a drafter who still has picks to make', () => {
     const { draft, room } = mountPod();
     room.read(ctxOf(pod({ phase: 'drafting' })));

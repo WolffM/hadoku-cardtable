@@ -1041,10 +1041,11 @@ test(
       await expect(alice.page.getByTestId('main-count'), 'the build alice left is the build she finds').toHaveText('40');
 
       /* ── Play, and straight into the game: no room to make, no Ready ── */
-      // alice is done first: back in the room (she had left it), and handed
-      // back to the builder, which shows her ready. bob's Play deals round 1,
-      // and the pod screen starts their table by itself.
+      // alice is done first: back in the room (she had left it), where she
+      // waits on the pod, shown as ready — not handed back to the builder.
+      // bob's Play deals round 1, and the pod screen starts their table by itself.
       await alice.page.getByTestId('play-deck').click();
+      await expect(alice.page.getByTestId('pod-ready'), 'alice waits on the pod').toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('pod-built').locator('[data-built]'), 'alice waits, shown as ready').toHaveCount(1, { timeout: UI_TIMEOUT });
       await bob.page.getByTestId('play-deck').click();
 

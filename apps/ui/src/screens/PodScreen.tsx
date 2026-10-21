@@ -46,6 +46,11 @@
  * phase (`pod/PodBuilding.tsx`) and comes back here when rounds start. It waits
  * for the room's first read, so a reload during `rounds` stays on the tables.
  *
+ * A drafter who has pressed Play is done building: they wait here, on the pod —
+ * who is ready, and the rounds to come — until the last drafter's Play deals
+ * round 1 and their table starts (the operator, 2026-10-20: *"ideally it brings
+ * me to the game lobby until my opponent is ready"*), not back in the builder.
+ *
  * `mountInspector` is mounted ONCE here, over this screen's whole root, rather
  * than inside `DraftScreen` — this is the one component the pick screen and
  * the rounds pass through, so one mount covers the hover-to-read behaviour on
@@ -68,13 +73,14 @@ import { initialState, type TableState } from '../draft/table.ts';
 import { DraftScreen, fitToWindow } from '../components/DraftScreen.tsx';
 import type { PackLayout } from '../components/PackView.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
-import { navigate } from './route.ts';
+import { navigate, routeHash } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import type { RoomTable } from '@hadoku/shared';
 import { livePodSource, startMyTable, usePodContext, type PodContext, type PodSource } from './pod/client.ts';
 import { PodStandings } from './pod/PodStandings.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { PodBracket } from './pod/PodBracket.tsx';
+import { PodBuilding } from './pod/PodBuilding.tsx';
 import { followMatchOnce } from '../play/live/matchStart.ts';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
@@ -163,8 +169,10 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   const myMemberId = ctx?.me ?? null;
   const nameOf = (id: string): string => ctx?.names[id] ?? id;
 
-  /** The header's own rule: a finished draft goes to the builder unless the pod is already playing. */
-  const toBuilder = done && ctx !== null && !inRounds;
+  /** Pressed Play, and the rest of the pod is still building. */
+  const ready = phase === 'building' && myMemberId !== null && ctx?.pod?.built.includes(myMemberId) === true;
+  /** The header's own rule: a finished draft goes to the builder unless the pod is already playing, or I am done building. */
+  const toBuilder = done && ctx !== null && !inRounds && !ready;
   useEffect(() => {
     if (toBuilder) navigate({ kind: 'deck', draftId }, { replace: true });
   }, [toBuilder, draftId]);
@@ -261,6 +269,8 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
 
       {rounds ? (
         <PodRoom ctx={ctx!} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} startTableError={startTableError} retryTable={retryTable} />
+      ) : done && ready ? (
+        <PodReady ctx={ctx!} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} />
       ) : done ? null : inRounds ? (
         <RoundsSkeleton rounds={ctx?.pod?.rounds ?? 1} />
       ) : table === null ? (
@@ -376,6 +386,35 @@ function PodRoom({
             onPlay={startTableError === null ? undefined : retryTable}
           />
           {!sideboarding && <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} myMemberId={myMemberId} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Done building, waiting on the rest of the pod: the round's own lines, who is ready, and the bracket still to be paired. */
+function PodReady({ ctx, draftId, myMemberId, nameOf }: { ctx: PodContext; draftId: string; myMemberId: string | null; nameOf: (id: string) => string }) {
+  const pod = ctx.pod!;
+  return (
+    <div className="pod__room">
+      <div className="pod__rounds" data-testid="pod-ready">
+        <h2 data-testid="pod-round">
+          Round 1 of {pod.rounds}
+        </h2>
+        <PodBuilding pod={pod} nameOf={nameOf} />
+        <a
+          className="shell__link"
+          href={routeHash({ kind: 'deck', draftId })}
+          data-testid="pod-edit-deck"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate({ kind: 'deck', draftId });
+          }}
+        >
+          Edit deck
+        </a>
+        <div className="pod__board">
+          <PodBracket pod={pod} tables={ctx.tables} myMemberId={myMemberId} nameOf={nameOf} avatarOf={(id) => ctx.avatars[id] ?? null} />
         </div>
       </div>
     </div>
