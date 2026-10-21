@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
-import { CARD_RATIO, MIN_CARD_W, PILE_PEEK, columnsOf, fitGrid, fitPiles, gridAt, largestCard, pilesAt } from './cardFit.ts';
+import { CARD_RATIO, MIN_CARD_W, MIN_FIT, PILE_PEEK, columnsOf, fitGrid, fitPiles, fitScale, gridAt, largestCard, pilesAt } from './cardFit.ts';
 
 const H = (w: number): number => w / CARD_RATIO;
 
@@ -80,5 +83,44 @@ describe('columnsOf', () => {
       [4, 5],
     ]);
     expect(columnsOf([], 1)).toEqual([[]]);
+  });
+});
+
+describe('a column of controls fits its box: its lengths scale down instead of scrolling', () => {
+  // The draft's side column with 44 picks, as main's run measured it: 749px of content in 647 (1280x800) and 615 (1366x768).
+  it('draws at the largest step at which its content fits, from what it measured at the scale it is drawn at', () => {
+    for (const available of [647, 615]) {
+      const fit = fitScale(749, 1, available);
+      expect(749 * fit, `${available}`).toBeLessThanOrEqual(available);
+      expect(749 * (fit + 0.01), `${available}: one step larger would not fit`).toBeGreaterThan(available);
+    }
+    // Measured again at the scale it now draws at, it stays there: the answer is a fixed point.
+    const fit = fitScale(749, 1, 647);
+    expect(fitScale(749 * fit, fit, 647)).toBe(fit);
+  });
+
+  it('is 1 when the content fits, and grows back to 1 when the box does', () => {
+    expect(fitScale(500, 1, 647)).toBe(1);
+    expect(fitScale(600, 0.8, 800)).toBe(1);
+  });
+
+  it('a one-step rise is not taken, so text that rewraps cannot flip it back and forth', () => {
+    const fit = fitScale(749, 1, 647);
+    expect(fitScale(647 - 2, fit, 647), 'room for one more step, not two').toBe(fit);
+  });
+
+  it('never below its floor, and 1 for a box or content not measured yet', () => {
+    expect(fitScale(2000, 1, 300)).toBe(MIN_FIT);
+    expect(fitScale(0, 1, 647)).toBe(1);
+    expect(fitScale(749, 1, 0)).toBe(1);
+  });
+
+  it("the draft's side column is such a column, and never shows a scroll bar", () => {
+    const css = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/components', '../styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const aside = /\.draft__aside \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(aside).not.toMatch(/overflow(-y)?:\s*(auto|scroll)/);
+    const fit = /\.fit-scale \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(fit, 'a fit column redefines the UI scale\'s units, so every length inside it follows').toMatch(/--ui-px:[^;]*var\(--fit/);
+    expect(fit).toMatch(/--ui-rem:[^;]*var\(--fit/);
   });
 });

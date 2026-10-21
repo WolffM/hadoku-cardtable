@@ -1644,6 +1644,20 @@ describe('the seat’s vertical bar (#9)', () => {
     expect(cards.map((c) => c.hasAttribute('data-only-viewer')), 'marked when only this screen knows it').toEqual([false, true]);
   });
 
+  it("sizes the library's top card from the column's height as well as its width, and the graveyard keeps a floor: the column fits at any UI scale", () => {
+    const css = styled();
+    const owner = view.players[1]!;
+    const top = { ...owner.battlefield[0]!, id: 8001 };
+    const { zone } = renderBoard({ ...view, players: view.players.map((p, i) => (i === 1 ? { ...p, libraryTop: [top] } : p)) }, undefined, 'single');
+    const library = zone(owner.id, 'library');
+    // At 125% on a 1280x800 window the avatar block and a whole top card are taller than the column (main's run: the graveyard at 832 in 800).
+    expect(css(library, 'flex-shrink'), 'the top card gives way when the column is short').not.toBe('0');
+    expect(css(library, 'min-height')).toBe('0px');
+    expect(css(library.querySelector('.zone__cards')!, '--card-w'), 'drawn no taller than the box it is given').toMatch(/var\(--zone-h\)/);
+    const piles = library.parentElement!.querySelector('.seat__piles')!;
+    expect(css(piles, 'min-height'), 'the graveyard is never squeezed to nothing').not.toMatch(/^(0px|0|auto|)$/);
+  });
+
   it("draws a card of someone else's hand this seat was shown face up in its place, and the rest as backs", () => {
     const them = view.players.find((p) => !p.isViewer)!;
     const known = { ...them.battlefield[0]!, id: 8101 };
