@@ -145,6 +145,9 @@ scaffolding still to build. Read it before scaffolding or managing a wave.
   assumption (P1's Forge-independence).
 - Don't modify `forge/` until the fork exists. Right now it's stock upstream and
   keeping it that way is what makes forking clean.
+- **Lane agents: read `docs/lanes/RULES.md` first.** It is the standing brief
+  every lane works under (proof, fix quality, safety on hokon, the report); a
+  lane's own brief adds to it.
 - **Concurrent work: claims.** Several sessions and lanes work this repo at once.
   Before touching an area (a path, a glob, or a topic like `cost-payment`), run
   `scripts/lanes/claim.sh list`, then `scripts/lanes/claim.sh claim <area> <you> [note]`;

@@ -7,8 +7,9 @@
 # Lanes share the manager's worktree and leave uncommitted files in it while another lane
 # lands, so this never rebases the wave branch. It builds a throwaway worktree on the latest
 # origin/main, cherry-picks the commits main lacks (by patch id, so a second land skips what
-# the first one already pushed), numbers any `| AF??? |` ledger rows they add, derives the
-# art rows for any card they add, bumps the app versions the commits touched, runs
+# the first one already pushed), numbers any `| AF??? |` ledger rows they add (re-adding them
+# on main's ledger when the ledger is a commit's only conflict), derives the art rows for any
+# card they add, bumps the app versions the commits touched, runs
 # typecheck, lint and the unit suites the change reaches (by import, or by an `@reads`
 # declaration), and pushes with an explicit refspec. One land at a
 # time: the lock is held from fetch to push, so two waves never bump the same version.
@@ -55,12 +56,33 @@ cd "$TMP"
 # is on the latest main, each placeholder becomes the next free number (max + 1, in file
 # order), in the file and the commit's message, and the commit is amended. The lock makes the
 # numbers final. Explicit ids are left as they are.
+#
+# Every lane appends its rows at the table's end, so two lanes' ledger edits conflict. When the
+# ledger is a pick's only conflict, main's ledger wins and the rows the commit adds go back in
+# after main's last AF row as `| AF??? |`, to be numbered like any other; the commit's other
+# ledger edits are dropped (only the operator writes ✅). Any other conflict refuses.
 LEDGER=docs/planning/playtest-ledger.md
 for c in "${PICKS[@]}"; do
-  if ! git cherry-pick -x "$c" >/dev/null; then
-    git cherry-pick --abort || true
-    echo "land: a commit does not apply on the latest main — merge origin/main into $BRANCH, resolve, and land again" >&2
-    exit 4
+  if ! git cherry-pick -x "$c" >/dev/null 2>"$TMP.pick.log"; then
+    if [ "$(git diff --name-only --diff-filter=U)" != "$LEDGER" ]; then
+      cat "$TMP.pick.log" >&2; git cherry-pick --abort || true
+      echo "land: a commit does not apply on the latest main — merge origin/main into $BRANCH, resolve, and land again" >&2
+      exit 4
+    fi
+    git checkout -q HEAD -- "$LEDGER"
+    git diff "$c~1" "$c" -- "$LEDGER" | perl -ne 'print "| AF??? |$1\n" if /^\+\| AF[0-9?]+ \|(.*)$/' > "$TMP.rows"
+    perl -e '
+      my ($rows, $f) = @ARGV; open my $r, "<", $rows or die; my @rows = <$r>;
+      open my $in, "<", $f or die; my @l = <$in>; close $in; my $last;
+      for my $i (0 .. $#l) { $last = $i if $l[$i] =~ /^\| AF\d+ \|/ }
+      defined $last or die "land: no AF row in the ledger\n";
+      splice @l, $last + 1, 0, @rows; open my $out, ">", $f or die; print $out @l; close $out or die' "$TMP.rows" "$LEDGER"
+    git add "$LEDGER"
+    if git diff --cached --quiet; then
+      git cherry-pick --skip; echo "land: $(git rev-parse --short "$c") only edited ledger rows main has since changed — skipped"; continue
+    fi
+    GIT_EDITOR=true git cherry-pick --continue >/dev/null
+    echo "land: ledger conflict in $(git rev-parse --short "$c") — took main's ledger, re-added $(grep -c . "$TMP.rows") row(s)"
   fi
   grep -q '^| AF??? |' "$LEDGER" 2>/dev/null || continue
   max=$(grep -oE '^\| AF[0-9]+ ' "$LEDGER" | grep -oE '[0-9]+' | sort -n | tail -1)

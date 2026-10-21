@@ -57,7 +57,7 @@ and `res/` come from is new.
 whichever pin's jar is current, because hadoku_site's wrapper hardcodes that
 one path (`jvmHostConfig` above) and does not know about pins. Switching that
 symlink and restarting production is a **deploy** — see "Switching production
-to a new pin" below; it is the operator's step, not part of a routine jar
+to a new pin" below; `build-jar.sh --switch` does it, not a routine jar
 rebuild.
 
 ## CI on the CI runners (wave `forge-runners`)
@@ -99,8 +99,8 @@ already exist on that CI runner's cache from an earlier run; the script does
 nothing but print the two lines (and touch the bundle's recency marker — see
 "prune"). A BUILD means they do not, so the script clones `WolffM/forge` at
 that pin into scratch, runs the same `mvn -pl forge-gui-desktop -am clean
-package -DskipTests -Dmaven.test.skip=true` this doc's "Rebuilding" section
-runs by hand, verifies the jar exactly as "Step 3" below requires (`forge`
+package -DskipTests -Dmaven.test.skip=true` `scripts/lanes/build-jar.sh`
+runs ("Rebuilding" below), verifies the jar as "The jar check is not optional" requires (`forge`
 present, `sentry` absent), and only then moves the result into place —
 atomically, under a per-pin `flock`, so two jobs racing on one CI runner for the
 same pin build at most once and never see a half-written bundle. Pin churn is
@@ -132,38 +132,29 @@ production reads.
 
 ## Rebuilding (every time the `forge` pin moves)
 
-This is manual by agreement — option 1 in
-`docs/requests/CARDTABLE_PLAY_ENABLEMENT_REPLY.md`. No CI job builds it.
+**`scripts/lanes/build-jar.sh <pin>` is the way**, run by the wave manager on
+hokon (never by a lane). It does the steps below in order; `--dry-run` reads the
+gate once and prints every step without running one.
 
-**Two hard rules.** Never build inside the vendored `forge/` tree — it must stay
-pristine (D2), and a build there leaves `target/` dirs that make the submodule
-dirty. And the toolchain is deliberately off `PATH`.
-
-```sh
-# 1. A scratch clone of OUR fork, at whatever the submodule is pinned to.
-PIN=$(git -C ~/repos/hadoku-cardtable submodule status forge | awk '{print $1}' | tr -d '-+')
-git -C ~/.cache/w7b-forge fetch origin && git -C ~/.cache/w7b-forge checkout --detach "$PIN"
-git -C ~/.cache/w7b-forge status --porcelain     # must be empty
-
-# 2. Build with the off-PATH toolchain. `clean` is NOT optional across a pin
-#    move: an incremental build can re-package stale classes from the previous
-#    checkout and produce a jar that passes step 3 while missing other changes.
-export JAVA_HOME=~/.local/opt/jdk-21.0.12.1+1
-export PATH="$JAVA_HOME/bin:$HOME/.local/opt/apache-maven-3.9.16/bin:$PATH"
-cd ~/.cache/w7b-forge
-mvn -q -pl forge-gui-desktop -am clean package -DskipTests -Dmaven.test.skip=true
-
-# 3. Verify the artifact carries BOTH fork commits before installing it.
-JAR=~/.cache/w7b-forge/forge-gui-desktop/target/forge-gui-desktop-*-jar-with-dependencies.jar
-unzip -p $JAR forge/view/Main.class | strings | grep -qx server        # `forge server` exists
-unzip -p $JAR forge/view/Main.class | strings | grep -qi sentry && echo 'STOP: Sentry still in'
-
-# 4. Install it under its OWN pin — never overwrite forge.jar directly.
-mkdir -p ~/.local/share/cardtable/jars
-install -m 0644 $JAR ~/.local/share/cardtable/jars/$PIN.jar
-java -jar ~/.local/share/cardtable/jars/$PIN.jar server --help   # prints the usage, exits
-sha256sum ~/.local/share/cardtable/jars/$PIN.jar                 # keep this line with the install record
-```
+1. **Waits for CI to be off hokon.** A build there reddens whatever CI job
+   shares the host (memory `no-builds-on-hokon-under-ci`), so it waits while any
+   in-progress job of this repo runs on a runner whose name has no `claw` in it
+   (hokon's overflow runner is `jit-hokon-*`). The claws are never idle and
+   are not counted.
+2. **Checks out the pin in the scratch clone** `~/.cache/w7b-forge`
+   (`git fetch fork`, then a detached checkout; `origin` there is upstream
+   Card-Forge). Never build inside the vendored `forge/` tree — it must stay
+   pristine (D2), and a build there leaves `target/` dirs that make the
+   submodule dirty.
+3. **Builds with the off-`PATH` toolchain** (`~/.local/opt`: JDK 21, Maven
+   3.9.16): `mvn -q -pl forge-gui-desktop -am clean package -DskipTests
+   -Dmaven.test.skip=true`. `clean` is not optional across a pin move: an
+   incremental build can re-package stale classes from the previous checkout.
+4. **Verifies the jar** ("The jar check is not optional" below): `forge/view/Main.class`
+   must contain `server` and must not contain `sentry`, read with Python's
+   `zipfile` (no `unzip`/`strings` needed).
+5. **Installs it under its own pin**, `jars/<pin>.jar` — never over `forge.jar`
+   directly — and prints its sha256 for the install record.
 
 Installing under `jars/$PIN.jar` leaves production untouched. CI does not read it:
 every `forge.yml` job resolves its bundle through `scripts/forge-bundle.sh`
@@ -174,30 +165,29 @@ has no `mvn` on `PATH`, so a pin missing from hokon's cache dies with
 seed hokon's cache in the same quiet window as the build:
 
 ```sh
-# 5. hokon's CI cache for this pin (from the deploy tree, which carries the new pin).
-cd ~/repos/hadoku-cardtable && bash scripts/forge-bundle.sh   # with step 2's PATH
+# hokon's CI cache for this pin (from the deploy tree, which carries the new pin).
+cd ~/repos/hadoku-cardtable && \
+  PATH="$HOME/.local/opt/jdk-21.0.12.1+1/bin:$HOME/.local/opt/apache-maven-3.9.16/bin:$PATH" \
+  bash scripts/forge-bundle.sh
 ```
-
-Switching what production actually runs is a separate, deliberate step — next.
 
 ## Switching production to a new pin
 
-This is a deploy, not a build step: it changes what the live server runs while
-players may be mid-match. **The operator does this, not a lane or a wave
-manager.**
+`scripts/lanes/build-jar.sh <pin> --switch` builds and installs as above, then
+switches production. **The wave manager does this itself** — the operator
+approved it on 2026-10-20 — once the pin's lane has landed and CI is green. It
+does not wait for a quiet table: a live match never holds a switch (the
+operator; memory `never-hold-devops-for-a-live-game`).
 
-```sh
-# 1. A match in progress must not be cut off.
-curl -s localhost:9008/health/busy   # must say {"busy":false}
+1. **Atomic symlink switch**: `ln -sfn jars/<pin>.jar forge.jar` — never `rm`
+   then `ln`, which leaves a gap with no `forge.jar` on disk at all.
+2. **Restart through mgmt-api**, never raw pm2 (`services/mgmt-api/CLAUDE.md`):
+   `POST http://127.0.0.1:4000/api/cardtable/restart`.
+3. **Confirms** `curl -s localhost:9008/health` says `"status":"healthy"` within
+   two minutes, and fails loudly naming the symlink's target if it does not.
 
-# 2. Atomic symlink switch — never `rm` then `ln`, which has a gap with no
-#    forge.jar on disk at all.
-ln -sfn ~/.local/share/cardtable/jars/$PIN.jar ~/.local/share/cardtable/forge.jar
-ls -la ~/.local/share/cardtable/forge.jar   # confirm it now points at $PIN.jar
-
-# 3. Restart through mgmt-api, NEVER raw pm2 (services/mgmt-api/CLAUDE.md).
-curl -s -X POST http://127.0.0.1:4000/api/cardtable/restart
-```
+Rolling back is the same command with the previous pin (`ls -t
+~/.local/share/cardtable/jars/`): its jar is still installed.
 
 ### What a good restart looks like
 
@@ -219,7 +209,7 @@ Those two messages distinguish the two failures: `is not set` means the wrapper
 did not pass the var (hadoku_site's side), `does not exist` means the jar is not
 where we put it (ours).
 
-## Step 3 is not optional
+## The jar check is not optional
 
 The fork carries exactly two commits on top of upstream, and a jar built from
 the wrong tree fails in ways that are quiet rather than loud:
