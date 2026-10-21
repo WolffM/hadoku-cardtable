@@ -28,6 +28,7 @@ import { nameFromForgeLabel } from './PromptShell.tsx';
 import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
 import type { FacePart, TileCard } from '../../components/faceCrop.ts';
 import { cardImageUrl } from '../../draft/cardImage.ts';
+import { relatedCards } from '../../draft/related.ts';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
 
 afterEach(cleanup);
@@ -642,7 +643,9 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     mountPrompt('getChoices', revealAsk(), lookup);
     const tile = document.querySelector(`[data-testid="prompt-cards"] > li .card`)!;
     const drawn = document.querySelector(`[data-faces-of="${tile.getAttribute('data-faces')}"]`);
-    expect([...(drawn?.querySelectorAll('.card__name') ?? [])].map((e) => e.textContent)).toEqual(['Etali, Primal Sickness']);
+    // Its own faces first, then its related cards (tokens), as every tile draws them.
+    const related = relatedCards(POOL[0]!.scryfallId).map((r) => r.name);
+    expect([...(drawn?.querySelectorAll('.card__name') ?? [])].map((e) => e.textContent)).toEqual(['Etali, Primal Sickness', ...related]);
   });
 
   // The operator's lane, 2026-10-19: "Swamp (124)" on a tile. Forge's id is not part of a card's name.

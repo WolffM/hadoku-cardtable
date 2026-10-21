@@ -1342,7 +1342,6 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     expect(selectors.filter((sel) => canvas.test(sel))).toEqual([
       '.shell--match .live, .live > .board',
       '.live > .board',
-      '.live .card__rules',
       '.live .board',
     ]);
   });
