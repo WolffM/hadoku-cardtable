@@ -40,7 +40,8 @@
  *   - FORGE says so after it opens the game: `GET /api/play/matches/:id`
  *     reports `seats[i].deck`, which is `Deck.getName()` of the deck Forge
  *     actually loaded into that seat (`play/bridge/PlayBridge.java`), not our
- *     own bookkeeping read back;
+ *     own bookkeeping read back — each browser told its own seat's and never
+ *     the other's while the game is played;
  *   - the CARDS say so: each seat's opening hand, folded from the server's own
  *     projection of that seat, holds only cards from the deck that player
  *     loaded, and none of the cards that are in the other deck alone.
@@ -903,10 +904,10 @@ test(LIVE_TITLE, async ({ browser }) => {
     expect(aSnap.seat).toBe(0);
     expect(bSnap.seat).toBe(1);
     expect(aSnap.playerId).not.toBe(bSnap.playerId);
-    const status = (await (await alice.context.request.get(`${origin}${PREFIX}/api/play/matches/${matchId}`)).json()) as {
-      status: string;
-      seats: { deck: string | null; claimedBy: string | null }[];
-    };
+    type MatchStatus = { status: string; seats: { deck: string | null; claimedBy: string | null }[] };
+    const statusOf = async (f: Friend): Promise<MatchStatus> => (await (await f.context.request.get(`${origin}${PREFIX}/api/play/matches/${matchId}`)).json()) as MatchStatus;
+    const status = await statusOf(alice);
+    const bobStatus = await statusOf(bob);
     expect(status.status).toBe('running');
     expect(status.seats.every((s) => s.claimedBy !== null)).toBe(true);
     expect(new Set(status.seats.map((s) => s.claimedBy)).size, 'two different people hold the two seats').toBe(2);
@@ -914,8 +915,10 @@ test(LIVE_TITLE, async ({ browser }) => {
     // FORGE's own account of the seat→deck mapping: `seats[i].deck` is
     // `Deck.getName()` of what it loaded into seat i (`PlayBridge.java`), so
     // this is the engine agreeing with the room, not our record read back.
-    expect(status.seats.map((s) => s.deck), 'Forge loaded each player’s own deck into their own seat').toEqual(deckNames);
-    summary.seatDecks = status.seats.map((s, i) => ({ seat: i, deck: s.deck }));
+    // A seat's deck is told only to its holder while the game is played.
+    expect(status.seats.map((s) => s.deck), 'alice is told her own deck and not bob’s').toEqual([deckNames[0], null]);
+    expect(bobStatus.seats.map((s) => s.deck), 'bob is told his own deck and not alice’s').toEqual([null, deckNames[1]]);
+    summary.seatDecks = [status.seats[0]!.deck, bobStatus.seats[1]!.deck].map((deck, i) => ({ seat: i, deck }));
 
     // ── the gap: what the product UI alone can do at this point.
     await quiet([alice, bob], 2_000);

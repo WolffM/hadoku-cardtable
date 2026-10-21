@@ -124,6 +124,20 @@ test(titled('a Gauntlet vs the AI: the draw, the snake with the AI taking its ow
     expect(after.body.seats.every((seat) => seat.deck !== null), 'the finished match names both decks').toBe(true);
     const live = await api<{ room: { matchId: string | null; phase: string } }>('GET', `/tables/rooms/${roomId}`);
     expect(live.body.room, 'Next game started nothing').toMatchObject({ matchId: null, phase: 'between' });
+
+    // The room's choose screen for game 2: both played decks greyed, her other two pressable, the AI's other two shown as available.
+    const choosing = alice.page.getByTestId('gauntlet-choose');
+    await expect(choosing).toBeVisible({ timeout: 15_000 });
+    await expect(alice.page.getByTestId('gauntlet-title')).toContainText('Game 2');
+    const mineSide = alice.page.getByTestId('gauntlet-choose-mine');
+    const theirSide = alice.page.getByTestId('gauntlet-choose-theirs');
+    await expect(mineSide.locator(`[data-deck-id="${mine.id}"]`)).toHaveAttribute('data-played', 'true');
+    await expect(theirSide.locator(`[data-deck-id="${theirs!}"]`)).toHaveAttribute('data-played', 'true');
+    await expect(mineSide.locator('[data-testid="gauntlet-deck"]:not([data-played])')).toHaveCount(2);
+    for (const tile of await mineSide.locator('[data-testid="gauntlet-deck"]:not([data-played])').all()) await expect(tile).toBeEnabled();
+    await expect(theirSide.locator('[data-testid="gauntlet-deck"]:not([data-played])')).toHaveCount(2);
+    await expect(theirSide.locator('[aria-checked="true"]'), 'no deck of theirs is shown as chosen').toHaveCount(0);
+    console.log(`[cm-gauntlet] game 2 choose screen: played greyed mine=${mine.id} theirs=${theirs!}`);
   } finally {
     await alice.context.close();
     await stack.stop();
