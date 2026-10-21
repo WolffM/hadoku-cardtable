@@ -3546,6 +3546,21 @@ describe('a played card waits where it was let go until Forge has it on the batt
     expect((await sent(s, m)), 'nothing was sent to undo it').toEqual([['selectCard', card]]);
   }, 20_000);
 
+  it('a play that floats home gives up the column it reserved: the row closes the gap at once', async () => {
+    // jsdom has no geometry for `placementAt`: the release reserves the row's end through the same store.
+    vi.spyOn(BoardModule, 'notePlayedTo').mockImplementation((id) => BoardModule.expectPlacement(0, 'back', { kind: 'end' }, id));
+    const { m, canvas, card } = await play();
+    const me = mineOf(m).id;
+    expect(me, 'the seat the stub reserved for').toBe(0);
+    const reserved = () => canvas.querySelector('[data-zone="battlefield"][data-owner="you"] li.zone__gap[data-expected]');
+    expect(BoardModule.pendingPlacementFor(me)?.cardId, 'the release reserved its column').toBe(card);
+    expect(reserved(), 'and the row draws the gap').not.toBeNull();
+    const standIn = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
+    await waitFor(() => expect(standIn.getAttribute('data-cast-lift')).toBe('returning'), { timeout: PARK_UNANSWERED_MS + 2000 });
+    expect(BoardModule.pendingPlacementFor(me), 'the card is going home: nothing is arriving').toBeNull();
+    await waitFor(() => expect(reserved(), 'the gap closes with it').toBeNull());
+  }, 20_000);
+
   /*
    * CI run 37539089085 (2026-10-06): a land Forge never played was still parked
    * when the cleanup discard opened, and stayed hidden in the hand with the
