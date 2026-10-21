@@ -10,7 +10,7 @@
  *
  *   GET /api/sounds/catalogue            → 200 { takes: SoundTake[] }
  *   GET /api/sounds/audio/:folder/:file   → 200 audio/ogg | 304 | 400 | 404
- *   GET /api/sounds/assignments           → 200 { cells, gains, canEdit }
+ *   GET /api/sounds/assignments           → 200 { cells, gains, names, canEdit }
  *   PUT /api/sounds/assignments/:cell     { files: string[], gain?: number } → 200 { cell, files, gain } | 400 | 403
  *   POST /api/sounds/music-review         MusicReviewBody → 200 MusicReviewRecord | 400   (friend tier)
  *   GET /api/sounds/music-review/mine     → 200 { review: MusicReviewRecord | null }      (friend tier)
@@ -365,8 +365,11 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 	});
 
 	sounds.get('/assignments', async (req: Request, res: Response) => {
-		const { cells, gains } = await readAssignments(dir, log);
-		res.json({ cells, gains, canEdit: isAdmin(req) });
+		const [{ cells, gains }, catalogue] = await Promise.all([readAssignments(dir, log), readCatalogue(dir, log)]);
+		// A music take's name, for the track picker in sound settings; a cue's is never shown.
+		const music = new Set(Object.entries(cells).flatMap(([cell, files]) => (cell.startsWith('music.') ? files : [])));
+		const names = Object.fromEntries(catalogue.takes.filter((t) => music.has(t.file)).map((t) => [t.file, t.name]));
+		res.json({ cells, gains, names, canEdit: isAdmin(req) });
 	});
 
 	sounds.put('/assignments/:cell', async (req: Request, res: Response) => {

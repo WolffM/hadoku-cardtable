@@ -177,6 +177,37 @@ describe('the mixer', () => {
     expect(ctx.sources).toHaveLength(1);
   });
 
+  it('loops the player’s pick among a role’s takes, crossfades to a new pick, and ignores a pick the cell no longer holds', async () => {
+    const planner = createMixPlanner(() => 0);
+    planner.setAssignments({ 'music.match.UB|play': ['music-a/take-1.ogg', 'music-b/take-1.ogg'] }, { 'music.match.UB|play': 0.5 });
+    const m = createMixer((f) => `/takes/${f}`, planner);
+    let pick: string | null = 'music-b/take-1.ogg';
+    m.loop(['music.match.UB'], () => pick);
+    const ctx = contexts[0]!;
+    ctx.grant();
+    await flush();
+    expect(m.nowPlaying()).toEqual({ role: 'music.match.UB', file: 'music-b/take-1.ogg' });
+    expect(ctx.sources).toHaveLength(1);
+    m.loop(['music.match.UB'], () => pick);
+    await flush();
+    expect(ctx.sources).toHaveLength(1);
+
+    pick = 'music-a/take-1.ogg';
+    m.loop(['music.match.UB'], () => pick);
+    await flush();
+    expect(ctx.sources[0]!.stopped).toBe(true);
+    expect(ctx.sources).toHaveLength(2);
+    expect(m.nowPlaying()).toEqual({ role: 'music.match.UB', file: 'music-a/take-1.ogg' });
+
+    pick = 'music-gone/take-1.ogg';
+    m.loop(['music.match.UB'], () => pick);
+    await flush();
+    expect(ctx.sources).toHaveLength(2);
+    expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toEqual(['/takes/music-b/take-1.ogg', '/takes/music-a/take-1.ogg']);
+    m.loop(null);
+    expect(m.nowPlaying()).toBeNull();
+  });
+
   it('loopFile loops one take outside any role, switches with a fade, and null stops it', async () => {
     const m = mixer();
     m.loopFile('music-w-tavern-jig/take-1.ogg');

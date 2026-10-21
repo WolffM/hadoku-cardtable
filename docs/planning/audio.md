@@ -218,17 +218,16 @@ able to go there, test, then send the results for review later. make sure
 monos then pairs. Candidates come from data, in one place
 (`musicReviewSlots`, `packages/shared/src/music-review.ts`): the cell's current
 assignment (badged) and every Music take named `<code> · `. Each card loops its
-take on the music bus at the player's levels, one at a time; two lane buttons
-put it in the slot's **normal** or **16-bit** lane (2026-10-18: *"2 tracks for
-every slot. one 'normal' and one 16-bit"*; one take per lane, any take in
-either); keep / maybe / no rate it; a note goes with the slot. A take named
-16-bit carries a small chip. Submit is `POST /api/sounds/music-review`,
+take on the music bus at the player's levels, one at a time; its pick button
+puts it in the slot, any number per slot; keep / maybe / no rate it; a note
+goes with the slot. Submit is `POST /api/sounds/music-review`,
 validated against the same grouping and appended to
 **`<sounds dir>/music-reviews.jsonl`** — in production
 `apps/server/data/sounds/music-reviews.jsonl` in the deploy tree — as
-`{at, userId, name, slots: {<cell>: {picks: {normal, chiptune}, ratings, note}}}`.
-Lines from before the lanes carry one `pick`; they read as `picks.normal`, and
-the file is never rewritten. Re-opening restores the browser's unsent draft,
+`{at, userId, name, slots: {<cell>: {picks: [file, …], ratings, note}}}`.
+Older lines carry one `pick` (2026-10-17) or a `{normal, chiptune}` pair
+(2026-10-18 to 2026-10-20); each reads as the list of what it picked, and the
+file is never rewritten. Re-opening restores the browser's unsent draft,
 else the viewer's latest line (`GET /api/sounds/music-review/mine`).
 
 **Reset** (pressed twice; *"a 'reset' button so i can give a fresh round of
@@ -239,31 +238,22 @@ or before it. The next submission is simply a later line, so "latest line per
 viewer" stays the answer. The marker is per browser: another device still
 restores the old line until it is reset there too.
 
-Nothing writes the assignments: a later session reads the file and sets them
-(`scripts/sfx/README.md`, Music review), lane by lane:
+Nothing writes the assignments: a later session reads the file and puts each
+slot's picks in its cell, `music.match.<code>|play` (`musicReviewCell`,
+`packages/shared/src/music-review.ts`; `scripts/sfx/README.md`, Music review).
 
-| Review pick | Cell it is for |
-| --- | --- |
-| `picks.normal` of slot `music.match.<code>\|play` | `music.match.<code>\|play` |
-| `picks.chiptune` of slot `music.match.<code>\|play` | `music.match.<code>.16bit\|play` |
+### Several tracks per slot (2026-10-20)
 
-(`musicReviewLaneCell`, `packages/shared/src/music-review.ts`.)
-
-### Two-lane playback (2026-10-18)
-
-The operator: *"by default normal, and players can select 16-bit from the
-options if they want"*. Each of the fifteen match slots has a 16-bit role,
-`music.match.<code>.16bit`, listed in the builder under Music right after its
-normal role (`MUSIC_STYLES`, `matchMusicStyleRole`,
-`packages/shared/src/sounds.ts`). Sound settings carry **Style: Normal |
-16-bit** (`cardtable.sound.music-style`, `apps/ui/src/sound/mute.ts`; normal
-by default; the same panel as the Music slider, so it is reachable mid-match).
-`matchMusicRoles` (`apps/ui/src/sound/match-music.ts`) keeps the colour rules
-that choose the slot and expands each of the fifteen slots into its style's
-role then the other style's: 16-bit falls back to the slot's normal track,
-normal to its 16-bit one, before the existing fallbacks. The slot comes from
-the match id alone, so a style switch mid-match crossfades to the same slot's
-other lane (`useMatchMusic`). `music.match` and `music.lobby` have one lane.
+The operator dropped the two lanes the same day they were planned out in full:
+*"let's drop the whole 'everyone must have a 16bit' track, that's dumb. instead
+we can just show the track name and let people pick it if theres more than one
+for a given color."* A slot is one cell holding any number of takes. Sound
+settings show the looping track's name under the Music slider (the catalogue
+name without its `<code> · `, from `/api/sounds/assignments`'s `names`), and a
+choice among the role's takes when its cell holds more than one. The choice is
+per role and per browser (`cardtable.sound.music-picks`, `apps/ui/src/sound/mute.ts`)
+and crossfades in at once (`./mixer.ts`'s `loop`); a role with no choice made,
+or whose chosen take has left the cell, plays one of its takes at random.
 
 ## Sandbox (`#/sounds/sandbox`, friend tier; gain saves admin-only)
 

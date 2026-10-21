@@ -125,8 +125,16 @@
   gap: 8px;
 }
 
-.ct-settings__level input {
+.ct-settings__level input,
+.ct-settings__level select {
   width: 100%;
+  min-width: 0;
+}
+
+.ct-settings__level output {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /*

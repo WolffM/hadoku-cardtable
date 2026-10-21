@@ -251,8 +251,8 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
     await expect(slot.locator('.music-review__card').first()).toHaveAttribute('data-current', '');
     // Not real audio: the play has to fail soft, never as a page error.
     await slot.getByRole('button', { name: 'Play W · w50 jig' }).click();
-    await slot.getByRole('button', { name: 'Normal pick W · w50 jig' }).click();
-    await slot.getByRole('button', { name: '16-bit pick w50 web track' }).click();
+    await slot.getByRole('button', { name: 'Pick W · w50 jig' }).click();
+    await slot.getByRole('button', { name: 'Pick w50 web track' }).click();
     await slot.getByRole('group', { name: 'Rate w50 web track' }).getByRole('button', { name: 'No' }).click();
     await slot.getByRole('textbox', { name: 'W note' }).fill('the jig');
 
@@ -264,8 +264,8 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
 
     await friend.page.reload();
     await expect(friend.page.getByRole('heading', { name: 'Match Music' })).toBeVisible();
-    await expect(slot.getByRole('button', { name: 'Normal pick W · w50 jig' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(slot.getByRole('button', { name: '16-bit pick w50 web track' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(slot.getByRole('button', { name: 'Pick W · w50 jig' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(slot.getByRole('button', { name: 'Pick w50 web track' })).toHaveAttribute('aria-pressed', 'true');
     await expect(slot.getByRole('textbox', { name: 'W note' })).toHaveValue('the jig');
     await expect(submit).toHaveAttribute('data-state', 'saved');
 
@@ -273,7 +273,7 @@ test('a friend reviews the match music: picks both lanes, submits, finds it rest
     const last = JSON.parse(lines.at(-1)!) as { userId: string; slots: Record<string, unknown> };
     expect(last.userId).toBe('e2e-bob-id');
     expect(last.slots).toEqual({
-      [MUSIC_CELL]: { picks: { normal: MUSIC_GEN, chiptune: MUSIC_WEB }, ratings: { [MUSIC_WEB]: 'no' }, note: 'the jig' },
+      [MUSIC_CELL]: { picks: [MUSIC_GEN, MUSIC_WEB], ratings: { [MUSIC_WEB]: 'no' }, note: 'the jig' },
     });
 
     // Reset, pressed twice: a blank form that a reload does not fill back in, and the file as it was.

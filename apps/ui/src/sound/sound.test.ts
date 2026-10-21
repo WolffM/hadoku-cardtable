@@ -14,13 +14,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 
 import { CardTile } from '../components/CardTile.tsx';
 import type { DraftCard } from '../draft/types.ts';
 import type { SoundEvent } from './mix.ts';
 import { SoundSettings } from '../settings/SoundSettings.tsx';
-import { LEVEL_KEYS, MUSIC_STYLE_KEY, MUTE_KEY, getLevel, getMusicStyle, isMuted, resetMutedForTests, setMusicStyle, setMuted } from './mute.ts';
+import { LEVEL_KEYS, MUSIC_PICKS_KEY, MUTE_KEY, getLevel, getMusicPick, isMuted, resetMutedForTests, setMusicPick, setMuted } from './mute.ts';
 import { matchMusicRoles, useMatchMusic } from './match-music.ts';
 import {
   hoverControl,
@@ -31,6 +31,7 @@ import {
   setMatchMusic,
   setRolePlayer,
   setScreenMusic,
+  setTrackNames,
   takeUiTally,
 } from './index.ts';
 
@@ -178,22 +179,24 @@ describe('music', () => {
     expect(loops.at(-1)).toEqual([]);
   });
 
-  it('a match plays its slot in the player’s style; switching mid-match keeps the slot and swaps the lane; leaving silences it', () => {
+  it('a match plays its slot; leaving silences it back to the screen’s music', () => {
     const loops = looper();
     setScreenMusic('music.lobby');
-    const { unmount } = renderHook(() => useMatchMusic('m-style', ['B', 'R', 'G']));
-    const normal = loops.at(-1) as string[];
-    expect(normal).toEqual(matchMusicRoles('m-style', ['B', 'R', 'G'], 'normal'));
-    expect(normal[0]).toMatch(/^music\.match\.(BR|RG|BG)$/);
-
-    act(() => setMusicStyle('chiptune'));
-    const chip = loops.at(-1) as string[];
-    expect(chip.slice(0, 2)).toEqual([`${normal[0]}.16bit`, normal[0]]);
-
-    act(() => setMusicStyle('normal'));
-    expect(loops.at(-1)).toEqual(normal);
+    const { unmount } = renderHook(() => useMatchMusic('m-slot', ['B', 'R', 'G']));
+    const roles = loops.at(-1) as string[];
+    expect(roles).toEqual(matchMusicRoles('m-slot', ['B', 'R', 'G']));
+    expect(roles[0]).toMatch(/^music\.match\.(BR|RG|BG)$/);
     unmount();
     expect(loops.at(-1)).toBe('music.lobby');
+  });
+
+  it('loops with the player’s pick for the role', () => {
+    const picks: (string | null)[] = [];
+    setRolePlayer({ play: () => undefined, loop: (_role, pick) => void picks.push(pick?.('music.match.UB') ?? null) });
+    setMusicPick('music.match.UB', 'music-b/take-1.ogg');
+    setScreenMusic('music.lobby');
+    setMatchMusic(['music.match.UB']);
+    expect(picks.at(-1)).toBe('music-b/take-1.ogg');
   });
 
   it('muting fades it out and unmuting brings it back', () => {
@@ -340,38 +343,65 @@ describe('the sound settings', () => {
     expect(rolesOf(events)).toEqual(['ui.select']);
   });
 
-  it('music style is normal by default; 16-bit is pressed, persisted and read back', () => {
-    const { unmount } = render(createElement(SoundSettings));
-    const group = screen.getByTestId('settings-music-style');
-    const button = (style: string) => group.querySelector(`[data-style="${style}"]`) as HTMLButtonElement;
-    expect(getMusicStyle()).toBe('normal');
-    expect(button('normal').getAttribute('aria-pressed')).toBe('true');
-    expect(button('chiptune').textContent).toBe('16-bit');
+  describe('the track', () => {
+    /** A player looping `role`, whose cell holds `files`, playing the picked one or else the first. */
+    function playing(role: string, files: string[]) {
+      setRolePlayer({
+        play: () => undefined,
+        loop() {},
+        nowPlaying: () => ({ role, file: files.find((f) => f === getMusicPick(role)) ?? files[0]! }),
+        takes: (cell) => (cell === `${role}|play` ? files : []),
+      });
+      setTrackNames({ 'music-a/take-1.ogg': 'UB · deep current', 'music-b/take-1.ogg': 'Cipher in the Fog' });
+    }
 
-    fireEvent.click(button('chiptune'));
-    expect(getMusicStyle()).toBe('chiptune');
-    expect(globalThis.localStorage.getItem(MUSIC_STYLE_KEY)).toBe('chiptune');
-    expect(button('chiptune').getAttribute('aria-pressed')).toBe('true');
-    expect(button('normal').getAttribute('aria-pressed')).toBe('false');
-    unmount();
+    it('names the one track a role holds, without its slot code', () => {
+      playing('music.match.U', ['music-a/take-1.ogg']);
+      setScreenMusic('music.lobby');
+      render(createElement(SoundSettings));
+      const track = screen.getByTestId('settings-music-track');
+      expect(track.tagName).toBe('OUTPUT');
+      expect(track.textContent).toBe('Deep current');
+    });
 
-    resetMutedForTests();
-    expect(getMusicStyle()).toBe('chiptune');
-    resetMutedForTests();
-    globalThis.localStorage.setItem(MUSIC_STYLE_KEY, 'jazz');
-    expect(getMusicStyle()).toBe('normal');
+    it('offers every track when the role holds several; a choice is persisted and plays', () => {
+      playing('music.match.UB', ['music-a/take-1.ogg', 'music-b/take-1.ogg']);
+      setScreenMusic('music.lobby');
+      render(createElement(SoundSettings));
+      const select = screen.getByTestId('settings-music-track') as HTMLSelectElement;
+      expect([...select.options].map((o) => o.textContent)).toEqual(['Deep current', 'Cipher in the Fog']);
+      expect(select.value).toBe('music-a/take-1.ogg');
+
+      fireEvent.change(select, { target: { value: 'music-b/take-1.ogg' } });
+      expect(getMusicPick('music.match.UB')).toBe('music-b/take-1.ogg');
+      expect(JSON.parse(globalThis.localStorage.getItem(MUSIC_PICKS_KEY)!)).toEqual({ 'music.match.UB': 'music-b/take-1.ogg' });
+      expect((screen.getByTestId('settings-music-track') as HTMLSelectElement).value).toBe('music-b/take-1.ogg');
+
+      resetMutedForTests();
+      expect(getMusicPick('music.match.UB')).toBe('music-b/take-1.ogg');
+    });
+
+    it('shows nothing while nothing loops', () => {
+      setRolePlayer({ play: () => undefined, loop() {}, nowPlaying: () => null });
+      setScreenMusic(null);
+      render(createElement(SoundSettings));
+      expect(screen.queryByTestId('settings-music-track')).toBeNull();
+    });
   });
 
-  it('music style survives a blocked store: normal on read, held for the page on write', () => {
+  it('music picks survive a blocked or garbled store: none on read, held for the page on write', () => {
+    globalThis.localStorage.setItem(MUSIC_PICKS_KEY, '["not", "a map"]');
+    expect(getMusicPick('music.match.W')).toBeNull();
+    resetMutedForTests();
     vi.spyOn(globalThis.localStorage, 'getItem').mockImplementation(() => {
       throw new Error('blocked');
     });
     vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
       throw new Error('blocked');
     });
-    expect(getMusicStyle()).toBe('normal');
-    setMusicStyle('chiptune');
-    expect(getMusicStyle()).toBe('chiptune');
+    expect(getMusicPick('music.match.W')).toBeNull();
+    setMusicPick('music.match.W', 'music-a/take-1.ogg');
+    expect(getMusicPick('music.match.W')).toBe('music-a/take-1.ogg');
   });
 
   it('reads the stored levels back, and the sliders rest while sound is off', () => {

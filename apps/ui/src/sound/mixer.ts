@@ -60,8 +60,16 @@ export interface Mixer {
    * `null` fades the music out. A list loops the first of its roles that has
    * a take. Unlike a cue, music waits for the first gesture rather than being
    * dropped: it is meant to be playing whenever the page can play.
+   *
+   * A role with several takes loops the one `pick` names for it (the player's
+   * choice, `./mute.ts`'s `getMusicPick`) while its cell still holds it, and
+   * one at random otherwise. A new pick for the role looping now crossfades to it.
    */
-  loop(role: MusicChoice): void;
+  loop(role: MusicChoice, pick?: (role: string) => string | null): void;
+  /** The role looping now and the take it plays, or `null`: what sound settings names as the track. */
+  nowPlaying(): { role: string; file: string } | null;
+  /** A cell's takes, as assigned. */
+  takes(cell: string): readonly string[];
   /**
    * Loop one take on the music bus, outside any role, crossfading from whatever loops now; `null`
    * fades it out. The music review's audition (`#/sounds/music`): the same bus and fade a match uses.
@@ -103,6 +111,8 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
   /** Live voices per cell, for {@link CELL_VOICE_CAP}. */
   const liveByCell = new Map<string, number>();
   let loopRole: string | null = null;
+  /** The take `loopRole` plays. */
+  let loopTake: string | null = null;
   let loopVoice: { src: AudioBufferSourceNode; env: GainNode } | null = null;
   const buffers = new Map<string, Promise<AudioBuffer | null>>();
 
@@ -228,7 +238,7 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     if (ac === null) return;
     const ready = ac.state === 'suspended' ? ac.resume().catch(() => undefined) : Promise.resolve();
     void Promise.all([load(file), ready]).then(([buf]) => {
-      if (buf === null || musicNode === null || loopRole !== key || loopVoice !== null) return;
+      if (buf === null || musicNode === null || loopRole !== key || loopTake !== file || loopVoice !== null) return;
       const src = ac.createBufferSource();
       src.buffer = buf;
       src.loop = true;
@@ -256,13 +266,21 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
     preload(files) {
       for (const f of files) void load(f);
     },
-    loop(choice) {
+    loop(choice, pick) {
       const roles = choice === null ? [] : typeof choice === 'string' ? [choice] : choice;
       const role = roles.find((r) => planner.has(`${r}|play`)) ?? null;
-      if (role === loopRole) return;
+      const wanted = role === null ? null : (pick?.(role) ?? null);
+      const picked = wanted !== null && planner.takes(`${role}|play`).includes(wanted) ? wanted : null;
+      if (role === loopRole && (picked === null || picked === loopTake)) return;
       loopRole = role;
+      loopTake = null;
       if (ctx !== null) fadeOutLoop(ctx);
       if (role === null) return;
+      if (picked !== null) {
+        loopTake = picked;
+        startLoop(role, picked, planner.gainOf(`${role}|play`) * mixer.settings.bus.music);
+        return;
+      }
       const voice = planner.plan({ role }, performance.now(), mixer.settings).voices[0];
       if (voice === undefined) {
         // Planned nothing (asked again within the collapse window): asking again
@@ -270,15 +288,21 @@ export function createMixer(takeUrl: (file: string) => string, planner: MixPlann
         loopRole = null;
         return;
       }
+      loopTake = voice.file;
       startLoop(role, voice.file, voice.gain);
     },
     loopFile(file) {
       const key = file === null ? null : `file:${file}`;
       if (key === loopRole) return;
       loopRole = key;
+      loopTake = file;
       if (ctx !== null) fadeOutLoop(ctx);
       if (key === null || file === null) return;
       startLoop(key, file, 1);
+    },
+    takes: (cell) => planner.takes(cell),
+    nowPlaying() {
+      return loopRole === null || loopTake === null || loopRole.startsWith('file:') ? null : { role: loopRole, file: loopTake };
     },
     setLevels(next) {
       levels = next;

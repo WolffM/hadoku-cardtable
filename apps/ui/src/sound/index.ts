@@ -32,11 +32,21 @@
 import { soundsClient } from './builderClient.ts';
 import type { SoundEvent } from './mix.ts';
 import { createMixer, type Mixer, type MusicChoice } from './mixer.ts';
-import { getLevel, isMuted, subscribeSound } from './mute.ts';
+import { getLevel, getMusicPick, isMuted, subscribeSound } from './mute.ts';
 
 export interface RolePlayer {
   play(event: SoundEvent): unknown;
-  loop?(role: MusicChoice): void;
+  loop?(role: MusicChoice, pick?: (role: string) => string | null): void;
+  nowPlaying?(): { role: string; file: string } | null;
+  /** A cell's takes, as assigned. */
+  takes?(cell: string): readonly string[];
+}
+
+/** What loops now, and every track its role could play instead: sound settings' track picker. */
+export interface MusicTrack {
+  role: string;
+  file: string;
+  tracks: readonly { file: string; name: string }[];
 }
 
 /** A sound event that starts a little after the moment it belongs to. */
@@ -50,6 +60,10 @@ let production: Mixer | null = null;
 let screenMusic: string | null = null;
 let matchMusic: readonly string[] | null = null;
 let unsubscribeSound: (() => void) | null = null;
+/** A music take's catalogue name, by file (`/api/sounds/assignments`'s `names`). */
+let trackNames: Readonly<Record<string, string>> = {};
+let musicTrack: MusicTrack | null = null;
+const trackListeners = new Set<() => void>();
 
 /** Replace the player. `null` restores the real mixer. For tests. */
 export function setRolePlayer(player: RolePlayer | null): void {
@@ -62,6 +76,9 @@ export function resetRolePlayerForTests(): void {
   production = null;
   screenMusic = null;
   matchMusic = null;
+  trackNames = {};
+  musicTrack = null;
+  trackListeners.clear();
   unsubscribeSound?.();
   unsubscribeSound = null;
 }
@@ -85,6 +102,7 @@ function player(): RolePlayer {
     unsubscribeSound ??= subscribeSound(applyPrefs);
     void client.assignments().then((a) => {
       mixer.planner.setAssignments(a.cells, a.gains);
+      setTrackNames(a.names);
       mixer.preload(Object.values(a.cells).flat());
       applyMusic();
     });
@@ -146,10 +164,49 @@ function applyPrefs(): void {
 function applyMusic(): void {
   try {
     const wanted = screenMusic === null ? null : (matchMusic ?? screenMusic);
-    player().loop?.(isMuted() ? null : wanted);
+    const p = player();
+    p.loop?.(isMuted() ? null : wanted, getMusicPick);
+    publishTrack(p);
   } catch {
     // Music is decoration too.
   }
+}
+
+function publishTrack(p: RolePlayer): void {
+  const now = p.nowPlaying?.() ?? null;
+  const files = now === null ? [] : (p.takes?.(`${now.role}|play`) ?? [now.file]);
+  const next: MusicTrack | null =
+    now === null ? null : { ...now, tracks: files.map((file) => ({ file, name: trackNames[file] ?? file.split('/')[0]! })) };
+  const same =
+    next === musicTrack ||
+    (next !== null &&
+      musicTrack !== null &&
+      next.role === musicTrack.role &&
+      next.file === musicTrack.file &&
+      next.tracks.length === musicTrack.tracks.length &&
+      next.tracks.every((t, i) => t.file === musicTrack!.tracks[i]!.file && t.name === musicTrack!.tracks[i]!.name));
+  if (same) return;
+  musicTrack = next;
+  for (const fn of trackListeners) fn();
+}
+
+/** The catalogue's names for the music takes, by file: what the track picker shows. */
+export function setTrackNames(names: Readonly<Record<string, string>>): void {
+  trackNames = names;
+  if (production !== null || injected !== null) publishTrack(player());
+}
+
+/** What loops now and what else its role holds, or `null` when nothing does. Stable between changes. */
+export function getMusicTrack(): MusicTrack | null {
+  return musicTrack;
+}
+
+/** Subscribe to what {@link getMusicTrack} answers. Returns the unsubscribe. */
+export function subscribeMusicTrack(fn: () => void): () => void {
+  trackListeners.add(fn);
+  return () => {
+    trackListeners.delete(fn);
+  };
 }
 
 /**
@@ -204,14 +261,14 @@ export function roleHandler(role: string): () => void {
 
 export {
   LEVEL_DEFAULTS,
-  MUSIC_STYLE_KEY,
+  MUSIC_PICKS_KEY,
   MUTE_KEY,
   getLevel,
-  getMusicStyle,
+  getMusicPick,
   isMuted,
   resetMutedForTests,
   setLevel,
-  setMusicStyle,
+  setMusicPick,
   setMuted,
   subscribeSound,
   type LevelName,

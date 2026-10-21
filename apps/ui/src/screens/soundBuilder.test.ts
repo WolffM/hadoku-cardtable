@@ -52,7 +52,7 @@ const TAKE_B = {
 type Saved = { cell: string; files: string[]; gain?: number };
 
 function stubClient(
-  assignments: Omit<Assignments, 'gains' | 'canView'> & { gains?: Record<string, number>; canView?: boolean },
+  assignments: Omit<Assignments, 'gains' | 'names' | 'canView'> & { gains?: Record<string, number>; names?: Record<string, string>; canView?: boolean },
   takes: SoundTake[] = [TAKE_A, TAKE_B],
 ): SoundsClient & { saves: Saved[]; retires: { file: string; reason: string }[]; marked: { file: string; mark: string | null }[] } {
   const saves: Saved[] = [];
@@ -77,7 +77,7 @@ function stubClient(
     },
     async assignments() {
       const cells = Object.fromEntries(Object.entries(assignments.cells).map(([c, fs]) => [c, fs.filter((f) => !out.has(f))]));
-      return { gains: {}, canView: true, ...assignments, cells };
+      return { gains: {}, names: {}, canView: true, ...assignments, cells };
     },
     async retire(file, reason) {
       retires.push({ file, reason });
@@ -160,7 +160,7 @@ describe('SoundBuilder', () => {
     expect(assignmentsResolved).toBe(false); // nothing has resolved yet — the render above proves nothing
 
     await act(async () => {
-      gate.resolve({ cells: {}, gains: {}, canEdit: false, canView: false });
+      gate.resolve({ cells: {}, gains: {}, names: {}, canEdit: false, canView: false });
       // Flush the whole chain inside `act`: the gate settling, `Promise.all`'s
       // own combinator, the component's `.then` (`setTakes`/`setCells`/
       // `setCanEdit`/`setLoaded`), and the resulting re-render. Two extra

@@ -5,9 +5,9 @@
  * then send the results for review later. make sure /sounds/ is friendtier+ gated"*. One section per
  * match-music slot (`musicReviewSlots`, the grouping the server validates against), each with its
  * candidates: the take the cell plays today (badged) and the generated ones. A card plays its take on a
- * loop through the mixer's music bus, one at a time; its two lane buttons put it in the slot's normal or
- * 16-bit lane (one take per lane, any take in either); three small verdicts rate it; a note goes with the
- * slot. Submit appends the whole review server-side.
+ * loop through the mixer's music bus, one at a time; its pick button puts it in the slot (any number of
+ * takes: a player whose slot holds several chooses among them in sound settings); three small verdicts
+ * rate it; a note goes with the slot. Submit appends the whole review server-side.
  *
  * Friend tier and above, the same server-answered gate as the builder (`canView`). Re-opening restores
  * this browser's unsent draft, or else the viewer's latest submission; the submit button shows saved
@@ -25,11 +25,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@wolffm/themes';
 
 import {
-  MUSIC_STYLES,
   MUSIC_RATINGS,
-  isChiptuneName,
   musicReviewSlots,
-  type MusicStyle,
   type MusicRating,
   type MusicReviewEntry,
   type MusicReviewRecord,
@@ -60,11 +57,7 @@ export const RESET_ARM_MS = 4000;
 
 type Review = Record<string, MusicReviewEntry>;
 
-const NO_PICKS: MusicReviewEntry['picks'] = { normal: null, chiptune: null };
-const EMPTY: MusicReviewEntry = { picks: NO_PICKS, ratings: {}, note: '' };
-
-const LANE_ICON: Record<MusicStyle, 'music' | 'gamepad'> = { normal: 'music', chiptune: 'gamepad' };
-const LANE_LABEL: Record<MusicStyle, string> = { normal: 'Normal', chiptune: '16-bit' };
+const EMPTY: MusicReviewEntry = { picks: [], ratings: {}, note: '' };
 
 const RATING_ICON: Record<MusicRating, 'thumbs-up' | 'circle' | 'thumbs-down'> = {
   keep: 'thumbs-up',
@@ -78,8 +71,8 @@ export function normalizeReview(review: Review): Review {
   const out: Review = {};
   for (const [cell, e] of Object.entries(review)) {
     const note = e.note.trim();
-    if (e.picks.normal === null && e.picks.chiptune === null && Object.keys(e.ratings).length === 0 && note === '') continue;
-    out[cell] = { picks: { normal: e.picks.normal, chiptune: e.picks.chiptune }, ratings: e.ratings, note };
+    if (e.picks.length === 0 && Object.keys(e.ratings).length === 0 && note === '') continue;
+    out[cell] = { picks: e.picks, ratings: e.ratings, note };
   }
   return out;
 }
@@ -92,7 +85,7 @@ function sameReview(a: Review, b: Review): boolean {
   return keys.every((k) => {
     const p = x[k]!;
     const q = y[k];
-    if (q === undefined || p.note !== q.note || MUSIC_STYLES.some((l) => p.picks[l] !== q.picks[l])) return false;
+    if (q === undefined || p.note !== q.note || p.picks.length !== q.picks.length || p.picks.some((f) => !q.picks.includes(f))) return false;
     const r = Object.keys(p.ratings);
     return r.length === Object.keys(q.ratings).length && r.every((f) => p.ratings[f] === q.ratings[f]);
   });
@@ -151,15 +144,12 @@ function fitToSlots(review: Review, slots: readonly MusicReviewSlot[]): Review {
     const offered = new Set(slot.candidates.map((c) => c.file));
     const ratings: Record<string, MusicRating> = {};
     for (const [f, r] of Object.entries(e.ratings ?? {})) if (offered.has(f) && MUSIC_RATINGS.includes(r)) ratings[f] = r;
-    // A draft saved before the two lanes carries one `pick`: it is the normal lane's.
-    const legacy = (e as { pick?: unknown }).pick;
-    const picks: Partial<Record<MusicStyle, unknown>> = e.picks ?? { normal: legacy };
-    const lane = (l: MusicStyle): string | null => {
-      const f = picks[l];
-      return typeof f === 'string' && offered.has(f) ? f : null;
-    };
+    // A draft saved before 2026-10-20 carries one `pick` or a `{ normal, chiptune }` pair: each is what it picked.
+    const raw: unknown = e.picks ?? [(e as { pick?: unknown }).pick];
+    const listed: unknown[] = Array.isArray(raw) ? raw : typeof raw === 'object' && raw !== null ? Object.values(raw) : [];
+    const picks = [...new Set(listed.filter((f): f is string => typeof f === 'string' && offered.has(f)))];
     out[slot.cell] = {
-      picks: { normal: lane('normal'), chiptune: lane('chiptune') },
+      picks,
       ratings,
       note: typeof e.note === 'string' ? e.note : '',
     };
@@ -317,13 +307,13 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                 {slot.candidates.map((c) => {
                   const on = playing === c.file;
                   const rating = entry.ratings[c.file];
-                  const lanes = MUSIC_STYLES.filter((l) => entry.picks[l] === c.file);
+                  const picked = entry.picks.includes(c.file);
                   return (
                     <li
                       key={c.file}
                       className="sound-queue__card music-review__card"
                       data-file={c.file}
-                      data-picked={lanes.length > 0 ? lanes.join(' ') : undefined}
+                      data-picked={picked ? '' : undefined}
                       data-current={c.current ? '' : undefined}
                     >
                       <button
@@ -340,33 +330,25 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                         </span>
                         <span className="sound-queue__label">
                           {c.current && <Icon name="globe" size="0.9rem" title="Current" className="music-review__current" />}
-                          {isChiptuneName(c.label) && (
-                            <span className="music-review__chip" data-testid="music-review-chiptune">
-                              <Icon name={LANE_ICON.chiptune} size="0.8rem" title="16-bit" />
-                            </span>
-                          )}
                           <span className="music-review__name">{c.label}</span>
                         </span>
                       </button>
-                      <div className="music-review__lanes" role="group" aria-label={`Lanes for ${c.label}`}>
-                        {MUSIC_STYLES.map((l) => (
-                          <button
-                            key={l}
-                            type="button"
-                            className="music-review__lane"
-                            data-testid="music-review-pick"
-                            data-lane={l}
-                            aria-label={`${LANE_LABEL[l]} pick ${c.label}`}
-                            title={LANE_LABEL[l]}
-                            aria-pressed={entry.picks[l] === c.file}
-                            onClick={() =>
-                              edit(slot.cell, (e) => ({ ...e, picks: { ...e.picks, [l]: e.picks[l] === c.file ? null : c.file } }))
-                            }
-                          >
-                            <Icon name={LANE_ICON[l]} size="0.9rem" />
-                          </button>
-                        ))}
-                      </div>
+                      <button
+                        type="button"
+                        className="music-review__pick"
+                        data-testid="music-review-pick"
+                        aria-label={`Pick ${c.label}`}
+                        title="Pick"
+                        aria-pressed={picked}
+                        onClick={() =>
+                          edit(slot.cell, (e) => ({
+                            ...e,
+                            picks: e.picks.includes(c.file) ? e.picks.filter((f) => f !== c.file) : [...e.picks, c.file],
+                          }))
+                        }
+                      >
+                        <Icon name="music" size="0.9rem" />
+                      </button>
                       <div className="music-review__ratings" role="group" aria-label={`Rate ${c.label}`}>
                         {MUSIC_RATINGS.map((r) => (
                           <button

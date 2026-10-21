@@ -1,7 +1,7 @@
 /*
  * The player's say over sound: mute, overall volume, how loud the music
- * sits under the rest, and which style of match music plays (`MusicStyle`:
- * normal by default, or 16-bit; `./match-music.ts` turns it into roles). Drawn in cardtable's own settings
+ * sits under the rest, and which track a music role plays when it has more
+ * than one (`getMusicPick`; one at random until they choose). Drawn in cardtable's own settings
  * (`../settings/SoundSettings.tsx`); read by `./index.ts`, which applies them
  * to the mixer.
  *
@@ -33,12 +33,10 @@
  * origin is shared with whatever else is served from it.
  */
 
-import { MUSIC_STYLES, type MusicStyle } from '@hadoku/shared';
-
 /** The `localStorage` keys. Namespaced; the origin is shared. */
 export const MUTE_KEY = 'cardtable.sound.muted';
 export const LEVEL_KEYS = { volume: 'cardtable.sound.volume', music: 'cardtable.sound.music' } as const;
-export const MUSIC_STYLE_KEY = 'cardtable.sound.music-style';
+export const MUSIC_PICKS_KEY = 'cardtable.sound.music-picks';
 
 /** `volume` scales everything; `music` scales the music bus under it. Both 0..1. */
 export type LevelName = keyof typeof LEVEL_KEYS;
@@ -52,7 +50,8 @@ export const LEVEL_DEFAULTS: Readonly<Record<LevelName, number>> = { volume: 1, 
 
 /** `true` when the player has muted. Authoritative once loaded. */
 let muted: boolean | null = null;
-let musicStyle: MusicStyle | null = null;
+/** The player's track per music role, by role id. */
+let musicPicks: Record<string, string> | null = null;
 const levels: Partial<Record<LevelName, number>> = {};
 
 type Listener = () => void;
@@ -132,26 +131,33 @@ export function setLevel(name: LevelName, value: number): void {
   notify();
 }
 
-/** The match music's style. Reads the store once, then memoises; anything unreadable is normal. */
-export function getMusicStyle(): MusicStyle {
-  if (musicStyle !== null) return musicStyle;
-  let value: MusicStyle = 'normal';
+function picks(): Record<string, string> {
+  if (musicPicks !== null) return musicPicks;
+  let value: Record<string, string> = {};
   try {
-    const raw = globalThis.localStorage?.getItem(MUSIC_STYLE_KEY);
-    if ((MUSIC_STYLES as readonly (string | null | undefined)[]).includes(raw)) value = raw as MusicStyle;
+    const raw = globalThis.localStorage?.getItem(MUSIC_PICKS_KEY);
+    const v: unknown = raw == null ? null : JSON.parse(raw);
+    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      value = Object.fromEntries(Object.entries(v).filter((e): e is [string, string] => typeof e[1] === 'string'));
+    }
   } catch {
-    // A blocked store: normal, the default.
+    // Unreadable or blocked: no picks, and every role plays one of its tracks at random.
   }
-  musicStyle = value;
+  musicPicks = value;
   return value;
 }
 
-/** Set the style, persist it best-effort, and tell every subscriber. */
-export function setMusicStyle(value: MusicStyle): void {
-  if (getMusicStyle() === value) return;
-  musicStyle = value;
+/** The take the player chose for a music role, or `null` for none chosen. */
+export function getMusicPick(role: string): string | null {
+  return picks()[role] ?? null;
+}
+
+/** Choose a music role's track, persist it best-effort, and tell every subscriber. */
+export function setMusicPick(role: string, file: string): void {
+  if (getMusicPick(role) === file) return;
+  musicPicks = { ...picks(), [role]: file };
   try {
-    globalThis.localStorage?.setItem(MUSIC_STYLE_KEY, value);
+    globalThis.localStorage?.setItem(MUSIC_PICKS_KEY, JSON.stringify(musicPicks));
   } catch {
     // Held for this page, not remembered for the next.
   }
@@ -163,7 +169,7 @@ function clamp(n: number): number {
 }
 
 /**
- * Subscribe to any change: mute or a level. Returns the unsubscribe.
+ * Subscribe to any change: mute, a level or a music pick. Returns the unsubscribe.
  *
  * Shaped for `useSyncExternalStore`, which is what `SoundSettings` uses: two tabs
  * of the app do not share this (each has its own module instance), but two
@@ -186,7 +192,7 @@ export function subscribeSound(fn: Listener): () => void {
  */
 export function resetMutedForTests(): void {
   muted = null;
-  musicStyle = null;
+  musicPicks = null;
   delete levels.volume;
   delete levels.music;
   listeners.clear();

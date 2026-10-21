@@ -90,6 +90,8 @@ export interface MixPlanner {
   gainOf(cell: string): number;
   /** Whether a cell has any take to play. Plans nothing. */
   has(cell: string): boolean;
+  /** A cell's takes, as assigned. */
+  takes(cell: string): readonly string[];
 }
 
 export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
@@ -107,6 +109,7 @@ export function createMixPlanner(rng: () => number = Math.random): MixPlanner {
     },
     gainOf,
     has: (cell) => (cells[cell]?.length ?? 0) > 0,
+    takes: (cell) => cells[cell] ?? [],
     plan(event, nowMs, settings) {
       const seat = event.seat ?? 'me';
       const reversedFrom = REVERSED_ROLES[event.role];

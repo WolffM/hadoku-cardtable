@@ -1,52 +1,59 @@
 /*
  * The sound section of cardtable's settings (`./Settings.tsx`): mute, overall
- * volume, the music's level under everything else, and the match music's style
- * (normal or 16-bit; a switch mid-match plays the same slot's other track). The values live in
- * `../sound/mute.ts`; `../sound/index.ts` applies a change to the mixer at
- * once, music included, so a slider is heard as it moves.
+ * volume, the music's level under everything else, and the track the music
+ * plays: its name, and a choice among the role's tracks when it has more than
+ * one (the operator, 2026-10-20). The values live in `../sound/mute.ts`;
+ * `../sound/index.ts` applies a change to the mixer at once, music included,
+ * so a slider is heard as it moves and a new track crossfades in.
  */
 
 import { useSyncExternalStore } from 'react';
 import { Icon } from '@wolffm/themes';
 
-import { MUSIC_STYLES, type MusicStyle } from '@hadoku/shared';
-
 import {
   LEVEL_DEFAULTS,
   getLevel,
-  getMusicStyle,
+  getMusicTrack,
   isMuted,
   playRole,
   setLevel,
-  setMusicStyle,
+  setMusicPick,
   setMuted,
+  subscribeMusicTrack,
   subscribeSound,
   type LevelName,
 } from '../sound/index.ts';
 
-const STYLE_LABEL: Record<MusicStyle, string> = { normal: 'Normal', chiptune: '16-bit' };
+/** `UB · 16-bit infiltration` → `16-bit infiltration`: the slot is the deck's, not news to its player. */
+export function trackName(name: string): string {
+  const bare = name.replace(/^[WUBRG]{1,2} · /, '');
+  return bare.charAt(0).toUpperCase() + bare.slice(1);
+}
 
-function MusicStylePicker({ disabled }: { disabled: boolean }) {
-  const style = useSyncExternalStore(subscribeSound, getMusicStyle, () => 'normal' as const);
+function MusicTrackPicker({ disabled }: { disabled: boolean }) {
+  const now = useSyncExternalStore(subscribeMusicTrack, getMusicTrack, () => null);
+  if (now === null) return null;
+  const current = now.tracks.find((t) => t.file === now.file)?.name ?? now.file;
   return (
-    <div className="ct-settings__level">
-      <span id="ct-settings-music-style">Style</span>
-      <div className="segmented" role="group" aria-labelledby="ct-settings-music-style" data-testid="settings-music-style">
-        {MUSIC_STYLES.map((s) => (
-          <button
-            key={s}
-            type="button"
-            className={style === s ? 'segmented__on' : ''}
-            aria-pressed={style === s}
-            data-style={s}
-            disabled={disabled}
-            onClick={() => setMusicStyle(s)}
-          >
-            {STYLE_LABEL[s]}
-          </button>
-        ))}
-      </div>
-    </div>
+    <label className="ct-settings__level">
+      <span>Track</span>
+      {now.tracks.length > 1 ? (
+        <select
+          data-testid="settings-music-track"
+          value={now.file}
+          disabled={disabled}
+          onChange={(event) => setMusicPick(now.role, event.currentTarget.value)}
+        >
+          {now.tracks.map((t) => (
+            <option key={t.file} value={t.file}>
+              {trackName(t.name)}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <output data-testid="settings-music-track">{trackName(current)}</output>
+      )}
+    </label>
   );
 }
 
@@ -94,7 +101,7 @@ export function SoundSettings() {
       </label>
       <LevelSlider name="volume" label="Volume" disabled={muted} />
       <LevelSlider name="music" label="Music" disabled={muted} />
-      <MusicStylePicker disabled={muted} />
+      <MusicTrackPicker disabled={muted} />
     </fieldset>
   );
 }

@@ -43,7 +43,7 @@ const WU = 'music.match.WU|play';
 function stubClient(canView = true): SoundsClient {
   return {
     catalogue: async () => TAKES,
-    assignments: async () => ({ cells: CELLS, gains: {}, canEdit: false, canView }),
+    assignments: async () => ({ cells: CELLS, gains: {}, names: {}, canEdit: false, canView }),
     save: vi.fn(async () => null),
     retire: vi.fn(async () => null),
     restore: vi.fn(async () => false),
@@ -137,27 +137,24 @@ describe('MusicReview', () => {
     expect(screen.queryAllByRole('button', { name: /^Stop / })).toHaveLength(0);
   });
 
-  it('a pick per lane per slot, a rating per candidate, a note per slot; submit sends only what was said, then shows saved', async () => {
+  it('any number of picks per slot, a rating per candidate, a note per slot; submit sends only what was said, then shows saved', async () => {
     const reviews = stubReviews();
     render(createElement(MusicReview, { client: stubClient(), reviews, player: stubPlayer() }));
     await screen.findByText('Match Music');
 
     const w = slot(W);
-    fireEvent.click(within(w).getByRole('button', { name: 'Normal pick W · one' }));
-    fireEvent.click(within(w).getByRole('button', { name: 'Normal pick W · two' }));
-    fireEvent.click(within(w).getByRole('button', { name: '16-bit pick W · three' }));
-    expect(within(w).getAllByRole('button', { pressed: true, name: / pick / }).map((b) => b.getAttribute('aria-label'))).toEqual([
-      'Normal pick W · two',
-      '16-bit pick W · three',
+    fireEvent.click(within(w).getByRole('button', { name: 'Pick W · one' }));
+    fireEvent.click(within(w).getByRole('button', { name: 'Pick W · two' }));
+    fireEvent.click(within(w).getByRole('button', { name: 'Pick W · three' }));
+    fireEvent.click(within(w).getByRole('button', { name: 'Pick W · one' }));
+    expect(within(w).getAllByRole('button', { pressed: true, name: /^Pick / }).map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Pick W · two',
+      'Pick W · three',
     ]);
-    expect([...w.querySelectorAll('[data-picked]')].map((c) => [c.getAttribute('data-file'), c.getAttribute('data-picked')])).toEqual([
-      ['music-w-two/take-1.ogg', 'normal'],
-      ['music-w-three/take-1.ogg', 'chiptune'],
+    expect([...w.querySelectorAll('[data-picked]')].map((c) => c.getAttribute('data-file'))).toEqual([
+      'music-w-two/take-1.ogg',
+      'music-w-three/take-1.ogg',
     ]);
-    // One take may hold both lanes.
-    fireEvent.click(within(w).getByRole('button', { name: '16-bit pick W · two' }));
-    expect(w.querySelector('[data-file="music-w-two/take-1.ogg"]')!.getAttribute('data-picked')).toBe('normal chiptune');
-    fireEvent.click(within(w).getByRole('button', { name: '16-bit pick W · three' }));
 
     fireEvent.click(within(within(w).getByRole('group', { name: 'Rate Web W' })).getByRole('button', { name: 'No' }));
     const rateOne = within(within(w).getByRole('group', { name: 'Rate W · one' }));
@@ -169,7 +166,7 @@ describe('MusicReview', () => {
     fireEvent.change(within(slot(WU)).getByRole('textbox', { name: 'WU note' }), { target: { value: 'none of these' } });
 
     expect(submitButton().dataset.state).toBe('unsent');
-    expect(JSON.parse(localStorage.getItem(DRAFT_KEY)!)[W].picks).toEqual({ normal: 'music-w-two/take-1.ogg', chiptune: 'music-w-three/take-1.ogg' });
+    expect(JSON.parse(localStorage.getItem(DRAFT_KEY)!)[W].picks).toEqual(['music-w-two/take-1.ogg', 'music-w-three/take-1.ogg']);
     await act(async () => {
       fireEvent.click(submitButton());
     });
@@ -177,11 +174,11 @@ describe('MusicReview', () => {
       {
         slots: {
           [W]: {
-            picks: { normal: 'music-w-two/take-1.ogg', chiptune: 'music-w-three/take-1.ogg' },
+            picks: ['music-w-two/take-1.ogg', 'music-w-three/take-1.ogg'],
             ratings: { 'music-web-w/take-1.ogg': 'no', 'music-w-one/take-1.ogg': 'maybe' },
             note: 'the jig',
           },
-          [WU]: { picks: { normal: null, chiptune: null }, ratings: {}, note: 'none of these' },
+          [WU]: { picks: [], ratings: {}, note: 'none of these' },
         },
       },
     ]);
@@ -190,7 +187,7 @@ describe('MusicReview', () => {
     expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
 
     // Unpicking is a change again.
-    fireEvent.click(within(w).getByRole('button', { name: '16-bit pick W · three' }));
+    fireEvent.click(within(w).getByRole('button', { name: 'Pick W · three' }));
     expect(submitButton().dataset.state).toBe('unsent');
   });
 
@@ -200,23 +197,23 @@ describe('MusicReview', () => {
       userId: 'bob',
       name: 'Bob',
       slots: {
-        [W]: { picks: { normal: 'music-w-three/take-1.ogg', chiptune: null }, ratings: { 'music-w-one/take-1.ogg': 'keep' }, note: 'three' },
+        [W]: { picks: ['music-w-three/take-1.ogg'], ratings: { 'music-w-one/take-1.ogg': 'keep' }, note: 'three' },
       },
     };
     const first = render(createElement(MusicReview, { client: stubClient(), reviews: stubReviews(record), player: stubPlayer() }));
     await screen.findByText('Match Music');
-    expect(within(slot(W)).getByRole('button', { name: 'Normal pick W · three' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(slot(W)).getByRole('button', { name: 'Pick W · three' }).getAttribute('aria-pressed')).toBe('true');
     expect(within(within(slot(W)).getByRole('group', { name: 'Rate W · one' })).getByRole('button', { name: 'Keep' }).getAttribute('aria-pressed')).toBe('true');
     expect((within(slot(W)).getByRole('textbox', { name: 'W note' }) as HTMLTextAreaElement).value).toBe('three');
     expect(submitButton().dataset.state).toBe('saved');
 
-    fireEvent.click(within(slot(WU)).getByRole('button', { name: 'Normal pick WU · one' }));
+    fireEvent.click(within(slot(WU)).getByRole('button', { name: 'Pick WU · one' }));
     first.unmount();
 
     render(createElement(MusicReview, { client: stubClient(), reviews: stubReviews(record), player: stubPlayer() }));
     await screen.findByText('Match Music');
-    expect(within(slot(WU)).getByRole('button', { name: 'Normal pick WU · one' }).getAttribute('aria-pressed')).toBe('true');
-    expect(within(slot(W)).getByRole('button', { name: 'Normal pick W · three' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(slot(WU)).getByRole('button', { name: 'Pick WU · one' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(slot(W)).getByRole('button', { name: 'Pick W · three' }).getAttribute('aria-pressed')).toBe('true');
     expect(submitButton().dataset.state).toBe('unsent');
   });
 
@@ -229,22 +226,24 @@ describe('MusicReview', () => {
     await act(async () => {
       fireEvent.click(submitButton());
     });
-    expect(reviews.sent).toEqual([{ slots: { [W]: { picks: { normal: null, chiptune: null }, ratings: {}, note: 'x' } } }]);
+    expect(reviews.sent).toEqual([{ slots: { [W]: { picks: [], ratings: {}, note: 'x' } } }]);
   });
 
-  it('a draft saved before the two lanes restores its pick into the normal lane', async () => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ [W]: { pick: 'music-w-one/take-1.ogg', ratings: {}, note: '' } }));
+  it('a draft saved before 2026-10-20 restores its picks, a single pick or a two-lane pair', async () => {
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        [W]: { pick: 'music-w-one/take-1.ogg', ratings: {}, note: '' },
+        [WU]: { picks: { normal: 'music-wu-one/take-1.ogg', chiptune: 'music-wu-two/take-1.ogg' }, ratings: {}, note: '' },
+      }),
+    );
     render(createElement(MusicReview, { client: stubClient(), reviews: stubReviews(), player: stubPlayer() }));
     await screen.findByText('Match Music');
-    expect(within(slot(W)).getAllByRole('button', { pressed: true }).map((b) => b.getAttribute('aria-label'))).toEqual(['Normal pick W · one']);
-  });
-
-  it('marks a candidate named 16-bit, and only those', async () => {
-    const takes = [...TAKES, take('w-16-bit-castle', 'W · 16-bit castle')];
-    render(createElement(MusicReview, { client: { ...stubClient(), catalogue: async () => takes }, reviews: stubReviews(), player: stubPlayer() }));
-    await screen.findByText('Match Music');
-    const marked = screen.getAllByTestId('music-review-chiptune').map((c) => c.closest('[data-file]')!.getAttribute('data-file'));
-    expect(marked).toEqual(['music-w-16-bit-castle/take-1.ogg']);
+    expect(within(slot(W)).getAllByRole('button', { pressed: true }).map((b) => b.getAttribute('aria-label'))).toEqual(['Pick W · one']);
+    expect(within(slot(WU)).getAllByRole('button', { pressed: true }).map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Pick WU · one',
+      'Pick WU · two',
+    ]);
   });
 
   it('reset, pressed twice, blanks the form; a re-open does not restore the set-aside submission; the file is untouched', async () => {
@@ -252,12 +251,12 @@ describe('MusicReview', () => {
       at: '2026-10-17T12:00:00.000Z',
       userId: 'bob',
       name: 'Bob',
-      slots: { [W]: { picks: { normal: 'music-w-three/take-1.ogg', chiptune: null }, ratings: {}, note: 'three' } },
+      slots: { [W]: { picks: ['music-w-three/take-1.ogg'], ratings: {}, note: 'three' } },
     };
     const reviews = stubReviews(record);
     const first = render(createElement(MusicReview, { client: stubClient(), reviews, player: stubPlayer() }));
     await screen.findByText('Match Music');
-    fireEvent.click(within(slot(WU)).getByRole('button', { name: 'Normal pick WU · one' }));
+    fireEvent.click(within(slot(WU)).getByRole('button', { name: 'Pick WU · one' }));
     const reset = screen.getByTestId('music-review-reset') as HTMLButtonElement;
 
     fireEvent.click(reset);
@@ -280,14 +279,14 @@ describe('MusicReview', () => {
     expect(document.querySelectorAll('[data-testid="music-review-slot"] [aria-pressed="true"]')).toHaveLength(0);
 
     // The fresh round's own submission is restored as before.
-    fireEvent.click(within(slot(W)).getByRole('button', { name: '16-bit pick W · one' }));
+    fireEvent.click(within(slot(W)).getByRole('button', { name: 'Pick W · one' }));
     await act(async () => {
       fireEvent.click(submitButton());
     });
     second.unmount();
     render(createElement(MusicReview, { client: stubClient(), reviews: { ...reviews, mine: async () => ({ ...record, at: '2026-10-18T09:00:00.000Z', slots: reviews.sent[0]!.slots }) }, player: stubPlayer() }));
     await screen.findByText('Match Music');
-    expect(within(slot(W)).getByRole('button', { name: '16-bit pick W · one' }).getAttribute('aria-pressed')).toBe('true');
+    expect(within(slot(W)).getByRole('button', { name: 'Pick W · one' }).getAttribute('aria-pressed')).toBe('true');
     expect(submitButton().dataset.state).toBe('saved');
   });
 
@@ -296,7 +295,7 @@ describe('MusicReview', () => {
     try {
       render(createElement(MusicReview, { client: stubClient(), reviews: stubReviews(), player: stubPlayer() }));
       await screen.findByText('Match Music');
-      fireEvent.click(within(slot(W)).getByRole('button', { name: 'Normal pick W · one' }));
+      fireEvent.click(within(slot(W)).getByRole('button', { name: 'Pick W · one' }));
       const reset = screen.getByTestId('music-review-reset');
       fireEvent.click(reset);
       expect(reset.dataset.armed).toBe('');
@@ -305,11 +304,11 @@ describe('MusicReview', () => {
       });
       expect(reset.dataset.armed).toBeUndefined();
       fireEvent.click(reset);
-      fireEvent.click(within(slot(W)).getByRole('button', { name: 'Normal pick W · two' }));
+      fireEvent.click(within(slot(W)).getByRole('button', { name: 'Pick W · two' }));
       expect(reset.dataset.armed).toBeUndefined();
       // So the next single press only arms; the picks stand.
       fireEvent.click(reset);
-      expect(within(slot(W)).getByRole('button', { name: 'Normal pick W · two' }).getAttribute('aria-pressed')).toBe('true');
+      expect(within(slot(W)).getByRole('button', { name: 'Pick W · two' }).getAttribute('aria-pressed')).toBe('true');
     } finally {
       vi.useRealTimers();
     }
@@ -320,13 +319,13 @@ describe('MusicReview', () => {
     reviews.fail = true;
     render(createElement(MusicReview, { client: stubClient(), reviews, player: stubPlayer() }));
     await screen.findByText('Match Music');
-    fireEvent.click(within(slot(W)).getByRole('button', { name: 'Normal pick W · one' }));
+    fireEvent.click(within(slot(W)).getByRole('button', { name: 'Pick W · one' }));
     await act(async () => {
       fireEvent.click(submitButton());
     });
     expect(submitButton().dataset.state).toBe('failed');
     expect(submitButton().disabled).toBe(false);
-    expect(JSON.parse(localStorage.getItem(DRAFT_KEY)!)[W].picks.normal).toBe('music-w-one/take-1.ogg');
+    expect(JSON.parse(localStorage.getItem(DRAFT_KEY)!)[W].picks).toEqual(['music-w-one/take-1.ogg']);
   });
 
   it('stops the music when the page goes', async () => {

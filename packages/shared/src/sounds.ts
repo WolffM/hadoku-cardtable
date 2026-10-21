@@ -164,33 +164,7 @@ export const MATCH_MUSIC_ROLES: readonly string[] = [
 	...COLOUR_PAIRS.map((p) => matchMusicRole(p)),
 ];
 
-/**
- * The two styles a match slot's music comes in — the operator, 2026-10-18: *"2 tracks for every slot. one
- * 'normal' and one 16-bit"*, and *"by default normal, and players can select 16-bit from the options"*. The
- * music review picks one take per style (`./music-review.ts`), the player's setting picks the style
- * (`apps/ui/src/sound/mute.ts`), and the slot itself is still chosen by the deck's colours.
- */
-export const MUSIC_STYLES = ['normal', 'chiptune'] as const;
-export type MusicStyle = (typeof MUSIC_STYLES)[number];
-
-/** `music.match.W` in a style: itself for normal, `music.match.W.16bit` for 16-bit. */
-export function matchMusicStyleRole(role: string, style: MusicStyle): string {
-	return style === 'chiptune' ? `${role}.16bit` : role;
-}
-
 const COLOUR_NAME: Readonly<Record<ManaColour, string>> = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' };
-
-/** A match slot's normal role, then its 16-bit one, listed next to it in the builder. */
-function withChiptune(normal: SoundRole): SoundRole[] {
-	return [
-		normal,
-		music(
-			matchMusicStyleRole(normal.id, 'chiptune'),
-			`${normal.name}, 16-bit`,
-			`Plays instead of ${normal.name.toLowerCase()} for a player who picked 16-bit music; that track plays when this one has no take.`,
-		),
-	];
-}
 
 /** Every role, grouped the way the builder lists them. */
 export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
@@ -295,18 +269,16 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 		roles: [
 			music('music.lobby', 'Lobby and draft', 'Loops on the room list, in a draft and while building a deck.'),
 			music('music.match', 'In a match', 'Loops for the length of a game.'),
-			...MONO_COLOURS.flatMap((colour) => {
+			...MONO_COLOURS.map((colour) => {
 				const name = COLOUR_NAME[colour];
-				return withChiptune(music(matchMusicRole(colour), `In a match: ${name}`, `Loops for a game played with a ${name} deck.`));
+				return music(matchMusicRole(colour), `In a match: ${name}`, `Loops for a game played with a ${name} deck.`);
 			}),
-			...COLOUR_PAIRS.flatMap((pair) => {
+			...COLOUR_PAIRS.map((pair) => {
 				const name = `${COLOUR_NAME[pair[0] as ManaColour]}-${COLOUR_NAME[pair[1] as ManaColour]}`;
-				return withChiptune(
-					music(
-						matchMusicRole(pair),
-						`In a match: ${name}`,
-						`Loops for a game played with a ${name} deck, and sometimes with a three-colour deck that holds both.`,
-					),
+				return music(
+					matchMusicRole(pair),
+					`In a match: ${name}`,
+					`Loops for a game played with a ${name} deck, and sometimes with a three-colour deck that holds both.`,
 				);
 			}),
 		],
@@ -473,6 +445,8 @@ const GainsSchema = z.record(z.string(), GainSchema);
 const AssignmentsObjectSchema = z.object({
 	cells: CellsSchema,
 	gains: GainsSchema.default({}),
+	/** The catalogue name of every take a `music.*` cell holds, by file: what a player sees as the track. */
+	names: z.record(z.string(), z.string()).default({}),
 	canEdit: z.boolean(),
 });
 

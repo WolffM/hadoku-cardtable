@@ -12,7 +12,7 @@
  *
  * A read that cannot reach the server, or that the server answers with
  * something that does not parse, comes back as the EMPTY case — `[]` for the
- * catalogue, `{ cells: {}, gains: {}, canEdit: false, canView: false }` for
+ * catalogue, `{ cells: {}, gains: {}, names: {}, canEdit: false, canView: false }` for
  * assignments — rather than a thrown error. `canView` is the friend gate as the
  * server answered it: `/api/sounds/*` sits behind `requireMinTier`, so a 200
  * means the viewer is friend tier or above, and anything else — a 404 below
@@ -45,6 +45,8 @@ export interface Assignments {
   cells: Record<string, string[]>;
   /** A cell's level relative to the others; a missing entry is 1. */
   gains: Record<string, number>;
+  /** A music take's catalogue name, by file. */
+  names: Record<string, string>;
   canEdit: boolean;
   /** The server answered at all: the viewer is friend tier or above. */
   canView: boolean;
@@ -125,7 +127,7 @@ export function soundsClient(
     },
 
     async assignments() {
-      const none = { cells: {}, gains: {}, canEdit: false, canView: false };
+      const none = { cells: {}, gains: {}, names: {}, canEdit: false, canView: false };
       let res: Response;
       try {
         res = await fetchImpl(url('/assignments'), { credentials: 'same-origin' });

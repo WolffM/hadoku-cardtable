@@ -12,9 +12,7 @@ import {
 	MUSIC_REVIEW_CODES,
 	MusicReviewBodySchema,
 	MusicReviewRecordSchema,
-	isChiptuneName,
 	musicReviewCell,
-	musicReviewLaneCell,
 	musicReviewProblems,
 	musicReviewSlots,
 } from './music-review.ts';
@@ -96,23 +94,18 @@ describe('musicReviewSlots', () => {
 		]);
 	});
 
-	it('a lane’s pick is for its own role’s cell: normal the slot’s, 16-bit the slot’s 16-bit role', () => {
-		expect(musicReviewLaneCell('W', 'normal')).toBe('music.match.W|play');
-		expect(musicReviewLaneCell('W', 'normal')).toBe(musicReviewCell('W'));
-		expect(musicReviewLaneCell('WU', 'chiptune')).toBe('music.match.WU.16bit|play');
+	it('a slot’s picks go in its own match role’s cell', () => {
+		expect(musicReviewCell('W')).toBe('music.match.W|play');
 		for (const code of MUSIC_REVIEW_CODES) {
-			for (const lane of ['normal', 'chiptune'] as const) {
-				const cell = musicReviewLaneCell(code, lane);
-				expect(isCellId(cell)).toBe(true);
-				expect(SOUND_ROLES.get(cell.replace(/\|play$/, ''))?.bus).toBe('music');
-			}
+			const cell = musicReviewCell(code);
+			expect(isCellId(cell)).toBe(true);
+			expect(SOUND_ROLES.get(cell.replace(/\|play$/, ''))?.bus).toBe('music');
 		}
 	});
 
-	it('offers what the 16-bit cell holds today as current too, after the normal cell’s', () => {
+	it('offers every take the cell holds today as current, in the cell’s order', () => {
 		const slot = musicReviewSlots(CATALOGUE, {
-			'music.match.WU|play': ['music-statute-of-gears/take-1.ogg'],
-			'music.match.WU.16bit|play': ['music-wu-16-bit-sky-kingdom/take-1.ogg'],
+			'music.match.WU|play': ['music-statute-of-gears/take-1.ogg', 'music-wu-16-bit-sky-kingdom/take-1.ogg'],
 		}).find((s) => s.code === 'WU')!;
 		expect(slot.candidates.map((c) => [c.label, c.current])).toEqual([
 			['Statute of Gears', true],
@@ -133,7 +126,7 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 	const W = musicReviewCell('W');
 
 	it('fills a slot’s defaults', () => {
-		expect(MusicReviewBodySchema.parse({ slots: { [W]: {} } })).toEqual({ slots: { [W]: { picks: { normal: null, chiptune: null }, ratings: {}, note: '' } } });
+		expect(MusicReviewBodySchema.parse({ slots: { [W]: {} } })).toEqual({ slots: { [W]: { picks: [], ratings: {}, note: '' } } });
 	});
 
 	it('refuses a slot that is not a match-music cell', () => {
@@ -146,44 +139,37 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 		expect(MusicReviewBodySchema.safeParse({ slots: { [W]: { note: 'x'.repeat(1001) } } }).success).toBe(false);
 	});
 
-	it('accepts a pick per lane and ratings among the slot’s candidates; one take may hold both lanes', () => {
+	it('accepts any number of picks and ratings among the slot’s candidates', () => {
 		const body = MusicReviewBodySchema.parse({
 			slots: {
 				[W]: {
-					picks: { normal: 'music-w-tavern-jig/take-1.ogg', chiptune: 'music-w-heraldic-fanfare/take-1.ogg' },
+					picks: ['music-w-tavern-jig/take-1.ogg', 'music-w-heraldic-fanfare/take-1.ogg'],
 					ratings: { 'music-dawnlight-sanctum/take-1.ogg': 'no' },
 					note: 'jig',
 				},
 			},
 		});
 		expect(musicReviewProblems(body, slots)).toEqual([]);
-		const both = MusicReviewBodySchema.parse({
-			slots: { [W]: { picks: { normal: 'music-w-tavern-jig/take-1.ogg', chiptune: 'music-w-tavern-jig/take-1.ogg' } } },
-		});
-		expect(musicReviewProblems(both, slots)).toEqual([]);
-		expect(MusicReviewBodySchema.parse({ slots: { [W]: { picks: { chiptune: 'music-w-tavern-jig/take-1.ogg' } } } }).slots[W]!.picks).toEqual({
-			normal: null,
-			chiptune: 'music-w-tavern-jig/take-1.ogg',
-		});
+		expect(body.slots[W]!.picks).toEqual(['music-w-tavern-jig/take-1.ogg', 'music-w-heraldic-fanfare/take-1.ogg']);
 	});
 
-	it('names a lane pick or a rating its slot never offered', () => {
+	it('names a pick or a rating its slot never offered', () => {
 		const body = MusicReviewBodySchema.parse({
 			slots: {
 				[W]: {
-					picks: { normal: 'music-wu-clockwork-senate/take-1.ogg', chiptune: 'music-wu-lighthouse-march/take-1.ogg' },
+					picks: ['music-wu-clockwork-senate/take-1.ogg', 'music-wu-lighthouse-march/take-1.ogg'],
 					ratings: { 'wu/take-v1-4000.ogg': 'keep' },
 				},
 			},
 		});
 		expect(musicReviewProblems(body, slots)).toEqual([
-			`${W}: normal pick music-wu-clockwork-senate/take-1.ogg was not offered`,
-			`${W}: chiptune pick music-wu-lighthouse-march/take-1.ogg was not offered`,
+			`${W}: pick music-wu-clockwork-senate/take-1.ogg was not offered`,
+			`${W}: pick music-wu-lighthouse-march/take-1.ogg was not offered`,
 			`${W}: rating for wu/take-v1-4000.ogg, which was not offered`,
 		]);
 	});
 
-	it('reads a line written before the two lanes: its one pick is the normal lane', () => {
+	it('reads the older lines: a single pick, and a two-lane pair, are each the list of what they picked', () => {
 		// The first line of production's music-reviews.jsonl shape, 2026-10-17.
 		const old = MusicReviewRecordSchema.parse({
 			at: '2026-10-17T20:00:00.000Z',
@@ -191,16 +177,18 @@ describe('MusicReviewBodySchema and musicReviewProblems', () => {
 			name: 'Op',
 			slots: { [W]: { pick: 'music-w-tavern-jig/take-1.ogg', ratings: {}, note: '' }, [musicReviewCell('U')]: { pick: null, ratings: {}, note: 'meh' } },
 		});
-		expect(old.slots[W]!.picks).toEqual({ normal: 'music-w-tavern-jig/take-1.ogg', chiptune: null });
-		expect(old.slots[musicReviewCell('U')]!.picks).toEqual({ normal: null, chiptune: null });
+		expect(old.slots[W]!.picks).toEqual(['music-w-tavern-jig/take-1.ogg']);
+		expect(old.slots[musicReviewCell('U')]!.picks).toEqual([]);
 		expect(old.slots[W]).not.toHaveProperty('pick');
+		// The two-lane review's shape, 2026-10-18 to 2026-10-20: one take in both lanes is one pick.
+		const lanes = MusicReviewBodySchema.parse({
+			slots: {
+				[W]: { picks: { normal: 'music-w-tavern-jig/take-1.ogg', chiptune: 'music-w-heraldic-fanfare/take-1.ogg' } },
+				[musicReviewCell('U')]: { picks: { normal: 'music-w-tavern-jig/take-1.ogg', chiptune: 'music-w-tavern-jig/take-1.ogg' } },
+			},
+		});
+		expect(lanes.slots[W]!.picks).toEqual(['music-w-tavern-jig/take-1.ogg', 'music-w-heraldic-fanfare/take-1.ogg']);
+		expect(lanes.slots[musicReviewCell('U')]!.picks).toEqual(['music-w-tavern-jig/take-1.ogg']);
 		expect(MusicReviewBodySchema.safeParse({ slots: { [W]: { pick: '../../etc/passwd' } } }).success).toBe(false);
-	});
-});
-
-describe('isChiptuneName', () => {
-	it('marks a name that says 16-bit, however it is spelled, and nothing else', () => {
-		expect(['WU · 16-bit sky kingdom', 'W · 16 bit castle', 'B · 16BIT crypt'].map(isChiptuneName)).toEqual([true, true, true]);
-		expect(['W · tavern jig', 'Statute of Gears', 'R · 160 bpm'].map(isChiptuneName)).toEqual([false, false, false]);
 	});
 });

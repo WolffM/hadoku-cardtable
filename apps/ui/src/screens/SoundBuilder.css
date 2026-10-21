@@ -795,15 +795,10 @@ a.sound-builder__btn {
   color: var(--color-danger);
 }
 
-.music-review__lanes {
+.music-review__pick {
   position: absolute;
   right: 12px;
   bottom: 8px;
-  display: flex;
-  gap: 4px;
-}
-
-.music-review__lane {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -817,25 +812,15 @@ a.sound-builder__btn {
   cursor: pointer;
 }
 
-.music-review__lane:hover,
-.music-review__lane:focus-visible {
+.music-review__pick:hover,
+.music-review__pick:focus-visible {
   border-color: var(--color-primary);
 }
 
-.music-review__lane[aria-pressed='true'] {
+.music-review__pick[aria-pressed='true'] {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: var(--color-on-primary);
-}
-
-.music-review__chip {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  padding: 1px 4px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius-sm);
-  color: var(--color-text-secondary);
 }
 
 .music-review__note {
