@@ -528,7 +528,7 @@
   }
 }
 
-/* A row with no deck to show — a pod seat, a spectator — is the name's line
+/* A row with no deck to show — a pod seat — is the name's line
    alone, at every width. After the phone rule so it wins there too. */
 .tables__row--line {
   grid-template-columns: minmax(0, 1fr) auto;

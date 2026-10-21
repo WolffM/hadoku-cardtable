@@ -38,8 +38,7 @@ import type { RoomMember } from '../rooms/api.ts';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
-import { SpectatorRows, spectatorsOf } from './SpectatorRows.tsx';
-import { POD_AI, POD_CLOSED, podDealable, podSeatHolders, type PodView } from './pod/wire.ts';
+import { POD_AI, POD_CLOSED, podDealable, type PodView } from './pod/wire.ts';
 
 export { podDealable };
 
@@ -83,9 +82,6 @@ export function DraftLobby({
    */
   const inFlight = useRef(false);
   const later = useRef<(() => Promise<{ ok: boolean; message: string | null }>)[]>([]);
-
-  const seated = podSeatHolders(pod?.seats);
-  const iAmSeated = myMemberId !== null && seated.has(myMemberId);
 
   const act = (call: () => Promise<{ ok: boolean; message: string | null }>): void => {
     if (inFlight.current) {
@@ -131,17 +127,6 @@ export function DraftLobby({
           )}
         </>
       )}
-
-      <h2>{pod !== null ? 'Spectators' : 'In the room'}</h2>
-      {/* A room read with no pod deals on every member's readiness, so there the list shows it. */}
-      <SpectatorRows
-        spectators={spectatorsOf(members, seated)}
-        myId={myMemberId}
-        leaderId={leaderId}
-        {...(pod === null ? { readyOf: (id: string) => members.find((m) => m.id === id)?.ready === true } : {})}
-        onWatch={doStand}
-        watchDisabled={!iAmSeated}
-      />
 
       <p className="lobby__note" data-testid="draft-state">
         {draftStateText(pod, members, dealing)}

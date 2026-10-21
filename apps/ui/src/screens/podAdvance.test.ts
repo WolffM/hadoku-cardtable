@@ -102,8 +102,6 @@ const ctxOf = (p: PodView | null, tables: PodContext['tables'] = []): PodContext
   pod: p,
   tables,
   names: { 'u-alice': 'Alice', 'u-bob': 'Bob' },
-  members: [],
-  leaderId: '',
   avatars: {},
   me: 'u-alice',
   name: 'Cube night',
@@ -243,22 +241,16 @@ describe('entering a pod before its table has arrived', () => {
   });
 });
 
-/* ── spectators (the operator, 2026-10-21: "spectator seats should be takable in any room") ── */
+/* ── no spectators drawn (the operator, 2026-10-21: "we dont need to represent this in the UI at all") ── */
 
-describe('the running pod lists its spectators', () => {
-  it('under the bracket: each member who holds no seat, then the open row, whose Watch has no seat of mine to give back', () => {
+describe('the running pod', () => {
+  it('draws nobody who holds no seat', () => {
     const { room } = mountPod();
     const seats = pod({}).seats.map((_, i) => (i === 0 ? { memberId: 'u-alice', name: 'Alice' } : i === 1 ? { memberId: 'u-bob', name: 'Bob' } : null));
-    const members = [
-      { id: 'u-alice', name: 'Alice' },
-      { id: 'u-bob', name: 'Bob' },
-      { id: 'u-carol', name: 'Carol' },
-    ];
-    const ctx = { ...ctxOf(pod({ phase: 'rounds', round: 1, seats })), members, leaderId: 'u-carol' };
-    room.read(ctx);
-    expect(screen.getAllByTestId('spectator-row').map((r) => r.dataset['member'])).toEqual(['u-carol']);
-    expect(screen.getByTestId('spectator-row').querySelector('.tables__crown'), 'the room owner wears the crown').not.toBeNull();
-    expect((screen.getByTestId('spectator-watch') as HTMLButtonElement).disabled).toBe(true);
+    const ctx = ctxOf(pod({ phase: 'rounds', round: 1, seats }));
+    room.read({ ...ctx, names: { ...ctx.names, 'u-carol': 'Carol' } });
+    expect(screen.getAllByTestId('pod-bracket-round').length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toMatch(/Carol|Spectator/);
   });
 });
 

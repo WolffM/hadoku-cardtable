@@ -109,13 +109,6 @@ function styled(): (el: Element, property: string) => string {
   return (el, property) => getComputedStyle(el).getPropertyValue(property).trim();
 }
 
-/** A member's row in the room's spectator list (`SpectatorRows`), by member id. */
-function memberRow(memberId: string): HTMLElement {
-  const row = screen.getAllByTestId('spectator-row').find((r) => r.dataset.member === memberId);
-  if (row === undefined) throw new Error(`no spectator row for ${memberId}`);
-  return row;
-}
-const memberReady = (memberId: string): HTMLElement => within(memberRow(memberId)).getByTestId('spectator-ready');
 
 /** Every pill state on the page, by the border it is drawn with: a second signal besides its colour. */
 function pillBorders(css: (el: Element, property: string) => string): Map<string, string> {
@@ -869,31 +862,16 @@ describe('a room’s table', () => {
     expect(screen.getByTestId('constructed').getAttribute('data-members')).toBe('2');
   });
 
-  // The operator, 2026-10-21: "spectator seats should be takable in any room. whenever one spectator seat is
-  // taken, just add another row so theres always one to click on."
-  it.each([0, 1, 2])('a 1v1 room with %i spectators lists them under the seats, then one open spectator row', async (n) => {
-    const watchers = Array.from({ length: n }, (_, i) => ({ id: `p-w${i}`, name: `user-w${i}` }));
+  // The operator, 2026-10-21: "spectators dont need to take seats, anyone who loads the page is a
+  // spectator by default. we dont need to represent this in the UI at all."
+  it('a 1v1 room draws its seats and nobody who holds none', async () => {
     await mountRoom({
       players: [opponent({ you: true, name: 'user-alice' }), opponent()],
       matchId: null,
-      members: [{ id: 'p-alice', name: 'user-alice' }, { id: 'p-bob', name: 'user-bob' }, ...watchers],
+      members: [{ id: 'p-alice', name: 'user-alice' }, { id: 'p-bob', name: 'user-bob' }, { id: 'p-w0', name: 'user-watcher' }],
     });
-    await waitFor(() => expect(screen.getAllByTestId('spectator-open')).toHaveLength(1));
-    expect(screen.queryAllByTestId('spectator-row').map((r) => r.querySelector('.tables__name')?.textContent)).toEqual(watchers.map((w) => w.name));
-  });
-
-  it('the open spectator row gives my seat back, and is dead once I hold none', async () => {
-    const server = await mountRoom({
-      players: [opponent({ you: true, name: 'user-alice' })],
-      matchId: null,
-      members: [{ id: 'p-alice', name: 'user-alice' }, { id: 'p-bob', name: 'user-bob' }],
-    });
-    const watch = (await screen.findByTestId('spectator-watch')) as HTMLButtonElement;
-    expect(watch.disabled).toBe(false);
-    fireEvent.click(watch);
-    await waitFor(() => expect(lastCall(server.calls, `/tables/rooms/${ROOM}/stand`)?.method).toBe('POST'));
-    await waitFor(() => expect(screen.getAllByTestId('spectator-row')).toHaveLength(2));
-    expect((screen.getByTestId('spectator-watch') as HTMLButtonElement).disabled).toBe(true);
+    await waitFor(() => expect(screen.getByTestId('constructed').getAttribute('data-members')).toBe('3'));
+    expect(screen.getByTestId('constructed').textContent).not.toMatch(/user-watcher|Spectator/);
   });
 
   /*
@@ -2124,11 +2102,6 @@ describe('a draft room', () => {
     const server = await mountDraft({ members: members(false, false) }, stepped.feed);
     await screen.findByTestId('draft-lobby');
 
-    // Who is here, and who is ready — off the ROOM's record, not the table's.
-    expect(screen.getAllByTestId('spectator-row')).toHaveLength(2);
-    expect(memberRow('p-alice').textContent).toContain('user-alice');
-    expect(memberReady('p-alice').textContent).toBe('not ready');
-    expect(memberReady('p-alice').dataset.mark).toBe('ring');
     expect(screen.getByTestId('draft-state').textContent).toBe('Nobody is seated.');
 
     // No pack, no pod, no seats: the draft does not exist yet.
@@ -2175,8 +2148,7 @@ describe('a draft room', () => {
     });
     // The room's own route, never the table's.
     expect(server.calls.filter((c) => c.url.endsWith(`/tables/rooms/${ROOM}/ready`))).toHaveLength(0);
-    await waitFor(() => expect(memberReady('p-alice').textContent).toBe('ready'));
-    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).textContent).toBe('Stand down');
+    await waitFor(() => expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).textContent).toBe('Stand down'));
 
     // Standing down again is the same route with the other boolean.
     await act(async () => {
@@ -2203,25 +2175,24 @@ describe('a draft room', () => {
   });
 
   it('draws every pill state in a border style of its own, so colour is never the only signal', async () => {
-    await mountDraft({ members: members(true, false) });
-    await screen.findByTestId('draft-lobby');
+    await mountDraft({ members: members(true, false), pod: seatedPod('p-alice', 'p-1') });
+    await screen.findByTestId('pod-seats');
     const borders = pillBorders(styled());
     expect([...borders.keys()].sort()).toEqual(['no', 'yes']);
     expect(new Set(borders.values()).size, JSON.stringify([...borders])).toBe(borders.size);
   });
 
   it('marks which member is the leader, with a mark and not a sentence', async () => {
-    await mountDraft({ members: members(false, false) });
-    await screen.findByTestId('draft-lobby');
+    await mountDraft({ members: members(false, false), pod: seatedPod('p-alice', 'p-1') });
+    await screen.findByTestId('pod-seats');
 
     // `p-alice` is the room's `leader`, and a member's ID is the only thing
     // that identifies them — the display name is not unique.
     // The seat rows' own crown, beside the name.
-    const mark = memberRow('p-alice').querySelector('.tables__crown');
-    expect(mark?.querySelector('path')).not.toBeNull();
+    expect(screen.getByTestId('pod-seat-0-leader').querySelector('path')).not.toBeNull();
     // Exactly one member carries it, and the other says nothing.
-    expect(memberRow('p-1').querySelector('.tables__crown')).toBeNull();
-    expect(memberRow('p-1').textContent).not.toMatch(/leader|owner/i);
+    expect(screen.queryByTestId('pod-seat-1-leader')).toBeNull();
+    expect(screen.getByTestId('pod-seat-1').textContent).not.toMatch(/leader|owner/i);
   });
 
   it('starts the draft exactly once when every seated player is ready, and only then', async () => {

@@ -83,8 +83,6 @@ import { PodStandings } from './pod/PodStandings.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { PodBracket } from './pod/PodBracket.tsx';
 import { PodBuilding } from './pod/PodBuilding.tsx';
-import { podSeatHolders } from './pod/wire.ts';
-import { SpectatorRows, spectatorsOf } from './SpectatorRows.tsx';
 import { followMatchOnce } from '../play/live/matchStart.ts';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
@@ -395,7 +393,6 @@ function PodRoom({
           />
           {!sideboarding && !building && <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} myMemberId={myMemberId} />}
         </div>
-        <SpectatorRows spectators={spectatorsOf(ctx.members, podSeatHolders(pod.seats))} myId={myMemberId} leaderId={ctx.leaderId} watchDisabled />
       </div>
     </div>
   );

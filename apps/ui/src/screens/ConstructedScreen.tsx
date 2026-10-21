@@ -170,7 +170,6 @@ import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
-import { SpectatorRows, spectatorsOf } from './SpectatorRows.tsx';
 import { DeckColors, mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
@@ -2181,14 +2180,6 @@ function RoomTableScreen({
                   );
                 })}
               </ul>
-              {/* Whoever holds no seat at any of the room's tables, and one open row to take by standing up. */}
-              <SpectatorRows
-                spectators={spectatorsOf(members, new Set(view?.tables.flatMap((t) => t.players.map((p) => p.memberId))))}
-                myId={view?.you.id ?? null}
-                leaderId={view?.leader ?? ''}
-                onWatch={standUp}
-                watchDisabled={!seated || tableLocked || underway}
-              />
               {startRefusal !== null && (
                 <div className="lobby__error" role="alert" data-testid="start-refused">
                   <p>{startRefusal}</p>
