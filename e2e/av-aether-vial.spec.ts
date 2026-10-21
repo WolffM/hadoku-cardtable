@@ -13,7 +13,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { enabledCancel, enabledOk, makeTitled, ownNamed, says, serverLog, stackCount } from './play/board.ts';
+import { enabledCancel, makeTitled, ownNamed, passOverStack, says, serverLog, stackCount } from './play/board.ts';
 import { confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -73,11 +73,7 @@ async function tapVial(seated: ScenarioMatch, stack: PlayStack, done: (from: num
     if (await done(from)) return 'done';
     if ((await confirmYes(alice.page).count()) > 0) return 'asked';
     for (const page of [alice.page, bob.page]) {
-      if ((await stackCount(page)) > 0 && (await enabledOk(page).count()) > 0)
-        await enabledOk(page)
-          .first()
-          .click({ timeout: 1_000 })
-          .catch(() => undefined);
+      await passOverStack(page);
     }
     await alice.page.waitForTimeout(100);
   }

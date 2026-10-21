@@ -17,7 +17,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { castByDrag, clickPermanent, enabledOk, handCardNamed, makeTitled, resizeWindow, stackCount } from './play/board.ts';
+import { castByDrag, clickPermanent, handCardNamed, makeTitled, passOverStack, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -87,7 +87,7 @@ test(titled('a delayed effect waits on its source as a tag: Narset’s -2 on Nar
     await expect
       .poll(
         async () => {
-          for (const p of [alice.page, bob.page]) if ((await stackCount(p)) > 0 && (await enabledOk(p).count()) > 0) await enabledOk(p).first().click().catch(() => undefined);
+          for (const p of [alice.page, bob.page]) await passOverStack(p);
           return `${(await loyalty.textContent())?.trim()} | stack ${await stackCount(alice.page)}`;
         },
         { timeout: 30_000, message: 'the -2 resolved' },

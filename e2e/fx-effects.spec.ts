@@ -23,7 +23,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickPermanent, enabledOk, makeTitled, offeredNamed, resizeWindow, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickPermanent, enabledOk, makeTitled, offeredNamed, passOverStack, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -227,7 +227,7 @@ test(titled('Sorin’s +1: the revealed card has its beat, then the hit travels 
     await expect
       .poll(
         async () => {
-          for (const p of [alice.page, bob.page]) if ((await stackCount(p)) > 0 && (await enabledOk(p).count()) > 0) await enabledOk(p).first().click().catch(() => undefined);
+          for (const p of [alice.page, bob.page]) await passOverStack(p);
           return (await bobLife.textContent())?.trim();
         },
         { timeout: 30_000, message: 'bob loses 2 to the revealed Grizzly Bears' },

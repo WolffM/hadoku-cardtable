@@ -17,7 +17,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { castByDrag, enabledOk, handCardNamed, livePrompt, makeTitled, says, stackCount } from './play/board.ts';
+import { castByDrag, enabledOk, handCardNamed, livePrompt, makeTitled, passOverStack, says } from './play/board.ts';
 import { confirmOpen, confirmYes } from './play/confirm.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -166,10 +166,7 @@ test(titled('a scry 1 shows its card in the decision window, never on the board,
     /** Answer what Forge asks and pass priority while a spell waits — never the empty-stack Next Phase. */
     const pump = async () => {
       for (const p of pages) await answerPrompt(p);
-      for (const p of pages) {
-        const ok = enabledOk(p).first();
-        if ((await stackCount(p)) > 0 && (await ok.count()) > 0) await ok.click({ timeout: 1_000 }).catch(() => undefined);
-      }
+      for (const p of pages) await passOverStack(p);
       await alice.page.waitForTimeout(60);
     };
     const confirm = alice.page.getByTestId('live-confirm');

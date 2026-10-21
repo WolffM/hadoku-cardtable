@@ -28,7 +28,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
 import { foldStream, unseenNamed } from './play/isolation.ts';
-import { dragHandCard, enabledOk, grindPriority, handCardNamed, makeTitled, offeredNamed, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
+import { dragHandCard, grindPriority, handCardNamed, makeTitled, offeredNamed, passOverStack, pressPaymentAuto, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -95,13 +95,6 @@ const firstSent = (f: Friend, name: string): string => {
 const held = (f: Friend, name: string): boolean => [...foldStream(messages(f)).final.values()].some((o) => JSON.stringify(o).includes(JSON.stringify(name)));
 
 const centre = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
-
-/** Pass priority only while something is on the stack — alice's own main phase is never passed. */
-async function passOverStack(page: Page): Promise<void> {
-  if ((await stackCount(page)) === 0 || (await enabledOk(page).count()) === 0) return;
-  await enabledOk(page).first().click({ timeout: 1_000 }).catch(() => undefined);
-  await expect(enabledOk(page)).toHaveCount(0, { timeout: 2_000 }).catch(() => undefined);
-}
 
 /** Both screens draw `name` on alice's library. */
 async function bothShowTop(alice: Page, bob: Page, name: string, why: string): Promise<void> {

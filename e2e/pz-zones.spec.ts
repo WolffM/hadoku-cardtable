@@ -32,7 +32,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickPermanent, enabledOk, livePrompt, makeTitled, offered, pressOffered, promptMethod, resizeWindow, stackCount } from './play/board.ts';
+import { castCard, clickPermanent, livePrompt, makeTitled, offered, passOverStack, pressOffered, promptMethod, resizeWindow } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, RUN_DIR, startPlayStack } from './play/harness.ts';
 import { beforePoint, pointIn, settle, stripPoint, type Point } from './play/order.ts';
@@ -196,7 +196,7 @@ test(
             if ((await plusTwo.count()) > 0) await plusTwo.first().click({ timeout: 1_000 }).catch(() => undefined);
             else if (await pressOffered(bobFace)) return 'targeted';
             else if (method !== null) await answerPrompt(page).catch(() => undefined);
-            for (const p of [page, bob.page]) if ((await stackCount(p)) > 0 && (await enabledOk(p).count()) > 0) await enabledOk(p).first().click({ timeout: 1_000 }).catch(() => undefined);
+            for (const p of [page, bob.page]) await passOverStack(p);
             return method ?? 'none';
           },
           { timeout: 60_000, intervals: [250], message: 'the fateseal opens as one order of Top | Bottom' },

@@ -13,7 +13,7 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { enabledCancel, enabledOk, makeTitled, ownNamed, pressOffered, says, stackCount } from './play/board.ts';
+import { enabledCancel, makeTitled, ownNamed, passOverStack, pressOffered, says, stackCount } from './play/board.ts';
 import { confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -60,11 +60,7 @@ test(titled('a yes/no window never shows another input’s line under its Yes/No
           .click({ timeout: 1_000 })
           .catch(() => undefined);
       for (const page of [alice.page, bob.page]) {
-        if ((await stackCount(page)) > 0 && (await enabledOk(page).count()) > 0)
-          await enabledOk(page)
-            .first()
-            .click({ timeout: 1_000 })
-            .catch(() => undefined);
+        await passOverStack(page);
       }
       await alice.page.waitForTimeout(100);
     }

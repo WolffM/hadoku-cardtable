@@ -32,7 +32,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickPermanent, enabledOk, livePrompt, makeTitled, offered, promptMethod, resizeWindow, stackCount } from './play/board.ts';
+import { castCard, clickPermanent, livePrompt, makeTitled, offered, passOverStack, promptMethod, resizeWindow } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { dragRowOnto, settle } from './play/order.ts';
@@ -200,7 +200,7 @@ test(
             if (method === 'order') return 'order';
             if ((await plusOne.count()) > 0) await plusOne.first().click({ timeout: 1_000 }).catch(() => undefined);
             else if (method !== null) await answerPrompt(page).catch(() => undefined);
-            for (const p of [page, bob.page]) if ((await stackCount(p)) > 0 && (await enabledOk(p).count()) > 0) await enabledOk(p).first().click({ timeout: 1_000 }).catch(() => undefined);
+            for (const p of [page, bob.page]) await passOverStack(p);
             return method ?? 'none';
           },
           { timeout: 60_000, intervals: [250], message: 'Forge asks the order of the cards going to the bottom' },
@@ -377,7 +377,7 @@ test(
             if (method === 'order') return 'order';
             if ((await exileAll.count()) > 0) await exileAll.first().click({ timeout: 1_000 }).catch(() => undefined);
             else if (method !== null) await answerPrompt(page).catch(() => undefined);
-            for (const p of [page, bob.page]) if ((await stackCount(p)) > 0 && (await enabledOk(p).count()) > 0) await enabledOk(p).first().click({ timeout: 1_000 }).catch(() => undefined);
+            for (const p of [page, bob.page]) await passOverStack(p);
             return method ?? 'none';
           },
           { timeout: 60_000, intervals: [250], message: 'Forge asks the order of the cards going to exile' },

@@ -17,7 +17,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, clickOnce, enabledOk, grindPriority, makeTitled, offeredNamed, ownNamed, pressPaymentAuto, says, serverLog, stackCount } from './play/board.ts';
+import { clickHandCard, grindPriority, makeTitled, offeredNamed, ownNamed, passOverStack, pressPaymentAuto, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -54,7 +54,7 @@ test(titled("Brain Freeze's storm copies: one pick with \"Same target for all\" 
       await grindPriority([alice.page, bob.page], async () => (await ownNamed(alice.page, 'Ornithopter')).length >= n, {
         timeoutMs: 45_000,
         press: async (page) => {
-          if ((await stackCount(page)) > 0 && (await enabledOk(page).count()) > 0) await clickOnce(page, await says(page), 'ok');
+          await passOverStack(page);
         },
       });
     }

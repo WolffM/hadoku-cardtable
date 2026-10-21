@@ -27,7 +27,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages, type Friend } from './play/browser.ts';
-import { castUntilOnStack, enabledOk, handCardNamed, makeTitled, ownNamed, pressOffered, serverLog, stackCount } from './play/board.ts';
+import { castUntilOnStack, enabledOk, handCardNamed, makeTitled, ownNamed, passOverStack, pressOffered, serverLog, stackCount } from './play/board.ts';
 import { passToDeclareAttackers } from './play/combat.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
@@ -228,7 +228,7 @@ test(titled('the same turn played by a person draws the same beats (the control)
         await pressOffered(bears);
         for (const page of [bob.page, alice.page]) {
           await answerPrompt(page);
-          if ((await stackCount(page)) > 0 && (await enabledOk(page).count()) > 0) await enabledOk(page).click().catch(() => undefined);
+          await passOverStack(page);
         }
         await bob.page.waitForTimeout(100);
       }

@@ -19,7 +19,7 @@ import { join } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickPermanent, enabledOk, makeTitled, resizeWindow, stackCount } from './play/board.ts';
+import { clickPermanent, makeTitled, passOverStack, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -155,7 +155,7 @@ test(titled('emblems ring their owner’s avatar on both screens, clear of the p
       await expect
         .poll(
           async () => {
-            for (const p of [alice.page, bob.page]) if ((await stackCount(p)) > 0 && (await enabledOk(p).count()) > 0) await enabledOk(p).first().click().catch(() => undefined);
+            for (const p of [alice.page, bob.page]) await passOverStack(p);
             const loyalty = await alice.page.locator(`[data-board-card="${id}"] > .board-card__face .card__stat`).textContent();
             return `${loyalty?.trim()} | stack ${await stackCount(alice.page)}`;
           },

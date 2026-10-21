@@ -601,6 +601,21 @@ export async function castUntilOnStack(
     .toBe(true);
 }
 
+/**
+ * Pass priority only while something is on the stack — the seat's own empty-stack window (its main
+ * phase) is never passed. The stack and the button are one locator, matched as the press is made: a
+ * stack count read first and a button pressed after let Forge's resolution and its next empty-stack
+ * priority land in between, and the press passed the main phase (w69-librarytop, run 39319947526:
+ * Courser's landfall resolved, alice's Next Phase was pressed 130 ms later and Divination was never
+ * castable again).
+ */
+export async function passOverStack(page: Page): Promise<void> {
+  const ok = page.locator(`body:has([data-zone="stack"]:not([data-count="0"])) :is(${BUTTON_ONE})`);
+  if ((await ok.count()) === 0) return;
+  await ok.first().click({ timeout: 1_000 }).catch(() => undefined);
+  await expect(ok).toHaveCount(0, { timeout: 2_000 }).catch(() => undefined);
+}
+
 /** Press whichever page's OK is enabled until `until()` is true — the "let the main loop run forward" pump w46-attack/w32/w56-numbers each wrote by hand (T6). `press` defaults to `enabledOk`'s own OK; `turn-edge.spec.ts`'s own `passWhatever` (OK-or-Cancel) is its own. */
 export async function grindPriority(
   pages: readonly Page[],

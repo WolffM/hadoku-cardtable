@@ -20,7 +20,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { messages } from './play/browser.ts';
-import { castCard, clickHandCard, clickPermanent, enabledOk, grindPriority, handCardNamed, livePrompt, makeTitled, offered, offeredNamed, promptMethod, resizeWindow, says, stackCount } from './play/board.ts';
+import { castCard, clickHandCard, clickPermanent, grindPriority, handCardNamed, livePrompt, makeTitled, offered, offeredNamed, passOverStack, promptMethod, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { unseenNamed } from './play/isolation.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -101,7 +101,7 @@ test(titled("Fate Seal: Jace's +2 keeps bob's Lightning Bolt on top — alice's 
           if ((await plusTwo.count()) > 0) await plusTwo.first().click({ timeout: 1_000 }).catch(() => undefined);
           else if ((await opponentTarget.count()) > 0) await opponentTarget.first().locator('button').first().click({ timeout: 1_000 }).catch(() => undefined);
           else if (method !== null) await answerPrompt(alice.page).catch(() => undefined);
-          for (const p of [alice.page, bob.page]) if ((await stackCount(p)) > 0 && (await enabledOk(p).count()) > 0) await enabledOk(p).first().click({ timeout: 1_000 }).catch(() => undefined);
+          for (const p of [alice.page, bob.page]) await passOverStack(p);
           return method ?? 'none';
         },
         { timeout: 45_000, intervals: [100], message: "the +2's look opens on alice's screen as bob's library, Top | Bottom" },
@@ -177,7 +177,7 @@ test(titled('Scry keep: Serum Visions keeps Lightning Bolt over Shock — alice�
         async () => {
           const method = await promptMethod(alice.page);
           if (method === 'order') return method;
-          for (const p of [alice.page, bob.page]) if ((await stackCount(p)) > 0 && (await enabledOk(p).count()) > 0) await enabledOk(p).first().click({ timeout: 1_000 }).catch(() => undefined);
+          for (const p of [alice.page, bob.page]) await passOverStack(p);
           return method ?? 'none';
         },
         { timeout: 45_000, intervals: [100], message: "the scry opens on alice's screen" },

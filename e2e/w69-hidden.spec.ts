@@ -13,7 +13,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { castByDrag, enabledOk, grindPriority, handCardNamed, makeTitled, resizeWindow, stackCount } from './play/board.ts';
+import { castByDrag, grindPriority, handCardNamed, makeTitled, passOverStack, resizeWindow, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -94,13 +94,6 @@ const exiledIds = async (page: Page, owner: 'you' | 'them'): Promise<number[]> =
 async function hover(page: Page, scope: string, id: number): Promise<void> {
   const box = (await page.locator(`${scope} li[data-card-id="${id}"] .board-card__face`).first().boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 12), { steps: 4 });
-}
-
-/** Pass priority only while something is on the stack — alice's own main phase is never passed. */
-async function passOverStack(page: Page): Promise<void> {
-  if ((await stackCount(page)) === 0 || (await enabledOk(page).count()) === 0) return;
-  await enabledOk(page).first().click({ timeout: 1_000 }).catch(() => undefined);
-  await expect(enabledOk(page)).toHaveCount(0, { timeout: 2_000 }).catch(() => undefined);
 }
 
 /** Alice drags a Windbrisk Heights onto her battlefield; both pass over its Hideaway, she picks the first offered. */
