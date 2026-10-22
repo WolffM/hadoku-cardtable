@@ -280,11 +280,11 @@
  * and it is the thing to extend when a new dark surface appears (or to delete,
  * when those sheets move onto semantic tokens too).
  */
-.cardtable-chrome :is(.app, .draft, .board, .deck, .rooms, .spectate) {
+.cardtable-chrome :is(.draft, .board, .deck, .rooms, .spectate) {
   background-color: var(--bg);
 }
 
 .cardtable-chrome
-  :is(.app, .draft, .board, .deck, .deckrow, .rooms, .spectate, .conn, .prompt, .confirm) {
+  :is(.draft, .board, .deck, .deckrow, .rooms, .spectate, .conn, .prompt, .confirm) {
   color: var(--ink);
 }
