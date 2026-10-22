@@ -733,6 +733,70 @@ describe('the seat’s own act', () => {
       expect(received).toHaveLength(4);
     });
 
+    /** What the seat sends: a card click, the prompt bar's OK. */
+    const sent = (method: string) => ({ matchId: 'm1', frame: { kind: 'act', method } });
+    const attacking = (id: number) => deltaOf({ [`c${id}`]: { _type: 0, _id: id, Attacking: { t: 'bool', v: true } } });
+    const blocking = (id: number) => deltaOf({ [`c${id}`]: { _type: 0, _id: id, Blocking: { t: 'bool', v: true } } });
+    const PROMPT = { frame: { kind: 'notify', method: 'showPromptMessage', message: 'Declare attackers' } };
+    const step = (v: string) => deltaOf({ g: { _type: 3, _id: 1, Phase: { t: 'enum', c: 'PhaseType', v } } });
+    const ATTACKERS_STEP = step('COMBAT_DECLARE_ATTACKERS');
+    const BLOCKERS_STEP = step('COMBAT_DECLARE_BLOCKERS');
+
+    it('what follows a click the seat sends is its act: its attackers and the prompt go out as Forge sends them', async () => {
+      const inner = fakeInner();
+      const board = fakeBoard();
+      const held: unknown[] = [];
+      const { transport, received } = paced(inner, { boardStill: board.still, report: (h) => held.push(h) });
+      transport.setSeatPlayer(() => ALICE);
+      inner.deliver(ATTACKERS_STEP); // a step began: nobody's act
+      await vi.advanceTimersByTimeAsync(1_000);
+      board.busy(true); // the board is still drawing something
+      for (let i = 0; i < 8; i++) transport.emit(MATCH_EVENTS.clientToServer, sent('selectCard'));
+      const frames = [...[1, 2, 3, 4, 5, 6, 7, 8].map(attacking), PROMPT];
+      const from = Date.now();
+      for (const frame of frames) inner.deliver(frame);
+      while (received.length < frames.length + 1 && Date.now() - from < PACE_DELAYS_MS.default) await vi.advanceTimersByTimeAsync(1);
+      expect(received).toEqual([ATTACKERS_STEP, ...frames]);
+      expect(Date.now() - from, 'no gap waited, no beat').toBeLessThan(frames.length);
+      expect(held, 'the prompt was held by nothing').toEqual([]);
+    });
+
+    it("after the seat's OK, the step moving on makes the opponent's blocks nobody's: each keeps its gap", async () => {
+      const inner = fakeInner();
+      const { transport, received } = paced(inner);
+      transport.setSeatPlayer(() => ALICE);
+      transport.emit(MATCH_EVENTS.clientToServer, sent('selectButtonOk'));
+      inner.deliver(BLOCKERS_STEP);
+      inner.deliver(blocking(20));
+      inner.deliver(blocking(21));
+      await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.default - 1);
+      expect(received, "the AI's first block keeps its gap after the step").toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(received).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.default - 1);
+      expect(received, 'and its second, after the first').toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(received).toHaveLength(3);
+    });
+
+    it('a watcher sends nothing that is an act, and a setting the seat changes is not one either', async () => {
+      const inner = fakeInner();
+      const { transport, received } = paced(inner);
+      transport.setSeatPlayer(() => null);
+      transport.emit(MATCH_EVENTS.clientToServer, sent('selectCard'));
+      inner.deliver(attacking(1));
+      inner.deliver(attacking(2));
+      await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.default - 1);
+      expect(received).toHaveLength(1);
+      transport.setSeatPlayer(() => ALICE);
+      transport.emit(MATCH_EVENTS.autoYield, { matchId: 'm1', on: true });
+      inner.deliver(attacking(3));
+      await vi.advanceTimersByTimeAsync(1);
+      expect(received).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.default - 1);
+      expect(received, 'a setting starts no act').toHaveLength(2);
+    });
+
     it('a watcher, or a seat not yet named, paces the same frames as before', async () => {
       const inner = fakeInner();
       const { transport, received } = paced(inner);
