@@ -41,7 +41,6 @@ import {
   PoolVerdictSchema,
   SetSummarySchema,
   type ClientMode,
-  type ConstructedMode,
   type CubeSummary,
   type DraftCard,
   type DraftPlan,
@@ -50,9 +49,7 @@ import {
   type PoolVerdict,
   type RoomBody,
   type RoomMode,
-  type RoomPod,
   type RoomSettings,
-  type RoomTable,
   type SetSummary,
 } from '@hadoku/shared';
 
@@ -579,7 +576,7 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
     async listSets() {
       let res: Response;
       try {
-        res = await fetchImpl(poolsUrl('/sets'), { credentials: 'same-origin' });
+        res = await getJson(poolsUrl('/sets'), fetchImpl);
       } catch {
         throw new Error('Could not reach the server.');
       }
@@ -593,7 +590,7 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
     async listPresets() {
       let res: Response;
       try {
-        res = await fetchImpl(poolsUrl('/presets'), { credentials: 'same-origin' });
+        res = await getJson(poolsUrl('/presets'), fetchImpl);
       } catch {
         throw new Error('Could not reach the server.');
       }
@@ -607,12 +604,7 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
     async savePreset(name, plan) {
       let res: Response;
       try {
-        res = await fetchImpl(poolsUrl('/presets'), {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: JSON_HEADERS,
-          body: JSON.stringify({ name, plan }),
-        });
+        res = await sendJson(poolsUrl('/presets'), 'POST', { name, plan }, fetchImpl);
       } catch {
         return { ok: false, message: 'Could not reach the server.' };
       }
