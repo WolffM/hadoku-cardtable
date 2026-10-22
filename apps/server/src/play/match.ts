@@ -614,10 +614,11 @@ export interface SeatState {
 	wireButtonsLive: boolean;
 	/**
 	 * The window the server last answered for this seat, until Forge sends
-	 * anything else. Forge can show the same input twice in a row before the
-	 * answer reaches it (measured: "Sacrifice Augur of Skulls?" and its Yes/No
-	 * bar, twice, 1 ms apart); the second copy is that same window, withheld
-	 * without a second press.
+	 * anything but a window's prompt, bar or offered set. Forge can show
+	 * the same input twice in a row before the answer reaches it (measured:
+	 * "Sacrifice Augur of Skulls?" and its Yes/No bar, twice, 1 ms apart; a
+	 * payment's set, Auto bar and prompt 14 ms after its Auto); the second copy
+	 * is that same window, withheld without a second press.
 	 */
 	answeredWindow: string | null;
 	/** Unparsed asks shown as a pick of their whole answers, by callId (`unparsed.ts`). */
@@ -2251,7 +2252,9 @@ export class Match {
 		// going to pair. State and actionable-set frames do not flush: a payment
 		// always sends `setWeaklySelectable` between its bar and its prompt.
 		if (frame.kind === 'ask') this.flushPendingWindow(s);
-		if (frame.method !== 'showPromptMessage' && frame.method !== 'updateButtons') s.answeredWindow = null;
+		// The offered set is part of the window: Forge re-shows a payment as its set, bar and prompt.
+		// Its clear is the input stopping, and ends the window.
+		if (!['showPromptMessage', 'updateButtons', 'setWeaklySelectable'].includes(frame.method)) s.answeredWindow = null;
 
 		if (isTierC(frame.method)) {
 			const state = frame as unknown as StateFrame;
