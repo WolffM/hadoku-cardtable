@@ -607,6 +607,13 @@ attachPresetRoutes(api, { store: presetStore });
 // refusal into a pass, so every cached SET verdict refused for missing text
 // is dropped (`pools/sets.ts`'s own cache; a cube's verdict lives in
 // `cubeStore`, C's module, unowned and untouched this wave).
+//
+// `CONFIG.catalogRefresh` gates whether this starts AT ALL: on by default
+// (production), off (`CARDTABLE_CATALOG_REFRESH=0`) for every server that
+// is not production — every one of those would otherwise run a real
+// Scryfall download at its own boot, into the shared cache when the
+// default `scryfallDir` is in play. `e2e/harness.ts` and
+// `e2e/play/harness.ts` set the flag off in the server env they spawn.
 const SCRYFALL_DIR = process.env.CARDTABLE_SCRYFALL_DIR ?? resolve(homedir(), '.local/share/cardtable/scryfall');
 const catalogRefresh = createCatalogRefresh({
 	catalog,
@@ -615,7 +622,8 @@ const catalogRefresh = createCatalogRefresh({
 	onSwap: () => setsStore.clearMissingTextVerdicts(),
 	log: jsonLogger('cardtable-pools'),
 });
-const stopCatalogRefresh = catalogRefresh.start();
+const stopCatalogRefresh = CONFIG.catalogRefresh ? catalogRefresh.start() : (): void => undefined;
+if (!CONFIG.catalogRefresh) console.log('[cardtable] catalog refresh disabled (CARDTABLE_CATALOG_REFRESH=0)');
 
 // ── Matches ──────────────────────────────────────────────────────────────────
 // One child JVM per match; see src/play/README.md. Without a configured Forge

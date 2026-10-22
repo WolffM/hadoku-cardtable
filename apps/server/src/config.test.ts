@@ -45,6 +45,50 @@ describe('CONFIG.testUncheckedPools', () => {
   });
 });
 
+/*
+ * `CONFIG.catalogRefresh` — on by default (production needs no cross-repo
+ * change), off only at `'0'`. Every non-production server (CI's forge-e2e,
+ * a dev/e2e boot, a lane's manual smoke-boot) sets `CARDTABLE_CATALOG_REFRESH=0`
+ * so it never starts `createCatalogRefresh` against the shared Scryfall cache.
+ */
+describe('CONFIG.catalogRefresh', () => {
+  it('is true from a bare environment — production sets nothing and still gets the job', async () => {
+    vi.resetModules();
+    const saved = process.env.CARDTABLE_CATALOG_REFRESH;
+    delete process.env.CARDTABLE_CATALOG_REFRESH;
+    try {
+      const { CONFIG } = await import('./config.ts');
+      expect(CONFIG.catalogRefresh).toBe(true);
+    } finally {
+      if (saved === undefined) delete process.env.CARDTABLE_CATALOG_REFRESH;
+      else process.env.CARDTABLE_CATALOG_REFRESH = saved;
+    }
+  });
+
+  it('is false only at the exact value \'0\' — a near-miss leaves it on', async () => {
+    vi.resetModules();
+    const saved = process.env.CARDTABLE_CATALOG_REFRESH;
+    process.env.CARDTABLE_CATALOG_REFRESH = 'false';
+    try {
+      const { CONFIG } = await import('./config.ts');
+      expect(CONFIG.catalogRefresh).toBe(true);
+    } finally {
+      if (saved === undefined) delete process.env.CARDTABLE_CATALOG_REFRESH;
+      else process.env.CARDTABLE_CATALOG_REFRESH = saved;
+    }
+
+    vi.resetModules();
+    process.env.CARDTABLE_CATALOG_REFRESH = '0';
+    try {
+      const { CONFIG } = await import('./config.ts');
+      expect(CONFIG.catalogRefresh).toBe(false);
+    } finally {
+      if (saved === undefined) delete process.env.CARDTABLE_CATALOG_REFRESH;
+      else process.env.CARDTABLE_CATALOG_REFRESH = saved;
+    }
+  });
+});
+
 describe('CONFIG.dataDir', () => {
   const VARS = ['CARDTABLE_LOG_DIR', 'CARDTABLE_ROOMS_DIR', 'CARDTABLE_DRAFTS_DIR'] as const;
 

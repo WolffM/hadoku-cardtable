@@ -155,6 +155,24 @@ export const CONFIG = {
 	testUncheckedPools: process.env.CARDTABLE_E2E_UNCHECKED_POOLS === '1',
 
 	/**
+	 * `CARDTABLE_CATALOG_REFRESH`: on by default, so production needs no
+	 * cross-repo change to keep its catalog current with Scryfall's daily
+	 * bulk file (`pools/refresh.ts`, wave 74 §G). `index.ts` starts the job
+	 * only when this reads `true`.
+	 *
+	 * Off (`'0'`) is for every server that is NOT production: CI's forge-e2e
+	 * on the claws, every dev/e2e server a session boots, and a lane's own
+	 * manual smoke-boot. Each of those would otherwise run `createCatalogRefresh`
+	 * against `CARDTABLE_SCRYFALL_DIR ?? ~/.local/share/cardtable/scryfall` at
+	 * its own boot — a real Scryfall download, every time, into land.sh's
+	 * SHARED art cache when the default path is in play (`e2e/harness.ts` and
+	 * `e2e/play/harness.ts` set this to `'0'` in the server env they spawn,
+	 * for exactly this reason — one lane's `.partial` file there is what
+	 * found this).
+	 */
+	catalogRefresh: process.env.CARDTABLE_CATALOG_REFRESH !== '0',
+
+	/**
 	 * `CARDTABLE_PLAY_SEED`: fixes Forge's shuffles, the coin toss and the precon
 	 * pick for every match this server starts, or undefined (production) for an
 	 * unseeded one. Read at each start, not at boot, so a test can set it.

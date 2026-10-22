@@ -165,6 +165,12 @@ const server = spawn(process.execPath, [SERVER_JS], {
     // only here, never there. `config.ts` pins that production's own config
     // never reads this var, and `index.ts` warns loudly at boot when it does.
     CARDTABLE_E2E_UNCHECKED_POOLS: '1',
+    // Off: this server would otherwise run `createCatalogRefresh` at boot
+    // against the shared `~/.local/share/cardtable/scryfall` cache — a real
+    // Scryfall download, every e2e run, on whatever host CI schedules it on
+    // (wave 74 §E, after a lane's own manual boot left a `.partial` file
+    // there). Production is the only server this stays on for.
+    CARDTABLE_CATALOG_REFRESH: '0',
   },
 });
 

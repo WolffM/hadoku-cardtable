@@ -567,6 +567,11 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
          * `GameAction.java`). A red in `play.spec.ts` is now the product.
          */
         CARDTABLE_PLAY_SEED: String(PLAY_SEED),
+        // Off: this server would otherwise run `createCatalogRefresh` at
+        // boot against the shared `~/.local/share/cardtable/scryfall` cache
+        // — a real Scryfall download, every e2e run (wave 74 §E). Production
+        // is the only server this stays on for.
+        CARDTABLE_CATALOG_REFRESH: '0',
       },
     });
   /** Whoever is waiting on a line the server has not written yet — see {@link sparesWarm}. */
