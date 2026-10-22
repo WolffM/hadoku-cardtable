@@ -371,10 +371,11 @@ export function promptThumb(lookup: PromptLookup, ref: { kind: string; id: numbe
  * sheet's (`PromptShell`), `ConfirmPrompt`'s, and the board's own concede and
  * payment boxes. The operator, 2026-10-21: *"a question with yes/no must put
  * yes/no on opposite ends of the decision box. anchor one bottom left, the
- * other bottom right."* So exactly two answers make a pair (`data-pair`,
- * `prompts.css`): the first, the affirmative — Forge's button one, the sheet's
- * OK — anchored bottom-left, the second bottom-right, and `aside` (the
- * "Always" box, the payment's life button) between them. Any other count
+ * other bottom right."* and, 2026-10-22: *"yes always bottom right."* So exactly
+ * two answers make a pair (`data-pair`, `prompts.css`): the affirmative —
+ * Forge's button one, the sheet's OK — anchored bottom-RIGHT, the other
+ * bottom-left, and `aside` (the "Always" box, the payment's life button)
+ * between them. Any other count
  * stays at the right edge, with `aside` leading. Children are the answers,
  * affirmative first; the row counts them, so a caller hands each one as its
  * own child (an array, never one fragment). Every answer is a real button with one look and one height:
@@ -389,9 +390,9 @@ export function AnswerRow({ className, aside, children }: { className?: string; 
     <div className={className === undefined ? 'answers' : `${className} answers`} data-pair={pair || undefined}>
       {pair ? (
         <>
-          {answers[0]}
-          {side}
           {answers[1]}
+          {side}
+          {answers[0]}
         </>
       ) : (
         <>
