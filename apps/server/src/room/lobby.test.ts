@@ -73,16 +73,37 @@ const CAROL = { id: 'fk:3333333333333333', name: 'user-carol' };
 const CUBE_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
 
 /** A draft room with `members` in it, all of them ready, and its draft started. */
-async function startedDraft(lobby: Lobby, members: Array<{ id: string; name: string }> = [ALICE]): Promise<string> {
+/** A draft room with `members` in it, all ready, no seat open — `startDraft`'s OWN gates are all clear, but its plan verdict is still whatever the lobby gave it (null, absent a `checkPlan`). */
+async function readyToStart(lobby: Lobby, members: Array<{ id: string; name: string }> = [ALICE]): Promise<string> {
 	const made = lobby.create(members[0], { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
 	expect(made.ok).toBe(true);
 	if (!made.ok) throw new Error(made.reason);
 	for (const member of members.slice(1)) expect(lobby.join(made.room.id, member).ok).toBe(true);
 	for (const member of members) expect(lobby.setReady(made.room.id, member.id, true)).toBe(true);
 	fillWithAi(lobby, made.room.id, members[0].id);
-	const started = lobby.startDraft(made.room.id, members[0].id);
-	expect(started.ok).toBe(true);
 	return made.room.id;
+}
+
+async function startedDraft(lobby: Lobby, members: Array<{ id: string; name: string }> = [ALICE]): Promise<string> {
+	const id = await readyToStart(lobby, members);
+	approvePlan(lobby, id);
+	const started = lobby.startDraft(id, members[0].id);
+	expect(started.ok).toBe(true);
+	return id;
+}
+
+/**
+ * A plan verdict that lets `startDraft` succeed, set directly through the
+ * same `setPodPlan` a PUT uses — most tests in this file are not ABOUT plan
+ * verdicts, so they set one by hand rather than wiring `checkPlan` and
+ * waiting for a background check (`Lobby.startDraft`'s own
+ * `plan-not-ready` gate, wave 73 §A follow-up).
+ */
+function approvePlan(lobby: Lobby, roomId: string): void {
+	const room = lobby.get(roomId);
+	if (room === undefined) return;
+	const plan = room.pod?.plan ?? DEFAULT_PLAN;
+	lobby.setPodPlan(roomId, room.leader, plan, { ok: true, cards: 1 });
 }
 
 /** The AI button on every open pod seat: the draft deals only once none is open. */
@@ -748,12 +769,58 @@ describe('Lobby.startDraft', () => {
 		// Everyone seated is ready, and six seats are still open: no deal with an open seat.
 		expect(lobby.startDraft(draft.room.id, BOB.id)).toEqual({ ok: false, reason: 'not-ready' });
 		fillWithAi(lobby, draft.room.id, BOB.id);
+		approvePlan(lobby, draft.room.id);
 		const started = lobby.startDraft(draft.room.id, BOB.id);
 		expect(started.ok).toBe(true);
 		// ANY member may start it, not only the leader: both browsers ask and the
 		// server answers one start to both.
 		if (!started.ok) return;
 		expect(typeof started.room.draftStartedAt).toBe('string');
+	});
+
+	/*
+	 * Manager, 2026-10-22: "it shouldn't even get to the drafting stage" is a
+	 * SERVER rule, not a UI one — B's Start button being disabled on a bad
+	 * verdict proves nothing about a direct POST. Everyone seated and ready
+	 * is necessary but not sufficient: the room's plan must also have passed
+	 * its check.
+	 */
+	it('refuses to start a pod whose plan has no verdict yet — a check still running, or never run', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const id = await readyToStart(lobby, [ALICE]);
+		// No approvePlan: the Settled default's `planVerdict` is still null — no
+		// checkPlan is wired on this lobby, so nothing ever set one.
+		expect(lobby.get(id)?.pod?.verdict).toBeNull();
+		expect(lobby.startDraft(id, ALICE.id)).toEqual({ ok: false, reason: 'plan-not-ready' });
+		expect(lobby.get(id)?.draftStartedAt).toBeNull();
+	});
+
+	it('refuses to start a pod whose plan verdict is refused', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const id = await readyToStart(lobby, [ALICE]);
+		const room = lobby.get(id);
+		if (room === undefined) throw new Error('room missing');
+		const refusal = lobby.setPodPlan(id, room.leader, room.pod!.plan, { ok: false, unplayable: ['Not A Real Card'], missingText: [] });
+		// setPodPlan itself refuses a bad verdict (409 { verdict } at the route) —
+		// the room's planVerdict is still null, the same as never having checked.
+		expect(refusal.ok).toBe(false);
+		expect(lobby.startDraft(id, ALICE.id)).toEqual({ ok: false, reason: 'plan-not-ready' });
+	});
+
+	it('starts once the plan verdict is ok — approvePlan is the one thing this gate needed', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const id = await readyToStart(lobby, [ALICE]);
+		approvePlan(lobby, id);
+		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+	});
+
+	it('starts for real once a BACKGROUND check (no PUT at all) lands the verdict', async () => {
+		const dir = await tempDir();
+		const checkPlan = async (): Promise<PoolVerdict> => ({ ok: true, cards: 1 });
+		const lobby = await openLobby({ dir, checkPlan });
+		const id = await readyToStart(lobby, [ALICE]);
+		await vi.waitFor(() => expect(lobby.get(id)?.pod?.verdict).toEqual({ ok: true, cards: 1 }));
+		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 	});
 
 	it('starts for one member who readied alone, with the AI in every other seat', async () => {
