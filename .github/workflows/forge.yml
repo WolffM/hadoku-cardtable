@@ -307,9 +307,12 @@ jobs:
     # + one forge-jvm sharing claw-9), THIS job ran 34.9–36.1 min against its
     # usual ~16–18 min (one extra Playwright red each time under the load —
     # product content, not a hang: `main`'s own two known reds plus one more).
-    # 40 is the baseline (no lock wait any more); +15 covers the measured
-    # BUILD plus that observed contention with headroom.
-    timeout-minutes: 55
+    # 40 was the baseline (no lock wait any more), +15 for the measured BUILD
+    # plus that observed contention. The suite outgrew it: on run 39766532205
+    # each of four shards held ~93 tests, about 26 min on hokon but ~36 s a
+    # test on two busy warm claws, so two shards were cut off at 55 min with
+    # nothing red. 75 covers that measured worst case with headroom.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v6
 
