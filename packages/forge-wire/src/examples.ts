@@ -25,9 +25,6 @@
  * approximate.
  */
 
-import { TIER_A_METHODS } from './tier-a.ts';
-import { TIER_B_METHODS } from './tier-b.ts';
-
 const CARD = { kind: 'card', id: 101 } as const;
 const OTHER_CARD = { kind: 'card', id: 102 } as const;
 const PLAYER = { kind: 'player', id: 1 } as const;
@@ -330,11 +327,3 @@ export const REPLY_EXAMPLES: Readonly<Record<string, unknown>> = {
   manipulateCardList: [OTHER_CARD, CARD],
   openZones: [ZONE_UPDATE],
 };
-
-/** Methods with an example, split the way the tiers are. */
-export const EXAMPLE_METHODS = Object.freeze({
-  server: Object.keys(SERVER_FRAME_EXAMPLES),
-  client: Object.keys(CLIENT_FRAME_EXAMPLES),
-  tierA: TIER_A_METHODS,
-  tierB: TIER_B_METHODS,
-});

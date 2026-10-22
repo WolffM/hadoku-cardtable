@@ -52,11 +52,10 @@ import type { Deck } from '@hadoku/deck';
 const DEFAULT_ART_INDEX = 1;
 
 /**
- * `CardRequest` (`@hadoku/carddata/dck`), as reached through `@hadoku/deck`'s
+ * `DeckEntry` (`@hadoku/carddata/dck`), as reached through `@hadoku/deck`'s
  * own `Deck` type so this package depends on one model and not two.
  */
 type DeckEntryOfDeck = Deck['main'][number];
-type CardRequestOfDeck = DeckEntryOfDeck['card'];
 
 /**
  * Forge `CardDb.parseRequestFlags` builds a map (CardDb.java:289), so flags are
@@ -91,11 +90,6 @@ export type WireDeckEntry = z.infer<typeof DeckEntrySchema>;
  */
 export function asDeckEntry(entry: WireDeckEntry): DeckEntryOfDeck {
   return entry;
-}
-
-/** The same proof one level down, so a drift inside `CardRequest` is caught too. */
-export function asCardRequest(card: WireCardRequest): CardRequestOfDeck {
-  return card;
 }
 
 /** `CardPool` on the wire: a quantity map, spelled the way a `.dck` spells one. */

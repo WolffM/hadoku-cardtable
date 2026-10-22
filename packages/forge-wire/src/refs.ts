@@ -94,14 +94,6 @@ export function cardRef(id: number): CardRef {
   return { kind: 'card', id };
 }
 
-export function playerRef(id: number): PlayerRef {
-  return { kind: 'player', id };
-}
-
-export function spellAbilityRef(id: number): SpellAbilityRef {
-  return { kind: 'spellAbility', id };
-}
-
 /* ── Enums transcribed from Forge ────────────────────────────────────── */
 
 /** `ZoneType` (ZoneType.java:15-35) — 19 constants, in declaration order. */

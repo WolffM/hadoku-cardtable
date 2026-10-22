@@ -30,11 +30,6 @@ import type { PrintingIndex } from './standard.ts';
 export { MODERN_HISTORY, MODERN_SANCTIONED_MATCHES_NEWEST };
 export type { ModernSnapshot };
 
-/** The earliest date the transcribed Modern history can answer for. */
-export const MODERN_FIRST_EFFECTIVE: string = MODERN_HISTORY[0].effective;
-/** The latest date the transcribed Modern history can answer for without guessing. */
-export const MODERN_LAST_EFFECTIVE: string = MODERN_HISTORY[MODERN_HISTORY.length - 1].effective;
-
 export function modernFormatAt(
   date: string,
   options: FormatAtOptions = {},

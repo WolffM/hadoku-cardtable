@@ -46,8 +46,6 @@ export {
 export {
   MODERN_HISTORY,
   MODERN_SANCTIONED_MATCHES_NEWEST,
-  MODERN_FIRST_EFFECTIVE,
-  MODERN_LAST_EFFECTIVE,
   modernFormatAt,
   modernPoolAt,
   type ModernSnapshot,
@@ -56,8 +54,6 @@ export {
 export {
   LEGACY_HISTORY,
   LEGACY_SANCTIONED_MATCHES_NEWEST,
-  LEGACY_FIRST_EFFECTIVE,
-  LEGACY_LAST_EFFECTIVE,
   legacyFormatAt,
   legacyPoolAt,
   type LegacySnapshot,

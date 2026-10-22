@@ -29,11 +29,6 @@ import type { PrintingIndex } from './standard.ts';
 export { LEGACY_HISTORY, LEGACY_SANCTIONED_MATCHES_NEWEST };
 export type { LegacySnapshot };
 
-/** The earliest date the transcribed Legacy history can answer for. */
-export const LEGACY_FIRST_EFFECTIVE: string = LEGACY_HISTORY[0].effective;
-/** The latest date the transcribed Legacy history can answer for without guessing. */
-export const LEGACY_LAST_EFFECTIVE: string = LEGACY_HISTORY[LEGACY_HISTORY.length - 1].effective;
-
 export function legacyFormatAt(
   date: string,
   options: FormatAtOptions = {},
