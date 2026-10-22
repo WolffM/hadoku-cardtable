@@ -33,10 +33,10 @@ async function send<T>(request: APIRequestContext, origin: string, method: 'GET'
   return { status: res.status(), body: (await res.json()) as T };
 }
 
-test(titled('a Gauntlet vs the AI: the draw, the snake with the AI taking its own steps, both choices hidden through game 1, and Next game back to the room to choose game 2'), async ({ browser }) => {
+test(titled('a Gauntlet vs the AI to its end: the draw, the snake, both choices hidden, Next game back to choose game 2, straight from the choice into the board, no Rematch once decided, the games stacked, and the room free again'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
-  test.setTimeout(4 * 60_000);
+  test.setTimeout(6 * 60_000);
   const stack = await startPlayStack(forge);
   const alice = await openFriend(browser, 'alice');
   try {
@@ -138,6 +138,75 @@ test(titled('a Gauntlet vs the AI: the draw, the snake with the AI taking its ow
     await expect(theirSide.locator('[data-testid="gauntlet-deck"]:not([data-played])')).toHaveCount(2);
     await expect(theirSide.locator('[aria-checked="true"]'), 'no deck of theirs is shown as chosen').toHaveCount(0);
     console.log(`[cm-gauntlet] game 2 choose screen: played greyed mine=${mine.id} theirs=${theirs!}`);
+
+    // Ruling 13.2: from the choice straight into the game. Every painted frame from the press to the
+    // board is sampled: what the room's main shows, and whether the Gauntlet's own screen is in it.
+    await alice.page.evaluate(() => {
+      const w = window as unknown as { __frames: [number, string][]; __stop: boolean };
+      w.__frames = [];
+      w.__stop = false;
+      let last = '';
+      const tick = (): void => {
+        const has = (sel: string): boolean => document.querySelector(sel) !== null;
+        const sig = [
+          location.hash.split('/')[1] ?? '',
+          has('[data-testid="room-players"]') ? 'seats' : '',
+          document.querySelector('section.gauntlet')?.getAttribute('data-testid') ?? '',
+          has('[aria-label="Game board"]') ? 'board' : '',
+        ].join('|');
+        if (sig !== last) w.__frames.push([Math.round(performance.now()), sig]);
+        last = sig;
+        if (!w.__stop) requestAnimationFrame(tick);
+      };
+      tick();
+    });
+    const second = mineSide.locator('[data-testid="gauntlet-deck"]:not([data-played])').first();
+    const secondId = await second.getAttribute('data-deck-id');
+    await second.click();
+    await expect(alice.page.locator('[aria-label="Game board"]')).toBeVisible({ timeout: 60_000 });
+    const frames = await alice.page.evaluate(() => {
+      const w = window as unknown as { __frames: [number, string][]; __stop: boolean };
+      w.__stop = true;
+      return w.__frames;
+    });
+    console.log(`[cm-gauntlet] choose→board frames: ${JSON.stringify(frames)}`);
+    // A room frame is the seats with no Gauntlet screen under them: the lobby, between the choice and the board.
+    const lobbyFrames = frames.filter(([, sig]) => {
+      const [route, seats, gauntletScreen] = sig.split('|');
+      return route === 'room' && seats === 'seats' && gauntletScreen === '';
+    });
+    expect(lobbyFrames, 'no lobby frame between the choice and the board').toEqual([]);
+    console.log(`[cm-gauntlet] game 2: ${secondId} vs (hidden)`);
+
+    // Game 2 conceded too: the AI wins the Gauntlet 2–0.
+    await alice.page.getByTestId('live-concede').click();
+    await alice.page.getByTestId('live-concede-yes').click();
+    await expect(alice.page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });
+    await expect.poll(async () => (await view()).phase, { timeout: 15_000, message: 'the Gauntlet is decided' }).toBe('done');
+    // Ruling 13.1: a decided Gauntlet offers no Rematch; Back to room is the way on.
+    await expect(alice.page.getByTestId('game-result-room')).toBeEnabled({ timeout: 15_000 });
+    await expect(alice.page.getByTestId('game-result-rematch'), 'no Rematch once the Gauntlet is decided').toHaveCount(0);
+    await alice.page.getByTestId('game-result-room').click();
+    await expect.poll(() => new URL(alice.page.url()).hash).toBe(`#/room/${roomId}`);
+
+    // Ruling 13.3: the games stack top to bottom.
+    await expect(alice.page.getByTestId('gauntlet-result')).toBeVisible({ timeout: 15_000 });
+    const games = alice.page.getByTestId('gauntlet-result').getByTestId('gauntlet-game');
+    await expect(games).toHaveCount(2);
+    const [g1, g2] = [(await games.nth(0).boundingBox())!, (await games.nth(1).boundingBox())!];
+    expect(g2.y, 'game 2 below game 1').toBeGreaterThanOrEqual(g1.y + g1.height);
+    console.log(`[cm-gauntlet] result: game boxes ${JSON.stringify([g1, g2])}`);
+
+    // Ruling 13.4: the room is free again — not locked, the mode the leader's to change, and the seat hers to give back.
+    const done = await api<{ room: { locked: boolean; matchId: string | null } }>('GET', `/tables/rooms/${roomId}`);
+    expect(done.body.room, 'a decided Gauntlet leaves the table unlocked').toMatchObject({ locked: false, matchId: null });
+    await expect(alice.page.getByTestId('constructed-mode-classic')).toBeEnabled();
+    await alice.page.getByTestId('seat-stand').click();
+    await expect(alice.page.getByTestId('room-seat-0-empty')).toBeVisible({ timeout: 10_000 });
+    await expect(alice.page.getByTestId('table-error')).toHaveCount(0);
+    await alice.page.getByTestId('constructed-mode-classic').click();
+    await expect(alice.page.getByTestId('constructed-mode-classic')).toBeChecked({ timeout: 10_000 });
+    console.log('[cm-gauntlet] after done: stood up, mode changed to Classic');
   } finally {
     await alice.context.close();
     await stack.stop();

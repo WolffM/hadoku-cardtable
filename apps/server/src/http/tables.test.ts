@@ -45,7 +45,7 @@ import { draftPoolId } from '../room/lobby.js';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf } from '../room/series.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
-import { act, choose, drawGauntlet, gauntletEras, newGauntlet, startBanpick, viewOfGauntlet, type GauntletState } from '../room/gauntlet.js';
+import { act, choose, drawGauntlet, gameOver, gauntletEras, newGauntlet, startBanpick, viewOfGauntlet, type GauntletState } from '../room/gauntlet.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from '../stats/index.js';
 import { checkSeat, type SeatVerdict } from './gate.js';
 import type { TablesRooms } from './routes.js';
@@ -3430,6 +3430,39 @@ describe('a Gauntlet table', () => {
 		expect(spec.seats.map((s) => s.deck)).toEqual([library.deck(mine)!.text, library.deck(aiDeck)!.text]);
 		expect(spec.format, "the match plays the Gauntlet's era").toBe(g.era!.id);
 		expect(room.format, "the room's own pool is untouched").toBe(POWER_2010);
+	});
+
+	/** Ruling 13.4: a drawn Gauntlet holds the table until it is decided, and then the room is free again. */
+	it('locks the table from the draw until the Gauntlet is decided; then the seat stands, and a Ready draws a new Gauntlet', async () => {
+		const h = await boot();
+		const room = Object.assign(h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]), { mode: 'gauntlet' as const, modeOptions: { family: 'modern' as const } });
+		expect((await call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, {}, edgeHeaders('alice'))).status).toBe(200);
+		const g = atChoice();
+		h.lobby.setGauntlet!(ROOM, g);
+		const locked = async () => ((await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'))).body.room as { locked: boolean }).locked;
+		const stand = () => call(h, 'POST', `/api/tables/rooms/${ROOM}/stand`, {}, edgeHeaders('alice'));
+
+		expect(await locked(), 'a drawn Gauntlet locks the table').toBe(true);
+		expect(await stand()).toMatchObject({ status: 409 });
+
+		const mine = g.decks.find((_, i) => g.marks[i]?.act === 'pick' && g.marks[i]?.by === 0)!;
+		const playing = choose(g, 0, mine);
+		if (!playing.ok) throw new Error(playing.reason);
+		const done = gameOver(playing.state, { seriesOver: true, winner: 1 });
+		if (!done.ok) throw new Error(done.reason);
+		h.lobby.setGauntlet!(ROOM, { ...done.state, ready: [true, false] });
+		room.tables[0]!.series = { ...room.tables[0]!.series, phase: 'done' };
+
+		expect(await locked(), 'a decided Gauntlet leaves the table unlocked').toBe(false);
+		const again = await call(h, 'POST', `/api/tables/rooms/${ROOM}/gauntlet/ready`, { ready: true, ai: true }, edgeHeaders('alice'));
+		expect(again.status, JSON.stringify(again.body)).toBe(200);
+		expect(again.body.phase, 'a Ready after the result draws a new Gauntlet').toBe('reveal');
+		expect(again.body.games).toEqual([]);
+
+		h.lobby.setGauntlet!(ROOM, done.state);
+		const stood = await stand();
+		expect(stood.status, JSON.stringify(stood.body)).toBe(200);
+		expect((await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'))).body.players).toEqual([]);
 	});
 });
 

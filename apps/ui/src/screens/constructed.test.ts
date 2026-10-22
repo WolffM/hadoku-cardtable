@@ -2515,6 +2515,51 @@ describe('the room’s mode', () => {
     expect(screen.getByTestId('ready-toggle')).toHaveProperty('disabled', true);
   });
 
+  /** A Gauntlet between two people, in `phase`, as the server's view for alice. */
+  const gauntletAt = (phase: GauntletView['phase'], extra: Partial<GauntletView> = {}): GauntletView => ({
+    phase,
+    you: 0,
+    players: [
+      { memberId: 'p-alice', name: 'user-alice' },
+      { memberId: 'p-bob', name: 'user-bob' },
+    ],
+    ready: [false, false],
+    era: { id: 'modern-2014-07-18', family: 'modern', title: 'Modern — 2014' },
+    revealAt: 0,
+    first: 0,
+    decks: [],
+    step: null,
+    games: [{ decks: ['d-1', null], winner: null }],
+    choice: null,
+    winner: null,
+    ...extra,
+  });
+
+  it('from the choice straight into the game: while a Gauntlet game is dealt and starting, the room is that game, never the lobby (ruling 13.2)', async () => {
+    const server = stubServer({ players: [{ ...mySeat(), deck: null }, opponent()], matchId: null, mode: { mode: 'gauntlet', modeOptions: {} }, gauntlet: gauntletAt('playing') });
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, myDecks: server.myDecks, roomId: ROOM, feed: everyMs(10) }));
+    await screen.findByTestId('gauntlet-playing');
+    expect(screen.queryByTestId('constructed-mode')).toBeNull();
+    expect(screen.queryByTestId('room-players')).toBeNull();
+  });
+
+  it('a decided Gauntlet frees the room: the mode is the leader’s again, the seat stands, and Ready begins a new one (ruling 13.4)', async () => {
+    const server = await mountModeRoom({
+      players: [{ ...mySeat(), deck: null }, opponent()],
+      matchId: null,
+      mode: { mode: 'gauntlet', modeOptions: {} },
+      gauntlet: gauntletAt('done', { games: [{ decks: ['d-1', 'd-2'], winner: 1 }], winner: 1 }),
+    });
+    await screen.findByTestId('gauntlet-result');
+    for (const m of ['classic', 'gauntlet', 'random']) expect(radio(m).disabled).toBe(false);
+    expect(screen.getByTestId('seat-stand')).toHaveProperty('disabled', false);
+    const ready = screen.getByTestId('ready-toggle');
+    expect(ready.getAttribute('aria-pressed')).toBe('false');
+    await waitFor(() => expect(ready).toHaveProperty('disabled', false));
+    fireEvent.click(ready);
+    await waitFor(() => expect(server.calls.filter((c) => c.method === 'POST' && c.url.endsWith('/gauntlet/ready')).map((c) => c.body)).toEqual([{ ready: true }]));
+  });
+
   it('a mode change the server refuses says so in its words', async () => {
     await mountModeRoom({ players: [], matchId: null, refusePatch: { status: 409, error: 'mode-locked' } });
     fireEvent.click(radio('random'));

@@ -9,6 +9,7 @@ import {
 	gameDecks,
 	gameOver,
 	gauntletEras,
+	gauntletHoldsTable,
 	newGauntlet,
 	setGauntletReady,
 	startBanpick,
@@ -258,6 +259,45 @@ describe('choosing each game deck', () => {
 		}
 		const after = gameOver(s, { seriesOver: true, winner: 1 });
 		expect(after.ok && after.state.phase).toBe('done');
+	});
+});
+
+/** Ruling 13.4: a decided Gauntlet keeps its result and nothing an unfinished one holds. */
+describe('a decided Gauntlet', () => {
+	function decided(): GauntletState {
+		let s = setGauntletReady(newGauntlet(), 0, true);
+		if (!s.ok) throw new Error(s.reason);
+		let g = banpickAll({ ...drawn(), ready: s.state.ready });
+		for (const seat of [0, 1] as const) {
+			const out = choose(g, seat, picksOf(g, seat)[0]!);
+			if (!out.ok) throw new Error(out.reason);
+			g = out.state;
+		}
+		const over = gameOver(g, { seriesOver: true, winner: 1 });
+		if (!over.ok) throw new Error(over.reason);
+		return over.state;
+	}
+
+	it('keeps its games and winner, and no seat is left ready', () => {
+		const done = decided();
+		expect(done.phase).toBe('done');
+		expect(done.winner).toBe(1);
+		expect(done.games).toHaveLength(1);
+		expect(done.ready).toEqual([false, false]);
+	});
+
+	it('holds the table from the draw until it is decided, and not before or after', () => {
+		expect(gauntletHoldsTable(newGauntlet())).toBe(false);
+		const readied = setGauntletReady(newGauntlet(), 0, true);
+		expect(readied.ok && gauntletHoldsTable(readied.state)).toBe(false);
+		expect(gauntletHoldsTable(drawn())).toBe(true);
+		expect(gauntletHoldsTable(banpickAll(drawn()))).toBe(true);
+		expect(gauntletHoldsTable(decided())).toBe(false);
+	});
+
+	it('a Ready after it is decided begins a new Gauntlet, with that seat ready', () => {
+		const again = setGauntletReady(decided(), 1, true);
+		expect(again).toEqual({ ok: true, state: { ...newGauntlet(), ready: [false, true] } });
 	});
 });
 

@@ -5,6 +5,8 @@
  * greys and crosses its tile; a pick moves its tile to the picker's column; before each game
  * the other seat's choice stays hidden until both have chosen.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -353,5 +355,14 @@ describe('the result', () => {
     expect(within(result).getByTestId('gauntlet-score').textContent, 'the series score beside the winner, theirs first').toBe('2–1');
     const won = [...result.querySelectorAll<HTMLElement>('[data-testid="gauntlet-game"]')].map((g) => g.dataset.winner);
     expect(won, 'each game says who won it').toEqual(['0', '1', '0']);
+  });
+
+  it('stacks the games top to bottom (ruling 13.3)', () => {
+    // jsdom lays nothing out, so the rule is read; `e2e/cm-gauntlet.spec.ts` measures the boxes.
+    const css = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/screens/gauntlet', 'gauntlet.css'), 'utf8');
+    const rule = /\.gauntlet__games\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule, 'the result has its own games rule').not.toBe('');
+    expect(rule).toMatch(/flex-direction:\s*column|grid-auto-flow:\s*row/);
+    expect(rule).not.toMatch(/grid-auto-flow:\s*column/);
   });
 });

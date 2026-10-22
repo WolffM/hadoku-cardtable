@@ -3906,6 +3906,25 @@ describe('R16 — the result screen, drawn over the board', () => {
       expect(tableState.startVsBot).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ['a person', false],
+      ['the AI', true],
+    ])('a decided Gauntlet has no Rematch — Back to room, where a new one is set up (against %s)', async (_who, alone) => {
+      if (alone) tableState.other = { ready: false, present: false };
+      tableState.phase = 'done';
+      roomsClientState.room = {
+        settings: { handSmoothing: true },
+        mode: 'gauntlet',
+        tables: [{ id: 't-1', players: [], matchId: null, series: { length: 3, wins: [2, 1], games: [], phase: 'done' } }],
+        pod: null,
+      };
+      const { getByTestId, queryByTestId } = await victoryInRoom();
+      await waitFor(() => expect(getByTestId('game-result-room')).toBeTruthy());
+      expect(queryByTestId('game-result-rematch')).toBeNull();
+      expect(tableState.startVsBot).not.toHaveBeenCalled();
+      expect(tableState.ready).not.toHaveBeenCalled();
+    });
+
     it('against the AI, my sideboard Ready alone starts the next game — the bot’s, not a two-player start', async () => {
       roomsClientState.room = {
         settings: { handSmoothing: true },
