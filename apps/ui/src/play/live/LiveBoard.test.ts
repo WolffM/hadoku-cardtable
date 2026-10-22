@@ -362,7 +362,9 @@ const currentStep = (container: HTMLElement): HTMLElement | null =>
  * beginning, so the cue is up for its 1.2 s or not depending on how fast a test runs, and it is a
  * passing moment, not part of the layout these cases pin.
  */
-const standingChildren = (live: Element): string[] => [...live.children].map((el) => el.className).filter((c) => c !== 'live__turn-cue');
+/** Which children stand in `.live`, by their own classes; `ct-panel` is the trim hook (`settings/trim.ts`), not a child's identity. */
+const standingChildren = (live: Element): string[] =>
+  [...live.children].map((el) => [...el.classList].filter((c) => c !== 'ct-panel').join(' ')).filter((c) => c !== 'live__turn-cue');
 
 describe('the board follows the stream', () => {
   it('waits, then draws the game as the frames arrive', async () => {

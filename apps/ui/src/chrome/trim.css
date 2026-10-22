@@ -86,8 +86,8 @@
   --trim-frame-s: 13px 13px, 13px 13px, 13px 13px, 13px 13px;
   --trim-frame-r: no-repeat, no-repeat, no-repeat, no-repeat;
   border-radius: 0;
-  -webkit-mask: radial-gradient(11px at 0 0, #0000 98%, #000) 0 0 / 51% 51% no-repeat, radial-gradient(11px at 100% 0, #0000 98%, #000) 100% 0 / 51% 51% no-repeat, radial-gradient(11px at 0 100%, #0000 98%, #000) 0 100% / 51% 51% no-repeat, radial-gradient(11px at 100% 100%, #0000 98%, #000) 100% 100% / 51% 51% no-repeat;
-  mask: radial-gradient(11px at 0 0, #0000 98%, #000) 0 0 / 51% 51% no-repeat, radial-gradient(11px at 100% 0, #0000 98%, #000) 100% 0 / 51% 51% no-repeat, radial-gradient(11px at 0 100%, #0000 98%, #000) 0 100% / 51% 51% no-repeat, radial-gradient(11px at 100% 100%, #0000 98%, #000) 100% 100% / 51% 51% no-repeat;
+  -webkit-mask: radial-gradient(11px at 0 0, transparent 98%, var(--color-text)) 0 0 / 51% 51% no-repeat, radial-gradient(11px at 100% 0, transparent 98%, var(--color-text)) 100% 0 / 51% 51% no-repeat, radial-gradient(11px at 0 100%, transparent 98%, var(--color-text)) 0 100% / 51% 51% no-repeat, radial-gradient(11px at 100% 100%, transparent 98%, var(--color-text)) 100% 100% / 51% 51% no-repeat;
+  mask: radial-gradient(11px at 0 0, transparent 98%, var(--color-text)) 0 0 / 51% 51% no-repeat, radial-gradient(11px at 100% 0, transparent 98%, var(--color-text)) 100% 0 / 51% 51% no-repeat, radial-gradient(11px at 0 100%, transparent 98%, var(--color-text)) 0 100% / 51% 51% no-repeat, radial-gradient(11px at 100% 100%, transparent 98%, var(--color-text)) 100% 100% / 51% 51% no-repeat;
 }
 [data-trim-corner='brackets'] .ct-panel {
   --trim-corner-i:
@@ -115,10 +115,10 @@
 }
 [data-trim-corner='rivets'] .ct-panel {
   --trim-corner-i:
-    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, color-mix(in srgb, #000 45%, transparent) 3.4px 4px, transparent 4.5px),
-    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, color-mix(in srgb, #000 45%, transparent) 3.4px 4px, transparent 4.5px),
-    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, color-mix(in srgb, #000 45%, transparent) 3.4px 4px, transparent 4.5px),
-    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, color-mix(in srgb, #000 45%, transparent) 3.4px 4px, transparent 4.5px);
+    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, var(--color-border) 3.4px 4px, transparent 4.5px),
+    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, var(--color-border) 3.4px 4px, transparent 4.5px),
+    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, var(--color-border) 3.4px 4px, transparent 4.5px),
+    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, var(--color-border) 3.4px 4px, transparent 4.5px);
   --trim-corner-p: left 6px top 6px, right 6px top 6px, left 6px bottom 6px, right 6px bottom 6px;
   --trim-corner-s: 9px 9px, 9px 9px, 9px 9px, 9px 9px;
   --trim-corner-r: no-repeat, no-repeat, no-repeat, no-repeat;
