@@ -52,6 +52,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { BASIC_LAND_OF } from '@hadoku/deck';
 import {
   rowHasParadigm,
   SOUND_MATRIX,
@@ -618,7 +619,7 @@ function ColourRowEl({
           const files = cells[cellId] ?? [];
           const hint =
             p.id === 'basic'
-              ? (SOUND_MATRIX.landNames as Record<string, string | undefined>)[row.id]
+              ? (BASIC_LAND_OF as Record<string, string | undefined>)[row.id]
               : undefined;
           return (
             <td key={p.id}>

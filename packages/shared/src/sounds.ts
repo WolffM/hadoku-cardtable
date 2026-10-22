@@ -365,14 +365,13 @@ export const REVERSED_ROLES: Readonly<Record<string, string>> = { 'g.untap': 'g.
 export type CellId = `${ColourId}|${ParadigmId}` | `${string}|play`;
 
 /**
- * Display names, families, colour pips and mono land names — one constant,
+ * Display names, families and colour pips — one constant,
  * read by both the server (import's catalogue build) and the builder screen
  * (the grid it draws). Ported verbatim from the operator-approved artifact's
  * own matrix.
  */
 export const SOUND_MATRIX: {
 	readonly paradigms: readonly ParadigmCol[];
-	readonly landNames: Readonly<Record<'W' | 'U' | 'B' | 'R' | 'G', string>>;
 	readonly colour: readonly ColourRow[];
 } = {
 	paradigms: [
@@ -383,7 +382,6 @@ export const SOUND_MATRIX: {
 		{ id: 'artifact', name: 'Artifact' },
 		{ id: 'artifact-creature', name: 'Artifact creature' },
 	],
-	landNames: { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' },
 	colour: [
 		{ id: 'W', name: 'White', sub: 'Mono white', family: 'mono', colours: ['W'] },
 		{ id: 'U', name: 'Blue', sub: 'Mono blue', family: 'mono', colours: ['U'] },

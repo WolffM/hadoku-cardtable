@@ -206,11 +206,8 @@ describe('PutAssignmentBodySchema', () => {
 });
 
 describe('SOUND_MATRIX', () => {
-	it('carries 27 colour rows, with every mono colour having a land name', () => {
+	it('carries 27 colour rows', () => {
 		expect(SOUND_MATRIX.colour).toHaveLength(27);
-		for (const letter of ['W', 'U', 'B', 'R', 'G'] as const) {
-			expect(SOUND_MATRIX.landNames[letter]).toBeTruthy();
-		}
 	});
 
 	it('SOUND_ROLES indexes every grouped role once, ui roles on the ui bus', () => {

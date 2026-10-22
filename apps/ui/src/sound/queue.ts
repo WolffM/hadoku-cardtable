@@ -24,6 +24,7 @@
  * choice of at least three when little was made for the cell.
  */
 
+import { BASIC_LAND_OF } from '@hadoku/deck';
 import {
   rowHasParadigm,
   SOUND_MATRIX,
@@ -48,7 +49,7 @@ export interface QueueItem {
 const FAMILY_ORDER = ['mono', 'guild', 'shard', 'wedge', 'four', 'extra'];
 
 function colourTitle(rowName: string, paradigm: string, row: string): string {
-  if (paradigm === 'basic') return (SOUND_MATRIX.landNames as Record<string, string>)[row] ?? `${rowName} basic land`;
+  if (paradigm === 'basic') return (BASIC_LAND_OF as Record<string, string | undefined>)[row] ?? `${rowName} basic land`;
   const p = SOUND_MATRIX.paradigms.find((x) => x.id === paradigm)?.name ?? paradigm;
   return `${rowName} ${p.toLowerCase()}`;
 }
@@ -142,7 +143,7 @@ function rankFor(cell: string, folder: string): number | null {
   }
   const code = row.toLowerCase();
   if (col === 'basic') {
-    const land = (SOUND_MATRIX.landNames as Record<string, string>)[row]?.toLowerCase();
+    const land = (BASIC_LAND_OF as Record<string, string | undefined>)[row]?.toLowerCase();
     if (folder === `land-${land}`) return 0;
   }
   // A colour folder by its shape, `<code>.<column>`: green's `g.creature` is one, the role folder `g.tap` is not.
