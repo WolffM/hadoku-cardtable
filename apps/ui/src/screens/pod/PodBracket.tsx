@@ -110,7 +110,7 @@ function Card({ match, live, myMemberId, nameOf, avatarOf, onPlay }: { match: Br
     return (
       <span className="pod-bracket__side" data-won={won ? '' : undefined} data-lost={finished && !won ? '' : undefined}>
         <Face id={id} nameOf={nameOf} avatarOf={avatarOf} />
-        <span className="pod-bracket__name">{id === myMemberId ? `${nameOf(id)} (you)` : nameOf(id)}</span>
+        <span className="pod-bracket__name">{nameOf(id)}</span>
         <span className="pod-bracket__wins">{match.wins[i]}</span>
       </span>
     );
@@ -170,7 +170,7 @@ export function PodBracket({ pod, tables, myMemberId, nameOf, avatarOf, onPlay }
               {r.bye !== null && (
                 <div className="pod-bracket__bye" data-testid="pod-tables-bye">
                   <Face id={r.bye} nameOf={nameOf} avatarOf={avatarOf} />
-                  <span className="pod-bracket__name">{r.bye === myMemberId ? `${nameOf(r.bye)} (you)` : nameOf(r.bye)}</span>
+                  <span className="pod-bracket__name">{nameOf(r.bye)}</span>
                   <span className="pod-bracket__tag">Bye</span>
                 </div>
               )}

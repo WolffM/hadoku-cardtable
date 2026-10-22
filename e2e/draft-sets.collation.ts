@@ -3,26 +3,19 @@
  * `draft-sets.test.ts` (`node --test`, no browser, no jar) can exercise it against a fixture
  * instead of only ever running it live against a real pack.
  *
- * ## Why a foil has to be set aside too, not just the DFC
+ * ## What a realistic pack holds
  *
  * ISD's own recipe (`forge/forge-gui/res/editions/Innistrad.txt`):
- * `Booster=9 Common:!dfc, 3 Uncommon:!dfc, 1 RareMythic:!dfc, 1 dfc, 1 BasicLand`.
+ * `Booster=9 Common:!dfc, 3 Uncommon:!dfc, 1 RareMythic:!dfc, 1 dfc, 1 BasicLand`. Forge's
+ * `BoosterGenerator.getBoosterPack` may also shrink a common slot for a foil of any rarity.
+ * The pool service (`apps/server/src/play/bridge/PoolService.java`'s `draftPack`) leaves the
+ * basic land and the foil out and tops the pack up to 15 with the set's commons — the operator,
+ * 2026-10-22: "i dont like the land/foil being in the packs. lets make sure all packs are 15
+ * cards" — so a drafted ISD pack is 10 commons, 3 uncommons, 1 rare/mythic and 1 DFC.
  *
- * Forge's `BoosterGenerator.getBoosterPack` (forge-core, `item/generation/BoosterGenerator.java`)
- * can ALSO add one foil card of any rarity, per the edition's own foil chance
- * (`CardEdition`'s `FoilChanceInBooster`, default ~21.43%, and `FoilAlwaysInCommonSlot`, default
- * true). When that default holds — as it does for ISD, which sets neither — the foil always
- * shrinks the COMMON slot by one to make room, REGARDLESS of what rarity the foil itself turns
- * out to be, then appends the foil card on top at the very end of the pack. A foil landing on
- * "Rare/Mythic" therefore does not touch the `RareMythic:!dfc` slot's own card at all: it is a
- * genuine 16th-card-sized extra riding on a common's vacated seat, so a pack can hold 2 non-DFC
- * rares/mythics (the slot's own, plus the foil) or 4 non-DFC uncommons (3 plus a foil uncommon) at
- * random — real packs, not a miscount, and not something a looser assertion should paper over.
- *
- * `BoosterCard.foil` (`apps/server/src/pools/forge.ts`) carries `PaperCard.isFoil()` off the jar,
- * `DraftCardSchema.foil` (`packages/shared/src/draft.ts`) carries it onto the wire. Setting the
- * foil-marked card aside — exactly as this file already sets the DFC aside — recovers the fixed
- * collation a paper pack also guarantees among what is left.
+ * The DFC is set aside before the rarities are counted: its slot draws from a sheet with no
+ * rarity filter, so an uncommon DFC beside three uncommons is four "uncommon" cards and a right
+ * pack. A foil or a basic land is counted, never set aside: the spec wants none of either.
  */
 
 export interface WireCard {
@@ -36,25 +29,26 @@ export interface WireCard {
 export interface CollationCounts {
   /** Cards with another face — Forge's own double-faced slot never counts toward a rarity tally. */
   dfcCount: number;
-  /** The foil `getBoosterPack` may append on top of a common's vacated slot — an extra card, of any rarity, set aside the same way. */
+  /** Foil cards: none, in a draft pack. */
   foilCount: number;
-  /** Rare/mythic among the cards that are neither a DFC nor the foil extra. */
+  /** Basic lands: none, in a draft pack. */
+  basicCount: number;
+  /** Rare/mythic among the cards that are not the DFC. */
   rareOrMythicCount: number;
-  /** Uncommons among the cards that are neither a DFC nor the foil extra. */
+  /** Uncommons among the cards that are not the DFC. */
   uncommonCount: number;
 }
 
+const BASICS = /^(Snow-Covered )?(Plains|Island|Swamp|Mountain|Forest|Wastes)$/;
 const isDfc = (card: WireCard): boolean => Array.isArray(card.faces) && card.faces.length > 0;
-const isFoil = (card: WireCard): boolean => card.foil === true;
 
-/** The pack's rarity collation, with the DFC and the (at most one) foil card both set aside first. */
+/** The pack's rarity collation, the DFC set aside; its foils and basic lands, counted. */
 export function collationCounts(entries: readonly WireCard[]): CollationCounts {
-  const dfcs = entries.filter(isDfc);
-  const foils = entries.filter(isFoil);
-  const rest = entries.filter((e) => !isDfc(e) && !isFoil(e));
+  const rest = entries.filter((e) => !isDfc(e));
   return {
-    dfcCount: dfcs.length,
-    foilCount: foils.length,
+    dfcCount: entries.length - rest.length,
+    foilCount: entries.filter((e) => e.foil === true).length,
+    basicCount: entries.filter((e) => BASICS.test(e.name)).length,
     rareOrMythicCount: rest.filter((e) => e.rarity === 'rare' || e.rarity === 'mythic').length,
     uncommonCount: rest.filter((e) => e.rarity === 'uncommon').length,
   };

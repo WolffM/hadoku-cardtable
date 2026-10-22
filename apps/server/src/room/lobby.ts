@@ -622,7 +622,10 @@ function seatedHumans(room: RoomRecord): string[] {
 function podSeatsView(room: RoomRecord): PodView['seats'] {
 	return room.podSeats.map((id, i) => {
 		if (id === null) return null;
-		if (id === POD_AI) return { memberId: POD_AI, name: personaOf(room.podAi[i] ?? AVATAR_POOL[0]).name } as PodMember;
+		if (id === POD_AI) {
+			const persona = personaOf(room.podAi[i] ?? AVATAR_POOL[0]);
+			return { memberId: POD_AI, name: persona.name, avatarId: persona.avatarId } as PodMember;
+		}
 		if (id === POD_CLOSED) return { memberId: POD_CLOSED, name: '' } as PodMember;
 		const member = room.members.find((m) => m.id === id);
 		return member === undefined ? null : ({ memberId: id, name: member.name } as PodMember);

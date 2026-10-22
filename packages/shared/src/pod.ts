@@ -39,6 +39,8 @@ export const POD_SEATS = 8;
 export const PodMemberSchema = z.strictObject({
   memberId: z.string().min(1),
   name: z.string(),
+  /** An AI seat's own character, the watchparty avatar id it drafts as. A member's comes from the room's members. */
+  avatarId: z.string().min(1).optional(),
 });
 export type PodMember = z.infer<typeof PodMemberSchema>;
 

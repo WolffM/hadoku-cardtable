@@ -118,6 +118,13 @@
   gap: 8px;
 }
 
+.pool-picker__set-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
 .pool-picker__search {
   display: flex;
   align-items: center;

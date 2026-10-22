@@ -257,20 +257,34 @@ function SetList({
 
   return (
     <div className="pool-picker__set-list">
-      <label className="pool-picker__search">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="7" />
-          <path d="m20 20-3.5-3.5" />
-        </svg>
-        <input
-          type="search"
-          data-testid={`${testId}-search`}
-          placeholder="Search sets"
-          aria-label="Search sets"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+      {/* The style sits above the list, never under a long gallery (the operator, 2026-10-22). */}
+      <div className="pool-picker__set-head">
+        <label className="pool-picker__search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            type="search"
+            data-testid={`${testId}-search`}
+            placeholder="Search sets"
+            aria-label="Search sets"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <RadioCards
+          name={`${namePrefix}-style`}
+          label="Style"
+          testId={`${testId.replace('-sets', '')}-style`}
+          options={STYLE_OPTIONS}
+          value={style}
+          disabled={disabled || code === null}
+          onChange={(picked) => {
+            if (code !== null) onPick(code, picked);
+          }}
         />
-      </label>
+      </div>
       <div className="pool-picker__gallery">
         <RadioCards
           name={`${namePrefix}-set`}
@@ -295,17 +309,6 @@ function SetList({
           }}
         />
       </div>
-      <RadioCards
-        name={`${namePrefix}-style`}
-        label="Style"
-        testId={`${testId.replace('-sets', '')}-style`}
-        options={STYLE_OPTIONS}
-        value={style}
-        disabled={disabled || code === null}
-        onChange={(picked) => {
-          if (code !== null) onPick(code, picked);
-        }}
-      />
     </div>
   );
 }

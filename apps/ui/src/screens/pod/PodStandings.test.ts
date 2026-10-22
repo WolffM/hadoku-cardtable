@@ -51,11 +51,13 @@ describe('the pod standings', () => {
     expect(screen.getByTestId('pod-standings-row-2').textContent).toBe('2AI00%33%');
   });
 
-  it('marks my own row "(you)" and nobody else’s', () => {
+  // The operator, 2026-10-22: "'Hadoku (you)' i dont need you written next to my name".
+  it('marks my own row, with no "(you)" beside my name', () => {
     const rows = [row({ id: 'u-alice', rank: 1 }), row({ id: 'u-bob', rank: 2 })];
     render(createElement(PodStandings, { rows, results, nameOf, myMemberId: 'u-bob' }));
 
-    expect(screen.getByTestId('pod-standings-row-1').textContent).not.toContain('(you)');
-    expect(screen.getByTestId('pod-standings-row-2').textContent).toContain('Bob (you)');
+    expect(screen.getByTestId('pod-standings-row-1').hasAttribute('data-mine')).toBe(false);
+    expect(screen.getByTestId('pod-standings-row-2').hasAttribute('data-mine')).toBe(true);
+    expect(screen.getByTestId('pod-standings-row-2').textContent).not.toContain('(you)');
   });
 });

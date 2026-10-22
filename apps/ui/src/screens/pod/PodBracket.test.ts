@@ -153,8 +153,8 @@ describe('PodBracket', () => {
     expect(live.querySelector('.pod-bracket__face--none')?.textContent).toBe('C');
   });
 
-  it('names each round’s bye, marking my own', () => {
+  it('names each round’s bye, with no "(you)" beside my name', () => {
     render(createElement(PodBracket, { pod: midPod, tables: midTables, myMemberId: 'u-eve', nameOf, avatarOf }));
-    expect(screen.getAllByTestId('pod-tables-bye').map((b) => b.querySelector('.pod-bracket__name')?.textContent)).toEqual(['Carol', 'u-eve (you)']);
+    expect(screen.getAllByTestId('pod-tables-bye').map((b) => b.querySelector('.pod-bracket__name')?.textContent)).toEqual(['Carol', 'u-eve']);
   });
 });

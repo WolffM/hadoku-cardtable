@@ -1192,7 +1192,7 @@ test(
       await expect(alice.page.getByTestId(/^pod-standings-row-\d+$/), 'the AI she played is ranked beside her').toHaveCount(2);
       await expect(alice.page.getByTestId('pod-standings-row-1'), 'the AI won the series').toContainText(ai.name);
       const row = alice.page.getByTestId('pod-standings-row-2');
-      await expect(row, 'her standing counts the series she lost').toContainText('(you)');
+      await expect(row, 'her standing counts the series she lost').toHaveAttribute('data-mine', '');
       const standing = await row.textContent();
       expect(standing, 'game win % from two lost games').toMatch(/0%/);
 

@@ -105,6 +105,14 @@ function withDealtId(card: DraftCard, round: number, seat: number, slot: number)
   return { ...card, cardId: `${card.cardId}#${round}:${seat}:${slot}` };
 }
 
+/** Rarest first: a set's pack, opened (the operator, 2026-10-22: "when doing set realistic or set set-cube make sure to sort the pack by rarity"). */
+const RARITY_ORDER: Record<DraftCard['rarity'], number> = { mythic: 0, rare: 1, special: 2, uncommon: 3, common: 4 };
+
+/** A set's pack, rarest first, otherwise in the order it was dealt; a cube's pack as it was dealt. */
+function opened(src: PoolSource, pack: readonly DraftCard[]): readonly DraftCard[] {
+  return src.kind === 'set' ? [...pack].sort((a, b) => RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity]) : pack;
+}
+
 /**
  * Deal every pack for a plan, `[round][seat]`.
  *
@@ -135,7 +143,7 @@ export function deal(
       if (packs.length !== seatCount) {
         throw new Error(`deal: round ${r}'s realistic packs have ${packs.length} seats, not ${seatCount}`);
       }
-      rounds.push(packs.map((pack, s) => pack.map((card, i) => withDealtId(card, r, s, i))));
+      rounds.push(packs.map((pack, s) => opened(src, pack).map((card, i) => withDealtId(card, r, s, i))));
       continue;
     }
 
@@ -152,11 +160,10 @@ export function deal(
     for (let s = 0; s < seatCount; s++) {
       const pack: DraftCard[] = [];
       for (let i = 0; i < packSize; i++) {
-        const card = cursor.shuffled[cursor.pos % size] as DraftCard;
-        pack.push(withDealtId(card, r, s, i));
+        pack.push(cursor.shuffled[cursor.pos % size] as DraftCard);
         cursor.pos++;
       }
-      round.push(pack);
+      round.push(opened(src, pack).map((card, i) => withDealtId(card, r, s, i)));
     }
     rounds.push(round);
   }

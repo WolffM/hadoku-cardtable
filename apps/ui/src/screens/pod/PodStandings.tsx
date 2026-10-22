@@ -62,7 +62,7 @@ export function PodStandings({ rows, results, nameOf, myMemberId }: PodStandings
         {rows.map((row) => (
           <tr key={row.id} data-testid={`pod-standings-row-${row.rank}`} data-mine={row.id === myMemberId ? '' : undefined}>
             <td>{row.rank}</td>
-            <td>{row.id === myMemberId ? `${nameOf(row.id)} (you)` : nameOf(row.id)}</td>
+            <td>{nameOf(row.id)}</td>
             <td>{row.matchPoints}</td>
             <td>{pct(matchWinPct(row, results))}</td>
             <td>{pct(row.gameWinPct)}</td>

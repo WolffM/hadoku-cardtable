@@ -2127,7 +2127,7 @@ describe('Lobby.startDraft — no open seat, and only the seated are waited on',
 		expect(lobby.startDraft(id, ALICE.id), 'one seat still open').toEqual({ ok: false, reason: 'not-ready' });
 		expect(lobby.aiPod(id, ALICE.id, 7, true).ok).toBe(true);
 		// Every character is taken by now (two members, six AI seats): the last AI seat shares one with a member.
-		expect(lobby.get(id)?.pod?.seats[7]).toEqual({ memberId: POD_AI, name: 'Sage' });
+		expect(lobby.get(id)?.pod?.seats[7]).toEqual({ memberId: POD_AI, name: 'Sage', avatarId: 'sage' });
 		approvePlan(lobby, id);
 		// BOB never sat: a spectator, not ready, and not waited on.
 		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });

@@ -46,9 +46,12 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Answers draft-pool questions ({@code docs/planning/draft-pools-plan.md}, "The jar's pool
@@ -261,12 +264,9 @@ public final class PoolService {
      * so the same seed gives the same boosters (same seed, same sequence of
      * {@link BoosterGenerator#getBoosterPack} calls, deterministic {@link Random}).
      *
-     * Each card carries its own {@link PaperCard#isFoil()} — {@code getBoosterPack} itself may
-     * add one foil of any rarity, per the edition's foil chance, in place of a common slot card
-     * (its own doc: {@code FoilAlwaysInCommonSlot}, default true). Dropping that flag is what
-     * made a realistic pack's rarity collation look wrong at random: the foil card is real and
-     * extra, not a miscount, and a reader must set it aside the way it already sets the DFC
-     * aside (`e2e/draft-sets.spec.ts`'s header).
+     * {@code getBoosterPack} may add one foil of any rarity in place of a common slot card
+     * ({@code FoilAlwaysInCommonSlot}, default true); {@link #draftPack} leaves it out with the
+     * basic land, so each card's {@code foil} is false, sent so a reader never has to guess.
      */
     private static void handleBoosters(final JsonObject req, final JsonObject resp) {
         final String code = req.get("code").getAsString();
@@ -282,7 +282,7 @@ public final class PoolService {
         MyRandom.setRandom(new Random(seedToLong(seed)));
         final JsonArray boosters = new JsonArray();
         for (int i = 0; i < count; i++) {
-            final List<PaperCard> pack = BoosterGenerator.getBoosterPack(template);
+            final List<PaperCard> pack = draftPack(BoosterGenerator.getBoosterPack(template), ed);
             final JsonArray packArr = new JsonArray();
             for (final PaperCard pc : pack) {
                 final JsonObject c = new JsonObject();
@@ -296,6 +296,39 @@ public final class PoolService {
         }
         resp.addProperty("ok", true);
         resp.add("boosters", boosters);
+    }
+
+    /** Every draft pack's size, whatever the set's booster holds. */
+    private static final int PACK_SIZE = 15;
+
+    /**
+     * A booster as a draft pack (the operator, 2026-10-22: "i dont like the land/foil being in the
+     * packs. lets make sure all packs are 15 cards"): its basic land and its foils left out, then
+     * topped up to {@link #PACK_SIZE} with the set's commons not already in it, or cut to it by its
+     * last commons. A play booster (Bloomburrow: 14, a land and a foil wildcard among them) and a
+     * draft booster with a land slot (Dominaria United's 15th) both come out 15.
+     */
+    private static List<PaperCard> draftPack(final List<PaperCard> booster, final CardEdition ed) {
+        final List<PaperCard> pack = new ArrayList<>();
+        for (final PaperCard pc : booster) {
+            if (!pc.isFoil() && pc.getRarity() != CardRarity.BasicLand) { pack.add(pc); }
+        }
+        final Set<String> held = new HashSet<>();
+        for (final PaperCard pc : pack) { held.add(pc.getName()); }
+        final List<PaperCard> commons = new ArrayList<>();
+        final CardDb cards = StaticData.instance().getCommonCards();
+        for (final CardEdition.EditionEntry entry : ed.getAllCardsInSet()) {
+            if (entry.rarity() != CardRarity.Common || held.contains(entry.name())) { continue; }
+            final PaperCard pc = cards.getCard(entry.name(), ed.getCode(), entry.collectorNumber());
+            if (pc != null && commons.stream().noneMatch(c -> c.getName().equals(pc.getName()))) { commons.add(pc); }
+        }
+        while (pack.size() < PACK_SIZE && !commons.isEmpty()) {
+            pack.add(commons.remove(MyRandom.getRandom().nextInt(commons.size())));
+        }
+        for (int i = pack.size() - 1; pack.size() > PACK_SIZE && i >= 0; i--) {
+            if (pack.get(i).getRarity() == CardRarity.Common) { pack.remove(i); }
+        }
+        return pack;
     }
 
     /** A stable 64-bit seed from an arbitrary string, so the wire seed can be anything the caller likes. */

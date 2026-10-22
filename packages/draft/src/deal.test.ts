@@ -448,3 +448,34 @@ describe('a full draft, every source kind: completes, and no cardId is ever deal
     assertCompleteNoDuplicates(done);
   });
 });
+
+// The operator, 2026-10-22: "when doing set realistic or set set-cube make sure to sort the pack by rarity".
+describe('deal — a set’s pack is opened rarest first', () => {
+  const RARITIES = ['common', 'rare', 'uncommon', 'mythic', 'common', 'special', 'uncommon'] as const;
+  const mixed = (prefix: string, n: number): DraftCard[] => makeSet(prefix, n).map((c, i) => ({ ...c, rarity: RARITIES[i % RARITIES.length]! }));
+  const order = (pack: readonly DraftCard[]) => pack.map((c) => c.rarity);
+  const rarestFirst = (pack: readonly DraftCard[]) =>
+    order(pack).every((r, i, all) => i === 0 || ['mythic', 'rare', 'special', 'uncommon', 'common'].indexOf(all[i - 1]!) <= ['mythic', 'rare', 'special', 'uncommon', 'common'].indexOf(r));
+
+  it('realistic: each Forge booster sorted, the same cards', () => {
+    const plan: DraftPlan = { rounds: [{ kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'cube', cubeId: 'vintage' }, { kind: 'cube', cubeId: 'vintage' }] };
+    const boosters = Array.from({ length: 8 }, (_, s) => mixed(`isd${s}`, 15));
+    const packs = deal(plan, sources, 'rarity', 8, 15, (r) => (r === 0 ? boosters : undefined));
+    for (const [s, pack] of packs[0]!.entries()) {
+      expect(rarestFirst(pack), order(pack).join(' ')).toBe(true);
+      expect(pack.map((c) => c.name).sort()).toEqual(boosters[s]!.map((c) => c.name).sort());
+    }
+    expect(packs[0]![0]!.map((c) => c.cardId.split('#')[1])).toEqual(Array.from({ length: 15 }, (_, i) => `0:0:${i}`));
+  });
+
+  it('set-cube: each pack sorted; a cube’s pack keeps the order it was dealt in', () => {
+    const SET = mixed('MIX', 200);
+    const local = (src: PoolSource) => (src.kind === 'set' ? SET : sources(src));
+    const plan: DraftPlan = { rounds: [{ kind: 'set', code: 'MIX', style: 'set-cube' }, { kind: 'cube', cubeId: 'vintage' }, { kind: 'cube', cubeId: 'vintage' }] };
+    const packs = deal(plan, local, 'rarity', 8, 15);
+    for (const pack of packs[0]!) expect(rarestFirst(pack), order(pack).join(' ')).toBe(true);
+    const asDealt = deal(VINTAGE_X3, sources, 'rarity', 8, 15);
+    // Its first vintage round, so the all-vintage plan's first.
+    expect(withoutId(packs[1]!)).toEqual(withoutId(asDealt[0]!));
+  });
+});

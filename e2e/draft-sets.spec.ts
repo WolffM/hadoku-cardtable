@@ -141,9 +141,6 @@ async function packCardSets(page: Page): Promise<string[]> {
   return page.locator('[data-testid="pack"] [data-testid="card"] .setsym').evaluateAll((els) => els.map((el) => el.getAttribute('data-set') ?? ''));
 }
 
-/** The five basic land names — the one card Forge's own booster recipe can source from a DIFFERENT set (see `waitForPackFromSet`'s own note). */
-const BASIC_LAND_NAMES = new Set(['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']);
-
 /**
  * Wait for the viewer's pack to render, failing with a message that NAMES
  * the stuck state rather than Playwright's bare "element not found".
@@ -195,16 +192,10 @@ async function waitForPack(page: Page, who: string, timeout = UI_TIMEOUT): Promi
  * one frame too early and read round 2's own ALA cards). Polls the pack's
  * own `data-set` attributes until every card is the expected code, the
  * same signal `packCardSets` reads, never a blind snapshot right after a
- * visibility check.
- *
- * `landCode` is Forge's own real-product quirk, confirmed in
- * `forge-gui/res/editions/Alara Reborn.txt`: `Booster=10 Common, 3
- * Uncommon, 1 RareMythic, 1 BasicLand ALA` — Alara Reborn printed no basic
- * lands of its own, so Forge's own booster template deals one from Shards
- * of Alara, by name in the edition file, not a bug anywhere in this repo.
- * Defaults to `code` (no exception) for a set whose own basics are its own.
+ * visibility check. A pack holds no basic land, so not Alara Reborn's either
+ * (Forge's template deals it from Shards of Alara).
  */
-async function waitForPackFromSet(page: Page, who: string, code: string, landCode: string = code, timeout = UI_TIMEOUT): Promise<void> {
+async function waitForPackFromSet(page: Page, who: string, code: string, timeout = UI_TIMEOUT): Promise<void> {
   await waitForPack(page, who, timeout);
   await expect
     .poll(
@@ -214,10 +205,10 @@ async function waitForPackFromSet(page: Page, who: string, code: string, landCod
         if (names.length !== 15 || sets.length !== 15) return [`${names.length}/${sets.length} cards (want 15 each)`];
         return names
           .map((name, i) => ({ name, set: sets[i] }))
-          .filter(({ name, set }) => (BASIC_LAND_NAMES.has(name) ? set !== code && set !== landCode : set !== code))
+          .filter(({ set }) => set !== code)
           .map(({ name, set }) => `${name} (${set})`);
       },
-      { timeout, message: `${who}: never settled on an all-${code} pack (a basic land may be ${landCode})` },
+      { timeout, message: `${who}: never settled on an all-${code} pack` },
     )
     .toEqual([]);
 }
@@ -355,13 +346,11 @@ test(
        * land on "uncommon" (seen live: Gatstaf Shepherd // Gatstaf Howler,
        * an uncommon DFC, made 4 "uncommon" cards look like a wrong pack).
        *
-       * A FOIL double-counts the same way, from a different mechanism:
-       * `getBoosterPack` can append one extra foil card of any rarity on top
-       * of a common slot it shrank to make room (`draft-sets.collation.ts`'s
-       * own header has the full derivation — this is what reds this spec at
-       * random, runs 39828615022 and 39808764418). The DFC and the foil are
-       * both found FIRST and set aside (`collationCounts`); the three rarity
-       * counts are checked over what is left.
+       * The DFC is found FIRST and set aside (`collationCounts`); the three
+       * rarity counts are checked over what is left. The pool service leaves
+       * Forge's basic land and any foil out and tops the pack up with
+       * commons (`draft-sets.collation.ts`'s header), so there is none of
+       * either.
        */
       await waitForPack(alice.page, "alice's first pack");
       const names = await packCardNames(alice.page);
@@ -371,9 +360,10 @@ test(
       const summary = entries.map((e) => e.name).join(', ');
       const counts = collationCounts(entries);
       expect(counts.dfcCount, `exactly one double-faced card (names: ${summary})`).toBe(1);
-      expect(counts.foilCount, `at most one foil card (names: ${summary})`).toBeLessThanOrEqual(1);
-      expect(counts.rareOrMythicCount, `exactly one non-DFC, non-foil rare/mythic (names: ${summary})`).toBe(1);
-      expect(counts.uncommonCount, `exactly three non-DFC, non-foil uncommons (names: ${summary})`).toBe(3);
+      expect(counts.foilCount, `no foil card (names: ${summary})`).toBe(0);
+      expect(counts.basicCount, `no basic land (names: ${summary})`).toBe(0);
+      expect(counts.rareOrMythicCount, `exactly one non-DFC rare/mythic (names: ${summary})`).toBe(1);
+      expect(counts.uncommonCount, `exactly three non-DFC uncommons (names: ${summary})`).toBe(3);
     } finally {
       await stack.stop();
     }
@@ -427,7 +417,7 @@ test(
       await Promise.all([pickUntil(alice.page, 30), pickUntil(bob.page, 30)]);
 
       /* ── round 3's first pack is every card printed in ARB ── */
-      await waitForPackFromSet(alice.page, "alice's round-3 pack", ARB.code, ALA.code);
+      await waitForPackFromSet(alice.page, "alice's round-3 pack", ARB.code);
     } finally {
       await stack.stop();
     }
