@@ -26,9 +26,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { RoomBodySchema, type DraftPlan, type PoolVerdict } from '@hadoku/shared';
+import { RoomBodySchema, type DraftCard, type DraftPlan, type PoolSource, type PoolVerdict } from '@hadoku/shared';
 
 import { loadTablesLibrary } from './library.ts';
+import { createDraftRooms, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from '../room/draftRooms.ts';
+import { checkPlan as realCheckPlan, type CubeLookup, type ForgeChecker, type SetLookup } from '../room/plan.ts';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /**
@@ -911,6 +913,81 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 	});
 });
 
+/*
+ * Acceptance 2c: a set source's verdict, run for REAL (`room/plan.ts`'s own
+ * `checkPlan`/`checkSetSource`/`checkCards`), at the ROUTE — not the always-ok
+ * fake every other test in this file uses. Only the Forge/catalog boundary is
+ * faked (`SetLookup`/`ForgeChecker`), the same discipline `room/plan.test.ts`
+ * itself uses. Two cases: Forge calls a name unplayable, and the catalog
+ * cannot resolve a name at all (`missingText`) — both must refuse 409 with
+ * the verdict naming the card.
+ */
+describe('PUT /api/rooms/:id/pod/plan — a set source, through the REAL verdict (Acceptance 2c)', () => {
+	function card(name: string, overrides: Partial<DraftCard> = {}): DraftCard {
+		return {
+			cardId: name,
+			name,
+			manaCost: [],
+			manaValue: 0,
+			colors: [],
+			typeLine: 'Creature — Test',
+			oracleText: '',
+			setCode: 'TST',
+			collectorNumber: '1',
+			rarity: 'common',
+			...overrides,
+		};
+	}
+
+	const EMPTY_CUBES: CubeLookup = { list: () => [], cards: () => null, setVerdict: () => undefined };
+
+	async function openRealVerdictApp(sets: SetLookup, forge: ForgeChecker): Promise<Harness> {
+		return openApp(await tempDir(), { checkPlan: (plan) => realCheckPlan(plan, { cubes: EMPTY_CUBES, sets, forge }) });
+	}
+
+	it('an unplayable name (Forge\'s check) refuses 409 with the verdict naming it', async () => {
+		const sets: SetLookup = {
+			cardsFor: async (code) => (code === 'ISD' ? [card('Good Card'), card('Bad Card')] : null),
+			cachedVerdict: () => null,
+			setVerdict: () => undefined,
+		};
+		const forge: ForgeChecker = { check: async (names) => names.filter((n) => n === 'Bad Card') };
+		const h = await openRealVerdictApp(sets, forge);
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Set night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+
+		const plan: PoolSource[] = [{ kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ISD', style: 'realistic' }];
+		const res = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: { rounds: plan } } });
+		expect(res.status).toBe(409);
+		expect(res.json()).toEqual({ verdict: { ok: false, unplayable: ['Bad Card'], missingText: [] } });
+	});
+
+	it('a name the catalog could never resolve refuses 409 with missingText naming it, never reaching Forge for it', async () => {
+		const checked: string[][] = [];
+		const sets: SetLookup = {
+			cardsFor: async (code) => (code === 'ALA' ? [card('Good Card'), { ...card('Mystery Card'), typeLine: '' }] : null),
+			cachedVerdict: () => null,
+			setVerdict: () => undefined,
+		};
+		const forge: ForgeChecker = {
+			check: async (names) => {
+				checked.push([...names]);
+				return [];
+			},
+		};
+		const h = await openRealVerdictApp(sets, forge);
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Set night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+
+		const plan: PoolSource[] = [{ kind: 'set', code: 'ALA', style: 'set-cube' }, { kind: 'set', code: 'ALA', style: 'set-cube' }, { kind: 'set', code: 'ALA', style: 'set-cube' }];
+		const res = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: { rounds: plan } } });
+		expect(res.status).toBe(409);
+		expect(res.json()).toEqual({ verdict: { ok: false, unplayable: [], missingText: ['Mystery Card'] } });
+		// The unresolved name never went to Forge — only the resolved one did.
+		expect(checked).toEqual([['Good Card']]);
+	});
+});
+
 /* ── closed pod seats ───────────────────────────────────────────────── */
 
 describe('POST /api/rooms/:id/pod/close', () => {
@@ -1550,6 +1627,102 @@ describe('POST /api/rooms/:id/start', () => {
 			expect(calls).toBe(2); // the two realistic rounds, once each
 			expect((await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' })).status).toBe(200);
 			expect(calls).toBe(2); // unchanged — the second, redundant /start never re-fetched
+		});
+	});
+
+	/*
+	 * Acceptance 2b: a mixed custom plan (cube, set-cube, realistic — one per
+	 * round) deals all three, and a restore of the persisted pod gives
+	 * byte-identical packs, with ZERO new calls to the injected
+	 * ForgePools.boosters spy. PUT + POST /start run through the REAL route
+	 * (this file's own `call`/`openApp`), exactly as a leader and the server
+	 * would do it; this harness has no socket.io layer, so the deal itself —
+	 * what the first `join` triggers in production (`room/socket.ts`) — and
+	 * the restore are reached by calling `DraftRooms.open` directly on the
+	 * SAME object the route's `realistic.draftRooms` dep holds (first call),
+	 * then on a second instance pointed at the same `storeDir` (restore).
+	 */
+	describe('a mixed plan (Acceptance 2b)', () => {
+		function card(name: string, setCode: string): DraftCard {
+			return {
+				cardId: `${setCode}-${name}`,
+				name,
+				manaCost: [],
+				manaValue: 0,
+				colors: [],
+				typeLine: 'Creature — Test',
+				oracleText: '',
+				setCode,
+				collectorNumber: '1',
+				rarity: 'common',
+			};
+		}
+
+		function makeCards(setCode: string, count: number): DraftCard[] {
+			return Array.from({ length: count }, (_, i) => card(`${setCode} card ${i}`, setCode));
+		}
+
+		const CUBE_SRC: PoolSource = { kind: 'cube', cubeId: 'vintage' };
+		const SET_CUBE_SRC: PoolSource = { kind: 'set', code: 'ARB', style: 'set-cube' };
+		const REALISTIC_SRC: PoolSource = { kind: 'set', code: 'ISD', style: 'realistic' };
+		const MIXED_PLAN: DraftPlan = { rounds: [CUBE_SRC, SET_CUBE_SRC, REALISTIC_SRC] };
+
+		function mixedResolver(): PoolSourceResolver {
+			return {
+				cards(src) {
+					if (src.kind === 'cube' && src.cubeId === 'vintage') return makeCards('VIN', 60);
+					if (src.kind === 'set' && src.code === 'ARB' && src.style === 'set-cube') return makeCards('ARB', 60);
+					throw new Error(`mixedResolver: unexpected source ${JSON.stringify(src)}`);
+				},
+				name(src) {
+					return src.kind === 'cube' ? src.cubeId : `${src.code} (${src.style})`;
+				},
+			};
+		}
+
+		it('deals cube + set-cube + realistic, one per round; a restore matches byte-for-byte with no new Forge calls', async () => {
+			const draftDir = await mkdtemp(join(tmpdir(), 'cardtable-rooms-mixed-draftrooms-test-'));
+			try {
+				const boosters = vi.fn(async (code: string, count: number, seed: string) =>
+					Array.from({ length: count }, (_, seat) =>
+						Array.from({ length: 15 }, (_, i) => ({ name: `${code}-${seed}-seat${seat}-card${i}`, set: code, collectorNumber: String(i + 1) })),
+					),
+				);
+				const draftRooms = createDraftRooms({ resolver: mixedResolver(), defaultPlan: DEFAULT_PLAN, storeDir: draftDir, now: () => 1_700_000_000_000 });
+
+				const h = await openApp(await tempDir(), {
+					realistic: { forge: { boosters }, catalog: { byName: () => null, byPrinting: () => null }, draftRooms },
+				});
+				// Production wires this in `http/routes.ts`'s `attachTables`
+				// (`deps.draftRooms?.setPodLookup((podId) => rooms?.podDraft?.(podId) ?? null)`),
+				// a DIFFERENT router this harness never mounts — wired directly here instead.
+				draftRooms.setPodLookup((id) => h.lobby.podDraft(id));
+
+				const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Mixed night', gameType: 'draft' } }))
+					.json() as import('../room/lobby.ts').RoomView;
+				await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
+				for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
+				expect((await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: MIXED_PLAN } })).status).toBe(200);
+
+				const started = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' });
+				expect(started.status).toBe(200);
+				expect(boosters).toHaveBeenCalledTimes(1); // one realistic round, round index 2
+				expect(boosters).toHaveBeenCalledWith('ISD', 8, `${room.id}:2`);
+
+				const dealt = stateOf(draftRooms.open(room.id)).rounds;
+				expect(dealt).toHaveLength(3);
+				expect(dealt[0]!.every((pack) => pack.every((c) => c.setCode === 'VIN'))).toBe(true);
+				expect(dealt[1]!.every((pack) => pack.every((c) => c.setCode === 'ARB'))).toBe(true);
+				expect(dealt[2]!.every((pack) => pack.every((c) => c.name.startsWith('ISD-')))).toBe(true);
+
+				// The restore: a SECOND DraftRooms on the SAME storeDir, same spy.
+				const restored = createDraftRooms({ resolver: mixedResolver(), defaultPlan: DEFAULT_PLAN, storeDir: draftDir, now: () => 1_700_000_000_001 });
+				const restoredRoom = restored.open(room.id);
+				expect(JSON.stringify(stateOf(restoredRoom).rounds)).toBe(JSON.stringify(dealt));
+				expect(boosters).toHaveBeenCalledTimes(1); // unchanged — the restore made no new Forge calls
+			} finally {
+				await rm(draftDir, { recursive: true, force: true });
+			}
 		});
 	});
 });
