@@ -12,7 +12,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import type { DraftCard, PoolVerdict } from '@hadoku/shared';
-import { attachSetRoutes, createSetsStore, type CatalogLookup, type SetsForge, type SetsStore } from './sets.ts';
+import { attachSetRoutes, createSetsStore, warmSetsStore, type CatalogLookup, type SetsForge, type SetsStore } from './sets.ts';
 import type { BoosterCard, SetSummary as ForgeSetSummary } from './forge.ts';
 
 function card(name: string, code: string): DraftCard {
@@ -101,6 +101,42 @@ describe('createSetsStore — list()', () => {
 		const store = createSetsStore({ forge, catalog: EMPTY_CATALOG });
 		expect(store.nameOf('ISD')).toBeNull();
 		await store.list();
+		expect(store.nameOf('ISD')).toBe('Innistrad');
+	});
+});
+
+/*
+ * `index.ts` awaits this at boot, in place of a bare `store.list()` — a
+ * rejected `forge.sets()` (or any `resolveCards` round-trip inside it) must
+ * never take the whole server process down with it. `warmSetsStore` is the
+ * function that can never reject: `nameOf` falls back to the bare code until
+ * the NEXT successful `list()` (the next `GET /api/pools/sets` — `list()`
+ * already clears its own `listPromise` on a failure, so that next call is a
+ * fresh attempt, not a dead cached rejection).
+ */
+describe('warmSetsStore — never rejects, even when Forge is unreachable at boot', () => {
+	it('a forge.sets() that rejects: warmSetsStore still resolves, and logs one line', async () => {
+		const forge: SetsForge = {
+			sets: vi.fn(async () => {
+				throw new Error('the pool JVM did not answer within 30000ms');
+			}),
+			setCards: vi.fn(async () => []),
+			boosters: vi.fn(async () => []),
+		};
+		const log = vi.fn();
+		const store = createSetsStore({ forge, catalog: EMPTY_CATALOG, log: () => undefined });
+		await expect(warmSetsStore(store, log)).resolves.toBeUndefined();
+		expect(log).toHaveBeenCalledWith(expect.objectContaining({ evt: 'sets-warm-failed' }));
+		// The server stays up with no set names yet — a later GET retries fresh.
+		expect(store.nameOf('ISD')).toBeNull();
+	});
+
+	it('a clean boot logs the warmed count', async () => {
+		const forge = fakeForge({ sets: [ISD], setCards: { ISD: ['Card A'] } });
+		const log = vi.fn();
+		const store = createSetsStore({ forge, catalog: EMPTY_CATALOG, log: () => undefined });
+		await warmSetsStore(store, log);
+		expect(log).toHaveBeenCalledWith(expect.objectContaining({ evt: 'sets-warmed', count: 1 }));
 		expect(store.nameOf('ISD')).toBe('Innistrad');
 	});
 });

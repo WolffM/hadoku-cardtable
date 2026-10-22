@@ -93,7 +93,7 @@ import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
 import { attachTrim } from './http/trim.js';
 import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
-import { attachSetRoutes, createSetsStore } from './pools/sets.js';
+import { attachSetRoutes, createSetsStore, warmSetsStore } from './pools/sets.js';
 import { attachPresetRoutes, createPresetStore } from './pools/presets.js';
 import { createCatalogRefresh } from './pools/refresh.js';
 import { loadCardCatalog } from './pools/catalog.js';
@@ -424,9 +424,15 @@ const forgePools: ForgePools | null = forge.ok
 // `PodView.planName`), and warming here is also what makes a leader's first
 // pick of ANY set instant — `cardsFor` then hits `list()`'s own cache
 // instead of a fresh Forge round-trip. `[]` without a jar, no warming to do.
+//
+// `warmSetsStore`, never a bare `await setsStore.list()`: this is a
+// top-level await, so a rejection here (a slow or dead JVM at boot) would
+// take the WHOLE process down with it — constructed play included. A fault
+// is logged once and the boot carries on; `nameOf` falls back to the bare
+// code (`poolResolver.name` below) until the next `GET /api/pools/sets`
+// retries fresh (`list()` clears its own in-flight promise on a failure).
 const setsStore = createSetsStore({ forge: forgePools, catalog, log: jsonLogger('cardtable-pools') });
-const setsList = await setsStore.list();
-if (forge.ok && setsList.length === 0) console.warn('[cardtable] draft pool: Forge reports no draftable sets — the Set tab is empty');
+await warmSetsStore(setsStore);
 
 const poolResolver: PoolSourceResolver = {
 	cards(src) {

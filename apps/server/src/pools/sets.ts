@@ -72,7 +72,7 @@ export interface SetsStore {
 	 * A set's own display name — `null` for a code `list()` has never seen
 	 * (including: no jar, or `list()` has not run yet). Synchronous:
 	 * `room/draftRooms.ts`'s `PoolSourceResolver.name` needs this with no
-	 * await, and `index.ts` warms it with one `await store.list()` at boot.
+	 * await, and `index.ts` warms it with one `await warmSetsStore(store)` at boot.
 	 */
 	nameOf(code: string): string | null;
 	/**
@@ -214,6 +214,25 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 			}
 		},
 	};
+}
+
+/**
+ * `index.ts`'s own boot warm-up — `await warmSetsStore(store)` in place of a
+ * bare `await store.list()`. A top-level await that rejects takes the WHOLE
+ * process down with it (constructed play, every other route, all of it), so
+ * this never rejects: a fault is logged once and the server carries on with
+ * no names/card lists warmed. `nameOf` then falls back to the bare code
+ * (`index.ts`'s resolver already does this) until the next `GET
+ * /api/pools/sets`, which is a fresh attempt — `list()` clears its own
+ * in-flight promise on a failure, so a dead rejection is never cached.
+ */
+export async function warmSetsStore(store: Pick<SetsStore, 'list'>, warn: (entry: Record<string, unknown>) => void = log): Promise<void> {
+	try {
+		const list = await store.list();
+		warn({ evt: 'sets-warmed', count: list.length });
+	} catch (err) {
+		warn({ evt: 'sets-warm-failed', detail: (err as Error).message });
+	}
 }
 
 export interface AttachSetRoutesDeps {
