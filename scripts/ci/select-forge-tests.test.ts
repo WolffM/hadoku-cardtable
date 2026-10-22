@@ -328,6 +328,16 @@ describe('the per-file rules', () => {
     expect(other.specs).toEqual([...SMOKE].sort());
   });
 
+  it('a shared stylesheet runs its guard whatever its rules name, and is still scored by the classes they do', () => {
+    const sheet = { name: 'the shared stylesheets', paths: /^apps\/ui\/src\/play\/live\/coin\.css$/, specs: ['table-fit.spec.ts'], jvm: [] };
+    const root = { 'apps/ui/src/play/live/coin.css': ':root {\n  --coin: 10px;\n}\n.coin {\n  width: var(--coin);\n}\n' };
+    const token = select(fixtureRepo(root), [modified('apps/ui/src/play/live/coin.css', diff(2, ['  --coin: 9px;'], ['  --coin: 10px;']))], { guards: [sheet] });
+    expect(token.specs).toEqual(['table-fit.spec.ts']);
+    expect(token.reasons).toContain('e2e: table-fit.spec.ts — guards the shared stylesheets (apps/ui/src/play/live/coin.css)');
+    const rule = select(fixtureRepo(root), [modified('apps/ui/src/play/live/coin.css', diff(5, ['  width: 9px;'], ['  width: var(--coin);']))], { guards: [sheet] });
+    expect(rule.specs).toEqual(['coin.spec.ts', ...SMOKE].sort());
+  });
+
   it('a removed UI file, and anything unclassified, runs everything', () => {
     expect(select(fixtureRepo(), [{ filename: 'apps/ui/src/play/live/Gone.tsx', status: 'removed' }]).specs).toBeNull();
     expect(select(fixtureRepo(), [modified('somewhere/new.txt')]).specs).toBeNull();
@@ -558,6 +568,7 @@ describe('historical misses, replayed as a push', { timeout: 20_000 }, () => {
     ['922cd08e', 'a log line paced as its own class (pace.ts)', ['w47-pace.spec.ts', 'w71-tap-reveal.spec.ts', 'dead-bar.spec.ts']],
     ['1f49c91c', 'a land is a mana source only for mana (auto.ts, the bridge)', ['play.spec.ts', 'w68-untap.spec.ts', 'land-abilities.spec.ts']],
     ['112836fe', 'the engine pin moves (Nykthos)', ['w68-untap.spec.ts', 'modal-arrows.spec.ts']],
+    ['33e3f9dc', "the pod circle's global `.seat` (styles.css), which collapsed every match board", ['table-fit.spec.ts']],
   ])('%s, %s, runs %j', (sha, _what, want) => {
     const sel = replay(sha);
     expect(sel.specs).toEqual(expect.arrayContaining(want));

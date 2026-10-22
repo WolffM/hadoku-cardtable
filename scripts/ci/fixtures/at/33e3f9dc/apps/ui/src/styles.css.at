@@ -1,0 +1,1294 @@
+/* Mana and set symbols (D20). Vendored; see each file's header and LICENSING §3.2. */
+@import "./symbols/mana.css";
+@import "./symbols/keyrune.css";
+
+/*
+ * The UI scale's units (`settings/ui-scale.ts`). Every px and rem this app's own stylesheets
+ * author is rewritten at build time as a multiple of one of these, so `--ui-scale`, written on the
+ * root by the settings' slider, sizes everything at once. Registered, so a descendant inherits a
+ * length rather than the expression (a shadow tree ignores `@property`; the expression is the same
+ * answer there).
+ */
+@property --ui-px {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 1px;
+}
+
+@property --ui-rem {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 16px;
+}
+
+:root {
+  /* A Magic card's width over its height, and the share of its width a pile shows of each card under the next (`components/cardFit.ts`'s `CARD_RATIO`, `PILE_PEEK`). */
+  --card-ratio: 488 / 680;
+  --pile-peek: 0.205;
+  --ui-scale: 1;
+  --ui-px: calc(1px * var(--ui-scale));
+  --ui-rem: calc(1rem * var(--ui-scale));
+}
+
+/*
+ * A column that fits its box (`components/cardFit.ts`'s `useFitScale`, which writes `--fit`):
+ * inside it the units are the UI scale times `--fit`, so every length it holds shrinks together
+ * until its content fits, and it never scrolls. Under `MIN_FIT` it clips.
+ */
+.fit-scale {
+  --ui-px: calc(1px * var(--ui-scale) * var(--fit, 1));
+  --ui-rem: calc(1rem * var(--ui-scale) * var(--fit, 1));
+  overflow: hidden;
+}
+
+/*
+ * Draft table styling.
+ *
+ * Two rules drive everything here, and both are legal rather than aesthetic:
+ *
+ *   1. No card images and no card art. There is not a single `url()` in this
+ *      file and there must never be one pointing at a card.
+ *   2. No WotC trade dress. A card is a flat panel with a colour stripe, not a
+ *      frame. Rarity is a letter, not a gem.
+ *
+ * ~~Mana pips are circles with letters, not the printed symbols; the tap symbol
+ * is the word TAP.~~ **Repealed by D20 (operator, 2026-09-27):** we use
+ * established symbol fonts rather than draw our own. The symbols are Keyrune's and Mana's, imported at the top
+ * of this file and rendered by `components/ManaPip.tsx`; the 16 rules that drew
+ * our own discs were deleted in wave 27 §D and the note where they were says
+ * what each one was doing. Still forbidden, and NOT loosened by D20: the WotC
+ * logo, the Magic wordmark, card frames.
+ *
+ * The palette follows the theme selector (wave 31 P4; it was fixed dark before).
+ * The colour-pie hues — still used for a card's identity stripe —
+ * are desaturated well away from the printed ones.
+ */
+
+:root,
+[data-theme],
+.cardtable-chrome {
+  /*
+   * Chrome colours ALIAS the theme (wave 31 P4). `color-scheme` follows the theme in `chrome/chrome.css`. They were fixed dark values, so
+   * the game UI ignored the theme selector while the header beside it changed.
+   * `@wolffm/themes` publishes `--color-*` on `[data-theme]`; each token below
+   * reads one, and NONE carries a literal fallback (the operator, 2026-10-10:
+   * hardcoded colours are forbidden — a fallback is a literal the moment a token
+   * is missing). A fallback to another theme token is fine. The selector list re-declares them wherever a theme is
+   * set, so a container with its own `data-theme` resolves against ITS theme
+   * instead of inheriting `:root`'s already-resolved value.
+   *
+   * Not aliased, on purpose: the colour-pie `--c-*` hues below are data — a
+   * card's colour identity — and the same in every theme. They are the only
+   * literal colours in the app's stylesheets, and `screens/tokens.test.ts`
+   * holds every other sheet to that.
+   */
+  --bg: var(--color-bg);
+  --bg-raised: var(--color-bg-card);
+  --bg-card: var(--color-bg-hover);
+  --line: var(--color-border);
+  --line-soft: color-mix(in srgb, var(--color-border) 55%, var(--color-bg));
+  --ink: var(--color-text);
+  /* Both read `--color-text-secondary`, NOT `--color-text-tertiary`: tertiary is
+     accent-tinted in some themes (cyan in ocean-light, 2.6:1 on white) and
+     secondary is 5.4:1 or better on the page in every theme that defines it. A
+     theme without it (izakaya) falls back to the theme's own ink. Plain colours,
+     not `color-mix`: the e2e contrast measure reads `rgb()` only, and a mixed
+     value computes to `color(srgb ...)`. `screens/tokens.test.ts` measures this. */
+  --ink-dim: var(--color-text-secondary, var(--color-text));
+  --ink-faint: var(--color-text-secondary, var(--color-text));
+  --accent: var(--color-primary);
+  /*
+   * The accent as TEXT (wave 32, a w31 leftover). `--accent` is the theme's fill
+   * colour and stays exactly that: as text it is 1.56:1 in izakaya-light and
+   * 2.28:1 in ocean-light. This mixes it toward the theme's own ink, which keeps
+   * the hue and clears 4.5:1 on the page and on a card in all 18 themes
+   * (`screens/tokens.test.ts` measures it, and pins the 35%). Use `--accent-ink`
+   * wherever the accent is the colour of a glyph; use `--accent` for a fill or a
+   * border.
+   */
+  --accent-ink: color-mix(in srgb, var(--accent) 35%, var(--ink));
+  /*
+   * The active player's edge light (`play/board.css`): a 3px line, so a non-text mark that must
+   * clear 3:1 on the seat (`--bg-raised`) in every theme. The raw accent is 1.56:1 in
+   * izakaya-light; 55% toward the ink keeps the hue and clears 3.3:1 in the worst theme
+   * (`screens/tokens.test.ts` measures it).
+   */
+  --turn-edge: color-mix(in srgb, var(--accent) 55%, var(--ink));
+  --on-accent: var(--color-on-primary);
+  --warn: var(--color-warning);
+  /*
+   * A card whose own condition is on — metalcraft, threshold, delirium (`play/card.css`,
+   * `.card[data-condition-met]`). The theme's warning pulled a quarter toward its danger: the
+   * warm orange the operator asked for (*"in hearthstone the card turns orange"*), and a hue
+   * apart from `--warn`'s can-act glow. As text (the ability word it lights) it is mixed toward
+   * the ink, at the share that clears 4.5:1 on the page and on a card in all 18 themes
+   * (`screens/tokens.test.ts` measures it).
+   */
+  --condition: color-mix(in srgb, var(--warn) 75%, var(--danger));
+  --condition-ink: color-mix(in srgb, var(--condition) 40%, var(--ink));
+  /*
+   * The three the play surfaces used to write as literals (the operator,
+   * 2026-10-08: "hardcoded colors look bad"): a neutral fill (a card back), a
+   * scrim over the board, and the one shadow colour every lifted thing casts —
+   * from the theme's overlay colour, so a light theme's shadow is still a
+   * shadow and never a tint of its text.
+   */
+  --neutral: var(--color-neutral);
+  --scrim: var(--color-bg-overlay);
+  --shadow: color-mix(in srgb, var(--color-bg-overlay) 60%, transparent);
+  /*
+   * The theme's danger and success, for what the board used to borrow the
+   * colour-pie's red, green and blue for: damage, a life gain, a buffed or hurt
+   * number. Those `--c-*` hues mean "a red card", never "something went wrong",
+   * and they do not follow the theme — the operator (2026-10-06): *"as long as
+   * the hardcoded colors are removed and use the theme colors instead then we're
+   * fine."* As with the accent, the fill and the TEXT are two tokens: raw
+   * `--color-danger` is 1.68:1 on the page in the worst theme and
+   * `--color-success` 1.06:1, so the ink is a mix toward the theme's own ink at
+   * the largest share that clears 4.5:1 on the page and on a card in all 18
+   * themes (`screens/tokens.test.ts` measures both, and pins the shares).
+   */
+  --danger: var(--color-danger);
+  --success: var(--color-success);
+  --danger-ink: color-mix(in srgb, var(--danger) 50%, var(--ink));
+  --success-ink: color-mix(in srgb, var(--success) 30%, var(--ink));
+
+  /*
+   * The stacking scale (wave 32 Q16). Three layers that used to be bare numbers
+   * in five stylesheets, so a card's P/T badge could land over a prompt.
+   * Consumers write `var(--z-popover, 40)` with the number as the fallback, so
+   * the order in which lanes land does not matter.
+   */
+  --z-board: 0;
+  --z-card-badge: 1;
+  --z-card-raised: 1; /* an emphasised card, over the cards beside it */
+  --z-overlay: 20; /* rail, controls, the stack */
+  --z-popover: 40; /* prompts, dialogs, menus */
+  --z-zoom: 60; /* the hover zoom: above everything, the control bar and prompts included */
+
+  /* Our colour-pie hues. Deliberately not the printed ones. */
+  --c-white: #d8cfae;
+  --c-blue: #5f9ede;
+  --c-black: #6d6a85;
+  --c-red: #d4715f;
+  --c-green: #6da879;
+  --c-generic: #565d68;
+
+  --radius: 8px;
+  --card-w: 190px;
+  --card-h: 268px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* ── app shell ─────────────────────────────────────────────────────── */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.fixtures {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.fixtures__label {
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+}
+
+.fixtures__list {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+.fixtures__list button {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.fixtures__list button:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.fixtures__list .fixtures__on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.app__foot {
+  margin-top: auto;
+  padding: 10px 16px 18px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.app__foot p {
+  margin: 0;
+}
+
+/* ── draft header ──────────────────────────────────────────────────── */
+
+.draft__bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.draft__title {
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+
+.counters {
+  display: flex;
+  gap: 20px;
+}
+
+.counter {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.counter__label {
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.counter__value {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.counter__of {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.draft__controls {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* Centred as a box, not set on the text's baseline: a glyph from an icon font (the
+   pool's "by colour") otherwise sits low beside a word (the operator, 2026-10-21). */
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 4px 12px;
+  color: var(--ink-dim);
+  font-size: 12px;
+}
+
+.segmented .segmented__on {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.button {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.draft__status {
+  margin: 0;
+  padding: 8px 16px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.draft__error {
+  color: var(--warn);
+}
+
+/* ── layout ────────────────────────────────────────────────────────── */
+
+/*
+ * The pack across the top three quarters of the window with the seats beside
+ * it, the picks across the bottom quarter (the operator, 2026-10-19). The body is
+ * exactly as tall as the window below it (`--draft-h`, measured by
+ * `DraftScreen`), each half scrolls inside itself, and the page does not
+ * scroll at all — sideways or down.
+ *
+ * `.draft__main` is `display: contents`, so the pack and the pool are grid
+ * items of the body beside the seats.
+ */
+.draft__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  /* Half for the pack, half for the picks (the operator, 2026-10-19: the fan no longer needs
+     three quarters); the side column the whole height. */
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'pack seats'
+    'pool seats';
+  gap: 12px 16px;
+  padding: 12px 16px;
+  height: var(--draft-h, auto);
+}
+
+.draft__main {
+  display: contents;
+}
+
+.draft__main > .pack {
+  grid-area: pack;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden auto;
+}
+
+/* The fan is sized to the half it is drawn in, and its lifted card may rise
+   above its slot: nothing to scroll, nothing to clip. */
+.draft__main > .pack--fan {
+  overflow: visible;
+}
+
+.draft__main > .pool {
+  grid-area: pool;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* The piles are sized to fit (`PoolView`'s `fitPiles`): nothing to scroll. */
+  overflow: hidden;
+}
+
+/* The whole height beside the pack and the picks, and what it holds draws at the scale that fits it
+   (`.fit-scale`): with eight seats, the room's bar and the draft's, it is taller than a 768px window. */
+.draft__aside {
+  grid-area: seats;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+/* In the side column the bars stack: one thing to a row. */
+.draft__aside .draft__bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.draft__aside .draft__controls {
+  margin-left: 0;
+}
+
+/* A finished draft's deck view has the whole body. */
+.draft__body--complete {
+  display: block;
+  height: auto;
+}
+
+/* A phone has no room for halves: pack, then picks, then seats, as tall as they are. */
+@media (max-width: 700px) {
+  .draft__body {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+  }
+
+  .draft__main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .draft__main > .pack,
+  .draft__main > .pool {
+    overflow: visible;
+  }
+}
+
+/* ── the pack ──────────────────────────────────────────────────────── */
+
+.pack {
+  min-height: calc(var(--card-h) + 40px);
+  margin-bottom: 20px;
+}
+
+.pack--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+  gap: 10px;
+  /* Each slot is as tall as its own card, not its row: the inspector opens on
+     the card under the pointer, never on the empty cell below a shorter one. */
+  align-items: start;
+}
+
+/*
+ * The fan: a straight row of fixed places. `PackView`'s `fanGeometry` sizes the
+ * card to the box and hands each slot its place; `fanLayer` stacks the open
+ * card (`data-focused`) on top and the rest under it from either side, so the
+ * open card shows whole and only rises. Nothing tilts, so no corner pokes
+ * above the card in front.
+ */
+.pack--fan {
+  position: relative;
+  /* The cards' own layers (`fanLayer`) order them against each other, never against the page. */
+  isolation: isolate;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+}
+
+.pack--fan .pack__slot {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  width: var(--fan-w);
+  margin-left: calc(var(--fan-w) / -2);
+  --card-w: var(--fan-w);
+  --card-h: var(--fan-h);
+  transform: translateX(var(--fan-x, 0));
+  /* Transform only: compositor-driven, so the rise costs no repaint. */
+  transition: transform 140ms ease;
+  will-change: transform;
+}
+
+.pack--fan .pack__slot[data-focused] {
+  transform: translateX(var(--fan-x, 0)) translateY(-18px);
+  box-shadow: 0 14px 26px var(--shadow);
+}
+
+/* The hovered card's related cards, in the screen's top layer (`RelatedRow.tsx`), placed by `RelatedRow`; never taking the pointer. */
+.pack__related {
+  position: absolute;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.pack__related-card {
+  width: var(--related-w);
+  aspect-ratio: var(--card-ratio);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 22px var(--shadow);
+}
+
+/* Past `FAN_SIDE` either side of the open card: not drawn until the row is scrolled to it. */
+.pack--fan .pack__slot[data-off] {
+  display: none;
+}
+
+/* The grid's cursor: the card the arrow keys and Enter act on. */
+.pack--grid .pack__slot[data-focused] .card--pickable:not(:disabled) {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The grid at the size that shows the whole pack (`fitGrid`): no scroll. */
+.pack--grid[style] .pack__slot {
+  --card-w: var(--grid-w);
+  --card-h: calc(var(--grid-w) / (var(--card-ratio)));
+}
+
+.pack--grid[style] {
+  justify-content: safe center;
+  align-content: start;
+}
+
+/* The grid is sized to fit (`PackView`'s `fitGrid`): nothing to scroll, and its cursor's outline is not clipped. */
+.draft__main > .pack--grid {
+  overflow: visible;
+}
+
+.pack--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  min-height: 160px;
+}
+
+.pack__note {
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+/* ── a card, our layout ────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  height: var(--card-h);
+  padding: 9px 10px 9px 14px;
+  text-align: left;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.card--pickable {
+  font: inherit;
+  color: inherit;
+}
+
+.card--pickable:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.card--pickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card--pickable:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Colour identity as a stripe down the leading edge — ours, not a frame. */
+.card__stripe {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  /* A band of each of the card's colours, in WUBRG order (`ColorSymbol.tsx`'s `stripeOf`). */
+  background: var(--stripe, var(--c-generic));
+}
+
+.card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.card__name {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.card__type {
+  color: var(--ink-dim);
+  font-size: 11px;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 5px;
+}
+
+.card__rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink);
+  /* Every face, at any size: shrinks to the room its tile has (a flex item's `min-height: auto` would grow
+     the tile instead), and text past it is cut off under a fade, never scrolled; the inspector draws it larger. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, currentColor calc(100% - 1em), transparent);
+}
+
+.card__rules-line {
+  display: block;
+}
+
+.card__foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.card__print {
+  color: var(--ink-faint);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.card__rarity {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.card__stat {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── pips ──────────────────────────────────────────────────────────── */
+
+.cost {
+  display: inline-flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/*
+ * The 16 pre-D20 `.pip` rules that used to be here are GONE (wave 27 §D).
+ *
+ * They drew our own pips: a 16px grey disc with a 9px letter in it, a wide
+ * capsule, six colour fills, a diagonally split hybrid and a dashed Phyrexian
+ * ring — because "no WotC trademarks in the UI" was absolute under D13. **D20
+ * (operator, 2026-09-27) repealed that** in favour of the Keyrune and Mana fonts, and
+ * `ManaPip.tsx` has rendered Mana's `ms ms-<x> ms-cost` glyph ever since.
+ *
+ * Two of them were still reachable and neither was doing what it looked like:
+ *
+ *   - `.pip` and `.pip--symbol` were cancelled in the component, by wave 26 §C's
+ *     `display: contents` + `font-size: inherit` shim, written for exactly this
+ *     deletion. A box that generates no box has no width, height, radius or
+ *     background, and `.ms`'s `font` shorthand and `.ms-cost`'s own `color`
+ *     beat the two properties that would otherwise have inherited into the
+ *     glyph. **`ManaPip.tsx`'s `PIP_SHIM` can go with this**, but that file is
+ *     owned by nobody this wave, so it is a hand-back and not a change here.
+ *   - `.pip--wide` still styled the no-glyph fallback, which is the one thing
+ *     those rules were genuinely doing — see `.pip--unknown` below.
+ *
+ * The other fourteen matched nothing the app renders. `.cost` above stays: it is
+ * the row the glyphs sit in, and `DeckView`'s `DeckColors` uses it too.
+ */
+
+/*
+ * A token the fonts have no glyph for, printed as itself in a capsule.
+ *
+ * `ManaPip.tsx`: *"a cost that silently drops a symbol is worse than an ugly
+ * one"*, so an unrecognised token comes out as its own text rather than as an
+ * empty box. It used to get its capsule from `.pip` + `.pip--wide` by accident;
+ * this rule is the same capsule, on the one class that means it, so deleting
+ * fourteen dead rules does not quietly leave a bare word in a row of discs. The
+ * declarations are the union of what those two gave it — identical computed
+ * style, measured in a real browser by
+ * `docs/planning/wave27-evidence/pip-deletion-probe.mjs` — the probe and its
+ * before/after output, rescued off tmpfs into the repo when wave 27 closed.
+ */
+.pip--unknown {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--neutral);
+  color: var(--color-on-neutral);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  vertical-align: -3px;
+  flex-shrink: 0;
+}
+
+/* ── pool ──────────────────────────────────────────────────────────── */
+
+.pool {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.pool__head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.pool__title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+
+.pool__title span {
+  color: var(--ink);
+  font-size: 16px;
+  margin-left: 4px;
+}
+
+.pool__colors {
+  display: flex;
+  gap: 10px;
+}
+
+.pool__color {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.pool__color--none {
+  opacity: 0.35;
+}
+
+.pool__note {
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+.pool__curve {
+  /* Until measured (and in a test environment); measured, `PoolView` sets both. */
+  --cw: 140px;
+  --pile-gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: var(--pile-gap);
+  align-items: stretch;
+  overflow: hidden;
+}
+
+/* The deck in progress and the sideboard: the picks fill the row up to the sideboard, so the row has no
+   space that belongs to neither (`deck/dragMove.tsx`). The drop cue is drawn inside each box: the row
+   clips (`overflow: hidden`), and an outline outside a box that meets its edge was cut off there (the
+   operator, 2026-10-21). */
+.pool__main,
+.pool__sideboard {
+  display: flex;
+  gap: var(--pile-gap);
+  align-items: flex-start;
+  border-radius: var(--radius);
+  outline: 2px dashed transparent;
+  outline-offset: -2px;
+  transition: outline-color 120ms;
+}
+
+.pool__main {
+  flex: 1 1 auto;
+}
+
+.pool__sideboard {
+  min-width: var(--cw);
+}
+
+.pool__main[data-drop-over],
+.pool__sideboard[data-drop-over] {
+  outline-color: var(--accent);
+}
+
+/* A pick is a reference, not a decision: one size for every tile, art or not, its name strip, cost and stat. */
+.pool .pile__stack .card {
+  height: calc(var(--cw) / (var(--card-ratio)));
+  min-height: 0;
+  --card-h: calc(var(--cw) / (var(--card-ratio)));
+  padding: 5px 7px 5px 11px;
+  font-size: 11px;
+  flex: none;
+}
+
+/* The strip each card shows: its name on one line. */
+.pool .pile__stack .card__name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.pool .pile__stack .card__rules,
+.pool .pile__stack .card__print {
+  display: none;
+}
+
+.pool .pile__stack .card__type {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+/*
+ * The wrapper the shared inspector's synthetic id sits on (`PoolView.tsx`'s
+ * header), and what a drag picks up: a real box, so the browser finds it
+ * draggable under the card, and the column's overlap is its own margin.
+ */
+.pool__tile {
+  display: block;
+  width: var(--cw);
+}
+
+/*
+ * ── a pile of cards (`components/CardPile.tsx`): the draft's picks and the deck builder's piles ──
+ *
+ * Its heading, then its cards overlapped in a column, every card showing its name strip and the last
+ * one whole, at the `--cw` its screen fits. A pile never moves under the pointer: each card's top
+ * shows, and hovering it opens the inspector (the operator, 2026-10-19: "when cards are stacked,
+ * just don't bring them forward. that way it's always easy to hover all cards").
+ */
+.pile {
+  flex: 0 0 auto;
+  min-width: var(--cw);
+}
+
+.pile__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px;
+  /* As wide as the pile's cards, never wider: a heading must not widen its pile past the fit. */
+  width: 0;
+  min-width: 100%;
+  margin: 0;
+  padding: 0 2px 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.pile[data-empty] .pile__head {
+  opacity: 0.45;
+}
+
+.pile__label {
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pile__cols {
+  display: flex;
+  gap: var(--pile-gap, 8px);
+}
+
+.pile__stack {
+  display: flex;
+  flex-direction: column;
+  width: var(--cw);
+  padding-bottom: 4px;
+}
+
+.pile__stack > * + * {
+  margin-top: calc(var(--cw) * (var(--pile-peek) - 1 / (var(--card-ratio))));
+}
+
+/*
+ * A pick is a FLIP, not a pop (`PoolView.tsx`'s `PoolTile`, which does the
+ * actual inverting): the just-added card wears this class for
+ * `POOL_ENTER_MS`. The TRANSITION lives
+ * here, not a keyframe — `PoolTile` sets the inverted `transform` inline with
+ * no transition, forces layout, then clears both inline properties; clearing
+ * `transition` falls through to this rule, which is what actually animates
+ * the fall from the inverted value back to `transform: none`.
+ */
+.pool__tile--enter {
+  transition: transform 280ms ease;
+  /* In flight it is drawn over the pack it came from: the next pick's click
+     goes through it to the card underneath, never to the card on its way. */
+  pointer-events: none;
+}
+
+/* ── seats: the pod, as one table (`components/SeatBar.tsx`) ───────── */
+
+.seats {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+/* A square the ring is drawn in; the seats and arcs are placed in its own 0-100 box. */
+.podcircle {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.podcircle__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.podcircle__arc {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  marker-end: url(#podcircle-head);
+}
+
+/* The arc into the bottom seat: where the viewer's next pack comes from. */
+.podcircle__arc--in {
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  marker-end: url(#podcircle-head-in);
+}
+
+.podcircle__head {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.podcircle__head--in {
+  stroke: var(--accent);
+}
+
+.podcircle__centre {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  transform: translate(-50%, -50%);
+}
+
+.podcircle__centre .counters {
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.podcircle__seats {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Placed by its face's centre (`left`/`top` from SeatBar), its name and count under it. */
+.seat {
+  position: absolute;
+  width: 72px;
+  transform: translate(-50%, -20px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.seat__face {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg-card);
+  box-shadow: 0 0 0 2px var(--line);
+}
+
+/* The characters are pixel art: keep their pixels square. */
+.seat__face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.seat__face .face__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.seat__face .face__plate {
+  fill: var(--bg-card);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.seat__face .face__brow,
+.seat__face .face__bust {
+  fill: var(--ink-faint);
+}
+
+/* Still owes a pick: the ring is lit and breathes. */
+.seat--waiting .seat__face {
+  box-shadow: 0 0 0 2px var(--accent);
+  animation: seat-picking 1.4s ease-in-out infinite;
+}
+
+@keyframes seat-picking {
+  50% {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat--waiting .seat__face {
+    animation: none;
+  }
+}
+
+.seat--you .seat__name {
+  color: var(--accent-ink);
+}
+
+/* A spectator's seats: the one watched, and the rest to press. */
+.seat--watched .seat__face {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.seat__watch {
+  position: absolute;
+  inset: -4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+.seat__watch:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.seat__watch:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.seat__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* The name and the count on one line under the face; a long name gives way, never the count. */
+.seat__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.seat__picked {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+/* The pack's layout at the foot of the column, under the pod. */
+.draft__aside > .draft__bar {
+  margin-top: auto;
+}
+
+
+/*
+ * Card art — the image, from our CDN or upstream, covering the text tile.
+ *
+ * The text tile is NOT replaced. It stays in the DOM underneath as the
+ * fallback: a card with no resolvable art never gets an image, and a failed
+ * fetch (a CDN key that was never uploaded, say) removes the img and reveals
+ * the text. A card is always readable, image or not.
+ *
+ * `object-fit: cover` with the card's own aspect ratio means the image is never
+ * distorted, skewed or stretched. That was one of Scryfall's presentation rules
+ * when the art was theirs; it stays because the art is a placeholder that may be
+ * re-sourced from somewhere with the same rules, and because a stretched card
+ * looks broken either way. No filter, no blur, no desaturation, no overlay that
+ * could clip the copyright line.
+ */
+.card__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  /* Above the text tile, below nothing else. */
+  z-index: 1;
+  pointer-events: none;
+  /* No filter of any kind here. See the note above: altering the image is a
+     presentation-rule violation, not a style choice. */
+}
+
+/* The tile becomes the positioning context for the art that covers it. */
+.card {
+  position: relative;
+}
+
+/*
+ * A tile carrying art takes the CARD's aspect ratio, not the text layout's.
+ *
+ * The text tile is sized by its content — measured at 241x268, a ratio of
+ * 0.90 — while a Magic card is 488x680, or 0.72. Painting one into the other
+ * with `object-fit: cover` crops the difference off the top and bottom.
+ *
+ * Two reasons this rule stays, and both are load-bearing:
+ *
+ * 1. A cropped card simply looks broken. The bottom of a card is its type line,
+ *    stats and print info; lopping it off produces a tile that reads as a
+ *    rendering bug regardless of where the bytes came from.
+ * 2. The licensing reason, which is now dormant rather than gone. Under
+ *    Scryfall's image guidelines you may not cover, crop or clip off the
+ *    copyright or artist name — printed at the bottom of the card, exactly
+ *    where a mismatched box crops. We host the art ourselves now, but it is a
+ *    placeholder and may revert to a source with presentation rules, so the
+ *    constraint is kept rather than re-derived later.
+ *
+ * So the box is made card-shaped and the image fills it exactly: nothing is
+ * cropped, nothing is distorted, and the credit stays legible.
+ *
+ * Scoped with :has() so text-only tiles — a card with no resolvable art, and any
+ * failed fetch — keep their content-sized layout.
+ */
+.card:has(.card__art) {
+  aspect-ratio: var(--card-ratio);
+  height: auto;
+}
+
+/*
+ * A face that shares its card's image (`components/faceCrop.ts`): its own part of the image, upright,
+ * in a frame the tile's shape. Where the part is not card-shaped (an adventure's inset) the frame's
+ * own ground shows around it, so the whole card never peeks out. The image's box is set inline.
+ */
+.card__crop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--bg-card);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.card__crop > .card__art {
+  inset: auto;
+  object-fit: fill;
+  border-radius: 0;
+}
+
+/*
+ * A door's state, on its tile wherever it is drawn — the board, the inspector's enlargement, a choice
+ * between doors (`CardTile`'s `DoorMark`). A locked door's half is dimmed by a scrim under a padlock; an
+ * unlocked one is at full strength under an open door in the success ink.
+ */
+.card__door {
+  position: absolute;
+  z-index: 2;
+  top: 11%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: max(14px, 18%);
+  aspect-ratio: 1;
+  translate: -50% 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink-dim);
+  pointer-events: none;
+}
+
+.card__door[data-door-mark='unlocked'] {
+  color: var(--success-ink);
+  border-color: var(--success);
+}
+
+.card__door-art {
+  width: 70%;
+  height: 70%;
+  fill: currentcolor;
+}
+
+/* A locked door's half is under a scrim, a layer over the image — never a filter on it (`cardImageRules.test.ts`). */
+.card[data-door='locked']::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--scrim) 70%, transparent);
+  pointer-events: none;
+}
+
+/* Mana's gold multicolour glyph overlays its second half absolutely: give it the box. */
+.colorsym {
+  position: relative;
+}

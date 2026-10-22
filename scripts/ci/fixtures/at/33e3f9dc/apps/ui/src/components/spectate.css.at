@@ -1,0 +1,323 @@
+/*
+ * Styling for the three things this wave added to the draft surface: the
+ * connection banner, the spectator notice and the deck builder.
+ *
+ * ## Why this file exists at all, instead of more rules in `styles.css`
+ *
+ * `apps/ui/src/styles.css` is owned by nobody this wave, on purpose. Two lanes
+ * were editing the same app in parallel and a shared stylesheet is the one file
+ * they would both have wanted; the resolution was that neither may touch it and
+ * each writes its own, imported by its own modules. So this is co-located with
+ * the components it dresses and is pulled in by `ConnectionBanner.tsx` and
+ * `DeckView.tsx` rather than by the app shell.
+ *
+ * It CONSUMES the palette on `:root` and redefines none of it. Every value
+ * below is either a token from `styles.css` or a literal that only makes sense
+ * here. A fallback is given on each `var()` so that a component rendered
+ * outside the app — which is exactly what the component tests do — is still
+ * legible rather than transparent-on-transparent.
+ *
+ * Both legal rules from `styles.css` hold here too and are easy to check:
+ * there is no `url()` in this file, and nothing draws a card frame, a set
+ * symbol or a mana symbol. Pips are `ManaPip`'s circles.
+ */
+
+/* ── The connection banner ───────────────────────────────────────────── */
+
+.conn {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius, 8px);
+  background: var(--bg-raised);
+  color: var(--ink);
+}
+
+/* The phase, as a colour. Never the only signal — the label says it in words. */
+.conn--connecting,
+.conn--reconnecting,
+.conn--resyncing {
+  border-left-color: var(--accent);
+}
+
+.conn--offline {
+  border-left-color: var(--warn);
+}
+
+.conn--recovered {
+  border-left-color: var(--c-green);
+}
+
+.conn__dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+  flex: none;
+}
+
+/* A pulse only while something is genuinely in flight, and never for a person
+   who asked the browser not to animate. */
+.conn--connecting .conn__dot,
+.conn--reconnecting .conn__dot,
+.conn--resyncing .conn__dot {
+  animation: conn-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conn__dot {
+    animation: none !important;
+  }
+}
+
+@keyframes conn-pulse {
+  50% {
+    opacity: 1;
+  }
+}
+
+.conn__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.conn__label {
+  font-weight: 600;
+}
+
+.conn__detail {
+  color: var(--ink-dim);
+}
+
+/* ── The spectator notice ────────────────────────────────────────────── */
+
+.spectate {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 10px 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-raised);
+}
+
+.spectate__tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--c-generic);
+  color: var(--ink);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  flex: none;
+}
+
+.spectate__text {
+  margin: 0;
+  color: var(--ink-dim);
+}
+
+/* A held seat in the pod. Its face ringed dashed, because it is an inference. */
+.seat--held {
+  opacity: 0.8;
+}
+
+.seat--held .seat__face {
+  box-shadow: none;
+  outline: 2px dashed var(--warn);
+  outline-offset: -2px;
+}
+
+.seat__held {
+  color: var(--warn);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── The deck builder ────────────────────────────────────────────────── */
+
+.deck {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+.deck__head {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.deck__title {
+  font-size: 20px;
+}
+
+.deck__sub,
+.deck__note {
+  margin: 4px 0 0;
+  color: var(--ink-dim);
+  max-width: 62ch;
+}
+
+.deck__counts {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 8px;
+  align-items: baseline;
+}
+
+.deck__count {
+  font-size: 22px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.deck__count--quiet {
+  color: var(--ink-faint);
+  font-size: 16px;
+}
+
+.deck__of {
+  color: var(--ink-dim);
+}
+
+.deck__h2 {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.deck__basics {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius, 8px);
+  background: var(--bg-raised);
+}
+
+.deck__basic {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.deck__basic button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: inherit;
+  cursor: pointer;
+}
+
+.deck__basic button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.deck__basic-n {
+  min-width: 2ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.deck__problems {
+  margin: 0;
+  padding: 10px 14px 10px 32px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius, 8px);
+  color: var(--warn);
+}
+
+.deck__piles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.deck__pile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.deck__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.deckrow {
+  display: grid;
+  grid-template-columns: 26px 2ch 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--bg-card);
+  min-width: 0;
+}
+
+.deckrow__move {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg-raised);
+  color: inherit;
+  cursor: pointer;
+}
+
+.deckrow__count {
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.deckrow__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deckrow__cost {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.deckrow__type {
+  color: var(--ink-faint);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 18ch;
+}
+
+.deck__foot {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}

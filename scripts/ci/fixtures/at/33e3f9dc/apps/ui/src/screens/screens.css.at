@@ -1,0 +1,1454 @@
+/*
+ * The product shell: lobby, pod bar, invite, the deck builder.
+ *
+ * Co-located with the screens it styles and imported by `App.tsx`, NOT added to
+ * `apps/ui/src/styles.css`. That file is the draft table's styling and is owned
+ * by nobody this wave; a second lane editing it in the same tree is how a wave
+ * ends up with a merge conflict in a file neither of them owns.
+ *
+ * COLOUR COMES FROM `@wolffm/themes`, not from this app. Every value below is a
+ * semantic token — `--color-text`, `--color-bg-card`, `--color-border` — which
+ * names a ROLE and resolves light/dark from `data-theme`. It used to read the
+ * draft table's own `--bg` / `--ink` / `--accent` from `styles.css`, which was
+ * correct while this app had no theme picker and is a bug now that it has one:
+ * a themed page with a hardcoded-dark lobby on it is the half-migrated look the
+ * operator saw from the other side (a themed chat column beside an unthemed
+ * app). `styles.css` keeps those names for the TABLE, which stays dark on
+ * purpose — see the island rule in `chrome/chrome.css`.
+ *
+ * No hex literals, and no `var(--token, #fallback)` defaults: a fallback hides
+ * a broken token instead of failing loudly.
+ *
+ * `--color-text-secondary` is as dim as anything here gets, including the rules
+ * that used to read `--ink-faint`. That is measured, not taste: against
+ * `--color-bg`, `--color-text-muted` clears 3:1 in NO light theme (worst 1.75,
+ * pink-light) and `--color-text-tertiary` misses it in four (worst 2.60,
+ * ocean-light), while `--color-text-secondary` is at 5.36 or better in all
+ * eighteen. The hierarchy those rules wanted is carried by size, weight and
+ * letter-spacing instead, which is what the fleet's own sheets do.
+ *
+ * Same two legal rules as the table: no `url()` anywhere, and no WotC trade
+ * dress of our own drawing.
+ *
+ * It used to add *"there is nothing to draw here but text, boxes and one status
+ * dot"*, and wave 28 §C ended that: the room screen now draws Keyrune and Mana
+ * glyphs (D20 — third-party fonts, never a WotC file) and one card image per deck
+ * row. The `url()` rule is untouched and is what keeps the image legal AND
+ * repointable: the `src` is built by `cardImageUrl` from `art-manifest.json`, so a
+ * card's art stays a lookup rather than a URL, and no host is named in here.
+ */
+
+/* ── shell ─────────────────────────────────────────────────────────── */
+
+/* No `min-height: 100vh` here any more: the chrome's `__content` region is a
+   flex column that already grows its child to the viewport, and a second full
+   viewport height under a header is a page that scrolls by exactly the header. */
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* The stats grid outgrows the viewport; it scrolls inside the chrome's content region. */
+.stats {
+  overflow-y: auto;
+}
+
+.shell__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shell__title {
+  font-size: 28px;
+  letter-spacing: -0.01em;
+}
+
+.shell__sub {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.shell__foot {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  max-width: 70ch;
+}
+
+.shell__foot p {
+  margin: 0 0 6px;
+}
+
+.shell__disclaimer {
+  font-size: 11px;
+}
+
+.shell__link {
+  color: var(--color-primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.shell__link:hover,
+.shell__link:focus-visible {
+  text-decoration: underline;
+}
+
+/* ── a screen that fits the window: the front page and a room ─────── */
+
+/* The chrome pins these routes to the window (`chrome/chrome.css`), so the
+   page and watchparty's frame, its chat with it, never grow with the content.
+   The screen keeps the layout it always had and scrolls inside that frame. */
+.shell.shell--fit {
+  box-sizing: border-box;
+  /* `margin: 0 auto` in the chrome's column flex shrinks a shell to its content;
+     the front page and a room take the full width (up to `max-width`) instead. */
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── a room before it has answered (`RoomSkeleton`) ─────────────────── */
+
+/* Each placeholder takes the box of the thing it stands for, so the loaded
+   room lands on the same lines; a slow sheen says it is coming. */
+.skeleton {
+  display: block;
+  border-radius: var(--hdk-radius);
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-alt) 0%,
+    var(--color-bg-hover) 50%,
+    var(--color-bg-alt) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-sheen 1.6s ease-in-out infinite;
+}
+
+@keyframes skeleton-sheen {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* The title's line box: 28px type at the UA's normal line height. */
+.skeleton--title {
+  width: min(16rem, 70%);
+  height: 34px;
+}
+
+.skeleton--heading {
+  width: 8rem;
+  height: 22px;
+}
+
+/* A seat's own height (`.tables__row`: its lines, the gaps between them, its
+   padding and border), so the loaded seats replace these without a jump. */
+.skeleton--seat {
+  height: calc(1.6rem + 0.2rem + 1.1rem + 0.9rem + 2px);
+}
+
+@media (max-width: 600px) {
+  .skeleton--seat {
+    height: calc(1.6rem + 0.2rem + 1.1rem + 0.2rem + 1.6rem + 0.9rem + 2px);
+  }
+}
+
+.skeleton--row {
+  width: min(28rem, 100%);
+  height: 30px;
+}
+
+/* The era's set symbols over the deck filters. */
+.skeleton--sets {
+  width: min(38rem, 100%);
+  height: 66px;
+}
+
+.skeleton--tile {
+  height: 100%;
+}
+
+/* ── lobby ─────────────────────────────────────────────────────────── */
+
+.lobby {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  align-items: start;
+}
+
+.lobby__card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lobby__card h2,
+.pod-spectators h2 {
+  font-size: 17px;
+}
+
+.lobby__note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  max-width: 52ch;
+}
+
+.lobby__go {
+  align-self: flex-start;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: 0;
+  border-radius: var(--hdk-radius);
+  padding: 10px 18px;
+  font-weight: 600;
+}
+
+.lobby__go:hover,
+.lobby__go:focus-visible {
+  filter: brightness(1.08);
+}
+
+/*
+ * A dead button must LOOK dead, and not only by being dimmer.
+ *
+ * Ready is disabled until a deck is chosen, which is now the only thing
+ * standing between arriving in a room and starting a match — so "you cannot
+ * press this yet" is a state a person has to be able to read. Filled primary
+ * becomes an outline: the border and the flat background are the signal, the
+ * dimmer text is the confirmation, and the hover brightening is switched off
+ * so a press attempt gets no encouragement.
+ */
+.lobby__go:disabled {
+  background: var(--color-bg-alt);
+  color: var(--color-text-secondary);
+  box-shadow: inset 0 0 0 1px var(--color-border-light);
+  cursor: not-allowed;
+}
+
+.lobby__go:disabled:hover,
+.lobby__go:disabled:focus-visible {
+  filter: none;
+}
+
+/* The deck list while the pool's legality answer is in flight: not choosable. */
+.lobby__card select:disabled {
+  color: var(--color-text-secondary);
+  cursor: progress;
+}
+
+/*
+ * A field's name, and a field that is not a control.
+ *
+ * The leader gets a `<select>` for the table's pool and everybody else gets the
+ * same value as text, so the two have to LOOK like the same field — the name
+ * above it in the same type, and the value in the app's own text colour rather
+ * than the secondary grey a disabled control would be. A disabled select was the
+ * other option and it says the wrong thing: this is not a control that is
+ * temporarily out of reach, it is not the reader's control at all.
+ */
+.lobby__field {
+  color: var(--color-text-secondary);
+}
+
+.lobby__pool {
+  padding: 0.45rem 0;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The format tab selector (wave 48 §U). A plain button row — no caption above
+ * it and nothing under an inactive tab explaining what it is, the same "no
+ * prose" rule every other control on this card follows. The active tab is the
+ * app's own primary colour, which is the only signal this screen uses for "the
+ * thing you are currently looking at" (the ready pill's border-style is the
+ * other state-without-colour signal, for a different question).
+ */
+.lobby__format-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.lobby__format-tabs button,
+.lobby__free-pick {
+  padding: 0.35rem 0.75rem;
+  background: var(--color-bg-alt);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lobby__format-tabs button[aria-selected='true'],
+.lobby__format-tabs button[aria-checked='true'] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}
+
+/* Free pick and the room's settings are switches, not formats: together at
+   the row's far end, and they wrap together. */
+.lobby__switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.lobby__free-pick[aria-pressed='true'] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}
+
+.lobby__format-tabs button:disabled,
+.lobby__free-pick:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.lobby__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lobby__form label {
+  flex-basis: 100%;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.lobby__form input {
+  flex: 1 1 220px;
+  min-width: 0;
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  padding: 9px 10px;
+  font: inherit;
+}
+
+.lobby__form button {
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  padding: 9px 16px;
+}
+
+.lobby__error {
+  margin: 0;
+  color: var(--color-warning);
+}
+
+/* ── pod ───────────────────────────────────────────────────────────── */
+
+.pod__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  padding: 12px 16px;
+}
+
+/* In the draft's side column: the room's name with Close and the gear on one row, what is
+   drafted and who is at the table under it, the room's watchers below (the operator,
+   2026-10-21, with the pod drawn as a circle under this). */
+.pod__bar--side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'who close gear'
+    'meta meta meta';
+  align-items: center;
+  gap: 6px 8px;
+  padding: 10px 12px;
+}
+
+.pod__bar--side > .pod__who {
+  grid-area: who;
+  min-width: 0;
+}
+
+.pod__bar--side > .pod__meta {
+  grid-area: meta;
+}
+
+.pod__bar--side > .room-close,
+.pod__bar--side > .room-close__ask {
+  grid-area: close;
+}
+
+.pod__bar.pod__bar--side > .ct-settings-gear {
+  grid-area: gear;
+  margin: 0;
+}
+
+/* Anything else in the box (the room's watchers) takes a whole row of its own. */
+.pod__bar--side > :not(.pod__who, .pod__meta, .room-close, .room-close__ask, .ct-settings-gear) {
+  grid-column: 1 / -1;
+}
+
+.pod__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+
+.pod__who {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pod__cube,
+.pod__tally {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.pod__seats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pod__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-neutral);
+  flex: none;
+}
+
+.pod__dot--on {
+  background: var(--color-success);
+}
+
+/* The leader's Close: the pod bar's own button size, not a room header's small one. */
+.pod__bar .room-close {
+  align-self: center;
+  padding: 7px 14px;
+  font-size: inherit;
+  line-height: inherit;
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-light);
+}
+
+.pod__bar .room-close--danger {
+  border-color: var(--danger);
+}
+
+.pod__bar .room-close__ask {
+  align-self: center;
+}
+
+.pod__error {
+  margin: 0;
+  color: var(--color-warning);
+}
+
+/* ── constructed (`#/play`) and a match (`#/match/<id>`) ─────────────── */
+
+.tables__seat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+/*
+ * The two seats at a room's table, as a table: one row each, the same cells in
+ * the same places, so the eye reads down a column instead of parsing a
+ * sentence. The operator, 2026-09-25, of the sentence-with-middots this
+ * replaced: *"looks very cheap"*.
+ *
+ * The columns are named sizes and `fr`s, and a row that is waiting on someone
+ * spans all of them, so two rows are one shape whatever is in them.
+ */
+.tables__players {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.tables__row {
+  /*
+   * One height for every seat row, whatever is in it (the operator,
+   * 2026-10-21: *"rows change in size slightly when someone enters them"* —
+   * an empty seat was one line, a taken one two, and a pill, a button and bare
+   * text each sized a line differently). The row's lines are fixed slots:
+   * `--seat-line` holds the tallest thing a line carries (a seat button, a
+   * pill), `--seat-subline` the deck's line, and nothing in them can grow the
+   * row; a long name truncates instead.
+   */
+  --seat-line: 1.6rem;
+  --seat-subline: 1.1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: var(--seat-line) var(--seat-subline);
+  grid-template-areas:
+    'who deck-ready'
+    'deck rules';
+  align-items: center;
+  gap: 0.2rem 0.75rem;
+  padding: 0.45rem 0.7rem;
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+}
+
+/* A phone's row is too narrow for a name, its button and the pill on one line:
+   the name gets the whole first line, the pill goes under the deck. */
+@media (max-width: 600px) {
+  .tables__row {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: var(--seat-line) var(--seat-subline) var(--seat-line);
+    grid-template-areas:
+      'who who'
+      'deck deck'
+      'deck-ready rules';
+  }
+}
+
+/* A row with no deck to show — a pod seat — is the name's line
+   alone, at every width. After the phone rule so it wins there too. */
+.tables__row--line {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: var(--seat-line);
+  grid-template-areas: 'who deck-ready';
+}
+
+/* An open seat keeps its row's lines (the seat does not grow when it is
+   taken); its name and buttons take the first line's whole width. */
+.tables__row--empty {
+  color: var(--color-text-secondary);
+  border-style: dashed;
+}
+
+.tables__row--empty > .tables__who {
+  grid-area: auto;
+  grid-row: 1;
+  grid-column: 1 / -1;
+}
+
+/* A seat's name cell holds its one action too (2026-10-12): Sit here on an
+   empty seat, Stand up on your own. The name keeps its ellipsis; the button
+   never shrinks. */
+.tables__who--seat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  overflow: visible;
+}
+
+.tables__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The leader's crown (our own five-point outline, no WotC mark) beside the name
+   it belongs to; the seat's button stays at the row's far end. */
+.tables__crown {
+  flex: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-right: auto;
+  fill: none;
+  stroke: var(--color-text-secondary);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+
+/* An empty seat's two ways to fill it: sit in it, or give it to Forge's AI. */
+.tables__actions {
+  display: flex;
+  flex: none;
+  gap: 0.4rem;
+}
+
+.tables__sit,
+.tables__stand {
+  flex: none;
+  padding: 0.2rem 0.6rem;
+  font: inherit;
+  font-size: 0.85em;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  cursor: pointer;
+}
+
+.tables__sit:disabled,
+.tables__stand:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tables__who {
+  grid-area: who;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The deck's own line, under the name: it is the longest thing on the row and
+   the column this card gets is narrow, so one line truncated it to "My…". */
+.tables__deck {
+  grid-area: deck;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tables__rules {
+  grid-area: rules;
+  justify-self: end;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pill--ready {
+  grid-area: deck-ready;
+}
+
+/* And the same pill on the constructed card, which is a flex COLUMN — a flex
+   item's default `align-self: stretch` would blow an inline-flex pill out to
+   the full width of the card and draw a 300px lozenge round two words. */
+.lobby__card > .pill {
+  align-self: flex-start;
+}
+
+/*
+ * A state, not a clause: a shape, a colour and a word. The SHAPE is the
+ * primary signal — `ConstructedScreen.tsx` draws a tick or an open
+ * ring — and the border style is a second one, so nothing here depends on
+ * telling green from amber.
+ */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem 0.1rem 0.35rem;
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.pill[data-state='yes'] {
+  color: var(--color-success-dark);
+  background: var(--color-success-bg);
+}
+
+.pill[data-state='no'] {
+  color: var(--color-warning-dark);
+  background: var(--color-warning-bg);
+  border-style: dashed;
+}
+
+/*
+ * My own seat's ready state is the button that sets it (the operator,
+ * 2026-10-16: *"just replace the 'not ready' pill with a button instead"*): the
+ * same pill, its two states and marks, with a button's border weight and
+ * cursor, and the primary colour on hover.
+ */
+.pill--button {
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Not ready yet: the action, in the primary colour the old Ready button had. */
+.pill--button[data-state='no'] {
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  border-style: solid;
+}
+
+.pill--button:hover:not(:disabled),
+.pill--button:focus-visible {
+  border-color: var(--color-primary);
+}
+
+.pill--button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.pill__mark {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: none;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tables__seat select,
+.lobby__card select {
+  padding: 0.45rem 0.6rem;
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  font: inherit;
+  max-width: 100%;
+}
+
+.tables__opponent {
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.tables__invite {
+  width: min(32rem, 100%);
+  padding: 0.3rem 0.5rem;
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  font: inherit;
+}
+
+/* The locked-room prompt. A direct link to a room you have the password for
+   is a valid way in — the screen asks rather than sending you to the list. */
+.lobby__locked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-lg);
+  background: var(--color-bg-card);
+}
+
+.lobby__locked p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.lobby__locked input {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.lobby__locked button {
+  padding: 7px 16px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.lobby__locked button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ── a draft room's lobby, before the cards exist ────────────────────── */
+
+/* ── a streamed room: one screen per seat ────────────────────────────── */
+
+/* `.lobby` is an auto-fit grid of 300px cards; a wall of live screens wants
+   the whole row, so the streams card spans it rather than sharing with a
+   sibling that is not there. */
+.streams {
+  grid-column: 1 / -1;
+}
+
+.streams__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.streams__seat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  padding: 10px;
+  background: var(--color-bg-alt);
+}
+
+.streams__who {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* 4:3 is the container's own desktop shape; a fixed ratio keeps the waiting
+   line and the live screen the same size, so a seat coming up does not shove
+   the rest of the grid around. */
+.streams__frame,
+.streams__waiting {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  margin: 0;
+}
+
+.streams__frame {
+  display: block;
+  background: var(--color-bg);
+}
+
+.streams__waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+}
+
+/* ── the era's sets, grouped by block (wave 28 §C, item 1) ─────────────── */
+
+/*
+ * Operator, 2026-09-28: *"this is ugly, just the symbols is okay. group them by
+ * block and make them bigger."*
+ *
+ * It was a `<p>` with no rules at all — twelve glyph-plus-code pairs run
+ * together at body size, which is the cramped look being complained about. Now:
+ * the glyph is `2rem`, the codes are gone from the markup entirely
+ * (`ConstructedScreen.tsx`'s `PoolSets` says why they are not merely hidden), and
+ * the gap INSIDE a block is a quarter of the gap BETWEEN blocks, which is what
+ * makes the grouping readable without a heading.
+ *
+ * `--color-text-secondary` rather than `--color-text`: a set symbol is a label
+ * for the pool above it, not the thing being read, and it is an oversized shape
+ * whose weight at `2rem` would otherwise out-shout the deck names below it.
+ */
+.lobby__sets {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 26px;
+}
+
+.lobby__block {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 2rem;
+  color: var(--color-text-secondary);
+}
+
+/*
+ * The era's set symbols and the deck grid's filters share one wrapping row
+ * (the operator, 2026-10-16: filters *"next to the set symbols"*); on a narrow
+ * screen the filters drop under the symbols, and their own groups wrap too.
+ */
+.lobby__setsrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 26px;
+}
+
+.lobby__setsrow:empty {
+  display: none;
+}
+
+.deckfilter {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.deckfilter__set {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+/*
+ * A chip is the thing it filters on — the tile's style tag, or a colour's pip —
+ * with no frame of its own. Off, it is faded; on, it is full strength and
+ * ringed in the accent, so on and off differ in more than colour.
+ */
+.deckfilter__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--hdk-radius);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.deckfilter__chip:hover {
+  opacity: 0.85;
+}
+
+.deckfilter__chip[aria-pressed='true'] {
+  opacity: 1;
+}
+
+.deckfilter__chip[aria-pressed='true'] .decktag {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.deckfilter__color {
+  padding: 2px;
+  border-radius: 50%;
+}
+
+.deckfilter__color[aria-pressed='true'] {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.deckfilter__chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.deckfilter__search {
+  /* Takes what is left of its line rather than wrapping onto one of its own. */
+  flex: 1 1 7em;
+  min-width: 5em;
+  max-width: 12em;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--hdk-radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+/* Nothing passes the filters: one line where the tiles would be. */
+.deckpick__empty {
+  grid-column: 1 / -1;
+  margin: 8px 0;
+  color: var(--ink-dim);
+}
+
+/* ── the deck chooser, which is not a dropdown (wave 28 §C, item 2) ─────── */
+
+/*
+ * *"the deck chooser dropdown is very ugly, needs a complete redesign. it should
+ * have a partial art that represents the deck and the two colored symbols. we
+ * cannot use a standard dropdown for this."* Operator again, later: *"deck
+ * selection: every deck box the same size, whatever text is in it."*
+ *
+ * A grid of card-like rows, one per legal deck. `auto-fill` with a `190px`
+ * minimum is the same width the table's own card tiles use (`--card-w`), so a
+ * deck row and a card read as the same kind of object, and a narrow room screen
+ * collapses to fewer columns instead of scrolling sideways — on a phone, two
+ * (below).
+ *
+ * `grid-auto-rows` fixes every row — including a second row once decks wrap —
+ * to the same track height, and `align-items: stretch` (the grid default, named
+ * here because the old rule overrode it to `start`) makes each option fill that
+ * track instead of sitting at its own content height inside it. Without a
+ * one-line `.deckpick__name` a long title would still overflow the fixed
+ * track, so the two rules below are one fix, not two.
+ *
+ * This is the first thing in this sheet that is not text, boxes and a status dot:
+ * it draws Keyrune/Mana glyphs (D20) and one card image per row. The image is an
+ * `<img src>` built by `cardImageUrl`, NOT a `url()` here — the sheet's no-`url()`
+ * rule stands, and it has to, because a card's art is a lookup that must stay
+ * repointable from `art-manifest.json` alone.
+ */
+.deckpick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-auto-rows: 190px;
+  gap: 10px;
+  align-items: stretch;
+}
+
+/* A phone's one 190px column showed three decks a screen; two narrower
+   columns of the same height show twice that, and a tile is still a card's
+   shape. */
+@media (max-width: 600px) {
+  .deckpick {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/*
+ * A room is rows, not columns, and it scrolls as one.
+ *
+ * The operator, 2026-10-10: *"inside a room, theres a lot of wasted space on
+ * the leftside column. the 'at this table' section will never take up more
+ * vertical space so i think we should instead stack these as rows"*. So the
+ * room's `.lobby` is a column, each card a row at its content height.
+ *
+ * The deck grid is drawn at its full height and the room's screen
+ * (`.shell--fit`) is the one box that scrolls: the operator, 2026-10-16, of the
+ * grid as a scroller of its own, *"the grid has a scrollbar now, yea we gotta
+ * fix that"* — at 1024x700 it was one tile row high, and on a phone not one
+ * whole tile. The page itself still never grows (`e2e/lobby-fit.spec.ts`).
+ */
+.lobby--room {
+  display: flex;
+  flex-direction: column;
+  /* `.lobby`'s `start` is the grid's; in a column it would stop every card
+     stretching to the screen's width. */
+  align-items: stretch;
+}
+
+/* A line that wraps: "At the table" with where the table stands, and the
+   room's mode with that mode's options. */
+.lobby__deckhead,
+.lobby__modeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.lobby__deckhead {
+  justify-content: space-between;
+}
+
+.lobby__modeline .lobby__format-tabs {
+  margin-bottom: 0;
+}
+
+/* A label that names the deck grid for assistive tech and is not drawn: the
+   grid of decks says what it is. */
+.lobby__field--hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A full-width table card puts its two seats side by side, one row high; a
+   seat narrower than 360px has no room for its name beside its button, crown
+   and pills, so a narrower screen stacks them again. */
+.lobby--room .tables__players {
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+}
+
+/*
+ * The art takes every pixel the footer does not (operator, 2026-10-09: *"allow
+ * for the card art to take more of the box's space"*). The name, the play-style
+ * mark and the colours share the footer's first row, the player its second, and
+ * the footer is a fixed height so every deck's art band is the same size whatever
+ * its name's length and whether it has a player.
+ *
+ * The first row is a fixed track and its three cells are centred in it, with no
+ * vertical offsets of their own: the name, the mark and the pips sit on one line
+ * whatever their heights (the operator, 2026-10-21: "vertically justify the
+ * decktype icon and deck name so that it looks better with the color icons").
+ */
+.deckpick__option {
+  --deckpick-line: 26px;
+
+  position: relative;
+  display: grid;
+  grid-template:
+    'art art art' minmax(0, 1fr)
+    'name style colors' var(--deckpick-line)
+    'pilot pilot pilot' 22px / minmax(0, 1fr) auto auto;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.deckpick__option:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.deckpick__option:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/*
+ * The chosen deck, said in three ways at once and not one of them colour alone:
+ * a thicker ring (`box-shadow` rather than a border, so the row does not move by
+ * a pixel when it is chosen), a lifted background, and the `chosen` chip below.
+ * `aria-checked` is the same fact for a screen reader.
+ */
+.deckpick__option[aria-checked='true'] {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+  background: var(--color-bg-card);
+}
+
+/* Dead for the same reason the dropdown was: the pool has not answered yet. */
+.deckpick__option:disabled,
+.deckpick__random:disabled {
+  cursor: progress;
+  color: var(--color-text-secondary);
+}
+
+/*
+ * The partial art: a window onto the card, cropped by the box rather than by the URL.
+ *
+ * `cardImageUrl` asks for `normal`, the whole unmodified card face, and this
+ * window shows the strip where the art is. `object-position: center 22%` lands on
+ * it for the whole 488x680 frame shape, and `cover` means a card whose bytes are
+ * missing or oddly sized still fills the band instead of letterboxing.
+ */
+.deckpick__art {
+  position: relative;
+  grid-area: art;
+  display: block;
+  align-self: stretch;
+  min-height: 0;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.deckpick__art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 22%;
+}
+
+/* The slice drops the card's printed credit line, so the band carries it. */
+.deckpick__credit {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  left: 4px;
+  font-size: 8px;
+  line-height: 1.2;
+  text-align: right;
+  color: var(--ink);
+  text-shadow: 0 1px 2px var(--scrim);
+  pointer-events: none;
+}
+
+/* No art resolved, and no apology for it: the row is complete without one. */
+.deckpick__art--none {
+  background: var(--color-bg);
+}
+
+/*
+ * One line, cut with an ellipsis: an unclamped name is what made a long deck's
+ * box taller than the rest before `grid-auto-rows` gave every option a fixed
+ * track to fill. The deck's player has the line below (the operator,
+ * 2026-10-16: *"row1: deckname, deck type icon, color symbols. row2: player
+ * name"*). `title` on the element carries the whole name (`ConstructedScreen.tsx`).
+ */
+.deckpick__name {
+  grid-area: name;
+  margin-left: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Who played it, under the deck, quieter. Its row is drawn whether or not a
+   deck has a player, so every tile's art band is the same height. */
+.deckpick__pilot {
+  grid-area: pilot;
+  align-self: start;
+  min-width: 0;
+  margin: 0 8px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deckpick__option .deckcolors {
+  grid-area: colors;
+  padding: 0 8px 0 6px;
+}
+
+/*
+ * A library deck's play style (`DeckStyleTag.tsx`): the word, in the `chosen`
+ * chip's small caps, on a raised plate so it reads over any art, led by the
+ * style's mark. The mark is drawn in the dim ink, never a hue, so it cannot be
+ * mistaken for a mana pip beside it; its shape carries the difference.
+ */
+.decktag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--hdk-radius);
+  background: var(--bg-raised);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.decktag__mark {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  color: var(--ink-dim);
+}
+
+/* The mark alone, in the footer between the name and the colours, level with the pips. */
+.decktag--mark {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.decktag--mark .decktag__mark {
+  width: 14px;
+  height: 14px;
+}
+
+.deckpick__option .decktag {
+  grid-area: style;
+  padding-left: 6px;
+}
+
+/* Beside the colours, which the title pushes to the right. */
+.peek__head .decktag {
+  margin-left: auto;
+}
+
+.deckpick__mark {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 6px;
+  border-radius: var(--hdk-radius);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/*
+ * Random looks like neither a deck nor the Ready button: it is an action that
+ * resolves to one of the rows below it, so it gets the dashed outline this sheet
+ * already uses for "not a thing, a way of getting one".
+ */
+.deckpick__random {
+  padding: 6px 14px;
+  border: 1px dashed var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.deckpick__random:hover:not(:disabled),
+.deckpick__random:focus-visible {
+  border-style: solid;
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+/* ── a deck's list, beside its tile after a second's hover (DeckPeek.tsx) ── */
+
+/* Fixed, so the deck grid's own scroll box does not clip it; placed inside the
+   room screen's box by the component, so it never covers the chat. */
+/* The list and the layer its hovered card enlarges into (`DeckPeek.tsx`): neither draws a box of its own. */
+.peek-host {
+  display: contents;
+}
+
+.peek {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-lg);
+  box-shadow: var(--hdk-shadow-lg);
+  font-size: 12px;
+}
+
+.peek__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.peek__who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.peek__title {
+  font-weight: var(--font-weight-bold);
+  font-size: 13px;
+}
+
+.peek__pilot {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.peek__body {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.peek__col {
+  width: 220px;
+}
+
+.peek__col--side {
+  padding-left: 14px;
+  border-left: 1px solid var(--color-border-light);
+}
+
+.peek__h {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.peek__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.peek__line {
+  display: grid;
+  grid-template-columns: 1.4em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+}
+
+/* The line whose card the inspector is showing. */
+.peek__line:hover {
+  background: var(--color-bg-hover);
+}
+
+.peek__n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.peek__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peek__line .cost {
+  font-size: 11px;
+}
+
+.peek__rule {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--color-border-light);
+}

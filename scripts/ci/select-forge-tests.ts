@@ -176,6 +176,15 @@ export const GUARDS: Guard[] = [
     specs: ['presence.spec.ts', 'played-card.spec.ts', 'w62-parked.spec.ts', 'w67-shaman.spec.ts', 'w70-tapped-drag.spec.ts', 'w71-tap-reveal.spec.ts'],
     jvm: [],
   },
+  {
+    // Every sheet is global, so a rule in a sheet more than one component tree reads can move the board
+    // whatever classes it names (33e3f9dc's pod `.seat` collapsed every match). `css-ownership.test.ts`
+    // derives this list from the import graph and fails until it matches.
+    name: 'the shared stylesheets',
+    paths: /^apps\/ui\/src\/(styles|chrome\/chrome|screens\/(screens|DecksScreen|SoundBuilder)|components\/spectate|play\/live\/live)\.css$/,
+    specs: ['table-fit.spec.ts'],
+    jvm: [],
+  },
 ];
 
 const NOTHING: RegExp[] = [
@@ -1088,8 +1097,8 @@ export function select(repo: Repo, changes: Change[], { deferFull = false, fullS
       if (specUsers.length + jvmUsers.length === 0) reasons.push(`${f}: no spec or suite names it`);
       continue;
     }
-    if (guards.some((g) => paths.some((p) => g.paths.test(p)))) {
-      // A hot path: its family above, and what history adds.
+    if (!f.endsWith('.css') && guards.some((g) => paths.some((p) => g.paths.test(p)))) {
+      // A hot path: its family above, and what history adds. A guarded stylesheet is still scored below by the classes it names.
       smoke(f);
       if (/^apps\/server\/src\/play\/bridge\/.*\.java$/.test(f)) everything(`${f}: the engine's own layer, which every match runs through`);
       history(f, namesOf(c));
