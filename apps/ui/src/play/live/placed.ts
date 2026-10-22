@@ -488,12 +488,7 @@ interface Drawn {
 }
 
 /** An item this paint draws, with what its place is worked out from. */
-interface Shown {
-  readonly item: StackEntry;
-  readonly index: number;
-  readonly d: Drawn;
-  readonly record: Placement | undefined;
-}
+type Shown = { readonly item: StackEntry; readonly index: number; readonly d: Drawn; readonly record: Placement | undefined };
 
 /**
  * Where in its hover a stack card starts (`placed.css`'s `--stack-phase`, 0–1): from its stack id,
@@ -740,41 +735,28 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
    */
   function squareChips(chips: readonly Drawn[], cardWidth: number | null, overlayBox: DOMRect): void {
     if (cardWidth === null) return;
-    const todo = chips.flatMap((d) => {
-      const text = d.el.querySelector<HTMLElement>('.placed__chip-text');
-      const length = text?.textContent?.length ?? 0;
-      const key = `${cardWidth}:${length}`;
-      return text === null || length === 0 || d.squaredFor === key ? [] : [{ d, text, key }];
-    });
-    const pads = todo.map(({ text }) => {
-      const style = getComputedStyle(text);
-      return {
-        x: (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0),
-        y: (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0),
-      };
-    });
     const max = Math.min(cardWidth * 3, overlayBox.width / 3);
-    let open = todo.map((_, i) => i);
-    const unlaid = new Set<number>();
+    const px = (v: string): number => Number.parseFloat(v) || 0;
+    let open = chips.flatMap((d) => {
+      const text = d.el.querySelector<HTMLElement>('.placed__chip-text');
+      const key = `${cardWidth}:${text?.textContent?.length ?? 0}`;
+      if (text === null || !text.textContent || d.squaredFor === key) return [];
+      const style = getComputedStyle(text);
+      return [{ d, text, key, padX: px(style.paddingLeft) + px(style.paddingRight), padY: px(style.paddingTop) + px(style.paddingBottom) }];
+    });
     for (let pass = 0; pass < 2 && open.length > 0; pass += 1) {
-      const boxes = open.map((i) => ({ i, lines: todo[i]!.text.getBoundingClientRect(), chip: todo[i]!.d.el.getBoundingClientRect() }));
+      const read = open.map((c) => ({ c, lines: c.text.getBoundingClientRect(), chip: c.d.el.getBoundingClientRect() }));
       open = [];
-      for (const { i, lines, chip } of boxes) {
-        const pad = pads[i]!;
-        if (!(lines.width > pad.x) || !(lines.height > pad.y)) {
-          unlaid.add(i); // no layout yet
-          continue;
-        }
-        const area = (lines.width - pad.x) * (lines.height - pad.y);
-        const w = Math.round(squareWidth(area, chip.height - lines.height + pad.y, pad.x, cardWidth, max));
+      for (const { c, lines, chip } of read) {
+        if (!(lines.width > c.padX) || !(lines.height > c.padY)) continue; // no layout yet
+        c.d.squaredFor = c.key;
+        const area = (lines.width - c.padX) * (lines.height - c.padY);
+        const w = Math.round(squareWidth(area, chip.height - lines.height + c.padY, c.padX, cardWidth, max));
         if (Math.abs(w - chip.width) < 1) continue;
-        todo[i]!.d.el.style.width = `${w}px`;
-        open.push(i);
+        c.d.el.style.width = `${w}px`;
+        open.push(c);
       }
     }
-    todo.forEach(({ d, key }, i) => {
-      if (!unlaid.has(i)) d.squaredFor = key;
-    });
   }
 
   /** What `positionOf` reads of an ability's chip: its source's box and its own drawn size, read before any chip is moved. */
