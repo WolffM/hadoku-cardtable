@@ -221,6 +221,8 @@
 }
 
 .pack__related-card {
+  /* A token nothing prints draws as its text tile, at the related row's size. */
+  --card-h: calc(var(--related-w) / (var(--card-ratio)));
   width: var(--related-w);
   aspect-ratio: var(--card-ratio);
   border-radius: var(--radius);

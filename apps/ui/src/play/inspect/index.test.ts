@@ -700,7 +700,7 @@ describe('the wheel turns a card to its other faces', () => {
     expect(wheel(theirCard(), 100), 'the wheel is taken').toBe(false);
     expect(shown(panel())).toBe('Reflection of Kiki-Jiki');
     // Then the tokens it makes, found by its name as Forge sends it (`related.ts`).
-    const after = ['Treasure', 'Goblin Shaman', 'Copy'];
+    const after = ['Goblin Shaman', 'Treasure', 'Copy'];
     for (const name of after) {
       wheel(theirCard(), 100);
       expect(shown(panel())).toBe(name);

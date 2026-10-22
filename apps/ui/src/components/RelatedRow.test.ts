@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 
 import { cardImageUrl } from '../draft/cardImage.ts';
-import { relatedCards } from '../draft/related.ts';
+import { relatedCards, type RelatedCard } from '../draft/related.ts';
 import type { CardFace, DraftCard } from '../draft/types.ts';
 import pool from '../draft/pool.json' with { type: 'json' };
 import { fanGeometry, relatedPlace } from './PackView.tsx';
@@ -45,6 +45,14 @@ function screenWithLayer(): { pack: HTMLElement; layer: HTMLElement } {
 
 const AT = { left: 20, top: 300, width: 120 };
 
+/** A related token with art, as `relatedCards` hands one over. */
+const token = (id: string, name: string): RelatedCard => ({
+  id,
+  name,
+  kind: 'token',
+  face: { scryfallId: id, name, manaCost: [], manaValue: 0, colors: [], typeLine: 'Token', oracleText: '', setCode: '', collectorNumber: '', rarity: 'common' },
+});
+
 const named = (name: string): DraftCard => (pool as unknown as { cards: DraftCard[] }).cards.find((c) => c.name.startsWith(name))!;
 /** A face as a card carries it: only its art id and name matter here. */
 const face = (scryfallId: string, name: string): CardFace => ({ ...named('Jace, Vryn'), scryfallId, name });
@@ -67,6 +75,14 @@ describe('a card’s related cards', () => {
     expect(relatedCards({ name: 'Goldvein Pick' }).map((r) => [r.name, r.kind])).toEqual([['Treasure', 'token']]);
   });
 
+  // The operator, 2026-10-22, hovering Jungle Patrol: "i should see a 0/1 green wood wall token?" Scryfall
+  // prints no Wood and lists none; Forge's script makes it, so its words come from there.
+  it('names a token from Forge’s own script, with its words where nothing prints it', () => {
+    const [wood] = relatedCards({ name: 'Jungle Patrol' });
+    expect(wood?.id).toBeUndefined();
+    expect(wood?.face).toMatchObject({ name: 'Wood', typeLine: 'Token Creature — Wall', power: '0', toughness: '1', colors: ['G'], oracleText: 'Defender' });
+  });
+
   it('leaves out a split card’s halves, which share the card’s own image', () => {
     const fire = { name: 'Fire // Ice', faces: [face(named('Jace, Vryn').scryfallId!, 'Ice')] };
     expect(relatedCards(fire)).toEqual([]);
@@ -77,9 +93,9 @@ describe('the related row', () => {
   it('draws nothing until every image has settled, then all that decoded at once, and leaves out one that failed', async () => {
     vi.stubGlobal('Image', FakeImage);
     const cards = [
-      { id: 'aaaaaaaa-0000-0000-0000-000000000001', name: 'One', kind: 'token' as const },
-      { id: 'aaaaaaaa-0000-0000-0000-000000000002', name: 'Two', kind: 'token' as const },
-      { id: 'aaaaaaaa-0000-0000-0000-000000000003', name: 'Three', kind: 'token' as const },
+      token('aaaaaaaa-0000-0000-0000-000000000001', 'One'),
+      token('aaaaaaaa-0000-0000-0000-000000000002', 'Two'),
+      token('aaaaaaaa-0000-0000-0000-000000000003', 'Three'),
     ];
     const { pack } = screenWithLayer();
     render(createElement(RelatedRow, { cards, anchor: pack, place: AT }), { container: pack });
@@ -93,10 +109,22 @@ describe('the related row', () => {
     expect([...screen.getByTestId('pack-related').querySelectorAll('img')].map((i) => i.alt)).toEqual(['One', 'Three']);
   });
 
+  it('draws a token with no art as its text tile, without waiting on an image', async () => {
+    vi.stubGlobal('Image', FakeImage);
+    const { pack, layer } = screenWithLayer();
+    const wood = relatedCards({ name: 'Jungle Patrol' });
+    await act(async () => {
+      render(createElement(RelatedRow, { cards: wood, anchor: pack, place: AT }), { container: pack });
+    });
+    expect(loads).toHaveLength(0);
+    const row = layer.querySelector('[data-testid="pack-related"]');
+    expect(row?.querySelector('.card__name')?.textContent).toBe('Wood');
+  });
+
   it('draws nothing when no image decodes', async () => {
     vi.stubGlobal('Image', FakeImage);
     const { pack } = screenWithLayer();
-    render(createElement(RelatedRow, { cards: [{ id: 'aaaaaaaa-0000-0000-0000-000000000009', name: 'Gone', kind: 'token' as const }], anchor: pack, place: AT }), {
+    render(createElement(RelatedRow, { cards: [token('aaaaaaaa-0000-0000-0000-000000000009', 'Gone')], anchor: pack, place: AT }), {
       container: pack,
     });
     await act(async () => loads[0]!.settle(false));
@@ -123,7 +151,7 @@ describe('the related row', () => {
   it('draws in the screen’s top layer, not inside the pack, at the place under the hovered card', async () => {
     vi.stubGlobal('Image', FakeImage);
     const { pack, layer } = screenWithLayer();
-    const cards = [{ id: 'aaaaaaaa-0000-0000-0000-000000000001', name: 'One', kind: 'token' as const }];
+    const cards = [token('aaaaaaaa-0000-0000-0000-000000000001', 'One')];
     render(createElement(RelatedRow, { cards, anchor: pack, place: AT }), { container: pack });
     await act(async () => loads[0]!.settle(true));
     const row = screen.getByTestId('pack-related');
@@ -139,7 +167,7 @@ describe('the related row', () => {
     vi.stubGlobal('Image', FakeImage);
     const pack = document.createElement('div');
     document.body.append(pack);
-    render(createElement(RelatedRow, { cards: [{ id: 'aaaaaaaa-0000-0000-0000-000000000001', name: 'One', kind: 'token' as const }], anchor: pack, place: AT }), {
+    render(createElement(RelatedRow, { cards: [token('aaaaaaaa-0000-0000-0000-000000000001', 'One')], anchor: pack, place: AT }), {
       container: pack,
     });
     await act(async () => loads[0]?.settle(true));

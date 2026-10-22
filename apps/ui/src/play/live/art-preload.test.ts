@@ -136,7 +136,7 @@ describe('cubeArtUrls / preloadCubeArt: the PLAN’s own cards, never the bundle
     expect(urls).toContain(cardImageUrl(`${UUID_A}#back`));
 
     // A real `related.json` entry (checked 2026-10-22): Ocelot Pride makes a Cat.
-    const CAT_ID = '74bacab2-a4c6-4ba5-a208-6bd09ae4cf9f';
+    const CAT_ID = '5f458f39-27b6-4121-bda9-1a0d1b42f5fb';
     expect(cubeArtUrls([{ ...card('2', UUID_B), name: 'Ocelot Pride' }])).toEqual([cardImageUrl(UUID_B), cardImageUrl(CAT_ID)]);
   });
 

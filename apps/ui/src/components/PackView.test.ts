@@ -296,6 +296,6 @@ describe('the grid', () => {
     render(createElement(PackView, { cards: [fable], layout: 'grid', onPick: vi.fn(), disabled: false, emptyNote: '' }));
     const key = tile(0).getAttribute('data-faces');
     const faces = [...document.querySelectorAll(`[data-faces-of="${key}"] .card`)].map((el) => el.querySelector('.card__name')?.textContent);
-    expect(faces).toEqual(['Reflection of Kiki-Jiki', 'Treasure', 'Goblin Shaman', 'Copy']);
+    expect(faces).toEqual(['Reflection of Kiki-Jiki', 'Goblin Shaman', 'Treasure', 'Copy']);
   });
 });

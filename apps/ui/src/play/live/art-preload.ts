@@ -61,7 +61,7 @@ export function preloadMatchArt(matchId: string, payload: unknown): number {
 /** One card's own art id, each other face's, and whatever rides with it (a token, a meld partner — `related.ts`). */
 function idsOf(card: DraftCard): string[] {
   const own = [card.scryfallId, ...(card.faces ?? []).map((f) => f.scryfallId)].filter((id): id is string => id !== undefined);
-  return [...own, ...relatedCards(card).map((r) => r.id)];
+  return [...own, ...relatedCards(card).flatMap((r) => (r.id === undefined ? [] : [r.id]))];
 }
 
 /**

@@ -6,8 +6,9 @@
  * selected card"*). Drawn
  * only once every one of their images has settled — a row that fills in a card
  * at a time is the flash the operator asked never to see — and only the ones
- * that decoded: a related card has no text tile to fall back on. Never in the
- * way: the picks under it still take the pointer.
+ * that decoded. A token nothing prints (Jungle Patrol's Wood) has no art to
+ * wait for, and draws as its text tile. Never in the way: the picks under it
+ * still take the pointer.
  *
  * Drawn in the screen's top layer (`../topLayer.ts`), not in the pack: the
  * operator, 2026-10-21, *"they need to render on top of everything else"*. Inside
@@ -19,6 +20,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 
+import { CardTile } from './CardTile.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import type { RelatedCard } from '../draft/related.ts';
 import { originIn, topLayerOf } from '../topLayer.tsx';
@@ -31,8 +33,8 @@ export interface RelatedPlace {
 }
 
 /** Whether `url` loads and decodes; no `Image` that can decode (a non-DOM test) is a no. */
-function decodes(url: string | null): Promise<boolean> {
-  if (url === null || typeof Image === 'undefined' || typeof Image.prototype.decode !== 'function') return Promise.resolve(false);
+function decodes(url: string): Promise<boolean> {
+  if (typeof Image === 'undefined' || typeof Image.prototype.decode !== 'function') return Promise.resolve(false);
   const img = new Image();
   img.src = url;
   return img.decode().then(
@@ -42,13 +44,13 @@ function decodes(url: string | null): Promise<boolean> {
 }
 
 export function RelatedRow({ cards, anchor, place }: { cards: readonly RelatedCard[]; anchor: HTMLElement | null; place: RelatedPlace }) {
-  const key = cards.map((c) => c.id).join('|');
-  const [drawn, setDrawn] = useState<{ key: string; cards: { card: RelatedCard; url: string }[] } | null>(null);
+  const key = cards.map((c) => c.id ?? c.name).join('|');
+  const [drawn, setDrawn] = useState<{ key: string; cards: { card: RelatedCard; url: string | null }[] } | null>(null);
   useEffect(() => {
     let live = true;
-    const list = cards.map((card) => ({ card, url: cardImageUrl(card.id) }));
-    void Promise.all(list.map((c) => decodes(c.url))).then((ok) => {
-      if (live) setDrawn({ key, cards: list.flatMap((c, i) => (ok[i] && c.url !== null ? [{ card: c.card, url: c.url }] : [])) });
+    const list = cards.map((card) => ({ card, url: card.id === undefined ? null : cardImageUrl(card.id) }));
+    void Promise.all(list.map((c) => (c.url === null ? Promise.resolve(true) : decodes(c.url)))).then((ok) => {
+      if (live) setDrawn({ key, cards: list.filter((_, i) => ok[i]) });
     });
     return () => {
       live = false;
@@ -66,9 +68,15 @@ export function RelatedRow({ cards, anchor, place }: { cards: readonly RelatedCa
   } as CSSProperties;
   return createPortal(
     <div className="pack__related" data-testid="pack-related" style={style}>
-      {drawn.cards.map(({ card, url }) => (
-        <img key={card.id} className="pack__related-card" src={url} alt={card.name} title={card.name} data-kind={card.kind} draggable={false} />
-      ))}
+      {drawn.cards.map(({ card, url }) =>
+        url === null ? (
+          <div key={card.name} className="pack__related-card" title={card.name} data-kind={card.kind}>
+            <CardTile card={{ ...card.face, cardId: `related-${card.name}` }} />
+          </div>
+        ) : (
+          <img key={card.id} className="pack__related-card" src={url} alt={card.name} title={card.name} data-kind={card.kind} draggable={false} />
+        ),
+      )}
     </div>,
     layer,
   );
