@@ -1196,6 +1196,15 @@ export interface OpenLobbyOptions {
 	onTournament?: (t: Tournament) => void;
 	/** Every series result, once (`SeriesEnd`). */
 	onSeriesEnd?: (end: SeriesEnd) => void;
+	/**
+	 * `room/plan.ts`'s `checkPlan`, bound to the server's cube lookup and Forge
+	 * checker — the SAME function `PUT …/pod/plan` runs, injected here so a
+	 * room whose plan has no verdict yet (just created; just restored with one
+	 * still `null`) gets one WITHOUT a PUT. Absent (every test that does not
+	 * pass it), a plan is simply never auto-checked — `planVerdict` stays
+	 * `null`, same as before this existed.
+	 */
+	checkPlan?: (plan: DraftPlan) => Promise<PoolVerdict>;
 }
 
 // ── the password ─────────────────────────────────────────────────────────────
@@ -1775,8 +1784,20 @@ class FileLobby implements Lobby {
 
 	#onSeriesEnd: (end: SeriesEnd) => void;
 
-	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, newRoomFormat: () => FormatId, onTournament: (t: Tournament) => void, onSeriesEnd: (end: SeriesEnd) => void) {
+	/** Wave 73 §A follow-up. `null` when `openLobby` was not given one — a plan then simply never auto-checks. */
+	#checkPlan: ((plan: DraftPlan) => Promise<PoolVerdict>) | null = null;
+	/**
+	 * In-flight auto-checks, keyed by plan content (`#planKey`) — not by room —
+	 * so two rooms created in the same instant on the identical default plan
+	 * share the one call rather than firing it twice. Cleared as soon as the
+	 * shared promise settles; a later room on the same (still-unchecked) plan
+	 * starts a fresh one.
+	 */
+	readonly #planChecks = new Map<string, Promise<PoolVerdict>>();
+
+	constructor(store: FileRoomStore, now: () => number, log: LobbyLog, newRoomFormat: () => FormatId, onTournament: (t: Tournament) => void, onSeriesEnd: (end: SeriesEnd) => void, checkPlan: ((plan: DraftPlan) => Promise<PoolVerdict>) | null) {
 		this.#store = store;
+		this.#checkPlan = checkPlan;
 		this.#now = now;
 		this.#log = log;
 		this.#newRoomFormat = newRoomFormat;
@@ -1789,6 +1810,9 @@ class FileLobby implements Lobby {
 		this.#rooms.set(room.id, room);
 		this.#lastCreatedAt = Math.max(this.#lastCreatedAt, room.createdAt);
 		if (secret !== null) this.#secrets.set(room.id, secret);
+		// A snapshot written mid-check (the previous process died before its
+		// background check — or a PUT's — landed) still has `planVerdict: null`.
+		this.#ensurePlanChecked(room);
 	}
 
 	#view(room: RoomRecord): RoomView {
@@ -1889,6 +1913,58 @@ class FileLobby implements Lobby {
 		return () => {
 			this.#changeListeners.delete(listener);
 		};
+	}
+
+	/** Two plans are the same deal — same grouping `@hadoku/draft`'s `deal()` and `room/plan.ts`'s `checkPlan` use. */
+	#planKey(plan: DraftPlan): string {
+		return plan.rounds.map((src: PoolSource) => (src.kind === 'cube' ? `cube:${src.cubeId}` : `set:${src.code}:${src.style}`)).join('|');
+	}
+
+	/**
+	 * A room whose plan has no verdict yet gets one, in the background, with
+	 * no PUT — see this class's `#checkPlan` and `OpenLobbyOptions.checkPlan`'s
+	 * own doc for why this exists at all. Called from `#insert` (every new
+	 * room starts on the Settled default, unchecked) and `restore` (a snapshot
+	 * written mid-check, before the previous process could finish one).
+	 *
+	 * Only a `draft` room's plan is ever read, so a constructed room's (always
+	 * the Settled default, never shown or acted on) is never checked — that
+	 * would be Forge work spent on a value nobody looks at.
+	 */
+	#ensurePlanChecked(room: RoomRecord): void {
+		if (room.gameType !== 'draft') return;
+		if (room.planVerdict !== null) return;
+		if (this.#checkPlan === null) return;
+		const checkPlan = this.#checkPlan;
+		const roomId = room.id;
+
+		const key = this.#planKey(room.plan);
+		let pending = this.#planChecks.get(key);
+		if (pending === undefined) {
+			pending = checkPlan(room.plan);
+			this.#planChecks.set(key, pending);
+			// Not `.finally` chained onto what callers await: this is the cache
+			// entry's own cleanup, run once regardless of how many rooms are
+			// waiting on it, so a plan nobody has checked successfully yet gets a
+			// fresh attempt the next time a room asks rather than being stuck
+			// replaying a rejected promise forever.
+			pending.catch(() => undefined).then(() => this.#planChecks.delete(key));
+		}
+
+		pending.then(
+			(verdict) => {
+				// The room may have been deleted, or already given a real verdict by
+				// a PUT that landed while this background check was in flight — a
+				// stale background result must never overwrite either.
+				const current = this.#rooms.get(roomId);
+				if (current === undefined || current.planVerdict !== null) return;
+				current.planVerdict = verdict;
+				this.#persist(current);
+			},
+			(err: unknown) => {
+				this.#log({ event: 'plan-check-failed', roomId, error: (err as Error).message });
+			},
+		);
 	}
 
 	list(): RoomView[] {
@@ -2307,6 +2383,7 @@ class FileLobby implements Lobby {
 			clientMode: room.clientMode,
 			locked: this.#secrets.has(id),
 		});
+		this.#ensurePlanChecked(room);
 		return this.#view(room);
 	}
 
@@ -2752,7 +2829,15 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 	const fixed = opts.defaultFormat;
 	const random = opts.random ?? Math.random;
 	const formats = opts.formats ?? [];
-	const lobby = new FileLobby(store, now, log, fixed === undefined ? () => randomFormat(random, formats) : () => fixed, opts.onTournament ?? (() => {}), opts.onSeriesEnd ?? (() => {}));
+	const lobby = new FileLobby(
+		store,
+		now,
+		log,
+		fixed === undefined ? () => randomFormat(random, formats) : () => fixed,
+		opts.onTournament ?? (() => {}),
+		opts.onSeriesEnd ?? (() => {}),
+		opts.checkPlan ?? null,
+	);
 
 	for (const roomId of await store.list()) {
 		const quarantine = async (reason: string): Promise<void> => {

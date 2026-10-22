@@ -440,6 +440,10 @@ const lobby = await openLobby({
 	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
 	onTournament: (t) => tournaments.record(t),
 	onSeriesEnd: (end) => matchStats.seriesEnd(end),
+	// A room's plan checks itself in the background (new; restored with a null
+	// verdict) — the same function PUT …/pod/plan runs. See lobby.ts's
+	// OpenLobbyOptions.checkPlan and #ensurePlanChecked.
+	checkPlan: checkDraftPlan,
 });
 attachRooms(api, {
 	lobby,
