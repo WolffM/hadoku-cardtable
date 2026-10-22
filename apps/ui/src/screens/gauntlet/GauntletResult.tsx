@@ -1,10 +1,28 @@
 /* The Gauntlet's end: the winner, crowned, and each game's two decks, one game to a row under the players' names. */
-import type { GauntletView } from '@hadoku/shared';
+import type { GauntletGame, GauntletView } from '@hadoku/shared';
 
 import { CROWN, type DeckOption } from '../ConstructedScreen.tsx';
-import { RevealedGame } from './GauntletChoose.tsx';
-import { useTilePeek } from './peek.tsx';
+import { DeckTile } from '../DeckTile.tsx';
+import { useTilePeek, type TileBinding } from './peek.tsx';
 import { PlayerName, seatOrder } from './seats.tsx';
+
+/** One game's row: its two decks face to face, P1's first, the winner's ringed. Both are on record once it is over. */
+function GameRow({ view, game, options, bind, index }: { view: GauntletView; game: GauntletGame; options: ReadonlyMap<string, DeckOption>; bind: (id: string) => TileBinding; index: number }) {
+  return (
+    <div className="gauntlet__match" data-testid="gauntlet-game" data-game={index + 1} data-winner={game.winner ?? undefined}>
+      <span className="gauntlet__game">Game {index + 1}</span>
+      {seatOrder(view).map((seat) => {
+        const id = game.decks[seat];
+        const option = id === null ? undefined : options.get(id);
+        return (
+          <div key={seat} className="gauntlet__match-seat" data-seat={seat} data-won={game.winner === seat || undefined}>
+            {option !== undefined && <DeckTile option={option} className="gauntlet-tile" data-testid="gauntlet-deck" tabIndex={-1} {...bind(option.value)} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function GauntletResult({ view, options }: { view: GauntletView; options: ReadonlyMap<string, DeckOption> }) {
   const { bind, peek } = useTilePeek(options);
@@ -36,7 +54,7 @@ export function GauntletResult({ view, options }: { view: GauntletView; options:
           ))}
         </div>
         {view.games.map((game, i) => (
-          <RevealedGame key={i} view={view} game={game} options={options} bind={bind} index={i} names={false} />
+          <GameRow key={i} view={view} game={game} options={options} bind={bind} index={i} />
         ))}
       </div>
       {peek}

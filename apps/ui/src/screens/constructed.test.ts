@@ -2596,8 +2596,9 @@ describe('the room’s mode', () => {
     await screen.findByTestId('gauntlet-choose');
     expect(screen.queryByTestId('gauntlet-playing')).toBeNull();
     expect(screen.queryByTestId('gauntlet-game')).toBeNull();
-    expect(screen.queryByTestId('constructed-mode')).toBeNull();
-    expect(screen.queryByTestId('room-players')).toBeNull();
+    // The room around it is the one the choice was made on: its mode row and its seats stay put.
+    expect(screen.getByTestId('room-players')).toBeTruthy();
+    expect(radio('gauntlet').checked).toBe(true);
   });
 
   it('a decided Gauntlet frees the room: the mode is the leader’s again, the seat stands, and Ready begins a new one (ruling 13.4)', async () => {

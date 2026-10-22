@@ -3,10 +3,11 @@
  * The viewer's own picks are pressable and their choice wears the room's `chosen` chip; the other
  * seat's picks are drawn as available, but which one they chose never is — the view carries only
  * that they have (`choice.chosen`), and this draws only that. A deck is played, and greyed on both
- * sides, once its game is over. `RevealedGame` draws a game's two decks face to face; while it is
- * played the view names only the viewer's own, and the other is face down.
+ * sides, once its game is over. From the choice to the board, and while the game is played, this
+ * screen stays as it was when both had chosen: no screen of the game's own comes between (the
+ * operator, 2026-10-21).
  */
-import type { GauntletGame, GauntletSeatIndex, GauntletView } from '@hadoku/shared';
+import type { GauntletChoice, GauntletSeatIndex, GauntletView } from '@hadoku/shared';
 
 import { StatusPill, type DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
@@ -14,8 +15,18 @@ import { playRole } from '../../sound/index.ts';
 import { useTilePeek, type TileBinding } from './peek.tsx';
 import { PlayerName, seatOrder } from './seats.tsx';
 
+/**
+ * The choice as this screen draws it: the view's own while choosing; once the game is dealt
+ * (`playing`), both seats have chosen and the viewer's own is the game's deck at their seat.
+ */
+function choiceOf(view: GauntletView): GauntletChoice | null {
+  if (view.phase !== 'playing') return view.choice;
+  return { mine: view.you === null ? null : (view.games.at(-1)?.decks[view.you] ?? null), chosen: [true, true] };
+}
+
 function ChoosingSeat({
   view,
+  choice,
   seat,
   player,
   options,
@@ -23,6 +34,7 @@ function ChoosingSeat({
   onChoose,
 }: {
   view: GauntletView;
+  choice: GauntletChoice | null;
   seat: GauntletSeatIndex;
   player: 'p1' | 'p2';
   options: ReadonlyMap<string, DeckOption>;
@@ -30,7 +42,7 @@ function ChoosingSeat({
   onChoose: (deckId: string) => void;
 }) {
   const mine = view.you === seat;
-  const chosen = view.choice?.chosen[seat] ?? false;
+  const chosen = choice?.chosen[seat] ?? false;
   const picks = view.decks.filter((d) => d.status === 'picked' && d.by === seat);
   return (
     <div
@@ -49,7 +61,7 @@ function ChoosingSeat({
           const option = options.get(d.id);
           if (option === undefined) return null;
           const press =
-            mine && !d.played
+            mine && !d.played && view.phase === 'choose'
               ? () => {
                   playRole('ui.gauntlet-choose');
                   onChoose(d.id);
@@ -64,7 +76,7 @@ function ChoosingSeat({
               data-status={d.status}
               data-played={d.played || undefined}
               role={mine ? 'radio' : undefined}
-              checked={mine ? view.choice?.mine === d.id : undefined}
+              checked={mine ? choice?.mine === d.id : undefined}
               disabled={press === undefined}
               onClick={press}
               {...bind(d.id)}
@@ -79,56 +91,18 @@ function ChoosingSeat({
 export function GauntletChoose({ view, options, onChoose }: { view: GauntletView; options: ReadonlyMap<string, DeckOption>; onChoose: (deckId: string) => void }) {
   const [p1, p2] = seatOrder(view);
   const { bind, peek } = useTilePeek(options);
+  const choice = choiceOf(view);
   return (
     <section className="gauntlet gauntlet--choose" data-testid="gauntlet-choose" data-phase={view.phase}>
       <h2 className="gauntlet__title" data-testid="gauntlet-title">
         {view.era?.title}
-        <span className="gauntlet__game">Game {view.games.length + 1}</span>
+        <span className="gauntlet__game">Game {view.games.length + (view.phase === 'playing' ? 0 : 1)}</span>
       </h2>
       <div className="gauntlet__seats">
-        <ChoosingSeat view={view} seat={p1} player="p1" options={options} bind={bind} onChoose={onChoose} />
-        <ChoosingSeat view={view} seat={p2} player="p2" options={options} bind={bind} onChoose={onChoose} />
+        <ChoosingSeat view={view} choice={choice} seat={p1} player="p1" options={options} bind={bind} onChoose={onChoose} />
+        <ChoosingSeat view={view} choice={choice} seat={p2} player="p2" options={options} bind={bind} onChoose={onChoose} />
       </div>
       {peek}
     </section>
-  );
-}
-
-/** One game's two decks, face to face, P1's first; a deck the view does not name is face down. */
-export function RevealedGame({
-  view,
-  game,
-  options,
-  bind,
-  index,
-  names = true,
-}: {
-  view: GauntletView;
-  game: GauntletGame;
-  options: ReadonlyMap<string, DeckOption>;
-  bind: (id: string) => TileBinding;
-  index: number;
-  /** False where the players are named once above every game (the result). */
-  names?: boolean;
-}) {
-  const order = seatOrder(view);
-  return (
-    <div className="gauntlet__match" data-testid="gauntlet-game" data-game={index + 1} data-winner={game.winner ?? undefined}>
-      <span className="gauntlet__game">Game {index + 1}</span>
-      {order.map((seat, i) => {
-        const id = game.decks[seat];
-        const option = id === null ? undefined : options.get(id);
-        return (
-          <div key={seat} className="gauntlet__match-seat" data-seat={seat} data-won={game.winner === seat || undefined}>
-            {names && <PlayerName view={view} seat={seat} player={i === 0 ? 'p1' : 'p2'} />}
-            {id === null ? (
-              <span className="gauntlet__slot gauntlet__slot--hidden" data-testid="gauntlet-hidden" aria-hidden="true" />
-            ) : (
-              option !== undefined && <DeckTile option={option} className="gauntlet-tile" data-testid="gauntlet-deck" tabIndex={-1} {...bind(option.value)} />
-            )}
-          </div>
-        );
-      })}
-    </div>
   );
 }

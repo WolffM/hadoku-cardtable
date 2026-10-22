@@ -312,8 +312,7 @@
   aspect-ratio: 1;
 }
 
-.gauntlet__match-seat > .deckpick__option,
-.gauntlet__match-seat > .gauntlet__slot {
+.gauntlet__match-seat > .deckpick__option {
   aspect-ratio: 5 / 4;
 }
 
@@ -346,10 +345,6 @@
 
 .gauntlet__match-seat:last-of-type {
   grid-area: p2;
-}
-
-.gauntlet--playing .gauntlet__match {
-  animation: gauntlet-turn 400ms ease-out;
 }
 
 /* The result: its title and winner on one line. */
@@ -426,8 +421,7 @@
   .gauntlet-tile[data-dealing],
   .gauntlet__turn,
   .gauntlet-tile__cross path,
-  .gauntlet-tile[data-status='banned']::after,
-  .gauntlet--playing .gauntlet__match {
+  .gauntlet-tile[data-status='banned']::after {
     animation: none;
   }
 

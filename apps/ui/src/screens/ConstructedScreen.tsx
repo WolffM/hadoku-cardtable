@@ -1312,11 +1312,6 @@ function RoomTableScreen({
   const canReady =
     mode === 'classic' ? deckId !== '' && myLegal : mode === 'gauntlet' ? seated && ['options', 'done'].includes(gauntlet?.phase ?? 'options') : seated;
   /**
-   * A Gauntlet game dealt: from the choice to the board, and while it is played, the room is that
-   * game (the operator, 2026-10-21: *"let's go stragiht from deck selection into the next game"*).
-   */
-  const gauntletGame = mode === 'gauntlet' && gauntlet?.phase === 'playing';
-  /**
    * The room's own table record (wave 71 §D's wire shape, via `@hadoku/shared`),
    * for the SERIES it carries — `wins`, `games`, `phase` — none of which
    * `./tables.ts`'s own `RoomTable` (`table`, above) has. A constructed 1v1
@@ -2095,7 +2090,6 @@ function RoomTableScreen({
           <>
             {/* The mode, and the chosen mode's options beside it. With no mode
                 chosen this row is the whole room (the operator, 2026-10-21). */}
-            {!gauntletGame && (
             <section className="lobby__card">
               {/* The room's type above its mode (the operator, 2026-10-21), so the
                   mode and its options keep their one line. */}
@@ -2140,11 +2134,9 @@ function RoomTableScreen({
                 </p>
               )}
             </section>
-            )}
 
             {mode !== null && (
               <>
-            {!gauntletGame && (
             <section className="lobby__card">
               {/* Where the table stands sits on its heading's line, which has the
                   width to spare: a line added under the seats comes off the room's height. */}
@@ -2222,23 +2214,21 @@ function RoomTableScreen({
               </ul>
               {startRefused}
             </section>
-            )}
 
             {mode === 'gauntlet' ? (
-              // The board between games too, from the choice onward; while a game is dealt or played,
-              // that game alone, with the way into it.
+              // The board between games too, from the choice onward. From the choice to the board the
+              // room stays the screen the choice was made on (the operator, 2026-10-21: *"let's go
+              // stragiht from deck selection into the next game"*, and *"theres still an extra screen …
+              // we need to get rid of this"*): the start, its refusal and the way back into a live game
+              // are the table's, above it, as in every mode.
               gauntlet !== null && (
-                <>
-                  <GauntletScreen
-                    view={gauntlet}
-                    avatars={seatAvatars(gauntlet, members)}
-                    onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck))}
-                    onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck))}
-                    onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
-                  />
-                  {gauntletGame && matchLink}
-                  {gauntletGame && startRefused}
-                </>
+                <GauntletScreen
+                  view={gauntlet}
+                  avatars={seatAvatars(gauntlet, members)}
+                  onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck))}
+                  onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck))}
+                  onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
+                />
               )
             ) : spectating ? (
               <section className="lobby__card">

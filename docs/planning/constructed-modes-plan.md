@@ -127,6 +127,11 @@ not.
     locked now even though the match is done?"* A decided Gauntlet holds
     nothing an unfinished one does: no Rematch, the table unlocked, the mode
     the leader's again, and a Ready begins the next Gauntlet.
+    Then, the same day: *"theres still an extra screen that happens between
+    selecting a deck in gauntlet mode and game start. it looks like a screen
+    where the two selected decks are pitted against eachother? we need to get
+    rid of this."* From the choice to the board the room stays the choose
+    screen it was on: no lobby, no versus card.
 
 ## Design
 
