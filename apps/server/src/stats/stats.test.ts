@@ -128,6 +128,35 @@ describe('what a finished match is read as', () => {
 		expect(facts.seats.map((s) => s.placement)).toEqual([1, 2]);
 	});
 
+	it('a concede Forge ends with no winner named is the conceder’s loss, not a draw', () => {
+		const h = harness();
+		expect(h.match.fromClient(1, { kind: 'act', method: 'concede' } as ClientFrame)).toEqual({ ok: true });
+		h.host.push({ t: 'gameover', winner: null });
+		const facts = matchFacts(h.match)!;
+		expect(facts.seats.map((s) => s.placement)).toEqual([1, 2]);
+		expect(facts.endReason).toBe('concede');
+	});
+
+	it('Forge’s own losers place the seats, even when the winner’s name says otherwise', () => {
+		const h = harness();
+		playOut(h);
+		h.host.push({ t: 'gameover', winner: 'Seat 1', losers: [h.match.seats[0]!.playerId!] });
+		expect(matchFacts(h.match)!.seats.map((s) => s.placement)).toEqual([2, 1]);
+	});
+
+	it.each([
+		['stopped', (h: Harness) => h.match.stop()],
+		['failed', (h: Harness) => h.host.push({ t: 'fatal', message: 'the JVM died' })],
+	])('a game the server already %s is not finished when a late gameover line arrives', (_, end) => {
+		const h = harness();
+		playOut(h);
+		end(h);
+		h.host.push({ t: 'gameover', winner: 'Seat 1' });
+		expect(h.over).toEqual([]);
+		expect(h.match.outcome()).toBeNull();
+		expect(matchFacts(h.match)).toBeNull();
+	});
+
 	it('a draw places everybody first and names no end reason', () => {
 		const h = harness();
 		h.host.push({ t: 'gameover', winner: null });

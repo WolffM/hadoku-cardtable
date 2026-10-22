@@ -28,6 +28,7 @@ import { moveToMain } from '@hadoku/deck';
 
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import type { MatchReport } from '@wolffm/prefs-client/games';
+import type { ClientFrame } from '@hadoku/forge-wire';
 import type { JvmRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
 import type { MatchRegistry } from '../play/match.js';
 import { MATCH_EVENTS } from '../play/transport.js';
@@ -2076,6 +2077,50 @@ describe('a room table', () => {
 	});
 
 	/**
+	 * The operator, 2026-10-21: "if a match was not brought to victory/defeat
+	 * then it was not finished." A match the server ended — nobody came back
+	 * (`match-not-rejoined`), the room closed, the JVM died — has no result,
+	 * even when the bridge's gameover line was already in the pipe.
+	 */
+	describe('a game that ends without victory or defeat', () => {
+		async function started(h: Harness): Promise<string> {
+			openRoom(h);
+			await bothLoaded(h);
+			await setReady(h, 'alice');
+			await setReady(h, 'bob');
+			const res = await startRoom(h, 'alice');
+			expect(res.status).toBe(201);
+			return res.body.matchId as string;
+		}
+
+		it.each([
+			['stopped', (h: Harness, id: string) => h.matches.get(id)!.stop()],
+			['failed', (h: Harness) => (h.hosts.at(-1) as ReplayHost).push({ t: 'fatal', message: 'the JVM died' })],
+		])('is not reported and not counted when the match was %s before its gameover line', async (_, end) => {
+			const h = await boot();
+			const id = await started(h);
+			end(h, id);
+			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: h.matches.get(id)!.spec.seats[0].name });
+			await view(h, 'alice');
+			await new Promise((r) => setTimeout(r, 50));
+			expect(h.reports).toEqual([]);
+			expect(h.lobby.room(ROOM)?.tables[0]?.series.games).toEqual([]);
+			expect(h.lobby.room(ROOM)?.tables[0]?.matchId).toBeNull();
+		});
+
+		it('a concede is a finished game: reported and counted as the conceder’s loss', async () => {
+			const h = await boot();
+			const id = await started(h);
+			const match = h.matches.get(id)!;
+			expect(match.fromClient(0, { kind: 'act', method: 'concede' } as ClientFrame)).toEqual({ ok: true });
+			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: null });
+			await vi.waitFor(() => expect(h.reports).toHaveLength(1));
+			expect(h.reports[0]!.seats.map((s) => s.placement)).toEqual([2, 1]);
+			expect(h.lobby.room(ROOM)?.tables[0]?.series.games).toEqual([{ matchId: id, winner: 1 }]);
+		});
+	});
+
+	/**
 	 * Wave 72 §P step 1: the eager series. `GET /api/rooms/:id` is lane A's
 	 * own route (`http/rooms.ts`) and calls `lobby.get` directly — it never
 	 * touches this file's `tableView`/`liveMatchId`, so before this wave
@@ -2924,6 +2969,24 @@ describe('a pod table plays each drafter’s own pool', () => {
 			['user', `draft:${POD}`],
 			['bot', undefined],
 		]);
+	});
+
+	it('reports no drafted game the server ended before Forge called it', async () => {
+		const h = await boot();
+		const pools = pod(h);
+		const state = stateOf(h.rooms.find(POD)!);
+		const across = (state.table.seats.findIndex((s) => s.occupant?.kind === 'human' && s.occupant.participantId === ALICE) + 4) % 8;
+		state.pools[across] = state.packs.flat().slice(90, 135);
+		openRoom(h);
+		expect((await putDeck(h, 'alice', built(pools.alice))).status).toBe(200);
+		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+		expect(res.status).toBe(201);
+		const match = h.matches.get(res.body.matchId as string)!;
+		match.stop();
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: match.spec.seats[0].name });
+		await new Promise((r) => setTimeout(r, 50));
+		expect(h.reports).toEqual([]);
+		expect(h.lobby.room(ROOM)?.tables.flatMap((t) => t.series.games)).toEqual([]);
 	});
 
 	it('refuses a drafted room against the AI while no bot has drafted anything', async () => {
