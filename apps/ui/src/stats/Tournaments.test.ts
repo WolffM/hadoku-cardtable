@@ -13,14 +13,16 @@ afterEach(() => {
 const cubeNight: Tournament = {
   id: 'r-1-1',
   name: 'Cube night',
+  startedAt: Date.UTC(2026, 9, 18),
   endedAt: Date.UTC(2026, 9, 19),
   closed: true,
+  rounds: 1,
   names: { 'u-alice': 'Alice', ai: 'AI' },
   standings: [
     { id: 'u-alice', matchPoints: 3, opponentMatchWinPct: 0.33, gameWinPct: 1, opponentGameWinPct: 0, rank: 1 },
     { id: 'ai', matchPoints: 0, opponentMatchWinPct: 1, gameWinPct: 0, opponentGameWinPct: 1, rank: 2 },
   ],
-  results: [{ playerA: 'u-alice', playerB: 'ai' }],
+  results: [{ round: 1, playerA: 'u-alice', playerB: 'ai', gamesA: 2, gamesB: 0 }],
 };
 
 describe('the Tournaments tab', () => {
@@ -52,5 +54,12 @@ describe('the Tournaments tab', () => {
     }) as unknown as typeof fetch;
     expect(await fetchTournaments(fetchImpl)).toEqual([cubeNight]);
     expect(calls[0]).toMatch(/\/api\/tournaments$/);
+  });
+
+  it('keeps exactly what the server keeps: a record without its start or its rounds is not one', async () => {
+    const { startedAt: _startedAt, ...noStart } = cubeNight;
+    const { rounds: _rounds, ...noRounds } = cubeNight;
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ tournaments: [noStart, noRounds, cubeNight] }), { status: 200 })) as unknown as typeof fetch;
+    expect(await fetchTournaments(fetchImpl)).toEqual([cubeNight]);
   });
 });
