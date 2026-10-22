@@ -5,6 +5,7 @@
  * vault broker) can inject them without a code edit.
  */
 
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
@@ -90,6 +91,38 @@ export const CONFIG = {
 
 	/** Structured access log destination (gitignored, created on boot). */
 	logDir: resolveDir(process.env.CARDTABLE_LOG_DIR || 'logs'),
+
+	/** `CARDTABLE_PLAY_PROBE=1`: the e2e harness's dev diagnostics — the scenario routes and the frame and stop traces. Never on in production. */
+	playProbe: process.env.CARDTABLE_PLAY_PROBE === '1',
+
+	/**
+	 * `CARDTABLE_PLAY_SEED`: fixes Forge's shuffles, the coin toss and the precon
+	 * pick for every match this server starts, or undefined (production) for an
+	 * unseeded one. Read at each start, not at boot, so a test can set it.
+	 */
+	get playSeed(): number | undefined {
+		const raw = process.env.CARDTABLE_PLAY_SEED;
+		const seed = raw === undefined || raw === '' ? Number.NaN : Number(raw);
+		return Number.isFinite(seed) ? seed : undefined;
+	},
+
+	/** Container n's noVNC port is this plus n (the static bench publishes 127.0.0.1:6080+n). */
+	streamBasePort: Number(process.env.CARDTABLE_STREAM_PORT ?? 6080),
+
+	/** The first host port a room's seat stream may take — see `stream/alloc.ts`. */
+	roomStreamBasePort: Number(process.env.CARDTABLE_ROOM_STREAM_PORT ?? 6100),
+
+	/** The name every room stream container this server owns starts with; `scripts/stream/container.sh` reads the same variable. */
+	streamNamePrefix: process.env.CARDTABLE_STREAM_NAME_PREFIX ?? 'cardtable-room',
 } as const;
+
+/**
+ * Where a Forge match's run directories go (`CARDTABLE_PLAY_WORK_DIR`). Takes the
+ * environment as an argument, as `play/host.ts`'s `jvmHostConfig` does, so a test
+ * can point one host at its own directory.
+ */
+export function playWorkDir(env: NodeJS.ProcessEnv = process.env): string {
+	return resolve(env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play'));
+}
 
 export const INDEX_HTML = join(CONFIG.webDir, 'index.html');

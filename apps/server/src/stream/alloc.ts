@@ -43,6 +43,8 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { CONFIG } from '../config.js';
+
 /** Same rule as `lobby.ts`'s `ROOM_ID_RE`. A stream key IS a room id. */
 export const ROOM_KEY_RE = /^[a-z0-9-]{1,40}$/;
 
@@ -53,7 +55,7 @@ export const ROOM_KEY_RE = /^[a-z0-9-]{1,40}$/;
  * bench, 19008/19028/19108/19128 are the e2e harness. `container.sh` refuses
  * anything below 6100 a second time, in case this constant is ever loosened.
  */
-export const ROOM_STREAM_BASE_PORT = Number(process.env.CARDTABLE_ROOM_STREAM_PORT ?? 6100);
+export const ROOM_STREAM_BASE_PORT = CONFIG.roomStreamBasePort;
 
 /**
  * How many streamed seats may exist on this host AT ONCE, across all rooms.
@@ -85,7 +87,7 @@ export const IDLE_RECLAIM_MS = 30 * 60_000;
  * variable, so the script and the server can never disagree about what this
  * server may touch.
  */
-export const CONTAINER_NAME_PREFIX = process.env.CARDTABLE_STREAM_NAME_PREFIX ?? 'cardtable-room';
+export const CONTAINER_NAME_PREFIX = CONFIG.streamNamePrefix;
 
 export interface RoomStreamSeat {
 	seat: number;

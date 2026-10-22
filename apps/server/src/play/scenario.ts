@@ -12,13 +12,13 @@
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ClientFrameSchema, coreTypes, currentFace, deltaKey, DELTA_TYPE, idsOf, strOf, type ServerFrame } from '@hadoku/forge-wire';
 import { afterEach } from 'vitest';
 
+import { playWorkDir } from '../config.js';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeCommand, type BridgeLine, type JvmHostConfig, type MatchHost } from './host.js';
 import { createMatchRegistry, type Match, type SeatIdentity } from './match.js';
 import { PHASE_BY_UI_NAME, type StopPolicy } from './auto.js';
@@ -132,7 +132,7 @@ export interface TimeoutDump {
  * reason. Call this at the timeout, never after `stop()`.
  */
 export function dumpTimeoutReport(input: TimeoutDump): string {
-	const dir = process.env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play');
+	const dir = playWorkDir();
 	const base = `${slug(input.label)}-${Date.now()}`;
 	const path = join(dir, `${base}.dump.json`);
 	// The WHOLE stderr goes into the dump (`stderr`), the tail stays for a quick

@@ -152,6 +152,7 @@ import {
 	type StopPolicy,
 	type StopWindow,
 } from './auto.js';
+import { CONFIG } from '../config.js';
 import { answerPending, arrangeAsk, digAnswer, digAsk, pendingOrders, restOrder, sameCardsOrder } from './arrange.js';
 import { eachTypeAsk, firstEachType, nextEachType } from './each-type.js';
 import { firstMode, modesAsk, nextMode } from './modes.js';
@@ -246,7 +247,7 @@ import {
 } from './visibility.js';
 
 /** Trace every stop decision (`stop-decided`) — probe mode only, see `maybeAutoPass`. */
-const TRACE_STOPS = process.env.CARDTABLE_PLAY_PROBE === '1';
+const TRACE_STOPS = CONFIG.playProbe;
 
 /**
  * Trace every frame Forge sends (`forge-frame`), every command sent to Forge (`forge-command`) and
@@ -254,7 +255,7 @@ const TRACE_STOPS = process.env.CARDTABLE_PLAY_PROBE === '1';
  * `t` of its own write, so a gap between a cast and its landing reads straight off the log
  * (w67-shaman: "2 s of lag" had no row to put a number on).
  */
-const TRACE_FRAMES = process.env.CARDTABLE_PLAY_PROBE === '1';
+const TRACE_FRAMES = CONFIG.playProbe;
 
 /** The few fields of a frame that name it in a trace row. */
 export function frameGist(frame: unknown): Record<string, unknown> {

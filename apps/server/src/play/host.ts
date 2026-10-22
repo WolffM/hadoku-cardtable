@@ -260,12 +260,13 @@ import {
 	writeSync,
 } from 'node:fs';
 import { Socket } from 'node:net';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import type { AbortReasonSchema, ClientAction, GameLogLine, Loss, SendYieldUpdate } from '@hadoku/forge-wire';
 
+import { playWorkDir } from '../config.js';
 import { jsonLogger } from '../log.js';
 
 /* ── What a host is ──────────────────────────────────────────────────── */
@@ -564,7 +565,7 @@ export function jvmHostConfig(env: NodeJS.ProcessEnv = process.env): JvmAvailabi
 			java: env.CARDTABLE_JAVA ?? defaultJava(),
 			jar: resolve(jar),
 			res: resolve(res),
-			workDir: resolve(env.CARDTABLE_PLAY_WORK_DIR ?? join(tmpdir(), 'cardtable-play')),
+			workDir: playWorkDir(env),
 			jvmOpts: withHeapCap((env.CARDTABLE_PLAY_JVM_OPTS ?? '').split(/\s+/).filter((s) => s !== '')),
 			bridgeSource,
 			bridgeCache: resolve(env.CARDTABLE_PLAY_BRIDGE_CACHE ?? join(env.XDG_CACHE_HOME ?? join(homedir(), '.cache'), 'cardtable', 'bridge')),

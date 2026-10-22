@@ -387,8 +387,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	//
 	// Unset in production, which is every deployment: this is the test hatch,
 	// and an unseeded match is what it falls back to.
-	const seedRaw = process.env.CARDTABLE_PLAY_SEED;
-	const seed = seedRaw === undefined || seedRaw === '' ? Number.NaN : Number(seedRaw);
+	const seed = CONFIG.playSeed;
 	// `MatchSpecWithIdentity`, not `MatchSpec`, so `displayName` can sit on each
 	// seat beside `deck` and `ai` without the excess-property check a literal
 	// typed directly as `MatchSpec` would fail. Returned as `spec: MatchSpec`
@@ -412,7 +411,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 				...(names[1] === undefined ? {} : { displayName: names[1] }),
 			},
 		],
-		...(Number.isFinite(seed) ? { seed } : {}),
+		...(seed === undefined ? {} : { seed }),
 		...(scenario === undefined ? {} : { scenario }),
 		...(format === undefined ? {} : { format }),
 		...(handSmoothing === undefined ? {} : { handSmoothing }),

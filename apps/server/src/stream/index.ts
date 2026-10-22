@@ -60,6 +60,7 @@ import { connect, type Socket } from 'node:net';
 import { request as httpRequest } from 'node:http';
 import express from 'express';
 
+import { CONFIG } from '../config.js';
 import { rankOf, sanitizeHeaders, tierOf } from '../edge-auth.js';
 import { isStaticIndexLike, type RoomStreams } from './alloc.js';
 
@@ -87,7 +88,7 @@ export interface StreamHandle {
 }
 
 /** Container n's noVNC port. The containers publish 127.0.0.1:6080+n. */
-export const STREAM_BASE_PORT = Number(process.env.CARDTABLE_STREAM_PORT ?? 6080);
+export const STREAM_BASE_PORT = CONFIG.streamBasePort;
 
 /** `/stream/3/websockify` → 3, or null when the path is not a stream path. */
 export function streamIndexOf(url: string | undefined, count: number): number | null {
