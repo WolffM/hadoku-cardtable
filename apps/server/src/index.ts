@@ -416,23 +416,18 @@ const forgePools: ForgePools | null = forge.ok
 	? createForgePools(forge.config, jsonLogger('cardtable-pools'))
 	: null;
 
-// Wave 74 §E: every set Forge has a draft template for, plus each one's
-// resolved card list (set-cube size) and name — `createSetsStore`'s own
-// cache. Warmed here, once, rather than lazily on the first `GET
-// /api/pools/sets` or the first plan a leader picks: `poolResolver.name`
-// below needs a set's real name SYNCHRONOUSLY (`DraftRooms.nameOf`,
-// `PodView.planName`), and warming here is also what makes a leader's first
-// pick of ANY set instant — `cardsFor` then hits `list()`'s own cache
-// instead of a fresh Forge round-trip. `[]` without a jar, no warming to do.
-//
-// `warmSetsStore`, never a bare `await setsStore.list()`: this is a
-// top-level await, so a rejection here (a slow or dead JVM at boot) would
-// take the WHOLE process down with it — constructed play included. A fault
-// is logged once and the boot carries on; `nameOf` falls back to the bare
-// code (`poolResolver.name` below) until the next `GET /api/pools/sets`
-// retries fresh (`list()` clears its own in-flight promise on a failure).
+// Every set Forge has a draft template for, plus each one's resolved card
+// list (set-cube size) and name — `createSetsStore`'s own cache. Warmed in
+// the background from here, never awaited: on a slow host it is tens of
+// seconds of pool-JVM round-trips, and nothing optional may keep the server
+// from listening. Started this early so `sets()` is the pool JVM's first
+// call — every name is known from that one answer (`setsStore.onNamed`, wired
+// to the lobby below), and a restored room's plan check asking for a set the
+// warm-up is resolving shares its round-trip (`cardsFor`). Until then
+// `poolResolver.name` shows the bare code, and `GET /api/pools/sets` waits
+// for the warm-up it joins. `[]` without a jar, no warming to do.
 const setsStore = createSetsStore({ forge: forgePools, catalog, log: jsonLogger('cardtable-pools') });
-await warmSetsStore(setsStore);
+void warmSetsStore(setsStore);
 
 const poolResolver: PoolSourceResolver = {
 	cards(src) {
@@ -476,6 +471,10 @@ const lobby = await openLobby({
 	// OpenLobbyOptions.checkPlan and #ensurePlanChecked.
 	checkPlan: checkDraftPlan,
 });
+// A plan name read before the set names warmed showed the bare code; every
+// draft room is read again once they arrive. Wired before `listen`, so no
+// view can have been served without this listener in place.
+setsStore.onNamed(() => lobby.poolNamesChanged());
 attachRooms(api, {
 	lobby,
 	checkPlan: checkDraftPlan,

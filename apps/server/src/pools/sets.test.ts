@@ -157,10 +157,10 @@ describe('createSetsStore — read while list() is still warming', () => {
 });
 
 /*
- * `index.ts` awaits this at boot, in place of a bare `store.list()` — a
- * rejected `forge.sets()` (or any `resolveCards` round-trip inside it) must
- * never take the whole server process down with it. `warmSetsStore` is the
- * function that can never reject: `nameOf` falls back to the bare code until
+ * `index.ts` starts this at boot and never awaits it — a rejected
+ * `forge.sets()` (or any `resolveCards` round-trip inside it) must never
+ * surface as an unhandled rejection. `warmSetsStore` is the function that
+ * can never reject: `nameOf` falls back to the bare code until
  * the NEXT successful `list()` (the next `GET /api/pools/sets` — `list()`
  * already clears its own `listPromise` on a failure, so that next call is a
  * fresh attempt, not a dead cached rejection).

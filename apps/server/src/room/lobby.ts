@@ -795,6 +795,13 @@ export interface Lobby {
 	 */
 	onChange(listener: RoomChangeListener): () => void;
 	/**
+	 * A pool source's display name changed outside any room (a set's name,
+	 * known only once Forge answers after boot): every draft room's view —
+	 * `PodView.planName` — reads differently now, so every one is named to
+	 * `onChange` with nothing written.
+	 */
+	poolNamesChanged(): void;
+	/**
 	 * Deal the room's draft: the point at which a draft room stops being a lobby.
 	 *
 	 * Requires the room to exist, the caller to be a member, the game type to be
@@ -1790,6 +1797,12 @@ class FileLobby implements Lobby {
 		return () => {
 			this.#changeListeners.delete(listener);
 		};
+	}
+
+	poolNamesChanged(): void {
+		for (const room of this.#rooms.values()) {
+			if (room.gameType === 'draft') this.#changed(room.id);
+		}
 	}
 
 	/** Two plans are the same deal — same grouping `@hadoku/draft`'s `deal()` and `room/plan.ts`'s `checkPlan` use. */

@@ -70,17 +70,22 @@ export interface SetsStore {
 	list(): Promise<SetSummary[]>;
 	/**
 	 * A set's own display name — `null` for a code `list()` has never seen
-	 * (including: no jar, or `list()` has not run yet). Synchronous:
+	 * (including: no jar, or Forge has not answered `sets()` yet). Synchronous:
 	 * `room/draftRooms.ts`'s `PoolSourceResolver.name` needs this with no
-	 * await, and `index.ts` warms it with one `await warmSetsStore(store)` at boot.
+	 * await. Every name is known from `list()`'s FIRST Forge answer, long
+	 * before the card lists it goes on to resolve; `onNamed` says when.
 	 */
 	nameOf(code: string): string | null;
+	/** Be told when `nameOf` starts answering for codes it did not before — a view built with a bare code reads again. Returns the unsubscribe. */
+	onNamed(listener: () => void): () => void;
 	/**
 	 * Every card a code's styles could draw, resolved through the catalog by
 	 * name — `setCards`'s non-basic singletons unioned with a booster sample
 	 * (see this file's header). `typeLine: ''` marks a name the catalog could
 	 * not resolve (`missingText`, same signal `pools/cubes.ts` uses). `null`
-	 * for an unknown code or when Forge cannot answer at all. Cached.
+	 * for an unknown code or when Forge cannot answer at all. Cached, and a
+	 * call made while another (or `list()`) is resolving the same code shares
+	 * that one Forge round-trip.
 	 */
 	cardsFor(code: string): Promise<readonly DraftCard[] | null>;
 	/** `cardsFor`'s own cache, read synchronously — `null` if it has never resolved (or was asked and failed). `room/draftRooms.ts`'s set-cube `PoolSourceResolver.cards` reads this: by the time a plan naming this source was ever ACCEPTED, `checkSource` already warmed it. */
@@ -108,6 +113,8 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 
 	const nameCache = new Map<string, string>();
 	const cardsCache = new Map<string, readonly DraftCard[] | null>();
+	const cardsInFlight = new Map<string, Promise<readonly DraftCard[] | null>>();
+	const namedListeners = new Set<() => void>();
 	const verdictCache = new Map<string, PoolVerdict>();
 	let listCache: SetSummary[] | null = null;
 	let listPromise: Promise<SetSummary[]> | null = null;
@@ -152,6 +159,39 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 		return names.map((name) => opts.catalog.byName(name) ?? missingTextCard(name, code));
 	}
 
+	function cardsFor(code: string): Promise<readonly DraftCard[] | null> {
+		const cached = cardsCache.get(code);
+		if (cached !== undefined) return Promise.resolve(cached);
+		let pending = cardsInFlight.get(code);
+		if (pending === undefined) {
+			pending = resolveCards(code)
+				.then((cards) => {
+					cardsCache.set(code, cards);
+					return cards;
+				})
+				.finally(() => cardsInFlight.delete(code));
+			cardsInFlight.set(code, pending);
+		}
+		return pending;
+	}
+
+	function named(sets: readonly ForgeSetSummary[]): void {
+		let added = false;
+		for (const s of sets) {
+			if (nameCache.get(s.code) === s.name) continue;
+			nameCache.set(s.code, s.name);
+			added = true;
+		}
+		if (!added) return;
+		for (const listener of [...namedListeners]) {
+			try {
+				listener();
+			} catch (err) {
+				warn({ evt: 'set-named-listener-failed', detail: (err as Error).message });
+			}
+		}
+	}
+
 	return {
 		async list() {
 			if (listCache !== null) return listCache;
@@ -164,11 +204,10 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 			listPromise = (async () => {
 				const sets = await forge.sets();
 				const sorted = [...sets].sort((a, b) => b.date.localeCompare(a.date));
+				named(sorted);
 				const out: SetSummary[] = [];
 				for (const s of sorted) {
-					nameCache.set(s.code, s.name);
-					const cards = await resolveCards(s.code);
-					cardsCache.set(s.code, cards);
+					const cards = await cardsFor(s.code);
 					out.push({
 						code: s.code,
 						name: s.name,
@@ -192,13 +231,13 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 		nameOf(code) {
 			return nameCache.get(code) ?? null;
 		},
-		async cardsFor(code) {
-			const cached = cardsCache.get(code);
-			if (cached !== undefined) return cached;
-			const cards = await resolveCards(code);
-			cardsCache.set(code, cards);
-			return cards;
+		onNamed(listener) {
+			namedListeners.add(listener);
+			return () => {
+				namedListeners.delete(listener);
+			};
 		},
+		cardsFor,
 		cachedCards(code) {
 			return cardsCache.get(code) ?? null;
 		},
@@ -217,10 +256,10 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 }
 
 /**
- * `index.ts`'s own boot warm-up — `await warmSetsStore(store)` in place of a
- * bare `await store.list()`. A top-level await that rejects takes the WHOLE
- * process down with it (constructed play, every other route, all of it), so
- * this never rejects: a fault is logged once and the server carries on with
+ * `index.ts`'s own boot warm-up, started and never awaited: the server listens
+ * while it runs (warming every set is tens of seconds of Forge round-trips on a
+ * slow host). It never rejects, so an unawaited call can never surface as an
+ * unhandled rejection: a fault is logged once and the server carries on with
  * no names/card lists warmed. `nameOf` then falls back to the bare code
  * (`index.ts`'s resolver already does this) until the next `GET
  * /api/pools/sets`, which is a fresh attempt — `list()` clears its own
