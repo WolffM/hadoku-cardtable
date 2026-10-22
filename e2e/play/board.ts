@@ -628,7 +628,15 @@ export async function passOverStack(page: Page): Promise<void> {
   await expect(ok).toHaveCount(0, { timeout: 2_000 }).catch(() => undefined);
 }
 
-/** Press whichever page's OK is enabled until `until()` is true — the "let the main loop run forward" pump w46-attack/w32/w56-numbers each wrote by hand (T6). `press` defaults to `enabledOk`'s own OK; `turn-edge.spec.ts`'s own `passWhatever` (OK-or-Cancel) is its own. */
+/**
+ * Press whichever page's OK is enabled until `until()` is true — the "let the main loop run forward" pump
+ * w46-attack/w32/w56-numbers each wrote by hand (T6). `press` defaults to `enabledOk`'s own OK.
+ *
+ * `until()` is asked again before every answer and every press, not once a round: one page's press can
+ * be the one that meets it, and the next page's press then lands past the point the caller stops at
+ * (turn-edge, run 39752707376: alice's OK began Bob's turn, Bob's press 123 ms later ended it, and the
+ * spec measured turn 2 on a table already in turn 3).
+ */
 export async function grindPriority(
   pages: readonly Page[],
   until: () => Promise<boolean>,
@@ -639,9 +647,14 @@ export async function grindPriority(
   });
   const deadline = Date.now() + (opts.timeoutMs ?? 30_000);
   while (Date.now() < deadline) {
-    if (await until()) return;
-    for (const page of pages) await answerPrompt(page);
-    for (const page of pages) await press(page);
+    for (const page of pages) {
+      if (await until()) return;
+      await answerPrompt(page);
+    }
+    for (const page of pages) {
+      if (await until()) return;
+      await press(page);
+    }
     await pages[0]!.waitForTimeout(opts.intervalMs ?? 40);
   }
   throw new Error('grindPriority timed out waiting for its own condition');
