@@ -429,6 +429,7 @@ import { observeZoneBoxes, type ZoneBoxes } from './zone-box.ts';
 import { PLACEMENT_WAIT_MS, UNLOCK_BEAT_MS } from './motion.ts';
 import './board.css';
 import './card.css';
+import '../components/card-back.css';
 
 /** What Forge currently lets the viewer click, and where a click goes. */
 /** One held card's tags (`BoardInteraction.held`): its changed cost as cost tokens, and a granted flash, each with its tooltip. */

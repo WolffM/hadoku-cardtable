@@ -1,0 +1,50 @@
+/* ── the back of a card: ours, not Magic's ───────────────────────────── */
+
+/*
+ * Item 12: *"opponents hand should show like real card backs."* So a back is
+ * drawn as a CARD and not as a hatched slab: a card's proportion, a card's
+ * radius, a bordered field, an inset panel with its own rule, and one mark in
+ * the middle of that panel. Three layers, none of which needs a child element,
+ * so the strip's geometry is untouched and a back is still one bare `<li>`:
+ *
+ *   - the field, a soft radial that is darkest at the edges, on the element;
+ *   - the panel, an inset rule on `::before`, so the back has a border INSIDE
+ *     its border the way a printed back does;
+ *   - the mark, a lozenge on `::after`.
+ *
+ * It is NOT Magic's back. That is WotC art and this repo draws none of it
+ * (CLAUDE.md): no logo, no wordmark, no frame. This is our pattern, for the same
+ * reason the player mark is a circle and a bust we drew.
+ */
+.card-back {
+  position: relative;
+  flex: none;
+  width: var(--card-back-w);
+  aspect-ratio: 488 / 680;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) * 0.75);
+  background: radial-gradient(120% 90% at 50% 38%, var(--bg-raised) 0%, var(--bg-card) 62%, var(--bg) 100%);
+  overflow: hidden;
+}
+
+/* The inset panel: a back has a border inside its border. */
+.card-back::before {
+  content: '';
+  position: absolute;
+  inset: 11%;
+  border: 1px solid var(--line-soft);
+  border-radius: calc(var(--radius) * 0.545);
+}
+
+/* The mark in the middle of it — a lozenge, ours. Clipped rather than rotated. */
+.card-back::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: color-mix(in srgb, var(--ink-faint) 34%, transparent);
+}

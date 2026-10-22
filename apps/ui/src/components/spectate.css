@@ -309,6 +309,148 @@
   text-transform: uppercase;
 }
 
+/* ── the packs waiting in front of each seat (`SeatBar.tsx`, `pack-queue.ts`) ── */
+
+.packq {
+  /* A pack is `pack-queue.ts`'s PACK of the ring's box wide, whatever the panel's width or the UI scale. */
+  --pack-w: calc(100% * 10 / 264);
+
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/*
+ * A pack, placed by its centre and turned (`SeatBar.tsx`'s `poseOf`). One
+ * rule moves it between any two poses: left, top and rotate transition, after
+ * `--delay` (the arrivals it reacts to). Every pack is drawn over the seats:
+ * never behind a face or a name.
+ */
+.packq__pack {
+  position: absolute;
+  z-index: 2;
+  width: var(--pack-w);
+  aspect-ratio: 488 / 680;
+  translate: -50% -50%;
+  transition:
+    left 0.65s cubic-bezier(.45, .05, .35, 1) var(--delay, 0ms),
+    top 0.65s cubic-bezier(.45, .05, .35, 1) var(--delay, 0ms),
+    rotate 0.65s cubic-bezier(.45, .05, .35, 1) var(--delay, 0ms);
+}
+
+/* The seats and the counters sit under every pack. */
+.packq ~ .podcircle__centre,
+.packq ~ .podcircle__seats {
+  z-index: 1;
+}
+
+/* The pose's own motion (rattle, teeter, slump) pivots on the pack's bottom edge. */
+.packq__stack {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+}
+
+/* Three of the table's own backs (`card-back.css`), squared up a little untidily. */
+.packq .card-back.packq__card {
+  --card-back-w: 100%;
+
+  position: absolute;
+  inset: 0;
+  border-color: color-mix(in srgb, var(--ink) 40%, var(--line));
+  border-radius: 2px;
+  translate: calc(var(--k) * 1.5px) calc(var(--k) * -1.5px);
+  rotate: calc(var(--k) * 5deg);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--bg) 70%, transparent);
+}
+
+.packq .card-back::before {
+  border-radius: 1px;
+}
+
+/* The poses, louder with every pack waiting (`--shake` is depth − 1, so the shake shows from 3). */
+.packq__stack[data-pose='jammed'] {
+  animation: packq-rattle calc(1.6s - var(--shake) * 0.15s) steps(2, jump-none) infinite;
+}
+
+@keyframes packq-rattle {
+  0%,
+  70%,
+  100% {
+    transform: none;
+  }
+
+  80% {
+    transform: translateX(calc(var(--shake) * 0.25px)) rotate(calc(var(--shake) * 0.6deg));
+  }
+
+  90% {
+    transform: translateX(calc(var(--shake) * -0.25px)) rotate(calc(var(--shake) * -0.6deg));
+  }
+}
+
+.packq__stack[data-pose='teeter'] {
+  animation: packq-teeter calc(2.2s - var(--shake) * 0.15s) ease-in-out infinite alternate;
+}
+
+@keyframes packq-teeter {
+  from {
+    transform: rotate(calc(var(--shake) * -1.6deg));
+  }
+
+  to {
+    transform: rotate(calc(var(--shake) * 1.6deg));
+  }
+}
+
+.packq__stack[data-pose='slumped'] {
+  animation: packq-slump 1.8s ease-in-out infinite;
+}
+
+@keyframes packq-slump {
+  50% {
+    transform: scale(1.06, 0.9);
+  }
+}
+
+/* A seat under five or more packs fidgets. */
+.seatbar__seat[data-swamped] .seatbar__face {
+  animation:
+    seat-picking 1.4s ease-in-out infinite,
+    packq-fidget 0.9s ease-in-out infinite;
+}
+
+@keyframes packq-fidget {
+  0%,
+  60%,
+  100% {
+    translate: 0 0;
+  }
+
+  70% {
+    translate: -1px 0;
+  }
+
+  80% {
+    translate: 1px -1px;
+  }
+
+  90% {
+    translate: -1px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .packq__pack {
+    transition: none;
+  }
+
+  .packq__stack[data-pose],
+  .seatbar__seat[data-swamped] .seatbar__face {
+    animation: none;
+  }
+}
+
 /* ── The deck builder ────────────────────────────────────────────────── */
 
 .deck {

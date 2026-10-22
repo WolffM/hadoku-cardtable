@@ -43,6 +43,7 @@ const SHARED: Record<string, string> = {
   'cardtable-chrome': 'the chrome root: the app and the embed mount the same one, and the embed adds its modifier',
   'ct-toggle': 'a toggle that is on, in the primary fill: tabs, switches and the sound tools’ pills',
   'sound-builder': 'the sound tools (builder, sandbox, music review, queue) are one sheet’s screens',
+  'card-back': 'a card face down, `components/card-back.css`: the other seat’s hand on the board, and the packs waiting in the draft pod',
 };
 
 /** Blocks (rules A, B) and classes (rule C) whose fix is in a sheet another lane holds. Each must still fail, or its entry goes. */
