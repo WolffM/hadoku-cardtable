@@ -25,18 +25,24 @@ function drawnWidth(card: HTMLElement | null): number | null {
   return width > 0 ? width : null;
 }
 
+/**
+ * The width `probe` draws at inside `list`, measured and taken out again. No layout (a test DOM):
+ * the probe's own inherited `--card-w`, when it is already a px value, is the same answer.
+ */
+function probeWidth(list: HTMLElement, probe: HTMLElement): number | null {
+  list.append(probe);
+  const width = probe.getBoundingClientRect().width || Number.parseFloat(getComputedStyle(probe).getPropertyValue('--card-w')) || 0;
+  probe.remove();
+  return width > 0 ? width : null;
+}
+
 export function cardWidthIn(list: HTMLElement): number | null {
   const drawn = drawnWidth(list.querySelector<HTMLElement>(':scope > li.board-card'));
   if (drawn !== null) return drawn;
   const probe = document.createElement('li');
   probe.className = 'board-card';
   probe.style.visibility = 'hidden';
-  list.append(probe);
-  let width = probe.getBoundingClientRect().width;
-  // No layout (a test DOM): the probe's own inherited `--card-w`, when it is already a px value, is the same answer.
-  if (!(width > 0)) width = Number.parseFloat(getComputedStyle(probe).getPropertyValue('--card-w')) || 0;
-  probe.remove();
-  return width > 0 ? width : null;
+  return probeWidth(list, probe);
 }
 
 /** The card width on one seat's battlefield — any card it draws, else its first row's — null before the board has drawn one. */
@@ -63,12 +69,7 @@ export function handCardWidth(root: ParentNode): number | null {
   if (list === null) return battlefieldCardWidth(root, 'you') ?? battlefieldCardWidth(root, 'them');
   const probe = document.createElement('div');
   probe.style.cssText = 'position: absolute; visibility: hidden; width: var(--card-w); height: 0';
-  list.append(probe);
-  let width = probe.getBoundingClientRect().width;
-  // No layout (a test DOM): the probe's own inherited `--card-w`, when it is already a px value, is the same answer.
-  if (!(width > 0)) width = Number.parseFloat(getComputedStyle(probe).getPropertyValue('--card-w')) || 0;
-  probe.remove();
-  return width > 0 ? width : (battlefieldCardWidth(root, 'you') ?? battlefieldCardWidth(root, 'them'));
+  return probeWidth(list, probe) ?? battlefieldCardWidth(root, 'you') ?? battlefieldCardWidth(root, 'them');
 }
 
 /** Size an element drawn off the rows as a card `width` wide: `--card-w` in px, which `card.css` and the layers' own CSS read. */
