@@ -19,6 +19,7 @@
  *   POST  /api/rooms/:id/pod/sit    {} or { seat }               → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
  *   POST  /api/rooms/:id/pod/stand  {} or no body                → 200 RoomView | 404 | 409 (wave 72 §P, lobby phase only)
  *   POST  /api/rooms/:id/pod/play   {} or no body                → 200 RoomView | 403 | 404 | 409 (done building; the last drafter's press deals round 1)
+ *   PUT   /api/rooms/:id/pod/plan   { plan }                      → 200 RoomView | 400 | 403 | 404 | 409 { verdict } (wave 73 §A, leader only, lobby phase only)
  *
  * `format` is a frozen era's id or Free pick — never `draft:<podId>`. A drafted
  * deck is played on Free pick ("My decks"); a pod's own tables play its pool by
@@ -103,7 +104,10 @@ import {
 	GAME_TYPES,
 	POD_SEATS,
 	RoomModeSchema,
+	SetDraftPlanBodySchema,
+	type DraftPlan,
 	type GameType,
+	type PoolVerdict,
 	type RoomMode,
 } from '@hadoku/shared';
 import {
@@ -153,6 +157,15 @@ export interface RoomsDeps {
 	joinRateLimit?: RateLimitConfig;
 	/** Injected for tests; the limiter's clock. */
 	now?: () => number;
+	/**
+	 * The verdict for a plan (`room/plan.ts`'s `checkPlan`, bound to the
+	 * server's cube lookup and Forge checker) — `PUT …/pod/plan` runs this
+	 * BEFORE calling `lobby.setPodPlan`, since computing it is the one thing in
+	 * this request that needs async I/O. `index.ts` wires the real deps (the
+	 * interim shortlist `CubeLookup` and a `null` `ForgeChecker` for steps 1-5;
+	 * C's `createCubeStore` and D's `createForgePools` at step 6).
+	 */
+	checkPlan: (plan: DraftPlan) => Promise<PoolVerdict>;
 }
 
 function callerOf(req: Request): Caller {
@@ -812,6 +825,37 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 			if (result.reason === 'no-room') return noMatch(res);
 			if (result.reason === 'not-drafter') return res.status(403).json({ error: 'you did not draft in this pod' });
 			return res.status(409).json({ error: 'your deck is not saved and legal yet' });
+		}
+		res.json(roomBody(result.room, caller.id));
+	});
+
+	/**
+	 * The leader's pool choice (wave 73 §A), lobby phase only — the wire
+	 * contract's own words: "it runs the verdict first. Refused: 409 {
+	 * verdict }, and the plan is unchanged. Accepted: 200, and the plan is
+	 * broadcast on the room like any pod change." `kind: 'set'` is refused at
+	 * 400 this wave (sets are wave 74); everything else goes to `checkPlan`
+	 * BEFORE `lobby.setPodPlan` ever sees it, since that is this request's one
+	 * piece of async I/O (`room/plan.ts`'s `checkSource`/`checkPlan`).
+	 */
+	rooms.put('/:id/pod/plan', async (req: Request, res: Response) => {
+		const parsed = SetDraftPlanBodySchema.safeParse(req.body);
+		if (!parsed.success) return badRequest(res, 'body is { plan: { rounds: [source, source, source] } }');
+		if (parsed.data.plan.rounds.some((r) => r.kind === 'set')) return badRequest(res, 'set sources are not supported yet');
+		const caller = callerOf(req);
+		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id)) return noMatch(res);
+
+		const verdict = await deps.checkPlan(parsed.data.plan);
+		const result = lobby.setPodPlan(id, caller.id, parsed.data.plan, verdict);
+		if (!result.ok) {
+			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
+			if (result.reason === 'not-leader') return res.status(403).json({ error: 'only the room owner sets the draft pool' });
+			if (result.reason === 'refused') return res.status(409).json({ verdict: result.verdict });
+			return res.status(409).json({
+				error: result.reason === 'not-draft' ? 'this room does not have a pod' : 'the pod has already started — the pool is fixed',
+			});
 		}
 		res.json(roomBody(result.room, caller.id));
 	});

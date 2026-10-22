@@ -74,6 +74,8 @@ import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
 import { createDraftRooms, DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
+import { checkPlan, type CubeLookup } from './room/plan.js';
+import type { CubeSummary, DraftPlan, PoolVerdict } from '@hadoku/shared';
 import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { loadPool, type CubePool } from './room/pool.js';
@@ -376,34 +378,6 @@ const matchStats = createMatchStats({
 	}),
 });
 
-const lobby = await openLobby({
-	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
-	formats: library.formats,
-	...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat(library.formats) } : {}),
-	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
-	onTournament: (t) => tournaments.record(t),
-	onSeriesEnd: (end) => matchStats.seriesEnd(end),
-});
-attachRooms(api, {
-	lobby,
-	closed: (roomId, matches) => {
-		for (const id of matches) play?.matches.get(id)?.stop();
-		// An unfinished draft has no deck to keep; a finished one stays on its drafters' Decks page.
-		const draft = draftRooms?.find(roomId);
-		if (draft !== undefined && stateOf(draft).status !== 'complete') draftRooms?.delete(roomId);
-	},
-});
-attachTournaments(api, { tournaments });
-
-// ── Sounds ───────────────────────────────────────────────────────────────────
-// The sound-builder's catalogue, take audio, and assignment matrix. Same
-// gitignored-`data/` reasoning as rooms above: a redeploy must not wipe an
-// admin's assignments. No in-memory open step — `attachSounds` reads and
-// writes the directory per request, same as `attachTables` reads `decks/`.
-attachSounds(api, {
-	dir: process.env.CARDTABLE_SOUNDS_DIR ?? resolve(CONFIG.logDir, '../data/sounds'),
-});
-
 // ── The draft room's cube shortlist ──────────────────────────────────────────
 // Interim wiring (wave73 §A steps 1-5): a draft room's pool is now its own
 // PLAN, not one file the whole server shares — but C's `createCubeStore` and
@@ -412,7 +386,8 @@ attachSounds(api, {
 // `{cube,size,cards}` shape (and the same `loadPool`) the single bundled pool
 // always used. Read once at boot, like the base-path check and for the same
 // reason: a synchronous read does not belong on a request path, and a
-// rebuild is a redeploy.
+// rebuild is a redeploy. Built before `attachRooms` below, which needs
+// `checkPlan` for `PUT …/pod/plan`.
 const CUBES_DIR = process.env.CARDTABLE_SHORTLIST_DIR ?? resolve(PKG_ROOT, 'pools/cubes');
 const shortlist = new Map<string, CubePool>();
 for (const file of existsSync(CUBES_DIR) ? readdirSync(CUBES_DIR).filter((f) => f.endsWith('.json')) : []) {
@@ -433,6 +408,63 @@ const poolResolver: PoolSourceResolver = {
 	},
 };
 const defaultCubeCards = shortlist.get(DEFAULT_CUBE_ID)?.cards ?? null;
+
+// `room/plan.ts`'s `CubeLookup`, interim-backed by the shortlist above (no
+// imports, no deletes, no Cube Cobra — that is step 6's `createCubeStore`).
+// Verdicts live only for this process's life, same as the shortlist itself.
+const shortlistVerdicts = new Map<string, PoolVerdict>();
+const cubeLookup: CubeLookup = {
+	list(): readonly CubeSummary[] {
+		return [...shortlist.entries()].map(([id, pool]) => ({
+			id,
+			name: pool.meta.name,
+			size: pool.meta.size,
+			origin: 'shortlist',
+			cubeCobraId: null,
+			importedBy: null,
+			importedAt: null,
+			refreshedAt: null,
+			verdict: shortlistVerdicts.get(id) ?? null,
+		}));
+	},
+	cards: (id) => shortlist.get(id)?.cards ?? null,
+	setVerdict: (id, verdict) => {
+		shortlistVerdicts.set(id, verdict);
+	},
+};
+// No jar wired yet (D's `createForgePools`, step 6): every plan not already
+// cached in `shortlistVerdicts` is refused, with a reason — `room/plan.ts`'s
+// own rule, "it never passes by default".
+const checkDraftPlan = (plan: DraftPlan): Promise<PoolVerdict> => checkPlan(plan, { cubes: cubeLookup, forge: null });
+
+const lobby = await openLobby({
+	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
+	formats: library.formats,
+	...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat(library.formats) } : {}),
+	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
+	onTournament: (t) => tournaments.record(t),
+	onSeriesEnd: (end) => matchStats.seriesEnd(end),
+});
+attachRooms(api, {
+	lobby,
+	checkPlan: checkDraftPlan,
+	closed: (roomId, matches) => {
+		for (const id of matches) play?.matches.get(id)?.stop();
+		// An unfinished draft has no deck to keep; a finished one stays on its drafters' Decks page.
+		const draft = draftRooms?.find(roomId);
+		if (draft !== undefined && stateOf(draft).status !== 'complete') draftRooms?.delete(roomId);
+	},
+});
+attachTournaments(api, { tournaments });
+
+// ── Sounds ───────────────────────────────────────────────────────────────────
+// The sound-builder's catalogue, take audio, and assignment matrix. Same
+// gitignored-`data/` reasoning as rooms above: a redeploy must not wipe an
+// admin's assignments. No in-memory open step — `attachSounds` reads and
+// writes the directory per request, same as `attachTables` reads `decks/`.
+attachSounds(api, {
+	dir: process.env.CARDTABLE_SOUNDS_DIR ?? resolve(CONFIG.logDir, '../data/sounds'),
+});
 
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
