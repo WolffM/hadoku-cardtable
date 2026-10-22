@@ -114,8 +114,11 @@ export function newArrow(opts: { className: string; testid?: string; shaftClass?
 /** Shape an arrow `newArrow` built, from `from` to `tip`, both in client coordinates, against `box` (the overlay's own). */
 export function positionArrow(svg: SVGSVGElement, from: Point, tip: Point, box: DOMRect): void {
   const { d, points } = arrowShape(from.x - box.left, from.y - box.top, tip.x - box.left, tip.y - box.top);
-  svg.querySelector('path')!.setAttribute('d', d);
-  svg.querySelector('polygon')!.setAttribute('points', points);
+  // Unchanged is left alone: a write the next box read must lay out, on every paint, for an arrow that stood still.
+  const shaft = svg.querySelector('path')!;
+  if (shaft.getAttribute('d') !== d) shaft.setAttribute('d', d);
+  const head = svg.querySelector('polygon')!;
+  if (head.getAttribute('points') !== points) head.setAttribute('points', points);
 }
 
 /**
@@ -241,11 +244,12 @@ const AUTO_TESTID = 'stack-target-arrow';
  * rather than "decide this".
  */
 export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoTargetArrow[]): void {
-  const box = overlay.getBoundingClientRect();
+  // Every end read before any arrow is written: one layout for the lot, and none with nothing to draw.
+  const aims = specs.map((spec) => ({ spec, aimed: aimOn(spec.to, spec.from, spec.kind === 'player' ? 'player' : 'card') }));
+  const box = aims.length === 0 ? null : overlay.getBoundingClientRect();
   const seen = new Set<string>();
-  for (const spec of specs) {
+  for (const { spec, aimed } of aims) {
     seen.add(spec.key);
-    const aimed = aimOn(spec.to, spec.from, spec.kind === 'player' ? 'player' : 'card');
     let svg = overlay.querySelector<SVGSVGElement>(`[data-testid="${AUTO_TESTID}"][data-key="${spec.key}"]`);
     if (svg === null) {
       svg = newArrow({ className: 'targeter targeter--auto', testid: AUTO_TESTID, shaftClass: 'targeter__shaft', headClass: 'targeter__head' });
@@ -253,7 +257,7 @@ export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoT
       svg.setAttribute('data-role', spec.role);
       overlay.append(svg);
     }
-    positionArrow(svg, aimed.from, aimed.tip, box);
+    positionArrow(svg, aimed.from, aimed.tip, box!);
   }
   for (const el of [...overlay.querySelectorAll(`[data-testid="${AUTO_TESTID}"]`)]) {
     if (!seen.has(el.getAttribute('data-key') ?? '')) el.remove();
