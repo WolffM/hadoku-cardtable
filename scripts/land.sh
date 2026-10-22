@@ -202,7 +202,7 @@ for _ in 1 2 3; do
     exit 0
   fi
   git fetch -q origin main
-  if git log --format=%s HEAD..origin/main | grep -qv '^chore: auto-update @wolffm/'; then
+  if git log --format=%s HEAD..origin/main | grep -v '^chore: auto-update @wolffm/' >/dev/null; then
     echo "land: main moved with a non-bot commit — run land again" >&2; exit 6
   fi
   git rebase -q origin/main

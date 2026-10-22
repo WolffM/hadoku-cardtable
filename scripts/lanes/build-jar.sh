@@ -81,7 +81,7 @@ run curl -sf -X POST http://127.0.0.1:4000/api/cardtable/restart
 [ $DRY = 1 ] && { echo "+ poll curl -s localhost:9008/health until healthy (2 min)"; exit 0; }
 for _ in $(seq 24); do
   sleep 5
-  if curl -s localhost:9008/health | grep -q '"status":"healthy"'; then
+  if curl -s localhost:9008/health | grep '"status":"healthy"' >/dev/null; then
     echo "build-jar: production on $(readlink "$LIVE") — healthy"; exit 0
   fi
 done

@@ -19,7 +19,7 @@ case $NAME in
   *) [[ $NAME =~ ^[A-Za-z0-9._-]+$ ]] || { echo "usage: land-worktree.sh [--dry-run] <worktree name under .claude/worktrees/ | worktree path>" >&2; exit 2; }
      WT=$ROOT/.claude/worktrees/$NAME ;;
 esac
-git -C "$ROOT" worktree list --porcelain | grep -qxF "worktree $WT" || { echo "land-worktree: $WT is not a worktree of $ROOT" >&2; exit 2; }
+git -C "$ROOT" worktree list --porcelain | grep -xF "worktree $WT" >/dev/null || { echo "land-worktree: $WT is not a worktree of $ROOT" >&2; exit 2; }
 
 cd "$ROOT"
 export PATH=$HOME/.local/share/fnm/node-versions/v24.18.0/installation/bin:$PATH
