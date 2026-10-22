@@ -38,7 +38,7 @@ export {
   type HumanSeat,
 } from './engine.ts';
 
-export { deal, poolShortfall, type SourceCards } from './deal.ts';
+export { deal, poolShortfall, type RealisticPacks, type SourceCards } from './deal.ts';
 
 export {
   runBots,

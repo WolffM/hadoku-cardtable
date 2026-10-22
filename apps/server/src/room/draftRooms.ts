@@ -127,7 +127,19 @@ import {
 	type SeatId,
 	type SeatTable,
 } from '@wolffm/rooms-protocol';
-import { botSeatAcross, createDraft, deal, isBotSeat, spectatorView, viewFor, watcherView, type BotSeat, type DraftState, type HumanSeat } from '@hadoku/draft';
+import {
+	botSeatAcross,
+	createDraft,
+	deal,
+	isBotSeat,
+	spectatorView,
+	viewFor,
+	watcherView,
+	type BotSeat,
+	type DraftState,
+	type HumanSeat,
+	type RealisticPacks,
+} from '@hadoku/draft';
 import { cursorOf, type CubeMeta, type DraftCard, type DraftPlan, type DraftView, type PoolSource, type WireCursor } from '@hadoku/shared';
 import {
 	applySnapshot,
@@ -349,6 +361,23 @@ export interface DraftRooms {
 	cubeMetaOf(room: DraftRoom): CubeMeta;
 	/** A bare source's display name — `PodView.planName` for a room still in its lobby, no `DraftRoom` built yet. */
 	nameOf(src: PoolSource): string;
+	/**
+	 * A realistic round's pre-fetched, catalog-mapped packs — `[seat][card]`
+	 * — stashed here BEFORE this draft is ever `open()`ed (wave 74 §E step 2:
+	 * "realistic boosters are fetched before `deal` and passed in, so `deal`
+	 * stays synchronous and seeded"). `http/rooms.ts`'s `POST …/start` is the
+	 * only caller: it awaits `ForgePools.boosters` for every realistic round
+	 * in the plan, maps each card through the catalog, and calls this once
+	 * per such round — all BEFORE `lobby.startDraft` ever runs — so that
+	 * `open()`, called later and SYNCHRONOUSLY from the first socket `join`
+	 * (`room/socket.ts`), never itself awaits Forge.
+	 *
+	 * Consumed once, by the next `open()` for this draft id, and dropped
+	 * immediately after — a restore reads the dealt packs back from the
+	 * pod's own snapshot (this module's header, "Persistence"), never from
+	 * here, so nothing is retained past the one deal it was fetched for.
+	 */
+	cacheRealisticRound(draftId: string, round: number, packs: readonly (readonly DraftCard[])[]): void;
 }
 
 /**
@@ -473,6 +502,8 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	const onDeferredChange = options.onDeferredChange ?? (() => undefined);
 	const storeDir = options.storeDir ?? null;
 	let podLookup: (draftId: string) => PodDeal | null = () => null;
+	/** `cacheRealisticRound`'s own stash — see `DraftRooms.cacheRealisticRound`'s doc. */
+	const realisticByDraft = new Map<string, Map<number, readonly (readonly DraftCard[])[]>>();
 
 	/** Write-through. A no-op while persistence is off or before `open()` has dealt the draft. */
 	function persistRoom(room: DraftRoom): void {
@@ -602,6 +633,13 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		const plan = pod?.plan ?? options.defaultPlan;
 		// A pod with seats closed deals that many fewer (`room/lobby.ts`'s `podDraft`).
 		const seatCount = pod?.seats ?? params.seatCount;
+		// Consumed once: whatever `cacheRealisticRound` stashed for this draft id
+		// (the `/start` route's pre-fetch) is read here and dropped, so a second
+		// `build()` for the same id (there is none — `open()` is idempotent, see
+		// below) could never replay a stale round against a different deal.
+		const realistic = realisticByDraft.get(draftId);
+		realisticByDraft.delete(draftId);
+		const realisticPacks: RealisticPacks | undefined = realistic === undefined ? undefined : (round) => realistic.get(round);
 		return createDraft({
 			draftId,
 			// A new INCARNATION every time a draft is built, so a client holding
@@ -614,7 +652,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// BOTH `deal()` and `createDraft` itself, which is what keeps the two
 			// in step without threading a second seed through.
 			seed: draftId,
-			packs: deal(plan, options.resolver.cards, draftId, seatCount, params.packSize),
+			packs: deal(plan, options.resolver.cards, draftId, seatCount, params.packSize, realisticPacks),
 			seatCount,
 			packCount: plan.rounds.length,
 			packSize: params.packSize,
@@ -670,6 +708,14 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		},
 		nameOf(src) {
 			return options.resolver.name(src);
+		},
+		cacheRealisticRound(draftId, round, packs) {
+			let byRound = realisticByDraft.get(draftId);
+			if (byRound === undefined) {
+				byRound = new Map();
+				realisticByDraft.set(draftId, byRound);
+			}
+			byRound.set(round, packs);
 		},
 	};
 }
