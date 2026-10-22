@@ -15,7 +15,6 @@
  */
 
 import type { DraftCard, ManaColor } from '@hadoku/shared';
-import type { SeatId } from '@wolffm/rooms-protocol';
 import { botRng, isBotSeat, pick, waitingOn, type DraftState, type PickResult } from './engine.ts';
 
 /** How much a card already in our colours is worth over one that is not. */
@@ -154,9 +153,4 @@ export function runBots(state: DraftState): { state: DraftState; picks: number }
   }
 
   return { state: current, picks };
-}
-
-/** Seats a human still owes a pick on. Convenience for a caller driving a UI. */
-export function humanSeatsWaiting(state: DraftState): SeatId[] {
-  return waitingOn(state).filter((s) => !isBotSeat(state, s));
 }

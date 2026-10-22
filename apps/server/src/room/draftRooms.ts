@@ -120,7 +120,6 @@ import {
 } from '@wolffm/rooms-server';
 import {
 	occupantOf,
-	roleOf,
 	seatOf,
 	seatParticipant,
 	unseatParticipant,
@@ -182,7 +181,7 @@ export interface DraftApp {
 	persist: (room: DraftRoom) => void;
 }
 
-export interface DeckMeta {
+interface DeckMeta {
 	name?: string;
 	deleted?: true;
 }
@@ -200,7 +199,7 @@ export interface DraftClient {
 
 export type DraftRoom = CoreRoomState<DraftApp, DraftClient>;
 
-export interface DraftParams {
+interface DraftParams {
 	seatCount: number;
 	/** `packSize`, not `packCount`: a plan's own `rounds.length` decides how many packs — always 3 (Settled), `DraftPlanSchema`'s own tuple. */
 	packSize: number;
@@ -278,7 +277,7 @@ export function singlePoolResolver(cube: { meta: { name: string }; cards: readon
 	};
 }
 
-export interface DraftRoomsOptions {
+interface DraftRoomsOptions {
 	resolver: PoolSourceResolver;
 	/** A new room's plan before its leader ever picks one — Settled: Vintage Cube 2025-12 × 3. */
 	defaultPlan: DraftPlan;
@@ -866,7 +865,7 @@ export function releaseSeat(room: DraftRoom, participantId: ParticipantId): bool
 	return true;
 }
 
-export interface LeaveOutcome {
+interface LeaveOutcome {
 	/** Who the departing socket belonged to, or null if it was not a member. */
 	participantId: ParticipantId | null;
 	/** True when the guard had to put a still-connected participant back. */
@@ -954,11 +953,6 @@ function cancelVacate(room: DraftRoom, participantId: ParticipantId): void {
 	if (timer === undefined) return;
 	clearTimeout(timer);
 	room.app.vacating.delete(participantId);
-}
-
-/** Whether this participant currently holds a seat. Derived, never stored. */
-export function isSeated(room: DraftRoom, participantId: ParticipantId): boolean {
-	return roleOf(room.seats, participantId) === 'player';
 }
 
 /**

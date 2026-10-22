@@ -39,7 +39,7 @@ export interface CubePool {
 	cards: DraftCard[];
 }
 
-export type PoolLoad =
+type PoolLoad =
 	| { ok: true; pool: CubePool; detail: string }
 	| { ok: false; reason: 'missing' | 'malformed'; detail: string };
 

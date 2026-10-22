@@ -149,9 +149,9 @@ export const PICK_RATE_LIMIT: RateLimitConfig = {
  * trustworthy either — can be stamped with a cursor belonging to no epoch
  * without disturbing anybody's sequencing.
  */
-export const NO_DRAFT_CURSOR: WireCursor = { epoch: 'no-draft', seq: 1 };
+const NO_DRAFT_CURSOR: WireCursor = { epoch: 'no-draft', seq: 1 };
 
-export interface DraftSocketDeps {
+interface DraftSocketDeps {
 	/** Null when the cube pool did not load; every join then answers unknown-draft. */
 	rooms: DraftRooms | null;
 	/**
@@ -166,7 +166,7 @@ export interface DraftSocketDeps {
 	rateLimit?: RateLimitConfig;
 }
 
-export interface DraftSocketHandle {
+interface DraftSocketHandle {
 	/** Release the rate limiter from the package's sweep registry. */
 	close(): void;
 }

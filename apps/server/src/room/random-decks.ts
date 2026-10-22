@@ -17,12 +17,12 @@ import type { RandomPool } from '@hadoku/shared';
 import type { TableDeck } from '../http/library.js';
 import { randomFormat, type CatalogFormat, type FormatId } from './lobby.js';
 
-export interface RandomCatalog {
+interface RandomCatalog {
 	readonly formats: readonly CatalogFormat[];
 	readonly decks: readonly Pick<TableDeck, 'id' | 'era'>[];
 }
 
-export interface RandomDraw {
+interface RandomDraw {
 	readonly era: FormatId;
 	/** Two different library deck ids of `era`, seat 0's first. */
 	readonly decks: readonly [string, string];

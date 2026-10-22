@@ -49,16 +49,16 @@ import { identityFromHeaders } from './identity.js';
 import { ROOM_STALE_MS, type Lobby } from './lobby.js';
 
 /** Well inside `ROOM_STALE_MS`, so an open room never stops being offered. */
-export const FEED_TOUCH_MS = ROOM_STALE_MS / 6;
+const FEED_TOUCH_MS = ROOM_STALE_MS / 6;
 
-export interface RoomFeedDeps {
+interface RoomFeedDeps {
 	lobby: Lobby;
 	log?: (line: Record<string, unknown>) => void;
 	/** Injected for tests. */
 	touchEveryMs?: number;
 }
 
-export interface RoomFeedHandle {
+interface RoomFeedHandle {
 	close(): void;
 }
 

@@ -46,7 +46,6 @@ export {
   scoreCard,
   colourCounts,
   committedColours,
-  humanSeatsWaiting,
 } from './bot.ts';
 
 export { viewFor, spectatorView, watcherView, viewsForAllSeats } from './view.ts';

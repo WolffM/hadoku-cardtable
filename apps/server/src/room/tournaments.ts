@@ -38,7 +38,7 @@ export interface Tournaments {
 }
 
 /** The most kept; the oldest go first. */
-export const TOURNAMENTS_KEPT = 500;
+const TOURNAMENTS_KEPT = 500;
 
 function isTournament(v: unknown): v is Tournament {
 	if (typeof v !== 'object' || v === null) return false;

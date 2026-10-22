@@ -15,7 +15,7 @@
 
 import type { ConstructedMode, SeriesPhase } from '@hadoku/shared';
 
-export interface SeriesFormat {
+interface SeriesFormat {
 	/** Games a NEW series is best of. */
 	length: 1 | 3;
 	/** Whether the step between two games of one series is sideboarding. */

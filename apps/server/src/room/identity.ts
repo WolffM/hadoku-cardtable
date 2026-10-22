@@ -67,7 +67,7 @@ export const PARTICIPANT_ID_DOMAIN = 'hadoku.cardtable.participant.v1';
  */
 export { participantHandle } from '@wolffm/rooms-protocol';
 
-export interface IdentityInputs {
+interface IdentityInputs {
 	/** `X-User-Key`, post-sanitize. The `account` tier's source material. */
 	friendKey?: string | null;
 	/** `X-User-Id`, post-sanitize. The `device` tier's source material. */
