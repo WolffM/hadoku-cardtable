@@ -146,6 +146,9 @@ export const SetAvatarBodySchema = body({
     .nullable(),
 });
 
+/** `POST /api/rooms/:id/ready`: the caller's own readiness in the room. */
+export const ReadyBodySchema = body({ ready: z.boolean({ error: 'ready must be a boolean' }) });
+
 /** A request that carries nothing: leave, close, start, stand, play. No body at all is the same as `{}`. */
 export const EmptyBodySchema = body({}).prefault({});
 

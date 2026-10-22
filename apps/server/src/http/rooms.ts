@@ -106,6 +106,7 @@ import {
 	PodCloseBodySchema,
 	POD_SEATS,
 	ROOM_ID_RE,
+	ReadyBodySchema,
 	SetAvatarBodySchema,
 	SetDraftPlanBodySchema,
 	SitBodySchema,
@@ -113,6 +114,7 @@ import {
 	type DraftCard,
 	type DraftPlan,
 	type PoolVerdict,
+	type RoomYou,
 } from '@hadoku/shared';
 import {
 	POD_MIN_OPEN,
@@ -226,27 +228,6 @@ function callerOf(req: Request): Caller {
 	return { id: httpCaller(req), name: userNameOf(req) ?? 'friend' };
 }
 
-type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
-
-function asObject(body: unknown): Record<string, unknown> | null {
-	if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
-	return body as Record<string, unknown>;
-}
-
-function unknownKeys(body: Record<string, unknown>, allowed: readonly string[]): string[] {
-	return Object.keys(body).filter((k) => !allowed.includes(k));
-}
-
-/** Same allow-list discipline as the others: `{ ready: boolean }` and nothing else. */
-function parseReady(body: unknown): Parsed<{ ready: boolean }> {
-	const o = asObject(body);
-	if (o === null) return { ok: false, error: 'body must be a JSON object' };
-	const extra = unknownKeys(o, ['ready']);
-	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
-	if (typeof o.ready !== 'boolean') return { ok: false, error: 'ready must be a boolean' };
-	return { ok: true, value: { ready: o.ready } };
-}
-
 /**
  * The room, as this caller is told it: the public `RoomView` plus their own row.
  *
@@ -256,8 +237,7 @@ function parseReady(body: unknown): Parsed<{ ready: boolean }> {
  * relabelled the button and could not stand down in one click.
  */
 export interface RoomBody extends RoomView {
-	/** `id` is the caller's own member id — the one the room's tables and pod name them by, whatever the session's whoami says. */
-	you: { id: string; leader: boolean; ready: boolean };
+	you: RoomYou;
 }
 
 function roomBody(room: RoomView, callerId: string): RoomBody {
@@ -378,23 +358,21 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	});
 
 	rooms.post('/:id/ready', (req: Request, res: Response) => {
-		const parsed = parseReady(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		const body = parseBody(ReadyBodySchema, req, res);
+		if (body === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		// A non-member is the same 404 as a room that does not exist. There is no
 		// join-by-readying: entering a room is what makes someone a member.
-		if (!ROOM_ID_RE.test(id) || !lobby.setReady(id, caller.id, parsed.value.ready)) return noMatch(res);
+		if (!ROOM_ID_RE.test(id) || !lobby.setReady(id, caller.id, body.ready)) return noMatch(res);
 		const room = lobby.get(id);
 		if (room === undefined) return noMatch(res);
 		res.json(roomBody(room, caller.id));
 	});
 
 	/**
-	 * A member steps out of their own room (R16). No body: `parseStart`'s shape
-	 * is reused because the refusal for an unexpected field is identical and a
-	 * second function would say the same thing twice.
+	 * A member steps out of their own room (R16). No body (`EmptyBodySchema`).
 	 *
 	 * If the leader leaves, leadership passes to whoever remaining joined
 	 * earliest — `lobby.leave`'s own ruling, not this file's. A non-member and

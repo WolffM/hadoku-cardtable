@@ -445,6 +445,7 @@ export {
   PodCloseBodySchema,
   ROOM_NAME_MAX,
   ROOM_PASSWORD_MAX,
+  ReadyBodySchema,
   RoomSettingsSchema,
   SetAvatarBodySchema,
   SitBodySchema,

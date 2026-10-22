@@ -93,6 +93,7 @@ import {
 	type PoolVerdict,
 	type RoomMode,
 	type RoomSettings,
+	type RoomView as PublicRoomView,
 	type Tournament,
 	type PodMember,
 	type PodPhase,
@@ -282,102 +283,13 @@ function newMember(room: readonly MemberRecord[], caller: Caller, joinedAt: numb
 	};
 }
 
-export interface RoomMember {
-	/** A ParticipantId from `identityFromHeaders`. */
-	id: string;
-	/** `userIdOf(req)` — the same string `/api/whoami` returns as `userId`. */
-	name: string;
-	/**
-	 * The character this member picked in watchparty's room, or the one this
-	 * room handed them on joining when they had picked none (`AVATAR_POOL`).
-	 * Absent only when every character was taken, or the member cleared it.
-	 *
-	 * **Absent or a non-blank string, never `null` and never `''`** — see
-	 * `avatarIdOf`. The value is watchparty's `sprite` id (`sage`, `herald`,
-	 * `cleric`, `knight`, `mage`, `brawler`, `wanderer`, `rogue` in 0.39.8), and
-	 * it is deliberately NOT validated against that list: a ninth character they
-	 * add must reach the client, not be dropped here. Resolving it to something
-	 * drawable is the UI's job (`apps/ui/src/room/avatar.ts`), because the URL is
-	 * derived from the page's own origin and this file has no origin.
-	 */
-	avatarId?: string;
-	joinedAt: string;
-	/**
-	 * The ROOM's readiness, which is what a draft starts on.
-	 *
-	 * Not a table seat's Ready (`TableRecord.ready`), which means "my deck is
-	 * loaded and legal" and is refused without one. This one means "I am
-	 * ready for this room to begin" and needs no deck. A room switching game
-	 * type clears it — see `setGameType`.
-	 */
-	ready: boolean;
-}
-
-/** The PUBLIC shape. Every response body that carries a room uses exactly this. */
-export interface RoomView {
-	id: string;
-	name: string;
-	creator: string;
-	leader: string;
-	gameType: GameType;
-	/**
-	 * The room's pool, and the rules BOTH seats' decks are checked against.
-	 *
-	 * Always a concrete id, in every body that carries a room: a new room starts
-	 * on the newest frozen pool and a room stored before this field existed reads
-	 * back on it too, so no client ever has to guess what a room is playing. Only
-	 * the leader changes it (`setFormat`).
-	 */
-	format: FormatId;
-	/** How the room's matches are dealt. Only the leader changes it (`setSettings`). */
-	settings: RoomSettings;
-	/**
-	 * A constructed room's mode, null until the leader chooses one (at create or
-	 * with `setMode`); always null for a draft room. `modeOptions` is that mode's
-	 * own options, and null exactly when `mode` is.
-	 */
-	mode: ConstructedMode | null;
-	modeOptions: ModeOptions | null;
-	/** Fixed at create. Every client sees it before joining, from `list()` as well as `get()`. */
-	clientMode: ClientMode;
-	/** Whether a password is set — never the password, never any hash of it. */
-	locked: boolean;
-	members: RoomMember[];
-	/**
-	 * The room's tables (wave 71, `docs/planning/wave71-2026-10-17.md`'s "Wire
-	 * contract"). Always at least one — a constructed 1v1 room is the one-table
-	 * case, and that is the migration default for a room stored before this
-	 * field existed. Added and removed through the leader's two table routes
-	 * (`http/routes.ts`).
-	 */
-	tables: RoomTable[];
-	/**
-	 * The FIRST table's live match — unchanged by wave 71, so every reader that
-	 * only ever knew one table keeps working. `tables[0].matchId`, restated here
-	 * rather than left for a client to dig out.
-	 */
-	matchId: string | null;
-	/**
-	 * ISO string once the draft has been dealt; null in the lobby phase.
-	 *
-	 * Never restored across a restart, unlike `matchId` (whose match play adopts
-	 * from disk): the draft itself is in this process's memory (`room/draftRooms.ts` keeps no
-	 * disk state), so a room that came back claiming to be mid-draft would show
-	 * an empty table. A restart puts the room back in its lobby with its ready
-	 * flags intact instead, and the UI says so in words.
-	 */
-	draftStartedAt: string | null;
-	/**
-	 * The draft pod's own rounds (wave 72 §P, `docs/planning/wave72-2026-10-17.md`'s
-	 * "Wire contract"): `null` for a `constructed-1v1` room, always present for
-	 * a `draft` one — see `podViewOf`. `PodChecks` (unwired before
-	 * `http/routes.ts`'s `attachTables` has run, which is before any request
-	 * can reach it) decides `phase`/`built` beyond what this file stores.
-	 */
-	pod: PodView | null;
-	/** Who this room's AI plays as (`roomAi`): what the pod's `ai` id is drawn as, and the AI seat of a match. */
+/**
+ * The PUBLIC shape. Every response body that carries a room uses exactly this:
+ * `@hadoku/shared`'s `RoomView`, which the browser parses with, and the AI this
+ * room plays as (`roomAi`), which only the pod screen reads.
+ */
+export interface RoomView extends PublicRoomView {
 	ai: AiPersona;
-	createdAt: string;
 }
 
 /** Who is asking. `id` from `identityFromHeaders`, `name` from `userIdOf`. */
