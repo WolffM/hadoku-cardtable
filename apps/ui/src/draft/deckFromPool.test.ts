@@ -27,15 +27,15 @@ import {
   poolOf,
   setBasicLand,
   totalCards,
+  cardRequestOf,
+  poolEntries,
 } from '@hadoku/deck';
 
 import {
-  cardRequestOf,
   dckFilename,
   dckTextOf,
   deckFromPool,
   defaultDeckName,
-  poolEntries,
 } from './deckFromPool.ts';
 import { loadFixtures } from './fixtures.ts';
 import type { DraftCard } from './types.ts';

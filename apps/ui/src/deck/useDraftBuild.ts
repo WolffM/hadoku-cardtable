@@ -12,9 +12,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { moveToMain, moveToSideboard, type Deck } from '@hadoku/deck';
+import { moveToMain, moveToSideboard, type Deck, cardRequestOf } from '@hadoku/deck';
 
-import { cardRequestOf, dckTextOf, draftBuild, savedBuild, splitPicks } from '../draft/deckFromPool.ts';
+import { dckTextOf, draftBuild, savedBuild, splitPicks } from '../draft/deckFromPool.ts';
 import type { DraftCard } from '../draft/types.ts';
 import type { DeckStoreClient } from './deckStore.ts';
 import type { Area } from './dragMove.tsx';

@@ -15,12 +15,12 @@
  * checks the text against the CALLER's pool, with the text from `dckTextOf`.
  */
 
-import { cardKey, DECK_COLORS, isBasicLand, manaTokensOf, type Deck } from '@hadoku/deck';
+import { cardKey, DECK_COLORS, isBasicLand, manaTokensOf, type Deck, cardRequestOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseCardRequest, type DeckEntry } from '@hadoku/carddata/dck';
 import { artIdIndexFromTable, backFaceNames, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
 
-import { cardRequestOf, dckTextOf } from '../draft/deckFromPool.ts';
+import { dckTextOf } from '../draft/deckFromPool.ts';
 import type { DraftCard } from '../draft/types.ts';
 import type { SeatChoice, DeckLine } from '../screens/tables.ts';
 import { namedFace } from '../screens/DeckPeek.tsx';

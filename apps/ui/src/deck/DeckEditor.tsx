@@ -63,6 +63,7 @@ import {
   setBasicLand,
   sideboardSize,
   type Deck,
+  cardRequestOf,
 } from '@hadoku/deck';
 
 import { CardTile } from '../components/CardTile.tsx';
@@ -70,7 +71,7 @@ import { mainDeckColors } from '../components/DeckView.tsx';
 import { ManaPip } from '../components/ManaPip.tsx';
 import { ColorSymbol } from '../components/ColorSymbol.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
-import { cardRequestOf, deckFromPool, dckTextOf, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
+import { deckFromPool, dckTextOf, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
 import type { DraftCard, ManaColor } from '../draft/types.ts';
 import { DraggableCard, DropArea, useCardSplit, type Area } from './dragMove.tsx';
 import { CardPile, pileChrome } from '../components/CardPile.tsx';

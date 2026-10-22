@@ -5,9 +5,9 @@
  * the dragged ones in the sideboard").
  */
 import { describe, expect, it } from 'vitest';
-import { cardKey, mainDeckSize, moveToSideboard, sideboardSize } from '@hadoku/deck';
+import { cardKey, mainDeckSize, moveToSideboard, sideboardSize, cardRequestOf } from '@hadoku/deck';
 
-import { cardRequestOf, dckTextOf, draftBuild, savedBuild, splitPicks } from './deckFromPool.ts';
+import { dckTextOf, draftBuild, savedBuild, splitPicks } from './deckFromPool.ts';
 import { loadFixtures } from './fixtures.ts';
 import type { DraftCard } from './types.ts';
 

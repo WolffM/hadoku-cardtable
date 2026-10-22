@@ -79,13 +79,13 @@ import {
   foldDeckColors,
   type Deck,
   type DeckColor,
+  cardRequestOf,
 } from '@hadoku/deck';
 // The `/dck` subpath, never the barrel — see `draft/deckFromPool.ts`.
 import type { DeckEntry } from '@hadoku/carddata/dck';
 
 import type { DraftCard } from '../draft/types.ts';
 import {
-  cardRequestOf,
   deckFromPool,
   dckFilename,
   dckTextOf,

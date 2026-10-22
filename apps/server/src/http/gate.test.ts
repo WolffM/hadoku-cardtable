@@ -14,9 +14,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { parseDck, type CardRequest } from '@hadoku/carddata/dck';
-import { BASIC_LAND_NAMES, basicLand, deckFromDeckFile, deckIssues, isBasicLand } from '@hadoku/deck';
+import { BASIC_LAND_NAMES, basicLand, deckFromDeckFile, deckIssues, isBasicLand, poolEntries } from '@hadoku/deck';
 
-import { draftPoolEntries } from './draftPool.js';
 import { DRAFT, POOL, POWER_2012, UW_DELVER, ctx, drafted, draftedDeckText, library } from './gate-fixture.js';
 import { checkSeat, refusalLine, splitBasicLands, type SeatVerdict } from './gate.js';
 
@@ -84,7 +83,7 @@ describe('a drafted deck with basic lands', () => {
 	it('still refuses a non-basic in the basics pile', () => {
 		const deck = splitBasicLands(deckFromDeckFile(parseDck(draftedDeckText())));
 		const notABasic: CardRequest = { ...basicLand('Island'), name: 'Tolarian Academy' };
-		const issues = deckIssues({ ...deck, basics: [...deck.basics, { count: 1, card: notABasic }] }, draftPoolEntries(POOL));
+		const issues = deckIssues({ ...deck, basics: [...deck.basics, { count: 1, card: notABasic }] }, poolEntries(POOL));
 		expect(issues.map((i) => [i.kind, i.message])).toEqual([
 			['not-a-basic-land', 'Tolarian Academy is in the basics pile but is not a basic land'],
 		]);

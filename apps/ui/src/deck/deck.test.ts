@@ -17,10 +17,10 @@ import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { DraftCard } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
-import { basicLand, type Deck, deckFromDeckFile, moveToMain, moveToSideboard, setBasicLand } from '@hadoku/deck';
+import { basicLand, type Deck, deckFromDeckFile, moveToMain, moveToSideboard, setBasicLand, cardRequestOf } from '@hadoku/deck';
 
 import poolData from '../draft/pool.json';
-import { cardRequestOf, deckFromPool, dckTextOf, draftBuild } from '../draft/deckFromPool.ts';
+import { deckFromPool, dckTextOf, draftBuild } from '../draft/deckFromPool.ts';
 import { DeckEditor, type SaveOutcome } from './DeckEditor.tsx';
 import { DeckScreen } from '../screens/DeckScreen.tsx';
 import type { RoomsClient } from '../rooms/api.ts';

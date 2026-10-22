@@ -48,12 +48,11 @@
  */
 
 import { parseDck } from '@hadoku/carddata/dck';
-import { deckFromDeckFile, deckIssues, formatIssues, isBasicLand, type Deck, type DeckIssue } from '@hadoku/deck';
+import { deckFromDeckFile, deckIssues, formatIssues, isBasicLand, type Deck, type DeckIssue, poolEntries } from '@hadoku/deck';
 import { libraryPoolMismatch, type LibraryDeck } from '@hadoku/deck/library';
 import type { DraftCard } from '@hadoku/shared';
 
 import { FREE_PICK } from '../room/lobby.js';
-import { draftPoolEntries } from './draftPool.js';
 import type { TablesLibrary } from './library.js';
 
 /** Play's own cap on a `.dck` (`play/socket.ts` `parseStartBody`). */
@@ -379,7 +378,7 @@ export function checkSeat(seat: SeatRequest, ctx: GateContext): SeatVerdict | Se
 	if (!pool.ok) return { error: pool.error };
 	// Basics are exempt from the POOL check only. The Standard arm above keeps
 	// checking every land against the format pool.
-	const issues = [...shape, ...deckIssues(splitBasicLands(deck), draftPoolEntries(pool.pool)).map(wireIssue)];
+	const issues = [...shape, ...deckIssues(splitBasicLands(deck), poolEntries(pool.pool)).map(wireIssue)];
 	return {
 		deckName,
 		rulesName: `your pool from ${seat.rules.draftId}`,

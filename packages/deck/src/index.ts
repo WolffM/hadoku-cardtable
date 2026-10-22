@@ -54,6 +54,8 @@ export {
   type DeckIssueKind,
 } from './deck.ts';
 
+export { cardRequestOf, poolEntries, type DraftedPrinting } from './draft-pool.ts';
+
 export {
   DckWriteError,
   FORGE_METADATA_KEYS,
