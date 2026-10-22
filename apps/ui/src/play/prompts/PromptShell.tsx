@@ -14,7 +14,7 @@
  * cards"* — a tutor choice is the board's card look, never a text list).
  */
 
-import { Children, createContext, useContext, useState, type MouseEvent, type ReactNode } from 'react';
+import { Children, createContext, useContext, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import { artIdOf, KNOWN_ART_IDS } from '../adapter.ts';
@@ -23,6 +23,7 @@ import type { DraftCard } from '@hadoku/shared';
 import type { AskSource } from '@hadoku/forge-wire';
 
 import './prompts.css';
+import { fitSheetGrid } from './fit-cards.ts';
 import { plainRulesText, type PromptLookup } from './lookup.ts';
 import { RulesText } from './RulesText.tsx';
 import type { PromptMethod } from './types.ts';
@@ -137,6 +138,25 @@ function effectLine(asked: { source: AskSource; lookup: PromptLookup }, drawsCar
   return drawsCard ? text : said;
 }
 
+/**
+ * The sheet's ref, its card grid fitted to the column's room (`fit-cards.ts`) on every render and
+ * whenever the column, the sheet or the grid changes size.
+ */
+function useFittedGrid() {
+  const sheet = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (sheet.current !== null) fitSheetGrid(sheet.current);
+  });
+  useLayoutEffect(() => {
+    const el = sheet.current;
+    if (el === null || typeof ResizeObserver === 'undefined') return;
+    const resizes = new ResizeObserver(() => fitSheetGrid(el));
+    for (const box of [el, el.parentElement, el.querySelector('.prompt__cards')]) if (box !== null) resizes.observe(box);
+    return () => resizes.disconnect();
+  }, []);
+  return sheet;
+}
+
 export function PromptShell({
   method,
   title,
@@ -153,6 +173,7 @@ export function PromptShell({
   children,
 }: PromptShellProps) {
   const asked = useContext(AskSourceContext);
+  const sheet = useFittedGrid();
   const head = face ?? (asked === null ? undefined : promptThumb(asked.lookup, asked.source.card, 'prompt-source'));
   const said = context ?? (asked === null || !effectText ? null : effectLine(asked, face === undefined, [title, label, message]));
   const effect = said === null ? null : (
@@ -161,7 +182,7 @@ export function PromptShell({
     </p>
   );
   return (
-    <section className="prompt ct-panel" data-prompt={method} role="dialog" aria-label={plainRulesText(label ?? title)}>
+    <section ref={sheet} className="prompt ct-panel" data-prompt={method} role="dialog" aria-label={plainRulesText(label ?? title)}>
       {head === undefined ? (
         <>
           <PromptTitle title={title} />

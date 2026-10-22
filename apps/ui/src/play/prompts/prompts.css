@@ -51,24 +51,21 @@
  *
  * The sheet is a flex column of a bounded height (`.live__prompt > .prompt`,
  * `../live/live.css`). The buttons and the problems list never shrink
- * (`flex-shrink: 0`): they are always whole, at the foot. The body shrinks
- * below its content (`min-height: 0`) and scrolls what no longer fits, so a
- * tall card grid scrolls inside its own box and can never draw over the
- * buttons. The title and message shrink and scroll the same way, in
- * proportion to their size: Scapeshift's title is its whole oracle text, and
- * in the narrow column a title that kept its full height left the ten lands a
- * 33px window. A sheet that fits shrinks nothing, so no scrollbar appears for
- * a list with nothing to scroll.
+ * (`flex-shrink: 0`): they are always whole, at the foot. Nor do the words:
+ * the operator, 2026-10-22, on Masticore's discard, *"i see TWO scroll bars,
+ * there should be zero"* — the head scrolled its trigger text and the body its
+ * seven cards. So the head and message keep their full height, and a card
+ * grid is sized to the room that leaves (`fit-cards.ts`): every tile drawn,
+ * none scrolled to. The body still shrinks below its content (`min-height: 0`)
+ * and scrolls what does not fit, so a long list that is not cards — or a grid
+ * the fit cannot reach — scrolls inside its own box and never draws over the
+ * buttons.
  */
 .prompt__actions,
-.prompt__problems {
-  flex-shrink: 0;
-}
-
+.prompt__problems,
 .prompt__title,
 .prompt__message {
-  min-height: 0;
-  overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .prompt__body {
@@ -296,6 +293,12 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
   gap: 6px;
+}
+
+/* Fitted to the live column's room (`fit-cards.ts`): exactly the columns and tile width that fit. */
+.prompt__cards[data-fit] {
+  grid-template-columns: repeat(var(--fit-cols), var(--fit-tile-w));
+  justify-content: center;
 }
 
 .prompt__cards > li {
@@ -616,22 +619,16 @@
  * The question's own card, beside the title: the face (`promptThumb`), and the
  * words — the title, the effect line (the ask's source) and Forge's message.
  *
- * The head is the column's words, so it shrinks and scrolls as they do (the
- * three-part column above), card and all, and it gives way before the body
- * does (`flex-shrink: 4`): the answer is what the sheet is for. A sheet with
- * room keeps the whole head; a crowded one keeps one line of it, the room the
- * bare title had before every ask drew its source — so the answers keep exactly
- * that room. A head that would not shrink stood Ponder's stack description over
- * its order lists and left them an 81px window their rows could not be clicked
- * through (`e2e/w34.spec.ts` §E2).
+ * The head is the column's words, so it keeps its full height as they do (the
+ * three-part column above), card and all: a head that shrank scrolled the
+ * effect it was there to explain. The answers take what room is left, and a
+ * card grid is fitted to it (`fit-cards.ts`).
  */
 .prompt__head {
   display: flex;
   align-items: safe center;
   gap: 8px;
-  flex-shrink: 4;
-  min-height: 1.5em;
-  overflow-y: auto;
+  flex-shrink: 0;
 }
 
 /*

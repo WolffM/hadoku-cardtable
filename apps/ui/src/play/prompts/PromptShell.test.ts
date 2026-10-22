@@ -76,9 +76,16 @@ describe('PromptShell — OK and Clear sit outside the scroll, always visible', 
     expect(rule![1]).toMatch(/min-height:\s*0/);
     expect(rule![1]).toMatch(/flex:\s*1 1 auto/);
     expect(rule![1]).toMatch(/overflow-y:\s*auto/);
-    const foot = /\.prompt__actions,\s*\.prompt__problems \{([^}]*)\}/.exec(PROMPTS_CSS);
-    expect(foot, 'the buttons and the problems list have a rule').not.toBeNull();
+    const foot = /\.prompt__actions,\s*\.prompt__problems,\s*\.prompt__title,\s*\.prompt__message \{([^}]*)\}/.exec(PROMPTS_CSS);
+    expect(foot, 'the buttons, the problems list and the words have a rule').not.toBeNull();
     expect(foot![1]).toMatch(/flex-shrink:\s*0/);
+  });
+
+  it('the head keeps its full height and never scrolls: the operator, "there should be zero" scroll bars', () => {
+    const head = /\.prompt__head \{([^}]*)\}/.exec(PROMPTS_CSS);
+    expect(head, '.prompt__head has its own rule').not.toBeNull();
+    expect(head![1]).toMatch(/flex-shrink:\s*0/);
+    expect(head![1]).not.toMatch(/overflow/);
   });
 
   it('the selection sheet draws in the same shell: its grid in the body, its OK and Cancel outside it', () => {
