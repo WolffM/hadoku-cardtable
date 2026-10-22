@@ -1,13 +1,31 @@
 /*
- * Turn a real cube list into a draft pool the browser can hold.
+ * Turn a real cube list into a draft pool the browser can hold — or several,
+ * for the server's own shortlist (`docs/planning/wave73-2026-10-21.md` §A
+ * step 4).
  *
  *   pnpm --filter @hadoku/carddata build-pool
  *   pnpm --filter @hadoku/carddata build-pool -- --cube="MTGO Vintage Cube 2025-12.dck"
+ *
+ *   # the 8-cube shortlist, written as apps/server/pools/cubes/<stem>.json:
+ *   pnpm --filter @hadoku/carddata build-pool -- \
+ *     --cube="MTGO Vintage Cube 2025-12.dck" --cube="MTGO Legacy Cube 2021-08.dck" … \
+ *     --out-dir=../../apps/server/pools/cubes \
+ *     --data=/path/to/packages/carddata/data
+ *
+ * `--cube=` may repeat; each one is resolved and written separately to
+ * `--out-dir=` (one file per cube, named by `slug()` below) rather than all
+ * to the single `--out=` path, which only ever held one cube. `--data=`
+ * overrides where `cards.jsonl` is read from — a worktree checked out without
+ * the gitignored Scryfall bulk cache points it at a checkout that has one
+ * (read-only; this CLI never writes there).
  *
  * The UI is a browser SPA: it cannot read `cards.jsonl`, run the resolver, or
  * touch the filesystem at all. So a pool is resolved HERE, at build time, and
  * written as JSON the app imports — which is also the shape it will arrive in
  * over a wire later, so nothing about the UI changes when a server appears.
+ * The server's shortlist files are the SAME shape (`{cube,size,cards}`), read
+ * by the same `loadPool` the UI's bundled file always used
+ * (`apps/server/src/room/pool.ts`).
  *
  * **A pool is gameplay text only — and that is now a separation, not a ban.**
  * The projection this reads from has no image field, and the writer below names
@@ -49,8 +67,22 @@ function repoRoot(): string {
   return resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..');
 }
 
-function cachePath(): string {
-  return resolve(repoRoot(), 'packages', 'carddata', 'data', 'cards.jsonl');
+function cachePath(dataDir?: string): string {
+  return resolve(dataDir ?? resolve(repoRoot(), 'packages', 'carddata', 'data'), 'cards.jsonl');
+}
+
+/**
+ * A cube's display name, turned into a filename stem and a `CubeSummary.id`
+ * (`packages/shared/src/pool.ts`'s wire contract: "shortlist: file stem").
+ * Lower-cased, every run of non-alphanumerics collapsed to one hyphen, no
+ * leading/trailing hyphen — `"Ryan Overturf's Grixis Cube (MTGO)"` becomes
+ * `"ryan-overturfs-grixis-cube-mtgo"`.
+ */
+export function slug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 /** The five real colours. Scryfall's `colors` is already exactly this set. */
@@ -162,33 +194,46 @@ function faceCards(card: GameplayCard, front: Record<string, unknown>): Array<Re
   });
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const cubeArg = args.find((a) => a.startsWith('--cube='));
-  const outArg = args.find((a) => a.startsWith('--out='));
-  const cubeFile = cubeArg ? cubeArg.slice('--cube='.length) : DEFAULT_CUBE;
-  const outPath = outArg
-    ? resolve(outArg.slice('--out='.length))
-    : resolve(repoRoot(), 'apps', 'ui', 'src', 'draft', 'pool.json');
-
-  let raw: string;
-  try {
-    raw = await readFile(cachePath(), 'utf8');
-  } catch {
-    console.error(
-      `No card cache at ${cachePath()}.\nRun: pnpm --filter @hadoku/carddata sync`,
-    );
-    process.exit(1);
-    return;
+/**
+ * The control that matters: no image data may reach the browser bundle, nor
+ * the server's own shortlist files, which are committed the same as the UI's
+ * bundled pool was.
+ *
+ * It checks FIELD NAMES and URL-shaped VALUES, never free text. Scanning text
+ * is what a first cut did, and it fired immediately — on `Mirror Image`,
+ * `Phantasmal Image`, `Imagecrafter`, and `Nissa's Pilgrimage`, where "image"
+ * is a substring of a real card name. A control that cries wolf on legitimate
+ * gameplay data gets switched off, which is worse than not having one.
+ * The pool is data we COMMIT, so it must carry no image URL and no image
+ * field — only the id. An art URL is composed at render time from the id plus
+ * the manifest (`../art/`), which is what makes repointing a card a one-line
+ * data edit instead of a pool rebuild (D15, docs/DECISIONS.md). A URL baked in
+ * here would freeze every card to whatever source was current on the day the
+ * pool was built — which, now that the art source is expected to move, is a
+ * sharper reason for this control than the one it was written with.
+ */
+function assertNoImageData(pool: Array<Record<string, unknown>>): void {
+  const IMAGE_FIELD = /image|img|artcrop|thumbnail|picture/i;
+  const IMAGE_URL = /https?:\/\/[^"]*(\.(jpe?g|png|webp|gif)|scryfall\.io)/i;
+  for (const card of pool) {
+    for (const [key, value] of Object.entries(card)) {
+      if (IMAGE_FIELD.test(key)) {
+        console.error(`D13 VIOLATION: field "${key}" on ${String(card.name)}. Refusing to ship it.`);
+        process.exit(1);
+      }
+      if (typeof value === 'string' && IMAGE_URL.test(value)) {
+        console.error(`D13 VIOLATION: image URL in "${key}" on ${String(card.name)}. Refusing to ship it.`);
+        process.exit(1);
+      }
+    }
   }
+}
 
-  const cards: GameplayCard[] = [];
-  for (const line of raw.split('\n')) {
-    if (line.length === 0) continue;
-    cards.push(JSON.parse(line) as GameplayCard);
-  }
-  const index = buildCardIndex(cards);
-
+/** Resolve one cube file against the card index, returning its pool plus the names that did not resolve. */
+async function buildOne(
+  cubeFile: string,
+  index: ReturnType<typeof buildCardIndex>,
+): Promise<{ name: string; pool: Array<Record<string, unknown>>; unresolved: string[]; total: number }> {
   const cube = await loadCube(cubeFile);
   const entries = cube.sections.get('main') ?? [];
 
@@ -208,47 +253,62 @@ async function main(): Promise<void> {
     }
   }
 
-  await mkdir(dirname(outPath), { recursive: true });
-  await writeFile(
-    outPath,
-    `${JSON.stringify({ cube: cube.name ?? cubeFile, size: pool.length, cards: pool }, null, 1)}\n`,
-    'utf8',
-  );
+  return { name: cube.name ?? cubeFile, pool, unresolved, total: n };
+}
 
-  console.log(`${cube.name ?? cubeFile}: resolved ${pool.length}/${n} -> ${outPath}`);
-  if (unresolved.length > 0) {
-    console.log(`unresolved (${unresolved.length}): ${unresolved.slice(0, 10).join(', ')}`);
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const cubeArgs = args.filter((a) => a.startsWith('--cube=')).map((a) => a.slice('--cube='.length));
+  const outArg = args.find((a) => a.startsWith('--out='));
+  const outDirArg = args.find((a) => a.startsWith('--out-dir='));
+  const dataArg = args.find((a) => a.startsWith('--data='));
+  const cubeFiles = cubeArgs.length > 0 ? cubeArgs : [DEFAULT_CUBE];
+  const dataDir = dataArg ? resolve(dataArg.slice('--data='.length)) : undefined;
+
+  if (outDirArg !== undefined && outArg !== undefined) {
+    console.error('--out and --out-dir are mutually exclusive: --out names one file, --out-dir names several.');
+    process.exit(1);
+    return;
   }
 
-  // The control that matters: no image data may reach the browser bundle.
-  //
-  // It checks FIELD NAMES and URL-shaped VALUES, never free text. Scanning text
-  // is what a first cut did, and it fired immediately — on `Mirror Image`,
-  // `Phantasmal Image`, `Imagecrafter`, and `Nissa's Pilgrimage`, where "image"
-  // is a substring of a real card name. A control that cries wolf on legitimate
-  // gameplay data gets switched off, which is worse than not having one.
-  // The pool is data we COMMIT, so it must carry no image URL and no image
-  // field — only the id. An art URL is composed at render time from the id plus
-  // the manifest (`../art/`), which is what makes repointing a card a one-line
-  // data edit instead of a pool rebuild (D15, docs/DECISIONS.md). A URL baked in
-  // here would freeze every card to whatever source was current on the day the
-  // pool was built — which, now that the art source is expected to move, is a
-  // sharper reason for this control than the one it was written with.
-  const IMAGE_FIELD = /image|img|artcrop|thumbnail|picture/i;
-  const IMAGE_URL = /https?:\/\/[^"]*(\.(jpe?g|png|webp|gif)|scryfall\.io)/i;
-  for (const card of pool) {
-    for (const [key, value] of Object.entries(card)) {
-      if (IMAGE_FIELD.test(key)) {
-        console.error(`D13 VIOLATION: field "${key}" on ${String(card.name)}. Refusing to ship it.`);
-        process.exit(1);
-      }
-      if (typeof value === 'string' && IMAGE_URL.test(value)) {
-        console.error(`D13 VIOLATION: image URL in "${key}" on ${String(card.name)}. Refusing to ship it.`);
-        process.exit(1);
-      }
+  let raw: string;
+  try {
+    raw = await readFile(cachePath(dataDir), 'utf8');
+  } catch {
+    console.error(
+      `No card cache at ${cachePath(dataDir)}.\nRun: pnpm --filter @hadoku/carddata sync (or pass --data=<dir with cards.jsonl>).`,
+    );
+    process.exit(1);
+    return;
+  }
+
+  const cards: GameplayCard[] = [];
+  for (const line of raw.split('\n')) {
+    if (line.length === 0) continue;
+    cards.push(JSON.parse(line) as GameplayCard);
+  }
+  const index = buildCardIndex(cards);
+
+  for (const cubeFile of cubeFiles) {
+    const { name, pool, unresolved, total } = await buildOne(cubeFile, index);
+    assertNoImageData(pool);
+
+    const outPath =
+      outDirArg !== undefined
+        ? resolve(outDirArg.slice('--out-dir='.length), `${slug(name)}.json`)
+        : outArg !== undefined
+          ? resolve(outArg.slice('--out='.length))
+          : resolve(repoRoot(), 'apps', 'ui', 'src', 'draft', 'pool.json');
+
+    await mkdir(dirname(outPath), { recursive: true });
+    await writeFile(outPath, `${JSON.stringify({ cube: name, size: pool.length, cards: pool }, null, 1)}\n`, 'utf8');
+
+    console.log(`${name}: resolved ${pool.length}/${total} -> ${outPath}`);
+    if (unresolved.length > 0) {
+      console.log(`unresolved (${unresolved.length}): ${unresolved.slice(0, 10).join(', ')}`);
     }
+    console.log(`D13 control: ${pool.length} cards, no image field and no image URL.`);
   }
-  console.log(`D13 control: ${pool.length} cards, no image field and no image URL.`);
 }
 
 await main();
