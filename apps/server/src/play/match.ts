@@ -3662,6 +3662,7 @@ export class Match {
 				method: 'showErrorDialog',
 				title: MATCH_ENDED_TITLE,
 				message,
+				matchEnded: true,
 			} as ServerFrame;
 			s.endNotices.push({ kind: 'ended', frame });
 			this.send(s, frame);
@@ -3669,7 +3670,7 @@ export class Match {
 		const source = this.watcherSource();
 		if (!this.watcher.ended && source !== undefined && source.playerId !== null) {
 			this.watcher.ended = true;
-			this.sendWatcher({ kind: 'notify', method: 'showErrorDialog', title: MATCH_ENDED_TITLE, message } as ServerFrame);
+			this.sendWatcher({ kind: 'notify', method: 'showErrorDialog', title: MATCH_ENDED_TITLE, message, matchEnded: true } as ServerFrame);
 		}
 	}
 

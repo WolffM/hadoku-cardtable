@@ -889,7 +889,7 @@ describe('forge:deck-colors', () => {
 
 /* ── Wave 10: crash and reconnect, over the real socket ─────────────── */
 
-type Envelope = { cursor: { seq: number; epoch: string }; frame: { kind: string; method: string; callId?: string; title?: string } };
+type Envelope = { cursor: { seq: number; epoch: string }; frame: { kind: string; method: string; callId?: string; title?: string; matchEnded?: boolean } };
 const STATE_METHODS = new Set(['setGameView', 'openView', 'applyDelta']);
 
 /** What a browser holds: the snapshot's frames, then every state frame after it, folded. */
@@ -900,7 +900,7 @@ function boardOf(snapshot: { frames: unknown[] }, frames: unknown[]): Map<string
 
 function isEndedNotice(payload: unknown): boolean {
 	const f = (payload as Envelope).frame;
-	return f.method === 'showErrorDialog' && f.title === 'Match ended';
+	return f.method === 'showErrorDialog' && f.matchEnded === true;
 }
 
 describe('reconnect: a browser refresh mid-match', () => {

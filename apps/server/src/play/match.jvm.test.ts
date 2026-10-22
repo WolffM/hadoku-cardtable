@@ -56,7 +56,7 @@ import { afterAll, describe, expect, it, onTestFinished } from 'vitest';
 import { ClientFrameSchema } from '@hadoku/forge-wire';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostFactory, type MatchSpec } from './host.js';
-import { MATCH_ENDED_TITLE, createMatchRegistry, type Match } from './match.js';
+import { createMatchRegistry, type Match } from './match.js';
 import { foldFrames, type StateFrame } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 import { leaked, rawStatesOf, secretsFor } from './fixtures/transcript.js';
@@ -304,7 +304,7 @@ describe.skipIf(!available.ok)(title, () => {
 		const killedAt = Date.now();
 		process.kill(pid, 'SIGKILL');
 		const told = (seat: number): boolean =>
-			sent.some((s) => s.seat === seat && s.envelope.frame.method === 'showErrorDialog' && (s.envelope.frame as { title: string }).title === MATCH_ENDED_TITLE);
+			sent.some((s) => s.seat === seat && s.envelope.frame.method === 'showErrorDialog' && (s.envelope.frame as { matchEnded?: boolean }).matchEnded === true);
 		await waitUntil(() => told(0) && told(1), 'both seats to be told', 10_000);
 		console.log(`[jvm] crash: SIGKILL pid ${pid} → match ${match.status}, both seats told in ${Date.now() - killedAt} ms; failure: ${match.failure}`);
 		expect(match.status).toBe('failed');

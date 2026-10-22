@@ -286,13 +286,6 @@ import {
   type WireCursor,
 } from './transport.ts';
 
-/**
- * The title of the server's ending notice (`MATCH_ENDED_TITLE` in
- * `apps/server/src/play/match.ts`, which this mirrors — the two packages share
- * no module).
- */
-const MATCH_ENDED_TITLE = 'Match ended';
-
 /** Any blocking ask, as parsed. */
 export type LiveAsk = Extract<ServerFrame, { kind: 'ask' }>;
 export type RevealAsk = Extract<LiveAsk, { method: 'getChoices' }>;
@@ -887,7 +880,7 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   perspective: number | null;
   /**
    * The match has ended: the server's `ended` notice (`showErrorDialog`
-   * titled `Match ended`) or its `finishGame` has arrived, or Forge's own view says `GameOver`.
+   * marked `matchEnded`) or its `finishGame` has arrived, or Forge's own view says `GameOver`.
    * Sticky until a snapshot replaces the board, which re-sends the notice.
    */
   over: boolean;
@@ -3192,7 +3185,7 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     match.over = true;
     if (frame.losers !== undefined) match.losers = new Set(frame.losers);
     if (frame.lost !== undefined) match.lost = new Map(frame.lost.map((l) => [l.player, l]));
-  } else if (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.title === MATCH_ENDED_TITLE) {
+  } else if (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.matchEnded === true) {
     // The server's own ending notice (`Match.endNotice`): the match cannot
     // continue, whatever the board still shows.
     match.over = true;

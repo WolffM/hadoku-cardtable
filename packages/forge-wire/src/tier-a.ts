@@ -147,12 +147,17 @@ export const MessageSchema = z.strictObject({
   log: GameLogLineSchema.optional(),
 });
 
-/** `void showErrorDialog(String message, String title)` — IGuiGame.java:162. */
+/**
+ * `void showErrorDialog(String message, String title)` — IGuiGame.java:162. `matchEnded` is ours: the
+ * server sets it on its own notice that the match cannot continue, and a client reads the end from it,
+ * never from the title.
+ */
 export const ShowErrorDialogSchema = z.strictObject({
   kind: z.literal('notify'),
   method: z.literal('showErrorDialog'),
   message: z.string(),
   title: z.string(),
+  matchEnded: z.literal(true).optional(),
 });
 
 /* ── Server → client, blocking (3) ───────────────────────────────────── */

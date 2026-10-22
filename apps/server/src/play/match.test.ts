@@ -1225,8 +1225,8 @@ describe('failure', () => {
 const KILLED = 'the JVM exited (code null, signal SIGKILL); see /tmp/cardtable-play/m-x/bridge.stderr.txt';
 
 function isEndedNotice(e: ServerEnvelope | undefined): boolean {
-	const f = e?.frame as { method?: string; title?: string } | undefined;
-	return f?.method === 'showErrorDialog' && f.title === MATCH_ENDED_TITLE;
+	const f = e?.frame as { method?: string; matchEnded?: boolean } | undefined;
+	return f?.method === 'showErrorDialog' && f.matchEnded === true;
 }
 
 describe('crash: the JVM dies mid-match', () => {
@@ -1734,6 +1734,7 @@ describe('a match that outlives its server', () => {
 				method: 'showErrorDialog',
 				title: MATCH_ENDED_TITLE,
 				message: 'The server is restarting for a deploy.',
+				matchEnded: true,
 			});
 		}
 		// And it is kept, so a page that reloads after the restart is told too.
