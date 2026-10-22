@@ -38,6 +38,7 @@ export {
   MyDecksSchema,
   RenameDeckBodySchema,
   DECK_NAME_MAX,
+  MAX_DCK_BYTES,
   viewerSeat,
   seatLabel,
   isWaiting,

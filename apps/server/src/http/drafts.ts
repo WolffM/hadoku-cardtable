@@ -41,9 +41,10 @@
  */
 
 import express, { type Request, type Response, type Router } from 'express';
+import { SaveDraftDeckBodySchema } from '@hadoku/shared';
 
 import { builtDeckOf, saveBuiltDeck, viewForParticipant, type DraftRooms } from '../room/draftRooms.js';
-import { checkSeat, MAX_DCK_BYTES, type GateContext, type WireIssue } from './gate.js';
+import { checkSeat, type GateContext, type WireIssue } from './gate.js';
 import type { TablesLibrary } from './library.js';
 import { bodyErrors, httpCaller } from './request.js';
 import { draftPoolForMember } from './routes.js';
@@ -76,23 +77,12 @@ function noSeat(res: Response, podId: string): void {
 }
 
 /** `{ dck: string }`, and nothing else. The PUT body is never `{ library }` — this route has no catalogue to look one up in. */
-function parseSaveBody(raw: unknown): { ok: true; dck: string } | { ok: false; error: string } {
-	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { ok: false, error: 'body is { dck }' };
-	const keys = Object.keys(raw as Record<string, unknown>);
-	if (keys.length !== 1 || keys[0] !== 'dck') return { ok: false, error: 'body is { dck }' };
-	const dck = (raw as { dck?: unknown }).dck;
-	if (typeof dck !== 'string' || dck.trim() === '' || dck.length > MAX_DCK_BYTES) {
-		return { ok: false, error: `body.dck is .dck text (at most ${MAX_DCK_BYTES} bytes)` };
-	}
-	return { ok: true, dck };
-}
-
 export function attachDrafts(api: Router, deps: DraftsDeps): void {
 	const log = deps.log ?? jsonLogger('cardtable-drafts');
 
 	const drafts = express.Router();
 	// A tighter limit than the `api` router's own 1mb: `.dck` text is checked
-	// against MAX_DCK_BYTES below regardless, so nothing legitimate needs more.
+	// against MAX_DCK_BYTES by the body's schema, so nothing legitimate needs more.
 	drafts.use(express.json({ limit: '256kb' }));
 
 	drafts.get('/:podId/mine', (req: Request, res: Response) => {
@@ -120,9 +110,9 @@ export function attachDrafts(api: Router, deps: DraftsDeps): void {
 		const view = viewForParticipant(room, caller);
 		if (view.viewer.kind !== 'seat') return noSeat(res, podId);
 
-		const body = parseSaveBody(req.body);
-		if (!body.ok) {
-			res.status(400).json({ issues: [body.error] });
+		const body = SaveDraftDeckBodySchema.safeParse(req.body);
+		if (!body.success) {
+			res.status(400).json({ issues: [body.error.issues[0]?.message ?? 'body is { dck }'] });
 			return;
 		}
 
@@ -130,7 +120,7 @@ export function attachDrafts(api: Router, deps: DraftsDeps): void {
 		// (this module's header): a save refuses a card from outside the pool
 		// and a malformed file, never a build that is merely short.
 		const ctx: GateContext = { library: EMPTY_LIBRARY, draftPool: draftPoolForMember(caller, draftRooms) };
-		const verdict = checkSeat({ deck: { dck: body.dck }, rules: { kind: 'draft', draftId: podId } }, ctx);
+		const verdict = checkSeat({ deck: { dck: body.data.dck }, rules: { kind: 'draft', draftId: podId } }, ctx);
 		if ('error' in verdict) {
 			res.status(400).json({ issues: [verdict.error] });
 			return;

@@ -50,13 +50,10 @@
 import { parseDck } from '@hadoku/carddata/dck';
 import { deckFromDeckFile, deckIssues, formatIssues, isBasicLand, type Deck, type DeckIssue, poolEntries } from '@hadoku/deck';
 import { libraryPoolMismatch, type LibraryDeck } from '@hadoku/deck/library';
-import type { DraftCard } from '@hadoku/shared';
+import { MAX_DCK_BYTES, type DraftCard } from '@hadoku/shared';
 
 import { FREE_PICK } from '../room/lobby.js';
 import type { TablesLibrary } from './library.js';
-
-/** Play's own cap on a `.dck` (`play/socket.ts` `parseStartBody`). */
-export const MAX_DCK_BYTES = 64 * 1024;
 
 export type DeckRef = { library: string } | { dck: string };
 export type DeckRules = { kind: 'standard'; format: string } | { kind: 'draft'; draftId: string } | { kind: 'free' };

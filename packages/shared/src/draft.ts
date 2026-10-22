@@ -313,8 +313,23 @@ export const DraftMineSchema = z.object({
 });
 export type DraftMine = z.infer<typeof DraftMineSchema>;
 
-/** `PUT /api/drafts/:podId/deck` body. */
-export const SaveDraftDeckBodySchema = z.object({ dck: z.string().min(1) });
+/** The longest `.dck` text any route accepts: a save, a table's deck, a match's deck. */
+export const MAX_DCK_BYTES = 64 * 1024;
+
+/**
+ * `PUT /api/drafts/:podId/deck` body: `{ dck }` and nothing else. The UI checks
+ * a save with this before sending it, and the route answers its first refusal.
+ */
+const DCK_TEXT = `body.dck is .dck text (at most ${MAX_DCK_BYTES} bytes)`;
+export const SaveDraftDeckBodySchema = z.strictObject(
+  {
+    dck: z
+      .string({ error: DCK_TEXT })
+      .max(MAX_DCK_BYTES, { error: DCK_TEXT })
+      .refine((dck) => dck.trim() !== '', { error: DCK_TEXT }),
+  },
+  { error: 'body is { dck }' },
+);
 export type SaveDraftDeckBody = z.infer<typeof SaveDraftDeckBodySchema>;
 
 /** `PUT /api/drafts/:podId/deck`, 200: the `.dck` that was saved, byte for byte. */

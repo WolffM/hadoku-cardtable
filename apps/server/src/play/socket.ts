@@ -93,6 +93,7 @@ import {
 	PresenceSchema,
 	fullControlFrame,
 	MATCH_EVENTS,
+	MAX_DCK_BYTES,
 	parseAutoYield,
 	parseClientEnvelope,
 	parseFullControl,
@@ -343,7 +344,7 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 	const decks = b.decks ?? [null, null];
 	if (!Array.isArray(decks) || decks.length !== 2) return { ok: false, error: 'decks is a two-element array' };
 	for (const d of decks) {
-		if (d !== null && (typeof d !== 'string' || d.length === 0 || d.length > 64 * 1024)) {
+		if (d !== null && (typeof d !== 'string' || d.length === 0 || d.length > MAX_DCK_BYTES)) {
 			return { ok: false, error: 'each deck is .dck text (at most 64 KiB) or null' };
 		}
 	}
