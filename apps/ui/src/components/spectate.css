@@ -1,6 +1,6 @@
 /*
- * Styling for the three things this wave added to the draft surface: the
- * connection banner, the spectator notice and the deck builder.
+ * Styling for the draft surface's own components: the connection banner, the
+ * spectator notice, the seat bar and the deck builder.
  *
  * ## Why this file exists at all, instead of more rules in `styles.css`
  *
@@ -18,8 +18,8 @@
  * legible rather than transparent-on-transparent.
  *
  * Both legal rules from `styles.css` hold here too and are easy to check:
- * there is no `url()` in this file, and nothing draws a card frame, a set
- * symbol or a mana symbol. Pips are `ManaPip`'s circles.
+ * the only `url()` in this file names the seat ring's own SVG markers, and
+ * nothing draws a card frame, a set symbol or a mana symbol. Pips are `ManaPip`'s circles.
  */
 
 /* ── The connection banner ───────────────────────────────────────────── */
@@ -121,6 +121,195 @@
 
 .spectate__text {
   margin: 0;
+  color: var(--ink-dim);
+}
+
+/* ── seats: the pod, as one table (`components/SeatBar.tsx`) ───────── */
+
+.seats {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+/* A square the ring is drawn in; the seats and arcs are placed in its own 0-100 box. */
+.podcircle {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.podcircle__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.podcircle__arc {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  marker-end: url(#podcircle-head);
+}
+
+/* The arc into the bottom seat: where the viewer's next pack comes from. */
+.podcircle__arc--in {
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  marker-end: url(#podcircle-head-in);
+}
+
+.podcircle__head {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.podcircle__head--in {
+  stroke: var(--accent);
+}
+
+.podcircle__centre {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  transform: translate(-50%, -50%);
+}
+
+.podcircle__centre .counters {
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.podcircle__seats {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Placed by its face's centre (`left`/`top` from SeatBar), its name and count under it. */
+.seatbar__seat {
+  position: absolute;
+  width: 72px;
+  transform: translate(-50%, -20px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.seatbar__face {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg-card);
+  box-shadow: 0 0 0 2px var(--line);
+}
+
+/* The characters are pixel art: keep their pixels square. */
+.seatbar__face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.seatbar__face .face__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.seatbar__face .face__plate {
+  fill: var(--bg-card);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.seatbar__face .face__brow,
+.seatbar__face .face__bust {
+  fill: var(--ink-faint);
+}
+
+/* Still owes a pick: the ring is lit and breathes. */
+.seatbar__seat--waiting .seatbar__face {
+  box-shadow: 0 0 0 2px var(--accent);
+  animation: seat-picking 1.4s ease-in-out infinite;
+}
+
+@keyframes seat-picking {
+  50% {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 0 0 6px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seatbar__seat--waiting .seatbar__face {
+    animation: none;
+  }
+}
+
+.seatbar__seat--you .seatbar__name {
+  color: var(--accent-ink);
+}
+
+/* A spectator's seats: the one watched, and the rest to press. */
+.seatbar__seat--watched .seatbar__face {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.seatbar__watch {
+  position: absolute;
+  inset: -4px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+.seatbar__watch:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.seatbar__watch:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.seatbar__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* The name and the count on one line under the face; a long name gives way, never the count. */
+.seatbar__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.seatbar__picked {
+  flex: none;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-dim);
 }
 
