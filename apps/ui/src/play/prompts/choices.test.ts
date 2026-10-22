@@ -239,6 +239,23 @@ describe('chooseSingleEntityForEffect', () => {
     expect(answers).toEqual([null]);
     expectWireReply('chooseSingleEntityForEffect', answers[0]);
   });
+
+  // 2026-10-22: *"i don't need a 'clear choice' button to appear when choosing things. just clicking
+  // on the selected choice should 'unselect' it."*
+  it('a click on the chosen option unpicks it, and no Clear choice is drawn', () => {
+    const ask = { ...askFor('chooseSingleEntityForEffect'), isOptional: true };
+    const { getAllByTestId, submit, answers, container } = mountPrompt('chooseSingleEntityForEffect', ask);
+    const radios = getAllByTestId('prompt-choice') as HTMLInputElement[];
+    fireEvent.click(radios[1]!);
+    expect(radios[1]!.checked).toBe(true);
+    expect(submit().textContent).toBe('OK');
+    expect(container.textContent).not.toMatch(/clear/i);
+    fireEvent.click(radios[1]!);
+    expect(radios.map((r) => r.checked), 'nothing is chosen').toEqual(radios.map(() => false));
+    expect(submit().textContent).toBe('Choose none');
+    fireEvent.click(submit());
+    expect(answers).toEqual([null]);
+  });
 });
 
 describe('chooseEntitiesForEffect', () => {

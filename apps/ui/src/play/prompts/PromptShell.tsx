@@ -490,6 +490,11 @@ export function usePicks<T>(
  * radio) and the row's face in one `<label>`, so a click anywhere on the face
  * ticks it.
  *
+ * A click on a picked row unpicks it, a radio's too (the operator, 2026-10-22: *"i don't need a
+ * 'clear choice' button to appear when choosing things. just clicking on the selected choice
+ * should 'unselect' it"*): a browser fires no `change` for a radio that is already checked, so
+ * that click is `onPick` here, the same toggle a checkbox's change is.
+ *
  * A double click is `onConfirm`. Its first click ticks the row as any click
  * does; the second click of the pair is not a second toggle (it would untick
  * what the first just ticked), so the row stays picked for `onConfirm` to answer
@@ -518,7 +523,15 @@ export function PickChoice({
       }}
       onDoubleClick={onConfirm}
     >
-      <input type={type} name={type === 'radio' ? 'prompt-single' : undefined} data-testid="prompt-choice" {...data} checked={checked} onChange={onPick} />
+      <input
+        type={type}
+        name={type === 'radio' ? 'prompt-single' : undefined}
+        data-testid="prompt-choice"
+        {...data}
+        checked={checked}
+        onChange={onPick}
+        onClick={type === 'radio' && checked ? (e) => e.detail <= 1 && onPick() : undefined}
+      />
       {children}
     </label>
   );

@@ -1058,15 +1058,6 @@
   text-align: left;
 }
 
-.prompt__link {
-  align-self: flex-start;
-  background: none;
-  border: none;
-  color: var(--accent-ink);
-  padding: 0;
-  cursor: pointer;
-}
-
 .prompt__input {
   max-width: 100%;
 }

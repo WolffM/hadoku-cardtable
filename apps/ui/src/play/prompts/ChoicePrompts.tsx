@@ -345,7 +345,7 @@ function ListChoicesPrompt({ ask, onAnswer, lookup }: PromptProps<'getChoices'>)
 
 export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<'chooseSingleEntityForEffect'>) {
   const replyOf = (picks: readonly number[]) => (picks[0] === undefined ? null : (ask.optionList[picks[0]] ?? null));
-  const { chosen: picks, setChosen, problems, pick, submit, confirm } = usePicks<number>(
+  const { chosen: picks, problems, pick, submit, confirm } = usePicks<number>(
     () => [],
     true,
     (p) => chooseSingleProblems(ask, replyOf(p)),
@@ -368,11 +368,6 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
     >
       <DelayedRevealNote reveal={ask.delayedReveal} lookup={lookup} />
       <SearchRows ask={ask} type="radio" checked={(option) => chosen === option} pick={pick} confirm={confirm} lookup={lookup} />
-      {ask.isOptional && chosen !== null && (
-        <button type="button" className="prompt__link" onClick={() => setChosen([])}>
-          Clear choice
-        </button>
-      )}
     </PromptShell>
   );
 }
