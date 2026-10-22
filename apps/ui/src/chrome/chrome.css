@@ -126,11 +126,12 @@
  *
  * So: the fleet's value, on the fleet's element, with no wrapper element.
  *
- * `margin` and not `padding`, because the fleet's geometry insets the
- * border-bottom too — inside a padded wrapper the rule stops short of the
- * viewport edge rather than running to it. Only the top and the inline axis are
- * set; `margin-bottom` stays `app-header.css`'s 1.5rem, except beside the chat
- * (watchparty's stylesheet closes it there) and on the match.
+ * The inline inset is `padding`, not `margin` (the operator, 2026-10-21: "we
+ * need to horizontaly go all the way with the top divider bar"): the title and
+ * the controls keep the fleet's 2rem, and the bar's border-bottom runs from one
+ * edge of the window to the other. The top is still `margin`; `margin-bottom`
+ * stays `app-header.css`'s 1.5rem, except beside the chat (watchparty's
+ * stylesheet closes it there) and on the match.
  *
  * What is NOT done here: re-insetting the content to match. `screens.css`'s
  * `.shell` is `max-width: 1400px; padding: 24px`, so on a wide viewport the
@@ -141,7 +142,7 @@
  */
 .cardtable-chrome > .app-header {
   margin-top: 2rem;
-  margin-inline: 2rem;
+  padding-inline: 2rem;
 }
 
 /*
@@ -159,10 +160,10 @@
  * the full height of `.wp-room-chrome-frame`. Touching the bar's rule is
  * watchparty's now (`@wolffm/watchparty-ui`'s `room-chrome.css`): it zeroes
  * the header's bottom margin wherever a frame follows it, for every app. What
- * stays here is the page's EDGE, which is ours: the frame is 100% of
- * `__content`, and the bar is inset by `margin-inline` (above) rather than by a
- * padded wrapper, so `__content` takes the bar's own `2rem` too and the chat's
- * right edge lands on the bar's.
+ * stays here is the page's EDGE, which is ours: `__content` takes the bar's
+ * own `2rem` on the left, so the screen starts under the bar's title, and none
+ * on the right, so the chat runs to the window's edge (the operator,
+ * 2026-10-21: "the chat needs to go all the way to the edge of the screen").
  *
  * Keyed on the frame, not on a route's shell, so the room, the draft and the
  * deck builder get it as the match always did; `.shell--match` stays because a
@@ -175,7 +176,12 @@
 }
 
 .cardtable-chrome__content:has(.shell--match, .wp-room-chrome-frame) {
-  padding-inline: 2rem;
+  padding-left: 2rem;
+}
+
+/* A match whose chat did not mount keeps a right edge of its own. */
+.cardtable-chrome__content:has(.shell--match):not(:has(.wp-room-chrome-frame)) {
+  padding-right: 2rem;
 }
 
 /* A fitted screen beside the chat starts on the bar's left edge, not 24px in
@@ -191,11 +197,15 @@
    own: at 2rem plus that gutter a 390px room was 300px wide. */
 @media (max-width: 600px) {
   .cardtable-chrome > .app-header {
-    margin-inline: 16px;
+    padding-inline: 16px;
   }
 
   .cardtable-chrome__content:has(.shell--match, .wp-room-chrome-frame) {
-    padding-inline: 16px;
+    padding-left: 16px;
+  }
+
+  .cardtable-chrome__content:has(.shell--match):not(:has(.wp-room-chrome-frame)) {
+    padding-right: 16px;
   }
 
   .wp-room-chrome-frame__content > .shell.shell--fit {

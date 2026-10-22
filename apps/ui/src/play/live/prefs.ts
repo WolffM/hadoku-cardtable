@@ -48,7 +48,7 @@ import { CallIdSchema, ShowConfirmDialogReplySchema } from '@hadoku/forge-wire';
 
 import type { BoardLayout } from '../Board.tsx';
 import { UI_SCALE } from '../../settings/ui-scale.ts';
-import { isTrimOption, TRIM_FAMILY_IDS, type Trim, type TrimFamily } from '../../settings/trim.ts';
+import { DEFAULT_TRIM, isTrimOption, TRIM_FAMILY_IDS, type Trim, type TrimFamily } from '../../settings/trim.ts';
 
 const borrowed = {
   /** A non-empty string: `CallIdSchema` is `z.string().min(1)`. */
@@ -119,11 +119,12 @@ function fastModeDefaultOverride(): boolean {
  * (paced) everywhere except inside the e2e harness — see this module's
  * header.
  */
-export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; endStepStop: boolean; fastMode: boolean; uiScale: number } = {
+export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; endStepStop: boolean; fastMode: boolean; uiScale: number; trim: Trim } = {
   boardLayout: 'single',
   endStepStop: true,
   fastMode: fastModeDefaultOverride(),
   uiScale: 1,
+  trim: DEFAULT_TRIM,
 };
 
 /**

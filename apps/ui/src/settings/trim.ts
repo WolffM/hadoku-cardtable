@@ -6,7 +6,8 @@
  * One choice per family, saved with the other display preferences, and written as `data-trim-*`
  * attributes where the stylesheet can see them (`../chrome/trim.css`). Every panel that takes trim
  * carries `ct-panel` (and its heading `ct-panel__title`); the page's ground is the chrome root.
- * Nothing chosen means no attribute, which means no rule applies: the app as it shipped before.
+ * A player who has never chosen gets `DEFAULT_TRIM`; one who chose None everywhere saved `{}`, which
+ * writes no attribute and applies no rule.
  *
  * All of it is CSS drawn from the theme tokens: no images, no requests, nothing animated.
  */
@@ -44,6 +45,9 @@ export const TRIM_FAMILIES = {
 
 export type TrimFamily = keyof typeof TRIM_FAMILIES;
 export type Trim = { [F in TrimFamily]?: keyof (typeof TRIM_FAMILIES)[F]['options'] };
+
+/** What a player who has never chosen sees (the operator's pick, 2026-10-21). Choosing None everywhere saves `{}`, which keeps them bare. */
+export const DEFAULT_TRIM: Trim = { frame: 'scoop', ground: 'triangles', groundCorner: 'gems' };
 
 export const TRIM_FAMILY_IDS = Object.keys(TRIM_FAMILIES) as TrimFamily[];
 

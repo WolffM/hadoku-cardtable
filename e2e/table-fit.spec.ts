@@ -1880,13 +1880,12 @@ const MIN_QUESTION_COLUMNS = 2;
 /** What watchparty's `.wp-room-chrome` aside takes, and never gives back. */
 const CHAT_ASIDE_PX = 320;
 /**
- * The page's own inset, both sides together (wave 31 P6, `live.css`): the table's
- * left edge and the chat's right edge are the header's (`2rem` each), so a match
- * page is 64px narrower than "viewport less the aside" (896 at 1280, 982 at 1366;
- * it was 16px of shell padding, 944 and 1030, until then).
- * `docs/planning/wave31-evidence/p6-boundary.md` measured it.
+ * The page's own inset (wave 31 P6, `chrome.css`): the table's left edge is the
+ * header title's (`2rem`), and since 2026-10-21 the chat runs to the window's
+ * right edge, so a match page is 32px narrower than "viewport less the aside"
+ * (928 at 1280, 1014 at 1366; 64px both sides from wave 31 until then).
  */
-const PAGE_INSET_PX = 64;
+const PAGE_INSET_PX = 32;
 
 interface QuestionFit {
   size: string;
@@ -2268,8 +2267,8 @@ test(CROWD_TITLE, async ({ browser }) => {
           /*
            * The settled width, asserted rather than assumed: the table is the
            * viewport less watchparty's pinned 320px aside, less the page's own
-           * 2rem inset on each side (`PAGE_INSET_PX`, wave 31 P6). 960 → 896 at
-           * 1280, 1046 → 982 at 1366. Wave 26's blocking was applied as if the
+           * 2rem inset on the left (`PAGE_INSET_PX`). 960 → 928 at 1280,
+           * 1046 → 1014 at 1366. Wave 26's blocking was applied as if the
            * table had the whole 1280, and this is the line that says out loud
            * that it does not.
            */
