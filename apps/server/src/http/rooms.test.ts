@@ -1588,6 +1588,63 @@ describe('POST /api/rooms/:id/start', () => {
 			expect(firstPackCard?.name).toBe('Mystery Card');
 		});
 
+		/**
+		 * A realistic booster's foil (`forge.foil`, carried off Forge's own
+		 * `PaperCard.isFoil()`) must ride onto the `DraftCard` the leader's pod
+		 * actually deals — `foil: true` for the one card the jar marked foil,
+		 * absent for everything else — whether the card resolves through the
+		 * catalog (`byPrinting`) or falls back to the honest `missingText`
+		 * stand-in. The shared catalog object itself is never mutated: the same
+		 * `DraftCard` reference backs every non-foil copy of a card dealt across
+		 * the whole pod, so marking it foil in place would leak into every OTHER
+		 * copy too.
+		 */
+		it("a foil booster card carries foil:true onto its DraftCard (catalog hit and fallback alike); the catalog's own card object is never mutated", async () => {
+			const cached: { draftId: string; round: number; packs: unknown }[] = [];
+			const catalogCard: DraftCard = {
+				cardId: 'ISD-1-Diregraf Ghoul',
+				name: 'Diregraf Ghoul',
+				manaCost: ['1', 'B'],
+				manaValue: 2,
+				colors: ['B'],
+				typeLine: 'Creature — Zombie',
+				oracleText: '',
+				setCode: 'ISD',
+				collectorNumber: '1',
+				rarity: 'common',
+			};
+			const h = await openApp(await tempDir(), {
+				realistic: {
+					forge: {
+						boosters: async (code, count) =>
+							Array.from({ length: count }, () => [
+								{ name: 'Diregraf Ghoul', set: code, collectorNumber: '1', foil: true }, // resolves through the catalog
+								{ name: 'Mystery Card', set: code, collectorNumber: '2', foil: false }, // falls back to missingText
+								{ name: 'Unknown Foil', set: code, collectorNumber: '3', foil: true }, // falls back AND foil
+							]),
+					},
+					catalog: {
+						byName: () => null,
+						byPrinting: (_set, collectorNumber) => (collectorNumber === '1' ? catalogCard : null),
+					},
+					draftRooms: { cacheRealisticRound: (draftId, round, packs) => cached.push({ draftId, round, packs }) },
+				},
+			});
+			const id = await fullPod(h, REALISTIC_PLAN);
+
+			const res = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
+			expect(res.status).toBe(200);
+			const firstPack = (cached[0]?.packs as DraftCard[][])[0] ?? [];
+			const foilFromCatalog = firstPack.find((c) => c.name === 'Diregraf Ghoul');
+			const plainFallback = firstPack.find((c) => c.name === 'Mystery Card');
+			const foilFallback = firstPack.find((c) => c.name === 'Unknown Foil');
+			expect(foilFromCatalog?.foil).toBe(true);
+			expect(plainFallback?.foil).toBeUndefined();
+			expect(foilFallback?.foil).toBe(true);
+			// the shared catalog object is a value this test holds onto directly — it must still read as not-foil
+			expect(catalogCard.foil).toBeUndefined();
+		});
+
 		it('a failed booster fetch refuses /start with 409 and never calls startDraft', async () => {
 			const h = await openApp(await tempDir(), {
 				realistic: {

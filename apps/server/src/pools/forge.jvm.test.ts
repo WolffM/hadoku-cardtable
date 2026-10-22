@@ -206,4 +206,45 @@ describe.skipIf(!available.ok)(title, () => {
 			}
 		},
 	);
+
+	/**
+	 * `e2e/draft-sets.spec.ts` reds at random (runs 39828615022, 39808764418)
+	 * because `getBoosterPack` can append an extra foil of any rarity on top of
+	 * a common slot it shrank to make room — real, same as a paper pack, and
+	 * dropped on the wire before this fix (`e2e/draft-sets.collation.ts` has
+	 * the full mechanism). ISD's default foil chance (~21.43%) makes a foil
+	 * turn up in a handful of single-pack calls; this searches seeds
+	 * one-pack-at-a-time (bounded at 200, which this jar/res pin never needs —
+	 * see the report) rather than asserting a specific seed, so a future jar
+	 * pin (a different `MyRandom` draw sequence) cannot silently stop
+	 * exercising the real path.
+	 */
+	it(
+		'a seeded ISD pack that lands a foil marks exactly that card foil:true, every other card foil:false, and repeats under its own seed',
+		{ timeout: 120_000 },
+		async () => {
+			if (!available.ok) return;
+			let foundSeed: string | null = null;
+			let foundPack: Awaited<ReturnType<ForgePools['boosters']>>[number] = [];
+			for (let i = 0; i < 200; i++) {
+				const seed = `wave-foil-search-${i}`;
+				const [pack] = await service().boosters('ISD', 1, seed);
+				if (pack === undefined) continue;
+				if (pack.some((c) => c.foil)) {
+					foundSeed = seed;
+					foundPack = pack;
+					break;
+				}
+			}
+			console.log(`[forge.jvm] foil search: seed=${JSON.stringify(foundSeed)} pack=${JSON.stringify(foundPack)}`);
+			expect(foundSeed, 'no foil card turned up in 200 one-pack seeds — ISD’s ~21% foil chance makes this vanishingly unlikely').not.toBeNull();
+			const foilCards = foundPack.filter((c) => c.foil);
+			expect(foilCards, `exactly one foil card (pack: ${JSON.stringify(foundPack)})`).toHaveLength(1);
+			const nonFoilCards = foundPack.filter((c) => !c.foil);
+			expect(nonFoilCards.every((c) => c.foil === false), `every non-foil card is foil:false, not foil:undefined (pack: ${JSON.stringify(foundPack)})`).toBe(true);
+			// seeded determinism holds for the foil flag too, not only name/set/collectorNumber
+			const [repeat] = await service().boosters('ISD', 1, foundSeed as string);
+			expect(repeat).toEqual(foundPack);
+		},
+	);
 });

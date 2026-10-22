@@ -32,6 +32,24 @@ const CARD: unknown = {
   rarity: 'common',
 };
 
+describe('DraftCardSchema.foil', () => {
+  it('a card with no foil field parses — absent means not foil', () => {
+    const result = DraftCardSchema.safeParse(CARD);
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.foil).toBeUndefined();
+  });
+
+  it('foil: true parses and round-trips', () => {
+    const result = DraftCardSchema.safeParse({ ...(CARD as Record<string, unknown>), foil: true });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.foil).toBe(true);
+  });
+
+  it('a non-boolean foil is refused', () => {
+    expect(DraftCardSchema.safeParse({ ...(CARD as Record<string, unknown>), foil: 'yes' }).success).toBe(false);
+  });
+});
+
 describe('DraftMineSchema', () => {
   it('parses a pool with no saved build yet', () => {
     expect(DraftCardSchema.safeParse(CARD).success).toBe(true);
