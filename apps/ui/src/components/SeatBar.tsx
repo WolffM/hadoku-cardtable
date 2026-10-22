@@ -161,9 +161,6 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
                       held
                     </span>
                   )}
-                  <span className="seatbar__picked" data-testid={`seat-${seat.id}-picked`}>
-                    {seat.pickedCount}
-                  </span>
                 </span>
               </li>
             );

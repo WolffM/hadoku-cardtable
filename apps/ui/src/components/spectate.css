@@ -282,19 +282,13 @@
   font-weight: 600;
 }
 
-/* The name and the count on one line under the face; a long name gives way, never the count. */
+/* The name, and a held seat's mark, on one line under the face; a long name gives way, never the mark. */
 .seatbar__label {
   display: flex;
   align-items: baseline;
   justify-content: center;
   gap: 4px;
   max-width: 100%;
-}
-
-.seatbar__picked {
-  flex: none;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-dim);
 }
 
 /* A held seat in the pod. Its face ringed dashed, because it is an inference. */

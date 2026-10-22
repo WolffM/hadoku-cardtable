@@ -310,7 +310,6 @@ describe('the draft screen, on committed fixtures', () => {
 
     // The public half is all still there.
     expect(within(screen.getByTestId('seat-bar')).getAllByRole('listitem')).toHaveLength(8);
-    expect(screen.getByTestId('seat-3-picked').textContent).toBe('19');
 
     // And not one card name from anybody's pool reached the DOM.
     expect(screen.queryAllByTestId('card')).toHaveLength(0);
