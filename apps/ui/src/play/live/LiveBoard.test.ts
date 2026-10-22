@@ -1335,7 +1335,6 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     // is the page's own wrapper and not one of them.
     const canvas = /\.board\b|\.card\b|\.card__|\.seat\b|\[data-zone/;
     expect(selectors.filter((sel) => canvas.test(sel))).toEqual([
-      '.shell--match .live, .live > .board',
       '.live > .board',
       '.live .board',
     ]);
