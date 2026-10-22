@@ -115,15 +115,20 @@ export {
 // Re-exported so the server's catalog-refresh job (`apps/server/src/pools/refresh.ts`,
 // wave 74 §G) can rebuild in-process without a deep import — `@hadoku/carddata`'s
 // own `exports` map only publishes this entry point.
+//
+// From `catalog-build.ts`, NEVER from `cli/build-catalog.ts`: a `cli/` module
+// ends in `if (import.meta.main) …`, which reads `true` for every module a
+// bundler inlines, not only the real entry point — this package's index must
+// never be reachable from a `cli/` file. `index-no-cli-imports.test.ts`
+// enforces that; see `catalog-build.ts`'s header for the incident this fixed.
 export {
   buildCatalog,
   runBuildCatalog,
   type CatalogFile,
+  type PrintingRef,
   type RunBuildCatalogOptions,
   type RunBuildCatalogResult,
-} from './cli/build-catalog.ts';
-
-export { parseArgs as parseSyncCardsArgs, runSyncCards } from './cli/sync-cards.ts';
+} from './catalog-build.ts';
 
 export {
   projectCard,
