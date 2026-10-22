@@ -81,6 +81,16 @@
  * cost. Mulldrifter's evoke is unconditional, so it shows {4}{U} and stays dark; Etherium Sculptor
  * still takes {1} off Chief of the Foundry.
  *
+ * The operator, 2026-10-22: "why does spell queller have an orange outline? this doesn't have a
+ * conditional effect that i would consider relevant." Spell Queller's "the exiled card's owner may
+ * cast it" is scripted with `ConditionCheckSVar$ X` on `Remembered$Amount`, a guard that "the exiled
+ * card" still exists, on the very ability that acts on it (`Defined$ Remembered.ExiledWithSource`):
+ * met for as long as Queller holds a spell. A check on what an ability itself acts on is its
+ * referent, not a condition. A sixth game holds Spell Queller with a Lightning Bolt it exiled, dark;
+ * beside it Veteran Survivor with three cards exiled with it (`ExiledWith$Amount GE3`, a count the
+ * player builds) and Cobra Trap in hand with a destroyed permanent remembered (`Remembered$Amount`
+ * that only counts), both lit.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
@@ -195,6 +205,24 @@ const ALTERNATIVE_COSTS = [
 	'aibattlefield=Plains',
 	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
 	'aigraveyard=',
+].join('\n');
+
+const MEMORY = [
+	'turn=1',
+	'activeplayer=human',
+	'activephase=MAIN1',
+	'humanlife=20',
+	'ailife=20',
+	'humanhand=Cobra Trap|RememberedCards:311',
+	'humanbattlefield=Spell Queller|Id:301|RememberedCards:302;Veteran Survivor|Id:303;Island;Plains',
+	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
+	'humangraveyard=',
+	'humanexile=Grizzly Bears|ExiledWith:303;Grizzly Bears|ExiledWith:303;Grizzly Bears|ExiledWith:303',
+	'aihand=',
+	'aibattlefield=Plains',
+	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+	'aigraveyard=Ornithopter|Id:311',
+	'aiexile=Lightning Bolt|Id:302|ExiledWith:301',
 ].join('\n');
 
 /** The graveyard incarnations: each lights from its owner's graveyard while its owner controls its basic land type. */
@@ -531,6 +559,33 @@ describe.skipIf(!available.ok)(title, () => {
 				console.log(`[cs-condition-met.jvm] turn 2: heldChanges=${JSON.stringify([...(heldNext ?? [])])}`);
 				expect(heldNext, 'seat 0 was sent heldChanges on turn 2').not.toBeNull();
 				for (const c of [...crushes, skewer]) expect(shown(heldNext, c), `${c.name}#${c.id} shows its printed cost again`).toBeUndefined();
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		"a check on what the ability itself acts on is not a condition: Spell Queller holding the spell it exiled stays dark; Veteran Survivor's three exiled cards and Cobra Trap's remembered permanent light",
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 89, decks: DECKS, scenario: MEMORY });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Battlefield').some((c) => c.name === 'Spell Queller') && s.zone(0, 'Hand').some((c) => c.name === 'Cobra Trap');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const board = s.zone(0, 'Battlefield');
+				const hand = s.zone(0, 'Hand');
+				const seat0 = latestConditionMet(s, 0);
+				const lit = [...board, ...hand].filter((c) => seat0?.includes(c.id)).map((c) => `${c.name}#${c.id}`);
+				console.log(`[queller-condition-met.jvm] memory: conditionMet=${JSON.stringify(seat0)} → [${lit.join(', ')}]`);
+				expect(seat0, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
+				const queller = named(board, 'Spell Queller');
+				expect(seat0, `Spell Queller#${queller.id} is off`).not.toContain(queller.id);
+				for (const c of [named(board, 'Veteran Survivor'), named(hand, 'Cobra Trap')]) expect(seat0, `${c.name}#${c.id} is on`).toContain(c.id);
 			} finally {
 				await s.stop();
 			}

@@ -1099,7 +1099,9 @@ public final class PlayBridge {
      * the branch Forge takes now is not the one it takes at 0. Nor does a check that is only a turn
      * or a phase ("during your turn"): it is when an ability works, and would light the card every
      * turn. Nor does a presence check whose only subject is the card itself ({@code IsPresent$ Card.Self},
-     * {@link #self}): the card being where it is, not a condition it can meet. Nor does a static whose
+     * {@link #self}): the card being where it is, not a condition it can meet. Nor does a count of the
+     * card's memory that the same ability acts on ({@link #referent}): Spell Queller's guard that "the
+     * exiled card" is still there, its referent and not a condition. Nor does a static whose
      * only effect is a permission to play a card ({@link #permission}): Gravecrawler castable from the
      * graveyard is the can-act glow's, not a condition's.
      *
@@ -1316,13 +1318,13 @@ public final class PlayBridge {
             mapParams().set(copy, all);
             final boolean on = copy.checkConditions();
             all.found.removeAll(zones.found);
-            return on && counts(all.found, copy.getMapParams());
+            return on && counts(all.found, copy);
         }
 
         private static boolean commonOn(final forge.game.CardTraitBase trait) throws ReflectiveOperationException {
             final Recorder r = new Recorder(trait.getMapParams());
             final boolean on = (Boolean) commonRequirements().invoke(trait, r);
-            return on && counts(r.found, trait.getMapParams());
+            return on && counts(r.found, trait);
         }
 
         /** Whether an activated ability's own restriction is an "activate only if …" ({@link #RESTRICTION_CONDITIONS}). */
@@ -1331,7 +1333,7 @@ public final class PlayBridge {
             final Recorder r = new Recorder(sa.getMapParams());
             new forge.game.spellability.SpellAbilityRestriction().setRestrictions(r);
             r.found.retainAll(RESTRICTION_CONDITIONS);
-            return counts(r.found, sa.getMapParams());
+            return counts(r.found, sa);
         }
 
         /**
@@ -1346,7 +1348,7 @@ public final class PlayBridge {
                 if (quiet.contains(s)) { continue; }
                 final Recorder r = new Recorder(s.getMapParams());
                 new forge.game.spellability.SpellAbilityCondition().setConditions(r);
-                if (!counts(r.found, s.getMapParams())) { continue; }
+                if (!counts(r.found, s)) { continue; }
                 if (asked == null) { asked = root.getActivatingPlayer() == null ? root.copy(root.getHostCard(), controller, true) : root; }
                 final SpellAbility same = same(asked, root, s);
                 if (same != null && same.getConditions().areMet(same)) { return true; }
@@ -1524,13 +1526,55 @@ public final class PlayBridge {
 
         /**
          * Whether the condition keys a checker {@code found} make a condition this card lights for: at
-         * least one that is neither timing nor part of a presence check on the card itself.
+         * least one that is neither timing, nor part of a presence check on the card itself, nor a
+         * check on the trait's own referent.
          */
-        private static boolean counts(final Set<String> found, final Map<String, String> params) {
+        private static boolean counts(final Set<String> found, final forge.game.CardTraitBase trait) {
+            final Map<String, String> params = trait.getMapParams();
             final Set<String> conditions = new java.util.HashSet<>(found);
             conditions.removeIf(key -> timing(key, params.get(key)));
             conditions.removeAll(selfPresence(params));
+            conditions.removeAll(referent(trait));
             return !conditions.isEmpty();
+        }
+
+        /** Forge's SVar checks, each with the key of its comparison. */
+        private static final Map<String, String> SVAR_CHECKS = Map.of(
+                "CheckSVar", "SVarCompare", "CheckSecondSVar", "SecondSVarCompare", "ConditionCheckSVar", "ConditionSVarCompare");
+
+        /** What a card remembers of the objects its own abilities chose, as Forge's SVar and Defined$ values name it. */
+        private static final List<String> MEMORIES = List.of("Remembered", "Imprinted");
+
+        /**
+         * The keys of the trait's SVar checks that count the card's memory ({@link #MEMORIES}:
+         * {@code Remembered$Amount}, {@code Count$RememberedSize}, {@code Imprinted$…}) when another of
+         * the trait's own parameters names that memory as what it acts on. That check is the
+         * ability's referent — "the exiled card", "that card", "if you do" — met whenever there is
+         * something for the ability to act on, not a condition the game state builds toward: Spell
+         * Queller's "the exiled card's owner may cast it" ({@code Defined$ Remembered.ExiledWithSource},
+         * guarded by {@code Remembered$Amount EQ1}), on the whole time it holds a spell. A check whose
+         * trait only counts the memory is still a condition: Cobra Trap's alternative cost counting
+         * the permanents an opponent destroyed this turn. A zone count is not memory: Veteran
+         * Survivor's {@code ExiledWith$Amount}.
+         */
+        private static Set<String> referent(final forge.game.CardTraitBase trait) {
+            final Map<String, String> params = trait.getMapParams();
+            final Set<String> out = new java.util.HashSet<>();
+            for (final Map.Entry<String, String> check : SVAR_CHECKS.entrySet()) {
+                final String name = params.get(check.getKey());
+                if (name == null) { continue; }
+                final String expression = trait.getSVar(name);
+                for (final String memory : MEMORIES) {
+                    if (!expression.startsWith(memory) && !expression.startsWith("Count$" + memory)) { continue; }
+                    final boolean actsOn = params.entrySet().stream().anyMatch(p -> !p.getKey().equals(check.getKey())
+                            && !p.getKey().equals(check.getValue()) && p.getValue().startsWith(memory));
+                    if (actsOn) {
+                        out.add(check.getKey());
+                        out.add(check.getValue());
+                    }
+                }
+            }
+            return out;
         }
 
         /**
