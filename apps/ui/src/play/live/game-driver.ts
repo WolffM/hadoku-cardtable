@@ -17,7 +17,7 @@
 import { createElement } from 'react';
 import { render } from '@testing-library/react';
 
-import type { BoardPlayer, BoardView } from '../adapter.ts';
+import { opponentOf, viewerOf, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { LiveBoard } from './LiveBoard.tsx';
 import { currentAsk } from './match.ts';
 import type { LiveHarness, SeatClient } from './jvm-harness.ts';
@@ -183,8 +183,8 @@ export function createDriver(h: LiveHarness, plan: Plan): Driver {
       }
       const v = s.live.view;
       if (v === null) continue;
-      const me = v.players.find((p) => p.isViewer);
-      const opp = v.players.find((p) => !p.isViewer);
+      const me = viewerOf(v);
+      const opp = opponentOf(v);
       if (me === undefined || opp === undefined) continue;
       if (/^Waiting/.test(s.notes.prompt?.message ?? '')) continue;
       if (s.notes.version !== seen[s.seat]) idleSince[s.seat] = Date.now();

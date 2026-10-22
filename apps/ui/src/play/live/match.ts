@@ -255,7 +255,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { drawsFaceUp, manaCostTokens, toBoardView, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
+import { drawsFaceUp, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { pressableBar, type BarHold } from './bar-hold.ts';
@@ -1525,6 +1525,11 @@ export function viewerPlayerIdOf(match: LiveMatch): number | null {
   return match.perspective ?? match.playerId;
 }
 
+/** The seat across the table from this one; null for a socket that holds none. */
+export function otherSeat(match: LiveMatch): number | null {
+  return match.seat === null ? null : match.seat === 0 ? 1 : 0;
+}
+
 /** The Forge player a SEAT holds, once `forge:seats` has named it; null before, and for a seat Forge has not named. */
 export function playerIdOfSeat(match: LiveMatch, seat: number): number | null {
   return match.playerIdBySeat?.get(seat) ?? null;
@@ -1539,7 +1544,7 @@ export function playerIdOfSeat(match: LiveMatch, seat: number): number | null {
  */
 export function flipPerspective(match: LiveMatch): boolean {
   if (!match.watcher || match.view === null) return false;
-  const other = match.view.players.find((p) => !p.isViewer);
+  const other = opponentOf(match.view);
   if (other === undefined) return false;
   match.perspective = other.id;
   redraw(match);
@@ -1761,7 +1766,7 @@ function union(...sets: ReadonlyArray<ReadonlySet<number> | null>): ReadonlySet<
  */
 function mulliganHand(state: WireState, view: BoardView): ReadonlySet<number> | null {
   if (!readGameBool(state, 'Mulligan')) return null;
-  const me = view.players.find((p) => p.isViewer);
+  const me = viewerOf(view);
   // `hand` is null for a seat whose hand this viewer may not see. That can only
   // be another seat, and it is the reason this reads the view and not the state.
   if (me === undefined || me.hand === null) return null;
@@ -1898,13 +1903,13 @@ export function concede(match: LiveMatch): boolean {
  */
 export function declaringAttackers(match: LiveMatch): boolean {
   const view = match.view;
-  return view !== null && view.phase === 'COMBAT_DECLARE_ATTACKERS' && view.activePlayerId === viewerIdOf(view);
+  return view !== null && view.phase === 'COMBAT_DECLARE_ATTACKERS' && view.activePlayerId === (viewerOf(view)?.id ?? null);
 }
 
 /** `COMBAT_DECLARE_BLOCKERS`, and this seat is NOT the attacker — so it blocks. */
 export function declaringBlockers(match: LiveMatch): boolean {
   const view = match.view;
-  return view !== null && view.phase === 'COMBAT_DECLARE_BLOCKERS' && view.activePlayerId !== viewerIdOf(view);
+  return view !== null && view.phase === 'COMBAT_DECLARE_BLOCKERS' && view.activePlayerId !== (viewerOf(view)?.id ?? null);
 }
 
 const NO_PICKS: ReadonlySet<number> = new Set();
@@ -1936,15 +1941,6 @@ export function combatCandidates(match: LiveMatch): ReadonlySet<number> {
 /** Forge's highlighted cards drawn as PICKED: every one, except the block step's current attacker (`blockFocusOf`). */
 export function pickedOf(match: LiveMatch): ReadonlySet<number> {
   return declaringBlockers(match) ? NO_PICKS : (match.highlighted ?? NO_PICKS);
-}
-
-/**
- * This seat's player id, off the view. `BoardView` carries no `viewerPlayerId`
- * — the projection marks the seat with `isViewer`, which is the same fact and
- * the one every other reader here uses (`mulliganHand`).
- */
-function viewerIdOf(view: BoardView): number | null {
-  return view.players.find((p) => p.isViewer)?.id ?? null;
 }
 
 /**
@@ -2057,7 +2053,7 @@ export function payFromPool(match: LiveMatch, color: PoolColor): boolean {
 /** The viewer's player while a press of {@link payWithLife} would be taken, else null. */
 export function lifePayer(match: LiveMatch): number | null {
   if (!lifePayable(match)) return null;
-  const me = match.view?.players.find((p) => p.isViewer);
+  const me = viewerOf(match.view);
   return me === undefined || match.spent.players.has(me.id) ? null : me.id;
 }
 
@@ -2128,7 +2124,7 @@ const BEFORE_ATTACKERS: ReadonlySet<string> = new Set(['UNTAP', 'UPKEEP', 'DRAW'
  * Defender keyword (a Pacifism, say) still counts it as able.
  */
 export function attackersLeft(view: BoardView): boolean {
-  const me = view.players.find((p) => p.isViewer);
+  const me = viewerOf(view);
   if (me === undefined || !me.isActive) return false;
   if (view.phase === null || !BEFORE_ATTACKERS.has(view.phase)) return false;
   return me.battlefield.some(
@@ -2318,7 +2314,7 @@ function blockTargets(match: LiveMatch, view: BoardView): ReadonlySet<number> | 
  */
 function declaredBlockers(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
   if (!blockInputLive(match)) return null;
-  const me = view.players.find((p) => p.isViewer);
+  const me = viewerOf(view);
   if (me === undefined) return null;
   const mine = new Set(me.battlefield.map((c) => c.id));
   const out = new Set<number>();
@@ -2364,7 +2360,7 @@ export const CALL_BACK_LABEL = 'Call Back';
  */
 function declaredAttackers(match: LiveMatch, view: BoardView): ReadonlySet<number> | null {
   if (!attackInputLive(match) || match.buttons?.label2 !== CALL_BACK_LABEL) return null;
-  const me = view.players.find((p) => p.isViewer);
+  const me = viewerOf(view);
   if (me === undefined) return null;
   return new Set(me.battlefield.filter((c) => c.attacking).map((c) => c.id));
 }
@@ -2411,7 +2407,7 @@ export type AttackAssignment = 'assign' | 'already' | null;
 export function attackAssignment(match: LiveMatch, attacker: number, target: { kind: 'card' | 'player'; id: number }): AttackAssignment {
   const view = match.view;
   if (view === null || !declaringAttackers(match)) return null;
-  const me = view.players.find((p) => p.isViewer);
+  const me = viewerOf(view);
   if (me === undefined || !me.battlefield.some((c) => c.id === attacker)) return null;
   const isDefender =
     target.kind === 'player'
@@ -2602,7 +2598,7 @@ export function attackIntents(match: LiveMatch): ReadonlyMap<number, AttackInten
   if (view === null || !declaringAttackers(match)) return out;
   const held = match.attackIntent;
   if (held === null || held.turn !== view.turn) return out;
-  const me = view.players.find((p) => p.isViewer);
+  const me = viewerOf(view);
   if (me === undefined) return out;
   for (const card of me.battlefield) {
     if (!held.ids.has(card.id)) continue;

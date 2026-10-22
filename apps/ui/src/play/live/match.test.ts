@@ -13,7 +13,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseServerFrame, type ServerFrame, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 
-import type { BoardView } from '../adapter.ts';
+import { opponentOf, viewerOf, type BoardView } from '../adapter.ts';
 import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { type Tagged } from '../wire.ts';
 import {
@@ -54,6 +54,7 @@ import {
   liveBar,
   selectCard,
   flipPerspective,
+  viewerPlayerIdOf,
   selectPlayer,
   setAutoYield,
   setFullControl,
@@ -3334,9 +3335,16 @@ describe('spectator, names and the end of the game (wave 31 §S)', () => {
     expect(m.view!.players.every((p) => p.hand === null), 'both hands are counts').toBe(true);
     expect(m.view!.players.find((p) => p.isViewer)!.id, 'the snapshot’s side is the default').toBe(bottom);
     const before = m.revision;
+    const seatPlayer = m.playerId;
     expect(flipPerspective(m)).toBe(true);
     expect(m.view!.players.find((p) => p.isViewer)!.id).not.toBe(bottom);
     expect(m.perspective).not.toBeNull();
+    // Turned around, the viewer is the side drawn at the bottom — the same id before a view
+    // exists (`viewerPlayerIdOf`) and on it (`viewerOf`) — and the opponent is the snapshot's side.
+    expect(viewerOf(m.view)!.id).toBe(m.perspective);
+    expect(viewerPlayerIdOf(m)).toBe(m.perspective);
+    expect(opponentOf(m.view)!.id).toBe(bottom);
+    expect(m.playerId, 'the snapshot’s player is unchanged').toBe(seatPlayer);
     expect(m.revision, 'subscribers are told').toBeGreaterThan(before);
     expect(m.view!.players.every((p) => p.hand === null), 'still counts, from the other side').toBe(true);
     s.sendRole('player');

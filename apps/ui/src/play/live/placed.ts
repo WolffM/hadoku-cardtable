@@ -97,7 +97,7 @@ import { battlefieldCardWidth, handCardWidth, sizeAsCard } from '../card-size.ts
 import { GLIDE_MS, PLACEMENT_WAIT_MS, prefersReducedMotion, takeResolutionEffects } from '../motion.ts';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { RulesText } from '../prompts/RulesText.tsx';
-import type { BoardView, StackEntry } from '../adapter.ts';
+import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
 import { aimAt, newArrow, positionArrow } from './gestures/arrow.ts';
 import { cardBox, centreOf, faceBox } from './gestures/targets.ts';
 import type { Point } from './gestures/types.ts';
@@ -628,7 +628,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   }
 
   function viewerName(): string | null {
-    return lastView?.players.find((p) => p.isViewer)?.name ?? null;
+    return viewerOf(lastView)?.name ?? null;
   }
 
   function onBattlefieldNow(cardId: number): boolean {

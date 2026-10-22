@@ -19,6 +19,7 @@
  * on its own zone and the viewer's battlefield while a card is lifted.
  */
 import { clearPlacementColumns, showPlacementColumns } from '../../Board.tsx';
+import { viewerOf } from '../../adapter.ts';
 import type { LiveMatch } from '../match.ts';
 import { handCardWidth, sizeAsCard } from '../../card-size.ts';
 import { GLIDE_MS, prefersReducedMotion } from '../../motion.ts';
@@ -37,7 +38,7 @@ export type CastZone = 'hand' | 'graveyard' | 'exile' | 'library';
 
 /** The viewer's own zone the card is in right now, when it is one a cast lifts it out of. */
 export function castZoneOf(match: LiveMatch, id: number): CastZone | null {
-  const mine = match.view?.players.find((p) => p.isViewer);
+  const mine = viewerOf(match.view);
   if (mine === undefined) return null;
   if (mine.hand?.some((c) => c.id === id) === true) return 'hand';
   if (mine.graveyard.some((c) => c.id === id)) return 'graveyard';
@@ -53,7 +54,7 @@ export function isHandCard(match: LiveMatch, id: number): boolean {
 
 /** The current type line of a card in one of the viewer's cast zones, or null — it may have left already. */
 export function castCardTypeLine(match: LiveMatch, id: number): string | null {
-  const mine = match.view?.players.find((p) => p.isViewer);
+  const mine = viewerOf(match.view);
   const card = [...(mine?.hand ?? []), ...(mine?.graveyard ?? []), ...(mine?.exile ?? []), ...(mine?.libraryTop ?? [])].find((c) => c.id === id);
   return card?.card.typeLine ?? null;
 }

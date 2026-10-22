@@ -29,7 +29,7 @@
 import { DECK_COLORS } from '@hadoku/deck';
 import { COLOUR_IDS, type ColourId, type DraftCard, type ParadigmId } from '@hadoku/shared';
 
-import type { BoardCard, BoardCardChoice, BoardPlayer, BoardView } from '../adapter.ts';
+import { viewerOf, type BoardCard, type BoardCardChoice, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { damagePower } from '../motion.ts';
 import type { DelayedSoundEvent } from '../../sound/index.ts';
 import type { Seat } from '../../sound/mix.ts';
@@ -205,7 +205,7 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
   // The view that ends the game is heard like any other — the blow that took the last life is its
   // damage — and its end besides, which the result screen holds for itself (`LiveBoard`'s END_ROLES).
   if (!prev.gameOver && next.gameOver) {
-    const viewer = next.players.find((p) => p.isViewer);
+    const viewer = viewerOf(next);
     push(viewer?.hasLost === true ? 'g.lose' : 'g.win', 'me');
   }
   // The opponent's turn starting is silent (the operator, 2026-10-16: "i dont need a sound for their turn nor for mana").

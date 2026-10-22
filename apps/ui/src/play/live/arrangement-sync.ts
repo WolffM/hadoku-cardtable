@@ -27,7 +27,7 @@
  * rows on seat 1's side.
  */
 import { ARRANGEMENT_EVENT, ArrangementEchoSchema, type ArrangementMessage } from '@hadoku/shared';
-import type { BoardView } from '../adapter.ts';
+import { viewerOf, type BoardView } from '../adapter.ts';
 import { applyTheirArrangement, onOwnArrangement, type BoardLayout } from '../Board.tsx';
 import type { MatchTransport } from './match.ts';
 
@@ -74,7 +74,7 @@ export function installArrangementSync(host: ArrangementHost): ArrangementHandle
   const stopOwn = onOwnArrangement(({ playerId, rows }) => {
     if (!live || host.seat === null) return;
     const view = host.view();
-    const mine = view?.players.find((p) => p.isViewer)?.id;
+    const mine = viewerOf(view)?.id;
     if (mine === undefined || mine !== playerId) return;
     const message: ArrangementMessage = {
       matchId: host.matchId,

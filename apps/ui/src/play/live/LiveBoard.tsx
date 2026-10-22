@@ -272,7 +272,7 @@ import { deckStoreClient } from '../../deck/deckStore.ts';
 import { dckTextOf } from '../../draft/deckFromPool.ts';
 import { libraryDeckText, namedCardPool } from '../../deck/build.ts';
 import { Avatar } from '../../components/Avatar.tsx';
-import { drawnCards, PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
+import { drawnCards, opponentOf, PHASE_LABEL, viewerOf, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, POISON_TO_LOSE, poisonOf, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
 import { CheckMark } from '../marks.tsx';
 import { lookupFromState, plainRulesText, promptLines, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
@@ -333,6 +333,7 @@ import {
   sendStopPreference,
   setAutoYield,
   flipPerspective,
+  otherSeat,
   playerIdOfSeat,
   setFullControl,
   setPhaseStop,
@@ -520,8 +521,9 @@ export function decisionMessage(prompt: string, topStack: StackEntry | null): st
  * while the other seat has neither.
  */
 function theirWaitingOn(match: LiveMatch): { method: string; hostCard: string | null } | null {
-  if (match.seat === null || match.waitingOn === null) return null;
-  const fact = match.waitingOn.get(match.seat === 0 ? 1 : 0) ?? null;
+  const other = otherSeat(match);
+  if (other === null || match.waitingOn === null) return null;
+  const fact = match.waitingOn.get(other) ?? null;
   if (fact === null || fact.method !== 'priority') return fact;
   // `priority` is the server's word for a seat that merely holds priority (an ordinary "Priority: …"
   // window with a live bar). Over an EMPTY stack that is nothing to wait for — the operator,
@@ -626,7 +628,8 @@ export function isWaitingForOpponent(match: LiveMatch): boolean {
  * "is choosing to play or draw…" for a player who was gone.
  */
 export function theyLeft(match: LiveMatch): boolean {
-  return match.seat !== null && match.awaySeats.has(match.seat === 0 ? 1 : 0);
+  const other = otherSeat(match);
+  return other !== null && match.awaySeats.has(other);
 }
 
 /**
@@ -637,10 +640,11 @@ export function theyLeft(match: LiveMatch): boolean {
  * to bob, alice's flag for him never lit).
  */
 export function opponentHoldsAWindow(match: LiveMatch): boolean {
-  if (match.spectator || match.seat === null || match.waitingOn === null) return false;
+  const other = otherSeat(match);
+  if (match.spectator || other === null || match.waitingOn === null) return false;
   const view = match.view;
   if (view === null || view.gameOver) return false;
-  return match.waitingOn.has(match.seat === 0 ? 1 : 0);
+  return match.waitingOn.has(other);
 }
 
 /**
@@ -654,7 +658,8 @@ function openWindows(match: LiveMatch): object[] {
   if (ask !== null) open.push(ask);
   const bar = liveBar(match);
   if (bar !== null && bar.enable1) open.push(bar);
-  const theirs = match.seat === null ? undefined : match.waitingOn?.get(match.seat === 0 ? 1 : 0);
+  const other = otherSeat(match);
+  const theirs = other === null ? undefined : match.waitingOn?.get(other);
   if (theirs !== undefined) open.push(theirs);
   return open;
 }
@@ -1004,7 +1009,7 @@ function stagedHandCardId(match: LiveMatch, offered: LiveClickables, blocked: bo
   if (blocked || !offered.selectionOpen) return undefined;
   const id = match.lastSelectedCard;
   if (id === null) return undefined;
-  const viewer = match.view?.players.find((p) => p.isViewer);
+  const viewer = viewerOf(match.view);
   return viewer?.hand?.some((c) => c.id === id) === true ? id : undefined;
 }
 
@@ -2090,8 +2095,8 @@ export function SideboardStep({
 function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string | null }) {
   const view = match.view!;
   const outcome = gameOutcome(match)!;
-  const viewer = view.players.find((p) => p.isViewer);
-  const opponent = view.players.find((p) => !p.isViewer);
+  const viewer = viewerOf(view);
+  const opponent = opponentOf(view);
   const ending = endingSentence(match, view);
   const titleId = useId();
   const [leaving, setLeaving] = useState(false);
@@ -2861,7 +2866,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const logCards = cardsNamedInView(match.view);
   const logIds = cardIdsNamedInView(match.view);
-  const theirName = match.view?.players.find((p) => !p.isViewer)?.name ?? null;
+  const theirName = opponentOf(match.view)?.name ?? null;
   /** R11: the turn counter moved off the rail and into the logbook. */
   const whoseTurnNow = match.view === null ? 'nobody' : whoseTurn(match.view);
   const turnCue = useYourTurnCue(match.view, !spectator, match.matchId);
@@ -3225,8 +3230,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           return spectator ? null : match.seat;
         },
         transport: match.transport,
-        opponentName: () => match.view?.players.find((p) => !p.isViewer)?.name ?? null,
-        theirPlayerId: () => match.view?.players.find((p) => !p.isViewer)?.id ?? null,
+        opponentName: () => opponentOf(match.view)?.name ?? null,
+        theirPlayerId: () => opponentOf(match.view)?.id ?? null,
         playerOfSeat: (seat) => playerIdOfSeat(match, seat),
         viewerPlayerId: () => viewerPlayerIdOf(match),
         // `from` (the arrow's tail) is sent only while this seat is actually aiming — the
@@ -3237,7 +3242,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           const view = match.view;
           if (view === null) return [];
           const them = view.players.filter((p) => !p.isViewer);
-          const mine = view.players.find((p) => p.isViewer)?.name ?? null;
+          const mine = viewerOf(view)?.name ?? null;
           return [
             ...them.flatMap((p) => p.battlefield.map((c) => c.id)),
             ...view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!),
@@ -3246,7 +3251,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         theirStackCards: () => {
           const view = match.view;
           if (view === null) return [];
-          const mine = view.players.find((p) => p.isViewer)?.name ?? null;
+          const mine = viewerOf(view)?.name ?? null;
           return view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!);
         },
         // A watcher sends none (`reportClient`'s own rule).

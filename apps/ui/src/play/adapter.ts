@@ -774,6 +774,20 @@ export interface BoardView {
   deathCauses?: ReadonlyMap<number, DeathCause>;
 }
 
+/**
+ * The player drawn at the bottom (`isViewer`): this seat's own, or the side a watcher turned the
+ * table to (`match.ts`'s `viewerPlayerIdOf`). A seat's window cannot turn the table, so for every
+ * window that may act this is also the seat's own player.
+ */
+export function viewerOf(view: BoardView | null | undefined): BoardPlayer | undefined {
+  return view?.players.find((p) => p.isViewer);
+}
+
+/** The player drawn at the top: the other side of a two-player table. */
+export function opponentOf(view: BoardView | null | undefined): BoardPlayer | undefined {
+  return view?.players.find((p) => !p.isViewer);
+}
+
 /** Who a band attacks: a player, or a planeswalker or battle (a card). */
 export interface CombatDefender {
   kind: 'card' | 'player';

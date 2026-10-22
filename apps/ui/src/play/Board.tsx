@@ -407,6 +407,7 @@ import {
   type BoardView,
   type PoolColor,
   type PTState,
+  viewerOf,
 } from './adapter.ts';
 import { LONG_PRESS_MS, mountInspector } from './inspect/index.ts';
 import { mountTips } from './tip/index.ts';
@@ -937,7 +938,7 @@ export function applyTheirArrangement(view: BoardView, playerId: number, rows: R
   // On the viewer's HYDRATED arrangement: a replay of theirs can arrive before this tab's board has
   // read its own rows back from `sessionStorage` (a reload), and a store written first would be
   // taken for the hydrated one — the viewer's own tidying lost (T10 on main, Forge run 37719372048).
-  const viewer = view.players.find((p) => p.isViewer);
+  const viewer = viewerOf(view);
   const base = viewer === undefined ? (ARRANGED.get(key) ?? NO_ARRANGEMENT) : arrangementFor(key, viewer.id);
   for (const [k, v] of Object.entries(base)) if (!k.startsWith(prefix) || k === `${prefix}hand`) next[k] = v;
   for (const [slot, piles] of Object.entries(rows)) if (slot !== 'hand') next[`${prefix}${slot}`] = piles;
@@ -4021,7 +4022,7 @@ export function Board({
    */
   boardLayout?: BoardLayout;
 }) {
-  const viewer = view.players.find((p) => p.isViewer);
+  const viewer = viewerOf(view);
   const others = view.players.filter((p) => !p.isViewer);
   // `data-carried`'s own bookkeeping only now (`StackView`'s own note): a played card standing in
   // for its own spell, in the gap before `live/placed.ts` takes over drawing it at that point.
