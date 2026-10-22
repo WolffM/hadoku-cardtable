@@ -202,3 +202,42 @@ for (const c of cases) {
     expect(hits).toEqual({});
   });
 }
+
+/** Every motion a pack starts on the page: a CSS transition, or an animation the pod runs. */
+function recordPackMotion() {
+  const w = window as unknown as { packMotion: string[] };
+  w.packMotion = [];
+  const pack = (el: EventTarget | null): el is HTMLElement => el instanceof HTMLElement && el.classList.contains('packq__pack');
+  document.addEventListener('transitionrun', (e) => {
+    if (pack(e.target)) w.packMotion.push(`transition ${e.target.dataset.testid} ${(e as TransitionEvent).propertyName}`);
+  }, true);
+  const animate = Element.prototype.animate;
+  Element.prototype.animate = function (this: Element, ...args: Parameters<Element['animate']>) {
+    if (pack(this)) w.packMotion.push(`animation ${this.dataset.testid ?? 'leaving'}`);
+    return animate.apply(this, args);
+  };
+}
+
+test('the piles already there when the pod is drawn appear in place, and stay put while the table settles: nothing moves without a pick', async ({ page }) => {
+  await page.addInitScript(recordPackMotion);
+  // The names start in a wider face than they end in, the way a page's fonts and sheets arrive after its
+  // first draw: the pod measures them again, and its piles are searched again.
+  await page.addInitScript(() => {
+    const late = document.createElement('style');
+    late.textContent = '.seatbar__label { font-size: 15px !important; letter-spacing: 2px; }';
+    document.addEventListener('DOMContentLoaded', () => document.head.append(late));
+    (window as unknown as { settle: () => void }).settle = () => late.remove();
+  });
+  await page.goto(`${base}src/fit/pod.html?n=8&q=${Array<number>(8).fill(3).join(',')}`);
+  await expect(page.locator('.packq__pack[data-testid]')).toHaveCount(24);
+  const placed = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('.packq__pack[data-testid]')].map((el) => `${el.style.left},${el.style.top}`).join(' '));
+  await page.evaluate(() => (window as unknown as { settle: () => void }).settle());
+  await expect
+    .poll(() => page.evaluate(() => [...document.querySelectorAll<HTMLElement>('.packq__pack[data-testid]')].map((el) => `${el.style.left},${el.style.top}`).join(' ')), {
+      message: 'the piles are searched again once the names settle',
+    })
+    .not.toBe(placed);
+  await page.waitForTimeout(1000);
+  expect(await page.evaluate(() => (window as unknown as { packMotion: string[] }).packMotion)).toEqual([]);
+});
+
