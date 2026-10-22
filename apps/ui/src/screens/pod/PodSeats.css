@@ -157,3 +157,30 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/*
+ * The constructed table's two seats, drawn as the pod's (`ConstructedScreen.tsx`'s `PlayerRow`):
+ * wider, since my own seat carries its deck's name and pool under my name, and a seat button sits
+ * where the pod's Ready ring does.
+ */
+.pod-seats--table {
+  margin: 0 0 1rem;
+}
+
+.pod-seats--table .pod-seats__seat {
+  width: 132px;
+}
+
+.pod-seats--table .pod-seats__label {
+  max-width: 100%;
+}
+
+.pod-seats__deck,
+.pod-seats__rules {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}

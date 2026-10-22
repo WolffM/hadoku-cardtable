@@ -170,6 +170,7 @@ import { PodScreen } from './PodScreen.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
 import { ActionButton } from '../components/ActionButton.tsx';
+import { Avatar } from '../components/Avatar.tsx';
 import { mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
@@ -198,6 +199,7 @@ import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
 import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
 import { seatAvatars } from './gauntlet/seats.tsx';
+import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import {
   RANDOM_DECK,
@@ -1945,6 +1947,7 @@ function RoomTableScreen({
       .finally(() => setBusy(false));
   };
 
+  const startState = startStateText(starting, matchId);
   /** Back in the room by choice while the game goes on: the way into it again. */
   const matchLink = matchId !== null && (
     <a className="lobby__go" data-testid="room-match-link" href={routeHash({ kind: 'match', matchId })}>
@@ -2150,31 +2153,34 @@ function RoomTableScreen({
                   width to spare: a line added under the seats comes off the room's height. */}
               <div className="lobby__deckhead">
                 <h2>At the table</h2>
-                <p className="lobby__note" data-testid="start-state">
-                  {startStateText(players, bothReady, starting, matchId)}
-                </p>
+                {startState !== null && (
+                  <p className="lobby__note" data-testid="start-state">
+                    {startState}
+                  </p>
+                )}
                 {matchLink}
               </div>
-              <ul className="tables__players" data-testid="room-players">
+              {/* Drawn as the draft room draws its seats (the operator, 2026-10-22: "can we also show seats the same way we show seats then in draft?"). */}
+              <ul className="pod-seats pod-seats--table" data-testid="room-players">
                 {[0, 1].map((seat) => {
                   const player = players[seat];
                   return player === undefined ? (
-                    <li key={seat} className="tables__row tables__row--empty" data-testid={`room-seat-${seat}-empty`}>
-                      <span className="tables__who tables__who--seat">
-                        <span className="tables__name">Empty seat</span>
-                      {/* Sitting is its own act (2026-10-12): one button per free seat, dead
-                          once I hold one, once the table is locked, or once a match is under way. */}
-                      <span className="tables__actions">
+                    <li key={seat} className="pod-seats__seat" data-testid={`room-seat-${seat}-empty`}>
+                      {/* Sitting is its own act (2026-10-12): dead once I hold a seat, once the table is locked, or once a match is under way. */}
                       <ActionButton
                         action="sit"
-                        className="tables__sit"
+                        className="pod-seats__avatar pod-seats__avatar--open"
                         data-testid="seat-sit"
                         data-seat={seat}
+                        aria-label={`Sit in seat ${seat + 1}`}
                         disabled={seated || tableLocked || underway}
                         onPress={sitDown}
                       >
-                        Sit here
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+                          <path d="M12 5v14M5 12h14" />
+                        </svg>
                       </ActionButton>
+                      <span className="pod-seats__label">Open</span>
                       {/*
                        * Forge's AI takes this seat (the operator, 2026-10-02 and
                        * 2026-10-16): offered while nobody ELSE is seated, on the one
@@ -2184,24 +2190,26 @@ function RoomTableScreen({
                        * pool, and holds the same gate.
                        */}
                       {botSeat === seat && (
-                        <ActionButton
-                          action="vs-bot"
-                          className="tables__sit"
-                          data-testid="play-vs-bot"
-                          disabled={!canReady || underway}
-                          onPress={mode === 'gauntlet' ? () => gauntletMove(() => client.gauntletReady(roomId, true, true)) : startVsBot}
-                        >
-                          AI
-                        </ActionButton>
+                        <span className="pod-seats__actions">
+                          <ActionButton
+                            action="vs-bot"
+                            className="pod-seats__action"
+                            data-testid="play-vs-bot"
+                            aria-label="Play the AI"
+                            disabled={!canReady || underway}
+                            onPress={mode === 'gauntlet' ? () => gauntletMove(() => client.gauntletReady(roomId, true, true)) : startVsBot}
+                          >
+                            AI
+                          </ActionButton>
+                        </span>
                       )}
-                      </span>
-                      </span>
                     </li>
                   ) : (
                     <PlayerRow
                       key={seat}
                       seat={seat}
                       player={{ ...player, ready: readyAt(seat) }}
+                      avatarId={members.find((m) => m.name === player.name)?.avatarId}
                       leader={player.you ? iAmLeader : !iAmLeader && player.name === leaderMember?.name}
                       {...(player.you
                         ? {
@@ -2417,14 +2425,15 @@ function StreamSeat({
   );
 }
 
-/** The sentence under the two players: who is being waited on, in one line. */
-function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boolean, matchId: string | null): string {
+/**
+ * The line beside the table's heading, only while something is happening: who is waited on is the
+ * seats' own ready rings and pills (the operator, 2026-10-22: "lets get rid of the 'Waiting for
+ * Hadoku.' this is unecessary").
+ */
+function startStateText(starting: boolean, matchId: string | null): string | null {
   if (matchId !== null) return 'Match running — joining.';
   if (starting) return 'Starting Forge…';
-  if (players.length < 2) return 'Waiting for a second player.';
-  if (bothReady) return 'Both ready.';
-  const waiting = players.filter((p) => !p.ready).map((p) => (p.you ? 'you' : p.name));
-  return `Waiting for ${waiting.join(' and ')}.`;
+  return null;
 }
 
 /** The leader's mark, our own five-point outline, on a 12-unit square. */
@@ -2452,30 +2461,22 @@ export function StatusPill({ testId, state, mark, label }: { testId: string; sta
 }
 
 /**
- * One seat at the table, as a row of cells.
+ * One seat at the table, drawn as a draft seat is (`pod/PodSeats.tsx`, the operator, 2026-10-22: "can
+ * we also show seats the same way we show seats then in draft?"): the member's avatar, ringed once
+ * ready and crowned for the room's owner, their name under it, then the ready state as a
+ * `StatusPill` (a button on my own seat), and Stand on mine.
  *
- * The operator, 2026-09-25, of the shape this replaces — a sentence with
- * middots for separators and `ready` as raw text: *"looks very cheap"*. So the
- * separators are gone (the cells are the separation), the ready state is a
- * `StatusPill`, and the format is a cell of its own rather than a clause in
- * "legal in Standard (MBS)".
+ * My own seat says so by `data-mine`, never in words beside my name (the operator, 2026-10-22:
+ * "remove the (you) from the constructed table too").
  *
- * The cells are laid out in named areas over two lines (`screens.css`): who
- * and the ready state above, the deck and the format below. One line truncated
- * "4c Reveillark Control (Shouhei Yamamoto)" to "4c…" in the column this card
- * actually gets, which is the cheap look again by another route.
- *
- * My own row says so by `data-mine`, never in words beside my name (the
- * operator, 2026-10-22: "remove the (you) from the constructed table too").
- *
- * Only your own row has deck cells, because only your own row has a deck: the
- * server sends another seat as its name and its ready state (the operator,
- * 2026-10-21: "don't reveal the deck that someone has picked"). The row keeps
- * its two lines either way, so a seat does not change height when it is taken.
+ * Only your own seat has deck lines, because only your own seat has a deck: the server sends
+ * another seat as its name and its ready state (the operator, 2026-10-21: "don't reveal the deck
+ * that someone has picked").
  */
 function PlayerRow({
   seat,
   player,
+  avatarId,
   onStand,
   standDisabled = false,
   leader = false,
@@ -2484,31 +2485,31 @@ function PlayerRow({
 }: {
   seat: number;
   player: RoomPlayer;
+  /** The seated member's watchparty avatar, the one `Avatar` draws everywhere else; `undefined` for none. */
+  avatarId?: string;
   /** My own row only: the ready state is a button that sets it. */
   onReady?: () => void;
   readyDisabled?: boolean;
-  /** This seat's player sets the table: a crown beside the name, where the format row once named them. */
+  /** This seat's player sets the table: a crown on their avatar. */
   leader?: boolean;
   /** My own row only: give the seat back (2026-10-12). */
   onStand?: () => void;
   standDisabled?: boolean;
 }) {
   return (
-    <li className="tables__row" data-testid={`room-seat-${seat}`} data-mine={player.you ? '' : undefined}>
-      <span className="tables__who tables__who--seat">
-        <strong className="tables__name">{player.name}</strong>
+    <li className="pod-seats__seat" data-testid={`room-seat-${seat}`} data-mine={player.you ? '' : undefined}>
+      <span className="pod-seats__avatar-wrap">
+        <span className="pod-seats__avatar" data-ready={player.ready ? 'true' : 'false'}>
+          <Avatar id={avatarId} fallback="initial" name={player.name} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
+        </span>
         {leader && (
-          <svg className="tables__crown" data-testid="room-leader" viewBox="0 0 12 12" role="img" aria-label="Room owner">
+          <svg className="pod-seats__crown" data-testid="room-leader" viewBox="0 0 12 12" role="img" aria-label="Room owner">
             <title>Room owner</title>
             <path d={CROWN} />
           </svg>
         )}
-        {onStand !== undefined && (
-          <ActionButton action="stand" className="tables__stand" data-testid="seat-stand" disabled={standDisabled} onPress={onStand}>
-            Stand up
-          </ActionButton>
-        )}
       </span>
+      <span className="pod-seats__label">{player.name}</span>
       {player.deck !== undefined && <OwnDeckCells seat={seat} deck={player.deck} />}
       {onReady === undefined ? (
         <StatusPill
@@ -2534,6 +2535,13 @@ function PlayerRow({
           Ready
         </ActionButton>
       )}
+      {onStand !== undefined && (
+        <span className="pod-seats__actions">
+          <ActionButton action="stand" className="pod-seats__action" data-testid="seat-stand" aria-label="Stand up" disabled={standDisabled} onPress={onStand}>
+            Stand
+          </ActionButton>
+        </span>
+      )}
     </li>
   );
 }
@@ -2547,10 +2555,10 @@ function PlayerRow({
 function OwnDeckCells({ seat, deck }: { seat: number; deck: SeatDeck | null }) {
   return (
     <>
-      <span className="tables__deck" data-testid={`room-seat-${seat}-deck`}>
+      <span className="pod-seats__deck" data-testid={`room-seat-${seat}-deck`}>
         {deck?.name ?? '—'}
       </span>
-      <span className="tables__rules" data-testid={`room-seat-${seat}-rules`}>
+      <span className="pod-seats__rules" data-testid={`room-seat-${seat}-rules`}>
         {deck?.rulesName ?? '—'}
       </span>
     </>
@@ -2571,7 +2579,7 @@ function RoomSkeleton() {
         <div className="lobby__deckhead">
           <span className="skeleton skeleton--heading" />
         </div>
-        <ul className="tables__players">
+        <ul className="pod-seats pod-seats--table">
           <li className="skeleton skeleton--seat" />
           <li className="skeleton skeleton--seat" />
         </ul>

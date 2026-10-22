@@ -854,12 +854,13 @@ describe('a room the list read before navigating (rooms/warm.ts)', () => {
 });
 
 describe('a room’s table', () => {
-  it('shows both players, and says who is being waited on', async () => {
+  // The operator, 2026-10-22: "lets get rid of the 'Waiting for Hadoku.' this is unecessary. i dont need it in either room."
+  it('shows both players, and no line saying who is being waited on', async () => {
     await mountRoom({ players: [opponent()], matchId: null });
     expect(screen.getByTestId('room-seat-0').textContent).toContain('user-bob');
     expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('not ready');
     expect(screen.getByTestId('room-seat-1-empty')).toBeTruthy();
-    expect(screen.getByTestId('start-state').textContent).toContain('Waiting for a second player');
+    expect(screen.queryByTestId('start-state')).toBeNull();
   });
 
   /*
@@ -871,7 +872,7 @@ describe('a room’s table', () => {
   it('draws another player’s seat as their name and whether they are ready, nothing of their deck', async () => {
     await mountRoom({ players: [{ seat: 0, name: 'user-bob', you: false, ready: true } as RoomPlayer], matchId: null });
     const row = screen.getByTestId('room-seat-0');
-    expect([...row.children].map((c) => c.className.split(' ')[0])).toEqual(['tables__who', 'pill']);
+    expect([...row.children].map((c) => c.className.split(' ')[0])).toEqual(['pod-seats__avatar-wrap', 'pod-seats__label', 'pill']);
     for (const cell of ['deck', 'rules']) expect(screen.queryByTestId(`room-seat-0-${cell}`)).toBeNull();
     expect(screen.getByTestId('room-seat-0-ready').textContent).toBe('ready');
   });
@@ -890,7 +891,7 @@ describe('a room’s table', () => {
     await screen.findByTestId('seat-stand');
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)?.method).toBe('POST');
     expect(screen.getByTestId('room-seat-0').hasAttribute('data-mine')).toBe(true);
-    expect(screen.getByTestId('room-seat-0').querySelector('.tables__name')?.textContent, 'my name, and no (you) beside it').toBe('user-alice');
+    expect(screen.getByTestId('room-seat-0').querySelector('.pod-seats__label')?.textContent, 'my name, and no (you) beside it').toBe('user-alice');
     expect(screen.getByTestId('room-seat-0-deck').textContent, 'no deck yet').toBe('—');
     // My own seat's ready state is the button that sets it.
     const ready = within(screen.getByTestId('room-seat-0')).getByTestId('ready-toggle');
@@ -951,18 +952,22 @@ describe('a room’s table', () => {
    * The operator, 2026-09-25, of the row this replaced — a sentence with
    * middots for separators and `ready` as raw text: *"looks very cheap"*.
    */
-  it('draws the seats as a table: no middots, and every state a shape AND a colour', async () => {
+  // The operator, 2026-10-22: "can we also show seats the same way we show seats then in draft?"
+  it('draws each seat as a draft seat: avatar, name, my deck lines, the ready state, Stand — no middots, every state a shape AND a colour', async () => {
     await mountRoom({ players: [mySeat(), opponent({ seat: 1, ready: true })], matchId: null });
     const row = screen.getByTestId('room-seat-0');
-    // No separator characters anywhere in the row: the cells are the separation.
+    // No separator characters anywhere in the seat: the lines are the separation.
     expect(row.textContent).not.toMatch(/[·—]/);
-    expect(row.className).toContain('tables__row');
+    expect(row.className).toContain('pod-seats__seat');
     expect([...row.children].map((c) => c.className.split(' ')[0])).toEqual([
-      'tables__who',
-      'tables__deck',
-      'tables__rules',
+      'pod-seats__avatar-wrap',
+      'pod-seats__label',
+      'pod-seats__deck',
+      'pod-seats__rules',
       'pill',
+      'pod-seats__actions',
     ]);
+    expect(screen.getByTestId('room-seat-1').querySelector('.pod-seats__avatar')?.getAttribute('data-ready'), 'a ready seat is ringed').toBe('true');
     // The format is a cell, not a clause: "legal in Standard (M11)" is gone.
     expect(screen.getByTestId('room-seat-0-rules').textContent).toBe('Standard (M11)');
 
@@ -1972,7 +1977,7 @@ describe('the table’s pool', () => {
       matchId: null,
       series: { length: 3, wins: [2, 0], games: [{ matchId: 'm-0', winner: 0 }, { matchId: 'm-1', winner: 0 }], phase: 'sideboarding' },
     });
-    await screen.findByTestId('start-state');
+    await screen.findByTestId('room-players');
     expect(screen.queryByTestId('series-score')).toBeNull();
     expect(document.body.textContent).not.toContain('2–0');
   });
@@ -2024,7 +2029,7 @@ describe('the table’s pool', () => {
     expect(crown.closest('[data-testid="room-seat-1"]'), 'on my seat, the leader’s').not.toBeNull();
     expect(crown.getAttribute('aria-label')).toBe('Room owner');
     expect(crown.querySelector('path')).not.toBeNull();
-    expect(screen.getByTestId('room-seat-1').querySelector('.tables__name')?.textContent).toBe('user-alice');
+    expect(screen.getByTestId('room-seat-1').querySelector('.pod-seats__label')?.textContent).toBe('user-alice');
     // No prose: nothing on the deck card explains what a leader is or may do.
     const card = screen.getByTestId('deck-mine').closest('section') as HTMLElement;
     expect(card.querySelector('[data-testid="room-leader"]')).toBeNull();
@@ -2125,7 +2130,7 @@ describe('a draft room', () => {
     const server = await mountDraft({ members: members(false, false) }, stepped.feed);
     await screen.findByTestId('draft-lobby');
 
-    expect(screen.getByTestId('draft-state').textContent).toBe('Nobody is seated.');
+    expect(screen.queryByTestId('draft-state'), 'no line saying who is waited on').toBeNull();
 
     // No pack, no pod, no seats: the draft does not exist yet.
     expect(screen.queryByTestId('pod')).toBeNull();

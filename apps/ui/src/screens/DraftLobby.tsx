@@ -90,7 +90,7 @@ import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
-import { POD_AI, POD_CLOSED, podDealable, type PodView } from './pod/wire.ts';
+import { podDealable, type PodView } from './pod/wire.ts';
 
 export { podDealable };
 
@@ -412,9 +412,11 @@ export function DraftLobby({
    */
   const side = (
     <div className="pod-strip__side">
-      <p className="lobby__note" data-testid="draft-state">
-        {draftStateText(pod, members, dealing)}
-      </p>
+      {dealing && (
+        <p className="lobby__note" data-testid="draft-state">
+          Dealing the draft…
+        </p>
+      )}
       <ActionButton
         action={iAmReady ? 'unready' : 'ready'}
         className="lobby__go"
@@ -502,20 +504,3 @@ export function DraftLobby({
   );
 }
 
-/** Who the draft is waiting on, in one line: the seated members not ready, else the open seats. */
-function draftStateText(pod: PodView | null, members: RoomMember[], dealing: boolean): string {
-  if (dealing) return 'Dealing the draft…';
-  const seats = pod?.seats ?? [];
-  const seatedIds = seats.filter((s) => s !== null && s.memberId !== POD_AI && s.memberId !== POD_CLOSED).map((s) => s!.memberId);
-  const waiting = members.filter((m) => seatedIds.includes(m.id) && !m.ready).map((m) => m.name);
-  if (waiting.length > 0) return `Waiting for ${listOf(waiting)}.`;
-  const open = seats.filter((s) => s === null).length;
-  if (open > 0) return open === 1 ? '1 open seat' : `${open} open seats`;
-  return seatedIds.length === 0 ? 'Nobody is seated.' : 'Everyone is ready.';
-}
-
-/** `a`, `a and b`, `a, b and c`. */
-function listOf(names: string[]): string {
-  if (names.length <= 2) return names.join(' and ');
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}

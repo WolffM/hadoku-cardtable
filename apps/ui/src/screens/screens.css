@@ -186,16 +186,10 @@
   height: 22px;
 }
 
-/* A seat's own height (`.tables__row`: its lines, the gaps between them, its
-   padding and border), so the loaded seats replace these without a jump. */
+/* A seat's own size (`PodSeats.css`'s `.pod-seats--table` seat: avatar, name, deck lines, pill), so the loaded seats replace these without a jump. */
 .skeleton--seat {
-  height: calc(1.6rem + 0.2rem + 1.1rem + 0.9rem + 2px);
-}
-
-@media (max-width: 600px) {
-  .skeleton--seat {
-    height: calc(1.6rem + 0.2rem + 1.1rem + 0.2rem + 1.6rem + 0.9rem + 2px);
-  }
+  width: 132px;
+  height: 128px;
 }
 
 .skeleton--row {
@@ -391,95 +385,7 @@
 
 /* ── constructed (`#/play`) and a match (`#/match/<id>`) ─────────────── */
 
-/*
- * The two seats at a room's table, as a table: one row each, the same cells in
- * the same places, so the eye reads down a column instead of parsing a
- * sentence. The operator, 2026-09-25, of the sentence-with-middots this
- * replaced: *"looks very cheap"*.
- *
- * The columns are named sizes and `fr`s, and a row that is waiting on someone
- * spans all of them, so two rows are one shape whatever is in them.
- */
-.tables__players {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0 0 1rem;
-  padding: 0;
-  list-style: none;
-}
-
-.tables__row {
-  /*
-   * One height for every seat row, whatever is in it (the operator,
-   * 2026-10-21: *"rows change in size slightly when someone enters them"* —
-   * an empty seat was one line, a taken one two, and a pill, a button and bare
-   * text each sized a line differently). The row's lines are fixed slots:
-   * `--seat-line` holds the tallest thing a line carries (a seat button, a
-   * pill), `--seat-subline` the deck's line, and nothing in them can grow the
-   * row; a long name truncates instead.
-   */
-  --seat-line: 1.6rem;
-  --seat-subline: 1.1rem;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: var(--seat-line) var(--seat-subline);
-  grid-template-areas:
-    'who deck-ready'
-    'deck rules';
-  align-items: center;
-  gap: 0.2rem 0.75rem;
-  padding: 0.45rem 0.7rem;
-  background: var(--color-bg-alt);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--hdk-radius);
-}
-
-/* A phone's row is too narrow for a name, its button and the pill on one line:
-   the name gets the whole first line, the pill goes under the deck. */
-@media (max-width: 600px) {
-  .tables__row {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: var(--seat-line) var(--seat-subline) var(--seat-line);
-    grid-template-areas:
-      'who who'
-      'deck deck'
-      'deck-ready rules';
-  }
-}
-
-/* An open seat keeps its row's lines (the seat does not grow when it is
-   taken); its name and buttons take the first line's whole width. */
-.tables__row--empty {
-  color: var(--color-text-secondary);
-  border-style: dashed;
-}
-
-.tables__row--empty > .tables__who {
-  grid-area: auto;
-  grid-row: 1;
-  grid-column: 1 / -1;
-}
-
-/* A seat's name cell holds its one action too (2026-10-12): Sit here on an
-   empty seat, Stand up on your own. The name keeps its ellipsis; the button
-   never shrinks. */
-.tables__who--seat {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  overflow: visible;
-}
-
-.tables__name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The leader's crown (our own five-point outline, no WotC mark) beside the name
-   it belongs to; the seat's button stays at the row's far end. */
+/* The leader's crown (our own five-point outline, no WotC mark) beside a spectator's name. */
 .tables__crown {
   flex: none;
   width: 0.95rem;
@@ -491,64 +397,6 @@
   stroke-linejoin: round;
 }
 
-/* An empty seat's two ways to fill it: sit in it, or give it to Forge's AI. */
-.tables__actions {
-  display: flex;
-  flex: none;
-  gap: 0.4rem;
-}
-
-.tables__sit,
-.tables__stand {
-  flex: none;
-  padding: 0.2rem 0.6rem;
-  font: inherit;
-  font-size: 0.85em;
-  line-height: 1.2;
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius);
-  cursor: pointer;
-}
-
-.tables__sit:disabled,
-.tables__stand:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.tables__who {
-  grid-area: who;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The deck's own line, under the name: it is the longest thing on the row and
-   the column this card gets is narrow, so one line truncated it to "My…". */
-.tables__deck {
-  grid-area: deck;
-  min-width: 0;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tables__rules {
-  grid-area: rules;
-  justify-self: end;
-  color: var(--color-text-tertiary);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.pill--ready {
-  grid-area: deck-ready;
-}
 
 /* And the same pill on the constructed card, which is a flex COLUMN — a flex
    item's default `align-self: stretch` would blow an inline-flex pill out to
@@ -973,13 +821,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-/* A full-width table card puts its two seats side by side, one row high; a
-   seat narrower than 360px has no room for its name beside its button, crown
-   and pills, so a narrower screen stacks them again. */
-.lobby--room .tables__players {
-  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
 }
 
 /*
