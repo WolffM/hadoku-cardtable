@@ -92,7 +92,7 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
-import { battlefieldCardWidth, handCardWidth, sizeAsCard } from '../card-size.ts';
+import { battlefieldCardWidth, handCardWidth, onCardWidthsChanged, sizeAsCard } from '../card-size.ts';
 import { GLIDE_MS, PLACEMENT_WAIT_MS, prefersReducedMotion, takeResolutionEffects } from '../motion.ts';
 import { AbilityChip } from './AbilityChip.tsx';
 import { HiddenCard } from '../HiddenCard.tsx';
@@ -956,15 +956,14 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }, SHIMMER_MS);
   }
 
-  function drawArrows(items: readonly StackEntry[]): void {
+  /** Every arrow's ends read first, then every arrow written: one layout for the lot, and none with nothing aimed. */
+  function drawArrows(items: readonly StackEntry[], overlayBox: () => DOMRect): void {
     const root = overlay();
     if (root === null) return;
-    const box = root.getBoundingClientRect();
-    const seen = new Set<string>();
+    const aims: { key: string; item: number; aimed: { from: Point; tip: Point } }[] = [];
     for (const item of items) {
       const d = drawn.get(item.id);
       if (d === undefined || d.leaving) continue;
-      const from = centreOf(d.el);
       const targets: { key: string; to: Element }[] = [];
       for (const id of item.targetCardIds ?? []) {
         const to = cardBox(canvas, id);
@@ -978,18 +977,22 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         const target = drawn.get(item.targetStackItemId);
         if (target !== undefined && !target.leaving) targets.push({ key: `${item.id}:stack:${item.targetStackItemId}`, to: target.el });
       }
-      for (const { key, to } of targets) {
-        seen.add(key);
-        const aimed = aimAt(from, rectOf(to), { neighbours: true });
-        let svg = root.querySelector<SVGSVGElement>(`.placed__arrow[data-key="${key}"]`);
-        if (svg === null) {
-          svg = newArrow({ className: 'placed__arrow', testid: 'placed-arrow', shaftClass: 'placed__arrow-shaft', headClass: 'placed__arrow-head' });
-          svg.setAttribute('data-for', String(item.id));
-          svg.setAttribute('data-key', key);
-          root.append(svg);
-        }
-        positionArrow(svg, aimed.from, aimed.tip, box);
+      if (targets.length === 0) continue;
+      const from = centreOf(d.el);
+      for (const { key, to } of targets) aims.push({ key, item: item.id, aimed: aimAt(from, rectOf(to), { neighbours: true }) });
+    }
+    const box = aims.length === 0 ? null : overlayBox();
+    const seen = new Set<string>();
+    for (const { key, item, aimed } of aims) {
+      seen.add(key);
+      let svg = root.querySelector<SVGSVGElement>(`.placed__arrow[data-key="${key}"]`);
+      if (svg === null) {
+        svg = newArrow({ className: 'placed__arrow', testid: 'placed-arrow', shaftClass: 'placed__arrow-shaft', headClass: 'placed__arrow-head' });
+        svg.setAttribute('data-for', String(item));
+        svg.setAttribute('data-key', key);
+        root.append(svg);
       }
+      positionArrow(svg, aimed.from, aimed.tip, box!);
     }
     for (const el of [...root.querySelectorAll('.placed__arrow')]) {
       if (!seen.has(el.getAttribute('data-key') ?? '')) el.remove();
@@ -1004,10 +1007,16 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       return;
     }
     promote(view.stack);
-    const overlayBox = root.getBoundingClientRect();
-    // A spell is a hand card's size, an ability's chip squared off a battlefield card's (`card-size.ts`, the one source) — measured once per paint.
-    const cardWidth = battlefieldCardWidth(canvas, 'you') ?? battlefieldCardWidth(canvas, 'them');
-    const spellWidth = handCardWidth(canvas);
+    // The overlay's box, and a spell at a hand card's size and an ability's chip squared off a battlefield
+    // card's (`card-size.ts`, the one source): read once per paint, and only once something is drawn at
+    // them — any box read lays out whatever the commit changed, and most commits have no stack at all.
+    let sizes: { overlayBox: DOMRect; cardWidth: number | null; spellWidth: number | null } | null = null;
+    const measure = (): { overlayBox: DOMRect; cardWidth: number | null; spellWidth: number | null } =>
+      (sizes ??= {
+        overlayBox: root.getBoundingClientRect(),
+        cardWidth: battlefieldCardWidth(canvas, 'you') ?? battlefieldCardWidth(canvas, 'them'),
+        spellWidth: handCardWidth(canvas),
+      });
     // The triggers still waiting to go on the stack are chips already, after everything on it.
     const items = [...view.stack, ...(view.pendingTriggers ?? [])];
     const currentIds = new Set(items.map((i) => i.id));
@@ -1040,6 +1049,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         return;
       }
       undrawn.delete(item.id);
+      const { overlayBox, cardWidth, spellWidth } = measure();
       const record = placements.get(item.id);
       const d = ensureElement(item, record);
       sizeAsCard(d.el, d.isAbility ? cardWidth : spellWidth);
@@ -1079,13 +1089,14 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       d.el.toggleAttribute('data-placed-current', d.current);
     });
 
-    drawArrows(view.stack);
+    drawArrows(view.stack, () => measure().overlayBox);
     pruneStale(view.stack);
   }
 
   const hook = (): void => render();
   repaintHooks.add(hook);
   resized?.observe(canvas);
+  const unsubscribeWidths = onCardWidthsChanged(hook);
 
   return {
     notify(view: BoardView, nextInteraction?: PlacedInteraction): void {
@@ -1097,6 +1108,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     dispose(): void {
       live = false;
       repaintHooks.delete(hook);
+      unsubscribeWidths();
       resized?.disconnect();
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
