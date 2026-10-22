@@ -25,6 +25,13 @@ describe('trim', () => {
     expect(styled).toEqual(offered);
   });
 
+  it('never cuts a panel that holds a popover: a cut clips everything inside it, a dialog included', () => {
+    for (const shape of ['chamfer', 'hud', 'step', 'scoop']) {
+      expect(SHEET, shape).toContain(`[data-trim-frame='${shape}'] .ct-panel:not(:has(.ct-surface)) {`);
+      expect(SHEET, shape).not.toContain(`[data-trim-frame='${shape}'] .ct-panel {`);
+    }
+  });
+
   it('writes one attribute per chosen family and removes the rest', () => {
     const el = document.createElement('main');
     applyTrim(el, { frame: 'hud', groundCorner: 'gems' });

@@ -6,7 +6,9 @@
  * not pseudo-elements: a background stays put while the panel's own content scrolls (the room
  * list, the log book), adds nothing to layout or to scroll overflow, and opens no stacking context.
  * Frame shapes are the one exception: they cut the panel itself with a clip-path or a mask, which
- * also clips its shadow.
+ * also clips its shadow and everything drawn inside it, a dialog that overflows the panel included
+ * (the create-room dialog lives in the room list's section). So a panel holding a popover
+ * (`.ct-surface`) is never cut while it does.
  *
  * Nothing applies until a family is chosen: each rule hangs off a `data-trim-*` attribute that is
  * only present then. `.ct-panel.ct-panel` out-ranks a panel's own background shorthand, which
@@ -30,7 +32,7 @@
   --trim-frame-r: no-repeat, no-repeat;
   border-color: color-mix(in srgb, var(--color-primary) 25%, var(--color-border));
 }
-[data-trim-frame='chamfer'] .ct-panel {
+[data-trim-frame='chamfer'] .ct-panel:not(:has(.ct-surface)) {
   --trim-frame-i:
     linear-gradient(135deg, transparent 50%, var(--color-border-light) 50% calc(50% + 1px), transparent 0),
     linear-gradient(45deg, transparent calc(50% - 1px), var(--color-border-light) calc(50% - 1px) 50%, transparent 0),
@@ -42,7 +44,7 @@
   border-radius: 0;
   clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
 }
-[data-trim-frame='hud'] .ct-panel {
+[data-trim-frame='hud'] .ct-panel:not(:has(.ct-surface)) {
   --trim-frame-i:
     linear-gradient(135deg, transparent 50%, var(--color-primary) 50% calc(50% + 1px), transparent 0),
     linear-gradient(135deg, transparent calc(50% - 1px), var(--color-primary) calc(50% - 1px) 50%, transparent 0);
@@ -52,7 +54,7 @@
   border-radius: 0;
   clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
 }
-[data-trim-frame='step'] .ct-panel {
+[data-trim-frame='step'] .ct-panel:not(:has(.ct-surface)) {
   --trim-frame-i:
     linear-gradient(var(--color-border-light) 0 0),
     linear-gradient(var(--color-border-light) 0 0),
@@ -76,7 +78,7 @@
   border-radius: 0;
   clip-path: polygon(0 12px, 6px 12px, 6px 6px, 12px 6px, 12px 0, calc(100% - 12px) 0, calc(100% - 12px) 6px, calc(100% - 6px) 6px, calc(100% - 6px) 12px, 100% 12px, 100% calc(100% - 12px), calc(100% - 6px) calc(100% - 12px), calc(100% - 6px) calc(100% - 6px), calc(100% - 12px) calc(100% - 6px), calc(100% - 12px) 100%, 12px 100%, 12px calc(100% - 6px), 6px calc(100% - 6px), 6px calc(100% - 12px), 0 calc(100% - 12px));
 }
-[data-trim-frame='scoop'] .ct-panel {
+[data-trim-frame='scoop'] .ct-panel:not(:has(.ct-surface)) {
   --trim-frame-i:
     radial-gradient(circle at 0 0, transparent 11px, var(--color-border-light) 11px 12px, transparent 12.5px),
     radial-gradient(circle at 100% 0, transparent 11px, var(--color-border-light) 11px 12px, transparent 12.5px),
