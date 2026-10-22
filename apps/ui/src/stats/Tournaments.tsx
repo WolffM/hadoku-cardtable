@@ -37,7 +37,7 @@ export function Tournaments({ load = fetchTournaments }: { load?: () => Promise<
 
   if (error !== null) {
     return (
-      <p className="lobby__error" role="alert" data-testid="tournaments-error">
+      <p className="ct-error" role="alert" data-testid="tournaments-error">
         {error}
       </p>
     );

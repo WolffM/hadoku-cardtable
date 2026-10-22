@@ -1,10 +1,7 @@
 /*
  * A pod, as the second phase of a draft ROOM.
  *
- * This is the SOCKET source — the engine runs on the server and this browser
- * renders what it is sent. The in-process engine is still there and still
- * useful, but it is a solo game against bots, so it belongs behind `#/debug`
- * rather than behind a link you sent a friend.
+ * The engine runs on the server, and this browser renders what it is sent.
  *
  * ## Mounting this no longer creates anything (w23)
  *
@@ -298,7 +295,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
       {!drafting && <header className="pod__bar">{bar}</header>}
 
       {draft !== null && draft.lastError !== null && (
-        <p className="pod__error" role="alert" data-testid="pod-error">
+        <p className="ct-error" role="alert" data-testid="pod-error">
           The server refused that: <strong>{draft.lastError.code}</strong>
           {draft.lastError.detail === undefined ? null : ` — ${draft.lastError.detail}`}
         </p>
@@ -409,7 +406,7 @@ function PodRoom({
           </>
         )}
         {startTableError !== null && (
-          <p className="pod__error" role="alert" data-testid="pod-table-start-error">
+          <p className="ct-error" role="alert" data-testid="pod-table-start-error">
             {startTableError}
           </p>
         )}

@@ -109,11 +109,6 @@
   align-self: center;
 }
 
-.pod__error {
-  margin: 0;
-  color: var(--warn);
-}
-
 .pod__bar > .ct-round-button {
   margin-left: auto;
 }

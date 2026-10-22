@@ -260,7 +260,7 @@ export function DraftLobby({
             onClose={doClose}
           />
           {seatError !== null && (
-            <p className="lobby__error" role="alert" data-testid="pod-seat-error">
+            <p className="ct-error" role="alert" data-testid="pod-seat-error">
               {seatError}
             </p>
           )}
@@ -302,7 +302,7 @@ export function DraftLobby({
       </button>
 
       {error !== null && (
-        <div className="lobby__error" role="alert" data-testid="draft-error">
+        <div className="ct-error" role="alert" data-testid="draft-error">
           <p>{error}</p>
           {/* Only while everyone still is ready: a refusal because somebody
               stood down in the meantime fixes itself when they ready again, and
