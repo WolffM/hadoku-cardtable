@@ -25,6 +25,7 @@ import {
   placeStackItem,
   type Rect,
   COUNTERED_MS,
+  COUNTER_HOLD_MS,
   PLACED_PENDING_MS,
   RESOLVE_BLINK_MS,
   setChainHalted,
@@ -948,6 +949,45 @@ describe('installPlaced: a counter (AE27)', () => {
     expect(counter.hasAttribute('data-placed-leaving'), 'then the counter fades').toBe(true);
     vi.advanceTimersByTime(LEAVE_FADE_MS);
     expect(canvas.querySelector('[data-placed-spell]')).toBeNull();
+    handle.dispose();
+  });
+
+  it('the target leaves a frame before its counter: it waits for it, and the counter is still drawn in three steps', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'them');
+    placeSpell(302, { x: 450, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(10, { sourceCardId: 302, targetStackItemId: 9 }), stackItem(9, { sourceCardId: 301 })]));
+    // Forge sends the countered spell to its graveyard in one delta and the counter off the stack in the next
+    // (w67-counter, run 39832352790: seq 50 and seq 52, 67 ms apart, drawn in two commits).
+    handle.notify(view([stackItem(10, { sourceCardId: 302, targetStackItemId: 9 })]));
+    const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(target.hasAttribute('data-placed-leaving'), 'the target waits for what targets it').toBe(false);
+    vi.advanceTimersByTime(67);
+    handle.notify(view([]));
+    const counter = canvas.querySelector<HTMLElement>('[data-placed-spell="10"]')!;
+    expect(counter.hasAttribute('data-placed-resolving'), 'the counter blinks').toBe(true);
+    expect(target.hasAttribute('data-placed-leaving'), 'the target does not fade').toBe(false);
+    vi.advanceTimersByTime(RESOLVE_BLINK_MS);
+    expect(target.hasAttribute('data-placed-countered'), 'then the target is destroyed').toBe(true);
+    vi.advanceTimersByTime(COUNTERED_MS);
+    expect(counter.hasAttribute('data-placed-leaving'), 'then the counter fades').toBe(true);
+    handle.dispose();
+  });
+
+  it('a target whose counter stays on the stack goes the ordinary way once the wait is over', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'them');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(10, { targetStackItemId: 9 }), stackItem(9, { sourceCardId: 301 })]));
+    handle.notify(view([stackItem(10, { targetStackItemId: 9 })]));
+    const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    vi.advanceTimersByTime(COUNTER_HOLD_MS - 1);
+    expect(target.hasAttribute('data-placed-leaving')).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(target.hasAttribute('data-placed-leaving'), 'it fades').toBe(true);
     handle.dispose();
   });
 

@@ -111,6 +111,8 @@ export const LEAVE_FADE_MS = GLIDE_MS;
 export const RESOLVE_BLINK_MS = 400;
 /** AE27: the countered target's destroy motion, before the counter itself fades. */
 export const COUNTERED_MS = 400;
+/** AE27: how long a countered target waits for its counter to leave the stack too. */
+export const COUNTER_HOLD_MS = 1000;
 /** A placed card easing to the opacity its state draws it at. */
 const FADE_MS = 250;
 /** The lengths `placed.css` animates over, set on the canvas so the sheet never restates one. */
