@@ -54,3 +54,72 @@
   opacity: 0;
   cursor: inherit;
 }
+
+/*
+ * The large size: a choice that is the whole screen until it is made — the room's
+ * mode before the leader picks one. Tiles, each its emblem over its name, centred.
+ */
+.radio-cards--large {
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  padding: 12px 0;
+}
+
+.radio-cards--large .radio-cards__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 168px;
+  height: 152px;
+  padding: 16px;
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  border-radius: calc(var(--hdk-radius) * 2);
+  font-size: 17px;
+  font-weight: 650;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.radio-cards--large .radio-cards__card:not(:has(:disabled)):hover {
+  transform: translateY(-3px);
+  border-color: var(--color-primary);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.radio-cards__icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  color: var(--color-primary);
+}
+
+.radio-cards__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * A card growing or shrinking between the sizes (`morph`): its box moves on the
+ * page's own transition timing, the old drawing fading as the new one forms.
+ */
+::view-transition-group(*) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radio-cards--large .radio-cards__card {
+    transition: none;
+  }
+
+  .radio-cards--large .radio-cards__card:not(:has(:disabled)):hover {
+    transform: none;
+  }
+}
