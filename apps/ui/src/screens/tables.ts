@@ -41,7 +41,10 @@
 
 import { GauntletViewSchema, newestStandardEra, type GauntletAct, type GauntletView } from '@hadoku/shared';
 
-export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
+import { apiBase, getJson, sendJson, type Fetch } from '../http.ts';
+
+// `rooms/api.ts` still reads `apiBase` from here.
+export { apiBase };
 
 /**
  * Which ruleset family an era belongs to (wave 48). Mirrors the server's own
@@ -240,17 +243,6 @@ export type TableOutcome =
   | { ok: true; table: RoomTable }
   | { ok: false; error: string; status: number };
 
-/** `/cardtable/` → `/cardtable/api/`. Same arithmetic as `socketPath`. */
-export function apiBase(base: string): string {
-  const prefix = base === '' ? '/' : base;
-  return `${prefix.endsWith('/') ? prefix : `${prefix}/`}api/`;
-}
-
-function defaultApiBase(): string {
-  const base = import.meta.env?.BASE_URL;
-  return apiBase(typeof base === 'string' ? base : '/');
-}
-
 export interface TablesClient {
   formats(): Promise<TableFormat[]>;
   decks(): Promise<TableDeck[]>;
@@ -329,9 +321,9 @@ function withTable<T extends Record<string, unknown>>(payload: T, tableId: strin
   return tableId === undefined ? payload : { ...payload, table: tableId };
 }
 
-export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, init), base = defaultApiBase()): TablesClient {
+export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, init), base = apiBase()): TablesClient {
   const get = async (path: string): Promise<Record<string, unknown>> => {
-    const res = await fetchImpl(`${base}${path}`, { headers: { accept: 'application/json' } });
+    const res = await getJson(`${base}${path}`, fetchImpl);
     const body = await readJson(res);
     if (!res.ok) throw new Error(errorOf(body, res.status));
     return body;
@@ -341,11 +333,7 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
     path: string,
     payload: unknown,
   ): Promise<{ status: number; body: Record<string, unknown> }> => {
-    const res = await fetchImpl(`${base}${path}`, {
-      method,
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const res = await sendJson(`${base}${path}`, method, payload, fetchImpl);
     return { status: res.status, body: await readJson(res) };
   };
   const post = (path: string, payload: unknown) => send('POST', path, payload);
@@ -372,9 +360,7 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       return body as unknown as Verdict;
     },
     legal: async (formatId) => {
-      const res = await fetchImpl(`${base}tables/legal/${encodeURIComponent(formatId)}`, {
-        headers: { accept: 'application/json' },
-      });
+      const res = await getJson(`${base}tables/legal/${encodeURIComponent(formatId)}`, fetchImpl);
       const body = await readJson(res);
       if (res.status !== 200) throw new Error(errorOf(body, res.status));
       return Array.isArray(body.legal) ? body.legal.filter((id): id is string => typeof id === 'string') : [];
@@ -395,9 +381,7 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
     },
     table: async (roomId, tableId) => {
       const query = tableId === undefined ? '' : `?table=${encodeURIComponent(tableId)}`;
-      const res = await fetchImpl(`${base}tables/rooms/${encodeURIComponent(roomId)}${query}`, {
-        headers: { accept: 'application/json' },
-      });
+      const res = await getJson(`${base}tables/rooms/${encodeURIComponent(roomId)}${query}`, fetchImpl);
       return table({ status: res.status, body: await readJson(res) });
     },
     loadDeck: async (roomId, deck, tableId) =>

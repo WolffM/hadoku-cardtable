@@ -10,7 +10,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { tablesClient, type Fetch } from './tables.ts';
+import type { Fetch } from '../http.ts';
+import { tablesClient } from './tables.ts';
 
 interface Call {
   url: string;

@@ -14,7 +14,7 @@ import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 
 import { libraryPeekList } from '../../screens/ConstructedScreen.tsx';
 import { DeckPeek } from '../../screens/DeckPeek.tsx';
-import { apiBase } from '../../screens/tables.ts';
+import { apiBase, getJson, type Fetch } from '../../http.ts';
 import type { DeckLine } from '../../screens/tables.ts';
 
 export interface OwnDeck {
@@ -23,15 +23,13 @@ export interface OwnDeck {
   sideboard: DeckLine[];
 }
 
-type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
-
 function isLines(v: unknown): v is DeckLine[] {
   return Array.isArray(v) && v.every((l) => typeof l === 'object' && l !== null && typeof (l as DeckLine).name === 'string' && typeof (l as DeckLine).count === 'number');
 }
 
 /** The seat's own list, or null when the server has none for this browser (a watcher, a match gone). */
-export async function fetchOwnDeck(matchId: string, fetchImpl: Fetch = (i, init) => fetch(i, init), base = apiBase(import.meta.env?.BASE_URL ?? '/')): Promise<OwnDeck | null> {
-  const res = await fetchImpl(`${base}play/matches/${encodeURIComponent(matchId)}/deck`, { credentials: 'same-origin' });
+export async function fetchOwnDeck(matchId: string, fetchImpl: Fetch = (i, init) => fetch(i, init), base = apiBase()): Promise<OwnDeck | null> {
+  const res = await getJson(`${base}play/matches/${encodeURIComponent(matchId)}/deck`, fetchImpl);
   if (!res.ok) return null;
   const body = (await res.json()) as Record<string, unknown>;
   if (typeof body.name !== 'string' || !isLines(body.main) || !isLines(body.sideboard)) return null;

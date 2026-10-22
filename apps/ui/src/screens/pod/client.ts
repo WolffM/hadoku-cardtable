@@ -22,24 +22,14 @@ import { useEffect, useState } from 'react';
 import { RoomTablesSchema, type RoomTable } from '@hadoku/shared';
 
 import { roomFeed } from '../../rooms/feed.ts';
+import { apiUrl, bodyOf, getJson, isRecord, sendJson } from '../../http.ts';
 import { tablesClient } from '../tables.ts';
 import { parsePodView, POD_AI, type PodView } from './wire.ts';
-
-function appBase(): string {
-  const base = import.meta.env?.BASE_URL;
-  return typeof base === 'string' ? base : '/';
-}
-
-/** `/cardtable/api/`, matching `tables.ts`'s own `apiBase` for the same base URL. */
-function podApiBase(): string {
-  const base = appBase();
-  return `${base}${base.endsWith('/') ? '' : '/'}api/`;
-}
 
 /** The room's raw body — `fetchRoomTables`'s sibling for `pod`. `'gone'` on the server's 404, `null` on any other failure. */
 async function fetchRoomRaw(roomId: string): Promise<Record<string, unknown> | 'gone' | null> {
   try {
-    const res = await fetch(`${podApiBase()}rooms/${encodeURIComponent(roomId)}`, { credentials: 'same-origin' });
+    const res = await getJson(apiUrl(`rooms/${encodeURIComponent(roomId)}`));
     if (res.status === 404) return 'gone';
     if (!res.ok) return null;
     return (await res.json()) as Record<string, unknown>;
@@ -151,15 +141,10 @@ export interface PodActionOutcome {
 
 async function postPod(roomId: string, action: 'sit' | 'stand' | 'play' | 'ai' | 'close', body: Record<string, unknown>): Promise<PodActionOutcome> {
   try {
-    const res = await fetch(`${podApiBase()}rooms/${encodeURIComponent(roomId)}/pod/${action}`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const res = await sendJson(apiUrl(`rooms/${encodeURIComponent(roomId)}/pod/${action}`), 'POST', body);
     if (res.ok) return { ok: true, message: null };
-    const parsed: unknown = await res.json().catch(() => null);
-    const message = typeof parsed === 'object' && parsed !== null && 'error' in parsed ? String((parsed as { error: unknown }).error) : `The server refused that (${res.status}).`;
+    const parsed = await bodyOf(res);
+    const message = isRecord(parsed) && 'error' in parsed ? String(parsed.error) : `The server refused that (${res.status}).`;
     return { ok: false, message };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };

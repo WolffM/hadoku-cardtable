@@ -26,9 +26,7 @@ import {
   SaveDraftDeckResponseSchema,
   type DraftMine,
 } from '@hadoku/shared';
-import { apiBase } from '../screens/tables.ts';
-
-export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
+import { apiBase, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '../http.ts';
 
 export type Mine = DraftMine;
 
@@ -40,32 +38,9 @@ export interface DeckStoreClient {
   save(podId: string, dck: string): Promise<SaveOutcome>;
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-function defaultApiBase(): string {
-  const base = import.meta.env?.BASE_URL;
-  return apiBase(typeof base === 'string' ? base : '/');
-}
-
-async function bodyOf(res: Response): Promise<unknown> {
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-/** The generic fallback for a body that is none of C's own shapes — a proxy error page, a 500 with no JSON at all. */
-function serverMessage(body: unknown, status: number): string {
-  if (isRecord(body) && typeof body.error === 'string' && body.error !== '') return body.error;
-  return `the server answered HTTP ${status}`;
-}
-
 export function deckStoreClient(
   fetchImpl: Fetch = (input, init) => fetch(input, init),
-  base: string = defaultApiBase(),
+  base: string = apiBase(),
 ): DeckStoreClient {
   const url = (podId: string, path: string): string => `${base}drafts/${encodeURIComponent(podId)}${path}`;
 
@@ -73,7 +48,7 @@ export function deckStoreClient(
     async mine(podId) {
       let res: Response;
       try {
-        res = await fetchImpl(url(podId, '/mine'), { credentials: 'same-origin', headers: { accept: 'application/json' } });
+        res = await getJson(url(podId, '/mine'), fetchImpl);
       } catch {
         throw new Error('Could not reach the server.');
       }
@@ -93,12 +68,7 @@ export function deckStoreClient(
       if (!sent.success) return { ok: false, issues: sent.error.issues.map((i) => i.message) };
       let res: Response;
       try {
-        res = await fetchImpl(url(podId, '/deck'), {
-          method: 'PUT',
-          credentials: 'same-origin',
-          headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify(sent.data),
-        });
+        res = await sendJson(url(podId, '/deck'), 'PUT', sent.data, fetchImpl);
       } catch {
         return { ok: false, issues: ['Could not reach the server.'] };
       }

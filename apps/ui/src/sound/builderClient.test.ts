@@ -6,7 +6,8 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { musicReviewClient, pickRandom, soundsClient, type Fetch } from './builderClient.ts';
+import type { Fetch } from '../http.ts';
+import { musicReviewClient, pickRandom, soundsClient } from './builderClient.ts';
 
 const TAKE = {
   file: 'lib-water/take-001.ogg',
@@ -32,7 +33,7 @@ describe('soundsClient.catalogue', () => {
     const fetchImpl: Fetch = vi.fn(async () => okJson({ takes: [TAKE] }));
     const client = soundsClient(fetchImpl, '/api/');
     expect(await client.catalogue()).toEqual([TAKE]);
-    expect(fetchImpl).toHaveBeenCalledWith('/api/sounds/catalogue', { credentials: 'same-origin' });
+    expect(fetchImpl).toHaveBeenCalledWith('/api/sounds/catalogue', { credentials: 'same-origin', headers: { accept: 'application/json' } });
   });
 
   it('is empty on a non-OK response', async () => {
@@ -175,7 +176,7 @@ describe('musicReviewClient', () => {
   it('mine reads the latest review, and null for none or a failure', async () => {
     const fetchImpl = vi.fn(async () => okJson({ review: RECORD }));
     expect(await musicReviewClient(fetchImpl, '/api/').mine()).toEqual(RECORD);
-    expect(fetchImpl).toHaveBeenCalledWith('/api/sounds/music-review/mine', { credentials: 'same-origin' });
+    expect(fetchImpl).toHaveBeenCalledWith('/api/sounds/music-review/mine', { credentials: 'same-origin', headers: { accept: 'application/json' } });
     expect(await musicReviewClient(vi.fn(async () => okJson({ review: null })), '/api/').mine()).toBeNull();
     expect(await musicReviewClient(vi.fn(async () => failed(404)), '/api/').mine()).toBeNull();
     const down: Fetch = vi.fn(async () => {

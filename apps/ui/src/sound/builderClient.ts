@@ -37,9 +37,7 @@ import {
   type SoundTake,
 } from '@hadoku/shared';
 
-import { apiBase } from '../screens/tables.ts';
-
-export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
+import { apiBase, bodyOf, getJson, isRecord, sendJson, type Fetch } from '../http.ts';
 
 export interface Assignments {
   cells: Record<string, string[]>;
@@ -58,28 +56,6 @@ export interface SavedCell {
   gain: number;
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-async function bodyOf(res: Response): Promise<unknown> {
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-function defaultAppBase(): string {
-  const base = import.meta.env?.BASE_URL;
-  return typeof base === 'string' ? base : '/';
-}
-
-function defaultApiBase(): string {
-  return apiBase(defaultAppBase());
-}
-
-const JSON_HEADERS = { 'content-type': 'application/json' };
 
 export interface SoundsClient {
   catalogue(): Promise<SoundTake[]>;
@@ -109,7 +85,7 @@ export interface SoundsClient {
 
 export function soundsClient(
   fetchImpl: Fetch = (i, init) => fetch(i, init),
-  base: string = defaultApiBase(),
+  base: string = apiBase(),
 ): SoundsClient {
   const url = (path: string): string => `${base}sounds${path}`;
 
@@ -117,7 +93,7 @@ export function soundsClient(
     async catalogue() {
       let res: Response;
       try {
-        res = await fetchImpl(url('/catalogue'), { credentials: 'same-origin' });
+        res = await getJson(url('/catalogue'), fetchImpl);
       } catch {
         return [];
       }
@@ -130,7 +106,7 @@ export function soundsClient(
       const none = { cells: {}, gains: {}, names: {}, canEdit: false, canView: false };
       let res: Response;
       try {
-        res = await fetchImpl(url('/assignments'), { credentials: 'same-origin' });
+        res = await getJson(url('/assignments'), fetchImpl);
       } catch {
         return none;
       }
@@ -142,12 +118,7 @@ export function soundsClient(
     async save(cell, files, gain) {
       let res: Response;
       try {
-        res = await fetchImpl(url(`/assignments/${encodeURIComponent(cell)}`), {
-          method: 'PUT',
-          credentials: 'same-origin',
-          headers: JSON_HEADERS,
-          body: JSON.stringify(gain === undefined ? { files } : { files, gain }),
-        });
+        res = await sendJson(url(`/assignments/${encodeURIComponent(cell)}`), 'PUT', gain === undefined ? { files } : { files, gain }, fetchImpl);
       } catch {
         return null;
       }
@@ -163,12 +134,7 @@ export function soundsClient(
     async retire(file, reason) {
       let res: Response;
       try {
-        res = await fetchImpl(url('/retire'), {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: JSON_HEADERS,
-          body: JSON.stringify({ file, reason }),
-        });
+        res = await sendJson(url('/retire'), 'POST', { file, reason }, fetchImpl);
       } catch {
         return null;
       }
@@ -179,12 +145,7 @@ export function soundsClient(
 
     async restore(file) {
       try {
-        const res = await fetchImpl(url('/restore'), {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: JSON_HEADERS,
-          body: JSON.stringify({ file }),
-        });
+        const res = await sendJson(url('/restore'), 'POST', { file }, fetchImpl);
         return res.ok;
       } catch {
         return false;
@@ -193,7 +154,7 @@ export function soundsClient(
 
     async marks() {
       try {
-        const res = await fetchImpl(url('/marks'), { credentials: 'same-origin' });
+        const res = await getJson(url('/marks'), fetchImpl);
         if (!res.ok) return {};
         const parsed = MarksSchema.safeParse(await bodyOf(res));
         return parsed.success ? parsed.data.marks : {};
@@ -204,12 +165,7 @@ export function soundsClient(
 
     async mark(file, mark) {
       try {
-        const res = await fetchImpl(url('/marks'), {
-          method: 'PUT',
-          credentials: 'same-origin',
-          headers: JSON_HEADERS,
-          body: JSON.stringify({ file, mark }),
-        });
+        const res = await sendJson(url('/marks'), 'PUT', { file, mark }, fetchImpl);
         return res.ok;
       } catch {
         return false;
@@ -238,13 +194,13 @@ export interface MusicReviewClient {
 
 export function musicReviewClient(
   fetchImpl: Fetch = (i, init) => fetch(i, init),
-  base: string = defaultApiBase(),
+  base: string = apiBase(),
 ): MusicReviewClient {
   const url = `${base}sounds/music-review`;
   return {
     async mine() {
       try {
-        const res = await fetchImpl(`${url}/mine`, { credentials: 'same-origin' });
+        const res = await getJson(`${url}/mine`, fetchImpl);
         if (!res.ok) return null;
         const parsed = MusicReviewMineSchema.safeParse(await bodyOf(res));
         return parsed.success ? parsed.data.review : null;
@@ -254,12 +210,7 @@ export function musicReviewClient(
     },
     async submit(body) {
       try {
-        const res = await fetchImpl(url, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: JSON_HEADERS,
-          body: JSON.stringify(body),
-        });
+        const res = await sendJson(url, 'POST', body, fetchImpl);
         if (!res.ok) return null;
         const parsed = MusicReviewRecordSchema.safeParse(await bodyOf(res));
         return parsed.success ? parsed.data : null;

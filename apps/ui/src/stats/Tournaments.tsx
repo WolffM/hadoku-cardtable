@@ -10,16 +10,11 @@ import { useEffect, useState } from 'react';
 
 import { TournamentSchema, type Tournament } from '@hadoku/shared';
 
+import { apiUrl, getJson, type Fetch } from '../http.ts';
 import { PodStandings } from '../screens/pod/PodStandings.tsx';
 
-function apiBase(): string {
-  const base = import.meta.env?.BASE_URL;
-  const b = typeof base === 'string' ? base : '/';
-  return `${b}${b.endsWith('/') ? '' : '/'}api/`;
-}
-
-export async function fetchTournaments(fetchImpl: typeof fetch = fetch): Promise<Tournament[]> {
-  const res = await fetchImpl(`${apiBase()}tournaments`, { credentials: 'same-origin' });
+export async function fetchTournaments(fetchImpl?: Fetch): Promise<Tournament[]> {
+  const res = await getJson(apiUrl('tournaments'), fetchImpl);
   if (!res.ok) throw new Error(`Could not load the tournaments (${res.status}).`);
   const body = (await res.json()) as { tournaments?: unknown };
   return Array.isArray(body.tournaments) ? body.tournaments.flatMap((t) => TournamentSchema.safeParse(t).data ?? []) : [];

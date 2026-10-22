@@ -6,8 +6,7 @@
  */
 
 import { MyDeckSchema, MyDecksSchema, type MyDeck } from '@hadoku/shared';
-import { apiBase } from '../screens/tables.ts';
-import type { Fetch } from './deckStore.ts';
+import { apiBase, bodyOf, getJson, sendJson, serverMessage, type Fetch } from '../http.ts';
 
 export type { MyDeck };
 
@@ -19,26 +18,13 @@ export interface MyDecksClient {
   remove(id: string): Promise<DeckChange>;
 }
 
-function defaultApiBase(): string {
-  const base = import.meta.env?.BASE_URL;
-  return apiBase(typeof base === 'string' ? base : '/');
-}
+const errorOf = async (res: Response): Promise<string> => serverMessage(await bodyOf(res), res.status);
 
-async function errorOf(res: Response): Promise<string> {
-  try {
-    const body = (await res.json()) as { error?: unknown };
-    if (typeof body.error === 'string' && body.error !== '') return body.error;
-  } catch {
-    // Not JSON — a proxy page. The status says what there is to say.
-  }
-  return `the server answered HTTP ${res.status}`;
-}
-
-export function myDecksClient(fetchImpl: Fetch = (input, init) => fetch(input, init), base: string = defaultApiBase()): MyDecksClient {
+export function myDecksClient(fetchImpl: Fetch = (input, init) => fetch(input, init), base: string = apiBase()): MyDecksClient {
   const url = (id?: string): string => `${base}decks${id === undefined ? '' : `/${encodeURIComponent(id)}`}`;
-  const send = async (id: string, init: RequestInit): Promise<Response | string> => {
+  const send = async (request: () => Promise<Response>): Promise<Response | string> => {
     try {
-      return await fetchImpl(url(id), { credentials: 'same-origin', ...init, headers: { accept: 'application/json', ...init.headers } });
+      return await request();
     } catch {
       return 'Could not reach the server.';
     }
@@ -48,7 +34,7 @@ export function myDecksClient(fetchImpl: Fetch = (input, init) => fetch(input, i
     async list() {
       let res: Response;
       try {
-        res = await fetchImpl(url(), { credentials: 'same-origin', headers: { accept: 'application/json' } });
+        res = await getJson(url(), fetchImpl);
       } catch {
         throw new Error('Could not reach the server.');
       }
@@ -59,7 +45,7 @@ export function myDecksClient(fetchImpl: Fetch = (input, init) => fetch(input, i
     },
 
     async rename(id, name) {
-      const res = await send(id, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) });
+      const res = await send(() => sendJson(url(id), 'PATCH', { name }, fetchImpl));
       if (typeof res === 'string') return { ok: false, message: res };
       if (!res.ok) return { ok: false, message: await errorOf(res) };
       const parsed = MyDeckSchema.safeParse(((await res.json().catch(() => null)) as { deck?: unknown } | null)?.deck);
@@ -67,7 +53,7 @@ export function myDecksClient(fetchImpl: Fetch = (input, init) => fetch(input, i
     },
 
     async remove(id) {
-      const res = await send(id, { method: 'DELETE' });
+      const res = await send(() => fetchImpl(url(id), { method: 'DELETE', credentials: 'same-origin', headers: { accept: 'application/json' } }));
       if (typeof res === 'string') return { ok: false, message: res };
       return res.ok ? { ok: true } : { ok: false, message: await errorOf(res) };
     },

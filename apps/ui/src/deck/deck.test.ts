@@ -26,7 +26,8 @@ import { DeckScreen } from '../screens/DeckScreen.tsx';
 import type { RoomsClient } from '../rooms/api.ts';
 import { parseRoute } from '../screens/route.ts';
 import type { DeckStoreClient, Mine } from './deckStore.ts';
-import { tablesClient, type Fetch, type Verdict } from '../screens/tables.ts';
+import type { Fetch } from '../http.ts';
+import { tablesClient, type Verdict } from '../screens/tables.ts';
 import { draftedSeat, cardIndex, mainSummary, libraryDeckPool, libraryDeckText, suggestBasics } from './build.ts';
 import { splitBasics } from '../draft/deckFromPool.ts';
 

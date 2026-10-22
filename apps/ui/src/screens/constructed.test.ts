@@ -77,12 +77,10 @@ import { takeWarmRoom, warmRoom } from '../rooms/warm.ts';
 import type { RoomFeed } from '../rooms/feed.ts';
 import {
   RANDOM_DECK,
-  apiBase,
   erasOf,
   poolIsOnTab,
   tablesClient,
   type DeckRef,
-  type Fetch,
   type RoomPlayer,
   type SeatChoice,
   type SeatDeck,
@@ -90,6 +88,7 @@ import {
   type TableFormat,
   type Verdict,
 } from './tables.ts';
+import { apiBase, type Fetch } from '../http.ts';
 
 afterEach(() => {
   forgetMatchesFollowed();
