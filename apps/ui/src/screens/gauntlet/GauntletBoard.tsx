@@ -20,6 +20,7 @@ import { DeckTile } from '../DeckTile.tsx';
 import { useTilePeek } from './peek.tsx';
 import { DEAL_MS, TITLE_MS, dealtAt, useReveal } from './reveal.ts';
 import { PlayerName, seatOrder } from './seats.tsx';
+import { useGauntletSounds } from './sounds.ts';
 
 /** Each player's picks: three. */
 const PICKS = 3;
@@ -38,6 +39,7 @@ export function GauntletBoard({
   onPick: (deckId: string) => void;
 }) {
   const reveal = useReveal(view.revealAt);
+  useGauntletSounds(view.decks, reveal);
   const [p1, p2] = seatOrder(view);
   const step = view.phase === 'banpick' ? view.step : null;
   const acting = step !== null && reveal.done && view.you === step.seat;

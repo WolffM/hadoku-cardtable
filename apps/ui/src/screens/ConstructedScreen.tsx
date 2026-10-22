@@ -196,6 +196,7 @@ import { ClassicOptions, type Browse } from './constructed-mode/ClassicOptions.t
 import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
 import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
+import { seatAvatars } from './gauntlet/seats.tsx';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import {
   FREE_PICK,
@@ -2225,6 +2226,7 @@ function RoomTableScreen({
                 <>
                   <GauntletScreen
                     view={gauntlet}
+                    avatars={seatAvatars(gauntlet, members)}
                     onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck))}
                     onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck))}
                     onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}

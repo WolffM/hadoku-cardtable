@@ -67,6 +67,7 @@ import { cardImageUrl } from '../draft/cardImage.ts';
 import { PEEK_DELAY_MS, PEEK_GRACE_MS } from './DeckPeek.tsx';
 import type { DeckRecords } from '../stats/deckOrder.ts';
 import { parseRoute } from './route.ts';
+import { TITLE_MS } from './gauntlet/reveal.ts';
 import poolJson from '../draft/pool.json';
 import { dckTextOf, deckFromPool } from '../draft/deckFromPool.ts';
 import { cardIndex, suggestBasics } from '../deck/build.ts';
@@ -262,7 +263,7 @@ interface Table {
   /** Set once the server has dealt a draft room's pod. */
   draftStartedAt?: string | null;
   /** Who the ROOM says is in it — a streamed room's seats come from here. */
-  members?: { id: string; name: string; ready?: boolean }[];
+  members?: { id: string; name: string; ready?: boolean; avatarId?: string }[];
   /** `POST /api/rooms/:id/ready` and `…/start` refuse with this sentence. */
   refuseRoomWrite?: { status: number; error: string };
   /** The room record read fails, while the table read still works. */
@@ -2530,6 +2531,43 @@ describe('the room’s mode', () => {
     expect((await screen.findByTestId('gauntlet-title')).textContent).toBe('Modern — 2014');
     for (const m of ['classic', 'gauntlet', 'random']) expect(radio(m).disabled).toBe(true);
     expect(screen.getByTestId('ready-toggle')).toHaveProperty('disabled', true);
+  });
+
+  // The operator, 2026-10-21: "the avatar isn't rendering properly on the coinflip animation".
+  it('the Gauntlet’s coin wears each player’s own avatar, as the match’s coin does', async () => {
+    await mountModeRoom({
+      players: [{ ...mySeat(), deck: null }, opponent()],
+      matchId: null,
+      mode: { mode: 'gauntlet', modeOptions: { family: 'modern' } },
+      members: [
+        { id: 'p-alice', name: 'user-alice', avatarId: 'fox' },
+        { id: 'p-bob', name: 'user-bob', avatarId: 'owl' },
+      ],
+      gauntlet: {
+        phase: 'reveal',
+        you: 0,
+        players: [
+          { memberId: 'p-alice', name: 'user-alice' },
+          { memberId: 'p-bob', name: 'user-bob' },
+        ],
+        ready: [true, true],
+        era: { id: 'modern-2014-07-18', family: 'modern', title: 'Modern — 2014' },
+        // Opened mid-flip: the title has landed and the coin is up.
+        revealAt: Date.now() - TITLE_MS - 200,
+        first: 1,
+        decks: [],
+        step: null,
+        games: [],
+        choice: null,
+        winner: null,
+      },
+    });
+    const coin = await screen.findByTestId('coin-toss');
+    const face = (side: string): string | null => coin.querySelector(`.coin-toss__face--${side} img`)?.getAttribute('src') ?? null;
+    expect([face('front'), face('back')], 'the winner (P1, bob) on the front, alice on the back').toEqual([
+      expect.stringMatching(/square_owl\.png$/),
+      expect.stringMatching(/square_fox\.png$/),
+    ]);
   });
 
   /** A Gauntlet between two people, in `phase`, as the server's view for alice. */

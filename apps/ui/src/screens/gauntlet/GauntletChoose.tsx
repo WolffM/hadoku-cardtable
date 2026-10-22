@@ -10,6 +10,7 @@ import type { GauntletGame, GauntletSeatIndex, GauntletView } from '@hadoku/shar
 
 import { StatusPill, type DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
+import { playRole } from '../../sound/index.ts';
 import { useTilePeek, type TileBinding } from './peek.tsx';
 import { PlayerName, seatOrder } from './seats.tsx';
 
@@ -47,7 +48,13 @@ function ChoosingSeat({
         {picks.map((d) => {
           const option = options.get(d.id);
           if (option === undefined) return null;
-          const press = mine && !d.played ? () => onChoose(d.id) : undefined;
+          const press =
+            mine && !d.played
+              ? () => {
+                  playRole('ui.gauntlet-choose');
+                  onChoose(d.id);
+                }
+              : undefined;
           return (
             <DeckTile
               key={d.id}

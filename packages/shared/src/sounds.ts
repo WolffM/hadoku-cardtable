@@ -209,12 +209,16 @@ export function cheerRole(amount: number): string | null {
 
 /**
  * A role whose cell is empty plays this one's instead, and so on down: an impact tier the tier below it, the
- * smallest Creatures collide (what a blow to a player played before the tiers); a cheer the cheer below it. So a
- * tier nobody has filled yet still sounds.
+ * smallest Creatures collide (what a blow to a player played before the tiers); a cheer the cheer below it; a
+ * Gauntlet moment the nearest sound the app already had for it. So a role nobody has filled yet still sounds.
  */
 export const FALLBACK_ROLES: Readonly<Record<string, string>> = Object.fromEntries([
 	...IMPACT_TIERS.map((t, i) => [impactTierRole(t), i === 0 ? 'g.crash' : impactTierRole(IMPACT_TIERS[i - 1]!)]),
 	...CHEER_TIERS.slice(1).map((t, i) => [cheerTierRole(t), cheerTierRole(CHEER_TIERS[i]!)]),
+	['ui.gauntlet-deal', 'g.draw'],
+	['ui.gauntlet-ban', 'g.exile'],
+	['ui.gauntlet-pick', 'ui.draft-pick'],
+	['ui.gauntlet-choose', 'ui.select'],
 ]);
 
 /** Every role, grouped the way the builder lists them. */
@@ -237,6 +241,10 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			ui('ui.draft-pick', 'Draft pick', 'A pick is taken in the draft.'),
 			ui('ui.draft-pack', 'New pack', 'A pack lands in front of you to pick from: each round\'s fresh booster and every pack passed to you.'),
 			ui('ui.draft-scroll', 'Fan scroll', 'The open card moves along a fanned pack in the draft: the wheel, the arrows or a click on another card.'),
+			ui('ui.gauntlet-deal', 'Gauntlet deal', 'A deck lands in the Gauntlet\'s pool, one at a time after the coin.'),
+			ui('ui.gauntlet-ban', 'Gauntlet ban', 'A deck is banned from the Gauntlet\'s pool, by either player.'),
+			ui('ui.gauntlet-pick', 'Gauntlet pick', 'A deck is picked from the Gauntlet\'s pool, by either player.'),
+			ui('ui.gauntlet-choose', 'Gauntlet choice', 'You choose your deck for the next Gauntlet game.'),
 		],
 	},
 	{
