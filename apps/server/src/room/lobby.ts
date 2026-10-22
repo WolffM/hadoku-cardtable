@@ -1210,7 +1210,7 @@ interface StoredApp {
 	 * did NOT come back is put back in its lobby (`releaseLostDrafts`).
 	 */
 	draftStartedAt: number | null;
-	/** Absent for a room written before wave 73 §A: the Settled default (Vintage Cube 2025-12 × 3), same as every pod drafted before a plan existed. */
+	/** Absent for a room written before wave 73 §A: the Settled default (Vintage Cube 2025-04 × 3), same as every pod drafted before a plan existed. */
 	plan?: DraftPlan;
 	/** Absent for a room written before wave 73 §A, or whose plan has never been checked. */
 	planVerdict?: PoolVerdict | null;
@@ -1672,8 +1672,12 @@ class FileLobby implements Lobby {
 		this.#rooms.set(room.id, room);
 		this.#lastCreatedAt = Math.max(this.#lastCreatedAt, room.createdAt);
 		if (secret !== null) this.#secrets.set(room.id, secret);
-		// A snapshot written mid-check (the previous process died before its
-		// background check — or a PUT's — landed) still has `planVerdict: null`.
+		// A saved verdict judged the previous process's cubes, catalog and Forge
+		// pin. Any of them can be gone now (a shortlist swap, an importer's
+		// delete, a pin that refuses a card), so every draft room is checked
+		// again rather than trusting it — including a snapshot written mid-check,
+		// which still has `planVerdict: null`.
+		if (room.gameType === 'draft') room.planVerdict = null;
 		this.#ensurePlanChecked(room);
 	}
 

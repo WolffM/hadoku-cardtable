@@ -29,7 +29,7 @@ export const DRAFT = 'amber-lantern-k7q4';
 export const UW_DELVER = 'power-2012-1-todd-anderson-uw-delver';
 export const POWER_2012 = '2012-07-13';
 
-const cube = loadPool(resolve(REPO_ROOT, 'apps/server/pools/cubes/mtgo-vintage-cube-2025-12.json'));
+const cube = loadPool(resolve(REPO_ROOT, 'apps/server/pools/cubes/mtgo-vintage-cube-2025-04.json'));
 if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
 
 /**

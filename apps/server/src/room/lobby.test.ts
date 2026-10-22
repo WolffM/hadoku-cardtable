@@ -2892,6 +2892,19 @@ describe("a room's plan checks itself — created or restored, not only PUT", ()
 		expect(resolved).toBe(1);
 	});
 
+	it("a room restored with a verdict is checked again at boot — the saved one was this catalog's and this Forge pin's, not the next process's", async () => {
+		const dir = await tempDir();
+		const first = await openLobby({ dir, checkPlan: async () => ({ ok: true, cards: 534 }) });
+		const made = first.create(ALICE, { name: 'r', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		await vi.waitFor(() => expect(first.get(made.room.id)?.pod?.verdict).toEqual({ ok: true, cards: 534 }));
+
+		// The next process no longer has that cube: a shortlist swap, or an importer's delete.
+		const refused: PoolVerdict = { ok: false, unplayable: ['unknown cube: mtgo-vintage-cube-2025-12'], missingText: [] };
+		const second = await openLobby({ dir, checkPlan: async () => refused });
+		await vi.waitFor(() => expect(second.get(made.room.id)?.pod?.verdict).toEqual(refused));
+	});
+
 	it('a failed check logs rather than throwing, and leaves the verdict null for a later check to pick up', async () => {
 		const dir = await tempDir();
 		const logged: Record<string, unknown>[] = [];

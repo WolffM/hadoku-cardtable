@@ -42,7 +42,7 @@ const GENERATED_CUBES_DIR = resolve(HERE, '..', '..', 'pools', 'cubes');
 
 /** The 8 shortlisted cubes (`draft-pools-plan.md` ruling 7) — the filename is the name verbatim plus `.dck`. */
 const SHORTLIST = [
-	'MTGO Vintage Cube 2025-12',
+	'MTGO Vintage Cube 2025-04',
 	'MTGO Legacy Cube 2021-08',
 	'The Pauper Cube 2026-02',
 	"Ryan Overturf's Grixis Cube (MTGO)",

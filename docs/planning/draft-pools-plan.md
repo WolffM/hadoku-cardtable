@@ -41,7 +41,9 @@ rulings may not.
    is **refused at selection, with the list of those cards**.
 7. **Cube picker** = a curated shortlist plus imported cubes. The shortlist
    (operator's pick of 8 from 20):
-   - MTGO Vintage Cube 2025-12
+   - MTGO Vintage Cube 2025-12 — **amended 2026-10-22 by the operator to MTGO Vintage Cube 2025-04**
+     ("go to a prev version that has less new cards"): 2025-12 dealt 534 of 540, and 2025-04 is the newest
+     version that resolves all 540
    - MTGO Legacy Cube 2021-08
    - The Pauper Cube 2026-02
    - Ryan Overturf's Grixis Cube (MTGO)

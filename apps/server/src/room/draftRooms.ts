@@ -246,9 +246,14 @@ export const DEFAULT_PARAMS: DraftParams = {
  * 2025-12 (`packages/carddata/src/cli/build-pool.ts`'s `slug()`) — the
  * `CubeSummary.id`/`PoolSource.cubeId` this server knows it by.
  */
-export const DEFAULT_CUBE_ID = 'mtgo-vintage-cube-2025-12';
+export const DEFAULT_CUBE_ID = 'mtgo-vintage-cube-2025-04';
 
-/** Settled, 2026-10-21: a new draft room's plan before its leader ever picks one — "the Vintage Cube 2025-12 three times". */
+/**
+ * Settled, 2026-10-21: a new draft room's plan before its leader ever picks one — "the Vintage Cube 2025-12
+ * three times". Amended 2026-10-22 by the operator to 2025-04, the newest Vintage Cube whose 540 cards all
+ * resolve: 2025-12 dealt 534, its six Through the Omenpaths cards having no text (ledger, "Six MTGO Vintage
+ * Cube 2025-12 cards never reach a pool").
+ */
 export const DEFAULT_PLAN: DraftPlan = {
 	rounds: [
 		{ kind: 'cube', cubeId: DEFAULT_CUBE_ID },
@@ -292,7 +297,7 @@ export function singlePoolResolver(cube: { meta: { name: string }; cards: readon
 
 interface DraftRoomsOptions {
 	resolver: PoolSourceResolver;
-	/** A new room's plan before its leader ever picks one — Settled: Vintage Cube 2025-12 × 3. */
+	/** A new room's plan before its leader ever picks one — Settled: Vintage Cube 2025-04 × 3 (2025-12 until 2026-10-22: six of its cards had no text). */
 	defaultPlan: DraftPlan;
 	params?: Partial<DraftParams>;
 	/** Injectable so a test can pin the epoch. */
