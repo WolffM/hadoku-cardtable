@@ -779,12 +779,14 @@ test(LIVE_TITLE, async ({ browser }) => {
     // (`routes.ts` `playersOf`, by `seatedAt`), so this is what puts her deck
     // in seat 1 and makes the seat/deck mapping below a claim and not a flip.
     await loadOwnDeck(alice, choice.decks[0].id);
-    await expect(alice.page.getByTestId('room-seat-0')).toContainText('e2e-alice (you)');
+    await expect(alice.page.getByTestId('room-seat-0')).toHaveAttribute('data-mine', '');
+    await expect(alice.page.getByTestId('room-seat-0')).toContainText('e2e-alice');
     await loadOwnDeck(bob, choice.decks[1].id);
-    await expect(bob.page.getByTestId('room-seat-1')).toContainText('e2e-bob (you)');
+    await expect(bob.page.getByTestId('room-seat-1')).toHaveAttribute('data-mine', '');
     // Each sees the other at the other seat, and each page says who is waited on.
     await expect(alice.page.getByTestId('room-seat-1')).toContainText('e2e-bob');
-    await expect(alice.page.getByTestId('room-seat-1')).not.toContainText('(you)');
+    await expect(alice.page.getByTestId('room-seat-1')).not.toHaveAttribute('data-mine');
+    await expect(alice.page.getByTestId('room-players'), 'no (you) beside a name').not.toContainText('(you)');
     await expect(bob.page.getByTestId('room-seat-0')).toContainText('e2e-alice');
     // The leader is marked, not explained: a crown on her seat, on both screens.
     for (const f of [alice, bob]) {

@@ -711,7 +711,7 @@ const chosen = (): string => screen.getByTestId('deck-mine').dataset['chosen'] ?
 
 /** YOUR row at the table: the pool your deck was checked in, and whether it is legal there. */
 const myRow = (): HTMLElement => {
-  const row = Array.from(screen.getByTestId('room-players').querySelectorAll('li')).find((li) => li.textContent?.includes('(you)'));
+  const row = screen.getByTestId('room-players').querySelector<HTMLElement>('li[data-mine]') ?? undefined;
   if (row === undefined) throw new Error('no row of yours at the table');
   return row;
 };
@@ -889,7 +889,8 @@ describe('a room’s table', () => {
     fireEvent.click(screen.getAllByTestId('seat-sit')[0]!);
     await screen.findByTestId('seat-stand');
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)?.method).toBe('POST');
-    expect(screen.getByTestId('room-seat-0').textContent).toContain('user-alice (you)');
+    expect(screen.getByTestId('room-seat-0').hasAttribute('data-mine')).toBe(true);
+    expect(screen.getByTestId('room-seat-0').querySelector('.tables__name')?.textContent, 'my name, and no (you) beside it').toBe('user-alice');
     expect(screen.getByTestId('room-seat-0-deck').textContent, 'no deck yet').toBe('—');
     // My own seat's ready state is the button that sets it.
     const ready = within(screen.getByTestId('room-seat-0')).getByTestId('ready-toggle');
@@ -1009,7 +1010,7 @@ describe('a room’s table', () => {
     });
     expect(myRules()).toBe('Standard (M11)');
     expect(myReadyOpen()).toBe(true);
-    expect(screen.getByTestId('room-seat-1').textContent).toContain('(you)');
+    expect(screen.getByTestId('room-seat-1').hasAttribute('data-mine')).toBe(true);
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -2023,7 +2024,7 @@ describe('the table’s pool', () => {
     expect(crown.closest('[data-testid="room-seat-1"]'), 'on my seat, the leader’s').not.toBeNull();
     expect(crown.getAttribute('aria-label')).toBe('Room owner');
     expect(crown.querySelector('path')).not.toBeNull();
-    expect(screen.getByTestId('room-seat-1').textContent).toContain('user-alice (you)');
+    expect(screen.getByTestId('room-seat-1').querySelector('.tables__name')?.textContent).toBe('user-alice');
     // No prose: nothing on the deck card explains what a leader is or may do.
     const card = screen.getByTestId('deck-mine').closest('section') as HTMLElement;
     expect(card.querySelector('[data-testid="room-leader"]')).toBeNull();

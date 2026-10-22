@@ -2465,9 +2465,8 @@ export function StatusPill({ testId, state, mark, label }: { testId: string; sta
  * "4c Reveillark Control (Shouhei Yamamoto)" to "4c…" in the column this card
  * actually gets, which is the cheap look again by another route.
  *
- * The name and `(you)` stay in ONE text node, with that space: `e2e/play.spec`
- * matches `e2e-alice (you)`, and cells in a grid put no whitespace between
- * themselves.
+ * My own row says so by `data-mine`, never in words beside my name (the
+ * operator, 2026-10-22: "remove the (you) from the constructed table too").
  *
  * Only your own row has deck cells, because only your own row has a deck: the
  * server sends another seat as its name and its ready state (the operator,
@@ -2495,9 +2494,9 @@ function PlayerRow({
   standDisabled?: boolean;
 }) {
   return (
-    <li className="tables__row" data-testid={`room-seat-${seat}`}>
+    <li className="tables__row" data-testid={`room-seat-${seat}`} data-mine={player.you ? '' : undefined}>
       <span className="tables__who tables__who--seat">
-        <strong className="tables__name">{player.you ? `${player.name} (you)` : player.name}</strong>
+        <strong className="tables__name">{player.name}</strong>
         {leader && (
           <svg className="tables__crown" data-testid="room-leader" viewBox="0 0 12 12" role="img" aria-label="Room owner">
             <title>Room owner</title>
