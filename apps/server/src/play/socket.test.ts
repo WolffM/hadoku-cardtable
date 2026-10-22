@@ -1682,6 +1682,53 @@ describe('parseStartBody: handSmoothing', () => {
 	});
 });
 
+describe('parseStartBody: every refusal, word for word', () => {
+	const DECK = 'x'.repeat(64 * 1024);
+	it.each<[unknown, string]>([
+		[[], 'body must be an object'],
+		['decks', 'body must be an object'],
+		[7, 'body must be an object'],
+		[{ bogus: 1 }, 'unknown field bogus'],
+		[{ opponent: 'robot', zz: 1, aa: 2 }, 'unknown field zz'],
+		[{ opponent: 'robot' }, "opponent is 'human' or 'ai'"],
+		[{ opponent: 1, decks: 'x' }, "opponent is 'human' or 'ai'"],
+		[{ decks: 'x' }, 'decks is a two-element array'],
+		[{ decks: [null] }, 'decks is a two-element array'],
+		[{ decks: null, names: 1 }, 'names is a two-element array'],
+		[{ decks: [null, ''] }, 'each deck is .dck text (at most 64 KiB) or null'],
+		[{ decks: [7, null] }, 'each deck is .dck text (at most 64 KiB) or null'],
+		[{ decks: [`${DECK}x`, null], names: 1 }, 'each deck is .dck text (at most 64 KiB) or null'],
+		[{ names: null }, 'names is a two-element array'],
+		[{ names: ['a', 'b', 'c'], scenario: 7 }, 'names is a two-element array'],
+		[{ scenario: null }, 'scenario is the text of a puzzle [state] section (at most 64 KiB)'],
+		[{ scenario: '', format: 1 }, 'scenario is the text of a puzzle [state] section (at most 64 KiB)'],
+		[{ format: null }, 'format is a format id'],
+		[{ format: '' }, 'format is a format id'],
+		[{ format: 'f'.repeat(201), handSmoothing: 1 }, 'format is a format id'],
+		[{ handSmoothing: null }, 'handSmoothing is a boolean'],
+		[{ handSmoothing: 1, chooser: 2 }, 'handSmoothing is a boolean'],
+		[{ chooser: null }, 'chooser is 0 or 1'],
+	])('%j is refused: %s', (body, error) => {
+		expect(parseStartBody(body)).toEqual({ ok: false, error });
+	});
+
+	it('reads no body, a null opponent and null decks as their defaults, and takes a deck of exactly 64 KiB', () => {
+		for (const body of [undefined, null, {}, { opponent: null, decks: null }]) {
+			const r = parseStartBody(body);
+			expect(r.ok && r.spec.seats.map((s) => [s.ai, s.deck]), JSON.stringify(body)).toEqual([
+				[false, null],
+				[false, null],
+			]);
+		}
+		const full = parseStartBody({ opponent: 'ai', decks: [DECK, null], format: 'f'.repeat(200) });
+		expect(full.ok && full.spec.seats.map((s) => [s.ai, s.deck?.length ?? null])).toEqual([
+			[false, 64 * 1024],
+			[true, null],
+		]);
+		expect(full.ok && full.spec.format).toBe('f'.repeat(200));
+	});
+});
+
 describe('parseStartBody: chooser (wave 71 §E)', () => {
 	it('carries the named seat onto the spec, and leaves it absent when the body has none', () => {
 		const zero = parseStartBody({ chooser: 0 });
