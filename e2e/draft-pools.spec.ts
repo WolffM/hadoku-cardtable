@@ -41,9 +41,10 @@
  *
  * `TEST_FIXTURE_ROOT`'s own fixture is written here regardless, so wiring the
  * env var is the only thing standing between this and a green run of both
- * halves: `{ id, name, cubeCobraId, importedBy, importedAt, refreshedAt, cards }`
- * per `docs/planning/draft-pools-plan.md`'s "Cubes" design, with one card
- * holding a name Forge's card DB does not know.
+ * halves — `importDir/<id>.json`'s own on-disk shape (`apps/server/src/pools/cubes.ts`,
+ * landed §C, `ffc26caf`): `{ id, name, cubeCobraId, importedBy, importedAt,
+ * refreshedAt, verdict, cards }`, `cards` the trimmed `{ name, scryfallId }`
+ * Cube Cobra projection, with one name Forge's card DB does not know.
  */
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -98,6 +99,14 @@ async function packCardNames(page: Page): Promise<string[]> {
 const TEST_FIXTURE_ROOT = resolve(import.meta.dirname, '.run', 'draft-pools-cubes');
 const UNPLAYABLE_NAME = 'Zzyzzyva, Card Forge Does Not Know';
 
+/**
+ * `importDir/<id>.json`'s own on-disk shape, per `apps/server/src/pools/cubes.ts`'s
+ * header (landed §C, `ffc26caf`): `cards` is the TRIMMED Cube Cobra projection
+ * (`{ name, scryfallId }`, never the derived `DraftCard[]`) — the catalog
+ * resolves gameplay text by name at load, which is exactly how a name it does
+ * not know (this fixture's whole point) produces `missingText` rather than a
+ * shape error.
+ */
 function writeUnplayableCubeFixture(): void {
   rmSync(TEST_FIXTURE_ROOT, { recursive: true, force: true });
   mkdirSync(TEST_FIXTURE_ROOT, { recursive: true });
@@ -110,20 +119,8 @@ function writeUnplayableCubeFixture(): void {
       importedBy: 'fk:e2e-fixture',
       importedAt: new Date().toISOString(),
       refreshedAt: null,
-      cards: [
-        {
-          cardId: 'c0',
-          name: UNPLAYABLE_NAME,
-          manaCost: ['1'],
-          manaValue: 1,
-          colors: [],
-          typeLine: 'Creature',
-          oracleText: '',
-          setCode: 'TST',
-          collectorNumber: '1',
-          rarity: 'common',
-        },
-      ],
+      verdict: null,
+      cards: [{ name: UNPLAYABLE_NAME, scryfallId: null }],
     }),
   );
 }
