@@ -38,8 +38,7 @@ The fix existed **26 minutes** before it reached prod.
 It did catch it. Three things stopped that from mattering.
 
 1. **The red gates nothing.** Since `a7dd8b2`, deploys wait only on `check`, and Forge runs in
-   `forge.yml` beside the deploy. A red there is "the lander's work item" ([[ci-gate-is-check-only]]
-   in agent memory). For the first 36 minutes, nobody picked it up.
+   `forge.yml` beside the deploy. A red there is "the lander's work item". For the first 36 minutes, nobody picked it up.
 2. **The proof before landing only ran the specs picked for the changed paths.** The lane changed
    `styles.css`, `spectate.css`, `screens.css` and draft components. The spec selection treats these
    as draft paths. A global stylesheet is not a draft path: any change to a shared sheet can move
@@ -47,8 +46,7 @@ It did catch it. Three things stopped that from mattering.
 3. **Layout leaks are invisible to `check`.** Vitest runs in jsdom, which has no layout. Nothing in
    `check` knows which component owns which class.
 
-Behind all three is the class of bug. The repo already had a note on it ([[bem-blocks-are-global]],
-written while fixing this one). A written rule does not stop a lane that never greps.
+Behind all three is the class of bug, and nothing mechanical guards it. The session that fixed it wrote down a rule ("grep a block name before styling it"), but a written rule does not stop a lane that never greps.
 
 ## Changes
 
@@ -77,8 +75,7 @@ completed Forge run on main's head is red and nobody has claimed it (`claim.sh c
 red then blocks the next land instead of sitting unread.
 
 **D. Before trusting a redeploy, confirm prod from the deploy tree.** Read the tree's sha, grep the
-shipped bundle for the change, and check `pm_uptime`. Never go by the run's sha label
-([[redeploy-run-sha-label]], [[confirm-a-deploy-from-health]]).
+shipped bundle for the change, and check `pm_uptime`. Never go by the run's sha label.
 
 ## The audit that followed
 
