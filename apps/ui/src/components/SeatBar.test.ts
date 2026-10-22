@@ -5,15 +5,19 @@
  * `DraftStates.test.ts` cover what every seat says (waiting, held, watched).
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 
 import { loadFixtures } from '../draft/fixtures.ts';
 import type { DraftView } from '../draft/types.ts';
 import { SeatBar } from './SeatBar.tsx';
+import { IN_VIEW, packSlot, type Pile } from './pack-queue.ts';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const CHARACTERS = ['rogue', 'sage', 'herald', 'cleric', 'knight', 'mage', 'brawler'];
 
@@ -110,5 +114,74 @@ describe('the pod as a circle', () => {
     const nearest = (p: { x: number; y: number }): number => seats.reduce((best, id) => (dist(at(id), p) < dist(at(best), p) ? id : best));
     expect(nearest(arc.to)).toBe(3);
     expect(nearest(arc.from)).toBe(4);
+  });
+});
+
+/** The seats with these many packs waiting in front of each. */
+function queued(view: DraftView, depths: readonly number[]): DraftView {
+  return { ...view, seats: view.seats.map((s, i) => ({ ...s, queueDepth: depths[i] ?? 0 })) };
+}
+
+/**
+ * jsdom lays nothing out, so the pod's own measure reads nothing and draws no
+ * pack. This gives every box the pod measures a size: a 264px ring in an 8px
+ * padded panel, 40px faces, a name line under each.
+ */
+function laidOut(): void {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    const r = (left: number, top: number, w: number, h: number) => ({ left, top, right: left + w, bottom: top + h, width: w, height: h, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+    const el = this as HTMLElement;
+    if (el.classList.contains('seats')) return r(-9, -9, 282, 282);
+    if (el.classList.contains('podcircle')) return r(0, 0, 264, 264);
+    if (el.classList.contains('podcircle__centre')) return r(112, 112, 40, 24);
+    const seat = el.closest<HTMLElement>('.seatbar__seat');
+    if (seat !== null) {
+      const x = (parseFloat(seat.style.left) / 100) * 264;
+      const y = (parseFloat(seat.style.top) / 100) * 264;
+      if (el.classList.contains('seatbar__face')) return r(x - 20, y - 20, 40, 40);
+      if (el.classList.contains('seatbar__label')) return r(x - 24, y + 22, 48, 13);
+    }
+    return r(0, 0, 0, 0);
+  });
+}
+
+const packsAt = (container: HTMLElement, id: number): number => container.querySelectorAll(`[data-testid^="seat-${id}-pack-"]`).length;
+
+describe('the packs waiting in front of each seat', () => {
+  it('reads each seat’s pile from the view, everyone else’s pack at most', () => {
+    render(createElement(SeatBar, { view: queued(seatView(0, 'left'), [0, 1, 2, 3, 4, 5, 6, 9]) }));
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map((id) => screen.getByTestId(`seat-${id}`).dataset.queue)).toEqual(['0', '1', '2', '3', '4', '5', '6', '7']);
+  });
+
+  it('draws one pack per waiting pack, once the table is measured, and none for a seat with none', () => {
+    laidOut();
+    const { container, rerender } = render(createElement(SeatBar, { view: queued(seatView(0, 'left'), [0, 1, 2, 3, 4, 7, 0, 0]) }));
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map((id) => packsAt(container, id))).toEqual([0, 1, 2, 3, 4, 7, 0, 0]);
+    // A pack taken leaves the pile; one passed on joins the next.
+    rerender(createElement(SeatBar, { view: queued(seatView(0, 'left'), [0, 0, 3, 3, 4, 7, 0, 0]) }));
+    expect([1, 2].map((id) => packsAt(container, id))).toEqual([0, 3]);
+    expect(screen.getByTestId('seat-5').hasAttribute('data-swamped'), 'more than four is the seat buried').toBe(true);
+    expect(screen.getByTestId('seat-4').hasAttribute('data-swamped')).toBe(false);
+  });
+
+  it('draws no pack before the table is measured: it would only slide in from the wrong place', () => {
+    const { container } = render(createElement(SeatBar, { view: queued(seatView(0, 'left'), [3, 3, 3, 3, 3, 3, 3, 3]) }));
+    expect(container.querySelectorAll('.packq__pack')).toHaveLength(0);
+  });
+
+  it('gives each of the first four packs its own place, and the rest the seat', () => {
+    const pile: Pile = [
+      { x: 2, y: 0 },
+      { x: 3.75, y: 0 },
+      { x: 2, y: 2 },
+      { x: 3.75, y: 2 },
+    ];
+    for (let depth = 1; depth <= IN_VIEW; depth++) {
+      const places = Array.from({ length: depth }, (_, i) => packSlot(i, depth, pile)).map((p) => `${p.x},${p.y}`);
+      expect(new Set(places).size, `depth ${depth}`).toBe(depth);
+      expect(places).toEqual(pile.slice(0, depth).map((p) => `${p.x},${p.y}`));
+    }
+    // From the fifth on, on the face itself (within a face's half width of its centre).
+    for (const i of [4, 5, 6]) expect(Math.hypot(packSlot(i, 7, pile).x, packSlot(i, 7, pile).y)).toBeLessThan(3);
   });
 });
