@@ -76,6 +76,11 @@ describe('the sprite URL', () => {
     }
   });
 
+  it('reads no origin when there is nothing to draw, so a face renders where there is no page', () => {
+    expect(globalThis.location).toBeUndefined();
+    expect(avatarSquareUrl(undefined)).toBeNull();
+  });
+
   it('escapes the id, so a value from another app’s storage cannot build a path', () => {
     expect(avatarSquareUrl('../../secret', ORIGIN)).toBe(`${ORIGIN}/media/sprites/square_..%2F..%2Fsecret.png`);
   });

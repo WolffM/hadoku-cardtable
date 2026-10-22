@@ -271,9 +271,10 @@ import { DeckEditor, type ReadyState } from '../../deck/DeckEditor.tsx';
 import { deckStoreClient } from '../../deck/deckStore.ts';
 import { dckTextOf } from '../../draft/deckFromPool.ts';
 import { libraryDeckText, namedCardPool } from '../../deck/build.ts';
-import { avatarSquareUrl } from '../../room/avatar.ts';
+import { Avatar } from '../../components/Avatar.tsx';
 import { drawnCards, PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
-import { Board, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
+import { Board, POISON_TO_LOSE, poisonOf, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
+import { CheckMark } from '../marks.tsx';
 import { lookupFromState, plainRulesText, promptLines, promptText, selectionText, withAbilityLabels } from '../prompts/lookup.ts';
 import { RulesText } from '../prompts/RulesText.tsx';
 import { ManaPip } from '../../components/ManaPip.tsx';
@@ -1693,8 +1694,7 @@ const BOARD_REASON: Readonly<Record<GameEndReason, string>> = {
 /** Why THIS player lost, read off facts already on their `BoardPlayer`. Exported for its own test. */
 export function reasonLost(player: BoardPlayer): GameEndReason {
   if (player.life <= 0) return 'life';
-  const poison = (player.counters ?? []).find((c) => c.name === 'Poison');
-  if (poison !== undefined && poison.count >= 10) return 'poison';
+  if (poisonOf(player) >= POISON_TO_LOSE) return 'poison';
   if (player.libraryCount === 0) return 'decking';
   return 'concede';
 }
@@ -1729,31 +1729,19 @@ const OUTCOME_TITLE: Readonly<Record<GameOutcome, string>> = {
 /**
  * A player's face, for the result screen. Not `Board.tsx`'s `PlayerFace`
  * (unexported, and drawn for a different job — a clickable target with a life
- * badge): this reuses only the FACT lane A's own face draws from —
- * `avatarSquareUrl(player.avatarId)`, the one accessor, no new image host —
- * and draws its own, smaller mark so this file's styling stays in `live.css`
- * and does not lean on `board.css`'s private class names.
+ * badge): the same `Avatar`, sized by `live.css`.
  *
  * `rematch`: this player has pressed Rematch — a check over their face.
  */
 function ResultFace({ player, rematch }: { player: BoardPlayer; rematch: boolean }) {
-  const avatar = player.avatarId === undefined ? null : avatarSquareUrl(player.avatarId);
   return (
     <div className="live__result-face" data-testid="game-result-face" data-you={player.isViewer} data-lost={player.hasLost || undefined}>
       <span className="live__result-portrait">
-        {avatar === null ? (
-          <svg className="live__result-avatar" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-            <circle cx="24" cy="19" r="10" />
-            <path d="M8 42a16 16 0 0 1 32 0Z" />
-          </svg>
-        ) : (
-          <img className="live__result-avatar" src={avatar} alt="" />
-        )}
+        <Avatar id={player.avatarId} fallback="mark" className="live__result-avatar" fallbackClassName="live__result-avatar" />
         {rematch && (
-          <svg className="live__result-check" data-testid="game-result-check" viewBox="0 0 24 24" role="img" aria-label="Rematch">
-            <circle cx="12" cy="12" r="11" />
-            <path d="M6.5 12.5l3.5 3.5 7.5-7.5" />
-          </svg>
+          <span className="live__result-check" data-testid="game-result-check" role="img" aria-label="Rematch">
+            <CheckMark className="live__result-tick" />
+          </span>
         )}
       </span>
       <span className="live__result-name">{player.name}</span>

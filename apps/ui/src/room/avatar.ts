@@ -82,11 +82,13 @@ export function watchpartyOrigin(): string {
  * `square_.png`, which is a 404 drawn as a broken image where the caller wanted
  * a fallback. That is the client half of the rule the server states in
  * `room/lobby.ts`'s `avatarIdOf`: an empty string must never become a request.
+ * The origin is read only when there is an id, so a face with none renders
+ * where there is no `location` (`react-dom/server`).
  */
-export function avatarSquareUrl(avatarId: string | null | undefined, origin: string = watchpartyOrigin()): string | null {
+export function avatarSquareUrl(avatarId: string | null | undefined, origin?: string): string | null {
   const id = normalizeAvatarId(avatarId);
   if (id === null) return null;
-  return `${origin.replace(/\/$/, '')}/media/sprites/square_${encodeURIComponent(id)}.png`;
+  return `${(origin ?? watchpartyOrigin()).replace(/\/$/, '')}/media/sprites/square_${encodeURIComponent(id)}.png`;
 }
 
 /** The same two-state reading the server does, so a client cannot send what it would refuse. */

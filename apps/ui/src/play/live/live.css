@@ -1195,22 +1195,20 @@
   position: absolute;
   right: -4px;
   bottom: -4px;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
   width: 22px;
   height: 22px;
+  border: 2px solid var(--bg-card);
+  border-radius: 50%;
+  background: var(--success);
 }
 
-.live__result-check circle {
-  fill: var(--success);
-  stroke: var(--bg-card);
-  stroke-width: 2;
-}
-
-.live__result-check path {
-  fill: none;
-  stroke: var(--bg-card);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.live__result-tick {
+  width: 14px;
+  height: 14px;
+  fill: var(--bg-card);
 }
 
 .live__result-avatar {

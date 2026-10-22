@@ -40,8 +40,7 @@
 import { seatStatus, SEAT_HELD_NOTE } from '../draft/seatStatus.ts';
 import type { DraftView } from '../draft/types.ts';
 import { isWaiting } from '../draft/types.ts';
-import { PlayerMark } from '../play/marks.tsx';
-import { avatarSquareUrl } from '../room/avatar.ts';
+import { Avatar } from './Avatar.tsx';
 import { DraftCounters } from './DraftCounters.tsx';
 import './spectate.css';
 
@@ -119,7 +118,6 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
             const status = seatStatus(seat);
             const held = status === 'held';
             const [x, y] = point(angleOf(at));
-            const face = avatarSquareUrl(seat.avatarId);
             return (
               <li
                 key={seat.id}
@@ -148,8 +146,7 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
                   />
                 )}
                 <span className="seatbar__face">
-                  {/* `alt=""`: the seat's name is right under it and says who this is. */}
-                  {face === null ? <PlayerMark /> : <img src={face} alt="" />}
+                  <Avatar id={seat.avatarId} fallback="mark" />
                 </span>
                 <span className="seatbar__label">
                   {/* Your own seat is named like every other; the lit ring at the bottom marks it as yours. */}

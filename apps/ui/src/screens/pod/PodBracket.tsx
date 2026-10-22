@@ -23,10 +23,9 @@
  * the button is the retry after a refusal, and nothing here navigates on its own.
  */
 
-import { useState } from 'react';
 import type { RoomTable, SeriesPhase } from '@hadoku/shared';
 
-import { avatarSquareUrl } from '../../room/avatar.ts';
+import { Avatar } from '../../components/Avatar.tsx';
 import { routeHash } from '../route.ts';
 import { POD_AI, type PodView } from './wire.ts';
 import './PodBracket.css';
@@ -98,16 +97,7 @@ export interface PodBracketProps {
 
 /** The player's watchparty character, or their initial without one — or when it will not load. */
 function Face({ id, nameOf, avatarOf }: { id: string; nameOf: (id: string) => string; avatarOf: (id: string) => string | null }) {
-  const url = avatarSquareUrl(avatarOf(id));
-  const [failed, setFailed] = useState<string | null>(null);
-  if (url === null || failed === url) {
-    return (
-      <span className="pod-bracket__face pod-bracket__face--none" aria-hidden="true">
-        {nameOf(id).charAt(0).toUpperCase()}
-      </span>
-    );
-  }
-  return <img className="pod-bracket__face" src={url} alt="" width={32} height={32} onError={() => setFailed(url)} />;
+  return <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="pod-bracket__face" fallbackClassName="pod-bracket__face pod-bracket__face--none" width={32} height={32} />;
 }
 
 function Card({ match, live, myMemberId, nameOf, avatarOf, onPlay }: { match: BracketMatch; live: boolean } & Omit<PodBracketProps, 'pod' | 'tables'>) {

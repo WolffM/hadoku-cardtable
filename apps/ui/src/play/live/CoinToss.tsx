@@ -13,7 +13,7 @@
  */
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import { avatarSquareUrl } from '../../room/avatar.ts';
+import { Avatar } from '../../components/Avatar.tsx';
 
 import './coin-toss.css';
 
@@ -47,17 +47,9 @@ export function useCoinFlipping(at: number | null): boolean {
 
 /** One side of the coin: a player's avatar, or the silhouette when they have none. */
 function CoinFace({ avatarId, side }: { avatarId: string | undefined; side: 'front' | 'back' }) {
-  const avatar = avatarId === undefined ? null : avatarSquareUrl(avatarId);
   return (
     <div className={`coin-toss__face coin-toss__face--${side}`}>
-      {avatar === null ? (
-        <svg className="coin-toss__mark" viewBox="0 0 48 48" focusable="false">
-          <circle cx="24" cy="19" r="10" />
-          <path d="M8 42a16 16 0 0 1 32 0Z" />
-        </svg>
-      ) : (
-        <img className="coin-toss__avatar" src={avatar} alt="" />
-      )}
+      <Avatar id={avatarId} fallback="mark" className="coin-toss__avatar" fallbackClassName="coin-toss__mark" />
     </div>
   );
 }

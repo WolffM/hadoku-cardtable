@@ -10,9 +10,9 @@
  * (`prompts/PromptShell.tsx`'s `promptThumb`). Its look is `card.css`'s
  * `.face__*` rules.
  */
-export function PlayerMark() {
+export function PlayerMark({ className = 'face__art' }: { className?: string | undefined }) {
   return (
-    <svg className="face__art" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+    <svg className={className} viewBox="0 0 48 48" aria-hidden="true" focusable="false">
       <circle className="face__plate" cx="24" cy="24" r="22.5" />
       <circle className="face__brow" cx="24" cy="18" r="7.5" />
       <path className="face__bust" d="M10.5 40.5a13.5 13.5 0 0 1 27 0Z" />

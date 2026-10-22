@@ -392,7 +392,7 @@ import type { TileCard } from '../components/faceCrop.ts';
 import { colorWordToken, ManaPip } from '../components/ManaPip.tsx';
 import { useArtistLookup } from '../draft/artists.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
-import { avatarSquareUrl } from '../room/avatar.ts';
+import { Avatar } from '../components/Avatar.tsx';
 import {
   boardPT,
   hasKeyword,
@@ -420,7 +420,7 @@ import { DEPARTURE_MAX_MS, departuresOf, installDepartures, LEAVING_GAP_ATTR, ty
 import { HiddenCard } from './HiddenCard.tsx';
 import { PileView } from './PileView.tsx';
 import { useCardMenu } from './card-menu/CardMenu.tsx';
-import { CheckMark, PlayerMark } from './marks.tsx';
+import { CheckMark } from './marks.tsx';
 import { Relations } from './Relations.tsx';
 import { cardWidthIn } from './card-size.ts';
 import { liftGhost, type Ghost } from './lift.ts';
@@ -3136,23 +3136,6 @@ function PlayerFace({
   onOpenSettings: ((from: Element) => void) | undefined;
 }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
-  /*
-   * The watchparty character, when the seat has one — wave 28 item 4, the render
-   * half. `avatarSquareUrl` is lane D's one accessor and it answers `null` for
-   * absent, blank and over-long alike, so THIS is the whole fallback: a seat with
-   * no avatar keeps the mark we draw, because a seat with no face is worse than a
-   * generic face.
-   *
-   * Nothing populates `player.avatarId` in production yet and the field says why
-   * (`adapter.ts`). This draws it; the hop that delivers it is a wave of its own.
-   *
-   * No host is written here. The URL comes out of `watchpartyOrigin()`, derived
-   * from the page, so a local e2e stays local — the same rule the art resolver
-   * follows for cards. It is only ASKED for when there is an id to resolve:
-   * `watchpartyOrigin()` reads `globalThis.location`, and this component renders
-   * in `live/parity.test.ts` under `react-dom/server`, where there is none.
-   */
-  const avatar = player.avatarId === undefined ? null : avatarSquareUrl(player.avatarId);
   const emblems = player.emblems ?? [];
   const artistOf = useArtistLookup(emblems.some((e) => e.scryfallId !== undefined));
   /** Who drew an emblem's medallion art, once it can be credited — the medallion shows no art before. */
@@ -3162,12 +3145,8 @@ function PlayerFace({
   const poison = poisonOf(player);
   const mark = (
     <>
-      {avatar === null ? (
-        <PlayerMark />
-      ) : (
-        /* `alt=""`: the seat's name is right beside it and says who this is. */
-        <img className="face__art face__avatar" src={avatar} alt="" data-testid="seat-avatar" />
-      )}
+      {/* The watchparty character, or our mark: a seat with no face is worse than a generic face. */}
+      <Avatar id={player.avatarId} fallback="mark" className="face__art face__avatar" data-testid="seat-avatar" />
       {/*
        * The ring itself: always in the markup, over the avatar's own box, drawn
        * only while `card.css` sees a `data-priority` ancestor. Decorative —
@@ -3227,8 +3206,11 @@ function PlayerFace({
 /** The counter Forge names poison (`CounterEnumType.POISON`), the one player counter drawn on the face rather than the counts line. */
 const POISON = 'Poison';
 
+/** Forge's `GameRules.poisonCountersToLose` for a two-player game. */
+export const POISON_TO_LOSE = 10;
+
 /** How many poison counters the seat has; 0 for none. */
-function poisonOf(player: BoardPlayer): number {
+export function poisonOf(player: BoardPlayer): number {
   return player.counters?.find((c) => c.name === POISON)?.count ?? 0;
 }
 
