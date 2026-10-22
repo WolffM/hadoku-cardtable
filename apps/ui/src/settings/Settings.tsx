@@ -28,6 +28,7 @@ import { Icon } from '@wolffm/themes';
 
 import { usePrefs } from '@wolffm/prefs-client/react';
 
+import { forgetCardWidths } from '../play/card-size.ts';
 import { SettingsPanel } from '../play/live/SettingsPanel.tsx';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { SoundSettings } from './SoundSettings.tsx';
@@ -195,6 +196,8 @@ export function useUiScale(root: () => HTMLElement | null): void {
     const el = root();
     if (el === null) return undefined;
     applyUiScale(el, scale);
+    // Every card width the board kept was measured at the old scale.
+    forgetCardWidths();
     return () => applyUiScale(el, 1);
   }, [root, scale]);
 }
