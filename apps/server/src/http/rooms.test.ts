@@ -26,6 +26,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { DraftPlan, PoolVerdict } from '@hadoku/shared';
 
 import { loadTablesLibrary } from './library.ts';
 
@@ -87,6 +88,8 @@ async function openApp(
 		/** A new room's format is drawn with this; without it every new room opens on `NEWEST_POOL`. */
 		random?: () => number;
 		closed?: (roomId: string, matches: readonly string[]) => void;
+		/** Wave 73 §A: `PUT …/pod/plan`'s verdict. Defaults to always-ok — the plan tests that need a refusal pass their own. */
+		checkPlan?: (plan: DraftPlan) => Promise<PoolVerdict>;
 	} = {},
 ): Promise<Harness> {
 	const log = (entry: Record<string, unknown>): void => {
@@ -103,7 +106,13 @@ async function openApp(
 	app.use(edgeMod.requireMinTier);
 	const api = express.Router();
 	api.use(express.json({ limit: '1mb' }));
-	roomsMod.attachRooms(api, { lobby, log, joinRateLimit: opts.joinRateLimit, closed: opts.closed });
+	roomsMod.attachRooms(api, {
+		lobby,
+		log,
+		joinRateLimit: opts.joinRateLimit,
+		closed: opts.closed,
+		checkPlan: opts.checkPlan ?? (async (plan) => ({ ok: true, cards: plan.rounds.length * 10 })),
+	});
 	app.use('/api', api);
 
 	const server = createServer(app);
@@ -784,6 +793,67 @@ describe('PATCH /api/rooms/:id { format }', () => {
 		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
 		expect(after.format).toBe(NEWEST_POOL);
 		expect(after.members.map((m) => m.ready)).toEqual([true]);
+	});
+});
+
+/* ── the pool choice (wave 73 §A) ─────────────────────────────────────── */
+
+describe('PUT /api/rooms/:id/pod/plan', () => {
+	const PLAN: DraftPlan = {
+		rounds: [
+			{ kind: 'cube', cubeId: 'legacy' },
+			{ kind: 'cube', cubeId: 'legacy' },
+			{ kind: 'cube', cubeId: 'legacy' },
+		],
+	};
+
+	it('is the leader\'s, lobby phase only: a non-leader gets 403, a stranger 404, a set source 400, and the leader\'s choice reads back', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/join`, { as: 'bob' });
+
+		expect((await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'carol', body: { plan: PLAN } })).status).toBe(404);
+		expect((await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'bob', body: { plan: PLAN } })).status).toBe(403);
+
+		const setSource = { rounds: [{ kind: 'set', code: 'ISD', style: 'realistic' }, PLAN.rounds[0], PLAN.rounds[0]] };
+		const setRes = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: setSource } });
+		expect(setRes.status).toBe(400);
+
+		const ok = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: PLAN } });
+		expect(ok.status).toBe(200);
+		expect((ok.json() as import('../room/lobby.ts').RoomView).pod?.plan).toEqual(PLAN);
+		expect((ok.json() as import('../room/lobby.ts').RoomView).pod?.planName).toBe('legacy');
+
+		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
+		expect(after.pod?.plan).toEqual(PLAN);
+	});
+
+	it('a refused verdict is 409 { verdict } and leaves the room\'s plan unchanged', async () => {
+		const refusal: PoolVerdict = { ok: false, unplayable: ['Not A Real Card'], missingText: [] };
+		const h = await openApp(await tempDir(), { checkPlan: async () => refusal });
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		const before = room.pod?.plan;
+
+		const res = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: PLAN } });
+		expect(res.status).toBe(409);
+		expect(res.json()).toEqual({ verdict: refusal });
+
+		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
+		expect(after.pod?.plan).toEqual(before);
+	});
+
+	it('refuses once the draft has started — the pool is fixed', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
+		for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' })).status).toBe(200);
+
+		const res = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: PLAN } });
+		expect(res.status).toBe(409);
 	});
 });
 

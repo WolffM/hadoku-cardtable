@@ -155,7 +155,7 @@ async function bootLobby(): Promise<Lobby> {
 }
 
 async function boot(deps: { rateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } } = {}): Promise<Harness> {
-	const rooms = roomsMod.createDraftRooms({ pool: pool.cards, cube: pool.meta });
+	const rooms = roomsMod.createDraftRooms({ ...roomsMod.singlePoolResolver(pool) });
 	const lobby = await bootLobby();
 	const http = createServer();
 	const io = new SocketIOServer(http, { serveClient: false });

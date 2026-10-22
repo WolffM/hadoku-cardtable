@@ -202,7 +202,7 @@ export type DraftRoom = CoreRoomState<DraftApp, DraftClient>;
 
 export interface DraftParams {
 	seatCount: number;
-	packCount: number;
+	/** `packSize`, not `packCount`: a plan's own `rounds.length` decides how many packs — always 3 (Settled), `DraftPlanSchema`'s own tuple. */
 	packSize: number;
 	/** How long a dropped drafter's seat is held against other people. */
 	reservationTtlMs: number;
@@ -224,7 +224,6 @@ export interface DraftParams {
  */
 export const DEFAULT_PARAMS: DraftParams = {
 	seatCount: 8,
-	packCount: 3,
 	packSize: 15,
 	reservationTtlMs: 120_000,
 	disconnectGraceMs: 0,
@@ -268,13 +267,13 @@ export interface PoolSourceResolver {
  * existed. For tests, and for `apps/ui/src/draft/live.ts`'s bundled pool,
  * which never grows a second source.
  */
-export function singlePoolResolver(cube: { name: string; cards: readonly DraftCard[] }): {
+export function singlePoolResolver(cube: { meta: { name: string }; cards: readonly DraftCard[] }): {
 	resolver: PoolSourceResolver;
 	defaultPlan: DraftPlan;
 } {
 	const source: PoolSource = { kind: 'cube', cubeId: 'default' };
 	return {
-		resolver: { cards: () => cube.cards, name: () => cube.name },
+		resolver: { cards: () => cube.cards, name: () => cube.meta.name },
 		defaultPlan: { rounds: [source, source, source] },
 	};
 }

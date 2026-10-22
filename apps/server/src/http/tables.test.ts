@@ -38,7 +38,7 @@ import {
 	type RoomTable,
 } from '@hadoku/shared';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';
-import { botPoolAcross, createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../room/draftRooms.js';
+import { botPoolAcross, createDraftRooms, joinDraftRoom, singlePoolResolver, stateOf, type DraftRooms } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
 import { isBotSeat } from '@hadoku/draft';
 import { draftPoolId } from '../room/lobby.js';
@@ -481,7 +481,7 @@ afterEach(async () => {
 async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): Promise<Harness> {
 	const cube = loadPool(CUBE_FILE);
 	if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
-	const rooms = createDraftRooms({ pool: cube.pool.cards, cube: cube.pool.meta, now: () => 1_700_000_000_000 });
+	const rooms = createDraftRooms({ ...singlePoolResolver(cube.pool), now: () => 1_700_000_000_000 });
 
 	const { factory, hosts } = replayFactory();
 	const specs: MatchSpec[] = [];

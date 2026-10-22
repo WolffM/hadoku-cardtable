@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from '../http/library.ts';
-import { createDraftRooms, stateOf } from './draftRooms.ts';
+import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
 import type { Tournament } from './tournaments.ts';
 import { loadPool } from './pool.ts';
 import { POD_SEATS } from '@hadoku/shared';
@@ -1851,6 +1851,7 @@ function fakeChecks(opts: { draftComplete?: boolean; built?: Set<string> } = {})
 		built: (_podId, memberId) => built.has(memberId),
 		seatState: (_podId, memberId, tableId) => ({ seatedFor: memberId, table: tableId }),
 		holdsSeriesDeck: () => true,
+		planNameOf: (source) => (source.kind === 'cube' ? source.cubeId : `${source.code} (${source.style})`),
 	};
 }
 
@@ -2257,7 +2258,7 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 		// deals to.
 		const load = loadPool(CUBE_FILE);
 		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
-		const draftRooms = createDraftRooms({ pool: load.pool.cards, cube: load.pool.meta, now: () => 1_700_000_000_000 });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
 		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
 		const room = draftRooms.open(id);
 		expect(
@@ -2377,6 +2378,7 @@ describe('the AI seats play as the room’s characters', () => {
 			seats: 8,
 			humans: [{ participantId: ALICE.id, displayName: ALICE.name, seat: 0, ...(worn === undefined ? {} : { avatarId: worn }) }],
 			bots: names.map((name, i) => ({ name, avatarId: avatars[i] })),
+			plan: DEFAULT_PLAN,
 		});
 		// Across the table from the one human (draft seat 4, the fourth bot): who the AI plays as.
 		expect(lobby.get(id)!.ai.name).toBe(names[3]);
@@ -2446,7 +2448,7 @@ describe('closed pod seats', () => {
 
 		const load = loadPool(CUBE_FILE);
 		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
-		const draftRooms = createDraftRooms({ pool: load.pool.cards, cube: load.pool.meta, now: () => 1_700_000_000_000 });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
 		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
 		const room = draftRooms.open(id);
 		expect(room.seats.capacity ?? room.seats.seats.length).toBe(4);
@@ -2482,7 +2484,7 @@ describe('the pod seat is the draft table', () => {
 
 		const load = loadPool(CUBE_FILE);
 		if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
-		const draftRooms = createDraftRooms({ pool: load.pool.cards, cube: load.pool.meta, now: () => 1_700_000_000_000 });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(load.pool), now: () => 1_700_000_000_000 });
 		draftRooms.setPodLookup((podId) => lobby.podDraft(podId));
 		const room = draftRooms.open(id);
 		const dealt = stateOf(room);

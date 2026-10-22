@@ -46,9 +46,11 @@ import { pick as enginePick } from '@hadoku/draft';
 import {
 	createDraftRooms,
 	DEFAULT_PARAMS,
+	DEFAULT_PLAN,
 	joinDraftRoom,
 	leaveDraftRoom,
 	releaseSeat,
+	singlePoolResolver,
 	stateOf,
 	viewForClient,
 	viewForParticipant,
@@ -77,9 +79,9 @@ beforeAll(() => {
 	pool = load.pool;
 });
 
-/** An eight-seat pod dealt to these players, its bots unnamed. */
+/** An eight-seat pod dealt to these players, its bots unnamed, on the default plan. */
 function podDeal(humans: PodDeal['humans']): PodDeal {
-	return { seats: 8, humans, bots: [] };
+	return { seats: 8, humans, bots: [], plan: DEFAULT_PLAN };
 }
 
 function rooms(
@@ -90,8 +92,7 @@ function rooms(
 	} = {},
 ): DraftRooms {
 	return createDraftRooms({
-		pool: pool.cards,
-		cube: pool.meta,
+		...singlePoolResolver(pool),
 		params: {
 			reservationTtlMs: overrides.reservationTtlMs ?? 120_000,
 			disconnectGraceMs: overrides.disconnectGraceMs ?? 0,

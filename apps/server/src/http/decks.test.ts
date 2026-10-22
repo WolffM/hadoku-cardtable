@@ -18,7 +18,7 @@ import type { DraftCard, PodView } from '@hadoku/shared';
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 
 import { loadPool, type CubePool } from '../room/pool.ts';
-import { createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../room/draftRooms.ts';
+import { createDraftRooms, joinDraftRoom, singlePoolResolver, stateOf, type DraftRooms } from '../room/draftRooms.ts';
 import { identityFromHeaders } from '../room/identity.ts';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
@@ -99,7 +99,7 @@ describe('/api/decks', () => {
 	it('lists only the caller’s finished drafts, named after the room, with the build the pod saved', async () => {
 		const storeDir = await mkdtemp(join(tmpdir(), 'cardtable-decks-test-'));
 		dirs.push(storeDir);
-		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir });
 		const lobby: Lobby = new Map([
 			['pod-done', { name: 'Friday cube', pod: pod('rounds') }],
 			['pod-drafting', { name: 'Still picking', pod: null }],
@@ -125,7 +125,7 @@ describe('/api/decks', () => {
 	it('refuses a rename or a delete while the tournament is on, and allows both once it is done — and they survive a restart', async () => {
 		const storeDir = await mkdtemp(join(tmpdir(), 'cardtable-decks-test-'));
 		dirs.push(storeDir);
-		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir });
 		const lobby: Lobby = new Map([['pod-a', { name: 'Pod A', pod: pod('rounds') }]]);
 		seatIn(draftRooms, 'pod-a', 'alice', true);
 		seatIn(draftRooms, 'pod-gone', 'alice', true);
@@ -145,7 +145,7 @@ describe('/api/decks', () => {
 		// A pod whose room is gone has concluded too.
 		expect((await call(base, 'DELETE', '/api/decks/pod-gone')).status).toBe(204);
 
-		const restarted = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir });
+		const restarted = createDraftRooms({ ...singlePoolResolver(cube), storeDir });
 		const again = await openApp(restarted, lobby);
 		expect(decksOf((await call(again, 'GET', '/api/decks')).json).map((d) => [d.id, d.name, d.concluded])).toEqual([['pod-a', 'Blue tempo', true]]);
 	});

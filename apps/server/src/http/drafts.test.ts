@@ -29,7 +29,7 @@ import type { DraftCard } from '@hadoku/shared';
 
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import { loadPool, type CubePool } from '../room/pool.ts';
-import { createDraftRooms, joinDraftRoom, releaseSeat, stateOf, type DraftRoom, type DraftRooms } from '../room/draftRooms.ts';
+import { createDraftRooms, joinDraftRoom, releaseSeat, singlePoolResolver, stateOf, type DraftRoom, type DraftRooms } from '../room/draftRooms.ts';
 import { identityFromHeaders } from '../room/identity.ts';
 import { loadTablesLibrary } from './library.ts';
 
@@ -157,14 +157,14 @@ function legalDeckFor(draftId: string, pool: DraftCard[]): string {
 
 describe('GET /api/drafts/:podId/mine', () => {
 	it('404s a caller who drafted no seat in that pod', async () => {
-		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: null });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir: null });
 		const h = await openApp(draftRooms);
 		const res = await call(h, 'GET', '/api/drafts/no-such-pod/mine', { as: 'alice' });
 		expect(res.status).toBe(404);
 	});
 
 	it("answers the seated drafter's own pool, deck null before the first save", async () => {
-		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: null });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir: null });
 		finishPodFor(draftRooms, 'pod-a', 'alice', 'sock-a');
 		const h = await openApp(draftRooms);
 		const res = await call(h, 'GET', '/api/drafts/pod-a/mine', { as: 'alice' });
@@ -174,7 +174,7 @@ describe('GET /api/drafts/:podId/mine', () => {
 	});
 
 	it('mid-draft, an unseated participant is still a spectator — rule 1 only applies once the pod is DONE', async () => {
-		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: null });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir: null });
 		const room = draftRooms.open('pod-b');
 		const alice = identityFromHeaders(edgeHeaders('alice'), 'sock-a');
 		joinDraftRoom(room, 'sock-a', alice, 'friend');
@@ -189,7 +189,7 @@ describe('GET /api/drafts/:podId/mine', () => {
 
 describe('PUT /api/drafts/:podId/deck', () => {
 	it('saves a legal build and echoes the .dck text back', async () => {
-		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: null });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir: null });
 		const { pool } = finishPodFor(draftRooms, 'pod-c', 'alice', 'sock-a');
 		const h = await openApp(draftRooms);
 		const dck = legalDeckFor('pod-c', pool);
@@ -202,7 +202,7 @@ describe('PUT /api/drafts/:podId/deck', () => {
 	});
 
 	it('saves an unfinished build — 24 cards of the pool — and GET …/mine reads it back', async () => {
-		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: null });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir: null });
 		const { pool } = finishPodFor(draftRooms, 'pod-h', 'alice', 'sock-a');
 		const h = await openApp(draftRooms);
 		let deck = deckFromPool('pod-h', pool);
@@ -219,7 +219,7 @@ describe('PUT /api/drafts/:podId/deck', () => {
 	});
 
 	it('400s with issues — never saves — a build that plays a card outside the pool', async () => {
-		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: null });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir: null });
 		finishPodFor(draftRooms, 'pod-d', 'alice', 'sock-a');
 		const h = await openApp(draftRooms);
 		const dck = '[metadata]\nName=Not drafted\n[main]\n40 Plains\n4 Black Lotus\n';
@@ -230,7 +230,7 @@ describe('PUT /api/drafts/:podId/deck', () => {
 	});
 
 	it('404s a caller with no seat, same as GET', async () => {
-		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: null });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir: null });
 		const h = await openApp(draftRooms);
 		const put = await call(h, 'PUT', '/api/drafts/no-such-pod/deck', { as: 'alice', body: { dck: '[metadata]\n' } });
 		expect(put.status).toBe(404);
@@ -254,8 +254,7 @@ describe('a finished pod survives leave, hold-expiry and a restart', () => {
 	it('GET …/mine and the table gate both still find the pool', async () => {
 		const dir = await tempDir();
 		const draftRoomsA = createDraftRooms({
-			pool: cube.cards,
-			cube: cube.meta,
+			...singlePoolResolver(cube),
 			params: { reservationTtlMs: 20 },
 			storeDir: dir,
 		});
@@ -274,7 +273,7 @@ describe('a finished pod survives leave, hold-expiry and a restart', () => {
 
 		// The store restarts: a brand new `DraftRooms` over the SAME directory,
 		// never told about `pod-e` except by what it finds on disk.
-		const draftRoomsB = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: dir });
+		const draftRoomsB = createDraftRooms({ ...singlePoolResolver(cube), storeDir: dir });
 		expect(draftRoomsB.find('pod-e')).toBeDefined();
 		expect(draftRoomsB.find('pod-e')).not.toBe(roomA);
 
@@ -301,7 +300,7 @@ describe('a finished pod survives leave, hold-expiry and a restart', () => {
 	});
 
 	it('a seat whose picks are all made is owned before the rest of the pod finishes', async () => {
-		const draftRooms = createDraftRooms({ pool: cube.cards, cube: cube.meta, params: { reservationTtlMs: 20 }, storeDir: null });
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), params: { reservationTtlMs: 20 }, storeDir: null });
 		const { room, seat, pool } = finishPodFor(draftRooms, 'pod-h', 'alice', 'sock-a');
 		const state = stateOf(room);
 		state.status = 'drafting';
@@ -329,10 +328,10 @@ describe('a finished pod survives leave, hold-expiry and a restart', () => {
 
 	it('a seat nobody drafted stays unowned — bob was never seated in pod-e', async () => {
 		const dir = await tempDir();
-		const draftRoomsA = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: dir });
+		const draftRoomsA = createDraftRooms({ ...singlePoolResolver(cube), storeDir: dir });
 		finishPodFor(draftRoomsA, 'pod-f', 'alice', 'sock-a');
 
-		const draftRoomsB = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: dir });
+		const draftRoomsB = createDraftRooms({ ...singlePoolResolver(cube), storeDir: dir });
 		const h = await openApp(draftRoomsB);
 		const res = await call(h, 'GET', '/api/drafts/pod-f/mine', { as: 'bob' });
 		expect(res.status).toBe(404);
@@ -355,9 +354,11 @@ describe('the pick that completes a pod is persisted by itself', () => {
 	it('GET …/mine finds the pool right after the completing pick — no leave, no save', async () => {
 		const dir = await tempDir();
 		const draftRoomsA = createDraftRooms({
-			pool: cube.cards,
-			cube: cube.meta,
-			params: { seatCount: 2, packCount: 1, packSize: 3 },
+			...singlePoolResolver(cube),
+			// `packCount` is gone from `DraftParams`: a plan's own `rounds.length`
+			// (always 3, Settled) decides it now. The loop below drives picks
+			// until `status` flips regardless of how many rounds that takes.
+			params: { seatCount: 2, packSize: 3 },
 			storeDir: dir,
 		});
 		const room = draftRoomsA.open('pod-g');
@@ -386,7 +387,7 @@ describe('the pick that completes a pod is persisted by itself', () => {
 		// Nothing else touches `pod-g` after the completing pick: no
 		// `releaseSeat`, no `saveBuiltDeck` — persistence has to come from the
 		// `state` assignment above, or not at all.
-		const draftRoomsB = createDraftRooms({ pool: cube.cards, cube: cube.meta, storeDir: dir });
+		const draftRoomsB = createDraftRooms({ ...singlePoolResolver(cube), storeDir: dir });
 		const h = await openApp(draftRoomsB);
 		const mine = await call(h, 'GET', '/api/drafts/pod-g/mine', { as: 'alice' });
 		expect(mine.status).toBe(200);
