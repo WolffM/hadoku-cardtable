@@ -171,7 +171,7 @@ describe('the draft lobby', () => {
 
     render(createElement(DraftLobby, { ...baseProps, pod, members: [member('u-alice', 'Alice', true), member('u-bob', 'Bob')] }));
 
-    expect(screen.getByTestId('pod-seat-0').textContent).toContain('Alice (you)');
+    expect(screen.getByTestId('pod-seat-0').querySelector('.pod-seats__label')?.textContent).toBe('Alice');
     expect(screen.getByTestId('pod-seat-0-ready').getAttribute('data-state')).toBe('yes');
     expect(screen.getAllByTestId('pod-spectator').map((r) => r.dataset['member'])).toEqual(['u-bob']);
     expect(screen.getByTestId('pod-spectators').querySelector('button')).toBeNull();

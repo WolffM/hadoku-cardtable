@@ -28,8 +28,8 @@ export function PodSpectators({ pod, members, myId, leaderId }: PodSpectatorsPro
   return (
     <p className="pod-spectators" data-testid="pod-spectators">
       {spectators.map((member) => (
-        <span key={member.id} className="pod-spectators__name" data-testid="pod-spectator" data-member={member.id}>
-          {member.id === myId ? `${member.name} (you)` : member.name}
+        <span key={member.id} className="pod-spectators__name" data-testid="pod-spectator" data-member={member.id} data-mine={member.id === myId ? '' : undefined}>
+          {member.name}
           {member.id === leaderId && leaderId !== '' && (
             <svg className="tables__crown" viewBox="0 0 12 12" role="img" aria-label="Room owner">
               <title>Room owner</title>

@@ -112,8 +112,8 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
           return (
             <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-ai="">
               <span className="pod-seats__avatar pod-seats__avatar--ai">
-                {/* No AI persona avatar exists yet (`podAi` carries no id) — the mark is the fallback by design, not a stand-in for one. */}
-                <Avatar id={undefined} fallback="mark" fallbackClassName="pod-seats__avatar-fallback" />
+                {/* The seat's own character (`PodMember.avatarId`); the mark only for a server that sends none. */}
+                <Avatar id={occupant.avatarId} fallback="mark" className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
               </span>
               <span className="pod-seats__label">{occupant.name}</span>
               <span className="pod-seats__actions">
@@ -146,7 +146,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
                 </svg>
               )}
             </span>
-            <span className="pod-seats__label">{mine ? `${occupant.name} (you)` : occupant.name}</span>
+            <span className="pod-seats__label">{occupant.name}</span>
             <StatusPill testId={`pod-seat-${seat}-ready`} state={ready ? 'yes' : 'no'} mark={ready ? 'tick' : 'ring'} label={ready ? 'ready' : 'not ready'} />
             {mine && (
               <span className="pod-seats__actions">

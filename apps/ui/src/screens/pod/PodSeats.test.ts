@@ -86,7 +86,8 @@ describe('the pod seat grid', () => {
     expect(screen.getAllByTestId('pod-seat-sit')).toHaveLength(POD_SEATS - 1);
   });
 
-  it('marks my own seat "(you)", with a Stand button — and nobody else’s', () => {
+  // The operator, 2026-10-22: "'Hadoku (you)' i dont need you written next to my name".
+  it('gives my own seat a Stand button and nobody else’s, with no "(you)" beside my name', () => {
     const seats = emptySeats();
     seats[0] = { memberId: 'u-me', name: 'Me' };
     seats[1] = { memberId: 'u-other', name: 'Other' };
@@ -103,9 +104,29 @@ describe('the pod seat grid', () => {
         onClose: () => undefined,
       }),
     );
-    expect(screen.getByTestId('pod-seat-0').textContent).toContain('Me (you)');
-    expect(screen.getByTestId('pod-seat-1').textContent).not.toContain('(you)');
+    expect(screen.getByTestId('pod-seat-0').querySelector('.pod-seats__label')?.textContent).toBe('Me');
+    expect(screen.getByTestId('pod-seat-0').contains(screen.getByTestId('pod-seat-stand'))).toBe(true);
     expect(screen.getAllByTestId('pod-seat-stand')).toHaveLength(1);
+  });
+
+  // The operator, 2026-10-22: "adding AI to sit at the table isn't loading their avatar picutres".
+  it('draws an AI seat with its own character’s picture', () => {
+    const seats = emptySeats();
+    seats[1] = { memberId: POD_AI, name: 'Sage', avatarId: 'sage' };
+    render(
+      createElement(PodSeats, {
+        seats,
+        myMemberId: 'u-me',
+        leaderId: '',
+        readyOf: () => false,
+        avatarIdOf: () => undefined,
+        onSit: () => undefined,
+        onStand: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
+      }),
+    );
+    expect(screen.getByTestId('pod-seat-1').querySelector('img')?.getAttribute('src')).toMatch(/sage/);
   });
 
   it('crowns the leader’s seat, wherever it is', () => {
