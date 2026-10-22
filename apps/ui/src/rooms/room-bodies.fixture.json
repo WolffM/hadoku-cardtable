@@ -1,0 +1,153 @@
+{
+  "constructed": {
+    "id": "r-681aba3d53ef",
+    "name": "Kitchen table",
+    "creator": "fk:a9d95a027ac540c0",
+    "leader": "fk:a9d95a027ac540c0",
+    "gameType": "constructed-1v1",
+    "format": "2025-06-30",
+    "settings": {
+      "handSmoothing": true
+    },
+    "mode": "classic",
+    "modeOptions": {},
+    "clientMode": "builtin",
+    "locked": false,
+    "members": [
+      {
+        "id": "fk:a9d95a027ac540c0",
+        "name": "user-alice",
+        "joinedAt": "2026-10-22T05:15:19.473Z",
+        "ready": false,
+        "avatarId": "sage"
+      },
+      {
+        "id": "fk:f35cb5421593c7d5",
+        "name": "user-bob",
+        "joinedAt": "2026-10-22T05:15:19.485Z",
+        "ready": false,
+        "avatarId": "herald"
+      }
+    ],
+    "tables": [
+      {
+        "id": "t-d11d02eb",
+        "players": [],
+        "matchId": null,
+        "series": {
+          "length": 1,
+          "wins": [
+            0,
+            0
+          ],
+          "games": [],
+          "phase": "seating"
+        }
+      }
+    ],
+    "matchId": null,
+    "draftStartedAt": null,
+    "pod": null,
+    "ai": {
+      "name": "Cleric",
+      "avatarId": "cleric"
+    },
+    "createdAt": "2026-10-22T05:15:19.473Z",
+    "you": {
+      "id": "fk:a9d95a027ac540c0",
+      "leader": true,
+      "ready": false
+    }
+  },
+  "draft": {
+    "id": "r-d3791c2335ba",
+    "name": "Cube night",
+    "creator": "fk:a9d95a027ac540c0",
+    "leader": "fk:a9d95a027ac540c0",
+    "gameType": "draft",
+    "format": "2025-06-30",
+    "settings": {
+      "handSmoothing": true
+    },
+    "mode": null,
+    "modeOptions": null,
+    "clientMode": "builtin",
+    "locked": true,
+    "members": [
+      {
+        "id": "fk:a9d95a027ac540c0",
+        "name": "user-alice",
+        "joinedAt": "2026-10-22T05:15:19.502Z",
+        "ready": false,
+        "avatarId": "sage"
+      }
+    ],
+    "tables": [
+      {
+        "id": "t-1dc70dea",
+        "players": [],
+        "matchId": null,
+        "series": {
+          "length": 3,
+          "wins": [
+            0,
+            0
+          ],
+          "games": [],
+          "phase": "seating"
+        }
+      }
+    ],
+    "matchId": null,
+    "draftStartedAt": null,
+    "pod": {
+      "phase": "lobby",
+      "seats": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "round": 0,
+      "rounds": 0,
+      "results": [],
+      "standings": [],
+      "pairings": [],
+      "bye": null,
+      "drafters": [],
+      "built": [],
+      "plan": {
+        "rounds": [
+          {
+            "kind": "cube",
+            "cubeId": "mtgo-vintage-cube-2025-12"
+          },
+          {
+            "kind": "cube",
+            "cubeId": "mtgo-vintage-cube-2025-12"
+          },
+          {
+            "kind": "cube",
+            "cubeId": "mtgo-vintage-cube-2025-12"
+          }
+        ]
+      },
+      "planName": "mtgo-vintage-cube-2025-12",
+      "verdict": null
+    },
+    "ai": {
+      "name": "Herald",
+      "avatarId": "herald"
+    },
+    "createdAt": "2026-10-22T05:15:19.502Z",
+    "you": {
+      "id": "fk:a9d95a027ac540c0",
+      "leader": true,
+      "ready": false
+    }
+  }
+}

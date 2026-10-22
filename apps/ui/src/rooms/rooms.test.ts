@@ -34,6 +34,7 @@ import {
   type RoomView,
 } from './api.ts';
 import type { FeedTarget, RoomFeed } from './feed.ts';
+import SERVER_BODIES from './room-bodies.fixture.json';
 
 afterEach(() => {
   cleanup();
@@ -258,6 +259,15 @@ describe('the list', () => {
     expect(parseRoomView({ ...OPEN, locked: 'yes' })).toBeNull();
     expect(parseRoomView({ ...OPEN, id: 'Not An Id!' })).toBeNull();
     expect(parseRoomView(OPEN)).toEqual(OPEN);
+  });
+
+  // Captured from `apps/server/src/http/rooms.test.ts`'s harness: a constructed
+  // room with two members and a mode, and a locked draft room with its pod.
+  it('reads the server’s own GET /api/rooms/:id bodies as themselves, less the AI it does not draw', () => {
+    for (const [kind, body] of Object.entries(SERVER_BODIES)) {
+      const { ai: _ai, ...view } = body;
+      expect(parseRoomView(body), kind).toStrictEqual(view);
+    }
   });
 });
 
