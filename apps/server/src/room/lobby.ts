@@ -83,6 +83,7 @@ import {
 	PoolVerdictSchema,
 	ROOM_ID_RE,
 	RoomModeSchema,
+	RoomSettingsSchema,
 	SeriesPhaseSchema,
 	type ClientMode,
 	type ConstructedMode,
@@ -325,23 +326,48 @@ type SetGameTypeResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
 
-/** `setFormat`'s refusals, plus a draft room (which has no mode). */
+/**
+ * `setFormat`'s refusals, plus a draft room (which has no mode) and
+ * `tournament-mode-unsupported` (`TOURNAMENT_UNSUPPORTED_MODES`'s own doc).
+ */
 type SetModeResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'mode-locked' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'mode-locked' | 'tournament-mode-unsupported' };
 
 /** Deliberately the same refusals as `SetGameTypeResult`: one leader, one shape. */
 type SetFormatResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
 
+/**
+ * A tournament pod and a Gauntlet cannot combine yet: `room.gauntlet` is one
+ * `GauntletState` per ROOM (`RoomRecord.gauntlet`'s own doc), but a
+ * tournament round can pair more than one Gauntlet table at once — the
+ * second table's Ready would stomp the first's state. `setMode`/`setSettings`
+ * both refuse the combination outright (`tournament-mode-unsupported`) until
+ * that storage is per-table — a follow-up item, not guessed at here.
+ */
+const TOURNAMENT_UNSUPPORTED_MODES: readonly ConstructedMode[] = ['gauntlet'];
+
+/** Whether `mode` could not carry a tournament today (`TOURNAMENT_UNSUPPORTED_MODES`'s own doc). */
+function tournamentUnsupported(mode: ConstructedMode | null): boolean {
+	return mode !== null && TOURNAMENT_UNSUPPORTED_MODES.includes(mode);
+}
+
 /** Every setting has a default, so a room stored before a setting existed reads back on it without a migration. */
 const SETTING_KEYS = Object.keys(DEFAULT_ROOM_SETTINGS) as (keyof RoomSettings)[];
 /** Settings a room stored before they were retired: read and dropped, so the room still parses. */
 const RETIRED_SETTING_KEYS = ['matchLength', 'sideboarding'];
 
-/** The same three refusals as `SetFormatResult`: one leader, one shape. */
-type SetSettingsResult = SetFormatResult;
+/**
+ * `SetFormatResult`'s three refusals (one leader, one shape), plus
+ * `tournament-mode-unsupported` (`TOURNAMENT_UNSUPPORTED_MODES`'s own doc) —
+ * this is the one route that can turn `tournament` on, so it is the one
+ * that has to refuse it for a mode that cannot carry it yet.
+ */
+type SetSettingsResult =
+	| { ok: true; room: RoomView }
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' | 'tournament-mode-unsupported' };
 
 type AddTableResult = | { ok: true; room: RoomView; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
 
@@ -401,6 +427,61 @@ type PlayPodResult =
 export const POD_AI = 'ai';
 
 /**
+ * A tournament pod's OWN AI entrant, one per AI seat (operator, 2026-10-22:
+ * *"AI can sit in the tournament, but we can also allow byes"*) — distinct
+ * from `POD_AI`, a draft pod's single shared bot, because a tournament can
+ * seat several AI at once and each needs its own identity to pair and stand
+ * separately. `${AI_ENTRANT_PREFIX}<seat>` so two different AI seats never
+ * collide and an entrant id is never mistaken for a member's (`ROOM_ID_RE`'s
+ * member ids never contain `:`).
+ */
+const AI_ENTRANT_PREFIX = 'ai:';
+
+/** The entrant id a tournament pod's AI seat `seat` pairs and stands under. */
+function aiEntrantId(seat: number): string {
+	return `${AI_ENTRANT_PREFIX}${seat}`;
+}
+
+/** Whether `id` is a tournament pod's own AI entrant (never a member id, which never contains `:`). */
+export function isAiEntrant(id: string): boolean {
+	return id.startsWith(AI_ENTRANT_PREFIX);
+}
+
+/** The pod seat an AI entrant id names — the inverse of `aiEntrantId`. */
+function aiEntrantSeat(id: string): number {
+	return Number(id.slice(AI_ENTRANT_PREFIX.length));
+}
+
+/**
+ * A Constructed room playing a Swiss pod of its own mode
+ * (`docs/planning/tournament-mode-plan.md`): `settings.tournament` on. A
+ * `draft` room is never this, even though it uses the same pod machinery —
+ * `usesPod` is the question "does this room's lobby use `podSeats`/`pod` at
+ * all", which is true for both.
+ */
+function isTournamentRoom(room: Pick<RoomRecord, 'gameType' | 'settings'>): boolean {
+	return room.gameType === 'constructed-1v1' && room.settings.tournament;
+}
+
+/** Whether this room's lobby seats through `podSeats` and plays its rounds through `pod` — a `draft` room, or a constructed tournament. */
+function usesPod(room: Pick<RoomRecord, 'gameType' | 'settings'>): boolean {
+	return room.gameType === 'draft' || isTournamentRoom(room);
+}
+
+/**
+ * `room` as `series.ts`'s `seriesFormatOf`/`newSeries` read it. `RoomRecord`
+ * has no top-level `tournament` field (it rides under `settings`), so a
+ * `RoomRecord` passed directly where a `SeriesRoom` is wanted reads back
+ * `tournament: undefined` — never a type error (the field is optional), but
+ * always the wrong answer for a tournament table. Every call that answers a
+ * REAL table's format must go through this, not hand `room` straight to
+ * `series.ts`.
+ */
+function seriesRoomOf(room: Pick<RoomRecord, 'gameType' | 'mode' | 'settings'>): SeriesRoom {
+	return { gameType: room.gameType, mode: room.mode, tournament: isTournamentRoom(room) };
+}
+
+/**
  * A pod seat its owner closed (the operator, 2026-10-19: *"closing seats changes
  * how many people are in the tournament and draft"*): no one sits there, and the
  * draft deals one seat fewer.
@@ -451,9 +532,65 @@ function podTable(room: RoomRecord): PodPlace[] {
 	});
 }
 
-/** These members as pairing players, each at their place at the pod's table. */
-function podPlayers(room: RoomRecord, humans: readonly string[]): PodPlayer[] {
-	return podTable(room).flatMap((place, podSeat) => (place.kind === 'human' && humans.includes(place.id) ? [{ id: place.id, podSeat }] : []));
+/**
+ * A TOURNAMENT pod's own place at the table: a human, an EXPLICITLY AI seat
+ * (the AI button), or an untouched EMPTY one. Unlike `podTable` (a draft
+ * pod's own compaction, where an untouched seat IS the AI — a draft always
+ * deals every seat, empty ones to bots), a tournament's lock never invents an
+ * entrant nobody named: an empty seat plays no part in it at all. Closed
+ * seats are dropped, same as `podTable`, and for the same reason — this is
+ * the one order "across the table" pairing reads (`podTable`'s own doc).
+ */
+type TournamentPlace = { kind: 'human'; id: string } | { kind: 'ai' } | { kind: 'empty' };
+
+function tournamentTable(room: RoomRecord): TournamentPlace[] {
+	return room.podSeats.flatMap((id): TournamentPlace[] => {
+		if (id === POD_CLOSED) return [];
+		if (id === POD_AI) return [{ kind: 'ai' }];
+		if (id === null) return [{ kind: 'empty' }];
+		return [{ kind: 'human', id }];
+	});
+}
+
+/**
+ * These entrants as pairing players, each at their place at the pod's table.
+ * A DRAFT pod's `entrants` are its humans (an AI seat's derived id never
+ * matches one, so `podTable`'s own compaction — empty seats included as
+ * bots — is unchanged from before this file knew about tournaments). A
+ * TOURNAMENT pod's `entrants` are `podEntrants`'s own list, read against the
+ * SAME compaction (`tournamentTable`) that produced it, so an id's `podSeat`
+ * here is always the one it was minted with — an empty seat is no seat at
+ * all, never a numbering gap.
+ */
+function podPlayers(room: RoomRecord, entrants: readonly string[]): PodPlayer[] {
+	if (isTournamentRoom(room)) {
+		return tournamentTable(room).flatMap((place, podSeat) => {
+			if (place.kind === 'empty') return [];
+			const id = place.kind === 'human' ? place.id : aiEntrantId(podSeat);
+			return entrants.includes(id) ? [{ id, podSeat }] : [];
+		});
+	}
+	return podTable(room).flatMap((place, podSeat) => {
+		const id = place.kind === 'human' ? place.id : aiEntrantId(podSeat);
+		return entrants.includes(id) ? [{ id, podSeat }] : [];
+	});
+}
+
+/**
+ * Every pairing entrant seated in a TOURNAMENT pod, in seat order: every
+ * human AND every EXPLICITLY AI seat, each AI given its own entrant id
+ * (`aiEntrantId`) — the operator, 2026-10-22, reversing the plan's original
+ * "no AI seats in a tournament pod". An untouched empty seat is not an
+ * entrant (`tournamentTable`'s own doc). A draft pod never calls this: its
+ * AI seats fill the drafting table but never pair (`seatedHumans` is its own
+ * entrant list).
+ */
+function podEntrants(room: RoomRecord): string[] {
+	return tournamentTable(room).flatMap((place, seat) => {
+		if (place.kind === 'human') return [place.id];
+		if (place.kind === 'ai') return [aiEntrantId(seat)];
+		return [];
+	});
 }
 
 /** The AI this room's games are played against: a pod's across-the-table bot, or for a 1v1 room a character nobody here wears. */
@@ -510,6 +647,37 @@ export interface PodChecks {
 	 * with).
 	 */
 	planNameOf(plan: DraftPlan): string;
+	/**
+	 * Tournament, Classic only: whether `memberId`'s own per-room state
+	 * (`member.state`, the same blob `PUT …/deck` writes) already holds a
+	 * deck legal for the room's pool — the lock's own "ready" check for
+	 * Classic (`docs/planning/tournament-mode-plan.md`'s Design: *"Classic: a
+	 * legal deck chosen"*). An AI entrant is always ready and never reaches
+	 * here (`#lockTournament`'s own gate).
+	 */
+	hasLegalSeatDeck(roomId: string, memberId: string): boolean;
+	/**
+	 * Tournament, Classic/All Random, `tournamentDecks === 'locked'`: this
+	 * entrant's deck right now, to snapshot as its locked choice at the lock
+	 * — a human's own CURRENT `PUT …/deck` state, read back verbatim, or a
+	 * freshly dealt one for an AI entrant (the room's format/library, the
+	 * same way a vs-bot table deals the AI one). Opaque to `room/lobby.ts`,
+	 * which only stores and replays whatever this returns.
+	 */
+	currentTournamentDeck(roomId: string, entrant: string): unknown;
+	/**
+	 * Tournament, Classic/All Random, every round's `#newPodTable`: seat
+	 * `entrant` (a member id, or a tournament AI entrant id — `isAiEntrant`)
+	 * at `tableId` with `deck` — a `locked` snapshot (`currentTournamentDeck`'s
+	 * own shape) replayed as-is, or `null` for `per-round` (a human's own
+	 * deck is cleared so `PUT …/deck` is required again for Classic, or left
+	 * for the table's own ready-time deal for All Random; an AI entrant is
+	 * dealt fresh here instead). The table's OTHER seat, when it is an AI
+	 * entrant (`null` in `TableRecord.seats`), holds nothing of its own: its
+	 * deck rides the human partner's `state.aiDeck`, exactly as a vs-bot
+	 * table already works.
+	 */
+	seatTournamentDeck(roomId: string, tableId: string, entrant: string, deck: unknown | null): void;
 }
 
 /** The fallback a single source's name gets with no `DraftRooms` wired (no jar/no cube store) — same shape `draftRooms.ts`'s real resolver produces, so `NO_POD_CHECKS` and the wired case read identically in a room screen. */
@@ -523,6 +691,9 @@ const NO_POD_CHECKS: PodChecks = {
 	seatState: () => null,
 	holdsSeriesDeck: () => true,
 	planNameOf: (plan) => planDisplayName(plan, fallbackSourceName),
+	hasLegalSeatDeck: () => false,
+	currentTournamentDeck: () => null,
+	seatTournamentDeck: () => {},
 };
 
 /**
@@ -599,11 +770,34 @@ function isStoredPodSeats(v: unknown): v is (string | null)[] {
 	return Array.isArray(v) && v.length === POD_SEATS && v.every((s) => s === null || typeof s === 'string');
 }
 
-/** The room's own gate-free phase: `lobby`/`drafting`/`building`/`rounds`/`done` — see `PodChecks`. Only called for a `draft` room. */
+/** Each entrant's locked deck is either an object (Classic/Random's opaque deck choice) or a string array (Gauntlet's pick set) — never a bare primitive. */
+function isStoredLockedDecks(v: unknown): v is Record<string, unknown> {
+	if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+	return Object.values(v).every((x) => (typeof x === 'object' && x !== null) || (Array.isArray(x) && x.every((d) => typeof d === 'string')));
+}
+
+/**
+ * The room's own gate-free phase: `lobby`/`drafting`/`building`/`rounds`/`done`
+ * — see `PodChecks`. Only called for a room `usesPod`.
+ *
+ * A TOURNAMENT pod never sees `drafting`/`building`: `#lockTournament` sets
+ * `draftStartedAt` and a (possibly still-empty) `pod` as ONE atomic
+ * mutation, specifically so that nothing — not even a RE-ENTRANT read
+ * through `PodChecks` mid-lock (`#newPodTable`'s `seatTournamentDeck` calls
+ * back into `rooms.get()` before pairing is finished) — can ever observe
+ * `draftStartedAt !== null` with `pod === null`. If it ever does, that is a
+ * real bug upstream, not a case this function silently answers a phase for:
+ * `rounds`/`done` with no pod is impossible, so this throws rather than
+ * lying about which phase it is (a real run of exactly that lie is what
+ * crashed `podViewOf`'s blind cast below, 2026-10-22).
+ */
 function podPhaseOf(room: RoomRecord, checks: PodChecks): PodPhase {
 	if (room.draftStartedAt === null) return 'lobby';
-	if (!checks.draftComplete(room.id)) return 'drafting';
-	if (room.pod === null) return 'building';
+	if (room.gameType === 'draft') {
+		if (!checks.draftComplete(room.id)) return 'drafting';
+		if (room.pod === null) return 'building';
+	}
+	if (room.pod === null) throw new Error(`podPhaseOf: room ${room.id} has draftStartedAt set and no pod`);
 	return room.pod.round > room.pod.rounds ? 'done' : 'rounds';
 }
 
@@ -632,7 +826,13 @@ function podSeatsView(room: RoomRecord): PodView['seats'] {
 	}) as PodView['seats'];
 }
 
-/** The standings' players: the pod's humans, and the AI once a result names it. */
+/**
+ * The standings' players: the pod's humans, and the draft pod's single
+ * shared bot once a result names it. A literal `=== POD_AI`, deliberately —
+ * a TOURNAMENT pod's own AI entrant (`isAiEntrant`) is always already in
+ * `humans` (`podEntrants`'s own doc), so adding it again here on a looser
+ * `isPodAi` match would double it in the standings.
+ */
 function players(humans: string[], results: MatchResult[]): { id: string }[] {
 	const ai = results.some((r) => r.playerA === POD_AI || r.playerB === POD_AI);
 	return [...humans, ...(ai ? [POD_AI] : [])].map((id) => ({ id }));
@@ -643,13 +843,19 @@ function rankedStandings(humans: string[], results: MatchResult[]): (StandingsRo
 	return standings(players(humans, results), results).map((row, i) => ({ ...row, rank: i + 1 }));
 }
 
-/** `RoomView.pod`, for a `draft` room only — `viewOf` answers `null` for a `constructed-1v1` one. */
+/**
+ * `RoomView.pod`, for a room `usesPod` — `viewOf` answers `null` for every
+ * other room. A DRAFT room's `planFields` are `room.plan`'s, frozen the
+ * instant `draftStartedAt` is set (`PUT …/pod/plan` refuses from there — see
+ * `RoomRecord.plan`'s own doc), so reading it here is right in every phase,
+ * not just `lobby`. A constructed TOURNAMENT pod drafts no pool at all:
+ * `plan`/`verdict` are `null` and `planName` is `''` (`PodView.plan`'s own
+ * doc).
+ */
 function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	const phase = podPhaseOf(room, checks);
-	// `room.plan` is frozen the instant `draftStartedAt` is set (`PUT
-	// …/pod/plan` refuses from there — see `RoomRecord.plan`'s own doc), so
-	// reading it here is right in every phase, not just `lobby`.
-	const planFields = { plan: room.plan, planName: checks.planNameOf(room.plan), verdict: room.planVerdict };
+	const tournament = isTournamentRoom(room);
+	const planFields = tournament ? { plan: null, planName: '', verdict: null } : { plan: room.plan, planName: checks.planNameOf(room.plan), verdict: room.planVerdict };
 	// Filled only in `lobby` — the wire contract's own words ("lobby phase: the
 	// 8 pod seats"). Once drafting starts, who is at what SEAT is the draft
 	// engine's own business (`room/draftRooms.ts`'s `viewForParticipant`), and
@@ -672,7 +878,12 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	if (phase === 'building') {
 		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, drafters: humans, built, ...planFields };
 	}
-	const pod = room.pod as PodRecord; // `podPhaseOf` answers `rounds`/`done` only when `room.pod !== null`.
+	// `podPhaseOf` already answers `rounds`/`done` only when `room.pod !== null`
+	// (it throws otherwise, above) — but this cast is the one place that
+	// invariant actually gets relied on, so it checks again rather than
+	// trusting a call several lines back never to drift out of sync with it.
+	if (room.pod === null) throw new Error(`podViewOf: room ${room.id} is ${phase} with no pod`);
+	const pod = room.pod;
 	// The AI you played is ranked beside you (the operator, 2026-10-19: "why am i the only one in that room").
 	const ranked = rankedStandings(humans, pod.results);
 	return {
@@ -685,7 +896,9 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 		pairings: pod.pairings,
 		bye: pod.bye,
 		drafters: humans,
-		built,
+		// A tournament pod never builds a deck: every entrant who locked in
+		// counts as "built" at once, rather than reading as permanently empty.
+		built: tournament ? humans : built,
 		...planFields,
 	};
 }
@@ -1011,6 +1224,16 @@ export interface Lobby {
 	 * no such room.
 	 */
 	setGauntlet(roomId: string, gauntlet: GauntletState | null): boolean;
+	/**
+	 * A tournament's locked deck(s) by entrant id (`RoomRecord.lockedDecks`'s
+	 * own doc). `room/lobby.ts` itself fills Classic/All Random's at the lock
+	 * (`#lockTournament`); `http/gauntlet.ts` is the only OTHER writer, for
+	 * Gauntlet's own slot, filled after an entrant's first tournament match's
+	 * draft rather than at the lock. False when there is no such room.
+	 */
+	setLockedDeck(roomId: string, entrant: string, deck: unknown): boolean;
+	/** This entrant's locked deck, or `undefined` when none is stored (or there is no such room/entrant). */
+	lockedDeckOf(roomId: string, entrant: string): unknown;
 	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[];
 	/**
@@ -1173,6 +1396,18 @@ interface RoomRecord {
 	pod: PodRecord | null;
 	/** Who has pressed Play in `building` (`playPod`). Persisted with `pod`, so a restart mid-build keeps the presses. */
 	podPlaying: string[];
+	/**
+	 * A tournament's locked deck(s) by entrant id, meaningful only with
+	 * `settings.tournament` on and `tournamentDecks === 'locked'` — empty
+	 * otherwise. Classic / All Random: each entrant's one deck choice,
+	 * opaque to this file (the same discipline `MemberRecord.state` already
+	 * keeps), snapshotted at the lock (`#lockTournament`) and read back by
+	 * `#seatTournamentDeck` every round. Gauntlet: each entrant's fixed
+	 * library deck-id set, captured by `http/gauntlet.ts` after their FIRST
+	 * tournament match's own draft rather than at the lock
+	 * (`docs/planning/tournament-mode-plan.md`'s Design).
+	 */
+	lockedDecks: Record<string, unknown>;
 	/** A Gauntlet room's Gauntlet (`gauntlet.ts`), kept whole so a reconnect replays the same draw. Null until it first moves. */
 	gauntlet: GauntletState | null;
 	createdAt: number;
@@ -1234,6 +1469,8 @@ interface StoredApp {
 	pod: PodRecord | null;
 	/** Absent for a room written before it was persisted: nobody has pressed Play. */
 	podPlaying?: string[];
+	/** Absent for a room written before tournament mode: nothing was ever locked. */
+	lockedDecks?: Record<string, unknown>;
 	/** Absent for a room written before Gauntlets, or whose Gauntlet has never moved. */
 	gauntlet?: GauntletState | null;
 	secret: Secret | null;
@@ -1266,16 +1503,27 @@ function storedMode(a: Record<string, unknown>): Pick<StoredApp, 'mode' | 'modeO
 	return parsed.data;
 }
 
-/** Every setting is a plain boolean; a retired one is accepted whatever it holds, and dropped by `storedSettings`. */
+/**
+ * Each setting is validated against its OWN schema (`RoomSettingsSchema.shape`,
+ * not every setting is a boolean any more — `tournamentDecks` is an enum). A
+ * retired one is accepted whatever it holds, and dropped by `storedSettings`.
+ */
 function isStoredSettings(v: unknown): v is Partial<RoomSettings> {
 	if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
-	return Object.entries(v).every(([k, value]) => RETIRED_SETTING_KEYS.includes(k) || ((SETTING_KEYS as string[]).includes(k) && typeof value === 'boolean'));
+	return Object.entries(v).every(([k, value]) => {
+		if (RETIRED_SETTING_KEYS.includes(k)) return true;
+		if (!(SETTING_KEYS as string[]).includes(k)) return false;
+		return RoomSettingsSchema.shape[k as keyof RoomSettings].safeParse(value).success;
+	});
 }
 
 function storedSettings(v: Partial<RoomSettings> | undefined): RoomSettings {
-	const settings: RoomSettings = { ...DEFAULT_ROOM_SETTINGS };
-	for (const k of SETTING_KEYS) if (v?.[k] !== undefined) settings[k] = v[k];
-	return settings;
+	const settings = { ...DEFAULT_ROOM_SETTINGS } as Record<keyof RoomSettings, RoomSettings[keyof RoomSettings]>;
+	for (const k of SETTING_KEYS) {
+		const value = v?.[k];
+		if (value !== undefined) settings[k] = value;
+	}
+	return settings as RoomSettings;
 }
 
 function isSecret(v: unknown): v is Secret {
@@ -1398,6 +1646,10 @@ const appCodec: AppCodec<StoredApp> = {
 		if (a.podPlaying !== undefined && !(Array.isArray(a.podPlaying) && a.podPlaying.every((m) => typeof m === 'string'))) {
 			throw new Error('app.podPlaying is not a list of member ids');
 		}
+		// Absent is a room written before tournament mode. Each value's own shape
+		// (a Classic/Random deck, or a Gauntlet entrant's deck-id array) is opaque
+		// here, the same discipline `MemberRecord.state` already keeps.
+		if (a.lockedDecks !== undefined && !isStoredLockedDecks(a.lockedDecks)) throw new Error('app.lockedDecks is invalid');
 		if (a.gauntlet !== undefined && a.gauntlet !== null && !isGauntletState(a.gauntlet)) throw new Error('app.gauntlet is invalid');
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
 		const mode = storedMode(a);
@@ -1442,6 +1694,7 @@ const appCodec: AppCodec<StoredApp> = {
 			podAi: a.podAi === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(a.podAi as (string | null)[])],
 			pod: a.pod === undefined || a.pod === null ? null : (a.pod as PodRecord),
 			podPlaying: a.podPlaying === undefined ? [] : [...(a.podPlaying as string[])],
+			lockedDecks: a.lockedDecks === undefined ? {} : { ...(a.lockedDecks as Record<string, unknown>) },
 			gauntlet: (a.gauntlet as GauntletState | null | undefined) ?? null,
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 		};
@@ -1466,7 +1719,7 @@ function tableView(table: TableRecord, members: readonly MemberRecord[], room: R
 		players: seatList(table).map(({ memberId }) => ({ memberId, name: members.find((m) => m.id === memberId)?.name ?? '' })),
 		matchId: table.matchId,
 		series: {
-			length: table.series.phase === 'seating' ? seriesFormatOf(room).length : table.series.length,
+			length: table.series.phase === 'seating' ? seriesFormatOf(seriesRoomOf(room)).length : table.series.length,
 			wins: [...table.series.wins] as [number, number],
 			games: table.series.games.map((g) => ({ ...g })),
 			phase: table.series.phase,
@@ -1504,7 +1757,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		// keeps working (`docs/planning/wave71-2026-10-17.md`'s wire contract).
 		matchId: room.tables[0]?.matchId ?? null,
 		draftStartedAt: room.draftStartedAt === null ? null : new Date(room.draftStartedAt).toISOString(),
-		pod: room.gameType === 'draft' ? podViewOf(room, checks) : null,
+		pod: usesPod(room) ? podViewOf(room, checks) : null,
 		ai: roomAi(room),
 		createdAt: new Date(room.createdAt).toISOString(),
 	};
@@ -1754,6 +2007,7 @@ class FileLobby implements Lobby {
 			podSeats: [...room.podSeats],
 			podAi: [...room.podAi],
 			podPlaying: [...room.podPlaying],
+			lockedDecks: { ...room.lockedDecks },
 			gauntlet: room.gauntlet,
 			pod:
 				room.pod === null
@@ -1966,7 +2220,7 @@ class FileLobby implements Lobby {
 		if (table.series.phase === 'seating' || table.series.phase === 'done') {
 			// A finished series this start replaces is over, Rematch or not.
 			this.#settleSeries(room, table, true);
-			table.series = newSeries(room, table.seats, 'playing');
+			table.series = newSeries(seriesRoomOf(room), table.seats, 'playing');
 		} else if (table.series.phase === 'sideboarding' || table.series.phase === 'between') {
 			table.series = { ...table.series, phase: 'playing' };
 		}
@@ -2001,7 +2255,7 @@ class FileLobby implements Lobby {
 		if (table === undefined) return { ok: false, reason: 'no-such-table' };
 		table.matchId = null;
 		// A game that ends after its series was left is discarded: that series is already recorded.
-		if (!table.series.settled) table.series = recordGame(table.series, seriesFormatOf(room), { matchId: result.matchId, winner: result.winner });
+		if (!table.series.settled) table.series = recordGame(table.series, seriesFormatOf(seriesRoomOf(room)), { matchId: result.matchId, winner: result.winner });
 		table.ready = [false, false];
 		// Wave 72 §P: a pod round advances ITSELF the instant every one of its
 		// tables is `done` — see `#finishPodTable`.
@@ -2042,6 +2296,13 @@ class FileLobby implements Lobby {
 	 * (`pairRound`, `@hadoku/draft`) and make its tables, or — this was the
 	 * last round — mark the pod `done`: `round` moves one PAST `rounds`,
 	 * which is what `podPhaseOf` reads as `done`.
+	 *
+	 * A tournament pod's round can pair two AI entrants against each other
+	 * (`#pairRound`'s own split): that pairing settles at once, with no
+	 * table. When EVERY pairing of the round does (a round of nothing but AI
+	 * vs AI — rare, but a few AI entrants can outnumber the humans left after
+	 * byes), there is nothing live to wait on, so this advances past it
+	 * immediately rather than stranding the pod on a round with zero tables.
 	 */
 	#advancePodRound(room: RoomRecord, pod: PodRecord): void {
 		if (pod.round >= pod.rounds) {
@@ -2051,37 +2312,101 @@ class FileLobby implements Lobby {
 			return;
 		}
 		const nextRound = pod.round + 1;
-		const paired = pairRound({ players: podPlayers(room, pod.humans), results: pod.results, round: nextRound });
-		const pairings = paired.tables.map(([a, b]) => ({ tableId: this.#newPodTable(room, a, b), players: [a, b] as [string, string] }));
-		const results = paired.bye === null ? pod.results : [...pod.results, { round: nextRound, playerA: paired.bye, playerB: null, gamesA: 2, gamesB: 0 }];
-		room.pod = { ...pod, round: nextRound, results, pairings, bye: paired.bye };
-		this.#log({ event: 'pod-round-started', roomId: room.id, round: nextRound, tables: pairings.length, bye: paired.bye });
+		const { pairings, settled, bye } = this.#pairRound(room, podPlayers(room, pod.humans), pod.results, nextRound);
+		const byeResult: MatchResult[] = bye === null ? [] : [{ round: nextRound, playerA: bye, playerB: null, gamesA: 2, gamesB: 0 }];
+		const results = [...pod.results, ...byeResult, ...settled];
+		room.pod = { ...pod, round: nextRound, results, pairings, bye };
+		this.#log({ event: 'pod-round-started', roomId: room.id, round: nextRound, tables: pairings.length, bye, settled: settled.length });
+		if (pairings.length === 0) this.#advancePodRound(room, room.pod);
 	}
 
 	/**
-	 * One pod table: bo3 with sideboarding (`seriesFormatOf` of any draft room,
-	 * `draft-pods-plan.md` ruling 1).
-	 * Seats both players with their saved built deck (`PodChecks.seatState`);
-	 * a player `seatState` answers `null` for (should not happen —
-	 * `playPod` already checked `built` for everyone) is left to load
-	 * one the ordinary way rather than crash the round.
+	 * One round's pairings, split in two: a LIVE pairing gets a table
+	 * (`#newPodTable`); an AI-vs-AI pairing — possible only in a TOURNAMENT
+	 * pod, which is the only one that ever seats more than one AI entrant —
+	 * is settled at once with no game at all (the operator, 2026-10-22:
+	 * *"settle that match without a game… rather than spin up an AI-vs-AI
+	 * Forge match"*). Deterministic, not random, so a restart and a test both
+	 * see the same answer: the lower pod seat wins 2-0.
+	 */
+	#pairRound(
+		room: RoomRecord,
+		players: PodPlayer[],
+		results: MatchResult[],
+		round: number,
+	): { pairings: { tableId: string; players: [string, string] }[]; settled: MatchResult[]; bye: string | null } {
+		const paired = pairRound({ players, results, round });
+		const pairings: { tableId: string; players: [string, string] }[] = [];
+		const settled: MatchResult[] = [];
+		for (const [a, b] of paired.tables) {
+			if (isAiEntrant(a) && isAiEntrant(b)) {
+				const [winner, loser] = aiEntrantSeat(a) < aiEntrantSeat(b) ? [a, b] : [b, a];
+				settled.push({ round, playerA: winner, playerB: loser, gamesA: 2, gamesB: 0 });
+			} else {
+				pairings.push({ tableId: this.#newPodTable(room, a, b), players: [a, b] });
+			}
+		}
+		return { pairings, settled, bye: paired.bye };
+	}
+
+	/**
+	 * One pod table: bo3 with sideboarding (`seriesFormatOf` of any draft room
+	 * or tournament pod, `draft-pods-plan.md` ruling 1 and
+	 * `docs/planning/tournament-mode-plan.md`'s Design).
+	 *
+	 * A DRAFT pod seats both players with their saved built deck
+	 * (`PodChecks.seatState`); a player `seatState` answers `null` for
+	 * (should not happen — `playPod` already checked `built` for everyone)
+	 * is left to load one the ordinary way rather than crash the round.
+	 *
+	 * A TOURNAMENT pod's Classic/All Random table additionally seats each
+	 * entrant's deck (`#seatTournamentDeck`) — never for Gauntlet, whose own
+	 * `playing` phase deals a game's decks itself once its seats ready up, the
+	 * same way a non-tournament Gauntlet table already does. Either `a` or
+	 * `b` (never both — an AI-vs-AI pairing never reaches here, see
+	 * `#pairRound`) may be a tournament AI entrant id (`isAiEntrant`), which
+	 * never gets a real table seat: the pairing's HUMAN seat takes the live
+	 * seat and the AI's is `null`, the same convention a draft pod's
+	 * solo-vs-bots table already uses — the AI's own deck then rides its
+	 * human partner's `state.aiDeck`, exactly as a vs-bot table always has.
 	 */
 	#newPodTable(room: RoomRecord, a: string, b: string | null): string {
+		const aIsAi = isAiEntrant(a);
+		const bIsAi = b !== null && isAiEntrant(b);
+		const seats: [string, string | null] = aIsAi ? [b!, null] : [a, bIsAi ? null : b];
 		const table: TableRecord = {
 			id: mintTableId(room.tables.map((t) => t.id)),
-			seats: [a, b],
+			seats,
 			ready: [false, false],
 			matchId: null,
-			series: newSeries(room, [a, b], 'seating'),
+			series: newSeries(seriesRoomOf(room), seats, 'seating'),
 		};
 		room.tables = [...room.tables, table];
-		for (const id of b === null ? [a] : [a, b]) {
+		for (const id of seats) {
+			if (id === null) continue;
 			const member = room.members.find((m) => m.id === id);
 			if (member === undefined) continue;
 			const state = this.#podChecks.seatState(room.id, id);
 			if (state !== null && state !== undefined) member.state = state;
 		}
+		if (isTournamentRoom(room) && room.mode !== 'gauntlet') {
+			this.#seatTournamentDeck(room, table.id, a);
+			if (b !== null) this.#seatTournamentDeck(room, table.id, b);
+		}
 		return table.id;
+	}
+
+	/**
+	 * Tournament, Classic/All Random: `entrant`'s deck for `tableId` —
+	 * `locked`'s stored snapshot (`room.lockedDecks`, filled once at the lock
+	 * — `#lockTournament`) replayed as-is, or `null` for `per-round` (a fresh
+	 * pick or deal — `PodChecks.seatTournamentDeck`'s own doc). `entrant` may
+	 * be a member id or a tournament AI entrant id; which it is, and what to
+	 * do about it, is `PodChecks`'s own business, never this file's.
+	 */
+	#seatTournamentDeck(room: RoomRecord, tableId: string, entrant: string): void {
+		const locked = room.settings.tournamentDecks === 'locked' ? room.lockedDecks[entrant] ?? null : null;
+		this.#podChecks.seatTournamentDeck(room.id, tableId, entrant, locked);
 	}
 
 	beginSideboarding(roomId: string, tableId: string): boolean {
@@ -2104,7 +2429,7 @@ class FileLobby implements Lobby {
 	 */
 	#rematchable(room: RoomRecord, table: TableRecord): boolean {
 		const { series } = table;
-		if (series.phase !== 'done' || series.length !== 1 || series.settled || seriesFormatOf(room).length !== 1) return false;
+		if (series.phase !== 'done' || series.length !== 1 || series.settled || seriesFormatOf(seriesRoomOf(room)).length !== 1) return false;
 		return this.#stillSeated(table) && series.played.every((id) => id === null || this.#podChecks.holdsSeriesDeck(room.members.find((m) => m.id === id)?.state));
 	}
 
@@ -2292,6 +2617,7 @@ class FileLobby implements Lobby {
 			podAi: new Array<string | null>(POD_SEATS).fill(null),
 			pod: null,
 			podPlaying: [],
+			lockedDecks: {},
 			gauntlet: null,
 			createdAt: now,
 			updatedAt: now,
@@ -2402,6 +2728,12 @@ class FileLobby implements Lobby {
 		};
 	}
 
+	/**
+	 * A draft room's deal, OR a tournament's "Lock seats" — the same route,
+	 * reusing the draft pod's own start (`docs/planning/tournament-mode-plan.md`'s
+	 * Design: *"Lock seats (the leader; reuse or extend the draft pod's start
+	 * route)"*).
+	 */
 	startDraft(roomId: string, callerId: string): StartDraftResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
@@ -2410,6 +2742,7 @@ class FileLobby implements Lobby {
 		// the second one arrives after the first member's flags may already have
 		// been cleared by a leave. A room that has started has started.
 		if (room.draftStartedAt !== null) return { ok: true, room: this.#view(room) };
+		if (isTournamentRoom(room)) return this.#lockTournament(room);
 		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
 		// Every seat filled — a member or the AI — and every seated member ready.
 		// The operator, 2026-10-19: *"drafts should not immediately start with
@@ -2429,6 +2762,55 @@ class FileLobby implements Lobby {
 		room.draftStartedAt = this.#now();
 		this.#persist(room);
 		this.#log({ event: 'room-draft-started', roomId, members: room.members.length, seated: seated.length });
+		return { ok: true, room: this.#view(room) };
+	}
+
+	/**
+	 * Lock a tournament's seats and deal round 1 — `startDraft`'s tournament
+	 * branch. ≥ 2 entrants, at least one human (the operator, 2026-10-22:
+	 * reversing the plan's "no AI seats", but *"an all-AI field makes no
+	 * sense"*), each HUMAN ready per the mode (Classic: a legal deck already
+	 * held — `PodChecks.hasLegalSeatDeck`; Gauntlet/All Random: the room's
+	 * own `ready` flag). An AI entrant is always ready and never checked.
+	 *
+	 * `tournamentDecks === 'locked'` snapshots every entrant's CURRENT deck
+	 * here for Classic/All Random (`PodChecks.currentTournamentDeck`) —
+	 * Gauntlet's own locked slot fills later, after an entrant's first
+	 * match's own draft (`http/gauntlet.ts`), never at the lock.
+	 *
+	 * The field is fixed from here: `sitPod`/`standPod`/`aiPod`/`closePod`
+	 * all refuse once `draftStartedAt !== null`, same as a draft pod's does.
+	 */
+	#lockTournament(room: RoomRecord): StartDraftResult {
+		const entrants = podEntrants(room);
+		if (entrants.length < POD_MIN_OPEN || entrants.every(isAiEntrant)) return { ok: false, reason: 'not-ready' };
+		const humanReady = (id: string): boolean =>
+			room.mode === 'classic' ? this.#podChecks.hasLegalSeatDeck(room.id, id) : room.members.find((m) => m.id === id)?.ready === true;
+		if (entrants.some((id) => !isAiEntrant(id) && !humanReady(id))) return { ok: false, reason: 'not-ready' };
+		if (room.settings.tournamentDecks === 'locked' && room.mode !== 'gauntlet') {
+			// `currentTournamentDeck` may itself re-enter `rooms.get()` (its real
+			// `routes.ts` implementation reads the room to find a pool/format).
+			// Safe here: `draftStartedAt` is still null, so any such read answers
+			// `lobby`, same as it would before this function was ever called.
+			const lockedDecks = { ...room.lockedDecks };
+			for (const id of entrants) lockedDecks[id] = this.#podChecks.currentTournamentDeck(room.id, id);
+			room.lockedDecks = lockedDecks;
+		}
+		// `draftStartedAt` and `pod` change together, as ONE atomic mutation —
+		// gather every deck above, BEFORE this point, then mutate, then read.
+		// `#dealPodRounds`, below, pairs the round and makes its tables
+		// (`#newPodTable`'s `PodChecks.seatTournamentDeck` re-enters
+		// `rooms.get()` per table, same as `currentTournamentDeck` above can);
+		// a read that lands inside THAT window must see a pod that genuinely
+		// is in `rounds` — not `draftStartedAt` set with no pod to show for it
+		// (`podPhaseOf`'s own doc: that is the exact crash a real run hit). The
+		// skeleton this sets is overwritten with the real pairings before this
+		// function returns.
+		room.draftStartedAt = this.#now();
+		room.pod = { humans: entrants, round: 1, rounds: roundsFor(entrants.length), results: [], pairings: [], bye: null };
+		this.#dealPodRounds(room, entrants);
+		this.#persist(room);
+		this.#log({ event: 'tournament-locked', roomId: room.id, entrants: entrants.length, humans: entrants.filter((id) => !isAiEntrant(id)).length });
 		return { ok: true, room: this.#view(room) };
 	}
 
@@ -2480,6 +2862,7 @@ class FileLobby implements Lobby {
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
 		if (room.gameType !== 'constructed-1v1') return { ok: false, reason: 'not-constructed' };
+		if (room.settings.tournament && tournamentUnsupported(mode.mode)) return { ok: false, reason: 'tournament-mode-unsupported' };
 		if (room.mode === mode.mode && room.modeOptions !== null && sameOptions(room.modeOptions, mode.modeOptions)) {
 			return { ok: true, room: this.#view(room) };
 		}
@@ -2501,6 +2884,7 @@ class FileLobby implements Lobby {
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
 		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
 		const next = { ...room.settings, ...settings };
+		if (next.tournament && tournamentUnsupported(room.mode)) return { ok: false, reason: 'tournament-mode-unsupported' };
 		if (SETTING_KEYS.every((k) => next[k] === room.settings[k])) return { ok: true, room: this.#view(room) };
 		room.settings = next;
 		this.#persist(room);
@@ -2555,6 +2939,11 @@ class FileLobby implements Lobby {
 	#archive(room: RoomRecord): void {
 		const pod = room.pod;
 		if (pod === null || room.draftStartedAt === null || !pod.results.some((r) => r.playerB !== null)) return;
+		// A draft pod's shared bot (`POD_AI`) is named once; a tournament
+		// pod's own AI entrants (one per AI seat, `aiEntrantId`) are each
+		// named from the character its seat was given (`room.podAi`, kept
+		// through the pod's life — see the field's own doc).
+		const aiNames = Object.fromEntries(pod.humans.filter(isAiEntrant).map((id) => [id, personaOf(room.podAi[aiEntrantSeat(id)] ?? AVATAR_POOL[0]).name]));
 		this.#onTournament({
 			id: `${room.id}-${room.draftStartedAt}`,
 			name: room.name,
@@ -2562,7 +2951,7 @@ class FileLobby implements Lobby {
 			endedAt: this.#now(),
 			closed: pod.round <= pod.rounds,
 			rounds: pod.rounds,
-			names: { ...Object.fromEntries(room.members.map((m) => [m.id, m.name])), [POD_AI]: roomAi(room).name },
+			names: { ...Object.fromEntries(room.members.map((m) => [m.id, m.name])), [POD_AI]: roomAi(room).name, ...aiNames },
 			standings: rankedStandings(pod.humans, pod.results),
 			results: pod.results,
 		});
@@ -2604,6 +2993,18 @@ class FileLobby implements Lobby {
 		return true;
 	}
 
+	setLockedDeck(roomId: string, entrant: string, deck: unknown): boolean {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return false;
+		room.lockedDecks = { ...room.lockedDecks, [entrant]: deck };
+		this.#persist(room);
+		return true;
+	}
+
+	lockedDeckOf(roomId: string, entrant: string): unknown {
+		return this.#rooms.get(roomId)?.lockedDecks[entrant];
+	}
+
 	podDraft(roomId: string): PodDeal | null {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return null;
@@ -2624,6 +3025,7 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (!room.members.some((m) => m.id === memberId)) return { ok: false, reason: 'not-member' };
+		// A draft plan only — a tournament pod drafts no pool at all (`PodView.plan`'s own doc).
 		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
 		if (room.draftStartedAt !== null) return { ok: false, reason: 'not-lobby' };
 		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
@@ -2639,7 +3041,8 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (!room.members.some((m) => m.id === memberId)) return { ok: false, reason: 'not-member' };
-		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
+		// `not-draft` also covers a constructed room with tournament off: `usesPod` is the one question for both.
+		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (room.draftStartedAt !== null) return { ok: false, reason: 'not-lobby' };
 		if (seat !== undefined && (!Number.isInteger(seat) || seat < 0 || seat >= POD_SEATS)) {
 			return { ok: false, reason: 'bad-seat' };
@@ -2665,7 +3068,8 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (!room.members.some((m) => m.id === memberId)) return { ok: false, reason: 'not-member' };
-		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
+		// `not-draft` also covers a constructed room with tournament off: `usesPod` is the one question for both.
+		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (room.draftStartedAt !== null) return { ok: false, reason: 'not-lobby' };
 		const index = room.podSeats.indexOf(memberId);
 		if (index === -1) return { ok: true, room: this.#view(room) };
@@ -2681,7 +3085,8 @@ class FileLobby implements Lobby {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (!room.members.some((m) => m.id === memberId)) return { ok: false, reason: 'not-member' };
-		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
+		// `not-draft` also covers a constructed room with tournament off: `usesPod` is the one question for both.
+		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (room.draftStartedAt !== null) return { ok: false, reason: 'not-lobby' };
 		if (!Number.isInteger(seat) || seat < 0 || seat >= POD_SEATS) return { ok: false, reason: 'bad-seat' };
 		const now = room.podSeats[seat] ?? null;
@@ -2702,7 +3107,8 @@ class FileLobby implements Lobby {
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (!room.members.some((m) => m.id === memberId)) return { ok: false, reason: 'not-member' };
 		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
-		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
+		// `not-draft` also covers a constructed room with tournament off: `usesPod` is the one question for both.
+		if (!usesPod(room)) return { ok: false, reason: 'not-draft' };
 		if (room.draftStartedAt !== null) return { ok: false, reason: 'not-lobby' };
 		if (!Number.isInteger(seat) || seat < 0 || seat >= POD_SEATS) return { ok: false, reason: 'bad-seat' };
 		const now = room.podSeats[seat] ?? null;
@@ -2730,27 +3136,26 @@ class FileLobby implements Lobby {
 		return { ok: true, room: this.#view(room) };
 	}
 
-	/** Round 1, once every drafter is done building — see `playPod`. */
-	#dealPodRounds(room: RoomRecord, humans: string[]): void {
-		if (humans.length === 1) {
-			// One drafter, the rest bots: one table, against the AI.
-			const tableId = this.#newPodTable(room, humans[0]!, null);
-			room.pod = { humans, round: 1, rounds: 1, results: [], pairings: [{ tableId, players: [humans[0]!, POD_AI] }], bye: null };
+	/**
+	 * Round 1: a draft pod's, once every drafter is done building
+	 * (`playPod`); a tournament pod's, at the lock (`#lockTournament`) —
+	 * `entrants` is the one list either caller fixes `PodRecord.humans` to.
+	 */
+	#dealPodRounds(room: RoomRecord, entrants: string[]): void {
+		if (entrants.length === 1) {
+			// One drafter, the rest bots: one table, against the AI. A draft
+			// pod only — a tournament's lock refuses fewer than two entrants.
+			const tableId = this.#newPodTable(room, entrants[0]!, null);
+			room.pod = { humans: entrants, round: 1, rounds: 1, results: [], pairings: [{ tableId, players: [entrants[0]!, POD_AI] }], bye: null };
 			this.#log({ event: 'pod-rounds-started', roomId: room.id, rounds: 1, tables: 1, opponent: 'ai' });
 			return;
 		}
-		const rounds = roundsFor(humans.length);
-		const paired = pairRound({ players: podPlayers(room, humans), results: [], round: 1 });
-		const pairings = paired.tables.map(([a, b]) => ({ tableId: this.#newPodTable(room, a, b), players: [a, b] as [string, string] }));
-		room.pod = {
-			humans,
-			round: 1,
-			rounds,
-			results: paired.bye === null ? [] : [{ round: 1, playerA: paired.bye, playerB: null, gamesA: 2, gamesB: 0 }],
-			pairings,
-			bye: paired.bye,
-		};
-		this.#log({ event: 'pod-rounds-started', roomId: room.id, rounds, tables: pairings.length, bye: paired.bye });
+		const rounds = roundsFor(entrants.length);
+		const { pairings, settled, bye } = this.#pairRound(room, podPlayers(room, entrants), [], 1);
+		const byeResult: MatchResult[] = bye === null ? [] : [{ round: 1, playerA: bye, playerB: null, gamesA: 2, gamesB: 0 }];
+		room.pod = { humans: entrants, round: 1, rounds, results: [...byeResult, ...settled], pairings, bye };
+		this.#log({ event: 'pod-rounds-started', roomId: room.id, rounds, tables: pairings.length, bye, settled: settled.length });
+		if (pairings.length === 0) this.#advancePodRound(room, room.pod);
 	}
 }
 
@@ -2880,6 +3285,8 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// Restored with `draftStartedAt`, and released with it.
 					pod: app.pod,
 					podPlaying: app.podPlaying ?? [],
+					// Restored, like `podPlaying`: a tournament's locked deck(s) survive a restart with it.
+					lockedDecks: app.lockedDecks ?? {},
 					gauntlet: app.gauntlet ?? null,
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched

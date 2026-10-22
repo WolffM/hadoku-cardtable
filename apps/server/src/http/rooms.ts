@@ -484,9 +484,12 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		// file's header) must not re-fetch, and a room that is already
 		// drafting or done has nothing left to pre-fetch for anyway.
 		const room = lobby.get(id);
-		if (room?.pod?.phase === 'lobby') {
+		// A constructed tournament's pod also reaches `lobby`, but drafts no
+		// pool (`PodView.plan` is `null` there) — nothing here is its business.
+		const plan = room?.gameType === 'draft' ? (room.pod?.plan ?? null) : null;
+		if (room?.pod?.phase === 'lobby' && plan !== null) {
 			const realisticRounds: number[] = [];
-			room.pod.plan.rounds.forEach((src, round) => {
+			plan.rounds.forEach((src, round) => {
 				if (src.kind === 'set' && src.style === 'realistic') realisticRounds.push(round);
 			});
 			if (realisticRounds.length > 0) {
@@ -498,7 +501,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 				const seatCount = pod?.seats ?? POD_SEATS;
 				try {
 					for (const round of realisticRounds) {
-						const src = room.pod.plan.rounds[round];
+						const src = plan.rounds[round];
 						if (src === undefined || src.kind !== 'set') continue;
 						const boosters = await forge.boosters(src.code, seatCount, `${id}:${round}`);
 						const packs = boosters.map((pack) => pack.map((c) => resolveBoosterCard(catalog, c)));

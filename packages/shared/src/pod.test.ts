@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  isPodAi,
   POD_PHASES,
   POD_SEATS,
   PodMatchResultSchema,
@@ -148,5 +149,21 @@ describe('RoomPodSchema', () => {
     expect(RoomPodSchema.safeParse(null).success).toBe(true);
     expect(RoomPodSchema.safeParse(LOBBY_VIEW).success).toBe(true);
     expect(RoomPodSchema.safeParse(undefined).success).toBe(false);
+  });
+});
+
+describe('isPodAi — one predicate for both AI sentinels', () => {
+  it('matches a draft pod’s single shared bot (`ai`) and a tournament pod’s own per-seat entrant (`ai:<seat>`)', () => {
+    expect(isPodAi('ai')).toBe(true);
+    expect(isPodAi('ai:0')).toBe(true);
+    expect(isPodAi('ai:7')).toBe(true);
+  });
+
+  it('refuses a member id, including one that merely starts with "ai"', () => {
+    expect(isPodAi('fk:alice')).toBe(false);
+    expect(isPodAi('aidan')).toBe(false);
+    expect(isPodAi('ai:')).toBe(false);
+    expect(isPodAi('ai:x')).toBe(false);
+    expect(isPodAi('')).toBe(false);
   });
 });

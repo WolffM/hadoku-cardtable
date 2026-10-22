@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { parsePodView, POD_SEATS, type PodView } from './wire.ts';
+import { parsePodView, podPlayers, POD_SEATS, type PodView } from './wire.ts';
 
 const seats = (): PodView['seats'] => Array.from({ length: POD_SEATS }, () => null);
 
@@ -93,5 +93,27 @@ describe('parsePodView', () => {
     // way, and this always answers null rather than half-filling a shape.
     expect(parsePodView({})).toBeNull();
     expect(parsePodView({ phase: 'lobby' })).toBeNull();
+  });
+});
+
+describe('podPlayers', () => {
+  it('a lobby pod: every seated human, never the AI button or a closed seat', () => {
+    const v = fixture({
+      seats: seats().map((_, i) => {
+        if (i === 0) return { memberId: 'u-alice', name: 'Alice' };
+        if (i === 1) return { memberId: 'ai', name: 'Knight' };
+        if (i === 2) return { memberId: 'closed', name: '' };
+        return null;
+      }),
+    });
+    expect(podPlayers(v)).toEqual(new Set(['u-alice']));
+  });
+
+  it('a rounds pod: every drafter, never a tournament AI entrant (`ai:<seat>`) — the leak a real tournament hit', () => {
+    // A tournament pod's `drafters` includes its AI entrants directly
+    // (`room/lobby.ts`'s `podEntrants`), unlike a draft pod's (whose shared
+    // bot is never listed there at all).
+    const v = fixture({ phase: 'rounds', round: 1, rounds: 1, drafters: ['u-alice', 'u-bob', 'ai:1'] });
+    expect(podPlayers(v)).toEqual(new Set(['u-alice', 'u-bob']));
   });
 });

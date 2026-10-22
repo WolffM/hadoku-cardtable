@@ -13,9 +13,9 @@
  * `@hadoku/shared`'s own naming and this screen's.
  */
 
-import { POD_SEATS, RoomPodSchema, type PodMember, type PodSeats, type PodStandingsRow, type PodView } from '@hadoku/shared';
+import { isPodAi, POD_SEATS, RoomPodSchema, type PodMember, type PodSeats, type PodStandingsRow, type PodView } from '@hadoku/shared';
 
-export { POD_SEATS };
+export { isPodAi, POD_SEATS };
 export type { PodMember, PodSeats, PodStandingsRow, PodView };
 
 /** The AI's seat occupant (`apps/server/src/room/lobby.ts`'s `POD_AI`). */
@@ -31,17 +31,20 @@ export const POD_CLOSED = 'closed';
  */
 export function podDealable(seats: PodSeats | undefined, members: readonly { id: string; ready: boolean }[]): boolean {
   if (seats === undefined || seats.some((s) => s === null)) return false;
-  const humans = seats.filter((s) => s !== null && s.memberId !== POD_AI && s.memberId !== POD_CLOSED).map((s) => s!.memberId);
+  const humans = seats.filter((s) => s !== null && !isPodAi(s.memberId) && s.memberId !== POD_CLOSED).map((s) => s!.memberId);
   return humans.length > 0 && humans.every((id) => members.find((m) => m.id === id)?.ready === true);
 }
 
 /**
  * The pod's players, by member id: the members in its seats while it is in its
  * lobby, then its `drafters` — the server sends the seats only in the lobby.
+ * Never an AI, of either shape (`isPodAi`): a draft pod's shared bot is never
+ * listed in `drafters` to begin with, but a TOURNAMENT pod's own AI entrants
+ * (`ai:<seat>`) are — this is the one place that filters them back out.
  */
 export function podPlayers(pod: PodView): Set<string> {
-  if (pod.phase !== 'lobby') return new Set(pod.drafters);
-  return new Set(pod.seats.flatMap((s) => (s === null || s.memberId === POD_AI || s.memberId === POD_CLOSED ? [] : [s.memberId])));
+  if (pod.phase !== 'lobby') return new Set(pod.drafters.filter((id) => !isPodAi(id)));
+  return new Set(pod.seats.flatMap((s) => (s === null || isPodAi(s.memberId) || s.memberId === POD_CLOSED ? [] : [s.memberId])));
 }
 
 /**

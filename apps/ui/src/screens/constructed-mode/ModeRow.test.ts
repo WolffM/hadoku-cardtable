@@ -95,4 +95,16 @@ describe('ModeRow', () => {
     expect(group().classList.contains('radio-cards--large')).toBe(false);
     expect(group().parentElement!.hasAttribute('data-morphing')).toBe(false);
   });
+
+  it('disables Gauntlet alone while the room’s Tournament setting is on — Classic and All Random stay live', () => {
+    render(createElement(ModeRow, { mode: 'classic', disabled: false, gauntletDisabled: true, onChoose: () => {} }));
+    expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByTestId('constructed-mode-classic') as HTMLInputElement).disabled).toBe(false);
+    expect((screen.getByTestId('constructed-mode-random') as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('leaves every card enabled when gauntletDisabled is left out', () => {
+    render(row('classic'));
+    expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).disabled).toBe(false);
+  });
 });

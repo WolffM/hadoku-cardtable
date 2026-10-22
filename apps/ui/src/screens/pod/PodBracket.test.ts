@@ -91,6 +91,17 @@ describe('bracketRounds', () => {
     if (r1?.state !== 'next') expect(r1!.matches[0]!.table?.id).toBe('t-1');
   });
 
+  it('matches a FINISHED game against a TOURNAMENT AI entrant (`ai:<seat>`, never a real seat) to the table its one human sat at', () => {
+    // A past round has no `pairings` (the live round's own field) — its table
+    // is found by matching the RESULT's player set against every table's real
+    // seats (`sameTable`), the same reconstruction the draft-pod-vs-AI test
+    // above exercises for the literal `ai`.
+    const vsTournamentAi = pod({ phase: 'done', round: 2, rounds: 1, results: [{ round: 1, playerA: 'u-alice', playerB: 'ai:3', gamesA: 2, gamesB: 0 }] });
+    const [r1] = bracketRounds(vsTournamentAi, [table('t-0', []), table('t-1', ['u-alice'], { series: { length: 3, wins: [2, 0], games: [], phase: 'done' } })]);
+    expect(r1).toMatchObject({ state: 'past', matches: [{ players: ['u-alice', 'ai:3'], wins: [2, 0], phase: 'done' }] });
+    if (r1?.state !== 'next') expect(r1!.matches[0]!.table?.id).toBe('t-1');
+  });
+
   it('gives a repeated pairing each of its tables in turn, oldest first', () => {
     const again = pod({
       phase: 'done',

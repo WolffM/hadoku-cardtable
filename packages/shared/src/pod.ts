@@ -1,11 +1,14 @@
 /*
- * A draft pod's rounds, on the wire — `RoomView.pod` (wave 72 §P,
- * `docs/planning/wave72-2026-10-17.md`'s "Wire contract").
+ * A pod's rounds, on the wire — `RoomView.pod` (wave 72 §P,
+ * `docs/planning/wave72-2026-10-17.md`'s "Wire contract"; generalised to a
+ * constructed tournament by `docs/planning/tournament-mode-plan.md`).
  *
- * `null` for a constructed room; for a `draft` room this is the whole of
+ * `null` for a plain constructed room; for a `draft` room, or a
+ * `constructed-1v1` one with `settings.tournament` on, this is the whole of
  * "what phase is the pod in, and what has it decided so far" — the lobby's 8
  * seats, the round counter, every round's results, the standings, this
- * round's pairings, this round's bye, and who has a legal built deck saved.
+ * round's pairings, this round's bye, and (a draft pod only) who has a legal
+ * built deck saved.
  *
  * **`results`/`standings` mirror `@hadoku/draft`'s `MatchResult`/
  * `StandingsRow` shapes rather than importing them.** `@hadoku/draft` already
@@ -109,8 +112,38 @@ export type PodPairing = z.infer<typeof PodPairingSchema>;
 
 /**
  * `RoomView.pod`'s own shape, present (non-`null`) whenever
- * `RoomView.gameType === 'draft'`.
+ * `RoomView.gameType === 'draft'`, OR whenever it is `'constructed-1v1'` with
+ * `RoomView.settings.tournament` on (`docs/planning/tournament-mode-plan.md`).
+ * A constructed tournament's phases are only ever `lobby` / `rounds` / `done`
+ * (it never drafts or builds a deck), so `plan`/`planName`/`verdict` — a
+ * DRAFT's pool choice and its playability check — read `null`/`''`/`null`
+ * there; every OTHER field (seats, round, standings, pairings, bye,
+ * drafters, built) is filled exactly as a draft pod's, because it is the
+ * same Swiss engine.
+ *
+ * An entrant id on the wire (`seats[].memberId`, `drafters`, `built`,
+ * `pairings[].players`, `results[].playerA/B`, `standings[].id`) is either a
+ * real member id, or one of the two AI sentinels: `'ai'` (`POD_AI`, a DRAFT
+ * pod's single shared bot, unchanged) or `` `ai:<seat>` `` (a TOURNAMENT
+ * pod's own AI entrant, one per AI seat — see `room/lobby.ts`'s
+ * `aiEntrantId`). `isPodAi` is the one question "is this id an AI, of
+ * either shape" — every reader of an entrant id, server and UI, answers it
+ * through that rather than its own `=== 'ai'` or `startsWith('ai:')` check,
+ * so a tournament AI entrant never silently reads as a human member.
  */
+export const AI_ENTRANT_PREFIX = 'ai:';
+
+/**
+ * Whether `id` is an AI entrant on the wire: a draft pod's single shared bot
+ * (`'ai'`) or a tournament pod's own per-seat one (`` `ai:<seat>` ``). Never a
+ * real member id — a bare `'ai'` and the `'ai:'` prefix are both reserved
+ * (`room/lobby.ts`'s `POD_AI`/`aiEntrantId`; no `identityFromHeaders` id is
+ * ever either shape).
+ */
+export function isPodAi(id: string): boolean {
+  return id === 'ai' || (id.startsWith(AI_ENTRANT_PREFIX) && /^\d+$/.test(id.slice(AI_ENTRANT_PREFIX.length)));
+}
+
 export const PodViewSchema = z.strictObject({
   phase: PodPhaseSchema,
   /** The 8 pod seats — filled only in the `lobby` phase; empty (all `null`) once drafting starts. */
@@ -138,10 +171,11 @@ export const PodViewSchema = z.strictObject({
   /**
    * The room's pool choice (wave 73 §A) — the Settled default (Vintage Cube
    * 2025-12 × 3) until the leader picks otherwise, frozen once drafting
-   * starts (`PUT /api/rooms/:id/pod/plan` is `lobby`-phase only).
+   * starts (`PUT /api/rooms/:id/pod/plan` is `lobby`-phase only). `null` for
+   * a constructed tournament pod, which drafts no pool at all.
    */
-  plan: DraftPlanSchema,
-  /** The display name of round 1's source — `cube.name` for a cube, or a set's own name once wave 74 adds those. */
+  plan: DraftPlanSchema.nullable(),
+  /** The display name of round 1's source — `cube.name` for a cube, or a set's own name once wave 74 adds those. `''` for a constructed tournament pod. */
   planName: z.string(),
   /** `plan`'s last playability check, or `null` while one is running or before the first ever ran. */
   verdict: PoolVerdictSchema.nullable(),

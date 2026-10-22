@@ -35,17 +35,44 @@ export type ClientMode = z.infer<typeof ClientModeSchema>;
 export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
 
 /**
- * A room's match settings, every one a boolean with a default.
+ * A room's match settings and the same-shaped per-room toggles that ride with
+ * them. Most are booleans with a default; `tournamentDecks` is the one
+ * exception (see below), which is why `SettingsPatchSchema` (this file) and
+ * `isStoredSettings`/`storedSettings` (`room/lobby.ts`) read each field's OWN
+ * schema off `RoomSettingsSchema.shape` rather than assuming every value is a
+ * boolean.
  *
  * `handSmoothing` (on by default): the opening hand is the closer of two to the
  * deck's land ratio, and each mulligan's redraw is weighted toward it —
  * `MatchSpec.handSmoothing`, and Forge's `HandSmoothing` in our fork.
  *
- * How long a series runs is not a setting: it is the room's game type and mode.
+ * `tournament` (off by default, `docs/planning/tournament-mode-plan.md`):
+ * a Constructed room plays a Swiss pod of its own mode, the same seats/rounds
+ * machinery a `draft` room's pod uses (`room/lobby.ts`'s `PodRecord`). The
+ * leader's to flip, and only while the pod is still in its `lobby` phase —
+ * once seats lock it is frozen along with everything else about the field.
+ *
+ * `tournamentDecks` (`'locked'` by default): only meaningful with `tournament`
+ * on. `'locked'`: Classic and All Random fix each entrant's deck once (at the
+ * lock for Classic/All Random; after a Gauntlet entrant's first match's own
+ * draft, for Gauntlet — see `room/lobby.ts`'s locked-deck store) and replay it
+ * every round. `'per-round'`: each round deals or re-picks fresh, as a normal
+ * table already does.
+ *
+ * How long a series runs is not a setting: it is the room's game type, mode
+ * and `tournament` flag (`room/series.ts`'s `seriesFormatOf`).
  */
-export const RoomSettingsSchema = z.strictObject({ handSmoothing: z.boolean() });
+export const TOURNAMENT_DECK_POLICIES = ['locked', 'per-round'] as const;
+export const TournamentDecksSchema = z.enum(TOURNAMENT_DECK_POLICIES);
+export type TournamentDecks = z.infer<typeof TournamentDecksSchema>;
+
+export const RoomSettingsSchema = z.strictObject({
+	handSmoothing: z.boolean(),
+	tournament: z.boolean(),
+	tournamentDecks: TournamentDecksSchema,
+});
 export type RoomSettings = z.infer<typeof RoomSettingsSchema>;
-export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({ handSmoothing: true });
+export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({ handSmoothing: true, tournament: false, tournamentDecks: 'locked' });
 
 /**
  * What makes a room's pool a DRAFTED pool rather than a frozen era.
@@ -162,12 +189,24 @@ export const PodAiBodySchema = body({ seat: seatField, on: z.boolean({ error: 'o
 export const PodCloseBodySchema = body({ seat: seatField, closed: z.boolean({ error: 'closed must be true or false' }) });
 
 /**
+ * Each setting's own PATCH schema and refusal text, keyed by name so a PATCH
+ * validates `tournamentDecks` as the enum it is rather than the boolean every
+ * OTHER setting happens to be. Add a setting here, not as a one-off special
+ * case below.
+ */
+const SETTINGS_FIELD_SCHEMAS: { [K in keyof RoomSettings]: z.ZodType<RoomSettings[K]> } = {
+  handSmoothing: z.boolean({ error: 'settings.handSmoothing must be a boolean' }),
+  tournament: z.boolean({ error: 'settings.tournament must be a boolean' }),
+  tournamentDecks: z.enum(TOURNAMENT_DECK_POLICIES, { error: oneOf('settings.tournamentDecks', TOURNAMENT_DECK_POLICIES) }),
+};
+
+/**
  * Some of the room's settings. An empty object is refused: a PATCH that
  * changes nothing is a client that meant something else.
  */
 const SettingsPatchSchema = z
   .strictObject(
-    Object.fromEntries(Object.keys(RoomSettingsSchema.shape).map((k) => [k, z.boolean({ error: `settings.${k} must be a boolean` }).optional()])),
+    Object.fromEntries(Object.entries(SETTINGS_FIELD_SCHEMAS).map(([k, schema]) => [k, schema.optional()])),
     { error: (iss) => (iss.code === 'unrecognized_keys' ? `unknown setting(s): ${iss.keys.join(', ')}` : 'settings must be an object') },
   )
   .refine((o) => Object.keys(o).length > 0, { error: 'settings names no setting' })

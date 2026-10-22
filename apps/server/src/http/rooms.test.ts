@@ -34,10 +34,13 @@ import { checkPlan as realCheckPlan, type CubeLookup, type ForgeChecker, type Se
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /**
- * The frozen pools, read the way production reads them, so what a room's default
- * format is asserted AGAINST is the real list rather than a date copied here.
+ * The frozen pools AND the deck library, read the way production reads them,
+ * so what a room's default format is asserted AGAINST is the real list
+ * rather than a date copied here, and `openFullApp`'s tournament lock tests
+ * check a REAL legal library deck rather than a fake `PodChecks`.
  */
-const LIBRARY_FORMATS = loadTablesLibrary(REPO_ROOT).formats;
+const TABLES_LIBRARY = loadTablesLibrary(REPO_ROOT);
+const LIBRARY_FORMATS = TABLES_LIBRARY.formats;
 const POOLS = LIBRARY_FORMATS.map((f) => f.id);
 /**
  * The newest STANDARD era, never just "the last element" — wave 48 put
@@ -53,6 +56,7 @@ const PASSWORD = 'correct-horse-battery-staple-9137';
 let roomsMod: typeof import('./rooms.ts');
 let lobbyMod: typeof import('../room/lobby.ts');
 let edgeMod: typeof import('../edge-auth.ts');
+let routesMod: typeof import('./routes.ts');
 
 beforeAll(async () => {
 	// config.ts reads the environment once, at load — same dance as tables.test.ts.
@@ -62,6 +66,7 @@ beforeAll(async () => {
 	roomsMod = await import('./rooms.ts');
 	lobbyMod = await import('../room/lobby.ts');
 	edgeMod = await import('../edge-auth.ts');
+	routesMod = await import('./routes.ts');
 });
 
 /* ── harness ─────────────────────────────────────────────────────────── */
@@ -118,6 +123,35 @@ async function openApp(
 		checkPlan: opts.checkPlan ?? (async (plan) => ({ ok: true, cards: plan.rounds.length * 10 })),
 		...(opts.realistic === undefined ? {} : { realistic: opts.realistic }),
 	});
+	app.use('/api', api);
+
+	const server = createServer(app);
+	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+	servers.push(server);
+	const { port } = server.address() as AddressInfo;
+	return { base: `http://127.0.0.1:${port}`, lobby };
+}
+
+/**
+ * `openApp` PLUS `attachTables` — `index.ts`'s real wiring, both routers on
+ * the same `lobby`. Needed for anything that depends on `PodChecks` (a
+ * tournament's Classic/All Random deck seam): `attachRooms` alone leaves
+ * `lobby`'s `#podChecks` at its no-op fallback, so a Classic lock could
+ * never see a legal deck and the crash this harness exists to reproduce
+ * could never happen in `openApp`'s own tests.
+ */
+async function openFullApp(dir: string): Promise<Harness> {
+	const log = (entry: Record<string, unknown>): void => {
+		logged.push(entry);
+	};
+	const lobby = await lobbyMod.openLobby({ dir, log, defaultFormat: NEWEST_POOL });
+	const app = express();
+	app.use(edgeMod.edgeProvenance);
+	app.use(edgeMod.requireMinTier);
+	const api = express.Router();
+	api.use(express.json({ limit: '1mb' }));
+	roomsMod.attachRooms(api, { lobby, log, checkPlan: async (plan) => ({ ok: true, cards: plan.rounds.length * 10 }) });
+	routesMod.attachTables(api, { library: TABLES_LIBRARY, draftRooms: null, rooms: lobby, matches: () => null, log });
 	app.use('/api', api);
 
 	const server = createServer(app);
@@ -633,7 +667,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const dir = await tempDir();
 		const h = await openApp(dir);
 		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
-		expect(created.settings).toEqual({ handSmoothing: true });
+		expect(created.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked' });
 		await call(h, 'POST', `/api/rooms/${created.id}/join`, { as: 'bob' });
 		await call(h, 'POST', `/api/rooms/${created.id}/ready`, { as: 'bob', body: { ready: true } });
 
@@ -644,12 +678,12 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const byLeader = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { settings: { handSmoothing: false } } });
 		expect(byLeader.status).toBe(200);
 		const after = byLeader.json() as View;
-		expect(after.settings).toEqual({ handSmoothing: false });
+		expect(after.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked' });
 		// Not a deck question, so bob is still ready.
 		expect(after.members.map((m) => m.ready)).toEqual([false, true]);
 
 		const restored = (await call(await openApp(dir), 'GET', `/api/rooms/${created.id}`)).json() as View;
-		expect(restored.settings).toEqual({ handSmoothing: false });
+		expect(restored.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked' });
 	});
 
 	it('refuses a setting it does not know, a value that is not a boolean, and an empty or mixed body', async () => {
@@ -670,7 +704,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 			expect(res.json()).toEqual({ error });
 		}
 		const after = (await call(h, 'GET', `/api/rooms/${created.id}`)).json() as View;
-		expect([after.settings, after.format]).toEqual([{ handSmoothing: true }, NEWEST_POOL]);
+		expect([after.settings, after.format]).toEqual([{ handSmoothing: true, tournament: false, tournamentDecks: 'locked' }, NEWEST_POOL]);
 	});
 
 	it('sizes a Constructed room’s series Bo1 and a draft room’s Bo3', async () => {
@@ -678,7 +712,7 @@ describe('PATCH /api/rooms/:id { settings }', () => {
 		const constructed = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open' } })).json() as View;
 		expect(constructed.tables[0]?.series).toMatchObject({ length: 1, phase: 'seating' });
 		const draft = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Draft room', gameType: 'draft' } })).json() as View;
-		expect(draft.settings).toEqual({ handSmoothing: true });
+		expect(draft.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked' });
 		expect(draft.tables[0]?.series).toMatchObject({ length: 3 });
 	});
 });
@@ -2234,5 +2268,83 @@ describe('a constructed room’s mode over HTTP', () => {
 		expect(locked.status).toBe(409);
 		expect(locked.json()).toEqual({ error: 'a game is under way or a seated player is ready; the format cannot change now', reason: 'mode-locked' });
 		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { format: string }).format).toBe(created.format);
+	});
+});
+
+/**
+ * tour-u's real-browser e2e found this crash; no `lobby.test.ts` fake caught
+ * it because `#lockTournament` calls `PodChecks` with the REAL `routes.ts`
+ * implementation, which re-enters `rooms.get()` mid-lock — and a fake
+ * `PodChecks` never does that. `openFullApp` mounts both `attachRooms` and
+ * `attachTables` on the same real `Lobby`, exactly as `index.ts` does, so
+ * `#podChecks` is the real one here.
+ */
+describe('a tournament locks over HTTP, with the real PodChecks (regression: the lock must not hand out a half-mutated room)', () => {
+	/** Two different library decks of the room's own (newest) pool. */
+	function legalDeckPair(): [string, string] {
+		const decks = TABLES_LIBRARY.decks.filter((d) => d.era === NEWEST_POOL);
+		if (decks.length < 2) throw new Error('the newest pool needs at least two library decks for this test');
+		return [decks[0]!.id, decks[1]!.id];
+	}
+
+	it('Classic, locked: 200, round 1 paired, both seated with their OWN locked deck, and the room still answers afterwards', async () => {
+		const h = await openFullApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Tournament night', mode: 'classic' } })).json() as { id: string };
+		const id = created.id;
+		expect((await call(h, 'POST', `/api/rooms/${id}/join`, { as: 'bob' })).status).toBe(200);
+		expect((await call(h, 'PATCH', `/api/rooms/${id}`, { as: 'alice', body: { settings: { tournament: true } } })).status).toBe(200);
+
+		const [aliceDeck, bobDeck] = legalDeckPair();
+		expect((await call(h, 'PUT', `/api/tables/rooms/${id}/deck`, { as: 'alice', body: { deck: { library: aliceDeck } } })).status).toBe(200);
+		expect((await call(h, 'PUT', `/api/tables/rooms/${id}/deck`, { as: 'bob', body: { deck: { library: bobDeck } } })).status).toBe(200);
+
+		expect((await call(h, 'POST', `/api/rooms/${id}/pod/sit`, { as: 'alice', body: { seat: 0 } })).status).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${id}/pod/sit`, { as: 'bob', body: { seat: 1 } })).status).toBe(200);
+
+		// THE CRASH: before the fix this 500s (`TypeError: Cannot read
+		// properties of null (reading 'results') at podViewOf`), not the 200
+		// a successful lock answers.
+		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
+		expect(started.status, started.text).toBe(200);
+		const startedRoom = started.json() as import('../room/lobby.ts').RoomView;
+		expect(startedRoom.pod?.phase).toBe('rounds');
+		expect(startedRoom.pod?.pairings).toHaveLength(1);
+		const tableId = startedRoom.pod!.pairings[0]!.tableId;
+
+		// Every LATER read must still answer too — the bug left the room
+		// permanently broken, not just the lock's own response.
+		const after = await call(h, 'GET', `/api/rooms/${id}`);
+		expect(after.status, after.text).toBe(200);
+
+		// Both seated with their OWN locked deck, through the real table route.
+		const aliceTable = (await call(h, 'GET', `/api/tables/rooms/${id}?table=${tableId}`, { as: 'alice' })).json() as {
+			players: { you: boolean; deck?: { choice: { deck: { library: string } } } }[];
+		};
+		expect(aliceTable.players.find((p) => p.you)?.deck?.choice.deck).toEqual({ library: aliceDeck });
+		const bobTable = (await call(h, 'GET', `/api/tables/rooms/${id}?table=${tableId}`, { as: 'bob' })).json() as {
+			players: { you: boolean; deck?: { choice: { deck: { library: string } } } }[];
+		};
+		expect(bobTable.players.find((p) => p.you)?.deck?.choice.deck).toEqual({ library: bobDeck });
+	});
+
+	it('All Random, locked, with one AI entrant: 200, round 1 paired against the AI, and the room still answers afterwards', async () => {
+		const h = await openFullApp(await tempDir());
+		const created = (
+			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Random tournament', mode: 'random', modeOptions: { pool: 'full' } } })
+		).json() as { id: string };
+		const id = created.id;
+		expect((await call(h, 'PATCH', `/api/rooms/${id}`, { as: 'alice', body: { settings: { tournament: true } } })).status).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${id}/pod/sit`, { as: 'alice', body: { seat: 0 } })).status).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${id}/pod/ai`, { as: 'alice', body: { seat: 1, on: true } })).status).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${id}/ready`, { as: 'alice', body: { ready: true } })).status).toBe(200);
+
+		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
+		expect(started.status, started.text).toBe(200);
+		const startedRoom = started.json() as import('../room/lobby.ts').RoomView & { you: { id: string } };
+		expect(startedRoom.pod?.phase).toBe('rounds');
+		expect(startedRoom.pod?.pairings).toEqual([{ tableId: startedRoom.pod!.pairings[0]!.tableId, players: [startedRoom.you.id, 'ai:1'] }]);
+
+		const after = await call(h, 'GET', `/api/rooms/${id}`);
+		expect(after.status, after.text).toBe(200);
 	});
 });

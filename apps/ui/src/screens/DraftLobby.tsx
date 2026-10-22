@@ -98,10 +98,14 @@ export { podDealable };
  * Every distinct cube `plan`'s rounds hold, in round order — not just round
  * 1 — so a future Custom round with a different cube per round warms every
  * one of them rather than only the first. Exported for `PodScreen.tsx`'s own
- * reload-mid-draft case. `undefined` reads as no plan at all: nothing to warm.
+ * reload-mid-draft case. `undefined` (no read yet) and `null` (a constructed
+ * tournament pod, `docs/planning/tournament-mode-plan.md` — it never drafts,
+ * so it has no plan to warm) both read as no plan at all: nothing to warm. A
+ * draft pod's own plan is never null in practice; this is only ever null for
+ * the tournament case.
  */
-export function cubeIdsOf(plan: DraftPlan | undefined): string[] {
-  if (plan === undefined) return [];
+export function cubeIdsOf(plan: DraftPlan | null | undefined): string[] {
+  if (plan === undefined || plan === null) return [];
   return [...new Set(plan.rounds.flatMap((r) => (r.kind === 'cube' ? [r.cubeId] : [])))];
 }
 
@@ -114,11 +118,13 @@ function sourcesEqual(a: PoolSource, b: PoolSource | null): boolean {
 
 /**
  * Which tab the room's own plan names: equal rounds of one kind name that
- * tab, unequal rounds name Custom. `undefined` (no plan at all) defaults to
- * Cube — the tab a fresh draft room always opens on.
+ * tab, unequal rounds name Custom. `undefined` (no read yet) and `null` (a
+ * constructed tournament pod, which never drafts and so never has a plan)
+ * both default to Cube — the tab a fresh draft room always opens on, and a
+ * tab this component never actually draws for a tournament pod either way.
  */
-function planTabOf(plan: DraftPlan | undefined): PoolTab {
-  if (plan === undefined) return 'cube';
+function planTabOf(plan: DraftPlan | null | undefined): PoolTab {
+  if (plan === undefined || plan === null) return 'cube';
   const [r1, r2, r3] = plan.rounds;
   if (!sourcesEqual(r1, r2) || !sourcesEqual(r1, r3)) return 'custom';
   return r1.kind;

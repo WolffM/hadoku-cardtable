@@ -129,6 +129,34 @@ describe('the pod seat grid', () => {
     expect(screen.getByTestId('pod-seat-1').querySelector('img')?.getAttribute('src')).toMatch(/sage/);
   });
 
+  // A tournament AI entrant is `ai:<seat>` on the wire (`room/lobby.ts`'s
+  // `aiEntrantId`), never the bare `ai` a draft pod's shared bot uses — the
+  // same AI look and Remove button, or the AI button silently stops working
+  // for a tournament seat.
+  it('draws a TOURNAMENT AI seat (`ai:3`) with the same AI look and Remove as the draft pod’s `ai`', () => {
+    const seats = emptySeats();
+    seats[3] = { memberId: 'ai:3', name: 'Knight', avatarId: 'knight' };
+    const onAi = vi.fn();
+    render(
+      createElement(PodSeats, {
+        seats,
+        myMemberId: 'u-me',
+        leaderId: '',
+        readyOf: () => false,
+        avatarIdOf: () => undefined,
+        onSit: () => undefined,
+        onStand: () => undefined,
+        onAi,
+        onClose: () => undefined,
+      }),
+    );
+    const row = screen.getByTestId('pod-seat-3');
+    expect(row.getAttribute('data-ai')).toBe('');
+    expect(row.querySelector('img')?.getAttribute('src')).toMatch(/knight/);
+    screen.getByTestId('pod-seat-ai-remove').click();
+    expect(onAi).toHaveBeenCalledWith(3, false);
+  });
+
   it('crowns the leader’s seat, wherever it is', () => {
     const seats = emptySeats();
     seats[5] = { memberId: 'u-lead', name: 'Leader' };

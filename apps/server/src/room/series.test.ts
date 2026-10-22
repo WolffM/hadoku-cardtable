@@ -19,6 +19,20 @@ describe('seriesFormatOf — what a room’s series play by', () => {
 		expect(seriesFormatOf({ gameType: 'draft' })).toEqual({ length: 3, sideboarding: true });
 		expect(seriesFormatOf({ gameType: 'draft', mode: 'gauntlet' })).toEqual({ length: 3, sideboarding: true });
 	});
+
+	it('a tournament Classic/All Random table is Bo3 with sideboarding, same as a pod', () => {
+		for (const mode of [undefined, null, 'classic', 'random'] as const) {
+			expect(seriesFormatOf({ gameType: 'constructed-1v1', mode, tournament: true })).toEqual({ length: 3, sideboarding: true });
+		}
+	});
+
+	it('a tournament Gauntlet table is still Bo3 with no sideboarding, same as a non-tournament one', () => {
+		expect(seriesFormatOf({ gameType: 'constructed-1v1', mode: 'gauntlet', tournament: true })).toEqual({ length: 3, sideboarding: false });
+	});
+
+	it('tournament is a constructed-1v1 question only — a draft pod ignores it', () => {
+		expect(seriesFormatOf({ gameType: 'draft', tournament: true })).toEqual({ length: 3, sideboarding: true });
+	});
 });
 
 describe('statsModeOf', () => {

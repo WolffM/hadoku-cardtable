@@ -36,6 +36,31 @@ import { forgetMatchesFollowed } from '../play/live/matchStart.ts';
 import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
+/**
+ * Tournament mode's own pod seat actions and table-starting — `pod/client.ts`'s
+ * `sitPod`/`aiPod`/`closePod`/`standPod`/`startMyTable`, which hit the real
+ * global `fetch` directly rather than this file's injectable `fetchImpl`
+ * (`DraftLobby.test.ts`'s own header explains why; same reason, same fix).
+ */
+const { sitPod, aiPod, closePod, standPod, startMyTable } = vi.hoisted(() => ({
+  sitPod: vi.fn(),
+  aiPod: vi.fn(),
+  closePod: vi.fn(),
+  standPod: vi.fn(),
+  startMyTable: vi.fn(),
+}));
+// The REST of the module (`usePodContext`, `playPod`, `startTableMatch`, …)
+// is PodScreen.tsx's own real implementation — this file also renders a
+// draft room's pod, which needs it; only these five are stubbed.
+vi.mock('./pod/client.ts', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  sitPod,
+  aiPod,
+  closePod,
+  standPod,
+  startMyTable,
+}));
+
 import type { DraftCard, GauntletView, RoomMode } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
 import { BASIC_LAND_NAMES, deckColorsByName, mainDeckSize } from '@hadoku/deck';
@@ -90,10 +115,19 @@ import {
 } from './tables.ts';
 import { apiBase, type Fetch } from '../http.ts';
 
+beforeEach(() => {
+  sitPod.mockResolvedValue({ ok: true, message: null });
+  aiPod.mockResolvedValue({ ok: true, message: null });
+  closePod.mockResolvedValue({ ok: true, message: null });
+  standPod.mockResolvedValue({ ok: true, message: null });
+  startMyTable.mockResolvedValue({ ok: true, matchId: null });
+});
+
 afterEach(() => {
   forgetMatchesFollowed();
   cleanup();
   globalThis.location.hash = '';
+  vi.clearAllMocks();
 });
 
 const SCREENS_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/screens', 'screens.css'), 'utf8');
@@ -242,8 +276,8 @@ interface Table {
   format?: string;
   /** Whether the CALLER is the leader. Absent ⇒ true: alice made the room. */
   leader?: boolean;
-  /** `RoomView.settings`. Absent ⇒ the server's default: hand smoothing on. */
-  settings?: { handSmoothing?: boolean };
+  /** `RoomView.settings`. Absent ⇒ the server's default: hand smoothing on, tournament off, decks locked. */
+  settings?: { handSmoothing?: boolean; tournament?: boolean; tournamentDecks?: 'locked' | 'per-round' };
   /**
    * The room's own table record (wave 71 §D's wire shape) — `@hadoku/shared`'s
    * `RoomView.tables[0]`. Absent ⇒ a fresh `seating` series, no games yet.
@@ -288,7 +322,7 @@ interface Table {
   decks?: TableDeck[];
   /** `GET /tables/decks` answers only once a room read has, as on a reload where the room is quicker. */
   catalogueAfterRoom?: boolean;
-  /** `RoomView.pod` — a draft room's pod. Absent ⇒ `null`. */
+  /** `RoomView.pod` — a draft room's pod, or (tournament mode) a constructed one. Absent ⇒ `null`. */
   pod?: unknown;
   /** What `GET /api/decks` answers — Free pick's "My decks". Absent ⇒ none; a promise ⇒ answers when it settles. */
   myDecks?: MyDeck[] | Promise<MyDeck[]>;
@@ -334,7 +368,7 @@ function stubServer(table: Table) {
     leader: 'p-alice',
     gameType: gameType(),
     format: table.format,
-    settings: table.settings ?? { handSmoothing: true },
+    settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked', ...table.settings },
     ...(table.mode === undefined ? { mode: 'classic', modeOptions: {} } : table.mode === null ? { mode: null, modeOptions: null } : table.mode),
     // Caller-scoped, as `http/rooms.ts` serialises it: whether the leader is
     // this caller, and whether this caller is ready. `p-alice` is us.
@@ -411,7 +445,7 @@ function stubServer(table: Table) {
        */
       if ((init?.method ?? 'GET') === 'PATCH') {
         if (table.refusePatch !== undefined) return json(table.refusePatch.status, { error: table.refusePatch.error });
-        const asked = body as { format?: unknown; mode?: unknown; gameType?: string; settings?: { handSmoothing?: boolean } };
+        const asked = body as { format?: unknown; mode?: unknown; gameType?: string; settings?: { handSmoothing?: boolean; tournament?: boolean; tournamentDecks?: 'locked' | 'per-round' } };
         // The type, as `lobby.ts` sets it: under the mode's lock, and a change leaves the mode unchosen and nobody ready.
         if (asked.gameType !== undefined) {
           if (table.players.some((p) => p.ready)) return json(409, { error: 'mode-locked' });
@@ -430,7 +464,7 @@ function stubServer(table: Table) {
         }
         // A setting is not a deck question: nobody's readiness or verdict moves.
         if (asked.settings !== undefined) {
-          table.settings = { ...(table.settings ?? { handSmoothing: true }), ...asked.settings };
+          table.settings = { handSmoothing: true, tournament: false, tournamentDecks: 'locked', ...table.settings, ...asked.settings };
           return json(200, roomRecord());
         }
         if (typeof asked.format !== 'string') return json(400, { error: 'format must be a string' });
@@ -1151,6 +1185,8 @@ describe('a room’s table', () => {
         setRoomMode: async () => ({ ok: false as const, message: 'not used' }),
         setGameType: async () => ({ ok: false as const, message: 'not used' }),
         setPlan: async () => ({ ok: false as const, message: 'not used', verdict: null }),
+        lockPod: async () => ({ ok: false as const, message: 'not used' }),
+        choosePodDeck: async () => ({ ok: false as const, message: 'not used' }),
         leave: async () => ({ ok: false as const, message: 'not used' }),
         close: async () => ({ ok: false as const, message: 'not used' }),
         join: async (roomId: string, password?: string) => {
@@ -1168,7 +1204,7 @@ describe('a room’s table', () => {
                   leader: 'p-alice',
                   gameType: 'constructed-1v1' as const,
                   format: '2010-07-16',
-                  settings: { handSmoothing: true },
+                  settings: { handSmoothing: true, tournament: false, tournamentDecks: 'locked' as const },
                   mode: null,
                   modeOptions: null,
                   you: { id: 'p-alice', leader: true, ready: false },
@@ -2313,6 +2349,177 @@ describe('a draft room', () => {
     // And the read that followed it is the one that matters: the lobby appears.
     await screen.findByTestId('draft-lobby');
     expect(screen.queryByTestId('room-missing')).toBeNull();
+  });
+});
+
+/* ── tournament mode (docs/planning/tournament-mode-plan.md) ──────────── */
+
+describe('tournament mode', () => {
+  const members = (...ready: boolean[]) =>
+    ready.map((r, i) => ({ id: i === 0 ? 'p-alice' : `p-${i}`, name: i === 0 ? 'user-alice' : `user-${i}`, ready: r }));
+  const emptySeats = (): ({ memberId: string; name: string } | null)[] => Array.from({ length: 8 }, () => null);
+
+  /** A constructed tournament pod: `plan`/`planName`/`verdict` null/''/null — it never drafts (the landed contract, `@hadoku/shared`'s `pod.ts`). */
+  const tournamentPod = (over: Record<string, unknown> = {}) => ({
+    phase: 'lobby',
+    seats: emptySeats(),
+    round: 0,
+    rounds: 0,
+    results: [],
+    standings: [],
+    pairings: [],
+    bye: null,
+    drafters: [],
+    built: [],
+    plan: null,
+    planName: '',
+    verdict: null,
+    ...over,
+  });
+
+  async function mountTournament(table: Partial<Table> = {}, feed: RoomFeed = everyMs(10)) {
+    const server = stubServer({
+      players: [],
+      matchId: null,
+      members: members(true),
+      settings: { tournament: true, tournamentDecks: 'locked' },
+      pod: tournamentPod(),
+      ...table,
+    });
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, roomId: ROOM, feed }));
+    await screen.findByTestId('constructed-mode');
+    return server;
+  }
+
+  it('shows Tournament in the options row; turning it on shows Decks, defaulted to Locked', async () => {
+    await mountTournament({ settings: { tournament: false, tournamentDecks: 'locked' }, pod: null });
+    expect(screen.getByTestId('tournament-toggle').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByTestId('tournament-decks')).toBeNull();
+
+    screen.getByTestId('tournament-toggle').click();
+    await waitFor(() => expect(screen.getByTestId('tournament-toggle').getAttribute('aria-pressed')).toBe('true'));
+    expect((screen.getByTestId('tournament-decks-locked') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('disables Gauntlet in the mode row while Tournament is on, and disables Tournament while the mode is Gauntlet', async () => {
+    await mountTournament({ settings: { tournament: true, tournamentDecks: 'locked' }, pod: null });
+    expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).disabled, 'Tournament on: Gauntlet is off limits').toBe(true);
+    expect((screen.getByTestId('constructed-mode-classic') as HTMLInputElement).disabled).toBe(false);
+    expect((screen.getByTestId('constructed-mode-random') as HTMLInputElement).disabled).toBe(false);
+
+    screen.getByTestId('tournament-toggle').click();
+    await waitFor(() => expect(screen.getByTestId('tournament-toggle').getAttribute('aria-pressed')).toBe('false'));
+    expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).disabled, 'Tournament off: Gauntlet is live again').toBe(false);
+
+    screen.getByTestId('constructed-mode-gauntlet').click();
+    await waitFor(() => expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).checked).toBe(true));
+    expect((screen.getByTestId('tournament-toggle') as HTMLButtonElement).disabled, 'mode is Gauntlet: Tournament is off limits').toBe(true);
+  });
+
+  it('shows the server’s tournament-mode-unsupported refusal in the room’s own refusal style, if it ever sends one anyway', async () => {
+    await mountTournament({
+      settings: { tournament: false, tournamentDecks: 'locked' },
+      pod: null,
+      refusePatch: { status: 409, error: 'tournament-mode-unsupported' },
+    });
+    screen.getByTestId('tournament-toggle').click();
+    // `writeRoom`'s own wording, unchanged by this lane — no hint text of its own invention added.
+    await waitFor(() => expect(screen.getByTestId('table-error').textContent).toBe('Could not change the room settings: tournament-mode-unsupported.'));
+  });
+
+  it('a non-leader reads Tournament and Decks disabled, never able to move them', async () => {
+    await mountTournament({ leader: false, settings: { tournament: true, tournamentDecks: 'per-round' } });
+    expect((screen.getByTestId('tournament-toggle') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('tournament-decks-per-round') as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByTestId('tournament-decks-per-round') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('replaces the 1v1 "At the table" seats with the pod seat strip while the pod is in its lobby', async () => {
+    await mountTournament();
+    expect(screen.queryByTestId('room-players')).toBeNull();
+    expect(screen.getByTestId('tournament-lobby')).not.toBeNull();
+    expect(screen.getByTestId('pod-seats')).not.toBeNull();
+    // The AI button is offered on an open seat, same as a draft pod's (the operator, 2026-10-22).
+    expect(screen.getAllByTestId('pod-seat-ai').length).toBeGreaterThan(0);
+  });
+
+  // All Random, not Classic, for these three: Lock's own human-ready test is
+  // `member.ready` for Random (`room/lobby.ts`'s `#lockTournament`) — directly
+  // observable for every human, unlike Classic's "a legal deck already held",
+  // which this screen can only see for its OWN seat (`TournamentPodLobby.tsx`'s
+  // own header). Classic's version of this gate is exercised live, end to end,
+  // in `e2e/tournament.spec.ts` instead of guessed at here.
+  const randomMode = { mode: 'random' as const, modeOptions: { pool: 'full' as const } };
+
+  it('shows Lock seats to the leader only, disabled until every seated human is ready', async () => {
+    const seats = emptySeats();
+    seats[0] = { memberId: 'p-alice', name: 'user-alice' };
+    seats[1] = { memberId: 'p-1', name: 'user-1' };
+    await mountTournament({ mode: randomMode, members: members(true, false), pod: tournamentPod({ seats }) });
+    expect((screen.getByTestId('pod-lock-seats') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('enables Lock seats once every seated human is ready, and presses it — the SAME route a draft room’s own deal uses', async () => {
+    const seats = emptySeats();
+    seats[0] = { memberId: 'p-alice', name: 'user-alice' };
+    seats[1] = { memberId: 'p-1', name: 'user-1' };
+    const server = await mountTournament({ mode: randomMode, members: members(true, true), pod: tournamentPod({ seats }) });
+    const lock = screen.getByTestId('pod-lock-seats') as HTMLButtonElement;
+    expect(lock.disabled).toBe(false);
+    lock.click();
+    await waitFor(() => expect(server.calls.some((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toBe(true));
+    expect(lastCall(server.calls, `/api/rooms/${ROOM}/start`)?.method).toBe('POST');
+  });
+
+  it('shows Lock seats’ own refusal in the server’s words', async () => {
+    const seats = emptySeats();
+    seats[0] = { memberId: 'p-alice', name: 'user-alice' };
+    seats[1] = { memberId: 'p-1', name: 'user-1' };
+    await mountTournament({
+      mode: randomMode,
+      members: members(true, true),
+      pod: tournamentPod({ seats }),
+      refuseRoomWrite: { status: 409, error: 'the pod is not in its lobby' },
+    });
+    screen.getByTestId('pod-lock-seats').click();
+    await waitFor(() => expect(screen.getByTestId('pod-lock-error').textContent).toBe('Could not start the draft: the pod is not in its lobby.'));
+  });
+
+  it('shows the AI action on an open seat, and seating it sends the write', async () => {
+    const server = await mountTournament();
+    const seat0Ai = screen.getAllByTestId('pod-seat-ai')[0]!;
+    seat0Ai.click();
+    await waitFor(() => expect(aiPod).toHaveBeenCalledWith(ROOM, 0, true));
+    void server;
+  });
+
+  it('once seats lock (rounds), draws the bracket and standings instead of the lobby strip', async () => {
+    await mountTournament({
+      pod: tournamentPod({
+        phase: 'rounds',
+        round: 1,
+        rounds: 1,
+        pairings: [{ tableId: 't-stub0001', players: ['p-alice', 'p-1'] }],
+      }),
+      members: members(true, true),
+      players: [],
+    });
+    await screen.findByTestId('pod-tables');
+    expect(screen.queryByTestId('tournament-lobby')).toBeNull();
+    expect(screen.queryByTestId('room-players')).toBeNull();
+    expect(screen.getByTestId('pod-round').textContent).toBe('Round 1 of 1');
+    expect(screen.queryByTestId('pod-lock-seats')).toBeNull();
+  });
+
+  it('once the pod is done, heads with Standings rather than a round number', async () => {
+    await mountTournament({
+      pod: tournamentPod({ phase: 'done', round: 1, rounds: 1 }),
+      members: members(true, true),
+      players: [],
+    });
+    await screen.findByTestId('pod-tables');
+    expect(screen.queryByTestId('pod-round')).toBeNull();
+    expect(screen.getByText('Standings')).not.toBeNull();
   });
 });
 

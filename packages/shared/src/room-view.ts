@@ -100,7 +100,7 @@ const roomFields = {
    * room back in its lobby with its ready flags intact.
    */
   draftStartedAt: z.string().nullable().catch(null),
-  /** The draft pod, present exactly when `gameType` is `draft`. */
+  /** The pod, present when `gameType` is `draft`, or `constructed-1v1` with `settings.tournament` on. */
   pod: RoomPodSchema.catch(null),
   createdAt: z.string().catch(''),
 };

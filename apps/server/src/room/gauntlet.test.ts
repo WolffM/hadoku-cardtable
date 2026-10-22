@@ -11,7 +11,9 @@ import {
 	gauntletEras,
 	gauntletHoldsTable,
 	newGauntlet,
+	pickedDecks as picksOf,
 	readyFor,
+	resumeLockedGauntlet,
 	startBanpick,
 	viewOfGauntlet,
 	type GauntletDeckInfo,
@@ -76,10 +78,6 @@ function banpickAll(state: GauntletState): GauntletState {
 		}
 	}
 	return s;
-}
-
-function picksOf(state: GauntletState, seat: GauntletSeatIndex): string[] {
-	return state.decks.filter((_, i) => state.marks[i]?.act === 'pick' && state.marks[i]?.by === seat);
 }
 
 describe('the eras a Gauntlet is drawn from', () => {
@@ -258,6 +256,65 @@ describe('choosing each game deck', () => {
 		}
 		const after = gameOver(s, { seriesOver: true, winner: 1 });
 		expect(after.ok && after.state.phase).toBe('done');
+	});
+});
+
+/**
+ * A tournament's `locked` deck policy (docs/planning/tournament-mode-plan.md's
+ * Design, refined by the operator 2026-10-22: *"we can play gauntlet
+ * tournament with locked deck after the first draft"*): an entrant's FIRST
+ * match runs the full Gauntlet, and whatever its draft (banpick) produces for
+ * them — their fixed PICK SET, not just what is still unplayed — is captured
+ * and replayed for every later match, skipping the draw and the banpick
+ * entirely.
+ */
+describe('a tournament’s locked Gauntlet', () => {
+	it('pickedDecks is the full pick set, fixed the instant banpick ends — unlike unplayedPicks, it never shrinks as games are played', () => {
+		let s = banpickAll(drawn());
+		const p0 = picksOf(s, 0);
+		const p1 = picksOf(s, 1);
+		expect(p0).toHaveLength(3);
+		expect(p1).toHaveLength(3);
+		const played = choose(s, 0, p0[0]!);
+		if (!played.ok) throw new Error(played.reason);
+		const two = choose(played.state, 1, p1[0]!);
+		if (!two.ok) throw new Error(two.reason);
+		s = two.state;
+		const after = gameOver(s, { seriesOver: false, winner: 0 });
+		if (!after.ok) throw new Error(after.reason);
+		// A deck already played is still in `pickedDecks` — it is the captured
+		// SET, not "what is left to choose from" (that is `unplayedPicks`,
+		// which `gameOver`'s own behaviour above already proves shrinks).
+		expect(picksOf(after.state, 0)).toEqual(p0);
+		expect(picksOf(after.state, 1)).toEqual(p1);
+	});
+
+	it('resumeLockedGauntlet starts straight in choose, with each seat’s stored picks and no banpick at all', () => {
+		const first = banpickAll(drawn());
+		const picks: [string[], string[]] = [picksOf(first, 0), picksOf(first, 1)];
+		const resumed = resumeLockedGauntlet({ players: [...HUMANS], era: first.era!, picks, now: NOW });
+		expect(resumed.phase).toBe('choose');
+		expect(resumed.marks.filter((m) => m?.act === 'ban')).toEqual([]);
+		expect(picksOf(resumed, 0)).toEqual(picks[0]);
+		expect(picksOf(resumed, 1)).toEqual(picks[1]);
+
+		// Plays exactly like a freshly-banpicked Gauntlet from here: choose, play, gameOver.
+		const a = choose(resumed, 0, picks[0][0]!);
+		if (!a.ok) throw new Error(a.reason);
+		const b = choose(a.state, 1, picks[1][0]!);
+		if (!b.ok) throw new Error(b.reason);
+		expect(b.state.phase).toBe('playing');
+		expect(gameDecks(b.state)).toEqual([picks[0][0], picks[1][0]]);
+	});
+
+	it('an AI entrant’s resumed Gauntlet still moves on its own, from its own stored picks', () => {
+		const first = banpickAll(drawn(VS_AI));
+		const picks: [string[], string[]] = [picksOf(first, 0), picksOf(first, 1)];
+		const resumed = resumeLockedGauntlet({ players: [...VS_AI], era: first.era!, picks, now: NOW });
+		const seat = resumed.players!.findIndex((p) => p.memberId === null) as GauntletSeatIndex;
+		const move = aiMove(resumed, seeded());
+		expect(move).toEqual({ kind: 'choose', deck: expect.any(String) });
+		expect(picks[seat]).toContain((move as { deck: string }).deck);
 	});
 });
 

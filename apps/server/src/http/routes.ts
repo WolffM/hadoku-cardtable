@@ -180,9 +180,9 @@ import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
 import { httpCaller } from './request.js';
-import { draftIdOfPool, draftPoolId, type Lobby, type PodChecks } from '../room/lobby.js';
+import { draftIdOfPool, draftPoolId, isAiEntrant, type Lobby, type PodChecks } from '../room/lobby.js';
 import { planDisplayName } from '../room/plan.js';
-import { drawRandomDecks } from '../room/random-decks.js';
+import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
 import { statsModeOf } from '../room/series.js';
 import type { MatchSpec } from '../play/host.js';
 import { AI_SEAT_OWNER, type GameOutcome } from '../play/match.js';
@@ -859,6 +859,60 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			};
 			return state;
 		},
+		hasLegalSeatDeck(roomId, memberId) {
+			const room = rooms?.get(roomId);
+			if (room === undefined) return false;
+			const deck = readPlayerState(rooms?.playerState(roomId, memberId))?.deck;
+			return deck !== null && deck !== undefined && deck.verdict.legal;
+		},
+		currentTournamentDeck(roomId, entrant) {
+			if (rooms === null) return null;
+			const room = rooms.get(roomId);
+			if (room === undefined) return null;
+			const pool = randomPoolOf(room);
+			// All Random: one fresh deal per entrant (human or AI), never a held one —
+			// the lock is the FIRST time this entrant ever gets a deck.
+			if (pool !== null) {
+				const drawn = drawRandomDeck(random, pool, library);
+				return drawn === null ? null : tableDeckOfLibrary(drawn.deckId, { kind: 'standard', format: drawn.era }, entrant);
+			}
+			// Classic. An AI entrant is dealt the same way `startFromRoom`'s vs-bot
+			// fallback deals one; a human's is whatever they already loaded (the
+			// lock's own `hasLegalSeatDeck` gate already required it to be legal).
+			if (isAiEntrant(entrant)) {
+				const id = pickLibraryBotDeckId(room.format, entrant);
+				return id === null ? null : tableDeckOfLibrary(id, rulesOf(room.format), entrant);
+			}
+			return readPlayerState(rooms.playerState(roomId, entrant))?.deck ?? null;
+		},
+		seatTournamentDeck(roomId, tableId, entrant, deck) {
+			if (rooms === null) return;
+			const room = rooms.get(roomId);
+			const table = room?.tables.find((t) => t.id === tableId);
+			if (room === undefined || table === undefined) return;
+			const locked = deck === null ? null : readDeck(deck);
+			// An AI entrant never holds its own seat (`#newPodTable`'s own doc): its
+			// deck rides its human partner's `aiDeck`, exactly as a vs-bot table
+			// already works. `per-round` clears it so the table's OWN start (the
+			// vs-bot fallback, or a kept/drafted deck) deals it fresh, same as a
+			// non-tournament vs-bot table already does.
+			if (isAiEntrant(entrant)) {
+				const humanId = playersOf(rooms, room, tableId)[0]?.member.id;
+				if (humanId === undefined) return;
+				const state = readPlayerState(rooms.playerState(roomId, humanId)) ?? EMPTY_SEAT;
+				if (locked === null) {
+					const { aiDeck: _drop, ...rest } = state;
+					rooms.setPlayerState(roomId, humanId, rest);
+				} else {
+					rooms.setPlayerState(roomId, humanId, { ...state, aiDeck: locked.text });
+				}
+				return;
+			}
+			// A human entrant: `locked` replays the snapshot verbatim; `per-round`
+			// clears the hold so Classic's `PUT …/deck` is required again and All
+			// Random's own ready-time deal (`dealRandom`) sees no held deck to keep.
+			rooms.setPlayerState(roomId, entrant, locked === null ? { v: 1, deck: null, seriesDeck: null } : { v: 1, deck: locked, seriesDeck: null });
+		},
 	});
 	deps.draftRooms?.setPodLookup((podId) => rooms?.podDraft?.(podId) ?? null);
 
@@ -1228,6 +1282,37 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const dealt = dealDecks(room, tableId, players, draw.decks, draw.era, { vsBot });
 		if (dealt.ok) log({ evt: 'room-random-dealt', room: room.id, table: tableId, pool, era: draw.era, decks: draw.decks, ...(vsBot ? { opponent: 'ai' } : {}) });
 		return dealt;
+	}
+
+	/**
+	 * A random legal library deck id for `pool`, in `owner`'s own context — or
+	 * `null` when none is legal. The one place a bot's library deck is drawn:
+	 * `startFromRoom`'s vs-bot fallback (no drafted or kept deck), and the
+	 * tournament lock/round's own AI-entrant Classic deck
+	 * (`currentTournamentDeck`'s own doc).
+	 */
+	function pickLibraryBotDeckId(pool: string, owner: string): string | null {
+		const swept = legalLibraryDecks(pool, contextFor(owner));
+		const offered = 'error' in swept ? [] : swept.ids;
+		// `Math.random`, not the injected `random` — unchanged from before this
+		// was extracted into its own function (`tables.test.ts`'s own vs-bot
+		// Rematch test pins `Math.random` specifically to prove a re-draw
+		// cannot land on the same deck by luck).
+		return offered.length === 0 ? null : offered[Math.floor(Math.random() * offered.length)]!;
+	}
+
+	/** `pickLibraryBotDeckId`'s text, for `startFromRoom`'s vs-bot fallback, which never needs the TableDeck wrapper. */
+	function pickLibraryBotDeckText(pool: string, owner: string): string | null {
+		const id = pickLibraryBotDeckId(pool, owner);
+		return id === null ? null : library.deck(id)!.text;
+	}
+
+	/** A library deck, as a `TableDeck` — `checkSeat`'s own verdict, wrapped exactly as `PUT …/deck` holds one. `null` when it is not legal (should not happen for a deck this file itself picked). */
+	function tableDeckOfLibrary(deckId: string, rules: DeckRules, owner: string): TableDeck | null {
+		const verdict = checkSeat({ deck: { library: deckId }, rules }, contextFor(owner));
+		if ('error' in verdict || !verdict.legal) return null;
+		const { text: _text, ...verdictWithoutText } = verdict;
+		return { choice: { deck: { library: deckId }, rules }, verdict: verdictWithoutText, text: verdict.text };
 	}
 
 	/**
@@ -1807,13 +1892,12 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				}
 				botDeck = botDeckText(botPool, 'Bot draft');
 			} else {
-				const swept = legalLibraryDecks(pool, contextFor(owner));
-				const offered = 'error' in swept ? [] : swept.ids;
-				if (offered.length === 0) {
+				const picked = pickLibraryBotDeckText(pool, owner);
+				if (picked === null) {
 					res.status(409).json({ error: `no deck in the library is legal in ${poolName(pool)}, so the bot has nothing to play` });
 					return;
 				}
-				botDeck = library.deck(offered[Math.floor(Math.random() * offered.length)]!)!.text;
+				botDeck = picked;
 			}
 		}
 		const registry = deps.matches?.() ?? null;

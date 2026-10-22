@@ -31,7 +31,7 @@
 import { ActionButton } from '../../components/ActionButton.tsx';
 import { Avatar } from '../../components/Avatar.tsx';
 import { CROWN, StatusPill } from '../ConstructedScreen.tsx';
-import { POD_AI, POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
+import { isPodAi, POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
 import './PodSeats.css';
 
 export interface PodSeatsProps {
@@ -108,7 +108,7 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
             </li>
           );
         }
-        if (occupant.memberId === POD_AI) {
+        if (isPodAi(occupant.memberId)) {
           return (
             <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-ai="">
               <span className="pod-seats__avatar pod-seats__avatar--ai">

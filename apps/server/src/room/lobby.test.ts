@@ -579,8 +579,8 @@ describe('Lobby.setSettings', () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error(made.reason);
-		expect(made.room.settings).toEqual({ handSmoothing: true });
-		expect(lobby.list().map((r) => r.settings)).toEqual([{ handSmoothing: true }]);
+		expect(made.room.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked' });
+		expect(lobby.list().map((r) => r.settings)).toEqual([{ handSmoothing: true, tournament: false, tournamentDecks: 'locked' }]);
 	});
 
 	it('lets only the leader change it, and leaves every readiness flag and deck hold alone', async () => {
@@ -591,7 +591,7 @@ describe('Lobby.setSettings', () => {
 		expect(lobby.get(id)?.settings.handSmoothing).toBe(true);
 
 		const off = lobby.setSettings(id, ALICE.id, { handSmoothing: false });
-		expect(off.ok && off.room.settings).toEqual({ handSmoothing: false });
+		expect(off.ok && off.room.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked' });
 		// A setting is not a deck question: nobody is stood down by it.
 		expect(lobby.get(id)?.members.map((m) => m.ready)).toEqual([true, true]);
 		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, ready: true });
@@ -610,7 +610,7 @@ describe('Lobby.setSettings', () => {
 		if (!made.ok) throw new Error(made.reason);
 		expect(first.setSettings(made.room.id, ALICE.id, { handSmoothing: false }).ok).toBe(true);
 		const second = await openLobby({ dir });
-		expect(second.get(made.room.id)?.settings).toEqual({ handSmoothing: false });
+		expect(second.get(made.room.id)?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked' });
 	});
 
 	it('reads a record written before settings existed back on the defaults', async () => {
@@ -618,7 +618,7 @@ describe('Lobby.setSettings', () => {
 		writeFixtureRoom(dir, 'r-presettings01', legacyApp());
 		expect(Object.keys(legacyApp())).not.toContain('settings');
 		const lobby = await openLobby({ dir });
-		expect(lobby.get('r-presettings01')?.settings).toEqual({ handSmoothing: true });
+		expect(lobby.get('r-presettings01')?.settings).toEqual({ handSmoothing: true, tournament: false, tournamentDecks: 'locked' });
 	});
 
 	it('quarantines a record whose settings hold a value this build does not understand', async () => {
@@ -803,7 +803,9 @@ describe('Lobby.startDraft', () => {
 		const id = await readyToStart(lobby, [ALICE]);
 		const room = lobby.get(id);
 		if (room === undefined) throw new Error('room missing');
-		const refusal = lobby.setPodPlan(id, room.leader, room.pod!.plan, { ok: false, unplayable: ['Not A Real Card'], missingText: [] });
+		const plan = room.pod!.plan;
+		if (plan === null) throw new Error('a draft room pod has a plan');
+		const refusal = lobby.setPodPlan(id, room.leader, plan, { ok: false, unplayable: ['Not A Real Card'], missingText: [] });
 		// setPodPlan itself refuses a bad verdict (409 { verdict } at the route) —
 		// the room's planVerdict is still null, the same as never having checked.
 		expect(refusal.ok).toBe(false);
@@ -1687,7 +1689,7 @@ describe('a room stored with the old match-length settings', () => {
 		const dir = await tempDir();
 		writeFixtureRoom(dir, 'r-oldsettings1', legacyApp({ settings: { handSmoothing: false, matchLength: 'bo3', sideboarding: true } }));
 		const lobby = await openLobby({ dir });
-		expect(lobby.get('r-oldsettings1')?.settings).toEqual({ handSmoothing: false });
+		expect(lobby.get('r-oldsettings1')?.settings).toEqual({ handSmoothing: false, tournament: false, tournamentDecks: 'locked' });
 		expect(lobby.get('r-oldsettings1')?.tables[0]?.series).toMatchObject({ length: 1, phase: 'seating' });
 	});
 });
@@ -2037,16 +2039,34 @@ describe('Lobby.onChange', () => {
 
 /* ── wave 72 §P: the pod ──────────────────────────────────────────────────── */
 
-/** A `PodChecks` fake. `built` answers true for every id in `built`; `seatState` answers a marker a test can recognise. */
-function fakeChecks(opts: { draftComplete?: boolean; built?: Set<string> } = {}): PodChecks {
+/**
+ * A `PodChecks` fake. `built` answers true for every id in `built`;
+ * `seatState` answers a marker a test can recognise. `legalSeatDeck` is the
+ * tournament lock's Classic "ready" set; `currentDeck` is what a `locked`
+ * snapshot captures for an entrant (a marker by default); `onSeatDeck`
+ * records every `seatTournamentDeck` call a test wants to assert on.
+ */
+function fakeChecks(
+	opts: {
+		draftComplete?: boolean;
+		built?: Set<string>;
+		legalSeatDeck?: Set<string>;
+		currentDeck?: (entrant: string) => unknown;
+		onSeatDeck?: (tableId: string, entrant: string, deck: unknown) => void;
+	} = {},
+): PodChecks {
 	const built = opts.built ?? new Set<string>();
 	const draftComplete = opts.draftComplete ?? true;
+	const legalSeatDeck = opts.legalSeatDeck ?? new Set<string>();
 	return {
 		draftComplete: () => draftComplete,
 		built: (_podId, memberId) => built.has(memberId),
 		seatState: (_podId, memberId) => ({ seatedFor: memberId }),
 		holdsSeriesDeck: () => true,
 		planNameOf: (plan) => planDisplayName(plan, (source) => (source.kind === 'cube' ? source.cubeId : `${source.code} (${source.style})`)),
+		hasLegalSeatDeck: (_roomId, memberId) => legalSeatDeck.has(memberId),
+		currentTournamentDeck: (_roomId, entrant) => (opts.currentDeck ? opts.currentDeck(entrant) : { deckOf: entrant }),
+		seatTournamentDeck: (_roomId, tableId, entrant, deck) => opts.onSeatDeck?.(tableId, entrant, deck),
 	};
 }
 
@@ -2899,6 +2919,383 @@ describe('a constructed room’s mode', () => {
 		const quarantined = logged.filter((e) => e.event === 'room-quarantined');
 		expect(quarantined.map((e) => e.roomId).sort()).toEqual(['r-mmmmmmmmmmm4', 'r-mmmmmmmmmmm5']);
 		expect(quarantined.every((e) => String(e.reason).includes('app.mode'))).toBe(true);
+	});
+});
+
+/*
+ * Tournament mode (docs/planning/tournament-mode-plan.md): a Constructed
+ * room with `settings.tournament` on plays the SAME Swiss pod a `draft`
+ * room's `podSeats`/`pod` already do — this is the generalisation's own
+ * proof, not a second engine.
+ */
+describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
+	/** A Constructed room, `mode`, with Tournament on and nobody seated yet. */
+	async function tournamentRoom(
+		lobby: Lobby,
+		leader: { id: string; name: string },
+		mode: 'classic' | 'gauntlet' | 'random' = 'classic',
+	): Promise<string> {
+		const made = lobby.create(leader, {
+			name: 'Tournament night',
+			gameType: 'constructed-1v1',
+			clientMode: 'builtin',
+			mode: mode === 'random' ? { mode: 'random', modeOptions: { pool: 'full' } } : { mode, modeOptions: {} },
+		});
+		if (!made.ok) throw new Error('create failed');
+		// Every test below sits some subset of ALICE/BOB/CAROL; joining both
+		// unconditionally keeps the helper the same call for all of them.
+		expect(lobby.join(made.room.id, BOB).ok).toBe(true);
+		expect(lobby.join(made.room.id, CAROL).ok).toBe(true);
+		expect(lobby.setSettings(made.room.id, leader.id, { tournament: true }).ok).toBe(true);
+		return made.room.id;
+	}
+
+	it('turns a Constructed room’s podSeats on: sit/stand/ai/close all refuse "not-draft" until the toggle is on', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.sitPod(id, ALICE.id, 0)).toEqual({ ok: false, reason: 'not-draft' });
+		expect(lobby.standPod(id, ALICE.id)).toEqual({ ok: false, reason: 'not-draft' });
+		expect(lobby.aiPod(id, ALICE.id, 1, true)).toEqual({ ok: false, reason: 'not-draft' });
+		expect(lobby.closePod(id, ALICE.id, 2, true)).toEqual({ ok: false, reason: 'not-draft' });
+
+		expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
+		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+		expect(lobby.aiPod(id, ALICE.id, 2, true).ok).toBe(true);
+		expect(lobby.closePod(id, ALICE.id, 3, true).ok).toBe(true);
+		expect(lobby.get(id)?.pod?.seats.map((s) => s?.memberId ?? null)).toEqual([ALICE.id, BOB.id, POD_AI, POD_CLOSED, null, null, null, null]);
+	});
+
+	describe('tournament + Gauntlet is refused — per-table GauntletState does not exist yet (follow-up item)', () => {
+		it('refuses turning tournament on while the room’s mode is gauntlet, for both orders', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const made = lobby.create(ALICE, {
+				name: 'Kitchen table',
+				gameType: 'constructed-1v1',
+				clientMode: 'builtin',
+				mode: { mode: 'gauntlet', modeOptions: {} },
+			});
+			if (!made.ok) throw new Error('create failed');
+			const id = made.room.id;
+			expect(lobby.setSettings(id, ALICE.id, { tournament: true })).toEqual({ ok: false, reason: 'tournament-mode-unsupported' });
+			expect(lobby.get(id)?.settings.tournament).toBe(false);
+
+			// The other order: tournament already on, then switching the mode to Gauntlet.
+			const classic = lobby.create(ALICE, { name: 'Other table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+			if (!classic.ok) throw new Error('create failed');
+			expect(lobby.setSettings(classic.room.id, ALICE.id, { tournament: true }).ok).toBe(true);
+			expect(lobby.setMode(classic.room.id, ALICE.id, { mode: 'gauntlet', modeOptions: {} })).toEqual({
+				ok: false,
+				reason: 'tournament-mode-unsupported',
+			});
+			expect(lobby.get(classic.room.id)?.mode).toBeNull();
+		});
+
+		it('leaves Classic and All Random unaffected, in either order', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+			if (!made.ok) throw new Error('create failed');
+			const id = made.room.id;
+			expect(lobby.setMode(id, ALICE.id, { mode: 'classic', modeOptions: {} }).ok).toBe(true);
+			expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
+			expect(lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'full' } }).ok).toBe(true);
+			expect(lobby.get(id)?.settings.tournament).toBe(true);
+			expect(lobby.get(id)?.mode).toBe('random');
+		});
+	});
+
+	describe('Lock seats (startDraft’s tournament branch)', () => {
+		it('refuses fewer than 2 entrants, and an all-AI field', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE);
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			expect(lobby.startDraft(id, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
+
+			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
+			expect(lobby.standPod(id, ALICE.id).ok).toBe(true); // only the AI seat is left — an all-AI field
+			expect(lobby.startDraft(id, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
+			expect(lobby.get(id)?.draftStartedAt).toBeNull();
+		});
+
+		it('Classic: refuses a human with no legal deck chosen; All Random: refuses a human who has not readied', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const classicId = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.sitPod(classicId, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(classicId, BOB.id, 1).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) })); // BOB has none
+			expect(lobby.startDraft(classicId, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			expect(lobby.startDraft(classicId, ALICE.id).ok).toBe(true);
+
+			const randomId = await tournamentRoom(lobby, ALICE, 'random');
+			expect(lobby.sitPod(randomId, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(randomId, BOB.id, 1).ok).toBe(true);
+			expect(lobby.setReady(randomId, ALICE.id, true)).toBe(true);
+			// BOB never readies — Classic's legal-deck check does not apply here.
+			expect(lobby.startDraft(randomId, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
+			expect(lobby.setReady(randomId, BOB.id, true)).toBe(true);
+			expect(lobby.startDraft(randomId, ALICE.id).ok).toBe(true);
+		});
+
+		it('an AI entrant is always ready, never checked', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+		});
+
+		it('fixes the field: nothing seats, stands, or adds/removes an AI once locked', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+
+			expect(lobby.sitPod(id, CAROL.id, 2)).toEqual({ ok: false, reason: 'not-lobby' });
+			expect(lobby.standPod(id, ALICE.id)).toEqual({ ok: false, reason: 'not-lobby' });
+			expect(lobby.aiPod(id, ALICE.id, 2, true)).toEqual({ ok: false, reason: 'not-lobby' });
+			expect(lobby.closePod(id, ALICE.id, 2, true)).toEqual({ ok: false, reason: 'not-lobby' });
+			// Settings are refused once the pod has left its lobby, same as a draft room's.
+			expect(lobby.setSettings(id, ALICE.id, { tournamentDecks: 'per-round' })).toEqual({ ok: false, reason: 'draft-started' });
+		});
+
+		it('deals round 1 at once, Bo3 with sideboarding (the pod’s own format), and the pod reads back as a tournament, not a draft', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+
+			expect(started.room.pod?.phase).toBe('rounds');
+			expect(started.room.pod?.round).toBe(1);
+			expect(started.room.pod?.rounds).toBe(1); // roundsFor(2) === 1
+			expect(started.room.pod?.pairings).toEqual([{ tableId: started.room.pod!.pairings[0]!.tableId, players: [ALICE.id, BOB.id] }]);
+			// No draft to report: a constructed tournament pod has no plan.
+			expect(started.room.pod?.plan).toBeNull();
+			expect(started.room.pod?.verdict).toBeNull();
+			expect(started.room.pod?.drafters).toEqual([ALICE.id, BOB.id]);
+			expect(started.room.pod?.built).toEqual([ALICE.id, BOB.id]);
+
+			const table = started.room.tables.find((t) => t.id === started.room.pod!.pairings[0]!.tableId)!;
+			expect(table.series).toMatchObject({ length: 3, phase: 'seating' });
+		});
+
+		it('archives to the stats Tournaments tab exactly as a pod does, with every AI entrant named', async () => {
+			const archived: Tournament[] = [];
+			const lobby = await openLobby({ dir: await tempDir(), onTournament: (t) => archived.push(t) });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+			const tableId = started.room.pod!.pairings[0]!.tableId;
+			lobby.recordGameResult(id, tableId, { matchId: 'm-1', winner: 0 });
+			const finished = lobby.recordGameResult(id, tableId, { matchId: 'm-2', winner: 0 });
+			expect(finished.ok).toBe(true);
+			expect(lobby.get(id)?.pod?.phase).toBe('done');
+			expect(archived).toHaveLength(1);
+			expect(archived[0]!.names[ALICE.id]).toBe(ALICE.name);
+			expect(Object.keys(archived[0]!.names)).toContain('ai:1');
+			expect(archived[0]!.standings[0]).toMatchObject({ id: ALICE.id, rank: 1 });
+		});
+	});
+
+	describe('a 3-human tournament with a bye, through two rounds', () => {
+		async function threeHumanTournament(): Promise<{ lobby: Lobby; id: string }> {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+			expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+			return { lobby, id };
+		}
+
+		it('pairs round 1 across the table and gives the middle seat the bye', async () => {
+			const { lobby, id } = await threeHumanTournament();
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+			expect(started.room.pod?.rounds).toBe(2); // roundsFor(3) === 2
+			expect(started.room.pod?.bye).toBe(BOB.id);
+			expect(started.room.pod?.results).toEqual([{ round: 1, playerA: BOB.id, playerB: null, gamesA: 2, gamesB: 0 }]);
+			expect(started.room.pod?.pairings[0]?.players).toEqual([ALICE.id, CAROL.id]);
+		});
+
+		it('advances by itself to round 2, then finishes done, archived, with standings ranked', async () => {
+			const archived: Tournament[] = [];
+			const { lobby, id } = await threeHumanTournament();
+			// threeHumanTournament's lobby has no onTournament wired — reopen with one, same dir is not needed here: record directly.
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+			const table1 = started.room.pod!.pairings[0]!.tableId;
+			lobby.recordGameResult(id, table1, { matchId: 'm-r1-g1', winner: 0 });
+			lobby.recordGameResult(id, table1, { matchId: 'm-r1-g2', winner: 0 });
+
+			const view = lobby.get(id)!;
+			expect(view.pod?.round).toBe(2);
+			expect(view.pod?.bye).toBe(CAROL.id);
+			expect(view.pod?.pairings[0]?.players).toEqual([ALICE.id, BOB.id]);
+
+			const table2 = view.pod!.pairings[0]!.tableId;
+			lobby.recordGameResult(id, table2, { matchId: 'm-r2-g1', winner: 0 });
+			const finished = lobby.recordGameResult(id, table2, { matchId: 'm-r2-g2', winner: 0 });
+			expect(finished.ok).toBe(true);
+
+			const done = lobby.get(id)!;
+			expect(done.pod?.phase).toBe('done');
+			expect(done.pod?.standings[0]).toMatchObject({ id: ALICE.id, matchPoints: 6, rank: 1 });
+			void archived; // onTournament is proven by the 2-player test above; this one proves the round math.
+		});
+	});
+
+	describe('AI entrants (operator, 2026-10-22: reversing the plan’s "no AI seats")', () => {
+		it('an AI entrant seated before the lock plays round 1 against its human, settled by a reported result', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+			expect(started.room.pod?.pairings[0]?.players).toEqual([ALICE.id, 'ai:1']);
+			const table = started.room.tables.find((t) => t.id === started.room.pod!.pairings[0]!.tableId)!;
+			// The AI never gets a real seat: `null`, exactly as a vs-bot table already works.
+			expect(table.players.map((p) => p.memberId)).toEqual([ALICE.id]);
+
+			const r1 = lobby.recordGameResult(id, table.id, { matchId: 'm-1', winner: 0 });
+			expect(r1.ok).toBe(true);
+			const r2 = lobby.recordGameResult(id, table.id, { matchId: 'm-2', winner: 0 });
+			expect(r2.ok).toBe(true);
+			expect(lobby.get(id)?.pod?.phase).toBe('done');
+			expect(lobby.get(id)?.pod?.standings[0]).toMatchObject({ id: ALICE.id, rank: 1 });
+		});
+
+		it('an AI-vs-AI pairing settles at once, with no table — deterministically, the lower seat winning', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			// seat 0 and 2: AI; seat 1: ALICE; seat 3: BOB — round 1 "across the table" pairs 0v2 (AI vs AI) and 1v3 (human vs human).
+			expect(lobby.aiPod(id, ALICE.id, 0, true).ok).toBe(true);
+			expect(lobby.sitPod(id, ALICE.id, 1).ok).toBe(true);
+			expect(lobby.aiPod(id, ALICE.id, 2, true).ok).toBe(true);
+			expect(lobby.sitPod(id, BOB.id, 3).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+
+			// Only ONE live pairing — the AI-vs-AI one settled without a table.
+			expect(started.room.pod?.pairings).toHaveLength(1);
+			expect(started.room.pod?.pairings[0]?.players).toEqual([ALICE.id, BOB.id]);
+			expect(started.room.pod?.results).toEqual([{ round: 1, playerA: 'ai:0', playerB: 'ai:2', gamesA: 2, gamesB: 0 }]);
+			expect(started.room.tables).toHaveLength(2); // the room's own hidden table[0], plus ALICE vs BOB's — none for the AI pairing.
+		});
+
+		it('adds no AI once locked, even to an open seat — only the lock-time field ever plays', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+			expect(lobby.aiPod(id, ALICE.id, 2, true)).toEqual({ ok: false, reason: 'not-lobby' });
+			expect(lobby.get(id)?.pod?.drafters).toEqual([ALICE.id, BOB.id]);
+		});
+	});
+
+	describe('locked vs per-round deck policy', () => {
+		it('locked: snapshots every entrant’s deck once at the lock, and replays it at every round’s table', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.setSettings(id, ALICE.id, { tournamentDecks: 'locked' }).ok).toBe(true);
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+			expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
+			const seated: { tableId: string; entrant: string; deck: unknown }[] = [];
+			lobby.setPodChecks(
+				fakeChecks({
+					legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]),
+					onSeatDeck: (tableId, entrant, deck) => seated.push({ tableId, entrant, deck }),
+				}),
+			);
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+			// Every entrant's locked deck is the SAME marker `currentTournamentDeck`'s default gives it, read back from the store.
+			expect(lobby.get(id)?.pod?.bye).not.toBeNull();
+			// Every LIVE table's seat call carries the entrant's OWN snapshot, never null.
+			expect(seated.every((s) => s.deck !== null)).toBe(true);
+			expect(seated.find((s) => s.entrant === ALICE.id)?.deck).toEqual({ deckOf: ALICE.id });
+		});
+
+		it('per-round: seats every round’s table with no snapshot (null), leaving the deal to the table’s own flow', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.setSettings(id, ALICE.id, { tournamentDecks: 'per-round' }).ok).toBe(true);
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+			const seated: { tableId: string; entrant: string; deck: unknown }[] = [];
+			lobby.setPodChecks(
+				fakeChecks({
+					legalSeatDeck: new Set([ALICE.id, BOB.id]),
+					onSeatDeck: (tableId, entrant, deck) => seated.push({ tableId, entrant, deck }),
+				}),
+			);
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+			expect(seated.every((s) => s.deck === null)).toBe(true);
+		});
+
+		// A Gauntlet tournament room cannot exist at all right now — see the
+		// "tournament + Gauntlet is refused" describe block above — so there is
+		// no "Gauntlet never touches the Classic/Random store" case to prove here.
+	});
+
+	describe('restart resume', () => {
+		it('a tournament mid-round survives a restart: seats, round, pairings, locked decks and all', async () => {
+			const dir = await tempDir();
+			const lobby = await openLobby({ dir });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.setSettings(id, ALICE.id, { tournamentDecks: 'locked' }).ok).toBe(true);
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+			expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+			const tableId = started.room.pod!.pairings[0]!.tableId;
+
+			const second = await openLobby({ dir });
+			const restored = second.get(id)!;
+			expect(restored.settings).toMatchObject({ tournament: true, tournamentDecks: 'locked' });
+			expect(restored.draftStartedAt).not.toBeNull();
+			expect(restored.pod?.phase).toBe('rounds');
+			expect(restored.pod?.round).toBe(1);
+			expect(restored.pod?.bye).toBe(started.room.pod!.bye);
+			expect(restored.pod?.pairings).toEqual(started.room.pod!.pairings);
+
+			// The game continues on the restored lobby, exactly where it left off.
+			second.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id]) }));
+			second.recordGameResult(id, tableId, { matchId: 'm-1', winner: 0 });
+			const finished = second.recordGameResult(id, tableId, { matchId: 'm-2', winner: 0 });
+			expect(finished.ok).toBe(true);
+		});
 	});
 });
 

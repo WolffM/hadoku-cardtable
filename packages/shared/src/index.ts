@@ -365,6 +365,8 @@ export {
   type RoomBody,
 } from './room-view.ts';
 export {
+  AI_ENTRANT_PREFIX,
+  isPodAi,
   POD_PHASES,
   POD_SEATS,
   PodPhaseSchema,
@@ -449,10 +451,13 @@ export {
   RoomSettingsSchema,
   SetAvatarBodySchema,
   SitBodySchema,
+  TOURNAMENT_DECK_POLICIES,
+  TournamentDecksSchema,
   WATCHPARTY_ROOM_MAX,
   WatchpartyBindBodySchema,
   type ClientMode,
   type CreateRoomBody,
   type PatchRoomBody,
   type RoomSettings,
+  type TournamentDecks,
 } from './room-requests.ts';

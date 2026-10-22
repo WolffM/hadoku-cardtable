@@ -27,11 +27,11 @@ import type { RoomTable, SeriesPhase } from '@hadoku/shared';
 
 import { Avatar } from '../../components/Avatar.tsx';
 import { routeHash } from '../route.ts';
-import { POD_AI, type PodView } from './wire.ts';
+import { isPodAi, type PodView } from './wire.ts';
 import './PodBracket.css';
 
 export interface BracketMatch {
-  /** Seat order: `players[0]` is the table's first seat. The AI is `POD_AI`. */
+  /** Seat order: `players[0]` is the table's first seat. An AI (`isPodAi`) is `'ai'` for a draft pod, `ai:<seat>` for a tournament's own entrant. */
   players: [string, string];
   wins: [number, number];
   table: RoomTable | null;
@@ -45,8 +45,8 @@ export type BracketRound =
 
 function sameTable(table: RoomTable, players: readonly [string, string]): boolean {
   const seated = table.players.map((p) => p.memberId);
-  // A table against the AI seats one player; the AI holds no seat at it.
-  const want = players.filter((id) => id !== POD_AI);
+  // A table against an AI (either shape, `isPodAi`) seats one player; the AI holds no seat at it.
+  const want = players.filter((id) => !isPodAi(id));
   return seated.length === want.length && want.every((id, i) => seated[i] === id);
 }
 

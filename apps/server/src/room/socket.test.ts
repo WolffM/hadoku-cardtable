@@ -152,7 +152,7 @@ async function bootLobby(): Promise<Lobby> {
 	// lobby is never given a `checkPlan`, so nothing auto-checks one; approve
 	// it directly, the way a PUT would, since this file is not about plans.
 	const plan = lobby.get(startedRoomId)?.pod?.plan;
-	if (plan === undefined) throw new Error('the started room has no plan');
+	if (plan === undefined || plan === null) throw new Error('the started room has no plan');
 	if (!lobby.setPodPlan(startedRoomId, OWNER.id, plan, { ok: true, cards: 1 }).ok) throw new Error('the lobby refused to approve the plan');
 	const started = lobby.startDraft(startedRoomId, OWNER.id);
 	if (!started.ok) throw new Error(`the lobby refused to start the draft: ${started.reason}`);
@@ -457,7 +457,7 @@ describe('a join against a draft that has not started', () => {
 		expect(live().lobby.setReady(pendingRoomId, OWNER.id, true)).toBe(true);
 		for (let seat = 1; seat < 8; seat++) expect(live().lobby.aiPod(pendingRoomId, OWNER.id, seat, true).ok).toBe(true);
 		const pendingPlan = live().lobby.get(pendingRoomId)?.pod?.plan;
-		if (pendingPlan === undefined) throw new Error('the pending room has no plan');
+		if (pendingPlan === undefined || pendingPlan === null) throw new Error('the pending room has no plan');
 		expect(live().lobby.setPodPlan(pendingRoomId, OWNER.id, pendingPlan, { ok: true, cards: 1 }).ok).toBe(true);
 		expect(live().lobby.startDraft(pendingRoomId, OWNER.id).ok).toBe(true);
 

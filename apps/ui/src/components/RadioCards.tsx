@@ -34,6 +34,14 @@ export interface RadioCard<T extends string> {
   label: string;
   /** An image URL drawn behind the label on a large card; decoration, the label names the card. */
   art?: string;
+  /**
+   * This ONE card, disabled for a reason specific to IT — a choice
+   * temporarily off limits (tournament mode's Gauntlet, while a Constructed
+   * room's Tournament toggle is on) — rather than the whole group being
+   * somebody else's to move (the group's own `disabled`). The two combine:
+   * a card is disabled when either is true.
+   */
+  disabled?: boolean;
 }
 
 export function RadioCards<T extends string>({
@@ -77,7 +85,7 @@ export function RadioCards<T extends string>({
             value={option.value}
             data-testid={`${testId}-${option.value}`}
             checked={value === option.value}
-            disabled={disabled}
+            disabled={disabled || option.disabled === true}
             onChange={() => onChange(option.value)}
           />
         );

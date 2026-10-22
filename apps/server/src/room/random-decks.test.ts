@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { loadTablesLibrary } from '../http/library.js';
-import { drawRandomDecks, randomEras } from './random-decks.js';
+import { drawRandomDeck, drawRandomDecks, randomEras } from './random-decks.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // @reads decks/
@@ -88,5 +88,31 @@ describe('drawRandomDecks', () => {
 
 	it('answers null when no era of the pool can seat two decks', () => {
 		expect(drawRandomDecks(() => 0.5, 'modern', { formats: FIXTURE.formats, decks: FIXTURE.decks.filter((d) => d.id !== 'm2') })).toBeNull();
+	});
+});
+
+/** `drawRandomDeck` (singular, tournament lock): one random deck for ONE player, from an era needing only one deck, not two. */
+describe('drawRandomDeck', () => {
+	const library = loadTablesLibrary(REPO_ROOT);
+
+	it('draws one deck from an era of the chosen family, on the real catalog', () => {
+		for (const pool of ['standard', 'modern', 'legacy'] as const) {
+			for (let seed = 0; seed < 20; seed++) {
+				const draw = drawRandomDeck(seeded(seed), pool, library);
+				expect(draw, `${pool} seed ${seed}`).not.toBeNull();
+				expect(library.format(draw!.era)?.family).toBe(pool);
+				expect(library.deck(draw!.deckId)?.era).toBe(draw!.era);
+			}
+		}
+	});
+
+	it('draws from an era with only ONE deck, unlike the pairwise draw', () => {
+		expect(randomEras('standard', FIXTURE, 1).map((f) => f.id)).toEqual(['2010-07-01', '2011-07-01']);
+		const draw = drawRandomDeck(() => 0, 'standard', { formats: FIXTURE.formats, decks: FIXTURE.decks.filter((d) => d.era === '2011-07-01') });
+		expect(draw).toEqual({ era: '2011-07-01', deckId: 'lonely' });
+	});
+
+	it('answers null when no era of the pool holds any deck', () => {
+		expect(drawRandomDeck(() => 0.5, 'legacy', { formats: FIXTURE.formats, decks: FIXTURE.decks.filter((d) => !d.id.startsWith('l')) })).toBeNull();
 	});
 });

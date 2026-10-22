@@ -22,11 +22,21 @@ interface SeriesFormat {
 	sideboarding: boolean;
 }
 
-/** What `seriesFormatOf` reads: a room's game type and, for a Constructed room, its mode. */
+/**
+ * What `seriesFormatOf` reads: a room's game type and, for a Constructed
+ * room, its mode and its `tournament` flag
+ * (`docs/planning/tournament-mode-plan.md`'s Design: *"Bo3 for
+ * classic/all-random means same deck. Bo3 for gauntlet is already built
+ * in"* — a tournament table plays the pod's own format for Classic/All
+ * Random, and the SAME format a Gauntlet always has otherwise). `tournament`
+ * is a `constructed-1v1` question only: a `draft` room ignores it, since it
+ * already plays the pod's format regardless.
+ */
 export interface SeriesRoom {
 	/** `GameType` (`@hadoku/shared`); any other reads as Constructed. */
 	gameType: string;
 	mode?: ConstructedMode | null;
+	tournament?: boolean;
 }
 
 const CONSTRUCTED: SeriesFormat = { length: 1, sideboarding: true };
@@ -35,7 +45,8 @@ const POD: SeriesFormat = { length: 3, sideboarding: true };
 
 export function seriesFormatOf(room: SeriesRoom): SeriesFormat {
 	if (room.gameType === 'draft') return POD;
-	return room.mode === 'gauntlet' ? GAUNTLET : CONSTRUCTED;
+	if (room.mode === 'gauntlet') return GAUNTLET;
+	return room.tournament === true ? POD : CONSTRUCTED;
 }
 
 /** The mode a game or series is reported under: a pod's is `draft`; a Constructed room with no mode stored is Classic. */
