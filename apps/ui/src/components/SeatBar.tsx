@@ -152,9 +152,9 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
                   {face === null ? <PlayerMark /> : <img src={face} alt="" />}
                 </span>
                 <span className="seatbar__label">
-                  {/* Your own seat says so in one word: it is also the lit one at the bottom. */}
+                  {/* Your own seat is named like every other; the lit ring at the bottom marks it as yours. */}
                   <span className="seatbar__name" title={seat.displayName}>
-                    {status === 'empty' ? <em>empty</em> : isYou ? 'You' : seat.displayName}
+                    {status === 'empty' ? <em>empty</em> : seat.displayName}
                   </span>
                   {held && (
                     <span className="seatbar__held" data-testid={`seat-${seat.id}-held`} title={SEAT_HELD_NOTE}>
