@@ -122,6 +122,18 @@ export const PLAY_ROOMS_DIR = resolve(RUN_DIR, 'play-rooms');
  */
 export const PLAY_DRAFTS_DIR = resolve(RUN_DIR, 'play-drafts');
 /**
+ * This stack's imported-cube store (`apps/server/src/pools/cubes.ts`'s
+ * `importDir` — the shortlist itself is `apps/server/pools/cubes/`, a
+ * committed path, never this). Unlike `PLAY_ROOMS_DIR`/`PLAY_DRAFTS_DIR`,
+ * `startPlayStack` does NOT wipe this one: `createCubeStore` reads it once,
+ * at the spawned server's own boot, so a spec that needs a specific cube
+ * present (`draft-pools.spec.ts`'s Forge-unplayable fixture) has to write it
+ * here BEFORE calling `startPlayStack`, not after — the server would already
+ * have booted on whatever was there by the time a post-call write lands. The
+ * store creates the directory itself if a spec writes nothing into it.
+ */
+export const PLAY_CUBES_DIR = resolve(RUN_DIR, 'play-cubes');
+/**
  * The PARENT of every stack's work dir — never itself a server's
  * `CARDTABLE_PLAY_WORK_DIR`. See "…and the work dir must not be shared with
  * ANOTHER STACK either". Never production's `/tmp/cardtable-play`, and the
@@ -531,6 +543,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         CARDTABLE_LOG_DIR: resolve(RUN_DIR, 'play-logs'),
         CARDTABLE_ROOMS_DIR: PLAY_ROOMS_DIR,
         CARDTABLE_DRAFTS_DIR: PLAY_DRAFTS_DIR,
+        CARDTABLE_CUBES_DIR: PLAY_CUBES_DIR,
         CARDTABLE_PLAY_WORK_DIR: workDir,
         EDGE_AUTH_SECRET: secret,
         CARDTABLE_FORGE_JAR: forge.jar,

@@ -45,6 +45,16 @@
  * room's plan exactly as it was. So the refused attempt is never visible on
  * `pod.plan` — it is held here, locally, only until the next attempt (or a
  * reload) — which is what `attempt` below is for.
+ *
+ * ## Pre-deal art, from the plan's own cube (wave 73 §B follow-up)
+ *
+ * `GET /api/pools/cubes/:id/cards` (lane C's follow-up, landed `de2f79e3`)
+ * lists a cube's whole `DraftCard[]`, so the lobby can warm its art before
+ * anything is dealt — `cubeIdsOf` names every distinct cube-kind source the
+ * plan's rounds hold (one today; a future Custom round could differ), and
+ * `preloadCubeArt` (`art-preload.ts`) is called once per id, each time the
+ * set changes. `PodScreen.tsx` does the same, for a reload mid-draft that
+ * never passes back through here.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -53,6 +63,7 @@ import type { CubeSummary, DraftPlan, PoolVerdict } from '@hadoku/shared';
 
 import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
 import { PoolPicker, type Refusal } from '../draft/PoolPicker.tsx';
+import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
@@ -79,6 +90,17 @@ function cubeIdOf(plan: DraftPlan | undefined): string | null {
   if (plan === undefined) return null;
   const round1 = plan.rounds[0];
   return round1.kind === 'cube' ? round1.cubeId : null;
+}
+
+/**
+ * Every distinct cube `plan`'s rounds hold, in round order — not just round
+ * 1 — so a future Custom round with a different cube per round warms every
+ * one of them rather than only the first. Exported for `PodScreen.tsx`'s own
+ * reload-mid-draft case. `undefined` reads as no plan at all: nothing to warm.
+ */
+export function cubeIdsOf(plan: DraftPlan | undefined): string[] {
+  if (plan === undefined) return [];
+  return [...new Set(plan.rounds.flatMap((r) => (r.kind === 'cube' ? [r.cubeId] : [])))];
 }
 
 const defaultPools = poolsClient();
@@ -156,6 +178,21 @@ export function DraftLobby({
   const planCubeId = cubeIdOf(plannedPod?.plan);
   /** `undefined` (today, before `pod.ts` carries one) reads exactly like `null` (still checking). */
   const verdict = plannedPod?.verdict ?? null;
+
+  // The plan's own cube(s), warmed before the deal — joined so the effect's dependency is one stable string, not a new array each render.
+  const planCubeIdsKey = cubeIdsOf(plannedPod?.plan).join(',');
+  useEffect(() => {
+    if (planCubeIdsKey === '') return;
+    let cancelled = false;
+    for (const id of planCubeIdsKey.split(',')) {
+      pools.cubeCards(id).then((cards) => {
+        if (!cancelled && cards !== null) preloadCubeArt(cards);
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [planCubeIdsKey]);
 
   const [cubes, setCubes] = useState<CubeSummary[]>([]);
   const [cubesError, setCubesError] = useState<string | null>(null);

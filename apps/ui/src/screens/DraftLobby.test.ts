@@ -22,6 +22,9 @@ const { aiPod, sitPod, standPod } = vi.hoisted(() => ({
 
 vi.mock('./pod/client.ts', () => ({ aiPod, sitPod, standPod }));
 
+const { preloadCubeArt } = vi.hoisted(() => ({ preloadCubeArt: vi.fn() }));
+vi.mock('../play/live/art-preload.ts', () => ({ preloadCubeArt }));
+
 import { DraftLobby, type PlannedPod } from './DraftLobby.tsx';
 import type { PoolsClient, RoomsClient } from '../rooms/api.ts';
 import { POD_SEATS, type PodView } from './pod/wire.ts';
@@ -49,6 +52,7 @@ beforeEach(() => {
     importCube: vi.fn(),
     refreshCube: vi.fn(),
     deleteCube: vi.fn(),
+    cubeCards: vi.fn().mockResolvedValue(null),
   };
   rooms = { setPlan: vi.fn() };
 });
@@ -274,5 +278,30 @@ describe('the pool picker (wave 73 §B)', () => {
     expect(screen.getByTestId(`pool-picker-refresh-${theirs.id}`), 'refresh: any friend').not.toBeNull();
     expect(screen.getByTestId(`pool-picker-delete-${mine.id}`), 'delete: the importer').not.toBeNull();
     expect(screen.queryByTestId(`pool-picker-delete-${theirs.id}`), 'delete: not another friend').toBeNull();
+  });
+
+  it("warms the plan's own cube art before the deal, from GET /api/pools/cubes/:id/cards — never the bundled pool", async () => {
+    const cube = cubeFixture();
+    vi.mocked(pools.listCubes).mockResolvedValue([cube]);
+    const card = {
+      cardId: 'c0',
+      scryfallId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      name: 'Lightning Bolt',
+      manaCost: ['R'],
+      manaValue: 1,
+      colors: ['R' as const],
+      typeLine: 'Instant',
+      oracleText: '',
+      setCode: 'LEA',
+      collectorNumber: '1',
+      rarity: 'common' as const,
+    };
+    vi.mocked(pools.cubeCards).mockResolvedValue([card]);
+    const pod = plannedPod(cubePlan(cube.id), cube.name, { ok: true, cards: cube.size });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+
+    await waitFor(() => expect(pools.cubeCards).toHaveBeenCalledWith(cube.id));
+    await waitFor(() => expect(preloadCubeArt).toHaveBeenCalledWith([card]));
   });
 });

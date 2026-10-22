@@ -61,9 +61,11 @@ import {
   RoomPodSchema,
   RoomModeSchema,
   CubeSummarySchema,
+  DraftCardSchema,
   PoolVerdictSchema,
   type ConstructedMode,
   type CubeSummary,
+  type DraftCard,
   type DraftPlan,
   type GameType,
   type ModeOptions,
@@ -761,6 +763,13 @@ export interface PoolsClient {
   refreshCube(id: string): Promise<{ ok: true; cube: CubeSummary } | { ok: false; message: string }>;
   /** 403 (not the importer) and 400 (a shortlist cube) both read as a plain refusal — the picker never offers the control to anyone else. */
   deleteCube(id: string): Promise<{ ok: true } | { ok: false; message: string }>;
+  /**
+   * A cube's own cards, for warming its art before the deal
+   * (`GET /api/pools/cubes/:id/cards`, lane C's follow-up). `null` for an id
+   * the server does not know (404) — never thrown: a cube that disappeared
+   * between the room's plan and this call costs a warm-up, not a screen.
+   */
+  cubeCards(id: string): Promise<DraftCard[] | null>;
 }
 
 export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base: string = defaultApiBase()): PoolsClient {
@@ -824,6 +833,19 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
       if (res.ok) return { ok: true };
       const body = await bodyOf(res);
       return { ok: false, message: `Could not delete that cube: ${serverMessage(body, res.status)}.` };
+    },
+
+    async cubeCards(id) {
+      let res: Response;
+      try {
+        res = await fetchImpl(url(`/${encodeURIComponent(id)}/cards`), { credentials: 'same-origin' });
+      } catch {
+        return null;
+      }
+      if (!res.ok) return null;
+      const body = await bodyOf(res);
+      const parsed = DraftCardSchema.array().safeParse(body);
+      return parsed.success ? parsed.data : null;
     },
   };
 }

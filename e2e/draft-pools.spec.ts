@@ -22,29 +22,23 @@
  * through `play/harness.ts`'s stack, the same as `w72-pod.spec.ts` and
  * `dr-draft-picks.spec.ts`, and skips the same way without one.
  *
- * ## The refused-cube half needs a harness change this lane does not own
+ * ## The injected test cube
  *
  * "A cube whose verdict is refused" has to be a real, selectable row in the
- * picker — the acceptance text says the picker SHOWS that name — so it must
- * come from the server's own `GET /api/pools/cubes`, not a value typed past
- * the UI. The only way to put one there without the real internet (Cube
- * Cobra) is to pre-seed the store's own directory with a fixture cube before
- * the server boots, which means `e2e/play/harness.ts`'s spawned server needs
- * a `CARDTABLE_CUBES_DIR` pointed at a per-stack directory this spec controls
- * — the same shape `CARDTABLE_ROOMS_DIR`/`CARDTABLE_DRAFTS_DIR` already get,
- * parallel to `PLAY_ROOMS_DIR`/`PLAY_DRAFTS_DIR` (`play/harness.ts` lines
- * ~96-118 for the constants, ~519-538 for the spawn env). That file is not on
- * this lane's row (it is not any lane's this wave), so this spec does not
- * edit it: see the README note below and the lane's own report for the exact
- * change. Until it exists, `TEST_CUBES_DIR` is undefined and the refused-cube
- * assertions are skipped with a loud note rather than silently absent.
- *
- * `TEST_FIXTURE_ROOT`'s own fixture is written here regardless, so wiring the
- * env var is the only thing standing between this and a green run of both
- * halves — `importDir/<id>.json`'s own on-disk shape (`apps/server/src/pools/cubes.ts`,
- * landed §C, `ffc26caf`): `{ id, name, cubeCobraId, importedBy, importedAt,
- * refreshedAt, verdict, cards }`, `cards` the trimmed `{ name, scryfallId }`
- * Cube Cobra projection, with one name Forge's card DB does not know.
+ * picker — the acceptance text says the picker SHOWS that name — so it comes
+ * from the server's own `GET /api/pools/cubes`, not a value typed past the
+ * UI. `play/harness.ts`'s `PLAY_CUBES_DIR` is the spawned server's
+ * `CARDTABLE_CUBES_DIR` (its import store); this spec writes a fixture
+ * cube — one card holding a name Forge's card DB does not know — directly
+ * into it, in `importDir/<id>.json`'s own on-disk shape
+ * (`apps/server/src/pools/cubes.ts`, landed §C, `ffc26caf`): `{ id, name,
+ * cubeCobraId, importedBy, importedAt, refreshedAt, verdict, cards }`, `cards`
+ * the trimmed `{ name, scryfallId }` Cube Cobra projection — BEFORE
+ * `startPlayStack` spawns the server, because `createCubeStore` reads that
+ * directory once, at boot (`PLAY_CUBES_DIR`'s own comment). This runs every
+ * time, with no gate: if the seeded cube is ever missing from the picker, that
+ * is this spec failing, not skipping — a skip here would look exactly like a
+ * pass.
  */
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -55,7 +49,7 @@ import { fillWithAi } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
-import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { forgeAvailability, PLAY_CUBES_DIR, startPlayStack } from './play/harness.ts';
 import { submitCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
@@ -91,29 +85,26 @@ async function packCardNames(page: Page): Promise<string[]> {
   return labels.map((l) => l.replace(/^Pick /, ''));
 }
 
-/**
- * A directory `e2e/play/harness.ts` does not yet point the server at — see
- * the file header. Written regardless, so wiring the one missing env var is
- * all that is left once it exists.
- */
-const TEST_FIXTURE_ROOT = resolve(import.meta.dirname, '.run', 'draft-pools-cubes');
+const UNPLAYABLE_ID = 'e2e-unplayable';
 const UNPLAYABLE_NAME = 'Zzyzzyva, Card Forge Does Not Know';
 
 /**
- * `importDir/<id>.json`'s own on-disk shape, per `apps/server/src/pools/cubes.ts`'s
- * header (landed §C, `ffc26caf`): `cards` is the TRIMMED Cube Cobra projection
- * (`{ name, scryfallId }`, never the derived `DraftCard[]`) — the catalog
- * resolves gameplay text by name at load, which is exactly how a name it does
- * not know (this fixture's whole point) produces `missingText` rather than a
- * shape error.
+ * `PLAY_CUBES_DIR/<id>.json` — `importDir`'s own on-disk shape, per
+ * `apps/server/src/pools/cubes.ts`'s header (landed §C, `ffc26caf`): `cards`
+ * is the TRIMMED Cube Cobra projection (`{ name, scryfallId }`, never the
+ * derived `DraftCard[]`) — the catalog resolves gameplay text by name at
+ * load, which is exactly how a name it does not know (this fixture's whole
+ * point) produces `missingText` rather than a shape error. Must run BEFORE
+ * `startPlayStack`: the store reads this directory once, at the spawned
+ * server's own boot (`PLAY_CUBES_DIR`'s own comment in `play/harness.ts`).
  */
-function writeUnplayableCubeFixture(): void {
-  rmSync(TEST_FIXTURE_ROOT, { recursive: true, force: true });
-  mkdirSync(TEST_FIXTURE_ROOT, { recursive: true });
+function seedUnplayableCube(): void {
+  rmSync(PLAY_CUBES_DIR, { recursive: true, force: true });
+  mkdirSync(PLAY_CUBES_DIR, { recursive: true });
   writeFileSync(
-    resolve(TEST_FIXTURE_ROOT, 'e2e-unplayable.json'),
+    resolve(PLAY_CUBES_DIR, `${UNPLAYABLE_ID}.json`),
     JSON.stringify({
-      id: 'e2e-unplayable',
+      id: UNPLAYABLE_ID,
       name: UNPLAYABLE_NAME,
       cubeCobraId: null,
       importedBy: 'fk:e2e-fixture',
@@ -132,10 +123,7 @@ test(
     if (!forge.ok) return;
     test.setTimeout(6 * 60_000);
 
-    // See the file header: set once harness.ts passes CARDTABLE_CUBES_DIR through.
-    const testCubesDir = process.env.CARDTABLE_E2E_TEST_CUBES_DIR;
-    if (testCubesDir !== undefined) writeUnplayableCubeFixture();
-    else console.log('[draft-pools] CARDTABLE_E2E_TEST_CUBES_DIR is not set — the refused-cube half is skipped; see this file’s header for the exact harness change needed.');
+    seedUnplayableCube();
 
     const stack = await startPlayStack(forge);
     const origin = stack.origin;
@@ -187,25 +175,21 @@ test(
        * screen — reading the room's own broadcast plan, not a local attempt —
        * is the proof that the real plan never moved.
        */
-      if (testCubesDir !== undefined) {
-        await expect(alice.page.getByTestId('pool-picker-cube-e2e-unplayable'), 'the injected test cube is listed').toBeVisible({ timeout: UI_TIMEOUT });
-        await cubeRadio(alice.page, UNPLAYABLE_NAME).click();
-        await expect(alice.page.getByTestId('pool-picker-verdict'), 'refused, naming the card Forge does not know').toHaveAttribute('data-state', 'refused', {
-          timeout: UI_TIMEOUT,
-        });
-        await expect(alice.page.getByTestId('pool-picker-verdict')).toContainText(UNPLAYABLE_NAME);
-        await expect(cubeRadio(alice.page, UNPLAYABLE_NAME), 'the picker shows the attempted name').toBeChecked();
-        await expect(alice.page.getByTestId('ready-toggle'), 'Start is disabled').toBeDisabled();
-        await expect(cubeRadio(bob.page, LEGACY_CUBE), 'the room’s own plan is untouched by alice’s refused attempt').toBeChecked();
+      await expect(alice.page.getByTestId(`pool-picker-cube-${UNPLAYABLE_ID}`), 'the injected test cube is listed').toBeVisible({ timeout: UI_TIMEOUT });
+      await cubeRadio(alice.page, UNPLAYABLE_NAME).click();
+      await expect(alice.page.getByTestId('pool-picker-verdict'), 'refused, naming the card Forge does not know').toHaveAttribute('data-state', 'refused', {
+        timeout: UI_TIMEOUT,
+      });
+      await expect(alice.page.getByTestId('pool-picker-verdict')).toContainText(UNPLAYABLE_NAME);
+      await expect(cubeRadio(alice.page, UNPLAYABLE_NAME), 'the picker shows the attempted name').toBeChecked();
+      await expect(alice.page.getByTestId('ready-toggle'), 'Start is disabled').toBeDisabled();
+      await expect(cubeRadio(bob.page, LEGACY_CUBE), 'the room’s own plan is untouched by alice’s refused attempt').toBeChecked();
 
-        // Alice picks the good cube again — the one real way the picker ever
-        // leaves a refused attempt, short of a reload (the server stores no
-        // refused plan to recover from).
-        await cubeRadio(alice.page, LEGACY_CUBE).click();
-        await expect(alice.page.getByTestId('pool-picker-verdict'), 'ready again').toHaveAttribute('data-state', 'ready', { timeout: UI_TIMEOUT });
-      } else {
-        console.log('[draft-pools] CARDTABLE_E2E_TEST_CUBES_DIR is not set — the refused-cube half is skipped; see this file’s header for the exact harness change needed.');
-      }
+      // Alice picks the good cube again — the one real way the picker ever
+      // leaves a refused attempt, short of a reload (the server stores no
+      // refused plan to recover from).
+      await cubeRadio(alice.page, LEGACY_CUBE).click();
+      await expect(alice.page.getByTestId('pool-picker-verdict'), 'ready again').toHaveAttribute('data-state', 'ready', { timeout: UI_TIMEOUT });
 
       /* ── both sit, ready, and the rest of the pod fills with AI ────────── */
       await alice.page.locator('[data-testid="pod-seat-sit"][data-seat="0"]').click();

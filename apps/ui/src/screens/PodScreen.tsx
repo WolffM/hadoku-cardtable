@@ -86,8 +86,8 @@ import { PodSpectators } from './pod/PodSpectators.tsx';
 import { followMatchOnce } from '../play/live/matchStart.ts';
 import { preloadCubeArt, viewerCards } from '../play/live/art-preload.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
-import type { PlannedPod } from './DraftLobby.tsx';
-import { roomsClient } from '../rooms/api.ts';
+import { cubeIdsOf, type PlannedPod } from './DraftLobby.tsx';
+import { poolsClient, roomsClient } from '../rooms/api.ts';
 import { deckStoreClient } from '../deck/deckStore.ts';
 import './PodScreen.css';
 
@@ -171,6 +171,24 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
    * on this same gap. `plannedPod` is `null` exactly when `ctx.pod` is.
    */
   const plannedPod = (ctx?.pod ?? null) as PlannedPod | null;
+
+  // The plan's own cube(s), warmed from `GET /api/pools/cubes/:id/cards` —
+  // a reload mid-draft lands here directly, never through `DraftLobby.tsx`,
+  // so the lobby's own warm-up (same idea, same helper) never ran for it.
+  const poolsForArt = useMemo(() => poolsClient(), []);
+  const planCubeIdsKey = cubeIdsOf(plannedPod?.plan).join(',');
+  useEffect(() => {
+    if (planCubeIdsKey === '') return;
+    let cancelled = false;
+    for (const id of planCubeIdsKey.split(',')) {
+      poolsForArt.cubeCards(id).then((cards) => {
+        if (!cancelled && cards !== null) preloadCubeArt(cards);
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [planCubeIdsKey, poolsForArt]);
 
   const closeClient = useMemo(() => roomsClient(), []);
   const buildStore = useMemo(() => ({ podId: draftId, client: deckStoreClient() }), [draftId]);
