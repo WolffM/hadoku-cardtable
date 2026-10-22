@@ -2054,7 +2054,7 @@ function CreaturePT({ entry }: { entry: BoardCard }) {
  * | damage | the P/T badge's own ink (`PowerToughness`) | the number that matters is what is LEFT, and the badge already holds it |
  * | counters | a numbered badge, bottom-left | `+1/+1` is the common case and gets the compact `+3`; anything else falls back to its name |
  * | summoning sick | a corner mark, a drawn crescent, and nothing over the art (the operator, 2026-10-15: "let's drop the dashed summoning sickness on the art, not needed") | a mark is a shape, so it cannot be confused with any outline |
- * | attacking | a corner mark, drawn crossed swords, beside the quarter turn and the danger outline (the operator, 2026-10-15: "let's show a 'crossed swords' pill icon on top of cards that have been selected as attackers") | Forge's own `Attacking`, so it is on both screens from the click that declares it until combat ends or it is called back |
+ * | attacking | a corner mark, drawn crossed swords, beside the quarter turn and the danger outline (the operator, 2026-10-15: "let's show a 'crossed swords' pill icon on top of cards that have been selected as attackers") | Forge's own `Attacking`: on the attacker's screen from the click that picks it, on every other screen once the attack is locked in (`adapter.ts`'s `toBoardView`), until combat ends or it is called back |
  * | blocking | a corner mark, a drawn shield, and an outline in the theme's success (`card.css`), as the attacker's is in its danger | the operator asked for its own colour (2026-10-10) |
  *
  * **The three outlines already on a card are not ours to add a fourth to.** The

@@ -2912,6 +2912,7 @@ function redraw(match: LiveMatch): void {
           faceHits: match.faceHits,
           deathCauses: match.deathCauses,
           promptCards: promptCardsOf(match),
+          watcher: match.watcher,
         });
   // A watcher's wire carries the bottom player's hand as hidden cards (the
   // public projection, `apps/server/src/play/visibility.ts`): drawn as the

@@ -1605,7 +1605,7 @@ describe('an attack declaration is the attacker’s own until it is locked in', 
 
   const seenBy = (state: WireState, viewerPlayerId: number, watcher = false) => {
     const view = toBoardView(state, 27, { viewerPlayerId, watcher });
-    return { attacking: view.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)), bands: view.combat.length };
+    return { attacking: view.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)), bands: (view.combat ?? []).length };
   };
 
   it('the defender sees no attacker while the attacker is still picking, and every one once it is locked in', () => {

@@ -891,6 +891,8 @@ export interface AdaptOptions {
    * order, a fate seal's choice). Those are the decision's, never a known top on the board.
    */
   promptCards?: ReadonlySet<number>;
+  /** A watcher's screen, not a seat's: like every player but the attacker, it sees an attack once it is locked in. */
+  watcher?: boolean;
 }
 
 // ── what a card's printed power and toughness are ───────────────────────────
@@ -1807,6 +1809,7 @@ export function toBoardView(
     faceHits,
     deathCauses,
     promptCards = new Set(),
+    watcher = false,
   }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === DELTA_TYPE.game);
@@ -1961,15 +1964,23 @@ export function toBoardView(
   });
 
   const phase = enumOf(game, 'Phase');
+  // An attack is the attacker's own until it is locked in (the operator, 2026-10-22: "avoid turning the
+  // attackers red from the opponents perspective until the attackers actually locked in"). Forge marks
+  // each creature `Attacking` as it is picked, and the step is COMBAT_DECLARE_ATTACKERS before the OK and
+  // after it. What the OK moves is priority: the defender held it last in Beginning of Combat, and
+  // `PhaseHandler` gives it to the attacker only once the declaration is done, in the delta that taps the
+  // attackers. Until then every other screen, and a watcher's, draws no attacker and no attack.
+  const active = players.find((p) => p.isActive);
+  const picking = phase === 'COMBAT_DECLARE_ATTACKERS' && active !== undefined && !active.hasPriority && (watcher || !active.isViewer);
   return {
-    combat: readCombat(game),
+    combat: picking ? [] : readCombat(game),
     seq,
     title: strOf(game, 'Title') ?? '',
     turn: readInt(game, 'Turn'),
     phase,
     phaseLabel: phase === null ? 'Not started' : (PHASE_LABEL[phase] ?? phase),
     activePlayerId,
-    players,
+    players: picking ? players.map((p) => ({ ...p, battlefield: p.battlefield.map((c) => (c.attacking ? { ...c, attacking: false } : c)) })) : players,
     stack,
     pendingTriggers: waiting,
     gameOver: boolOf(game, 'GameOver'),
