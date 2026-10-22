@@ -24,6 +24,11 @@ const podFixture = (): PodView => ({
   bye: null,
   drafters: [],
   built: [],
+  // wave 73 §A: PodView gains these three; this file is not a reader of any
+  // of them, so a minimal fixture is all this needs.
+  plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
+  planName: 'Test Cube',
+  verdict: null,
 });
 
 describe('fetchPodContext', () => {

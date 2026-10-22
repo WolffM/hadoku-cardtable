@@ -22,6 +22,11 @@ const fixture = (over: Partial<PodView> = {}): PodView => ({
   bye: null,
   drafters: [],
   built: [],
+  // wave 73 §A: PodView gains these three; this file's own parse test (below)
+  // covers them directly, so the shared fixture just needs a valid default.
+  plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
+  planName: 'Test Cube',
+  verdict: null,
   ...over,
 });
 

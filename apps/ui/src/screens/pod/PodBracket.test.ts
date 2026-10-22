@@ -25,7 +25,23 @@ const table = (id: string, ids: string[], over: Partial<RoomTable> = {}): RoomTa
 });
 
 function pod(over: Partial<PodView>): PodView {
-  return { phase: 'rounds', seats: Array.from({ length: POD_SEATS }, () => null), round: 1, rounds: 2, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [], ...over };
+  return {
+    phase: 'rounds',
+    seats: Array.from({ length: POD_SEATS }, () => null),
+    round: 1,
+    rounds: 2,
+    results: [],
+    standings: [],
+    pairings: [],
+    bye: null,
+    drafters: [],
+    built: [],
+    // wave 73 §A: PodView gains these three; this file (the bracket) is not a reader of any of them.
+    plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
+    planName: 'Test Cube',
+    verdict: null,
+    ...over,
+  };
 }
 
 /** Five players, round 2 of 3 under way: round 1 finished with Carol's bye, round 2 has a live table and a finished one. */
