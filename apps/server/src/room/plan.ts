@@ -44,8 +44,24 @@ export interface ForgeChecker {
 	check(names: readonly string[]): Promise<string[]>;
 }
 
+/**
+ * The slice of E's own `apps/server/src/pools/sets.ts` store this module
+ * consumes, for a `kind: 'set'` source (wave 74 §E step 3) — one verdict per
+ * CODE, not per style: `realistic` and `set-cube` of the same set need the
+ * exact same names checked (`pools/sets.ts`'s own `cardsFor` already unions
+ * `setCards` with a booster sample to cover the land/DFC slot), so they
+ * share one cache entry — `checkSource`'s own `sets.cardsFor` call below.
+ */
+export interface SetLookup {
+	cardsFor(code: string): Promise<readonly DraftCard[] | null>;
+	cachedVerdict(code: string): PoolVerdict | null;
+	setVerdict(code: string, verdict: PoolVerdict): void;
+}
+
 export interface PlanCheckDeps {
 	cubes: CubeLookup;
+	/** `undefined` wherever a test does not care about `kind: 'set'` sources — see `checkSource`'s own refusal when it is missing. */
+	sets?: SetLookup;
 	/** `null` without a jar — "the verdict then refuses every source not already checked at this pin, with a reason. It never passes by default." */
 	forge: ForgeChecker | null;
 	/** `CONFIG.testUncheckedPools` — see `checkCards`'s own doc. Absent/false everywhere but the jar-less e2e stack. */
@@ -103,6 +119,38 @@ export async function checkCards(
 }
 
 /**
+ * The verdict for ONE `kind: 'set'` source (wave 74 §E step 3) — by CODE, not
+ * by `(code, style)`: `deps.sets.cardsFor` already names every card either
+ * style could draw, so realistic and set-cube share one cached verdict.
+ *
+ * - No `SetLookup` wired (a test that does not care about sets, or a server
+ *   with no jar at all — `pools/sets.ts`'s `cardsFor` answers `null` the same
+ *   way without one) refuses, same wording `checkCards`'s own no-forge path
+ *   uses.
+ * - A cached verdict for the code is reused as-is — `pools/sets.ts`'s own
+ *   cache, which `pools/refresh.ts`'s catalog-swap hook clears for a
+ *   `missingText` refusal, so this never goes stale the way `CubeLookup`'s
+ *   cube-store cache could (wave 74 §G step 2).
+ * - Otherwise `checkCards` decides over the resolved card list, and the
+ *   result is cached back (`setVerdict`).
+ */
+async function checkSetSource(code: string, deps: PlanCheckDeps): Promise<PoolVerdict> {
+	if (deps.sets === undefined) {
+		return { ok: false, unplayable: ['the pool service is not available to check sets — try again once it is up'], missingText: [] };
+	}
+	const cached = deps.sets.cachedVerdict(code);
+	if (cached !== null) return cached;
+
+	const cards = await deps.sets.cardsFor(code);
+	if (cards === null) {
+		return { ok: false, unplayable: [`unknown set, or Forge cannot answer for it: ${code}`], missingText: [] };
+	}
+	const verdict = await checkCards(cards, deps.forge, { uncheckedWithoutJar: deps.uncheckedWithoutJar });
+	deps.sets.setVerdict(code, verdict);
+	return verdict;
+}
+
+/**
  * The verdict for ONE source, by id.
  *
  * - An unknown cube id is refused, named.
@@ -115,8 +163,7 @@ export async function checkCards(
  */
 export async function checkSource(src: PoolSource, deps: PlanCheckDeps): Promise<PoolVerdict> {
 	if (src.kind === 'set') {
-		// Unreachable this wave (the route refuses it at 400) — defensive, not load-bearing.
-		return { ok: false, unplayable: [], missingText: ['set sources are not supported this wave'] };
+		return checkSetSource(src.code, deps);
 	}
 
 	const cards = deps.cubes.cards(src.cubeId);
