@@ -279,22 +279,33 @@ export interface Room {
   bounds: { left: number; top: number; right: number; bottom: number };
 }
 
-/** How a queue along an arrow is searched, in pack widths: its offset from the arrow's middle, its first pack's distance back from the head, the step between packs. */
+/**
+ * How a queue along an arrow is searched, in pack widths: its offset from the
+ * arrow's middle, its first pack's distance back from the head, the step
+ * between packs, and how much further out a second file runs than the first.
+ */
 const QUEUE_STEP = 0.1;
 const QUEUE_OFF = { from: 0.6, to: 1.6 };
 const QUEUE_BACK = { from: 0, to: 4 };
 const QUEUE_GAP = { from: 1, to: 1.6 };
+const QUEUE_FILE = { from: 0.8, to: 2, step: 0.2 };
+/** How many first files that fit are tried at each count before fewer are tried. */
+const QUEUE_TRIES = 8;
+/** How far past the arrow's tail, along the ring, a file may run. */
+const QUEUE_PAST = 1;
 
 /**
  * Each seat's pile, at every turn `packSlot` gives its packs clear of every
  * face, name, arrow, the counters, the panel's edge and every earlier seat's
  * pile. First a queue along the arrow into the seat: against its stroke on the
- * ring's outside (its inside if the outside has no room), stepping back from
- * its head, each pack turned with the arrow, as close to the stroke, the head
- * and the pack before as fits. Where the arrow cannot hold four, the four
- * places nearest its arrowhead where four packs fit side by side, as a block,
- * a row or a column. The table's own geometry decides, so every seat count,
- * table shape and UI scale is the same rule.
+ * ring's outside (its inside only if the outside has no room for one), stepping
+ * back from its head, each pack turned with the arrow, as close to the stroke,
+ * the head and the pack before as fits. As many as the arrow holds go in that
+ * file; the rest continue in a second file just outside it, parallel to the
+ * arrow and staggered between the first file's packs. Only where no queue fits
+ * at all, the four places nearest its arrowhead where four packs fit side by
+ * side, as a block, a row or a column. The table's own geometry decides, so
+ * every seat count, table shape and UI scale is the same rule.
  */
 export function pileRoom(room: Room): Pile[] {
   const pad = CLEARANCE * PACK;
@@ -415,39 +426,40 @@ export function pileRoom(room: Room): Pile[] {
      */
     const arrow = room.arrows[room.inbound[at]!]!;
     const line = [...arrow.points].reverse();
-    const run = line.map((_, k) => (k === 0 ? 0 : Math.hypot(line[k]!.x - line[k - 1]!.x, line[k]!.y - line[k - 1]!.y)));
-    for (let k = 1; k < run.length; k++) run[k]! += run[k - 1]!;
+    // The arrow is an arc of the ring: the head's angle about the hub, and which way round its tail lies.
+    const r0 = Math.hypot(line[0]!.x - room.hub.x, line[0]!.y - room.hub.y);
+    const a0 = Math.atan2(line[0]!.y - room.hub.y, line[0]!.x - room.hub.x);
+    const a1 = Math.atan2(line[1]!.y - room.hub.y, line[1]!.x - room.hub.x);
+    const way = Math.sign(Math.sin(a1 - a0)) || 1;
+    const length = line.reduce((t, p, k) => (k === 0 ? 0 : t + Math.hypot(p.x - line[k - 1]!.x, p.y - line[k - 1]!.y)), 0);
+    const reach = length + QUEUE_PAST * PACK;
     const queued = new Map<number, { box: Pt; turn: number } | null>();
     const queuedAt = (side: 1 | -1, off: number, back: number) => {
       const key = (side + 1) * 1e6 + off * 1e3 + back;
       if (queued.has(key)) return queued.get(key)!;
       const a = back * QUEUE_STEP * PACK;
-      const k = run.findIndex((r, j) => j > 0 && r >= a);
       let found: { box: Pt; turn: number } | null = null;
-      if (k > 0) {
-        const p = line[k - 1]!, q = line[k]!;
-        const f = (a - run[k - 1]!) / (run[k]! - run[k - 1]! || 1);
-        const x = p.x + (q.x - p.x) * f, y = p.y + (q.y - p.y) * f;
-        // Travel runs toward the head: from q to p.
-        const d = Math.hypot(p.x - q.x, p.y - q.y) || 1;
-        const tx = (p.x - q.x) / d, ty = (p.y - q.y) / d;
-        const outward = (x - room.hub.x) * -ty + (y - room.hub.y) * tx > 0 ? 1 : -1;
-        const nx = -ty * outward * side, ny = tx * outward * side;
-        const o = arrow.width / 2 + (QUEUE_OFF.from + off * QUEUE_STEP) * PACK;
+      if (a <= reach) {
+        const t = a0 + (way * a) / r0;
+        // Outward from the hub, and the direction of travel (toward the head).
+        const ox = Math.cos(t), oy = Math.sin(t);
+        const tx = way * oy, ty = -way * ox;
+        const o = r0 + side * (arrow.width / 2 + (QUEUE_OFF.from + off * QUEUE_STEP) * PACK);
         const screen = ((deg(Math.atan2(ty, tx)) + 90) % 180 + 180) % 180 - 90;
-        found = { box: [x + nx * o, y + ny * o], turn: screen * sx };
+        found = { box: [room.hub.x + ox * o, room.hub.y + oy * o], turn: screen * sx };
       }
       queued.set(key, found);
       return found;
     };
     const queueCards = new Map<number, { cards: Poly[]; clear: boolean }>();
-    const queueFits = (side: 1 | -1, off: number, first: number, gap: number, taken: readonly Obstacle[]): Poly[] | null => {
+    /** Whether packs 0… at `spots` (each `off` out and `back` from the head, in steps) fit at every depth they are drawn at. */
+    const queueFits = (side: 1 | -1, spots: readonly { off: number; back: number }[], taken: readonly Obstacle[]): Poly[] | null => {
       const all: Poly[] = [];
       for (let depth = 1; depth <= IN_VIEW; depth++) {
         const here: Poly[][] = [];
-        for (let i = 0; i < depth; i++) {
-          const back = first + i * gap;
-          const spot = queuedAt(side, off, back);
+        for (let i = 0; i < Math.min(depth, spots.length); i++) {
+          const { off, back } = spots[i]!;
+          const spot = back < 0 ? null : queuedAt(side, off, back);
           if (spot === null) return null;
           const pose = (depth - 1) * IN_VIEW + i;
           const key = ((side + 1) * 1e6 + off * 1e3 + back) * 16 + pose;
@@ -465,31 +477,64 @@ export function pileRoom(room: Room): Pile[] {
       }
       return all;
     };
-    // The queues tried, the ring's outside first, then the snuggest to the stroke, the head and each other.
-    const steps0 = (r: { from: number; to: number }) => Math.round((r.to - r.from) / QUEUE_STEP);
-    const gapFrom = Math.round(QUEUE_GAP.from / QUEUE_STEP);
-    const queues: { side: 1 | -1; off: number; first: number; gap: number; cost: number }[] = [];
-    for (const side of [1, -1] as const) {
-      for (let off = 0; off <= steps0(QUEUE_OFF); off++) {
-        for (let first = Math.round(QUEUE_BACK.from / QUEUE_STEP); first <= Math.round(QUEUE_BACK.to / QUEUE_STEP); first++) {
-          for (let gap = gapFrom; gap <= Math.round(QUEUE_GAP.to / QUEUE_STEP); gap++) {
-            queues.push({ side, off, first, gap, cost: (side === 1 ? 0 : 1e6) + off + first + (gap - gapFrom) });
+    // The first files tried, the snuggest to the stroke, the head and each other first.
+    const inSteps = (v: number) => Math.round(v / QUEUE_STEP);
+    const files: { off: number; first: number; gap: number; cost: number }[] = [];
+    for (let off = 0; off <= inSteps(QUEUE_OFF.to - QUEUE_OFF.from); off++) {
+      for (let first = inSteps(QUEUE_BACK.from); first <= inSteps(QUEUE_BACK.to); first++) {
+        for (let gap = inSteps(QUEUE_GAP.from); gap <= inSteps(QUEUE_GAP.to); gap++) files.push({ off, first, gap, cost: off + first + gap });
+      }
+    }
+    files.sort((a, b) => a.cost - b.cost);
+    type Spot = { off: number; back: number };
+    /**
+     * The rest of a queue after `spots`, file after file: each next file just
+     * further out than the last, parallel to the arrow and staggered between its
+     * packs, the one that holds the most (the nearest of those). Null when no
+     * further file takes one.
+     */
+    const continued = (side: 1 | -1, spots: Spot[], file: { off: number; first: number }, gap: number, taken: readonly Obstacle[]): Spot[] | null => {
+      if (spots.length === IN_VIEW) return spots;
+      const half = Math.round(gap / 2);
+      let best: { spots: Spot[]; file: { off: number; first: number } } | null = null;
+      for (let out = file.off + inSteps(QUEUE_FILE.from); out <= file.off + inSteps(QUEUE_FILE.to); out += inSteps(QUEUE_FILE.step)) {
+        for (const first of [file.first + half, file.first - half]) {
+          for (let n = IN_VIEW - spots.length; n > (best === null ? 0 : best.spots.length - spots.length); n--) {
+            const next = [...spots, ...Array.from({ length: n }, (_, j) => ({ off: out, back: first + j * gap }))];
+            if (queueFits(side, next, taken) !== null) {
+              best = { spots: next, file: { off: out, first } };
+              break;
+            }
           }
         }
       }
-    }
-    queues.sort((a, b) => a.cost - b.cost);
-    // An arrow shorter than four packs' steps holds no queue, whatever it is tried with.
-    const holds = run[run.length - 1]! >= (IN_VIEW - 1) * QUEUE_GAP.from * PACK;
+      return best === null ? null : continued(side, best.spots, best.file, gap, taken);
+    };
+
+    /**
+     * The queue: the outside before the inside; then as many packs as fit in the
+     * file against the stroke, the rest in files further out; then the snuggest
+     * (the first few first files that fit at each count are tried).
+     */
     const alongArrow = (taken: readonly Obstacle[]) => {
-      for (const { side, off, first, gap } of holds ? queues : []) {
-        const cards = queueFits(side, off, first, gap, taken);
-        if (cards === null) continue;
-        const places = Array.from({ length: IN_VIEW }, (_, i): Place => {
-          const { box: [bx, by], turn } = queuedAt(side, off, first + i * gap)!;
-          return { x: ((bx - face.x) * sx) / PACK, y: (by - face.y) / PACK, turn };
-        });
-        return { pile: { places, along: 'arrow' as const }, cards: cards.map(obstacle), own: true };
+      for (const side of [1, -1] as const) {
+        for (let held = IN_VIEW; held >= 1; held--) {
+          let tries = 0;
+          for (const { off, first, gap } of files) {
+            const lead = Array.from({ length: held }, (_, i) => ({ off, back: first + i * gap }));
+            if (queueFits(side, lead, taken) === null) continue;
+            const spots = continued(side, lead, { off, first }, gap, taken);
+            if (spots === null) {
+              if (++tries === QUEUE_TRIES) break;
+              continue;
+            }
+            const places = spots.map(({ off: o, back }): Place => {
+              const { box: [bx, by], turn } = queuedAt(side, o, back)!;
+              return { x: ((bx - face.x) * sx) / PACK, y: (by - face.y) / PACK, turn };
+            });
+            return { pile: { places, along: 'arrow' as const }, cards: queueFits(side, spots, taken)!.map(obstacle), own: true };
+          }
+        }
       }
       return null;
     };
@@ -525,22 +570,25 @@ export function pileRoom(room: Room): Pile[] {
   });
 
   // Seats are placed one after another, each round the piles before it. A seat that
-  // had to stray toward a neighbour goes first next time; the round with fewest strays wins.
+  // missed its arrow, or had to stray toward a neighbour, goes first next time; the
+  // round with fewest seats off their arrows wins, then the one with fewest strays.
   let order = room.faces.map((_, at) => at);
-  let best: { piles: Pile[]; strays: number } | null = null;
+  let best: { piles: Pile[]; score: number } | null = null;
   for (let round = 0; round < ROUNDS; round++) {
     const piles: Pile[] = [];
     const taken: Obstacle[] = [];
-    const strays: number[] = [];
+    const missed: number[] = [];
+    let score = 0;
     for (const at of order) {
       const { pile, cards, own } = seats[at]!(taken);
       piles[at] = pile;
       taken.push(...cards);
-      if (!own) strays.push(at);
+      if (pile.along === 'room' || !own) missed.push(at);
+      score += (pile.along === 'room' ? room.faces.length + 1 : 0) + (own ? 0 : 1);
     }
-    if (best === null || strays.length < best.strays) best = { piles, strays: strays.length };
-    if (strays.length === 0) break;
-    order = [...strays, ...order.filter((at) => !strays.includes(at))];
+    if (best === null || score < best.score) best = { piles, score };
+    if (missed.length === 0) break;
+    order = [...missed, ...order.filter((at) => !missed.includes(at))];
   }
   return best!.piles;
 }
