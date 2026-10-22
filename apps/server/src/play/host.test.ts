@@ -195,7 +195,11 @@ describe('the ceiling', () => {
 
 describe('the bridge is compiled once per version, not in every JVM', () => {
 	// A JDK's bin/: a `java` nobody runs here, and a `javac` that does what the
-	// real one is asked to — write `<main>.class` into `-d` — and counts its runs.
+	// real one is asked to — write `<main>.class` into `-d`, `<main>` being
+	// whatever source file it was actually handed (the last argument, same
+	// position `-sourcepath`'s dir is NOT — this fixture is used with more than
+	// one bridge source to prove two mains get their own cache directory) —
+	// and counts its runs.
 	function fixture(javac: 'works' | 'fails' | 'absent') {
 		const root = mkdtempSync(join(scratch, 'bridge-'));
 		const bin = join(root, 'bin');
@@ -205,7 +209,7 @@ describe('the bridge is compiled once per version, not in every JVM', () => {
 		if (javac !== 'absent') {
 			const body =
 				javac === 'works'
-					? `echo run >> "${runs}"\nwhile [ "$1" != "-d" ]; do shift; done\necho compiled > "$2/Bridge.class"\n`
+					? `echo run >> "${runs}"\nwhile [ "$1" != "-d" ]; do shift; done\ndir="$2"\nfor a in "$@"; do src="$a"; done\nname=$(basename "$src" .java)\necho compiled > "$dir/$name.class"\n`
 					: `echo run >> "${runs}"\necho "Bridge.java:1: error: not a statement" >&2\nexit 1\n`;
 			writeFileSync(join(bin, 'javac'), `#!/bin/sh\n${body}`);
 			chmodSync(join(bin, 'javac'), 0o755);
@@ -263,6 +267,29 @@ describe('the bridge is compiled once per version, not in every JVM', () => {
 		expect(after.how).toBe('compiled');
 		expect(after.args[1]).not.toBe(before.args[1]);
 		expect(f.javacRuns()).toBe(2);
+	});
+
+	/**
+	 * Two mains sharing a directory would let a reader that finds ITS main's
+	 * class already there be looking at a directory another process is still
+	 * mid-write on for the OTHER main (the bug a bare `cpSync` merge — tried
+	 * and reverted — would have reintroduced on the exact path a match
+	 * launches through). Each main gets its own directory instead, even when
+	 * every `.java` file beside them (so `bridgeVersion`) is identical.
+	 */
+	it('PlayBridge and PoolService (two different mains, same siblings) get their own cache directories', () => {
+		const f = fixture('works');
+		const other = join(dirname(f.cfg.bridgeSource), 'Other.java');
+		writeFileSync(other, 'class Other {}');
+		const bridge = f.launch();
+		const otherLaunch = bridgeLaunch({ ...f.cfg, bridgeSource: other }, (e) => f.logs.push(e));
+		expect(bridge.how).toBe('compiled');
+		expect(otherLaunch.how).toBe('compiled');
+		expect(otherLaunch.args).toEqual(['-cp', otherLaunch.args[1], 'Other']);
+		expect(otherLaunch.args[1]).not.toBe(bridge.args[1]);
+		// Both directories exist at once, each with only its own main's class —
+		// never one main's directory missing or half-holding the other's.
+		expect(readdirSync(f.cfg.bridgeCache)).toHaveLength(2);
 	});
 
 	it('a compile that fails is logged with javac\'s own words, and the JVM gets the source launcher', () => {

@@ -243,7 +243,6 @@ import { createHash, randomBytes } from 'node:crypto';
 import {
 	appendFileSync,
 	closeSync,
-	cpSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
@@ -252,6 +251,7 @@ import {
 	readFileSync,
 	readlinkSync,
 	realpathSync,
+	renameSync,
 	rmSync,
 	statSync,
 	symlinkSync,
@@ -599,10 +599,13 @@ export const BRIDGE_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
  * that launcher does too.
  *
  * Two processes may compile the same version at once (a deploy beside a CI job):
- * each compiles into its own temporary directory and MERGES it into place
- * (`cpSync`, recursive — creates `dir` if it is not there yet, adds to it
- * otherwise), so a JVM never sees half a directory and two mains sharing a
- * version (see `bridgeVersion`) never race each other out.
+ * each compiles into its own temporary directory and RENAMES it into place, so
+ * a JVM never sees half a directory, and the loser's copy is deleted. The
+ * directory name carries the main's own name as well as `bridgeVersion`
+ * (below) precisely so this stays true even though two different mains
+ * (`PlayBridge`, `PoolService`) can share a version: each still gets its own
+ * directory, so a reader finding ITS main's class already there is never
+ * looking at one another process is still mid-write on for a DIFFERENT main.
  *
  * With no `javac` there (a `java` from `PATH`), or a compile that fails, this is
  * the source launcher exactly as before, and a failed compile is logged. Each
@@ -625,7 +628,14 @@ export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, 
 	const main = basename(config.bridgeSource, '.java');
 	let dir: string;
 	try {
-		dir = join(config.bridgeCache, bridgeVersion(config));
+		// The main's own name is part of the directory, not just the version: two
+		// mains compiling the same siblings (PlayBridge.java and PoolService.java,
+		// most of the time) must never share one, or a reader that finds ITS
+		// main's class already there could be looking at a directory ANOTHER
+		// process is still mid-write on the OTHER main's classes. One main, one
+		// directory, keeps the rename below the only thing that makes a directory
+		// visible at all — no reader ever sees a half-written one.
+		dir = join(config.bridgeCache, `${main}-${bridgeVersion(config)}`);
 	} catch (err) {
 		log({ evt: 'bridge-compile-failed', error: (err as Error).message });
 		return source;
@@ -653,15 +663,12 @@ export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, 
 		if (javacRun.status !== 0 || !existsSync(join(staging, `${main}.class`))) {
 			throw new Error(`javac exited ${javacRun.status ?? javacRun.signal ?? javacRun.error?.message}: ${(javacRun.stderr ?? '').slice(-2000)}`);
 		}
-		// `dir` may already hold another main's classes under this same version
-		// (e.g. PoolService.java's compile pulled PlayBridge.java in via
-		// -sourcepath, and PlayBridge.java is later compiled on its own — same
-		// version, since it covers every sibling, so the same directory). A plain
-		// rename would fail the moment `dir` already exists non-empty; `cpSync`
-		// merges, and does so safely even in the concurrent-process race this
-		// replaces, because the bytes two processes would write for the same
-		// file are identical (same source, same jar, same JDK).
-		cpSync(staging, dir, { recursive: true });
+		try {
+			renameSync(staging, dir);
+		} catch (err) {
+			// Another process put the same version there first. Theirs is as good as ours.
+			if (!existsSync(join(dir, `${main}.class`))) throw err;
+		}
 		log({ evt: 'bridge-compiled', dir, ms: Date.now() - started });
 	} catch (err) {
 		log({ evt: 'bridge-compile-failed', error: (err as Error).message });
