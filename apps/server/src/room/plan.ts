@@ -48,6 +48,8 @@ export interface PlanCheckDeps {
 	cubes: CubeLookup;
 	/** `null` without a jar — "the verdict then refuses every source not already checked at this pin, with a reason. It never passes by default." */
 	forge: ForgeChecker | null;
+	/** `CONFIG.testUncheckedPools` — see `checkCards`'s own doc. Absent/false everywhere but the jar-less e2e stack. */
+	uncheckedWithoutJar?: boolean;
 }
 
 /** Two sources are the same deal — see `@hadoku/draft`'s `deal.ts`, which groups rounds the same way. */
@@ -69,14 +71,28 @@ function sourceKey(src: PoolSource): string {
  *   up, so a refusal reports everything wrong with a cube at once rather than
  *   hiding an unplayable card behind the first missing-text one found.
  * - Without a jar: refused, with a reason, unless `missingText` alone already
- *   refuses it. Never passes by default.
+ *   refuses it. Never passes by default —
+ * - UNLESS `uncheckedWithoutJar` (`CONFIG.testUncheckedPools`,
+ *   `CARDTABLE_E2E_UNCHECKED_POOLS=1`): the jar-less e2e `check` job's own
+ *   escape hatch (CI run 39715510788 — without it `Lobby.startDraft` refuses
+ *   `plan-not-ready` forever on a server with no jar at all). `missingText`
+ *   still refuses even with it set: this is an escape from "no jar", never
+ *   from "the catalog has no text for this card". Nothing in this repo's own
+ *   deploy path ever sets the flag (`config.test.ts` pins that), and a jar
+ *   being up makes it moot either way — the real `forge.check` always runs
+ *   when one exists, flag or not.
  */
-export async function checkCards(cards: readonly DraftCard[], forge: ForgeChecker | null): Promise<PoolVerdict> {
+export async function checkCards(
+	cards: readonly DraftCard[],
+	forge: ForgeChecker | null,
+	opts?: { uncheckedWithoutJar?: boolean },
+): Promise<PoolVerdict> {
 	const missingText = cards.filter((c) => c.typeLine === '').map((c) => c.name);
 	const resolved = cards.filter((c) => c.typeLine !== '');
 
 	if (forge === null) {
 		if (missingText.length > 0) return { ok: false, unplayable: [], missingText };
+		if (opts?.uncheckedWithoutJar === true) return { ok: true, cards: resolved.length };
 		return { ok: false, unplayable: ['Forge is not available to check playability — try again once the pool service is up'], missingText: [] };
 	}
 
@@ -111,7 +127,7 @@ export async function checkSource(src: PoolSource, deps: PlanCheckDeps): Promise
 		if (cached !== null) return cached;
 	}
 
-	const verdict = await checkCards(cards, deps.forge);
+	const verdict = await checkCards(cards, deps.forge, { uncheckedWithoutJar: deps.uncheckedWithoutJar });
 	if (deps.forge !== null) deps.cubes.setVerdict(src.cubeId, verdict);
 	return verdict;
 }

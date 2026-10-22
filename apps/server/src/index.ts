@@ -430,8 +430,12 @@ const poolResolver: PoolSourceResolver = {
 const defaultCubeCards = cubeStore.cards(DEFAULT_CUBE_ID) ?? null;
 
 // Without a jar, `room/plan.ts`'s own rule applies: every source not already
-// checked at this pin is refused, with a reason. It never passes by default.
-const checkDraftPlan = (plan: DraftPlan): Promise<PoolVerdict> => checkPlan(plan, { cubes: cubeStore, forge: forgePools });
+// checked at this pin is refused, with a reason. It never passes by default —
+// unless CONFIG.testUncheckedPools (the jar-less e2e stack's own escape
+// hatch; see config.ts's own doc). Warned at boot, grouped with the other
+// boot warnings, below.
+const checkDraftPlan = (plan: DraftPlan): Promise<PoolVerdict> =>
+	checkPlan(plan, { cubes: cubeStore, forge: forgePools, uncheckedWithoutJar: CONFIG.testUncheckedPools });
 
 const lobby = await openLobby({
 	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
@@ -550,7 +554,7 @@ attachDecks(api, { draftRooms, room: (id) => lobby.get(id) });
 // shortlist plus any Cube Cobra import. `check` re-verifies fresh at import
 // and at refresh (never a cached verdict — "An import is checked when it is
 // saved"), the same `checkCards` `room/plan.ts`'s own `checkSource` runs.
-attachCubeRoutes(api, { store: cubeStore, check: (cards) => checkCards(cards, forgePools) });
+attachCubeRoutes(api, { store: cubeStore, check: (cards) => checkCards(cards, forgePools, { uncheckedWithoutJar: CONFIG.testUncheckedPools }) });
 
 // ── Matches ──────────────────────────────────────────────────────────────────
 // One child JVM per match; see src/play/README.md. Without a configured Forge
@@ -747,6 +751,9 @@ httpServer.listen(CONFIG.port, CONFIG.host, () => {
 				? '[cardtable] EDGE_AUTH_SECRET unset and INSECURE_NO_EDGE_AUTH=1 — identity headers are TRUSTED UNVERIFIED. Local dev only.'
 				: '[cardtable] EDGE_AUTH_SECRET unset — failing closed, every request degraded to public/anon.'
 		);
+	}
+	if (CONFIG.testUncheckedPools) {
+		console.warn('[cardtable] CARDTABLE_E2E_UNCHECKED_POOLS=1 — a plan with no jar passes unchecked (missingText still refuses). e2e/harness.ts only, never production.');
 	}
 	if (!basePath.ok) {
 		// Loud, because the alternative failure mode is a blank page nobody can

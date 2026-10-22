@@ -156,6 +156,15 @@ const server = spawn(process.execPath, [SERVER_JS], {
     // the wave 20 bug: this server cannot start a Forge match, so the seed it
     // carried seeded nothing. It belongs on the one server that can — see
     // `play/harness.ts`.
+    //
+    // ONE deliberate deviation from that posture: this server has no jar, so
+    // `room/plan.ts`'s own rule ("no jar never passes by default") would
+    // refuse every draft's plan forever — `draft.spec`'s "two friends draft a
+    // whole pod" never deals (CI run 39715510788). `play/harness.ts`'s server
+    // HAS a jar and must keep running the real check, so this flag is set
+    // only here, never there. `config.ts` pins that production's own config
+    // never reads this var, and `index.ts` warns loudly at boot when it does.
+    CARDTABLE_E2E_UNCHECKED_POOLS: '1',
   },
 });
 
