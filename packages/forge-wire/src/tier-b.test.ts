@@ -404,6 +404,13 @@ describe('wave 52 §S — the offer facts and the confirm ability are strict and
     expect(ShowPromptMessageSchema.safeParse({ ...base, confirmAbility: { hostCard: card(7) } }).success).toBe(false);
   });
 
+  it('poolPays names the pool colours a press pays with, strictly', () => {
+    const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Pay Mana Cost: {B}{B}{B}', card: card(41) };
+    expect(ShowPromptMessageSchema.safeParse({ ...base, poolPays: ['B'] }).success).toBe(true);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, poolPays: [] }).success).toBe(false);
+    expect(ShowPromptMessageSchema.safeParse({ ...base, poolPays: ['X'] }).success).toBe(false);
+  });
+
   it('poolChoice names the pool colours a press pays with, strictly', () => {
     const base = { kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Pay Mana Cost: {1}', card: card(9) };
     expect(ShowPromptMessageSchema.safeParse({ ...base, poolChoice: ['R', 'G'] }).success).toBe(true);

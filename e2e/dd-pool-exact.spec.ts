@@ -5,7 +5,8 @@
  * have been able to click on my black mana to pay for the spell there."*
  *
  * `dd-pool-exact.state`: alice taps the Swamp, casts Dark Ritual and floats {B}{B}{B}, then casts
- * Doomsday ({B}{B}{B}). `[dd-pool]` lines are the evidence.
+ * Doomsday ({B}{B}{B}) in full control, so the one-way payment is shown rather than paid for her
+ * (her game kept it for her; the default pays it). `[dd-pool]` lines are the evidence.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -40,6 +41,8 @@ test(titled('{B}{B}{B} floating pays Doomsday by presses on the pool'), async ({
     await expect.poll(async () => (await manaPool(page)).B, { timeout: 20_000, message: `{B}{B}{B} floats — says: "${await says(page)}"` }).toBe(3);
     await expect.poll(() => stackCount(page), { timeout: 15_000 }).toBe(0);
 
+    await page.getByTestId('live-full-control').click();
+    await expect(page.getByTestId('live-full-control'), 'full control is on').toHaveAttribute('aria-pressed', 'true');
     const doomsday = (await handCardNamed(page, 'Doomsday'))!;
     await expect.poll(() => offered(page), { timeout: 20_000, message: 'Doomsday is offered' }).toContain(doomsday);
     expect(await clickHandCard(page, doomsday), 'Doomsday lifted out of alice’s hand').toBe(true);
@@ -55,6 +58,7 @@ test(titled('{B}{B}{B} floating pays Doomsday by presses on the pool'), async ({
     );
     expect(held, 'the payment window is shown').toBe(true);
     expect(await pips.evaluateAll((els) => els.map((e) => e.getAttribute('data-mana'))), 'the {B} in the pool is pressable').toEqual(['B']);
+    await expect(pool(page), 'one way to pay is not highlighted as a choice').not.toHaveAttribute('data-pool-pays', '');
 
     for (let left = 3; left > 0; left--) {
       await expect.poll(async () => (await manaPool(page)).B, { timeout: 15_000 }).toBe(left);

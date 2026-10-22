@@ -586,11 +586,13 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   /** {@link prompt} split into its decision and the ability text before it (`promptLines`), or null. From the same frame. */
   promptParts: PromptParts | null;
   /**
-   * The floating pool's colours a press pays the open payment with, when the pool pays it more than
-   * one way (`PlayBridge.java`'s `poolChoice`), or null. From the same frame as {@link prompt};
-   * spent ({@link payFromPool}) until Forge's next one.
+   * The floating pool's colours a press pays part of the open payment with (`PlayBridge.java`'s
+   * `poolPays`), or null. From the same frame as {@link prompt}; spent ({@link payFromPool}) until
+   * Forge's next one.
    */
-  promptPoolChoice: readonly PoolColor[] | null;
+  promptPoolPays: readonly PoolColor[] | null;
+  /** The pool pays the open payment more than one way (`PlayBridge.java`'s `poolHasChoice`), from the same frame. */
+  promptPoolChoice: boolean;
   /** The optional triggers Forge answers for this seat, from the server's `forge:trigger-decisions`. */
   triggerDecisions: readonly RememberedTrigger[];
   /**
@@ -1035,7 +1037,8 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     promptCard: null,
     promptTrigger: null,
     promptParts: null,
-    promptPoolChoice: null,
+    promptPoolPays: null,
+    promptPoolChoice: false,
     triggerDecisions: [],
     deckColors: undefined,
     buttons: null,
@@ -2030,13 +2033,21 @@ export function payWithLife(match: LiveMatch): boolean {
 }
 
 /**
- * The colours of the viewer's floating pool a press pays the open payment with, while the pool pays
- * it more than one way, else empty. The operator, 2026-10-21: *"if there is more mana in the pool
- * than is needed, we should require the player to click on the mana symbols in their pool to pay
- * for the spell rather than auto-pay. lets highlight the mana pool area when this happens"*.
+ * The colours of the viewer's floating pool a press pays the open payment with, while a payment is
+ * open, else empty. The operator, 2026-10-22: *"i had BBB in the pool. all i could do was click
+ * auto to make payment. i should have been able to click on my black mana to pay for the spell"*.
  */
 export function poolPays(match: LiveMatch): readonly PoolColor[] {
-  return payingMana(match) ? (match.promptPoolChoice ?? []) : [];
+  return payingMana(match) ? (match.promptPoolPays ?? []) : [];
+}
+
+/**
+ * The pool pays the open payment more than one way, so it is highlighted: the operator,
+ * 2026-10-21, *"if there is more mana in the pool than is needed, we should require the player to
+ * click on the mana symbols in their pool … lets highlight the mana pool area when this happens"*.
+ */
+export function poolChoice(match: LiveMatch): boolean {
+  return match.promptPoolChoice && poolPays(match).length > 0;
 }
 
 /**
@@ -2045,7 +2056,8 @@ export function poolPays(match: LiveMatch): readonly PoolColor[] {
  */
 export function payFromPool(match: LiveMatch, color: PoolColor): boolean {
   if (!poolPays(match).includes(color)) return false;
-  match.promptPoolChoice = null;
+  match.promptPoolPays = null;
+  match.promptPoolChoice = false;
   redraw(match);
   return sendAct(match, { kind: 'act', method: 'useMana', color: 1 << POOL_COLORS.indexOf(color) });
 }
@@ -3112,7 +3124,8 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     if (redrawBoard) redraw(match);
     match.promptTrigger = frame.confirmAbility?.trigger ?? null;
     match.promptParts = frame.parts ?? null;
-    match.promptPoolChoice = frame.poolChoice ?? null;
+    match.promptPoolPays = frame.poolPays ?? null;
+    match.promptPoolChoice = frame.poolChoice !== undefined;
     match.promptTargetMore = frame.targetAbility?.more ?? 0;
     match.promptSelection = frame.selection === undefined ? null : { targets: frame.selection.targets, aimed: frame.selection.aimed ?? [] };
     match.sameTarget = false;
@@ -3247,7 +3260,8 @@ function discardLocal(match: LiveMatch): void {
   match.promptCard = null;
   match.promptTrigger = null;
   match.promptParts = null;
-  match.promptPoolChoice = null;
+  match.promptPoolPays = null;
+  match.promptPoolChoice = false;
   match.buttons = null;
   match.barHold = null;
   match.windowHalf = null;

@@ -324,6 +324,7 @@ import {
   payingMana,
   payFromPool,
   payWithLife,
+  poolChoice,
   poolPays,
   pickedOf,
   pressButton,
@@ -2978,6 +2979,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       if (!spectator) selectPlayer(match, playerId);
     },
     poolPays: spectator ? undefined : poolPays(match),
+    poolChoice: !spectator && poolChoice(match),
     onPayFromPool: (color) => {
       if (!spectator) payFromPool(match, color);
     },

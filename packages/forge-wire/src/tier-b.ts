@@ -328,10 +328,16 @@ export const ShowPromptMessageSchema = z.strictObject({
     })
     .optional(),
   /**
-   * Ours: the colours in the seat's floating pool a press pays the open payment with, when the pool
-   * pays it more than one way (`PlayBridge.java`'s `poolChoice`): {R} or {G} for {1}. Spending it
-   * is the player's — the server never auto-pays over it — and a press is Forge's own `useMana`.
-   * Absent when the pool pays the cost one way or not at all, and on every other prompt.
+   * Ours: the colours in the seat's floating pool a press pays part of the open payment with
+   * (`PlayBridge.java`'s `poolPays`), however many ways the pool pays it: {B} of {B}{B}{B} for
+   * Doomsday's {B}{B}{B}. A press is Forge's own `useMana`. Absent when no payment is open or the
+   * pool pays none of it.
+   */
+  poolPays: z.array(PoolColorSchema).min(1).optional(),
+  /**
+   * Ours: {@link poolPays} again, sent only when the pool pays the cost more than one way
+   * (`PlayBridge.java`'s `poolHasChoice`): {R} or {G} for {1}. Spending it is then the player's —
+   * the server never auto-pays over it — and the pool is highlighted.
    */
   poolChoice: z.array(PoolColorSchema).min(1).optional(),
 });

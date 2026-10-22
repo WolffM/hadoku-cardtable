@@ -599,10 +599,12 @@ export interface BoardInteraction {
    */
   combatReady?: ReadonlySet<number>;
   /**
-   * The viewer's floating pool pays the open payment more than one way: these colours of it are
-   * pressable and the pool is highlighted (`live/match.ts`'s `poolPays`). Absent otherwise.
+   * The colours of the viewer's floating pool that pay the open payment: pressable
+   * (`live/match.ts`'s `poolPays`). Absent otherwise.
    */
   poolPays?: readonly PoolColor[];
+  /** The pool pays the open payment more than one way, so it is highlighted (`live/match.ts`'s `poolChoice`). */
+  poolChoice?: boolean;
   /** A colour of the viewer's pool was pressed. Only ever called for one in `poolPays`. */
   onPayFromPool?(color: PoolColor): void;
   /** A card was clicked. Only ever called for an id in `selectable`. */
@@ -3386,15 +3388,16 @@ function ManaPool({ player, interaction }: { player: BoardPlayer; interaction?: 
   const pool = player.manaPool ?? [];
   const total = pool.reduce((n, m) => n + m.count, 0);
   const said = pool.map((m) => `${m.count} ${MANA_WORD[m.color]}`).join(', ');
-  // The pool pays the open payment more than one way: which mana is the player's to press
-  // (operator, 2026-10-21), and the pool wears the can-act glow while it is.
+  // Mana that pays the open payment is the player's to press (operator, 2026-10-22); when the pool
+  // pays it more than one way the pool wears the can-act outline too (operator, 2026-10-21).
   const pays = player.isViewer ? (interaction?.poolPays ?? []) : [];
+  const choice = player.isViewer && interaction?.poolChoice === true;
   return (
     <ul
       className="seat__mana"
       data-mana-pool=""
       data-mana-total={total}
-      data-pool-pays={pays.length > 0 ? '' : undefined}
+      data-pool-pays={choice ? '' : undefined}
       aria-label={total === 0 ? `${player.name} mana pool` : `${player.name} mana pool: ${said}`}
     >
       {pool.map((m) => {

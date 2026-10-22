@@ -2596,8 +2596,11 @@ public final class PlayBridge {
             if (selection != null) { f.add("selection", selection); }
             final JsonObject parts = promptParts(message);
             if (parts != null) { f.add("parts", parts); }
-            final JsonArray pool = poolChoice();
-            if (pool != null) { f.add("poolChoice", pool); }
+            final JsonArray pays = poolPays();
+            if (pays != null) {
+                f.add("poolPays", pays);
+                if (poolHasChoice()) { f.add("poolChoice", pays); }
+            }
             frame(f);
             broadcastIfWaiting();
             // A press of a payment's life button re-shows its prompt and changes nothing else, and
@@ -2856,47 +2859,74 @@ public final class PlayBridge {
         /** The letter of the pool's {@code i}th mana type in {@code ManaAtom.MANATYPES}' order: Forge's own short name, {@code C} for colourless. */
         private static String poolLetter(final int i) { return forge.card.MagicColor.toShortString(forge.card.mana.ManaAtom.MANATYPES[i]); }
 
+        /** The open mana payment's cost and this seat's pool, or null when no payment is open or the pool is empty. */
+        private Object[] openPoolPayment() throws ReflectiveOperationException {
+            if (!(myInput() instanceof InputPayMana pay) || pay.isPaid()) { return null; }
+            final forge.game.player.Player mine = liveSelf(liveGame());
+            final forge.game.mana.ManaCostBeingPaid cost = (forge.game.mana.ManaCostBeingPaid) field(pay, InputPayMana.class, "manaCost");
+            final forge.game.mana.ManaPool pool = mine.getManaPool();
+            if (cost == null || cost.isPaid() || pool.isEmpty()) { return null; }
+            return new Object[] { cost, pool };
+        }
+
         /**
-         * The colours in this seat's floating pool a press would pay the open payment with, when
-         * the pool pays it more than one way, else null. The operator, 2026-10-21: *"if there is
-         * more mana in the pool than is needed, we should require the player to click on the mana
-         * symbols in their pool to pay for the spell rather than auto-pay"*.
+         * The colours in this seat's floating pool a press would pay part of the open payment with,
+         * else null: whenever a payment is open, however many ways the pool pays it. The operator,
+         * 2026-10-22: *"i had BBB in the pool. all i could do was click auto to make payment. i
+         * should have been able to click on my black mana to pay for the spell there."* A press is
+         * {@code useMana} ({@code InputPayMana.useManaFromPool}), Forge's own pool payment.
+         */
+        private JsonArray poolPays() {
+            try {
+                final Object[] open = openPoolPayment();
+                if (open == null) { return null; }
+                final forge.game.mana.ManaCostBeingPaid cost = (forge.game.mana.ManaCostBeingPaid) open[0];
+                final forge.game.mana.ManaPool pool = (forge.game.mana.ManaPool) open[1];
+                final JsonArray out = new JsonArray();
+                for (int i = 0; i < forge.card.mana.ManaAtom.MANATYPES.length; i++) {
+                    final byte type = forge.card.mana.ManaAtom.MANATYPES[i];
+                    if (pool.getAmountOfColor(type) > 0 && cost.isAnyPartPayableWith(type, pool)) { out.add(poolLetter(i)); }
+                }
+                return out.isEmpty() ? null : out;
+            } catch (final ReflectiveOperationException | RuntimeException e) {
+                System.err.println("[bridge] poolPays: could not read the open payment (" + e + "); the pool is not offered");
+                return null;
+            }
+        }
+
+        /**
+         * The pool pays the open payment more than one way, so spending it is the player's and the
+         * server never auto-pays over it. The operator, 2026-10-21: *"if there is more mana in the
+         * pool than is needed, we should require the player to click on the mana symbols in their
+         * pool to pay for the spell rather than auto-pay"*.
          *
          * "More than one way" is Forge's own arithmetic on the open {@code InputPayMana}'s cost:
          * every order of spending the pool one mana at a time ({@code ManaCostBeingPaid.ai_payMana},
          * which applies what a press applies) ends in some set of mana spent; the sets that spend
          * the most are the payments the pool can make. Two different sets ({R} or {G} for {1}) is
-         * a choice; one set ({R} for {R}, or either {R} of {R}{R}) is not, and the server's
-         * auto-pay takes it. A press is {@code useMana} ({@code InputPayMana.useManaFromPool}),
-         * Forge's own pool payment.
+         * a choice; one set ({R} for {R}, or either {R} of {R}{R}) is not.
          */
-        private JsonArray poolChoice() {
-            if (!(myInput() instanceof InputPayMana pay) || pay.isPaid()) { return null; }
-            final forge.game.player.Player mine = liveSelf(liveGame());
+        private boolean poolHasChoice() {
             try {
-                final forge.game.mana.ManaCostBeingPaid cost = (forge.game.mana.ManaCostBeingPaid) field(pay, InputPayMana.class, "manaCost");
-                final forge.game.mana.ManaPool pool = mine.getManaPool();
-                if (cost == null || cost.isPaid() || pool.isEmpty()) { return null; }
+                final Object[] open = openPoolPayment();
+                if (open == null) { return false; }
+                final forge.game.mana.ManaCostBeingPaid cost = (forge.game.mana.ManaCostBeingPaid) open[0];
+                final forge.game.mana.ManaPool pool = (forge.game.mana.ManaPool) open[1];
                 final int[] left = new int[forge.card.mana.ManaAtom.MANATYPES.length];
                 int total = 0;
                 for (int i = 0; i < left.length; i++) { left[i] = pool.getAmountOfColor(forge.card.mana.ManaAtom.MANATYPES[i]); total += left[i]; }
-                // Each mana is one step; a pool past this size is not searched, and is the player's.
-                if (total > 12) { return null; }
+                // Each mana is one step; a pool past this size is not searched (its pips still press).
+                if (total > 12) { return false; }
                 final java.util.Set<String> ends = new java.util.HashSet<>();
                 spendPool(cost, left, new int[left.length], pool, ends, new int[] { 0 }, new java.util.HashSet<>());
-                if (ends.size() < 2) { return null; }
-                final JsonArray out = new JsonArray();
-                for (int i = 0; i < left.length; i++) {
-                    if (left[i] > 0 && cost.isAnyPartPayableWith(forge.card.mana.ManaAtom.MANATYPES[i], pool)) { out.add(poolLetter(i)); }
-                }
-                return out.isEmpty() ? null : out;
+                return ends.size() >= 2;
             } catch (final ReflectiveOperationException | RuntimeException e) {
-                System.err.println("[bridge] poolChoice: could not read the open payment (" + e + "); the pool is not offered");
-                return null;
+                System.err.println("[bridge] poolHasChoice: could not read the open payment (" + e + "); no choice is reported");
+                return false;
             }
         }
 
-        /** {@link #poolChoice}'s walk: every way to spend {@code left} on {@code cost}, keeping the sets that spend the most. */
+        /** {@link #poolHasChoice}'s walk: every way to spend {@code left} on {@code cost}, keeping the sets that spend the most. */
         private static void spendPool(final forge.game.mana.ManaCostBeingPaid cost, final int[] left, final int[] used, final forge.game.mana.ManaPool pool,
                                       final java.util.Set<String> ends, final int[] most, final java.util.Set<String> seen) {
             if (!seen.add(java.util.Arrays.toString(used))) { return; }
