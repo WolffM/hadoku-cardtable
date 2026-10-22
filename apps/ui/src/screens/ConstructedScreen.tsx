@@ -1316,7 +1316,6 @@ function RoomTableScreen({
   const myTable: SharedRoomTable | null = view?.tables[0] ?? null;
   /** Between games of my series: the room is where the sideboard step is, whichever page I came back by (`TableSideboard`). */
   const mySideboarding = myTable !== null && myTable.matchId === null && myTable.series.phase === 'sideboarding';
-  const seriesScore = seriesScoreText(players, myTable);
   const streamed = modeRef.current === 'streamed';
   /** The room's name as soon as either read has it; the id is never a title. */
   const roomTitle = streamed ? view?.name : (table?.room.name ?? view?.name);
@@ -2150,11 +2149,6 @@ function RoomTableScreen({
                   width to spare: a line added under the seats comes off the room's height. */}
               <div className="lobby__deckhead">
                 <h2>At the table</h2>
-                {seriesScore !== null && (
-                  <p className="lobby__note" data-testid="series-score">
-                    {seriesScore}
-                  </p>
-                )}
                 <p className="lobby__note" data-testid="start-state">
                   {startStateText(players, bothReady, starting, matchId)}
                 </p>
@@ -2430,20 +2424,6 @@ function startStateText(players: RoomPlayer[], bothReady: boolean, starting: boo
   if (bothReady) return 'Both ready.';
   const waiting = players.filter((p) => !p.ready).map((p) => (p.you ? 'you' : p.name));
   return `Waiting for ${waiting.join(' and ')}.`;
-}
-
-/**
- * The series score while it is running (wave 72 §Q), or null before there is
- * one to show: a `bo3` table always has a running score once a game of it is
- * under way, and a `bo1` table only once a sideboarded Rematch has made it
- * worth one. "Alice 1–0 Bob", from whichever seats are filled.
- */
-function seriesScoreText(players: RoomPlayer[], table: SharedRoomTable | null): string | null {
-  if (table === null) return null;
-  const { series } = table;
-  if (series.length !== 3 && series.games.length === 0) return null;
-  const [p0, p1] = players;
-  return `${p0?.name ?? ''} ${series.wins[0]}–${series.wins[1]} ${p1?.name ?? ''}`.trim();
 }
 
 /** The leader's mark, our own five-point outline, on a 12-unit square. */

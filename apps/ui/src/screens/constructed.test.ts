@@ -1960,30 +1960,17 @@ describe('the table’s pool', () => {
     expect(screen.queryByTestId('sideboarding')).toBeNull();
   });
 
-  /* ── wave 72 §Q: the series score while it is running ──────────────────── */
-
-  it('a fresh table — no game played, not bo3 — shows no series score', async () => {
-    await mountRoom({ players: [opponent()], matchId: null });
-    await screen.findByTestId('room-players');
-    expect(screen.queryByTestId('series-score')).toBeNull();
-  });
-
-  it('a bo3 table shows the running score from the first game, 0–0 included', async () => {
-    await mountRoom({
-      players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: true }), opponent({ seat: 1, ready: true })],
-      matchId: 'm-1',
-      series: { length: 3, wins: [0, 0], games: [], phase: 'playing' },
-    });
-    expect((await screen.findByTestId('series-score')).textContent).toBe('user-alice 0–0 user-bob');
-  });
-
-  it('a bo1 table with a sideboarded rematch shows the score its history earned', async () => {
+  // The operator, 2026-10-21: "it's weird that it shows '2–0' even after i've stood up from the table.
+  // i dont need that win display at all actually, just get rid of it."
+  it('the room shows no series score, not even mid-series', async () => {
     await mountRoom({
       players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false }), opponent({ seat: 1, ready: false })],
       matchId: null,
-      series: { length: 1, wins: [1, 0], games: [{ matchId: 'm-0', winner: 0 }], phase: 'sideboarding' },
+      series: { length: 3, wins: [2, 0], games: [{ matchId: 'm-0', winner: 0 }, { matchId: 'm-1', winner: 0 }], phase: 'sideboarding' },
     });
-    expect((await screen.findByTestId('series-score')).textContent).toBe('user-alice 1–0 user-bob');
+    await screen.findByTestId('start-state');
+    expect(screen.queryByTestId('series-score')).toBeNull();
+    expect(document.body.textContent).not.toContain('2–0');
   });
 
   // The rejoin audit, 2026-10-19: a player back in the room between games of a
