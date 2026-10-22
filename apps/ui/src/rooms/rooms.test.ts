@@ -102,7 +102,7 @@ function server(rooms: RoomView[], opts: { password?: string; listStatus?: numbe
         room({
           id: 'r-new',
           name: String(b.name),
-          gameType: String(b.gameType),
+          gameType: b.gameType === 'draft' ? 'draft' : 'constructed-1v1',
           clientMode: b.clientMode === 'streamed' ? 'streamed' : 'builtin',
           locked: 'password' in b,
         }),

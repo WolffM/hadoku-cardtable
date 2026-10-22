@@ -43,9 +43,6 @@ import { GauntletViewSchema, newestStandardEra, type GauntletAct, type GauntletV
 
 import { apiBase, getJson, sendJson, type Fetch } from '../http.ts';
 
-// `rooms/api.ts` still reads `apiBase` from here.
-export { apiBase };
-
 /**
  * Which ruleset family an era belongs to (wave 48). Mirrors the server's own
  * `FormatFamily` (`apps/server/src/http/library.ts`) over the wire.

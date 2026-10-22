@@ -1152,7 +1152,7 @@ describe('a room’s table', () => {
                   name: roomId,
                   creator: 'p-alice',
                   leader: 'p-alice',
-                  gameType: 'constructed-1v1',
+                  gameType: 'constructed-1v1' as const,
                   format: '2010-07-16',
                   settings: { handSmoothing: true },
                   mode: null,

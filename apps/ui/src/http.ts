@@ -10,7 +10,7 @@ export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 const defaultFetch: Fetch = (input, init) => fetch(input, init);
 
 /** Where this build is served from: `/cardtable/` in production, `/` in a test. */
-function appBase(): string {
+export function appBase(): string {
   const base = import.meta.env?.BASE_URL;
   return typeof base === 'string' ? base : '/';
 }

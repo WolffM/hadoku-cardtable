@@ -1,11 +1,10 @@
 /*
  * The rooms API, from the browser's side.
  *
- * The server's `apps/server/src/room/lobby.ts` owns the shape; this file writes
- * it down again as a type rather than importing it, because the UI does not
- * depend on the server package and the wire is the contract. Every response is
- * parsed, not cast: a room with a missing field is dropped from the list
- * rather than rendered as `undefined`.
+ * The shape is `@hadoku/shared`'s `RoomBodySchema`, the same one the server
+ * builds its answers as, and every response is parsed through it rather than
+ * cast: a body that is not a room is dropped from the list, and a field it
+ * lacks reads as the default that schema states.
  *
  * ## One answer for "wrong password" and "no such room"
  *
@@ -14,30 +13,13 @@
  * property: a join refused with either status is `refused`, and nothing
  * downstream can tell which it was.
  *
- * ## The client mode is the ROOM's, and a missing one is `builtin`
- *
- * D19a: which client a room's players sit in front of is chosen once, at
- * create, and never again. `parseRoomView` therefore treats anything that is
- * not exactly `'streamed'` — absent, misspelled, a number, a server older than
- * this field — as `'builtin'`. That direction is deliberate: rendering our own
- * table for a room that turns out to be streamed is a wrong-looking screen,
- * while rendering stream frames for a room nobody provisioned containers for
- * is a page of dead iframes pointed at a route that does not exist.
- *
  * ## Readiness is the ROOM's, and a draft is what it starts (w23)
  *
- * A draft used to be a separate object with a client-minted id, dealt the
- * moment a socket connected. It is a room now, so two fields carry the whole
- * difference: `RoomMember.ready`, which every member has to set before the
- * draft is dealt, and `RoomView.draftStartedAt`, which is null for the whole
- * lobby phase and an ISO string once the server has dealt the pod.
- *
- * Both are parsed the same defensive direction as `clientMode`: a server that
- * predates them sends neither, `ready` reads as `false` and `draftStartedAt` as
- * `null`, so an older server's room renders as a lobby nobody has readied in
- * rather than as a pod with no cards behind it. `draftStartedAt` is also never
- * restored from disk (`lobby.ts`), which is why a restart mid-draft puts the
- * room back in this state and the room screen says so in words.
+ * A draft is a room: `RoomMember.ready`, which every member has to set before
+ * the draft is dealt, and `RoomView.draftStartedAt`, which is null for the
+ * whole lobby phase and an ISO string once the server has dealt the pod. A
+ * restart mid-draft puts the room back in its lobby, and the room screen says
+ * so in words.
  *
  * ## The pool is the ROOM's, and only the leader moves it (w25)
  *
@@ -48,134 +30,33 @@
  * own refusal rather than a control that does nothing.
  *
  * `RoomView.you` is caller-scoped: `leader` is the only thing that can tell a
- * browser it owns the table's settings, because `leader` is a hashed
- * participant id no client can derive. Both fields default FALSE and `format`
- * defaults to the empty string, which is the same discipline as `clientMode`:
- * an older server, or a body that lost the field, leaves nobody in charge and
- * the room screen falls back to the newest pool rather than pretending to know
- * one.
+ * browser it owns the table's settings.
  */
 
 import {
-  RoomTablesSchema,
-  RoomPodSchema,
-  RoomModeSchema,
+  RoomBodySchema,
   CubeSummarySchema,
   DraftCardSchema,
   PoolVerdictSchema,
-  type ConstructedMode,
+  type ClientMode,
   type CubeSummary,
   type DraftCard,
   type DraftPlan,
   type GameType,
-  type ModeOptions,
   type PoolVerdict,
+  type RoomBody,
   type RoomMode,
-  type RoomPod,
-  type RoomTable,
+  type RoomSettings,
 } from '@hadoku/shared';
 
-import { apiBase } from '../screens/tables.ts';
-import { normalizeAvatarId } from '../room/avatar.ts';
+import { apiBase, appBase, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
 
-export type { GameType };
+export type { ClientMode, Fetch, GameType, RoomSettings };
+export type { RoomMember, RoomYou } from '@hadoku/shared';
 
-/**
- * Which client a room's players sit in front of. The server's own
- * `room/lobby.ts` owns this type too; it is written down again here because
- * the wire is the contract.
- */
-export type ClientMode = 'builtin' | 'streamed';
+/** A room as the caller is told it: the public view plus their own row (`you`). */
+export type RoomView = RoomBody;
 
-export interface RoomMember {
-  id: string;
-  name: string;
-  joinedAt: string;
-  /** The room's readiness, which is what a draft starts on. Missing ⇒ false. */
-  ready: boolean;
-  /**
-   * The character this member picked in watchparty's room, when they have one.
-   *
-   * **Absent or a non-blank string — never `null`, never `''`.** The server folds
-   * all three of `avatarId`'s upstream states into those two before it answers
-   * (`apps/server/src/room/lobby.ts`'s `avatarIdOf`), and `parseMember` folds
-   * them again here, so a consumer's fallback is one `=== undefined` check.
-   * `room/avatar.ts` turns it into a URL.
-   */
-  avatarId?: string;
-}
-
-/**
- * What the CALLER is in this room, which nothing else in the view can say.
- *
- * `leader` compared against `RoomView.leader` is not a question a browser can
- * answer: the leader is a hashed participant id and no client holds its own. So
- * the server answers it per caller, and `ready` comes with it — a reload while
- * ready used to relabel the Ready button, because the only thing that knew was
- * a latch set by our own call (wave 23's known gap).
- */
-export interface RoomYou {
-  /** My member id in this room, as the server names me — `''` from a server that does not say. Never whoami's id, which can differ (an admin session). */
-  id: string;
-  leader: boolean;
-  ready: boolean;
-}
-
-export interface RoomView {
-  id: string;
-  name: string;
-  creator: string;
-  leader: string;
-  /** Kept as a string: a type the server adds later is shown, not dropped. */
-  gameType: string;
-  /**
-   * The table's pool — a `TableFormat.id`, the rules BOTH seats are checked
-   * against, and the leader's to change. Empty only when the server did not
-   * send one, which the room screen reads as "fall back to the newest pool".
-   */
-  format: string;
-  /** How the room's matches are dealt; the leader's to change (`setSettings`). */
-  settings: RoomSettings;
-  /**
-   * A constructed room's mode, null until the leader chooses one (`setRoomMode`)
-   * and for a draft room. `modeOptions` is null exactly when `mode` is; a pair
-   * this build does not know reads as unchosen.
-   */
-  mode: ConstructedMode | null;
-  modeOptions: ModeOptions | null;
-  /** Caller-scoped. Both halves default false; see the header. */
-  you: RoomYou;
-  /** Fixed at create, for the room's whole life. Missing on the wire ⇒ builtin. */
-  clientMode: ClientMode;
-  locked: boolean;
-  members: RoomMember[];
-  matchId: string | null;
-  /**
-   * When the draft was dealt, or null for the whole lobby phase. Never
-   * restored from disk, so a restart mid-draft reads as null here.
-   */
-  draftStartedAt: string | null;
-  createdAt: string;
-  /**
-   * The room's tables (wave 71 §D's wire contract), parsed through
-   * `@hadoku/shared`'s own `RoomTablesSchema` rather than a hand-written
-   * stand-in — a room always carries at least one, so a body this fails to
-   * parse (an old server, a malformed one) reads as none rather than a
-   * guessed single table nobody asked for.
-   *
-   * `MatchScreen.tsx` used to read this off the room's raw body a second
-   * time, past this parser, because it did not carry the field yet (wave 71
-   * §G's own note); wave 72 §Q closes that gap here.
-   */
-  tables: RoomTable[];
-  /**
-   * The room's pod, or null for a constructed room (`@hadoku/shared`'s own
-   * `RoomPod` — `packages/shared/src/pod.ts`, landed wave 72 §P). Parsed
-   * through `RoomPodSchema`, so a body that fails to parse (an old server,
-   * a malformed one) reads as `null` rather than a guessed phase.
-   */
-  pod: RoomPod;
-}
 
 /** The types the create form offers, as the operator named them (2026-10-21). The wire ids stay. */
 export const GAME_TYPES: readonly { value: GameType; label: string }[] = [
@@ -200,7 +81,7 @@ export function clientModeLabel(mode: ClientMode): string {
  * `base` is the app's deploy prefix (`/cardtable/`), so this is same-origin by
  * construction and no host is ever written down here.
  */
-export function streamRoot(roomId: string, seat: number, base: string = defaultAppBase()): string {
+export function streamRoot(roomId: string, seat: number, base: string = appBase()): string {
   const prefix = base === '' ? '/' : base;
   const root = prefix.endsWith('/') ? prefix : `${prefix}/`;
   return `${root}stream/${encodeURIComponent(roomId)}/${seat}/`;
@@ -224,7 +105,7 @@ export function streamRoot(roomId: string, seat: number, base: string = defaultA
  * `autoconnect` so a player sees Forge rather than a Connect button;
  * `resize=scale` so the 1280x800 desktop fits the seat it is drawn in.
  */
-export function streamPath(roomId: string, seat: number, base: string = defaultAppBase()): string {
+export function streamPath(roomId: string, seat: number, base: string = appBase()): string {
   const root = streamRoot(roomId, seat, base);
   const socket = `${root}websockify`.replace(/^\//, '');
   return `${root}vnc.html?path=${encodeURIComponent(socket)}&autoconnect=true&resize=scale`;
@@ -261,121 +142,11 @@ export async function streamReachable(url: string, fetchImpl: Fetch = (i, init) 
   }
 }
 
-/** The server's own id rule — the same one `roomKeyFor` enforces. */
-const ROOM_ID = /^[a-z0-9-]{1,40}$/;
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-function parseMember(v: unknown): RoomMember | null {
-  if (!isRecord(v)) return null;
-  const { id, name, joinedAt, ready, avatarId } = v;
-  if (typeof id !== 'string' || typeof name !== 'string') return null;
-  // `ready === true` and nothing else: an absent flag, a string, a 1 all read
-  // as not ready, so the only way to be counted towards a draft start is for
-  // the server to have said so in a boolean.
-  const member: RoomMember = {
-    id,
-    name,
-    joinedAt: typeof joinedAt === 'string' ? joinedAt : '',
-    ready: ready === true,
-  };
-  // Parsed through the same two-state rule the server answers with, and
-  // ASSIGNED CONDITIONALLY: `avatarId: normalizeAvatarId(...) ?? undefined`
-  // would put the key on every member, so the absent case would no longer be
-  // absent for an in-process reader. A server that sent `null`, `''` or a
-  // 33-character id leaves the field off rather than reaching a face.
-  const avatar = normalizeAvatarId(avatarId);
-  if (avatar !== null) member.avatarId = avatar;
-  return member;
-}
-
-/**
- * The room's client mode, as read off the wire.
- *
- * Only the exact string `'streamed'` makes a streamed room. Everything else —
- * absent, `null`, `'Streamed'`, a server that predates the field — is
- * `'builtin'`. See the header: this is the control that stops an older server
- * rendering as streamed, and it is asserted directly in `rooms.test.ts`.
- */
-function parseClientMode(v: unknown): ClientMode {
-  return v === 'streamed' ? 'streamed' : 'builtin';
-}
-
-/**
- * What the caller is, read strictly.
- *
- * `=== true` and nothing else, the same rule `parseMember` uses for `ready`: the
- * only way a browser draws the leader's controls is for the server to have said
- * so in a boolean. A missing `you` leaves nobody in charge, which costs the
- * leader a control and costs nobody a wrong one.
- */
-function parseYou(v: unknown): RoomYou {
-  const o = isRecord(v) ? v : {};
-  return { id: typeof o.id === 'string' ? o.id : '', leader: o.leader === true, ready: o.ready === true };
-}
-
-/**
- * The room's match settings, as `room/lobby.ts`'s `RoomSettings` states them.
- * A setting the body does not carry reads as the server's own default.
- */
-export interface RoomSettings {
-  /** The opening hand nearer the deck's land ratio, and each mulligan weighted toward it. On by default. */
-  handSmoothing: boolean;
-}
-
-function parseSettings(v: unknown): RoomSettings {
-  const o = isRecord(v) ? v : {};
-  return { handSmoothing: o.handSmoothing !== false };
-}
-
-/** `RoomView.tables`, or none when the body does not carry a parseable list — see the field's own note. */
-function parseTables(v: unknown): RoomTable[] {
-  const parsed = RoomTablesSchema.safeParse(v);
-  return parsed.success ? parsed.data : [];
-}
-
-/** `RoomView.pod`, or none when the body does not carry a parseable one — see the field's own note. */
-function parsePod(v: unknown): RoomPod {
-  const parsed = RoomPodSchema.safeParse(v ?? null);
-  return parsed.success ? parsed.data : null;
-}
-
-function parseMode(mode: unknown, modeOptions: unknown): Pick<RoomView, 'mode' | 'modeOptions'> {
-  const parsed = RoomModeSchema.safeParse({ mode, modeOptions });
-  return parsed.success ? parsed.data : { mode: null, modeOptions: null };
-}
-
 /** A RoomView, or null when the body is not one. */
 export function parseRoomView(v: unknown): RoomView | null {
-  if (!isRecord(v)) return null;
-  const { id, name, creator, leader, gameType, format, settings, mode, modeOptions, you, clientMode, locked, members, matchId, draftStartedAt, createdAt, tables, pod } = v;
-  if (typeof id !== 'string' || !ROOM_ID.test(id)) return null;
-  if (typeof name !== 'string' || typeof gameType !== 'string' || typeof locked !== 'boolean') return null;
-  if (!Array.isArray(members)) return null;
-  return {
-    id,
-    name,
-    creator: typeof creator === 'string' ? creator : '',
-    leader: typeof leader === 'string' ? leader : '',
-    gameType,
-    format: typeof format === 'string' ? format : '',
-    settings: parseSettings(settings),
-    ...parseMode(mode, modeOptions),
-    you: parseYou(you),
-    clientMode: parseClientMode(clientMode),
-    locked,
-    members: members.map(parseMember).filter((m): m is RoomMember => m !== null),
-    matchId: typeof matchId === 'string' ? matchId : null,
-    draftStartedAt: typeof draftStartedAt === 'string' ? draftStartedAt : null,
-    createdAt: typeof createdAt === 'string' ? createdAt : '',
-    tables: parseTables(tables),
-    pod: parsePod(pod),
-  };
+  const parsed = RoomBodySchema.safeParse(v);
+  return parsed.success ? parsed.data : null;
 }
-
-export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 export type JoinOutcome =
   | { ok: true; room: RoomView }
@@ -533,33 +304,9 @@ export interface RoomIdentityClient {
   setAvatar(roomId: string, avatarId: string | null): Promise<RoomOutcome>;
 }
 
-async function bodyOf(res: Response): Promise<unknown> {
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-function serverMessage(body: unknown, status: number): string {
-  if (isRecord(body) && typeof body.error === 'string' && body.error !== '') return body.error;
-  return `the server answered HTTP ${status}`;
-}
-
-function defaultAppBase(): string {
-  const base = import.meta.env?.BASE_URL;
-  return typeof base === 'string' ? base : '/';
-}
-
-function defaultApiBase(): string {
-  return apiBase(defaultAppBase());
-}
-
-const JSON_HEADERS = { 'content-type': 'application/json' };
-
 export function roomsClient(
   fetchImpl: Fetch = (i, init) => fetch(i, init),
-  base: string = defaultApiBase(),
+  base: string = apiBase(),
 ): RoomsClient & RoomIdentityClient & RoomBindClient & RoomOfMatchClient {
   const url = (path: string): string => `${base}rooms${path}`;
 
@@ -571,20 +318,10 @@ export function roomsClient(
    * after the request is identical, including the refusal wording, so there is
    * one of these and not two.
    */
-  const write = async (
-    path: string,
-    payload: unknown,
-    whatFailed: string,
-    method: 'POST' | 'PATCH' = 'POST',
-  ): Promise<RoomOutcome> => {
+  const write = async (path: string, payload: unknown, whatFailed: string, method: 'POST' | 'PATCH' = 'POST'): Promise<RoomOutcome> => {
     let res: Response;
     try {
-      res = await fetchImpl(url(path), {
-        method,
-        credentials: 'same-origin',
-        headers: JSON_HEADERS,
-        body: JSON.stringify(payload),
-      });
+      res = await sendJson(url(path), method, payload, fetchImpl);
     } catch {
       return { ok: false, message: 'Could not reach the server.' };
     }
@@ -599,7 +336,7 @@ export function roomsClient(
   const read = async (path: string): Promise<RoomView | null> => {
     let res: Response;
     try {
-      res = await fetchImpl(url(path), { credentials: 'same-origin' });
+      res = await getJson(url(path), fetchImpl);
     } catch {
       throw new Error('Could not reach the server.');
     }
@@ -615,7 +352,7 @@ export function roomsClient(
     async list() {
       let res: Response;
       try {
-        res = await fetchImpl(url(''), { credentials: 'same-origin' });
+        res = await getJson(url(''), fetchImpl);
       } catch {
         throw new Error('Could not reach the server.');
       }
@@ -635,37 +372,17 @@ export function roomsClient(
       return read(`/of-match/${encodeURIComponent(matchId)}`);
     },
 
-    async create(req) {
+    create(req) {
       const payload: Record<string, unknown> = { name: req.name, gameType: req.gameType, clientMode: req.clientMode };
       if (req.password !== undefined && req.password !== '') payload.password = req.password;
       if (req.mode !== undefined) Object.assign(payload, req.mode);
-      let res: Response;
-      try {
-        res = await fetchImpl(url(''), {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: JSON_HEADERS,
-          body: JSON.stringify(payload),
-        });
-      } catch {
-        return { ok: false, message: 'Could not reach the server.' };
-      }
-      const body = await bodyOf(res);
-      if (!res.ok) return { ok: false, message: `Could not create the room: ${serverMessage(body, res.status)}.` };
-      const room = parseRoomView(body);
-      if (room === null) return { ok: false, message: 'The server created something that is not a room.' };
-      return { ok: true, room };
+      return write('', payload, 'Could not create the room');
     },
 
     async join(roomId, password) {
       let res: Response;
       try {
-        res = await fetchImpl(url(`/${encodeURIComponent(roomId)}/join`), {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: JSON_HEADERS,
-          body: JSON.stringify(password === undefined || password === '' ? {} : { password }),
-        });
+        res = await sendJson(url(`/${encodeURIComponent(roomId)}/join`), 'POST', password === undefined || password === '' ? {} : { password }, fetchImpl);
       } catch {
         return { ok: false, reason: 'error', message: 'Could not reach the server.' };
       }
@@ -689,7 +406,7 @@ export function roomsClient(
     async close(roomId) {
       let res: Response;
       try {
-        res = await fetchImpl(url(`/${encodeURIComponent(roomId)}/close`), { method: 'POST', credentials: 'same-origin', headers: JSON_HEADERS, body: '{}' });
+        res = await sendJson(url(`/${encodeURIComponent(roomId)}/close`), 'POST', {}, fetchImpl);
       } catch {
         return { ok: false, message: 'Could not reach the server.' };
       }
@@ -719,12 +436,7 @@ export function roomsClient(
     async setPlan(roomId, plan) {
       let res: Response;
       try {
-        res = await fetchImpl(url(`/${encodeURIComponent(roomId)}/pod/plan`), {
-          method: 'PUT',
-          credentials: 'same-origin',
-          headers: JSON_HEADERS,
-          body: JSON.stringify({ plan }),
-        });
+        res = await sendJson(url(`/${encodeURIComponent(roomId)}/pod/plan`), 'PUT', { plan }, fetchImpl);
       } catch {
         return { ok: false, message: 'Could not reach the server.', verdict: null };
       }
@@ -772,14 +484,14 @@ export interface PoolsClient {
   cubeCards(id: string): Promise<DraftCard[] | null>;
 }
 
-export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base: string = defaultApiBase()): PoolsClient {
+export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base: string = apiBase()): PoolsClient {
   const url = (path: string): string => `${base}pools/cubes${path}`;
 
   return {
     async listCubes() {
       let res: Response;
       try {
-        res = await fetchImpl(url(''), { credentials: 'same-origin' });
+        res = await getJson(url(''), fetchImpl);
       } catch {
         throw new Error('Could not reach the server.');
       }
@@ -793,12 +505,7 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
     async importCube(link) {
       let res: Response;
       try {
-        res = await fetchImpl(url('/import'), {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: JSON_HEADERS,
-          body: JSON.stringify({ link }),
-        });
+        res = await sendJson(url('/import'), 'POST', { link }, fetchImpl);
       } catch {
         return { ok: false, message: 'Could not reach the server.' };
       }
@@ -812,7 +519,7 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
     async refreshCube(id) {
       let res: Response;
       try {
-        res = await fetchImpl(url(`/${encodeURIComponent(id)}/refresh`), { method: 'POST', credentials: 'same-origin', headers: JSON_HEADERS, body: '{}' });
+        res = await sendJson(url(`/${encodeURIComponent(id)}/refresh`), 'POST', {}, fetchImpl);
       } catch {
         return { ok: false, message: 'Could not reach the server.' };
       }
@@ -838,7 +545,7 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
     async cubeCards(id) {
       let res: Response;
       try {
-        res = await fetchImpl(url(`/${encodeURIComponent(id)}/cards`), { credentials: 'same-origin' });
+        res = await getJson(url(`/${encodeURIComponent(id)}/cards`), fetchImpl);
       } catch {
         return null;
       }

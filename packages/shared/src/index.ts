@@ -354,6 +354,16 @@ export {
   type RoomTable,
 } from './room-tables.ts';
 export {
+  RoomMemberSchema,
+  RoomYouSchema,
+  RoomViewSchema,
+  RoomBodySchema,
+  type RoomMember,
+  type RoomYou,
+  type RoomView,
+  type RoomBody,
+} from './room-view.ts';
+export {
   POD_PHASES,
   POD_SEATS,
   PodPhaseSchema,
