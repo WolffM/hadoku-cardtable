@@ -6,8 +6,10 @@
 #   scripts/lanes/claim.sh list
 #
 # An area is a repo path or glob (`apps/ui/src/play/`, `e2e/*.spec.ts`) or a topic
-# (`cost-payment`). Two areas overlap when they are equal, when one is a path under the other
-# (`apps/ui/` holds `apps/ui/src/x.ts`), or when one is a glob the other matches. Owners are
+# (`cost-payment`), and a path may name one section of a file (`apps/ui/src/play/Board.tsx#command`).
+# Two areas overlap when they are equal, when one is a path under the other
+# (`apps/ui/` holds `apps/ui/src/x.ts`), or when one is a glob the other matches. A section is
+# its file for that test, except that two different sections of one file are two areas. Owners are
 # whatever names a lane or session by (`lane-tl`, `manager-3fcb`). Claiming again as the same
 # owner refreshes the timestamp and note.
 #
@@ -21,9 +23,12 @@ STALE=$((24 * 3600))
 mkdir -p "$(dirname "$FILE")"; touch "$FILE"
 usage() { sed -n '4,6p' "$0" | sed 's/^# *//' >&2; exit 2; }
 
-# Area a and b overlap? Paths compare without a trailing slash.
+# Area a and b overlap? Paths compare without a trailing slash, and a section as its file.
 overlaps() {
   local a=${1%/} b=${2%/}
+  [ "$a" = "$b" ] && return 0
+  [[ $a == *#* && $b == *#* && ${a%%#*} == "${b%%#*}" ]] && return 1
+  a=${a%%#*}; b=${b%%#*}; a=${a%/}; b=${b%/}
   [ "$a" = "$b" ] && return 0
   [[ $a == "$b"/* || $b == "$a"/* ]] && return 0
   # shellcheck disable=SC2053 # either side may be a glob on purpose
