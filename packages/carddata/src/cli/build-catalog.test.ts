@@ -96,6 +96,82 @@ describe('buildCatalog', () => {
 });
 
 /**
+ * `printings` (wave 74 §G, manager send-back): byPrinting exists so a
+ * realistic booster's own-set printing draws its OWN art, not whatever
+ * printing the catalog chose as its one text entry. That needs EVERY
+ * printing indexed, not only the chosen one — this was the gap in the
+ * first pass (byPrinting only ever matched the chosen printing, so it
+ * missed for nearly every real card and silently fell back to byName,
+ * drawing the wrong printing's art).
+ *
+ * Two printings of the same name, same text, different sets/ids: LEA
+ * (earlier, non-digital, so it is the CHOSEN one for `cards`) and M19 (the
+ * non-chosen one). Before the fix `buildCatalog`'s return carries no
+ * `printings` field at all, so this is RED on the base.
+ */
+describe('buildCatalog printings', () => {
+  const LEA_BOLT = {
+    id: 'aaaaaaaa-0000-4000-8000-000000000001',
+    name: 'Lightning Bolt',
+    lang: 'en',
+    set: 'lea',
+    collector_number: '161',
+    released_at: '1993-08-05',
+    layout: 'normal',
+    colors: ['R'],
+    mana_cost: '{R}',
+    cmc: 1,
+    type_line: 'Instant',
+    oracle_text: 'Lightning Bolt deals 3 damage to any target.',
+    rarity: 'common',
+  } as unknown as GameplayCard;
+
+  const M19_BOLT = {
+    ...LEA_BOLT,
+    id: 'bbbbbbbb-0000-4000-8000-000000000002',
+    set: 'm19',
+    collector_number: '141',
+    released_at: '2018-07-13',
+  } as unknown as GameplayCard;
+
+  it("indexes BOTH printings, each under its own set+collector number, even though only LEA's text is chosen for `cards`", () => {
+    const index = buildCardIndex([LEA_BOLT, M19_BOLT]);
+    const catalog = buildCatalog(index);
+
+    expect(catalog.cards['lightning bolt']).toBeDefined();
+    expect((catalog.cards['lightning bolt'] as { scryfallId: string }).scryfallId).toBe(LEA_BOLT.id);
+
+    // The non-chosen printing (M19) must still answer ITS OWN scryfallId, not LEA's.
+    const m19Ref = catalog.printings['M19:141'];
+    expect(m19Ref).toBeDefined();
+    expect(m19Ref?.key).toBe('lightning bolt');
+    expect(m19Ref?.scryfallId).toBe(M19_BOLT.id);
+    expect(m19Ref?.scryfallId).not.toBe(LEA_BOLT.id);
+
+    // The chosen printing is indexed too (redundant with `cards`, but a
+    // caller asking for LEA:161 specifically should still get it by this path).
+    const leaRef = catalog.printings['LEA:161'];
+    expect(leaRef).toBeDefined();
+    expect(leaRef?.scryfallId).toBe(LEA_BOLT.id);
+  });
+
+  it('a digital-only printing is still indexed by its own set+collector number', () => {
+    const digital = { ...M19_BOLT, id: 'cccccccc-0000-4000-8000-000000000003', set: 'mb2', collector_number: '9', digital: true } as unknown as GameplayCard;
+    const index = buildCardIndex([LEA_BOLT, digital]);
+    const catalog = buildCatalog(index);
+    expect(catalog.printings['MB2:9']?.scryfallId).toBe(digital.id);
+    expect(catalog.printings['MB2:9']?.key).toBe('lightning bolt');
+  });
+
+  it('does not index a printing missing a set or collector number', () => {
+    const noSet = { ...M19_BOLT, id: 'dddddddd-0000-4000-8000-000000000004', set: undefined } as unknown as GameplayCard;
+    const index = buildCardIndex([LEA_BOLT, noSet]);
+    const catalog = buildCatalog(index);
+    expect(Object.keys(catalog.printings)).toEqual(['LEA:161']);
+  });
+});
+
+/**
  * `runBuildCatalog` — the same build, driven end to end from a `cards.jsonl`
  * on disk rather than an in-memory `CardIndex`, so `apps/server/src/pools/refresh.ts`
  * (wave 74 §G) has a function it can call in-process instead of shelling out.
