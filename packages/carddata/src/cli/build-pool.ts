@@ -85,6 +85,20 @@ export function slug(name: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/**
+ * A cube's name is its `.dck` FILE STEM, never the file's own `Name=` field.
+ *
+ * One rule, no special case: the metadata can lie (`The Pauper Cube
+ * 2026-02.dck`'s `Name=` reads "The Pauper Deck 2026-02", a Forge upstream
+ * typo — operator, 2026-10-22), and the filename is already the identifier
+ * every other list in this repo (the Settled shortlist, the cube picker)
+ * names it by. Resolving the file still uses `loadCube`'s own parse; only
+ * the DISPLAY name is overridden, here, once.
+ */
+export function stemOf(fileName: string): string {
+  return fileName.endsWith('.dck') ? fileName.slice(0, -'.dck'.length) : fileName;
+}
+
 /** The five real colours. Scryfall's `colors` is already exactly this set. */
 const COLORS = new Set(['W', 'U', 'B', 'R', 'G']);
 
@@ -292,7 +306,7 @@ async function buildOne(
     }
   }
 
-  return { name: cube.name ?? cubeFile, pool, unresolved, total: n };
+  return { name: stemOf(cubeFile), pool, unresolved, total: n };
 }
 
 async function main(): Promise<void> {
@@ -344,7 +358,13 @@ async function main(): Promise<void> {
 
     console.log(`${name}: resolved ${pool.length}/${total} -> ${outPath}`);
     if (unresolved.length > 0) {
-      console.log(`unresolved (${unresolved.length}): ${unresolved.slice(0, 10).join(', ')}`);
+      // Loud, and never truncated: a dropped card is a silent regression the
+      // next time someone drafts this cube unless the count AND every name is
+      // right here, on stderr, every build. Never refused for this — the
+      // operator's own finding (2026-10-22): "do NOT refuse the cube and do
+      // NOT patch around it". A sync older than a card's set is the usual
+      // cause, not a bug in this CLI.
+      console.error(`UNRESOLVED (${unresolved.length}) in ${name}: ${unresolved.join(', ')}`);
     }
     console.log(`D13 control: ${pool.length} cards, no image field and no image URL.`);
   }
