@@ -373,26 +373,31 @@ jobs:
 
       # Four free loopback ports, chosen fresh per run instead of a fixed
       # 29xxx range: several jobs can run on one claw at once, maybe for
-      # different refs, so a fixed range would collide. Binding port 0 and
-      # reading it back is the standard "ask the kernel" trick (node 24 is on
-      # PATH after setup-pnpm). The ports are released again before the
-      # harness binds them for real, which leaves a small window where
-      # something else on the same claw could grab one first. Accepted rather
-      # than closed: the window is milliseconds, a claw runs only a handful of
-      # jobs at once, and losing the race shows up as a loud bind failure in
-      # the harness below, never a silent wrong port.
+      # different refs, so a fixed range would collide. Each is a random port
+      # BELOW the kernel's ephemeral range, checked free by binding it once.
+      # Not port 0: that hands out an ephemeral port, and once released any
+      # outbound connection on the claw can take it as its source port. The
+      # harness binds a port only when a spec starts a stack, so the gap is
+      # minutes, not milliseconds: run 39861790052's play edge, 44821, sat
+      # unbound through twelve draft tests and was taken by the thirteenth
+      # (EADDRINUSE). Below the range only another job's listener can collide,
+      # and that shows up as a loud bind failure, never a silent wrong port.
       - name: E2E — pick this run's own ports
         run: |
           read -r SERVER PLAY_SERVER EDGE PLAY_EDGE < <(node -e '
             const net = require("net");
-            const servers = [];
+            const fs = require("fs");
+            const low = Number(fs.readFileSync("/proc/sys/net/ipv4/ip_local_port_range", "utf8").trim().split(/\s+/)[0]);
             const ports = [];
-            function next(i, done) {
-              if (i === 4) return done();
+            function next() {
+              if (ports.length === 4) return console.log(ports.join(" "));
+              const port = 20000 + Math.floor(Math.random() * (low - 20000));
+              if (ports.includes(port)) return next();
               const s = net.createServer();
-              s.listen(0, "127.0.0.1", () => { ports.push(s.address().port); servers.push(s); next(i + 1, done); });
+              s.once("error", next);
+              s.listen(port, "127.0.0.1", () => { ports.push(port); s.close(next); });
             }
-            next(0, () => { servers.forEach((s) => s.close()); console.log(ports.join(" ")); });
+            next();
           ')
           { echo "CARDTABLE_E2E_SERVER_PORT=$SERVER"; echo "CARDTABLE_E2E_PLAY_SERVER_PORT=$PLAY_SERVER"; echo "CARDTABLE_E2E_EDGE_PORT=$EDGE"; echo "CARDTABLE_E2E_PLAY_EDGE_PORT=$PLAY_EDGE"; } >> "$GITHUB_ENV"
           echo "::notice::this run's ports: server=$SERVER play-server=$PLAY_SERVER edge=$EDGE play-edge=$PLAY_EDGE"
