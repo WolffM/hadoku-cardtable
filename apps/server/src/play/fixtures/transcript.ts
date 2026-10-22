@@ -27,8 +27,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { DELTA_TYPE, cardIdOfState, deltaKey } from '@hadoku/forge-wire';
+
 import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
-import { TYPE, csvCardId, keyOf, type WireObj } from '../visibility.js';
+import { type WireObj } from '../visibility.js';
 
 export const TRANSCRIPT_FILE = resolve(dirname(fileURLToPath(import.meta.url)), 'bridge-two-seats.ndjson');
 
@@ -164,13 +166,13 @@ function ids(obj: WireObj | undefined, prop: string): number[] {
 /** Every string that says WHICH card this is. */
 export function identifyingStrings(state: ReadonlyMap<string, WireObj>, cardId: number): string[] {
 	const out: string[] = [];
-	const card = state.get(keyOf(TYPE.card, cardId));
+	const card = state.get(deltaKey(DELTA_TYPE.card, cardId));
 	for (const prop of ['Name', 'OracleName']) {
 		const v = card?.[prop] as { t: string; v: unknown } | undefined;
 		if (v?.t === 'str' && typeof v.v === 'string' && v.v.length >= 4) out.push(v.v);
 	}
 	for (const obj of state.values()) {
-		if (obj._type !== TYPE.cardState || csvCardId(obj._id) !== cardId) continue;
+		if (obj._type !== DELTA_TYPE.cardState || cardIdOfState(obj._id) !== cardId) continue;
 		for (const [prop, value] of Object.entries(obj)) {
 			const v = value as { t?: string; v?: unknown } | null;
 			if (prop !== '_type' && prop !== '_id' && v?.t === 'str' && typeof v.v === 'string' && v.v.length >= 4) {
@@ -196,8 +198,8 @@ export function everyString(state: ReadonlyMap<string, WireObj>, cardId: number)
 			for (const [k, v] of Object.entries(node)) if (k !== 't' && k !== 'c') walk(v);
 		}
 	};
-	walk(state.get(keyOf(TYPE.card, cardId)));
-	for (const obj of state.values()) if (obj._type === TYPE.cardState && csvCardId(obj._id) === cardId) walk(obj);
+	walk(state.get(deltaKey(DELTA_TYPE.card, cardId)));
+	for (const obj of state.values()) if (obj._type === DELTA_TYPE.cardState && cardIdOfState(obj._id) === cardId) walk(obj);
 	return out;
 }
 
@@ -235,7 +237,7 @@ export function secretsFor(
 	const everHidden = new Set<number>();
 	for (const state of states) {
 		for (const obj of state.values()) {
-			if (obj._type !== TYPE.player) continue;
+			if (obj._type !== DELTA_TYPE.player) continue;
 			const mine = obj._id === viewer;
 			for (const prop of ['Battlefield', 'Graveyard', 'Exile', 'Command']) for (const id of ids(obj, prop)) everShown.add(id);
 			// A sideboard is the owner's to know and nobody else's. Precons can list a card in
@@ -254,7 +256,7 @@ export function secretsFor(
 	for (let at = states.length - 1; at >= 0 && unread.size > 0; at--) {
 		const state = states[at]!;
 		for (const id of [...unread]) {
-			if (!state.has(keyOf(TYPE.card, id))) continue;
+			if (!state.has(deltaKey(DELTA_TYPE.card, id))) continue;
 			unread.delete(id);
 			for (const s of everyString(state, id)) allowed.add(s);
 		}

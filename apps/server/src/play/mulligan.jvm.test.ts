@@ -34,11 +34,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ClientFrameSchema } from '@hadoku/forge-wire';
+import { ClientFrameSchema, deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine } from './host.js';
 import { createMatchRegistry } from './match.js';
-import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
+import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 
 const available = jvmHostConfig();
@@ -148,7 +148,7 @@ describe.skipIf(!available.ok)(title, () => {
 			await new Promise((r) => setTimeout(r, 500));
 
 			function gameMulligan(seat: number): { t?: string; v?: unknown } | undefined {
-				const gameObj = [...stateOf(seat).values()].find((o) => o._type === TYPE.game);
+				const gameObj = [...stateOf(seat).values()].find((o) => o._type === DELTA_TYPE.game);
 				return (gameObj as unknown as Record<string, { t?: string; v?: unknown }> | undefined)?.['Mulligan'];
 			}
 
@@ -226,7 +226,7 @@ describe.skipIf(!available.ok)(title, () => {
 						.map((x) => x.envelope.frame as unknown as StateFrame)
 						.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
 				);
-				const player = state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1)) as unknown as Record<string, { v?: unknown[] }> | undefined;
+				const player = state.get(deltaKey(DELTA_TYPE.player, match.seats[seat]!.playerId ?? -1)) as unknown as Record<string, { v?: unknown[] }> | undefined;
 				return player?.['Hand']?.v?.length ?? -1;
 			}
 
@@ -238,7 +238,7 @@ describe.skipIf(!available.ok)(title, () => {
 						.map((x) => x.envelope.frame as unknown as StateFrame)
 						.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
 				);
-				const player = state.get(keyOf(TYPE.player, match.seats[owner]!.playerId ?? -1)) as unknown as Record<string, { v?: { v: number }[] }> | undefined;
+				const player = state.get(deltaKey(DELTA_TYPE.player, match.seats[owner]!.playerId ?? -1)) as unknown as Record<string, { v?: { v: number }[] }> | undefined;
 				return (player?.['Library']?.v ?? []).map((id) => id.v);
 			}
 
@@ -362,7 +362,7 @@ describe.skipIf(!available.ok)(title, () => {
 						.map((x) => x.envelope.frame as unknown as StateFrame)
 						.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
 				);
-				const player = state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1)) as unknown as Record<string, { v?: { v: number }[] }> | undefined;
+				const player = state.get(deltaKey(DELTA_TYPE.player, match.seats[seat]!.playerId ?? -1)) as unknown as Record<string, { v?: { v: number }[] }> | undefined;
 				return (player?.[name]?.v ?? []).map((id) => id.v);
 			};
 			type Ask = { kind: string; callId: string; method: string; title?: string; top?: string; sourceChoices?: { key: string; ref: { id: number } | null }[] };
@@ -429,7 +429,7 @@ describe.skipIf(!available.ok)(title, () => {
 					.map((x) => x.envelope.frame as unknown as StateFrame)
 					.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
 			);
-			const game = [...flag.values()].find((o) => o._type === TYPE.game) as unknown as Record<string, { v?: unknown }> | undefined;
+			const game = [...flag.values()].find((o) => o._type === DELTA_TYPE.game) as unknown as Record<string, { v?: unknown }> | undefined;
 			expect(game?.['Mulligan']?.v, 'the bottom pick is over before its order is asked').not.toBe(true);
 
 			// Answer against Forge's offer: the second-offered card closest to the top.

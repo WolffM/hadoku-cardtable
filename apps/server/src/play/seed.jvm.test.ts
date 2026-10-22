@@ -32,9 +32,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
+
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type MatchSpec } from './host.js';
 import { createMatchRegistry, type Match } from './match.js';
-import { keyOf, TYPE, type WireObj } from './visibility.js';
+import { type WireObj } from './visibility.js';
 import { rawStatesOf } from './fixtures/transcript.js';
 
 const available = jvmHostConfig();
@@ -68,7 +70,7 @@ function deal(raw: readonly BridgeLine[]): string {
 	if (last === undefined) throw new Error('seat 0 was never sent a state');
 	return [0, 1]
 		.map((p) => {
-			const player = last.get(keyOf(TYPE.player, p));
+			const player = last.get(deltaKey(DELTA_TYPE.player, p));
 			return `p${p} hand=${zoneIds(player, 'Hand').join(',')} library=${zoneIds(player, 'Library').join(',')}`;
 		})
 		.join('\n');

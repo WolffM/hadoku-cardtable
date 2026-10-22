@@ -11,11 +11,11 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { parseServerFrame, type ServerFrame } from '@hadoku/forge-wire';
+import { parseServerFrame, type ServerFrame, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 
 import type { BoardView } from '../adapter.ts';
 import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
-import { deltaKey, WireType, type Tagged } from '../wire.ts';
+import { type Tagged } from '../wire.ts';
 import {
   abortAsk,
   answerAsk,
@@ -664,7 +664,7 @@ const cardAct = (id: number) => ({
 });
 
 /** The Game object's wire key, and one synthetic delta. */
-const GAME_KEY = String((WireType.Game << 28) | 1);
+const GAME_KEY = String((DELTA_TYPE.game << 28) | 1);
 let seq = FRAMES.length;
 function stateDelta(objectDeltas: Record<string, unknown>): ServerFrame {
   seq += 1;
@@ -677,7 +677,7 @@ function stateDelta(objectDeltas: Record<string, unknown>): ServerFrame {
 const phase = (name: string, playerTurn: number) =>
   stateDelta({
     [GAME_KEY]: {
-      _type: WireType.Game,
+      _type: DELTA_TYPE.game,
       _id: 1,
       Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
       PlayerTurn: { t: 'int', v: playerTurn },
@@ -1513,7 +1513,7 @@ describe('the London mulligan: Forge’s own flag makes the seat’s own hand cl
   /** The one `GameView`'s delta key, dug out of the folded state rather than guessed. */
   function gameEntry(m: LiveMatch): { key: string; id: number } {
     for (const [key, obj] of m.state) {
-      if (obj._type === WireType.Game) return { key, id: obj._id };
+      if (obj._type === DELTA_TYPE.game) return { key, id: obj._id };
     }
     throw new Error('no GameView in the folded state');
   }
@@ -1532,7 +1532,7 @@ describe('the London mulligan: Forge’s own flag makes the seat’s own hand cl
           checksum: 0,
           checksumProperties: [],
           newObjects: {},
-          objectDeltas: { [key]: { _type: WireType.Game, _id: id, Mulligan: value } },
+          objectDeltas: { [key]: { _type: DELTA_TYPE.game, _id: id, Mulligan: value } },
           events: [],
         },
       },
@@ -1555,7 +1555,7 @@ describe('the London mulligan: Forge’s own flag makes the seat’s own hand cl
   function theirHand(m: LiveMatch): number[] {
     const them = m.view!.players.find((p) => !p.isViewer)!;
     expect(them.hand).toBeNull();
-    const obj = m.state.get(deltaKey(WireType.Player, them.id))!;
+    const obj = m.state.get(deltaKey(DELTA_TYPE.player, them.id))!;
     const list = obj.Hand;
     expect(typeof list === 'object' && list !== null && (list.t === 'list' || list.t === 'set')).toBe(true);
     const ids = (list as { v: Tagged[] }).v.map((e) => (e as { v: number }).v);
@@ -1835,7 +1835,7 @@ describe('the auto-yield toggle (opponent’s-turn only, one turn)', () => {
 
     // The turn moves on: the SAME stored toggle now reads off, by the lazy
     // compare alone — nothing here runs on the turn changing.
-    await sendAndApply(s, m, [stateDelta({ [GAME_KEY]: { _type: WireType.Game, _id: 1, Turn: { t: 'int', v: turn + 1 } } })]);
+    await sendAndApply(s, m, [stateDelta({ [GAME_KEY]: { _type: DELTA_TYPE.game, _id: 1, Turn: { t: 'int', v: turn + 1 } } })]);
     expect(isAutoYieldOn(m)).toBe(false);
     // So pressing Auto Yield again, on the new turn, is a real change and crosses again.
     expect(setAutoYield(m, true)).toBe(true);
@@ -1947,9 +1947,9 @@ describe('a known library top and the open decision', () => {
     const me = m.view!.players.find((p) => p.isViewer)!;
     const [top, ...hand] = me.hand!.map((c) => c.id);
     const list = (xs: readonly number[]) => ({ t: 'list', v: xs.map((v) => ({ t: 'int', v })) });
-    const player = m.state.get(deltaKey(WireType.Player, me.id))!;
+    const player = m.state.get(deltaKey(DELTA_TYPE.player, me.id))!;
     const library = ((player.Library as { v?: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
-    await sendAndApply(s, m, [stateDelta({ [deltaKey(WireType.Player, me.id)]: { _type: WireType.Player, _id: me.id, Hand: list(hand), Library: list([top!, ...library]) } })]);
+    await sendAndApply(s, m, [stateDelta({ [deltaKey(DELTA_TYPE.player, me.id)]: { _type: DELTA_TYPE.player, _id: me.id, Hand: list(hand), Library: list([top!, ...library]) } })]);
     const drawn = () => m.view!.players.find((p) => p.isViewer)!.libraryTop?.map((c) => c.id);
     expect(drawn(), 'a card the seat knows, on top of its library').toEqual([top]);
     const look = parseServerFrame({ kind: 'ask', callId: 'look-1', method: 'chooseEntitiesForEffect', title: 'Put on the bottom', optionList: [{ kind: 'card', id: top }], min: 0, max: 1, delayedReveal: null });
@@ -2220,7 +2220,7 @@ describe('a window is applied whole: a prompt never stands under another input�
 describe('combat, off the state channel: the intent mark and the block target', () => {
   const attacking = (cardIds: number[]) =>
     stateDelta(
-      Object.fromEntries(cardIds.map((id) => [String(id), { _type: WireType.Card, _id: id, Attacking: { t: 'bool', v: true } }])),
+      Object.fromEntries(cardIds.map((id) => [String(id), { _type: DELTA_TYPE.card, _id: id, Attacking: { t: 'bool', v: true } }])),
     );
   const me = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!;
   const them = (m: LiveMatch) => m.view!.players.find((p) => !p.isViewer)!;
@@ -2278,7 +2278,7 @@ describe('combat, off the state channel: the intent mark and the block target', 
     await sendAndApply(s, m, [
       stateDelta({
         [GAME_KEY]: {
-          _type: WireType.Game,
+          _type: DELTA_TYPE.game,
           _id: 1,
           Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'COMBAT_DECLARE_ATTACKERS' },
           PlayerTurn: { t: 'int', v: me(m).id },
@@ -2485,7 +2485,7 @@ describe('combat, off the state channel: the intent mark and the block target', 
     const combat = (pblk: number[]) =>
       stateDelta({
         [GAME_KEY]: {
-          _type: WireType.Game,
+          _type: DELTA_TYPE.game,
           _id: 1,
           CombatView: { t: 'combat', atk: [attackers], def: [[1, me(m).id]], blk: [[]], pblk: [pblk] },
         },
@@ -2576,8 +2576,8 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
   /** Retype one of the opponent's existing battlefield cards a planeswalker — the fixture's capture has none. */
   function retypePlaneswalker(id: number): ServerFrame {
     return stateDelta({
-      [deltaKey(WireType.CardState, id * 16)]: {
-        _type: WireType.CardState,
+      [deltaKey(DELTA_TYPE.cardState, id * 16)]: {
+        _type: DELTA_TYPE.cardState,
         _id: id * 16,
         Type: { t: 'cardtype', sup: [], core: ['Planeswalker'], sub: ['Jace'], all: false, exc: [] },
       },
@@ -2590,8 +2590,8 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
     const sub = creature.card.typeLine.split(' — ')[1]?.split(' ') ?? [];
     const allTypes = (exc: string[]) =>
       stateDelta({
-        [deltaKey(WireType.CardState, creature.id * 16)]: {
-          _type: WireType.CardState,
+        [deltaKey(DELTA_TYPE.cardState, creature.id * 16)]: {
+          _type: DELTA_TYPE.cardState,
           _id: creature.id * 16,
           Type: { t: 'cardtype', sup: [], core: ['Creature'], sub, all: true, exc },
         },
@@ -2722,7 +2722,7 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
       actionable([attacker]),
       stateDelta({
         [GAME_KEY]: {
-          _type: WireType.Game,
+          _type: DELTA_TYPE.game,
           _id: 1,
           CombatView: { t: 'combat', atk: [[attacker]], def: [[1, opponent]], blk: [[]], pblk: [[]] },
         },
@@ -2776,7 +2776,7 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
 describe('a tapped permanent is clicked to untap exactly when Forge offers it', () => {
   const me = (m: LiveMatch) => m.view!.players.find((p) => p.isViewer)!;
   const tap = (id: number, tapped: boolean) =>
-    stateDelta({ [String(id)]: { _type: WireType.Card, _id: id, Tapped: { t: 'bool', v: tapped } } });
+    stateDelta({ [String(id)]: { _type: DELTA_TYPE.card, _id: id, Tapped: { t: 'bool', v: tapped } } });
   const bar = (label2: string, enable2 = true) =>
     parseServerFrame({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1: 'OK', label2, enable1: true, enable2, focus1: true });
 
@@ -2820,8 +2820,8 @@ describe('stackTargetSpells (wave 49 §A) — the bridge’s own wire fact', () 
           checksum: 0,
           checksumProperties: [],
           newObjects: {
-            [deltaKey(WireType.StackItem, id)]: {
-              _type: WireType.StackItem,
+            [deltaKey(DELTA_TYPE.stackItem, id)]: {
+              _type: DELTA_TYPE.stackItem,
               _id: id,
               ActivatingPlayer: { t: 'int', v: activatingPlayer },
               Description: { t: 'str', v: description },
@@ -2836,7 +2836,7 @@ describe('stackTargetSpells (wave 49 §A) — the bridge’s own wire fact', () 
 
   const stackOf = (ids: number[]): ServerFrame =>
     stateDelta({
-      [GAME_KEY]: { _type: WireType.Game, _id: 1, Stack: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } },
+      [GAME_KEY]: { _type: DELTA_TYPE.game, _id: 1, Stack: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } },
     });
 
   /** The same two-item stack `applyDelta` naming the pairing as a SIBLING of `packet`. */
@@ -2953,7 +2953,7 @@ describe('lifePaying — life committed to an open payment', () => {
       payload: { packet: { seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas, events: [] }, ...payload },
     });
   }
-  const lifeDelta = (pid: number, life: number) => ({ [deltaKey(WireType.Player, pid)]: { _type: WireType.Player, _id: pid, Life: { t: 'int', v: life } } });
+  const lifeDelta = (pid: number, life: number) => ({ [deltaKey(DELTA_TYPE.player, pid)]: { _type: DELTA_TYPE.player, _id: pid, Life: { t: 'int', v: life } } });
   const lives = (m: LiveMatch) => Object.fromEntries(m.view!.players.map((p) => [p.isViewer ? 'me' : 'them', p.life]));
 
   it('each press comes off the payer’s life on the board, and the payment’s end draws Forge’s own total without a step back', async () => {

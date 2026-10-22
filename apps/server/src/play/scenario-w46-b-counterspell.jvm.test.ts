@@ -45,8 +45,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, idsOf, landPayer, scenarioText, startScenario, waitUntil } from './scenario.js';
-import { TYPE } from './visibility.js';
+import { DELTA_TYPE, idsOf } from '@hadoku/forge-wire';
+
+import { available, deck, finishMulligan, landPayer, scenarioText, startScenario, waitUntil } from './scenario.js';
 
 const title = available.ok
 	? 'Counterspell over Memnite: the resulting stack item’s TargetCards/TargetPlayers, against real Forge'
@@ -72,7 +73,7 @@ describe.skipIf(!available.ok)(title, () => {
 					const choices = f.choices as { key: string; label?: string; ref?: unknown }[];
 					if (!/target/i.test(String(f.message)) || choices[0] === undefined) return undefined;
 					const stackItemsAtAsk = [...s.state(0).values()]
-						.filter((o) => o._type === TYPE.stackItem)
+						.filter((o) => o._type === DELTA_TYPE.stackItem)
 						.map((o) => ({ id: o._id, desc: (o['Description'] as { v?: string } | undefined)?.v ?? null }));
 					targetAsks.push({ message: String(f.message), choiceRefs: choices.map((c) => c.ref), stackItemsAtAsk });
 					return [choices[0].key];
@@ -125,7 +126,7 @@ describe.skipIf(!available.ok)(title, () => {
 				// both read empty: the thing it targeted was added as a bare
 				// SpellAbility, which neither collection's runtime-type filter keeps.
 				const state0 = s.state(0);
-				const items = [...state0.values()].filter((o) => o._type === TYPE.stackItem);
+				const items = [...state0.values()].filter((o) => o._type === DELTA_TYPE.stackItem);
 				expect(items).toHaveLength(2);
 				const counterItem = items.find((o) => ((o['Description'] as { v?: string } | undefined)?.v ?? '').includes('Counterspell'));
 				expect(counterItem, 'Counterspell’s own stack item').toBeDefined();

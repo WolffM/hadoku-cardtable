@@ -8,8 +8,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ServerFrame } from '@hadoku/forge-wire';
 
-import { available, deck, finishMulligan, idsOf, inOwnMain, scenarioText, startScenario, waitUntil } from './scenario.js';
-import { TYPE, keyOf } from './visibility.js';
+import { DELTA_TYPE, deltaKey, idsOf } from '@hadoku/forge-wire';
+
+import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil } from './scenario.js';
 
 const title = available.ok
 	? "the owner is told which of its cards the other seat saw, against real Forge"
@@ -68,7 +69,7 @@ describe.skipIf(!available.ok)(title, () => {
 					s,
 				);
 				const kept = s.zone(1, 'Hand');
-				const lookOnBob = (id: number): number[] => idsOf(s.state(1).get(keyOf(TYPE.card, id)), 'PlayerMayLook');
+				const lookOnBob = (id: number): number[] => idsOf(s.state(1).get(deltaKey(DELTA_TYPE.card, id)), 'PlayerMayLook');
 				await waitUntil(() => kept.every((c) => lookOnBob(c.id).includes(alice)), "seat 1's state to name seat 0 on its kept cards", 10_000, s);
 				const seat0 = s.sent.filter((x) => x.seat === 0).map((x) => JSON.stringify(x.envelope.frame));
 				const evidence = { alice, bob, kept: kept.map((c) => ({ name: c.name, look: lookOnBob(c.id) })), seat0Looks: lookIds(seat0) };
@@ -76,7 +77,7 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(kept.map((c) => c.name).sort()).toEqual(['Goblin Guide', 'Mountain']);
 				expect(kept.map((c) => lookOnBob(c.id).filter((p) => p !== bob)), 'seat 0 on each kept card, and nobody else').toEqual([[alice], [alice]]);
 				expect(lookIds(seat0), 'seat 0 is named alone in every look it receives').toEqual([alice]);
-				const bobLibrary = idsOf(s.state(1).get(keyOf(TYPE.player, bob)), 'Library');
+				const bobLibrary = idsOf(s.state(1).get(deltaKey(DELTA_TYPE.player, bob)), 'Library');
 				expect(bobLibrary.filter((id) => lookOnBob(id).includes(alice)), 'nothing in the library').toEqual([]);
 			} finally {
 				await s.stop();

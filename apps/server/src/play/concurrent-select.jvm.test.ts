@@ -36,8 +36,10 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, idsOf, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
-import { TYPE, type WireObj } from './visibility.js';
+import { DELTA_TYPE, idsOf } from '@hadoku/forge-wire';
+
+import { available, deck, finishMulligan, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { type WireObj } from './visibility.js';
 
 const title = available.ok
 	? 'a burst of clicks reaches Forge one at a time, against real Forge'
@@ -47,7 +49,7 @@ const DECKS: [string, string] = [deck('Mountains', ['40 Mountain']), deck('Islan
 const BURST = 8;
 
 function stackIds(s: Scenario): number[] {
-	const game = [...s.state(0).values()].find((o: WireObj) => o._type === TYPE.game);
+	const game = [...s.state(0).values()].find((o: WireObj) => o._type === DELTA_TYPE.game);
 	return idsOf(game, 'Stack');
 }
 

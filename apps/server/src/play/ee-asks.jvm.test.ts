@@ -20,9 +20,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ServerFrame } from '@hadoku/forge-wire';
 
+import { DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
+
 import type { BridgeLine } from './host.js';
 import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario, type ScenarioOptions } from './scenario.js';
-import { TYPE, keyOf } from './visibility.js';
 
 const title = (t: string): string => (available.ok ? t : `${t} — SKIPPED: ${available.reason}`);
 
@@ -44,7 +45,7 @@ function reply(f: Frame): unknown {
 
 /** Seat 0's floating mana, `ManaAtom` byte → count, off its own projected `PlayerView.Mana`. */
 function pool(s: Scenario): Record<number, number> {
-	const player = s.state(0).get(keyOf(TYPE.player, s.match.seats[0]?.playerId ?? -1));
+	const player = s.state(0).get(deltaKey(DELTA_TYPE.player, s.match.seats[0]?.playerId ?? -1));
 	const mana = player?.Mana as { t?: string; v?: unknown } | undefined;
 	const out: Record<number, number> = {};
 	if (mana?.t !== 'map' || !Array.isArray(mana.v)) return out;

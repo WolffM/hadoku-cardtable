@@ -8,9 +8,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { DELTA_TYPE, deltaKey, idsOf } from '@hadoku/forge-wire';
+
 import { identifyingStrings, leaked } from './fixtures/transcript.js';
-import { available, deck, finishMulligan, idsOf, inOwnMain, scenarioText, startScenario, waitUntil } from './scenario.js';
-import { TYPE, keyOf } from './visibility.js';
+import { available, deck, finishMulligan, inOwnMain, scenarioText, startScenario, waitUntil } from './scenario.js';
 
 const title = available.ok
 	? 'a shown card stops being shown when it is shuffled away, against real Forge'
@@ -36,7 +37,7 @@ describe.skipIf(!available.ok)(title, () => {
 					s,
 				);
 				const bob = s.match.seats[1]?.playerId as number;
-				const library = (): number[] => idsOf(s.state(0).get(keyOf(TYPE.player, bob)), 'Library');
+				const library = (): number[] => idsOf(s.state(0).get(deltaKey(DELTA_TYPE.player, bob)), 'Library');
 				const heldBy0 = (id: number): string[] => identifyingStrings(s.state(0), id);
 				const before = library();
 				const [bolt, shock] = before as [number, number];
@@ -76,7 +77,7 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(leaked(['Shock'], seat0After), 'the card never shown is never sent').toEqual([]);
 				await new Promise((r) => setTimeout(r, 1_000));
 				const later = s.sent.slice(mark).filter((x) => x.seat === 0 && (x.envelope.frame.method === 'applyDelta' || x.envelope.frame.method === 'setGameView'));
-				const bobKey = keyOf(TYPE.player, bob);
+				const bobKey = deltaKey(DELTA_TYPE.player, bob);
 				/** The first packet that moves bob's library list: the shuffle. */
 				const shuffledAt = later.findIndex((x) => {
 					const packet = (x.envelope.frame as { payload?: { packet?: { newObjects: Record<string, object>; objectDeltas: Record<string, object> } } }).payload?.packet;

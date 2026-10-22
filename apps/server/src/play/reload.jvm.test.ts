@@ -27,10 +27,10 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
-import { ClientFrameSchema } from '@hadoku/forge-wire';
+import { ClientFrameSchema, deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount } from './host.js';
-import { foldFrames, keyOf, TYPE, type StateFrame } from './visibility.js';
+import { foldFrames, type StateFrame } from './visibility.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 const available = jvmHostConfig();
@@ -113,7 +113,7 @@ function handOf(p: Peer): number[] {
 	const state = foldFrames(
 		p.frames.filter((f) => f.kind === 'notify').filter((f) => ['setGameView', 'applyDelta', 'openView'].includes(f.method)) as unknown as StateFrame[],
 	);
-	const me = state.get(keyOf(TYPE.player, p.playerId)) as unknown as Record<string, { v?: { v: number }[] }> | undefined;
+	const me = state.get(deltaKey(DELTA_TYPE.player, p.playerId)) as unknown as Record<string, { v?: { v: number }[] }> | undefined;
 	return (me?.['Hand']?.v ?? []).map((c) => c.v);
 }
 

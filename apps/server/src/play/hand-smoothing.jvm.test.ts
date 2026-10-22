@@ -31,11 +31,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ClientFrameSchema } from '@hadoku/forge-wire';
+import { ClientFrameSchema, deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount } from './host.js';
 import { createMatchRegistry } from './match.js';
-import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
+import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 
 const available = jvmHostConfig();
@@ -95,14 +95,14 @@ async function handsDealt(seed: number, handSmoothing: boolean, mulligans: numbe
 					.map((x) => x.envelope.frame as unknown as StateFrame)
 					.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
 			);
-			const player = state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1)) as unknown as
+			const player = state.get(deltaKey(DELTA_TYPE.player, match.seats[seat]!.playerId ?? -1)) as unknown as
 				| Record<string, { v?: { v: number }[] }>
 				| undefined;
 			const ids = (player?.['Hand']?.v ?? []).map((x) => x.v);
 			const lands = ids.filter((id) => {
-				const view = state.get(keyOf(TYPE.card, id));
+				const view = state.get(deltaKey(DELTA_TYPE.card, id));
 				const current = (view?.CurrentState as { v?: number } | undefined)?.v ?? 0;
-				const face: WireObj | undefined = state.get(keyOf(TYPE.cardState, id * 16 + current));
+				const face: WireObj | undefined = state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + current));
 				return (face?.Name as { v?: string } | undefined)?.v === 'Forest';
 			}).length;
 			return { ids, lands };

@@ -14,15 +14,16 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
+
 import { available, deck, finishMulligan, inOwnMain, passUntil, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
-import { keyOf, TYPE } from './visibility.js';
 
 const DECKS: [string, string] = [deck('Y A', ['40 Mountain']), deck('Y B', ['40 Mountain'])];
 const ALICE = 0;
 const BOB = 1;
 
 function lifeOf(s: Scenario, seat: number): number {
-	const player = s.state(seat).get(keyOf(TYPE.player, s.match.seats[seat]?.playerId ?? -1));
+	const player = s.state(seat).get(deltaKey(DELTA_TYPE.player, s.match.seats[seat]?.playerId ?? -1));
 	return (player?.Life as { v?: number } | undefined)?.v ?? -1;
 }
 

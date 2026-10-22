@@ -108,6 +108,12 @@ import {
 	type ServerFrame,
 	type TriggerDecision,
 	YIELDING,
+	currentFace,
+	deltaKey,
+	DELTA_TYPE,
+	idsOf,
+	intOf,
+	strOf,
 } from '@hadoku/forge-wire';
 import {
 	selfAnswer,
@@ -233,8 +239,6 @@ export interface SeatIdentity {
 import {
 	createProjector,
 	foldFrames,
-	keyOf,
-	TYPE,
 	type ObjTable,
 	type SeatProjector,
 	type StateFrame,
@@ -853,14 +857,11 @@ const LOG_HOLD_MAX_MS = 1000;
  * and the id it falls back to is the one the seat already holds.
  */
 function cardName(state: ReadonlyMap<string, WireObj>, id: number): string | null {
-	const view = state.get(keyOf(TYPE.card, id));
+	const view = state.get(deltaKey(DELTA_TYPE.card, id));
 	if (view === undefined) return null;
-	const current = view.CurrentState as { t?: string; v?: unknown } | undefined;
-	const ordinal = current?.t === 'int' && typeof current.v === 'number' ? current.v : 0;
-	const face = state.get(keyOf(TYPE.cardState, id * 16 + ordinal));
-	for (const obj of [face, view]) {
-		const name = obj?.Name as { t?: string; v?: unknown } | undefined;
-		if (name?.t === 'str' && typeof name.v === 'string' && name.v !== '') return name.v;
+	for (const obj of [currentFace(state, id), view]) {
+		const name = strOf(obj, 'Name');
+		if (name !== null && name !== '') return name;
 	}
 	return null;
 }
@@ -877,14 +878,8 @@ function cardName(state: ReadonlyMap<string, WireObj>, id: number): string | nul
  * gives arrival order), so index 0 is the top.
  */
 function stackTopHostCardId(state: ReadonlyMap<string, WireObj>): number | null {
-	const game = state.get(keyOf(TYPE.game, 1));
-	const stack = game?.Stack as { t?: string; v?: unknown } | undefined;
-	if (stack?.t !== 'list' || !Array.isArray(stack.v) || stack.v.length === 0) return null;
-	const top = (stack.v[0] as { t?: string; v?: unknown } | undefined)?.v;
-	if (typeof top !== 'number') return null;
-	const item = state.get(keyOf(TYPE.stackItem, top));
-	const source = item?.SourceCard as { t?: string; v?: unknown } | undefined;
-	return source?.t === 'int' && typeof source.v === 'number' ? source.v : null;
+	const top = idsOf(state.get(deltaKey(DELTA_TYPE.game, 1)), 'Stack')[0];
+	return top === undefined ? null : intOf(state.get(deltaKey(DELTA_TYPE.stackItem, top)), 'SourceCard');
 }
 
 export type ClaimOutcome = { ok: true; seat: number; fresh: boolean } | { ok: false; error: string };

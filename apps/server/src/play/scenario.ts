@@ -16,14 +16,14 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
+import { ClientFrameSchema, coreTypes, currentFace, deltaKey, DELTA_TYPE, idsOf, strOf, type ServerFrame } from '@hadoku/forge-wire';
 import { afterEach } from 'vitest';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeCommand, type BridgeLine, type JvmHostConfig, type MatchHost } from './host.js';
 import { createMatchRegistry, type Match, type SeatIdentity } from './match.js';
 import { PHASE_BY_UI_NAME, type StopPolicy } from './auto.js';
 import type { ServerEnvelope } from '@hadoku/shared';
-import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
+import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 
 export const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
 
@@ -223,17 +223,6 @@ export async function waitUntil(p: () => boolean, label: string, ms: number, dum
 	}
 }
 
-export function idsOf(o: WireObj | undefined, k: string): number[] {
-	const v = o?.[k] as { t?: string; v?: unknown } | undefined;
-	if (v === undefined || (v.t !== 'list' && v.t !== 'set') || !Array.isArray(v.v)) return [];
-	return (v.v as { t?: string; v?: unknown }[]).filter((x) => x?.t === 'int' && typeof x.v === 'number').map((x) => x.v as number);
-}
-
-export function strOf(o: WireObj | undefined, k: string): string | null {
-	const v = o?.[k] as { t?: string; v?: unknown } | undefined;
-	return v !== undefined && v.t === 'str' && typeof v.v === 'string' ? v.v : null;
-}
-
 export interface Stamped {
 	seat: number;
 	envelope: ServerEnvelope;
@@ -397,18 +386,17 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 			),
 		zone(seat, name) {
 			const state = self.state(seat);
-			const player = state.get(keyOf(TYPE.player, match.seats[seat]?.playerId ?? -1));
+			const player = state.get(deltaKey(DELTA_TYPE.player, match.seats[seat]?.playerId ?? -1));
 			return idsOf(player, name).map((id) => {
-				const view = state.get(keyOf(TYPE.card, id));
-				const current = view?.CurrentState as { v?: number } | undefined;
-				const face = state.get(keyOf(TYPE.cardState, id * 16 + (current?.v ?? 0)));
-				const type = face?.Type as { core?: string[] } | undefined;
+				const view = state.get(deltaKey(DELTA_TYPE.card, id));
+				const face = currentFace(state, id);
+				const core = coreTypes(state, id) ?? [];
 				return {
 					id,
 					name: strOf(face, 'Name') ?? strOf(view, 'Name') ?? `#${id}`,
 					tapped: (view?.Tapped as { v?: boolean } | undefined)?.v === true,
-					land: type?.core?.includes('Land') === true,
-					creature: type?.core?.includes('Creature') === true,
+					land: core.includes('Land'),
+					creature: core.includes('Creature'),
 					sick: (view?.Sickness as { v?: boolean } | undefined)?.v === true,
 				};
 			});

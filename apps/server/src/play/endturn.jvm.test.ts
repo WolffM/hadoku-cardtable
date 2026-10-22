@@ -32,7 +32,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { TYPE } from './visibility.js';
+import { DELTA_TYPE } from '@hadoku/forge-wire';
+
 import { available, deck, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
@@ -48,7 +49,7 @@ function phaseChanges(s: Scenario, seat: number): { phase: string; t: number }[]
 		if (f.method !== 'applyDelta') continue;
 		for (const obj of Object.values(f.payload?.packet?.objectDeltas ?? {})) {
 			const phase = obj.Phase as { v?: string } | undefined;
-			if (obj._type === TYPE.game && phase?.v !== undefined) out.push({ phase: phase.v, t });
+			if (obj._type === DELTA_TYPE.game && phase?.v !== undefined) out.push({ phase: phase.v, t });
 		}
 	}
 	return out;

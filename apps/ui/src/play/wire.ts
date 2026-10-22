@@ -1,14 +1,12 @@
 /*
- * Tier C state, as it crosses the wire — declared locally, on purpose.
+ * Tier C state, as this renderer reads it.
  *
  * This is the JSON encoding of Forge's `DeltaPacket` that Wave 7's spike
  * produced and measured (`scripts/spike/tierc/src/JsonDelta.java`,
- * `docs/spikes/tier-c.md`). The Zod schema for the same shape is being written
- * in `packages/forge-wire/src/tier-c.ts`; the UI does not depend on that
- * package, and these types are the smallest statement of what THIS renderer
- * reads. When the UI takes the dependency, this file is a delete, not a
- * migration: the fixtures in `./fixtures/` are the shared contract, and the
- * manager validates them against that schema.
+ * `docs/spikes/tier-c.md`). The delta keys and the tagged-value readers are
+ * `@hadoku/forge-wire`'s (`state.ts`), shared with the server's projector; the
+ * types here narrow its untyped property bags to the tags this renderer draws,
+ * and the fixtures in `./fixtures/` are validated against its schema.
  *
  * ## The shape, in one paragraph
  *
@@ -26,15 +24,7 @@
  * that; it is not an absent value and it is not an error.
  */
 
-/** `DeltaPacket.TYPE_*`, `DeltaPacket.java:34-38`. */
-export const WireType = {
-  Card: 0,
-  Player: 1,
-  StackItem: 2,
-  Game: 3,
-  /** A `CardStateView` — one face/state of a card. */
-  CardState: 4,
-} as const;
+import { deltaKey, intOf, tagOf } from '@hadoku/forge-wire';
 
 /**
  * A value in the property position. The tags are exactly the ones
@@ -76,33 +66,11 @@ export interface WireObject {
 
 /** A property's tagged value, absent for a missing or null one. */
 export function prop(obj: WireObject | undefined, name: string): Tagged | undefined {
-  const v = obj?.[name];
-  return typeof v === 'object' && v !== null ? v : undefined;
-}
-
-/** An int, long or byte property, null when it is not one. */
-export function readIntOrNull(obj: WireObject | undefined, name: string): number | null {
-  const v = prop(obj, name);
-  return v !== undefined && (v.t === 'int' || v.t === 'long' || v.t === 'byte') && typeof v.v === 'number' ? v.v : null;
+  return tagOf(obj, name) as Tagged | undefined;
 }
 
 export function readInt(obj: WireObject | undefined, name: string, fallback = 0): number {
-  return readIntOrNull(obj, name) ?? fallback;
-}
-
-export function readBool(obj: WireObject | undefined, name: string): boolean {
-  const v = prop(obj, name);
-  return v !== undefined && v.t === 'bool' && v.v === true;
-}
-
-export function readStr(obj: WireObject | undefined, name: string): string | null {
-  const v = prop(obj, name);
-  return v !== undefined && v.t === 'str' && typeof v.v === 'string' ? v.v : null;
-}
-
-export function readEnum(obj: WireObject | undefined, name: string): string | null {
-  const v = prop(obj, name);
-  return v !== undefined && v.t === 'enum' && typeof v.v === 'string' ? v.v : null;
+  return intOf(obj, name) ?? fallback;
 }
 
 /** One `DeltaPacket` in the spike's JSON encoding. */
@@ -117,21 +85,6 @@ export interface WirePacket {
   objectDeltas: Record<string, WireObject>;
   /** The events arm. Opaque to this lane — lane B owns it. */
   events: unknown[];
-}
-
-/** `DeltaPacket.makeDeltaKey(type, id)`, as the string JSON object keys are. */
-export function deltaKey(type: number, id: number): string {
-  return String(((type << 28) | (id & 0x0fffffff)) >>> 0);
-}
-
-/**
- * The delta key of one card's state view. A `CardStateView`'s id on the wire is
- * `cardId * 16 + CardStateName.ordinal()` (`DeltaPacket.makeDeltaKey`,
- * `DeltaPacket.java:61-67`), which is how a card's `CurrentState` ordinal finds
- * the face to draw.
- */
-export function cardStateKey(cardId: number, stateOrdinal: number): string {
-  return deltaKey(WireType.CardState, cardId * 16 + stateOrdinal);
 }
 
 /**

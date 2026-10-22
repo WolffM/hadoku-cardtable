@@ -248,6 +248,7 @@ import {
   type Loss,
   type ServerFrame,
   YIELDING,
+  DELTA_TYPE,
 } from '@hadoku/forge-wire';
 import { classifySeq, needsResync, type SeqVerdict } from '@wolffm/rooms-protocol';
 import { io } from 'socket.io-client';
@@ -262,7 +263,7 @@ import { drawnOfferOf, followOffer, OFFER_HOLD_MAX_MS, type OfferHold } from './
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import type { PromptParts } from '../prompts/lookup.ts';
 import { foldPackets, type FoldablePacket, type FoldResult, type WireState } from '../fold.ts';
-import { expectWirePackets, WireType } from '../wire.ts';
+import { expectWirePackets } from '../wire.ts';
 import {
   abortFrame,
   autoYieldFrame,
@@ -1778,7 +1779,7 @@ function mulliganHand(state: WireState, view: BoardView): ReadonlySet<number> | 
  */
 function readGameBool(state: WireState, property: string): boolean {
   for (const obj of state.values()) {
-    if (obj._type !== WireType.Game) continue;
+    if (obj._type !== DELTA_TYPE.game) continue;
     const value = obj[property];
     return typeof value === 'object' && value !== null && value.t === 'bool' && value.v === true;
   }

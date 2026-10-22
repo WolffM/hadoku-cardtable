@@ -19,8 +19,10 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
+
 import { available, deck, finishMulligan, inOwnMain, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
-import { TYPE, keyOf, type WireObj } from './visibility.js';
+import { type WireObj } from './visibility.js';
 
 const title = available.ok
 	? 'rooms: which of a Room’s doors are unlocked reaches both seats, against real Forge'
@@ -42,14 +44,14 @@ function tag(o: WireObj | undefined, k: string): unknown {
 /** What seat `seat` holds for the room `id`: its Room flag, current state and each state's name. */
 function doors(s: Scenario, seat: number, id: number): Record<string, unknown> {
 	const state = s.state(seat);
-	const view = state.get(keyOf(TYPE.card, id));
+	const view = state.get(deltaKey(DELTA_TYPE.card, id));
 	const face = (k: string): string | null => {
 		const ord = tag(view, k);
 		if (typeof ord !== 'number') return null;
-		const name = tag(state.get(keyOf(TYPE.cardState, id * 16 + ord)), 'Name');
+		const name = tag(state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + ord)), 'Name');
 		return `${ord}:${typeof name === 'string' ? name : '?'}`;
 	};
-	const whole = tag(state.get(keyOf(TYPE.cardState, id * 16 + ORIGINAL)), 'Name');
+	const whole = tag(state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + ORIGINAL)), 'Name');
 	return { room: tag(view, 'Room'), current: face('CurrentState'), left: face('LeftSplitState'), right: face('RightSplitState'), whole: typeof whole === 'string' ? whole : null };
 }
 

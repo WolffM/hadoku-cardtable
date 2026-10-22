@@ -14,6 +14,8 @@ import { createElement } from 'react';
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
 
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
+import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
+
 import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR } from './live/departures.ts';
 import { UNLOCK_BEAT_MS } from './motion.ts';
@@ -59,7 +61,7 @@ import { expectPlacement, pendingPlacementFor, applyTheirArrangement, onOwnArran
 } from './Board.tsx';
 import { boardFromFixture, loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
-import { cardStateKey, deltaKey, expectWirePackets, isAnnotationKey, WireType, type WireObject } from './wire.ts';
+import { expectWirePackets, isAnnotationKey, type WireObject } from './wire.ts';
 
 /**
  * The inspector is lane D's and is NOT stubbed — the real module mounts and the
@@ -581,7 +583,7 @@ function namesOnTheWire(): string[] {
   const names = new Set<string>();
   for (const packet of loadPackets(fixture)) {
     for (const obj of Object.values(packet.newObjects)) {
-      if (typeof obj !== 'object' || obj._type !== WireType.CardState) continue;
+      if (typeof obj !== 'object' || obj._type !== DELTA_TYPE.cardState) continue;
       const name = obj.Name;
       if (typeof name === 'object' && name !== null && name.t === 'str' && typeof name.v === 'string') names.add(name.v);
     }
@@ -645,7 +647,7 @@ describe('art (D15: a lookup, not a URL)', () => {
     // the default must find it.
     const state = new Map(foldPackets(loadPackets(fixture)).state);
     const islandFace = [...state.entries()].find(
-      ([k, o]) => o._type === WireType.CardState && k === cardStateKey(o._id >> 4, 0) && (o.Name as { v?: unknown } | undefined)?.v === 'Island',
+      ([k, o]) => o._type === DELTA_TYPE.cardState && k === cardStateKey(o._id >> 4, 0) && (o.Name as { v?: unknown } | undefined)?.v === 'Island',
     )!;
     state.set(islandFace[0], { ...islandFace[1], Name: { t: 'str', v: 'Giver of Runes' } } as WireObject);
     const view = toBoardView(state, 27, { viewerPlayerId: 0 });
@@ -679,7 +681,7 @@ describe('art (D15: a lookup, not a URL)', () => {
 /** Seat 1's hand in the raw stream: the cards the viewer must never see. */
 function opponentHandNames(): string[] {
   const { state } = foldPackets(loadPackets(fixture));
-  const hand = state.get(deltaKey(WireType.Player, 1))?.Hand as { v: { v: number }[] };
+  const hand = state.get(deltaKey(DELTA_TYPE.player, 1))?.Hand as { v: { v: number }[] };
   return hand.v.map((x) => {
     const face = state.get(cardStateKey(x.v, 0))!;
     return (face.Name as { v: string }).v;
@@ -1332,7 +1334,7 @@ describe('the table as the operator blocked it (§A)', () => {
    */
   const withMana = (playerId: number, pool: [number, number][]): BoardView => {
     const state = new Map(foldPackets(loadPackets(fixture)).state);
-    const key = deltaKey(WireType.Player, playerId);
+    const key = deltaKey(DELTA_TYPE.player, playerId);
     const player = state.get(key)!;
     state.set(key, {
       ...player,
@@ -3636,7 +3638,7 @@ describe('§A.15 — a card’s state is drawn', () => {
     // A token copy of a card: the same types, but a token printed as a card — Vaultborn Tyrant's death copy,
     // a Cackling Counterpart copy. Drawn with the card's own art, so the pill says what the art does not.
     const asToken = new Map(state);
-    const view = deltaKey(WireType.Card, guildgateId);
+    const view = deltaKey(DELTA_TYPE.card, guildgateId);
     asToken.set(view, { ...asToken.get(view)!, Token: { t: 'bool', v: true } } as WireObject);
     const copy = land(toBoardView(asToken, 27, { viewerPlayerId: fixture.viewerPlayerId, printedTypes: printed(['Gate']) }));
     expect(copy.token).toBe(true);
@@ -5006,7 +5008,7 @@ describe('commitHandMove hands a hand reorder to Board', () => {
 describe('wave 33 §B', () => {
   it('shape 2: targetCardIds/targetPlayerIds come off the stack item’s own TargetCards/TargetPlayers, empty when it names none', () => {
     const state = new Map(foldPackets(loadPackets(fixture)).state);
-    const key = deltaKey(WireType.StackItem, 48);
+    const key = deltaKey(DELTA_TYPE.stackItem, 48);
     const item = state.get(key)!;
     state.set(key, {
       ...item,
@@ -5025,7 +5027,7 @@ describe('wave 33 §B', () => {
 
   it('item 4: a seat’s energy/experience counters draw beside its hand/library counts, abbreviated, and only when non-zero; poison draws beside its life total', () => {
     const state = new Map(foldPackets(loadPackets(fixture)).state);
-    const key = deltaKey(WireType.Player, 1);
+    const key = deltaKey(DELTA_TYPE.player, 1);
     const them = state.get(key)!;
     state.set(key, {
       ...them,
@@ -5109,7 +5111,7 @@ describe('wave 34 §B', () => {
   it('item 1: the known counts-line counters abbreviate to different, short glyphs — never the word itself', () => {
     for (const name of ['Energy', 'Experience']) {
       const state = new Map(foldPackets(loadPackets(fixture)).state);
-      const key = deltaKey(WireType.Player, 1);
+      const key = deltaKey(DELTA_TYPE.player, 1);
       const them = state.get(key)!;
       state.set(key, { ...them, Counters: { t: 'multiset', v: [[name, 9]] } } as WireObject);
       const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
@@ -5122,7 +5124,7 @@ describe('wave 34 §B', () => {
     // And the glyphs (the digit stripped) are pairwise distinct — no collision to merge two counters into one.
     const glyphOf = (name: string): string => {
       const state = new Map(foldPackets(loadPackets(fixture)).state);
-      const key = deltaKey(WireType.Player, 1);
+      const key = deltaKey(DELTA_TYPE.player, 1);
       const them = state.get(key)!;
       state.set(key, { ...them, Counters: { t: 'multiset', v: [[name, 9]] } } as WireObject);
       const adapted = toBoardView(state, 27, { viewerPlayerId: fixture.viewerPlayerId, artIds: TEST_ART_IDS });
@@ -5135,7 +5137,7 @@ describe('wave 34 §B', () => {
 
   it('item 1: a seat with poison, energy and experience all non-zero draws hand, library, energy and experience on the counts line and poison on the face, each with the full word in the tooltip and aria-label', () => {
     const state = new Map(foldPackets(loadPackets(fixture)).state);
-    const key = deltaKey(WireType.Player, 1);
+    const key = deltaKey(DELTA_TYPE.player, 1);
     const them = state.get(key)!;
     state.set(key, {
       ...them,

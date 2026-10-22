@@ -14,7 +14,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ClientFrameSchema, deltaKeyOf, safeParseServerFrame, type ClientFrame } from '@hadoku/forge-wire';
+import { ClientFrameSchema, deltaKeyOf, safeParseServerFrame, type ClientFrame, DELTA_TYPE, cardIdOfState, deltaKey } from '@hadoku/forge-wire';
 import {
 	selfAnswer,
 	MatchSnapshotSchema,
@@ -38,7 +38,7 @@ import {
 	secretsFor,
 	type ReplayHost,
 } from './fixtures/transcript.js';
-import { TYPE, csvCardId, foldFrames, keyOf, type StateFrame, type WireObj } from './visibility.js';
+import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa';
 const BOB = 'fk:bbbbbbbbbbbbbbbb';
@@ -504,12 +504,12 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 	 */
 	describe('the host card is resolved against the OTHER seat, never the asker', () => {
 		const list = (...ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
-		const card = (id: number, name: string) => ({ [String(deltaKeyOf(TYPE.card, id))]: { _type: TYPE.card, _id: id, Name: { t: 'str', v: name } } });
+		const card = (id: number, name: string) => ({ [String(deltaKeyOf(DELTA_TYPE.card, id))]: { _type: DELTA_TYPE.card, _id: id, Name: { t: 'str', v: name } } });
 		function gameView(player0Extra: Record<string, unknown>): Record<string, unknown> {
 			return {
-				[String(deltaKeyOf(TYPE.game, 1))]: { _type: TYPE.game, _id: 1, Players: list(0, 1) },
-				[String(deltaKeyOf(TYPE.player, 0))]: { _type: TYPE.player, _id: 0, Name: { t: 'str', v: 'Seat 1' }, Life: { t: 'int', v: 20 }, ...player0Extra },
-				[String(deltaKeyOf(TYPE.player, 1))]: { _type: TYPE.player, _id: 1, Name: { t: 'str', v: 'Seat 2' }, Life: { t: 'int', v: 20 } },
+				[String(deltaKeyOf(DELTA_TYPE.game, 1))]: { _type: DELTA_TYPE.game, _id: 1, Players: list(0, 1) },
+				[String(deltaKeyOf(DELTA_TYPE.player, 0))]: { _type: DELTA_TYPE.player, _id: 0, Name: { t: 'str', v: 'Seat 1' }, Life: { t: 'int', v: 20 }, ...player0Extra },
+				[String(deltaKeyOf(DELTA_TYPE.player, 1))]: { _type: DELTA_TYPE.player, _id: 1, Name: { t: 'str', v: 'Seat 2' }, Life: { t: 'int', v: 20 } },
 			};
 		}
 		function openGame(h: Harness, table: Record<string, unknown>): void {
@@ -553,14 +553,14 @@ describe("a seat's open ask or payment, for the other seat's banner", () => {
 	 */
 	describe('a selection (setSelectables) counts as waitingOn too — Thirst for Knowledge’s own shape', () => {
 		const list = (...ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
-		const card = (id: number, name: string) => ({ [String(deltaKeyOf(TYPE.card, id))]: { _type: TYPE.card, _id: id, Name: { t: 'str', v: name } } });
+		const card = (id: number, name: string) => ({ [String(deltaKeyOf(DELTA_TYPE.card, id))]: { _type: DELTA_TYPE.card, _id: id, Name: { t: 'str', v: name } } });
 		/** A game whose `Stack` names exactly one item, whose `SourceCard` is `cardId`. */
 		function gameViewWithStack(stackCardId: number, stackCardName: string): Record<string, unknown> {
 			return {
-				[String(deltaKeyOf(TYPE.game, 1))]: { _type: TYPE.game, _id: 1, Players: list(0, 1), Stack: list(900) },
-				[String(deltaKeyOf(TYPE.player, 0))]: { _type: TYPE.player, _id: 0, Name: { t: 'str', v: 'Seat 1' }, Life: { t: 'int', v: 20 } },
-				[String(deltaKeyOf(TYPE.player, 1))]: { _type: TYPE.player, _id: 1, Name: { t: 'str', v: 'Seat 2' }, Life: { t: 'int', v: 20 } },
-				[String(deltaKeyOf(TYPE.stackItem, 900))]: { _type: TYPE.stackItem, _id: 900, SourceCard: { t: 'int', v: stackCardId } },
+				[String(deltaKeyOf(DELTA_TYPE.game, 1))]: { _type: DELTA_TYPE.game, _id: 1, Players: list(0, 1), Stack: list(900) },
+				[String(deltaKeyOf(DELTA_TYPE.player, 0))]: { _type: DELTA_TYPE.player, _id: 0, Name: { t: 'str', v: 'Seat 1' }, Life: { t: 'int', v: 20 } },
+				[String(deltaKeyOf(DELTA_TYPE.player, 1))]: { _type: DELTA_TYPE.player, _id: 1, Name: { t: 'str', v: 'Seat 2' }, Life: { t: 'int', v: 20 } },
+				[String(deltaKeyOf(DELTA_TYPE.stackItem, 900))]: { _type: DELTA_TYPE.stackItem, _id: 900, SourceCard: { t: 'int', v: stackCardId } },
 				...card(stackCardId, stackCardName),
 			};
 		}
@@ -857,7 +857,7 @@ describe("regression: the red jvm.test.ts run ('Flying'), from its captured fram
 					? { ...e.frame.payload.packet.newObjects, ...e.frame.payload.packet.objectDeltas }
 					: e.frame.payload.gameView;
 			for (const obj of Object.values(table) as { _type: number; _id: number }[]) {
-				if (obj._type === TYPE.cardState) expect(csvCardId(obj._id)).not.toBe(99);
+				if (obj._type === DELTA_TYPE.cardState) expect(cardIdOfState(obj._id)).not.toBe(99);
 			}
 		}
 	});
@@ -868,12 +868,12 @@ describe("regression: a card in both a precon's main deck and its sideboard (jvm
 	// sideboard with names, and the library copy's name once read as leaked by it.
 	const list = (...ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
 	const card = (id: number, name: string): [string, WireObj] => [
-		keyOf(TYPE.card, id),
-		{ _type: TYPE.card, _id: id, Name: { t: 'str', v: name } },
+		deltaKey(DELTA_TYPE.card, id),
+		{ _type: DELTA_TYPE.card, _id: id, Name: { t: 'str', v: name } },
 	];
 	const state = new Map<string, WireObj>([
-		[keyOf(TYPE.player, 0), { _type: TYPE.player, _id: 0, Library: list(17), Sideboard: list(71) }],
-		[keyOf(TYPE.player, 1), { _type: TYPE.player, _id: 1, Library: list(200), Sideboard: list(271) }],
+		[deltaKey(DELTA_TYPE.player, 0), { _type: DELTA_TYPE.player, _id: 0, Library: list(17), Sideboard: list(71) }],
+		[deltaKey(DELTA_TYPE.player, 1), { _type: DELTA_TYPE.player, _id: 1, Library: list(200), Sideboard: list(271) }],
 		card(17, 'Beacon Bolt'),
 		card(71, 'Beacon Bolt'),
 		card(200, 'Faerie Duelist'),
@@ -896,7 +896,7 @@ describe("regression: a card in both a precon's main deck and its sideboard (jvm
 
 describe("regression: a secret spelled like a wire key (jvm.test.ts, seed 3269333, 'Life // Death')", () => {
 	// The hidden split card's face name "Life" is also the PlayerView key `"Life":{"t":"int",…}`.
-	const player = JSON.stringify({ _type: TYPE.player, _id: 0, Life: { t: 'int', v: 20 } });
+	const player = JSON.stringify({ _type: DELTA_TYPE.player, _id: 0, Life: { t: 'int', v: 20 } });
 
 	it('does not count an occurrence as an object key as a leak', () => {
 		expect(leaked(['Life'], player)).toEqual([]);
@@ -2080,7 +2080,7 @@ describe('wave 35 §S, R4: a reveal the fold does not claim is never swallowed',
 					checksum: 0,
 					checksumProperties: [],
 					newObjects: {},
-					objectDeltas: { [String(deltaKeyOf(TYPE.game, 1))]: { _type: TYPE.game, _id: 1, Turn: { t: 'int', v: 7 } } },
+					objectDeltas: { [String(deltaKeyOf(DELTA_TYPE.game, 1))]: { _type: DELTA_TYPE.game, _id: 1, Turn: { t: 'int', v: 7 } } },
 					events: [],
 				},
 			},
@@ -2782,8 +2782,8 @@ describe('hold-decide-forward', () => {
 						checksumProperties: [],
 						newObjects: {},
 						objectDeltas: {
-							[String(deltaKeyOf(TYPE.game, 1))]: {
-								_type: TYPE.game,
+							[String(deltaKeyOf(DELTA_TYPE.game, 1))]: {
+								_type: DELTA_TYPE.game,
 								_id: 1,
 								Turn: { t: 'int', v: turn },
 								Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: phase },
@@ -2958,7 +2958,7 @@ describe('hold-decide-forward', () => {
 						// No `newObjects` entry: OPENING already created the Game object, and
 						// a replace there would clear every OTHER fact it carries.
 						newObjects: {},
-						objectDeltas: { [String(deltaKeyOf(TYPE.game, 1))]: { _type: TYPE.game, _id: 1, Turn: { t: 'int', v: turn } } },
+						objectDeltas: { [String(deltaKeyOf(DELTA_TYPE.game, 1))]: { _type: DELTA_TYPE.game, _id: 1, Turn: { t: 'int', v: turn } } },
 						events: [],
 					},
 				},

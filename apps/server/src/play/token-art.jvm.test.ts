@@ -18,8 +18,9 @@ import { readFileSync } from 'node:fs';
 import { artIdIndexFromTable, tokenArtId, type ArtIdTableFile } from '@hadoku/carddata/art';
 import { describe, expect, it } from 'vitest';
 
+import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
+
 import { available, castNamed, deck, finishMulligan, inOwnMain, startScenario, waitUntil } from './scenario.js';
-import { keyOf, TYPE } from './visibility.js';
 
 const title = available.ok
 	? 'token-art: a token arrives with its own tokenscript in its image key, against real Forge'
@@ -75,9 +76,9 @@ describe.skipIf(!available.ok)(title, () => {
 					const state = s.state(seat);
 					const str = (o: unknown): string | undefined => (o as { v?: string } | undefined)?.v;
 					const faces = ids.map((id) => {
-						const view = state.get(keyOf(TYPE.card, id));
+						const view = state.get(deltaKey(DELTA_TYPE.card, id));
 						const current = view?.CurrentState as { v?: number } | undefined;
-						const face = state.get(keyOf(TYPE.cardState, id * 16 + (current?.v ?? 0)));
+						const face = state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + (current?.v ?? 0)));
 						const imageKey = str(face?.ImageKey) ?? '';
 						return { imageKey, setCode: str(face?.SetCode) ?? '', art: tokenArtId(ART_IDS, imageKey) };
 					});

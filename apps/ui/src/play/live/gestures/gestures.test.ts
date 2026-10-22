@@ -250,7 +250,7 @@ const highlightPlayers = (ids: number[], on: boolean) =>
     on,
   });
 
-/** The Game object's wire key: `(_type << 28) | _id`, and `WireType.Game` is 3. */
+/** The Game object's wire key: `(_type << 28) | _id`, and `DELTA_TYPE.game` is 3. */
 const GAME_KEY = String((3 << 28) | 1);
 
 let seq = 27;

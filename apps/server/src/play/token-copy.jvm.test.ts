@@ -20,8 +20,9 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
+
 import { available, deck, finishMulligan, inOwnMain, startScenario, waitUntil, type Scenario } from './scenario.js';
-import { keyOf, TYPE } from './visibility.js';
 
 const title = available.ok
 	? 'token-copy: a token copy of a card is named a token printed as that card, against real Forge'
@@ -71,9 +72,9 @@ const line = (t: CardType | undefined): string | undefined => (t === undefined ?
 /** What `seat` holds of card `id` on the wire: its `Token` flag and its current face's `Type`. */
 function wireCard(s: Scenario, seat: number, id: number): { token: boolean; type: string | undefined } {
 	const state = s.state(seat);
-	const view = state.get(keyOf(TYPE.card, id));
+	const view = state.get(deltaKey(DELTA_TYPE.card, id));
 	const current = view?.CurrentState as { v?: number } | undefined;
-	const face = state.get(keyOf(TYPE.cardState, id * 16 + (current?.v ?? 0)));
+	const face = state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + (current?.v ?? 0)));
 	return { token: (view?.Token as { v?: boolean } | undefined)?.v === true, type: line(face?.Type as CardType | undefined) };
 }
 

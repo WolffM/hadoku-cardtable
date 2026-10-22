@@ -13,12 +13,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ClientFrame } from '@hadoku/forge-wire';
 import type { MatchReport } from '@wolffm/prefs-client/games';
 
+import { DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
+
 import { loadTablesLibrary } from '../http/library.js';
 import { identityFromHeaders } from '../room/identity.js';
 import type { BridgeLine } from '../play/host.js';
 import { createMatchRegistry, type Match } from '../play/match.js';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';
-import { TYPE, keyOf } from '../play/visibility.js';
 import { matchFacts } from './facts.js';
 import { createKeyBook, createMatchStats, createStatsReporter, summarizeDeck, type MatchStart } from './index.js';
 import { buildMatchReport } from './report.js';
@@ -65,7 +66,7 @@ function delta(objectDeltas: Record<string, Record<string, unknown>>, newObjects
 }
 
 const int = (v: number) => ({ t: 'int', v });
-const player = (id: number, props: Record<string, unknown>) => ({ [keyOf(TYPE.player, id)]: { _type: TYPE.player, _id: id, ...props } });
+const player = (id: number, props: Record<string, unknown>) => ({ [deltaKey(DELTA_TYPE.player, id)]: { _type: DELTA_TYPE.player, _id: id, ...props } });
 
 /** Turn 1 is seat 1's (the transcript's own `PlayerTurn`). Seat 0 casts a spell, draws twice; seat 1 takes 20. */
 function playOut(h: Harness): void {
@@ -73,7 +74,7 @@ function playOut(h: Harness): void {
 		...delta(player(0, { NumDrawnThisTurn: int(1) })),
 		...delta(player(0, { NumDrawnThisTurn: int(2), NumLandThisTurn: int(1) })),
 		...delta({}, {
-			[keyOf(TYPE.stackItem, 7001)]: { _type: TYPE.stackItem, _id: 7001, ActivatingPlayer: int(0), Ability: { t: 'bool', v: false } },
+			[deltaKey(DELTA_TYPE.stackItem, 7001)]: { _type: DELTA_TYPE.stackItem, _id: 7001, ActivatingPlayer: int(0), Ability: { t: 'bool', v: false } },
 		}),
 		...delta(player(1, { Life: int(3) })),
 		...delta(player(1, { Life: int(5) })),

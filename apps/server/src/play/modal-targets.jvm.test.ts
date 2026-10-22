@@ -16,8 +16,10 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, idsOf, inOwnMain, landPayer, scenarioText, startScenario, strOf, waitUntil, type Scenario } from './scenario.js';
-import { TYPE, type WireObj } from './visibility.js';
+import { DELTA_TYPE, idsOf, strOf } from '@hadoku/forge-wire';
+
+import { available, deck, finishMulligan, inOwnMain, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { type WireObj } from './visibility.js';
 
 const title = available.ok ? 'a modal spell’s targets reach the wire, against real Forge' : `a modal spell’s targets, against real Forge — SKIPPED: ${available.reason}`;
 
@@ -25,7 +27,7 @@ const DECKS: [string, string] = [deck('Any A', ['40 Mountain']), deck('Any B', [
 
 /** The stack item `id` and every sub-instance under it, in chain order. */
 function chainOf(state: Map<string, WireObj>, id: number): WireObj[] {
-	const byId = new Map([...state.values()].filter((o) => o._type === TYPE.stackItem).map((o) => [o._id, o]));
+	const byId = new Map([...state.values()].filter((o) => o._type === DELTA_TYPE.stackItem).map((o) => [o._id, o]));
 	const out: WireObj[] = [];
 	for (let at = byId.get(id); at !== undefined && !out.includes(at); ) {
 		out.push(at);
@@ -36,7 +38,7 @@ function chainOf(state: Map<string, WireObj>, id: number): WireObj[] {
 }
 
 function stackOf(s: Scenario, seat: number): number[] {
-	const game = [...s.state(seat).values()].find((o) => o._type === TYPE.game);
+	const game = [...s.state(seat).values()].find((o) => o._type === DELTA_TYPE.game);
 	return idsOf(game, 'Stack');
 }
 

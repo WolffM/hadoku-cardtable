@@ -173,9 +173,20 @@ import type { FacePart, TileCard } from '../components/faceCrop.ts';
 
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import poolData from '../draft/pool.json' with { type: 'json' };
-import type { PendingTriggers, WaitingEffects } from '@hadoku/forge-wire';
+import {
+  boolOf,
+  cardStateKey,
+  currentFace,
+  DELTA_TYPE,
+  deltaKey,
+  enumOf,
+  idsOf,
+  strOf,
+  type PendingTriggers,
+  type WaitingEffects,
+} from '@hadoku/forge-wire';
 import type { PrintedCard, WireState } from './fold.ts';
-import { cardStateKey, deltaKey, prop, readBool, readEnum, readInt, readStr, WireType, type Tagged, type WireObject } from './wire.ts';
+import { prop, readInt, type Tagged, type WireObject } from './wire.ts';
 
 /** One effect a permanent's resolved ability left waiting — {@link BoardCard.waiting}. */
 export interface BoardCardWaiting {
@@ -591,8 +602,8 @@ const EMBLEM_NAME = /^Emblem\s*[—–-]\s*/;
 /** The emblems in a player's `Command` zone — a commander or a non-emblem effect card there is not one. */
 function readEmblems(state: WireState, player: WireObject | undefined, artIds: ArtIdIndex, printedPT: PrintedPTIndex): BoardEmblem[] {
   const out: BoardEmblem[] = [];
-  for (const id of readIds(player, 'Command')) {
-    if (!readBool(state.get(deltaKey(WireType.Card, id)), 'IsEmblem')) continue;
+  for (const id of idsOf(player, 'Command')) {
+    if (!boolOf(state.get(deltaKey(DELTA_TYPE.card, id)), 'IsEmblem')) continue;
     const c = toBoardCard(state, id, artIds, printedPT);
     if (c === null || c.hidden === true) continue;
     const source = c.card.name.replace(EMBLEM_NAME, '');
@@ -999,18 +1010,6 @@ function readManaPool(obj: WireObject | undefined, name: string): ManaInPool[] {
   return POOL_COLORS.filter((c) => counts.has(c)).map((c) => ({ color: c, count: counts.get(c)! }));
 }
 
-/** A `list` of `int` — how every collection of entities crosses the wire. */
-function readIds(obj: WireObject | undefined, name: string): number[] {
-  const v = prop(obj, name);
-  if (v === undefined || (v.t !== 'list' && v.t !== 'set') || !Array.isArray(v.v)) return [];
-  const ids: number[] = [];
-  for (const item of v.v as Tagged[]) {
-    // Forge skips -1 when it resolves a collection (`resolveFromNetwork`).
-    if (item.t === 'int' && typeof item.v === 'number' && item.v !== -1) ids.push(item.v);
-  }
-  return ids;
-}
-
 /**
  * A stack item and every `SubInstance` under it, in chain order. A charm's or a Command's chosen
  * modes, and any "…, then" clause, are sub-abilities: the item Forge publishes keeps only the
@@ -1022,7 +1021,7 @@ function subInstanceChain(state: WireState, item: WireObject | undefined): WireO
   const chain: WireObject[] = [];
   for (let at = item; at !== undefined && !chain.includes(at); ) {
     chain.push(at);
-    at = prop(at, 'SubInstance') === undefined ? undefined : state.get(deltaKey(WireType.StackItem, readInt(at, 'SubInstance')));
+    at = prop(at, 'SubInstance') === undefined ? undefined : state.get(deltaKey(DELTA_TYPE.stackItem, readInt(at, 'SubInstance')));
   }
   return chain;
 }
@@ -1287,7 +1286,7 @@ export const HIDDEN_CARD_NAME = 'Hidden card';
  * hand — and an id it was never sent anything for is the same case.
  */
 function wireName(view: WireObject | undefined, face: WireObject | undefined): string | null {
-  const name = readStr(face, 'Name') ?? readStr(view, 'Name');
+  const name = strOf(face, 'Name') ?? strOf(view, 'Name');
   return name === null || name.trim() === '' ? null : name;
 }
 
@@ -1301,11 +1300,11 @@ function wireName(view: WireObject | undefined, face: WireObject | undefined): s
  */
 /** A player's name as Forge's own `PlayerView` has it, for a reader with no seat names to hand. */
 function wirePlayerName(state: WireState, pid: number): string {
-  return readStr(state.get(deltaKey(WireType.Player, pid)), 'Name') ?? `player ${pid}`;
+  return strOf(state.get(deltaKey(DELTA_TYPE.player, pid)), 'Name') ?? `player ${pid}`;
 }
 
 function nameOfCard(state: WireState, id: number): string {
-  const view = state.get(deltaKey(WireType.Card, id));
+  const view = state.get(deltaKey(DELTA_TYPE.card, id));
   return wireName(view, view === undefined ? undefined : shownFace(state, id, view, false)) ?? HIDDEN_CARD_NAME;
 }
 
@@ -1318,8 +1317,8 @@ function nameOfCard(state: WireState, id: number): string {
  * the face-down face is what is in play (a morph's 2/2), so it stays.
  */
 function shownFace(state: WireState, id: number, view: WireObject, onBattlefield: boolean): WireObject | undefined {
-  const current = state.get(cardStateKey(id, readInt(view, 'CurrentState', 0)));
-  if (onBattlefield || !readBool(view, 'Facedown') || wireName(view, current) !== null) return current;
+  const current = currentFace(state, id);
+  if (onBattlefield || !boolOf(view, 'Facedown') || wireName(view, current) !== null) return current;
   return state.get(cardStateKey(id, 0)) ?? current;
 }
 
@@ -1335,7 +1334,7 @@ function readRelations(state: WireState, view: WireObject | undefined): BoardCar
     const relIds = single === true ? ((): number[] => {
       const one = readEntityId(view, key);
       return one === null ? [] : [one];
-    })() : readIds(view, key);
+    })() : idsOf(view, key);
     if (relIds.length === 0) continue;
     out.push({ kind, ids: relIds, names: relIds.map((relId) => nameOfCard(state, relId)) });
   }
@@ -1429,17 +1428,17 @@ function readChoices(state: WireState, view: WireObject | undefined, playerName:
     const raw = ((): string[] => {
       switch (read) {
         case 'str':
-          return [readStr(view, key) ?? ''];
+          return [strOf(view, key) ?? ''];
         case 'strs':
           return readStrs(view, key);
         case 'enum':
-          return [readEnum(view, key) ?? ''];
+          return [enumOf(view, key) ?? ''];
         case 'player': {
           const pid = readEntityId(view, key);
           return pid === null ? [] : [playerName(pid)];
         }
         case 'cards':
-          return readIds(view, key).map((cid) => nameOfCard(state, cid));
+          return idsOf(view, key).map((cid) => nameOfCard(state, cid));
       }
     })();
     const values = raw.map((v) => v.trim()).filter((v) => v !== '');
@@ -1462,7 +1461,7 @@ function readChoices(state: WireState, view: WireObject | undefined, playerName:
  * `null` for a blank value, same as `oracleText`'s own CRLF normalisation.
  */
 function readAbilityText(face: WireObject | undefined): string | null {
-  const raw = readStr(face, 'AbilityText');
+  const raw = strOf(face, 'AbilityText');
   if (raw === null) return null;
   const text = raw.replace(/<[^>]*>/g, '').replace(/\r\n?/g, '\n').trim();
   return text === '' ? null : text;
@@ -1482,22 +1481,22 @@ function faceCard(id: number, face: WireObject | undefined, name: string, artIds
     name,
     manaCost: tokens,
     manaValue,
-    colors: colorsOf(readEnum(face, 'Colors')),
+    colors: colorsOf(enumOf(face, 'Colors')),
     typeLine: typeLineOf(type),
     // Forge writes CRLF; CardTile splits on LF and drops empty lines.
-    oracleText: (readStr(face, 'OracleText') ?? '').replace(/\r\n?/g, '\n'),
-    setCode: readStr(face, 'SetCode') ?? '',
+    oracleText: (strOf(face, 'OracleText') ?? '').replace(/\r\n?/g, '\n'),
+    setCode: strOf(face, 'SetCode') ?? '',
     collectorNumber: '',
-    rarity: RARITY[readEnum(face, 'Rarity') ?? ''] ?? 'special',
+    rarity: RARITY[enumOf(face, 'Rarity') ?? ''] ?? 'special',
   };
   // A token by its tokenscript first: its name may be shared by printings of other tokens.
-  const scryfallId = hidden ? undefined : (tokenArtId(artIds, readStr(face, 'ImageKey')) ?? scryfallIdFor(artIds, name, card.setCode));
+  const scryfallId = hidden ? undefined : (tokenArtId(artIds, strOf(face, 'ImageKey')) ?? scryfallIdFor(artIds, name, card.setCode));
   if (scryfallId !== undefined) card.scryfallId = scryfallId;
   if (core.includes('Creature')) {
     card.power = String(readInt(face, 'Power'));
     card.toughness = String(readInt(face, 'Toughness'));
   }
-  if (core.includes('Planeswalker')) card.loyalty = readStr(face, 'Loyalty') ?? '0';
+  if (core.includes('Planeswalker')) card.loyalty = strOf(face, 'Loyalty') ?? '0';
   return card;
 }
 
@@ -1535,14 +1534,14 @@ function facePartOf(state: WireState, id: number, view: WireObject, v: number): 
  * it; any other face without art of its own is drawn with the card's.
  */
 function otherFaces(state: WireState, id: number, view: WireObject, shown: DraftCard, artIds: ArtIdIndex): TileCard[] {
-  if (readBool(view, 'Facedown')) return [];
+  if (boolOf(view, 'Facedown')) return [];
   const out: TileCard[] = [];
   const seen = new Set([shown.name]);
   for (const key of OTHER_FACE_STATES) {
     const v = readInt(view, key, -1);
     if (v < 0) continue;
     const face = state.get(cardStateKey(id, v));
-    const name = readStr(face, 'Name');
+    const name = strOf(face, 'Name');
     if (name === null || name.trim() === '' || seen.has(name)) continue;
     seen.add(name);
     const card = faceCard(id, face, name, artIds, false);
@@ -1563,9 +1562,9 @@ function otherFaces(state: WireState, id: number, view: WireObject, shown: Draft
  * (`prompts/lookup.ts`'s `faces`). Empty for a card this seat was sent nothing for.
  */
 export function cardFaces(state: WireState, id: number, artIds: ArtIdIndex = KNOWN_ART_IDS): TileCard[] {
-  const view = state.get(deltaKey(WireType.Card, id));
+  const view = state.get(deltaKey(DELTA_TYPE.card, id));
   if (view === undefined) return [];
-  const { doors, face, name } = drawnFace(state, id, view, readEnum(view, 'Zone') === 'Battlefield');
+  const { doors, face, name } = drawnFace(state, id, view, enumOf(view, 'Zone') === 'Battlefield');
   if (name === null) return [];
   const shown = faceCard(id, face, name, artIds, false);
   return [shown, ...withDoors(otherFaces(state, id, view, shown, artIds), doors)];
@@ -1596,7 +1595,7 @@ function toBoardCard(
   printedCard?: PrintedCard,
   playerName: (pid: number) => string = (pid) => wirePlayerName(state, pid),
 ): BoardCard | null {
-  const view = state.get(deltaKey(WireType.Card, id));
+  const view = state.get(deltaKey(DELTA_TYPE.card, id));
   if (view === undefined) return null;
   const { doors, face, name: known } = drawnFace(state, id, view, onBattlefield);
   const hidden = known === null;
@@ -1613,10 +1612,10 @@ function toBoardCard(
   const keywords = readKeywords(face);
   // Forge sets `Sickness` on cards in every zone; it only means something on
   // a creature on the battlefield, so it is only reported there.
-  const arrivedThisTurn = onBattlefield && core.includes('Creature') && readBool(view, 'Sickness');
+  const arrivedThisTurn = onBattlefield && core.includes('Creature') && boolOf(view, 'Sickness');
   const printedBase = core.includes('Creature') ? printedPT.get(name.trim().toLowerCase()) : undefined;
   // Forge names a battlefield permanent's printed card only when its type line or token-ness differs from the current one.
-  const token = readBool(view, 'Token');
+  const token = boolOf(view, 'Token');
   const currentLine = tokenLine(token, card.typeLine);
   const printedLine = printedCard !== undefined ? tokenLine(printedCard.token, typeLineOf(printedCard.type)) : undefined;
   const changedFrom = printedLine !== undefined && printedLine !== currentLine ? { name, printed: printedLine, current: currentLine } : null;
@@ -1629,19 +1628,19 @@ function toBoardCard(
     id,
     card,
     hidden,
-    tapped: readBool(view, 'Tapped'),
+    tapped: boolOf(view, 'Tapped'),
     // #17: a hasty creature CAN act, so it is not summoning sick — whatever
     // Forge's `Sickness` says about when it arrived.
     summoningSick: arrivedThisTurn && !hasKeyword(keywords, 'haste'),
     arrivedThisTurn,
     keywords,
     damage: readInt(view, 'Damage'),
-    attachedCardIds: readIds(view, 'AttachedCards'),
+    attachedCardIds: idsOf(view, 'AttachedCards'),
     attachedToId: readEntityId(view, 'EntityAttachedTo'),
     printed: printedBase ?? null,
     counters: counters.filter((c) => c.name !== 'Loyalty' || !core.includes('Planeswalker')),
-    attacking: readBool(view, 'Attacking'),
-    blocking: readBool(view, 'Blocking'),
+    attacking: boolOf(view, 'Attacking'),
+    blocking: boolOf(view, 'Blocking'),
     token,
     changedFrom,
     choices,
@@ -1673,7 +1672,7 @@ const ORIGINAL_STATE = 0;
  * a Room, or one whose halves this seat was not sent.
  */
 function readDoors(state: WireState, id: number, view: WireObject): [BoardDoor, BoardDoor] | null {
-  if (!readBool(view, 'Room')) return null;
+  if (!boolOf(view, 'Room')) return null;
   const current = readInt(view, 'CurrentState', ORIGINAL_STATE);
   const door = (key: 'LeftSplitState' | 'RightSplitState'): BoardDoor | null => {
     const ordinal = readInt(view, key, -1);
@@ -1721,12 +1720,12 @@ export const PHASE_LABEL: Readonly<Record<string, string>> = {
  * knows it. A name alone is not enough — Forge's raw stream names every hand card to everybody.
  */
 function shownTo(state: WireState, id: number, viewer: number): boolean {
-  return readIds(state.get(deltaKey(WireType.Card, id)), 'PlayerMayLook').includes(viewer);
+  return idsOf(state.get(deltaKey(DELTA_TYPE.card, id)), 'PlayerMayLook').includes(viewer);
 }
 
 /** `card`, marked {@link BoardCard.seenByOpponent} when its `PlayerMayLook` names anyone but `viewer`. */
 function seenByOthers(state: WireState, card: BoardCard, viewer: number): BoardCard {
-  const seen = readIds(state.get(deltaKey(WireType.Card, card.id)), 'PlayerMayLook').some((p) => p !== viewer);
+  const seen = idsOf(state.get(deltaKey(DELTA_TYPE.card, card.id)), 'PlayerMayLook').some((p) => p !== viewer);
   return seen ? { ...card, seenByOpponent: true } : card;
 }
 
@@ -1760,7 +1759,7 @@ function knownTop(
   for (const id of libraryIds) {
     const card = promptCards.has(id) ? null : known(toBoardCard(state, id, artIds, printedPT));
     if (card === null) break;
-    const look = readIds(state.get(deltaKey(WireType.Card, id)), 'PlayerMayLook');
+    const look = idsOf(state.get(deltaKey(DELTA_TYPE.card, id)), 'PlayerMayLook');
     out.push(look.length > 0 && look.every((p) => p === viewer) ? { ...card, onlyViewer: true } : card);
   }
   return out.length === libraryIds.length && out.length > 1 ? [] : out;
@@ -1794,7 +1793,7 @@ export function toBoardView(
     promptCards = new Set(),
   }: AdaptOptions,
 ): BoardView {
-  const game = [...state.values()].find((o) => o._type === WireType.Game);
+  const game = [...state.values()].find((o) => o._type === DELTA_TYPE.game);
   const missing: number[] = [];
   /** The seat's own name when the room gave one (defensive: only a non-blank string wins), else Forge's. */
   const playerName = (pid: number): string => {
@@ -1829,12 +1828,12 @@ export function toBoardView(
   };
 
   const activePlayerId = prop(game, 'PlayerTurn') !== undefined ? readInt(game, 'PlayerTurn') : null;
-  const playerIds = readIds(game, 'Players');
+  const playerIds = idsOf(game, 'Players');
   const players: BoardPlayer[] = playerIds.map((pid) => {
-    const p = state.get(deltaKey(WireType.Player, pid));
+    const p = state.get(deltaKey(DELTA_TYPE.player, pid));
     const isViewer = pid === viewerPlayerId;
-    const handIds = readIds(p, 'Hand');
-    const libraryIds = readIds(p, 'Library');
+    const handIds = idsOf(p, 'Hand');
+    const libraryIds = idsOf(p, 'Library');
     const top = knownTop(state, libraryIds, artIds, printedPT, promptCards, viewerPlayerId);
     const shown = isViewer ? [] : handIds.map((id) => shownTo(state, id, viewerPlayerId) ? known(toBoardCard(state, id, artIds, printedPT, false, undefined, playerName)) : null);
     // The viewer holds a seat whether or not the roster has named its player yet.
@@ -1851,23 +1850,23 @@ export function toBoardView(
       life: readInt(p, 'Life') - (lifePaying?.get(pid) ?? 0),
       isViewer,
       isActive,
-      hasPriority: readBool(p, 'HasPriority'),
-      hasLost: readBool(p, 'HasLost'),
+      hasPriority: boolOf(p, 'HasPriority'),
+      hasLost: boolOf(p, 'HasLost'),
       hand,
       ...(shown.some((c) => c !== null) ? { handShown: shown } : {}),
       handCount: handIds.length,
       libraryCount: libraryIds.length,
       libraryIds,
       ...(top.length === 0 ? {} : { libraryTop: isViewer ? top.map((c) => seenByOthers(state, c, viewerPlayerId)) : top }),
-      battlefield: cardsIn(readIds(p, 'Battlefield'), true),
-      graveyard: cardsIn(readIds(p, 'Graveyard')),
-      exile: cardsIn(readIds(p, 'Exile')),
+      battlefield: cardsIn(idsOf(p, 'Battlefield'), true),
+      graveyard: cardsIn(idsOf(p, 'Graveyard')),
+      exile: cardsIn(idsOf(p, 'Exile')),
       manaPool: readManaPool(p, 'Mana'),
       counters: countersOf(p),
       ...(emblems.length === 0 ? {} : { emblems }),
       ...(holdsStorm ? { storm: prop(game, 'StormCount') === undefined ? 0 : readInt(game, 'StormCount') } : {}),
       ...(extraTurns > 0 ? { extraTurns } : {}),
-      ...(isActive && readBool(p, 'IsExtraTurn') ? { extraTurn: true as const } : {}),
+      ...(isActive && boolOf(p, 'IsExtraTurn') ? { extraTurn: true as const } : {}),
       // The key must be ABSENT for a seat with none — never `avatarId:
       // undefined` — so an in-process `'avatarId' in player` reader and a JSON
       // reader agree (`D-avatar-field.md` §3).
@@ -1877,7 +1876,7 @@ export function toBoardView(
   players.sort((a, b) => Number(b.isViewer) - Number(a.isViewer));
 
   const nameOfPlayer = (pid: number): string | null =>
-    readStr(state.get(deltaKey(WireType.Player, pid)), 'Name');
+    strOf(state.get(deltaKey(DELTA_TYPE.player, pid)), 'Name');
 
   // T8: the stack's one line names a target by the same seat-identity-aware
   // name the board draws everywhere else, not Forge's raw `PlayerView.Name`.
@@ -1885,27 +1884,27 @@ export function toBoardView(
 
   const inAZone = new Set(
     playerIds.flatMap((pid) => {
-      const p = state.get(deltaKey(WireType.Player, pid));
-      return ZONE_LISTS.flatMap((zone) => readIds(p, zone));
+      const p = state.get(deltaKey(DELTA_TYPE.player, pid));
+      return ZONE_LISTS.flatMap((zone) => idsOf(p, zone));
     }),
   );
-  const stack: StackEntry[] = readIds(game, 'Stack').flatMap((sid) => {
-    const item = state.get(deltaKey(WireType.StackItem, sid));
+  const stack: StackEntry[] = idsOf(game, 'Stack').flatMap((sid) => {
+    const item = state.get(deltaKey(DELTA_TYPE.stackItem, sid));
     const sourceCardId = prop(item, 'SourceCard') !== undefined ? readInt(item, 'SourceCard') : null;
-    const isAbility = readBool(item, 'Ability');
+    const isAbility = boolOf(item, 'Ability');
     if (!isAbility && sourceCardId !== null && inAZone.has(sourceCardId)) return [];
     const source = sourceCardId !== null ? toBoardCard(state, sourceCardId, artIds, printedPT) : null;
     const activator = prop(item, 'ActivatingPlayer') !== undefined ? readInt(item, 'ActivatingPlayer') : null;
     const chain = subInstanceChain(state, item);
-    const targetCardIds = [...new Set(chain.flatMap((o) => readIds(o, 'TargetCards')))];
-    const targetPlayerIds = [...new Set(chain.flatMap((o) => readIds(o, 'TargetPlayers')))];
+    const targetCardIds = [...new Set(chain.flatMap((o) => idsOf(o, 'TargetCards')))];
+    const targetPlayerIds = [...new Set(chain.flatMap((o) => idsOf(o, 'TargetPlayers')))];
     // T8: resolved NAMES, never ids — a card by the same resolver every other
     // card on the board goes through, a player by the board's own name.
     const targetNames = [
       ...targetCardIds.map((tid) => nameOfCard(state, tid)),
       ...targetPlayerIds.map((pid) => playerNameById.get(pid) ?? `player ${pid}`),
     ];
-    const description = readStr(item, 'Description') ?? readStr(item, 'Key') ?? `stack item ${sid}`;
+    const description = strOf(item, 'Description') ?? strOf(item, 'Key') ?? `stack item ${sid}`;
     return [{
       id: sid,
       description,
@@ -1913,7 +1912,7 @@ export function toBoardView(
       sourceName: source?.card.name ?? null,
       sourceCard: source?.card ?? null,
       sourceHidden: source?.hidden === true,
-      abilityText: abilityTextOf(readStr(item, 'Key'), description, source?.card.name ?? null),
+      abilityText: abilityTextOf(strOf(item, 'Key'), description, source?.card.name ?? null),
       controllerName: activator === null ? null : nameOfPlayer(activator),
       isAbility,
       targetCardIds,
@@ -1945,11 +1944,11 @@ export function toBoardView(
     };
   });
 
-  const phase = readEnum(game, 'Phase');
+  const phase = enumOf(game, 'Phase');
   return {
     combat: readCombat(game),
     seq,
-    title: readStr(game, 'Title') ?? '',
+    title: strOf(game, 'Title') ?? '',
     turn: readInt(game, 'Turn'),
     phase,
     phaseLabel: phase === null ? 'Not started' : (PHASE_LABEL[phase] ?? phase),
@@ -1957,7 +1956,7 @@ export function toBoardView(
     players,
     stack,
     pendingTriggers: waiting,
-    gameOver: readBool(game, 'GameOver'),
+    gameOver: boolOf(game, 'GameOver'),
     missingCardIds: missing,
     ...(hits === undefined || hits.length === 0 ? {} : { hits }),
     ...(faceHits === undefined || faceHits.length === 0 ? {} : { faceHits }),

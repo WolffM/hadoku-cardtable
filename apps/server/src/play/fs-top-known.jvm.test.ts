@@ -12,9 +12,11 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { DELTA_TYPE, deltaKey, idsOf } from '@hadoku/forge-wire';
+
 import { identifyingStrings } from './fixtures/transcript.js';
-import { available, deck, finishMulligan, idsOf, inOwnMain, passUntil, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
-import { TYPE, foldFrames, keyOf, type StateFrame, type WireObj } from './visibility.js';
+import { available, deck, finishMulligan, inOwnMain, passUntil, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 
 const title = available.ok
 	? 'a looked-at library top stays known to the seat that looked, against real Forge'
@@ -38,7 +40,7 @@ function statesAfter(s: Scenario, seat: number, from: number): { at: number; sta
 
 /** `holder`'s library top first as `state` holds it: each id with the name the seat holds for it, if any. */
 function topOf(state: ReadonlyMap<string, WireObj>, holder: number, n: number): string[] {
-	return idsOf(state.get(keyOf(TYPE.player, holder)), 'Library')
+	return idsOf(state.get(deltaKey(DELTA_TYPE.player, holder)), 'Library')
 		.slice(0, n)
 		.map((id) => `${id}:${identifyingStrings(state, id)[0] ?? '?'}`);
 }
@@ -68,7 +70,7 @@ describe.skipIf(!available.ok)(title, () => {
 				await finishMulligan(s);
 				await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, 'seat 0 to hold priority at its own turn-1 main phase', 20_000, s);
 				const bob = s.match.seats[1]?.playerId as number;
-				const library = (): number[] => idsOf(s.state(1).get(keyOf(TYPE.player, bob)), 'Library');
+				const library = (): number[] => idsOf(s.state(1).get(deltaKey(DELTA_TYPE.player, bob)), 'Library');
 				const [bolt] = library() as [number];
 				const jace = s.zone(0, 'Battlefield').find((c) => c.name === 'Jace, the Mind Sculptor')!;
 				const mark = s.sent.length;
@@ -92,11 +94,11 @@ describe.skipIf(!available.ok)(title, () => {
 				);
 				expect(library()[0], 'Lightning Bolt is still on top of bob\'s library').toBe(bolt);
 				const resolved = s.sent.length;
-				await passUntil(s, () => s.zone(1, 'Hand').length > 0 || idsOf(s.state(1).get(keyOf(TYPE.player, bob)), 'Hand').length > 0, "bob's turn-2 draw");
+				await passUntil(s, () => s.zone(1, 'Hand').length > 0 || idsOf(s.state(1).get(deltaKey(DELTA_TYPE.player, bob)), 'Hand').length > 0, "bob's turn-2 draw");
 
 				const states = statesAfter(s, 0, resolved);
 				for (const { at, state } of statesAfter(s, 0, mark)) console.log(`[fs-fate-seal] seat0 #${at} ${s.sent[at]?.envelope.frame.method} bob top ${JSON.stringify(topOf(state, bob, 2))}`);
-				const drawnAt = states.findIndex(({ state }) => !idsOf(state.get(keyOf(TYPE.player, bob)), 'Library').includes(bolt));
+				const drawnAt = states.findIndex(({ state }) => !idsOf(state.get(deltaKey(DELTA_TYPE.player, bob)), 'Library').includes(bolt));
 				const onTop = states.slice(0, drawnAt < 0 ? states.length : drawnAt);
 				const forgot = onTop.filter(({ state }) => !identifyingStrings(state, bolt).includes('Lightning Bolt')).map(({ at }) => at);
 				console.log(`[fs-fate-seal] ${onTop.length} state frames to seat 0 with the Bolt on top after the look; seat 0 lacks its name in ${JSON.stringify(forgot)}`);
@@ -104,7 +106,7 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(forgot, "seat 0 names bob's kept top card at every state frame while it stays on top").toEqual([]);
 				expect(sentText(s, 0, mark).includes('"Shock"'), 'Shock, never looked at, never reaches seat 0').toBe(false);
 				const seat1 = statesAfter(s, 1, mark).at(-1)!.state;
-				const told = String(seat1.get(keyOf(TYPE.card, bolt))?.PlayerMayLook ? JSON.stringify(seat1.get(keyOf(TYPE.card, bolt))?.PlayerMayLook) : 'none');
+				const told = String(seat1.get(deltaKey(DELTA_TYPE.card, bolt))?.PlayerMayLook ? JSON.stringify(seat1.get(deltaKey(DELTA_TYPE.card, bolt))?.PlayerMayLook) : 'none');
 				console.log(`[fs-fate-seal] seat 1's own Bolt PlayerMayLook: ${told}`);
 			} finally {
 				await s.stop();
@@ -123,7 +125,7 @@ describe.skipIf(!available.ok)(title, () => {
 				await waitUntil(() => { s.answerAsks(); return inOwnMain(s, 0, 1); }, 'seat 0 to hold priority at its own turn-1 main phase', 20_000, s);
 				const alice = s.match.seats[0]?.playerId as number;
 				const visions = s.zone(0, 'Hand').find((c) => c.name === 'Serum Visions')!;
-				const library = (): number[] => idsOf(s.state(0).get(keyOf(TYPE.player, alice)), 'Library');
+				const library = (): number[] => idsOf(s.state(0).get(deltaKey(DELTA_TYPE.player, alice)), 'Library');
 				const [, bolt, shock] = library() as [number, number, number];
 				const mark = s.sent.length;
 				s.select(0, visions.id);

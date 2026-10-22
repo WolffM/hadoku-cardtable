@@ -23,11 +23,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
+import { ClientFrameSchema, type ServerFrame, deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
 import { jvmHostConfig, jvmHostFactory, liveJvmCount } from './host.js';
 import { createMatchRegistry } from './match.js';
-import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
+import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 
 const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
@@ -94,7 +94,7 @@ describe.skipIf(!available.ok)(title, () => {
 						.filter((f) => f.method === 'setGameView' || f.method === 'applyDelta' || f.method === 'openView'),
 				);
 			}
-			const playerOf = (seat: number, state = stateOf(seat)): WireObj | undefined => state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1));
+			const playerOf = (seat: number, state = stateOf(seat)): WireObj | undefined => state.get(deltaKey(DELTA_TYPE.player, match.seats[seat]!.playerId ?? -1));
 			const handOf = (seat: number): number[] => ids(playerOf(seat), 'Hand');
 			const lifeOf = (seat: number): number => ((playerOf(seat)?.Life as { v?: number } | undefined)?.v) ?? -1;
 			const gravesOf = (seat: number): number => ids(playerOf(seat), 'Graveyard').length;

@@ -35,10 +35,10 @@
  * ## Classifying an event: from the frame's own content, never its prose
  *
  * `classify` reads `frame.kind`/`frame.method` and, for `applyDelta`, the
- * packet's own objects — `WireType.Game`'s `Stack` and `Phase` properties,
- * `WireType.Player`'s `Hand` property, `WireType.Card`'s `Zone` and `Tapped`
- * (`../adapter.ts` reads the same properties off the folded state:
- * `readIds(game, 'Stack')`, `readEnum(game, 'Phase')`, `readIds(p, 'Hand')`).
+ * packet's own objects — the game's `Stack` and `Phase` properties, a
+ * player's `Hand` property, a card's `Zone` and `Tapped` (`../adapter.ts`
+ * reads the same properties off the folded state: `idsOf(game, 'Stack')`,
+ * `enumOf(game, 'Phase')`, `idsOf(p, 'Hand')`).
  * Never a regex over `showPromptMessage`'s
  * text — the wave's own rule (§0b, carried from wave 24) and `./match.ts`'s
  * module header both forbid it, and a wire property that is already folded
@@ -142,6 +142,7 @@
  * bug. Holding a stale delta an extra few hundred ms is slower, not wrong.
  */
 
+import { DELTA_TYPE } from '@hadoku/forge-wire';
 import { CLIENT_EVENT, type ClientEvent } from '@hadoku/shared';
 
 import { whenBoardStill } from '../motion.ts';
@@ -250,12 +251,6 @@ const INPUT_NOTIFY_METHODS: ReadonlySet<string> = new Set([
   'clearWeaklySelectable',
 ]);
 
-/** `WireType.*`, `../wire.ts` — copied as bare numbers rather than imported, for the same reason: this file reads the wire, it does not fold it. */
-const WIRE_TYPE_CARD = 0;
-const WIRE_TYPE_PLAYER = 1;
-const WIRE_TYPE_STACK_ITEM = 2;
-const WIRE_TYPE_GAME = 3;
-
 /**
  * Properties nothing on the board reads. Forge flips `MindSlaveMaster` on the caster twice in every
  * cast (measured: alone in a frame at the cast's start and again at its payment), and each such
@@ -304,10 +299,10 @@ export function ownAct(payload: unknown, acts: ActMemory, viewer: number | null)
     const objects = packetObjects(typeof packetPayload === 'object' && packetPayload !== null ? (packetPayload as Record<string, unknown>).packet : undefined);
     for (const { obj } of objects) {
       const activator = tagged(obj, 'ActivatingPlayer');
-      if (obj._type === WIRE_TYPE_STACK_ITEM && typeof obj._id === 'number' && typeof activator === 'number') acts.activators.set(obj._id, activator);
+      if (obj._type === DELTA_TYPE.stackItem && typeof obj._id === 'number' && typeof activator === 'number') acts.activators.set(obj._id, activator);
     }
     for (const { obj } of objects) {
-      if (obj._type !== WIRE_TYPE_GAME) continue;
+      if (obj._type !== DELTA_TYPE.game) continue;
       if ('Stack' in obj) {
         const list = tagged(obj, 'Stack');
         const ids = Array.isArray(list) ? list.flatMap((item) => (typeof (item as { v?: unknown } | null)?.v === 'number' ? [(item as { v: number }).v] : [])) : [];
@@ -393,20 +388,20 @@ export function classify(payload: unknown, memory: PaceMemory = { stackDepth: nu
   for (const { obj, isNew } of objects) {
     const type = obj._type;
     if (Object.keys(obj).some((k) => k !== '_type' && k !== '_id' && !UNDRAWN_PROPERTIES.has(k))) drawn = true;
-    if (type === WIRE_TYPE_GAME) {
+    if (type === DELTA_TYPE.game) {
       const list = tagged(obj, 'Stack');
       if (Array.isArray(list)) stack = list.length;
       else if ('Stack' in obj) stack = 0;
       if ('Phase' in obj) sawPhase = true;
       if ('Turn' in obj || 'PlayerTurn' in obj) newTurn = true;
-    } else if (type === WIRE_TYPE_STACK_ITEM) {
+    } else if (type === DELTA_TYPE.stackItem) {
       if (isNew) newStackItem = true;
-    } else if (type === WIRE_TYPE_PLAYER) {
+    } else if (type === DELTA_TYPE.player) {
       // A hand that changed with no card arriving in it: a card left it — cast, played or discarded. A mana
       // pool changing is a cost being paid: the sacrifice after Thopter Foundry's {1} waited a `default` gap on it.
       if ('Hand' in obj || 'Mana' in obj) castPiece = true;
       if ('Life' in obj) hit = true;
-    } else if (type === WIRE_TYPE_CARD) {
+    } else if (type === DELTA_TYPE.card) {
       const zone = tagged(obj, 'Zone');
       if (zone === 'Hand') arrivedInHand = true;
       if (zone === 'Stack' || tagged(obj, 'Tapped') === true) castPiece = true;

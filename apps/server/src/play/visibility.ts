@@ -174,7 +174,30 @@
  * would break every reference Forge makes — recorded in `README.md`, not fixed.
  */
 
-import type { CantBlock, ConditionMet, Damage, Deaths, FaceDamage, PendingTriggers, PrintedPT, PrintedTypes, StateSiblings, TokenSources, WaitingEffects } from '@hadoku/forge-wire';
+import {
+	boolOf,
+	cardIdOfState,
+	coreTypes,
+	currentFace,
+	DELTA_TYPE,
+	deltaKey,
+	deltaKeyType,
+	enumOf,
+	idsOf,
+	intOf,
+	tagOf,
+	type CantBlock,
+	type ConditionMet,
+	type Damage,
+	type Deaths,
+	type FaceDamage,
+	type PendingTriggers,
+	type PrintedPT,
+	type PrintedTypes,
+	type StateSiblings,
+	type TokenSources,
+	type WaitingEffects,
+} from '@hadoku/forge-wire';
 
 /** A property bag as the Tier C wire carries it. Values are tagged JSON. */
 export interface WireObj {
@@ -201,22 +224,6 @@ export type StateFrame =
 	| { kind: 'notify'; method: 'applyDelta'; payload: { packet: DeltaPacketJson; damage?: Damage; deaths?: Deaths; faceDamage?: FaceDamage } & StateSiblings };
 
 export type Visibility = 'full' | 'faceOnly' | 'hidden';
-
-/** `DeltaPacket.TYPE_*` (`DeltaPacket.java:34-38`). */
-export const TYPE = { card: 0, player: 1, stackItem: 2, game: 3, cardState: 4 } as const;
-
-export function keyOf(type: number, id: number): string {
-	return String(((type << 28) | (id & 0x0fffffff)) >>> 0);
-}
-
-function typeOfKey(key: string): number {
-	return (Number(key) >>> 28) & 0xf;
-}
-
-/** A `CardStateView` id is `cardId * 16 + CardStateName.ordinal()` (`DeltaPacket.java:61-66`). */
-export function csvCardId(csvId: number): number {
-	return Math.floor(csvId / 16);
-}
 
 function csvOrdinal(csvId: number): number {
 	return csvId % 16;
@@ -291,41 +298,6 @@ const FACE_ONLY_KEEP = new Set([
 	'Token',
 ]);
 
-/* ── Reading tagged values ───────────────────────────────────────────── */
-
-function tagged(obj: WireObj | undefined, prop: string): { t: string; v?: unknown } | undefined {
-	const value = obj?.[prop];
-	return typeof value === 'object' && value !== null && typeof (value as { t?: unknown }).t === 'string'
-		? (value as { t: string; v?: unknown })
-		: undefined;
-}
-
-function intOf(obj: WireObj | undefined, prop: string): number | null {
-	const v = tagged(obj, prop);
-	return v !== undefined && v.t === 'int' && typeof v.v === 'number' ? v.v : null;
-}
-
-function boolOf(obj: WireObj | undefined, prop: string): boolean {
-	const v = tagged(obj, prop);
-	return v !== undefined && v.t === 'bool' && v.v === true;
-}
-
-function enumOf(obj: WireObj | undefined, prop: string): string | null {
-	const v = tagged(obj, prop);
-	return v !== undefined && v.t === 'enum' && typeof v.v === 'string' ? v.v : null;
-}
-
-function idsOf(obj: WireObj | undefined, prop: string): number[] {
-	const v = tagged(obj, prop);
-	if (v === undefined || (v.t !== 'list' && v.t !== 'set') || !Array.isArray(v.v)) return [];
-	const out: number[] = [];
-	for (const item of v.v as unknown[]) {
-		const t = item as { t?: unknown; v?: unknown } | null;
-		if (t !== null && t.t === 'int' && typeof t.v === 'number' && t.v !== -1) out.push(t.v);
-	}
-	return out;
-}
-
 /* ── The raw fold — Forge's apply rules ──────────────────────────────── */
 
 /**
@@ -382,7 +354,7 @@ interface ZoneIndex {
 function indexZones(state: ReadonlyMap<string, WireObj>): ZoneIndex {
 	const byCard = new Map<number, { zone: string; holder: number }>();
 	for (const obj of state.values()) {
-		if (obj._type !== TYPE.player) continue;
+		if (obj._type !== DELTA_TYPE.player) continue;
 		for (const [prop, zone] of Object.entries(ZONE_LISTS)) {
 			for (const id of idsOf(obj, prop)) byCard.set(id, { zone, holder: obj._id });
 		}
@@ -405,7 +377,7 @@ export function cardVisibility(
 	cardId: number,
 	viewer: number | null,
 ): Visibility {
-	const card = state.get(keyOf(TYPE.card, cardId));
+	const card = state.get(deltaKey(DELTA_TYPE.card, cardId));
 	if (card === undefined) return 'hidden';
 
 	const listed = zones.byCard.get(cardId);
@@ -413,7 +385,7 @@ export function cardVisibility(
 	if (viewer === null) return publicVisibility(card, zone);
 	const controller = intOf(card, 'Controller') ?? listed?.holder ?? intOf(card, 'Owner');
 	const mayLook = idsOf(card, 'PlayerMayLook').includes(viewer);
-	const master = controller === null ? null : intOf(state.get(keyOf(TYPE.player, controller)), 'MindSlaveMaster');
+	const master = controller === null ? null : intOf(state.get(deltaKey(DELTA_TYPE.player, controller)), 'MindSlaveMaster');
 	const viaMaster = master !== null && master !== controller && master === viewer && controller !== null;
 
 	const shownTo = (who: number): boolean => {
@@ -480,7 +452,7 @@ function redactCard(obj: WireObj, vis: Visibility): WireObj | null {
 function faceAllowed(state: ReadonlyMap<string, WireObj>, csvId: number, vis: Visibility): boolean {
 	if (vis === 'full') return true;
 	if (vis === 'hidden') return false;
-	const current = intOf(state.get(keyOf(TYPE.card, csvCardId(csvId))), 'CurrentState') ?? 0;
+	const current = intOf(state.get(deltaKey(DELTA_TYPE.card, cardIdOfState(csvId))), 'CurrentState') ?? 0;
 	return csvOrdinal(csvId) === current;
 }
 
@@ -489,7 +461,7 @@ function faceAllowed(state: ReadonlyMap<string, WireObj>, csvId: number, vis: Vi
  * deletes (fold rule 3), and one property keeps it a valid tracked object.
  */
 function wipeFace(csvId: number): WireObj {
-	return { _type: TYPE.cardState, _id: csvId, Name: null };
+	return { _type: DELTA_TYPE.cardState, _id: csvId, Name: null };
 }
 
 /**
@@ -509,7 +481,7 @@ function reordered(before: readonly number[], now: readonly number[], looked: Re
 function grantsOf(state: ReadonlyMap<string, WireObj>): Map<number, number[]> {
 	const out = new Map<number, number[]>();
 	for (const obj of state.values()) {
-		if (obj._type !== TYPE.card) continue;
+		if (obj._type !== DELTA_TYPE.card) continue;
 		const look = idsOf(obj, 'PlayerMayLook');
 		if (look.length > 0) out.set(obj._id, look);
 	}
@@ -524,7 +496,7 @@ function grantsOf(state: ReadonlyMap<string, WireObj>): Map<number, number[]> {
  */
 function replacedCards(state: ReadonlyMap<string, WireObj>, packet: DeltaPacketJson): Set<number> {
 	const out = new Set<number>();
-	for (const [key, obj] of Object.entries(packet.newObjects)) if (obj._type === TYPE.card && state.has(key)) out.add(obj._id);
+	for (const [key, obj] of Object.entries(packet.newObjects)) if (obj._type === DELTA_TYPE.card && state.has(key)) out.add(obj._id);
 	return out;
 }
 
@@ -582,17 +554,6 @@ export interface SeatProjector {
 	phase(): string | null;
 }
 
-/** A card's current face (`CardStateView`), off its `CurrentState` ordinal. */
-function currentFace(state: ReadonlyMap<string, WireObj>, cardId: number): WireObj | undefined {
-	return state.get(keyOf(TYPE.cardState, cardId * 16 + (intOf(state.get(keyOf(TYPE.card, cardId)), 'CurrentState') ?? 0)));
-}
-
-/** The core types of a card's current face, or null when the face's type is not known. */
-function coreTypes(state: ReadonlyMap<string, WireObj>, cardId: number): string[] | null {
-	const type = tagged(currentFace(state, cardId), 'Type') as { t: string; core?: unknown } | undefined;
-	return type?.t === 'cardtype' && Array.isArray(type.core) ? (type.core as unknown[]).filter((t): t is string => typeof t === 'string') : null;
-}
-
 export function createProjector(viewer: number | null = null): SeatProjector {
 	const raw = new Map<string, WireObj>();
 	/** What the client was last given for each card. */
@@ -634,7 +595,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		const before = new Map(libraries);
 		const nowOf = new Map<number, number[]>();
 		for (const obj of raw.values()) {
-			if (obj._type !== TYPE.player) continue;
+			if (obj._type !== DELTA_TYPE.player) continue;
 			nowOf.set(obj._id, idsOf(obj, 'Library'));
 			libraries.set(obj._id, idsOf(obj, 'Library'));
 		}
@@ -656,7 +617,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 				const at = zones.byCard.get(cardId);
 				// In no zone list: between two (Goblin Guide's Dig takes the card out and puts it back on
 				// top) or on the stack. Nothing to judge it by until it lands somewhere.
-				if (at === undefined && raw.has(keyOf(TYPE.card, cardId))) continue;
+				if (at === undefined && raw.has(deltaKey(DELTA_TYPE.card, cardId))) continue;
 				if (at !== undefined && at.holder === was.holder && at.zone === was.zone && (!replaced.has(cardId) || putBack(cardId, at))) {
 					if (was.zone !== 'Library') continue;
 					if (!shuffled.has(was.holder)) shuffled.set(was.holder, shuffledFor(player, was.holder));
@@ -692,7 +653,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	function tableCards(zones: ZoneIndex): Set<number> {
 		const out = new Set<number>();
 		for (const obj of raw.values()) {
-			if (obj._type !== TYPE.card) continue;
+			if (obj._type !== DELTA_TYPE.card) continue;
 			const listed = zones.byCard.get(obj._id);
 			const zone = listed?.zone ?? enumOf(obj, 'Zone');
 			const now = zone !== null && publicVisibility(obj, zone) === 'full';
@@ -736,7 +697,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	/** Every player but this seat's, by the raw state's PlayerViews. */
 	function others(): number[] {
 		const out: number[] = [];
-		for (const obj of raw.values()) if (obj._type === TYPE.player && obj._id !== who) out.push(obj._id);
+		for (const obj of raw.values()) if (obj._type === DELTA_TYPE.player && obj._id !== who) out.push(obj._id);
 		return out;
 	}
 
@@ -766,10 +727,10 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	function cardsAndFaces(): Map<number, string[]> {
 		const out = new Map<number, string[]>();
 		for (const [key, obj] of raw) {
-			if (obj._type === TYPE.card) {
+			if (obj._type === DELTA_TYPE.card) {
 				if (!out.has(obj._id)) out.set(obj._id, []);
-			} else if (obj._type === TYPE.cardState) {
-				const cardId = csvCardId(obj._id);
+			} else if (obj._type === DELTA_TYPE.cardState) {
+				const cardId = cardIdOfState(obj._id);
 				const faces = out.get(cardId) ?? [];
 				faces.push(key);
 				out.set(cardId, faces);
@@ -800,7 +761,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	 * hand card carries its name for everybody, still draws it as a back (`Board.test.ts`).
 	 */
 	function lookOf(cardId: number): number[] {
-		const look = idsOf(raw.get(keyOf(TYPE.card, cardId)), 'PlayerMayLook');
+		const look = idsOf(raw.get(deltaKey(DELTA_TYPE.card, cardId)), 'PlayerMayLook');
 		if (who === null) return look;
 		const add = (p: number): void => {
 			if (!look.includes(p)) look.push(p);
@@ -821,7 +782,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	}
 
 	function stamped(obj: WireObj): WireObj {
-		const granted = idsOf(raw.get(keyOf(TYPE.card, obj._id)), 'PlayerMayLook');
+		const granted = idsOf(raw.get(deltaKey(DELTA_TYPE.card, obj._id)), 'PlayerMayLook');
 		const look = lookOf(obj._id);
 		if (lookKey(look) === lookKey(granted)) return obj;
 		return { ...obj, PlayerMayLook: lookValue(look) };
@@ -843,22 +804,22 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 			const key = lookKey(look);
 			if (sentLook.get(cardId) === key) continue;
 			sentLook.set(cardId, key);
-			const cardKey = keyOf(TYPE.card, cardId);
+			const cardKey = deltaKey(DELTA_TYPE.card, cardId);
 			if (newObjects[cardKey] !== undefined) continue;
-			objectDeltas[cardKey] = { ...(objectDeltas[cardKey] ?? { _type: TYPE.card, _id: cardId }), PlayerMayLook: lookValue(look) };
+			objectDeltas[cardKey] = { ...(objectDeltas[cardKey] ?? { _type: DELTA_TYPE.card, _id: cardId }), PlayerMayLook: lookValue(look) };
 		}
 	}
 
 	/** Project one object by its key; null when the viewer gets nothing for it. */
 	function projectObject(key: string, obj: WireObj, vis: Map<number, Visibility>): WireObj | null {
-		const type = typeOfKey(key);
-		if (type === TYPE.card) {
+		const type = deltaKeyType(Number(key));
+		if (type === DELTA_TYPE.card) {
 			const v = vis.get(obj._id) ?? 'hidden';
 			const out = redactCard(obj, v);
 			return out !== null && v === 'full' ? stamped(out) : out;
 		}
-		if (type === TYPE.cardState) {
-			const v = vis.get(csvCardId(obj._id)) ?? 'hidden';
+		if (type === DELTA_TYPE.cardState) {
+			const v = vis.get(cardIdOfState(obj._id)) ?? 'hidden';
 			return faceAllowed(raw, obj._id, v) ? obj : null;
 		}
 		return obj;
@@ -885,7 +846,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		for (const [cardId, now] of vis) {
 			const before = sent.get(cardId);
 			if (before === undefined || before === now) continue;
-			const cardKey = keyOf(TYPE.card, cardId);
+			const cardKey = deltaKey(DELTA_TYPE.card, cardId);
 			const card = raw.get(cardKey);
 			if (card === undefined) continue;
 			// Re-send the card whole-as-allowed, as a replace.
@@ -1091,23 +1052,23 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		},
 		stackTopActivator(): number | null {
 			// `GameView.Stack` is the stack item ids, TOP FIRST (`apps/ui/src/play/adapter.ts`).
-			const game = [...raw.values()].find((o) => o._type === TYPE.game);
+			const game = [...raw.values()].find((o) => o._type === DELTA_TYPE.game);
 			const top = idsOf(game, 'Stack')[0];
 			if (top === undefined) return null;
-			return intOf(raw.get(keyOf(TYPE.stackItem, top)), 'ActivatingPlayer');
+			return intOf(raw.get(deltaKey(DELTA_TYPE.stackItem, top)), 'ActivatingPlayer');
 		},
 		stackTopSpellTypes(): readonly string[] | null {
-			const game = [...raw.values()].find((o) => o._type === TYPE.game);
+			const game = [...raw.values()].find((o) => o._type === DELTA_TYPE.game);
 			const top = idsOf(game, 'Stack')[0];
 			if (top === undefined) return null;
-			const item = raw.get(keyOf(TYPE.stackItem, top));
+			const item = raw.get(deltaKey(DELTA_TYPE.stackItem, top));
 			if (item === undefined || boolOf(item, 'Ability')) return null;
 			const source = intOf(item, 'SourceCard');
 			return source === null ? null : coreTypes(raw, source);
 		},
 		cardAt(cardId: number): { name: string | null; zone: string | null } {
 			const face = currentFace(raw, cardId);
-			const name = tagged(face, 'Name') ?? tagged(raw.get(keyOf(TYPE.card, cardId)), 'Name');
+			const name = tagOf(face, 'Name') ?? tagOf(raw.get(deltaKey(DELTA_TYPE.card, cardId)), 'Name');
 			return {
 				name: name?.t === 'str' && typeof name.v === 'string' && name.v !== '' ? name.v : null,
 				zone: indexZones(raw).byCard.get(cardId)?.zone ?? null,
@@ -1115,7 +1076,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		},
 		creatureCount(): number | null {
 			if (who === null) return null;
-			const player = raw.get(keyOf(TYPE.player, who));
+			const player = raw.get(deltaKey(DELTA_TYPE.player, who));
 			if (player === undefined) return null;
 			let creatures = 0;
 			for (const id of idsOf(player, 'Battlefield')) {
@@ -1125,11 +1086,11 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 			return creatures;
 		},
 		turnNumber(): number | null {
-			const game = [...raw.values()].find((o) => o._type === TYPE.game);
+			const game = [...raw.values()].find((o) => o._type === DELTA_TYPE.game);
 			return intOf(game, 'Turn');
 		},
 		phase(): string | null {
-			return enumOf([...raw.values()].find((o) => o._type === TYPE.game), 'Phase');
+			return enumOf([...raw.values()].find((o) => o._type === DELTA_TYPE.game), 'Phase');
 		},
 	};
 }

@@ -16,7 +16,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { keyOf, TYPE } from './visibility.js';
+import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
+
 import { available, castNamed, deck, finishMulligan, inOwnMain, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
@@ -51,7 +52,7 @@ interface Turns {
 function turnsOn(s: Scenario, seat: number): [Turns, Turns] {
 	const state = s.state(seat);
 	const read = (who: number): Turns => {
-		const p = state.get(keyOf(TYPE.player, s.match.seats[who]!.playerId ?? -1));
+		const p = state.get(deltaKey(DELTA_TYPE.player, s.match.seats[who]!.playerId ?? -1));
 		return { count: (p?.ExtraTurnCount as { v?: number } | undefined)?.v ?? 0, isExtra: (p?.IsExtraTurn as { v?: boolean } | undefined)?.v ?? false };
 	};
 	return [read(0), read(1)];
@@ -66,7 +67,7 @@ function changes(s: Scenario, seat: number): string[] {
 		const f = envelope.frame as unknown as { method?: string; payload?: { packet?: { objectDeltas?: Record<string, Record<string, unknown>> } } };
 		if (f.method !== 'applyDelta') continue;
 		for (const obj of Object.values(f.payload?.packet?.objectDeltas ?? {})) {
-			if (obj._type !== TYPE.player) continue;
+			if (obj._type !== DELTA_TYPE.player) continue;
 			const who = ids.indexOf(obj._id as number);
 			for (const k of ['ExtraTurnCount', 'IsExtraTurn'] as const) {
 				if (k in obj) out.push(`seat${who}.${k}=${obj[k] === null ? 'cleared' : JSON.stringify((obj[k] as { v?: unknown }).v)}`);

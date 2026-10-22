@@ -23,7 +23,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createElement, type ComponentType } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { parseServerFrame, type GameLogLine } from '@hadoku/forge-wire';
+import { parseServerFrame, type GameLogLine, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import { ClientEventSchema } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
 import { deckFromDeckFile } from '@hadoku/deck';
@@ -32,7 +32,6 @@ import type { SoundEvent } from '../../sound/mix.ts';
 
 import type { BoardInteraction, BoardLayout } from '../Board.tsx';
 import { PHASE_LABEL, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
-import { deltaKey, WireType } from '../wire.ts';
 import { PROMPT_FIXTURES, askFor } from '../prompts/fixtures.ts';
 import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
@@ -2208,7 +2207,7 @@ describe('what the board is told about Forge’s input', () => {
  * client that breaks in French.
  */
 describe('§A.6 / item 16 — Forge’s second button is refused for the whole of declare-attackers', () => {
-  const GAME_KEY = String(deltaKey(WireType.Game, 1));
+  const GAME_KEY = String(deltaKey(DELTA_TYPE.game, 1));
   const notify = (raw: unknown) => parseServerFrame(raw);
   const bar = (label2: string, enable2 = true) =>
     notify({
@@ -2233,7 +2232,7 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
           newObjects: {},
           objectDeltas: {
             [GAME_KEY]: {
-              _type: WireType.Game,
+              _type: DELTA_TYPE.game,
               _id: 1,
               Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
               PlayerTurn: { t: 'int', v: playerTurn },
@@ -2254,7 +2253,7 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
           checksumProperties: [],
           newObjects: {},
           objectDeltas: Object.fromEntries(
-            ids.map((id) => [String(id), { _type: WireType.Card, _id: id, Attacking: { t: 'bool', v: true } }]),
+            ids.map((id) => [String(id), { _type: DELTA_TYPE.card, _id: id, Attacking: { t: 'bool', v: true } }]),
           ),
           events: [],
         },
@@ -2618,7 +2617,7 @@ describe('the match settings open from your own face (items 4-7, 2026-10-10)', (
  */
 describe('wave 31 §L — a watching window, the combat rail, and Concede after the end', () => {
   const notify = (raw: unknown) => parseServerFrame(raw);
-  const GAME_KEY = String(deltaKey(WireType.Game, 1));
+  const GAME_KEY = String(deltaKey(DELTA_TYPE.game, 1));
   const inCombat = (m: LiveMatch, name: string) =>
     notify({
       kind: 'notify',
@@ -2631,7 +2630,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
           newObjects: {},
           objectDeltas: {
             [GAME_KEY]: {
-              _type: WireType.Game,
+              _type: DELTA_TYPE.game,
               _id: 1,
               Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
             },
@@ -2880,8 +2879,8 @@ describe('wave 32 lane L: chrome', () => {
             checksumProperties: [],
             newObjects: {},
             objectDeltas: {
-              [String(deltaKey(WireType.Game, 1))]: {
-                _type: WireType.Game,
+              [String(deltaKey(DELTA_TYPE.game, 1))]: {
+                _type: DELTA_TYPE.game,
                 _id: 1,
                 Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
               },
@@ -2969,7 +2968,7 @@ function stackDelta(m: LiveMatch, ids: number[] = []) {
         checksumProperties: [],
         newObjects: {},
         objectDeltas: {
-          [String(deltaKey(WireType.Game, 1))]: { _type: WireType.Game, _id: 1, Stack: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } },
+          [String(deltaKey(DELTA_TYPE.game, 1))]: { _type: DELTA_TYPE.game, _id: 1, Stack: { t: 'list', v: ids.map((id) => ({ t: 'int', v: id })) } },
         },
         events: [],
       },
@@ -2988,8 +2987,8 @@ function phaseDelta(m: LiveMatch, name: string, playerTurn: number) {
         checksumProperties: [],
         newObjects: {},
         objectDeltas: {
-          [String(deltaKey(WireType.Game, 1))]: {
-            _type: WireType.Game,
+          [String(deltaKey(DELTA_TYPE.game, 1))]: {
+            _type: DELTA_TYPE.game,
             _id: 1,
             Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: name },
             PlayerTurn: { t: 'int', v: playerTurn },
@@ -3013,8 +3012,8 @@ function turnDelta(m: LiveMatch, playerTurn: number, turn: number) {
         checksumProperties: [],
         newObjects: {},
         objectDeltas: {
-          [String(deltaKey(WireType.Game, 1))]: {
-            _type: WireType.Game,
+          [String(deltaKey(DELTA_TYPE.game, 1))]: {
+            _type: DELTA_TYPE.game,
             _id: 1,
             PlayerTurn: { t: 'int', v: playerTurn },
             Turn: { t: 'int', v: turn },
@@ -3491,7 +3490,7 @@ describe('R16 — Victory, Defeat or Draw, and how it ended (pure logic)', () =>
 });
 
 describe('R16 — the result screen, drawn over the board', () => {
-  const GAME_KEY = String(deltaKey(WireType.Game, 1));
+  const GAME_KEY = String(deltaKey(DELTA_TYPE.game, 1));
   const gameOverDelta = (seq: number, loserId: number) =>
     parseServerFrame({
       kind: 'notify',
@@ -3503,9 +3502,9 @@ describe('R16 — the result screen, drawn over the board', () => {
           checksumProperties: [],
           newObjects: {},
           objectDeltas: {
-            [GAME_KEY]: { _type: WireType.Game, _id: 1, GameOver: { t: 'bool', v: true } },
-            [String(deltaKey(WireType.Player, loserId))]: {
-              _type: WireType.Player,
+            [GAME_KEY]: { _type: DELTA_TYPE.game, _id: 1, GameOver: { t: 'bool', v: true } },
+            [String(deltaKey(DELTA_TYPE.player, loserId))]: {
+              _type: DELTA_TYPE.player,
               _id: loserId,
               HasLost: { t: 'bool', v: true },
               Life: { t: 'int', v: 0 },
@@ -3537,7 +3536,7 @@ describe('R16 — the result screen, drawn over the board', () => {
           checksumProperties: [],
           newObjects: {},
           objectDeltas: {
-            [String(deltaKey(WireType.Player, loserId))]: { _type: WireType.Player, _id: loserId, HasLost: { t: 'bool', v: true } },
+            [String(deltaKey(DELTA_TYPE.player, loserId))]: { _type: DELTA_TYPE.player, _id: loserId, HasLost: { t: 'bool', v: true } },
           },
           events: [],
         },
@@ -3749,9 +3748,9 @@ describe('R16 — the result screen, drawn over the board', () => {
             checksumProperties: [],
             newObjects: {},
             objectDeltas: {
-              [GAME_KEY]: { _type: WireType.Game, _id: 1, GameOver: { t: 'bool', v: true } },
-              [String(deltaKey(WireType.Player, viewerId))]: { _type: WireType.Player, _id: viewerId, HasLost: { t: 'bool', v: true } },
-              [String(deltaKey(WireType.Player, opponentId))]: { _type: WireType.Player, _id: opponentId, HasLost: { t: 'bool', v: true } },
+              [GAME_KEY]: { _type: DELTA_TYPE.game, _id: 1, GameOver: { t: 'bool', v: true } },
+              [String(deltaKey(DELTA_TYPE.player, viewerId))]: { _type: DELTA_TYPE.player, _id: viewerId, HasLost: { t: 'bool', v: true } },
+              [String(deltaKey(DELTA_TYPE.player, opponentId))]: { _type: DELTA_TYPE.player, _id: opponentId, HasLost: { t: 'bool', v: true } },
             },
             events: [],
           },
@@ -4414,10 +4413,10 @@ describe('T2 — a calm "waiting for the other player"', () => {
   // but it should probably tell me how many cards to put at the bottom."
   it('is gone during the London bottom pick, and Forge’s own instruction is in the decision pop-up with OK as Forge enables it', async () => {
     const { s, m, queryByTestId, getByTestId } = await liveBoard();
-    const GAME = String(deltaKey(WireType.Game, 1));
+    const GAME = String(deltaKey(DELTA_TYPE.game, 1));
     s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message: 'Return 1 card(s) to the bottom of your library', card: null }));
     s.send(updateButtons(false, 'OK', 'Cancel'));
-    s.send(parseServerFrame({ kind: 'notify', method: 'applyDelta', payload: { packet: { seq: 900, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [GAME]: { _type: WireType.Game, _id: 1, Mulligan: { t: 'bool', v: true } } }, events: [] } } }));
+    s.send(parseServerFrame({ kind: 'notify', method: 'applyDelta', payload: { packet: { seq: 900, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [GAME]: { _type: DELTA_TYPE.game, _id: 1, Mulligan: { t: 'bool', v: true } } }, events: [] } } }));
     await untilMatch(m, () => expect(choosingMulligan(m)).toBe(true));
     expect(isWaitingForOpponent(m), 'the pick is this seat’s move').toBe(false);
     expect(queryByTestId('live-waiting-pop'), 'no waiting pop-out either').toBeNull();
@@ -4434,14 +4433,14 @@ describe('T2 — a calm "waiting for the other player"', () => {
   // whole pick and never draw Forge's second button ("Auto") for it.
   it('the FIRST "Return N card(s)…" sentence holds for the whole bottom pick, with one button, and lets go once the pick ends', async () => {
     const { s, m, queryByTestId, getByTestId } = await liveBoard();
-    const GAME = String(deltaKey(WireType.Game, 1));
+    const GAME = String(deltaKey(DELTA_TYPE.game, 1));
     const prompt = (message: string) => s.send(parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: null }));
     const setMulligan = (v: boolean) =>
       s.send(
         parseServerFrame({
           kind: 'notify',
           method: 'applyDelta',
-          payload: { packet: { seq: 900, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [GAME]: { _type: WireType.Game, _id: 1, Mulligan: { t: 'bool', v } } }, events: [] } },
+          payload: { packet: { seq: 900, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: { [GAME]: { _type: DELTA_TYPE.game, _id: 1, Mulligan: { t: 'bool', v } } }, events: [] } },
         }),
       );
 
@@ -4606,7 +4605,7 @@ describe('T2 — a calm "waiting for the other player"', () => {
  * all.
  */
 describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’s opening mulligan)', () => {
-  const GAME_KEY = String(deltaKey(WireType.Game, 1));
+  const GAME_KEY = String(deltaKey(DELTA_TYPE.game, 1));
   const setTurn = (m: LiveMatch, turn: number) =>
     parseServerFrame({
       kind: 'notify',
@@ -4617,7 +4616,7 @@ describe('W1 — the pregame decision-area pop-up (the coin toss, either seat’
           checksum: 0,
           checksumProperties: [],
           newObjects: {},
-          objectDeltas: { [GAME_KEY]: { _type: WireType.Game, _id: 1, Turn: { t: 'int', v: turn } } },
+          objectDeltas: { [GAME_KEY]: { _type: DELTA_TYPE.game, _id: 1, Turn: { t: 'int', v: turn } } },
           events: [],
         },
       },
@@ -5382,7 +5381,7 @@ describe('the priority ring is gated on a real decision, not drawn from Forge’
             checksum: 0,
             checksumProperties: [],
             newObjects: {},
-            objectDeltas: { [String(deltaKey(WireType.Player, playerId))]: { _type: WireType.Player, _id: playerId, HasPriority: { t: 'bool', v } } },
+            objectDeltas: { [String(deltaKey(DELTA_TYPE.player, playerId))]: { _type: DELTA_TYPE.player, _id: playerId, HasPriority: { t: 'bool', v } } },
             events: [],
           },
         },
@@ -5563,7 +5562,7 @@ describe('a stop on the phase rail', () => {
             checksumProperties: [],
             newObjects: {},
             objectDeltas: {
-              [String(deltaKey(WireType.Game, 1))]: { _type: WireType.Game, _id: 1, Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'COMBAT_BEGIN' } },
+              [String(deltaKey(DELTA_TYPE.game, 1))]: { _type: DELTA_TYPE.game, _id: 1, Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'COMBAT_BEGIN' } },
             },
             events: [],
           },

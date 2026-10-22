@@ -19,9 +19,11 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 
+import { deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
+
 import { jvmHostConfig, jvmHostFactory } from './host.js';
 import { scenarioText } from './scenario.js';
-import { foldFrames, keyOf, TYPE } from './visibility.js';
+import { foldFrames } from './visibility.js';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
 const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
@@ -229,20 +231,20 @@ describe.skipIf(!available.ok)(title, () => {
 				);
 			function handIds(): number[] {
 				const st = state();
-				const me = st.get(keyOf(TYPE.player, casterSeat));
+				const me = st.get(deltaKey(DELTA_TYPE.player, casterSeat));
 				const hand = me?.Hand as { v?: { t?: string; v?: number }[] } | undefined;
 				return (hand?.v ?? []).filter((x) => x?.t === 'int' && typeof x.v === 'number').map((x) => x.v as number);
 			}
 			function nameOf(id: number): string {
 				const st = state();
-				const card = st.get(keyOf(TYPE.card, id));
+				const card = st.get(deltaKey(DELTA_TYPE.card, id));
 				const current = card?.CurrentState as { v?: number } | undefined;
-				const face = st.get(keyOf(TYPE.cardState, id * 16 + (current?.v ?? 0)));
+				const face = st.get(deltaKey(DELTA_TYPE.cardState, id * 16 + (current?.v ?? 0)));
 				return (face?.Name as { v?: string } | undefined)?.v ?? `#${id}`;
 			}
 			function battlefieldIds(seat: number): number[] {
 				const st = state();
-				const p = st.get(keyOf(TYPE.player, seat));
+				const p = st.get(deltaKey(DELTA_TYPE.player, seat));
 				const bf = p?.Battlefield as { v?: { t?: string; v?: number }[] } | undefined;
 				return (bf?.v ?? []).filter((x) => x?.t === 'int' && typeof x.v === 'number').map((x) => x.v as number);
 			}

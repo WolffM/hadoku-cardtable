@@ -21,10 +21,11 @@ import { fileURLToPath } from 'node:url';
 import { basicLand, moveToMain, newDeck, setBasicLand, toDeckFile, writeDck } from '@hadoku/deck';
 import { describe, expect, it } from 'vitest';
 
+import { DELTA_TYPE, deltaKey, idsOf } from '@hadoku/forge-wire';
+
 import { draftCardRequest } from '../http/draftPool.js';
 import { loadPool } from '../room/pool.js';
-import { available, deck, finishMulligan, idsOf, inOwnMain, landPayer, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
-import { TYPE, keyOf } from './visibility.js';
+import { available, deck, finishMulligan, inOwnMain, landPayer, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'a drafted two-faced card is in the deck Forge plays, and is cast, against real Forge'
@@ -52,7 +53,7 @@ function offered(s: Scenario, seat: number): number[] {
 
 /** Alice's library and hand together, off her own projection of her player. */
 function cardsHeld(s: Scenario): number {
-	const self = s.state(0).get(keyOf(TYPE.player, s.match.seats[0]?.playerId ?? -1));
+	const self = s.state(0).get(deltaKey(DELTA_TYPE.player, s.match.seats[0]?.playerId ?? -1));
 	return idsOf(self, 'Library').length + idsOf(self, 'Hand').length;
 }
 

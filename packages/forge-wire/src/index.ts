@@ -241,6 +241,22 @@ export {
 } from './tier-c.ts';
 
 export {
+  DELTA_TYPE,
+  deltaKey,
+  cardStateKey,
+  cardIdOfState,
+  tagOf,
+  intOf,
+  boolOf,
+  strOf,
+  enumOf,
+  idsOf,
+  currentFace,
+  coreTypes,
+  type PropertyBag,
+} from './state.ts';
+
+export {
   FORGE_CHANNEL,
   CallIdSchema,
   REQUIRED_METHODS,

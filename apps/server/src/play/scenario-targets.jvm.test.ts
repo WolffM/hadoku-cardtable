@@ -40,7 +40,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, idsOf, scenarioText, startScenario, waitUntil } from './scenario.js';
+import { idsOf } from '@hadoku/forge-wire';
+
+import { available, deck, finishMulligan, scenarioText, startScenario, waitUntil } from './scenario.js';
 
 /** Evidence files land under the harness's own run directory, never a literal `/tmp`. */
 function evidencePath(name: string): string {

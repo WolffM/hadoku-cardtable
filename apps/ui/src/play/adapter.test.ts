@@ -24,6 +24,8 @@ import { describe, expect, it } from 'vitest';
 
 import { ALLOWED_ART_HOSTS, resolveArtUrl } from '@hadoku/carddata/art';
 
+import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
+
 import { FACE_REGIONS } from '../components/faceCrop.ts';
 import artManifest from '../draft/art-manifest.json';
 import poolData from '../draft/pool.json';
@@ -45,7 +47,7 @@ import {
 } from './adapter.ts';
 import { loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 import { foldPackets, type WireState } from './fold.ts';
-import { cardStateKey, deltaKey, WireType, type Tagged, type WireObject } from './wire.ts';
+import { type Tagged, type WireObject } from './wire.ts';
 
 const fixture = PLAY_FIXTURES[0]!;
 const MANIFEST = artManifest.entries;
@@ -78,7 +80,7 @@ function renameCard(state: Map<string, WireObject>, cardId: number, to: string, 
 /** The id of the first card whose current face carries this name. */
 function cardIdNamed(state: WireState, name: string): number {
   for (const [key, obj] of state) {
-    if (obj._type !== WireType.CardState) continue;
+    if (obj._type !== DELTA_TYPE.cardState) continue;
     const id = obj._id >> 4;
     if (key !== cardStateKey(id, 0)) continue;
     if ((obj['Name'] as { v?: unknown } | undefined)?.v === name) return id;
@@ -151,7 +153,7 @@ describe('§D #9 — a card the cube pool never held still has art', () => {
   // "Phyrexian Wurm Token"; each token's ImageKey names its own tokenscript (token-art.jvm.test.ts).
   it('draws a token by the tokenscript its image key names, never by a name another token shares', () => {
     const state = baseState();
-    const mountains = [...state].filter(([key, o]) => o._type === WireType.CardState && key === cardStateKey(o._id >> 4, 0) && (o['Name'] as { v?: unknown } | undefined)?.v === 'Mountain').map(([, o]) => o._id >> 4);
+    const mountains = [...state].filter(([key, o]) => o._type === DELTA_TYPE.cardState && key === cardStateKey(o._id >> 4, 0) && (o['Name'] as { v?: unknown } | undefined)?.v === 'Mountain').map(([, o]) => o._id >> 4);
     const [deathtouch, lifelink] = mountains as [number, number];
     for (const [id, script, number] of [
       [deathtouch, 'c_3_3_a_phyrexian_wurm_deathtouch', 29],
@@ -230,7 +232,7 @@ describe('§D #10 — the stack carries its source card', () => {
   it('is null when the item names no card', () => {
     const state = baseState();
     for (const [key, obj] of state) {
-      if (obj._type !== WireType.StackItem) continue;
+      if (obj._type !== DELTA_TYPE.stackItem) continue;
       const next = { ...obj };
       delete next['SourceCard'];
       state.set(key, next);
@@ -282,10 +284,10 @@ describe('a modal spell’s targets', () => {
     const sid = before[0]!.id;
     const mountain = cardIdNamed(state, 'Mountain');
     const ids = (...v: number[]): Tagged => ({ t: 'list', v: v.map((id) => ({ t: 'int', v: id })) });
-    const key = deltaKey(WireType.StackItem, sid);
+    const key = deltaKey(DELTA_TYPE.stackItem, sid);
     state.set(key, { ...state.get(key)!, TargetCards: ids(), TargetPlayers: ids(), SubInstance: { t: 'int', v: 9001 } });
-    state.set(deltaKey(WireType.StackItem, 9001), { _type: WireType.StackItem, _id: 9001, TargetCards: ids(mountain), TargetPlayers: ids(), SubInstance: { t: 'int', v: 9002 } });
-    state.set(deltaKey(WireType.StackItem, 9002), { _type: WireType.StackItem, _id: 9002, TargetCards: ids(mountain), TargetPlayers: ids(fixture.viewerPlayerId) });
+    state.set(deltaKey(DELTA_TYPE.stackItem, 9001), { _type: DELTA_TYPE.stackItem, _id: 9001, TargetCards: ids(mountain), TargetPlayers: ids(), SubInstance: { t: 'int', v: 9002 } });
+    state.set(deltaKey(DELTA_TYPE.stackItem, 9002), { _type: DELTA_TYPE.stackItem, _id: 9002, TargetCards: ids(mountain), TargetPlayers: ids(fixture.viewerPlayerId) });
 
     const view = adapt(state);
     const entry = view.stack.find((e) => e.id === sid)!;
@@ -304,7 +306,7 @@ describe('a spell is drawn in one place: the stack lets go when a zone list hold
   /** The fixture's first stack item, made a spell: its card is on the stack, so no zone list holds it. */
   function spellOnStack(state: Map<string, WireObject>): { sid: number; card: number } {
     const { id: sid, sourceCardId } = adapt(state).stack[0]!;
-    const key = deltaKey(WireType.StackItem, sid);
+    const key = deltaKey(DELTA_TYPE.stackItem, sid);
     state.set(key, { ...state.get(key)!, Ability: { t: 'bool', v: false } } as WireObject);
     for (const { id: pid } of adapt(state).players) {
       for (const zone of ['Hand', 'Library', 'Battlefield', 'Graveyard', 'Exile']) {
@@ -315,7 +317,7 @@ describe('a spell is drawn in one place: the stack lets go when a zone list hold
     expect(item.isAbility).toBe(false);
     return { sid, card: item.sourceCardId! };
   }
-  const playerOf = (state: WireState, pid: number) => state.get(deltaKey(WireType.Player, pid));
+  const playerOf = (state: WireState, pid: number) => state.get(deltaKey(DELTA_TYPE.player, pid));
   const listOf = (state: WireState, pid: number, zone: string): number[] =>
     ((playerOf(state, pid)?.[zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((t) => t.v);
 
@@ -345,7 +347,7 @@ describe('a spell is drawn in one place: the stack lets go when a zone list hold
 
 /** Set one property on a `CardView` in place. */
 function setCard(state: Map<string, WireObject>, cardId: number, prop: string, value: unknown): void {
-  const key = deltaKey(WireType.Card, cardId);
+  const key = deltaKey(DELTA_TYPE.card, cardId);
   const card = state.get(key);
   if (card === undefined) throw new Error(`no card ${cardId} in the fixture`);
   state.set(key, { ...card, [prop]: value } as WireObject);
@@ -353,7 +355,7 @@ function setCard(state: Map<string, WireObject>, cardId: number, prop: string, v
 
 /** Replace one of a player's zone lists, so a card can be put where a test needs it. */
 function setZone(state: Map<string, WireObject>, playerId: number, zone: string, ids: number[]): void {
-  const key = deltaKey(WireType.Player, playerId);
+  const key = deltaKey(DELTA_TYPE.player, playerId);
   const player = state.get(key)!;
   state.set(key, { ...player, [zone]: { t: 'list', v: ids.map((v) => ({ t: 'int', v })) } } as WireObject);
 }
@@ -401,7 +403,7 @@ describe('a stack item’s ability text and hidden source', () => {
   it('carries both on every entry: Key’s text, and whether this seat may see the source card', () => {
     const state = baseState();
     const sid = adapt(state).stack[0]!.id;
-    const key = deltaKey(WireType.StackItem, sid);
+    const key = deltaKey(DELTA_TYPE.stackItem, sid);
     state.set(key, { ...state.get(key)!, Key: { t: 'str', v: KEY }, Description: { t: 'str', v: DESCRIPTION } } as WireObject);
     const item = adapt(state).stack.find((i) => i.id === sid)!;
     expect(item.abilityText).toBe(OWN);
@@ -464,7 +466,7 @@ describe('§A.4 #17 — haste is not summoning sickness', () => {
    */
   function golemOnBattlefield(): Map<string, WireObject> {
     const state = baseState();
-    expect(state.get(deltaKey(WireType.Card, 76))!['Sickness'], 'the capture’s own flag').toEqual({ t: 'bool', v: true });
+    expect(state.get(deltaKey(DELTA_TYPE.card, 76))!['Sickness'], 'the capture’s own flag').toEqual({ t: 'bool', v: true });
     setZone(state, 1, 'Graveyard', [77, 79]);
     setZone(state, 1, 'Battlefield', [87, 78, 93, 83, 99, 116, 67, 118, 76]);
     setCard(state, 99, 'Sickness', { t: 'bool', v: true });
@@ -570,7 +572,7 @@ describe('choices, generically', () => {
 
   it('every choice property, each read off its own wire shape, in the table’s order', () => {
     const state = baseState();
-    const bob = baseState().get(deltaKey(WireType.Player, fixture.viewerPlayerId === 0 ? 1 : 0))!;
+    const bob = baseState().get(deltaKey(DELTA_TYPE.player, fixture.viewerPlayerId === 0 ? 1 : 0))!;
     setCard(state, 21, 'ChosenType', { t: 'str', v: ' Goblin ' });
     setCard(state, 21, 'ChosenType2', { t: 'str', v: 'Elf' });
     setCard(state, 21, 'NotedTypes', list('Wizard'));
@@ -754,7 +756,7 @@ describe('§A.3 #12/#18 — printed versus current power and toughness', () => {
     let faces = 0;
     for (const obj of foldPackets(loadPackets(fixture)).state.values()) {
       if (obj['Power'] === undefined && obj['Toughness'] === undefined) continue;
-      expect(obj._type, 'P/T lives on a face').toBe(WireType.CardState);
+      expect(obj._type, 'P/T lives on a face').toBe(DELTA_TYPE.cardState);
       faces += 1;
     }
     expect(faces, 'the capture has faces with P/T').toBeGreaterThan(0);
@@ -876,7 +878,7 @@ describe('§A.3 #12/#18 — printed versus current power and toughness', () => {
  * owns it and where it is, and no face reaches the seat at all.
  */
 function redact(state: Map<string, WireObject>, cardId: number): void {
-  const key = deltaKey(WireType.Card, cardId);
+  const key = deltaKey(DELTA_TYPE.card, cardId);
   const card = state.get(key)!;
   state.set(key, { _type: card._type, _id: card._id, Owner: card['Owner'], Controller: card['Controller'], Zone: card['Zone'] } as WireObject);
   for (let ordinal = 0; ordinal < 16; ordinal++) state.delete(cardStateKey(cardId, ordinal));
@@ -906,7 +908,7 @@ describe('hidden information is untouched by any of this', () => {
   /** Put `cardId` on top of the viewer's library list. */
   function onLibraryTop(state: Map<string, WireObject>, cardId: number): number {
     const viewer = adapt(state).players.find((p) => p.isViewer)!.id;
-    const key = deltaKey(WireType.Player, viewer);
+    const key = deltaKey(DELTA_TYPE.player, viewer);
     const player = state.get(key)!;
     const library = player.Library as { t: string; v: { t: string; v: number }[] } | undefined;
     state.set(key, { ...player, Library: { t: 'list', v: [{ t: 'int', v: cardId }, ...(library?.v ?? [])] } } as WireObject);
@@ -915,7 +917,7 @@ describe('hidden information is untouched by any of this', () => {
 
   /** Set `cardId`'s `PlayerMayLook` to these players. */
   function mayLook(state: Map<string, WireObject>, cardId: number, players: readonly number[]): void {
-    const key = deltaKey(WireType.Card, cardId);
+    const key = deltaKey(DELTA_TYPE.card, cardId);
     state.set(key, { ...state.get(key)!, PlayerMayLook: { t: 'list', v: players.map((v) => ({ t: 'int', v })) } } as WireObject);
   }
 
@@ -959,7 +961,7 @@ describe('hidden information is untouched by any of this', () => {
     expect(seat().libraryTop?.map((c) => c.id), 'the top alone').toEqual([top]);
     const library = seat().libraryIds!;
     const named = [...cardsById(adapt(state)).values()].find((c) => c.hidden !== true)!.id;
-    for (const id of library) state.set(deltaKey(WireType.Card, id), state.get(deltaKey(WireType.Card, named))!);
+    for (const id of library) state.set(deltaKey(DELTA_TYPE.card, id), state.get(deltaKey(DELTA_TYPE.card, named))!);
     expect(seat().libraryTop, 'a look at the whole library is a search, never the board’s').toBeUndefined();
   });
 
@@ -998,7 +1000,7 @@ describe('hidden information is untouched by any of this', () => {
   describe('drawsFaceUp: whether a reveal shows the seat anything the board does not', () => {
     /** The ids in `playerId`'s `zone` list, as the wire holds them. */
     const idsIn = (state: Map<string, WireObject>, playerId: number, zone: string): number[] =>
-      ((state.get(deltaKey(WireType.Player, playerId))![zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+      ((state.get(deltaKey(DELTA_TYPE.player, playerId))![zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 
     it("an opponent's hand the seat was shown (Gitaxian Probe) is drawn face up in that hand; before it was shown, it is not", () => {
       const state = baseState();
@@ -1062,12 +1064,12 @@ describe('hidden information is untouched by any of this', () => {
 
   /** Turn a card face down the way Forge does: `CurrentState` FaceDown (ordinal 1), and neither it nor the view named. */
   function faceDown(state: Map<string, WireObject>, cardId: number): void {
-    const key = deltaKey(WireType.Card, cardId);
+    const key = deltaKey(DELTA_TYPE.card, cardId);
     const { Name: _name, ...view } = state.get(key)!;
     state.set(key, view as WireObject);
     setCard(state, cardId, 'Facedown', { t: 'bool', v: true });
     setCard(state, cardId, 'CurrentState', { t: 'int', v: 1 });
-    state.set(cardStateKey(cardId, 1), { _type: WireType.CardState, _id: cardId * 16 + 1 } as WireObject);
+    state.set(cardStateKey(cardId, 1), { _type: DELTA_TYPE.cardState, _id: cardId * 16 + 1 } as WireObject);
   }
 
   it('reads a face-down card this seat may look at off its Original face — Hideaway, to the player who exiled it', () => {
@@ -1104,7 +1106,7 @@ describe('hidden information is untouched by any of this', () => {
     const target = cardIdNamed(state, 'Mountain');
     redact(state, target);
     const sid = adapt(state).stack[0]!.id;
-    const key = deltaKey(WireType.StackItem, sid);
+    const key = deltaKey(DELTA_TYPE.stackItem, sid);
     state.set(key, { ...state.get(key)!, TargetCards: { t: 'list', v: [{ t: 'int', v: target }, { t: 'int', v: 404 }] }, TargetPlayers: { t: 'list', v: [] } } as WireObject);
     const entry = adapt(state).stack.find((e) => e.id === sid)!;
     expect(entry.targetLabel).toBe(`${HIDDEN_CARD_NAME}, ${HIDDEN_CARD_NAME}`);
@@ -1134,7 +1136,7 @@ describe('§A.6 — the seat’s mana pool', () => {
   function manaValuesInFixture(): { keys: number[]; counts: number[] }[] {
     const out: { keys: number[]; counts: number[] }[] = [];
     for (const obj of baseState().values()) {
-      if (obj._type !== WireType.Player) continue;
+      if (obj._type !== DELTA_TYPE.player) continue;
       const v = obj['Mana'] as { t?: string; v?: unknown } | undefined;
       if (v === undefined || v.t !== 'map' || !Array.isArray(v.v)) continue;
       const pairs = v.v as { v: number }[][];
@@ -1145,7 +1147,7 @@ describe('§A.6 — the seat’s mana pool', () => {
 
   function withMana(playerId: number, pool: [number, number][]): WireState {
     const state = baseState();
-    const key = deltaKey(WireType.Player, playerId);
+    const key = deltaKey(DELTA_TYPE.player, playerId);
     state.set(key, {
       ...state.get(key)!,
       Mana: { t: 'map', v: pool.map(([b, n]) => [{ t: 'byte', v: b }, { t: 'int', v: n }]) },
@@ -1229,7 +1231,7 @@ describe('§A.6 — the seat’s mana pool', () => {
 
   it('reports nothing when the property is absent or is not a map', () => {
     const state = baseState();
-    const key = deltaKey(WireType.Player, 0);
+    const key = deltaKey(DELTA_TYPE.player, 0);
     const { Mana: _dropped, ...withoutMana } = state.get(key)!;
     state.set(key, withoutMana as WireObject);
     expect(poolOf(state, 0)).toEqual([]);
@@ -1356,8 +1358,8 @@ describe('can’t block — the creatures Forge says can’t block (the bridge�
 describe('emblems — a player’s IsEmblem cards in their Command zone', () => {
   function putInCommand(state: Map<string, WireObject>, playerId: number, cards: { id: number; name: string; text: string; emblem: boolean }[]): void {
     for (const c of cards) {
-      state.set(deltaKey(WireType.Card, c.id), {
-        _type: WireType.Card,
+      state.set(deltaKey(DELTA_TYPE.card, c.id), {
+        _type: DELTA_TYPE.card,
         _id: c.id,
         Owner: { t: 'int', v: playerId },
         Zone: { t: 'enum', c: 'forge.game.zone.ZoneType', v: 'Command' },
@@ -1367,7 +1369,7 @@ describe('emblems — a player’s IsEmblem cards in their Command zone', () => 
         Name: { t: 'str', v: c.name },
       } as WireObject);
       state.set(cardStateKey(c.id, 0), {
-        _type: WireType.CardState,
+        _type: DELTA_TYPE.cardState,
         _id: c.id * 16,
         Name: { t: 'str', v: c.name },
         SetCode: { t: 'str', v: 'LCC' },
@@ -1406,12 +1408,12 @@ describe('emblems — a player’s IsEmblem cards in their Command zone', () => 
  * seat while their hand holds a Storm card, and never on another seat.
  */
 describe('storm — the game’s storm count on the viewer’s seat while a Storm card is in hand', () => {
-  const game = (state: Map<string, WireObject>) => deltaKey(WireType.Game, [...state.values()].find((o) => o._type === WireType.Game)!._id);
+  const game = (state: Map<string, WireObject>) => deltaKey(DELTA_TYPE.game, [...state.values()].find((o) => o._type === DELTA_TYPE.game)!._id);
   function withStorm(stormCount: number, stormInHand: boolean): Map<string, WireObject> {
     const state = baseState();
     const g = state.get(game(state))!;
     state.set(game(state), { ...g, StormCount: { t: 'int', v: stormCount } } as WireObject);
-    const viewer = state.get(deltaKey(WireType.Player, fixture.viewerPlayerId))!;
+    const viewer = state.get(deltaKey(DELTA_TYPE.player, fixture.viewerPlayerId))!;
     const first = (viewer['Hand'] as { v: { v: number }[] }).v[0]!.v;
     const face = state.get(cardStateKey(first, 0))!;
     state.set(cardStateKey(first, 0), { ...face, Keywords: { t: 'keywords', v: stormInHand ? ['Storm'] : [] } } as WireObject);
@@ -1441,12 +1443,12 @@ describe('storm — the game’s storm count on the viewer’s seat while a Stor
  * who took one when the other's turn begins — so it counts only on the active player.
  */
 describe('extra turns — the turns to come on every seat, and the mark on the seat taking one', () => {
-  const game = (state: Map<string, WireObject>) => deltaKey(WireType.Game, [...state.values()].find((o) => o._type === WireType.Game)!._id);
+  const game = (state: Map<string, WireObject>) => deltaKey(DELTA_TYPE.game, [...state.values()].find((o) => o._type === DELTA_TYPE.game)!._id);
   function withTurns(active: number, players: Record<number, { count?: number; isExtra?: boolean }>): Map<string, WireObject> {
     const state = baseState();
     state.set(game(state), { ...state.get(game(state))!, PlayerTurn: { t: 'int', v: active } } as WireObject);
     for (const [pid, { count, isExtra }] of Object.entries(players)) {
-      const key = deltaKey(WireType.Player, Number(pid));
+      const key = deltaKey(DELTA_TYPE.player, Number(pid));
       state.set(key, {
         ...state.get(key)!,
         ...(count === undefined ? {} : { ExtraTurnCount: { t: 'int', v: count } }),
@@ -1489,7 +1491,7 @@ describe('extra turns — the turns to come on every seat, and the mark on the s
  */
 describe('view.combat — Forge’s CombatView, read off the state channel (X1)', () => {
   function gameKey(state: WireState): string {
-    for (const [key, obj] of state) if (obj._type === WireType.Game) return key;
+    for (const [key, obj] of state) if (obj._type === DELTA_TYPE.game) return key;
     throw new Error('no Game object in the fixture state');
   }
 
@@ -1624,11 +1626,11 @@ describe('a card’s other faces', () => {
     addFace(state, 1, 'Etali, Primal Sickness', ['Creature'], 'MOM');
     setCard(state, 21, 'AlternateState', { t: 'int', v: 1 });
     const { id: sid } = adapt(state).stack[0]!;
-    const key = deltaKey(WireType.StackItem, sid);
+    const key = deltaKey(DELTA_TYPE.stackItem, sid);
     state.set(key, { ...state.get(key)!, Ability: { t: 'bool', v: false }, SourceCard: { t: 'int', v: 21 } } as WireObject);
     for (const { id: pid } of adapt(state).players) {
       for (const zone of ['Hand', 'Library', 'Battlefield', 'Graveyard', 'Exile']) {
-        const list = ((state.get(deltaKey(WireType.Player, pid))?.[zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((t) => t.v);
+        const list = ((state.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((t) => t.v);
         setZone(state, pid, zone, list.filter((id) => id !== 21));
       }
     }
@@ -1747,7 +1749,7 @@ describe('a Room’s doors', () => {
     const pid = fixture.viewerPlayerId;
     for (const { id } of adapt(state).players) {
       for (const zone of ['Hand', 'Library', 'Battlefield', 'Graveyard', 'Exile']) {
-        const list = ((state.get(deltaKey(WireType.Player, id))?.[zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((t) => t.v);
+        const list = ((state.get(deltaKey(DELTA_TYPE.player, id))?.[zone] as { v?: { v: number }[] } | undefined)?.v ?? []).map((t) => t.v);
         setZone(state, id, zone, [...list.filter((c) => c !== 21), ...(id === pid && zone === where ? [21] : [])]);
       }
     }

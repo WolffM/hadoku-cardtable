@@ -72,8 +72,10 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, idsOf, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
-import { TYPE, type WireObj } from './visibility.js';
+import { DELTA_TYPE, idsOf } from '@hadoku/forge-wire';
+
+import { available, deck, finishMulligan, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { type WireObj } from './visibility.js';
 
 const title = available.ok
 	? "wave 35 §S follow-up: a spell resolves unattended for the seat holding only lands, against real Forge"
@@ -83,7 +85,7 @@ const DECKS: [string, string] = [deck('Land A', ['40 Mountain']), deck('Land B',
 
 /** `GameView.Stack` — the stack's item ids, from this seat's own projection. */
 function stackIds(s: Scenario, seat: number): number[] {
-	const game = [...s.state(seat).values()].find((o: WireObj) => o._type === TYPE.game);
+	const game = [...s.state(seat).values()].find((o: WireObj) => o._type === DELTA_TYPE.game);
 	return idsOf(game, 'Stack');
 }
 

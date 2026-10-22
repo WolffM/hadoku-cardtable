@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
+import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
+
 import type { WireObject } from '../wire.ts';
-import { cardStateKey, deltaKey, WireType } from '../wire.ts';
 import { isZoneDividerLabel, lookupFromState, plainRulesText, promptLines, promptText, selectionText, translateTargetWords, type PromptParts } from './lookup.ts';
 
-const card = (id: number): [string, WireObject] => [deltaKey(WireType.Card, id), { _type: WireType.Card, _id: id }];
+const card = (id: number): [string, WireObject] => [deltaKey(DELTA_TYPE.card, id), { _type: DELTA_TYPE.card, _id: id }];
 const face = (id: number, name: string, setCode: string): [string, WireObject] => [
   cardStateKey(id, 0),
-  { _type: WireType.CardState, _id: id * 16, Name: { t: 'str', v: name }, SetCode: { t: 'str', v: setCode } },
+  { _type: DELTA_TYPE.cardState, _id: id * 16, Name: { t: 'str', v: name }, SetCode: { t: 'str', v: setCode } },
 ];
 
 describe('lookupFromState', () => {

@@ -290,7 +290,8 @@ describe.skipIf(!available.ok)(title, () => {
 
 			// Find Thoughtseize and the untapped Swamp by scanning applyDelta/setGameView
 			// payloads the caster received, the same way `visibility.ts` would.
-			const { foldFrames, keyOf, TYPE } = await import('./visibility.js');
+			const { foldFrames } = await import('./visibility.js');
+			const { deltaKey, DELTA_TYPE } = await import('@hadoku/forge-wire');
 			const state = () =>
 				foldFrames(
 					caster.frames
@@ -299,15 +300,15 @@ describe.skipIf(!available.ok)(title, () => {
 				);
 			function handIds(): number[] {
 				const st = state();
-				const me = st.get(keyOf(TYPE.player, casterSeat));
+				const me = st.get(deltaKey(DELTA_TYPE.player, casterSeat));
 				const hand = me?.Hand as { v?: { t?: string; v?: number }[] } | undefined;
 				return (hand?.v ?? []).filter((x) => x?.t === 'int' && typeof x.v === 'number').map((x) => x.v as number);
 			}
 			function nameOf(id: number): string {
 				const st = state();
-				const card = st.get(keyOf(TYPE.card, id));
+				const card = st.get(deltaKey(DELTA_TYPE.card, id));
 				const current = card?.CurrentState as { v?: number } | undefined;
-				const face = st.get(keyOf(TYPE.cardState, id * 16 + (current?.v ?? 0)));
+				const face = st.get(deltaKey(DELTA_TYPE.cardState, id * 16 + (current?.v ?? 0)));
 				return (face?.Name as { v?: string } | undefined)?.v ?? `#${id}`;
 			}
 			const seize = handIds().find((id) => nameOf(id) === 'Thoughtseize');

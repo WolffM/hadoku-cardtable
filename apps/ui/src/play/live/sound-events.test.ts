@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { DraftCard } from '@hadoku/shared';
 
+import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
+
 import { toBoardView, type BoardCard, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { loadPackets, PLAY_FIXTURES } from '../fixtures.ts';
 import { foldPackets } from '../fold.ts';
-import { cardStateKey, deltaKey, WireType, type WireObject } from '../wire.ts';
+import { type WireObject } from '../wire.ts';
 import { damagePower } from '../motion.ts';
 import poolData from '../../draft/pool.json' with { type: 'json' };
 import { castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, UNTAP_REPEAT_GAP_MS, UNTAP_REPEAT_MAX, wasShuffled } from './sound-events.ts';
@@ -260,7 +262,7 @@ describe('colours and types', () => {
       ({ ...original, _id: id * 16 + BACKSIDE, Name: { t: 'str', v: name }, Type: { t: 'cardtype', sup: [], core, sub: [], all: false, exc: [] }, OracleText: { t: 'str', v: text } }) as WireObject;
     state.set(cardStateKey(id, 0), { ...face('Sink into Stupor', ['Instant'], 'Return target spell or nonland permanent an opponent controls to its owner’s hand.'), _id: id * 16 });
     state.set(cardStateKey(id, BACKSIDE), face('Soporific Springs', ['Land'], "As Soporific Springs enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {U}."));
-    const key = deltaKey(WireType.Card, id);
+    const key = deltaKey(DELTA_TYPE.card, id);
     state.set(key, { ...state.get(key)!, CurrentState: { t: 'int', v: BACKSIDE } } as WireObject);
     const springs = toBoardView(state, seq, { viewerPlayerId: fixture.viewerPlayerId }).players.flatMap((p) => p.battlefield).find((c) => c.id === id)!;
     expect(springs.card.name).toBe('Soporific Springs');

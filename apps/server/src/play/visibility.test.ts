@@ -28,15 +28,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ApplyDeltaSchema, GameEventListSchema, safeParseServerFrame, type PrintedPT, type PrintedTypes } from '@hadoku/forge-wire';
+import { ApplyDeltaSchema, GameEventListSchema, safeParseServerFrame, type PrintedPT, type PrintedTypes, DELTA_TYPE, cardIdOfState, deltaKey } from '@hadoku/forge-wire';
 
 import {
-	TYPE,
 	cardVisibility,
 	createProjector,
-	csvCardId,
 	foldFrames,
-	keyOf,
 	type DeltaPacketJson,
 	type StateFrame,
 	type WireObj,
@@ -96,20 +93,20 @@ function fold(frames: readonly StateFrame[]): Map<string, WireObj> {
 }
 
 function handOf(state: ReadonlyMap<string, WireObj>, playerId: number): number[] {
-	const hand = state.get(keyOf(TYPE.player, playerId))?.Hand as { v: { v: number }[] } | undefined;
+	const hand = state.get(deltaKey(DELTA_TYPE.player, playerId))?.Hand as { v: { v: number }[] } | undefined;
 	return hand === undefined ? [] : hand.v.map((x) => x.v);
 }
 
 /** Every string that says WHICH card this is: the card's names and all of its faces' strings. */
 function identifyingStrings(state: ReadonlyMap<string, WireObj>, cardId: number): string[] {
 	const out: string[] = [];
-	const card = state.get(keyOf(TYPE.card, cardId));
+	const card = state.get(deltaKey(DELTA_TYPE.card, cardId));
 	for (const prop of ['Name', 'OracleName']) {
 		const v = card?.[prop] as { t: string; v: unknown } | undefined;
 		if (v?.t === 'str' && typeof v.v === 'string' && v.v !== '') out.push(v.v);
 	}
 	for (const obj of state.values()) {
-		if (obj._type !== TYPE.cardState || csvCardId(obj._id) !== cardId) continue;
+		if (obj._type !== DELTA_TYPE.cardState || cardIdOfState(obj._id) !== cardId) continue;
 		for (const [prop, value] of Object.entries(obj)) {
 			const v = value as { t?: string; v?: unknown } | null;
 			// Only strings long enough to be a real signal: a one-letter set of
@@ -145,7 +142,7 @@ function runViewer(viewer: number, frames: readonly StateFrame[]): Run {
 		rawStates.push(raw);
 		for (const id of handOf(raw, opponent)) opponentHandCards.add(id);
 		for (const obj of raw.values()) {
-			if (obj._type === TYPE.card && projector.visibilityOf(obj._id) === 'full') everVisible.add(obj._id);
+			if (obj._type === DELTA_TYPE.card && projector.visibilityOf(obj._id) === 'full') everVisible.add(obj._id);
 		}
 	}
 	return { emitted, opponentHandCards, everVisible, rawStates };
@@ -202,9 +199,9 @@ describe.each(PLAYERS)('seat with Forge player %i', (viewer) => {
 			if (out.method !== 'applyDelta') continue;
 			const { newObjects, objectDeltas } = out.payload.packet;
 			for (const [key, obj] of [...Object.entries(newObjects), ...Object.entries(objectDeltas)]) {
-				const cardId = obj._type === TYPE.card ? obj._id : obj._type === TYPE.cardState ? csvCardId(obj._id) : null;
+				const cardId = obj._type === DELTA_TYPE.card ? obj._id : obj._type === DELTA_TYPE.cardState ? cardIdOfState(obj._id) : null;
 				if (cardId === null || projector.visibilityOf(cardId) !== 'hidden') continue;
-				if (obj._type === TYPE.cardState) {
+				if (obj._type === DELTA_TYPE.cardState) {
 					// Only a wipe (every property null) may name a hidden card's face.
 					const live = Object.entries(obj).filter(([p, v]) => p !== '_type' && p !== '_id' && v !== null);
 					if (live.length > 0) offences.push(`face ${key} of hidden card ${cardId}`);
@@ -236,9 +233,9 @@ describe.each(PLAYERS)('seat with Forge player %i', (viewer) => {
 	it('leaves every public card exactly as Forge sent it', () => {
 		const projected = fold(run.emitted);
 		for (const obj of finalRaw.values()) {
-			if (obj._type !== TYPE.card) continue;
+			if (obj._type !== DELTA_TYPE.card) continue;
 			if (run.everVisible.has(obj._id) && cardVisibility(finalRaw, { byCard: new Map() }, obj._id, viewer) === 'full') {
-				expect(projected.get(keyOf(TYPE.card, obj._id))).toEqual(obj);
+				expect(projected.get(deltaKey(DELTA_TYPE.card, obj._id))).toEqual(obj);
 			}
 		}
 	});
@@ -291,7 +288,7 @@ describe('setGameView', () => {
 		expect(out.method).toBe('setGameView');
 		const table = (out as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
 		for (const id of handOf(raw, 1)) {
-			expect(Object.keys(table[keyOf(TYPE.card, id)] ?? {}).sort()).toEqual(
+			expect(Object.keys(table[deltaKey(DELTA_TYPE.card, id)] ?? {}).sort()).toEqual(
 				expect.not.arrayContaining(['Name', 'OracleName']),
 			);
 		}
@@ -342,7 +339,7 @@ describe('pendingTriggers', () => {
 	it("keeps a waiting trigger of a card this seat sees, drops one of a card it may not see (its words name the card)", () => {
 		const raw = fold(fixtureFrames());
 		const gameView = Object.fromEntries(raw);
-		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 		const onField = ids(1, 'Battlefield')[0]!;
 		const inTheirHand = ids(1, 'Hand')[0]!;
 		const pending = [
@@ -366,7 +363,7 @@ describe('waitingEffects', () => {
 	it('keeps an effect whose source this seat sees, drops one whose source it may not see, on both state frames', () => {
 		const raw = fold(fixtureFrames());
 		const gameView = Object.fromEntries(raw);
-		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 		const effects = [
 			{ source: ids(1, 'Battlefield')[0]!, kind: 'trigger' as const, text: 'seen' },
 			{ source: ids(1, 'Hand')[0]!, kind: 'effect' as const, text: 'hidden' },
@@ -391,7 +388,7 @@ describe('cantBlock', () => {
 	it('keeps the battlefield creatures every seat is sent, drops a card one seat may not see, on both state frames', () => {
 		const raw = fold(fixtureFrames());
 		const gameView = Object.fromEntries(raw);
-		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 		const onField = ids(1, 'Battlefield')[0]!;
 		const inTheirHand = ids(1, 'Hand')[0]!;
 		const cantBlock = [onField, inTheirHand];
@@ -421,7 +418,7 @@ describe('printedPT', () => {
 	it('keeps the rows for cards a seat is sent, drops a card that seat may not see', () => {
 		const raw = fold(fixtureFrames());
 		const gameView = Object.fromEntries(raw);
-		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 		const onField = ids(1, 'Battlefield')[0]!;
 		const inTheirHand = ids(1, 'Hand')[0]!;
 		const printedPT: PrintedPT = [[onField, 2, 2], [inTheirHand, 1, 1]];
@@ -437,7 +434,7 @@ describe('printedTypes', () => {
 	it('keeps the pairs for cards a seat is sent, drops a card that seat may not see, on both state frames', () => {
 		const raw = fold(fixtureFrames());
 		const gameView = Object.fromEntries(raw);
-		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 		const onField = ids(1, 'Battlefield')[0]!;
 		const inTheirHand = ids(1, 'Hand')[0]!;
 		const land = { t: 'cardtype' as const, sup: [], core: ['Land'], sub: [], all: false, exc: [] };
@@ -463,7 +460,7 @@ describe('conditionMet', () => {
 	it('keeps the cards a seat may read, and drops a card in the other seat’s hand, on both state frames', () => {
 		const raw = fold(fixtureFrames());
 		const gameView = Object.fromEntries(raw);
-		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 		const onField = ids(1, 'Battlefield')[0]!;
 		const inTheirHand = ids(1, 'Hand')[0]!;
 		const conditionMet = [onField, inTheirHand];
@@ -493,7 +490,7 @@ describe('deaths', () => {
 	it('keeps the deaths of cards this seat is sent, and rides applyDelta', () => {
 		const raw = fold(fixtureFrames());
 		const gameView = Object.fromEntries(raw);
-		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 		const onField = ids(1, 'Battlefield')[0]!;
 		const inTheirHand = ids(1, 'Hand')[0]!;
 		const seat0 = createProjector(0);
@@ -517,7 +514,7 @@ describe('damage', () => {
 	it('keeps the hits on a card this seat is sent, names a source it may not see as none, and rides applyDelta only', () => {
 		const raw = fold(fixtureFrames());
 		const gameView = Object.fromEntries(raw);
-		const ids = (pid: number, zone: string) => ((raw.get(keyOf(TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
+		const ids = (pid: number, zone: string) => ((raw.get(deltaKey(DELTA_TYPE.player, pid))?.[zone] as { v: { v: number }[] } | undefined)?.v ?? []).map((x) => x.v);
 		const onField = ids(1, 'Battlefield')[0]!;
 		const inTheirHand = ids(1, 'Hand')[0]!;
 		const seat0 = createProjector(0);
@@ -543,7 +540,7 @@ describe('damage', () => {
 	it('leaves the field off a frame whose hits this seat sees none of', () => {
 		const raw = fold(fixtureFrames());
 		const gameView = Object.fromEntries(raw);
-		const inTheirHand = ((raw.get(keyOf(TYPE.player, 1))?.Hand as { v: { v: number }[] }).v[0]!).v;
+		const inTheirHand = ((raw.get(deltaKey(DELTA_TYPE.player, 1))?.Hand as { v: { v: number }[] }).v[0]!).v;
 		const seat0 = createProjector(0);
 		seat0.project({ kind: 'notify', method: 'setGameView', payload: { gameView, sequenceNumber: 1 } });
 		const delta = seat0.project({
@@ -561,20 +558,20 @@ describe('a face-down permanent (real battlefield card, turned face down)', () =
 		const raw = fold(frames);
 		// A real card on player 1's battlefield, with the one property that
 		// makes it a morph flipped on. Its faces are the real captured faces.
-		const bf = (raw.get(keyOf(TYPE.player, 1))?.Battlefield as { v: { v: number }[] }).v.map((x) => x.v);
+		const bf = (raw.get(deltaKey(DELTA_TYPE.player, 1))?.Battlefield as { v: { v: number }[] }).v.map((x) => x.v);
 		const cardId = bf[0] as number;
-		const card = raw.get(keyOf(TYPE.card, cardId)) as WireObj;
+		const card = raw.get(deltaKey(DELTA_TYPE.card, cardId)) as WireObj;
 		const faceDown = { ...card, Facedown: { t: 'bool', v: true } };
-		const table = { ...Object.fromEntries(raw), [keyOf(TYPE.card, cardId)]: faceDown };
+		const table = { ...Object.fromEntries(raw), [deltaKey(DELTA_TYPE.card, cardId)]: faceDown };
 		const frame: StateFrame = { kind: 'notify', method: 'setGameView', payload: { gameView: table, sequenceNumber: 1 } };
 
 		const opp = createProjector(0);
 		const oppOut = (opp.project(frame) as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
 		expect(opp.visibilityOf(cardId)).toBe('faceOnly');
-		const seen = oppOut[keyOf(TYPE.card, cardId)] as WireObj;
+		const seen = oppOut[deltaKey(DELTA_TYPE.card, cardId)] as WireObj;
 		expect(seen.Name).toBeUndefined();
 		expect(seen.Facedown).toEqual({ t: 'bool', v: true });
-		const faces = Object.values(oppOut).filter((o) => o._type === TYPE.cardState && csvCardId(o._id) === cardId);
+		const faces = Object.values(oppOut).filter((o) => o._type === DELTA_TYPE.cardState && cardIdOfState(o._id) === cardId);
 		expect(faces.length).toBeLessThanOrEqual(1);
 
 		const own = createProjector(1);
@@ -592,7 +589,7 @@ describe('a face-down permanent (real battlefield card, turned face down)', () =
 describe("a library's top card that Forge lets players look at", () => {
 	const mayLook = (ids: number[]) => ({ t: 'list', v: ids.map((v) => ({ t: 'int', v })) });
 	const idsIn = (raw: Map<string, WireObj>, owner: number, zone: string): number[] =>
-		(raw.get(keyOf(TYPE.player, owner))?.[zone] as { v: { v: number }[] }).v.map((x) => x.v);
+		(raw.get(deltaKey(DELTA_TYPE.player, owner))?.[zone] as { v: { v: number }[] }).v.map((x) => x.v);
 	/**
 	 * The fixture's state with one of player 1's hand cards (a card the capture carries whole, with its
 	 * faces) put on top of their library — the capture names no library card. Returns its id and the next.
@@ -601,9 +598,9 @@ describe("a library's top card that Forge lets players look at", () => {
 		const raw = fold(fixtureFrames());
 		const [top, ...hand] = idsIn(raw, 1, 'Hand') as [number, ...number[]];
 		const library = idsIn(raw, 1, 'Library');
-		const player = raw.get(keyOf(TYPE.player, 1)) as WireObj;
-		raw.set(keyOf(TYPE.player, 1), { ...player, Hand: mayLook(hand), Library: mayLook([top, ...library]) });
-		raw.set(keyOf(TYPE.card, top), { ...(raw.get(keyOf(TYPE.card, top)) as WireObj), Zone: { t: 'enum', v: 'Library' } });
+		const player = raw.get(deltaKey(DELTA_TYPE.player, 1)) as WireObj;
+		raw.set(deltaKey(DELTA_TYPE.player, 1), { ...player, Hand: mayLook(hand), Library: mayLook([top, ...library]) });
+		raw.set(deltaKey(DELTA_TYPE.card, top), { ...(raw.get(deltaKey(DELTA_TYPE.card, top)) as WireObj), Zone: { t: 'enum', v: 'Library' } });
 		return { raw, top, next: library[0]! };
 	}
 	function delta(objectDeltas: Record<string, WireObj>): StateFrame {
@@ -611,14 +608,14 @@ describe("a library's top card that Forge lets players look at", () => {
 	}
 	const names = (table: Record<string, WireObj>, cardId: number): unknown[] =>
 		Object.values(table)
-			.filter((o) => (o._type === TYPE.card && o._id === cardId) || (o._type === TYPE.cardState && csvCardId(o._id) === cardId))
+			.filter((o) => (o._type === DELTA_TYPE.card && o._id === cardId) || (o._type === DELTA_TYPE.cardState && cardIdOfState(o._id) === cardId))
 			.map((o) => o.Name)
 			.filter((n) => n !== undefined && n !== null);
 
 	it('is sent whole to every seat Forge names, and to no other; the card under it stays hidden', () => {
 		const { raw, top, next } = onTop();
-		const card = raw.get(keyOf(TYPE.card, top)) as WireObj;
-		const table = (who: number[]) => ({ ...Object.fromEntries(raw), [keyOf(TYPE.card, top)]: { ...card, PlayerMayLook: mayLook(who) } });
+		const card = raw.get(deltaKey(DELTA_TYPE.card, top)) as WireObj;
+		const table = (who: number[]) => ({ ...Object.fromEntries(raw), [deltaKey(DELTA_TYPE.card, top)]: { ...card, PlayerMayLook: mayLook(who) } });
 		const frame = (who: number[]): StateFrame => ({ kind: 'notify', method: 'setGameView', payload: { gameView: table(who), sequenceNumber: 1 } });
 		const out = (viewer: number, who: number[]) => {
 			const p = createProjector(viewer);
@@ -644,25 +641,25 @@ describe("a library's top card that Forge lets players look at", () => {
 
 	it('is sent when Forge lets the seat look, kept while it stays on top, and taken back when the library is shuffled', () => {
 		const { raw, top } = onTop();
-		const key = keyOf(TYPE.card, top);
+		const key = deltaKey(DELTA_TYPE.card, top);
 		const p = createProjector(0);
 		p.project({ kind: 'notify', method: 'setGameView', payload: { gameView: Object.fromEntries(raw), sequenceNumber: 1 } });
 		expect(p.visibilityOf(top)).toBe('hidden');
 
-		const shown = (p.project(delta({ [key]: { _type: TYPE.card, _id: top, PlayerMayLook: mayLook([0, 1]) } })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
+		const shown = (p.project(delta({ [key]: { _type: DELTA_TYPE.card, _id: top, PlayerMayLook: mayLook([0, 1]) } })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
 		expect(p.visibilityOf(top)).toBe('full');
 		expect(names(shown.newObjects, top).length, 'the card and its face are re-sent whole').toBeGreaterThan(0);
 
-		p.project(delta({ [key]: { _type: TYPE.card, _id: top, PlayerMayLook: null } as unknown as WireObj }));
+		p.project(delta({ [key]: { _type: DELTA_TYPE.card, _id: top, PlayerMayLook: null } as unknown as WireObj }));
 		expect(p.visibilityOf(top), 'the seat still knows the card it was shown').toBe('full');
 
 		const [, ...under] = idsIn(raw, 1, 'Library');
-		const playerKey = keyOf(TYPE.player, 1);
-		const shuffled = { _type: TYPE.player, _id: 1, Library: mayLook([...under.slice(0, 2), top, ...under.slice(2)]) };
+		const playerKey = deltaKey(DELTA_TYPE.player, 1);
+		const shuffled = { _type: DELTA_TYPE.player, _id: 1, Library: mayLook([...under.slice(0, 2), top, ...under.slice(2)]) };
 		const gone = (p.project(delta({ [playerKey]: shuffled })) as Extract<StateFrame, { method: 'applyDelta' }>).payload.packet;
 		expect(p.visibilityOf(top)).toBe('hidden');
 		expect((gone.newObjects[key] as WireObj).Name, 'the card is re-sent as existence only').toBeUndefined();
-		const wiped = Object.values(gone.newObjects).filter((o) => o._type === TYPE.cardState && csvCardId(o._id) === top);
+		const wiped = Object.values(gone.newObjects).filter((o) => o._type === DELTA_TYPE.cardState && cardIdOfState(o._id) === top);
 		expect(wiped.length, 'its face is wiped').toBeGreaterThan(0);
 		for (const face of wiped) expect(face.Name).toBeNull();
 	});
@@ -675,12 +672,12 @@ describe("a library's top card that Forge lets players look at", () => {
  */
 describe('creatureCount (Q10)', () => {
 	function expectedCreatures(state: ReadonlyMap<string, WireObj>, playerId: number): number {
-		const bf = state.get(keyOf(TYPE.player, playerId))?.Battlefield as { v: { v: number }[] } | undefined;
+		const bf = state.get(deltaKey(DELTA_TYPE.player, playerId))?.Battlefield as { v: { v: number }[] } | undefined;
 		let n = 0;
 		for (const { v: id } of bf?.v ?? []) {
-			const card = state.get(keyOf(TYPE.card, id));
+			const card = state.get(deltaKey(DELTA_TYPE.card, id));
 			const ordinal = (card?.CurrentState as { v?: number } | undefined)?.v ?? 0;
-			const type = state.get(keyOf(TYPE.cardState, id * 16 + ordinal))?.Type as { core?: string[] } | undefined;
+			const type = state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + ordinal))?.Type as { core?: string[] } | undefined;
 			if (type?.core?.includes('Creature') === true) n += 1;
 		}
 		return n;
@@ -716,7 +713,7 @@ describe('creatureCount (Q10)', () => {
 					checksum: 0,
 					checksumProperties: [],
 					newObjects: {
-						[keyOf(TYPE.player, 0)]: { _type: TYPE.player, _id: 0, Battlefield: { t: 'list', v: [{ t: 'int', v: 77 }] } },
+						[deltaKey(DELTA_TYPE.player, 0)]: { _type: DELTA_TYPE.player, _id: 0, Battlefield: { t: 'list', v: [{ t: 'int', v: 77 }] } },
 					},
 					objectDeltas: {},
 					events: [],
@@ -730,7 +727,7 @@ describe('creatureCount (Q10)', () => {
 describe('stackTopSpellTypes and cardAt', () => {
 	it('names the top SPELL\u2019s core types, null for an ability on top; and a card\u2019s name and zone', () => {
 		const projector = createProjector(0);
-		const game = keyOf(TYPE.game, 1);
+		const game = deltaKey(DELTA_TYPE.game, 1);
 		const frame = (ability: boolean): StateFrame =>
 			({
 				kind: 'notify',
@@ -741,15 +738,15 @@ describe('stackTopSpellTypes and cardAt', () => {
 						checksum: 0,
 						checksumProperties: [],
 						newObjects: {
-							[game]: { _type: TYPE.game, _id: 1 },
-							[keyOf(TYPE.player, 0)]: { _type: TYPE.player, _id: 0, Hand: { t: 'list', v: [{ t: 'int', v: 67 }] } },
-							[keyOf(TYPE.card, 67)]: { _type: TYPE.card, _id: 67, CurrentState: { t: 'int', v: 0 } },
-							[keyOf(TYPE.cardState, 67 * 16)]: { _type: TYPE.cardState, _id: 67 * 16, Name: { t: 'str', v: 'Twincast' } },
-							[keyOf(TYPE.card, 70)]: { _type: TYPE.card, _id: 70, CurrentState: { t: 'int', v: 0 } },
-							[keyOf(TYPE.cardState, 70 * 16)]: { _type: TYPE.cardState, _id: 70 * 16, Type: { t: 'cardtype', core: ['Instant'] } },
-							[keyOf(TYPE.stackItem, 9)]: { _type: TYPE.stackItem, _id: 9, SourceCard: { t: 'int', v: 70 }, Ability: { t: 'bool', v: ability } },
+							[game]: { _type: DELTA_TYPE.game, _id: 1 },
+							[deltaKey(DELTA_TYPE.player, 0)]: { _type: DELTA_TYPE.player, _id: 0, Hand: { t: 'list', v: [{ t: 'int', v: 67 }] } },
+							[deltaKey(DELTA_TYPE.card, 67)]: { _type: DELTA_TYPE.card, _id: 67, CurrentState: { t: 'int', v: 0 } },
+							[deltaKey(DELTA_TYPE.cardState, 67 * 16)]: { _type: DELTA_TYPE.cardState, _id: 67 * 16, Name: { t: 'str', v: 'Twincast' } },
+							[deltaKey(DELTA_TYPE.card, 70)]: { _type: DELTA_TYPE.card, _id: 70, CurrentState: { t: 'int', v: 0 } },
+							[deltaKey(DELTA_TYPE.cardState, 70 * 16)]: { _type: DELTA_TYPE.cardState, _id: 70 * 16, Type: { t: 'cardtype', core: ['Instant'] } },
+							[deltaKey(DELTA_TYPE.stackItem, 9)]: { _type: DELTA_TYPE.stackItem, _id: 9, SourceCard: { t: 'int', v: 70 }, Ability: { t: 'bool', v: ability } },
 						},
-						objectDeltas: { [game]: { _type: TYPE.game, _id: 1, Stack: { t: 'list', v: [{ t: 'int', v: 9 }] } } },
+						objectDeltas: { [game]: { _type: DELTA_TYPE.game, _id: 1, Stack: { t: 'list', v: [{ t: 'int', v: 9 }] } } },
 						events: [],
 					},
 				},
@@ -768,8 +765,8 @@ describe('stackTopActivator (Q17)', () => {
 	it('is the activating player of the TOP stack item, and null for an empty or unknown stack', () => {
 		const projector = createProjector(0);
 		expect(projector.stackTopActivator()).toBeNull();
-		const game = keyOf(TYPE.game, 1);
-		const item = (id: number, who: number) => ({ _type: TYPE.stackItem, _id: id, ActivatingPlayer: { t: 'int', v: who } });
+		const game = deltaKey(DELTA_TYPE.game, 1);
+		const item = (id: number, who: number) => ({ _type: DELTA_TYPE.stackItem, _id: id, ActivatingPlayer: { t: 'int', v: who } });
 		const frame = (stack: number[], items: Record<string, WireObj>): StateFrame =>
 			({
 				kind: 'notify',
@@ -779,8 +776,8 @@ describe('stackTopActivator (Q17)', () => {
 						seq: 1,
 						checksum: 0,
 						checksumProperties: [],
-						newObjects: { [game]: { _type: TYPE.game, _id: 1 }, ...items },
-						objectDeltas: { [game]: { _type: TYPE.game, _id: 1, Stack: { t: 'list', v: stack.map((v) => ({ t: 'int', v })) } } },
+						newObjects: { [game]: { _type: DELTA_TYPE.game, _id: 1 }, ...items },
+						objectDeltas: { [game]: { _type: DELTA_TYPE.game, _id: 1, Stack: { t: 'list', v: stack.map((v) => ({ t: 'int', v })) } } },
 						events: [],
 					},
 				},
@@ -788,7 +785,7 @@ describe('stackTopActivator (Q17)', () => {
 		projector.project(frame([], {}));
 		expect(projector.stackTopActivator()).toBeNull();
 		// Top first: item 9 is on top, and it is player 1's.
-		projector.project(frame([9, 5], { [keyOf(TYPE.stackItem, 9)]: item(9, 1), [keyOf(TYPE.stackItem, 5)]: item(5, 0) }));
+		projector.project(frame([9, 5], { [deltaKey(DELTA_TYPE.stackItem, 9)]: item(9, 1), [deltaKey(DELTA_TYPE.stackItem, 5)]: item(5, 0) }));
 		expect(projector.stackTopActivator()).toBe(1);
 		// An item the state does not know says nothing.
 		projector.project(frame([77], {}));
@@ -800,7 +797,7 @@ describe('turnNumber', () => {
 	it('is the Game object’s own Turn, off a delta either seat could have received — null until one arrives', () => {
 		const projector = createProjector(0);
 		expect(projector.turnNumber()).toBeNull();
-		const game = keyOf(TYPE.game, 1);
+		const game = deltaKey(DELTA_TYPE.game, 1);
 		const frame = (turn: number): StateFrame =>
 			({
 				kind: 'notify',
@@ -810,8 +807,8 @@ describe('turnNumber', () => {
 						seq: 1,
 						checksum: 0,
 						checksumProperties: [],
-						newObjects: { [game]: { _type: TYPE.game, _id: 1 } },
-						objectDeltas: { [game]: { _type: TYPE.game, _id: 1, Turn: { t: 'int', v: turn } } },
+						newObjects: { [game]: { _type: DELTA_TYPE.game, _id: 1 } },
+						objectDeltas: { [game]: { _type: DELTA_TYPE.game, _id: 1, Turn: { t: 'int', v: turn } } },
 						events: [],
 					},
 				},
@@ -828,7 +825,7 @@ describe('phase', () => {
 	it('is the Game object’s own Phase constant — null until one arrives', () => {
 		const projector = createProjector(0);
 		expect(projector.phase()).toBeNull();
-		const game = keyOf(TYPE.game, 1);
+		const game = deltaKey(DELTA_TYPE.game, 1);
 		projector.project({
 			kind: 'notify',
 			method: 'applyDelta',
@@ -837,8 +834,8 @@ describe('phase', () => {
 					seq: 1,
 					checksum: 0,
 					checksumProperties: [],
-					newObjects: { [game]: { _type: TYPE.game, _id: 1 } },
-					objectDeltas: { [game]: { _type: TYPE.game, _id: 1, Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'END_OF_TURN' } } },
+					newObjects: { [game]: { _type: DELTA_TYPE.game, _id: 1 } },
+					objectDeltas: { [game]: { _type: DELTA_TYPE.game, _id: 1, Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'END_OF_TURN' } } },
 					events: [],
 				},
 			},
@@ -857,7 +854,7 @@ describe('a null viewer: the public table (the watcher channel)', () => {
 	const frames = fixtureFrames();
 	const raw = fold(frames);
 	const zoneIds = (playerId: number, zone: string): number[] => {
-		const list = raw.get(keyOf(TYPE.player, playerId))?.[zone] as { v: { v: number }[] } | undefined;
+		const list = raw.get(deltaKey(DELTA_TYPE.player, playerId))?.[zone] as { v: { v: number }[] } | undefined;
 		return list === undefined ? [] : list.v.map((x) => x.v);
 	};
 
@@ -897,23 +894,23 @@ describe('a null viewer: the public table (the watcher channel)', () => {
 		const shown = fold(frames.map((frame) => projector.project(frame)));
 		for (const playerId of PLAYERS) {
 			for (const zone of ['Hand', 'Library']) {
-				const list = shown.get(keyOf(TYPE.player, playerId))?.[zone] as { v: { v: number }[] } | undefined;
+				const list = shown.get(deltaKey(DELTA_TYPE.player, playerId))?.[zone] as { v: { v: number }[] } | undefined;
 				expect(list?.v.map((x) => x.v), `${zone} of player ${playerId}`).toEqual(zoneIds(playerId, zone));
 			}
-			for (const id of zoneIds(playerId, 'Hand')) expect(shown.get(keyOf(TYPE.card, id))?.Name).toBeUndefined();
+			for (const id of zoneIds(playerId, 'Hand')) expect(shown.get(deltaKey(DELTA_TYPE.card, id))?.Name).toBeUndefined();
 		}
 	});
 
 	it('shows a face-down permanent as its face-down face and nothing underneath', () => {
 		const bf = zoneIds(1, 'Battlefield');
 		const cardId = bf[0] as number;
-		const card = raw.get(keyOf(TYPE.card, cardId)) as WireObj;
-		const table = { ...Object.fromEntries(raw), [keyOf(TYPE.card, cardId)]: { ...card, Facedown: { t: 'bool', v: true } } };
+		const card = raw.get(deltaKey(DELTA_TYPE.card, cardId)) as WireObj;
+		const table = { ...Object.fromEntries(raw), [deltaKey(DELTA_TYPE.card, cardId)]: { ...card, Facedown: { t: 'bool', v: true } } };
 		const frame: StateFrame = { kind: 'notify', method: 'setGameView', payload: { gameView: table, sequenceNumber: 1 } };
 		const projector = createProjector(null);
 		const out = (projector.project(frame) as Extract<StateFrame, { method: 'setGameView' }>).payload.gameView;
 		expect(projector.visibilityOf(cardId)).toBe('faceOnly');
-		const seen = out[keyOf(TYPE.card, cardId)] as WireObj;
+		const seen = out[deltaKey(DELTA_TYPE.card, cardId)] as WireObj;
 		expect(seen.Name).toBeUndefined();
 		expect(seen.Facedown).toEqual({ t: 'bool', v: true });
 	});
@@ -929,7 +926,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 	const list = (ids: readonly number[]) => ({ t: 'list', v: ids.map(int) });
 	const NAMES: Record<number, string> = { 10: 'Goblin Guide', 20: 'Lightning Bolt', 21: 'Shock', 22: 'Mountain', 30: 'Grizzly Bears' };
 	const card = (id: number, mayLook: readonly number[] = []): WireObj => ({
-		_type: TYPE.card,
+		_type: DELTA_TYPE.card,
 		_id: id,
 		Owner: int(1),
 		Controller: int(1),
@@ -937,7 +934,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		...(mayLook.length === 0 ? {} : { PlayerMayLook: list(mayLook) }),
 	});
 	const player = (id: number, zones: { Hand?: number[]; Library?: number[]; Graveyard?: number[]; Battlefield?: number[]; Exile?: number[] } = {}): WireObj => ({
-		_type: TYPE.player,
+		_type: DELTA_TYPE.player,
 		_id: id,
 		Hand: list(zones.Hand ?? []),
 		Library: list(zones.Library ?? []),
@@ -951,7 +948,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		payload: {
 			sequenceNumber: 1,
 			gameView: Object.fromEntries(
-				[player(0), player(1, { Hand: [10], Library: [20, 21, 22] }), ...[10, 20, 21, 22].map((id) => card(id, mayLook[id]))].map((o) => [keyOf(o._type, o._id), o]),
+				[player(0), player(1, { Hand: [10], Library: [20, 21, 22] }), ...[10, 20, 21, 22].map((id) => card(id, mayLook[id]))].map((o) => [deltaKey(o._type, o._id), o]),
 			),
 		},
 	});
@@ -960,15 +957,15 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		kind: 'notify',
 		method: 'applyDelta',
 		payload: {
-			packet: { seq: ++seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: Object.fromEntries(objectDeltas.map((o) => [keyOf(o._type, o._id), o])), events: [] },
+			packet: { seq: ++seq, checksum: 0, checksumProperties: [], newObjects: {}, objectDeltas: Object.fromEntries(objectDeltas.map((o) => [deltaKey(o._type, o._id), o])), events: [] },
 		},
 	});
 	/** Seat 0's client state after these projected frames: the name it holds for `id`, if any. */
-	const held = (emitted: readonly (StateFrame | null)[], id: number): unknown => foldFrames(emitted.filter((f): f is StateFrame => f !== null)).get(keyOf(TYPE.card, id))?.Name;
+	const held = (emitted: readonly (StateFrame | null)[], id: number): unknown => foldFrames(emitted.filter((f): f is StateFrame => f !== null)).get(deltaKey(DELTA_TYPE.card, id))?.Name;
 
 	it("keeps a hand card Forge let it look at after Forge takes the look back (Thoughtseize's reveal)", () => {
 		const p = createProjector(0);
-		const out = [p.project(opening({ 10: [0] })), p.project(delta([{ _type: TYPE.card, _id: 10, PlayerMayLook: null }]))];
+		const out = [p.project(opening({ 10: [0] })), p.project(delta([{ _type: DELTA_TYPE.card, _id: 10, PlayerMayLook: null }]))];
 		expect(p.visibilityOf(10)).toBe('full');
 		expect(held(out, 10)).toEqual({ t: 'str', v: 'Goblin Guide' });
 	});
@@ -1017,24 +1014,24 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 	it("keeps a look at the top of the seat's own library (a scry keeping its cards) after the look ends, and only those cards", () => {
 		const p = createProjector(1);
 		const out: (StateFrame | null)[] = [p.project(opening({ 20: [1], 21: [1] }))];
-		out.push(p.project(delta([{ _type: TYPE.card, _id: 20, PlayerMayLook: null }, { _type: TYPE.card, _id: 21, PlayerMayLook: null }])));
+		out.push(p.project(delta([{ _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null }, { _type: DELTA_TYPE.card, _id: 21, PlayerMayLook: null }])));
 		expect([20, 21, 22].map((id) => p.visibilityOf(id)), 'the two it looked at, not the one under them').toEqual(['full', 'full', 'hidden']);
 		expect(lookHeld(out, 20), 'said in Forge’s words: this seat may look at it').toEqual(list([1]));
-		out.push(p.project(delta([{ _type: TYPE.game, _id: 0, Turn: int(3) } as WireObj, { ...player(0, { Graveyard: [] }) }])));
+		out.push(p.project(delta([{ _type: DELTA_TYPE.game, _id: 0, Turn: int(3) } as WireObj, { ...player(0, { Graveyard: [] }) }])));
 		expect(held(out, 21), 'kept through packets that touch neither the card nor its library').toEqual({ t: 'str', v: 'Shock' });
 	});
 
 	it("does not keep a look at the seat's whole library: that is a search, and what it chose there is the decision's", () => {
 		const p = createProjector(1);
 		p.project(opening({ 20: [1], 21: [1], 22: [1] }));
-		p.project(delta([20, 21, 22].map((id) => ({ _type: TYPE.card, _id: id, PlayerMayLook: null }) as unknown as WireObj)));
+		p.project(delta([20, 21, 22].map((id) => ({ _type: DELTA_TYPE.card, _id: id, PlayerMayLook: null }) as unknown as WireObj)));
 		expect([20, 21, 22].map((id) => p.visibilityOf(id))).toEqual(['hidden', 'hidden', 'hidden']);
 	});
 
 	it('does not keep a look that is not the top of a library', () => {
 		const p = createProjector(1);
 		p.project(opening({ 21: [1] }));
-		p.project(delta([{ _type: TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj]));
+		p.project(delta([{ _type: DELTA_TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj]));
 		expect(p.visibilityOf(21)).toBe('hidden');
 	});
 
@@ -1042,7 +1039,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		const alice = createProjector(0);
 		const bob = createProjector(1);
 		const look = opening({ 20: [0] });
-		const ended = delta([{ _type: TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj]);
+		const ended = delta([{ _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj]);
 		const aliceOut = [alice.project(look), alice.project(ended)];
 		const bobOut = [bob.project(look), bob.project(ended)];
 		expect(alice.visibilityOf(20)).toBe('full');
@@ -1052,7 +1049,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 	});
 
 	it('keeps the top card a fate seal kept when Forge re-creates it on top of the same library — in the packet the look ends, one after it, or after a packet that holds it in no zone', () => {
-		const ended = { _type: TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj;
+		const ended = { _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj;
 		const together = createProjector(0);
 		const togetherOut = [together.project(opening({ 20: [0] })), together.project(renewed([card(20)]))];
 		const after = createProjector(0);
@@ -1070,7 +1067,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 	});
 
 	it('forgets a looked-at top card Forge re-creates anywhere but where it was, or in a library shuffled around it', () => {
-		const ended = { _type: TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj;
+		const ended = { _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj;
 		const bottom = createProjector(0);
 		bottom.project(opening({ 20: [0] }));
 		bottom.project(delta([ended]));
@@ -1091,7 +1088,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 	it('keeps the top card a scry kept when the scry puts the card under it on the bottom', () => {
 		const p = createProjector(1);
 		const out: (StateFrame | null)[] = [p.project(opening({ 20: [1], 21: [1] }))];
-		out.push(p.project(delta([{ _type: TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj, { _type: TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj, player(1, { Hand: [10], Library: [20, 22, 21] })])));
+		out.push(p.project(delta([{ _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj, { _type: DELTA_TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj, player(1, { Hand: [10], Library: [20, 22, 21] })])));
 		expect(p.visibilityOf(20), 'kept on top').toBe('full');
 		expect(held(out, 20)).toEqual({ t: 'str', v: 'Lightning Bolt' });
 	});
@@ -1100,7 +1097,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		const p = createProjector(1);
 		const out: (StateFrame | null)[] = [p.project(opening({ 20: [1], 21: [1] }))];
 		const twelve = [20, 21, 22, 23, 24];
-		out.push(p.project(delta([{ _type: TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj, { _type: TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj, player(1, { Hand: [10], Library: twelve })])));
+		out.push(p.project(delta([{ _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj, { _type: DELTA_TYPE.card, _id: 21, PlayerMayLook: null } as unknown as WireObj, player(1, { Hand: [10], Library: twelve })])));
 		out.push(p.project(delta([player(1, { Hand: [10, 20], Library: [21, 22, 23, 24] })])));
 		expect(p.visibilityOf(21), 'the card under the drawn one is still known').toBe('full');
 		out.push(p.project(delta([player(1, { Hand: [10, 20], Library: [24, 22, 21, 23] })])));
@@ -1138,13 +1135,13 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 
 	/** The `PlayerMayLook` seat `viewer`'s client holds for `id`, from these projected frames. */
 	const lookHeld = (emitted: readonly (StateFrame | null)[], id: number): unknown =>
-		foldFrames(emitted.filter((f): f is StateFrame => f !== null)).get(keyOf(TYPE.card, id))?.PlayerMayLook;
+		foldFrames(emitted.filter((f): f is StateFrame => f !== null)).get(deltaKey(DELTA_TYPE.card, id))?.PlayerMayLook;
 
 	it('tells the owner which of its hand cards the other seat was shown, and keeps telling it after Forge takes the look back', () => {
 		const bob = createProjector(1);
 		const out = [bob.project(opening({ 10: [0] }))];
 		expect(lookHeld(out, 10), "Forge's own grant, passed through").toEqual(list([0]));
-		out.push(bob.project(delta([{ _type: TYPE.card, _id: 10, PlayerMayLook: null }])));
+		out.push(bob.project(delta([{ _type: DELTA_TYPE.card, _id: 10, PlayerMayLook: null }])));
 		expect(lookHeld(out, 10), 'the other seat still knows it').toEqual(list([0]));
 	});
 
@@ -1157,7 +1154,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		expect(lookHeld(out, 10)).toEqual(list([0]));
 		const packet = told?.method === 'applyDelta' ? told.payload.packet : null;
 		expect(packet?.newObjects, 'nothing re-sent whole').toEqual({});
-		expect(packet?.objectDeltas, 'one property of one card').toEqual({ [keyOf(TYPE.card, 10)]: { _type: TYPE.card, _id: 10, PlayerMayLook: list([0]) } });
+		expect(packet?.objectDeltas, 'one property of one card').toEqual({ [deltaKey(DELTA_TYPE.card, 10)]: { _type: DELTA_TYPE.card, _id: 10, PlayerMayLook: list([0]) } });
 		expect(bob.learn([10], 0), 'told once').toBeNull();
 	});
 
@@ -1196,8 +1193,8 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 				seq: ++seq,
 				checksum: 0,
 				checksumProperties: [],
-				newObjects: Object.fromEntries(cards.map((o) => [keyOf(o._type, o._id), o])),
-				objectDeltas: Object.fromEntries(players.map((o) => [keyOf(o._type, o._id), o])),
+				newObjects: Object.fromEntries(cards.map((o) => [deltaKey(o._type, o._id), o])),
+				objectDeltas: Object.fromEntries(players.map((o) => [deltaKey(o._type, o._id), o])),
 				events: [],
 			},
 		},
@@ -1229,7 +1226,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		const alice = createProjector(0);
 		const out: (StateFrame | null)[] = [alice.project(opening({ 10: [0] }))];
 		expect(alice.learn([10, 20], 1), "bob's own reveal of his cards changes nothing alice is sent").toBeNull();
-		out.push(alice.project(delta([{ _type: TYPE.card, _id: 10, PlayerMayLook: null }])));
+		out.push(alice.project(delta([{ _type: DELTA_TYPE.card, _id: 10, PlayerMayLook: null }])));
 		expect(lookHeld(out, 10), 'alice is named, as she knows it, and nobody else').toEqual(list([0]));
 		const everyLook = JSON.stringify(out).match(/"PlayerMayLook":\{[^}]*\}/g) ?? [];
 		expect(everyLook.filter((l) => l.includes('"v":1')), 'player 1 is in no look alice receives').toEqual([]);
@@ -1241,7 +1238,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		method: 'setGameView',
 		payload: {
 			sequenceNumber: 1,
-			gameView: Object.fromEntries([player(0), player(1, zones), ...[10, 20, 21, 22].map((id) => card(id)), bears].map((o) => [keyOf(o._type, o._id), o])),
+			gameView: Object.fromEntries([player(0), player(1, zones), ...[10, 20, 21, 22].map((id) => card(id)), bears].map((o) => [deltaKey(o._type, o._id), o])),
 		},
 	});
 	/** Both seats, fed the same raw frames. */
@@ -1257,7 +1254,7 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		const { alice, aliceOut, bobOut } = both(
 			table({ Hand: [10], Library: [20, 21, 22], Battlefield: [30] }),
 			renewed([card(30)], [player(1, { Hand: [10, 30], Library: [20, 21, 22] })]),
-			delta([{ _type: TYPE.game, _id: 0, Turn: int(4) } as WireObj]),
+			delta([{ _type: DELTA_TYPE.game, _id: 0, Turn: int(4) } as WireObj]),
 			delta([player(1, { Hand: [10, 30, 20], Library: [21, 22] })]),
 		);
 		expect(alice.visibilityOf(30)).toBe('full');

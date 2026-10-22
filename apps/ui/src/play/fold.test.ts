@@ -12,9 +12,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import { DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
+
 import { manaCostTokens, toBoardView } from './adapter.ts';
 import { foldPackets, type FoldablePacket } from './fold.ts';
-import { deltaKey, expectWirePackets, WireType } from './wire.ts';
+import { expectWirePackets } from './wire.ts';
 import { loadPackets, PLAY_FIXTURES } from './fixtures.ts';
 
 /** The spike writes a `// DeltaPacket[...]` header line above the JSON. */
@@ -49,9 +51,9 @@ describe('the committed opening sync', () => {
 
 describe("Forge's fold rules, on the committed delta", () => {
   const { state, skippedDeltas } = foldPackets([opening!, delta!]);
-  const game = state.get(deltaKey(WireType.Game, 1))!;
-  const bob = state.get(deltaKey(WireType.Player, 0))!;
-  const alice = state.get(deltaKey(WireType.Player, 1))!;
+  const game = state.get(deltaKey(DELTA_TYPE.game, 1))!;
+  const bob = state.get(deltaKey(DELTA_TYPE.player, 0))!;
+  const alice = state.get(deltaKey(DELTA_TYPE.player, 1))!;
 
   it('merges a delta into an existing object', () => {
     expect(game.Turn).toEqual({ t: 'int', v: 4 });
@@ -69,7 +71,7 @@ describe("Forge's fold rules, on the committed delta", () => {
 
   it('skips a delta for an object it never saw, and counts it', () => {
     // Card 3's `Sickness: null` — card 3 is one of the 240 omitted objects.
-    expect(state.has(deltaKey(WireType.Card, 3))).toBe(false);
+    expect(state.has(deltaKey(DELTA_TYPE.card, 3))).toBe(false);
     expect(skippedDeltas).toBe(1);
   });
 
@@ -88,7 +90,7 @@ describe('newObjects replace rather than merge', () => {
     // Real objects from the committed fixture: the opening sync's Bob, then
     // the same player re-sent with a smaller bag.
     const [first] = loadPackets(PLAY_FIXTURES[0]!);
-    const key = deltaKey(WireType.Player, 0);
+    const key = deltaKey(DELTA_TYPE.player, 0);
     const bob = first!.newObjects[key]!;
     const resent = { ...first!, seq: 2, newObjects: { [key]: { _type: bob._type, _id: bob._id, Life: bob.Life! } }, objectDeltas: {} };
     const { state } = foldPackets([first!, resent]);
@@ -105,7 +107,7 @@ describe('the committed fixture', () => {
 
   it('refuses an object whose _type/_id do not match its delta key, naming the path', () => {
     const packets = structuredClone(PLAY_FIXTURES[0]!.raw) as { newObjects: Record<string, { _id: number }> }[];
-    packets[0]!.newObjects[deltaKey(WireType.Game, 1)]!._id = 2;
+    packets[0]!.newObjects[deltaKey(DELTA_TYPE.game, 1)]!._id = 2;
     expect(() => expectWirePackets(packets, 'mutated')).toThrow(
       'mutated[0].newObjects["805306369"]: _type 3 / _id 2 do not encode to this delta key',
     );

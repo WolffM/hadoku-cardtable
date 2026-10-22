@@ -15,19 +15,18 @@
  * `getAbilityToPlay` asks "which of these abilities", and each ability is a
  * `SpellAbilityRef`. The state channel carries no `SpellAbilityView` objects at
  * all — the committed Tier C stream has objects of types 0–4 only (card,
- * player, stack item, game, card state; `../wire.ts` `WireType`). So there is
+ * player, stack item, game, card state; forge-wire's `DELTA_TYPE`). So there is
  * no label for an ability anywhere the client can read it. `withAbilityLabels`
  * is how a caller supplies one; the bridge will have to send them (a finding,
  * recorded in the lane report). Until then an ability draws as "ability #id".
  */
 
-import type { ServerFrame } from '@hadoku/forge-wire';
+import { currentFace, DELTA_TYPE, deltaKey, intOf, strOf, type ServerFrame } from '@hadoku/forge-wire';
 import { LIFE_PAYMENT_LINE } from '@hadoku/shared';
 import type { TileCard } from '../../components/faceCrop.ts';
 
 import { cardFaces } from '../adapter.ts';
 import type { WireState } from '../fold.ts';
-import { cardStateKey, deltaKey, readInt, readIntOrNull, readStr, WireType } from '../wire.ts';
 
 export interface PromptCardFacts {
   /**
@@ -74,23 +73,23 @@ export const EMPTY_LOOKUP: PromptLookup = {
 
 /**
  * A lookup over folded Tier C state. Card facts come from the `CardView` and
- * its current `CardStateView` (`cardId*16 + CurrentState`, `../wire.ts`).
+ * its current `CardStateView` (forge-wire's `currentFace`).
  */
 export function lookupFromState(state: WireState): PromptLookup {
   return {
     card(id) {
-      const view = state.get(deltaKey(WireType.Card, id));
+      const view = state.get(deltaKey(DELTA_TYPE.card, id));
       if (view === undefined) return undefined;
-      const face = state.get(cardStateKey(id, readInt(view, 'CurrentState')));
+      const face = currentFace(state, id);
       return {
-        name: readStr(face, 'Name') ?? readStr(view, 'Name'),
-        setCode: readStr(face, 'SetCode') ?? '',
+        name: strOf(face, 'Name') ?? strOf(view, 'Name'),
+        setCode: strOf(face, 'SetCode') ?? '',
       };
     },
     player(id) {
-      const view = state.get(deltaKey(WireType.Player, id));
+      const view = state.get(deltaKey(DELTA_TYPE.player, id));
       if (view === undefined) return undefined;
-      return { name: readStr(view, 'Name') ?? `player #${id}`, life: readIntOrNull(view, 'Life') };
+      return { name: strOf(view, 'Name') ?? `player #${id}`, life: intOf(view, 'Life') };
     },
     ability: () => undefined,
     faces: (id) => cardFaces(state, id),

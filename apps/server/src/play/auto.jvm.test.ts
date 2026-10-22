@@ -59,7 +59,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ClientFrameSchema, type ServerFrame } from '@hadoku/forge-wire';
+import { ClientFrameSchema, type ServerFrame, deltaKey, DELTA_TYPE } from '@hadoku/forge-wire';
 
 import {
 	DEFAULT_STOP_POLICY,
@@ -76,7 +76,7 @@ import {
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine } from './host.js';
 import { createMatchRegistry } from './match.js';
 import { finishMulligan, scenarioText, startScenario, waitUntil as waitUntilScenario } from './scenario.js';
-import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
+import { foldFrames, type StateFrame, type WireObj } from './visibility.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 
 const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
@@ -310,11 +310,11 @@ describe.skipIf(!available.ok)(title, () => {
 
 			function zone(seat: number, name: 'Hand' | 'Battlefield'): { id: number; name: string; tapped: boolean; land: boolean }[] {
 				const state = stateOf(seat);
-				const player = state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1));
+				const player = state.get(deltaKey(DELTA_TYPE.player, match.seats[seat]!.playerId ?? -1));
 				return ids(player, name).map((id) => {
-					const view = state.get(keyOf(TYPE.card, id));
+					const view = state.get(deltaKey(DELTA_TYPE.card, id));
 					const current = view?.CurrentState as { v?: number } | undefined;
-					const face = state.get(keyOf(TYPE.cardState, id * 16 + (current?.v ?? 0)));
+					const face = state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + (current?.v ?? 0)));
 					const type = face?.Type as { core?: string[] } | undefined;
 					return {
 						id,
@@ -519,7 +519,7 @@ describe.skipIf(!available.ok)(title, () => {
 			expect(asks.filter((a) => a.method === 'getAbilityToPlay').length).toBeGreaterThan(0);
 
 			// #12 — the scry asks about the cards it scried, never about the library.
-			const libraries = [0, 1].map((seat) => ids(stateOf(seat).get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1)), 'Library').length);
+			const libraries = [0, 1].map((seat) => ids(stateOf(seat).get(deltaKey(DELTA_TYPE.player, match.seats[seat]!.playerId ?? -1)), 'Library').length);
 			expect(Math.max(...libraries)).toBeGreaterThan(20);
 			// The sweep below is over the asks that carry card references at all; if
 			// none did, "no ask carried the whole library" would be two empty hands.
@@ -617,11 +617,11 @@ describe.skipIf(!available.ok)(title, () => {
 
 			function zone(seat: number, name: 'Hand' | 'Battlefield'): { id: number; name: string; tapped: boolean; land: boolean }[] {
 				const state = stateOf(seat);
-				const player = state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1));
+				const player = state.get(deltaKey(DELTA_TYPE.player, match.seats[seat]!.playerId ?? -1));
 				return ids(player, name).map((id) => {
-					const view = state.get(keyOf(TYPE.card, id));
+					const view = state.get(deltaKey(DELTA_TYPE.card, id));
 					const current = view?.CurrentState as { v?: number } | undefined;
-					const face = state.get(keyOf(TYPE.cardState, id * 16 + (current?.v ?? 0)));
+					const face = state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + (current?.v ?? 0)));
 					const type = face?.Type as { core?: string[] } | undefined;
 					return {
 						id,
@@ -822,10 +822,10 @@ describe.skipIf(!available.ok)(title, () => {
 				// (`confirmAbility`, read off `InputConfirm.sa`): an Evolving Wilds of
 				// seat 0's. That is what lets `chosenCostConfirm` answer it.
 				expect(row.card).toBeNull();
-				const seat0 = stateOf(0).get(keyOf(TYPE.player, match.seats[0]!.playerId ?? -1));
+				const seat0 = stateOf(0).get(deltaKey(DELTA_TYPE.player, match.seats[0]!.playerId ?? -1));
 				const wilds = ['Battlefield', 'Graveyard', 'Hand'].flatMap((z) => ids(seat0, z)).filter((id) => {
-					const view = stateOf(0).get(keyOf(TYPE.card, id));
-					return str(view, 'Name') === 'Evolving Wilds' || str(stateOf(0).get(keyOf(TYPE.cardState, id * 16)), 'Name') === 'Evolving Wilds';
+					const view = stateOf(0).get(deltaKey(DELTA_TYPE.card, id));
+					return str(view, 'Name') === 'Evolving Wilds' || str(stateOf(0).get(deltaKey(DELTA_TYPE.cardState, id * 16)), 'Name') === 'Evolving Wilds';
 				});
 				expect(wilds).toContain((row.confirmAbility as { hostCard?: { id: number } } | null)?.hostCard?.id);
 				const facts: PromptFacts = readPromptFacts(notesFrom(row));
@@ -988,11 +988,11 @@ describe.skipIf(!available.ok)(title, () => {
 
 			function zone(seat: number, name: 'Hand' | 'Battlefield'): { id: number; name: string; tapped: boolean; land: boolean }[] {
 				const state = stateOf(seat);
-				const player = state.get(keyOf(TYPE.player, match.seats[seat]!.playerId ?? -1));
+				const player = state.get(deltaKey(DELTA_TYPE.player, match.seats[seat]!.playerId ?? -1));
 				return ids(player, name).map((id) => {
-					const view = state.get(keyOf(TYPE.card, id));
+					const view = state.get(deltaKey(DELTA_TYPE.card, id));
 					const current = view?.CurrentState as { v?: number } | undefined;
-					const face = state.get(keyOf(TYPE.cardState, id * 16 + (current?.v ?? 0)));
+					const face = state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + (current?.v ?? 0)));
 					const type = face?.Type as { core?: string[] } | undefined;
 					return {
 						id,
