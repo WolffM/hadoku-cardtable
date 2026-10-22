@@ -193,10 +193,16 @@ for (const c of cases) {
       await page.waitForTimeout(230);
     }
     expect(errors).toEqual([]);
-    // Nearer a neighbour's face is reported, not failed: the ring's top seat has
-    // the panel's edge above it and its own name below, and at 6 and 8 seats one
-    // of its four packs ends nearer the next seat (the lane's report has the
-    // numbers). Everything else is the operator's ruling and fails.
+    // How many seats queue along their arrow, and how many had to take the room near its head instead.
+    const along = await page.locator('[data-pile="arrow"]').count();
+    const placed = `${along}/${c.n} along the arrow, ${await page.locator('[data-pile="room"]').count()} near its head`;
+    test.info().annotations.push({ type: 'piles', description: placed });
+    console.log(`piles: ${c.n} seats at ${c.scale * 100}%, ${c.tag}: ${placed}`);
+    // Nearer a neighbour's face is reported, not failed: a queue along its arrow
+    // steps back toward the seat that passes to it (at 6 seats its third and
+    // fourth packs end nearer that seat, on the arrow that says whose they are),
+    // and at 8 seats the ring's top seat has the panel's edge above it and its own
+    // name below. Everything else is the operator's ruling and fails.
     const { stray, ...hits } = Object.fromEntries(Object.entries(seen).map(([k, s]) => [k, [...s]]));
     for (const line of stray ?? []) test.info().annotations.push({ type: 'nearer a neighbour', description: line });
     expect(hits).toEqual({});
