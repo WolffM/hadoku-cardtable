@@ -228,6 +228,7 @@ import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
 import { takeWarmRoom } from '../rooms/warm.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { roomFeed, type RoomFeed } from '../rooms/feed.ts';
+import { latestReads } from '../rooms/latest.ts';
 
 export interface ConstructedScreenProps {
   /** Tests pass a client over a stub fetch. Production passes nothing. */
@@ -978,6 +979,8 @@ function RoomTableScreen({
   const [loaded, setLoaded] = useState<Loaded | null>(warm?.catalogue ?? null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [table, setTable] = useState<RoomTable | null>(warm?.table ?? null);
+  /** The table's reads and this screen's own writes of it, latest-wins (`../rooms/latest.ts`). */
+  const [tableReads] = useState(latestReads);
   const [tableError, setTableError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deckId, setDeckId] = useState('');
@@ -1038,10 +1041,8 @@ function RoomTableScreen({
    * not a second round trip after it.
    */
   const [view, setView] = useState<RoomView | null>(warm?.view ?? null);
-  /** Bumped when a write of this screen's own resolves; a read that overlapped one is read again. */
-  const writes = useRef(0);
-  /** Bumped on every room read issued; a read whose answer is no longer the latest one issued is dropped, not asked again — a newer one is already in flight. */
-  const roomReadSeq = useRef(0);
+  /** The room record's reads and this screen's own writes of it, latest-wins (`../rooms/latest.ts`). */
+  const [roomReads] = useState(latestReads);
   const [resolved, setResolved] = useState(warm !== undefined);
   /** Latched on the first read. A room does not change mode under its players. */
   const modeRef = useRef<ClientMode | null>(warm?.view.clientMode ?? null);
@@ -1163,8 +1164,15 @@ function RoomTableScreen({
     let stop = false;
     const read = (): void => {
       if (stop) return;
+      const landed = tableReads.read();
       void client.table(roomId).then(async (outcome) => {
         if (!live) return;
+        const verdict = landed();
+        if (verdict === 'drop') return;
+        if (verdict === 'reread') {
+          read();
+          return;
+        }
         if (outcome.ok) {
           setTable(outcome.table);
           setTableError(null);
@@ -1205,7 +1213,7 @@ function RoomTableScreen({
       live = false;
       stopFollowing();
     };
-  }, [client, rooms, roomId, feed, attempt]);
+  }, [client, rooms, roomId, feed, attempt, tableReads]);
 
   // The room record, read beside the table on the same feed. The mode is
   // latched on the first read; the membership keeps moving, because a streamed
@@ -1213,34 +1221,20 @@ function RoomTableScreen({
   useEffect(() => {
     let live = true;
     const read = (): void => {
-      // A read answered before one of this screen's own writes (a format change, a ready) resolved
-      // can land after it and put the older room back — the deck picker then showed nothing chosen
-      // for a beat (w48's spec, CI 2026-10-08). A read that overlapped a write is dropped and asked
-      // again, so it reads the room as the write left it — and a change somebody else made while the
-      // write was in flight is not left waiting for the next ping.
-      const issuedAfterWrite = writes.current;
-      // A SEPARATE race from the one above (CI run 39039465853, `e2e/draft.spec.ts`):
-      // two of THIS screen's own reads, issued close together (`rooms/feed.ts`'s "once
-      // when it starts following… once more when the server confirms it is watching"),
-      // can themselves resolve out of order — no local write involved at all, so
-      // `writes.current` never moves and does not catch it. The later-ISSUED read
-      // always wins; an earlier one landing after it is dropped outright, not asked
-      // again, because the newer one already has the answer this one would get anyway.
-      // Dropped means it decides NOTHING, opening the body included: a dropped read that
-      // opened it drew the deck picker with no room record, on the newest era rather
-      // than the room's, and swapped the decks when the newer read landed.
-      const mySeq = (roomReadSeq.current += 1);
-      const latest = (): boolean => live && mySeq === roomReadSeq.current;
+      // Latest-wins (`../rooms/latest.ts`): a dropped read decides nothing, opening the body included.
+      const landed = roomReads.read();
       rooms.get(roomId).then(
         (room) => {
-          if (!latest()) return;
+          if (!live) return;
+          const verdict = landed();
+          if (verdict === 'drop') return;
           if (room === null) {
             setResolved(true);
             // The room was here and is not any more: its owner closed it.
             if (modeRef.current !== null) navigate({ kind: 'lobby' }, { replace: true });
             return;
           }
-          if (issuedAfterWrite !== writes.current) {
+          if (verdict === 'reread') {
             read();
             return;
           }
@@ -1253,7 +1247,7 @@ function RoomTableScreen({
           // is asking, and `tableError` below already says so in words; adding
           // a second sentence about it would say it twice. What this must not
           // do is stay silent AND keep the body hidden, so the gate opens.
-          if (latest()) setResolved(true);
+          if (live && landed() !== 'drop') setResolved(true);
         },
       );
     };
@@ -1262,7 +1256,7 @@ function RoomTableScreen({
       live = false;
       stopFollowing();
     };
-  }, [rooms, roomId, feed]);
+  }, [rooms, roomId, feed, roomReads]);
 
   const players = table?.players ?? [];
   const mine = players.find((p) => p.you) ?? null;
@@ -1287,6 +1281,8 @@ function RoomTableScreen({
   const mode = view === null ? 'classic' : view.mode;
   /** A Gauntlet room's state as I may see it; null in any other mode. */
   const [gauntlet, setGauntlet] = useState<GauntletView | null>(null);
+  /** The Gauntlet's reads and this screen's own moves, latest-wins (`../rooms/latest.ts`). */
+  const [gauntletReads] = useState(latestReads);
   /** The Gauntlet's seats have stopped being the table's to arrange: readied, or drawn and not yet done. */
   const gauntletUnderway = gauntlet !== null && gauntlet.phase !== 'done' && (gauntlet.phase !== 'options' || gauntlet.ready.some(Boolean));
   /** Whether a seat is ready: the Gauntlet keeps its own readiness, every other mode the table's. */
@@ -1649,7 +1645,7 @@ function RoomTableScreen({
       .start(roomId)
       .then((outcome) => {
         if (outcome.ok) {
-          writes.current += 1;
+          roomReads.wrote();
           setView(outcome.room);
           setDraftError(null);
         } else {
@@ -1685,6 +1681,7 @@ function RoomTableScreen({
 
   const apply = (outcome: Awaited<ReturnType<TablesClient['table']>>): void => {
     if (outcome.ok) {
+      tableReads.wrote();
       setTable(outcome.table);
       setActionError(null);
       return;
@@ -1763,7 +1760,7 @@ function RoomTableScreen({
           setActionError(outcome.message);
           return;
         }
-        writes.current += 1;
+        roomReads.wrote();
         setView(outcome.room);
       })
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)))
@@ -1805,12 +1802,16 @@ function RoomTableScreen({
     }
     let live = true;
     const read = (): void => {
+      const landed = gauntletReads.read();
       client.gauntlet(roomId).then(
         (next) => {
-          if (live) setGauntlet(next);
+          if (!live) return;
+          const verdict = landed();
+          if (verdict === 'keep') setGauntlet(next);
+          else if (verdict === 'reread') read();
         },
         (err: unknown) => {
-          if (live) setActionError(err instanceof Error ? err.message : String(err));
+          if (live && landed() !== 'drop') setActionError(err instanceof Error ? err.message : String(err));
         },
       );
     };
@@ -1819,13 +1820,20 @@ function RoomTableScreen({
       live = false;
       stopFollowing();
     };
-  }, [client, feed, roomId, mode]);
+  }, [client, feed, roomId, mode, gauntletReads]);
 
   /** One Gauntlet move (ready, ban, pick, choose): the board as it now stands, or the server's words. */
   const gauntletMove = (move: () => Promise<GauntletOutcome>): void => {
     setActionError(null);
     move()
-      .then((outcome) => (outcome.ok ? setGauntlet(outcome.view) : setActionError(outcome.error)))
+      .then((outcome) => {
+        if (!outcome.ok) {
+          setActionError(outcome.error);
+          return;
+        }
+        gauntletReads.wrote();
+        setGauntlet(outcome.view);
+      })
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)));
   };
 
@@ -1930,7 +1938,7 @@ function RoomTableScreen({
           setDraftError(outcome.message);
           return;
         }
-        writes.current += 1;
+        roomReads.wrote();
           setView(outcome.room);
       })
       .catch((err: unknown) => setDraftError(err instanceof Error ? err.message : String(err)))

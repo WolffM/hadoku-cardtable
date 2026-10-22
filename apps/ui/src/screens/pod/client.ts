@@ -22,6 +22,7 @@ import { useEffect, useState } from 'react';
 import { RoomTablesSchema, type RoomTable } from '@hadoku/shared';
 
 import { roomFeed } from '../../rooms/feed.ts';
+import { latestReads } from '../../rooms/latest.ts';
 import { apiUrl, bodyOf, getJson, isRecord, sendJson } from '../../http.ts';
 import { tablesClient } from '../tables.ts';
 import { parsePodView, POD_AI, type PodView } from './wire.ts';
@@ -111,9 +112,17 @@ export interface PodSource {
   follow(roomId: string, onRead: (ctx: PodContext) => void): () => void;
 }
 
-/** The room feed's pings, each answered with one `fetchPodContext`. */
+/** The room feed's pings, each answered with one `fetchPodContext`; an answer a newer read overtook is dropped (`../../rooms/latest.ts`). */
 export const livePodSource: PodSource = {
-  follow: (roomId, onRead) => roomFeed().follow({ room: roomId }, () => void fetchPodContext(roomId).then(onRead)),
+  follow: (roomId, onRead) => {
+    const reads = latestReads();
+    return roomFeed().follow({ room: roomId }, () => {
+      const landed = reads.read();
+      void fetchPodContext(roomId).then((ctx) => {
+        if (landed() === 'keep') onRead(ctx);
+      });
+    });
+  },
 };
 
 /** The room's pod context, kept current. `null` until the first read has answered. */
