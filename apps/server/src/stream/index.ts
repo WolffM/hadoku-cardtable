@@ -62,7 +62,7 @@ import express from 'express';
 
 import { CONFIG } from '../config.js';
 import { rankOf, sanitizeHeaders, tierOf } from '../edge-auth.js';
-import { isStaticIndexLike, type RoomStreams } from './alloc.js';
+import { isStaticIndexLike, ROOM_KEY_RE, type RoomStreams } from './alloc.js';
 
 export interface StreamDeps {
 	/** The tier floor. `CONFIG.minTier` — never lower, never a new tier. */
@@ -116,10 +116,10 @@ export interface RoomStreamPath {
 export function roomStreamPathOf(url: string | undefined): RoomStreamPath | null {
 	if (url === undefined) return null;
 	const [path = '', query] = url.split('?');
-	const m = /^\/stream\/([a-z0-9-]{1,40})\/(\d{1,2})(\/.*)?$/.exec(path);
+	const m = /^\/stream\/([^/]+)\/(\d{1,2})(\/.*)?$/.exec(path);
 	if (m === null) return null;
 	const roomKey = m[1] ?? '';
-	if (isStaticIndexLike(roomKey)) return null;
+	if (!ROOM_KEY_RE.test(roomKey) || isStaticIndexLike(roomKey)) return null;
 	const rest = m[3] ?? '/';
 	return { roomKey, seat: Number(m[2]), rest: query === undefined ? rest : `${rest}?${query}` };
 }
