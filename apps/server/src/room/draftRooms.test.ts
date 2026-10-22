@@ -29,7 +29,9 @@
  * whole second server configured this way for the same reason.)
  */
 
-import { dirname, resolve } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
@@ -973,5 +975,40 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 		// pod-b never had anything cached for it — dealing it must throw rather
 		// than silently reuse pod-a's stashed packs.
 		expect(() => r.open('pod-b')).toThrow(/realistic/);
+	});
+
+	/*
+	 * Acceptance 2: "a restore of the persisted pod gives the identical packs
+	 * with no Forge call." The packs a realistic round deals are written into
+	 * the pod's own snapshot (`@hadoku/room-store`, wave 73's persistence —
+	 * no new code here), and `createDraftRooms`'s eager restore loop reads
+	 * them back through `decodeSnapshot`/`applySnapshot`, never through
+	 * `build()`/`deal()`. The resolver whose `cards()` throws and the absence
+	 * of ANY `cacheRealisticRound` call on the restored instance are what
+	 * prove it: if a restore ever fell back to re-dealing, this test would
+	 * throw instead of asserting byte-identical packs.
+	 */
+	it('a restore reads a realistic round\'s packs back from disk — never re-shuffles, never needs cacheRealisticRound again', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'cardtable-draftrooms-restore-test-'));
+		try {
+			const first = createDraftRooms({ resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: dir });
+			first.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan: { rounds: [REALISTIC, REALISTIC, REALISTIC] } }));
+			const originalPacks = forgePacks(8, 'persisted');
+			first.cacheRealisticRound('pod-restore', 0, originalPacks);
+			first.cacheRealisticRound('pod-restore', 1, originalPacks);
+			first.cacheRealisticRound('pod-restore', 2, originalPacks);
+			const dealt = stateOf(first.open('pod-restore')).rounds;
+
+			// A second instance, same dir: the eager restore loop in
+			// `createDraftRooms` runs before this function even returns, so the
+			// pod is already live — `open` below is idempotent-into-the-restore,
+			// not a fresh deal.
+			const restored = createDraftRooms({ resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_001, storeDir: dir });
+			const room = restored.open('pod-restore');
+			expect(JSON.stringify(stateOf(room).rounds)).toBe(JSON.stringify(dealt));
+			expect(JSON.stringify(stateOf(room).rounds[0])).toBe(JSON.stringify(originalPacks));
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 });
