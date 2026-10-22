@@ -91,6 +91,13 @@
  * player builds) and Cobra Trap in hand with a destroyed permanent remembered (`Remembered$Amount`
  * that only counts), both lit.
  *
+ * The operator, 2026-10-22: "preacher of the schism doesn't need an orange border. i get that it has
+ * conditional effects, but at least one of them is always active. cards like that don't need orange
+ * border." Preacher's two attack triggers ask the same "most life or tied" (`withMostLife`) of the
+ * two seats — the draw's `CheckDefinedPlayer$ You.withMostLife`, the token's `Attacked$
+ * Player.withMostLife` — and in a two-seat game one of the two always has it. A seventh game holds
+ * Preacher with seat 0 ahead on life, dark, beside Carapace Forger's metalcraft, lit.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
@@ -223,6 +230,22 @@ const MEMORY = [
 	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
 	'aigraveyard=Ornithopter|Id:311',
 	'aiexile=Lightning Bolt|Id:302|ExiledWith:301',
+].join('\n');
+
+const EITHER_OR = [
+	'turn=1',
+	'activeplayer=human',
+	'activephase=MAIN1',
+	'humanlife=20',
+	'ailife=15',
+	'humanhand=',
+	'humanbattlefield=Preacher of the Schism;Carapace Forger;Ornithopter;Ornithopter;Ornithopter;Swamp',
+	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
+	'humangraveyard=',
+	'aihand=',
+	'aibattlefield=Plains',
+	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+	'aigraveyard=',
 ].join('\n');
 
 /** The graveyard incarnations: each lights from its owner's graveyard while its owner controls its basic land type. */
@@ -586,6 +609,33 @@ describe.skipIf(!available.ok)(title, () => {
 				const queller = named(board, 'Spell Queller');
 				expect(seat0, `Spell Queller#${queller.id} is off`).not.toContain(queller.id);
 				for (const c of [named(board, 'Veteran Survivor'), named(hand, 'Cobra Trap')]) expect(seat0, `${c.name}#${c.id} is on`).toContain(c.id);
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+
+	it(
+		'conditions one of which always holds are not a condition: Preacher of the Schism ahead on life stays dark; Carapace Forger beside three artifacts lights',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 90, decks: DECKS, scenario: EITHER_OR });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Battlefield').some((c) => c.name === 'Preacher of the Schism');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const board = s.zone(0, 'Battlefield');
+				const seat0 = latestConditionMet(s, 0);
+				const lit = board.filter((c) => seat0?.includes(c.id)).map((c) => `${c.name}#${c.id}`);
+				console.log(`[preacher-condition-met.jvm] either-or: conditionMet=${JSON.stringify(seat0)} → [${lit.join(', ')}]`);
+				expect(seat0, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
+				const preacher = named(board, 'Preacher of the Schism');
+				expect(seat0, `Preacher of the Schism#${preacher.id} is off`).not.toContain(preacher.id);
+				const forger = named(board, 'Carapace Forger');
+				expect(seat0, `Carapace Forger#${forger.id} is on`).toContain(forger.id);
 			} finally {
 				await s.stop();
 			}

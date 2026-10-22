@@ -1101,7 +1101,9 @@ public final class PlayBridge {
      * turn. Nor does a presence check whose only subject is the card itself ({@code IsPresent$ Card.Self},
      * {@link #self}): the card being where it is, not a condition it can meet. Nor does a count of the
      * card's memory that the same ability acts on ({@link #referent}): Spell Queller's guard that "the
-     * exiled card" is still there, its referent and not a condition. Nor does a static whose
+     * exiled card" is still there, its referent and not a condition. Nor do two triggers on one event
+     * one of which always holds ({@link #eitherOr}): Preacher of the Schism's draw while you have the
+     * most life, its token while it attacks the player who has. Nor does a static whose
      * only effect is a permission to play a card ({@link #permission}): Gravecrawler castable from the
      * graveyard is the can-act glow's, not a condition's.
      *
@@ -1168,6 +1170,7 @@ public final class PlayBridge {
                 for (SpellAbility s = sa; s != null; s = s.getSubAbility()) { asked.add(s); }
             }
             final Set<forge.game.CardTraitBase> quiet = quiet(c, asked);
+            quiet.addAll(eitherOr(c));
             for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
                 if (!st.isIntrinsic()) { continue; }
                 name(named, st);
@@ -1443,6 +1446,45 @@ public final class PlayBridge {
                 }
             }
             return quiet;
+        }
+
+        /** A "has the most … or is tied for it" player property: in any game at least one player has it. */
+        private static final java.util.regex.Pattern MOST = java.util.regex.Pattern.compile("(You|Player|Opponent)\\.(withMost\\w+)");
+
+        /**
+         * The card's triggers on one event (the same mode and {@code ValidCard$}) that between them
+         * cover every state of a two-seat game, so one of them is always on and lighting tells the
+         * player nothing. That is a pair asking one {@link #MOST} property of the two seats: one
+         * requires it of you ({@code CheckDefinedPlayer$ You.withMostLife}), the other of your
+         * opponent — the attacked player ({@code Attacked$ Player.withMostLife}, a seat only attacks
+         * its opponent) or {@code CheckDefinedPlayer$ Opponent.…}. With ties counted, whoever is not
+         * behind has it: Preacher of the Schism draws while you lead and makes a token while it attacks
+         * the leader. A planeswalker or battle attacked meets neither, which is the attack, not a state.
+         */
+        private static Set<forge.game.trigger.Trigger> eitherOr(final forge.game.card.Card c) {
+            final Set<forge.game.trigger.Trigger> out = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            for (final forge.game.trigger.Trigger mine : c.getTriggers()) {
+                final String yours = most(mine.getParam("CheckDefinedPlayer"), "You");
+                if (!mine.isIntrinsic() || yours == null) { continue; }
+                for (final forge.game.trigger.Trigger theirs : c.getTriggers()) {
+                    if (theirs == mine || !theirs.isIntrinsic() || theirs.getMode() != mine.getMode()
+                            || !java.util.Objects.equals(theirs.getParam("ValidCard"), mine.getParam("ValidCard"))) { continue; }
+                    final String attacked = theirs.getMode() == forge.game.trigger.TriggerType.Attacks ? most(theirs.getParam("Attacked"), "Player") : null;
+                    if (yours.equals(attacked) || yours.equals(most(theirs.getParam("Attacked"), "Opponent"))
+                            || yours.equals(most(theirs.getParam("CheckDefinedPlayer"), "Opponent"))) {
+                        out.add(mine);
+                        out.add(theirs);
+                    }
+                }
+            }
+            return out;
+        }
+
+        /** The {@link #MOST} property {@code value} asks of {@code subject}, or null when it asks none. */
+        private static String most(final String value, final String subject) {
+            if (value == null) { return null; }
+            final java.util.regex.Matcher m = MOST.matcher(value.trim());
+            return m.matches() && m.group(1).equals(subject) ? m.group(2) : null;
         }
 
         /** Whether exactly one of the two comparisons holds at every value from 0 to the larger of their right sides. */
