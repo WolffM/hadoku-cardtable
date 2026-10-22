@@ -19,3 +19,26 @@ export function modeArtUrl(mode: ConstructedMode): string | undefined {
   const key = MODE_ART_KEYS[mode];
   return isCdnKey(key) ? cdnUrlFor(key) : undefined;
 }
+
+let decoded: Promise<void> | null = null;
+
+/**
+ * Every mode's art fetched and decoded, once per page: what the large cards draw
+ * the moment they grow back, so the transition never photographs a card before
+ * its art is there. Settles either way; art that will not load leaves the name.
+ */
+export function decodeModeArt(): Promise<void> {
+  if (decoded === null) {
+    const urls = (Object.keys(MODE_ART_KEYS) as ConstructedMode[]).flatMap((mode) => modeArtUrl(mode) ?? []);
+    decoded = Promise.all(
+      urls.map((url) => {
+        const image = new Image();
+        image.src = url;
+        // A browser without `decode` (and the test DOM) still fetches on `src`; there is nothing to wait for.
+        if (typeof image.decode !== 'function') return Promise.resolve();
+        return image.decode().catch((err: unknown) => console.warn('[cardtable] mode art did not decode; the card shows its name', url, err));
+      }),
+    ).then(() => undefined);
+  }
+  return decoded;
+}

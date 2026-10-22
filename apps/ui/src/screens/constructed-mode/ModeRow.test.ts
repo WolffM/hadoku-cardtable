@@ -7,9 +7,9 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 
-import { ModeRow } from './ModeRow.tsx';
+import { ART_WAIT_MS, ModeRow } from './ModeRow.tsx';
 
 afterEach(() => {
   cleanup();
@@ -43,7 +43,7 @@ describe('ModeRow', () => {
   it('shrinks inside a view transition, each card named for it', () => {
     const transition = vi.fn((update: () => void) => {
       update();
-      return {};
+      return { finished: Promise.resolve() };
     });
     (document as { startViewTransition?: unknown }).startViewTransition = transition;
     vi.stubGlobal('matchMedia', () => ({ matches: false }));
@@ -53,6 +53,46 @@ describe('ModeRow', () => {
     rerender(row('classic'));
     expect(transition).toHaveBeenCalledTimes(1);
     expect(group().classList.contains('radio-cards--large')).toBe(false);
+  });
+
+  it('marks which way the cards go on the page for the length of the transition, and clears it after', async () => {
+    let finish!: () => void;
+    const finished = new Promise<void>((done) => (finish = done));
+    (document as { startViewTransition?: unknown }).startViewTransition = (update: () => void) => {
+      update();
+      return { finished };
+    };
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    const { rerender } = render(row(null));
+    rerender(row('classic'));
+    expect(document.documentElement.dataset.modeMorph).toBe('shrink');
+    await act(async () => {
+      finish();
+      await finished;
+    });
+    expect(document.documentElement.dataset.modeMorph).toBeUndefined();
+  });
+
+  it('grows back only once the art is ready, or after ART_WAIT_MS at the most', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const transition = vi.fn((update: () => void) => {
+      update();
+      return { finished: Promise.resolve() };
+    });
+    (document as { startViewTransition?: unknown }).startViewTransition = transition;
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    try {
+      const { rerender } = render(row('gauntlet'));
+      rerender(row(null));
+      // The art in the test DOM has nothing to decode, so the grow runs on the next turn, well inside the cap.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ART_WAIT_MS);
+      });
+      expect(transition).toHaveBeenCalledTimes(1);
+      expect(group().classList.contains('radio-cards--large')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('changes at once when the person asks for less motion', () => {

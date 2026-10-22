@@ -1085,6 +1085,16 @@
   view-transition-name: room-mode-box;
 }
 
+/* The box is only its border and ground: it resizes as a plain box, never cropped like a card's picture. */
+::view-transition-group(room-mode-box) {
+  overflow: visible;
+}
+
+::view-transition-old(room-mode-box),
+::view-transition-new(room-mode-box) {
+  object-fit: fill;
+}
+
 /* A label that names the deck grid for assistive tech and is not drawn: the
    grid of decks says what it is. */
 .lobby__field--hidden {
