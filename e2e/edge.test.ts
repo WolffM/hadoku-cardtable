@@ -10,7 +10,7 @@
 
 import assert from 'node:assert/strict';
 import { createServer, request, type RequestListener, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { connect, type AddressInfo } from 'node:net';
 import { test } from 'node:test';
 
 import { startEdge } from './edge.ts';
@@ -93,6 +93,24 @@ test('a client that goes away mid-response throws nothing in the process', async
         res.on('close', () => clearInterval(tick));
       },
       (port) => get(port, `${PREFIX}/stream`, (abort) => abort()),
+    ),
+  );
+  assert.deepEqual(seen, { result: 'closed', errors: [] });
+});
+
+test('a client that resets an upgrade the edge refuses throws nothing in the process', async () => {
+  const seen = await uncaught(() =>
+    withEdge(
+      () => {},
+      (port) =>
+        new Promise<'closed'>((resolve) => {
+          const socket = connect(port, '127.0.0.1', () => {
+            socket.write('GET /elsewhere HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n');
+          });
+          socket.on('data', () => socket.resetAndDestroy());
+          socket.on('error', () => {});
+          socket.on('close', () => setTimeout(() => resolve('closed'), 50));
+        }),
     ),
   );
   assert.deepEqual(seen, { result: 'closed', errors: [] });
