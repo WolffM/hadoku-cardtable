@@ -166,7 +166,7 @@ seed hokon's cache in the same quiet window as the build:
 
 ```sh
 # hokon's CI cache for this pin (from the deploy tree, which carries the new pin).
-cd ~/repos/hadoku-cardtable && \
+cd /home/hadoku/srv/hadoku-cardtable && \
   PATH="$HOME/.local/opt/jdk-21.0.12.1+1/bin:$HOME/.local/opt/apache-maven-3.9.16/bin:$PATH" \
   bash scripts/forge-bundle.sh
 ```

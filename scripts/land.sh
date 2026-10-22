@@ -120,10 +120,11 @@ else
 fi
 
 # The art table's rows are derived data: every card a scenario places or a deck lists gets one.
-# Derive them here, from the deploy tree's Scryfall cache, so a new scenario's cards land with
+# Derive them here, from the shared Scryfall cache (docs/WAVE_WORKTREE.md; it lived in the main checkout
+# until production moved to /home/hadoku/srv on 2026-10-22), so a new scenario's cards land with
 # their rows instead of reddening the coverage suite on main. `--no-tokens`: only the rows this
 # land's cards need, never the token rows a whole rebuild would bring. A no-op (3 s) otherwise.
-ART_CACHE="$MAIN/packages/carddata/data"
+ART_CACHE="${CARDTABLE_SCRYFALL_DIR:-$HOME/.local/share/cardtable/scryfall}"
 if [ -f "$ART_CACHE/cards.jsonl" ]; then
   PATH="$NODE_BIN:$PATH" node --max-old-space-size=6144 scripts/art/build-art-ids.ts --no-tokens --cache="$ART_CACHE" > "$TMP.art.log" 2>&1 \
     || { tail -20 "$TMP.art.log"; echo "land: art rows FAILED — nothing pushed (log $TMP.art.log)" >&2; exit 5; }

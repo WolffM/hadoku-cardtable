@@ -25,7 +25,8 @@ Read all of this before you start. Your brief adds to it; where they differ, the
 
 ## You report; the manager lands
 - Work only in your own worktree and branch (named in your brief). Never in the main checkout
-  (`/home/hadoku/repos/hadoku-cardtable` is the production deploy tree). Never push to `main`; never run land.sh.
+  (`/home/hadoku/repos/hadoku-cardtable`, which every worktree hangs off) and never in the production deploy tree
+  (`/home/hadoku/srv/hadoku-cardtable`). Never push to `main`; never run land.sh.
 - Verify branches: `verify/<lane>*` only, explicit refspec; delete them when you finish.
 - Never `git stash` (shared across worktrees); WIP-commit instead. `git -C <absolute path>` in chains; no `git add -A`
   in the deploy tree. No AI attribution in commits.

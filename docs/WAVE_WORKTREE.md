@@ -30,13 +30,14 @@ from outside git is absent unless the scaffold puts it there:
    scripts the runs used were the same as the jar's, and no local verification
    was invalidated (the tracker re-ran w33's suites on the pinned `res`: the same
    results). What WAS different is the Java *source* in the old tree: a Forge line
-   number a lane cited from it can be stale. Production reads the main
-   checkout's `forge/forge-gui/res` (hadoku_site's wrapper); CI's `forge-e2e`
+   number a lane cited from it can be stale. Production reads the deploy
+   tree's `forge/forge-gui/res` (hadoku_site's wrapper; see "Where production
+   runs" below); CI's `forge-e2e`
    and `forge-jvm` (`forge.yml`, since wave forge-claws) instead read a
    per-pin bundle cache on whichever claw the job lands on
    (`scripts/forge-bundle.sh`). The mismatch is still worth preventing, as hygiene.
    **Check:** `git -C <path> rev-parse HEAD` must equal
-   `git -C ~/repos/hadoku-cardtable submodule status forge`.
+   `git -C /home/hadoku/srv/hadoku-cardtable submodule status forge`.
 2. **A run without the jar env looks like a pass.** The manager's first
    mutation run printed `9 skipped`, exit 0. Playwright treats a skip as
    success; only CI's `jq` gate (`skipped == 0`) refuses it.
@@ -52,14 +53,26 @@ from outside git is absent unless the scaffold puts it there:
    picks four free ports per run instead of a fixed range, so this no longer
    collides with a local run, which still defaults to 19008/19028/19108/19128.
 
+## Where production runs (since 2026-10-22 ~02:46Z)
+
+pm2's `cardtable` runs `/home/hadoku/srv/hadoku_site/services/pm2/cardtable-wrapper.mjs`,
+and the deploy tree is **`/home/hadoku/srv/hadoku-cardtable`**. Verified from the process
+listening on 9008: its cwd is `…/srv/hadoku-cardtable/apps/server`, and its env has
+`CARDTABLE_FORGE_RES=/home/hadoku/srv/hadoku-cardtable/forge/forge-gui/res`.
+`/home/hadoku/repos/hadoku-cardtable` is now an ordinary checkout. Every worktree still
+hangs off it, and it is still never worked in, but nothing pulls it, so its `forge/`, its
+`node_modules` and anything gitignored in it are frozen at the move. The Scryfall cache
+moved with the deploy, and its shared copy is `~/.local/share/cardtable/scryfall`.
+
 ## The setting that works today (paste into every lane's commands)
 
 ```sh
 export PATH="/home/hadoku/.local/share/fnm/node-versions/v24.18.0/installation/bin:$PATH"
 export CARDTABLE_FORGE_JAR="$HOME/.local/share/cardtable/jars/$(git ls-tree HEAD forge | awk '{print $3}').jar"   # per-pin, from THIS worktree's own pin (docs/FORGE_JAR.md); `test -f` it before trusting it — a pin nobody has built yet leaves this pointing at nothing
-export CARDTABLE_FORGE_RES="/home/hadoku/repos/hadoku-cardtable/forge/forge-gui/res"   # read-only use of the deploy tree
+export CARDTABLE_FORGE_RES="/home/hadoku/srv/hadoku-cardtable/forge/forge-gui/res"   # read-only use of the deploy tree; it tracks main's pin, so check it equals THIS worktree's
+export CARDTABLE_SCRYFALL_DIR="$HOME/.local/share/cardtable/scryfall"   # cards.jsonl + manifest.json, read-only for lanes (land.sh and build CLIs read it)
 export CARDTABLE_PLAY_WORK_DIR="$HOME/.cache/cardtable-play-work/w<N>-<lane>"   # on DISK, never under /tmp: see below
-# Forge SOURCE to read: /home/hadoku/repos/hadoku-cardtable/forge/ (same pin). Never build or write there.
+# Forge SOURCE to read: /home/hadoku/srv/hadoku-cardtable/forge/ (main's pin). Never build or write there.
 ```
 
 Run e2e from `e2e/` after `pnpm --filter @hadoku/ui --filter @hadoku/server build`.
@@ -113,7 +126,7 @@ Ordered by how much each would have saved:
   `.env` files, and this holds no secrets, only paths.)
 - [ ] **Link the main checkout's Forge into the worktree at scaffold time**: a
   gitignored link, e.g. `.claude/worktrees/w<N>-manager/.forge ->
-  /home/hadoku/repos/hadoku-cardtable/forge`. Then lanes read the pinned source
+  /home/hadoku/srv/hadoku-cardtable/forge`. Then lanes read the pinned source
   and res at a stable relative path. Do NOT symlink over the `forge/`
   submodule path itself: git sees a typechange, and initialising the
   submodule in a worktree breaks `git worktree remove` (memory
