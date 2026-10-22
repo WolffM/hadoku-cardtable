@@ -325,15 +325,15 @@ type SetGameTypeResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
 
-/** `setFormat`'s refusals, plus a draft room (which has no mode) and `modeLocked`. */
+/** `setFormat`'s refusals, plus a draft room (which has no mode). */
 type SetModeResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'mode-locked' };
 
-/** Deliberately the same three refusals as `SetGameTypeResult`: one leader, one shape. */
+/** Deliberately the same refusals as `SetGameTypeResult`: one leader, one shape. */
 type SetFormatResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
 
 /** Every setting has a default, so a room stored before a setting existed reads back on it without a migration. */
 const SETTING_KEYS = Object.keys(DEFAULT_ROOM_SETTINGS) as (keyof RoomSettings)[];
@@ -528,8 +528,9 @@ const NO_POD_CHECKS: PodChecks = {
 /**
  * A series' result, recorded once when the series ends (`#settleSeries`): a
  * Bo3 when it is decided, a Bo1 when the room moves on without a Rematch. A
- * Bo3 its players leave undecided is never one: each of its finished games is
- * a Bo1 of its own. A seat is the member who played it, or `null` for Forge's AI.
+ * Bo3 that ends undecided is a Bo1 of its one finished game, or the Bo3 drawn
+ * (`winner: null`) once two are finished. A seat is the member who played it,
+ * or `null` for Forge's AI.
  */
 export interface SeriesEnd {
 	roomId: string;
@@ -889,7 +890,8 @@ export interface Lobby {
 	 * who leads by accident.
 	 *
 	 * A series the member played and left undecided ends here, before they go
-	 * (`#settleSeries`): each finished game a Bo1, the game in play discarded.
+	 * (`#settleSeries`): one finished game a Bo1, 1-1 a drawn Bo3, the game in
+	 * play discarded.
 	 *
 	 * A room left by its last member is not deleted here — the idle sweep still
 	 * owns deletion — but is dropped from `offered()` the instant it empties,
@@ -1545,7 +1547,7 @@ const WATCHPARTY_ROOM: CreateRoomInput = { name: 'Watchparty table', gameType: D
 
 /**
  * Every readiness flag, every seat and the deck holds with them — what a
- * change to the table's pool or mode costs everybody. The per-member blob
+ * change to the table's game type, pool or mode costs everybody. The per-member blob
  * `http/routes.ts` owns — the choice, the verdict, the checked `.dck` — was
  * produced for the table that just changed, so it is dropped whole rather
  * than edited, and a seat without its deck is given back with it.
@@ -1574,7 +1576,16 @@ function sameOptions(a: ModeOptions, b: ModeOptions): boolean {
  * line here, so `setMode` and `setGameType` ask one question.
  */
 function modeLocked(room: RoomRecord): boolean {
-	return room.tables.some((t) => t.ready.some(Boolean)) || gauntletUnderWay(room.gauntlet);
+	return room.tables.some((t) => t.ready.some(Boolean)) || inPlay(room);
+}
+
+/**
+ * A game is being played: a table has its match, or a Gauntlet is under way.
+ * Nothing that would interrupt a series (`#interruptSeries`) happens then,
+ * the pool included, though a Ready alone does not freeze the pool.
+ */
+function inPlay(room: RoomRecord): boolean {
+	return room.tables.some((t) => t.matchId !== null) || gauntletUnderWay(room.gauntlet);
 }
 
 /** A Gauntlet whose reveal has started, and that is not yet done. */
@@ -2099,45 +2110,65 @@ class FileLobby implements Lobby {
 
 	/**
 	 * The ONE place a series result is recorded (`SeriesEnd`), run on every
-	 * write (`#persist`), when a member leaves (`leave`, with `leaving`) and
-	 * when a room goes away (`#forget`, `over`). A decided series is recorded
-	 * unless it is a Bo1 still open to a Rematch. One its players have left
-	 * undecided (`#leftSeries`, or the room going away) is over too, and the
-	 * operator's ruling records each finished game as a Bo1 of its own and
-	 * discards a game still in play (`recordGameResult` adds nothing to a
-	 * settled series). Once recorded, `settled` (and `done`) keep it from being
-	 * recorded, continued or converted again.
+	 * write (`#persist`), when a member leaves (`leave`, with `leaving`), when a
+	 * room goes away (`#forget`, `over`) and when the room changes under it
+	 * (`#interruptSeries`, `'interrupted'`). A decided series is recorded
+	 * unless it is a Bo1 still open to a Rematch.
+	 *
+	 * A Bo3 can also end undecided, two ways, and both are recorded alike:
+	 * - its players left it (`#leftSeries`, or the room going away; ruling 10);
+	 * - the room changed so its next game would not continue it — the game
+	 *   type, mode, mode options or pool (ruling 14: *"if mid-Bo3 was
+	 *   interrupted, the match should be considered complete"*).
+	 * Either way one finished game is a Bo1 of that game, and two (1-1) are
+	 * still the Bo3, drawn (ruling 14's *"if they walked away at 1-1 then it's
+	 * still Bo3 but result is a draw"*). A game still in play is discarded
+	 * (`recordGameResult` adds nothing to a settled series). Once recorded,
+	 * `settled` (and `done`) keep it from being recorded, continued or
+	 * converted again.
 	 */
-	#settleSeries(room: RoomRecord, table: TableRecord, over: boolean, leaving: string | null = null): void {
+	#settleSeries(room: RoomRecord, table: TableRecord, over: boolean | 'interrupted', leaving: string | null = null): void {
 		const { series } = table;
 		if (series.settled || series.games.length === 0) return;
 		const decided = series.phase === 'done';
-		const left = over || this.#leftSeries(room, table, leaving);
-		if (!left && (!decided || this.#rematchable(room, table))) return;
+		const ended = over !== false || this.#leftSeries(room, table, leaving);
+		if (!ended && (!decided || this.#rematchable(room, table))) return;
 		table.series = { ...series, phase: 'done', settled: true };
 		const seat = (id: string | null) => (id === null ? null : { memberId: id, name: room.members.find((m) => m.id === id)?.name ?? '' });
-		const result = (bestOf: 1 | 3, games: SeriesGame[], wins: [number, number]): SeriesEnd => ({
+		const bestOf = decided || series.games.length > 1 ? series.length : 1;
+		const end: SeriesEnd = {
 			roomId: room.id,
 			tableId: table.id,
 			mode: series.mode,
 			bestOf,
 			seats: [seat(series.played[0]), seat(series.played[1])],
-			wins,
-			games: games.map((g) => ({ ...g })),
-			winner: seriesWinner({ length: bestOf, wins }),
-		});
-		const ends = decided
-			? [result(series.length, series.games, [...series.wins])]
-			: series.games.map((g) => result(1, [g], [g.winner === 0 ? 1 : 0, g.winner === 1 ? 1 : 0]));
-		this.#log({ event: 'table-series-ended', roomId: room.id, tableId: table.id, bestOf: series.length, wins: series.wins, ...(decided ? {} : { left: true, recordedAsBo1: ends.length }) });
-		for (const end of ends) {
-			try {
-				this.#onSeriesEnd(end);
-			} catch (err) {
-				// A broken subscriber must not undo the write that ended the series.
-				this.#log({ event: 'series-end-listener-failed', roomId: room.id, error: (err as Error).message });
-			}
+			wins: [...series.wins],
+			games: series.games.map((g) => ({ ...g })),
+			winner: seriesWinner({ length: bestOf, wins: series.wins }),
+		};
+		const undecided = decided ? {} : { undecided: over === 'interrupted' ? 'interrupted' : 'left', recordedAs: bestOf };
+		this.#log({ event: 'table-series-ended', roomId: room.id, tableId: table.id, bestOf: series.length, wins: series.wins, ...undecided });
+		try {
+			this.#onSeriesEnd(end);
+		} catch (err) {
+			// A broken subscriber must not undo the write that ended the series.
+			this.#log({ event: 'series-end-listener-failed', roomId: room.id, error: (err as Error).message });
 		}
+	}
+
+	/**
+	 * The room is about to change so that no table's next game continues its
+	 * series (`setGameType`, `setMode`, `setFormat`): each series ends here
+	 * (`#settleSeries`), and each table starts over with a fresh one, so
+	 * nothing is left to continue or rematch. `inPlay` has already refused the
+	 * change while a game is being played.
+	 */
+	#interruptSeries(room: RoomRecord): void {
+		for (const table of room.tables) {
+			this.#settleSeries(room, table, 'interrupted');
+			table.series = newSeries(room, [null, null], 'seating');
+		}
+		dropHolds(room);
 	}
 
 	addTable(roomId: string, callerId: string): AddTableResult {
@@ -2396,11 +2427,12 @@ class FileLobby implements Lobby {
 		// The type is the room's shape, the mode a part of it: what freezes the mode freezes the type.
 		if (room.gameType !== gameType && modeLocked(room)) return { ok: false, reason: 'mode-locked' };
 		if (room.gameType !== gameType) {
+			room.gameType = gameType;
 			room.mode = null;
 			room.modeOptions = null;
 			room.gauntlet = null;
+			this.#interruptSeries(room);
 		}
-		room.gameType = gameType;
 		// Readiness is readiness for a particular game: a member who readied for
 		// a draft has not agreed to a constructed match. Cleared for everyone,
 		// including the leader making the change.
@@ -2419,8 +2451,9 @@ class FileLobby implements Lobby {
 		// a leader clicking the option that is already selected must not un-ready
 		// the table under everybody.
 		if (room.format === format) return { ok: true, room: this.#view(room) };
+		if (inPlay(room)) return { ok: false, reason: 'mode-locked' };
 		room.format = format;
-		dropHolds(room);
+		this.#interruptSeries(room);
 		this.#persist(room);
 		this.#log({ event: 'room-format', roomId, format });
 		return { ok: true, room: this.#view(room) };
@@ -2440,7 +2473,7 @@ class FileLobby implements Lobby {
 		room.gauntlet = null;
 		// A deck held for one mode was chosen for that mode's table, exactly as a
 		// deck held in one pool was checked in that pool.
-		dropHolds(room);
+		this.#interruptSeries(room);
 		this.#persist(room);
 		this.#log({ event: 'room-mode', roomId, mode: mode.mode, modeOptions: mode.modeOptions });
 		return { ok: true, room: this.#view(room) };

@@ -277,9 +277,9 @@ describe('clientMode is immutable once a room exists', () => {
 		// that touches the room's own shape, and it must touch only the game type.
 		expect(lobby.join(id, BOB).ok).toBe(true);
 		expect(lobby.setPlayerState(id, BOB.id, { deck: 'mono-red' })).toBe(true);
-		expect(lobby.setTableMatch(id, lobby.get(id)!.tables[0]!.id, 'match-7')).toBe(true);
 		expect(lobby.setGameType(id, ALICE.id, 'draft').ok).toBe(true);
 		expect(lobby.setFormat(id, ALICE.id, POOLS[0]).ok).toBe(true);
+		expect(lobby.setTableMatch(id, lobby.get(id)!.tables[0]!.id, 'match-7')).toBe(true);
 
 		const after = lobby.get(id);
 		expect(after?.clientMode).toBe<ClientMode>('streamed');
@@ -1585,7 +1585,8 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 					expect(ended).toEqual([bo1(id, tableId, 'm-game-1', 0)]);
 					expect(logged).toContainEqual(expect.objectContaining({ event: 'table-series-ended', tableId, undecided: 'interrupted' }));
 					// Nothing of the old series is left to continue or to rematch.
-					expect(lobby.get(id)?.tables[0]).toMatchObject({ seats: [null, null], ready: [false, false], matchId: null, series: { wins: [0, 0], games: [], phase: 'seating' } });
+					expect(lobby.seats(id, tableId)).toEqual([]);
+					expect(lobby.get(id)?.tables[0]).toMatchObject({ players: [], matchId: null, series: { wins: [0, 0], games: [], phase: 'seating' } });
 					expect(lobby.beginSideboarding(id, tableId)).toBe(false);
 				});
 
@@ -1599,7 +1600,8 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 					const { lobby, id, tableId, ended } = await oneAllAndPlaying();
 					expect(change(lobby, id)).toEqual({ ok: false, reason: 'mode-locked' });
 					expect(ended).toEqual([]);
-					expect(lobby.get(id)?.tables[0]).toMatchObject({ seats: [ALICE.id, BOB.id], matchId: 'm-game-3', series: { length: 3, wins: [1, 1], phase: 'playing' } });
+					expect(lobby.seats(id, tableId)).toHaveLength(2);
+					expect(lobby.get(id)?.tables[0]).toMatchObject({ matchId: 'm-game-3', series: { length: 3, wins: [1, 1], phase: 'playing' } });
 				});
 			}
 

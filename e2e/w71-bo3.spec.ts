@@ -17,6 +17,10 @@
  *
  * `[w71-bo3]` lines are the evidence: the series after each step, and the
  * seat asked play-or-draw.
+ *
+ * The second test is ruling 14: the leader changes the mode during
+ * sideboarding, which interrupts the Bo3 — it ends as a Bo1 of game 1, and
+ * both screens leave the sideboard step for the room's own view.
  */
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
@@ -185,6 +189,64 @@ test(titled('Classic Bo1 → Rematch: game 1 stays, the series is Bo3 at 1-0 in 
     expect(finalTable.series.phase, 'the series is over, 2-0').toBe('done');
     expect(finalTable.series.wins).toEqual([2, 0]);
     expect(finalTable.series.games.map((g) => g.winner)).toEqual([0, 0]);
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('a mode change during sideboarding interrupts the Bo3: the sideboard step goes from both screens and the room shows the new mode'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const alice = await openFriend(browser, 'alice');
+    const bob = await openFriend(browser, 'bob');
+    await alice.page.goto(`${stack.origin}${PREFIX}/`);
+    await bob.page.goto(`${stack.origin}${PREFIX}/`);
+
+    const created = await post<{ id: string; format: string }>(alice.context.request, stack.origin, '/rooms', {
+      name: `e2e w71-bo3 interrupted ${Date.now()}`,
+      gameType: 'constructed-1v1',
+      mode: 'classic',
+    });
+    const roomId = created.id;
+    await post(bob.context.request, stack.origin, `/rooms/${roomId}/join`, {});
+    const decks = await twoLegalDecksFor(alice.context.request, stack.origin, created.format);
+    for (const [f, deck] of [[alice, decks[0]], [bob, decks[1]]] as const) {
+      await put(f.context.request, stack.origin, `/tables/rooms/${roomId}/deck`, { deck: { library: deck } });
+      await post(f.context.request, stack.origin, `/tables/rooms/${roomId}/ready`, { ready: true });
+    }
+
+    const game1 = await post<{ matchId: string }>(alice.context.request, stack.origin, '/play/matches', { room: roomId });
+    await alice.page.goto(matchUrl(stack.origin, game1.matchId));
+    await bob.page.goto(matchUrl(stack.origin, game1.matchId));
+    await boardUp(alice.page);
+    await boardUp(bob.page);
+    await concede(bob);
+    for (const f of [alice, bob]) await expect(f.page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });
+    for (const f of [alice, bob]) await f.page.getByTestId('game-result-rematch').click();
+    for (const f of [alice, bob]) await expect(f.page.getByTestId('game-result-next')).toBeVisible({ timeout: 30_000 });
+
+    // Bob is on the sideboard step; alice, the leader, goes back to the room, which shows hers.
+    await bob.page.getByTestId('game-result-next').click();
+    await expect(bob.page.getByTestId('sideboard-step')).toBeVisible({ timeout: 30_000 });
+    await alice.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
+    await expect(alice.page.getByTestId('sideboard-step'), "alice's room shows her sideboard step").toBeVisible({ timeout: 30_000 });
+
+    const res = await alice.context.request.patch(`${stack.origin}${PREFIX}/api/rooms/${roomId}`, { data: { mode: 'random', modeOptions: { pool: 'full' } } });
+    expect(res.status(), 'a mode change between games is not refused').toBe(200);
+
+    const table = (await get<RoomViewLike>(alice.context.request, stack.origin, `/rooms/${roomId}`)).tables[0]!;
+    console.log(`[w71-bo3] after the mode change: ${JSON.stringify(table.series)}`);
+    expect(table.matchId).toBeNull();
+    expect(table.series, 'a fresh series, nothing of the interrupted one').toEqual({ length: 1, wins: [0, 0], games: [], phase: 'seating' });
+
+    await expect(alice.page.getByTestId('sideboard-step'), "alice's room leaves the sideboard step").toHaveCount(0, { timeout: 30_000 });
+    await expect(alice.page.getByTestId('constructed-mode-random')).toBeChecked();
+    await expect(bob.page.getByTestId('sideboard-step'), "bob's screen leaves the sideboard step").toHaveCount(0, { timeout: 30_000 });
+    await expect(bob.page.getByTestId('game-result-next')).toHaveCount(0);
+    await expect(bob.page.getByTestId('game-result-rematch'), 'no Rematch of the interrupted series').not.toBeEnabled();
   } finally {
     await stack.stop();
   }

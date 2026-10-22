@@ -696,7 +696,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 				return res.status(409).json({ error: 'only a constructed room has a mode', reason: result.reason });
 			}
 			if (result.reason === 'mode-locked') {
-				return res.status(409).json({ error: `a seated player is ready; the ${what} cannot change now`, reason: result.reason });
+				return res.status(409).json({ error: `a game is under way or a seated player is ready; the ${what} cannot change now`, reason: result.reason });
 			}
 			return res.status(403).json({ error: `only the room leader can change the ${what}` });
 		}

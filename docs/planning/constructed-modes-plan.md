@@ -91,7 +91,7 @@ not.
 
 10. **A Bo3 left before it is decided** (2026-10-21), verbatim: *"in that
     case we just record the completed games as Bo1, uncompleted games are
-    trashed"*. "Left" is the lobby's own test for a Bo1 that can no longer be
+    trashed"* (amended by ruling 14: at 1-1 it is the Bo3, drawn). "Left" is the lobby's own test for a Bo1 that can no longer be
     rematched: a player leaves the room or stands up from the seat they played
     in, or the room closes or is swept. A draft pod's tables are the pod's.
 11. **The bot's deck against the AI** (2026-10-21), verbatim: *"if rematch is
@@ -133,6 +133,22 @@ not.
     rid of this."* From the choice to the board the room stays the choose
     screen it was on: no lobby, no versus card.
 
+14. **A Bo3 interrupted by a room change** (2026-10-22). Asked whether changing
+    the room's game type or mode should be blocked between games of a Bo3 and
+    during sideboarding, verbatim: *"no if mid-Bo3 was interrupted, the match
+    should be considered complete"*. Then: *"complete means it gets converted
+    to a Bo1"*. Then: *"if they walked away at 1-1 then it's still Bo3 but
+    result is a draw"*. So between games the leader may change the game type,
+    the mode, its options or the pool; the series ends there, recorded exactly
+    as one its players left (ruling 10): one finished game is a Bo1 of that
+    game, two (1-1) are the Bo3 with no winner. That last sentence amends
+    ruling 10 for leaving too — one rule, `lobby.ts`'s `#settleSeries`. The
+    table starts over (seats given back, a fresh series in the new mode, no
+    Rematch of the old one), and the log's `table-series-ended` says
+    `undecided: 'interrupted'` (or `'left'`). None of these changes happen
+    while a game is being played: `inPlay` refuses them `mode-locked`. A
+    Gauntlet between its games stays locked (ruling 8).
+
 ## Design
 
 ### Words and ids
@@ -151,8 +167,8 @@ not.
   - All Random: `{ pool: 'full' | 'standard' | 'modern' | 'legacy' }`.
 - `POST /api/rooms` takes an optional `mode` (and its options).
   `PATCH /api/rooms/:id {mode}` is leader-only. It is refused with
-  `mode-locked` once any seated player is ready, or once a Gauntlet's reveal
-  has started.
+  `mode-locked` once any seated player is ready, while a game is in play, or
+  once a Gauntlet's reveal has started (ruling 14 for between games).
 - Changing the mode clears holds and readiness, exactly as `setFormat` does
   today.
 - Restored constructed rooms come back as `mode: 'classic'` (they were
@@ -172,7 +188,8 @@ not.
 - **Draft** pods stay Bo3 with sideboarding, unchanged.
 - **Stats:** every game report gains `attrs.mode` and `attrs.bestOf`. A series
   result (its winner and score) is recorded once the series ends: when a Bo1
-  is left without a rematch, or when a Bo3 is decided. The prefs-api `attrs`
+  is left without a rematch, when a Bo3 is decided, or when a Bo3 is left or
+  interrupted undecided (rulings 10 and 14). The prefs-api `attrs`
   are free-form (`match.<attr>=` filters exist), so no hadoku_site change is
   expected. Lane D checks this first.
 

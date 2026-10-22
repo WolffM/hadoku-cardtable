@@ -2156,7 +2156,26 @@ describe('a constructed room’s mode over HTTP', () => {
 
 		const locked = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { gameType: 'draft' } });
 		expect(locked.status).toBe(409);
-		expect(locked.json()).toEqual({ error: 'a seated player is ready; the game type cannot change now', reason: 'mode-locked' });
+		expect(locked.json()).toEqual({ error: 'a game is under way or a seated player is ready; the game type cannot change now', reason: 'mode-locked' });
 		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { gameType: string }).gameType).toBe('constructed-1v1');
+	});
+
+	it('PATCH refuses a pool change with 409 mode-locked while a game is in play, naming the format', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open', mode: 'classic' } })).json() as {
+			id: string;
+			format: string;
+			tables: { id: string }[];
+			you: { id: string };
+		};
+		const tableId = created.tables[0]!.id;
+		h.lobby.sit(created.id, tableId, created.you.id);
+		expect(h.lobby.setTableMatch(created.id, tableId, 'm-in-play')).toBe(true);
+		const other = created.format === '2011-07-15' ? '2012-07-13' : '2011-07-15';
+
+		const locked = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { format: other } });
+		expect(locked.status).toBe(409);
+		expect(locked.json()).toEqual({ error: 'a game is under way or a seated player is ready; the format cannot change now', reason: 'mode-locked' });
+		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { format: string }).format).toBe(created.format);
 	});
 });
