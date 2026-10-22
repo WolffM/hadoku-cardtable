@@ -53,10 +53,19 @@ const CARD_FIELDS = new Set([
   'rarity',
   // The card's other faces (`CardFaceSchema`): each is checked as a card is, below.
   'faces',
+  // A realistic booster's own foil (`PaperCard.isFoil()`, `draft.ts`'s `DraftCardSchema.foil`) —
+  // see this file's own header: Zod strips an unknown key silently, so the schema growing a field
+  // means nothing until this allowlist grows with it. Caught live (2026-10-22): a realistic pack's
+  // foil card rejected the WHOLE state message as "unexpected field", freezing the pod on no error.
+  'foil',
 ]);
 
-/** Fields one of a card's other faces may carry: a card's, less its own identity and faces. */
-const FACE_FIELDS = new Set([...CARD_FIELDS].filter((f) => f !== 'cardId' && f !== 'faces'));
+/**
+ * Fields one of a card's other faces may carry: a card's, less its own identity, its faces, and
+ * `foil` — `CardFaceSchema` has no such field (a face is a face's printed name/text/rarity, not a
+ * physical card; only the card ITSELF is foil or not), so a face carrying one stays a real finding.
+ */
+const FACE_FIELDS = new Set([...CARD_FIELDS].filter((f) => f !== 'cardId' && f !== 'faces' && f !== 'foil'));
 
 /**
  * What an image reference looks like, however it is spelled.
