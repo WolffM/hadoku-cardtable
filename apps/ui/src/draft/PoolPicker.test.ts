@@ -32,6 +32,7 @@ const cube = (over: Partial<CubeSummary> = {}): CubeSummary => ({
   importedAt: null,
   refreshedAt: null,
   verdict: null,
+  artId: null,
   ...over,
 });
 
@@ -75,8 +76,6 @@ const baseProps: PoolPickerProps = {
   onPickSet: noop,
   onPickCustomRound: noop,
   onImport: noop,
-  onRefresh: noop,
-  onDelete: noop,
   onSavePreset: noop,
   onLoadPreset: noop,
   onDeletePreset: noop,
@@ -209,6 +208,24 @@ describe('the Custom tab (AF305 §B: three pack slots, ONE shared picker)', () =
 
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-2'));
     expect(screen.queryByTestId('pool-picker-custom-round-2-verdict'), 'never checked at this pin — no line at all').toBeNull();
+  });
+
+  it("each pack slot shows its OWN source's cached verdict too — a check and the card count, or a refused mark", () => {
+    const bad = cube({ id: 'bad', verdict: { ok: false, unplayable: ['Card A'], missingText: [] } });
+    const good = cube({ id: 'good', verdict: { ok: true, cards: 99 } });
+    const unchecked = cube({ id: 'unchecked' });
+    render(
+      createElement(PoolPicker, {
+        ...baseProps,
+        tab: 'custom',
+        cubes: [bad, good, unchecked],
+        customRounds: [{ kind: 'cube', cubeId: bad.id }, { kind: 'cube', cubeId: good.id }, { kind: 'cube', cubeId: unchecked.id }],
+      }),
+    );
+    const slot = (round: number) => screen.getByTestId(`pool-picker-custom-round-${round}`).closest('label')!;
+    expect(slot(0).textContent, 'refused slot').toContain('✗');
+    expect(slot(1).textContent, 'ready slot names the count').toContain('✓ 99');
+    expect(slot(2).textContent, 'never checked — no verdict mark').not.toMatch(/✓|✗/);
   });
 
   it('a non-leader sees no presets block at all (leader-only, same as Cube tab’s import field)', () => {

@@ -127,6 +127,7 @@ const cubeFixture = (over: Partial<CubeSummary> = {}): CubeSummary => ({
   importedAt: null,
   refreshedAt: null,
   verdict: null,
+  artId: null,
   ...over,
 });
 
@@ -328,19 +329,10 @@ describe('the pool picker (wave 73 §B)', () => {
     expect(pod.plan).toEqual(cubePlan(good.id));
   });
 
-  it('refresh is open to any leader; delete only shows for the importer', async () => {
-    const mine = cubeFixture({ id: 'cc-mine', name: 'My import', origin: 'cubecobra', cubeCobraId: 'mine', importedBy: 'u-alice' });
-    const theirs = cubeFixture({ id: 'cc-theirs', name: 'Their import', origin: 'cubecobra', cubeCobraId: 'theirs', importedBy: 'u-bob' });
-    vi.mocked(pools.listCubes).mockResolvedValue([mine, theirs]);
-    const pod = plannedPod(cubePlan(mine.id), mine.name, { ok: true, cards: mine.size });
-
-    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
-    await waitFor(() => expect(screen.getByTestId(`pool-picker-refresh-${mine.id}`)).not.toBeNull());
-
-    expect(screen.getByTestId(`pool-picker-refresh-${theirs.id}`), 'refresh: any friend').not.toBeNull();
-    expect(screen.getByTestId(`pool-picker-delete-${mine.id}`), 'delete: the importer').not.toBeNull();
-    expect(screen.queryByTestId(`pool-picker-delete-${theirs.id}`), 'delete: not another friend').toBeNull();
-  });
+  // Refresh/delete/the importer badge moved to `#/inventory` (AF305 §B —
+  // the operator: "when i'm in a room i wouldn't want to mess with the
+  // refresh state of the cube… i dont need a cube cobra pill"); that
+  // behaviour is `InventoryScreen.test.ts`'s now, not this room's.
 
   it("warms the plan's own cube art before the deal, from GET /api/pools/cubes/:id/cards — never the bundled pool", async () => {
     const cube = cubeFixture();
@@ -421,15 +413,20 @@ describe('the Custom tab (wave 74 §F)', () => {
     // Its cube rows come from the async `pools.listCubes()` — `findByTestId`,
     // not a bare `getByTestId`, for the first touch of a list-derived row.
     fireEvent.click(await screen.findByTestId('pool-picker-custom-round-0-cubes-good-cube'));
-    // Round 1: select its slot first — only the ACTIVE round's picker is
-    // mounted (AF305 §B: one shared picker, not three independent ones).
-    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1'));
+    // Each round's own edit now writes the whole (merged) plan at once
+    // (AF305 §B), which disables the picker for that round trip — wait for
+    // the NEXT control to go enabled again before clicking it, the same way
+    // a real click would have to.
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1')); // selecting a slot is never busy-gated
+    await waitFor(() => expect((screen.getByTestId('pool-picker-custom-round-1-cubes-good-cube') as HTMLInputElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-1-cubes-good-cube'));
-    // Round 2: select its slot, switch to Set, pick the one whose OWN cached verdict is already bad.
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-2'));
+    await waitFor(() => expect((screen.getByTestId('pool-picker-custom-round-2-type-set') as HTMLInputElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-2-type-set'));
     await waitFor(() => expect(screen.getByTestId(`pool-picker-custom-round-2-sets-${bad.code}`)).not.toBeNull());
+    await waitFor(() => expect((screen.getByTestId(`pool-picker-custom-round-2-sets-${bad.code}`) as HTMLInputElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId(`pool-picker-custom-round-2-sets-${bad.code}`));
+    await waitFor(() => expect((screen.getByTestId('pool-picker-custom-round-2-style-realistic') as HTMLInputElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-2-style-realistic'));
 
     const round2Verdict = await waitFor(() => screen.getByTestId('pool-picker-custom-round-2-verdict'));
@@ -441,24 +438,46 @@ describe('the Custom tab (wave 74 §F)', () => {
     expect(screen.queryByTestId('pool-picker-custom-round-1-verdict')).toBeNull();
   });
 
-  it('writes the whole plan only once every round has a concrete source', async () => {
-    const good = cubeFixture({ id: 'good-cube' });
+  // Found live (AF305, the tracker's screenshot review): Custom's pack slots
+  // used to seed empty and stay that way until every round was re-picked from
+  // scratch, so a room whose plan already had a source (every room does, past
+  // the new-room default) showed three blank slots — looking broken even
+  // though the room had a perfectly good plan. The slots now show that plan
+  // immediately, and editing one round merges the other two from it.
+  it('opening Custom on a room with an existing plan shows it in all three slots at once — no edit needed', async () => {
+    const good = cubeFixture({ id: 'good-cube', name: 'A Fine Cube' });
     vi.mocked(pools.listCubes).mockResolvedValue([good]);
-    const pod = podFixture();
+    const pod = plannedPod(cubePlan(good.id), good.name, { ok: true, cards: good.size });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
+
+    for (const round of [0, 1, 2]) {
+      // `pool-picker-custom-round-<n>`'s own testid sits on the slot's native radio
+      // input; its surrounding label carries the text this asserts on.
+      const input = await waitFor(() => screen.getByTestId(`pool-picker-custom-round-${round}`));
+      const slot = input.closest('label');
+      expect(slot?.textContent, `slot ${round}`).toContain('A Fine Cube');
+    }
+  });
+
+  it("a round's own edit writes the whole plan AT ONCE, merging the other two rounds from the room's current plan", async () => {
+    const dflt = cubeFixture({ id: 'default', name: 'Default Cube' });
+    const good = cubeFixture({ id: 'good-cube', name: 'A Fine Cube' });
+    vi.mocked(pools.listCubes).mockResolvedValue([dflt, good]);
+    const pod = podFixture(); // plan: default ×3 (the fixture's own baseline)
 
     render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
     fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
     await waitFor(() => expect(screen.getByTestId('pool-picker-custom-round-0')).not.toBeNull());
 
-    // First touch of a cube row (listCubes-derived) — findByTestId, not getByTestId; see the test above.
+    // Round 0 only — rounds 1 and 2 are never touched in this test.
     fireEvent.click(await screen.findByTestId('pool-picker-custom-round-0-cubes-good-cube'));
-    expect(rooms.setPlan, 'two of three rounds still unchosen').not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1')); // select the slot — its picker is not mounted otherwise
-    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1-cubes-good-cube'));
-    expect(rooms.setPlan, 'one round still unchosen').not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId('pool-picker-custom-round-2'));
-    fireEvent.click(screen.getByTestId('pool-picker-custom-round-2-cubes-good-cube'));
-    await waitFor(() => expect(rooms.setPlan).toHaveBeenCalledWith('r-cube', cubePlan(good.id)));
+    await waitFor(() =>
+      expect(rooms.setPlan, 'writes immediately, rounds 1 and 2 carried forward from the room’s own plan').toHaveBeenCalledWith('r-cube', {
+        rounds: [{ kind: 'cube', cubeId: 'good-cube' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }],
+      }),
+    );
   });
 });
 

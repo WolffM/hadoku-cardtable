@@ -36,6 +36,7 @@ describe('parseRoute', () => {
     expect(parseRoute('#/deck/friday-cube')).toEqual({ kind: 'deck', draftId: 'friday-cube' });
     expect(parseRoute('#/decks')).toEqual({ kind: 'decks' });
     expect(parseRoute('#/decks/r-friday')).toEqual({ kind: 'decks', draftId: 'r-friday' });
+    expect(parseRoute('#/inventory')).toEqual({ kind: 'inventory' });
   });
 
   it('is the lobby for an empty, missing or unrecognised hash', () => {
@@ -82,6 +83,7 @@ describe('parseRoute', () => {
       { kind: 'stats', tournaments: true },
       { kind: 'decks' },
       { kind: 'decks', draftId: 'r-friday' },
+      { kind: 'inventory' },
     ];
     for (const route of routes) {
       expect(parseRoute(routeHash(route)), routeHash(route)).toEqual(route);

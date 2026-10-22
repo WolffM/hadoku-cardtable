@@ -26,6 +26,7 @@ describe('the pod seat grid', () => {
       seats,
       leaderId: 'u-alice',
       readyOf: () => false,
+      avatarIdOf: () => undefined,
       onSit: () => undefined,
       onStand: () => undefined,
       onAi: () => undefined,
@@ -52,6 +53,7 @@ describe('the pod seat grid', () => {
         myMemberId: null,
         leaderId: '',
         readyOf: () => false,
+        avatarIdOf: () => undefined,
         onSit: () => undefined,
         onStand: () => undefined,
         onAi: () => undefined,
@@ -71,6 +73,7 @@ describe('the pod seat grid', () => {
         myMemberId: null,
         leaderId: '',
         readyOf: (id) => id === 'u-alice',
+        avatarIdOf: () => undefined,
         onSit: () => undefined,
         onStand: () => undefined,
         onAi: () => undefined,
@@ -93,6 +96,7 @@ describe('the pod seat grid', () => {
         myMemberId: 'u-me',
         leaderId: '',
         readyOf: () => false,
+        avatarIdOf: () => undefined,
         onSit: () => undefined,
         onStand: () => undefined,
         onAi: () => undefined,
@@ -113,6 +117,7 @@ describe('the pod seat grid', () => {
         myMemberId: null,
         leaderId: 'u-lead',
         readyOf: () => false,
+        avatarIdOf: () => undefined,
         onSit: () => undefined,
         onStand: () => undefined,
         onAi: () => undefined,
@@ -131,6 +136,7 @@ describe('the pod seat grid', () => {
         myMemberId: 'u-me',
         leaderId: '',
         readyOf: () => false,
+        avatarIdOf: () => undefined,
         onSit: () => undefined,
         onStand: () => undefined,
         onAi: () => undefined,
@@ -150,6 +156,7 @@ describe('the pod seat grid', () => {
         myMemberId: 'u-me',
         leaderId: '',
         readyOf: () => false,
+        avatarIdOf: () => undefined,
         onSit,
         onStand: () => undefined,
         onAi: () => undefined,
@@ -170,6 +177,7 @@ describe('the pod seat grid', () => {
         myMemberId: 'u-me',
         leaderId: '',
         readyOf: () => false,
+        avatarIdOf: () => undefined,
         onSit: () => undefined,
         onStand,
         onAi: () => undefined,
@@ -196,6 +204,7 @@ describe('the pod seat grid', () => {
         myMemberId: 'u-me',
         leaderId: 'u-me',
         readyOf: () => true,
+        avatarIdOf: () => undefined,
         onSit: () => undefined,
         onStand: () => undefined,
         onAi: () => undefined,
@@ -223,6 +232,7 @@ describe('the pod seat grid', () => {
         myMemberId: null,
         leaderId: '',
         readyOf: () => true,
+        avatarIdOf: () => undefined,
         onSit: () => undefined,
         onStand: () => undefined,
         onAi: () => undefined,
@@ -235,5 +245,32 @@ describe('the pod seat grid', () => {
 
     const open = screen.getAllByTestId('pod-seat-sit')[0]!;
     expect(open.className).toContain('pod-seats__avatar--open');
+  });
+
+  // AF305 §D: a seated member's real watchparty avatar (`Avatar`, same component SeatBar/PodBracket use),
+  // not a drawn initial — the initial stays only as `Avatar`'s own fallback for a member with none.
+  it("draws a seated member's own avatar image when they have one, and falls back to their initial when they do not", () => {
+    const seats = emptySeats();
+    seats[0] = { memberId: 'u-has-avatar', name: 'Has Avatar' };
+    seats[1] = { memberId: 'u-no-avatar', name: 'No Avatar' };
+    render(
+      createElement(PodSeats, {
+        seats,
+        myMemberId: null,
+        leaderId: '',
+        readyOf: () => false,
+        avatarIdOf: (id) => (id === 'u-has-avatar' ? 'some-avatar-id' : undefined),
+        onSit: () => undefined,
+        onStand: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
+      }),
+    );
+    const withAvatar = screen.getByTestId('pod-seat-0').querySelector('.pod-seats__avatar img');
+    expect(withAvatar, 'a real avatar image').not.toBeNull();
+
+    const withoutAvatar = screen.getByTestId('pod-seat-1').querySelector('.pod-seats__avatar');
+    expect(withoutAvatar?.querySelector('img'), 'no image for a member with none').toBeNull();
+    expect(withoutAvatar?.textContent, "falls back to the member's own initial").toBe('N');
   });
 });

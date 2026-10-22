@@ -63,6 +63,8 @@ describe('projectCubeCobraCube', () => {
 			expect(card.name.length).toBeGreaterThan(0);
 		}
 		expect(cube.cards[0]).toEqual({ name: 'Giver of Runes', scryfallId: '4e117771-5a8b-4812-b487-32ba34b7f724' });
+		// The fixture carries no top-level `image` at all (already trimmed) — artId is absent, not guessed.
+		expect(cube.artId).toBeNull();
 	});
 
 	/**
@@ -76,9 +78,12 @@ describe('projectCubeCobraCube', () => {
 	 * instead) and this test is the one that fails.
 	 */
 	it('strips every image field Cube Cobra sends, mainboard and otherwise (mutation: un-strip and this fails)', () => {
+		// `image.id` equals the mainboard card's own `cardID`/`scryfall_id` — the
+		// same identifier namespace, which is the assumption `artId` rests on
+		// (the file header's "verified against the fixture below").
 		const raw = {
 			name: 'Untrimmed Sample',
-			image: { uri: 'https://cubecobra.com/content/cube-cover.png', artist: 'Someone' },
+			image: { id: '4e117771-5a8b-4812-b487-32ba34b7f724', uri: 'https://cubecobra.com/content/cube-cover.png', artist: 'Someone' },
 			cards: {
 				mainboard: [
 					{
@@ -102,8 +107,17 @@ describe('projectCubeCobraCube', () => {
 		};
 		const cube = projectCubeCobraCube(raw, 'fallback');
 		expect(cube.cards).toEqual([{ name: 'Giver of Runes', scryfallId: '4e117771-5a8b-4812-b487-32ba34b7f724' }]);
+		// `artId` is kept — it is an id, not an image field — but `image.uri` never survives.
+		expect(cube.artId).toBe('4e117771-5a8b-4812-b487-32ba34b7f724');
 		const serialised = JSON.stringify(cube);
-		expect(serialised).not.toMatch(/image|art_crop|thumbnail|picture/i);
+		// Not a bare "image" check any more: `artId` is a deliberate, non-image field this file now keeps.
+		expect(serialised).not.toMatch(/cubecobra\.com|\.png|\.jpg|art_crop|thumbnail|picture|\buri\b|image_small|image_normal/i);
+		expect(Object.keys(cube).sort()).toEqual(['artId', 'cards', 'name']);
+	});
+
+	it('image.id that is not a scryfall uuid resolves to no art, rather than a bad id surviving', () => {
+		const raw = { name: 'X', image: { id: 'not-a-uuid' }, cards: { mainboard: [{ details: { name: 'Y', scryfall_id: null } }] } };
+		expect(projectCubeCobraCube(raw, 'fallback').artId).toBeNull();
 	});
 
 	it('drops a mainboard entry with no resolvable name rather than inventing one', () => {

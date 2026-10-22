@@ -169,11 +169,12 @@ describe('a deck’s name, rename and delete, over its editor', () => {
 });
 
 describe('the lobby', () => {
-  it('has a Decks button beside the trophy that opens #/decks', () => {
+  it('has a Decks button beside the trophy that opens #/decks, with Inventory (AF305 §B) beside it', () => {
     const rooms = { list: () => new Promise(() => undefined) } as unknown as NonNullable<Parameters<typeof LobbyScreen>[0]['rooms']>;
     render(createElement(LobbyScreen, { rooms, feed: { follow: () => () => undefined } }));
     const button = screen.getByTestId('lobby-decks');
     expect(button.getAttribute('href')).toBe('#/decks');
-    expect(button.nextElementSibling?.getAttribute('data-testid')).toBe('lobby-stats');
+    expect(button.nextElementSibling?.getAttribute('data-testid'), 'Inventory sits beside Decks').toBe('lobby-inventory');
+    expect(button.nextElementSibling?.nextElementSibling?.getAttribute('data-testid')).toBe('lobby-stats');
   });
 });

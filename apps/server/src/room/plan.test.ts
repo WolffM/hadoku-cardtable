@@ -48,6 +48,7 @@ function summary(id: string, overrides: Partial<CubeSummary> = {}): CubeSummary 
     importedAt: null,
     refreshedAt: null,
     verdict: null,
+    artId: null,
     ...overrides,
   };
 }

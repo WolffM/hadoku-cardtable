@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FACE_REGIONS, faceCropStyle, type FacePart } from './faceCrop.ts';
+import { coverCropStyle, FACE_REGIONS, faceCropStyle, ILLUSTRATION_BOX, type FacePart } from './faceCrop.ts';
 
 const ASPECT = 488 / 680;
 const num = (v: unknown): number => Number.parseFloat(String(v)) / 100;
@@ -55,5 +55,43 @@ describe('a face’s part of its card’s image', () => {
     // A split half, upright, is nearly card-shaped: it all but fills the tile both ways.
     const { w, h } = landed('split-left');
     expect(Math.min(w, h * ASPECT)).toBeGreaterThan(0.95);
+  });
+});
+
+describe('coverCropStyle — a region covering a box of any shape (AF305 §B: CubeArt’s illustration box)', () => {
+  it('ILLUSTRATION_BOX is the card’s own art, never the whole face — type line and rules box excluded', () => {
+    // Well inside the printed card, and well short of the full face: this is
+    // what distinguishes "the art" from "the whole uncropped card image".
+    expect(ILLUSTRATION_BOX.x).toBeGreaterThan(0);
+    expect(ILLUSTRATION_BOX.x + ILLUSTRATION_BOX.w).toBeLessThan(1);
+    expect(ILLUSTRATION_BOX.y).toBeGreaterThan(0);
+    expect(ILLUSTRATION_BOX.y + ILLUSTRATION_BOX.h).toBeLessThan(0.6); // well above the type line
+    expect(ILLUSTRATION_BOX.rotate).toBe(0);
+  });
+
+  it('covers the box’s full width, and centres the region on the box — for a short, wide box (a cube tile) and a tall, narrow one alike', () => {
+    for (const containerRatio of [2.5, 1, 1 / 2.5]) {
+      const style = coverCropStyle(ILLUSTRATION_BOX, containerRatio);
+      const widthPct = num(style.width);
+      const heightPct = num(style.height);
+      const leftPct = num(style.left);
+      const topPct = num(style.top);
+
+      // The box's own width is fully covered (the rendered image is at least as wide as the box).
+      expect(widthPct).toBeGreaterThanOrEqual(1 - 1e-9);
+      // The region's own centre (not the whole image's) lands on the box's centre.
+      const { x, y, w, h } = ILLUSTRATION_BOX;
+      const [cx, cy] = [x + w / 2, y + h / 2];
+      expect(leftPct + cx * widthPct).toBeCloseTo(0.5, 6);
+      expect(topPct + cy * heightPct).toBeCloseTo(0.5, 6);
+    }
+  });
+
+  it('a wider box crops a shorter vertical slice of the region than a taller one does, both centred the same', () => {
+    const wide = coverCropStyle(ILLUSTRATION_BOX, 5); // very short and wide
+    const tall = coverCropStyle(ILLUSTRATION_BOX, 0.5); // taller than it is wide
+    // The fraction of the (scaled) image's own height that is visible inside the box.
+    const visible = (style: ReturnType<typeof coverCropStyle>): number => 1 / num(style.height);
+    expect(visible(wide)).toBeLessThan(visible(tall));
   });
 });
