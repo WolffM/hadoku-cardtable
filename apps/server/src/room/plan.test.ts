@@ -4,16 +4,23 @@
  * immediately evaluate then whether or not its forge playable" (the
  * operator, `docs/planning/draft-pools-plan.md`'s Rulings #6).
  *
- * `CubeLookup`/`ForgeChecker` are faked here: C's `apps/server/src/pools/cubes.ts`
- * and D's `apps/server/src/pools/forge.ts` land in their own lanes this wave
- * (`docs/planning/wave73-2026-10-21.md`'s ordering), so this module — and
- * this test — are written against the structural shapes the wave file names,
- * never against their real modules.
+ * `CubeLookup`/`ForgeChecker` are faked for most of this file: this module was
+ * written against the structural shapes the wave file names, before C's
+ * `apps/server/src/pools/cubes.ts` and D's `apps/server/src/pools/forge.ts`
+ * landed. The last describe block below (step 6) runs the real `createCubeStore`
+ * against the committed shortlist — the wiring `index.ts` itself does.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CubeSummary, DraftCard, DraftPlan, PoolSource, PoolVerdict } from '@hadoku/shared';
-import { checkPlan, checkSource, type CubeLookup, type ForgeChecker } from './plan.ts';
+import { checkCards, checkPlan, checkSource, type CubeLookup, type ForgeChecker } from './plan.ts';
+import { createCubeStore } from '../pools/cubes.ts';
+import { loadCardCatalog } from '../pools/catalog.ts';
+import { DEFAULT_PLAN } from './draftRooms.ts';
 
 function card(name: string): DraftCard {
   return {
@@ -144,5 +151,62 @@ describe('checkPlan — a whole plan, deduped by source', () => {
     };
     const verdict = await checkPlan(plan, { cubes, forge });
     expect(verdict).toEqual({ ok: false, unplayable: ['Not A Real Card'], missingText: [] });
+  });
+});
+
+describe('checkCards — the shared core, also apps/server/src/pools/cubes.ts’s attachCubeRoutes check dep', () => {
+  it('an all-resolved cube with a jar reports every unplayable card, even past the first missing-text one', async () => {
+    const cards = [card('A'), { ...card('Mystery'), typeLine: '' }, card('Not Real')];
+    const forge: ForgeChecker = { check: vi.fn(async (names: readonly string[]) => names.filter((n) => n === 'Not Real')) };
+    const verdict = await checkCards(cards, forge);
+    expect(verdict).toEqual({ ok: false, unplayable: ['Not Real'], missingText: ['Mystery'] });
+    // The resolved cards (A, Not Real) went to Forge; the missing-text one never did.
+    expect(forge.check).toHaveBeenCalledWith(['A', 'Not Real']);
+  });
+
+  it('ok when every card resolves and Forge knows them all', async () => {
+    const cards = [card('A'), card('B')];
+    const forge: ForgeChecker = { check: vi.fn().mockResolvedValue([]) };
+    expect(await checkCards(cards, forge)).toEqual({ ok: true, cards: 2 });
+  });
+
+  it('without a jar: missing text still refuses on its own; otherwise refused with a reason', async () => {
+    expect(await checkCards([{ ...card('Mystery'), typeLine: '' }], null)).toEqual({ ok: false, unplayable: [], missingText: ['Mystery'] });
+    const verdict = await checkCards([card('A')], null);
+    expect(verdict.ok).toBe(false);
+  });
+});
+
+/*
+ * Step 6: the real C module, not a fake — `createCubeStore` against the
+ * committed shortlist `index.ts` points `shortlistDir` at. Proves the actual
+ * wiring `index.ts` does, not a stand-in for it: the 8-cube shortlist loads,
+ * and without a jar the Settled default plan (3 rounds of the same cube) is
+ * refused, with a reason, never passed by default.
+ */
+describe('step 6 — createCubeStore against the real shortlist, no jar', () => {
+  const SHORTLIST_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../pools/cubes');
+  const importDirs: string[] = [];
+
+  afterEach(async () => {
+    for (const dir of importDirs.splice(0)) await rm(dir, { recursive: true, force: true });
+  });
+
+  async function realStore() {
+    const importDir = await mkdtemp(join(tmpdir(), 'cardtable-plan-test-'));
+    importDirs.push(importDir);
+    return createCubeStore({ shortlistDir: SHORTLIST_DIR, importDir, catalog: loadCardCatalog('/no/such/catalog.json') });
+  }
+
+  it('loads all 8 shortlisted cubes', async () => {
+    const store = await realStore();
+    expect(store.list()).toHaveLength(8);
+    expect(store.list().every((c) => c.origin === 'shortlist')).toBe(true);
+  });
+
+  it('without a jar, the Settled default plan is refused rather than passed by default', async () => {
+    const store = await realStore();
+    const verdict = await checkPlan(DEFAULT_PLAN, { cubes: store, forge: null });
+    expect(verdict.ok).toBe(false);
   });
 });

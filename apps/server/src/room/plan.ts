@@ -56,18 +56,46 @@ function sourceKey(src: PoolSource): string {
 }
 
 /**
- * The verdict for ONE source.
+ * The verdict for a RESOLVED card list — no id, no cache. `checkSource`'s own
+ * inner logic, and ALSO `apps/server/src/pools/cubes.ts`'s `attachCubeRoutes`
+ * `check` dep directly: an import or a refresh always re-checks fresh, never
+ * reusing a cached verdict ("An import is checked when it is saved", the
+ * plan's Design) — `index.ts` wires the exact same function both places so
+ * the rule can only be written once.
+ *
+ * - A card the catalog could not resolve (`typeLine === ''`) is counted as
+ *   `missingText`, named, and never sent to Forge — there is no text to
+ *   check playability of. The RESOLVED cards are still checked when a jar is
+ *   up, so a refusal reports everything wrong with a cube at once rather than
+ *   hiding an unplayable card behind the first missing-text one found.
+ * - Without a jar: refused, with a reason, unless `missingText` alone already
+ *   refuses it. Never passes by default.
+ */
+export async function checkCards(cards: readonly DraftCard[], forge: ForgeChecker | null): Promise<PoolVerdict> {
+	const missingText = cards.filter((c) => c.typeLine === '').map((c) => c.name);
+	const resolved = cards.filter((c) => c.typeLine !== '');
+
+	if (forge === null) {
+		if (missingText.length > 0) return { ok: false, unplayable: [], missingText };
+		return { ok: false, unplayable: ['Forge is not available to check playability — try again once the pool service is up'], missingText: [] };
+	}
+
+	const unplayable = await forge.check(resolved.map((c) => c.name));
+	return unplayable.length === 0 && missingText.length === 0
+		? { ok: true, cards: resolved.length }
+		: { ok: false, unplayable, missingText };
+}
+
+/**
+ * The verdict for ONE source, by id.
  *
  * - An unknown cube id is refused, named.
- * - A card the catalog could not resolve (`typeLine === ''`) refuses with
- *   `missingText`, named — checked FIRST, and never sent to Forge: it takes
- *   precedence over any cached verdict, since it is read straight off this
- *   call's own `cards()`, never stale the way a cache can be.
  * - Without a jar, an already-cached verdict for that cube (`CubeSummary.verdict`,
- *   from `cubes.list()`) is reused as-is; a cube never yet checked is refused
- *   with a reason rather than passed by default.
- * - With a jar, `forge.check` runs over the RESOLVED cards' names, and the
- *   result (missingText included) is cached back onto the store (`setVerdict`).
+ *   from `cubes.list()`) is reused as-is, UNLESS the cube now has a
+ *   `missingText` card — that signal is read straight off this call's own
+ *   `cards()`, never stale the way a cache can be, so it always wins.
+ * - Otherwise, `checkCards` decides, and the result is cached back onto the
+ *   store (`setVerdict`) whenever a jar actually ran.
  */
 export async function checkSource(src: PoolSource, deps: PlanCheckDeps): Promise<PoolVerdict> {
 	if (src.kind === 'set') {
@@ -78,20 +106,13 @@ export async function checkSource(src: PoolSource, deps: PlanCheckDeps): Promise
 	const cards = deps.cubes.cards(src.cubeId);
 	if (cards === null) return { ok: false, unplayable: [`unknown cube: ${src.cubeId}`], missingText: [] };
 
-	const missingText = cards.filter((c) => c.typeLine === '').map((c) => c.name);
-	const resolved = cards.filter((c) => c.typeLine !== '');
-
-	if (deps.forge === null) {
-		if (missingText.length > 0) return { ok: false, unplayable: [], missingText };
+	if (deps.forge === null && !cards.some((c) => c.typeLine === '')) {
 		const cached = deps.cubes.list().find((c) => c.id === src.cubeId)?.verdict ?? null;
 		if (cached !== null) return cached;
-		return { ok: false, unplayable: ['Forge is not available to check playability — try again once the pool service is up'], missingText: [] };
 	}
 
-	const unplayable = await deps.forge.check(resolved.map((c) => c.name));
-	const verdict: PoolVerdict =
-		unplayable.length === 0 && missingText.length === 0 ? { ok: true, cards: resolved.length } : { ok: false, unplayable, missingText };
-	deps.cubes.setVerdict(src.cubeId, verdict);
+	const verdict = await checkCards(cards, deps.forge);
+	if (deps.forge !== null) deps.cubes.setVerdict(src.cubeId, verdict);
 	return verdict;
 }
 
