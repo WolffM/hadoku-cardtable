@@ -2875,6 +2875,15 @@ public final class PlayBridge {
          * text (a trigger's without Forge's bracket of trigger objects, {@link #withoutTriggerObjects}), and {@code input} says which input asked ({@code select}, {@code target},
          * {@code confirm}, {@code pay}). {@code message} stays the whole string.
          */
+        /**
+         * The last prompt {@link #promptParts} split, and its split. Forge re-shows a payment after
+         * its input has left the queue's top (qt-prompt-parts, run 39845586028: Thrill of
+         * Possibility's {1}{R} twice, the second with no input to read); the same words are the
+         * same prompt, split the same way.
+         */
+        private String partsMessage;
+        private JsonObject partsSplit;
+
         private JsonObject promptParts(final String message) {
             if (message == null) { return null; }
             final Object input = myInput();
@@ -2894,7 +2903,7 @@ public final class PlayBridge {
                     kind = "pay";
                     sa = (SpellAbility) field(input, InputPayMana.class, "saPaidFor");
                 } else {
-                    return null;
+                    return message.equals(partsMessage) ? partsSplit.deepCopy() : null;
                 }
             } catch (final ReflectiveOperationException | RuntimeException e) {
                 System.err.println("[bridge] promptParts: could not read the open input (" + e + "); the prompt goes whole");
@@ -2920,6 +2929,8 @@ public final class PlayBridge {
             o.addProperty("question", kept.isEmpty() ? after : kept + "\n" + after);
             o.addProperty("context", withoutTriggerObjects(sa, context.strip()));
             o.addProperty("input", kind);
+            partsMessage = message;
+            partsSplit = o;
             return o;
         }
 

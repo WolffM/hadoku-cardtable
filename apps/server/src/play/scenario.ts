@@ -197,13 +197,22 @@ function dumpOnTimeout(s: Scenario, label: string): string {
 export function landPayer(s: Scenario, seat: number): () => void {
 	const clicked = new Set<number>();
 	let promptAtClick: string | null = null;
+	let last: { land: number; at: number } | null = null;
 	return () => {
 		const prompt = s.prompt(seat);
-		if (!/Pay Mana Cost/.test(prompt) || prompt === promptAtClick) return;
+		if (!/Pay Mana Cost/.test(prompt)) return;
+		if (prompt === promptAtClick) {
+			// A click Forge dropped (it landed on a payment Forge re-showed with no input open) leaves the
+			// land untapped and the words the same: click it again (qt-prompt-parts, runs 39726131463, 39776823060).
+			const dropped = last !== null && Date.now() - last.at > 1_500 && s.zone(seat, 'Battlefield').some((c) => c.id === last!.land && !c.tapped);
+			if (!dropped) return;
+			clicked.delete(last!.land);
+		}
 		const land = s.zone(seat, 'Battlefield').find((c) => c.land && !c.tapped && !clicked.has(c.id));
 		if (land === undefined) return;
 		clicked.add(land.id);
 		promptAtClick = prompt;
+		last = { land: land.id, at: Date.now() };
 		s.select(seat, land.id);
 	};
 }
