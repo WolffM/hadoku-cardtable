@@ -114,6 +114,8 @@ export function startEdge(opts: EdgeOptions): Promise<Server> {
   });
 
   server.on('upgrade', (req, socket, head) => {
+    // An upgraded socket is the handler's alone: the server's own error listener is gone from it.
+    socket.on('error', () => socket.destroy());
     const path = stripPrefix(req.url ?? '/');
     if (path === null) {
       socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
@@ -132,7 +134,7 @@ export function startEdge(opts: EdgeOptions): Promise<Server> {
       socket.pipe(up);
     });
     up.on('error', () => socket.destroy());
-    socket.on('error', () => up.destroy());
+    socket.on('close', () => up.destroy());
   });
 
   return new Promise((resolveListen, reject) => {
