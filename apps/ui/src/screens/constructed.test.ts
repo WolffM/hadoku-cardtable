@@ -69,6 +69,7 @@ import type { DeckRecords } from '../stats/deckOrder.ts';
 import { parseRoute } from './route.ts';
 import poolJson from '../draft/pool.json';
 import { dckTextOf, deckFromPool } from '../draft/deckFromPool.ts';
+import { cardIndex, suggestBasics } from '../deck/build.ts';
 import type { MyDeck, MyDecksClient } from '../deck/myDecks.ts';
 import { roomsClient, type ClientMode, type RoomView } from '../rooms/api.ts';
 import { takeWarmRoom, warmRoom } from '../rooms/warm.ts';
@@ -2896,6 +2897,15 @@ describe('draftedDeckOf', () => {
     expect(deckBuilt.basics.reduce((n, e) => n + e.count, 0)).toBe(DRAFTED_BASICS);
     expect(mainDeckSize(deckBuilt)).toBe(45 + DRAFTED_BASICS);
     for (const entry of deckBuilt.basics) expect(BASIC_LAND_NAMES).toContain(entry.card.name);
+  });
+
+  it('splits the basics the way the editor\'s Auto does: a splashed colour gets its land', () => {
+    const splash = POOL.map((card, i) => ({ ...card, manaCost: i === 0 ? ['W'] : ['R', 'R'] }));
+    const deckBuilt = draftedDeckOf(POD, splash);
+    const counts = Object.fromEntries(deckBuilt.basics.map((e) => [e.card.name, e.count]));
+    expect(counts).toEqual({ Plains: 1, Mountain: 16 });
+    const spells = { ...deckBuilt, basics: [] };
+    expect(suggestBasics(spells, cardIndex(splash), 45 + DRAFTED_BASICS)).toMatchObject({ W: 1, R: 16 });
   });
 
   it('adds no basics to a pool that asks for no colour', () => {
