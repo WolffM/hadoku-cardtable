@@ -24,6 +24,11 @@ The operator's words are quoted verbatim. **Design** is ours and may change. The
    built in."* A Classic or All Random tournament match is best-of-3 on one deck. A Gauntlet match is the
    Gauntlet's own built-in format, unchanged.
 
+5. **AI entrants, verbatim:** *"AI can sit in the tournament, but we can also allow byes. it will be
+   determined before the start. no additional ai will be added to a tournament once it's started."* AI
+   seats are allowed in the lobby. The field (humans + AI) is fixed at Lock seats, and an odd count still
+   gives a bye. After the lock, nothing adds an AI: no auto-fill, and no AI replacing a leaver.
+
 ## What exists (2026-10-22, from code)
 
 - **Pods** (`apps/server/src/room/lobby.ts`) have everything Swiss needs:
@@ -53,9 +58,10 @@ player sit down with at this table?*
   (default `'locked'`). Both are the leader's, editable only while the pod is in `lobby`, and locked
   once the seats lock.
 - **Seats:** with Tournament on, the room seats through `podSeats` (up to 8), exactly as a draft pod
-  does. Its 1v1 table seats are hidden while the pod is in lobby. AI seats are not offered: an unpaired
-  human gets a bye (pods' ruling 3). The operator may revisit this.
-- **Lock:** the leader's "Lock seats" starts round 1 when ≥ 2 humans are seated and every seated
+  does, AI seats included (ruling 5). Its 1v1 table seats are hidden while the pod is in lobby. AI
+  entrants are always ready. An AI's table plays the Forge AI as a vs-AI table does. Two AI paired
+  together settle without a game.
+- **Lock:** the leader's "Lock seats" starts round 1 when ≥ 2 entrants (at least 1 human) are seated and every seated
   human is ready. Ready means the mode's own condition: Classic needs a legal deck chosen; Gauntlet and
   All Random need nothing extra. From then on nobody sits or stands; a leaver is dropped by the
   existing pod rules.
@@ -91,4 +97,3 @@ the server.
 ## Watches
 
 - The first real 4-player tournament on production: a Classic one, locked decks.
-- AI opponents in tournament seats, if the operator wants them later.
