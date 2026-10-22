@@ -82,4 +82,33 @@ describe('the pod as a circle', () => {
     expect(name.textContent).toBe(view.seats[0]!.displayName);
     expect(name.getAttribute('title')).toBe(view.seats[0]!.displayName);
   });
+
+  it('turns no table for a spectator: whichever seat they watch, seat 0 is at the bottom and every seat stays put', () => {
+    const watching = (seatId: number): DraftView => {
+      const base = seatView(0, 'left');
+      return { ...base, viewer: { kind: 'watcher', seatId, pack: [], pool: [] } };
+    };
+    const ids = [0, 1, 2, 3, 4, 5, 6, 7];
+    const { rerender } = render(createElement(SeatBar, { view: { ...seatView(0, 'left'), viewer: { kind: 'spectator' } } }));
+    const unwatched = ids.map(at);
+    for (const seatId of [3, 5]) {
+      rerender(createElement(SeatBar, { view: watching(seatId), onWatch: () => undefined }));
+      expect(ids.map(at), `watching seat ${seatId}`).toEqual(unwatched);
+      expect(at(0).x).toBeCloseTo(50, 1);
+      expect(Math.max(...ids.map((id) => at(id).y))).toBe(at(0).y);
+      expect(screen.getByTestId(`seat-${seatId}`).classList.contains('seatbar__seat--watched')).toBe(true);
+    }
+  });
+
+  it('lights the arc into the watched seat, not into the bottom one', () => {
+    const base = seatView(0, 'right');
+    const { container } = render(createElement(SeatBar, { view: { ...base, viewer: { kind: 'watcher', seatId: 3, pack: [], pool: [] } } }));
+    const lit = container.querySelectorAll<SVGPathElement>('.podcircle__arc--in');
+    expect(lit).toHaveLength(1);
+    const arc = ends(lit[0]!);
+    const seats = [0, 1, 2, 3, 4, 5, 6, 7];
+    const nearest = (p: { x: number; y: number }): number => seats.reduce((best, id) => (dist(at(id), p) < dist(at(best), p) ? id : best));
+    expect(nearest(arc.to)).toBe(3);
+    expect(nearest(arc.from)).toBe(4);
+  });
 });
