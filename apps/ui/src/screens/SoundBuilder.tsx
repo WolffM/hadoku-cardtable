@@ -119,7 +119,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
   const client = useMemo(() => givenClient ?? soundsClient(), [givenClient]);
   const player = useMemo(() => givenPlayer ?? createMixer((f) => client.takeUrl(f)), [givenPlayer, client]);
 
-  const { loaded, canEdit, canView, takes, setTakes, cells, setCells, gains, setGains, reload } = useSoundAssignments(client);
+  const { loaded, canEdit, canView, takes, setTakes, cells, setCells, gains, setGains, reload, wrote } = useSoundAssignments(client);
   const [tab, setTab] = useState<Tab>('roles');
   const [query, setQuery] = useState('');
   const [unplacedOnly, setUnplacedOnly] = useState(false);
@@ -215,6 +215,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
       await reload();
       return;
     }
+    wrote();
     setRetired({ take, reason });
   }
 
@@ -243,6 +244,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
     setCells((c) => ({ ...c, [cell]: files }));
     if (gain !== undefined) setGains((g) => ({ ...g, [cell]: gain }));
     const saved = await client.save(cell as CellId, files, gain);
+    if (saved !== null) wrote();
     setUnsaved((prev) => {
       const next = new Set(prev);
       if (saved === null) next.add(cell);

@@ -83,6 +83,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CubeSummary, DraftPlan, DraftPreset, PoolSource, SetSummary } from '@hadoku/shared';
 
 import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
+import { latestReads } from '../rooms/latest.ts';
 import { PoolPicker, type PoolTab, type Refusal, type SourceStyle } from '../draft/PoolPicker.tsx';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
@@ -212,14 +213,20 @@ export function DraftLobby({
 
   const [cubes, setCubes] = useState<CubeSummary[]>([]);
   const [cubesError, setCubesError] = useState<string | null>(null);
+  /** The cube and preset lists' reads, latest-wins (`../rooms/latest.ts`): every write is followed by a fresh read, so a read is kept or dropped. */
+  const [cubeReads] = useState(latestReads);
   const loadCubes = (): void => {
-    pools
-      .listCubes()
-      .then((list) => {
+    const landed = cubeReads.read();
+    pools.listCubes().then(
+      (list) => {
+        if (landed() !== 'keep') return;
         setCubes(list);
         setCubesError(null);
-      })
-      .catch((e: unknown) => setCubesError(e instanceof Error ? e.message : String(e)));
+      },
+      (e: unknown) => {
+        if (landed() === 'keep') setCubesError(e instanceof Error ? e.message : String(e));
+      },
+    );
   };
   useEffect(() => void loadCubes(), []);
 
@@ -237,14 +244,19 @@ export function DraftLobby({
 
   const [presets, setPresets] = useState<DraftPreset[]>([]);
   const [presetsError, setPresetsError] = useState<string | null>(null);
+  const [presetReads] = useState(latestReads);
   const loadPresets = (): void => {
-    pools
-      .listPresets()
-      .then((list) => {
+    const landed = presetReads.read();
+    pools.listPresets().then(
+      (list) => {
+        if (landed() !== 'keep') return;
         setPresets(list);
         setPresetsError(null);
-      })
-      .catch((e: unknown) => setPresetsError(e instanceof Error ? e.message : String(e)));
+      },
+      (e: unknown) => {
+        if (landed() === 'keep') setPresetsError(e instanceof Error ? e.message : String(e));
+      },
+    );
   };
   useEffect(() => void loadPresets(), []);
 

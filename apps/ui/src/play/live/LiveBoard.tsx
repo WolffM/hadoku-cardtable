@@ -266,6 +266,7 @@ import { CONSTRUCTED_LIMITS, LIMITED_MIN_MAIN_DECK_SIZE, deckFromDeckFile, type 
 import { navigate, routeHash } from '../../screens/route.ts';
 import { roomsClient, type RoomView } from '../../rooms/api.ts';
 import { roomFeed } from '../../rooms/feed.ts';
+import { latestReads } from '../../rooms/latest.ts';
 import { tablesClient, type RoomTable, type SeatChoice, type StartOutcome, type TablesClient } from '../../screens/tables.ts';
 import { DeckEditor, type ReadyState } from '../../deck/DeckEditor.tsx';
 import { deckStoreClient } from '../../deck/deckStore.ts';
@@ -2166,33 +2167,51 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const roomRef = useRef<RoomView | null>(null);
   /** A room read has answered — a room, or the server's 404 for one it will not admit to. */
   const [roomAnswered, setRoomAnswered] = useState(false);
+  /** The table's reads and this screen's own Rematch writes of it, latest-wins (`../../rooms/latest.ts`). */
+  const [tableReads] = useState(latestReads);
   useEffect(() => {
     if (roomId === null) return;
     let live = true;
-    const refreshRoom = (): Promise<void> =>
-      roomsClient()
+    // This screen writes no room, so a room read is kept or dropped.
+    const roomReads = latestReads();
+    /** False when a newer room read overtook this one: that one decides, and the tick that sent this stops. */
+    const refreshRoom = (): Promise<boolean> => {
+      const landed = roomReads.read();
+      return roomsClient()
         .get(roomId)
         .then(
           (answer) => {
-            if (!live) return;
+            if (!live || landed() !== 'keep') return false;
             setRoomAnswered(true);
-            if (answer === null) return;
+            if (answer === null) return true;
             roomRef.current = answer;
             setRoom(answer);
             myTableIdRef.current = findMyTable(answer, match.matchId)?.id;
+            return true;
           },
           () => {
-            if (live) setRoomAnswered(true);
+            if (!live || landed() !== 'keep') return false;
+            setRoomAnswered(true);
+            return true;
           },
         );
+    };
     const tick = async (): Promise<void> => {
       // The room first, once: it says which of the room's tables is this
       // match's. A table read without it is the room's FIRST table — in a pod,
       // one nobody plays at.
-      if (roomRef.current === null) await refreshRoom();
+      if (roomRef.current === null && !(await refreshRoom())) return;
+      const landed = tableReads.read();
       const answer = await tables.table(roomId, myTableIdRef.current).catch(() => null);
+      if (!live) return;
+      const verdict = landed();
+      if (verdict === 'drop') return;
+      if (verdict === 'reread') {
+        void tick();
+        return;
+      }
       // Unreachable for a moment: the last answer stays on screen and the next read asks again.
-      if (!live || answer === null || !answer.ok) return;
+      if (answer === null || !answer.ok) return;
       setTable(answer.table);
       setAlone((was) => was ?? answer.table.players.length === 1);
       const signature = JSON.stringify({
@@ -2216,7 +2235,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
       live = false;
       stopFollowing();
     };
-  }, [roomId, tables, match.matchId]);
+  }, [roomId, tables, tableReads, match.matchId]);
 
   /**
    * Nothing is drawn until what it would show is settled (the operator,
@@ -2291,6 +2310,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
         setRefusal(answer.error);
         return;
       }
+      tableReads.wrote();
       setTable(answer.table);
       if (alone !== true || answer.table.room.phase === 'sideboarding') {
         setBusy(false);

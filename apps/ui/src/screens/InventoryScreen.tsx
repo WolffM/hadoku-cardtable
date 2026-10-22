@@ -23,6 +23,7 @@ import { cardsCount } from '../draft/PoolPicker.tsx';
 import { CubeArt } from '../draft/CubeArt.tsx';
 import { ImportCube } from '../draft/ImportCube.tsx';
 import { poolsClient, type PoolsClient } from '../rooms/api.ts';
+import { latestReads } from '../rooms/latest.ts';
 import { useWhoami } from '../room/whoami.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import './InventoryScreen.css';
@@ -90,14 +91,20 @@ export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsC
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  /** The list's reads, latest-wins (`../rooms/latest.ts`): every write is followed by a fresh read, so a read is kept or dropped. */
+  const [reads] = useState(latestReads);
   const load = (): void => {
-    pools
-      .listCubes()
-      .then((list) => {
+    const landed = reads.read();
+    pools.listCubes().then(
+      (list) => {
+        if (landed() !== 'keep') return;
         setCubes(list.filter((c) => c.origin === 'cubecobra'));
         setError(null);
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+      },
+      (e: unknown) => {
+        if (landed() === 'keep') setError(e instanceof Error ? e.message : String(e));
+      },
+    );
   };
   useEffect(() => void load(), []);
 

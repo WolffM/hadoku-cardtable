@@ -65,6 +65,7 @@ import {
 import { Avatar } from '../components/Avatar.tsx';
 import { RadioCards } from '../components/RadioCards.tsx';
 import { GameTypeRow } from './GameTypeRow.tsx';
+import { latestReads } from './latest.ts';
 import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
 import './rooms.css';
 import { uiLength } from '../settings/ui-scale.ts';
@@ -87,15 +88,20 @@ export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
   const [creating, setCreating] = useState(false);
   const closeCreate = useCallback((): void => setCreating(false), []);
 
+  /** The list's reads, latest-wins (`./latest.ts`): this screen writes no list, so a read is kept or dropped. */
+  const [reads] = useState(latestReads);
+
   const refresh = useCallback(async (): Promise<void> => {
+    const landed = reads.read();
     try {
       const rooms = await client.list();
-      setState({ kind: 'ready', rooms, stale: null });
+      if (landed() === 'keep') setState({ kind: 'ready', rooms, stale: null });
     } catch (err) {
+      if (landed() !== 'keep') return;
       const message = err instanceof Error ? err.message : String(err);
       setState((prev) => (prev.kind === 'ready' ? { ...prev, stale: message } : { kind: 'failed', message }));
     }
-  }, [client]);
+  }, [client, reads]);
 
   useEffect(() => {
     let live = true;
