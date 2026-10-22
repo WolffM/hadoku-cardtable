@@ -31,12 +31,9 @@ import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
 import type { Tournament } from './tournaments.ts';
 import { loadPool } from './pool.ts';
-import { POD_SEATS, type PoolVerdict } from '@hadoku/shared';
+import { AVATAR_ID_MAX, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, type ClientMode, type PoolVerdict } from '@hadoku/shared';
 import {
-	AVATAR_ID_MAX,
 	AVATAR_POOL,
-	CLIENT_MODES,
-	DEFAULT_CLIENT_MODE,
 	draftIdOfPool,
 	draftPoolId,
 	newestFormat,
@@ -49,7 +46,6 @@ import {
 	ROOM_IDLE_MS,
 	ROOM_MATCHES_KEPT,
 	ROOM_STALE_MS,
-	type ClientMode,
 	type Lobby,
 	type PodChecks,
 	type RoomView,

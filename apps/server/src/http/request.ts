@@ -1,8 +1,8 @@
-/** What every HTTP route reads off a request before its own work: who is asking, and whether the body could be read. */
+/** What every HTTP route reads off a request before its own work: who is asking, and what the body says. */
 
 import { randomUUID } from 'node:crypto';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
-import type { ErrorRequestHandler, Request } from 'express';
+import type { ErrorRequestHandler, Request, Response } from 'express';
 
 import { identityFromHeaders } from '../room/identity.js';
 
@@ -13,6 +13,27 @@ import { identityFromHeaders } from '../room/identity.js';
  */
 export function httpCaller(req: Request): ParticipantId {
 	return identityFromHeaders(req.headers, `http-${randomUUID()}`);
+}
+
+/** A `@hadoku/shared` request schema, as this file reads one. */
+interface BodySchema<T> {
+	safeParse(body: unknown):
+		| { success: true; data: T }
+		| { success: false; error: { issues: readonly { code: string; path: readonly PropertyKey[]; message: string }[] } };
+}
+
+/**
+ * A request body by its shared schema, or null once the 400 is sent. The
+ * answer is the schema's first refusal, a field nobody named before anything
+ * else, in the `{ error }` body every route answers with.
+ */
+export function parseBody<T>(schema: BodySchema<T>, req: Request, res: Response): T | null {
+	const parsed = schema.safeParse(req.body);
+	if (parsed.success) return parsed.data;
+	const { issues } = parsed.error;
+	const issue = issues.find((i) => i.code === 'unrecognized_keys' && i.path.length === 0) ?? issues[0];
+	res.status(400).json({ error: issue?.message ?? 'the request body could not be read' });
+	return null;
 }
 
 /**

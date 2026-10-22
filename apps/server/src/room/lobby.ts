@@ -70,13 +70,19 @@ import {
 } from '@hadoku/room-store';
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
 import {
+	AVATAR_ID_MAX,
+	ClientModeSchema,
+	DEFAULT_CLIENT_MODE,
 	DEFAULT_GAME_TYPE,
+	DEFAULT_ROOM_SETTINGS,
+	DRAFT_POOL_PREFIX,
 	DraftPlanSchema,
-	GAME_TYPES,
+	GameTypeSchema,
 	POD_SEATS,
 	PoolVerdictSchema,
 	RoomModeSchema,
-	SERIES_PHASES,
+	SeriesPhaseSchema,
+	type ClientMode,
 	type ConstructedMode,
 	type DraftPlan,
 	type GameType,
@@ -84,6 +90,7 @@ import {
 	type PoolSource,
 	type PoolVerdict,
 	type RoomMode,
+	type RoomSettings,
 	type PodMember,
 	type PodPhase,
 	type PodView,
@@ -103,21 +110,6 @@ import type { Tournament } from './tournaments.ts';
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';
-
-/**
- * Which client the room's players sit in front of: our own React table
- * (`builtin`), or Forge's full client streamed from a per-seat container
- * (`streamed`).
- *
- * **Chosen at create and never again.** The mode decides what the server
- * provisions for a room, so there is no update path for it — `http/rooms.ts`'s
- * PATCH refuses the field outright rather than accepting and ignoring it, and
- * `setGameType` (the only mutator of the room's own shape) does not touch it.
- */
-export type ClientMode = 'builtin' | 'streamed';
-/** Every client mode a room may be created with. */
-export const CLIENT_MODES: readonly ClientMode[] = ['builtin', 'streamed'];
-export const DEFAULT_CLIENT_MODE: ClientMode = 'builtin';
 
 /** What `roomKeyFor` in the UI accepts, and every id this file mints. */
 export const ROOM_ID_RE = /^[a-z0-9-]{1,40}$/;
@@ -173,15 +165,6 @@ export type FormatId = string;
  * which is every checkout and the deploy tree.
  */
 export const NO_FORMAT: FormatId = 'unavailable';
-
-/**
- * What makes a room's pool a DRAFTED pool rather than a frozen era.
- *
- * A colon, because a frozen era id is a date and `ROOM_ID_RE` allows no colon —
- * so no pod id and no era id can ever be mistaken for the other, and the
- * discrimination needs no version field.
- */
-export const DRAFT_POOL_PREFIX = 'draft:';
 
 /**
  * The pool that is no pool: any library deck against any other, whatever era
@@ -263,13 +246,6 @@ export function randomFormat(random: () => number, formats: readonly CatalogForm
 	const eras = families[Math.floor(random() * families.length)]!;
 	return eras[Math.floor(random() * eras.length)]!;
 }
-
-/**
- * Watchparty's own bound on the value (`sprite: z.string().min(1).max(32)` in
- * `@wolffm/watchparty-ui@0.39.8`'s bundled `room-chrome.js`). Restated here
- * rather than guessed at, because this is the layer that persists it.
- */
-export const AVATAR_ID_MAX = 32;
 
 /**
  * The one reading of an avatar id, in every direction.
@@ -468,25 +444,7 @@ type SetFormatResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' };
 
-/**
- * A room's match settings. Every one has a default here, so a room stored
- * before a setting existed reads back on that default without a migration.
- *
- * `handSmoothing` (on by default): the opening hand is the closer of two to the
- * deck's land ratio, and each mulligan's redraw is weighted toward it —
- * `MatchSpec.handSmoothing`, and Forge's `HandSmoothing` in our fork.
- *
- * How long a series runs is not a setting: it is the room's game type and mode
- * (`series.ts`'s `seriesFormatOf`).
- */
-export interface RoomSettings {
-	handSmoothing: boolean;
-}
-
-export const DEFAULT_ROOM_SETTINGS: Readonly<RoomSettings> = Object.freeze({
-	handSmoothing: true,
-});
-
+/** Every setting has a default, so a room stored before a setting existed reads back on it without a migration. */
 const SETTING_KEYS = Object.keys(DEFAULT_ROOM_SETTINGS) as (keyof RoomSettings)[];
 /** Settings a room stored before they were retired: read and dropped, so the room still parses. */
 const RETIRED_SETTING_KEYS = ['matchLength', 'sideboarding'];
@@ -1383,10 +1341,6 @@ function isFormatId(v: unknown): v is FormatId {
 	return typeof v === 'string' && v.trim() !== '';
 }
 
-function isGameType(v: unknown): v is GameType {
-	return typeof v === 'string' && (GAME_TYPES as readonly string[]).includes(v);
-}
-
 /**
  * A stored mode and its options: both null (unchosen), or a pair `RoomModeSchema`
  * accepts. Undefined when the record predates modes.
@@ -1397,10 +1351,6 @@ function storedMode(a: Record<string, unknown>): Pick<StoredApp, 'mode' | 'modeO
 	const parsed = RoomModeSchema.safeParse({ mode: a.mode, modeOptions: a.modeOptions });
 	if (!parsed.success) throw new Error('app.mode is not a known mode with its options');
 	return parsed.data;
-}
-
-function isClientMode(v: unknown): v is ClientMode {
-	return typeof v === 'string' && (CLIENT_MODES as readonly string[]).includes(v);
 }
 
 /** Every setting is a plain boolean; a retired one is accepted whatever it holds, and dropped by `storedSettings`. */
@@ -1419,10 +1369,6 @@ function isSecret(v: unknown): v is Secret {
 	if (typeof v !== 'object' || v === null) return false;
 	const s = v as Record<string, unknown>;
 	return typeof s.salt === 'string' && typeof s.hash === 'string';
-}
-
-function isSeriesPhase(v: unknown): v is SeriesPhase {
-	return typeof v === 'string' && (SERIES_PHASES as readonly string[]).includes(v);
 }
 
 function isStoredGame(v: unknown): v is SeriesGame {
@@ -1447,7 +1393,7 @@ function isStoredSeries(v: unknown): v is StoredSeries {
 	if (s.played !== undefined && !(Array.isArray(s.played) && s.played.length === 2 && s.played.every(isSeat))) return false;
 	if (s.settled !== undefined && typeof s.settled !== 'boolean') return false;
 	if (s.mode !== undefined && typeof s.mode !== 'string') return false;
-	return isSeriesPhase(s.phase);
+	return SeriesPhaseSchema.safeParse(s.phase).success;
 }
 
 function isStoredTable(v: unknown): v is Omit<StoredTable, 'series'> & { series: unknown } {
@@ -1491,11 +1437,13 @@ const appCodec: AppCodec<StoredApp> = {
 		if (typeof a.name !== 'string') throw new Error('app.name is not a string');
 		if (typeof a.creator !== 'string') throw new Error('app.creator is not a string');
 		if (typeof a.leader !== 'string') throw new Error('app.leader is not a string');
-		if (!isGameType(a.gameType)) throw new Error('app.gameType is not a known game type');
+		const gameType = GameTypeSchema.safeParse(a.gameType);
+		if (!gameType.success) throw new Error('app.gameType is not a known game type');
 		// Written before wave 18: absent means `builtin`, which is what those rooms
 		// are. A field that is PRESENT and unknown is not defaulted away — that is
 		// a record this build does not understand, so it quarantines like any other.
-		if (a.clientMode !== undefined && !isClientMode(a.clientMode)) {
+		const clientMode = ClientModeSchema.default(DEFAULT_CLIENT_MODE).safeParse(a.clientMode);
+		if (!clientMode.success) {
 			throw new Error('app.clientMode is not a known client mode');
 		}
 		// Absent is a room written before wave 25, which starts on the newest
@@ -1550,7 +1498,7 @@ const appCodec: AppCodec<StoredApp> = {
 		// boot has to land on the SAME id each time for "stable for the room's
 		// life" to hold — a format id (`newestFormat()`) and `clientMode`
 		// (`'builtin'`) are migrated the same deterministic way already.
-		const seriesRoom: SeriesRoom = { gameType: a.gameType, mode: mode.mode };
+		const seriesRoom: SeriesRoom = { gameType: gameType.data, mode: mode.mode };
 		const tables: StoredTable[] =
 			a.tables === undefined
 				? [
@@ -1566,11 +1514,11 @@ const appCodec: AppCodec<StoredApp> = {
 			name: a.name,
 			creator: a.creator,
 			leader: a.leader,
-			gameType: a.gameType,
+			gameType: gameType.data,
 			format: a.format === undefined ? null : (a.format as FormatId),
 			settings,
 			...mode,
-			clientMode: a.clientMode === undefined ? DEFAULT_CLIENT_MODE : a.clientMode,
+			clientMode: clientMode.data,
 			tables,
 			matchId,
 			matches: a.matches === undefined ? [] : [...(a.matches as string[])],

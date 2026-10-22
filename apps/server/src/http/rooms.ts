@@ -96,33 +96,28 @@ import { Router, type Request, type Response } from 'express';
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { userNameOf } from '../edge-auth.js';
-import { bodyErrors, httpCaller } from './request.js';
+import { bodyErrors, httpCaller, parseBody } from './request.js';
 import {
-	CONSTRUCTED_MODES,
-	DEFAULT_GAME_TYPE,
-	GAME_TYPES,
+	CreateRoomBodySchema,
+	EmptyBodySchema,
+	JoinRoomBodySchema,
+	PatchRoomBodySchema,
+	PodAiBodySchema,
+	PodCloseBodySchema,
 	POD_SEATS,
-	RoomModeSchema,
+	SetAvatarBodySchema,
 	SetDraftPlanBodySchema,
+	SitBodySchema,
+	WatchpartyBindBodySchema,
 	type DraftPlan,
-	type GameType,
 	type PoolVerdict,
-	type RoomMode,
 } from '@hadoku/shared';
 import {
-	AVATAR_ID_MAX,
-	CLIENT_MODES,
-	DEFAULT_CLIENT_MODE,
-	DEFAULT_ROOM_SETTINGS,
-	DRAFT_POOL_PREFIX,
 	POD_MIN_OPEN,
 	ROOM_ID_RE,
 	watchpartyRoomId,
 	type Caller,
-	type ClientMode,
-	type FormatId,
 	type Lobby,
-	type RoomSettings,
 	type RoomView,
 } from '../room/lobby.js';
 import { jsonLogger } from '../log.js';
@@ -143,9 +138,6 @@ export const JOIN_RATE_LIMIT: RateLimitConfig = {
 	refillAmount: 1,
 	refillIntervalMs: 30_000,
 };
-
-const NAME_MAX = 60;
-const PASSWORD_MAX = 200;
 
 export interface RoomsDeps {
 	lobby: Lobby;
@@ -188,113 +180,7 @@ function unknownKeys(body: Record<string, unknown>, allowed: readonly string[]):
 	return Object.keys(body).filter((k) => !allowed.includes(k));
 }
 
-function parseGameType(v: unknown): Parsed<GameType> {
-	if (typeof v === 'string' && (GAME_TYPES as readonly string[]).includes(v)) {
-		return { ok: true, value: v as GameType };
-	}
-	return { ok: false, error: `gameType must be one of: ${GAME_TYPES.join(', ')}` };
-}
-
-/** Same shape as `parseGameType`: an unknown value is a stated refusal, never a silent default. */
-function parseClientMode(v: unknown): Parsed<ClientMode> {
-	if (typeof v === 'string' && (CLIENT_MODES as readonly string[]).includes(v)) {
-		return { ok: true, value: v as ClientMode };
-	}
-	return { ok: false, error: `clientMode must be one of: ${CLIENT_MODES.join(', ')}` };
-}
-
-/**
- * A constructed room's mode with its options (`RoomModeSchema`): Classic and
- * Gauntlet may leave `modeOptions` out, All Random may not. Options that belong
- * to another mode are refused, never dropped.
- */
-function parseMode(mode: unknown, modeOptions: unknown): Parsed<RoomMode> {
-	if (!(CONSTRUCTED_MODES as readonly unknown[]).includes(mode)) {
-		return { ok: false, error: `mode must be one of: ${CONSTRUCTED_MODES.join(', ')}` };
-	}
-	const parsed = RoomModeSchema.safeParse(modeOptions === undefined ? { mode } : { mode, modeOptions });
-	return parsed.success ? { ok: true, value: parsed.data } : { ok: false, error: `modeOptions are not ${String(mode)}'s options` };
-}
-
-/**
- * `undefined`, `null` and `""` all mean "no password" — a blank form field is
- * an open room, not an error. Anything else must be a string of 1–200 chars.
- * The error messages never echo the value.
- */
-function parsePassword(v: unknown): Parsed<string | undefined> {
-	if (v === undefined || v === null || v === '') return { ok: true, value: undefined };
-	if (typeof v !== 'string') return { ok: false, error: 'password must be a string' };
-	if (v.length > PASSWORD_MAX) {
-		return { ok: false, error: `password must be at most ${PASSWORD_MAX} characters` };
-	}
-	return { ok: true, value: v };
-}
-
-function parseCreate(
-	body: unknown,
-): Parsed<{ name: string; gameType: GameType; clientMode: ClientMode; password: string | undefined; mode: RoomMode | undefined }> {
-	const o = asObject(body);
-	if (o === null) return { ok: false, error: 'body must be a JSON object' };
-	const extra = unknownKeys(o, ['name', 'gameType', 'clientMode', 'password', 'mode', 'modeOptions']);
-	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
-	if (typeof o.name !== 'string') return { ok: false, error: 'name must be a string' };
-	const name = o.name.trim();
-	if (name.length === 0 || name.length > NAME_MAX) {
-		return { ok: false, error: `name must be 1–${NAME_MAX} characters` };
-	}
-	// eslint-disable-next-line no-control-regex
-	if (/[\u0000-\u001f\u007f]/.test(name)) {
-		return { ok: false, error: 'name must not contain control characters' };
-	}
-	const gameType = o.gameType === undefined ? ({ ok: true, value: DEFAULT_GAME_TYPE } as const) : parseGameType(o.gameType);
-	if (!gameType.ok) return gameType;
-	const clientMode =
-		o.clientMode === undefined ? ({ ok: true, value: DEFAULT_CLIENT_MODE } as const) : parseClientMode(o.clientMode);
-	if (!clientMode.ok) return clientMode;
-	const password = parsePassword(o.password);
-	if (!password.ok) return password;
-	let mode: RoomMode | undefined;
-	if (o.mode !== undefined || o.modeOptions !== undefined) {
-		if (gameType.value !== 'constructed-1v1') return { ok: false, error: 'only a constructed room has a mode' };
-		const parsed = parseMode(o.mode, o.modeOptions);
-		if (!parsed.ok) return parsed;
-		mode = parsed.value;
-	}
-	return {
-		ok: true,
-		value: { name, gameType: gameType.value, clientMode: clientMode.value, password: password.value, mode },
-	};
-}
-
-function parseJoin(body: unknown): Parsed<{ password: string | undefined }> {
-	// A join with no body at all is a join with no password.
-	if (body === undefined) return { ok: true, value: { password: undefined } };
-	const o = asObject(body);
-	if (o === null) return { ok: false, error: 'body must be a JSON object' };
-	const extra = unknownKeys(o, ['password']);
-	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
-	const password = parsePassword(o.password);
-	if (!password.ok) return password;
-	return { ok: true, value: { password: password.value } };
-}
-
 /** Same allow-list discipline as the others: `{ ready: boolean }` and nothing else. */
-/** Watchparty's room id is opaque to us; this only bounds what is hashed. */
-const WATCHPARTY_ROOM_MAX = 200;
-
-function parseWatchpartyBind(body: unknown): Parsed<{ room: string }> {
-	const o = asObject(body);
-	if (o === null) return { ok: false, error: 'body must be a JSON object' };
-	const extra = unknownKeys(o, ['room']);
-	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
-	if (typeof o.room !== 'string' || o.room.length === 0 || o.room.length > WATCHPARTY_ROOM_MAX) {
-		return { ok: false, error: `room must be 1–${WATCHPARTY_ROOM_MAX} characters` };
-	}
-	// eslint-disable-next-line no-control-regex
-	if (/[\u0000-\u001f\u007f]/.test(o.room)) return { ok: false, error: 'room must not contain control characters' };
-	return { ok: true, value: { room: o.room } };
-}
-
 function parseReady(body: unknown): Parsed<{ ready: boolean }> {
 	const o = asObject(body);
 	if (o === null) return { ok: false, error: 'body must be a JSON object' };
@@ -302,132 +188,6 @@ function parseReady(body: unknown): Parsed<{ ready: boolean }> {
 	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
 	if (typeof o.ready !== 'boolean') return { ok: false, error: 'ready must be a boolean' };
 	return { ok: true, value: { ready: o.ready } };
-}
-
-/**
- * `{ avatarId }`, where the field is REQUIRED and may be null.
- *
- * The three states of `avatarId?: string | null` mean three different things and
- * only two of them are a request: a string is "this is my character", `null` is
- * "I have none any more". ABSENT is neither, so it is a 400 rather than a
- * no-op write — the same discipline as `parseReady`, which will not accept a
- * body that forgot to say which way. A body that means nothing must not be
- * answerable with a 200 that changed nothing.
- *
- * `''` is refused rather than folded into `null`, because an empty string on
- * this route is a client bug and telling it so is cheaper than it finding out
- * from a face that will not draw. The lobby folds it anyway (`avatarIdOf`), so
- * the two layers cannot disagree about what is stored — only about whether the
- * caller is told.
- */
-function parseAvatar(body: unknown): Parsed<{ avatarId: string | null }> {
-	const o = asObject(body);
-	if (o === null) return { ok: false, error: 'body must be a JSON object' };
-	const extra = unknownKeys(o, ['avatarId']);
-	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
-	if (o.avatarId === null) return { ok: true, value: { avatarId: null } };
-	if (typeof o.avatarId !== 'string') return { ok: false, error: 'avatarId must be a string or null' };
-	const id = o.avatarId.trim();
-	if (id === '' || id.length > AVATAR_ID_MAX) {
-		return { ok: false, error: `avatarId must be 1\u2013${AVATAR_ID_MAX} characters, or null to clear it` };
-	}
-	return { ok: true, value: { avatarId: id } };
-}
-
-/** A start carries nothing. No body at all is the same as `{}`. */
-function parseStart(body: unknown): Parsed<Record<string, never>> {
-	if (body === undefined) return { ok: true, value: {} };
-	const o = asObject(body);
-	if (o === null) return { ok: false, error: 'body must be a JSON object' };
-	const extra = unknownKeys(o, []);
-	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
-	return { ok: true, value: {} };
-}
-
-/**
- * `{}` or `{ seat }` — wave 72 §P's `POST …/pod/sit`. `seat` absent takes the
- * first free one; given, it must be an integer `0..POD_SEATS - 1` — the
- * lobby's own range, restated here only to answer a malformed value with a
- * stated 400 rather than `lobby.sitPod`'s bare `bad-seat`.
- */
-function parseSit(body: unknown): Parsed<{ seat: number | undefined }> {
-	if (body === undefined) return { ok: true, value: { seat: undefined } };
-	const o = asObject(body);
-	if (o === null) return { ok: false, error: 'body must be a JSON object' };
-	const extra = unknownKeys(o, ['seat']);
-	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
-	if (o.seat === undefined) return { ok: true, value: { seat: undefined } };
-	if (typeof o.seat !== 'number' || !Number.isInteger(o.seat) || o.seat < 0 || o.seat >= POD_SEATS) {
-		return { ok: false, error: `seat must be an integer 0..${POD_SEATS - 1}` };
-	}
-	return { ok: true, value: { seat: o.seat } };
-}
-
-/**
- * A format id is any non-blank string; whether it names a pool THIS server has
- * is the tables layer's answer (`http/routes.ts`'s `unknownPool`, a 409 about
- * the room rather than a 400 about the body).
- *
- * A drafted pool is refused at the door (operator, 2026-10-20). Putting a room
- * on `draft:<podId>` tied its table to that pod's socket, which answers nobody
- * once the pod's room has closed — so nobody's deck ever loaded. A drafted deck
- * is played on Free pick, from "My decks", as its saved `.dck`.
- */
-function parseFormat(v: unknown): Parsed<FormatId> {
-	if (typeof v !== 'string' || v.trim() === '') return { ok: false, error: 'format must be a format id' };
-	if (v.startsWith(DRAFT_POOL_PREFIX)) {
-		return { ok: false, error: 'format must be a format id: a drafted deck is played on Free pick' };
-	}
-	return { ok: true, value: v };
-}
-
-/**
- * Some of the room's settings, every one a boolean. An empty object is
- * refused: a PATCH that changes nothing is a client that meant something else.
- */
-function parseSettings(v: unknown): Parsed<Partial<RoomSettings>> {
-	const o = asObject(v);
-	if (o === null) return { ok: false, error: 'settings must be an object' };
-	const extra = unknownKeys(o, Object.keys(DEFAULT_ROOM_SETTINGS));
-	if (extra.length > 0) return { ok: false, error: `unknown setting(s): ${extra.join(', ')}` };
-	if (Object.keys(o).length === 0) return { ok: false, error: 'settings names no setting' };
-	const bad = Object.keys(o).find((k) => typeof o[k] !== 'boolean');
-	if (bad !== undefined) return { ok: false, error: `settings.${bad} must be a boolean` };
-	return { ok: true, value: o as Partial<RoomSettings> };
-}
-
-/** One field, one mutation. `{ gameType }`, `{ format }`, `{ settings }` or `{ mode }` (with its options) — exactly one. */
-type PatchBody = { gameType: GameType } | { format: FormatId } | { settings: Partial<RoomSettings> } | { mode: RoomMode };
-
-function parsePatch(body: unknown): Parsed<PatchBody> {
-	const o = asObject(body);
-	if (o === null) return { ok: false, error: 'body must be a JSON object' };
-	// The allow-list is the refusal: `clientMode` is not on it, so a PATCH
-	// carrying it is a 400 rather than a write nobody notices. See the header.
-	const extra = unknownKeys(o, ['gameType', 'format', 'settings', 'mode', 'modeOptions']);
-	if (extra.length > 0) return { ok: false, error: `unknown field(s): ${extra.join(', ')}` };
-	// Two fields is refused rather than applied in some order: each has its own
-	// refusal, and a body whose halves disagree must not half-land. `modeOptions`
-	// is not a field of its own: it rides with `mode`.
-	const modeField = o.mode !== undefined || o.modeOptions !== undefined ? true : undefined;
-	if ([o.gameType, o.format, o.settings, modeField].filter((v) => v !== undefined).length > 1) {
-		return { ok: false, error: 'patch one field at a time: gameType, format, settings or mode' };
-	}
-	if (modeField) {
-		const mode = parseMode(o.mode, o.modeOptions);
-		return mode.ok ? { ok: true, value: { mode: mode.value } } : mode;
-	}
-	if (o.settings !== undefined) {
-		const settings = parseSettings(o.settings);
-		return settings.ok ? { ok: true, value: { settings: settings.value } } : settings;
-	}
-	if (o.format !== undefined) {
-		const format = parseFormat(o.format);
-		return format.ok ? { ok: true, value: { format: format.value } } : format;
-	}
-	const gameType = parseGameType(o.gameType);
-	if (!gameType.ok) return gameType;
-	return { ok: true, value: { gameType: gameType.value } };
 }
 
 /**
@@ -484,10 +244,10 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	});
 
 	rooms.post('/', (req: Request, res: Response) => {
-		const parsed = parseCreate(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		const body = parseBody(CreateRoomBodySchema, req, res);
+		if (body === null) return;
 		const caller = callerOf(req);
-		const result = lobby.create(caller, parsed.value);
+		const result = lobby.create(caller, body);
 		if (!result.ok) return notDurable(res);
 		res.status(201).json(roomBody(result.room, caller.id));
 	});
@@ -498,15 +258,15 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	// a way to probe or flood than joining is. The watchparty name is never
 	// logged (see `watchpartyRoomId`).
 	rooms.post('/watchparty', (req: Request, res: Response) => {
-		const parsed = parseWatchpartyBind(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		const body = parseBody(WatchpartyBindBodySchema, req, res);
+		if (body === null) return;
 		const caller = callerOf(req);
-		if (!lobby.isMember(watchpartyRoomId(parsed.value.room), caller.id) && !joinLimiter.allow(caller.id, 1, now())) {
+		if (!lobby.isMember(watchpartyRoomId(body.room), caller.id) && !joinLimiter.allow(caller.id, 1, now())) {
 			log({ event: 'room-join-refused', reason: 'rate-limited' });
 			res.setHeader('Retry-After', String(Math.ceil((deps.joinRateLimit ?? JOIN_RATE_LIMIT).refillIntervalMs / 1000)));
 			return res.status(429).json({ error: 'too many join attempts; wait a little and try again' });
 		}
-		const result = lobby.bindWatchparty(caller, parsed.value.room);
+		const result = lobby.bindWatchparty(caller, body.room);
 		if (!result.ok) return notDurable(res);
 		res.json(roomBody(result.room, caller.id));
 	});
@@ -534,8 +294,8 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	});
 
 	rooms.post('/:id/join', (req: Request, res: Response) => {
-		const parsed = parseJoin(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		const body = parseBody(JoinRoomBodySchema, req, res);
+		if (body === null) return;
 		const caller = callerOf(req);
 		const id = String(req.params.id);
 		// A member re-entering needs no password and spends no token.
@@ -551,7 +311,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 			return res.status(429).json({ error: 'too many join attempts; wait a little and try again' });
 		}
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.join(id, caller, parsed.value.password);
+		const result = lobby.join(id, caller, body.password);
 		if (!result.ok) {
 			if (result.reason === 'not-durable') return notDurable(res);
 			log({ event: 'room-join-refused', reason: 'no-match' });
@@ -591,8 +351,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 * (`POST /api/tables/rooms/:id/ready`).
 	 */
 	rooms.post('/:id/leave', (req: Request, res: Response) => {
-		const parsed = parseStart(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		if (parseBody(EmptyBodySchema, req, res) === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'leave');
 		const id = String(req.params.id);
@@ -608,10 +367,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 * usual 404; a member who is not the owner, a 403.
 	 */
 	rooms.post('/:id/close', (req: Request, res: Response) => {
-		const o = asObject(req.body ?? {});
-		if (o === null) return badRequest(res, 'body must be a JSON object');
-		const extra = unknownKeys(o, []);
-		if (extra.length > 0) return badRequest(res, `unknown field(s): ${extra.join(', ')}`);
+		if (parseBody(EmptyBodySchema, req, res) === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'close');
 		const id = String(req.params.id);
@@ -657,8 +413,8 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 * MATCH id gets that 404 and is right to ignore it — see the client.
 	 */
 	rooms.post('/:id/identity', (req: Request, res: Response) => {
-		const parsed = parseAvatar(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		const body = parseBody(SetAvatarBodySchema, req, res);
+		if (body === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		// The match route has no room id of its own: the client names the MATCH it is
@@ -667,15 +423,14 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		// match. This was a 404 for both players at every match start.
 		const named = String(req.params.id);
 		const id = lobby.roomOfMatch(named)?.id ?? named;
-		if (!ROOM_ID_RE.test(id) || !lobby.setAvatar(id, caller.id, parsed.value.avatarId)) return noMatch(res);
+		if (!ROOM_ID_RE.test(id) || !lobby.setAvatar(id, caller.id, body.avatarId)) return noMatch(res);
 		const room = lobby.get(id);
 		if (room === undefined) return noMatch(res);
 		res.json(roomBody(room, caller.id));
 	});
 
 	rooms.post('/:id/start', (req: Request, res: Response) => {
-		const parsed = parseStart(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		if (parseBody(EmptyBodySchema, req, res) === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
@@ -703,13 +458,13 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 * 1v1 table's own seat UI, and sitting is not a leader act there either.
 	 */
 	rooms.post('/:id/pod/sit', (req: Request, res: Response) => {
-		const parsed = parseSit(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		const body = parseBody(SitBodySchema, req, res);
+		if (body === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.sitPod(id, caller.id, parsed.value.seat);
+		const result = lobby.sitPod(id, caller.id, body.seat);
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
 			const error =
@@ -729,8 +484,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 
 	/** Give up a pod seat, lobby phase only. Idempotent: not seated answers `ok` and changes nothing. */
 	rooms.post('/:id/pod/stand', (req: Request, res: Response) => {
-		const parsed = parseStart(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		if (parseBody(EmptyBodySchema, req, res) === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
@@ -751,19 +505,13 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 * only once no seat is open (`room/lobby.ts`'s `startDraft`).
 	 */
 	rooms.post('/:id/pod/ai', (req: Request, res: Response) => {
-		const o = asObject(req.body);
-		if (o === null) return badRequest(res, 'body must be a JSON object');
-		const extra = unknownKeys(o, ['seat', 'on']);
-		if (extra.length > 0) return badRequest(res, `unknown field(s): ${extra.join(', ')}`);
-		if (typeof o.seat !== 'number' || !Number.isInteger(o.seat) || o.seat < 0 || o.seat >= POD_SEATS) {
-			return badRequest(res, `seat must be an integer 0..${POD_SEATS - 1}`);
-		}
-		if (typeof o.on !== 'boolean') return badRequest(res, 'on must be true or false');
+		const body = parseBody(PodAiBodySchema, req, res);
+		if (body === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.aiPod(id, caller.id, o.seat, o.on);
+		const result = lobby.aiPod(id, caller.id, body.seat, body.on);
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
 			const error =
@@ -779,19 +527,13 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 
 	/** Close an empty pod seat, or open a closed one: the owner's, before the draft (`Lobby.closePod`). */
 	rooms.post('/:id/pod/close', (req: Request, res: Response) => {
-		const o = asObject(req.body);
-		if (o === null) return badRequest(res, 'body must be a JSON object');
-		const extra = unknownKeys(o, ['seat', 'closed']);
-		if (extra.length > 0) return badRequest(res, `unknown field(s): ${extra.join(', ')}`);
-		if (typeof o.seat !== 'number' || !Number.isInteger(o.seat) || o.seat < 0 || o.seat >= POD_SEATS) {
-			return badRequest(res, `seat must be an integer 0..${POD_SEATS - 1}`);
-		}
-		if (typeof o.closed !== 'boolean') return badRequest(res, 'closed must be true or false');
+		const body = parseBody(PodCloseBodySchema, req, res);
+		if (body === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.closePod(id, caller.id, o.seat, o.closed);
+		const result = lobby.closePod(id, caller.id, body.seat, body.closed);
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
 			if (result.reason === 'not-leader') return res.status(403).json({ error: 'only the room owner closes seats' });
@@ -814,8 +556,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	 * (`room/lobby.ts`'s `playPod`).
 	 */
 	rooms.post('/:id/pod/play', (req: Request, res: Response) => {
-		const parsed = parseStart(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		if (parseBody(EmptyBodySchema, req, res) === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
@@ -861,14 +602,13 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	});
 
 	rooms.patch('/:id', (req: Request, res: Response) => {
-		const parsed = parsePatch(req.body);
-		if (!parsed.ok) return badRequest(res, parsed.error);
+		const v = parseBody(PatchRoomBodySchema, req, res);
+		if (v === null) return;
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
 		const me = callerOf(req).id;
 		// Two settings, one leader, one refusal shape. The noun in each sentence is
 		// the setting the caller asked for, because the room screen shows it.
-		const v = parsed.value;
 		const what = 'format' in v ? 'format' : 'settings' in v ? 'settings' : 'mode' in v ? 'mode' : 'game type';
 		const result =
 			'format' in v
