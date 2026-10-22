@@ -171,6 +171,38 @@ describe('a row that is not two answers is not a pair', () => {
   });
 });
 
+/*
+ * The operator, 2026-10-21: *"sometimes i get cancel and ok and they look
+ * weirdly formated. the cancel button will not be vertically aligned on the row
+ * as the ok button and it won't have a button outline?"* The selection sheet's
+ * Cancel (Forge's button two on a sacrifice or discard cost) was `.prompt__link`
+ * — no border, `align-self: flex-start` — beside a filled OK, and every other
+ * unstyled answer drew the browser's own button face.
+ */
+describe('every answer is the same kind of button', () => {
+  it("a selection sheet's Cancel is a button, not a text link", () => {
+    const { getByTestId } = render(
+      createElement(SelectionPrompt, {
+        message: 'Sacrifice a creature',
+        cards: [1],
+        lookup: EMPTY_LOOKUP,
+        picked: new Set<number>(),
+        onPick: noop,
+        done: { label: 'OK', enabled: true, onClick: noop },
+        cancel: { label: 'Cancel', enabled: true, onClick: noop },
+      }),
+    );
+    expect(getByTestId('selection-cancel').classList.contains('prompt__link')).toBe(false);
+  });
+
+  it('an answer with no class of its own gets the outlined button look, under any class that sets one', () => {
+    const rule = /:where\(\.answers\) button \{([^}]*)\}/.exec(PROMPTS_CSS)?.[1];
+    expect(rule, 'the row styles its own answers').toBeDefined();
+    expect(rule).toMatch(/border:\s*1px solid var\(--line\)/);
+    expect(rule).toMatch(/background:\s*var\(--bg-card\)/);
+  });
+});
+
 describe('the CSS turns a pair into the two bottom corners', () => {
   const decl = (selector: string) => {
     const escaped = selector.replace(/[[\]().*+?^$|\\]/g, '\\$&');
