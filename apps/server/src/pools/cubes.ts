@@ -4,6 +4,7 @@
  * has imported from Cube Cobra.
  *
  *   GET    /api/pools/cubes            → 200 CubeSummary[] (imported newest-first, then the shortlist)
+ *   GET    /api/pools/cubes/:id/cards  → 200 DraftCard[] | 404 { error } — lane B's art preload reads a plan's cube from here, before the deal
  *   POST   /api/pools/cubes/import     { link } → 201 CubeSummary | 400 { error }
  *   POST   /api/pools/cubes/:id/refresh → 200 CubeSummary | 400 | 403 | 404
  *   DELETE /api/pools/cubes/:id        → 204 | 400 | 403 | 404
@@ -459,6 +460,16 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 
 	cubes.get('/', (_req: Request, res: Response) => {
 		res.json(store.list());
+	});
+
+	cubes.get('/:id/cards', (req: Request, res: Response) => {
+		const id = String(req.params.id);
+		const cards = store.cards(id);
+		if (cards === null) {
+			res.status(404).json({ error: `no cube ${JSON.stringify(id)}` });
+			return;
+		}
+		res.json(cards);
 	});
 
 	cubes.post('/import', (req: Request, res: Response) => {
