@@ -8,8 +8,8 @@
  * readied last asks on its own answer, the other on its next table poll. Forge
  * takes seconds to come up, so the second ask lands while the first is still in
  * flight. Each case below is a sequence a real pair of players makes, and in
- * each the match starts normally — so no orange text may appear on either
- * screen at any moment (every role="alert" and `.lobby__error` that ever enters
+ * each the match starts normally — so no error text may appear on either
+ * screen at any moment (every role="alert" and `.ct-error` that ever enters
  * the DOM is recorded, not sampled), and both screens reach the SAME match.
  *
  * `[start-race]` lines are the evidence: every error text either screen drew,
@@ -38,7 +38,7 @@ async function recordErrors(f: Friend, seen: string[]): Promise<void> {
   await f.context.addInitScript(() => {
     const said = new WeakMap<Element, string>();
     const look = (): void => {
-      for (const el of Array.from(document.querySelectorAll('[role="alert"], .lobby__error'))) {
+      for (const el of Array.from(document.querySelectorAll('[role="alert"], .ct-error'))) {
         const text = (el.textContent ?? '').trim();
         if (text === '' || said.get(el) === text) continue;
         said.set(el, text);

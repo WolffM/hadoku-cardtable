@@ -75,7 +75,7 @@ export function DeckManage({ deck, client, onRenamed, onDeleted }: { deck: MyDec
         </DeleteConfirm>
       )}
       {fault !== null && (
-        <p className="lobby__error" role="alert" data-testid="decks-fault">
+        <p className="ct-error" role="alert" data-testid="decks-fault">
           {fault}
         </p>
       )}
@@ -120,7 +120,7 @@ export function DeleteConfirm({ deck, client, onDeleted, testId, className, chil
         </>
       )}
       {fault !== null && (
-        <span className="lobby__error" role="alert" data-testid={`${testId}-fault`}>
+        <span className="ct-error" role="alert" data-testid={`${testId}-fault`}>
           {fault}
         </span>
       )}

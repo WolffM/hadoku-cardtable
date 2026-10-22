@@ -45,7 +45,7 @@ export function CloseRoom({ roomId, rooms }: { roomId: string; rooms: Pick<Rooms
         Close room
       </button>
       {error !== null && (
-        <span className="lobby__error" role="alert" data-testid="room-close-error">
+        <span className="ct-error" role="alert" data-testid="room-close-error">
           {error}
         </span>
       )}

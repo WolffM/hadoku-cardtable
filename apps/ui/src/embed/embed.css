@@ -23,8 +23,7 @@
 }
 
 .cardtable-embed__error {
-  margin: 2rem;
-  color: var(--color-text);
+  padding: 2rem;
 }
 
 /*

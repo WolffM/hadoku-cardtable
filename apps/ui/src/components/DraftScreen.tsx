@@ -246,8 +246,8 @@ export function DraftScreen({
       {spectating && <SpectatorNotice seatCount={view.seats.length} />}
 
       {message && (
-        <p className="draft__status draft__error" data-testid="draft-refused" role="alert">
-          {message}
+        <p className="draft__status" data-testid="draft-refused" role="alert">
+          <span className="ct-error">{message}</span>
         </p>
       )}
 

@@ -65,13 +65,6 @@
   color: var(--danger-ink);
 }
 
-/* The editor's head on the Decks page: back, then the deck's name and actions, on one row. */
-.decks__head.shell__head {
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-}
-
 .decks__tile-actions {
   position: absolute;
   top: 6px;

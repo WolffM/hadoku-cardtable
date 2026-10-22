@@ -359,7 +359,7 @@ export function MusicReview({ client: givenClient, reviews: givenReviews, player
                       </div>
                       <button
                         type="button"
-                        className="music-review__pick"
+                        className="music-review__pick ct-toggle"
                         data-testid="music-review-pick"
                         aria-label={`Pick ${c.label}`}
                         title="Pick"

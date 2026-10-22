@@ -207,7 +207,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
             <button
               key={s.id}
               type="button"
-              className="sound-sandbox__scenario"
+              className="sound-sandbox__scenario ct-toggle"
               aria-pressed={s.id === scenarioId}
               onClick={() => {
                 stop();
@@ -221,7 +221,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
           {captured === null && (
             <button
               type="button"
-              className="sound-sandbox__scenario"
+              className="sound-sandbox__scenario ct-toggle"
               aria-pressed={false}
               onClick={() => {
                 stop();

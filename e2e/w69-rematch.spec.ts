@@ -57,7 +57,7 @@ async function recordErrors(f: Friend, seen: string[]): Promise<void> {
   await f.page.evaluate(() => {
     const said = new WeakMap<Element, string>();
     const look = (): void => {
-      for (const el of Array.from(document.querySelectorAll('[role="alert"], .lobby__error, .live__error'))) {
+      for (const el of Array.from(document.querySelectorAll('[role="alert"], .ct-error'))) {
         const text = (el.textContent ?? '').trim();
         if (text === '' || said.get(el) === text) continue;
         said.set(el, text);

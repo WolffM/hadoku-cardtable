@@ -133,11 +133,13 @@ export function DecksScreen({ decks: givenDecks, deckRecords = fetchDeckRecords 
         >
           ← Lobby
         </a>
-        <SettingsGear />
+        <div className="shell__tools">
+          <SettingsGear />
+        </div>
       </nav>
       <main className="lobby lobby--room">
         {error !== null && (
-          <p className="lobby__error" role="alert" data-testid="decks-error">
+          <p className="ct-error" role="alert" data-testid="decks-error">
             {error}
           </p>
         )}

@@ -59,10 +59,6 @@
   border-bottom: 1px solid var(--line-soft);
 }
 
-.draft__error {
-  color: var(--warn);
-}
-
 /* ── layout ────────────────────────────────────────────────────────── */
 
 /*

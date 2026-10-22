@@ -189,7 +189,7 @@ export function DeckScreen({
   return (
     <div className="shell shell--fit deck-screen" data-testid="deck">
       {standalone && (
-        <nav className="shell__head decks__head">
+        <nav className="shell__head">
           <a
             className="shell__link"
             href={routeHash({ kind: 'decks' })}
@@ -211,13 +211,13 @@ export function DeckScreen({
       )}
 
       {loadError !== null && (
-        <p className="lobby__error" role="alert" data-testid="deck-load-error">
+        <p className="ct-error" role="alert" data-testid="deck-load-error">
           Could not load your pool: {loadError}
         </p>
       )}
 
       {playError !== null && (
-        <p className="lobby__error deck-screen__error" role="alert" data-testid="deck-play-error">
+        <p className="ct-error deck-screen__error" role="alert" data-testid="deck-play-error">
           {playError}
         </p>
       )}

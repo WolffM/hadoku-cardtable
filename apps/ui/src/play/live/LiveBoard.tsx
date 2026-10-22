@@ -2045,7 +2045,7 @@ export function SideboardStep({
 
   if (text === null || parsed === null) {
     return (
-      <p className="live__error" role="alert" data-testid="sideboard-unavailable">
+      <p className="ct-error live__error" role="alert" data-testid="sideboard-unavailable">
         Could not find your deck to sideboard.
       </p>
     );
@@ -2076,7 +2076,7 @@ export function SideboardStep({
   return (
     <section className="sideboard-step" data-testid="sideboard-step">
       {refusal !== null && (
-        <p className="live__error" role="alert" data-testid="sideboard-refusal">
+        <p className="ct-error live__error" role="alert" data-testid="sideboard-refusal">
           {refusal}
         </p>
       )}
@@ -2354,7 +2354,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
               {OUTCOME_TITLE[outcome]}
             </h2>
             {refusal !== null && (
-              <p className="live__error" role="alert">
+              <p className="ct-error live__error" role="alert">
                 {refusal}
               </p>
             )}
@@ -2379,7 +2379,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
           {opponent !== undefined && <ResultFace player={opponent} rematch={rematch.theirs} />}
         </div>
         {refusal !== null && (
-          <p className="live__error" role="alert">
+          <p className="ct-error live__error" role="alert">
             {refusal}
           </p>
         )}
@@ -3486,7 +3486,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         </p>
       )}
       {alert !== null && (
-        <p className="live__error" role="alert" data-testid="live-error" data-live-line="">
+        <p className="ct-error live__error" role="alert" data-testid="live-error" data-live-line="">
           {alert}
         </p>
       )}

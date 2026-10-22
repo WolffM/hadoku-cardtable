@@ -587,5 +587,4 @@
 /* A Play the pod refused: one line over the editor, never a panel. */
 .deck-screen > .deck-screen__error {
   flex: 0 0 auto;
-  margin: 0;
 }

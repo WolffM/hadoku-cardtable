@@ -1946,7 +1946,7 @@ function RoomTableScreen({
     </a>
   );
   const startRefused = startRefusal !== null && (
-    <div className="lobby__error" role="alert" data-testid="start-refused">
+    <div className="ct-error" role="alert" data-testid="start-refused">
       <p>{startRefusal}</p>
       <button
         type="button"
@@ -1988,6 +1988,10 @@ function RoomTableScreen({
         ) : (
           <span className="skeleton skeleton--title" />
         )}
+        <div className="shell__tools">
+          {!streamed && iAmLeader && <CloseRoom roomId={roomId} rooms={rooms} />}
+          <SettingsGear />
+        </div>
         {/* A streamed room says so under its name: it is not our table. Ours
             needs no line (the operator, 2026-10-21: "i don't need the
             'Constructed 1v1' title inside the room"). */}
@@ -1996,8 +2000,6 @@ function RoomTableScreen({
             Forge’s full client
           </p>
         )}
-        {!streamed && iAmLeader && <CloseRoom roomId={roomId} rooms={rooms} />}
-        <SettingsGear />
       </header>
 
       <main className="lobby lobby--room" aria-busy={pending ? 'true' : undefined}>
@@ -2043,7 +2045,7 @@ function RoomTableScreen({
           </form>
         )}
         {locked === null && tableError !== null && table === null && (
-          <p className="lobby__error" role="alert" data-testid="room-missing">
+          <p className="ct-error" role="alert" data-testid="room-missing">
             {tableError}
           </p>
         )}
@@ -2055,7 +2057,7 @@ function RoomTableScreen({
           <section className="lobby__card">
             <GameTypeRow testId="room-game-type" value={gameType} disabled={!iAmLeader || typeLocked} onChange={chooseGameType} />
             {actionError !== null && (
-              <p className="lobby__error" role="alert" data-testid="table-error">
+              <p className="ct-error" role="alert" data-testid="table-error">
                 {actionError}
               </p>
             )}
@@ -2081,7 +2083,7 @@ function RoomTableScreen({
         )}
 
         {!draftRoom && loadError !== null && (
-          <p className="lobby__error" role="alert" data-testid="tables-load-error">
+          <p className="ct-error" role="alert" data-testid="tables-load-error">
             Could not load the formats and decks: {loadError}
           </p>
         )}
@@ -2130,7 +2132,7 @@ function RoomTableScreen({
                 )}
               </div>
               {actionError !== null && (
-                <p className="lobby__error" role="alert" data-testid="table-error">
+                <p className="ct-error" role="alert" data-testid="table-error">
                   {actionError}
                 </p>
               )}
@@ -2625,7 +2627,9 @@ function NoRoom() {
     <div className="shell" data-testid="constructed">
       <header className="shell__head">
         <h1 className="shell__title">Constructed</h1>
-        <SettingsGear />
+        <div className="shell__tools">
+          <SettingsGear />
+        </div>
       </header>
       <main className="lobby">
         <section className="lobby__card">

@@ -411,7 +411,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
                       <button
                         key={t.file}
                         type="button"
-                        className="sound-builder__pill"
+                        className="sound-builder__pill ct-toggle"
                         data-placed={placed.has(t.file) ? '' : undefined}
                         {...markHandlers(t.file)}
                         aria-pressed={holding === t.file}

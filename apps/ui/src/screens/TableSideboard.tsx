@@ -81,7 +81,7 @@ export function TableSideboard({ roomId, tableId, refresh, tables: given }: Tabl
   return (
     <div className="table-sideboard" data-testid="table-sideboard">
       {refusal !== null && (
-        <p className="lobby__error" role="alert" data-testid="table-sideboard-refusal">
+        <p className="ct-error" role="alert" data-testid="table-sideboard-refusal">
           {refusal}
         </p>
       )}

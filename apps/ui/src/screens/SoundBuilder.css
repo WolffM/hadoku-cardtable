@@ -143,12 +143,6 @@ a.sound-builder__btn {
   cursor: pointer;
 }
 
-.sound-sandbox__scenario[aria-pressed='true'] {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: var(--color-primary);
-}
-
 .sound-sandbox__beats tr[data-seat='opp'] th,
 .sound-sandbox__beats tr[data-seat='opp'] td {
   background: var(--color-bg-alt);
@@ -305,12 +299,6 @@ a.sound-builder__btn {
 
 .sound-builder__pill[data-placed] {
   box-shadow: inset 0 0 0 1px var(--success);
-}
-
-.sound-builder__pill[aria-pressed='true'] {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: var(--color-primary);
 }
 
 .sound-builder__pill--placed {
@@ -598,12 +586,6 @@ a.sound-builder__btn {
   color: var(--color-text-secondary);
 }
 
-.sound-queue__pick[aria-pressed='true'] {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-}
-
 .sound-queue__key {
   grid-row: span 2;
   min-width: 1.6em;
@@ -668,15 +650,16 @@ a.sound-builder__btn {
 }
 
 /* Keep and delete marks (middle-click, right-click): a colour only, for now. Keep is a solid fill, so it
-   never reads as the thin "placed somewhere" outline, which is the same success colour. */
-.sound-builder__pill[data-mark='keep'],
+   never reads as the thin "placed somewhere" outline, which is the same success colour. A mark
+   outranks a pressed pill's fill (`.ct-toggle`). */
+.sound-builder__pill.ct-toggle[data-mark='keep'],
 .sound-queue__choice[data-mark='keep'] {
   border-color: var(--success);
   background: var(--success);
   color: var(--on-success);
 }
 
-.sound-builder__pill[data-mark='trash'],
+.sound-builder__pill.ct-toggle[data-mark='trash'],
 .sound-queue__choice[data-mark='trash'] {
   border-color: var(--danger);
   background: var(--danger-bg);
@@ -848,12 +831,6 @@ a.sound-builder__btn {
 .music-review__pick {
   margin-left: 4px;
   border-color: var(--color-border);
-}
-
-.music-review__pick[aria-pressed='true'] {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
 }
 
 .music-review__note {

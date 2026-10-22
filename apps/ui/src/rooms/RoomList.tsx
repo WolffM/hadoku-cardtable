@@ -344,7 +344,7 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
       )}
 
       {error !== null && (
-        <p className="rooms__error" role="alert" data-testid="room-join-error">
+        <p className="ct-error rooms__error" role="alert" data-testid="room-join-error">
           {error}
         </p>
       )}
@@ -481,7 +481,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
         </button>
 
         {error !== null && (
-          <p className="rooms__error" role="alert" data-testid="room-create-error">
+          <p className="ct-error rooms__error" role="alert" data-testid="room-create-error">
             {error}
           </p>
         )}

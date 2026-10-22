@@ -57,38 +57,25 @@
   overflow-y: auto;
 }
 
+/* A screen's head: its name or its way back, with its tools at the right end; a line under the name wraps below. */
 .shell__head {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
 }
 
-/* The settings gear at the head's right end, in the flow of the page rather
-   than fixed, so it never sits over a screen's controls or the room's chat. */
-.shell__head:has(> .ct-round-button) {
-  position: relative;
-  padding-right: 44px;
-}
-
-.shell__head > .ct-round-button {
-  position: absolute;
-  top: 0;
-  right: 0;
-}
-
-/* In a room's head: Close, beside the gear. */
-.shell__head > .room-close,
-.shell__head > .room-close__ask {
-  position: absolute;
-  top: 4px;
-  right: 44px;
-}
-
-/* The front page's round buttons, in a row at the right. */
+/* A screen's round buttons, and a room's Close, in a row at the right: in the flow of the page
+   rather than fixed, so they never sit over a screen's controls or the room's chat. */
 .shell__tools {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+}
+
+.shell__head > .shell__tools {
+  margin-left: auto;
 }
 
 .shell__title {
@@ -97,6 +84,7 @@
 }
 
 .shell__sub {
+  flex-basis: 100%;
   margin: 0;
   color: var(--color-text-secondary);
 }
@@ -345,13 +333,6 @@
   cursor: pointer;
 }
 
-.lobby__format-tabs button[aria-selected='true'],
-.lobby__format-tabs button[aria-checked='true'] {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: var(--color-primary);
-}
-
 /* Free pick and the room's settings are switches, not formats: together at
    the row's far end, and they wrap together. */
 .lobby__switches {
@@ -359,12 +340,6 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-left: auto;
-}
-
-.lobby__free-pick[aria-pressed='true'] {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border-color: var(--color-primary);
 }
 
 .lobby__format-tabs button:disabled,

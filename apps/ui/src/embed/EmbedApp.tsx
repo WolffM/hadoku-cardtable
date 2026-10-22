@@ -119,7 +119,7 @@ export function EmbedApp({ ctx, rooms: givenRooms }: EmbedAppProps) {
   let body = null;
   if (binding.state === 'failed') {
     body = (
-      <p className="cardtable-embed__error" role="alert" data-testid="embed-error">
+      <p className="ct-error cardtable-embed__error" role="alert" data-testid="embed-error">
         {binding.message}
       </p>
     );

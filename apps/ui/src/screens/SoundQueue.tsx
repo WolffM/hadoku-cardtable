@@ -181,7 +181,7 @@ function QueueItemView({ cell, current, title, sub, left, choices, play, onPlace
             </button>
             <button
               type="button"
-              className="sound-queue__pick"
+              className="sound-queue__pick ct-toggle"
               data-testid="sound-queue-pick"
               aria-label={`Pick ${t.label}`}
               aria-pressed={picked.has(t.file)}

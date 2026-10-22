@@ -107,6 +107,7 @@ export function ClassicOptions({
                     <button
                       key={tab.id}
                       type="button"
+                      className="ct-toggle"
                       role="tab"
                       aria-selected={formatTab === tab.id}
                       data-testid={`format-tab-${tab.id}`}
@@ -175,6 +176,7 @@ export function ClassicOptions({
                   <button
                     key={tab.id}
                     type="button"
+                    className="ct-toggle"
                     role="tab"
                     aria-selected={browse.family === tab.id}
                     data-testid={`browse-tab-${tab.id}`}
@@ -213,7 +215,7 @@ export function ClassicOptions({
                   lands on the era being browsed, else that format's newest. */}
               <button
                 type="button"
-                className="lobby__free-pick"
+                className="lobby__free-pick ct-toggle"
                 aria-pressed={freePick}
                 data-testid="free-pick"
                 disabled={disabled}
@@ -234,7 +236,7 @@ export function ClassicOptions({
                   deck's land ratio, each mulligan weighted toward it. */}
               <button
                 type="button"
-                className="lobby__free-pick"
+                className="lobby__free-pick ct-toggle"
                 aria-pressed={handSmoothing}
                 data-testid="hand-smoothing"
                 disabled={disabled}
