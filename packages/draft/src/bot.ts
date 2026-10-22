@@ -116,6 +116,11 @@ export function choosePick(
   return best;
 }
 
+/** A structured log line, same shape `apps/server/src/log.ts`'s `jsonLogger` callers already pass everywhere else — this package stays Node-and-server-agnostic, so the default just goes to `console.error`, loud on purpose. */
+export type BotLog = (entry: Record<string, unknown>) => void;
+
+const defaultBotLog: BotLog = (entry) => console.error(JSON.stringify(entry));
+
 /**
  * Pick for every bot seat that currently owes one.
  *
@@ -124,8 +129,13 @@ export function choosePick(
  * call. The guard is the pick count, not a `while (true)`: if a pick is ever
  * rejected the loop must end rather than spin, and a rejection here is an engine
  * bug worth surfacing as a stalled draft rather than a hang.
+ *
+ * A full pass with no progress used to break silently — the production
+ * incident this caught (main 705e2468: every seat frozen, no error, no log,
+ * for 120s). `log` is called once, loud, with exactly what a report needs:
+ * the pack/pick position and every owing bot seat's pack and pool size.
  */
-export function runBots(state: DraftState): { state: DraftState; picks: number } {
+export function runBots(state: DraftState, log: BotLog = defaultBotLog): { state: DraftState; picks: number } {
   let current = state;
   let picks = 0;
   const limit = state.seatCount * state.packCount * state.packSize + 1;
@@ -149,7 +159,20 @@ export function runBots(state: DraftState): { state: DraftState; picks: number }
       picks += 1;
       progressed = true;
     }
-    if (!progressed) break;
+    if (!progressed) {
+      log({
+        evt: 'bots-stalled',
+        draftId: current.draftId,
+        packNumber: current.packNumber,
+        pickNumber: current.pickNumber,
+        seats: owing.map((seatId) => ({
+          seatId,
+          packSize: (current.packs[seatId] as DraftCard[]).length,
+          poolSize: (current.pools[seatId] as DraftCard[]).length,
+        })),
+      });
+      break;
+    }
   }
 
   return { state: current, picks };

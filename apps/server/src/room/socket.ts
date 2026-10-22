@@ -429,7 +429,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					}
 					// Bots catch up immediately, so the pod is never waiting on
 					// a seat nobody is sitting in.
-					const advanced = runBots(result.state);
+					const advanced = runBots(result.state, (entry) => log(entry));
 					// No re-alias of `room.seats`. The registry was seeded with
 					// a seat-table FACTORY returning this draft's table
 					// (`draftRooms.ts` `open`), and the engine spreads its
