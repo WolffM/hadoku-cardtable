@@ -13,7 +13,7 @@ import {
   boardInteraction,
   isBlockAssignment,
   isMarked,
-  landsToTap,
+  landsOffered,
   ownBlocker,
   removeBlock,
   selectCard,
@@ -204,26 +204,51 @@ export function commitMarquee(match: LiveMatch, rect: Rect, root: ParentNode): M
     hits.push(id);
   }
   const attacking = new Set(viewerBattlefield(match).filter((c) => c.attacking).map((c) => c.id));
-  const fresh = hits.filter((id) => !attacking.has(id));
-  if (fresh.length > 0 && defendersOf(match, fresh[0]!).length > 1) return { kind: 'aim', ids: fresh };
-  const toSend = fresh.length > 0 ? fresh : hits;
+  const { ids, on } = boxToggle(hits, attacking);
+  if (on && defendersOf(match, ids[0]!).length > 1) return { kind: 'aim', ids };
   const sent: number[] = [];
-  for (const id of toSend) if (selectCard(match, id)) sent.push(id);
+  for (const id of ids) if (selectCard(match, id)) sent.push(id);
   return { kind: 'sent', ids: sent };
 }
 
 /**
- * A box drawn over the viewer's own lands: the ones it touched that Forge will
- * tap for mana now (`landsToTap`), in DOM order. Nothing is sent here — Forge
- * takes one tap at a time, so `./install.ts` sends them one after another.
+ * Which of the cards a box touched it clicks, for a click that toggles one
+ * state — attacking, tapped. The box takes the click of the cards still to
+ * turn on: it touched at least one that is off → it turns those on and leaves
+ * the ones already on alone; it touched only ones that are on → it turns every
+ * one of them off. Never half of each, so the cards the release marks all go
+ * the same way. Not a majority and not the card the drag started on: a box
+ * starts on empty table, and topping up the rest is what a second box over a
+ * half-tapped row means.
  */
-export function landsInBox(match: LiveMatch, rect: Rect, root: ParentNode): number[] {
-  const tappable = new Set(landsToTap(match));
+export function boxToggle(hits: readonly number[], on: ReadonlySet<number>): { ids: number[]; on: boolean } {
+  const off = hits.filter((id) => !on.has(id));
+  return off.length > 0 ? { ids: off, on: true } : { ids: [...hits], on: false };
+}
+
+/** The lands a box clicks, and whether those clicks tap them (true) or untap them. */
+export interface LandSweep {
+  ids: number[];
+  tap: boolean;
+}
+
+/**
+ * A box drawn over the viewer's own lands: the ones it touched that Forge takes
+ * a click on now (`landsOffered`), in DOM order, by `boxToggle`'s rule — a click
+ * on an untapped land taps it for mana, on a tapped one untaps it. Nothing is
+ * sent here — Forge takes one click at a time, so `./install.ts` sends them one
+ * after another.
+ */
+export function landsInBox(match: LiveMatch, rect: Rect, root: ParentNode): LandSweep {
+  const lands = landsOffered(match);
+  const clickable = new Set(lands.map((c) => c.id));
+  const tapped = new Set(lands.filter((c) => c.tapped).map((c) => c.id));
   const hits: number[] = [];
   for (const { id, el } of cardElements(root)) {
-    if (tappable.has(id) && overlaps(rect, el.getBoundingClientRect())) hits.push(id);
+    if (clickable.has(id) && overlaps(rect, el.getBoundingClientRect())) hits.push(id);
   }
-  return hits;
+  const { ids, on } = boxToggle(hits, tapped);
+  return { ids, tap: on };
 }
 
 /**
@@ -232,20 +257,22 @@ export function landsInBox(match: LiveMatch, rect: Rect, root: ParentNode): numb
  * Forge still takes one `selectCard` at a time (`./install.ts`'s `pumpTaps`,
  * unchanged) — this is the DRAWN state only, an optimistic attribute every
  * boxed land gets at the release, before any of them is confirmed.
- * `card.css`'s tapped selector reads it the same as `data-tapped` (that one
- * line is card.css's own — not this lane's file to edit; see the lane's
- * evidence note for the exact change, unapplied here).
+ * `card.css`'s tapped selector draws `data-tapped-pending` as tapped and
+ * `data-untapped-pending` as upright, whatever `data-tapped` says.
  */
 export const TAPPED_PENDING_ATTR = 'data-tapped-pending';
+export const UNTAPPED_PENDING_ATTR = 'data-untapped-pending';
 
-/** Mark every id's own board element pending-tapped, all at once — the box's release, before Forge confirms any of them. */
-export function markTappedPending(root: ParentNode, ids: readonly number[]): void {
-  for (const id of ids) cardBox(root, id)?.setAttribute(TAPPED_PENDING_ATTR, '');
+/** Mark every id's own board element pending-tapped (or pending-untapped), all at once — the box's release, before Forge confirms any of them. */
+export function markTapPending(root: ParentNode, ids: readonly number[], tap: boolean): void {
+  for (const id of ids) cardBox(root, id)?.setAttribute(tap ? TAPPED_PENDING_ATTR : UNTAPPED_PENDING_ATTR, '');
 }
 
 /** Drop the pending mark off one id: Forge confirmed it (its own `data-tapped` now carries it) or the sweep gave up on it. */
-export function clearTappedPending(root: ParentNode, id: number): void {
-  cardBox(root, id)?.removeAttribute(TAPPED_PENDING_ATTR);
+export function clearTapPending(root: ParentNode, id: number): void {
+  const el = cardBox(root, id);
+  el?.removeAttribute(TAPPED_PENDING_ATTR);
+  el?.removeAttribute(UNTAPPED_PENDING_ATTR);
 }
 
 /** This seat's own battlefield, off the view. */

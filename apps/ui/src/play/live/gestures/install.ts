@@ -28,9 +28,9 @@
  *  2. **elsewhere on the table while this seat is declaring attackers** → a
  *     box-draw. Nothing else claims that press: a selection is not open
  *     during `InputAttack`, so the pointing gesture below cannot fire.
- *     **Or while Forge will tap this seat's lands for mana** (`landsToTap`: at
- *     priority or under a payment, no question open) → the same box, and the
- *     lands it touches are tapped — see "A box taps lands".
+ *     **Or while Forge takes a click on this seat's lands** (`landsOffered`:
+ *     at priority or under a payment, no question open) → the same box, and
+ *     the lands it touches are tapped or untapped — see "A box taps lands".
  *  3. **elsewhere on the table while a selection is open** → the source-less
  *     pointing gesture: the spell doing the targeting is not itself one of
  *     Forge's choices, so there is often no offered card to drag FROM.
@@ -61,6 +61,19 @@
  * `data-tapped`); `pumpTaps` drops the mark off a land the moment its real
  * `Tapped` arrives, and `endTapSweep` drops it off whatever the sweep never
  * reached.
+ *
+ * ### and untaps them
+ *
+ * The operator, 2026-10-21: *"i should also be able to draw a box to untap
+ * multiple lands. after all my lands are tapped i dont seem to be able to draw
+ * a box anymore"*. A click on a land tapped for mana that still floats untaps
+ * it — Forge offers that land, and undoes its one activation on the click
+ * (`InputPassPriority.onCardSelected` → `PlayerControllerHuman.tryUndo`). The
+ * box sends that same click: the sweep above runs either way, `tapTo` saying
+ * which state each land is waiting for, and the mark is
+ * `data-untapped-pending`. Which way a box goes is `./commit.ts`'s
+ * `boxToggle`: any land still to tap in it → it taps those; only tapped ones
+ * → it untaps them.
  *
  * ## Nothing here decides legality
  *
@@ -213,7 +226,7 @@ import {
   choosingMulligan,
   declaringAttackers,
   declaringCombat,
-  landsToTap,
+  landsOffered,
   payingMana,
   pressButton,
   selectCard,
@@ -253,7 +266,7 @@ import { CAST_LANDING_ATTR, expectedGapBox,
   type CastZone,
 } from './cast.ts';
 import { closePileView } from '../../PileView.tsx';
-import { aimedTarget, attackWith, clearTappedPending, commitDrag, commitMarquee, landsInBox, markTappedPending, rectOf, type Rect } from './commit.ts';
+import { aimedTarget, attackWith, clearTapPending, commitDrag, commitMarquee, landsInBox, markTapPending, rectOf, type Rect } from './commit.ts';
 import {
   clearHandIndicator,
   commitHandReorder,
@@ -500,10 +513,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
       if (handIndicatorArgs !== null) updateHandIndicator(canvas, handIndicatorArgs.cardId, handIndicatorArgs.point);
     });
   }
-  /** The lands a box touched that are still to be tapped, in order — see "A box taps lands". */
+  /** The lands a box touched that are still to be clicked, in order — see "A box taps lands". */
   let tapQueue: number[] = [];
-  /** The land whose tap is out and not yet shown on the board. */
+  /** The land whose click is out and not yet shown on the board. */
   let tapSent: number | null = null;
+  /** The state the sweep's clicks put each land in: tapped (true) or untapped. */
+  let tapTo = true;
   let tapTimer: ReturnType<typeof setTimeout> | null = null;
   /** Armed the moment a press is claimed — see the module header's own section — and reset at the top of every FRESH `pointerdown`. */
   const clicks = clickLatch();
@@ -1213,12 +1228,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   /**
    * The sweep is over, however it ended: every land still in it — queued, or
-   * the one just sent — had its optimistic `data-tapped-pending` cleared.
+   * the one just sent — had its optimistic pending mark cleared.
    * A land the sweep never reaches is cleared here too.
    */
   function endTapSweep(): void {
-    for (const id of tapQueue) clearTappedPending(canvas, id);
-    if (tapSent !== null) clearTappedPending(canvas, tapSent);
+    for (const id of tapQueue) clearTapPending(canvas, id);
+    if (tapSent !== null) clearTapPending(canvas, tapSent);
     tapQueue = [];
     tapSent = null;
     if (tapTimer !== null) clearTimeout(tapTimer);
@@ -1246,22 +1261,22 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const mine = match.view?.players.find((p) => p.isViewer)?.battlefield ?? [];
     if (tapSent !== null) {
       const sent = mine.find((c) => c.id === tapSent);
-      // Still untapped on the board: Forge has not answered that tap yet.
-      if (sent !== undefined && !sent.tapped) return;
+      // Not turned on the board yet: Forge has not answered that click.
+      if (sent !== undefined && sent.tapped !== tapTo) return;
       // Forge's own `data-tapped` now carries it: the optimistic mark has done its job.
-      clearTappedPending(canvas, tapSent);
+      clearTapPending(canvas, tapSent);
       tapSent = null;
     }
     while (tapQueue.length > 0) {
       const next = tapQueue[0]!;
       const land = mine.find((c) => c.id === next);
-      if (land === undefined || land.tapped) {
-        clearTappedPending(canvas, next);
+      if (land === undefined || land.tapped === tapTo) {
+        clearTapPending(canvas, next);
         tapQueue.shift();
         continue;
       }
-      // Not offered yet (Forge re-offers the board after each tap): the next notify tries again.
-      if (!landsToTap(match).includes(next)) return;
+      // Not offered yet (Forge re-offers the board after each click): the next notify tries again.
+      if (!landsOffered(match).some((c) => c.id === next)) return;
       tapQueue.shift();
       tapSent = next;
       if (tapTimer !== null) clearTimeout(tapTimer);
@@ -1516,7 +1531,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       return;
     }
     if (!inside(eventTarget(event))) return;
-    if (declaringAttackers(match) || landsToTap(match).length > 0) {
+    if (declaringAttackers(match) || landsOffered(match).length > 0) {
       claim(event);
       marquee = { press: at, at, moved: false };
       hover = null;
@@ -1642,10 +1657,12 @@ export function installGestures(options: GestureOptions): GestureHandle {
         }
       } else {
         endTapSweep();
-        tapQueue = landsInBox(match, box, canvas);
-        // Every boxed land is drawn tapped AT ONCE — Forge still gets them
+        const sweep = landsInBox(match, box, canvas);
+        tapQueue = sweep.ids;
+        tapTo = sweep.tap;
+        // Every boxed land is drawn turned AT ONCE — Forge still gets them
         // one `selectCard` at a time, below, exactly as before.
-        markTappedPending(canvas, tapQueue);
+        markTapPending(canvas, tapQueue, tapTo);
         tapTimer = setTimeout(endTapSweep, TAP_SWEEP_MS);
         pumpTaps();
       }

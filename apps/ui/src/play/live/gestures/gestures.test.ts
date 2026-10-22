@@ -1187,22 +1187,6 @@ describe('§B.2 — a box-draw declares several attackers, and only ones Forge o
     fireEvent.pointerUp(zone, { clientX: 102, clientY: 101 });
     expect(await s.framesFrom(m)).toHaveLength(0);
   });
-
-  it('outside declare-attackers a press on the table starts no box at all', async () => {
-    const { s, m, canvas } = await gestureBoard();
-    const mine = mineOf(m).battlefield.map((c) => c.id);
-    for (const f of notify([prompt('Priority'), actionable([mine[0]!])])) s.send(f);
-    await untilMatch(m, () => expect(boardInteraction(m).selectable.size).toBe(1));
-    boxAt(overlayOf(canvas), 0, 0, 800, 600);
-    boxAt(cardEl(canvas, mine[0]!), 120, 120);
-
-    const zone = canvas.querySelector<HTMLElement>('[data-zone="battlefield"]')!;
-    fireEvent.pointerDown(zone, { button: 0, clientX: 100, clientY: 100 });
-    fireEvent.pointerMove(zone, { clientX: 300, clientY: 300 });
-    expect(overlayOf(canvas).querySelector('[data-testid="marquee"]')).toBeNull();
-    fireEvent.pointerUp(zone, { clientX: 300, clientY: 300 });
-    expect(await s.framesFrom(m)).toHaveLength(0);
-  });
 });
 
 /*
@@ -1279,7 +1263,7 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     return { ...board, lands, other, offered, sweep };
   }
 
-  /** Mutation: put `landsToTap` back in the hand press's guard (`install.ts`) → the press starts the box instead, and this fails. */
+  /** Mutation: put `landsOffered` back in the hand press's guard (`install.ts`) → the press starts the box instead, and this fails. */
   it('a click on a hand card Forge is not offering still picks it up while the lands are tappable — no box, nothing sent', async () => {
     const { s, m, canvas } = await landsOffered();
     const card = mineOf(m).hand![0]!.id;

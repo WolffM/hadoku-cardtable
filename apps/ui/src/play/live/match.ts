@@ -254,7 +254,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { drawsFaceUp, manaCostTokens, toBoardView, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
+import { drawsFaceUp, manaCostTokens, toBoardView, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
@@ -2088,22 +2088,24 @@ function isOwnBattlefieldLand(view: BoardView, id: number): boolean {
 }
 
 /**
- * The viewer's own untapped lands that Forge will take a click on for their
- * mana right now, in battlefield order: what a box drawn over the lands may
- * tap. Empty whenever a click on a land would mean anything else — a selection
- * or an ask is open (the land is then an answer to a question), or combat is
- * being declared.
+ * The viewer's own lands that Forge will take a click on right now, in
+ * battlefield order: what a box drawn over the lands may click. An untapped one
+ * is offered for its mana; a tapped one only while the mana it made still
+ * floats, and the click untaps it (`AvailableActions.cardHasActionable` →
+ * `PlayerControllerHuman.tryUndo`). Empty whenever a click on a land would mean
+ * anything else — a selection or an ask is open (the land is then an answer to
+ * a question), or combat is being declared.
  *
  * Lands only, by the card's CURRENT type line, the same reading
  * `isOwnBattlefieldLand` gives `nothingToDecide`: a creature Forge offers for
  * an ability is a decision, and a sweep must not make it.
  */
-export function landsToTap(match: LiveMatch): number[] {
+export function landsOffered(match: LiveMatch): BoardCard[] {
   const view = match.view;
   if (view === null || match.selectables !== null || match.asks.length > 0 || declaringCombat(match)) return [];
   const offered = boardInteraction(match).selectable;
   const me = view.players.find((p) => p.isViewer);
-  return (me?.battlefield ?? []).filter((c) => !c.tapped && offered.has(c.id) && c.card.typeLine.includes('Land')).map((c) => c.id);
+  return (me?.battlefield ?? []).filter((c) => offered.has(c.id) && c.card.typeLine.includes('Land'));
 }
 
 /**

@@ -239,7 +239,7 @@
   --pt-font: min(10px, var(--face-w) * 0.27);
 }
 
-:is(.board-card[data-pile-size], .board-card__pile > .board-card):is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
+:is(.board-card[data-pile-size], .board-card__pile > .board-card):is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
   --copies-font: min(13px, var(--face-w) * 0.16);
   --pt-font: min(10px, var(--face-w) * 0.12);
 }
@@ -263,7 +263,7 @@
   font-size: var(--copies-font);
 }
 
-.board-card[data-pile-size]:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__copies {
+.board-card[data-pile-size]:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__copies {
   top: auto;
   bottom: calc(max(1px, var(--credit-strip) - 3px) + var(--pile-fan));
   left: 2px;
@@ -1201,8 +1201,10 @@
  * the operator, 2026-10-08: *"when drawing a box to tap lands, can we have
  * them all tap simultaneously rather than one at a time?"* Forge is still
  * sent one `selectCard` at a time; only the DRAWN state stops waiting on it.
+ * `data-untapped-pending` is the same mark for a box that untaps: the card is
+ * drawn upright from the release, whatever its `data-tapped` still says.
  */
-.board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__face {
+.board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__face {
   aspect-ratio: 680 / 488;
 }
 
@@ -1227,7 +1229,7 @@
  * 11px (the operator, 2026-10-11: "when dragging cards i notice tapped cards shift down
  * slightly").
  */
-.board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
+.board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending], [data-attacking]:not([data-vigilant])) {
   margin-block: calc((680 / 488 - 488 / 680) / 2 * (100% - var(--pile-fan)));
 }
 
@@ -1236,7 +1238,7 @@
  * from the row's top, as they had before it turned — rather than following its centring step, so a
  * collar behind an attacking creature still stands inside the row.
  */
-.board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__pile {
+.board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__pile {
   margin-top: calc((680 / 488 - 488 / 680) / -2 * (100% - var(--pile-fan)));
 }
 
@@ -1245,7 +1247,7 @@
  * a quarter it is exactly the box: width w·488/680, height w, rotated → w wide
  * and w·488/680 tall.
  */
-.board-card:is([data-tapped], [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__face > .card {
+.board-card:is([data-tapped]:not([data-untapped-pending]), [data-tapped-pending], [data-attacking]:not([data-vigilant])) > .board-card__face > .card {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1844,7 +1846,7 @@ button.face__hit:focus-visible .seat__ring {
   aspect-ratio: 680 / 488;
 }
 
-.board-card[data-room]:not([data-tapped], [data-tapped-pending]) {
+.board-card[data-room]:not([data-tapped]:not([data-untapped-pending]), [data-tapped-pending]) {
   margin-block: calc((680 / 488 - 488 / 680) / 2 * (100% - var(--pile-fan)));
 }
 

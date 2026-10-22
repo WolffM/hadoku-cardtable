@@ -411,9 +411,16 @@ test(titled('a box over eight tapped lands untaps all eight; over tapped and unt
     await boxAround(page, lands);
     await allTapped(lands, true);
 
-    // Every land tapped, every one's mana floating: the box still starts, and untaps all eight.
+    // Every land tapped, every one's mana floating: the box still starts, and untaps all eight —
+    // drawn upright at the release (`data-untapped-pending`), before Forge has answered every click.
     await allOffered();
     await boxAround(page, lands);
+    const upright = (id: string) =>
+      page.evaluate((cid) => {
+        const face = document.querySelector(`li.board-card[data-card-id="${cid}"] > .board-card__face > .card`);
+        return face !== null && getComputedStyle(face).transform === 'none';
+      }, id);
+    for (const id of lands) await expect.poll(() => upright(id), { message: `land ${id} is drawn upright within a second of the release`, timeout: 1_000 }).toBe(true);
     await allTapped(lands, false);
 
     // Two tapped by a click, then a box over all eight: it taps the other six and leaves the two alone.
