@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { battlefieldCardWidth, handCardWidth } from './card-size.ts';
+import { battlefieldCardWidth, forgetCardWidths, handCardWidth, onCardWidthsChanged } from './card-size.ts';
 import { installPlaced } from './live/placed.ts';
 import type { BoardView, StackEntry } from './adapter.ts';
 
@@ -19,8 +19,32 @@ function board(): HTMLElement {
 }
 
 afterEach(() => {
+  forgetCardWidths();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
 });
+
+/** jsdom has no `ResizeObserver`: this one reports a resize when a test says the box changed. */
+class Resizes {
+  static last: Resizes | null = null;
+  readonly observed = new Set<Element>();
+  constructor(private readonly report: ResizeObserverCallback) {
+    Resizes.last = this;
+  }
+  observe(el: Element): void {
+    this.observed.add(el);
+  }
+  unobserve(el: Element): void {
+    this.observed.delete(el);
+  }
+  disconnect(): void {
+    this.observed.clear();
+  }
+  resize(el: Element): void {
+    if (this.observed.has(el)) this.report([{ target: el } as ResizeObserverEntry], this as unknown as ResizeObserver);
+  }
+}
 
 describe('one source of truth for a card’s size (the operator, 2026-10-09)', () => {
   it('reads the battlefield row’s own card width, for either seat', () => {
@@ -72,5 +96,80 @@ describe('one source of truth for a card’s size (the operator, 2026-10-09)', (
     expect(canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!.style.getPropertyValue('--card-w')).toBe('92px');
     expect(canvas.querySelector<HTMLElement>('[data-placed-spell="10"]')!.style.getPropertyValue('--card-w')).toBe('64px');
     handle.dispose();
+  });
+});
+
+describe('a card’s width is measured once, and again only when what it was read from changes size', () => {
+  it('a battlefield card’s width comes from the last measure until the card resizes, and whoever draws at it hears the change', () => {
+    vi.stubGlobal('ResizeObserver', Resizes);
+    const canvas = board();
+    const row = canvas.querySelector<HTMLElement>('[data-owner="you"] .zone__cards')!;
+    row.innerHTML = '<li class="board-card" style="width: 71px"></li>';
+    const reads = vi.spyOn(window, 'getComputedStyle');
+    expect(battlefieldCardWidth(canvas, 'you')).toBe(71);
+    const once = reads.mock.calls.length;
+    expect(battlefieldCardWidth(canvas, 'you')).toBe(71);
+    expect(battlefieldCardWidth(canvas, 'you')).toBe(71);
+    expect(reads.mock.calls.length, 'no second read').toBe(once);
+
+    const heard = vi.fn();
+    const stop = onCardWidthsChanged(heard);
+    const card = row.querySelector<HTMLElement>('li')!;
+    card.style.width = '58px';
+    Resizes.last!.resize(card);
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(battlefieldCardWidth(canvas, 'you')).toBe(58);
+    stop();
+  });
+
+  it('a resize that leaves the width as it was tells nobody', () => {
+    vi.stubGlobal('ResizeObserver', Resizes);
+    const canvas = board();
+    const row = canvas.querySelector<HTMLElement>('[data-owner="you"] .zone__cards')!;
+    row.innerHTML = '<li class="board-card" style="width: 71px"></li>';
+    expect(battlefieldCardWidth(canvas, 'you')).toBe(71);
+    const heard = vi.fn();
+    const stop = onCardWidthsChanged(heard);
+    Resizes.last!.resize(row.querySelector('li')!);
+    expect(heard).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('the hand’s row is probed once, not on every call, and again when its first card changes', () => {
+    vi.stubGlobal('ResizeObserver', Resizes);
+    const canvas = board();
+    canvas.querySelector('.board')!.insertAdjacentHTML('beforeend', '<div data-zone="hand" data-owner="you"><ul class="zone__cards" style="--card-w: 92px"><li class="board-card"></li></ul></div>');
+    const hand = canvas.querySelector<HTMLElement>('[data-zone="hand"] .zone__cards')!;
+    const probes = vi.spyOn(hand, 'append');
+    expect(handCardWidth(canvas)).toBe(92);
+    expect(handCardWidth(canvas)).toBe(92);
+    expect(probes, 'one probe for both').toHaveBeenCalledTimes(1);
+    hand.style.setProperty('--card-w', '80px');
+    hand.firstElementChild!.remove();
+    hand.insertAdjacentHTML('afterbegin', '<li class="board-card"></li>');
+    expect(handCardWidth(canvas), 'a different first card: measured again').toBe(80);
+    expect(probes).toHaveBeenCalledTimes(2);
+  });
+
+  it('forgetting every width (the UI scale moved) measures again and tells whoever draws at them', () => {
+    vi.stubGlobal('ResizeObserver', Resizes);
+    const canvas = board();
+    const row = canvas.querySelector<HTMLElement>('[data-owner="you"] .zone__cards')!;
+    expect(battlefieldCardWidth(canvas, 'you')).toBe(64);
+    row.style.setProperty('--card-w', '77px');
+    const heard = vi.fn();
+    const stop = onCardWidthsChanged(heard);
+    forgetCardWidths();
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(battlefieldCardWidth(canvas, 'you')).toBe(77);
+    stop();
+  });
+
+  it('with no ResizeObserver to say when a width goes stale, every call measures', () => {
+    const canvas = board();
+    const row = canvas.querySelector<HTMLElement>('[data-owner="you"] .zone__cards')!;
+    expect(battlefieldCardWidth(canvas, 'you')).toBe(64);
+    row.style.setProperty('--card-w', '77px');
+    expect(battlefieldCardWidth(canvas, 'you')).toBe(77);
   });
 });

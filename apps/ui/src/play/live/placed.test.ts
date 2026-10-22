@@ -945,3 +945,49 @@ describe('dispose', () => {
     expect(() => moveSpell(9, { x: 1, y: 1 })).not.toThrow();
   });
 });
+
+describe('installPlaced: layout reads per commit', () => {
+  /** Every box and computed style read from here on: the element stubs `board()` set, and every other element's. */
+  function countReads(canvas: HTMLElement): { total: () => number; overlay: () => number } {
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    let own = 0;
+    let overlayReads = 0;
+    for (const el of canvas.querySelectorAll<HTMLElement>('*')) {
+      if (!Object.hasOwn(el, 'getBoundingClientRect')) continue;
+      const stub = el.getBoundingClientRect.bind(el);
+      el.getBoundingClientRect = () => {
+        own += 1;
+        if (el === overlay) overlayReads += 1;
+        return stub();
+      };
+    }
+    const boxes = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+    const styles = vi.spyOn(window, 'getComputedStyle');
+    return { total: () => own + boxes.mock.calls.length + styles.mock.calls.length, overlay: () => overlayReads };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('a commit with nothing on the stack and nothing drawn reads no layout at all', () => {
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"]')!.insertAdjacentHTML('beforeend', '<ul class="zone__cards" style="--card-w: 64px"></ul>');
+    const handle = installPlaced(canvas);
+    const reads = countReads(canvas);
+    handle.notify(view([], [{ id: 201 }]));
+    handle.notify(view([], [{ id: 201 }]));
+    expect(reads.total()).toBe(0);
+    handle.dispose();
+  });
+
+  it('a commit with an item on the stack reads the overlay’s box once, for the item and its arrows alike', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    const reads = countReads(canvas);
+    handle.notify(view([stackItem(9, { targetCardIds: [201], targetPlayerIds: [1] })]));
+    expect(canvas.querySelectorAll('.placed__arrow[data-for="9"]')).toHaveLength(2);
+    expect(reads.overlay()).toBe(1);
+    handle.dispose();
+  });
+});
