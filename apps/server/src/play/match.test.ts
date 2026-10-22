@@ -3623,6 +3623,40 @@ describe('a scry is one prompt', () => {
 	});
 });
 
+describe('the order cards go into exile is never a question', () => {
+	/** `orderMoveToZoneList`'s exile ask as the bridge sends it. */
+	const exileAsk = (callId: string, names: string[]) => ({
+		kind: 'ask' as const,
+		callId,
+		method: 'order' as const,
+		title: 'Choose order of cards to put into the exile zone',
+		top: 'Put first',
+		remainingObjectsMin: 0,
+		remainingObjectsMax: 0,
+		sourceChoices: names.map((name, i) => ({ key: `s${i}`, label: `${name} (${140 + i})`, ref: { kind: 'card' as const, id: 140 + i } })),
+		destChoices: [],
+		referenceCard: null,
+		sideboardingMode: false,
+		showRememberCheckbox: false,
+	});
+	const shown = (h: Harness, callId: string) =>
+		h.sent.filter((s) => s.seat === 0 && s.envelope.frame.kind === 'ask' && (s.envelope.frame as { callId: string }).callId === callId);
+
+	// 2026-10-22: *"'Choose order of cards to put into the exile zone' this never needs to happen."*
+	it("three different cards: Forge's own order, logged, never shown — in full control too", () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		h.host.push({ t: 'frame', seat: 0, frame: exileAsk('x-exile-1', ['Lightning Bolt', 'Island', 'Grizzly Bears']) });
+		expect(shown(h, 'x-exile-1')).toEqual([]);
+		expect(h.host.commands).toEqual([{ t: 'reply', seat: 0, callId: 'x-exile-1', result: { ordered: ['s0', 's1', 's2'], rememberDecision: false } }]);
+		expect(h.logs.find((l) => l.evt === 'ask-auto-answered' && l.callId === 'x-exile-1')).toMatchObject({ method: 'order', why: 'exile has no order' });
+
+		h.match.setFullControl(0, true);
+		h.host.push({ t: 'frame', seat: 0, frame: exileAsk('x-exile-2', ['Opt', 'Ponder']) });
+		expect(shown(h, 'x-exile-2'), 'full control does not bring it back').toEqual([]);
+	});
+});
+
 describe('cards entering the battlefield together, every one the same card, are not a question', () => {
 	/** `orderMoveToZoneList`'s battlefield ask as the bridge sends it (Splendid Reclamation returning six Mountains). */
 	const entryAsk = (callId: string, names: string[], title = 'Choose order of cards to put onto the battlefield') => ({

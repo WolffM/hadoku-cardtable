@@ -286,3 +286,16 @@ export function sameCardsOrder(frame: Extract<ServerFrame, { kind: 'ask' }>): Au
 	if (!items.every((c) => name(c) === first)) return null;
 	return { callId: frame.callId, method: frame.method, result: { ordered: items.map((c) => c.key), rememberDecision: false }, why: 'every card the same' };
 }
+
+/**
+ * The order cards go into exile together: never a choice. Exile has no order, so the answer changes
+ * nothing, and Forge asks it of any two or more cards one effect exiles
+ * (`PlayerControllerHuman.orderMoveToZoneList`, `lblChooseOrderCardsPutIntoExile`). The operator,
+ * 2026-10-22: *"'Choose order of cards to put into the exile zone' this never needs to happen. we can
+ * remove all questions about exile order."* Forge's own order answers it, in full control too.
+ */
+export function exileOrder(frame: Extract<ServerFrame, { kind: 'ask' }>): AutoAnswer | null {
+	if (frame.method !== 'order' || frame.title !== 'Choose order of cards to put into the exile zone') return null;
+	if (frame.remainingObjectsMax !== 0 || frame.destChoices.length !== 0 || frame.showRememberCheckbox || frame.sideboardingMode) return null;
+	return { callId: frame.callId, method: frame.method, result: { ordered: frame.sourceChoices.map((c) => c.key), rememberDecision: false }, why: 'exile has no order' };
+}

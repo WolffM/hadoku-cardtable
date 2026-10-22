@@ -154,7 +154,7 @@ import {
 	type StopWindow,
 } from './auto.js';
 import { CONFIG } from '../config.js';
-import { answerPending, arrangeAsk, digAnswer, digAsk, pendingOrders, restOrder, sameCardsOrder } from './arrange.js';
+import { answerPending, arrangeAsk, digAnswer, digAsk, exileOrder, pendingOrders, restOrder, sameCardsOrder } from './arrange.js';
 import { eachTypeAsk, firstEachType, nextEachType } from './each-type.js';
 import { firstMode, modesAsk, nextMode } from './modes.js';
 import { chosenTargetConfirm, pickedBy, sameTargetAct, targetAbilityOf, type SameTarget } from './trigger-targets.js';
@@ -3435,7 +3435,7 @@ export class Match {
 		if (frame.method === 'getAbilityToPlay') s.clicked = null;
 		// One legal reply is no question in any mode; full control keeps only the order of simultaneous triggers.
 		const policy = s.fullControl ? FULL_CONTROL_POLICY : s.policy;
-		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (clicked ? null : (onlyAnswer(frame, policy) ?? sameCardsOrder(frame)));
+		const auto = repeatedAbilityToPlay(frame, s.lastAbilityToPlay) ?? (clicked ? null : (onlyAnswer(frame, policy) ?? sameCardsOrder(frame) ?? exileOrder(frame)));
 		if (auto !== null) {
 			// `chosenAbility` only for an offer the seat's own click opened (the same ability it chose
 			// on its last click of this card): an ability the server played (a trigger, an effect's
