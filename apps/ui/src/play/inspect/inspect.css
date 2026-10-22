@@ -30,7 +30,7 @@
   /* Above every other layer because the zoom layer it is drawn in is (`top-layer.css`). */
   position: absolute;
   /* The floor; `index.ts` sets the real width inline from the placement math. */
-  width: 20.625rem;
+  width: 23.75rem;
   /* Never the element under the pointer — see the header. */
   pointer-events: none;
   /* A panel that is not a card shrinks by scale from its placed corner (`index.ts`'s `show`). */

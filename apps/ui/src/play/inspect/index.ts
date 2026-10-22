@@ -136,8 +136,8 @@ import './inspect.css';
 /** A card's height over its width — the 488 × 680 proportion `card.css` draws. */
 export const CARD_TALL = 680 / 488;
 
-/** How wide the enlarged card wants to be, in px. */
-export const PREF_W = 330;
+/** How wide the enlarged card wants to be, in px: 330 until the operator, 2026-10-22, "increase the size of popout cards by 15%". */
+export const PREF_W = 380;
 
 /** Breathing room between the enlarged card and everything it must not touch. */
 export const GAP = 8;

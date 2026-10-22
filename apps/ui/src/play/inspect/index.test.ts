@@ -21,7 +21,7 @@ import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction } from '../Board.tsx';
-import { CARD_LONG_PRESS, LONG_PRESS_MS, mountInspector, type CardLongPress } from './index.ts';
+import { CARD_LONG_PRESS, LONG_PRESS_MS, mountInspector, PREF_W, type CardLongPress } from './index.ts';
 import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
 
 /** Uuid-shaped, so the art resolver accepts it; nothing is fetched in jsdom. */
@@ -299,8 +299,8 @@ describe('opening', () => {
     // The view's left has no room (125 px), so the view's RIGHT: 729 + GAP.
     expect(shown!.style.left).toBe('737px');
     // A taller panel than the card's own top allows: it rises to stay inside the overlay.
-    expect(parseFloat(shown!.style.top)).toBeCloseTo(800 - 8 - 330 * (680 / 488), 6);
-    expect(shown!.style.width).toBe('330px');
+    expect(parseFloat(shown!.style.top)).toBeCloseTo(800 - 8 - PREF_W * (680 / 488), 6);
+    expect(shown!.style.width).toBe(`${PREF_W}px`);
   });
 
   it('opens for a prompt-grid tile outside the board root', () => {

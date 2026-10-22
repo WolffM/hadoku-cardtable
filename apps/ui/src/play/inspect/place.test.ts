@@ -135,7 +135,7 @@ describe('placeInspector', () => {
     });
 
     it('is unchanged for every ordinary case — the fix only applies when the hovered card is past the hand’s own top', () => {
-      const farHand: Rect = { left: 0, top: 600, right: 1200, bottom: 800 };
+      const farHand: Rect = { left: 0, top: 700, right: 1200, bottom: 800 };
       const hover: Rect = { left: 100, top: 100, right: 150, bottom: 150 };
       expect(hover.top).toBeLessThan(farHand.top);
       const spot = placeInspector(hover, BOARD, farHand);
