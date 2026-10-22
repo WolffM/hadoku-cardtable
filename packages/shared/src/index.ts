@@ -278,6 +278,7 @@ export {
 
 export {
   ROOM_FEED_CHANNEL,
+  ROOM_ID_RE,
   ROOM_WATCH_MAX,
   RoomWatchSchema,
   RoomChangedSchema,

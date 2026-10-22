@@ -81,6 +81,7 @@ import {
 	newestStandardEra,
 	POD_SEATS,
 	PoolVerdictSchema,
+	ROOM_ID_RE,
 	RoomModeSchema,
 	SeriesPhaseSchema,
 	type ClientMode,
@@ -111,9 +112,6 @@ import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, stat
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';
-
-/** What `roomKeyFor` in the UI accepts, and every id this file mints. */
-export const ROOM_ID_RE = /^[a-z0-9-]{1,40}$/;
 
 /* ── the room's format ───────────────────────────────────────────────────── */
 

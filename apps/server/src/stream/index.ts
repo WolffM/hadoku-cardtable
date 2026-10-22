@@ -61,7 +61,8 @@ import { request as httpRequest } from 'node:http';
 import express from 'express';
 
 import { rankOf, sanitizeHeaders, tierOf } from '../edge-auth.js';
-import { isStaticIndexLike, ROOM_KEY_RE, type RoomStreams } from './alloc.js';
+import { ROOM_ID_RE } from '@hadoku/shared';
+import { isStaticIndexLike, type RoomStreams } from './alloc.js';
 
 export interface StreamDeps {
 	/** The tier floor. `CONFIG.minTier` — never lower, never a new tier. */
@@ -115,7 +116,7 @@ export function roomStreamPathOf(url: string | undefined): RoomStreamPath | null
 	const m = /^\/stream\/([^/]+)\/(\d{1,2})(\/.*)?$/.exec(path);
 	if (m === null) return null;
 	const roomKey = m[1] ?? '';
-	if (!ROOM_KEY_RE.test(roomKey) || isStaticIndexLike(roomKey)) return null;
+	if (!ROOM_ID_RE.test(roomKey) || isStaticIndexLike(roomKey)) return null;
 	const rest = m[3] ?? '/';
 	return { roomKey, seat: Number(m[2]), rest: query === undefined ? rest : `${rest}?${query}` };
 }

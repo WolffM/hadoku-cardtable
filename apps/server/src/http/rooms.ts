@@ -105,6 +105,7 @@ import {
 	PodAiBodySchema,
 	PodCloseBodySchema,
 	POD_SEATS,
+	ROOM_ID_RE,
 	SetAvatarBodySchema,
 	SetDraftPlanBodySchema,
 	SitBodySchema,
@@ -114,7 +115,6 @@ import {
 } from '@hadoku/shared';
 import {
 	POD_MIN_OPEN,
-	ROOM_ID_RE,
 	watchpartyRoomId,
 	type Caller,
 	type Lobby,

@@ -44,6 +44,7 @@ import type { ReactNode } from 'react';
 import { RoomChrome } from '@wolffm/watchparty-ui/room-chrome';
 import '@wolffm/watchparty-ui/room-chrome.css';
 import { useHadokuTheme, type Theme } from '@wolffm/themes';
+import { ROOM_ID_RE } from '@hadoku/shared';
 
 // The watchparty seam's two data answers — which origin serves their sprites,
 // and which character this viewer picked — live in one module with the bundle
@@ -124,9 +125,6 @@ export function watchpartyTheme(theme: string): Theme {
   return theme as Theme;
 }
 
-/** Their contract: `cardtable-<[a-z0-9-]{1,40}>` needs no provisioning. */
-const ROOM_ID = /^[a-z0-9-]{1,40}$/;
-
 /**
  * A room key for one of our pods or matches, or null when the id is not a
  * shape watchparty will accept.
@@ -136,7 +134,7 @@ const ROOM_ID = /^[a-z0-9-]{1,40}$/;
  * in one room, and they would each see the other's chat.
  */
 export function roomKeyFor(id: string): string | null {
-  return ROOM_ID.test(id) ? `cardtable-${id}` : null;
+  return ROOM_ID_RE.test(id) ? `cardtable-${id}` : null;
 }
 
 /** One client per mount; the assert effect must not re-fire on every render. */

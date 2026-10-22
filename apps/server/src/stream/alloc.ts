@@ -43,10 +43,9 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { CONFIG } from '../config.js';
+import { ROOM_ID_RE } from '@hadoku/shared';
 
-/** Same rule as `lobby.ts`'s `ROOM_ID_RE`. A stream key IS a room id. */
-export const ROOM_KEY_RE = /^[a-z0-9-]{1,40}$/;
+import { CONFIG } from '../config.js';
 
 /**
  * The first host port a room's seat may take.
@@ -290,7 +289,7 @@ export function createRoomStreams(options: RoomStreamsOptions): RoomStreams {
 
 	return {
 		async allocate(roomKey, seatCount) {
-			if (!ROOM_KEY_RE.test(roomKey)) {
+			if (!ROOM_ID_RE.test(roomKey)) {
 				return { ok: false, reason: 'bad-room-key', detail: 'a room key is 1-40 of [a-z0-9-]' };
 			}
 			if (isStaticIndexLike(roomKey)) {

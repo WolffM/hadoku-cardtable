@@ -27,6 +27,12 @@
 
 import { z } from 'zod';
 
+/**
+ * A room id: every id the lobby mints, and the only shape a route, a stream key
+ * or a watchparty room key (`cardtable-<id>`) accepts.
+ */
+export const ROOM_ID_RE = /^[a-z0-9-]{1,40}$/;
+
 export const ROOM_FEED_CHANNEL = {
   /** Client → server. Payload: `RoomWatch`. */
   watch: 'rooms:watch',
@@ -38,7 +44,7 @@ export const ROOM_FEED_CHANNEL = {
 export const ROOM_WATCH_MAX = 8;
 
 export const RoomWatchSchema = z.strictObject({
-  rooms: z.array(z.string().regex(/^[a-z0-9-]{1,40}$/)).max(ROOM_WATCH_MAX),
+  rooms: z.array(z.string().regex(ROOM_ID_RE)).max(ROOM_WATCH_MAX),
   list: z.boolean(),
 });
 export type RoomWatch = z.infer<typeof RoomWatchSchema>;
