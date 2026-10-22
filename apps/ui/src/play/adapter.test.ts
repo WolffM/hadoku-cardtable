@@ -1570,6 +1570,61 @@ describe('view.combat — Forge’s CombatView, read off the state channel (X1)'
 });
 
 /*
+ * The operator, 2026-10-22: "let's avoid turning the attackers red from the opponents perspective until the
+ * attackers actually locked in". Forge sets `Attacking` on each creature as the attacker picks it, and
+ * the step is COMBAT_DECLARE_ATTACKERS before and after the OK. What moves at the OK is priority: the
+ * defender held it last in Beginning of Combat, and Forge gives it to the attacker only once the
+ * declaration is done (`PhaseHandler`'s priority loop; captured from a real two-seat match, the same
+ * delta that taps the attackers). The state here is that capture's shape, set on the fixture by hand.
+ */
+describe('an attack declaration is the attacker’s own until it is locked in', () => {
+  const live = adapt(baseState());
+  const attacker = live.players.find((p) => p.isActive)!;
+  const defender = live.players.find((p) => !p.isActive)!;
+  const creature = attacker.battlefield[0]!.id;
+
+  function declaring(priorityTo: number): WireState {
+    const state = baseState();
+    for (const [key, obj] of state) {
+      if (obj._type === DELTA_TYPE.game) {
+        state.set(key, {
+          ...obj,
+          Phase: { t: 'enum', c: 'forge.game.phase.PhaseType', v: 'COMBAT_DECLARE_ATTACKERS' },
+          CombatView: { t: 'combat', atk: [[creature]], def: [[1, defender.id]], blk: [[]], pblk: [[]] },
+        } as WireObject);
+      }
+      if (obj._type === DELTA_TYPE.player) {
+        const { HasPriority: _was, ...rest } = obj;
+        state.set(key, (obj._id === priorityTo ? { ...rest, HasPriority: { t: 'bool', v: true } } : rest) as WireObject);
+      }
+    }
+    const card = deltaKey(DELTA_TYPE.card, creature);
+    state.set(card, { ...state.get(card)!, Attacking: { t: 'bool', v: true } } as WireObject);
+    return state;
+  }
+
+  const seenBy = (state: WireState, viewerPlayerId: number, watcher = false) => {
+    const view = toBoardView(state, 27, { viewerPlayerId, watcher });
+    return { attacking: view.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)), bands: view.combat.length };
+  };
+
+  it('the defender sees no attacker while the attacker is still picking, and every one once it is locked in', () => {
+    expect(seenBy(declaring(defender.id), defender.id)).toEqual({ attacking: [], bands: 0 });
+    expect(seenBy(declaring(attacker.id), defender.id)).toEqual({ attacking: [creature], bands: 1 });
+  });
+
+  it('the attacker sees its own picks live, before the OK and after', () => {
+    expect(seenBy(declaring(defender.id), attacker.id)).toEqual({ attacking: [creature], bands: 1 });
+    expect(seenBy(declaring(attacker.id), attacker.id)).toEqual({ attacking: [creature], bands: 1 });
+  });
+
+  it('a watcher sees the attack only once it is locked in, whichever seat it watches from', () => {
+    expect(seenBy(declaring(defender.id), attacker.id, true)).toEqual({ attacking: [], bands: 0 });
+    expect(seenBy(declaring(attacker.id), attacker.id, true)).toEqual({ attacking: [creature], bands: 1 });
+  });
+});
+
+/*
  * The operator, 2026-10-17: "show transformed cards with mousewheel (Fable of the Mirror-Breaker)" and
  * "flip cards should show both art". A card's other faces come off the face states Forge sends beside
  * its current one: `AlternateState` for a transformed or modal double-faced card, the split states for
