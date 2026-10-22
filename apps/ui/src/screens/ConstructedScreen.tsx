@@ -2052,9 +2052,7 @@ function RoomTableScreen({
         {locked === null && draftRoom && (
           <>
           <section className="lobby__card">
-            <div className="lobby__modeline">
-              <GameTypeRow testId="room-game-type" value={gameType} disabled={!iAmLeader || typeLocked} onChange={chooseGameType} />
-            </div>
+            <GameTypeRow testId="room-game-type" value={gameType} disabled={!iAmLeader || typeLocked} onChange={chooseGameType} />
             {actionError !== null && (
               <p className="lobby__error" role="alert" data-testid="table-error">
                 {actionError}
@@ -2093,8 +2091,10 @@ function RoomTableScreen({
                 chosen this row is the whole room (the operator, 2026-10-21). */}
             {!gauntletGame && (
             <section className="lobby__card">
+              {/* The room's type above its mode (the operator, 2026-10-21), so the
+                  mode and its options keep their one line. */}
+              <GameTypeRow testId="room-game-type" value={gameType} disabled={!iAmLeader || typeLocked} onChange={chooseGameType} />
               <div className="lobby__modeline">
-                <GameTypeRow testId="room-game-type" value={gameType} disabled={!iAmLeader || typeLocked} onChange={chooseGameType} />
                 <ModeRow mode={mode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
                 {mode === 'classic' && loaded !== null && (
                   <ClassicOptions
