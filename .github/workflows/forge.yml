@@ -174,7 +174,7 @@ jobs:
         run: |
           set -uo pipefail
           emit() { printf '%s\n' "$@" >> "$GITHUB_OUTPUT"; printf '%s\n' "$@"; }
-          all() { echo "running everything: $1"; emit e2e=true e2e_specs= 'shards=[1, 2, 3]' jvm=true jvm_files= jvm_full=true "nightly=$2"; exit 0; }
+          all() { echo "running everything: $1"; emit e2e=true e2e_specs= 'shards=[1, 2, 3, 4]' jvm=true jvm_files= jvm_full=true "nightly=$2"; exit 0; }
           none() { echo "running nothing: $1"; emit e2e=false e2e_specs= 'shards=[1]' jvm=false jvm_files= jvm_full=false nightly=false; exit 0; }
           api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/$1"; }
           case "$EVENT" in
@@ -189,7 +189,7 @@ jobs:
             workflow_dispatch)
               if [ -n "$SPECS_OVERRIDE$JVM_OVERRIDE" ]; then
                 echo "dispatch override: specs='$SPECS_OVERRIDE' jvm='$JVM_OVERRIDE'"
-                emit e2e=true e2e_specs= "shards=$([ -n "$SPECS_OVERRIDE" ] && echo '[1]' || echo '[1, 2, 3]')" \
+                emit e2e=true e2e_specs= "shards=$([ -n "$SPECS_OVERRIDE" ] && echo '[1]' || echo '[1, 2, 3, 4]')" \
                   jvm=true "jvm_files=$JVM_OVERRIDE" "jvm_full=$([ -z "$JVM_OVERRIDE" ] && echo true || echo false)" nightly=true
                 exit 0
               fi
@@ -285,8 +285,10 @@ jobs:
     # The suite is serial by design (`e2e/playwright.config.ts`: one worker, one
     # stack at a time), so a full run is ~30 min on one claw however idle the
     # claw is (measured 2026-10-08 by the fleet tracker: load 6 of 12 cores).
-    # Three shards are three jobs on three claws — each its own ports, its
-    # own JVMs — and Playwright's `--shard` splits the file list. `changes`
+    # Four shards are four jobs, each on its own runner with its own ports and
+    # JVMs, and Playwright's `--shard` splits the file list. Three stopped
+    # fitting on 2026-10-22: run 39752707376's third shard hit the 55 min
+    # budget at its 94th test with nothing red, and its second took 53.5 min. `changes`
     # picks one shard for a short selection, and a targeted dispatch (`specs`
     # given) is one shard: its list is already short.
     strategy:
