@@ -157,7 +157,12 @@ describe.skipIf(!available.ok)(title, () => {
 			const bob = bobPicks(s, 1);
 			await cast(s, 'Innocent Blood', () => {
 				bob();
-				return s.zone(0, 'Graveyard').some((c) => c.name === 'Innocent Blood') && named(s, 'Grizzly Bears').length === 0;
+				// Bob's own screen too: each seat's delta arrives on its own, and his can land after alice's.
+				return (
+					s.zone(0, 'Graveyard').some((c) => c.name === 'Innocent Blood') &&
+					named(s, 'Grizzly Bears').length === 0 &&
+					named(s, 'Hill Giant', 1).length + named(s, 'Llanowar Elves', 1).length === 1
+				);
 			});
 			expect(bob(), 'bob was asked once').toBe(1);
 			expect(wired(s, sentFrom), 'no selection reached alice').toEqual([]);
