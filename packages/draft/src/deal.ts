@@ -81,6 +81,31 @@ interface Cursor {
 }
 
 /**
+ * Every dealt card instance gets a unique id WITHIN its draft — `cardId`
+ * stamped with the exact `[round][seat][slot]` it was dealt into. Not a
+ * per-source special case: this runs on every card `deal()` places into
+ * `rounds`, cube/set-cube and realistic alike.
+ *
+ * Why this matters: `pools/catalog.ts`'s `byName`/`byPrinting` and
+ * `pools/sets.ts`'s `cardsFor` all key a card's gameplay fields by NAME (one
+ * `DraftCard` object per name, reused — `cards.get(key)`, never cloned), so
+ * `cardId` there is the catalog's canonical name key. A set-cube's
+ * wrap-on-shortfall (this file's own cursor) and a realistic round's own
+ * duplicate-name boosters both then hand out the SAME name — and so the SAME
+ * `cardId` — to more than one dealt slot, across different seats and
+ * different packs. `pick()` is scoped to one seat's own pack array and is
+ * provably safe either way, but nothing else in this codebase's own
+ * invariant ("a draft never deals the same card twice" —
+ * `cubes.test.ts`'s own assertion) can be trusted if `cardId` is not, in
+ * fact, per-instance. Stamping it here, once, at the one place every dealt
+ * card already passes through, is the fix at the mechanism rather than a
+ * second one per source kind.
+ */
+function withDealtId(card: DraftCard, round: number, seat: number, slot: number): DraftCard {
+  return { ...card, cardId: `${card.cardId}#${round}:${seat}:${slot}` };
+}
+
+/**
  * Deal every pack for a plan, `[round][seat]`.
  *
  * Pure and seeded: the same seed, plan, sources and `realistic` packs give
@@ -110,7 +135,7 @@ export function deal(
       if (packs.length !== seatCount) {
         throw new Error(`deal: round ${r}'s realistic packs have ${packs.length} seats, not ${seatCount}`);
       }
-      rounds.push(packs.map((pack) => [...pack]));
+      rounds.push(packs.map((pack, s) => pack.map((card, i) => withDealtId(card, r, s, i))));
       continue;
     }
 
@@ -127,7 +152,8 @@ export function deal(
     for (let s = 0; s < seatCount; s++) {
       const pack: DraftCard[] = [];
       for (let i = 0; i < packSize; i++) {
-        pack.push(cursor.shuffled[cursor.pos % size] as DraftCard);
+        const card = cursor.shuffled[cursor.pos % size] as DraftCard;
+        pack.push(withDealtId(card, r, s, i));
         cursor.pos++;
       }
       round.push(pack);
