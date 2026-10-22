@@ -261,10 +261,25 @@ export function DraftLobby({
    * local to this browser, and cleared by the next attempt.
    */
   const [attempt, setAttempt] = useState<{ source: PoolSource; refusal: Refusal } | null>(null);
-  /** Custom's three rounds, built up one at a time — see the file header. Never seeded from `pod.plan`: a fresh Custom build always starts empty. */
+  /**
+   * Custom's three rounds, LOCAL overrides only — a round this browser has
+   * actually picked in Custom mode this session, `null` for one it has not
+   * touched. Found live (AF305, the tracker's screenshot review): a slot
+   * that is merely untouched is not the same as a slot with no source — the
+   * room's own current plan already names one, and the pack slots must show
+   * it (`customRounds` below), not sit blank until somebody edits them.
+   */
   const [customDraft, setCustomDraft] = useState<[PoolSource | null, PoolSource | null, PoolSource | null]>([null, null, null]);
   /** The last FULL custom plan's own refusal — each round's own attempted source is already held in `customDraft`, refusal or not. */
   const [customAttempt, setCustomAttempt] = useState<Refusal | null>(null);
+
+  /** `customDraft`, falling back round by round to the room's own current plan — what the pack slots and the active picker actually show. */
+  const planRounds = pod?.plan?.rounds ?? null;
+  const customRounds: [PoolSource | null, PoolSource | null, PoolSource | null] = [
+    customDraft[0] ?? planRounds?.[0] ?? null,
+    customDraft[1] ?? planRounds?.[1] ?? null,
+    customDraft[2] ?? planRounds?.[2] ?? null,
+  ];
 
   const writeSource = (source: PoolSource): void => {
     setPlanBusy(true);
@@ -295,8 +310,18 @@ export function DraftLobby({
     next[round] = source;
     setCustomDraft(next);
     setCustomAttempt(null);
-    if (next[0] === null || next[1] === null || next[2] === null) return;
-    const plan: DraftPlan = { rounds: [next[0], next[1], next[2]] };
+    // Merge with the room's own plan for whichever rounds this browser has not
+    // touched — the slots show the current plan already (see `customRounds`
+    // above), so one round's own edit should write immediately, carrying the
+    // other two rounds' CURRENT sources forward rather than waiting for all
+    // three to be picked fresh.
+    const merged: [PoolSource | null, PoolSource | null, PoolSource | null] = [
+      next[0] ?? planRounds?.[0] ?? null,
+      next[1] ?? planRounds?.[1] ?? null,
+      next[2] ?? planRounds?.[2] ?? null,
+    ];
+    if (merged[0] === null || merged[1] === null || merged[2] === null) return;
+    const plan: DraftPlan = { rounds: [merged[0], merged[1], merged[2]] };
     setPlanBusy(true);
     rooms.setPlan(roomId, plan).then((r) => {
       setPlanBusy(false);
@@ -305,8 +330,9 @@ export function DraftLobby({
   };
 
   const savePreset = (name: string): void => {
-    if (customDraft[0] === null || customDraft[1] === null || customDraft[2] === null) return;
-    const plan: DraftPlan = { rounds: [customDraft[0], customDraft[1], customDraft[2]] };
+    const [r0, r1, r2] = customRounds;
+    if (r0 === null || r1 === null || r2 === null) return;
+    const plan: DraftPlan = { rounds: [r0, r1, r2] };
     setPlanBusy(true);
     pools.savePreset(name, plan).then((r) => {
       setPlanBusy(false);
@@ -334,17 +360,17 @@ export function DraftLobby({
     });
   };
 
-  const withCubes = (call: () => Promise<{ ok: true } | { ok: false; message: string }>): void => {
+  // Import stays in the room (it is how a cube gets into a draft); refresh and delete moved to
+  // `#/inventory` (AF305 §B — the operator: "when i'm in a room i wouldn't want to mess with the
+  // refresh state of the cube"), so this is the only cube write left here.
+  const importCube = (link: string): void => {
     setPlanBusy(true);
-    call().then((r) => {
+    pools.importCube(link).then((r) => {
       setPlanBusy(false);
       if (r.ok) loadCubes();
       else setCubesError(r.message);
     });
   };
-  const importCube = (link: string): void => withCubes(() => pools.importCube(link));
-  const refreshCube = (id: string): void => withCubes(() => pools.refreshCube(id));
-  const deleteCube = (id: string): void => withCubes(() => pools.deleteCube(id));
 
   /** Whether a LOCAL attempt (Cube/Set, or a full Custom round set) is still unresolved or refused, for whichever tab is active. */
   const pendingLocalAttempt = tab === 'custom' ? customAttempt !== null : attempt !== null;
@@ -399,6 +425,7 @@ export function DraftLobby({
               myMemberId={myMemberId}
               leaderId={leaderId}
               readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
+              avatarIdOf={(id) => members.find((m) => m.id === id)?.avatarId}
               onSit={doSit}
               onStand={doStand}
               onAi={doAi}
@@ -424,7 +451,7 @@ export function DraftLobby({
             presets={presets}
             presetsError={presetsError}
             selected={selectedSource}
-            customRounds={customDraft}
+            customRounds={customRounds}
             leader={amLeader}
             busy={planBusy}
             checking={checking}
@@ -435,8 +462,6 @@ export function DraftLobby({
             onPickSet={pickSet}
             onPickCustomRound={pickCustomRound}
             onImport={importCube}
-            onRefresh={refreshCube}
-            onDelete={deleteCube}
             onSavePreset={savePreset}
             onLoadPreset={loadPreset}
             onDeletePreset={deletePreset}

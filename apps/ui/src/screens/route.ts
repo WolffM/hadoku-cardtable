@@ -27,6 +27,7 @@
  *   `#/tournaments`      the same popout on its Tournaments tab: every past pod's standings
  *   `#/decks`            your decks: every draft you finished
  *   `#/decks/<draftId>`  that deck in the editor, outside any game
+ *   `#/inventory`        imported cubes: refresh, delete, import (AF305 §B) — shortlist cubes aren't managed here
  *
  * An unrecognised hash is the lobby. That is deliberate: a mistyped invite link
  * lands on the room list, which offers a way in, rather than on an error page
@@ -76,7 +77,8 @@ export type Route =
   /** `player` is a registry name; absent is the viewer. `tournaments` is the past-pods tab. */
   | { kind: 'stats'; player?: string; tournaments?: true }
   /** `draftId` opens that deck in the editor; absent is the list. */
-  | { kind: 'decks'; draftId?: string };
+  | { kind: 'decks'; draftId?: string }
+  | { kind: 'inventory' };
 
 /**
  * `#/room/r-1a2b3c` → `{ kind: 'room', roomId: 'r-1a2b3c' }`.
@@ -97,6 +99,7 @@ export function parseRoute(hash: string): Route {
   if (path === 'stats') return { kind: 'stats' };
   if (path === 'tournaments') return { kind: 'stats', tournaments: true };
   if (path === 'decks') return { kind: 'decks' };
+  if (path === 'inventory') return { kind: 'inventory' };
 
   const parts = path.split('/');
   if (parts.length !== 2) return { kind: 'lobby' };
@@ -162,6 +165,8 @@ export function routeHash(route: Route): string {
       return route.player === undefined ? '#/stats' : `#/stats/${encodeURIComponent(route.player)}`;
     case 'decks':
       return route.draftId === undefined ? '#/decks' : `#/decks/${encodeURIComponent(route.draftId)}`;
+    case 'inventory':
+      return '#/inventory';
   }
 }
 

@@ -34,6 +34,7 @@ import type { RoomFeed } from '../rooms/feed.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
 import { DecksButton } from './DecksButton.tsx';
+import { InventoryButton } from './InventoryButton.tsx';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
@@ -56,6 +57,7 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
           deck; the lobby has nothing to add that the header has not said. */}
       <nav className="shell__tools">
         <DecksButton />
+        <InventoryButton />
         <StatsButton source={statsSource} />
         <SettingsGear />
       </nav>

@@ -27,6 +27,7 @@
  * (`PodSeats.test.ts`) instead of a mocked server.
  */
 
+import { Avatar } from '../../components/Avatar.tsx';
 import { CROWN, StatusPill } from '../ConstructedScreen.tsx';
 import { POD_AI, POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
 import './PodSeats.css';
@@ -39,6 +40,8 @@ export interface PodSeatsProps {
   leaderId: string;
   /** Looks up a seated member's readiness — the room's own `ready` flag, unaffected by seating. */
   readyOf: (memberId: string) => boolean;
+  /** Looks up a seated member's own watchparty avatar id (`undefined` for none) — the same id `Avatar` draws everywhere else. */
+  avatarIdOf: (memberId: string) => string | undefined;
   onSit: (seat: number) => void;
   onStand: () => void;
   /** The AI button on an open seat (`on`), or the AI's own seat given back. */
@@ -47,7 +50,7 @@ export interface PodSeatsProps {
   onClose: (seat: number, closed: boolean) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand, onAi, onClose }: PodSeatsProps) {
+export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onSit, onStand, onAi, onClose }: PodSeatsProps) {
   const iLead = myMemberId !== null && myMemberId === leaderId;
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
@@ -106,8 +109,9 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand,
         if (occupant.memberId === POD_AI) {
           return (
             <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-ai="">
-              <span className="pod-seats__avatar pod-seats__avatar--ai" aria-hidden="true">
-                AI
+              <span className="pod-seats__avatar pod-seats__avatar--ai">
+                {/* No AI persona avatar exists yet (`podAi` carries no id) — the mark is the fallback by design, not a stand-in for one. */}
+                <Avatar id={undefined} fallback="mark" fallbackClassName="pod-seats__avatar-fallback" />
               </span>
               <span className="pod-seats__label">{occupant.name}</span>
               <span className="pod-seats__actions">
@@ -125,7 +129,13 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand,
           <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`}>
             <span className="pod-seats__avatar-wrap">
               <span className="pod-seats__avatar" data-ready={ready ? 'true' : 'false'}>
-                {occupant.name.charAt(0).toUpperCase()}
+                <Avatar
+                  id={avatarIdOf(occupant.memberId)}
+                  fallback="initial"
+                  name={occupant.name}
+                  className="pod-seats__avatar-img"
+                  fallbackClassName="pod-seats__avatar-fallback"
+                />
               </span>
               {leads && (
                 <svg className="pod-seats__crown" data-testid={`pod-seat-${seat}-leader`} viewBox="0 0 12 12" role="img" aria-label="Room owner">

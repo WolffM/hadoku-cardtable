@@ -35,16 +35,24 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
   min-height: 72px;
   box-sizing: border-box;
-  padding: 10px 12px;
+  padding: 0;
+  overflow: hidden;
   background: var(--color-bg-card);
   color: var(--color-text);
   text-transform: none;
   letter-spacing: normal;
   white-space: normal;
   font-size: 13px;
+}
+
+.pool-picker__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
 }
 
 /* The chosen card: a primary border, a tinted fill and a check badge — flipped
@@ -56,7 +64,6 @@
   border-color: var(--color-primary);
   background: var(--color-primary-bg);
   color: var(--color-text);
-  padding: 9px 11px;
 }
 
 .pool-picker .pool-picker__card:has(:checked)::after {
@@ -96,124 +103,11 @@
   overflow-wrap: anywhere;
 }
 
-.pool-picker__meta-row {
-  margin-top: auto;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85em;
-}
-
 .pool-picker__size {
+  margin-top: auto;
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
-}
-
-.pool-picker__badge {
-  font-size: 0.78rem;
-  padding: 1px 7px;
-  border-radius: 999px;
-  border: 1px solid var(--color-border-light);
-  color: var(--color-text-tertiary);
-}
-
-.pool-picker__set-code {
-  align-self: flex-start;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 1px 6px;
-  border-radius: var(--hdk-radius-sm, 4px);
-  background: var(--color-bg-hover);
-  color: var(--color-text-tertiary);
-}
-
-.pool-picker__row {
-  display: flex;
-  align-items: stretch;
-  gap: 6px;
-}
-
-.pool-picker__row .pool-picker__card {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.pool-picker__actions {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-}
-
-.pool-picker__action {
-  padding: 0.2rem 0.6rem;
-  font: inherit;
-  font-size: 0.78em;
-  line-height: 1.2;
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius);
-  cursor: pointer;
-}
-
-.pool-picker__action:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-/* ── the Cube Cobra import card: the gallery's own last, dashed tile ──── */
-
-.pool-picker__import-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 72px;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px dashed var(--color-border-light);
-  border-radius: var(--hdk-radius);
-}
-
-.pool-picker__import-card label {
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.pool-picker__import-row {
-  display: flex;
-  gap: 6px;
-}
-
-.pool-picker__import-row input {
-  flex: 1 1 auto;
-  min-width: 0;
-  font: inherit;
-  color: var(--color-text);
-  background: var(--color-bg-alt);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius);
-  padding: 0 8px;
-  min-height: 32px;
-}
-
-.pool-picker__import-row button {
-  font: inherit;
-  font-weight: 600;
-  color: var(--color-text);
-  background: var(--color-bg-hover);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius);
-  padding: 0 12px;
-  cursor: pointer;
-}
-
-.pool-picker__import-row button:disabled {
-  opacity: 0.5;
-  cursor: default;
+  font-size: 0.85em;
 }
 
 /* ── the Set tab's search field ──────────────────────────────────────── */
@@ -295,8 +189,24 @@
 
 .pool-picker__pack-kind {
   margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.82em;
   color: var(--color-text-secondary);
+}
+
+.pool-picker__pack-verdict {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pool-picker__pack-verdict[data-state='ready'] {
+  color: var(--success);
+}
+
+.pool-picker__pack-verdict[data-state='refused'] {
+  color: var(--danger);
 }
 
 .pool-picker__active-pack {

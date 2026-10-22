@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 import { ConstructedScreen } from './ConstructedScreen.tsx';
 import { DeckScreen } from './DeckScreen.tsx';
 import { DecksScreen } from './DecksScreen.tsx';
+import { InventoryScreen } from './InventoryScreen.tsx';
 import { LobbyScreen } from './LobbyScreen.tsx';
 import { MatchScreen } from './MatchScreen.tsx';
 import { MusicReview } from './MusicReview.tsx';
@@ -74,5 +75,7 @@ export function Screen({ transport }: ScreenProps) {
       return <LobbyScreen stats={{ player: route.player, tournaments: route.tournaments === true }} />;
     case 'decks':
       return route.draftId === undefined ? <DecksScreen /> : <DeckScreen key={route.draftId} draftId={route.draftId} standalone />;
+    case 'inventory':
+      return <InventoryScreen />;
   }
 }

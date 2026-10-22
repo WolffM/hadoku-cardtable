@@ -27,6 +27,11 @@ export const CubeSummarySchema = z.strictObject({
   importedAt: z.string().nullable(),    // ISO
   refreshedAt: z.string().nullable(),   // ISO
   verdict: PoolVerdictSchema.nullable(),// null = not yet checked at this Forge pin
+  // A scryfallId, never a URL (AGENTS.md: "a card's art is a lookup, not a
+  // URL"). Shortlist: resolved server-side from `pools/cube-art.json`'s name
+  // against the cube's own cards. Cube Cobra: `cubeJSON`'s top-level
+  // `image.id` (never `image.uri`). `null` when none resolved.
+  artId: z.string().uuid().nullable(),
 });
 export type CubeSummary = z.infer<typeof CubeSummarySchema>;
 

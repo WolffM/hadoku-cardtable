@@ -1,0 +1,49 @@
+/* `ImportCube`: the gallery's own last, dashed tile. Theme tokens only. */
+.import-cube {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 72px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px dashed var(--color-border-light);
+  border-radius: var(--hdk-radius);
+}
+
+.import-cube label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.import-cube__row {
+  display: flex;
+  gap: 6px;
+}
+
+.import-cube__row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  padding: 0 8px;
+  min-height: 32px;
+}
+
+.import-cube__row button {
+  font: inherit;
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.import-cube__row button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

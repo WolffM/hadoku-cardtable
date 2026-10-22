@@ -66,12 +66,20 @@
  * the card, which still gates Ready off the real `PUT …/pod/plan` round trip
  * for the combined plan, same as every tab.
  */
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import type { CubeSummary, DraftPreset, PoolSource, PoolVerdict, SetSummary } from '@hadoku/shared';
 
+import { SetSymbol } from '../components/ManaPip.tsx';
 import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
+import { CubeArt } from './CubeArt.tsx';
+import { ImportCube } from './ImportCube.tsx';
 import './PoolPicker.css';
+
+/** "1 card", "540 cards" — every card-count label in this file and `InventoryScreen.tsx` goes through this, never a bare `${n} cards`. */
+export function cardsCount(n: number): string {
+  return `${n} ${n === 1 ? 'card' : 'cards'}`;
+}
 
 /** A refused verdict only — the arm this picker ever shows the names of. */
 export type Refusal = Extract<PoolVerdict, { ok: false }>;
@@ -116,7 +124,7 @@ export interface PoolPickerProps {
 
   /** Only the leader edits; everyone else reads the same picker, disabled. */
   leader: boolean;
-  /** A write (a pick, an import, a refresh, a delete, a preset save/delete) is in flight. */
+  /** A write (a pick, an import, a preset save/delete) is in flight. */
   busy: boolean;
   /** The selected plan's verdict has not come back yet. */
   checking: boolean;
@@ -124,15 +132,13 @@ export interface PoolPickerProps {
   refusal: Refusal | null;
   /** The accepted plan's card count, once a verdict says ok. */
   readyCards: number | null;
-  /** My own friend id — whose imports/presets get a Delete button. */
+  /** My own friend id — whose presets get a Delete button. */
   myId: string;
 
   onPickCube: (cubeId: string) => void;
   onPickSet: (code: string, style: SourceStyle) => void;
   onPickCustomRound: (round: 0 | 1 | 2, source: PoolSource) => void;
   onImport: (link: string) => void;
-  onRefresh: (id: string) => void;
-  onDelete: (id: string) => void;
   onSavePreset: (name: string) => void;
   onLoadPreset: (preset: DraftPreset) => void;
   onDeletePreset: (id: string) => void;
@@ -156,88 +162,24 @@ function sourceSummary(source: PoolSource | null, cubes: readonly CubeSummary[],
   return { name: set?.name ?? source.code, kind: `Set · ${source.style === 'realistic' ? 'Realistic' : 'Set-cube'}` };
 }
 
-/** One cube's gallery card: name, size and — imported only — who imported it plus its own refresh/delete. */
-function CubeRow({
-  cube,
-  input,
-  checked,
-  verdictState,
-  leader,
-  busy,
-  myId,
-  onRefresh,
-  onDelete,
-}: {
-  cube: CubeSummary;
-  input: ReactNode;
-  checked: boolean;
-  verdictState: VerdictState | undefined;
-  leader: boolean;
-  busy: boolean;
-  myId: string;
-  onRefresh: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
+/**
+ * One cube's gallery card: art, name and "N cards" — nothing else. The
+ * operator, 2026-10-22: "when i'm in a room i wouldn't want to mess with the
+ * refresh state of the cube… also i dont need a cube cobra pill" — refresh,
+ * delete and the importer badge moved to `#/inventory` (`InventoryScreen.tsx`),
+ * which is where cube MANAGEMENT lives now; a room card is a choice, not a
+ * management panel.
+ */
+function CubeRow({ cube, input, checked, verdictState }: { cube: CubeSummary; input: ReactNode; checked: boolean; verdictState: VerdictState | undefined }) {
   return (
-    <div key={cube.id} className="pool-picker__row">
-      <label className="radio-cards__card pool-picker__card" data-verdict={checked ? verdictState : undefined}>
-        {input}
+    <label key={cube.id} className="radio-cards__card pool-picker__card" data-verdict={checked ? verdictState : undefined}>
+      <CubeArt artId={cube.artId} name={cube.name} />
+      {input}
+      <span className="pool-picker__body">
         <span className="pool-picker__name">{cube.name}</span>
-        <span className="pool-picker__meta-row">
-          <span className="pool-picker__size">{cube.size} cards</span>
-          {cube.origin === 'cubecobra' && (
-            <span className="pool-picker__badge" data-testid={`pool-picker-meta-${cube.id}`}>
-              Cube Cobra · {cube.importedBy}
-              {cube.refreshedAt !== null ? ` · refreshed ${cube.refreshedAt}` : ''}
-            </span>
-          )}
-        </span>
-      </label>
-      {cube.origin === 'cubecobra' && leader && (
-        <span className="pool-picker__actions">
-          <button type="button" className="pool-picker__action" data-testid={`pool-picker-refresh-${cube.id}`} disabled={busy} onClick={() => onRefresh(cube.id)}>
-            Refresh
-          </button>
-          {cube.importedBy === myId && (
-            <button type="button" className="pool-picker__action" data-testid={`pool-picker-delete-${cube.id}`} disabled={busy} onClick={() => onDelete(cube.id)}>
-              Delete
-            </button>
-          )}
-        </span>
-      )}
-    </div>
-  );
-}
-
-/** The Cube Cobra import box — the gallery's own last, dashed card (the ugly loose field this redesign replaces). */
-function ImportCard({ link, setLink, busy, onImport }: { link: string; setLink: (v: string) => void; busy: boolean; onImport: (link: string) => void }) {
-  return (
-    <form
-      className="pool-picker__import-card"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const trimmed = link.trim();
-        if (trimmed === '') return;
-        onImport(trimmed);
-        setLink('');
-      }}
-    >
-      <label htmlFor="pool-picker-import-link">Cube Cobra</label>
-      <div className="pool-picker__import-row">
-        <input
-          id="pool-picker-import-link"
-          type="text"
-          placeholder="cubecobra.com/cube/…"
-          data-testid="pool-picker-import-link"
-          value={link}
-          disabled={busy}
-          onChange={(e) => setLink(e.target.value)}
-        />
-        <button type="submit" data-testid="pool-picker-import-go" disabled={busy || link.trim() === ''}>
-          Import
-        </button>
-      </div>
-    </form>
+        <span className="pool-picker__size">{cardsCount(cube.size)}</span>
+      </span>
+    </label>
   );
 }
 
@@ -248,30 +190,20 @@ function CubeList({
   cubes,
   value,
   disabled,
-  leader,
-  busy,
-  myId,
   verdictState,
   after,
   onChange,
-  onRefresh,
-  onDelete,
 }: {
   name: string;
   testId: string;
   cubes: readonly CubeSummary[];
   value: string | null;
   disabled: boolean;
-  leader: boolean;
-  busy: boolean;
-  myId: string;
   /** Flips the CHOSEN card's border/fill to the danger token while refused. Only the Cube tab passes this (its one source gates the shared verdict); a Custom round shows its own cached verdict underneath instead. */
   verdictState?: VerdictState;
   /** An extra, non-radio tile at the gallery's end (the Cube tab's import card). */
   after?: ReactNode;
   onChange: (cubeId: string) => void;
-  onRefresh: (id: string) => void;
-  onDelete: (id: string) => void;
 }) {
   // Imported first (the server's own order), then the shortlist — never re-sorted here.
   const imported = cubes.filter((c) => c.origin === 'cubecobra');
@@ -291,20 +223,7 @@ function CubeList({
         onChange={onChange}
         renderRow={(option, input) => {
           const cube = byId.get(option.value)!;
-          return (
-            <CubeRow
-              key={cube.id}
-              cube={cube}
-              input={input}
-              checked={option.value === value}
-              verdictState={verdictState}
-              leader={leader}
-              busy={busy}
-              myId={myId}
-              onRefresh={onRefresh}
-              onDelete={onDelete}
-            />
-          );
+          return <CubeRow key={cube.id} cube={cube} input={input} checked={option.value === value} verdictState={verdictState} />;
         }}
       />
       {after}
@@ -366,9 +285,11 @@ function SetList({
             return (
               <label key={set.code} className="radio-cards__card pool-picker__card" data-verdict={option.value === code ? verdictState : undefined}>
                 {input}
-                <span className="pool-picker__set-code">{set.code}</span>
-                <span className="pool-picker__name">{set.name}</span>
-                <span className="pool-picker__size">{set.date.slice(0, 4)} · {set.cards} cards</span>
+                <span className="pool-picker__body">
+                  <SetSymbol code={set.code} />
+                  <span className="pool-picker__name">{set.name}</span>
+                  <span className="pool-picker__size">{set.date.slice(0, 4)} · {cardsCount(set.cards)}</span>
+                </span>
               </label>
             );
           }}
@@ -396,7 +317,7 @@ function RoundVerdict({ round, source, cubes, sets }: { round: number; source: P
   const state = verdict.ok ? 'ready' : 'refused';
   return (
     <p className="pool-picker__verdict pool-picker__round-verdict" data-testid={`pool-picker-custom-round-${round}-verdict`} data-state={state}>
-      {verdict.ok ? `${verdict.cards} cards` : [...verdict.unplayable, ...verdict.missingText].join(', ')}
+      {verdict.ok ? cardsCount(verdict.cards) : [...verdict.unplayable, ...verdict.missingText].join(', ')}
     </p>
   );
 }
@@ -409,13 +330,8 @@ function CustomActivePicker({
   cubes,
   sets,
   disabled,
-  leader,
-  busy,
-  myId,
   onTypeChange,
   onPick,
-  onRefresh,
-  onDelete,
 }: {
   round: 0 | 1 | 2;
   source: PoolSource | null;
@@ -423,13 +339,8 @@ function CustomActivePicker({
   cubes: readonly CubeSummary[];
   sets: readonly SetSummary[];
   disabled: boolean;
-  leader: boolean;
-  busy: boolean;
-  myId: string;
   onTypeChange: (round: 0 | 1 | 2, type: 'cube' | 'set') => void;
   onPick: (round: 0 | 1 | 2, source: PoolSource) => void;
-  onRefresh: (id: string) => void;
-  onDelete: (id: string) => void;
 }) {
   const testId = `pool-picker-custom-round-${round}`;
 
@@ -454,12 +365,7 @@ function CustomActivePicker({
           cubes={cubes}
           value={source?.kind === 'cube' ? source.cubeId : null}
           disabled={disabled}
-          leader={leader}
-          busy={busy}
-          myId={myId}
           onChange={(cubeId) => onPick(round, { kind: 'cube', cubeId })}
-          onRefresh={onRefresh}
-          onDelete={onDelete}
         />
       ) : (
         <SetList
@@ -520,25 +426,39 @@ export function PoolPicker({
   onPickSet,
   onPickCustomRound,
   onImport,
-  onRefresh,
-  onDelete,
   onSavePreset,
   onLoadPreset,
   onDeletePreset,
 }: PoolPickerProps) {
-  const [link, setLink] = useState('');
   const [presetName, setPresetName] = useState('');
   const disabled = !leader || busy;
   const verdictState: VerdictState = checking ? 'checking' : refusal !== null ? 'refused' : 'ready';
 
   /** Which pack slot is being edited — a local, view-only choice; never gated on leadership (see the file header). */
   const [activeRound, setActiveRound] = useState<0 | 1 | 2>(0);
-  /** Each round's own Cube/Set toggle, remembered per slot so switching away and back keeps it. Seeded once from whatever the room's plan already holds. */
+  /**
+   * Each round's own Cube/Set toggle: purely local UI state once mounted —
+   * clicking it is never overridden by `customRounds` (which, since the
+   * merge fix below `DraftLobby.tsx` now makes, is populated from the
+   * room's CURRENT plan even for a round nobody has edited yet; treating a
+   * mere fallback value as "the user's own pick wins" made the toggle
+   * un-clickable — found live, same AF305 session).
+   *
+   * It still RESYNCS to match `customRounds`' own kind whenever that
+   * actually changes (a concrete pick, or a preset loaded whole) — `kinds`
+   * below is the three rounds' kinds alone, so a value change within the
+   * same kind (a different cube, say) never re-fires this.
+   */
   const [customType, setCustomType] = useState<['cube' | 'set', 'cube' | 'set', 'cube' | 'set']>(() => [
     customRounds[0]?.kind ?? 'cube',
     customRounds[1]?.kind ?? 'cube',
     customRounds[2]?.kind ?? 'cube',
   ]);
+  const kinds = `${customRounds[0]?.kind ?? ''}|${customRounds[1]?.kind ?? ''}|${customRounds[2]?.kind ?? ''}`;
+  useEffect(() => {
+    setCustomType((prev) => [customRounds[0]?.kind ?? prev[0], customRounds[1]?.kind ?? prev[1], customRounds[2]?.kind ?? prev[2]]);
+    // `kinds` IS the dependency on purpose: `customRounds` changing shape (a different cube, same kind) must not re-fire this.
+  }, [kinds]);
   const setRoundType = (round: 0 | 1 | 2, type: 'cube' | 'set'): void => {
     setCustomType((prev) => {
       const next = [...prev] as typeof prev;
@@ -546,7 +466,7 @@ export function PoolPicker({
       return next;
     });
   };
-  const typeOf = (round: 0 | 1 | 2): 'cube' | 'set' => customRounds[round]?.kind ?? customType[round];
+  const typeOf = (round: 0 | 1 | 2): 'cube' | 'set' => customType[round];
 
   return (
     <div className="pool-picker" data-testid="pool-picker">
@@ -575,14 +495,9 @@ export function PoolPicker({
             cubes={cubes}
             value={selected?.kind === 'cube' ? selected.cubeId : null}
             disabled={disabled}
-            leader={leader}
-            busy={busy}
-            myId={myId}
             verdictState={verdictState}
-            after={leader ? <ImportCard link={link} setLink={setLink} busy={busy} onImport={onImport} /> : undefined}
+            after={leader ? <ImportCube busy={busy} onImport={onImport} /> : undefined}
             onChange={onPickCube}
-            onRefresh={onRefresh}
-            onDelete={onDelete}
           />
           {cubesError !== null && (
             <p className="lobby__error" role="alert" data-testid="pool-picker-list-error">
@@ -635,7 +550,14 @@ export function PoolPicker({
                   {summary !== null && (
                     <>
                       <span className="pool-picker__pack-name">{summary.name}</span>
-                      <span className="pool-picker__pack-kind">{summary.kind}</span>
+                      <span className="pool-picker__pack-kind">
+                        {summary.kind}
+                        {verdict !== null && (
+                          <span className="pool-picker__pack-verdict" data-state={verdict.ok ? 'ready' : 'refused'}>
+                            {verdict.ok ? `✓ ${verdict.cards}` : '✗'}
+                          </span>
+                        )}
+                      </span>
                     </>
                   )}
                 </label>
@@ -686,20 +608,15 @@ export function PoolPicker({
             cubes={cubes}
             sets={sets}
             disabled={disabled}
-            leader={leader}
-            busy={busy}
-            myId={myId}
             onTypeChange={setRoundType}
             onPick={onPickCustomRound}
-            onRefresh={onRefresh}
-            onDelete={onDelete}
           />
         </>
       )}
 
       <p className="pool-picker__verdict" data-testid="pool-picker-verdict" data-state={verdictState}>
         {verdictState === 'checking' && 'Checking…'}
-        {verdictState === 'ready' && readyCards !== null && `${readyCards} cards`}
+        {verdictState === 'ready' && readyCards !== null && cardsCount(readyCards)}
         {verdictState === 'refused' && refusal !== null && [...refusal.unplayable, ...refusal.missingText].join(', ')}
       </p>
     </div>

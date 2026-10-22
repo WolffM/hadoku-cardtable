@@ -19,6 +19,14 @@
  * Gameplay text (mana cost, oracle text, …) is NOT fetched from Cube Cobra at
  * all; `catalog.ts`'s `CardCatalog` fills it in by name once the card is in
  * `cubes.ts`'s store.
+ *
+ * One THIRD field survives, at the cube's own level rather than per card
+ * (AF305 §B, the room's cube gallery wants art): the top-level `image.id`,
+ * kept as `artId` the same way a card's own `scryfall_id` is — an id, never
+ * `image.uri` (that object's own art crop URL). Cube Cobra's own mainboard
+ * `cardID` equals that card's `details.scryfall_id` (verified against the
+ * fixture below), so `image.id` is a scryfallId too, by the same identifier
+ * namespace — never Cube Cobra's own internal id.
  */
 
 /** A URL fetcher that returns parsed JSON. Injectable so tests never touch the network. */
@@ -39,10 +47,21 @@ export interface CubeCobraCard {
 export interface CubeCobraCube {
 	readonly name: string;
 	readonly cards: readonly CubeCobraCard[];
+	/**
+	 * The cube's own cover art, as a scryfallId — never a URL (AGENTS.md: "a
+	 * card's art is a lookup, not a URL"). `cubeJSON`'s top-level `image.id`
+	 * (never `image.uri`, which is the same object's own art crop URL and is
+	 * dropped here like every other image field this file strips). `null`
+	 * when the cube carries none, or it is not a well-formed id.
+	 */
+	readonly artId: string | null;
 }
 
 /** `/cube/overview/<id>`, `/cube/list/<id>`, or a bare id — Cube Cobra's own `shortId` or Mongo `_id`. */
 const CUBE_PATH_RE = /\/cube\/(?:overview|list|api\/cubejson)\/([^/?#]+)/i;
+
+/** A Scryfall id is a uuid. `image.id` that is not one builds no URL; treat it as absent. */
+const SCRYFALL_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type ParsedCubeCobraLink = { readonly ok: true; readonly id: string } | { readonly ok: false; readonly error: string };
 
@@ -94,7 +113,14 @@ export function projectCubeCobraCube(raw: unknown, fallbackName: string): CubeCo
 	}
 
 	if (cards.length === 0) throw new Error('Cube Cobra cube has no mainboard cards');
-	return { name, cards };
+
+	// The cube's own cover art: top-level `image.id` only, never `image.uri`
+	// (that object's own art crop URL — see the type's own doc comment).
+	const imageField = obj.image;
+	const artIdRaw = typeof imageField === 'object' && imageField !== null ? (imageField as Record<string, unknown>).id : undefined;
+	const artId = typeof artIdRaw === 'string' && SCRYFALL_UUID_RE.test(artIdRaw) ? artIdRaw : null;
+
+	return { name, cards, artId };
 }
 
 /** Fetch and project one cube. `fetchJson` is injectable so a test never reaches the network. */

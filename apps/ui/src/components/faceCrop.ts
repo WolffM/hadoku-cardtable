@@ -59,6 +59,17 @@ export const FACE_REGIONS: Readonly<Record<FacePart, FaceRegion>> = {
   adventure: { x: 0.045, y: 0.61, w: 0.465, h: 0.29, rotate: 0 },
 };
 
+/**
+ * The illustration box on a modern frame, as fractions of the printed image
+ * (488 × 680, `CARD_RATIO`): roughly x 8–92%, y 11–55% (AF305 §B — the
+ * operator: cube tiles showed the card's TYPE LINE and rules box, not its
+ * art, because they used the whole-card image uncropped). An old frame
+ * (Black Lotus, Counterspell) sits slightly differently; this is tuned for
+ * the median, not either extreme. Never Scryfall's `art_crop` — that drops
+ * the artist/copyright line `cardImage.ts` and `@hadoku/carddata/art` rely
+ * on the whole face to carry.
+ */
+export const ILLUSTRATION_BOX: FaceRegion = { x: 0.08, y: 0.11, w: 0.84, h: 0.44, rotate: 0 };
 
 const pct = (n: number): string => `${+(n * 100).toFixed(4)}%`;
 
@@ -84,5 +95,37 @@ export function faceCropStyle(part: FacePart): CSSProperties {
     transformOrigin: `${pct(cx)} ${pct(cy)}`,
     transform: `rotate(${rotate}deg)`,
     clipPath: `inset(${pct(y)} ${pct(1 - x - w)} ${pct(1 - y - h)} ${pct(x)})`,
+  };
+}
+
+/**
+ * The card image's placement inside a box of ARBITRARY shape — unlike
+ * {@link faceCropStyle}'s card-shaped tile — so `region` fills the box's own
+ * width edge to edge and is vertically centred, cropped top and bottom by
+ * the box's own `overflow: hidden` rather than a `clip-path` (there is no
+ * single container aspect ratio to clip to here, the way a card-shaped tile
+ * has). Built for {@link ILLUSTRATION_BOX} on a cube's gallery tile — a
+ * short, wide box an upright card image is never going to match exactly —
+ * but takes any upright (`rotate: 0`) region.
+ *
+ * `containerRatio` is the box's own width ÷ height (`CubeArt.css`'s
+ * `aspect-ratio`), needed because CSS resolves `top`/`height` percentages
+ * against the PARENT's height and `left`/`width` against its width: with a
+ * card-shaped tile those are the same ratio and one `scale` serves both
+ * (`faceCropStyle`'s own trick); here they are not, so the two axes are
+ * computed separately.
+ */
+export function coverCropStyle(region: FaceRegion, containerRatio: number): CSSProperties {
+  const { x, y, w, h } = region;
+  const widthScale = 1 / w; // the image's rendered width, as a fraction of the box's own width
+  const heightScale = containerRatio / (w * CARD_RATIO); // the image's rendered height, as a fraction of the box's own height
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  return {
+    position: 'absolute',
+    width: pct(widthScale),
+    height: pct(heightScale),
+    left: pct(0.5 - cx * widthScale),
+    top: pct(0.5 - cy * heightScale),
   };
 }

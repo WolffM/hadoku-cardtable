@@ -118,6 +118,44 @@ function loadShortlistFile(path: string, id: string): { name: string; cards: Dra
 	return { name: raw.cube, cards };
 }
 
+/**
+ * `pools/cube-art.json` — a committed `cubeId → card NAME` map for the
+ * shortlist (AF305 §B, the room's cube gallery). One pick per cube, repointed
+ * by editing this file; never an image or a URL. Read once at construction,
+ * beside `shortlistDir` (its sibling, not inside it) — missing or malformed
+ * is logged and treated as empty, the same tolerance every other file this
+ * store reads already has.
+ */
+function loadCubeArtNames(path: string): Readonly<Record<string, string>> {
+	let text: string;
+	try {
+		text = readFileSync(path, 'utf8');
+	} catch (err) {
+		log({ evt: 'cube-art-missing', path, detail: (err as Error).message });
+		return {};
+	}
+	let raw: unknown;
+	try {
+		raw = JSON.parse(text);
+	} catch (err) {
+		log({ evt: 'cube-art-invalid', path, detail: (err as Error).message });
+		return {};
+	}
+	if (typeof raw !== 'object' || raw === null) return {};
+	const out: Record<string, string> = {};
+	for (const [id, name] of Object.entries(raw as Record<string, unknown>)) {
+		if (typeof name === 'string' && name.length > 0) out[id] = name;
+	}
+	return out;
+}
+
+/** The named card's own `scryfallId` among `cards`, or `null` — never invented, never a second lookup. */
+function artIdOf(cards: readonly DraftCard[], name: string | undefined): string | null {
+	if (name === undefined) return null;
+	const card = cards.find((c) => c.name === name);
+	return card?.scryfallId ?? null;
+}
+
 /** A card the catalog has no text for: kept (the cube's size stays true), typeLine empty on purpose — see the file header. */
 function missingTextCard(name: string, scryfallId: string | null, cardId: string): DraftCard {
 	return {
@@ -157,6 +195,8 @@ interface ImportFile {
 	refreshedAt: string | null;
 	verdict: PoolVerdict | null;
 	cards: CubeCobraCard[];
+	/** `null` for a file persisted before AF305 §B — read back as "no art yet", not a crash; the next refresh fills it in. */
+	artId: string | null;
 }
 
 function isCubeCobraCard(value: unknown): value is CubeCobraCard {
@@ -196,6 +236,7 @@ function parseImportFile(text: string, path: string): ImportFile | null {
 		refreshedAt: typeof v.refreshedAt === 'string' ? v.refreshedAt : null,
 		verdict: (v.verdict as PoolVerdict | null | undefined) ?? null,
 		cards,
+		artId: typeof v.artId === 'string' ? v.artId : null,
 	};
 }
 
@@ -218,11 +259,20 @@ export interface CreateCubeStoreOpts {
 	catalog: CardCatalog;
 	/** Injectable; default global `fetch`. Passed straight through to {@link fetchCubeCobraCube}. */
 	fetchJson?: FetchJson;
+	/**
+	 * `pools/cube-art.json`'s path — the shortlist's own `cubeId → card name`
+	 * art map (AF305 §B). Defaults to `shortlistDir`'s SIBLING (`shortlistDir`
+	 * is `pools/cubes`; this is `pools/cube-art.json`), which is where the
+	 * real one is committed, so production wires nothing new. Injectable for
+	 * a test that does not want to lay out that exact directory shape.
+	 */
+	cubeArtPath?: string;
 }
 
 export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 	const { shortlistDir, importDir, catalog } = opts;
 	const fetchCube = (id: string): Promise<CubeCobraCube> => fetchCubeCobraCube(id, opts.fetchJson);
+	const cubeArtNames = loadCubeArtNames(opts.cubeArtPath ?? join(dirname(shortlistDir), 'cube-art.json'));
 
 	const shortlist = new Map<string, Entry>();
 	const shortlistOrder: string[] = [];
@@ -248,6 +298,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 					importedAt: null,
 					refreshedAt: null,
 					verdict: null,
+					artId: artIdOf(loaded.cards, cubeArtNames[id]),
 				},
 			});
 		}
@@ -283,6 +334,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 					importedAt: parsed.importedAt,
 					refreshedAt: parsed.refreshedAt,
 					verdict: parsed.verdict,
+					artId: parsed.artId,
 				},
 			});
 		}
@@ -305,6 +357,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 			refreshedAt: s.refreshedAt,
 			verdict: s.verdict,
 			cards: [...(entry.raw ?? [])],
+			artId: s.artId,
 		};
 		await writeAtomic(importFilePath(s.id), file);
 	};
@@ -351,6 +404,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 					importedAt: now,
 					refreshedAt: null,
 					verdict: null,
+					artId: cube.artId,
 				},
 			};
 			imported.set(id, entry);
@@ -383,6 +437,7 @@ export function createCubeStore(opts: CreateCubeStoreOpts): CubeStore {
 				size: cards.length,
 				refreshedAt: new Date().toISOString(),
 				verdict: null,
+				artId: cube.artId,
 			};
 			await persistImport(entry);
 			return entry.summary;

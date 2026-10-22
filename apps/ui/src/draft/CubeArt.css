@@ -1,0 +1,30 @@
+/*
+ * `CubeArt`: a fixed-aspect box across the top of a cube tile, framed on the
+ * card's own illustration (`components/faceCrop.ts`'s `coverCropStyle`,
+ * computed inline per image) — never the whole printed card. Theme tokens
+ * only. `CubeArt.tsx`'s `CUBE_ART_RATIO` must match this `aspect-ratio`.
+ */
+.cube-art {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 2;
+  overflow: hidden;
+  border-radius: calc(var(--hdk-radius) - 2px) calc(var(--hdk-radius) - 2px) 0 0;
+  background: var(--color-bg-hover);
+}
+
+.cube-art__img {
+  /* `position`, `width`, `height`, `left`, `top` all come from `coverCropStyle`'s own inline style. */
+  max-width: none;
+}
+
+.cube-art--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-hover);
+  font-size: 1.6rem;
+  font-weight: 700;
+}
