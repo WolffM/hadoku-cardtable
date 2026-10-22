@@ -65,7 +65,7 @@ import { forgetPlacements, onSpellMoved } from '../placed.ts';
 import { fixtureFrames, startReplayServer, untilMatch, type ReplayServer } from '../replay-server.ts';
 import { needsTarget } from './cast.ts';
 import { GLIDE_MS } from '../../motion.ts';
-import { TAPPED_PENDING_ATTR } from './commit.ts';
+import { TAPPED_PENDING_ATTR, UNTAPPED_PENDING_ATTR } from './commit.ts';
 import { installGestures } from './index.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
 import type { GestureHandle } from './types.ts';
@@ -1235,11 +1235,16 @@ describe('the London mulligan’s bottom pick: a hand card is a click, never an 
  */
 describe('a box drawn over the viewer’s own lands taps them, one at a time', () => {
   /** A card's `Tapped`, as Forge reports it. */
-  const tappedDelta = (id: number): ServerFrame => stateDelta({ [String(id)]: { _type: 0, _id: id, Tapped: { t: 'bool', v: true } } });
+  const tappedDelta = (id: number, v = true): ServerFrame => stateDelta({ [String(id)]: { _type: 0, _id: id, Tapped: { t: 'bool', v } } });
   /** What Forge sends the moment it takes a click at priority, before any state: the offer is withdrawn. */
   const offerWithdrawn = (): ServerFrame => parseServerFrame({ kind: 'notify', method: 'clearWeaklySelectable' });
 
-  async function landsOffered() {
+  /**
+   * This seat's lands offered at a priority window. `tapped` picks which of them start tapped for
+   * mana that still floats — Forge offers those too, a click on one untapping it
+   * (`AvailableActions.cardHasActionable` → `PlayerControllerHuman.tryUndo`).
+   */
+  async function landsOffered(tapped: (index: number) => boolean = () => false) {
     const board = await gestureBoard();
     const { s, m, canvas } = board;
     // The recorded game left most of this seat's permanents tapped: untap them, as an untap step would.
@@ -1248,8 +1253,13 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
       s.send(stateDelta(Object.fromEntries(untap.map((id) => [String(id), { _type: 0, _id: id, Tapped: { t: 'bool', v: false } }]))));
       await untilMatch(m, () => expect(mineOf(m).battlefield.some((c) => c.tapped)).toBe(false));
     }
+    const lands = mineOf(m).battlefield.filter((c) => c.card.typeLine.includes('Land')).map((c) => c.id);
+    const tap = lands.filter((_, i) => tapped(i));
+    if (tap.length > 0) {
+      s.send(stateDelta(Object.fromEntries(tap.map((id) => [String(id), { _type: 0, _id: id, Tapped: { t: 'bool', v: true } }]))));
+      await untilMatch(m, () => expect(mineOf(m).battlefield.filter((c) => c.tapped)).toHaveLength(tap.length));
+    }
     const mine = mineOf(m).battlefield;
-    const lands = mine.filter((c) => c.card.typeLine.includes('Land')).map((c) => c.id);
     const other = mine.find((c) => !c.card.typeLine.includes('Land'))?.id;
     expect(lands.length, 'the fixture gives this seat two lands').toBeGreaterThanOrEqual(2);
     const offered = other === undefined ? lands : [...lands, other];
@@ -1367,6 +1377,63 @@ describe('a box drawn over the viewer’s own lands taps them, one at a time', (
     expect((await sent(s, m)), 'the land a selection named was not tapped by a sweep that had ended').toEqual([['selectCard', lands[0]]]);
     // The land the sweep never reached is no longer drawn pending once the sweep ends.
     expect(cardEl(canvas, lands[1]!).hasAttribute(TAPPED_PENDING_ATTR)).toBe(false);
+  });
+
+  /*
+   * The operator, 2026-10-21: "i should also be able to draw a box to untap multiple lands. after
+   * all my lands are tapped i dont seem to be able to draw a box anymore". A box applies the click
+   * a land takes, and a click on a tapped land whose mana floats untaps it.
+   */
+  it('with every land tapped and its mana unspent, a press on the table still starts a box', async () => {
+    const { canvas, sweep } = await landsOffered(() => true);
+    sweep(700, 300);
+    expect(overlayOf(canvas).querySelector('[data-testid="marquee"]'), 'the box is let go').toBeNull();
+  });
+
+  it('a box over tapped lands Forge offers untaps each, the next only after the board shows the one before it untapped', async () => {
+    const { s, m, lands, offered, sweep } = await landsOffered(() => true);
+    sweep(700, 300);
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', lands[0]]]);
+    expect(await s.framesFrom(m), 'the second waits for Forge').toHaveLength(1);
+    await deliver(s, m, [offerWithdrawn(), tappedDelta(lands[0]!, false)]);
+    expect(await s.framesFrom(m), 'untapped, but not offered again yet: still waiting').toHaveLength(1);
+    for (const f of notify([prompt('Priority'), actionable(offered), okBar()])) s.send(f);
+    await s.untilClientFrames(2);
+    expect((await sent(s, m))[1]).toEqual(['selectCard', lands[1]]);
+  });
+
+  it('the release draws every boxed tapped land upright at once, before Forge has confirmed any of them', async () => {
+    const { s, m, canvas, lands, sweep } = await landsOffered(() => true);
+    sweep(700, 300);
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', lands[0]]]);
+    for (const id of lands) {
+      expect(cardEl(canvas, id).hasAttribute(UNTAPPED_PENDING_ATTR), `land ${id} is drawn untapped-pending at the release`).toBe(true);
+      expect(cardEl(canvas, id).hasAttribute(TAPPED_PENDING_ATTR)).toBe(false);
+    }
+  });
+
+  /*
+   * A box over both kinds taps: it touches a land still to tap, so it taps those and leaves the tapped
+   * ones alone. Only a box over nothing but tapped lands untaps — the attacker box's rule.
+   */
+  it('a box over tapped and untapped lands taps the untapped ones and leaves the tapped ones alone', async () => {
+    const { s, m, canvas, lands, sweep } = await landsOffered((i) => i === 0);
+    sweep(700, 300);
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', lands[1]]]);
+    expect(cardEl(canvas, lands[0]!).hasAttribute(UNTAPPED_PENDING_ATTR), 'the tapped land is not drawn untapping').toBe(false);
+    expect(cardEl(canvas, lands[1]!).hasAttribute(TAPPED_PENDING_ATTR)).toBe(true);
+  });
+
+  it('a tapped land Forge does not offer (its mana spent) is not untapped by a box', async () => {
+    const { s, m, lands, offered, sweep } = await landsOffered(() => true);
+    for (const f of notify([prompt('Priority'), actionable(offered.filter((id) => id !== lands[0])), okBar()])) s.send(f);
+    await untilMatch(m, () => expect(boardInteraction(m).selectable.has(lands[0]!)).toBe(false));
+    sweep(700, 300);
+    await s.untilClientFrames(1);
+    expect(await sent(s, m)).toEqual([['selectCard', lands[1]]]);
   });
 
   it('with no land of this seat’s to tap, a press on the table starts no box', async () => {

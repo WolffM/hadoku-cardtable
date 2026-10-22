@@ -21,7 +21,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { makeTitled, pressOffered, resizeWindow } from './play/board.ts';
+import { boxAround, makeTitled, pressOffered, resizeWindow } from './play/board.ts';
 import { messages } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -374,6 +374,57 @@ test(titled('a box drawn over four lands taps those four and no others, and a cl
       await expect(card(id), `the click untapped land ${id}`).not.toHaveAttribute('data-tapped', { timeout: 15_000 });
     }
     for (const id of [lands[1]!, lands[3]!]) await expect(card(id), `land ${id} is still tapped`).toHaveAttribute('data-tapped', 'true');
+  } finally {
+    await stack.stop();
+  }
+});
+
+/**
+ * The operator, 2026-10-21: *"i notice i can draw a box to tap multiple lands. i should also be able to
+ * draw a box to untap multiple lands. after all my lands are tapped i dont seem to be able to draw a box
+ * anymore"*. A box applies the click each land takes, and a click on a land tapped for mana that still
+ * floats untaps it. A box that touches any land still to tap taps those; one over nothing but tapped
+ * lands untaps them.
+ */
+test(titled('a box over eight tapped lands untaps all eight; over tapped and untapped ones it taps the untapped'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(2 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice } = await startScenarioMatch(browser, stack, 'w43-stack-lands');
+    const page = alice.page;
+    await resizeWindow(page, { width: 1280, height: 800 });
+    const lands = await eightLoneLands(page);
+    const card = (id: string) => page.locator(`li.board-card[data-card-id="${id}"]`);
+    const allTapped = async (ids: readonly string[], tapped: boolean) => {
+      for (const id of ids) {
+        const c = card(id);
+        await (tapped ? expect(c, `land ${id} tapped`).toHaveAttribute('data-tapped', 'true', { timeout: 20_000 }) : expect(c, `land ${id} untapped`).not.toHaveAttribute('data-tapped', { timeout: 20_000 }));
+      }
+    };
+    const allOffered = async () => {
+      for (const id of lands) await expect(card(id), `land ${id} takes a click`).toHaveAttribute('data-selectable', /.*/, { timeout: 15_000 });
+    };
+
+    await allOffered();
+    await boxAround(page, lands);
+    await allTapped(lands, true);
+
+    // Every land tapped, every one's mana floating: the box still starts, and untaps all eight.
+    await allOffered();
+    await boxAround(page, lands);
+    await allTapped(lands, false);
+
+    // Two tapped by a click, then a box over all eight: it taps the other six and leaves the two alone.
+    await allOffered();
+    for (const id of lands.slice(0, 2)) {
+      expect(await pressOffered(card(id)), `land ${id} pressed`).toBe(true);
+      await expect(card(id), `land ${id} tapped by its click`).toHaveAttribute('data-tapped', 'true', { timeout: 15_000 });
+    }
+    await allOffered();
+    await boxAround(page, lands);
+    await allTapped(lands, true);
   } finally {
     await stack.stop();
   }

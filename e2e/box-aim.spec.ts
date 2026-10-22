@@ -25,7 +25,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, enabledOk, makeTitled, says } from './play/board.ts';
+import { boxAround, clickOnce, enabledOk, makeTitled, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -59,29 +59,6 @@ async function ownCreatures(page: Page): Promise<number[]> {
     .evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))));
   expect(ids, 'alice has her three creatures').toHaveLength(3);
   return ids;
-}
-
-/** Draw a box from empty table around every card in `ids`, and let go. */
-async function boxAround(page: Page, ids: readonly number[]): Promise<void> {
-  const { from, to, empty } = await page.evaluate((cards) => {
-    const boxes = cards.map((id) => document.querySelector(`[data-board-card="${id}"]`)!.getBoundingClientRect());
-    const left = Math.min(...boxes.map((b) => b.left)) - 10;
-    const top = Math.min(...boxes.map((b) => b.top)) - 10;
-    const right = Math.max(...boxes.map((b) => b.right)) + 10;
-    const bottom = Math.max(...boxes.map((b) => b.bottom)) + 10;
-    const at = document.elementFromPoint(left, top);
-    return {
-      from: { x: left, y: top },
-      to: { x: right, y: bottom },
-      empty: at !== null && at.closest('li.board-card') === null && at.closest('.board, [data-zone]') !== null,
-    };
-  }, ids);
-  expect(empty, 'the box starts on empty table, not on a card').toBe(true);
-  await page.mouse.move(from.x, from.y);
-  await page.mouse.down();
-  await page.mouse.move(to.x, to.y, { steps: 10 });
-  await expect(page.locator('[data-gesture-canvas][data-marquee]'), 'the box is drawing').toHaveCount(1);
-  await page.mouse.up();
 }
 
 /** Press the centre of `selector`'s element. */
