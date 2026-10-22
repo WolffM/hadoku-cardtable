@@ -9,10 +9,14 @@
  * individually visible up to 4. from 4 on the rules are off"); from the fifth
  * on they go onto the seat itself (`packSlot`).
  *
- * The places are searched, not tabled (`pileRoom`): the four nearest the arrow
- * into the seat that clear every face, name, arrow, the counters, the panel's
- * edge and every other pile, at every turn the packs take. So no seat count and
- * no UI scale is a special case.
+ * The places are searched, not tabled (`pileRoom`). First along the arrow into
+ * the seat (the operator, 2026-10-22: "lets try to prioritize placing them on
+ * the arrow boundary, else it looks too messy"): a queue against the arrow's
+ * stroke, stepping back from its head, each pack turned with it. Only where the
+ * arrow cannot hold four does a seat take the four places nearest its arrowhead
+ * anywhere. Either way every place clears every face, name, arrow, the
+ * counters, the panel's edge and every other pile, at every turn the packs
+ * take. So no seat count and no UI scale is a special case.
  */
 
 /** The ring's radius, in the box's own units (the box is 100 wide). */
@@ -54,6 +58,7 @@ export interface TrackPoint {
  */
 export function ring() {
   const cy = TOP + RING;
+  const centre = { x: 50, y: cy };
   const length = 2 * Math.PI * RING;
   const at = (s0: number): TrackPoint => {
     const s = ((s0 % length) + length) % length;
@@ -67,7 +72,7 @@ export function ring() {
   };
   /** An SVG path through `points`. */
   const path = (ps: readonly TrackPoint[]): string => ps.map((p, i) => `${i === 0 ? 'M' : 'L'} ${fixed(p.x)} ${fixed(p.y)}`).join(' ');
-  return { length, at, points, path };
+  return { length, at, points, path, centre };
 }
 
 export interface PackSlot {
@@ -83,14 +88,24 @@ export interface PackSlot {
   pose: 'tidy' | 'jostled' | 'jammed' | 'teeter' | 'slumped';
 }
 
-/** A pile's four places, nearest the arrowhead first, in `PackSlot`'s frame (`pileRoom` finds them). */
-export type Pile = readonly { x: number; y: number }[];
+/** One place in a pile, in `PackSlot`'s frame: its centre, and the turn a pack there takes before it is jostled. */
+export interface Place {
+  x: number;
+  y: number;
+  turn: number;
+}
+
+/** A pile's four places, nearest the arrowhead first (`pileRoom` finds them), and whether they queue along the arrow. */
+export interface Pile {
+  places: readonly Place[];
+  along: 'arrow' | 'room';
+}
 
 /** How many packs a pile keeps in full view; every pack past them goes onto the seat. */
 export const IN_VIEW = 4;
 
-/** The turns of the packs in view, by depth: square, then askew, then shoved hard. */
-const TURNS = [[3], [-3, 4], [-9, 8, -6], [-14, 12, -10, 15]];
+/** The turns of the packs in view, by depth, about their place's own: square, then nudged, then knocked askew, then shoved. */
+const TURNS = [[0], [0, 2], [-3, 4, -2], [-6, 5, -4, 7]];
 
 /**
  * Where waiting pack `i` sits when `depth` are waiting. Depth is at most
@@ -101,10 +116,10 @@ const TURNS = [[3], [-3, 4], [-9, 8, -6], [-14, 12, -10, 15]];
  * counters and the other piles), nearest the arrowhead first, and nothing up to
  * the fourth is ever placed over another. They only turn where they stand:
  *
- *   1  one pack, square, where the arrow reaches the seat;
- *   2  two, side by side, tidy;
- *   3  a third squeezes in: all three knocked askew;
- *   4  blockage: a fourth crowds in, all four shoved hard and the newest rattling.
+ *   1  one pack, square to its place, where the arrow reaches the seat;
+ *   2  two, one behind the other, tidy;
+ *   3  a third joins the queue: all three knocked a little askew;
+ *   4  blockage: a fourth crowds in, all four shoved and the newest rattling.
  *
  * From the fifth on the rules are off, and the rest go onto the seat itself:
  *
@@ -114,8 +129,8 @@ const TURNS = [[3], [-3, 4], [-9, 8, -6], [-14, 12, -10, 15]];
  */
 export function packSlot(i: number, depth: number, pile: Pile): PackSlot {
   if (i < IN_VIEW) {
-    const at = pile[i]!;
-    const r = TURNS[Math.min(depth, IN_VIEW) - 1]![i]!;
+    const at = pile.places[i]!;
+    const r = at.turn + TURNS[Math.min(depth, IN_VIEW) - 1]![i]!;
     const pose = depth <= 2 ? 'tidy' : depth >= IN_VIEW && i === IN_VIEW - 1 ? 'jammed' : 'jostled';
     return { x: at.x, y: at.y, r, pose };
   }
@@ -198,9 +213,9 @@ function sameShape(a: Pt[], b: Pt[]): boolean {
 /** Every pose a pack in view takes, by (depth − 1) × IN_VIEW + i: its turn and whether it rattles. */
 const POSES: { r: number; pose: PackSlot['pose'] }[] = [];
 
-/** A pack in view's backs, box units: its centre, its pose's turn mirrored to its seat, grown if it rattles. */
-function backsAt([x, y]: Pt, { r, pose }: { r: number; pose: PackSlot['pose'] }, sx: 1 | -1): Poly[] {
-  const backs = packCards(x, y, r * sx);
+/** A pack in view's backs, box units: its centre, its place's turn and its pose's, mirrored to its seat, grown if it rattles. */
+function backsAt([x, y]: Pt, { r, pose }: { r: number; pose: PackSlot['pose'] }, sx: 1 | -1, turn = 0): Poly[] {
+  const backs = packCards(x, y, (turn + r) * sx);
   return pose === 'jammed' ? backs.map((b) => grow(b, RATTLE * PACK)) : backs;
 }
 
@@ -252,6 +267,10 @@ export interface Room {
   centre: { left: number; top: number; right: number; bottom: number };
   /** Every arrow: its points, its stroke width, box units. */
   arrows: readonly { points: readonly { x: number; y: number }[]; width: number }[];
+  /** Which of `arrows` runs into each seat. */
+  inbound: readonly number[];
+  /** The ring's centre, box units: the outside of an arrow is the side away from it. */
+  hub: { x: number; y: number };
   /**
    * Where a pack may reach, box units: the pod panel's padding box, not just
    * the ring's square. A seat on the ring's rim has room beside it only out
@@ -260,12 +279,22 @@ export interface Room {
   bounds: { left: number; top: number; right: number; bottom: number };
 }
 
+/** How a queue along an arrow is searched, in pack widths: its offset from the arrow's middle, its first pack's distance back from the head, the step between packs. */
+const QUEUE_STEP = 0.1;
+const QUEUE_OFF = { from: 0.6, to: 1.6 };
+const QUEUE_BACK = { from: 0, to: 4 };
+const QUEUE_GAP = { from: 1, to: 1.6 };
+
 /**
- * Each seat's pile: the four places nearest its arrowhead where four packs fit
- * side by side, as a block, a row or a column, at every turn `packSlot` gives
- * them, clear of every face, name, arrow, the counters, the panel's edge and
- * every earlier seat's pile. The table's own geometry decides, so every seat
- * count, table shape and UI scale is the same rule.
+ * Each seat's pile, at every turn `packSlot` gives its packs clear of every
+ * face, name, arrow, the counters, the panel's edge and every earlier seat's
+ * pile. First a queue along the arrow into the seat: against its stroke on the
+ * ring's outside (its inside if the outside has no room), stepping back from
+ * its head, each pack turned with the arrow, as close to the stroke, the head
+ * and the pack before as fits. Where the arrow cannot hold four, the four
+ * places nearest its arrowhead where four packs fit side by side, as a block,
+ * a row or a column. The table's own geometry decides, so every seat count,
+ * table shape and UI scale is the same rule.
  */
 export function pileRoom(room: Room): Pile[] {
   const pad = CLEARANCE * PACK;
@@ -380,6 +409,91 @@ export function pileRoom(room: Room): Pile[] {
       return hit;
     };
     const touches = new Map<number, boolean>();
+    /**
+     * The queue along the arrow into this seat: each place a point on the arrow `back`
+     * from its head, pushed `off` off its middle to one side, turned with it.
+     */
+    const arrow = room.arrows[room.inbound[at]!]!;
+    const line = [...arrow.points].reverse();
+    const run = line.map((_, k) => (k === 0 ? 0 : Math.hypot(line[k]!.x - line[k - 1]!.x, line[k]!.y - line[k - 1]!.y)));
+    for (let k = 1; k < run.length; k++) run[k]! += run[k - 1]!;
+    const queued = new Map<number, { box: Pt; turn: number } | null>();
+    const queuedAt = (side: 1 | -1, off: number, back: number) => {
+      const key = (side + 1) * 1e6 + off * 1e3 + back;
+      if (queued.has(key)) return queued.get(key)!;
+      const a = back * QUEUE_STEP * PACK;
+      const k = run.findIndex((r, j) => j > 0 && r >= a);
+      let found: { box: Pt; turn: number } | null = null;
+      if (k > 0) {
+        const p = line[k - 1]!, q = line[k]!;
+        const f = (a - run[k - 1]!) / (run[k]! - run[k - 1]! || 1);
+        const x = p.x + (q.x - p.x) * f, y = p.y + (q.y - p.y) * f;
+        // Travel runs toward the head: from q to p.
+        const d = Math.hypot(p.x - q.x, p.y - q.y) || 1;
+        const tx = (p.x - q.x) / d, ty = (p.y - q.y) / d;
+        const outward = (x - room.hub.x) * -ty + (y - room.hub.y) * tx > 0 ? 1 : -1;
+        const nx = -ty * outward * side, ny = tx * outward * side;
+        const o = arrow.width / 2 + (QUEUE_OFF.from + off * QUEUE_STEP) * PACK;
+        const screen = ((deg(Math.atan2(ty, tx)) + 90) % 180 + 180) % 180 - 90;
+        found = { box: [x + nx * o, y + ny * o], turn: screen * sx };
+      }
+      queued.set(key, found);
+      return found;
+    };
+    const queueCards = new Map<number, { cards: Poly[]; clear: boolean }>();
+    const queueFits = (side: 1 | -1, off: number, first: number, gap: number, taken: readonly Obstacle[]): Poly[] | null => {
+      const all: Poly[] = [];
+      for (let depth = 1; depth <= IN_VIEW; depth++) {
+        const here: Poly[][] = [];
+        for (let i = 0; i < depth; i++) {
+          const back = first + i * gap;
+          const spot = queuedAt(side, off, back);
+          if (spot === null) return null;
+          const pose = (depth - 1) * IN_VIEW + i;
+          const key = ((side + 1) * 1e6 + off * 1e3 + back) * 16 + pose;
+          let seen = queueCards.get(key);
+          if (seen === undefined) {
+            const cards = backsAt(spot.box, POSES[pose]!, sx, spot.turn);
+            seen = { cards, clear: clearOf(cards, fixed, true) };
+            queueCards.set(key, seen);
+          }
+          if (!seen.clear || !clearOf(seen.cards, taken, false)) return null;
+          if (here.some((other) => other.some((c) => seen.cards.some((d) => overlaps(grow(c, pad), d))))) return null;
+          here.push(seen.cards);
+          all.push(...seen.cards);
+        }
+      }
+      return all;
+    };
+    // The queues tried, the ring's outside first, then the snuggest to the stroke, the head and each other.
+    const steps0 = (r: { from: number; to: number }) => Math.round((r.to - r.from) / QUEUE_STEP);
+    const gapFrom = Math.round(QUEUE_GAP.from / QUEUE_STEP);
+    const queues: { side: 1 | -1; off: number; first: number; gap: number; cost: number }[] = [];
+    for (const side of [1, -1] as const) {
+      for (let off = 0; off <= steps0(QUEUE_OFF); off++) {
+        for (let first = Math.round(QUEUE_BACK.from / QUEUE_STEP); first <= Math.round(QUEUE_BACK.to / QUEUE_STEP); first++) {
+          for (let gap = gapFrom; gap <= Math.round(QUEUE_GAP.to / QUEUE_STEP); gap++) {
+            queues.push({ side, off, first, gap, cost: (side === 1 ? 0 : 1e6) + off + first + (gap - gapFrom) });
+          }
+        }
+      }
+    }
+    queues.sort((a, b) => a.cost - b.cost);
+    // An arrow shorter than four packs' steps holds no queue, whatever it is tried with.
+    const holds = run[run.length - 1]! >= (IN_VIEW - 1) * QUEUE_GAP.from * PACK;
+    const alongArrow = (taken: readonly Obstacle[]) => {
+      for (const { side, off, first, gap } of holds ? queues : []) {
+        const cards = queueFits(side, off, first, gap, taken);
+        if (cards === null) continue;
+        const places = Array.from({ length: IN_VIEW }, (_, i): Place => {
+          const { box: [bx, by], turn } = queuedAt(side, off, first + i * gap)!;
+          return { x: ((bx - face.x) * sx) / PACK, y: (by - face.y) / PACK, turn };
+        });
+        return { pile: { places, along: 'arrow' as const }, cards: cards.map(obstacle), own: true };
+      }
+      return null;
+    };
+
     // Every pose the four will take, depth by depth, with the packs beside them at that depth.
     const fits = (places: Pt[], taken: readonly Obstacle[]): Poly[] | null => {
       const all: Poly[] = [];
@@ -395,14 +509,17 @@ export function pileRoom(room: Room): Pile[] {
       return all;
     };
     /** The best pile that fits beside `taken`, and whether it is wholly this seat's own. */
-    const place = (taken: readonly Obstacle[]) => {
+    const place = (taken: readonly Obstacle[]): { pile: Pile; cards: Obstacle[]; own: boolean } => {
+      const queue = alongArrow(taken);
+      if (queue !== null) return queue;
+      const anywhere = (places: Pt[]): Pile => ({ places: places.map(([x, y]) => ({ x, y, turn: 0 })), along: 'room' });
       for (const i of order) {
         const places = candidate(i);
         const cards = fits(places, taken);
-        if (cards !== null) return { pile: places.map(([x, y]) => ({ x, y })), cards: cards.map(obstacle), own: costs[i]! < STRAY };
+        if (cards !== null) return { pile: anywhere(places), cards: cards.map(obstacle), own: costs[i]! < STRAY };
       }
       // Nowhere fits (a pod too small for its seats): the pile stands off the arrowhead in a row.
-      return { pile: SHAPES[1]!.places.map(([x, y]) => ({ x: head[0] + x, y: head[1] + y })), cards: [], own: false };
+      return { pile: anywhere(SHAPES[1]!.places.map(([x, y]) => [head[0] + x, head[1] + y])), cards: [], own: false };
     };
     return place;
   });
@@ -441,6 +558,6 @@ function grow(rect: Poly, d: number): Poly {
 }
 
 /** Until the seats are measured, a pile has no places of its own (and no pack is drawn). */
-export const UNMEASURED: Pile = Array.from({ length: IN_VIEW }, () => ({ x: 0, y: 0 }));
+export const UNMEASURED: Pile = { places: Array.from({ length: IN_VIEW }, () => ({ x: 0, y: 0, turn: 0 })), along: 'room' };
 for (let depth = 1; depth <= IN_VIEW; depth++) for (let i = 0; i < IN_VIEW; i++) POSES.push(i < depth ? packSlot(i, depth, UNMEASURED) : { r: 0, pose: 'tidy' });
 

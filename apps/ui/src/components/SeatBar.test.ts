@@ -170,16 +170,19 @@ describe('the packs waiting in front of each seat', () => {
   });
 
   it('gives each of the first four packs its own place, and the rest the seat', () => {
-    const pile: Pile = [
-      { x: 2, y: 0 },
-      { x: 3.75, y: 0 },
-      { x: 2, y: 2 },
-      { x: 3.75, y: 2 },
-    ];
+    const pile: Pile = {
+      places: [
+        { x: 2, y: 0, turn: 0 },
+        { x: 3.75, y: 0, turn: 0 },
+        { x: 2, y: 2, turn: 0 },
+        { x: 3.75, y: 2, turn: 0 },
+      ],
+      along: 'room',
+    };
     for (let depth = 1; depth <= IN_VIEW; depth++) {
       const places = Array.from({ length: depth }, (_, i) => packSlot(i, depth, pile)).map((p) => `${p.x},${p.y}`);
       expect(new Set(places).size, `depth ${depth}`).toBe(depth);
-      expect(places).toEqual(pile.slice(0, depth).map((p) => `${p.x},${p.y}`));
+      expect(places).toEqual(pile.places.slice(0, depth).map((p) => `${p.x},${p.y}`));
     }
     // From the fifth on, on the face itself (within a face's half width of its centre).
     for (const i of [4, 5, 6]) expect(Math.hypot(packSlot(i, 7, pile).x, packSlot(i, 7, pile).y)).toBeLessThan(3);

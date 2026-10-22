@@ -203,6 +203,9 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
       names: measures.names,
       centre: measures.centre,
       arrows: arcs.map((arc) => ({ points: arc.points, width: arc.intoView ? 1.2 : 0.9 })),
+      // Arc `at` runs from seat `at` to the next: into the next passing left, into `at` passing right.
+      inbound: seats.map((_, at) => (left ? (at - 1 + n) % n : at)),
+      hub: track.centre,
       bounds: measures.bounds,
     });
     // The room is the table's: seats, direction, the lit arrow and the measured boxes.
@@ -411,6 +414,7 @@ export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftVi
                 data-queue={depth}
                 data-watched={watched ? '' : undefined}
                 data-swamped={depth > IN_VIEW ? '' : undefined}
+                data-pile={piles?.[at]?.along}
               >
                 {watchable && !watched && (
                   <button
