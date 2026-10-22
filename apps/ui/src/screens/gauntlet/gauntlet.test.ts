@@ -295,12 +295,34 @@ describe('choosing a deck for the next game', () => {
     expect(theirs.querySelector('[data-chosen-deck]')).toBeNull();
   });
 
-  it('while the game is played, your own deck is drawn and theirs is face down', () => {
-    const { getByTestId } = draw(view({ phase: 'playing', decks: picks(), games: [{ decks: [IDS[6], null], winner: null }], choice: null }));
-    const shown = getByTestId('gauntlet-game');
-    expect(shown.querySelector(`[data-seat="0"] [data-deck-id="${IDS[6]}"]`)).not.toBeNull();
-    expect(shown.querySelector('[data-seat="1"] [data-testid="gauntlet-deck"]'), 'no deck of theirs').toBeNull();
-    expect(shown.querySelector('[data-seat="1"] [data-testid="gauntlet-hidden"]')).not.toBeNull();
+  // The operator, 2026-10-21: "theres still an extra screen that happens between selecting a deck in gauntlet
+  // mode and game start ... we need to get rid of this." From the choice to the board the choose screen stays.
+  it('while the game is dealt and played, the choose screen stays: your pick marked, theirs only Chosen, no versus card', () => {
+    const onChoose = vi.fn();
+    const { getByTestId, queryByTestId } = draw(view({ phase: 'playing', decks: picks(), games: [{ decks: [IDS[6], null], winner: null }], choice: null }), { onChoose });
+    expect(queryByTestId('gauntlet-playing'), 'no screen of its own').toBeNull();
+    expect(queryByTestId('gauntlet-game'), 'no versus card').toBeNull();
+    expect(queryByTestId('gauntlet-hidden')).toBeNull();
+    expect(getByTestId('gauntlet-choose').dataset.phase).toBe('playing');
+    expect(getByTestId('gauntlet-title').textContent, 'the game being dealt, not the next').toContain('Game 1');
+    const mine = getByTestId('gauntlet-choose-mine');
+    expect(mine.dataset.chosen).toBe('true');
+    expect(mine.querySelector(`[data-deck-id="${IDS[6]}"]`)?.getAttribute('aria-checked')).toBe('true');
+    const theirs = getByTestId('gauntlet-choose-theirs');
+    expect(theirs.dataset.chosen).toBe('true');
+    expect(theirs.querySelector('[aria-checked="true"]'), 'no deck of theirs is marked (ruling 9)').toBeNull();
+    for (const tile of mine.querySelectorAll<HTMLButtonElement>('[data-testid="gauntlet-deck"]')) {
+      expect(tile.disabled, 'the choice is made').toBe(true);
+      fireEvent.click(tile);
+    }
+    expect(onChoose).not.toHaveBeenCalled();
+  });
+
+  it('a watcher of a game being played sees both seats Chosen and no deck', () => {
+    const { getByTestId } = draw(view({ phase: 'playing', you: null, decks: picks(), games: [{ decks: [null, null], winner: null }], choice: null }));
+    const seats = [...getByTestId('gauntlet-choose').querySelectorAll<HTMLElement>('[data-seat][data-chosen]')].map((s) => s.dataset.chosen);
+    expect(seats).toEqual(['true', 'true']);
+    expect(getByTestId('gauntlet-choose').querySelector('[aria-checked="true"]')).toBeNull();
   });
 
   it('game 2: both seats’ played decks are greyed, your unplayed ones pressable, theirs shown as available', () => {

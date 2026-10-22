@@ -2590,10 +2590,12 @@ describe('the room’s mode', () => {
     ...extra,
   });
 
-  it('from the choice straight into the game: while a Gauntlet game is dealt and starting, the room is that game, never the lobby (ruling 13.2)', async () => {
+  it('from the choice straight into the game: while a Gauntlet game is dealt and starting, the room stays on the choose screen — no lobby, no versus card (ruling 13.2)', async () => {
     const server = stubServer({ players: [{ ...mySeat(), deck: null }, opponent()], matchId: null, mode: { mode: 'gauntlet', modeOptions: {} }, gauntlet: gauntletAt('playing') });
     render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, myDecks: server.myDecks, roomId: ROOM, feed: everyMs(10) }));
-    await screen.findByTestId('gauntlet-playing');
+    await screen.findByTestId('gauntlet-choose');
+    expect(screen.queryByTestId('gauntlet-playing')).toBeNull();
+    expect(screen.queryByTestId('gauntlet-game')).toBeNull();
     expect(screen.queryByTestId('constructed-mode')).toBeNull();
     expect(screen.queryByTestId('room-players')).toBeNull();
   });
