@@ -2467,6 +2467,64 @@ describe('§B.4 — the arrow follows the pointer for CLICK targeting', () => {
     expect(overlayOf(canvas).querySelector('[data-role="aim"]'), 'nothing aimed is left behind').toBeNull();
   });
 
+  /**
+   * The operator, 2026-10-21, on Conflagrate: *"when a card like conflagerate looks for multiple targets
+   * lets make sure the arrows stay on target as they are placed. at the moment, i clicked on the first
+   * target, then the arrow just snapped back to my mouse for the following target."* Forge marks each
+   * target as it is chosen and unmarks one taken back (`InputSelectTargets` `addTarget`/`removeTarget`),
+   * all inside the one open target choice.
+   */
+  it('a target choice keeps an arrow on every target already chosen while the next one is aimed', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const spell = mineOf(m).hand![0]!.id;
+    const [first, second] = theirsOf(m).battlefield.map((c) => c.id);
+    boxAt(cardEl(canvas, spell), 100, 400);
+    boxAt(cardEl(canvas, first!), 300, 50);
+    boxAt(cardEl(canvas, second!), 400, 50);
+    boxAt(faceEl(canvas, 1), 500, 10);
+    const aimed = () => [...overlayOf(canvas).querySelectorAll('[data-testid="stack-target-arrow"][data-role="aim"]')].map((e) => e.getAttribute('data-key')).sort();
+    const target = (message: string) =>
+      parseServerFrame({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: { kind: 'card', id: spell }, selection: { targets: true } });
+
+    for (const f of notify([selectables([first!, second!], 0, 3), target('Select targets to distribute damage among')])) s.send(f);
+    await untilMatch(m, () => expect(m.promptSelection?.targets).toBe(true));
+    fireEvent.pointerMove(cardEl(canvas, first!), { clientX: 310, clientY: 70 });
+    await waitFor(() => expect(overlayOf(canvas).querySelector('[data-testid="targeter"]')).not.toBeNull());
+    expect(aimed(), 'nothing chosen yet').toEqual([]);
+
+    // The first target is chosen: its arrow stays, and the next is aimed from the same spell.
+    s.send(highlight([first!], true));
+    s.send(target('Select targets to distribute damage among (1 chosen)'));
+    await untilMatch(m, () => expect(m.highlighted?.has(first!)).toBe(true));
+    fireEvent.pointerMove(cardEl(canvas, second!), { clientX: 410, clientY: 70 });
+    await waitFor(() => expect(aimed()).toEqual([`aim:card:${first}`]));
+    expect(overlayOf(canvas).querySelector('[data-role="aim"] path')!.getAttribute('d'), 'from the spell').toMatch(/^M 120 428 Q /);
+    const following = overlayOf(canvas).querySelector<SVGElement>('[data-testid="targeter"]')!;
+    expect(following.dataset.target, 'a fresh arrow follows the pointer').toBe(`card:${second}`);
+
+    // A player too.
+    s.send(highlightPlayers([1], true));
+    await untilMatch(m, () => expect(m.highlightedPlayers?.has(1)).toBe(true));
+    fireEvent.pointerMove(canvas, { clientX: 5, clientY: 5 });
+    await waitFor(() => expect(aimed()).toEqual([`aim:card:${first}`, 'aim:player:1']));
+
+    // A target taken back loses its arrow.
+    s.send(highlight([first!], false));
+    await untilMatch(m, () => expect(m.highlighted?.has(first!)).toBe(false));
+    fireEvent.pointerMove(canvas, { clientX: 6, clientY: 6 });
+    await waitFor(() => expect(aimed()).toEqual(['aim:player:1']));
+
+    // Done: Forge unmarks the lot and the choice closes — every arrow goes with it.
+    s.send(highlightPlayers([1], false));
+    s.send(parseServerFrame({ kind: 'notify', method: 'clearSelectables' }));
+    s.send(prompt('Priority'));
+    await untilMatch(m, () => expect(m.promptSelection).toBeNull());
+    fireEvent.pointerMove(canvas, { clientX: 7, clientY: 7 });
+    await frame();
+    expect(aimed(), 'nothing aimed is left behind').toEqual([]);
+    expect(await sent(s, m)).toEqual([]);
+  });
+
   it('with nothing to draw from, the pointer draws no arrow', async () => {
     const { s, m, canvas } = await gestureBoard();
     const theirs = theirsOf(m).battlefield.map((c) => c.id);

@@ -228,6 +228,7 @@ import {
   declaringCombat,
   landsOffered,
   payingMana,
+  pickedOf,
   pressButton,
   selectCard,
   subscribe,
@@ -245,6 +246,7 @@ import { holdSpell, isPlaced, moveSpell, onSpellDrawn, placeSpell, placeStackIte
 import { spotOf } from '../presence.ts';
 import { afterGlide, HOUSE_DURATIONS, prefersReducedMotion, writeDurations } from '../../motion.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
+import type { GameEntityRef } from '@hadoku/forge-wire';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { RAMMING_ATTR } from '../ram.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
@@ -673,18 +675,31 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   /**
-   * What the ability an open pick pays for is already aimed at (`match.promptSelection.aimed`),
-   * drawn from the same tail the click-targeting arrow would leave from: a cost picked as it is paid,
-   * after the targets (a creature to tap, a card to exile), shows the target chosen before it, rather
-   * than nothing.
+   * What the open selection's ability is already aimed at, drawn from the same tail the
+   * click-targeting arrow leaves from, so every target chosen keeps its arrow while the next is aimed.
+   *
+   * During a target choice that is what Forge has marked: `InputSelectTargets` marks each target as
+   * it is chosen and unmarks one taken back (`addTarget`/`removeTarget`) — the operator, 2026-10-21, on
+   * Conflagrate: the first target's arrow snapped back to the pointer for the next. During a pick
+   * that pays for the ability (a creature to tap, a card to exile, picked after the targets) it is
+   * the prompt's own `match.promptSelection.aimed`.
    */
   function aimedArrows(): AutoTargetArrow[] {
     const said = match.promptSelection;
-    if (said === null || said.targets || said.aimed.length === 0) return [];
+    const refs: readonly GameEntityRef[] =
+      said !== null && !said.targets
+        ? said.aimed
+        : aiming() && match.selectables !== null
+          ? [
+              ...[...pickedOf(match)].map((id) => ({ kind: 'card' as const, id })),
+              ...[...(match.highlightedPlayers ?? [])].map((id) => ({ kind: 'player' as const, id })),
+            ]
+          : [];
+    if (refs.length === 0) return [];
     const origin = clickOrigin();
     if (origin === null) return [];
     const out: AutoTargetArrow[] = [];
-    for (const ref of said.aimed) {
+    for (const ref of refs) {
       const to = ref.kind === 'card' ? cardBox(canvas, ref.id) : faceBox(canvas, ref.id);
       if (to === null) continue;
       out.push({ key: `aim:${ref.kind}:${ref.id}`, from: origin.at, to, kind: ref.kind, role: 'aim' });
