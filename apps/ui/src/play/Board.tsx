@@ -390,7 +390,6 @@ import {
 import { CardTile } from '../components/CardTile.tsx';
 import type { TileCard } from '../components/faceCrop.ts';
 import { colorWordToken, ManaPip } from '../components/ManaPip.tsx';
-import { useArtistLookup } from '../draft/artists.ts';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { Avatar } from '../components/Avatar.tsx';
 import {
@@ -411,13 +410,14 @@ import {
 } from './adapter.ts';
 import { LONG_PRESS_MS, mountInspector } from './inspect/index.ts';
 import { mountTips } from './tip/index.ts';
-import { choiceTip, emblemsTip, keywordTip, MARK_TIP, SEEN_TIP, stateTip, waitingTip } from './tip/words.ts';
+import { choiceTip, keywordTip, MARK_TIP, SEEN_TIP, stateTip, waitingTip } from './tip/words.ts';
 import { documentScope, eventTarget } from '../dom.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers, type Revealed } from './live/numbers.ts';
 import { installPlaced } from './live/placed.ts';
 import { DEPARTURE_MAX_MS, departuresOf, installDepartures, LEAVING_GAP_ATTR, type Departure } from './live/departures.ts';
+import { AbilityChip } from './live/AbilityChip.tsx';
 import { HiddenCard } from './HiddenCard.tsx';
 import { PileView } from './PileView.tsx';
 import { useCardMenu } from './card-menu/CardMenu.tsx';
@@ -3138,11 +3138,6 @@ function PlayerFace({
 }) {
   const selectable = interaction !== undefined && interaction.selectablePlayers.has(player.id);
   const emblems = player.emblems ?? [];
-  const artistOf = useArtistLookup(emblems.some((e) => e.scryfallId !== undefined));
-  /** Who drew an emblem's medallion art, once it can be credited — the medallion shows no art before. */
-  const credited = (e: BoardEmblem): string | null => (e.scryfallId === undefined || artistOf === undefined ? null : artistOf(e.scryfallId));
-  const drawn = new Set(medallionsOf(emblems));
-  const emblemTip = emblems.length === 0 ? undefined : emblemsTip(emblems, (e) => (drawn.has(e) && cardImageUrl(e.scryfallId) !== null ? credited(e) : null));
   const poison = poisonOf(player);
   const mark = (
     <>
@@ -3172,7 +3167,6 @@ function PlayerFace({
       data-viewer={player.isViewer || undefined}
       data-lost={player.hasLost || undefined}
       data-selectable={selectable || undefined}
-      data-tip={emblemTip}
     >
       {selectable ? (
         <button
@@ -3198,7 +3192,7 @@ function PlayerFace({
       ) : (
         <div className="face__hit">{mark}</div>
       )}
-      {emblemTip === undefined ? null : <SeatEmblems emblems={emblems} tip={emblemTip} credited={credited} />}
+      {emblems.length === 0 ? null : <SeatEmblems emblems={emblems} />}
       <span className="face__name">{player.name}</span>
     </div>
   );
@@ -3241,10 +3235,11 @@ function PoisonMark({ count }: { count: number }) {
 }
 
 /** One medallion: its source's art, or the drawn mark when there is none or it fails to load. */
-function EmblemMedallion({ emblem, slot, tip, art }: { emblem: BoardEmblem; slot: number; tip: string; art: string | null }) {
+function EmblemMedallion({ emblem, slot }: { emblem: BoardEmblem; slot: number }) {
   const [broken, setBroken] = useState(false);
+  const art = cardImageUrl(emblem.scryfallId);
   return (
-    <span className="face__emblem" data-emblem={emblem.id} data-slot={slot} data-tip={tip}>
+    <span className="face__emblem" data-emblem={emblem.id} data-slot={slot}>
       {art === null || broken ? (
         <svg className="face__emblem-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M8 1.5 9.6 6.4 14.5 8 9.6 9.6 8 14.5 6.4 9.6 1.5 8 6.4 6.4Z" />
@@ -3269,25 +3264,35 @@ function medallionsOf(emblems: readonly BoardEmblem[]): readonly BoardEmblem[] {
  * visual for emblems. let's make it so they go around the player's avatar and hovering the players
  * avatar shows all their emblems."* One medallion per emblem in fixed slots outside the priority
  * ring (`card.css`), so an emblem arriving moves nothing; past the slots, the last one counts the
- * rest. Each medallion carries the same tip as the avatar (`tip/`): every emblem, in Forge's words.
+ * rest. A medallion shows its source's art cropped to the illustration, else a drawn emblem mark.
  *
- * A medallion shows its source's art cropped to the illustration, once that art can be credited
- * (the credit is in the tip; `../draft/artists.ts`), else a drawn emblem mark.
+ * Hovering the avatar (a medallion is part of it) enlarges every emblem as its trigger's own chip
+ * (`AbilityChip`) — the operator, 2026-10-21: *"we already have the emblem card chip for the
+ * trigger, we can just use that. and when hovering over the player, then we display the card
+ * chips."* The chips are drawn here, hidden, for the inspector to enlarge (`inspect/`'s
+ * `EMBLEM_CHIPS`): the one expanded view, as a stack item's chip is.
  */
-function SeatEmblems({ emblems, tip, credited }: { emblems: readonly BoardEmblem[]; tip: string; credited: (e: BoardEmblem) => string | null }) {
+function SeatEmblems({ emblems }: { emblems: readonly BoardEmblem[] }) {
   const shown = medallionsOf(emblems);
   const rest = emblems.length - shown.length;
   return (
-    <span className="face__emblems" data-emblems={emblems.length} role="img" aria-label={tip}>
-      {shown.map((e, slot) => (
-        <EmblemMedallion key={e.id} emblem={e} slot={slot} tip={tip} art={credited(e) === null ? null : cardImageUrl(e.scryfallId)} />
-      ))}
-      {rest === 0 ? null : (
-        <span className="face__emblem face__emblem--more" data-emblem-more="" data-slot={EMBLEM_SLOTS - 1} data-tip={tip}>
-          +{rest}
-        </span>
-      )}
-    </span>
+    <>
+      <span className="face__emblems" data-emblems={emblems.length} role="img" aria-label={emblems.map((e) => `${e.card.name}: ${e.text}`).join('\n')}>
+        {shown.map((e, slot) => (
+          <EmblemMedallion key={e.id} emblem={e} slot={slot} />
+        ))}
+        {rest === 0 ? null : (
+          <span className="face__emblem face__emblem--more" data-emblem-more="" data-slot={EMBLEM_SLOTS - 1}>
+            +{rest}
+          </span>
+        )}
+      </span>
+      <div hidden data-emblem-chips="">
+        {emblems.map((e) => (
+          <AbilityChip key={e.id} source={e.card} name={e.card.name} text={e.text} />
+        ))}
+      </div>
+    </>
   );
 }
 

@@ -185,11 +185,20 @@ interface InspectTarget {
 const INSPECT_IDS = 'data-inspect-ids';
 
 /**
- * An ability on the stack is drawn as a chip (`live/placed.ts`'s `abilityChip`), not a tile: hovering
+ * An ability on the stack is drawn as a chip (`../live/AbilityChip.tsx`), not a tile: hovering
  * it enlarges the chip itself — the ability's whole text, its source's art and name. The operator,
  * 2026-10-10: "lets also allow hovering them just like cards to see an expanded view."
  */
 const ABILITY_CHIP = 'data-ability-chip';
+
+/**
+ * A player's avatar (`data-player-face`) is not a card, but one with emblems holds each as its
+ * trigger's chip, drawn hidden (`../Board.tsx`'s `SeatEmblems`): hovering the avatar enlarges that
+ * column of chips. The operator, 2026-10-21: "when hovering over the player, then we display the
+ * card chips." An avatar without emblems enlarges nothing.
+ */
+const PLAYER_FACE = 'data-player-face';
+const EMBLEM_CHIPS = 'data-emblem-chips';
 
 /**
  * A window the panel stands beside, never on: a decision pop-up that asks something (the "waiting for
@@ -255,6 +264,10 @@ function inspectedCardFrom(node: EventTarget | null, root: ParentNode): InspectT
     }
     // An ability's chip on the stack (`live/placed.ts`): its own text, enlarged — a chip read like a card.
     if (el.hasAttribute(ABILITY_CHIP)) return { card: el.closest('[data-placed-spell]') ?? el, tile: el };
+    if (el.hasAttribute(PLAYER_FACE)) {
+      const chips = el.querySelector(`[${EMBLEM_CHIPS}]`);
+      return chips === null ? null : { card: el, tile: chips, trigger: el };
+    }
     const id = el.getAttribute('data-card-id');
     if (id !== null && TILE_ID.test(id)) {
       // The tile itself — or a wrapper carrying the tile's own id.
@@ -316,12 +329,13 @@ export function placeInspector(
   hover: Rect,
   board: Rect,
   hand: Rect | null,
+  tall: number = CARD_TALL,
 ): { left: number; top: number; width: number } {
   const floorTop = hand !== null ? Math.min(hand.top, board.bottom) : board.bottom;
   const ceilingTop = board.top;
   const availableHeight = Math.max(0, floorTop - GAP - (ceilingTop + GAP));
-  const width = Math.max(0, Math.min(PREF_W, availableHeight / CARD_TALL, board.right - board.left - 2 * GAP));
-  const height = width * CARD_TALL;
+  const width = Math.max(0, Math.min(PREF_W, availableHeight / tall, board.right - board.left - 2 * GAP));
+  const height = width * tall;
 
   // A hand card: see the doc comment above for why `hover.top` (not
   // `hand.top`) is the test. Its corner anchor is exact — no GAP — because it
@@ -375,8 +389,8 @@ export function placeInspector(
  * wins, ties broken by the order above. No candidate is ever returned sized
  * past zero.
  */
-export function placeBesideModal(hover: Rect, modal: Rect, area: Rect): { left: number; top: number; width: number } {
-  const fullW = Math.max(0, Math.min(PREF_W, (area.bottom - area.top - 2 * GAP) / CARD_TALL));
+export function placeBesideModal(hover: Rect, modal: Rect, area: Rect, tall: number = CARD_TALL): { left: number; top: number; width: number } {
+  const fullW = Math.max(0, Math.min(PREF_W, (area.bottom - area.top - 2 * GAP) / tall));
 
   const vClamp = (top: number, height: number): number =>
     Math.min(Math.max(top, area.top + GAP), Math.max(area.top + GAP, area.bottom - GAP - height));
@@ -394,22 +408,22 @@ export function placeBesideModal(hover: Rect, modal: Rect, area: Rect): { left: 
   const anchors: Array<(width: number) => Spot> = [
     // Left of the pop-up: the box's RIGHT edge is pinned at `modal.left - GAP`.
     (width) => {
-      const height = width * CARD_TALL;
+      const height = width * tall;
       return { left: modal.left - GAP - width, top: vClamp(hover.top, height), width, height };
     },
     // Right of the pop-up: the box's LEFT edge is pinned at `modal.right + GAP`.
     (width) => {
-      const height = width * CARD_TALL;
+      const height = width * tall;
       return { left: modal.right + GAP, top: vClamp(hover.top, height), width, height };
     },
     // Above the card: the box's BOTTOM edge is pinned at `hover.top - GAP`.
     (width) => {
-      const height = width * CARD_TALL;
+      const height = width * tall;
       return { left: hClamp(hover.left, width), top: hover.top - GAP - height, width, height };
     },
     // Below the card: the box's TOP edge is pinned at `hover.bottom + GAP`.
     (width) => {
-      const height = width * CARD_TALL;
+      const height = width * tall;
       return { left: hClamp(hover.left, width), top: hover.bottom + GAP, width, height };
     },
   ];
@@ -466,6 +480,8 @@ function enlarged(tile: Element): HTMLElement {
   clone.removeAttribute('data-card-id');
   clone.removeAttribute('data-testid');
   clone.removeAttribute('data-faces');
+  // An avatar's emblem chips are drawn hidden, for this.
+  clone.removeAttribute('hidden');
   const art = clone.querySelector('img');
   if (art !== null) art.setAttribute('loading', 'eager');
   return clone;
@@ -560,8 +576,6 @@ export function mountInspector(root: ParentNode): () => void {
     const inHand = target.card.closest('[data-zone="hand"][data-owner="you"]') !== null;
     const modal = target.tile.closest(OPEN_WINDOW) ?? (inHand ? null : scope.querySelector(OPEN_WINDOW));
     const hostR = rectOf(host.getBoundingClientRect());
-    const spot =
-      modal !== null ? placeBesideModal(hoverR, rectOf(modal.getBoundingClientRect()), hostR) : placeInspector(hoverR, hostR, handRect());
 
     const el = document.createElement('div');
     el.className = 'inspect';
@@ -569,10 +583,31 @@ export function mountInspector(root: ParentNode): () => void {
     // A visual enlargement of content already in the accessibility tree; the
     // tile underneath stays the readable one. Not a dialog, not a status.
     el.setAttribute('aria-hidden', 'true');
+    el.appendChild(clone);
+    // A card is a card's proportion at any width. Anything else — a chip, an avatar's column of
+    // emblem chips — is as tall as its text: laid out at the preferred width and measured, placed by
+    // that, and scaled down whole if it must shrink, so its text never re-wraps taller than measured.
+    const isCard = target.tile.classList.contains('card');
+    let tall = CARD_TALL;
+    if (!isCard) {
+      el.style.width = `${PREF_W}px`;
+      el.style.visibility = 'hidden';
+      host.appendChild(el);
+      const measured = el.getBoundingClientRect().height;
+      if (measured > 0) tall = measured / PREF_W;
+    }
+    const spot =
+      modal !== null
+        ? placeBesideModal(hoverR, rectOf(modal.getBoundingClientRect()), hostR, tall)
+        : placeInspector(hoverR, hostR, handRect(), tall);
     el.style.left = `${spot.left - hostR.left}px`;
     el.style.top = `${spot.top - hostR.top}px`;
-    el.style.width = `${spot.width}px`;
-    el.appendChild(clone);
+    if (isCard) {
+      el.style.width = `${spot.width}px`;
+    } else {
+      if (spot.width < PREF_W) el.style.transform = `scale(${spot.width / PREF_W})`;
+      el.style.visibility = '';
+    }
     host.appendChild(el);
     panel = el;
 

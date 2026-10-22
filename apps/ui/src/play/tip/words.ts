@@ -2,8 +2,7 @@
  * What the board's marks say on hover (`./index.ts`). Our own words, short:
  * what the mark means for play, not the comprehensive rules.
  */
-import { artCredit } from '../../draft/artists.ts';
-import type { BoardCardChoice, BoardCardState, BoardCardWaiting, BoardEmblem, ChoiceKind, StateKind } from '../adapter.ts';
+import type { BoardCardChoice, BoardCardState, BoardCardWaiting, ChoiceKind, StateKind } from '../adapter.ts';
 
 /** A corner mark (`Board.tsx`'s `StateMarks`). */
 export const MARK_TIP: Readonly<Record<'sick' | 'cantBlock' | 'attacking' | 'blocking', string>> = {
@@ -72,16 +71,6 @@ export function stateTip(state: BoardCardState): string {
 /** An effect tag's tip: Forge's own words for what this card's ability left waiting, or still in effect. */
 export function waitingTip(waiting: BoardCardWaiting): string {
   return `${waiting.kind === 'trigger' ? 'Waiting' : 'In effect'}: ${waiting.text}`;
-}
-
-/**
- * A player's emblems, one line each — what made it, then Forge's own words for what it does — and
- * one credit line for the art the medallions show (`artistOf` answers for the ones drawn).
- */
-export function emblemsTip(emblems: readonly BoardEmblem[], artistOf: (emblem: BoardEmblem) => string | null): string {
-  const lines = emblems.map((e) => `Emblem — ${e.source}: ${e.text}`);
-  const artists = [...new Set(emblems.map(artistOf).filter((a) => a !== null))];
-  return [...lines, ...(artists.length === 0 ? [] : [artCredit(artists.join(', '))])].join('\n');
 }
 
 /** Forge's `Duration` words (`SpellAbilityEffect.addUntilCommand`), as how long, for a player's `whose` ("your", "Alice's"). */

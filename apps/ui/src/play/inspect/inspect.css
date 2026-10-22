@@ -33,6 +33,8 @@
   width: 20.625rem;
   /* Never the element under the pointer — see the header. */
   pointer-events: none;
+  /* A panel that is not a card shrinks by scale from its placed corner (`index.ts`'s `show`). */
+  transform-origin: top left;
 }
 
 /* The card's own proportion, always; and back to the draft tile's type. */
@@ -68,4 +70,11 @@
   padding: 9px 12px 12px;
   font-size: 13px;
   line-height: 1.4;
+}
+
+/* A player's emblems, each its trigger's chip (`../Board.tsx`'s `SeatEmblems`), one under another. */
+.inspect [data-emblem-chips] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }

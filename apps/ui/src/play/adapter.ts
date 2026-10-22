@@ -592,8 +592,10 @@ export interface BoardEmblem {
   source: string;
   /** What it does, in Forge's own words (its `AbilityText`); its name when Forge sent none. */
   text: string;
-  /** The source's art id, when the art index knows the source. */
+  /** The source's art id, when the art index knows the source: the medallion's art. */
   scryfallId?: string;
+  /** The emblem's own face — what its trigger's chip draws (`StackEntry.sourceCard`): its own name, and no art of its own. */
+  card: DraftCard;
 }
 
 /** Forge's emblem name, `Emblem — Sorin, Lord of Innistrad`, to the card that made it. */
@@ -608,7 +610,7 @@ function readEmblems(state: WireState, player: WireObject | undefined, artIds: A
     if (c === null || c.hidden === true) continue;
     const source = c.card.name.replace(EMBLEM_NAME, '');
     const scryfallId = scryfallIdFor(artIds, source, c.card.setCode);
-    out.push({ id, source, text: c.abilityText ?? c.card.name, ...(scryfallId === undefined ? {} : { scryfallId }) });
+    out.push({ id, source, text: c.abilityText ?? c.card.name, card: c.card, ...(scryfallId === undefined ? {} : { scryfallId }) });
   }
   return out;
 }
