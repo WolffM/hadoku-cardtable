@@ -178,6 +178,18 @@ describe('a constructed table', () => {
 		expect((at.body.players as { deck: unknown }[])[0]!.deck).toBeNull();
 	});
 
+	it("keeps the room's own seats in step without a table read", async () => {
+		const s = await boot();
+		const second = s.lobby.addTable(s.roomId, ALICE.id);
+		if (!second.ok) throw new Error('addTable failed');
+		await s.call('alice', 'POST', '/sit', {});
+		await s.call('bob', 'POST', '/sit', {});
+		await s.call('alice', 'POST', '/sit', { table: second.table.id });
+		expect(roomSeats(s)).toEqual([['bob'], ['alice']]);
+		s.lobby.leave(s.roomId, BOB.id);
+		expect(roomSeats(s)).toEqual([[], ['alice']]);
+	});
+
 	it('empties the seats when the pool changes, and when a member leaves', async () => {
 		const s = await boot();
 		await s.call('alice', 'PUT', '/deck', DECK);
@@ -224,6 +236,17 @@ describe('a Gauntlet table', () => {
 		expect(s.lobby.setMode(s.roomId, ALICE.id, { mode: 'classic', modeOptions: {} })).toEqual({ ok: false, reason: 'mode-locked' });
 		expect((await s.call('alice', 'POST', '/gauntlet/ready', { ready: false })).body).toMatchObject({ ready: [false, false] });
 		expect(s.lobby.setMode(s.roomId, ALICE.id, { mode: 'classic', modeOptions: {} }).ok).toBe(true);
+	});
+
+	it('leaves a Ready with the player who stands, not with the seat', async () => {
+		const s = await gauntlet();
+		await s.call('alice', 'POST', '/sit', {});
+		await s.call('bob', 'POST', '/sit', {});
+		await s.call('bob', 'POST', '/gauntlet/ready', { ready: true });
+		expect((await s.call('bob', 'POST', '/stand', {})).status).toBe(200);
+		await s.call('carol', 'POST', '/sit', {});
+		expect((await s.call('carol', 'GET', '/gauntlet')).body).toMatchObject({ you: 1, ready: [false, false] });
+		expect((await s.call('alice', 'POST', '/gauntlet/ready', { ready: true })).body).toMatchObject({ phase: 'options' });
 	});
 
 	it('draws once both seats are ready, and holds the table from there', async () => {
