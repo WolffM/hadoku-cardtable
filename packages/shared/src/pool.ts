@@ -32,3 +32,17 @@ export type CubeSummary = z.infer<typeof CubeSummarySchema>;
 
 export const ImportCubeBodySchema = z.strictObject({ link: z.string().min(1).max(300) });
 export const SetDraftPlanBodySchema = z.strictObject({ plan: DraftPlanSchema });
+
+export const SetSummarySchema = z.strictObject({
+  code: z.string(), name: z.string(), date: z.string(), type: z.string(),
+  cards: z.number().int().nonnegative(),          // non-basic singletons (set-cube size)
+  verdict: PoolVerdictSchema.nullable(),          // null = not yet checked at this Forge pin
+});
+export type SetSummary = z.infer<typeof SetSummarySchema>;
+
+export const DraftPresetSchema = z.strictObject({
+  id: z.string(), name: z.string().min(1).max(60), plan: DraftPlanSchema,
+  createdBy: z.string(), createdAt: z.string(),
+});
+export type DraftPreset = z.infer<typeof DraftPresetSchema>;
+export const SavePresetBodySchema = z.strictObject({ name: z.string().min(1).max(60), plan: DraftPlanSchema });

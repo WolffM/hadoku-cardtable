@@ -382,10 +382,15 @@ export {
   CubeSummarySchema,
   ImportCubeBodySchema,
   SetDraftPlanBodySchema,
+  SetSummarySchema,
+  DraftPresetSchema,
+  SavePresetBodySchema,
   type PoolSource,
   type DraftPlan,
   type PoolVerdict,
   type CubeSummary,
+  type SetSummary,
+  type DraftPreset,
 } from './pool.ts';
 export {
   GAME_TYPES,
