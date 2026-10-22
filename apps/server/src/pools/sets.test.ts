@@ -106,6 +106,57 @@ describe('createSetsStore — list()', () => {
 });
 
 /*
+ * The server listens before the warm-up finishes, so every reader of this
+ * store's caches runs against a half-warm store: names must arrive with the
+ * FIRST Forge answer (`sets()`), not after every set's card list, and a
+ * plan check asking for a set mid-warm must share the warm-up's round-trip.
+ */
+describe('createSetsStore — read while list() is still warming', () => {
+	function hangingSetCards(): { forge: SetsForge; release: () => void } {
+		let release: () => void = () => undefined;
+		const gate = new Promise<void>((r) => (release = r));
+		const forge: SetsForge = {
+			sets: vi.fn(async () => [ISD, ALA]),
+			setCards: vi.fn(async (code: string) => {
+				await gate;
+				return [`${code} card`];
+			}),
+			boosters: vi.fn(async () => []),
+		};
+		return { forge, release: () => release() };
+	}
+
+	it('every set is named, and onNamed heard once, as soon as Forge lists the sets — before any card list resolves', async () => {
+		const { forge, release } = hangingSetCards();
+		const store = createSetsStore({ forge, catalog: EMPTY_CATALOG });
+		const heard = vi.fn();
+		store.onNamed(heard);
+		const listing = store.list();
+		await vi.waitFor(() => expect(forge.setCards).toHaveBeenCalled());
+		expect(store.nameOf('ISD')).toBe('Innistrad');
+		expect(store.nameOf('ALA')).toBe('Shards of Alara');
+		expect(heard).toHaveBeenCalledTimes(1);
+		release();
+		await listing;
+		expect(heard, 'a finished list names nothing new').toHaveBeenCalledTimes(1);
+	});
+
+	it('a cardsFor() asked mid-warm shares the warm-up\'s Forge round-trip instead of starting its own', async () => {
+		const { forge, release } = hangingSetCards();
+		const store = createSetsStore({ forge, catalog: EMPTY_CATALOG });
+		const listing = store.list();
+		// ISD is newest, so it is the set the warm-up is waiting on right now.
+		await vi.waitFor(() => expect(forge.setCards).toHaveBeenCalledWith('ISD'));
+		const asked = store.cardsFor('ISD');
+		release();
+		expect((await asked)?.map((c) => c.name)).toEqual(['ISD card']);
+		await listing;
+		expect(vi.mocked(forge.setCards).mock.calls.filter(([code]) => code === 'ISD')).toHaveLength(1);
+		expect(forge.setCards).toHaveBeenCalledTimes(2);
+	});
+});
+
+/*
  * `index.ts` awaits this at boot, in place of a bare `store.list()` — a
  * rejected `forge.sets()` (or any `resolveCards` round-trip inside it) must
  * never take the whole server process down with it. `warmSetsStore` is the

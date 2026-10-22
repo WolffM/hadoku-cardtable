@@ -65,8 +65,38 @@ async function served(url: string): Promise<Served> {
 	return { status: res.status, type: res.headers.get('content-type'), cache: res.headers.get('cache-control') };
 }
 
-/** Boot the server against `webDir`, ask it both questions, stop it. */
-async function boot(webDir: string): Promise<Booted> {
+/**
+ * A Forge install whose pool JVM never answers: a `javac` that "compiles" the
+ * bridge (an empty class file where `bridgeLaunch` looks for one) and a `java`
+ * that reads its stdin and says nothing until the server hangs up on it. Every
+ * pool call then waits out its own timeout — the shape of a slow claw's
+ * warm-up, stretched past any test's patience.
+ */
+function silentForge(): NodeJS.ProcessEnv {
+	const dir = join(root, 'silent-forge');
+	const bin = join(dir, 'bin');
+	mkdirSync(bin, { recursive: true });
+	mkdirSync(join(dir, 'res', 'cardsfolder'), { recursive: true });
+	writeFileSync(join(dir, 'forge.jar'), '');
+	writeFileSync(join(bin, 'java'), '#!/bin/sh\nexec cat > /dev/null\n', { mode: 0o755 });
+	writeFileSync(
+		join(bin, 'javac'),
+		'#!/bin/sh\nwhile [ $# -gt 1 ]; do [ "$1" = -d ] && out=$2; shift; done\nmain=$(basename "$1" .java)\ntouch "$out/$main.class"\n',
+		{ mode: 0o755 },
+	);
+	return {
+		CARDTABLE_FORGE_JAR: join(dir, 'forge.jar'),
+		CARDTABLE_FORGE_RES: join(dir, 'res'),
+		CARDTABLE_JAVA: join(bin, 'java'),
+		CARDTABLE_PLAY_BRIDGE_CACHE: join(dir, 'bridge'),
+		CARDTABLE_PLAY_WORK_DIR: join(dir, 'work'),
+		CARDTABLE_PLAY_WARM_SPARE: '0',
+		CARDTABLE_CATALOG_REFRESH: '0',
+	};
+}
+
+/** Boot the server against `webDir`, ask it both questions, stop it. `forgeEnv` replaces the default of no Forge at all; `listenWithinMs` is how long it may take to listen. */
+async function boot(webDir: string, forgeEnv: NodeJS.ProcessEnv = {}, listenWithinMs = 30_000): Promise<Booted> {
 	mkdirSync(webDir, { recursive: true });
 	writeFileSync(join(webDir, 'index.html'), INDEX);
 	mkdirSync(join(webDir, 'embed', 'assets'), { recursive: true });
@@ -85,9 +115,10 @@ async function boot(webDir: string): Promise<Booted> {
 		EDGE_AUTH_SECRET: '',
 		CARDTABLE_INSECURE_NO_EDGE_AUTH: '1',
 	};
-	// Never a Forge JVM for a boot test.
+	// Never a real Forge JVM for a boot test.
 	delete env.CARDTABLE_FORGE_JAR;
 	delete env.CARDTABLE_FORGE_RES;
+	Object.assign(env, forgeEnv);
 
 	const child: ChildProcess = spawn(TSX, [ENTRY], { env, stdio: ['ignore', 'pipe', 'pipe'] });
 	let output = '';
@@ -96,7 +127,7 @@ async function boot(webDir: string): Promise<Booted> {
 
 	try {
 		await new Promise<void>((resolveUp, rejectUp) => {
-			const timer = setTimeout(() => rejectUp(new Error(`server did not start:\n${output}`)), 30_000);
+			const timer = setTimeout(() => rejectUp(new Error(`server did not listen within ${listenWithinMs} ms:\n${output}`)), listenWithinMs);
 			const watch = () => {
 				if (output.includes(`listening on 127.0.0.1:${port}`)) {
 					clearTimeout(timer);
@@ -146,6 +177,13 @@ describe('a server started from a path', () => {
 		expect(embed.chunk.cache).toContain('immutable');
 		expect(embed.missing.status).toBe(404);
 		expect(embed.missing.type).not.toMatch(/html/);
+	}, 60_000);
+
+	it('listens, healthy, while the pool JVM has not answered a single call — warming the sets is never on the boot path', async () => {
+		const { health, page } = await boot(join(root, 'silent', 'apps', 'ui', 'dist'), silentForge(), 10_000);
+		expect(health.status).toBe(200);
+		expect(health.body).toMatchObject({ status: 'healthy', bundle: 'ok' });
+		expect(page.status).toBe(200);
 	}, 60_000);
 
 	it('under a dot-directory reports degraded, and says why on the page instead of a 404', async () => {

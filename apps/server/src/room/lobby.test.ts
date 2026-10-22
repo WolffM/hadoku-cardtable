@@ -2010,6 +2010,17 @@ describe('Lobby.onChange', () => {
 		expect(heard).toEqual([made.room.id]);
 	});
 
+	it('poolNamesChanged names every draft room, and only draft rooms — a plan name read before the names warmed is read again', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const draft = lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
+		const duel = lobby.create(BOB, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!draft.ok || !duel.ok) throw new Error('create failed');
+		const heard: string[] = [];
+		lobby.onChange((id) => heard.push(id));
+		lobby.poolNamesChanged();
+		expect(heard).toEqual([draft.room.id]);
+	});
+
 	it('a listener that throws does not undo the write or stop the next listener', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const heard: string[] = [];
