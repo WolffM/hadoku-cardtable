@@ -1,0 +1,21 @@
+# e2e/combat-perf.spec.ts — a full attack, measured: the operator, 2026-10-22, "when cards start moving
+# out to attack, i notice framerate drops".
+# alice (human, seat 0) in an uncontested Main Phase 1 of her own turn with six untapped, non-sick
+# creatures; she declares all six by hand. bob (ai keys, seat 1, a real browser) blocks two of them with
+# his two bears: Runeclaw Bear on Grizzly Bears (both die: they crumple into each other), Balduvian
+# Bears on Hill Giant (the bear dies, the Giant goes home). The other four charge bob's avatar for 13
+# (Craw Wurm's 6 shakes the table); bob is at 40 so nobody wins and the board stays drawn.
+# Every card here is already in other combat scenarios with art.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=40
+humanhand=
+humanbattlefield=Craw Wurm;Hill Giant;Grizzly Bears;Gray Ogre;Savannah Lions;Trained Armodon
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Runeclaw Bear;Balduvian Bears
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
