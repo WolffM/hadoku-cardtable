@@ -63,7 +63,6 @@
  */
 
 import express, { type Request, type Response, type Router } from 'express';
-import { randomUUID } from 'node:crypto';
 import type { IncomingHttpHeaders } from 'node:http';
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import {
@@ -119,6 +118,7 @@ import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } 
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import type { SpellCopy } from './spell-copiers.js';
+import { httpCaller } from '../http/request.js';
 import { jsonLogger } from '../log.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
@@ -604,7 +604,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		res.status(201).json({
 			matchId: match.id,
 			epoch: match.epoch,
-			seats: seatsSeenBy(match, identityFromHeaders(req.headers, `http-${randomUUID()}`)),
+			seats: seatsSeenBy(match, httpCaller(req)),
 		});
 	});
 
@@ -614,7 +614,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			res.status(404).json({ error: 'no such match' });
 			return;
 		}
-		const seen = seatsSeenBy(match, identityFromHeaders(req.headers, `http-${randomUUID()}`));
+		const seen = seatsSeenBy(match, httpCaller(req));
 		res.json({
 			matchId: match.id,
 			status: match.status,
@@ -636,7 +636,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	 */
 	router.get('/matches/:id/deck', (req: Request, res: Response) => {
 		const match = matches.get(String(req.params.id));
-		const seat = match?.seatOf(identityFromHeaders(req.headers, `http-${randomUUID()}`)) ?? null;
+		const seat = match?.seatOf(httpCaller(req)) ?? null;
 		const deck = seat === null ? null : (match?.spec.seats[seat]?.deck ?? null);
 		if (deck === null) {
 			res.status(404).json({ error: 'no deck of yours in that match' });
@@ -664,7 +664,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			res.status(400).json({ error: 'a report is { what, ui, detail } with a known what' });
 			return;
 		}
-		const participantId = identityFromHeaders(req.headers, `http-${randomUUID()}`);
+		const participantId = httpCaller(req);
 		const minute = Math.floor(Date.now() / 60_000);
 		const seen = reported.get(participantId);
 		const count = seen !== undefined && seen.minute === minute ? seen.count + 1 : 1;

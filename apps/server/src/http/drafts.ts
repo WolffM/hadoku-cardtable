@@ -40,13 +40,12 @@
  * the type is not optional.
  */
 
-import { randomUUID } from 'node:crypto';
-import express, { type NextFunction, type Request, type Response, type Router } from 'express';
+import express, { type Request, type Response, type Router } from 'express';
 
 import { builtDeckOf, saveBuiltDeck, viewForParticipant, type DraftRooms } from '../room/draftRooms.js';
-import { identityFromHeaders } from '../room/identity.js';
 import { checkSeat, MAX_DCK_BYTES, type GateContext, type WireIssue } from './gate.js';
 import type { TablesLibrary } from './library.js';
+import { bodyErrors, httpCaller } from './request.js';
 import { draftPoolForMember } from './routes.js';
 import { jsonLogger } from '../log.js';
 
@@ -67,10 +66,6 @@ const EMPTY_LIBRARY: TablesLibrary = {
 
 /** What a table refuses and a save does not: an unfinished build is still a build. */
 const UNFINISHED: ReadonlySet<WireIssue['kind']> = new Set(['under-minimum-size']);
-
-function callerIdOf(req: Request): string {
-	return identityFromHeaders(req.headers, `http-${randomUUID()}`);
-}
 
 function noSuchPod(res: Response, podId: string): void {
 	res.status(404).json({ error: `no draft ${JSON.stringify(podId)} on this server` });
@@ -107,7 +102,7 @@ export function attachDrafts(api: Router, deps: DraftsDeps): void {
 		const room = draftRooms.find(podId);
 		if (room === undefined) return noSuchPod(res, podId);
 
-		const caller = callerIdOf(req);
+		const caller = httpCaller(req);
 		const view = viewForParticipant(room, caller);
 		if (view.viewer.kind !== 'seat') return noSeat(res, podId);
 
@@ -121,7 +116,7 @@ export function attachDrafts(api: Router, deps: DraftsDeps): void {
 		const room = draftRooms.find(podId);
 		if (room === undefined) return noSuchPod(res, podId);
 
-		const caller = callerIdOf(req);
+		const caller = httpCaller(req);
 		const view = viewForParticipant(room, caller);
 		if (view.viewer.kind !== 'seat') return noSeat(res, podId);
 
@@ -153,21 +148,5 @@ export function attachDrafts(api: Router, deps: DraftsDeps): void {
 
 	api.use('/drafts', drafts);
 
-	// Errors on /drafts — chiefly `express.json()`'s parse failure, raised on
-	// the api router before `drafts` runs. Same shape as `http/sounds.ts`'s own
-	// handler, for the same reason.
-	api.use('/drafts', (err: unknown, _req: Request, res: Response, next: NextFunction) => {
-		if (res.headersSent) return next(err);
-		const e = err as { type?: unknown; status?: unknown; name?: unknown };
-		if (e.type === 'entity.parse.failed') {
-			res.status(400).json({ error: 'body is not valid JSON' });
-			return;
-		}
-		if (typeof e.status === 'number' && e.status >= 400 && e.status < 500) {
-			res.status(400).json({ error: 'the request body could not be read' });
-			return;
-		}
-		log({ evt: 'drafts-error', name: typeof e.name === 'string' ? e.name : 'unknown' });
-		res.status(500).json({ error: 'internal error' });
-	});
+	api.use('/drafts', bodyErrors((name) => log({ evt: 'drafts-error', name })));
 }

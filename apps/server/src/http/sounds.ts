@@ -49,7 +49,7 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, rename } from 'node:fs/promises';
-import type { NextFunction, Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { Router } from 'express';
 import { join, resolve as resolvePath, sep } from 'node:path';
 
@@ -74,6 +74,7 @@ import {
 } from '@hadoku/shared';
 import { rankOf, tierOf, userIdOf, userNameOf } from '../edge-auth.js';
 import { jsonLogger, type JsonLog } from '../log.js';
+import { bodyErrors } from './request.js';
 
 export interface SoundsDeps {
 	/** The sounds data directory (`CARDTABLE_SOUNDS_DIR`). Created on first write, never on a read. */
@@ -548,19 +549,6 @@ export function attachSounds(api: Router, deps: SoundsDeps): void {
 
 	api.use('/sounds', sounds);
 
-	// Errors on /sounds — chiefly `express.json()`'s parse failure, raised on
-	// the api router BEFORE `sounds` runs, and any unexpected fs failure (e.g.
-	// a permissions error, not a missing file — those are handled above).
-	api.use('/sounds', (err: unknown, _req: Request, res: Response, next: NextFunction) => {
-		if (res.headersSent) return next(err);
-		const e = err as { type?: unknown; status?: unknown; name?: unknown };
-		if (e.type === 'entity.parse.failed') {
-			return badRequest(res, 'body is not valid JSON');
-		}
-		if (typeof e.status === 'number' && e.status >= 400 && e.status < 500) {
-			return badRequest(res, 'the request body could not be read');
-		}
-		log({ event: 'sounds-error', name: typeof e.name === 'string' ? e.name : 'unknown' });
-		res.status(500).json({ error: 'internal error' });
-	});
+	// Any unexpected fs failure (a permissions error, not a missing file — those are handled above) lands here too.
+	api.use('/sounds', bodyErrors((name) => log({ event: 'sounds-error', name })));
 }
