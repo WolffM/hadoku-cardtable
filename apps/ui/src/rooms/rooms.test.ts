@@ -192,6 +192,18 @@ describe('the list', () => {
     expect(screen.getByTestId('room-create-submit')).toBeTruthy();
   });
 
+  it('keeps Firefox from offering anything in the room name: no form history, and not a login username', () => {
+    const never: Fetch = () => new Promise<Response>(() => {});
+    mount(roomsClient(never, '/cardtable/api/'));
+    openCreate();
+    // Form history is skipped when the FORM says off (FormHistoryChild.sys.mjs); the password
+    // manager pairs a field with the password below it unless its token is outside this set
+    // (LoginManager.shared.sys.mjs `isUsernameFieldType`), and "off" is inside it.
+    expect(screen.getByTestId('room-create').getAttribute('autocomplete')).toBe('off');
+    const token = screen.getByTestId('room-create-name').getAttribute('autocomplete') ?? '';
+    expect(['', 'on', 'off', 'username', 'webauthn', 'email', 'tel', 'tel-national']).not.toContain(token);
+  });
+
   it('shows an empty state with Create room right under it', async () => {
     const { client } = server([]);
     mount(client);

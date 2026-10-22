@@ -441,6 +441,9 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
         role="dialog"
         aria-modal="true"
         aria-labelledby="room-create-title"
+        // Firefox's form history obeys "off" only on the form (FormHistoryChild.sys.mjs), so past
+        // room names are never offered; the name's own token below keeps the password manager off.
+        autoComplete="off"
         onSubmit={(e) => void submit(e)}
       >
         <div className="rooms__create-head">
@@ -457,8 +460,8 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
           value={name}
           maxLength={60}
           placeholder="Friday night"
-          // Firefox counts a text field before a password field as the username even with
-          // autocomplete="off"; any other token opts it out of the Manage Passwords dropdown.
+          // Firefox counts a text field before a password field as the username when its token is
+          // empty, on, off, username, email or tel (LoginManager.shared.sys.mjs); any other opts it out.
           autoComplete="nickname"
           autoFocus
           onChange={(e) => {
