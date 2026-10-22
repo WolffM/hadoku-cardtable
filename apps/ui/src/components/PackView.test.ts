@@ -139,6 +139,42 @@ describe('the fan', () => {
     expect(open()).toBe(0);
   });
 
+  // The operator, 2026-10-22: "hovering over cards with transforms no longer shows the related state" —
+  // the related row read a table built off one cube, so a card any other cube or set deals had none.
+  it('shows the hovered card’s back face and tokens under it, for any card', async () => {
+    vi.stubGlobal(
+      'Image',
+      class {
+        src = '';
+        decode(): Promise<void> {
+          return Promise.resolve();
+        }
+      },
+    );
+    const delver: DraftCard = {
+      ...card(0),
+      name: 'Delver of Secrets // Insectile Aberration',
+      faces: [{ ...card(1), scryfallId: '11bf83bb-c95b-4b4f-9a56-ce7a1816307a#back', name: 'Insectile Aberration' }],
+    };
+    const pick: DraftCard = { ...card(2), name: 'Goldvein Pick' };
+    const root = document.createElement('div');
+    const layer = document.createElement('div');
+    layer.setAttribute('data-board-zoom', '');
+    const host = document.createElement('div');
+    root.append(host, layer);
+    document.body.append(root);
+    render(createElement(PackView, { cards: [delver, pick, ...PACK.slice(3)], layout: 'fan', onPick: vi.fn(), disabled: false, emptyNote: '' }), { container: host });
+    const related = async (i: number) => {
+      await act(async () => {
+        fireEvent.pointerEnter(tile(i).parentElement!);
+      });
+      return [...(layer.querySelector('[data-testid="pack-related"]')?.querySelectorAll('img') ?? [])].map((img) => img.alt);
+    };
+    expect(await related(0)).toEqual(['Insectile Aberration']);
+    expect(await related(1)).toEqual(['Treasure']);
+    root.remove();
+  });
+
   it('picks the open card on Enter, and moves along the row on the arrows', () => {
     const { onPick } = mount();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
@@ -253,6 +289,7 @@ describe('the grid', () => {
   it("gives a card's tokens to the inspector's wheel after its back face", () => {
     const fable: DraftCard = {
       ...card(0),
+      name: 'Fable of the Mirror-Breaker // Reflection of Kiki-Jiki',
       scryfallId: '24c0d87b-0049-4beb-b9cb-6f813b7aa7dc',
       faces: [{ ...card(1), scryfallId: '24c0d87b-0049-4beb-b9cb-6f813b7aa7dc#back', name: 'Reflection of Kiki-Jiki' }],
     };

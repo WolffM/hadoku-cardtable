@@ -129,17 +129,15 @@ const UUID_B = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 describe('cubeArtUrls / preloadCubeArt: the PLAN’s own cards, never the bundled pool (wave 73 §B)', () => {
   afterEach(() => resetCubeArtForTests());
 
-  it("names a card's own id, its back face, and whatever rides with it (`related.json`'s own entries) — never the old bundled file", () => {
+  it("names a card's own id, its back face, and whatever rides with it (`related.ts`'s tokens) — never the old bundled file", () => {
     const front = card('1', UUID_A, [{ ...card('1-back', `${UUID_A}#back`) }]);
     const urls = cubeArtUrls([front]);
     expect(urls).toContain(cardImageUrl(UUID_A));
     expect(urls).toContain(cardImageUrl(`${UUID_A}#back`));
 
-    // A real `related.json` entry (checked 2026-10-21): this card's committed
-    // back face rides with it too, exactly as the inspector's wheel expects.
-    const RELATED_ID = '026e7167-d665-43d0-a51e-8df2d68cdb5e';
-    const withRelated = cubeArtUrls([card('2', RELATED_ID)]);
-    expect(withRelated).toEqual(expect.arrayContaining([cardImageUrl(RELATED_ID), cardImageUrl(`${RELATED_ID}#back`)]));
+    // A real `related.json` entry (checked 2026-10-22): Ocelot Pride makes a Cat.
+    const CAT_ID = '74bacab2-a4c6-4ba5-a208-6bd09ae4cf9f';
+    expect(cubeArtUrls([{ ...card('2', UUID_B), name: 'Ocelot Pride' }])).toEqual([cardImageUrl(UUID_B), cardImageUrl(CAT_ID)]);
   });
 
   it('deduplicates across cards, and skips a card with no scryfallId', () => {

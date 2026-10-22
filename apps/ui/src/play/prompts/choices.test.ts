@@ -661,7 +661,7 @@ describe("a reveal Forge pre-rendered with CardView.toString()", () => {
     const tile = document.querySelector(`[data-testid="prompt-cards"] > li .card`)!;
     const drawn = document.querySelector(`[data-faces-of="${tile.getAttribute('data-faces')}"]`);
     // Its own faces first, then its related cards (tokens), as every tile draws them.
-    const related = relatedCards(POOL[0]!.scryfallId).map((r) => r.name);
+    const related = relatedCards(POOL[0]!).flatMap((r) => (r.kind === 'back' ? [] : [r.name]));
     expect([...(drawn?.querySelectorAll('.card__name') ?? [])].map((e) => e.textContent)).toEqual(['Etali, Primal Sickness', ...related]);
   });
 

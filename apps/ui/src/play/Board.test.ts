@@ -1214,10 +1214,11 @@ describe('the canvas is static', () => {
         // The overlay is `live/placed.ts`'s to vary — out of flow, so a track
         // never moves for it (the same exemption the inspector's panel and the
         // floating numbers already had).
-        rest: board.outerHTML.replace(stack.outerHTML, '<!--stack-->').replace(overlay.outerHTML, '<!--overlay-->'),
+        // Less each tile's faces key, a count of the tiles drawn so far.
+        rest: board.outerHTML.replace(stack.outerHTML, '<!--stack-->').replace(overlay.outerHTML, '<!--overlay-->').replace(/ data-faces="[^"]*"/g, ''),
         // The viewer's battlefield on its own, because that is the box the
         // operator watched move.
-        battlefield: board.querySelector<HTMLElement>('.seat[data-viewer] > [data-zone="battlefield"]')!.outerHTML,
+        battlefield: board.querySelector<HTMLElement>('.seat[data-viewer] > [data-zone="battlefield"]')!.outerHTML.replace(/ data-faces="[^"]*"/g, ''),
         // The zone itself: always empty (§S — a non-visual anchor, never a row).
         slot: [...stack.children],
         // Every item really is drawn — just in the overlay, as a card at a point, not in this zone.

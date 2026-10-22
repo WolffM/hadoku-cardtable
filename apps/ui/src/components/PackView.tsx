@@ -274,7 +274,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
   }
 
   const hoveredCard = hovered === null ? undefined : cards[hovered];
-  const related = fan === null || hovered === null || hoveredCard === undefined ? null : { at: hovered, cards: relatedCards(hoveredCard.scryfallId) };
+  const related = fan === null || hovered === null || hoveredCard === undefined ? null : { at: hovered, cards: relatedCards(hoveredCard) };
 
   const style =
     fan !== null

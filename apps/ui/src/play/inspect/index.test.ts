@@ -699,10 +699,16 @@ describe('the wheel turns a card to its other faces', () => {
     expect(shown(panel())).toBe('Fable of the Mirror-Breaker');
     expect(wheel(theirCard(), 100), 'the wheel is taken').toBe(false);
     expect(shown(panel())).toBe('Reflection of Kiki-Jiki');
+    // Then the tokens it makes, found by its name as Forge sends it (`related.ts`).
+    const after = ['Treasure', 'Goblin Shaman', 'Copy'];
+    for (const name of after) {
+      wheel(theirCard(), 100);
+      expect(shown(panel())).toBe(name);
+    }
     wheel(theirCard(), 100);
     expect(shown(panel()), 'round to the face it opened on').toBe('Fable of the Mirror-Breaker');
     wheel(theirCard(), -100);
-    expect(shown(panel())).toBe('Reflection of Kiki-Jiki');
+    expect(shown(panel())).toBe('Copy');
   });
 
   it('turns a spell on the stack too — the tile draws its faces, wherever it is drawn', () => {

@@ -17,8 +17,8 @@ import { boardFromFixture, PLAY_FIXTURES } from '../fixtures.ts';
 import { closeMatch, socketIoMatchTransport, startMatch, type LiveMatch } from './match.ts';
 import { fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
 
-const fixtureMarkup = (): string =>
-  renderToStaticMarkup(createElement(Board, { view: boardFromFixture(PLAY_FIXTURES[0]!) }));
+/** A board's markup, less each tile's faces key — a count of the tiles drawn so far, not the board's. */
+const markup = (view: Parameters<typeof Board>[0]['view']): string => renderToStaticMarkup(createElement(Board, { view })).replace(/ data-faces="[^"]*"/g, '');
 
 let server: ReplayServer | null = null;
 let match: LiveMatch | null = null;
@@ -40,6 +40,6 @@ describe('the live source', () => {
     for (const f of frames) s.send(f);
     await until('every frame applied', () => m.stats.applied === frames.length);
 
-    expect(renderToStaticMarkup(createElement(Board, { view: m.view! }))).toBe(fixtureMarkup());
+    expect(markup(m.view!)).toBe(markup(boardFromFixture(PLAY_FIXTURES[0]!)));
   });
 });

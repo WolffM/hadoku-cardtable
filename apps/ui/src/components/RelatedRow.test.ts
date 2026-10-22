@@ -5,6 +5,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { relatedCards } from '../draft/related.ts';
+import type { CardFace, DraftCard } from '../draft/types.ts';
 import pool from '../draft/pool.json' with { type: 'json' };
 import { fanGeometry, relatedPlace } from './PackView.tsx';
 import { RelatedRow } from './RelatedRow.tsx';
@@ -44,16 +45,31 @@ function screenWithLayer(): { pack: HTMLElement; layer: HTMLElement } {
 
 const AT = { left: 20, top: 300, width: 120 };
 
-const named = (name: string): string => (pool as { cards: { name: string; scryfallId: string }[] }).cards.find((c) => c.name.startsWith(name))!.scryfallId;
+const named = (name: string): DraftCard => (pool as unknown as { cards: DraftCard[] }).cards.find((c) => c.name.startsWith(name))!;
+/** A face as a card carries it: only its art id and name matter here. */
+const face = (scryfallId: string, name: string): CardFace => ({ ...named('Jace, Vryn'), scryfallId, name });
 
-describe('a cube card’s related cards', () => {
+describe('a card’s related cards', () => {
   it('names a transform card’s back face, a token maker’s tokens, and a meld card’s result', () => {
     expect(relatedCards(named('Jace, Vryn')).map((r) => [r.name, r.kind])).toEqual([['Jace, Telepath Unbound', 'back']]);
     expect(relatedCards(named('Magda, Brazen')).map((r) => r.kind)).toContain('token');
     expect(relatedCards(named('The Mightstone')).map((r) => r.name)).toContain('Urza, Planeswalker');
     expect(relatedCards(named('Jace, Vryn'))[0]!.id).toMatch(/#back$/);
     expect(cardImageUrl(relatedCards(named('Jace, Vryn'))[0]!.id)).toMatch(/\/back\//);
-    expect(relatedCards('not-a-card')).toEqual([]);
+    expect(relatedCards({ name: 'Not a Card' })).toEqual([]);
+  });
+
+  // The operator, 2026-10-22: "hovering over cards with transforms no longer shows the related state".
+  // The table was built off one cube, so a card any other cube or set deals showed nothing.
+  it('for a card no cube fixture holds: its own back face, and its tokens by name', () => {
+    const delver = { name: 'Delver of Secrets // Insectile Aberration', faces: [face('11bf83bb-c95b-4b4f-9a56-ce7a1816307a#back', 'Insectile Aberration')] };
+    expect(relatedCards(delver).map((r) => [r.name, r.kind])).toEqual([['Insectile Aberration', 'back']]);
+    expect(relatedCards({ name: 'Goldvein Pick' }).map((r) => [r.name, r.kind])).toEqual([['Treasure', 'token']]);
+  });
+
+  it('leaves out a split card’s halves, which share the card’s own image', () => {
+    const fire = { name: 'Fire // Ice', faces: [face(named('Jace, Vryn').scryfallId!, 'Ice')] };
+    expect(relatedCards(fire)).toEqual([]);
   });
 });
 
