@@ -172,6 +172,17 @@ describe('watchFrames', () => {
     watch.dispose();
   });
 
+  it('reports motion that drops to 30 fps: a 33 ms frame never reached the old 50 ms tier', () => {
+    const t = tab();
+    const watch = watchFrames(t.host);
+    t.frames(60, 16);
+    t.frames(30, 33); // the operator's combat, 2026-10-22: a second at 30 fps
+    t.frames(80, 16);
+    expect(t.of('stretch')).toHaveLength(1);
+    expect(t.of('stretch')[0]).toMatchObject({ worstMs: 33, over50: 0, over100: 0, freeze: false });
+    watch.dispose();
+  });
+
   it('ignores two slow frames in a second: a hiccup, not a bad moment', () => {
     const t = tab();
     const watch = watchFrames(t.host);

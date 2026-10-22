@@ -22,7 +22,14 @@ import type { BoardView } from '../adapter.ts';
 
 type Data = ClientEvent['data'];
 
-/** A gap over this is a frame that shows as dropped: under 20 fps, two 60 Hz frames missed in a row. */
+/**
+ * A gap over this is a slow frame, the kind a stretch is made of: a 60 Hz frame missed, motion at 30 fps.
+ * It was {@link SLOW_MS} until the operator, 2026-10-22, saw combat drop to ~38 fps ("when cards start
+ * moving out to attack, i notice framerate drops") in matches whose telemetry reported nothing: a 33 ms
+ * gap never reached 50.
+ */
+export const DROP_MS = 30;
+/** The tier a stretch counts as `over50`: under 20 fps, two 60 Hz frames missed in a row. */
 export const SLOW_MS = 50;
 /** The second tier a stretch counts: under 10 fps, motion that visibly steps. */
 export const VERY_SLOW_MS = 100;
@@ -385,7 +392,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
     histogram[bucketOf(gap)]! += 1;
     // The monitor's own cost is timed on frames outside a stretch: a stretch's reads and reports are its cost, not a frame's.
     const plain = !open;
-    if (gap > SLOW_MS) {
+    if (gap > DROP_MS) {
       slowEnds[slowAt % SLOW_IN_WINDOW] = t;
       slowGaps[slowAt % SLOW_IN_WINDOW] = gap;
       slowAt += 1;
