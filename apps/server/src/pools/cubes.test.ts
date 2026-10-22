@@ -29,7 +29,9 @@ import type { CardCatalog } from './catalog.ts';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_PATH = join(HERE, 'fixtures', 'lsvcube-sample.json');
 
-const EMPTY_CATALOG: CardCatalog = { byName: () => null };
+// w74 §G widened `CardCatalog` with `byPrinting`/`swap`; this file's own stand-in
+// just needs to keep typechecking — none of these tests exercise either method.
+const EMPTY_CATALOG: CardCatalog = { byName: () => null, byPrinting: () => null, swap: () => false };
 
 function shortlistCard(name: string): DraftCard {
 	return {

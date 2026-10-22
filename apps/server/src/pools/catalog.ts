@@ -18,6 +18,27 @@
  * `build-catalog.ts`'s header for why the fold is not re-derived here. The
  * catalog file's `aliases` map already resolved every weaker spelling (a
  * front face, an accent-folded name) to its canonical key at build time.
+ *
+ * ## `byPrinting` and `swap` (wave 74 §G)
+ *
+ * `byPrinting(set, collectorNumber)` answers from the SAME one-printing-
+ * per-name data `byName` does — `build-catalog.ts` keeps exactly one chosen
+ * printing per card (paper preferred; see its header), never every printing
+ * a card has ever had. So `byPrinting` is a best-effort index over that one
+ * printing per card, built here at load time from the `setCode` +
+ * `collectorNumber` the file already carries: it answers a realistic
+ * booster's own printing when the catalog's canonical pick happens to be
+ * that set, and otherwise misses. Wave 74 §E's realistic-pack mapping is
+ * written to fall back to `byName` on a miss — this never grows the catalog
+ * file's shape, so `build-catalog.ts` needed no behaviour change.
+ *
+ * `swap(path?)` reloads the file at `path` (or the path this catalog was
+ * built from, if omitted) and, only on a successful parse, replaces the
+ * live lookup data in place — every holder of this `CardCatalog` object
+ * (readers hold the object, never its internal map) sees the swap with no
+ * reload of their own and no restart. A fault (missing file, malformed
+ * JSON) is logged and the OLD data keeps serving, same discipline as the
+ * initial load.
  */
 
 import { readFileSync } from 'node:fs';
@@ -27,6 +48,14 @@ import { jsonLogger } from '../log.js';
 
 export interface CardCatalog {
 	byName(name: string): DraftCard | null;
+	/** Best-effort: only the catalog's one chosen printing per card is indexed. Callers fall back to `byName`. */
+	byPrinting(set: string, collectorNumber: string): DraftCard | null;
+	/**
+	 * Reload from `path` (default: the path this catalog was built from) and,
+	 * on success, swap the live data in place. Returns `true` on a swap,
+	 * `false` on a fault (the old data keeps serving).
+	 */
+	swap(path?: string): boolean;
 }
 
 interface CatalogFile {
@@ -36,9 +65,63 @@ interface CatalogFile {
 	aliases: Record<string, unknown>;
 }
 
+interface CatalogState {
+	cards: Map<string, DraftCard>;
+	aliases: Map<string, string>;
+	printings: Map<string, DraftCard>;
+}
+
 const log = jsonLogger('cardtable-pools');
 
-const EMPTY_CATALOG: CardCatalog = { byName: () => null };
+const EMPTY_STATE: CatalogState = { cards: new Map(), aliases: new Map(), printings: new Map() };
+
+/** `setCode` is already uppercased by `build-catalog.ts`; uppercase here too so a caller's case never misses. */
+function printingKey(setCode: string, collectorNumber: string): string {
+	return `${setCode.toUpperCase()}#${collectorNumber}`;
+}
+
+/** Parse one catalog file into lookup state, or `null` on a reported fault (never throws). */
+function parseCatalogState(path: string): CatalogState | null {
+	let raw: unknown;
+	try {
+		raw = JSON.parse(readFileSync(path, 'utf8'));
+	} catch (err) {
+		log({ evt: 'catalog-load-failed', path, detail: (err as Error).message });
+		return null;
+	}
+
+	if (typeof raw !== 'object' || raw === null) {
+		log({ evt: 'catalog-load-failed', path, detail: 'not an object' });
+		return null;
+	}
+	const file = raw as Partial<CatalogFile>;
+
+	const cards = new Map<string, DraftCard>();
+	const printings = new Map<string, DraftCard>();
+	let rejected = 0;
+	if (typeof file.cards === 'object' && file.cards !== null) {
+		for (const [key, value] of Object.entries(file.cards)) {
+			const parsed = DraftCardSchema.safeParse(value);
+			if (parsed.success) {
+				cards.set(key, parsed.data);
+				printings.set(printingKey(parsed.data.setCode, parsed.data.collectorNumber), parsed.data);
+			} else {
+				rejected++;
+			}
+		}
+	}
+
+	const aliases = new Map<string, string>();
+	if (typeof file.aliases === 'object' && file.aliases !== null) {
+		for (const [key, value] of Object.entries(file.aliases)) {
+			if (typeof value === 'string') aliases.set(key, value);
+		}
+	}
+
+	log({ evt: 'catalog-loaded', path, cards: cards.size, aliases: aliases.size, printings: printings.size, rejected });
+
+	return { cards, aliases, printings };
+}
 
 /**
  * Load the catalog `build-catalog` writes. Synchronous, because this runs
@@ -52,51 +135,35 @@ const EMPTY_CATALOG: CardCatalog = { byName: () => null };
  * server sent it.
  */
 export function loadCardCatalog(path: string): CardCatalog {
-	let raw: unknown;
-	try {
-		raw = JSON.parse(readFileSync(path, 'utf8'));
-	} catch (err) {
-		log({ evt: 'catalog-load-failed', path, detail: (err as Error).message });
-		return EMPTY_CATALOG;
-	}
-
-	if (typeof raw !== 'object' || raw === null) {
-		log({ evt: 'catalog-load-failed', path, detail: 'not an object' });
-		return EMPTY_CATALOG;
-	}
-	const file = raw as Partial<CatalogFile>;
-
-	const cards = new Map<string, DraftCard>();
-	let rejected = 0;
-	if (typeof file.cards === 'object' && file.cards !== null) {
-		for (const [key, value] of Object.entries(file.cards)) {
-			const parsed = DraftCardSchema.safeParse(value);
-			if (parsed.success) cards.set(key, parsed.data);
-			else rejected++;
-		}
-	}
-
-	const aliases = new Map<string, string>();
-	if (typeof file.aliases === 'object' && file.aliases !== null) {
-		for (const [key, value] of Object.entries(file.aliases)) {
-			if (typeof value === 'string') aliases.set(key, value);
-		}
-	}
-
-	log({ evt: 'catalog-loaded', path, cards: cards.size, aliases: aliases.size, rejected });
+	let state = parseCatalogState(path) ?? EMPTY_STATE;
 
 	return {
 		byName(name: string): DraftCard | null {
 			for (const key of [normaliseName(name), foldName(name)]) {
-				const direct = cards.get(key);
+				const direct = state.cards.get(key);
 				if (direct !== undefined) return direct;
-				const canonical = aliases.get(key);
+				const canonical = state.aliases.get(key);
 				if (canonical !== undefined) {
-					const hit = cards.get(canonical);
+					const hit = state.cards.get(canonical);
 					if (hit !== undefined) return hit;
 				}
 			}
 			return null;
+		},
+
+		byPrinting(set: string, collectorNumber: string): DraftCard | null {
+			return state.printings.get(printingKey(set, collectorNumber)) ?? null;
+		},
+
+		swap(nextPath: string = path): boolean {
+			const next = parseCatalogState(nextPath);
+			if (next === null) {
+				log({ evt: 'catalog-swap-faulted', path: nextPath });
+				return false;
+			}
+			state = next;
+			log({ evt: 'catalog-swapped', path: nextPath, cards: next.cards.size, aliases: next.aliases.size, printings: next.printings.size });
+			return true;
 		},
 	};
 }

@@ -101,3 +101,95 @@ describe('loadCardCatalog', () => {
 		expect(catalog.byName('Lightning Bolt')).toBeNull();
 	});
 });
+
+describe('loadCardCatalog byPrinting', () => {
+	let dir: string;
+
+	beforeEach(async () => {
+		dir = await mkdtemp(join(tmpdir(), 'catalog-test-'));
+	});
+
+	afterEach(async () => {
+		await rm(dir, { recursive: true, force: true });
+	});
+
+	it('answers the catalog\'s one chosen printing by set + collector number, case aside', async () => {
+		const path = await writeCatalog(dir, { cards: { 'lightning bolt': BOLT }, aliases: {} });
+		const catalog = loadCardCatalog(path);
+		expect(catalog.byPrinting('lea', '161')?.name).toBe('Lightning Bolt');
+		expect(catalog.byPrinting('LEA', '161')?.name).toBe('Lightning Bolt');
+	});
+
+	it('misses a printing the catalog did not choose as its canonical one (the caller falls back to byName)', async () => {
+		const path = await writeCatalog(dir, { cards: { 'lightning bolt': BOLT }, aliases: {} });
+		const catalog = loadCardCatalog(path);
+		// The catalog's one Lightning Bolt entry is LEA #161; a different printing's
+		// set + collector number is simply not indexed.
+		expect(catalog.byPrinting('M19', '141')).toBeNull();
+	});
+
+	it('answers null when the file has never been loaded', () => {
+		const catalog = loadCardCatalog(join(dir, 'does-not-exist.json'));
+		expect(catalog.byPrinting('LEA', '161')).toBeNull();
+	});
+});
+
+describe('loadCardCatalog swap', () => {
+	let dir: string;
+
+	beforeEach(async () => {
+		dir = await mkdtemp(join(tmpdir(), 'catalog-test-'));
+	});
+
+	afterEach(async () => {
+		await rm(dir, { recursive: true, force: true });
+	});
+
+	it('replaces the live data in place: every holder of the object sees the swap, with no reload of their own', async () => {
+		const path = await writeCatalog(dir, { cards: { 'lightning bolt': BOLT }, aliases: {} });
+		const catalog: CardCatalog = loadCardCatalog(path);
+		expect(catalog.byName('Delver of Secrets')).toBeNull();
+
+		// Overwrite the SAME path with different content, then swap with no argument:
+		// the catalog remembers the path it was built from.
+		await writeCatalog(dir, {
+			cards: { 'delver of secrets // insectile aberration': DELVER },
+			aliases: { 'delver of secrets': 'delver of secrets // insectile aberration' },
+		});
+		const swapped = catalog.swap();
+
+		expect(swapped).toBe(true);
+		expect(catalog.byName('Lightning Bolt')).toBeNull();
+		expect(catalog.byName('Delver of Secrets')?.name).toBe('Delver of Secrets // Insectile Aberration');
+		expect(catalog.byPrinting('ISD', '51')?.name).toBe('Delver of Secrets // Insectile Aberration');
+	});
+
+	it('swap(path) can point at a different file entirely', async () => {
+		const pathA = await writeCatalog(dir, { cards: { 'lightning bolt': BOLT }, aliases: {} });
+		const pathB = await writeCatalog(join(await mkdtemp(join(tmpdir(), 'catalog-test-'))), {
+			cards: { 'delver of secrets // insectile aberration': DELVER },
+			aliases: {},
+		});
+		const catalog = loadCardCatalog(pathA);
+		expect(catalog.swap(pathB)).toBe(true);
+		expect(catalog.byName('Delver of Secrets // Insectile Aberration')?.name).toBe('Delver of Secrets // Insectile Aberration');
+	});
+
+	it('a fault (missing file) keeps the old data serving and reports false', async () => {
+		const path = await writeCatalog(dir, { cards: { 'lightning bolt': BOLT }, aliases: {} });
+		const catalog = loadCardCatalog(path);
+		const swapped = catalog.swap(join(dir, 'does-not-exist.json'));
+		expect(swapped).toBe(false);
+		expect(catalog.byName('Lightning Bolt')?.name).toBe('Lightning Bolt');
+	});
+
+	it('a fault (malformed JSON) keeps the old data serving and reports false', async () => {
+		const path = await writeCatalog(dir, { cards: { 'lightning bolt': BOLT }, aliases: {} });
+		const catalog = loadCardCatalog(path);
+		const badPath = join(dir, 'broken.json');
+		await writeFile(badPath, '{ not json', 'utf8');
+		const swapped = catalog.swap(badPath);
+		expect(swapped).toBe(false);
+		expect(catalog.byName('Lightning Bolt')?.name).toBe('Lightning Bolt');
+	});
+});
