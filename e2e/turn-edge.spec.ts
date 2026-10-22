@@ -25,10 +25,9 @@ import { join } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, grindPriority, makeTitled, turnMarks } from './play/board.ts';
+import { grindPriority, makeTitled, turnMarks } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { answerPrompt } from './play/prompts.ts';
-import { says, startScenarioMatch } from './play/scenario.ts';
+import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -37,15 +36,6 @@ const log = (step: string, data: unknown): void => console.log(`[turn-edge] ${JS
 /** Alice's screen is measured in a dark theme, Bob's in the default light one. */
 const DARK = 'coffee-dark';
 const BOUNDARIES = 3;
-
-/** Press OK (or, failing that, Cancel/"End Turn") to keep a match moving with no particular goal but to advance it. */
-async function passWhatever(page: Page): Promise<void> {
-  await answerPrompt(page);
-  if ((await page.getByTestId('live-prompt').count()) > 0) return;
-  const text = await says(page);
-  if (await clickOnce(page, text, 'ok')) return;
-  await clickOnce(page, text, 'cancel');
-}
 
 interface ForgeTurn {
   turn: number;
@@ -164,13 +154,14 @@ test(titled('the active seat’s edge light follows Forge’s turn on both scree
       }
 
       if (boundary === BOUNDARIES) break;
+      // OK only, never End Turn: a press that lands as the next turn begins must not end that turn too.
       await grindPriority(
         [alice.page, bob.page],
         async () => {
           const f = (await sample()).forge;
           return f !== null && f.turn > now.turn;
         },
-        { timeoutMs: 2 * 60_000, press: (p) => passWhatever(p) },
+        { timeoutMs: 2 * 60_000 },
       );
     }
 
