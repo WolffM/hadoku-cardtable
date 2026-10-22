@@ -127,6 +127,16 @@
  * wait for the board, the seat's own beats included: what the other side did is drawn after them, one act
  * at a time, as before.
  *
+ * Anything the seat sends Forge starts its act too: a card clicked, the prompt bar's OK or Cancel, an answer
+ * (`MATCH_EVENTS.clientToServer`). Declaring attackers or blockers is clicks and a button, with no question
+ * asked and nothing put on the stack, and its frames were nobody's: the operator's eight attackers came in
+ * a `default` gap apart, 1.1 s for an attack Forge had sent at once, with the OK queued behind them (the
+ * operator, 2026-10-21: the attackers "animate across the board very slowly"). A frame that arrived before
+ * the send keeps whatever it was, and the act passes on by the same rules: an OK that passes priority is
+ * followed by the step moving, which makes it nobody's, or by another player's stack item, which makes it
+ * theirs, so the opponent's blocks after the seat's attack are still drawn one at a time. A setting the seat
+ * changes (auto-yield, a stop) is not an act.
+ *
  * ## What a resync needs from the pacer: nothing
  *
  * `forge:join` and `forge:resync` are not `forge:s2c` payloads — they travel
@@ -697,6 +707,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     },
     // Outgoing, and the ack of a request: never paced. See the module header's own note on why a resync's snapshot never enters this queue at all.
     emit(event, payload) {
+      if (event === MATCH_EVENTS.clientToServer && seatPlayer() !== null) acts.actor = 'own';
       inner.emit(event, payload);
     },
     request(event, payload, onAck) {
