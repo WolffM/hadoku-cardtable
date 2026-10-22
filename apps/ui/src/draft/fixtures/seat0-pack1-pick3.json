@@ -16,7 +16,8 @@
         "participantId": "fk:8e2a1c6b"
       },
       "displayName": "hadoku",
-      "pickedCount": 2
+      "pickedCount": 2,
+      "queueDepth": 0
     },
     {
       "id": 1,
@@ -25,7 +26,8 @@
         "participantId": "dev:41f0a9d3"
       },
       "displayName": "mox",
-      "pickedCount": 2
+      "pickedCount": 2,
+      "queueDepth": 0
     },
     {
       "id": 2,
@@ -34,7 +36,8 @@
         "participantId": "fk:c07b5512"
       },
       "displayName": "rin",
-      "pickedCount": 2
+      "pickedCount": 2,
+      "queueDepth": 0
     },
     {
       "id": 3,
@@ -43,7 +46,8 @@
         "participantId": "fk:2db9e4af"
       },
       "displayName": "vance",
-      "pickedCount": 2
+      "pickedCount": 2,
+      "queueDepth": 0
     },
     {
       "id": 4,
@@ -52,7 +56,8 @@
         "botId": "bot:4"
       },
       "displayName": "Bot 4",
-      "pickedCount": 2
+      "pickedCount": 2,
+      "queueDepth": 0
     },
     {
       "id": 5,
@@ -61,7 +66,8 @@
         "botId": "bot:5"
       },
       "displayName": "Bot 5",
-      "pickedCount": 2
+      "pickedCount": 2,
+      "queueDepth": 0
     },
     {
       "id": 6,
@@ -70,7 +76,8 @@
         "botId": "bot:6"
       },
       "displayName": "Bot 6",
-      "pickedCount": 2
+      "pickedCount": 2,
+      "queueDepth": 0
     },
     {
       "id": 7,
@@ -79,7 +86,8 @@
         "botId": "bot:7"
       },
       "displayName": "Bot 7",
-      "pickedCount": 2
+      "pickedCount": 2,
+      "queueDepth": 0
     }
   ],
   "waitingOn": [

@@ -24,6 +24,12 @@ export {
   createDraft,
   pick,
   waitingOn,
+  packOf,
+  queueDepth,
+  pickNumberOf,
+  podPickNumber,
+  receiverOf,
+  fromLockstep,
   botSeatAcross,
   directionFor,
   isBotSeat,
@@ -36,12 +42,15 @@ export {
   type PickRejection,
   type BotSeat,
   type HumanSeat,
+  type LockstepState,
 } from './engine.ts';
 
 export { deal, poolShortfall, type RealisticPacks, type SourceCards } from './deal.ts';
 
 export {
   runBots,
+  botTurn,
+  botsOwe,
   choosePick,
   scoreCard,
   colourCounts,

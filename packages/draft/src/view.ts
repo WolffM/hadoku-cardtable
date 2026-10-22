@@ -28,7 +28,7 @@
 
 import { seatRows, type SeatId, type SeatOccupant } from '@wolffm/rooms-protocol';
 import type { DraftSeatView, DraftView } from '@hadoku/shared';
-import { directionFor, waitingOn, type DraftState } from './engine.ts';
+import { directionFor, packOf, pickNumberOf, podPickNumber, queueDepth, waitingOn, type DraftState } from './engine.ts';
 
 /** One row as `seatRows` hands it over: a seat that exists, occupied or not. */
 type SeatRow = { id: SeatId; occupant: SeatOccupant | null };
@@ -53,17 +53,18 @@ function seatView(state: DraftState, row: SeatRow): DraftSeatView {
     // what was dealt. `viewFor` below has always guarded the same index; this
     // was the one place that did not, and it threw rather than reporting zero.
     pickedCount: state.pools[id]?.length ?? 0,
+    queueDepth: queueDepth(state, id),
   };
 }
 
-/** The part of a payload that is the same for everybody. */
-function common(state: DraftState): Omit<DraftView, 'viewer'> {
+/** The part of a payload that is the same for everybody but the pick, which is the viewed seat's. */
+function common(state: DraftState, seatId: SeatId | null): Omit<DraftView, 'viewer'> {
   return {
     draftId: state.draftId,
     epoch: state.epoch,
     seq: state.seq,
     packNumber: state.packNumber,
-    pickNumber: state.pickNumber,
+    pickNumber: seatId !== null && seatId < state.seatCount ? pickNumberOf(state, seatId) : podPickNumber(state),
     packCount: state.packCount,
     packSize: state.packSize,
     passDirection: directionFor(state.packNumber),
@@ -89,11 +90,11 @@ function common(state: DraftState): Omit<DraftView, 'viewer'> {
  */
 export function viewFor(state: DraftState, seatId: SeatId): DraftView {
   return {
-    ...common(state),
+    ...common(state, seatId),
     viewer: {
       kind: 'seat',
       seatId,
-      pack: state.packs[seatId]?.slice() ?? [],
+      pack: packOf(state, seatId).slice(),
       pool: state.pools[seatId]?.slice() ?? [],
     },
   };
@@ -106,11 +107,11 @@ export function viewFor(state: DraftState, seatId: SeatId): DraftView {
  */
 export function watcherView(state: DraftState, seatId: SeatId): DraftView {
   return {
-    ...common(state),
+    ...common(state, seatId),
     viewer: {
       kind: 'watcher',
       seatId,
-      pack: state.packs[seatId]?.slice() ?? [],
+      pack: packOf(state, seatId).slice(),
       pool: state.pools[seatId]?.slice() ?? [],
     },
   };
@@ -118,7 +119,7 @@ export function watcherView(state: DraftState, seatId: SeatId): DraftView {
 
 /** The payload for someone watching nobody's draft. Carries no cards, structurally. */
 export function spectatorView(state: DraftState): DraftView {
-  return { ...common(state), viewer: { kind: 'spectator' } };
+  return { ...common(state, null), viewer: { kind: 'spectator' } };
 }
 
 /**

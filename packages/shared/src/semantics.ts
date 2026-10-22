@@ -81,9 +81,10 @@ const IMAGE_URL_HINT = /https?:\/\/\S*(\.(jpe?g|png|webp|gif)|scryfall\.io)/i;
 /**
  * Everything a seat summary may carry. `avatarId` is the seat's watchparty
  * character, which every member of the room already sees on its owner: public,
- * and nothing about any card.
+ * and nothing about any card. `queueDepth` is how many packs wait before the
+ * seat — the pile everyone at a table sees, never what is in it.
  */
-const SEAT_FIELDS = new Set(['id', 'occupant', 'displayName', 'avatarId', 'pickedCount']);
+const SEAT_FIELDS = new Set(['id', 'occupant', 'displayName', 'avatarId', 'pickedCount', 'queueDepth']);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);

@@ -15,7 +15,7 @@
  */
 
 import type { DraftCard, ManaColor } from '@hadoku/shared';
-import { botRng, isBotSeat, pick, waitingOn, type DraftState, type PickResult } from './engine.ts';
+import { botRng, isBotSeat, packOf, pick, pickNumberOf, waitingOn, type DraftState, type PickResult } from './engine.ts';
 
 /** How much a card already in our colours is worth over one that is not. */
 const ON_COLOUR_BONUS = 3.0;
@@ -122,58 +122,65 @@ export type BotLog = (entry: Record<string, unknown>) => void;
 const defaultBotLog: BotLog = (entry) => console.error(JSON.stringify(entry));
 
 /**
- * Pick for every bot seat that currently owes one.
+ * One pick for every bot seat holding a pack — a bot's turn at the table.
  *
- * Loops because a bot pick can complete the round, pass the packs, and leave
- * the same bots owing another — a pod of eight bots drafts to completion in one
- * call. The guard is the pick count, not a `while (true)`: if a pick is ever
- * rejected the loop must end rather than spin, and a rejection here is an engine
- * bug worth surfacing as a stalled draft rather than a hang.
+ * One each, not as many as they can: a bot that drained its whole queue in one
+ * go would hand a pod's every pack to the next human at once. The server paces
+ * these (`room/socket.ts`); `runBots` repeats them until no bot can pick.
  *
- * A full pass with no progress used to break silently — the production
- * incident this caught (main 705e2468: every seat frozen, no error, no log,
- * for 120s). `log` is called once, loud, with exactly what a report needs:
- * the pack/pick position and every owing bot seat's pack and pool size.
+ * A pass where some bot held a pack and none could take a card used to break
+ * silently — the production incident this caught (main 705e2468: every seat
+ * frozen, no error, no log, for 120s). `log` is called once, loud, with exactly
+ * what a report needs: every holding bot seat's pick, pack and pool size.
+ */
+export function botTurn(state: DraftState, log: BotLog = defaultBotLog): { state: DraftState; picks: number; stalled: boolean } {
+  const owing = waitingOn(state).filter((s) => isBotSeat(state, s));
+  let current = state;
+  let picks = 0;
+  for (const seatId of owing) {
+    const card = choosePick(packOf(current, seatId), current.pools[seatId] as DraftCard[], botRng(current, seatId));
+    if (card === null) continue;
+    const result: PickResult = pick(current, seatId, card.cardId);
+    if (!result.ok) continue;
+    current = result.state;
+    picks += 1;
+  }
+  const stalled = owing.length > 0 && picks === 0;
+  if (stalled) {
+    log({
+      evt: 'bots-stalled',
+      draftId: current.draftId,
+      packNumber: current.packNumber,
+      seats: owing.map((seatId) => ({
+        seatId,
+        pickNumber: pickNumberOf(current, seatId),
+        packSize: packOf(current, seatId).length,
+        poolSize: (current.pools[seatId] as DraftCard[]).length,
+      })),
+    });
+  }
+  return { state: current, picks, stalled };
+}
+
+/** Whether any bot seat holds a pack to pick from. */
+export function botsOwe(state: DraftState): boolean {
+  return waitingOn(state).some((s) => isBotSeat(state, s));
+}
+
+/**
+ * Bot turns until no bot holds a pack: a pod of eight bots drafts to completion
+ * in one call. The guard is the pick count, not a `while (true)`; a stalled
+ * turn ends it rather than spinning.
  */
 export function runBots(state: DraftState, log: BotLog = defaultBotLog): { state: DraftState; picks: number } {
   let current = state;
   let picks = 0;
   const limit = state.seatCount * state.packCount * state.packSize + 1;
-
-  for (;;) {
-    const owing = waitingOn(current).filter((s) => isBotSeat(current, s));
-    if (owing.length === 0) break;
-    if (picks >= limit) break;
-
-    let progressed = false;
-    for (const seatId of owing) {
-      const card = choosePick(
-        current.packs[seatId] as DraftCard[],
-        current.pools[seatId] as DraftCard[],
-        botRng(current, seatId),
-      );
-      if (card === null) continue;
-      const result: PickResult = pick(current, seatId, card.cardId);
-      if (!result.ok) continue;
-      current = result.state;
-      picks += 1;
-      progressed = true;
-    }
-    if (!progressed) {
-      log({
-        evt: 'bots-stalled',
-        draftId: current.draftId,
-        packNumber: current.packNumber,
-        pickNumber: current.pickNumber,
-        seats: owing.map((seatId) => ({
-          seatId,
-          packSize: (current.packs[seatId] as DraftCard[]).length,
-          poolSize: (current.pools[seatId] as DraftCard[]).length,
-        })),
-      });
-      break;
-    }
+  while (picks < limit && botsOwe(current)) {
+    const turn = botTurn(current, log);
+    current = turn.state;
+    picks += turn.picks;
+    if (turn.stalled) break;
   }
-
   return { state: current, picks };
 }

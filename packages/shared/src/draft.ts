@@ -149,6 +149,12 @@ export const DraftSeatViewSchema = z.object({
    */
   avatarId: z.string().min(1).max(32).optional(),
   pickedCount: z.number().int().nonnegative(),
+  /**
+   * How many packs wait behind the one this seat is picking from. Public, like
+   * the count beside it: everyone at a table sees the pile, never what is in it.
+   * At most `seats.length − 1` — a round deals one pack per seat.
+   */
+  queueDepth: z.number().int().nonnegative(),
 });
 
 /**
@@ -197,7 +203,10 @@ export const DraftViewSchema = z.object({
   seq: z.number().int().positive(),
   /** 1-based. */
   packNumber: z.number().int().positive(),
-  /** 1-based, within the current pack round. */
+  /**
+   * 1-based, within the current pack round. Seats pick at their own pace, so
+   * this is the viewed seat's own pick; a spectator's is the slowest seat's.
+   */
   pickNumber: z.number().int().positive(),
   packCount: z.number().int().positive(),
   /** Cards in a fresh pack, per the recipe. */
@@ -208,8 +217,8 @@ export const DraftViewSchema = z.object({
   /** Index === SeatId, same invariant as `rooms-protocol`'s `SeatTable`. */
   seats: z.array(DraftSeatViewSchema),
   /**
-   * Seats still owing a pick this round — "whose turn it is", generalised.
-   * A booster draft is simultaneous, so this is normally several seats.
+   * Seats holding a pack to pick from — "whose turn it is", generalised.
+   * Each seat picks at its own pace, so this is normally several seats.
    */
   waitingOn: z.array(SeatIdSchema),
   viewer: ViewerViewSchema,
@@ -239,7 +248,7 @@ export function seatLabel(seat: DraftSeatView): string {
   return seat.displayName;
 }
 
-/** Whether this seat still owes a pick in the current round. */
+/** Whether this seat holds a pack to pick from. */
 export function isWaiting(view: DraftView, id: SeatId): boolean {
   return view.waitingOn.includes(id);
 }

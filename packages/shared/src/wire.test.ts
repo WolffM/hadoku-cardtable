@@ -67,8 +67,8 @@ function view(overrides: Partial<DraftView> = {}): DraftView {
     passDirection: 'left',
     capacity: 2,
     seats: [
-      { id: 0, occupant: { kind: 'human', participantId: 'dev:you' }, displayName: 'Drafter', pickedCount: 1 },
-      { id: 1, occupant: { kind: 'bot', botId: 'bot:1' }, displayName: 'Bot 1', pickedCount: 1 },
+      { id: 0, occupant: { kind: 'human', participantId: 'dev:you' }, displayName: 'Drafter', pickedCount: 1, queueDepth: 0 },
+      { id: 1, occupant: { kind: 'bot', botId: 'bot:1' }, displayName: 'Bot 1', pickedCount: 1, queueDepth: 0 },
     ],
     waitingOn: [0],
     viewer: { kind: 'seat', seatId: 0, pack: [card('c2', 'Counterspell')], pool: [card('c1', 'Brainstorm')] },

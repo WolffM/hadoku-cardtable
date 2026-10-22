@@ -111,20 +111,23 @@ export interface DraftState {
   seq: number;
   /** 1-based. */
   packNumber: number;
-  /** 1-based, within the current pack round. */
-  pickNumber: number;
   table: SeatTable;
   displayNames: Record<SeatId, string>;
   /** Each seat's watchparty character, beside its name; a seat without one has no entry. */
   avatarIds: Record<SeatId, string>;
-  /** The pack currently in front of each seat. Index === SeatId. */
-  packs: DraftCard[][];
+  /**
+   * The packs in front of each seat, oldest first. Index === SeatId. The head is
+   * the pack the seat picks from; the rest wait behind it. A round deals one
+   * pack to every seat, so a queue never holds more than `seatCount` packs: at
+   * most `seatCount − 1` waiting.
+   */
+  queues: DraftCard[][][];
+  /** How many cards each seat has taken this round. Index === SeatId. */
+  roundPicks: number[];
   /** What each seat has taken, in pick order. Index === SeatId. */
   pools: DraftCard[][];
   /** Packs not yet opened, by round then seat. */
   rounds: DraftCard[][][];
-  /** Seats that have already picked at the current `pickNumber`. */
-  picked: SeatId[];
   status: DraftStatus;
 }
 
@@ -132,12 +135,11 @@ export type PickRejection =
   | 'draft-complete'
   | 'unknown-seat'
   | 'empty-pack'
-  | 'already-picked'
   | 'card-not-in-pack';
 
 export type DraftEvent =
   | { type: 'picked'; seatId: SeatId; cardId: string; cardName: string }
-  | { type: 'packs-passed'; direction: PassDirection; pickNumber: number }
+  | { type: 'pack-passed'; from: SeatId; to: SeatId; direction: PassDirection }
   | { type: 'round-started'; packNumber: number; direction: PassDirection }
   | { type: 'draft-complete' };
 
@@ -194,57 +196,81 @@ export function createDraft(config: DraftConfig): DraftState {
     seatCount: config.seatCount,
     seq: 1,
     packNumber: 1,
-    pickNumber: 1,
     table,
     displayNames,
     avatarIds,
-    packs: rounds[0] as DraftCard[][],
+    queues: dealRound(rounds[0] ?? [], config.seatCount),
+    roundPicks: new Array<number>(config.seatCount).fill(0),
     pools: Array.from({ length: config.seatCount }, () => []),
     rounds,
-    picked: [],
     status: 'drafting',
   };
 }
 
-/** Seats that still owe a pick at the current `pickNumber`. */
+/** One round's packs, one in front of each seat (a seat dealt none starts with an empty queue). */
+function dealRound(packs: readonly DraftCard[][], seatCount: number): DraftCard[][][] {
+  return Array.from({ length: seatCount }, (_, s) => {
+    const pack = packs[s];
+    return pack === undefined || pack.length === 0 ? [] : [pack.slice()];
+  });
+}
+
+/** The pack a seat picks from now: the head of its queue, or none. */
+export function packOf(state: DraftState, seatId: SeatId): DraftCard[] {
+  return state.queues[seatId]?.[0] ?? [];
+}
+
+/** How many packs wait behind the one a seat is picking from. Public: a count, never the cards. */
+export function queueDepth(state: DraftState, seatId: SeatId): number {
+  return Math.max(0, (state.queues[seatId]?.length ?? 0) - 1);
+}
+
+/** The seat's pick within the current round, 1-based: the one it makes next. */
+export function pickNumberOf(state: DraftState, seatId: SeatId): number {
+  return Math.min(state.packSize, (state.roundPicks[seatId] ?? 0) + 1);
+}
+
+/** The pod's pick: the slowest seat's, which is how far the whole table has got. */
+export function podPickNumber(state: DraftState): number {
+  if (state.seatCount === 0) return 1;
+  return Math.min(...Array.from({ length: state.seatCount }, (_, s) => pickNumberOf(state, s)));
+}
+
+/** Seats holding a pack to pick from — each picks at its own pace. */
 export function waitingOn(state: DraftState): SeatId[] {
   if (state.status === 'complete') return [];
   const out: SeatId[] = [];
-  for (let s = 0; s < state.seatCount; s++) {
-    if (state.picked.includes(s)) continue;
-    if ((state.packs[s] as DraftCard[]).length === 0) continue;
-    out.push(s);
-  }
+  for (let s = 0; s < state.seatCount; s++) if (packOf(state, s).length > 0) out.push(s);
   return out;
 }
 
-/** Rotate every pack one seat in the round's direction. */
-function passPacks(packs: DraftCard[][], direction: PassDirection): DraftCard[][] {
-  const n = packs.length;
-  const out: DraftCard[][] = new Array<DraftCard[]>(n);
-  for (let s = 0; s < n; s++) {
-    // Passing left means the pack in front of seat s moves to seat s+1.
-    const target = direction === 'left' ? (s + 1) % n : (s - 1 + n) % n;
-    out[target] = packs[s] as DraftCard[];
-  }
-  return out;
+/** The seat a pack goes to from `seatId` this round: left is seat s to s + 1. */
+export function receiverOf(state: DraftState, seatId: SeatId): SeatId {
+  const n = state.seatCount;
+  return directionFor(state.packNumber) === 'left' ? (seatId + 1) % n : (seatId - 1 + n) % n;
 }
 
 /**
  * Apply one pick.
  *
+ * Passing is per seat, not per table: the picker takes a card from the head of
+ * its queue and the rest of that pack joins the back of its neighbour's queue
+ * at once. A seat with nothing in front of it waits; nobody waits for the
+ * slowest seat except the seat it passes to. A queue is first-in first-out, so
+ * every seat still sees every pack in the same order a lock-step table would
+ * deal it — only when changes.
+ *
  * Returns a rejection value rather than throwing for every bad input. When the
- * pick completes the round it also advances: packs rotate, and when they are
- * empty the next round opens with the direction reversed.
+ * pick empties the last pack of the round the next round opens with the
+ * direction reversed, or the draft ends.
  */
 export function pick(state: DraftState, seatId: SeatId, cardId: string): PickResult {
   if (state.status === 'complete') return { ok: false, reason: 'draft-complete', state };
   if (!Number.isInteger(seatId) || seatId < 0 || seatId >= state.seatCount) {
     return { ok: false, reason: 'unknown-seat', state };
   }
-  const pack = state.packs[seatId] as DraftCard[];
+  const pack = packOf(state, seatId);
   if (pack.length === 0) return { ok: false, reason: 'empty-pack', state };
-  if (state.picked.includes(seatId)) return { ok: false, reason: 'already-picked', state };
 
   const index = pack.findIndex((c) => c.cardId === cardId);
   if (index === -1) return { ok: false, reason: 'card-not-in-pack', state };
@@ -252,50 +278,39 @@ export function pick(state: DraftState, seatId: SeatId, cardId: string): PickRes
   const card = pack[index] as DraftCard;
   const events: DraftEvent[] = [{ type: 'picked', seatId, cardId, cardName: card.name }];
 
-  const packs = state.packs.map((p, i) => (i === seatId ? p.filter((_, j) => j !== index) : p.slice()));
-  const pools = state.pools.map((p, i) => (i === seatId ? [...p, card] : p));
-  const picked = [...state.picked, seatId];
+  const rest = pack.filter((_, j) => j !== index);
+  const to = receiverOf(state, seatId);
+  const queues = state.queues.map((q) => q.slice());
+  queues[seatId] = (queues[seatId] as DraftCard[][]).slice(1);
+  if (rest.length > 0) {
+    queues[to] = [...(queues[to] as DraftCard[][]), rest];
+    events.push({ type: 'pack-passed', from: seatId, to, direction: directionFor(state.packNumber) });
+  }
 
   let next: DraftState = {
     ...state,
     seq: state.seq + 1,
-    packs,
-    pools,
-    picked,
+    queues,
+    roundPicks: state.roundPicks.map((n, i) => (i === seatId ? n + 1 : n)),
+    pools: state.pools.map((p, i) => (i === seatId ? [...p, card] : p)),
   };
 
-  const stillOwing = waitingOn(next);
-  if (stillOwing.length === 0) next = advance(next, events);
+  if (queues.every((q) => q.length === 0)) next = nextRound(next, events);
 
   return { ok: true, state: next, events };
 }
 
 /**
- * Everyone has picked: rotate, or open the next round, or finish.
+ * Every pack of the round is empty: open the next round, or finish.
  *
- * Separate from `pick` because "the round advanced" is a different fact from
+ * Separate from `pick` because "the round ended" is a different fact from
  * "a card was taken", and both go on the event list in that order.
  */
-function advance(state: DraftState, events: DraftEvent[]): DraftState {
-  const direction = directionFor(state.packNumber);
-  const packsEmpty = state.packs.every((p) => p.length === 0);
-
-  if (!packsEmpty) {
-    const pickNumber = state.pickNumber + 1;
-    events.push({ type: 'packs-passed', direction, pickNumber });
-    return {
-      ...state,
-      seq: state.seq + 1,
-      packs: passPacks(state.packs, direction),
-      pickNumber,
-      picked: [],
-    };
-  }
-
+function nextRound(state: DraftState, events: DraftEvent[]): DraftState {
   const nextPack = state.packNumber + 1;
   if (nextPack > state.packCount) {
     events.push({ type: 'draft-complete' });
-    return { ...state, seq: state.seq + 1, status: 'complete', picked: [] };
+    return { ...state, seq: state.seq + 1, status: 'complete' };
   }
 
   const nextDirection = directionFor(nextPack);
@@ -304,11 +319,35 @@ function advance(state: DraftState, events: DraftEvent[]): DraftState {
     ...state,
     seq: state.seq + 1,
     packNumber: nextPack,
-    pickNumber: 1,
-    packs: (state.rounds[nextPack - 1] as DraftCard[][]).map((p) => p.slice()),
-    picked: [],
+    queues: dealRound(state.rounds[nextPack - 1] ?? [], state.seatCount),
+    roundPicks: new Array<number>(state.seatCount).fill(0),
   };
 }
+
+/**
+ * A draft saved before packs queued: one `packs[seat]` each, a `picked` list of
+ * seats that had already taken a card from theirs, and one `pickNumber` for the
+ * table. Read as queues: a seat that picked has already passed what was left,
+ * so that pack waits behind its neighbour's own.
+ */
+export function fromLockstep(saved: DraftState | LockstepState): DraftState {
+  if (!('packs' in saved) || 'queues' in saved) return saved as DraftState;
+  const { packs, picked, pickNumber, ...rest } = saved;
+  const base = { ...rest, queues: [], roundPicks: [] } as unknown as DraftState;
+  const queues = packs.map((p, s) => (p.length > 0 && !picked.includes(s) ? [p.slice()] : []));
+  packs.forEach((p, s) => {
+    if (p.length > 0 && picked.includes(s)) queues[receiverOf(base, s)]!.push(p.slice());
+  });
+  const roundPicks = packs.map((_, s) => pickNumber - 1 + (picked.includes(s) ? 1 : 0));
+  return { ...base, queues, roundPicks };
+}
+
+/** The saved shape `fromLockstep` reads. */
+export type LockstepState = Omit<DraftState, 'queues' | 'roundPicks'> & {
+  packs: DraftCard[][];
+  picked: SeatId[];
+  pickNumber: number;
+};
 
 /**
  * The bot seat a player's AI opponent drafted: the seat across the table, or
@@ -327,7 +366,7 @@ export function isBotSeat(state: DraftState, seatId: SeatId): boolean {
   return seat?.occupant?.kind === 'bot';
 }
 
-/** A per-(seat, pack, pick) generator, so bot choices never depend on call order. */
+/** A per-(seat, pack, pick) generator, so bot choices never depend on call order or timing. */
 export function botRng(state: DraftState, seatId: SeatId): Rng {
-  return derive(state.seed, 'bot', seatId, state.packNumber, state.pickNumber);
+  return derive(state.seed, 'bot', seatId, state.packNumber, pickNumberOf(state, seatId));
 }
