@@ -10,6 +10,12 @@
  * (the create-room dialog lives in the room list's section). So a panel holding a popover
  * (`.ct-surface`) is never cut while it does.
  *
+ * A frame's polygon cuts the corners only: its straight edges run 1px outside the panel and each
+ * diagonal is the same line extended. A clip edge on the border box itself antialiases at a
+ * fractional position and shaved half the 1px border away (the operator, 2026-10-22: "at certain
+ * screensizes the edge of panels is not visible"; measured: 40 of 160 edges at half strength at
+ * 100% scaling, none once the edges sit outside).
+ *
  * Nothing applies until a family is chosen: each rule hangs off a `data-trim-*` attribute that is
  * only present then. `.ct-panel.ct-panel` out-ranks a panel's own background shorthand, which
  * would otherwise reset the image list; the panel keeps its own fill colour.
@@ -42,7 +48,7 @@
   --trim-frame-s: 12px 12px, 12px 12px, 12px 12px, 12px 12px;
   --trim-frame-r: no-repeat, no-repeat, no-repeat, no-repeat;
   border-radius: 0;
-  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
+  clip-path: polygon(13px -1px, calc(100% - 13px) -1px, calc(100% + 1px) 13px, calc(100% + 1px) calc(100% - 13px), calc(100% - 13px) calc(100% + 1px), 13px calc(100% + 1px), -1px calc(100% - 13px), -1px 13px);
 }
 [data-trim-frame='hud'] .ct-panel:not(:has(.ct-surface)) {
   --trim-frame-i:
@@ -52,7 +58,7 @@
   --trim-frame-s: 18px 18px, 18px 18px;
   --trim-frame-r: no-repeat, no-repeat;
   border-radius: 0;
-  clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
+  clip-path: polygon(19px -1px, calc(100% + 1px) -1px, calc(100% + 1px) calc(100% - 19px), calc(100% - 19px) calc(100% + 1px), -1px calc(100% + 1px), -1px 19px);
 }
 [data-trim-frame='step'] .ct-panel:not(:has(.ct-surface)) {
   --trim-frame-i:
@@ -76,7 +82,7 @@
   --trim-frame-s: 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px;
   --trim-frame-r: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
   border-radius: 0;
-  clip-path: polygon(0 12px, 6px 12px, 6px 6px, 12px 6px, 12px 0, calc(100% - 12px) 0, calc(100% - 12px) 6px, calc(100% - 6px) 6px, calc(100% - 6px) 12px, 100% 12px, 100% calc(100% - 12px), calc(100% - 6px) calc(100% - 12px), calc(100% - 6px) calc(100% - 6px), calc(100% - 12px) calc(100% - 6px), calc(100% - 12px) 100%, 12px 100%, 12px calc(100% - 6px), 6px calc(100% - 6px), 6px calc(100% - 12px), 0 calc(100% - 12px));
+  clip-path: polygon(-1px 12px, 6px 12px, 6px 6px, 12px 6px, 12px -1px, calc(100% - 12px) -1px, calc(100% - 12px) 6px, calc(100% - 6px) 6px, calc(100% - 6px) 12px, calc(100% + 1px) 12px, calc(100% + 1px) calc(100% - 12px), calc(100% - 6px) calc(100% - 12px), calc(100% - 6px) calc(100% - 6px), calc(100% - 12px) calc(100% - 6px), calc(100% - 12px) calc(100% + 1px), 12px calc(100% + 1px), 12px calc(100% - 6px), 6px calc(100% - 6px), 6px calc(100% - 12px), -1px calc(100% - 12px));
 }
 [data-trim-frame='scoop'] .ct-panel:not(:has(.ct-surface)) {
   --trim-frame-i:
