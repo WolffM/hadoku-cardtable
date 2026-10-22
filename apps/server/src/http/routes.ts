@@ -1152,10 +1152,21 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				...(p.member.avatarId === undefined ? {} : { avatarId: p.member.avatarId }),
 				you: p.member.id === me,
 				ready: p.ready,
-				// Yours alone; null for a seat you took ahead of a deck.
-				...(p.member.id === me ? { deck: ownDeckView(p.state.deck) } : {}),
+				// Yours alone; null for a seat you took ahead of a deck, and for an
+				// All Random deck not yet played (`dealtUnseen`).
+				...(p.member.id === me ? { deck: dealtUnseen(room, p.state, matchId) ? null : ownDeckView(p.state.deck) } : {}),
 			})),
 		};
+	}
+
+	/**
+	 * An All Random deck its player has not yet seen played: dealt (a deal registers no series deck
+	 * until its game starts, `dealDecks`), or in a match still running. Its name waits for the room
+	 * after the game (the operator, 2026-10-22: "we should not display the name of the chosen deck
+	 * until after the game has concluded and players are back in the lobby").
+	 */
+	function dealtUnseen(room: RoomViewLike, state: TablePlayerState, matchId: string | null): boolean {
+		return randomPoolOf(room) !== null && (matchId !== null || seriesTextOf(state) === null);
 	}
 
 	/** Every room route answers this, and only this, when you may not act. */
@@ -1260,12 +1271,19 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return { ok: true, players: playersOf(rooms, room, tableId) };
 	}
 
+	/** Whether an All Random room keeps each table's first deal for every game (`RandomOptions.lock`). */
+	function randomLocked(room: RoomViewLike): boolean {
+		const options = RandomOptionsSchema.safeParse(room.modeOptions);
+		return options.success && options.data.lock === true;
+	}
+
 	/**
 	 * Deal an All Random table (rulings 3 and 4): one random era of the room's
 	 * pool, and a different deck from it for each seat, the AI's included.
+	 * Every game deals fresh, unless the room locks its decks: then a table
+	 * whose seats already hold theirs plays the same two.
 	 *
-	 * A no-op for any other room, and for a table whose seats already hold their
-	 * decks: that is a Rematch, and it plays the same two.
+	 * A no-op for any other room.
 	 */
 	function dealRandom(
 		room: RoomViewLike,
@@ -1276,7 +1294,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const pool = randomPoolOf(room);
 		if (pool === null || rooms === null) return { ok: true, players };
 		const held = players.every((p) => p.state.deck !== null) && (!vsBot || players[0]?.state.aiDeck !== undefined);
-		if (held) return { ok: true, players };
+		if (held && randomLocked(room)) return { ok: true, players };
 		const draw = drawRandomDecks(random, pool, library);
 		if (draw === null) return { ok: false, error: `no ${pool} era holds two decks` };
 		const dealt = dealDecks(room, tableId, players, draw.decks, draw.era, { vsBot });

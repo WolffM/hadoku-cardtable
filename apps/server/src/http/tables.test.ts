@@ -3327,8 +3327,8 @@ describe('a pod table plays each drafter’s own pool', () => {
  */
 describe('an All Random table', () => {
 	const ROOM = 'r-random';
-	const room = (h: Harness, members: FakeRoom['members'], pool: 'full' | 'standard' | 'modern' | 'legacy' = 'modern') =>
-		Object.assign(h.lobby.open(ROOM, members), { mode: 'random' as const, modeOptions: { pool } });
+	const room = (h: Harness, members: FakeRoom['members'], pool: 'full' | 'standard' | 'modern' | 'legacy' = 'modern', lock = false) =>
+		Object.assign(h.lobby.open(ROOM, members), { mode: 'random' as const, modeOptions: lock ? { pool, lock } : { pool } });
 	const sit = (h: Harness, user: string) => call(h, 'POST', `/api/tables/rooms/${ROOM}/sit`, {}, edgeHeaders(user));
 	const setReady = (h: Harness, user: string) => call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: true }, edgeHeaders(user));
 	const myDeck = (body: Record<string, unknown>) => (body.players as { you: boolean; deck?: { name: string } | null }[]).find((p) => p.you)?.deck;
@@ -3359,9 +3359,16 @@ describe('an All Random table', () => {
 		expect(myDeck(first.body), 'nothing is dealt until both are ready').toBeNull();
 		const second = await setReady(h, 'bob');
 		expect(second.status).toBe(200);
-		expect(myDeck(second.body)?.name).toEqual(expect.any(String));
+		// The operator, 2026-10-22: "we should not display the name of the chosen deck until after the game has concluded".
+		expect(myDeck(second.body), 'dealt, and not named before it is played').toBeNull();
 
 		expect((await startNext(h, { room: ROOM })).status).toBe(201);
+		const during = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('bob'));
+		expect(myDeck(during.body as Record<string, unknown>), 'not named while the game runs').toBeNull();
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-bob' });
+		await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		const after = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('bob'));
+		expect(myDeck(after.body as Record<string, unknown>)?.name, 'named back in the room after the game').toEqual(expect.any(String));
 		const { ids, eras } = dealt(h.specs[0]);
 		expect(ids).not.toContain('?');
 		expect(ids[0]).not.toBe(ids[1]);
@@ -3377,9 +3384,25 @@ describe('an All Random table', () => {
 		expect(res.status).toBe(409);
 	});
 
-	it('against the AI: two different decks of one era, and a Rematch plays the same two', async () => {
+	// The operator, 2026-10-22: "i notice it doesn't pick a new deck when a new game starts. i would not expect it to lock the deck by default".
+	it('deals every game fresh unless the room locks its decks: a Rematch against the AI deals again, and the new deal is unnamed', async () => {
 		const h = await boot();
 		room(h, [{ id: ALICE, name: 'user-alice' }], 'legacy');
+		expect((await sit(h, 'alice')).status).toBe(200);
+		expect((await startNext(h, { room: ROOM, bot: true })).status).toBe(201);
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-alice' });
+		const back = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		const played = myDeck(back.body as Record<string, unknown>)?.name;
+		expect(played, 'game 1’s deck, named after it').toEqual(expect.any(String));
+		expect((await startNext(h, { room: ROOM, bot: true })).status).toBe(201);
+		expect(h.specs).toHaveLength(2);
+		const during = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		expect(myDeck(during.body as Record<string, unknown>), 'game 2 was dealt again: unnamed until it is over').toBeNull();
+	});
+
+	it('against the AI with the decks locked: two different decks of one era, and a Rematch plays the same two', async () => {
+		const h = await boot();
+		room(h, [{ id: ALICE, name: 'user-alice' }], 'legacy', true);
 		expect((await sit(h, 'alice')).status).toBe(200);
 		expect((await startNext(h, { room: ROOM, bot: true })).status).toBe(201);
 		const game1 = dealt(h.specs[0]);
@@ -3395,7 +3418,7 @@ describe('an All Random table', () => {
 		expect(dealt(h.specs[1]).ids, 'the Rematch keeps both decks').toEqual(game1.ids);
 	});
 
-	it('a Rematch between two players converts the Bo1 and keeps both decks', async () => {
+	it('a Rematch between two players with the decks locked converts the Bo1 and keeps both decks', async () => {
 		const h = await boot();
 		room(
 			h,
@@ -3404,6 +3427,7 @@ describe('an All Random table', () => {
 				{ id: BOB, name: 'user-bob' },
 			],
 			'full',
+			true,
 		);
 		await sit(h, 'alice');
 		await sit(h, 'bob');
