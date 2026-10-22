@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, forgeFrames, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, forgeFrames, inOwnMain, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'a prompt Forge writes an ability into reaches the seat split into its decision and the ability, against real Forge'
@@ -33,7 +33,7 @@ const prompts = (s: Scenario, from: number): { message: string; parts: Parts | n
 		.filter((f) => f.method === 'showPromptMessage')
 		.map((f) => ({ message: f.message ?? '', parts: (f as { parts?: Parts }).parts ?? null }));
 
-/** Cast `spell` (at `target`, if it targets) and pay its additional cost with `cost`; every mana cost by tapping a land. */
+/** Cast `spell` (at `target`, if it targets) and pay its additional cost with `cost`; every mana cost by `landPayer`, one land per prompt. */
 async function cast(s: Scenario, spell: string, cost: number, target: number | null): Promise<void> {
 	const card = s.zone(0, 'Hand').find((c) => c.name === spell);
 	if (card === undefined) throw new Error(`no ${spell} in hand`);
@@ -43,6 +43,7 @@ async function cast(s: Scenario, spell: string, cost: number, target: number | n
 	let targeted = target === null;
 	let paid = false;
 	let last = '';
+	const pay = landPayer(s, 0);
 	await waitUntil(
 		() => {
 			s.answerAsks();
@@ -54,10 +55,7 @@ async function cast(s: Scenario, spell: string, cost: number, target: number | n
 			} else if (!paid && /to (sacrifice|discard)/.test(said)) {
 				paid = true;
 				s.select(0, cost);
-			} else if (/Pay Mana Cost/.test(said)) {
-				const land = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped);
-				if (land !== undefined) s.select(0, land.id);
-			}
+			} else pay();
 			return graveyard() === before + 1 && /^Stack: Empty$/m.test(s.prompt(0));
 		},
 		`${spell} to resolve`,

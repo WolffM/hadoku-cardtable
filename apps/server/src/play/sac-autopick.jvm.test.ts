@@ -18,7 +18,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, forgeFrames, inOwnMain, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
+import { available, deck, finishMulligan, forgeFrames, inOwnMain, landPayer, scenarioText, startScenario, waitUntil, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'a sacrifice with one way to make it is taken for the seat, against real Forge'
@@ -36,19 +36,18 @@ const wired = (s: Scenario, from: number, seat = 0): Frame[] =>
 		.map((x) => x.envelope.frame as Frame)
 		.filter((f) => f.method === 'setSelectables');
 
-/** Cast `spell` from seat 0's hand; tap a land for any payment Forge leaves open; `pick` answers a selection shown. */
+/** Cast `spell` from seat 0's hand; pay any mana Forge leaves open by `landPayer`; `pick` answers a selection shown. */
 async function cast(s: Scenario, spell: string, done: () => boolean, pick: (said: string) => void = () => {}): Promise<void> {
 	const card = s.zone(0, 'Hand').find((c) => c.name === spell);
 	if (card === undefined) throw new Error(`no ${spell} in hand`);
 	s.select(0, card.id);
+	const pay = landPayer(s, 0);
 	await waitUntil(
 		() => {
 			s.answerAsks();
 			const said = s.prompt(0);
-			if (/Pay Mana Cost/.test(said)) {
-				const land = s.zone(0, 'Battlefield').find((c) => c.land && !c.tapped);
-				if (land !== undefined) s.select(0, land.id);
-			} else pick(said);
+			if (/Pay Mana Cost/.test(said)) pay();
+			else pick(said);
 			return done();
 		},
 		`${spell} to resolve`,
