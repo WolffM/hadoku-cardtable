@@ -180,9 +180,12 @@ describe('the pod seat grid', () => {
     expect(onStand).toHaveBeenCalledWith();
   });
 
-  // The operator, 2026-10-21: "rows change in size slightly when someone enters them" — every seat, open,
-  // closed, the AI's or a person's, is the same one-line row (its height is the row's own, `screens.css`).
-  it('draws every kind of seat as the same one-line row', () => {
+  // AF305 §B: the pod is a strip of avatars, not the 1v1 table's rows — every
+  // seat, open, closed, the AI's or a person's, is the same shape: one
+  // avatar (dashed+open / "×"+closed / "AI" / an initial, ringed once ready)
+  // with its label underneath, reachable with no hover (every action is its
+  // own visible, labelled button, never a hover-only affordance).
+  it('draws every kind of seat as one avatar + a label, never a hover-only action', () => {
     const seats = emptySeats();
     seats[1] = { memberId: 'u-me', name: 'A name long enough to need its ellipsis at any width this list is drawn' };
     seats[2] = { memberId: 'ai', name: 'AI' };
@@ -200,8 +203,37 @@ describe('the pod seat grid', () => {
       }),
     );
     for (const row of screen.getByTestId('pod-seats').children) {
-      expect(row.classList.contains('tables__row'), row.getAttribute('data-testid') ?? '').toBe(true);
-      expect(row.classList.contains('tables__row--line'), row.getAttribute('data-testid') ?? '').toBe(true);
+      const id = row.getAttribute('data-testid') ?? '';
+      expect(row.classList.contains('pod-seats__seat'), id).toBe(true);
+      expect(row.querySelector('.pod-seats__avatar, .pod-seats__avatar-wrap'), `${id}: an avatar`).not.toBeNull();
+      expect(row.querySelector('.pod-seats__label'), `${id}: a label under it`).not.toBeNull();
+      // Every action on the row is a plain, always-rendered button — nothing gated on `:hover`.
+      for (const btn of row.querySelectorAll('button')) {
+        expect(btn.className, `${id}: ${btn.textContent}`).not.toMatch(/hover/i);
+      }
     }
+  });
+
+  it('the seated ready ring and the open seat’s dashed "+" are each the seat’s own avatar — the ready pill stays too', () => {
+    const seats = emptySeats();
+    seats[0] = { memberId: 'u-alice', name: 'Alice' };
+    render(
+      createElement(PodSeats, {
+        seats,
+        myMemberId: null,
+        leaderId: '',
+        readyOf: () => true,
+        onSit: () => undefined,
+        onStand: () => undefined,
+        onAi: () => undefined,
+        onClose: () => undefined,
+      }),
+    );
+    const seated = screen.getByTestId('pod-seat-0').querySelector('.pod-seats__avatar');
+    expect(seated?.getAttribute('data-ready'), 'the ring token is on the avatar itself').toBe('true');
+    expect(screen.getByTestId('pod-seat-0-ready').getAttribute('data-state'), 'the pill is still drawn too').toBe('yes');
+
+    const open = screen.getAllByTestId('pod-seat-sit')[0]!;
+    expect(open.className).toContain('pod-seats__avatar--open');
   });
 });

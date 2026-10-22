@@ -136,29 +136,50 @@ describe('the Set tab', () => {
   });
 });
 
-describe('the Custom tab', () => {
-  it('three rounds are drawn, each defaulting to its own Cube sub-picker', () => {
+describe('the Custom tab (AF305 §B: three pack slots, ONE shared picker)', () => {
+  it('draws three pack slots, and the active one (round 0, by default) is the only picker mounted', () => {
     render(createElement(PoolPicker, { ...baseProps, tab: 'custom', cubes: [cube()] }));
 
-    for (const round of [0, 1, 2]) {
-      expect(screen.getByTestId(`pool-picker-custom-round-${round}`)).not.toBeNull();
-      expect(screen.getByTestId(`pool-picker-custom-round-${round}-cubes`)).not.toBeNull();
-    }
+    for (const round of [0, 1, 2]) expect(screen.getByTestId(`pool-picker-custom-round-${round}`), `slot ${round}`).not.toBeNull();
+    // Only round 0's picker is mounted until another slot is chosen.
+    expect(screen.getByTestId('pool-picker-custom-round-0-cubes')).not.toBeNull();
+    expect(screen.queryByTestId('pool-picker-custom-round-1-cubes')).toBeNull();
+    expect(screen.queryByTestId('pool-picker-custom-round-2-cubes')).toBeNull();
   });
 
-  it('switching a round to Set shows that round’s own searchable set list', () => {
+  it('clicking a pack slot swaps the active picker to that round — never gated on leadership, since it is only viewing', () => {
+    const good = cube({ id: 'good-cube' });
+    render(createElement(PoolPicker, { ...baseProps, tab: 'custom', leader: false, cubes: [good], customRounds: [{ kind: 'cube', cubeId: good.id }, null, null] }));
+
+    expect((screen.getByTestId('pool-picker-custom-round-1') as HTMLInputElement).checked, 'round 1 is not the active slot yet').toBe(false);
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1'));
+    expect(screen.getByTestId('pool-picker-custom-round-1-cubes'), 'round 1’s picker is now up, even for a non-leader').not.toBeNull();
+    expect(screen.queryByTestId('pool-picker-custom-round-0-cubes'), 'round 0’s picker unmounted').toBeNull();
+  });
+
+  it('switching the active round to Set shows a searchable set gallery, scoped to that round’s own id', () => {
     render(createElement(PoolPicker, { ...baseProps, tab: 'custom', sets: [set()] }));
 
-    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1-type-set'));
-    expect(screen.getByTestId('pool-picker-custom-round-1-sets-ISD')).not.toBeNull();
-    // Only round 1 switched — rounds are independent.
-    expect(screen.getByTestId('pool-picker-custom-round-0-cubes')).not.toBeNull();
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-0-type-set'));
+    expect(screen.getByTestId('pool-picker-custom-round-0-sets-ISD')).not.toBeNull();
+  });
+
+  it('a round’s own Cube/Set toggle survives switching away and back to it', () => {
+    render(createElement(PoolPicker, { ...baseProps, tab: 'custom', cubes: [cube()], sets: [set()] }));
+
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-0-type-set'));
+    expect(screen.getByTestId('pool-picker-custom-round-0-sets')).not.toBeNull();
+
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1')); // away
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-0')); // back
+    expect(screen.getByTestId('pool-picker-custom-round-0-sets'), 'round 0 is still on Set').not.toBeNull();
   });
 
   it('a chosen cube round calls back with that round and a cube PoolSource', () => {
     const onPickCustomRound = vi.fn();
     render(createElement(PoolPicker, { ...baseProps, tab: 'custom', cubes: [cube({ id: 'c7' })], onPickCustomRound }));
 
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-2')); // select the slot first — its picker is not mounted otherwise
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-2-cubes-c7'));
     expect(onPickCustomRound).toHaveBeenCalledWith(2, { kind: 'cube', cubeId: 'c7' });
   });
@@ -176,14 +197,17 @@ describe('the Custom tab', () => {
       }),
     );
 
+    // Round 0 is active by default.
     const round0 = screen.getByTestId('pool-picker-custom-round-0-verdict');
     expect(round0.getAttribute('data-state'), 'round 0 names itself refused').toBe('refused');
     expect(round0.textContent, 'and lists the cards').toBe('Card A, Card B');
 
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1'));
     const round1 = screen.getByTestId('pool-picker-custom-round-1-verdict');
     expect(round1.getAttribute('data-state')).toBe('ready');
     expect(round1.textContent).toBe('99 cards');
 
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-2'));
     expect(screen.queryByTestId('pool-picker-custom-round-2-verdict'), 'never checked at this pin — no line at all').toBeNull();
   });
 

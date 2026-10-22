@@ -417,14 +417,16 @@ describe('the Custom tab (wave 74 §F)', () => {
     fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
     await waitFor(() => expect(screen.getByTestId('pool-picker-custom-round-0')).not.toBeNull());
 
-    // Round 0: the good cube. The round's CONTAINER renders at once; its cube
-    // rows come from the async `pools.listCubes()` — `findByTestId`, not a
-    // bare `getByTestId`, for the first touch of a list-derived row.
+    // Round 0 is the active slot by default; its CONTAINER renders at once.
+    // Its cube rows come from the async `pools.listCubes()` — `findByTestId`,
+    // not a bare `getByTestId`, for the first touch of a list-derived row.
     fireEvent.click(await screen.findByTestId('pool-picker-custom-round-0-cubes-good-cube'));
-    // Round 1 (a second round of the same source works too — rounds are independent).
-    // `cubes` has already resolved by the line above, so a plain read is safe here.
+    // Round 1: select its slot first — only the ACTIVE round's picker is
+    // mounted (AF305 §B: one shared picker, not three independent ones).
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1'));
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-1-cubes-good-cube'));
-    // Round 2: switch to Set, pick the one whose OWN cached verdict is already bad.
+    // Round 2: select its slot, switch to Set, pick the one whose OWN cached verdict is already bad.
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-2'));
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-2-type-set'));
     await waitFor(() => expect(screen.getByTestId(`pool-picker-custom-round-2-sets-${bad.code}`)).not.toBeNull());
     fireEvent.click(screen.getByTestId(`pool-picker-custom-round-2-sets-${bad.code}`));
@@ -433,7 +435,8 @@ describe('the Custom tab (wave 74 §F)', () => {
     const round2Verdict = await waitFor(() => screen.getByTestId('pool-picker-custom-round-2-verdict'));
     expect(round2Verdict.getAttribute('data-state'), 'round 2 names itself refused') .toBe('refused');
     expect(round2Verdict.textContent, 'and lists the cards').toBe('Some Card Forge Does Not Know');
-    // Rounds 0 and 1 carry no verdict of their own yet (never checked at this pin).
+    // Round 2 is the active slot now — the other two rounds' pickers (and their verdict
+    // lines) are not mounted at all (AF305 §B: one shared picker, not three at once).
     expect(screen.queryByTestId('pool-picker-custom-round-0-verdict')).toBeNull();
     expect(screen.queryByTestId('pool-picker-custom-round-1-verdict')).toBeNull();
   });
@@ -450,8 +453,10 @@ describe('the Custom tab (wave 74 §F)', () => {
     // First touch of a cube row (listCubes-derived) — findByTestId, not getByTestId; see the test above.
     fireEvent.click(await screen.findByTestId('pool-picker-custom-round-0-cubes-good-cube'));
     expect(rooms.setPlan, 'two of three rounds still unchosen').not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1')); // select the slot — its picker is not mounted otherwise
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-1-cubes-good-cube'));
     expect(rooms.setPlan, 'one round still unchosen').not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-2'));
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-2-cubes-good-cube'));
     await waitFor(() => expect(rooms.setPlan).toHaveBeenCalledWith('r-cube', cubePlan(good.id)));
   });
@@ -506,7 +511,11 @@ describe('presets (wave 74 §G routes, §F UI)', () => {
     await waitFor(() => expect(screen.getByTestId('pool-picker-custom-round-0')).not.toBeNull());
     // Round 0 is the first touch of a cube row (listCubes-derived) — findByTestId, not getByTestId; see the test above.
     fireEvent.click(await screen.findByTestId('pool-picker-custom-round-0-cubes-good-cube'));
-    for (const round of [1, 2]) fireEvent.click(screen.getByTestId(`pool-picker-custom-round-${round}-cubes-good-cube`));
+    // Round 1 and 2: select each slot first — its picker is not mounted otherwise (AF305 §B).
+    for (const round of [1, 2]) {
+      fireEvent.click(screen.getByTestId(`pool-picker-custom-round-${round}`));
+      fireEvent.click(screen.getByTestId(`pool-picker-custom-round-${round}-cubes-good-cube`));
+    }
     // The third round's pick fires the real (mocked) `setPlan` round trip —
     // wait for it to settle (Save is disabled, same as Ready, while busy)
     // before touching the save form.
