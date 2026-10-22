@@ -129,7 +129,7 @@ export function attackWith(match: LiveMatch, attackers: readonly number[], targe
  * Every defender `InputAttack` would take for `attacker` right now: the
  * opponents it offers and the planeswalkers and battles (`attackAssignment`).
  */
-export function defendersOf(match: LiveMatch, attacker: number): DropTarget[] {
+function defendersOf(match: LiveMatch, attacker: number): DropTarget[] {
   const offer = boardInteraction(match);
   const out: DropTarget[] = [];
   for (const id of offer.selectablePlayers) if (attackAssignment(match, attacker, { kind: 'player', id }) !== null) out.push({ kind: 'player', id });

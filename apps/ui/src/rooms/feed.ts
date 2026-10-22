@@ -65,7 +65,7 @@ export interface FeedSocket {
   close(): void;
 }
 
-export function documentVisibility(doc: Document | undefined = globalThis.document): PageVisibility {
+function documentVisibility(doc: Document | undefined = globalThis.document): PageVisibility {
   return {
     hidden: () => doc?.visibilityState === 'hidden',
     onChange: (listener) => {

@@ -132,7 +132,7 @@ export const EXIT_MOTIONS = {
 const shattered = (motion: ExitMotion): boolean => 'shards' in EXIT_MOTIONS[motion];
 
 /** The share of a shatter in which the cracks run and nothing has moved yet. */
-export const CRACK_SHARE = 0.3;
+const CRACK_SHARE = 0.3;
 
 const pct = (v: number): string => `${v.toFixed(1)}%`;
 
@@ -357,7 +357,7 @@ export function dropTurnedMargins(copies: readonly HTMLElement[]): number {
  * is the card's shape, not an upright card's. A copy placed over the card's own box (a ram's) only
  * drops the margins: that box is the turned card already.
  */
-export function fitTurned(wrap: HTMLElement, copies: readonly HTMLElement[], top: number): void {
+function fitTurned(wrap: HTMLElement, copies: readonly HTMLElement[], top: number): void {
   const step = dropTurnedMargins(copies);
   if (step > 0) wrap.style.top = `${top + step}px`;
 }

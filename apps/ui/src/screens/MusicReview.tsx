@@ -73,7 +73,7 @@ const RATING_ICON: Record<MusicRating, 'thumbs-up' | 'circle' | 'thumbs-down'> =
 const RATING_LABEL: Record<MusicRating, string> = { keep: 'Keep', maybe: 'Maybe', no: 'No' };
 
 /** Only the slots that say something, each with only what it says — what is sent and what is compared. */
-export function normalizeReview(review: Review): Review {
+function normalizeReview(review: Review): Review {
   const out: Review = {};
   for (const [cell, e] of Object.entries(review)) {
     const note = e.note.trim();

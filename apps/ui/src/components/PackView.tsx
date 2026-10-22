@@ -74,7 +74,7 @@ const RISE = 18;
 /** From a card's bottom edge to its related row. */
 const RELATED_DROP = 6;
 /** How many cards are drawn either side of the open one. */
-export const FAN_SIDE = 3;
+const FAN_SIDE = 3;
 /** The row's places: the open card in the middle of them, `FAN_SIDE` either side, but at the pack's ends. */
 const FAN_SLOTS = 2 * FAN_SIDE + 1;
 /** The grid's gap until the stylesheet's own (`.pack--grid`, at the UI scale) can be read. */
@@ -109,7 +109,7 @@ export function fanGeometry(width: number, height: number, maxH = MAX_CARD_H): F
  * the middle, except near either end of the pack, where the row stops at the
  * pack's first or last card and the open card moves along it instead.
  */
-export function fanStart(open: number, count: number): number {
+function fanStart(open: number, count: number): number {
   return Math.max(0, Math.min(open - FAN_SIDE, count - FAN_SLOTS));
 }
 

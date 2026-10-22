@@ -40,7 +40,7 @@ export interface WarmRoom {
 }
 
 /** How long the list waits before it navigates anyway, to a page that then loads as before. */
-export const WARM_TIMEOUT_MS = 4000;
+const WARM_TIMEOUT_MS = 4000;
 
 let pending: { roomId: string; warm: WarmRoom } | null = null;
 

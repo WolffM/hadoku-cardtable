@@ -327,7 +327,7 @@ export interface SocketIoMatchOptions {
   ackTimeoutMs?: number;
 }
 
-export const DEFAULT_ACK_TIMEOUT_MS = 10_000;
+const DEFAULT_ACK_TIMEOUT_MS = 10_000;
 
 /**
  * How long a hang-up waits so the frames emitted just before it arrive.

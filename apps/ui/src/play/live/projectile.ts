@@ -35,7 +35,7 @@ export interface Point {
 }
 
 /** Every projectile look, by name: how many embers trail it. Its CSS is `projectile.css`. */
-export const PROJECTILES = {
+const PROJECTILES = {
   bolt: { embers: 3 },
   heal: { embers: 2 },
 } as const satisfies Record<string, { readonly embers: number }>;
@@ -43,9 +43,9 @@ export const PROJECTILES = {
 export type ProjectileLook = keyof typeof PROJECTILES;
 
 /** How far behind the ball each ember of its trail runs. */
-export const EMBER_LAG_MS = 28;
+const EMBER_LAG_MS = 28;
 /** The impact's burst, after the ball lands. */
-export const IMPACT_MS = 420;
+const IMPACT_MS = 420;
 /** Samples of the curve the animation runs through. */
 const SAMPLES = 16;
 

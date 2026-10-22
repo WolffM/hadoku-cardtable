@@ -127,7 +127,7 @@ export function takeUiTally(): Record<string, number> {
 }
 
 /** Play one sound event. Silent when muted; never throws into the handler that asked. */
-export function playEvent(event: SoundEvent): void {
+function playEvent(event: SoundEvent): void {
   if (event.role.startsWith('ui.') && !LOGGED_ONE_BY_ONE.has(event.role)) {
     uiTally.set(event.role, (uiTally.get(event.role) ?? 0) + 1);
   }

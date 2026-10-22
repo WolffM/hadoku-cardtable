@@ -17,7 +17,7 @@ import { GLIDE_MS, prefersReducedMotion } from '../../play/motion.ts';
 /** The title's landing, before the coin. */
 export const TITLE_MS = Math.round(GAUNTLET_REVEAL_MS * 0.15);
 /** The landed coin stays this long, so P1 is read before the decks come. */
-export const COIN_HOLD_MS = Math.round(GAUNTLET_REVEAL_MS * 0.08);
+const COIN_HOLD_MS = Math.round(GAUNTLET_REVEAL_MS * 0.08);
 /** One deck's flight into its slot (`gauntlet.css` reads it as `--deal-ms`). */
 export const DEAL_MS = GLIDE_MS * 2;
 /** The first deal: the coin has landed and been read. */
@@ -38,7 +38,7 @@ export interface RevealStage {
   done: boolean;
 }
 
-export const REVEALED: RevealStage = { coin: false, dealt: GAUNTLET_DECKS, done: true };
+const REVEALED: RevealStage = { coin: false, dealt: GAUNTLET_DECKS, done: true };
 
 export function revealStage(elapsed: number): RevealStage {
   if (elapsed >= GAUNTLET_REVEAL_MS) return REVEALED;

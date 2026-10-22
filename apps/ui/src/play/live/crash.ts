@@ -21,7 +21,7 @@ export interface Point {
 /** How long a crash's dust and rocks are drawn. */
 export const CRASH_MS = 700;
 /** On the board's container while the board shakes: it clips, so the page never scrolls for it. */
-export const SHAKING_ATTR = 'data-shaking';
+const SHAKING_ATTR = 'data-shaking';
 
 /** A rock thrown by a crash: where it lands from the blow (px), how high it is thrown, its size and spin. */
 export interface Rock {
@@ -99,7 +99,7 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string):
  * when i'd expect that level of screenshake"), then on up to twenty. A table, not a curve, so each
  * step can be tuned on its own.
  */
-export const SHAKE_PX: readonly number[] = [0, 0, 0.5, 1, 1.5, 2.5, 4.5, 7, 8, 9, 10, 10.6, 11.2, 11.8, 12.4, 13, 13.6, 14.2, 14.8, 15.4, 16];
+const SHAKE_PX: readonly number[] = [0, 0, 0.5, 1, 1.5, 2.5, 4.5, 7, 8, 9, 10, 10.6, 11.2, 11.8, 12.4, 13, 13.6, 14.2, 14.8, 15.4, 16];
 
 /** How far and how long the table shakes for a blow of `amount` damage; nothing for one point, the twenty's beyond it. */
 export function shakeOf(amount: number): { px: number; ms: number } {

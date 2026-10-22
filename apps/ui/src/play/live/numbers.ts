@@ -128,9 +128,7 @@ import './numbers.css';
 
 /* ── timing and thresholds, as Settled fixed them ────────────────────── */
 
-export const RISE_PX = 28;
 export const RISE_MS = 700;
-export const FADE_MS = 280;
 export const POP_MS = 90;
 export const POP_THRESHOLD = 5;
 export const STACK_OFFSET_PX = 12;
@@ -138,11 +136,11 @@ export const STACK_STAGGER_MS = 80;
 export const TICK_STEP_MS = 150;
 export const LIFE_COLOUR_MS = 1500;
 /** How long what a hit reached flashes (`numbers.css`'s `effect-hit-flash`). */
-export const HIT_FLASH_MS = 360;
+const HIT_FLASH_MS = 360;
 /** An arrival with nowhere to travel from fades in over this long. */
-export const ARRIVE_FADE_MS = 240;
+const ARRIVE_FADE_MS = 240;
 /** On a permanent's row element while it arrives from what made it: that card's id, empty when unknown. */
-export const ARRIVING_ATTR = 'data-arriving-from';
+const ARRIVING_ATTR = 'data-arriving-from';
 /** A reveal the server answered for this seat (`match.ts`'s `revealed`): the cards it showed, and when it arrived. */
 export interface Revealed {
   readonly cardIds: readonly number[];

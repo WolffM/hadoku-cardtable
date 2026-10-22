@@ -86,7 +86,7 @@ export interface RowDrag {
 }
 
 /** Set on the prompt while a row is dragged: `prompts.css` turns off text selection and shows the grab. */
-export const ROW_DRAG_ATTR = 'data-row-drag';
+const ROW_DRAG_ATTR = 'data-row-drag';
 /** Set on a list laid out left to right: a drop lands between two rows by where the pointer is across them. */
 export const ACROSS_ATTR = 'data-across';
 /** The bar's thickness, px. */

@@ -307,7 +307,7 @@ const CANVAS_ATTR = 'data-gesture-canvas';
 export const PARK_UNANSWERED_MS = 4000;
 
 /** How long a box's tap sweep may sit with no land tapping before the rest of it is dropped. */
-export const TAP_SWEEP_MS = 5000;
+const TAP_SWEEP_MS = 5000;
 
 /**
  * A card sent at release and pinned at the point it was released: a targeted

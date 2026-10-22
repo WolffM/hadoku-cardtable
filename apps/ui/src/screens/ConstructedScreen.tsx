@@ -2583,7 +2583,7 @@ function DeckCardSkeleton() {
 }
 
 /** A room's deck card while it loads: twelve outlines (the operator, 2026-10-20). */
-export const ROOM_SKELETON_TILES = 12;
+const ROOM_SKELETON_TILES = 12;
 
 /** `count` deck tiles' outlines, each the size a tile is. */
 function SkeletonTiles({ count }: { count: number }) {

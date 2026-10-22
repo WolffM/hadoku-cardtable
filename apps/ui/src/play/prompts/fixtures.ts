@@ -248,7 +248,7 @@ export function askFor<M extends PromptMethod>(method: M): AskOf<M> {
  * (`cardsfolder/p/pyrite_spellbomb.txt:4-5`, cost then description). Not on the
  * wire: see `lookup.ts`.
  */
-export const FIXTURE_ABILITY_LABELS: Readonly<Record<number, string>> = {
+const FIXTURE_ABILITY_LABELS: Readonly<Record<number, string>> = {
   9001: '{1}, Sacrifice Pyrite Spellbomb: Draw a card.',
   9002: '{R}, Sacrifice Pyrite Spellbomb: It deals 2 damage to any target.',
 };

@@ -25,11 +25,11 @@ export const isCreatureFace = (card: DraftCard): boolean => /\bCreature\b/.test(
 export type ColorGroup = ColorSymbolId | 'L';
 const COLOR_GROUPS: readonly ColorGroup[] = ['W', 'U', 'B', 'R', 'G', 'M', 'C', 'L'];
 
-export function colorGroupOf(card: DraftCard): ColorGroup {
+function colorGroupOf(card: DraftCard): ColorGroup {
   return isLandFace(card) ? 'L' : colorSymbolOf(card.colors);
 }
-export const colorRank = (card: DraftCard): number => COLOR_GROUPS.indexOf(colorGroupOf(card));
-export const typeRank = (card: DraftCard): number => (isCreatureFace(card) ? 0 : isLandFace(card) ? 2 : 1);
+const colorRank = (card: DraftCard): number => COLOR_GROUPS.indexOf(colorGroupOf(card));
+const typeRank = (card: DraftCard): number => (isCreatureFace(card) ? 0 : isLandFace(card) ? 2 : 1);
 
 export type GroupBy = 'mv' | 'color';
 /** A group's id: a mana value ('0'…'6', the last holding everything higher), or a colour group; 'L' is the lands either way. */
@@ -37,7 +37,7 @@ export type GroupId = string;
 
 const MV_GROUPS: readonly GroupId[] = [...Array.from({ length: MV_CAP + 1 }, (_, mv) => String(mv)), 'L'];
 
-export function groupOf(card: DraftCard, by: GroupBy): GroupId {
+function groupOf(card: DraftCard, by: GroupBy): GroupId {
   if (by === 'color') return colorGroupOf(card);
   return isLandFace(card) ? 'L' : String(Math.min(MV_CAP, card.manaValue));
 }

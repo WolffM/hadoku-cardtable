@@ -44,10 +44,10 @@ export interface DecksScreenProps {
 }
 
 /** The stats id a drafted deck's games are reported under (`apps/server/src/http/routes.ts`'s `draftedDeckId`). */
-export const draftedDeckStatsId = (podId: string): string => `draft:${podId}`;
+const draftedDeckStatsId = (podId: string): string => `draft:${podId}`;
 
 /** How long the tiles wait on art that has not come: a stalled image must not hold the page empty for good. */
-export const ART_WAIT_MS = 5000;
+const ART_WAIT_MS = 5000;
 
 /**
  * Whether every one of these pieces of art can be drawn with its credit on

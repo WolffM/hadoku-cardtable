@@ -59,7 +59,7 @@ import './stats.css';
 import { uiLength } from '../settings/ui-scale.ts';
 
 /** The rating pool every room match is reported in. */
-export const STATS_MODE = 'constructed';
+const STATS_MODE = 'constructed';
 
 const COLOURS: BreakdownSpec = { attr: 'colors', title: 'Colours', label: 'Colour' };
 
@@ -170,7 +170,7 @@ export async function fetchDeckRecords(source: StatsSource = sharedSource()): Pr
 }
 
 /** Starts every read the popout opens with, for the viewer, so it draws at once. */
-export function prefetchStats(source: StatsSource = sharedSource()): void {
+function prefetchStats(source: StatsSource = sharedSource()): void {
   prefetchGameStats({ ...source, mode: STATS_MODE, ratedOnly: true, breakdowns: breakdownsFor() });
 }
 

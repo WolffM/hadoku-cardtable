@@ -18,7 +18,7 @@
  */
 
 /** The press point is over a text node's own glyph boxes, not merely nearest to one. */
-export function pointOnText(doc: Document, x: number, y: number): boolean {
+function pointOnText(doc: Document, x: number, y: number): boolean {
   const node = doc.caretPositionFromPoint?.(x, y)?.offsetNode ?? doc.caretRangeFromPoint?.(x, y)?.startContainer ?? null;
   if (node === null || node.nodeType !== Node.TEXT_NODE) return false;
   const range = doc.createRange();

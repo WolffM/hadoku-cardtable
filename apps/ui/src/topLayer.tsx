@@ -23,7 +23,7 @@ export function TopLayer({ fixed = false, clip = false }: { fixed?: boolean; cli
 }
 
 /** The selector of a screen's top layer. */
-export const TOP_LAYER = '[data-board-zoom]';
+const TOP_LAYER = '[data-board-zoom]';
 
 /** The top layer inside `root`, if it has one. */
 export function topLayerIn(root: ParentNode): HTMLElement | null {

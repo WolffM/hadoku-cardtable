@@ -108,7 +108,7 @@ export const CLEARED_GRACE_MS = 1500;
  * arrives next hands the back to it at once instead of standing beside the
  * face until a timer ends it (the Mana Leak screenshot, 2026-10-09).
  */
-export const UNHANDED_MS = 5000;
+const UNHANDED_MS = 5000;
 /** How many frames a placement's stand-in looks for the gap the board reserves for it before giving up. */
 const GAP_FRAMES = 30;
 

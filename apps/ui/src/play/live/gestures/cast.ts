@@ -231,7 +231,7 @@ export function expectedGapBox(root: ParentNode, owner: 'you' | 'them'): DOMRect
   return box.width > 0 && box.height > 0 ? box : null;
 }
 
-export const CAST_GHOST_ATTR = 'data-cast-ghost';
+const CAST_GHOST_ATTR = 'data-cast-ghost';
 
 /**
  * A detached copy of a card's own element, taken while it is still on the

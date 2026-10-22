@@ -66,7 +66,7 @@ export function filterDeckRows(rows: readonly BreakdownRow[], text: string): rea
 }
 
 /** The seat attrs a deck row carries off its latest seat: its pips, and what its list is found by. */
-export const DECK_ROW_ATTRS = ['colors', 'deckId'] as const;
+const DECK_ROW_ATTRS = ['colors', 'deckId'] as const;
 
 /**
  * The Decks section for a filter. The bare one (no filter) is what the lobby

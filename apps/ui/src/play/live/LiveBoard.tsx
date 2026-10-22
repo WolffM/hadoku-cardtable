@@ -627,7 +627,7 @@ export function isWaitingForOpponent(match: LiveMatch): boolean {
  * grace — the rejoin audit, 2026-10-19: the one still at the table read
  * "is choosing to play or draw…" for a player who was gone.
  */
-export function theyLeft(match: LiveMatch): boolean {
+function theyLeft(match: LiveMatch): boolean {
   const other = otherSeat(match);
   return other !== null && match.awaySeats.has(other);
 }
@@ -639,7 +639,7 @@ export function theyLeft(match: LiveMatch): boolean {
  * went dark for every held window after `0670a98` (found by AE16's spec: four windows forwarded
  * to bob, alice's flag for him never lit).
  */
-export function opponentHoldsAWindow(match: LiveMatch): boolean {
+function opponentHoldsAWindow(match: LiveMatch): boolean {
   const other = otherSeat(match);
   if (match.spectator || other === null || match.waitingOn === null) return false;
   const view = match.view;

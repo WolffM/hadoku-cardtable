@@ -150,7 +150,7 @@ export function isConfirmPrompt(bar: LiveButtons | null): boolean {
  * `END_TURN_LABEL`, which it reads for the same fact (`PlayBridge.java:767`).
  * The one input that puts it there, so it identifies the priority pass.
  */
-export const END_TURN_LABEL = 'End Turn';
+const END_TURN_LABEL = 'End Turn';
 
 /**
  * Where Forge's bar goes (wave 51). The operator, 2026-10-06: *"any game action

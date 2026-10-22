@@ -18,14 +18,14 @@ import { attackIntents, type LiveMatch } from '../match.ts';
 import { boardId, cardElements } from './targets.ts';
 
 /** The attribute. Nothing else in this repo writes it. */
-export const INTENT_ATTR = 'data-attack-intent';
+const INTENT_ATTR = 'data-attack-intent';
 
 /**
  * A box's creatures held for the defender click (`./commit.ts`'s
  * `commitMarquee`): chosen, nothing sent. Written here, not by `attackIntents`,
  * because nothing about them is on the match yet — `./install.ts` owns the group.
  */
-export const PENDING_ATTR = 'data-attack-pending';
+const PENDING_ATTR = 'data-attack-pending';
 
 /**
  * Set to `'1'` in a browser's localStorage, then reload, and the marks go back

@@ -68,16 +68,16 @@ export type RamKind = 'strike' | 'meet' | 'charge';
 export type RamEnd = 'crumple' | 'blasted' | 'win' | 'bounce' | 'charge';
 
 /** The rear back before a lunge, and the lunge itself, faster and faster: the blow lands at their end. */
-export const REAR_MS = 120;
-export const RUSH_MS = 200;
+const REAR_MS = 120;
+const RUSH_MS = 200;
 /** A charge at a player: rearing back to face it (all chargers at once, in formation), then the flight in. */
 export const ALIGN_MS = 300;
-export const CHARGE_MS = 640;
+const CHARGE_MS = 640;
 /** How long a winner and a charge hold the blow before they go back: a pause that lets the blow land. */
 export const HOLD_MS: Readonly<Record<'win' | 'charge', number>> = { win: 280, charge: 180 };
 /** Two that both live bounce off each other this fast, settle this long, then take the way home. */
-export const BOUNCE_MS = 190;
-export const SETTLE_MS = 70;
+const BOUNCE_MS = 190;
+const SETTLE_MS = 70;
 /** The slow way back to its place, the same for a winner, a bounce and a charge. */
 export const RETURN_MS = 620;
 /** Knocked away and gone: inside a crumple's own length (`departures.ts`), so its stand-in outlives it. */
@@ -136,7 +136,7 @@ const ARC = 0.14;
 const LUNGE_SAMPLES = 8;
 
 /** How far a creature leans into its blow (degrees), and to which side: seeded by the creature. */
-export function tiltOf(key: string): number {
+function tiltOf(key: string): number {
   const side = seedOf(`${key}:side`) < 0.5 ? -1 : 1;
   return side * (5 + 5 * seedOf(`${key}:lean`));
 }
@@ -156,13 +156,13 @@ const ALIGN_BACK_PX = 18;
 const px = (p: Point): string => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`;
 
 /** Where a creature draws back to before it lunges at `strike`, and how it leans there. */
-export function rearOf(strike: Point, tilt: number): { at: Point; rot: number } {
+function rearOf(strike: Point, tilt: number): { at: Point; rot: number } {
   const d = Math.hypot(strike.x, strike.y) || 1;
   return { at: { x: (-strike.x / d) * REAR_PX, y: (-strike.y / d) * REAR_PX }, rot: -tilt * 0.3 };
 }
 
 /** The rear back: from its place to `rear`. Its pace is the blow's (`powerEase`), set on the animation. */
-export function rearFrames(rear: { at: Point; rot: number }): Keyframe[] {
+function rearFrames(rear: { at: Point; rot: number }): Keyframe[] {
   return [
     { translate: '0px 0px', rotate: '0deg' },
     { translate: px(rear.at), rotate: `${rear.rot.toFixed(1)}deg` },
@@ -173,7 +173,7 @@ export function rearFrames(rear: { at: Point; rot: number }): Keyframe[] {
  * The lunge into the blow: from `rear` to `strike` along a slight curve (to the side `tilt` leans),
  * leaning into it until it lands at `tilt` degrees. Sampled evenly; the pace is the animation's.
  */
-export function lungeFrames(rear: { at: Point; rot: number }, strike: Point, tilt: number): Keyframe[] {
+function lungeFrames(rear: { at: Point; rot: number }, strike: Point, tilt: number): Keyframe[] {
   const back = rear.at;
   const d = Math.hypot(strike.x - back.x, strike.y - back.y) || 1;
   const bow = d * ARC * (Math.sign(tilt) || 1);
@@ -317,7 +317,7 @@ export function alignOf(from: Box, to: Box, at: Point): { at: Point; rot: number
  * thrown a little to one side and turned further, both seeded; further for a heavier blow. Returns
  * the frames and where it ends, for the way home.
  */
-export function bounceFrames(strike: Point, toward: Point, tilt: number, key: string, power: number): { frames: Keyframe[]; at: Point; rot: number } {
+function bounceFrames(strike: Point, toward: Point, tilt: number, key: string, power: number): { frames: Keyframe[]; at: Point; rot: number } {
   const skew = (seedOf(`${key}:bounce`) - 0.5) * 70;
   const dir = turned({ x: -toward.x, y: -toward.y }, skew);
   const far = BOUNCE_PX * (0.7 + 0.8 * power);
@@ -364,13 +364,13 @@ export function chargeControl(start: Point, end: Point, random: () => number): P
  * facing it. Sampled evenly in time, each sample at the punch's distance (`punchAt`), so the pace is in the
  * frames: run it linear.
  */
-export function chargeFrames(align: { at: Point; rot: number }, strike: Point, power: number, random: () => number = Math.random): Keyframe[] {
+function chargeFrames(align: { at: Point; rot: number }, strike: Point, power: number, random: () => number = Math.random): Keyframe[] {
   const control = chargeControl(align.at, strike, random);
   return Array.from({ length: SAMPLES + 1 }, (_, i) => ({ offset: i / SAMPLES, translate: px(along(align.at, control, strike, punchAt(i / SAMPLES, power))), rotate: `${align.rot.toFixed(1)}deg` }));
 }
 
 /** Slowly back to its place from `at`, turned `rot` degrees, straightening as it goes. */
-export function returnFrames(at: Point, rot: number): Keyframe[] {
+function returnFrames(at: Point, rot: number): Keyframe[] {
   return [
     { translate: px(at), rotate: `${rot.toFixed(1)}deg` },
     { translate: '0px 0px', rotate: '0deg' },
@@ -381,7 +381,7 @@ export function returnFrames(at: Point, rot: number): Keyframe[] {
  * Knocked from `at` along `away` (a unit vector), further for a heavier blow. Only where it goes: its
  * departure's own exit (`departures.ts`'s shatter) cracks it and crumbles it to dust on the way.
  */
-export function blastFrames(at: Point, away: Point, power: number, tilt = 0): Keyframe[] {
+function blastFrames(at: Point, away: Point, power: number, tilt = 0): Keyframe[] {
   const far = BLAST_PX * (0.6 + 0.9 * power);
   const to = { x: at.x + away.x * far, y: at.y + away.y * far };
   const spin = (Math.sign(tilt) || 1) * (10 + 14 * power);

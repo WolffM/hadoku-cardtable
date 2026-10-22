@@ -43,7 +43,7 @@ export interface SoundEvent {
 }
 
 /** A voice's level and playback rate for an event of `intensity`: four fifths and a touch high at 0, a quarter louder and lower at 1. */
-export function intensityVoice(intensity: number | undefined): { gain: number; rate: number } {
+function intensityVoice(intensity: number | undefined): { gain: number; rate: number } {
   if (intensity === undefined) return { gain: 1, rate: 1 };
   const i = Math.min(1, Math.max(0, intensity));
   return { gain: 0.8 + 0.45 * i, rate: 1.06 - 0.16 * i };

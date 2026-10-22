@@ -191,7 +191,7 @@ export function defaultSocketPath(): string {
  * behind the friend gate, and a cross-origin socket would need the gate's
  * headers carried by hand.
  */
-export function socketIoTransport(path: string = defaultSocketPath()): DraftTransport {
+function socketIoTransport(path: string = defaultSocketPath()): DraftTransport {
   // Default transports (long-polling, upgrading to websocket) rather than
   // websocket-only: the edge in front of this app is not ours to assume about,
   // and a failed upgrade degrades instead of failing to connect at all.

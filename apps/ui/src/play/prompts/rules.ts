@@ -272,7 +272,7 @@ export function revealCaption(reveal: { zones: readonly string[]; messagePrefix:
 /* ── Zones ───────────────────────────────────────────────────────────── */
 
 /** `CMatchUI.FLOATING_ZONE_TYPES` (CMatchUI.java:150-152). */
-export const FLOATING_ZONES: ReadonlySet<ZoneType> = new Set<ZoneType>([
+const FLOATING_ZONES: ReadonlySet<ZoneType> = new Set<ZoneType>([
   'Library', 'Graveyard', 'Exile', 'Flashback', 'Command', 'Ante', 'Sideboard',
   'PlanarDeck', 'SchemeDeck', 'AttractionDeck', 'ContraptionDeck', 'Junkyard',
 ]);

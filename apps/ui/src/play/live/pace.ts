@@ -183,7 +183,7 @@ export const PACE_DELAYS_MS: Readonly<Record<PaceClass, number>> = {
 };
 
 /** The classes of frame that start something the board draws: each waits for the board's beats, and goes out in a task of its own. */
-export const HELD_BY_THE_BOARD: ReadonlySet<PaceClass> = new Set<PaceClass>(['cast', 'resolve', 'turn', 'draw', 'default']);
+const HELD_BY_THE_BOARD: ReadonlySet<PaceClass> = new Set<PaceClass>(['cast', 'resolve', 'turn', 'draw', 'default']);
 
 /** The classes that step the game on: one queued behind another frame was passed straight through, so it keeps no gap. */
 const STEPS: ReadonlySet<PaceClass> = new Set<PaceClass>(['phase', 'turn']);
@@ -197,7 +197,7 @@ export const BOARD_HOLD_MAX_MS = 5_000;
  * operator, 2026-10-20, of a looped combo: "it seems i have to wait for the life gain sound to play before i
  * can do the combo again?"). The other input notifies ride with it and say nothing more.
  */
-export const INPUT_HELD_REPORT_MS = 100;
+const INPUT_HELD_REPORT_MS = 100;
 
 /** What an `input-held` report says: the frame's method, its wait, and what the wait was spent on. */
 export interface InputHeld {
