@@ -156,13 +156,49 @@
   animation-name: radio-cards-come-early;
 }
 
+/*
+ * The bottom drawing never thins while the top one fades in over it: each old drawing holds,
+ * fully opaque, until the new one above it is opaque, and only then goes. A crossfade where both
+ * were part-transparent let the page show through near the end, a flash (Firefox blends the two
+ * normally, not additively, so even an even crossfade dims by a quarter at its middle).
+ *
+ * The page and the room's box: the new drawing fades in over the old for the whole move.
+ */
+:root[data-mode-morph]::view-transition-old(root),
+:root[data-mode-morph]::view-transition-old(room-mode-box) {
+  animation-name: radio-cards-hold;
+}
+
+:root[data-mode-morph]::view-transition-new(root),
+:root[data-mode-morph]::view-transition-new(room-mode-box) {
+  animation-name: radio-cards-fade-in;
+}
+
+@keyframes radio-cards-hold {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes radio-cards-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Shrinking: the large card holds; the button fades in over it once near its own size, then the card goes. */
 @keyframes radio-cards-hold-then-go {
   0%,
-  45% {
+  90% {
     opacity: 1;
   }
 
-  75%,
+  91%,
   100% {
     opacity: 0;
   }
@@ -180,12 +216,14 @@
   }
 }
 
+/* Growing: the large card, art decoded, fades in over the button from the first frame; then the button goes. */
 @keyframes radio-cards-go-early {
-  0% {
+  0%,
+  30% {
     opacity: 1;
   }
 
-  25%,
+  31%,
   100% {
     opacity: 0;
   }
