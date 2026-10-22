@@ -221,10 +221,31 @@ describe('the condition glow and its ink', () => {
   });
 });
 
+/** Every stylesheet the app owns, by path from `src/`; the vendored symbol fonts' sheets are third-party. */
+const root = new URL('../', import.meta.url);
+const sheets: string[] = [];
+const walk = (dir: URL, rel: string): void => {
+  for (const name of readdirSync(dir)) {
+    const url = new URL(name, dir);
+    if (statSync(url).isDirectory()) {
+      if (name !== 'symbols') walk(new URL(`${name}/`, dir), `${rel}${name}/`);
+    } else if (name.endsWith('.css')) sheets.push(`${rel}${name}`);
+  }
+};
+walk(root, '');
+
 describe('the stacking scale (wave 32 shape 2)', () => {
-  it('declares the four layers on :root, in order', () => {
+  it('declares the layers on :root, in order', () => {
     const z = (n: string): number => Number(new RegExp(`--z-${n}:\\s*(\\d+);`).exec(ownCss)?.[1] ?? Number.NaN);
-    expect([z('board'), z('card-badge'), z('overlay'), z('popover')]).toEqual([0, 1, 20, 40]);
+    expect([z('board'), z('card-badge'), z('overlay'), z('popover'), z('modal'), z('zoom')]).toEqual([0, 1, 20, 40, 50, 60]);
+  });
+
+  it('every stacking order the app’s sheets write is a layer, and only a small local order is a bare number', () => {
+    const found: string[] = [];
+    for (const rel of sheets) {
+      for (const m of readFileSync(new URL(rel, root), 'utf8').matchAll(/z-index:\s*(\d+)/g)) if (Number(m[1]) > 9) found.push(`${rel}: z-index ${m[1]}`);
+    }
+    expect(found).toEqual([]);
   });
 });
 
@@ -237,17 +258,6 @@ describe('the stacking scale (wave 32 shape 2)', () => {
  * has a token for. The vendored symbol fonts' sheets are third-party.
  */
 describe('no hardcoded colours', () => {
-  const root = new URL('../', import.meta.url);
-  const sheets: string[] = [];
-  const walk = (dir: URL, rel: string): void => {
-    for (const name of readdirSync(dir)) {
-      const url = new URL(name, dir);
-      if (statSync(url).isDirectory()) {
-        if (name !== 'symbols') walk(new URL(`${name}/`, dir), `${rel}${name}/`);
-      } else if (name.endsWith('.css')) sheets.push(`${rel}${name}`);
-    }
-  };
-  walk(root, '');
   // A relative colour derived from a token (`oklch(from var(--bg) …)`) is the theme's own colour, not a literal.
   const LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\((?!from\s+var\()|(?<![-\w])(?:white|black|red|blue|green|gray|grey|silver)(?![-\w])/i;
   const PALETTE = /^\s*--c-(?:white|blue|black|red|green|generic):\s*#[0-9a-f]{6};\s*$/i;

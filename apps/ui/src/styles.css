@@ -154,7 +154,7 @@
   --success-ink: color-mix(in srgb, var(--success) 30%, var(--ink));
 
   /*
-   * The stacking scale (wave 32 Q16). Three layers that used to be bare numbers
+   * The stacking scale (wave 32 Q16). Layers that used to be bare numbers
    * in five stylesheets, so a card's P/T badge could land over a prompt.
    * Consumers write `var(--z-popover, 40)` with the number as the fallback, so
    * the order in which lanes land does not matter.
@@ -164,6 +164,7 @@
   --z-card-raised: 1; /* an emphasised card, over the cards beside it */
   --z-overlay: 20; /* rail, controls, the stack */
   --z-popover: 40; /* prompts, dialogs, menus */
+  --z-modal: 50; /* a panel over a dimmed page: the settings, the stats, the create form */
   --z-zoom: 60; /* the hover zoom: above everything, the control bar and prompts included */
 
   /* Our colour-pie hues. Deliberately not the printed ones. */
@@ -991,11 +992,6 @@ button {
   pointer-events: none;
   /* No filter of any kind here. See the note above: altering the image is a
      presentation-rule violation, not a style choice. */
-}
-
-/* The tile becomes the positioning context for the art that covers it. */
-.card {
-  position: relative;
 }
 
 /*
