@@ -32,7 +32,7 @@ const FIXTURE_PATH = join(HERE, 'fixtures', 'lsvcube-sample.json');
 
 // w74 §G widened `CardCatalog` with `byPrinting`/`swap`; this file's own stand-in
 // just needs to keep typechecking — none of these tests exercise either method.
-const EMPTY_CATALOG: CardCatalog = { byName: () => null, byPrinting: () => null, swap: () => false };
+const EMPTY_CATALOG: CardCatalog = { byName: () => null, byPrinting: () => null, byNameInSet: () => null, swap: () => false };
 
 function shortlistCard(name: string): DraftCard {
 	return {

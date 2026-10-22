@@ -60,9 +60,10 @@ export interface SetsForge {
 	boosters(code: string, count: number, seed: string): Promise<BoosterCard[][]>;
 }
 
-/** The slice of G's `CardCatalog` this module consumes — `byName` only; set sources carry no printing until `deal()` maps a realistic pack through `byPrinting` (`room/draftRooms.ts`'s own concern, not this store's). */
+/** The slice of G's `CardCatalog` this module consumes: a set's card as that set printed it (the operator, 2026-10-22: "i see an alpha giant growth in my marvel set"), else by name. */
 export interface CatalogLookup {
 	byName(name: string): DraftCard | null;
+	byNameInSet(name: string, set: string): DraftCard | null;
 }
 
 export interface SetsStore {
@@ -112,6 +113,8 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 	const sampleBoosters = opts.sampleBoosters ?? DEFAULT_SAMPLE_BOOSTERS;
 
 	const nameCache = new Map<string, string>();
+	/** Forge's set code -> the one the catalog keys its printings by, where they differ. */
+	const printedCode = new Map<string, string>();
 	const cardsCache = new Map<string, readonly DraftCard[] | null>();
 	const cardsInFlight = new Map<string, Promise<readonly DraftCard[] | null>>();
 	const namedListeners = new Set<() => void>();
@@ -156,7 +159,8 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 			warn({ evt: 'set-booster-sample-failed', code, detail: (err as Error).message });
 		}
 		const names = Array.from(new Set([...setNames, ...boosterNames]));
-		return names.map((name) => opts.catalog.byName(name) ?? missingTextCard(name, code));
+		const printed = printedCode.get(code) ?? code;
+		return names.map((name) => opts.catalog.byNameInSet(name, printed) ?? opts.catalog.byName(name) ?? missingTextCard(name, code));
 	}
 
 	function cardsFor(code: string): Promise<readonly DraftCard[] | null> {
@@ -178,6 +182,7 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 	function named(sets: readonly ForgeSetSummary[]): void {
 		let added = false;
 		for (const s of sets) {
+			if (s.scryfallCode !== undefined && s.scryfallCode !== s.code) printedCode.set(s.code, s.scryfallCode);
 			if (nameCache.get(s.code) === s.name) continue;
 			nameCache.set(s.code, s.name);
 			added = true;

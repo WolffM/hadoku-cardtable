@@ -181,12 +181,29 @@ describe.skipIf(!available.ok)(title, () => {
 		expect(wrongBack).toEqual(["Jace, Vryn's Prodigy // Not His Back"]);
 	});
 
+	it('names each set by the code Scryfall prints it as too, on the set and on every booster card (Conflux: CFX, CON)', { timeout: 60_000 }, async () => {
+		if (!available.ok) return;
+		expect((await service().sets()).find((s) => s.code === 'CFX')?.scryfallCode).toBe('CON');
+		const [pack] = await service().boosters('CFX', 1, 'scryfall-code');
+		expect(pack!.every((c) => c.set === 'CON'), JSON.stringify(pack!.map((c) => c.set))).toBe(true);
+	});
+
 	it('sets() includes ISD and ARB', async () => {
 		if (!available.ok) return;
 		const sets = await service().sets();
 		const codes = sets.map((s) => s.code);
 		expect(codes).toContain('ISD');
 		expect(codes).toContain('ARB');
+	});
+
+	// Claw run 39856808361: the top-up added a common Delver of Secrets beside the pack's own DFC.
+	it('every ISD pack holds exactly one DFC across 200 seeds — the top-up commons are never double-faced', { timeout: 120_000 }, async () => {
+		if (!available.ok) return;
+		for (let i = 0; i < 200; i++) {
+			const [pack] = await service().boosters('ISD', 1, `one-dfc-${i}`);
+			const dfcs = pack!.filter((c) => ISD_DFC_FRONTS.has(c.name)).map((c) => c.name);
+			expect(dfcs, `one-dfc-${i}: ${JSON.stringify(pack!.map((c) => c.name))}`).toHaveLength(1);
+		}
 	});
 
 	it(

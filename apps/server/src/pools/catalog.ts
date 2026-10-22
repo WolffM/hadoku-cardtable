@@ -53,6 +53,8 @@ export interface CardCatalog {
 	byName(name: string): DraftCard | null;
 	/** The canonical card's text with THIS printing's own setCode/collectorNumber/scryfallId. Misses only on a name the catalog never resolved at all; callers fall back to `byName`. */
 	byPrinting(set: string, collectorNumber: string): DraftCard | null;
+	/** The card named `name` as `set` printed it — its art and rarity there — or `null` when the set has no printing of it; callers fall back to `byName`. */
+	byNameInSet(name: string, set: string): DraftCard | null;
 	/**
 	 * Reload from `path` (default: the path this catalog was built from) and,
 	 * on success, swap the live data in place. Returns `true` on a swap,
@@ -88,11 +90,13 @@ interface CatalogState {
 	aliases: Map<string, string>;
 	/** `<SET>:<collector_number>` -> its ref; resolved against `cards` lazily in `byPrinting`, never duplicated into a second `DraftCard` map. */
 	printings: Map<string, PrintingRef>;
+	/** `<SET>|<canonical key>` -> that card's printing in that set, its lowest collector number (the set's own frame, not a showcase variant). */
+	inSet: Map<string, string>;
 }
 
 const log = jsonLogger('cardtable-pools');
 
-const EMPTY_STATE: CatalogState = { cards: new Map(), aliases: new Map(), printings: new Map() };
+const EMPTY_STATE: CatalogState = { cards: new Map(), aliases: new Map(), printings: new Map(), inSet: new Map() };
 
 /** Uppercase the set so a caller's case never misses; the file's own keys are already uppercase (`build-catalog.ts` upper-cases `setCode`). */
 function printingKey(setCode: string, collectorNumber: string): string {
@@ -155,9 +159,17 @@ function parseCatalogState(path: string): CatalogState | null {
 		}
 	}
 
+	const inSet = new Map<string, string>();
+	const number = (key: string): number => Number.parseInt(key.slice(key.indexOf(':') + 1), 10);
+	for (const [key, ref] of printings) {
+		const at = `${key.slice(0, key.indexOf(':'))}|${ref.key}`;
+		const held = inSet.get(at);
+		if (held === undefined || number(key) < number(held) || (Number.isNaN(number(held)) && !Number.isNaN(number(key)))) inSet.set(at, key);
+	}
+
 	log({ evt: 'catalog-loaded', path, cards: cards.size, aliases: aliases.size, printings: printings.size, rejected, printingsRejected });
 
-	return { cards, aliases, printings };
+	return { cards, aliases, printings, inSet };
 }
 
 /**
@@ -174,18 +186,28 @@ function parseCatalogState(path: string): CatalogState | null {
 export function loadCardCatalog(path: string): CardCatalog {
 	let state = parseCatalogState(path) ?? EMPTY_STATE;
 
-	return {
+	/** The key `cards` holds `name` under, through its aliases. */
+	const keyOf = (name: string): string | null => {
+		for (const key of [normaliseName(name), foldName(name)]) {
+			if (state.cards.has(key)) return key;
+			const canonical = state.aliases.get(key);
+			if (canonical !== undefined && state.cards.has(canonical)) return canonical;
+		}
+		return null;
+	};
+
+	const catalog: CardCatalog = {
 		byName(name: string): DraftCard | null {
-			for (const key of [normaliseName(name), foldName(name)]) {
-				const direct = state.cards.get(key);
-				if (direct !== undefined) return direct;
-				const canonical = state.aliases.get(key);
-				if (canonical !== undefined) {
-					const hit = state.cards.get(canonical);
-					if (hit !== undefined) return hit;
-				}
-			}
-			return null;
+			const key = keyOf(name);
+			return key === null ? null : (state.cards.get(key) ?? null);
+		},
+
+		byNameInSet(name: string, set: string): DraftCard | null {
+			const key = keyOf(name);
+			const printing = key === null ? undefined : state.inSet.get(`${set.toUpperCase()}|${key}`);
+			if (printing === undefined) return null;
+			const at = printing.indexOf(':');
+			return catalog.byPrinting(printing.slice(0, at), printing.slice(at + 1));
 		},
 
 		byPrinting(set: string, collectorNumber: string): DraftCard | null {
@@ -214,4 +236,5 @@ export function loadCardCatalog(path: string): CardCatalog {
 			return true;
 		},
 	};
+	return catalog;
 }

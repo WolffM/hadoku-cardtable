@@ -295,3 +295,36 @@ describe('loadCardCatalog swap', () => {
 		expect(catalog.byName('Lightning Bolt')?.name).toBe('Lightning Bolt');
 	});
 });
+
+// The operator, 2026-10-22: "i see an alpha giant growth in my marvel set" — a set-cube card is the set's own printing.
+describe('loadCardCatalog byNameInSet', () => {
+	let dir: string;
+
+	beforeEach(async () => {
+		dir = await mkdtemp(join(tmpdir(), 'catalog-test-'));
+	});
+
+	afterEach(async () => {
+		await rm(dir, { recursive: true, force: true });
+	});
+
+	it("answers the card as that set printed it — its art and rarity there, its lowest collector number — and null for a set that never printed it", async () => {
+		const path = await writeCatalog(dir, {
+			cards: { 'lightning bolt': BOLT },
+			aliases: {},
+			printings: {
+				'LEA:161': { key: 'lightning bolt', scryfallId: LEA_BOLT_SCRYFALL_ID, rarity: 'common' },
+				'M19:301': { key: 'lightning bolt', scryfallId: '00000000-0000-0000-0000-000000000301', rarity: 'rare' },
+				'M19:141': { key: 'lightning bolt', scryfallId: M19_BOLT_SCRYFALL_ID, rarity: 'uncommon' },
+			},
+		});
+		const catalog = loadCardCatalog(path);
+		const m19 = catalog.byNameInSet('lightning bolt', 'm19');
+		expect(m19?.setCode).toBe('M19');
+		expect(m19?.collectorNumber).toBe('141');
+		expect(m19?.scryfallId).toBe(M19_BOLT_SCRYFALL_ID);
+		expect(m19?.rarity).toBe('uncommon');
+		expect(catalog.byNameInSet('Lightning Bolt', 'ZEN')).toBeNull();
+		expect(catalog.byNameInSet('Not A Card', 'M19')).toBeNull();
+	});
+});

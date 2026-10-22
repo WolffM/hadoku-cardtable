@@ -53,6 +53,8 @@ export interface SetSummary {
 	name: string;
 	date: string;
 	type: string;
+	/** The code Scryfall, and so the card catalog, prints the set under (Conflux: CFX here, CON there). */
+	scryfallCode?: string;
 }
 
 export interface BoosterCard {

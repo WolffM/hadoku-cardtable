@@ -29,6 +29,7 @@ import forge.card.CardDb;
 import forge.card.CardEdition;
 import forge.card.CardRarity;
 import forge.card.CardRules;
+import forge.card.CardSplitType;
 import forge.gui.GuiBase;
 import forge.item.PaperCard;
 import forge.item.SealedTemplate;
@@ -47,6 +48,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -234,6 +236,7 @@ public final class PoolService {
             s.addProperty("name", ed.getName());
             s.addProperty("date", ISO_DATE.format(ed.getDate()));
             s.addProperty("type", ed.getType().name());
+            s.addProperty("scryfallCode", scryfallCode(ed.getCode()));
             sets.add(s);
         }
         resp.addProperty("ok", true);
@@ -287,7 +290,7 @@ public final class PoolService {
             for (final PaperCard pc : pack) {
                 final JsonObject c = new JsonObject();
                 c.addProperty("name", pc.getName());
-                c.addProperty("set", pc.getEdition());
+                c.addProperty("set", scryfallCode(pc.getEdition()));
                 c.addProperty("collectorNumber", pc.getCollectorNumber());
                 c.addProperty("foil", pc.isFoil());
                 packArr.add(c);
@@ -298,6 +301,19 @@ public final class PoolService {
         resp.add("boosters", boosters);
     }
 
+    /**
+     * The set code Scryfall prints {@code forgeCode} under, which is how the server's card catalog
+     * keys a printing: Conflux is Forge's CFX and Scryfall's CON. The code itself where Forge knows
+     * no other.
+     */
+    private static String scryfallCode(final String forgeCode) {
+        final CardEdition ed = StaticData.instance().getEditions().get(forgeCode);
+        return ed == null ? forgeCode : ed.getScryfallCode().toUpperCase();
+    }
+
+    /** The layouts a booster deals in a slot of their own, never as a top-up common. */
+    private static final Set<CardSplitType> DOUBLE_FACED = EnumSet.of(CardSplitType.Transform, CardSplitType.Modal, CardSplitType.Meld);
+
     /** Every draft pack's size, whatever the set's booster holds. */
     private static final int PACK_SIZE = 15;
 
@@ -306,7 +322,9 @@ public final class PoolService {
      * packs. lets make sure all packs are 15 cards"): its basic land and its foils left out, then
      * topped up to {@link #PACK_SIZE} with the set's commons not already in it, or cut to it by its
      * last commons. A play booster (Bloomburrow: 14, a land and a foil wildcard among them) and a
-     * draft booster with a land slot (Dominaria United's 15th) both come out 15.
+     * draft booster with a land slot (Dominaria United's 15th) both come out 15. The top-up is
+     * never a double-faced card: a set that has them deals them in their own slot (Innistrad's
+     * {@code 1 dfc}, its commons {@code !dfc}), so a common Delver of Secrets would be a second.
      */
     private static List<PaperCard> draftPack(final List<PaperCard> booster, final CardEdition ed) {
         final List<PaperCard> pack = new ArrayList<>();
@@ -320,7 +338,8 @@ public final class PoolService {
         for (final CardEdition.EditionEntry entry : ed.getAllCardsInSet()) {
             if (entry.rarity() != CardRarity.Common || held.contains(entry.name())) { continue; }
             final PaperCard pc = cards.getCard(entry.name(), ed.getCode(), entry.collectorNumber());
-            if (pc != null && commons.stream().noneMatch(c -> c.getName().equals(pc.getName()))) { commons.add(pc); }
+            if (pc == null || DOUBLE_FACED.contains(pc.getRules().getSplitType())) { continue; }
+            if (commons.stream().noneMatch(c -> c.getName().equals(pc.getName()))) { commons.add(pc); }
         }
         while (pack.size() < PACK_SIZE && !commons.isEmpty()) {
             pack.add(commons.remove(MyRandom.getRandom().nextInt(commons.size())));

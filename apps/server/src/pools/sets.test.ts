@@ -30,7 +30,7 @@ function card(name: string, code: string): DraftCard {
 	};
 }
 
-const EMPTY_CATALOG: CatalogLookup = { byName: () => null };
+const EMPTY_CATALOG: CatalogLookup = { byName: () => null, byNameInSet: () => null };
 
 function booster(names: string[], code: string): BoosterCard[] {
 	return names.map((name) => ({ name, set: code, collectorNumber: '1', foil: false }));
@@ -198,15 +198,39 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 			setCards: { ISD: ['Card A', 'Card B'] },
 			boosters: { ISD: [booster(['Card A', 'Startled Awake // Persistent Nightmare'], 'ISD')] },
 		});
-		const catalog: CatalogLookup = { byName: (name) => card(name, 'ISD') };
+		const catalog: CatalogLookup = { byName: (name) => card(name, 'ISD'), byNameInSet: () => null };
 		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
 		const cards = await store.cardsFor('ISD');
 		expect(cards?.map((c) => c.name).sort()).toEqual(['Card A', 'Card B', 'Startled Awake // Persistent Nightmare'].sort());
 	});
 
+	it("draws each card as the set printed it, and by name only where the catalog has no printing of it there", async () => {
+		const forge = fakeForge({ setCards: { ISD: ['Giant Growth', 'Card B'] }, boosters: { ISD: [booster(['Card B'], 'ISD')] } });
+		const catalog: CatalogLookup = {
+			byName: (name) => card(name, 'LEA'),
+			byNameInSet: (name, set) => (name === 'Giant Growth' ? card(name, set) : null),
+		};
+		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
+		const cards = await store.cardsFor('ISD');
+		expect(cards?.find((c) => c.name === 'Giant Growth')?.setCode).toBe('ISD');
+		expect(cards?.find((c) => c.name !== 'Giant Growth')?.setCode).toBe('LEA');
+	});
+
+	it("looks a set's printings up under the code Scryfall prints it as, where Forge's differs (Conflux: CFX, CON)", async () => {
+		const forge = fakeForge({
+			sets: [{ code: 'CFX', name: 'Conflux', date: '2009-02-06', type: 'Expansion', scryfallCode: 'CON' }],
+			setCards: { CFX: ['Giant Growth'] },
+		});
+		const byNameInSet = vi.fn((name: string, set: string) => card(name, set));
+		const store = createSetsStore({ forge, catalog: { byName: (name) => card(name, 'LEA'), byNameInSet }, sampleBoosters: 0 });
+		await store.list();
+		expect((await store.cardsFor('CFX'))?.[0]?.setCode).toBe('CON');
+		expect(byNameInSet).toHaveBeenCalledWith('Giant Growth', 'CON');
+	});
+
 	it('a name the catalog cannot resolve carries typeLine \'\' — missingText, same signal pools/cubes.ts uses', async () => {
 		const forge = fakeForge({ setCards: { ISD: ['Known', 'Mystery'] } });
-		const catalog: CatalogLookup = { byName: (name) => (name === 'Known' ? card(name, 'ISD') : null) };
+		const catalog: CatalogLookup = { byName: (name) => (name === 'Known' ? card(name, 'ISD') : null), byNameInSet: () => null };
 		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
 		const cards = await store.cardsFor('ISD');
 		expect(cards?.find((c) => c.name === 'Mystery')?.typeLine).toBe('');
@@ -228,7 +252,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 
 	it('the booster sample failing (no draft template, or a transient fault) still answers from setCards alone, logged', async () => {
 		const forge = fakeForge({ setCards: { ARB: ['Card D'] }, failBoosters: new Set(['ARB']) });
-		const catalog: CatalogLookup = { byName: (name) => card(name, 'ARB') };
+		const catalog: CatalogLookup = { byName: (name) => card(name, 'ARB'), byNameInSet: () => null };
 		const log = vi.fn();
 		const store = createSetsStore({ forge, catalog, log });
 		const cards = await store.cardsFor('ARB');
