@@ -923,13 +923,9 @@ describe('installNumbers: a ram', () => {
   });
 });
 
-/* Each length `numbers.css` animates over is one of the constants, set on the canvas as a `--*-ms`: the sheet restates none. */
+/* Each length `numbers.css` animates over is one of the constants, set on the canvas as a `--*-ms` (`durations.test.ts`: the sheet restates none). */
 describe('installNumbers: the stylesheet reads its durations', () => {
   const css = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'numbers.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-
-  it('numbers.css writes no duration of its own', () => {
-    expect([...css.matchAll(/animation[^;{}]*?\b\d+m?s\b/g)].map((m) => m[0].trim())).toEqual([]);
-  });
 
   it('the canvas carries every duration the sheet reads, from the constants', () => {
     const { canvas } = board();
