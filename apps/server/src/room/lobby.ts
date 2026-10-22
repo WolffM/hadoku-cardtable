@@ -456,7 +456,7 @@ export type JoinResult =
 
 export type SetGameTypeResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
 
 /** `setFormat`'s refusals, plus a draft room (which has no mode) and `modeLocked`. */
 export type SetModeResult =
@@ -1062,7 +1062,8 @@ export interface Lobby {
 	 * Every member's `ready` is cleared: readiness is readiness for a particular
 	 * game, so changing the game invalidates it. A real change also puts the
 	 * mode back to unchosen: a mode belongs to a constructed room. Refused with
-	 * `draft-started` while a draft is running.
+	 * `draft-started` while a draft is running, and with `mode-locked` while the
+	 * mode could not change either.
 	 */
 	setGameType(roomId: string, callerId: string, gameType: GameType): SetGameTypeResult;
 	/**
@@ -1728,7 +1729,7 @@ function seatedReady(room: RoomRecord): boolean {
 /**
  * Whether a constructed room's mode can no longer change (operator ruling 8:
  * *"not anymore once players ready up"*). Every reason a mode freezes is one
- * line here, so `setMode` asks one question.
+ * line here, so `setMode` and `setGameType` ask one question.
  */
 function modeLocked(room: RoomRecord): boolean {
 	return seatedReady(room) || gauntletUnderWay(room.gauntlet);
@@ -2512,6 +2513,8 @@ class FileLobby implements Lobby {
 		// Switching the game under it would leave a live pod in a room that says
 		// it is playing constructed, and nothing would ever close the pod.
 		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
+		// The type is the room's shape, the mode a part of it: what freezes the mode freezes the type.
+		if (room.gameType !== gameType && modeLocked(room)) return { ok: false, reason: 'mode-locked' };
 		if (room.gameType !== gameType) {
 			room.mode = null;
 			room.modeOptions = null;

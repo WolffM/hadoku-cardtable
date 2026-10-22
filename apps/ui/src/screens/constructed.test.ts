@@ -2613,7 +2613,7 @@ describe('the room’s type', () => {
       [true, true],
       [false, true],
     ]);
-    expect(screen.getByTestId('constructed').textContent).not.toMatch(/leader|wait/i);
+    expect(screen.getByTestId('room-game-type').closest('section')?.textContent).not.toMatch(/leader|wait/i);
   });
 
   it('is locked when the mode is: somebody ready, or a match live', async () => {

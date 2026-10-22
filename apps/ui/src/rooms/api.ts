@@ -445,6 +445,8 @@ export interface RoomsClient {
    * the same PATCH as `setFormat`; refused once a seated player is ready.
    */
   setRoomMode(roomId: string, mode: RoomMode): Promise<RoomOutcome>;
+  /** Make the room Constructed or Draft. The LEADER's call, through the same PATCH, under the mode's lock. */
+  setGameType(roomId: string, gameType: GameType): Promise<RoomOutcome>;
   /**
    * Deal the draft. Any member may ask — like constructed, where either browser
    * may start the match and the server answers one start to both — and asking
@@ -673,6 +675,9 @@ export function roomsClient(
 
     setRoomMode(roomId, mode) {
       return write(`/${encodeURIComponent(roomId)}`, mode, 'Could not change the room mode', 'PATCH');
+    },
+    setGameType(roomId, gameType) {
+      return write(`/${encodeURIComponent(roomId)}`, { gameType }, 'Could not change the game type', 'PATCH');
     },
 
     start(roomId) {

@@ -56,7 +56,6 @@ import { roomFeed, type RoomFeed } from './feed.ts';
 import { playRole } from '../sound/index.ts';
 import {
   clientModeLabel,
-  GAME_TYPES,
   gameTypeLabel,
   roomsClient,
   type GameType,
@@ -65,6 +64,7 @@ import {
 } from './api.ts';
 import { Avatar } from '../components/Avatar.tsx';
 import { RadioCards } from '../components/RadioCards.tsx';
+import { GameTypeRow } from './GameTypeRow.tsx';
 import { freshRoomMode, MODE_CARDS } from '../screens/constructed-mode/ModeRow.tsx';
 import './rooms.css';
 import { uiLength } from '../settings/ui-scale.ts';
@@ -450,7 +450,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
         />
 
         <span className="rooms__caption">Game type</span>
-        <RadioCards name="room-create-type" label="Game type" options={GAME_TYPES} value={gameType} onChange={setGameType} testId="room-create-type" />
+        <GameTypeRow testId="room-create-type" value={gameType} onChange={setGameType} />
 
         {gameType === 'constructed-1v1' && (
           <>

@@ -185,11 +185,13 @@ import {
   streamReachable,
   type ClientMode,
   type Fetch,
+  type GameType,
   type RoomMember,
   type RoomOutcome,
   type RoomView,
   type RoomsClient,
 } from '../rooms/api.ts';
+import { GameTypeRow } from '../rooms/GameTypeRow.tsx';
 import { ClassicOptions, type Browse } from './constructed-mode/ClassicOptions.tsx';
 import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
@@ -1291,6 +1293,13 @@ function RoomTableScreen({
    * refusal it answers a late press with is shown like any other.
    */
   const modeLocked = underway || players.some((p) => p.ready) || gauntletUnderway;
+  /** What the room plays: Constructed or Draft, as the create form named it. */
+  const gameType: GameType = draftRoom ? 'draft' : 'constructed-1v1';
+  /**
+   * The type is the leader's when the mode is (the server's `mode-locked` again);
+   * a draft room's until its deal is asked for, after which it is the pod's.
+   */
+  const typeLocked = draftRoom ? dealing : modeLocked;
   /**
    * What stands between my seat and Ready: in Classic, a legal deck of my
    * own; in Gauntlet and All Random the room deals the decks, so only the seat
@@ -1821,6 +1830,11 @@ function RoomTableScreen({
       .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)));
   };
 
+  /** The LEADER picked the room's other type: it becomes that room, its mode unchosen and nobody ready. */
+  const chooseGameType = (next: GameType): void => {
+    if (next !== gameType) writeRoom(() => rooms.setGameType(roomId, next));
+  };
+
   /** The LEADER picked a mode: the room moves to it with that mode's first options. */
   const chooseMode = (next: ConstructedMode): void => {
     if (next !== mode) writeRoom(() => rooms.setRoomMode(roomId, freshRoomMode(next)));
@@ -2036,6 +2050,17 @@ function RoomTableScreen({
             there is no deck to hold, no seat at a constructed table, and every
             table write it could make is a 409. */}
         {locked === null && draftRoom && (
+          <>
+          <section className="lobby__card">
+            <div className="lobby__modeline">
+              <GameTypeRow testId="room-game-type" value={gameType} disabled={!iAmLeader || typeLocked} onChange={chooseGameType} />
+            </div>
+            {actionError !== null && (
+              <p className="lobby__error" role="alert" data-testid="table-error">
+                {actionError}
+              </p>
+            )}
+          </section>
           <DraftLobby
             roomId={roomId}
             pod={view?.pod ?? null}
@@ -2053,6 +2078,7 @@ function RoomTableScreen({
               setDealAttempt((n) => n + 1);
             }}
           />
+          </>
         )}
 
         {!draftRoom && loadError !== null && (
@@ -2068,6 +2094,7 @@ function RoomTableScreen({
             {!gauntletGame && (
             <section className="lobby__card">
               <div className="lobby__modeline">
+                <GameTypeRow testId="room-game-type" value={gameType} disabled={!iAmLeader || typeLocked} onChange={chooseGameType} />
                 <ModeRow mode={mode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
                 {mode === 'classic' && loaded !== null && (
                   <ClassicOptions
