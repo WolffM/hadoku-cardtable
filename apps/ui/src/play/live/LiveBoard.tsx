@@ -2688,6 +2688,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useEffect(() => {
     if (frameTurn >= 0) frameWatch.current?.noteTurn(frameTurn);
   }, [frameTurn]);
+  const frameOver = match.view?.gameOver === true;
+  useEffect(() => {
+    if (frameOver) frameWatch.current?.noteGameOver();
+  }, [frameOver]);
   /*
    * T4 (shape 1, lane G): every Forge yes/no that is an ANSWER rather than a
    * priority pass — the shockland's "pay 2 life?", the mulligan's

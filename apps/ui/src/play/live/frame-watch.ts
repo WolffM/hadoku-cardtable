@@ -10,8 +10,8 @@
  *   running animations by what they move, the turn and the counts.
  * - `what: 'loaf'` — one per long frame the browser attributed (Chrome's `long-animation-frame`): how its
  *   time split between script, the render phase's callbacks and style and layout, and the scripts that ran.
- * - `what: 'summary'` — every frame since the last summary, every {@link SUMMARY_EVERY_TURNS} turns and
- *   as the match closes: a baseline even when nothing went bad.
+ * - `what: 'summary'` — every frame since the last summary, every {@link SUMMARY_EVERY_TURNS} turns, as
+ *   the game ends and as the board or the tab closes: a baseline even when nothing went bad.
  *
  * A frame costs two clock reads, a few counter writes and one histogram bump: no allocation, no DOM read,
  * no layout. Everything else is computed only when a stretch opens or a report goes out.
@@ -94,12 +94,16 @@ export interface FrameWatchHost {
   caf?: (handle: number) => void;
   now?: () => number;
   doc?: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'>;
+  /** Where a closing tab says so (`pagehide`): the real `window` by default. */
+  win?: Pick<Window, 'addEventListener' | 'removeEventListener'>;
   observer?: ObserverClass | null;
 }
 
 export interface FrameWatch {
   /** The turn moved on: every {@link SUMMARY_EVERY_TURNS} turns, a summary. */
   noteTurn(turn: number): void;
+  /** The game is over: a summary of it. */
+  noteGameOver(): void;
   /** Stop: a stretch still open is reported, then a summary. */
   dispose(): void;
 }
@@ -216,7 +220,7 @@ export function attributionOf(observer: ObserverClass | null | undefined): 'loaf
   return 'none';
 }
 
-const IDLE: FrameWatch = { noteTurn: () => undefined, dispose: () => undefined };
+const IDLE: FrameWatch = { noteTurn: () => undefined, noteGameOver: () => undefined, dispose: () => undefined };
 
 export function watchFrames(host: FrameWatchHost): FrameWatch {
   // A document that draws no frames (a test's, a server render) has none to time.
@@ -225,6 +229,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
   const caf = host.caf ?? ((h: number) => cancelAnimationFrame(h));
   const now = host.now ?? (() => performance.now());
   const doc = host.doc ?? document;
+  const win = host.win ?? window;
   const page = host.page ?? pageFacts;
   const Observer = host.observer === undefined ? (typeof PerformanceObserver === 'function' ? (PerformanceObserver as unknown as ObserverClass) : null) : host.observer;
   const attribution = attributionOf(Observer);
@@ -410,7 +415,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
     } else startLoop();
   }
 
-  function summary(why: 'turns' | 'end'): void {
+  function summary(why: 'turns' | 'over' | 'end'): void {
     if (frames === 0) return;
     host.report({
       what: 'summary',
@@ -441,7 +446,14 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
     summaryTurn = lastTurn;
   }
 
+  /** A tab closing runs no effect cleanup: what it saw is sent as it goes. */
+  function onPageHide(): void {
+    if (open) closeStretch('end');
+    summary('end');
+  }
+
   doc.addEventListener('visibilitychange', onVisibility);
+  win.addEventListener('pagehide', onPageHide);
   startLoop();
 
   return {
@@ -451,11 +463,15 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       if (summaryTurn < 0) summaryTurn = turn;
       else if (turn - summaryTurn >= SUMMARY_EVERY_TURNS) summary('turns');
     },
+    noteGameOver(): void {
+      summary('over');
+    },
     dispose(): void {
       if (disposed) return;
       stopLoop();
       disposed = true;
       doc.removeEventListener('visibilitychange', onVisibility);
+      win.removeEventListener('pagehide', onPageHide);
       observer?.disconnect();
       if (open) closeStretch('end');
       summary('end');

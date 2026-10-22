@@ -31,6 +31,7 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
   let nextHandle = 1;
   let visibility: DocumentVisibilityState = options.hidden === true ? 'hidden' : 'visible';
   const listeners = new Set<() => void>();
+  const pageHide = new Set<() => void>();
   const sent: Data[] = [];
   const observers: { callback: (list: { getEntries(): readonly unknown[] }) => void; type: string; disconnected: boolean }[] = [];
   const Observer = class {
@@ -69,6 +70,10 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
       addEventListener: (_: string, l: () => void) => listeners.add(l),
       removeEventListener: (_: string, l: () => void) => listeners.delete(l),
     } as unknown as FrameWatchHost['doc'],
+    win: {
+      addEventListener: (_: string, l: () => void) => pageHide.add(l),
+      removeEventListener: (_: string, l: () => void) => pageHide.delete(l),
+    } as unknown as FrameWatchHost['win'],
     observer: Observer,
   };
   return {
@@ -87,6 +92,12 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
     },
     frames(count: number, gap: number): void {
       for (let i = 0; i < count; i += 1) this.frame(gap);
+    },
+    hidePage(): void {
+      for (const l of pageHide) l();
+    },
+    get pageHideListeners() {
+      return pageHide.size;
     },
     setVisibility(v: DocumentVisibilityState): void {
       visibility = v;
@@ -287,6 +298,21 @@ describe('watchFrames', () => {
     watch.dispose();
     expect(t.of('summary')[1]).toMatchObject({ why: 'end', fromTurn: 1 + SUMMARY_EVERY_TURNS, frames: 10, p50: 34, worstMs: 33 });
     expect(t.scheduled, 'disposed: the loop stops').toBe(false);
+  });
+
+  it('summarises as the game ends, and sends what it saw as the tab closes', () => {
+    const t = tab();
+    const watch = watchFrames(t.host);
+    t.frames(51, 16);
+    watch.noteGameOver();
+    expect(t.of('summary')).toEqual([expect.objectContaining({ why: 'over', frames: 50 })]);
+    t.frames(5, 16);
+    t.frame(300); // a freeze, still open as the tab goes
+    t.hidePage();
+    expect(t.of('stretch')).toEqual([expect.objectContaining({ why: 'end', worstMs: 300 })]);
+    expect(t.of('summary')[1]).toMatchObject({ why: 'end', frames: 6 });
+    watch.dispose();
+    expect(t.pageHideListeners).toBe(0);
   });
 });
 
