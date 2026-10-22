@@ -92,12 +92,13 @@ test(titled('full control: casting Time Walk and tapping Black Lotus draw no abi
       )
       .toBe(true);
 
+    // The colour is asked after the sacrifice: the Lotus leaves first (run 39845586028, 130 ms apart).
+    await expect.poll(() => seenOn(page), { timeout: 15_000, message: 'the colour is still hers to choose' }).toContain('getChoices');
     const seen = await seenOn(page);
     const confirmed = serverLog(stack).filter((r) => r.evt === 'auto-confirmed' && r.seat === 0);
     console.log(`[fc] seen=${JSON.stringify(seen)} autoConfirmed=${JSON.stringify(confirmed.map((r) => r.why))}`);
     expect(seen.filter((s) => s === 'getAbilityToPlay'), 'no ability picker was drawn').toEqual([]);
     expect(seen.filter((s) => /Sacrifice/i.test(s)), 'no sacrifice confirm was drawn').toEqual([]);
-    expect(seen, 'the colour is still hers to choose').toContain('getChoices');
     expect(confirmed.map((r) => r.why), 'the server answered the sacrifice for her').toContain('the seat chose this ability just before');
   } finally {
     await stack.stop();
