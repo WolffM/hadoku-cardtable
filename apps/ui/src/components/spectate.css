@@ -321,10 +321,10 @@
 }
 
 /*
- * A pack, placed by its centre and turned (`SeatBar.tsx`'s `poseOf`). One
- * rule moves it between any two poses: left, top and rotate transition, after
- * `--delay` (the arrivals it reacts to). Every pack is drawn over the seats:
- * never behind a face or a name.
+ * A pack, placed by its centre and turned (`SeatBar.tsx`'s `poseOf`). It has
+ * no transition: only a step of the draft moves it, and `SeatBar` animates that
+ * step itself, so a pose that changes for any other reason is drawn in place.
+ * Every pack is drawn over the seats: never behind a face or a name.
  */
 .packq__pack {
   position: absolute;
@@ -332,10 +332,6 @@
   width: var(--pack-w);
   aspect-ratio: 488 / 680;
   translate: -50% -50%;
-  transition:
-    left 0.65s cubic-bezier(.45, .05, .35, 1) var(--delay, 0ms),
-    top 0.65s cubic-bezier(.45, .05, .35, 1) var(--delay, 0ms),
-    rotate 0.65s cubic-bezier(.45, .05, .35, 1) var(--delay, 0ms);
 }
 
 /* The seats and the counters sit under every pack. */
@@ -441,10 +437,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .packq__pack {
-    transition: none;
-  }
-
   .packq__stack[data-pose],
   .seatbar__seat[data-swamped] .seatbar__face {
     animation: none;

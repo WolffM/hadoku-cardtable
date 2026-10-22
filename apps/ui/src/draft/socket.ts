@@ -115,6 +115,12 @@ export interface SocketDraft {
   watching: number | null;
   /** The last payload applied, or null before the first snapshot. */
   view: DraftView | null;
+  /**
+   * Whether `view` arrived whole — a snapshot, which answers a join, a rejoin
+   * or a watch — rather than as the draft's next step seen live. The pod moves
+   * only on a step: a table that arrives whole is drawn as it stands.
+   */
+  arrivedWhole: boolean;
   /** Where we are in the stream. Null means "nothing applied yet". */
   cursor: WireCursor | null;
   /** What the server said this draft is being drafted from, if it said. */
@@ -250,6 +256,7 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
   const draft: SocketDraft = {
     draftId: options.draftId,
     view: null,
+    arrivedWhole: false,
     cursor: null,
     cube: null,
     lastError: null,
@@ -377,6 +384,7 @@ export function closeDraft(draft: SocketDraft): void {
 
 function adopt(draft: SocketDraft, msg: DraftStateMessage | DraftUpdateMessage): void {
   draft.view = msg.view;
+  draft.arrivedWhole = msg.type === 'state';
   draft.cursor = cursorOf(msg.view);
   draft.lastError = null;
   draft.lastInvalid = null;

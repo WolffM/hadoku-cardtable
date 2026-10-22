@@ -30,6 +30,8 @@ export const FLIGHT_MAX_MS = 1100;
 /** The gap between two packs sent at once, and between two packs reacting to an arrival. */
 export const STAGGER_MS = 140;
 export const REACT_MS = 70;
+/** How long a pack takes to move to its new pose when the pile it is in changes. */
+export const SHOVE_MS = 650;
 /** How long a pack takes to leave its pile into its seat. */
 export const LEAVE_MS = 380;
 

@@ -106,6 +106,8 @@ export interface DraftScreenProps {
   onWatch?: (seatId: number) => void;
   /** Where the drafter's build is kept (`useDraftBuild`). Absent: the split lives in this screen only. */
   buildStore?: DraftBuildStore | null;
+  /** The view arrived whole (a join, a rejoin, a watch), not as the draft's next step: the pod is drawn still (`SeatBar`). */
+  arrivedWhole?: boolean;
 }
 
 /**
@@ -150,6 +152,7 @@ export function DraftScreen({
   side,
   onWatch,
   buildStore = null,
+  arrivedWhole = false,
 }: DraftScreenProps) {
   const [localLayout, setLocalLayout] = useState<PackLayout>('fan');
   const fitAside = useFitScale();
@@ -293,7 +296,7 @@ export function DraftScreen({
               {title}
             </h1>
           )}
-          <SeatBar view={view} onWatch={onWatch} />
+          <SeatBar view={view} onWatch={onWatch} arrivedWhole={arrivedWhole} />
           <header className="draft__bar">
             <div className="draft__controls">
               <div className="segmented" role="group" aria-label="Pack layout">

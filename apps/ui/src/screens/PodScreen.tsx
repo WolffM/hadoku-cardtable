@@ -306,6 +306,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
           layout={layout}
           onLayoutChange={setLayout}
           buildStore={buildStore}
+          arrivedWhole={draft?.arrivedWhole ?? false}
           side={side}
           onWatch={(seatId) => {
             if (draft !== null) watchSeat(draft, seatId);

@@ -51,6 +51,7 @@ import { forwardRef, useLayoutEffect, useMemo, useRef, useState, type CSSPropert
 import { seatStatus, SEAT_HELD_NOTE } from '../draft/seatStatus.ts';
 import type { DraftView } from '../draft/types.ts';
 import { isWaiting } from '../draft/types.ts';
+import { prefersReducedMotion } from '../play/motion.ts';
 import { Avatar } from './Avatar.tsx';
 import { DraftCounters } from './DraftCounters.tsx';
 import {
@@ -62,6 +63,7 @@ import {
   MS_PER_PX,
   PACK,
   REACT_MS,
+  SHOVE_MS,
   STAGGER_MS,
   UNMEASURED,
   fixed,
@@ -97,9 +99,6 @@ interface Box {
   right: number;
   bottom: number;
 }
-
-const reducedMotion = (): boolean =>
-  typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const round = (_: string, v: unknown) => (typeof v === 'number' ? Math.round(v * 10) / 10 : v);
 
@@ -148,7 +147,7 @@ function useMeasures(ref: RefObject<HTMLDivElement | null>, key: string) {
   return measures;
 }
 
-export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId: number) => void }) {
+export function SeatBar({ view, onWatch, arrivedWhole = false }: { view: DraftView; onWatch?: (seatId: number) => void; arrivedWhole?: boolean }) {
   const viewerSeatId = view.viewer.kind === 'seat' ? view.viewer.seatId : null;
   const watchedId = view.viewer.kind === 'watcher' ? view.viewer.seatId : null;
   const watchable = watchedId !== null && onWatch !== undefined;
@@ -211,7 +210,7 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
 
   /**
    * Where pack `i` of `depth` at seat `at` is drawn, as one centre and one turn in
-   * the box, so moving from any pose to any other is one transition of left,
+   * the box, so moving from any pose to any other is one animation of left,
    * top and rotate.
    */
   const poseOf = (at: number, i: number, depth: number): Pose => {
@@ -222,20 +221,22 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
   };
   const tailOf = (at: number): number => seatS(giverOf(at)) - giverSide * CLEAR;
 
-  // One motion rule for every change of pose. A pack that arrives hops from the
-  // giver's end along its arrow and ends exactly in its pose. A pack whose pose
-  // changes because the depth changed moves there (a transition), after the new
-  // packs have landed when the pile grew, at once when it shrank, one after
-  // another so the shove reads as a reaction. A pack that leaves slides into its
-  // seat and fades. Nothing is ever removed or re-placed in one frame.
+  // One motion rule: the pod moves only when the draft steps on screen. A pick
+  // seen live changes the depths, and only that starts motion — all of it here,
+  // in the depth change's own effect. A pack that arrives hops from the giver's
+  // end along its arrow and ends exactly in its pose; a pack whose pose changed
+  // with the depth moves there, after the new packs have landed when the pile
+  // grew, at once when it shrank, one after another so the shove reads as a
+  // reaction; a pack that leaves slides into its seat and fades. Anything else
+  // that moves a pose — the first draw, a view that arrived whole (a reload, a
+  // rejoin, a watch), the table measured again, another seat watched — is drawn
+  // in place: no pack has a transition of its own.
   const previous = useRef<readonly number[] | null>(null);
   const angles = useRef<Map<string, number>>(new Map());
   const lastPoses = useRef<Map<string, Pose>>(new Map());
   const elements = useRef<Map<string, HTMLElement>>(new Map());
   const unitPx = useRef(2.64);
   const [leaving, setLeaving] = useState<Leaving[]>([]);
-  const before = previous.current;
-  const moving = before !== null && !reducedMotion();
 
   /** A turn as close as possible to `near`, so no pack ever spins the long way round. */
   const closest = (angle: number, near: number | undefined): number =>
@@ -268,54 +269,70 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
   };
 
   const poses = new Map<string, Pose>();
-  const delays = new Map<string, number>();
-  const arrivals: { key: string; at: number; delay: number }[] = [];
   seats.forEach((seat, at) => {
-    const depth = depthOf(at);
-    const was = before === null ? depth : (before[at] ?? 0);
-    let landed = 0;
-    for (let i = was; i < depth && moving; i++) {
+    for (let i = 0; i < depthOf(at); i++) {
       const key = `${seat.id}:${i}`;
-      const delay = (i - was) * STAGGER_MS;
-      arrivals.push({ key, at, delay });
-      landed = Math.max(landed, delay + hop(at, poseOf(at, i, depth)).duration);
-    }
-    for (let i = 0; i < depth; i++) {
-      const key = `${seat.id}:${i}`;
-      const pose = poseOf(at, i, depth);
+      const pose = poseOf(at, i, depthOf(at));
       pose.angle = closest(pose.angle, angles.current.get(key));
       poses.set(key, pose);
-      if (i < Math.min(was, depth)) delays.set(key, (depth > was ? landed : 0) + i * REACT_MS);
     }
   });
+
+  /** The motion of one step of the draft, from the depths `was` to these. */
+  const step = (was: readonly number[]): Leaving[] => {
+    const gone: Leaving[] = [];
+    const animate = (key: string, frames: Keyframe[], options: KeyframeAnimationOptions) => {
+      const el = elements.current.get(key);
+      if (el !== undefined && typeof el.animate === 'function') el.animate(frames, { easing: 'cubic-bezier(.45,.05,.35,1)', fill: 'backwards', ...options });
+    };
+    seats.forEach((seat, at) => {
+      const depth = depthOf(at);
+      const before = was[at] ?? 0;
+      let landed = 0;
+      for (let i = before; i < depth; i++) {
+        const key = `${seat.id}:${i}`;
+        const delay = (i - before) * STAGGER_MS;
+        const { frames, duration } = hop(at, poses.get(key)!);
+        animate(key, frames, { duration, delay });
+        landed = Math.max(landed, delay + duration);
+      }
+      for (let i = 0; i < Math.min(before, depth); i++) {
+        const key = `${seat.id}:${i}`;
+        const from = lastPoses.current.get(key);
+        const to = poses.get(key)!;
+        if (from === undefined || (from.x === to.x && from.y === to.y && from.angle === to.angle)) continue;
+        animate(
+          key,
+          [
+            { ...pct(from), rotate: `${fixed(from.angle)}deg` },
+            { ...pct(to), rotate: `${fixed(to.angle)}deg` },
+          ],
+          { duration: SHOVE_MS, delay: (depth > before ? landed : 0) + i * REACT_MS },
+        );
+      }
+      const seatAt = track.at(seatS(at));
+      for (let i = depth; i < before; i++) {
+        const from = lastPoses.current.get(`${seat.id}:${i}`);
+        if (from) gone.push({ key: `${seat.id}:${i}:${performance.now()}`, from, to: seatAt });
+      }
+    });
+    return gone;
+  };
 
   useLayoutEffect(() => {
     const was = previous.current;
     previous.current = queue;
     const width = boxRef.current?.getBoundingClientRect().width;
     if (width) unitPx.current = width / 100;
-    const gone: Leaving[] = [];
-    if (was !== null && !reducedMotion()) {
-      for (const { key, at, delay } of arrivals) {
-        const el = elements.current.get(key);
-        const pose = poses.get(key);
-        if (el === undefined || pose === undefined || typeof el.animate !== 'function') continue;
-        const { frames, duration } = hop(at, pose);
-        el.animate(frames, { duration, delay, easing: 'cubic-bezier(.45,.05,.35,1)', fill: 'backwards' });
-      }
-      seats.forEach((seat, at) => {
-        const seatAt = track.at(seatS(at));
-        for (let i = depthOf(at); i < (was[at] ?? 0); i++) {
-          const from = lastPoses.current.get(`${seat.id}:${i}`);
-          if (from) gone.push({ key: `${seat.id}:${i}:${performance.now()}`, from, to: seatAt });
-        }
-      });
-    }
+    const gone = was !== null && !arrivedWhole && !prefersReducedMotion() ? step(was) : [];
+    if (gone.length > 0) setLeaving((all) => [...all, ...gone]);
+    // Keyed on the queue: `step` and `poses` are this render's.
+  }, [queue]);
+  // Every drawn pose, whatever drew it, is where the next step moves from.
+  useLayoutEffect(() => {
     for (const [key, pose] of poses) angles.current.set(key, pose.angle);
     lastPoses.current = poses;
-    if (gone.length > 0) setLeaving((all) => [...all, ...gone]);
-    // Keyed on the queue: `arrivals` and `poses` are this render's.
-  }, [queue]);
+  });
 
   return (
     <section className="seats" data-testid="seat-bar" aria-label="Seats">
@@ -349,7 +366,6 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
                   testId={`seat-${seatId}-pack-${i}`}
                   pose={pose}
                   place={pct(pose)}
-                  delay={delays.get(key) ?? 0}
                   ref={(el) => {
                     if (el) elements.current.set(key, el);
                     else elements.current.delete(key);
@@ -436,8 +452,8 @@ function Backs() {
 }
 
 /** One waiting pack: placed by its centre and turn; its pose's shake lives on the stack inside. */
-const Pack = forwardRef<HTMLSpanElement, { pose: Pose; place: { left: string; top: string }; delay: number; testId: string }>(function Pack(
-  { pose, place, delay, testId },
+const Pack = forwardRef<HTMLSpanElement, { pose: Pose; place: { left: string; top: string }; testId: string }>(function Pack(
+  { pose, place, testId },
   ref,
 ) {
   return (
@@ -445,7 +461,7 @@ const Pack = forwardRef<HTMLSpanElement, { pose: Pose; place: { left: string; to
       ref={ref}
       className="packq__pack"
       data-testid={testId}
-      style={{ left: place.left, top: place.top, rotate: `${fixed(pose.angle)}deg`, '--delay': `${delay}ms` } as CSSProperties}
+      style={{ left: place.left, top: place.top, rotate: `${fixed(pose.angle)}deg` }}
     >
       <span className="packq__stack" data-pose={pose.pose} style={{ '--shake': Math.max(0, pose.depth - 1) } as CSSProperties}>
         <Backs />
