@@ -17,6 +17,7 @@ import { SoundBuilder } from './SoundBuilder.tsx';
 import { SoundSandbox } from './SoundSandbox.tsx';
 import { navigate, useRoute } from './route.ts';
 import type { DraftTransport } from '../draft/socket.ts';
+import { TrimScreen } from '../settings/TrimScreen.tsx';
 import './screens.css';
 
 export interface ScreenProps {
@@ -54,6 +55,8 @@ export function Screen({ transport }: ScreenProps) {
       return <SoundSandbox />;
     case 'sounds-music':
       return <MusicReview />;
+    case 'ui':
+      return <TrimScreen />;
     case 'draft':
       return <LegacyDraftRedirect draftId={route.draftId} />;
     case 'deck':

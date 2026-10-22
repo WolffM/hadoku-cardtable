@@ -21,6 +21,7 @@
  *   `#/sounds`           the sound builder (wave 50) — friend tier and above; editing is admin-only
  *   `#/sounds/sandbox`   the sound sandbox — scenarios played through the mixer, friend tier and above
  *   `#/sounds/music`     the match-music review — compare, pick and submit, friend tier and above
+ *   `#/ui`               the trim composer (`settings/TrimScreen.tsx`) — admin only, linked from nowhere
  *   `#/stats`            the lobby, with the stats popout over it: your record, history, decks, the boards
  *   `#/stats/<name>`     the same popout for another player, by registry name
  *   `#/tournaments`      the same popout on its Tournaments tab: every past pod's standings
@@ -71,6 +72,7 @@ export type Route =
   | { kind: 'sounds' }
   | { kind: 'sounds-sandbox' }
   | { kind: 'sounds-music' }
+  | { kind: 'ui' }
   /** `player` is a registry name; absent is the viewer. `tournaments` is the past-pods tab. */
   | { kind: 'stats'; player?: string; tournaments?: true }
   /** `draftId` opens that deck in the editor; absent is the list. */
@@ -91,6 +93,7 @@ export function parseRoute(hash: string): Route {
   if (path === 'sounds') return { kind: 'sounds' };
   if (path === 'sounds/sandbox') return { kind: 'sounds-sandbox' };
   if (path === 'sounds/music') return { kind: 'sounds-music' };
+  if (path === 'ui') return { kind: 'ui' };
   if (path === 'stats') return { kind: 'stats' };
   if (path === 'tournaments') return { kind: 'stats', tournaments: true };
   if (path === 'decks') return { kind: 'decks' };
@@ -142,6 +145,8 @@ export function routeHash(route: Route): string {
       return '#/sounds/sandbox';
     case 'sounds-music':
       return '#/sounds/music';
+    case 'ui':
+      return '#/ui';
     case 'draft':
       return `#/draft/${encodeURIComponent(route.draftId)}`;
     case 'deck':

@@ -34,7 +34,7 @@ import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { SoundSettings } from './SoundSettings.tsx';
 import { useDismiss } from '../popover.ts';
 import { applyUiScale, clampUiScale, UI_SCALE, uiLength } from './ui-scale.ts';
-import { applyTrim, TRIM_FAMILIES, TRIM_FAMILY_IDS, type Trim } from './trim.ts';
+import { applyTrim } from './trim.ts';
 import './settings.css';
 
 /** The gap between the popover and what opened it, and its distance from the viewport's edges. */
@@ -92,7 +92,6 @@ export function SettingsPopover({ trigger, onClose, children }: SettingsPopoverP
         </button>
       </div>
       <DisplaySettings />
-      <TrimSettings />
       <SoundSettings />
       {children}
     </div>
@@ -146,41 +145,6 @@ function DisplaySettings() {
           }}
         />
       </label>
-    </fieldset>
-  );
-}
-
-/**
- * The trim composer: one choice per family, saved on change, so every panel behind the popover
- * (and on any screen after) redraws at once.
- */
-function TrimSettings() {
-  const { prefs, save } = usePrefs(getPlayPrefsClient());
-  const trim = prefs?.trim ?? {};
-  return (
-    <fieldset className="ct-settings__section" data-testid="settings-trim">
-      <legend>Trim</legend>
-      {TRIM_FAMILY_IDS.map((family) => (
-        <label key={family} className="ct-settings__level ct-settings__level--wide">
-          <span>{TRIM_FAMILIES[family].label}</span>
-          <select
-            value={trim[family] ?? ''}
-            data-testid={`settings-trim-${family}`}
-            onChange={(event) => {
-              const { [family]: _was, ...rest } = trim;
-              const value = event.currentTarget.value;
-              void save({ trim: (value === '' ? rest : { ...rest, [family]: value }) as Trim });
-            }}
-          >
-            <option value="">None</option>
-            {Object.entries(TRIM_FAMILIES[family].options).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-      ))}
     </fieldset>
   );
 }

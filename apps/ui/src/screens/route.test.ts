@@ -28,6 +28,7 @@ describe('parseRoute', () => {
     expect(parseRoute('#/sounds/sandbox')).toEqual({ kind: 'sounds-sandbox' });
     expect(parseRoute('#/sounds/music')).toEqual({ kind: 'sounds-music' });
     expect(parseRoute('#/sounds/music/')).toEqual({ kind: 'sounds-music' });
+    expect(parseRoute('#/ui')).toEqual({ kind: 'ui' });
     expect(parseRoute('#/stats')).toEqual({ kind: 'stats' });
     expect(parseRoute('#/stats/Bella')).toEqual({ kind: 'stats', player: 'Bella' });
     expect(parseRoute('#/tournaments')).toEqual({ kind: 'stats', tournaments: true });
@@ -68,6 +69,7 @@ describe('parseRoute', () => {
       { kind: 'sounds' },
       { kind: 'sounds-sandbox' },
       { kind: 'sounds-music' },
+      { kind: 'ui' },
       { kind: 'draft', draftId: 'amber-lantern-k7q4' },
       { kind: 'deck', draftId: 'amber-lantern-k7q4' },
       { kind: 'play' },

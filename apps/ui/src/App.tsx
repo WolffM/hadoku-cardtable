@@ -15,6 +15,7 @@
  *   `#/sounds`           `SoundBuilder` — friend tier and above; its editing is admin-only
  *   `#/sounds/sandbox`   `SoundSandbox` — friend tier and above; its gain saves are admin-only
  *   `#/sounds/music`     `MusicReview` — friend tier and above: compare the match music, submit picks
+ *   `#/ui`               `TrimScreen` — admin only: the trim composer
  *   `#/stats[/<name>]`   the lobby with `StatsPopout` over it — a player's record, history and the boards
  *
  * An unknown hash renders the lobby, which is a screen that explains itself.

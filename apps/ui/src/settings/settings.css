@@ -124,10 +124,6 @@
   grid-template-columns: 4rem 1fr 2.75rem;
 }
 
-.ct-settings__level--wide {
-  grid-template-columns: 7.5rem 1fr;
-}
-
 .ct-settings__level input,
 .ct-settings__level select {
   width: 100%;

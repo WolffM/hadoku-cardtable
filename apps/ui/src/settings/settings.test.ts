@@ -42,7 +42,7 @@ describe('the gear outside a match', () => {
     fireEvent.click(screen.getByTestId('settings-gear'));
     const dialog = screen.getByTestId('settings');
     expect(dialog.querySelector('[data-testid="settings-sound"]')).not.toBeNull();
-    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Display', 'Trim', 'Sound', 'Game']);
+    expect([...dialog.querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Display', 'Sound', 'Game']);
     expect((screen.getByTestId('live-settings-fast-mode') as HTMLInputElement).checked).toBe(true);
     expect((screen.getByTestId('live-settings-stop-end-step') as HTMLInputElement).checked).toBe(false);
     expect((dialog.querySelector('input[name="board-layout"][value="type-separated"]') as HTMLInputElement).checked).toBe(true);
@@ -63,7 +63,7 @@ describe('the gear outside a match', () => {
     store.prefs = { uiScale: 1.1 };
     render(createElement(SettingsGear));
     fireEvent.click(screen.getByTestId('settings-gear'));
-    expect([...screen.getByTestId('settings').querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Display', 'Trim', 'Sound', 'Game']);
+    expect([...screen.getByTestId('settings').querySelectorAll('legend')].map((l) => l.textContent)).toEqual(['Display', 'Sound', 'Game']);
     const slider = screen.getByTestId('settings-ui-scale') as HTMLInputElement;
     expect(slider.type).toBe('range');
     expect([slider.min, slider.max, slider.value]).toEqual([String(UI_SCALE.min * 100), String(UI_SCALE.max * 100), '110']);
@@ -78,18 +78,6 @@ describe('the gear outside a match', () => {
     // Let go is the input's own `change`.
     fireEvent(slider, new Event('change', { bubbles: true }));
     expect(store.saved).toEqual([{ uiScale: 1.2 }]);
-  });
-
-  it('composes trim one family at a time: a choice is added to what is saved, None takes its family out', () => {
-    store.prefs = { trim: { frame: 'chamfer', texture: 'felt' } };
-    render(createElement(SettingsGear));
-    fireEvent.click(screen.getByTestId('settings-gear'));
-    const frame = screen.getByTestId('settings-trim-frame') as HTMLSelectElement;
-    expect(frame.value).toBe('chamfer');
-    expect((screen.getByTestId('settings-trim-corner') as HTMLSelectElement).value, 'an unchosen family reads None').toBe('');
-    fireEvent.change(screen.getByTestId('settings-trim-corner'), { target: { value: 'gems' } });
-    fireEvent.change(frame, { target: { value: '' } });
-    expect(store.saved).toEqual([{ trim: { frame: 'chamfer', texture: 'felt', corner: 'gems' } }, { trim: { texture: 'felt' } }]);
   });
 });
 

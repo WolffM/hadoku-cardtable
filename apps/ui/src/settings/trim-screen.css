@@ -1,0 +1,30 @@
+/* `#/ui`, the trim composer (`TrimScreen.tsx`). */
+
+.ui-trim {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(26rem, 100%);
+  padding: 16px 20px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+}
+
+.ui-trim__title {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+}
+
+.ui-trim__row {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.ui-trim__row select {
+  min-width: 0;
+}

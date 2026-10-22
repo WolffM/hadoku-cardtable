@@ -56,7 +56,7 @@ import { scaleRootOf } from '../settings/ui-scale.ts';
 import type { GameBundleContext } from './contract.ts';
 import './embed.css';
 
-const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'decks', 'play', 'sounds', 'sounds-sandbox', 'sounds-music']);
+const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'decks', 'play', 'sounds', 'sounds-sandbox', 'sounds-music', 'ui']);
 
 export interface EmbedAppProps {
   ctx: GameBundleContext;
