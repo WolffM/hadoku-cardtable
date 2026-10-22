@@ -243,6 +243,28 @@ describe('the bridge is compiled once per version, not in every JVM', () => {
 		expect(f.javacRuns()).toBe(2);
 	});
 
+	/**
+	 * `-sourcepath` (the flag this JVM's fake javac is handed, same as the real
+	 * one) lets `javac` pull in ANY `.java` file beside the one named on the
+	 * command line — `PoolService.java` referencing `PlayBridge.forgeCardName`
+	 * is exactly this. So the version has to cover every sibling, not just the
+	 * one file `bridgeLaunch` was asked to compile: an edit to a sibling that is
+	 * actually referenced, with the referencing file unchanged, must still be a
+	 * different compile — otherwise the cache would keep serving a stale class
+	 * for the referenced file under the referencing file's unchanged key.
+	 */
+	it("an edited SIBLING .java changes the key too, even though Bridge.java itself did not change", () => {
+		const f = fixture('works');
+		const sibling = join(dirname(f.cfg.bridgeSource), 'Sibling.java');
+		writeFileSync(sibling, 'class Sibling {}');
+		const before = f.launch();
+		writeFileSync(sibling, 'class Sibling { int edited; }');
+		const after = f.launch();
+		expect(after.how).toBe('compiled');
+		expect(after.args[1]).not.toBe(before.args[1]);
+		expect(f.javacRuns()).toBe(2);
+	});
+
 	it('a compile that fails is logged with javac\'s own words, and the JVM gets the source launcher', () => {
 		const f = fixture('fails');
 		expect(f.launch()).toEqual({ args: ['-cp', f.cfg.jar, f.cfg.bridgeSource], how: 'source' });
