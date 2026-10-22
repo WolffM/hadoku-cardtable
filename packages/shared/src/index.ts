@@ -363,6 +363,18 @@ export {
   type RoomPod,
 } from './pod.ts';
 export {
+  PoolSourceSchema,
+  DraftPlanSchema,
+  PoolVerdictSchema,
+  CubeSummarySchema,
+  ImportCubeBodySchema,
+  SetDraftPlanBodySchema,
+  type PoolSource,
+  type DraftPlan,
+  type PoolVerdict,
+  type CubeSummary,
+} from './pool.ts';
+export {
   GAME_TYPES,
   GameTypeSchema,
   DEFAULT_GAME_TYPE,
