@@ -85,6 +85,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { subscribe } from 'node:diagnostics_channel';
 import {
   cpSync,
   createWriteStream,
@@ -99,6 +100,7 @@ import {
   rmSync,
 } from 'node:fs';
 import type { Server } from 'node:http';
+import { Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
 
@@ -171,6 +173,31 @@ const STALE_WORK_DIRS_KEPT = Number(process.env.CARDTABLE_E2E_WORK_DIRS_KEPT ?? 
 export const PLAY_EDGE_PORT = Number(process.env.CARDTABLE_E2E_PLAY_EDGE_PORT ?? '19128');
 export const PLAY_SERVER_PORT = Number(process.env.CARDTABLE_E2E_PLAY_SERVER_PORT ?? '19028');
 export const PLAY_EDGE_ORIGIN = `http://127.0.0.1:${PLAY_EDGE_PORT}`;
+
+/*
+ * A socket error nobody listens for is thrown in this worker and fails whichever test is running as a bare
+ * "read ECONNRESET", with no stack naming the socket (ca-condition, run 39796470673). Each socket is named
+ * by its ports as it opens, since a reset one no longer has them, and the name is printed before the error
+ * goes on exactly as before.
+ */
+const socketNames = new WeakMap<Socket, string>();
+const portName = (port: number | undefined): string =>
+  port === PLAY_EDGE_PORT ? `play edge ${port}` : port === PLAY_SERVER_PORT ? `play server ${port}` : String(port);
+subscribe('net.server.socket', (message) => {
+  const { socket } = message as { socket: Socket };
+  socketNames.set(socket, `accepted on ${portName(socket.localPort)} from ${portName(socket.remotePort)}`);
+});
+subscribe('net.client.socket', (message) => {
+  const { socket } = message as { socket: Socket };
+  socket.once('connect', () => socketNames.set(socket, `dialled ${portName(socket.remotePort)} from ${portName(socket.localPort)}`));
+});
+const socketEmit = Socket.prototype.emit as (this: Socket, event: string | symbol, ...args: unknown[]) => boolean;
+Socket.prototype.emit = function (this: Socket, event: string | symbol, ...args: unknown[]): boolean {
+  if (event === 'error' && this.listenerCount('error') === 0) {
+    console.log(`[socket-error] ${String((args[0] as Error | undefined)?.message)} with no listener, on a socket ${socketNames.get(this) ?? 'never connected'}`);
+  }
+  return socketEmit.call(this, event, ...args);
+} as typeof Socket.prototype.emit;
 
 /*
  * The handle a later server re-attaches a match by, as
