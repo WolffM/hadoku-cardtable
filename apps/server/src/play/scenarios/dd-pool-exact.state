@@ -1,0 +1,19 @@
+# Floating mana that pays a cost exactly one way is still the player's to press when the payment
+# is shown (the operator, 2026-10-22): "i just tried to play doomsday and had BBB in the pool. all i
+# could do was click auto to make payment. i should have been able to click on my black mana".
+#
+# Seat 0 (human) holds Dark Ritual and Doomsday with a Swamp out. Tapping the Swamp floats {B},
+# which pays Dark Ritual; it resolves to {B}{B}{B}, which pays Doomsday's {B}{B}{B} one way.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Dark Ritual;Doomsday
+humanbattlefield=Swamp
+humanlibrary=Island;Island;Island;Island;Island;Island;Island;Island
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
