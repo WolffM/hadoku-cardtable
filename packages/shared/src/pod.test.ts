@@ -26,6 +26,16 @@ const BYE_RESULT = { round: 1, playerA: 'fk:carol', playerB: null, gamesA: 0, ga
 const STANDING = { id: 'fk:alice', matchPoints: 3, opponentMatchWinPct: 0.5, gameWinPct: 0.6, opponentGameWinPct: 0.5, rank: 1 } as const;
 const PAIRING = { tableId: 't-aaaaaaaa', players: ['fk:alice', 'fk:bob'] } as const;
 
+/** wave 73 §A: the room's pool choice, present in every phase (frozen once the draft starts). */
+const PLAN = {
+  rounds: [
+    { kind: 'cube', cubeId: 'mtgo-vintage-cube-2025-12' },
+    { kind: 'cube', cubeId: 'mtgo-vintage-cube-2025-12' },
+    { kind: 'cube', cubeId: 'mtgo-vintage-cube-2025-12' },
+  ],
+} as const;
+const VERDICT = { ok: true, cards: 540 } as const;
+
 const LOBBY_VIEW = {
   phase: 'lobby',
   seats: [MEMBER, ...new Array(7).fill(null)],
@@ -37,6 +47,9 @@ const LOBBY_VIEW = {
   bye: null,
   drafters: [],
   built: [],
+  plan: PLAN,
+  planName: 'MTGO Vintage Cube 2025-12',
+  verdict: VERDICT,
 } as const;
 
 const ROUNDS_VIEW = {
@@ -50,6 +63,9 @@ const ROUNDS_VIEW = {
   bye: 'fk:carol',
   drafters: ['fk:alice', 'fk:bob', 'fk:carol'],
   built: ['fk:alice', 'fk:bob', 'fk:carol'],
+  plan: PLAN,
+  planName: 'MTGO Vintage Cube 2025-12',
+  verdict: VERDICT,
 } as const;
 
 describe('PodPhaseSchema', () => {
@@ -114,6 +130,16 @@ describe('PodViewSchema', () => {
   it('refuses an unknown field and a phase outside the five', () => {
     expect(PodViewSchema.safeParse({ ...LOBBY_VIEW, extra: 1 }).success).toBe(false);
     expect(PodViewSchema.safeParse({ ...LOBBY_VIEW, phase: 'playing' }).success).toBe(false);
+  });
+
+  it('wave 73 §A: verdict is null while a check is running or before the first ever ran', () => {
+    expect(PodViewSchema.safeParse({ ...LOBBY_VIEW, verdict: null }).success).toBe(true);
+  });
+
+  it('refuses a plan with fewer or more than 3 rounds, and a verdict shaped wrong', () => {
+    expect(PodViewSchema.safeParse({ ...LOBBY_VIEW, plan: { rounds: PLAN.rounds.slice(0, 2) } }).success).toBe(false);
+    expect(PodViewSchema.safeParse({ ...LOBBY_VIEW, plan: { rounds: [...PLAN.rounds, PLAN.rounds[0]] } }).success).toBe(false);
+    expect(PodViewSchema.safeParse({ ...LOBBY_VIEW, verdict: { ok: false, unplayable: ['X'] } }).success).toBe(false);
   });
 });
 
