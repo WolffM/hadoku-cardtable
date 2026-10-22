@@ -163,6 +163,21 @@ describe('installDepartures', () => {
     handle.dispose();
   });
 
+  it('a commit with no departure to draw reads no card’s box: only one that draws departures does, before its writes', () => {
+    const canvas = board();
+    const card = canvas.querySelector<HTMLElement>('[data-board-card="7"]')!;
+    const read = vi.fn(() => rect(300, 380, 60, 84));
+    card.getBoundingClientRect = read;
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    handle.snapshot();
+    handle.snapshot();
+    expect(read, 'three commits, no departure').not.toHaveBeenCalled();
+    handle.capture();
+    expect(read, 'the commit drawing one reads each card once').toHaveBeenCalledTimes(1);
+    handle.dispose();
+  });
+
   it('reports how the board held still in a commit that drew departures: the copy off its card, and the most any card moved', () => {
     vi.useFakeTimers();
     const canvas = board();
@@ -170,6 +185,7 @@ describe('installDepartures', () => {
     const handle = installDepartures(canvas, { onDone: () => undefined, report });
     canvas.querySelector<HTMLElement>('[data-board-card="7"]')!.getBoundingClientRect = () => rect(300, 380, 60, 84);
     handle.snapshot();
+    handle.capture();
     keepPlace(canvas); // the gap stands at (300, 400): 20 px lower than the card was
     handle.leave(departure('graveyard'), 0);
     handle.snapshot();
