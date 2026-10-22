@@ -477,6 +477,14 @@ interface Drawn {
   current: boolean;
 }
 
+/** An item this paint draws, with what its place is worked out from. */
+interface Shown {
+  readonly item: StackEntry;
+  readonly index: number;
+  readonly d: Drawn;
+  readonly record: Placement | undefined;
+}
+
 /**
  * Where in its hover a stack card starts (`placed.css`'s `--stack-phase`, 0–1): from its stack id,
  * so two cards never bob in step and the same item is in the same phase on both screens.
@@ -713,64 +721,85 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   }
 
   /**
-   * An ability's chip, as near square as it can be (`squareWidth`): one measure of its text's area at
+   * Each ability's chip, as near square as it can be (`squareWidth`): one measure of its text's area at
    * the width it has, the width solved from it, then one correction for where the lines actually
-   * wrapped. Once per chip per card width and text — the redraw the resize itself causes finds it
-   * already squared. Not before its text has rendered (the chip's own resize redraws it then).
+   * wrapped. Every chip is read before any is written, so a pass is one layout for the whole stack.
+   * Once per chip per card width and text — the redraw the resize itself causes finds it already
+   * squared. Not before its text has rendered (the chip's own resize redraws it then).
    */
-  function squareChip(d: Drawn, cardWidth: number | null, overlayBox: DOMRect): void {
-    const text = d.el.querySelector<HTMLElement>('.placed__chip-text');
-    const length = text?.textContent?.length ?? 0;
-    if (text === null || length === 0 || cardWidth === null) return;
-    const key = `${cardWidth}:${length}`;
-    if (d.squaredFor === key) return;
-    const style = getComputedStyle(text);
-    const padX = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
-    const padY = (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0);
+  function squareChips(chips: readonly Drawn[], cardWidth: number | null, overlayBox: DOMRect): void {
+    if (cardWidth === null) return;
+    const todo = chips.flatMap((d) => {
+      const text = d.el.querySelector<HTMLElement>('.placed__chip-text');
+      const length = text?.textContent?.length ?? 0;
+      const key = `${cardWidth}:${length}`;
+      return text === null || length === 0 || d.squaredFor === key ? [] : [{ d, text, key }];
+    });
+    const pads = todo.map(({ text }) => {
+      const style = getComputedStyle(text);
+      return {
+        x: (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0),
+        y: (Number.parseFloat(style.paddingTop) || 0) + (Number.parseFloat(style.paddingBottom) || 0),
+      };
+    });
     const max = Math.min(cardWidth * 3, overlayBox.width / 3);
-    for (let pass = 0; pass < 2; pass += 1) {
-      const lines = text.getBoundingClientRect();
-      const chip = d.el.getBoundingClientRect();
-      if (!(lines.width > padX) || !(lines.height > padY)) return; // no layout yet
-      const area = (lines.width - padX) * (lines.height - padY);
-      const w = Math.round(squareWidth(area, chip.height - lines.height + padY, padX, cardWidth, max));
-      if (Math.abs(w - chip.width) < 1) break;
-      d.el.style.width = `${w}px`;
+    let open = todo.map((_, i) => i);
+    const unlaid = new Set<number>();
+    for (let pass = 0; pass < 2 && open.length > 0; pass += 1) {
+      const boxes = open.map((i) => ({ i, lines: todo[i]!.text.getBoundingClientRect(), chip: todo[i]!.d.el.getBoundingClientRect() }));
+      open = [];
+      for (const { i, lines, chip } of boxes) {
+        const pad = pads[i]!;
+        if (!(lines.width > pad.x) || !(lines.height > pad.y)) {
+          unlaid.add(i); // no layout yet
+          continue;
+        }
+        const area = (lines.width - pad.x) * (lines.height - pad.y);
+        const w = Math.round(squareWidth(area, chip.height - lines.height + pad.y, pad.x, cardWidth, max));
+        if (Math.abs(w - chip.width) < 1) continue;
+        todo[i]!.d.el.style.width = `${w}px`;
+        open.push(i);
+      }
     }
-    d.squaredFor = key;
+    todo.forEach(({ d, key }, i) => {
+      if (!unlaid.has(i)) d.squaredFor = key;
+    });
+  }
+
+  /** What `positionOf` reads of an ability's chip: its source's box and its own drawn size, read before any chip is moved. */
+  function chipBoxesOf(item: StackEntry, d: Drawn): { source: Rect; tile: { width: number; height: number } } | null {
+    if (!item.isAbility || item.sourceCardId === null || placements.has(item.id)) return null;
+    const source = cardBox(canvas, item.sourceCardId);
+    if (source === null) return null;
+    const sourceBox = rectOf(source);
+    const drawnBox = d.el.getBoundingClientRect();
+    const tile =
+      drawnBox.width > 0 ? { width: drawnBox.width, height: drawnBox.height } : { width: sourceBox.right - sourceBox.left, height: sourceBox.bottom - sourceBox.top };
+    return { source: sourceBox, tile };
   }
 
   /**
    * The point for an item with no registered placement, plus the box it occupies — for the NEXT ability's own collision check, when it is one.
-   * A chip goes beside its source, nudged by its own `scatter`, and stays at that offset from the source once it has its size.
+   * Worked out from boxes read before any item moved (`chipBoxesOf`, the default `spot`). A chip goes beside its source, nudged by its own `scatter`, and stays at that offset from the source once it has its size.
    */
-  function positionOf(item: StackEntry, d: Drawn, taken: readonly Rect[], bounds: Rect): { at: Point; reserved: Rect | null } | null {
+  function positionOf(item: StackEntry, d: Drawn, chip: ReturnType<typeof chipBoxesOf>, spot: Point | null, taken: readonly Rect[], bounds: Rect): { at: Point; reserved: Rect | null } | null {
     const promoted = placements.get(item.id);
     if (promoted !== undefined) return { at: promoted.at, reserved: null };
-    if (item.isAbility && item.sourceCardId !== null) {
-      const source = cardBox(canvas, item.sourceCardId);
-      if (source !== null) {
-        const sourceBox = rectOf(source);
-        const drawnBox = d.el.getBoundingClientRect();
-        const tile =
-          drawnBox.width > 0
-            ? { width: drawnBox.width, height: drawnBox.height }
-            : { width: sourceBox.right - sourceBox.left, height: sourceBox.bottom - sourceBox.top };
-        const centre = { x: (sourceBox.left + sourceBox.right) / 2, y: (sourceBox.top + sourceBox.bottom) / 2 };
-        let at: Point;
-        if (d.offset !== null) {
-          at = within({ x: centre.x + d.offset.dx, y: centre.y + d.offset.dy }, tile, bounds);
-        } else {
-          const spot = besideSource(sourceBox, taken, tile, bounds);
-          const { dx, dy } = scatter(d.seed, tile);
-          at = within({ x: spot.x + dx, y: spot.y + dy }, tile, bounds);
-          if (d.squaredFor !== null) d.offset = { dx: at.x - centre.x, dy: at.y - centre.y };
-        }
-        return { at, reserved: { left: at.x - tile.width / 2, right: at.x + tile.width / 2, top: at.y - tile.height / 2, bottom: at.y + tile.height / 2 } };
+    if (chip !== null) {
+      const { source: sourceBox, tile } = chip;
+      const centre = { x: (sourceBox.left + sourceBox.right) / 2, y: (sourceBox.top + sourceBox.bottom) / 2 };
+      let at: Point;
+      if (d.offset !== null) {
+        at = within({ x: centre.x + d.offset.dx, y: centre.y + d.offset.dy }, tile, bounds);
+      } else {
+        const spot = besideSource(sourceBox, taken, tile, bounds);
+        const { dx, dy } = scatter(d.seed, tile);
+        at = within({ x: spot.x + dx, y: spot.y + dy }, tile, bounds);
+        if (d.squaredFor !== null) d.offset = { dx: at.x - centre.x, dy: at.y - centre.y };
       }
+      return { at, reserved: { left: at.x - tile.width / 2, right: at.x + tile.width / 2, top: at.y - tile.height / 2, bottom: at.y + tile.height / 2 } };
     }
-    const at = defaultSpot(canvas);
-    return at === null ? null : { at, reserved: null };
+    return spot === null ? null : { at: spot, reserved: null };
   }
 
   /** The spells drawn here — arriving, waiting or on their way out — by item id: their card ids, for `PlacedHost.onHolding`. */
@@ -1041,7 +1070,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       shimmer(sourceCardId);
     }
 
-    const taken: Rect[] = [];
+    // Every item's element and size first, then every box read, then every place written: a layout per pass, never one per chip.
+    const shown: Shown[] = [];
     items.forEach((item, index) => {
       if (item.isAbility && !drawn.has(item.id) && chainHalted === false) {
         // A waiting trigger nobody stopped for shimmers once, as the stack item it becomes.
@@ -1049,11 +1079,10 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
         return;
       }
       undrawn.delete(item.id);
-      const { overlayBox, cardWidth, spellWidth } = measure();
+      const { cardWidth, spellWidth } = measure();
       const record = placements.get(item.id);
       const d = ensureElement(item, record);
       sizeAsCard(d.el, d.isAbility ? cardWidth : spellWidth);
-      if (d.isAbility) squareChip(d, cardWidth, overlayBox);
       d.targetStackItemId = item.targetStackItemId ?? null;
       const held = item.isAbility ? null : heldUntil(item.sourceCardId);
       // Held: looked at again when the hold runs out (`placeSpell`/`releaseSpell` repaint sooner).
@@ -1064,7 +1093,26 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       if (d.pendingUntil !== null && (record !== undefined || Date.now() >= d.pendingUntil)) d.pendingUntil = null;
       d.el.toggleAttribute('data-placed-pending', held !== null || d.pendingUntil !== null);
       if (d.leaving) return; // a resolved id Forge is reusing before the fade finished — rare, leave it be
-      const resolved = positionOf(item, d, taken, overlayBox);
+      shown.push({ item, index, d, record });
+    });
+    if (shown.length > 0) place(shown, measure());
+
+    drawArrows(view.stack, () => measure().overlayBox);
+    pruneStale(view.stack);
+  }
+
+  /** Square the chips, read every box the places come from, then write each item's place. */
+  function place(shown: readonly Shown[], { overlayBox, cardWidth }: { overlayBox: DOMRect; cardWidth: number | null }): void {
+    squareChips(
+      shown.filter((s) => s.d.isAbility).map((s) => s.d),
+      cardWidth,
+      overlayBox,
+    );
+    const chips = shown.map(({ item, d }) => chipBoxesOf(item, d));
+    const spot = chips.some((chip, n) => chip === null && !placements.has(shown[n]!.item.id)) ? defaultSpot(canvas) : null;
+    const taken: Rect[] = [];
+    shown.forEach(({ item, index, d, record }, n) => {
+      const resolved = positionOf(item, d, chips[n]!, spot, taken, overlayBox);
       if (resolved === null) return;
       const { at, reserved } = resolved;
       if (reserved !== null) taken.push(reserved);
@@ -1088,9 +1136,6 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       d.el.toggleAttribute('data-placed-waiting', item.pending === true);
       d.el.toggleAttribute('data-placed-current', d.current);
     });
-
-    drawArrows(view.stack, () => measure().overlayBox);
-    pruneStale(view.stack);
   }
 
   const hook = (): void => render();
