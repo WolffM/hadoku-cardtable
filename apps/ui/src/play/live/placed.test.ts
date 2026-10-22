@@ -434,6 +434,44 @@ describe('installPlaced: drawing', () => {
     handle.dispose();
   });
 
+  it('chips are read in one pass and written in the next: a layout for the stack, never one per chip', () => {
+    const { canvas } = board();
+    setChainHalted(true);
+    const styles = Object.getPrototypeOf(document.createElement('div').style) as object;
+    const left = Object.getOwnPropertyDescriptor(styles, 'left')!;
+    const read = Element.prototype.getBoundingClientRect;
+    let log: ('read' | 'write')[] = [];
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      log.push('read');
+      return read.call(this);
+    });
+    for (const el of canvas.querySelectorAll<HTMLElement>('*')) {
+      const own = el.getBoundingClientRect;
+      if (own !== read) el.getBoundingClientRect = () => (log.push('read'), own.call(el));
+    }
+    Object.defineProperty(styles, 'left', {
+      ...left,
+      set(this: CSSStyleDeclaration, v: string) {
+        log.push('write');
+        left.set!.call(this, v);
+      },
+    });
+    /** How many times a read came after a write: each one lays the page out again. */
+    const layouts = (n: number): number => {
+      const handle = installPlaced(canvas);
+      log = [];
+      handle.notify(view(Array.from({ length: n }, (_, i) => stackItem(90 + i, { isAbility: true, sourceCardId: 201 }))));
+      handle.dispose();
+      return log.filter((e, i) => e === 'read' && log[i - 1] === 'write').length;
+    };
+    try {
+      expect(layouts(4), 'four chips lay out as often as one').toBe(layouts(1));
+    } finally {
+      Object.defineProperty(styles, 'left', left);
+      vi.restoreAllMocks();
+    }
+  });
+
   it('AE28: the viewer\'s own ability is theirs to drag (data-mine) though nothing placed it; the opponent\'s is not', () => {
     const { canvas } = board();
     setChainHalted(true);
