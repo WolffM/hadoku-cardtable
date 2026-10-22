@@ -459,7 +459,7 @@ function defaultLog(entry: Record<string, unknown>): void {
  * around: a drafter who is not currently seated in the pod has no pool here,
  * and the answer says so.
  */
-function draftPoolForMember(memberId: string, rooms: DraftRooms | null): DraftPoolLookup | null {
+export function draftPoolForMember(memberId: string, rooms: DraftRooms | null): DraftPoolLookup | null {
 	if (rooms === null) return null;
 	return (draftId) => {
 		const room = rooms.find(draftId);

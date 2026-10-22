@@ -26,12 +26,10 @@
  * ## Why a seat check happens twice on the PUT path
  *
  * Once here (`viewForParticipant`, for the 404) and once inside `checkSeat`
- * (via the `draftPool` lookup built below, for the pool itself). Both read the
- * same `viewForParticipant`, so they can never disagree about WHETHER the
- * caller has a seat — only the second one also returns the pool's cards, which
- * the first one does not need. Not deduplicated against `routes.ts`'s own
- * private `draftPoolForMember`: that function is not exported, and this file
- * does not edit `routes.ts`.
+ * (via `routes.ts`'s `draftPoolForMember`, the lookup every table route uses,
+ * for the pool itself). Both read the same `viewForParticipant`, so they can
+ * never disagree about WHETHER the caller has a seat — only the second one also
+ * returns the pool's cards, which the first one does not need.
  *
  * ## `checkSeat` needs a `GateContext`, and this route has no library
  *
@@ -47,8 +45,10 @@ import express, { type NextFunction, type Request, type Response, type Router } 
 
 import { builtDeckOf, saveBuiltDeck, viewForParticipant, type DraftRooms } from '../room/draftRooms.js';
 import { identityFromHeaders } from '../room/identity.js';
-import { checkSeat, MAX_DCK_BYTES, type DraftPoolLookup, type GateContext, type WireIssue } from './gate.js';
+import { checkSeat, MAX_DCK_BYTES, type GateContext, type WireIssue } from './gate.js';
 import type { TablesLibrary } from './library.js';
+import { draftPoolForMember } from './routes.js';
+import { jsonLogger } from '../log.js';
 
 export interface DraftsDeps {
 	/** Null when the server has no draft rooms (no cube pool loaded). */
@@ -92,27 +92,8 @@ function parseSaveBody(raw: unknown): { ok: true; dck: string } | { ok: false; e
 	return { ok: true, dck };
 }
 
-/**
- * The caller's own pool, by pod — exactly `draftPoolForMember`'s shape
- * (`routes.ts:319`), independently built because that function is not
- * exported. `checkSeat`'s draft rule calls this to find what the submitted
- * `.dck` is checked against.
- */
-function draftPoolLookup(draftRooms: DraftRooms, participantId: string): DraftPoolLookup {
-	return (draftId) => {
-		const room = draftRooms.find(draftId);
-		if (room === undefined) return { ok: false, error: `no draft ${JSON.stringify(draftId)} on this server` };
-		const view = viewForParticipant(room, participantId);
-		if (view.viewer.kind !== 'seat') return { ok: false, error: `you have no seat in draft ${JSON.stringify(draftId)}` };
-		return { ok: true, pool: view.viewer.pool };
-	};
-}
-
 export function attachDrafts(api: Router, deps: DraftsDeps): void {
-	const log =
-		deps.log ??
-		((entry: Record<string, unknown>) =>
-			console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-drafts', ...entry })));
+	const log = deps.log ?? jsonLogger('cardtable-drafts');
 
 	const drafts = express.Router();
 	// A tighter limit than the `api` router's own 1mb: `.dck` text is checked
@@ -153,7 +134,7 @@ export function attachDrafts(api: Router, deps: DraftsDeps): void {
 		// The gate's own draft rule, minus what only a finished deck must meet
 		// (this module's header): a save refuses a card from outside the pool
 		// and a malformed file, never a build that is merely short.
-		const ctx: GateContext = { library: EMPTY_LIBRARY, draftPool: draftPoolLookup(draftRooms, caller) };
+		const ctx: GateContext = { library: EMPTY_LIBRARY, draftPool: draftPoolForMember(caller, draftRooms) };
 		const verdict = checkSeat({ deck: { dck: body.dck }, rules: { kind: 'draft', draftId: podId } }, ctx);
 		if ('error' in verdict) {
 			res.status(400).json({ issues: [verdict.error] });

@@ -119,6 +119,7 @@ import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } 
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import type { SpellCopy } from './spell-copiers.js';
+import { jsonLogger } from '../log.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
 
@@ -239,10 +240,6 @@ type PlayRoom = CoreRoomState<PlayApp, PlayClient>;
 function seatsSeenBy(match: Match, caller: ParticipantId): { seat: number; kind: 'ai' | 'human'; deck: string | null }[] {
 	const playing = match.status === 'starting' || match.status === 'running';
 	return match.seats.map((s) => ({ seat: s.seat, kind: s.ai ? 'ai' : 'human', deck: !playing || s.owner === caller ? s.deck : null }));
-}
-
-function defaultLog(entry: Record<string, unknown>): void {
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-play', ...entry }));
 }
 
 function handshakeTier(headers: IncomingHttpHeaders): string {
@@ -477,7 +474,7 @@ export function parseStopPolicyEnv(env: NodeJS.ProcessEnv = process.env): { name
 }
 
 export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): PlayHandle {
-	const log = deps.log ?? defaultLog;
+	const log = deps.log ?? jsonLogger('cardtable-play');
 	const policy = playEmitPolicy(log);
 	const rooms = new RoomRegistry<PlayApp, PlayClient>(() => ({ match: null }));
 	const joinWaitMs = deps.joinWaitMs ?? 8000;

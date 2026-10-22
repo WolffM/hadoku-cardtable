@@ -54,6 +54,7 @@ import type { Duplex } from 'node:stream';
 
 import { CONFIG } from '../../config.js';
 import { rankOf, sanitizeHeaders, tierOf } from '../../edge-auth.js';
+import { jsonLogger } from '../../log.js';
 import { identityFromHeaders } from '../../room/identity.js';
 import type { MatchRegistry } from '../match.js';
 import type { PlayLog } from '../socket.js';
@@ -96,10 +97,6 @@ export interface BrowserBridgeHandle {
 	close(): void;
 }
 
-function defaultLog(entry: Record<string, unknown>): void {
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-play-browser', ...entry }));
-}
-
 /** The path, ignoring the query string. A URL that is not ours is left to other listeners. */
 function pathOf(url: string | undefined): string {
 	const raw = url ?? '/';
@@ -108,7 +105,7 @@ function pathOf(url: string | undefined): string {
 }
 
 export function attachBrowserBridge(server: HttpServer, deps: BrowserBridgeDeps): BrowserBridgeHandle {
-	const log = deps.log ?? defaultLog;
+	const log = deps.log ?? jsonLogger('cardtable-play-browser');
 	const path = deps.path ?? BROWSER_WS_PATH;
 	const fanout = deps.fanout ?? browserFanout;
 	const devIdentity = deps.devIdentity === true && CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '';

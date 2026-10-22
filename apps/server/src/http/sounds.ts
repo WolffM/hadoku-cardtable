@@ -73,15 +73,14 @@ import {
 	type SoundTake,
 } from '@hadoku/shared';
 import { rankOf, tierOf, userIdOf, userNameOf } from '../edge-auth.js';
+import { jsonLogger, type JsonLog } from '../log.js';
 
 export interface SoundsDeps {
 	/** The sounds data directory (`CARDTABLE_SOUNDS_DIR`). Created on first write, never on a read. */
 	dir: string;
 	/** Structured log lines. */
-	log?: (entry: Record<string, unknown>) => void;
+	log?: JsonLog;
 }
-
-type Log = (entry: Record<string, unknown>) => void;
 
 function isAdmin(req: Request): boolean {
 	return rankOf(tierOf(req)) >= rankOf('admin');
@@ -103,7 +102,7 @@ function badRequest(res: Response, error: string): void {
  * tell why" are different bugs and only the file being readable at all tells
  * them apart.
  */
-async function readCatalogue(dir: string, log: Log): Promise<Catalogue> {
+async function readCatalogue(dir: string, log: JsonLog): Promise<Catalogue> {
 	let raw: string;
 	try {
 		raw = await readFile(join(dir, 'catalogue.json'), 'utf8');
@@ -142,7 +141,7 @@ interface StoredAssignments {
  * one or more dropped cells as `sounds-assignments-cells-dropped` with the
  * count — so "silently empty" is never the only trace left.
  */
-async function readAssignments(dir: string, log: Log): Promise<StoredAssignments> {
+async function readAssignments(dir: string, log: JsonLog): Promise<StoredAssignments> {
 	let raw: string;
 	try {
 		raw = await readFile(join(dir, 'assignments.json'), 'utf8');
@@ -268,7 +267,7 @@ async function lastRetirement(dir: string, file: string): Promise<RetiredLine | 
  */
 const MUSIC_REVIEWS_FILE = 'music-reviews.jsonl';
 
-async function readMusicReviews(dir: string, log: Log): Promise<MusicReviewRecord[]> {
+async function readMusicReviews(dir: string, log: JsonLog): Promise<MusicReviewRecord[]> {
 	let raw: string;
 	try {
 		raw = await readFile(join(dir, MUSIC_REVIEWS_FILE), 'utf8');
@@ -297,10 +296,7 @@ async function readMusicReviews(dir: string, log: Log): Promise<MusicReviewRecor
 
 export function attachSounds(api: Router, deps: SoundsDeps): void {
 	const { dir } = deps;
-	const log =
-		deps.log ??
-		((entry: Record<string, unknown>) =>
-			console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-sounds', ...entry })));
+	const log = deps.log ?? jsonLogger('cardtable-sounds');
 
 	const sounds = Router();
 	const takesDir = resolvePath(join(dir, 'takes'));

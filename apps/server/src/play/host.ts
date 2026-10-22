@@ -266,6 +266,8 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import type { AbortReasonSchema, ClientAction, GameLogLine, Loss, SendYieldUpdate } from '@hadoku/forge-wire';
 
+import { jsonLogger } from '../log.js';
+
 /* ── What a host is ──────────────────────────────────────────────────── */
 
 export interface SeatSpec {
@@ -1625,10 +1627,6 @@ export type JvmHostFactory = MatchHostFactory & {
 	reapOnExit(): ReapResult;
 };
 
-function defaultHostLog(entry: Record<string, unknown>): void {
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-play', ...entry }));
-}
-
 /**
  * One JVM per match, and (unless turned off) one warm spare. A match's own
  * `HostEvents.log` receives its JVM's log lines; the spare's, which belong to no
@@ -1637,7 +1635,7 @@ function defaultHostLog(entry: Record<string, unknown>): void {
 export function jvmHostFactory(config: JvmHostConfig, options: JvmPoolOptions = {}): JvmHostFactory {
 	const useSpare = options.spare ?? config.warmSpare;
 	const maxJvms = options.maxJvms ?? MAX_CONCURRENT_MATCHES;
-	const poolLog = options.log ?? defaultHostLog;
+	const poolLog = options.log ?? jsonLogger('cardtable-play');
 	/** JVMs that belong to a match and have not exited. */
 	const serving = new Set<BridgeJvm>();
 	/**
