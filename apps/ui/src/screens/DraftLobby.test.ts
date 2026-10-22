@@ -11,7 +11,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { CubeSummary, DraftPlan, DraftPreset, PoolSource, PoolVerdict, SetSummary } from '@hadoku/shared';
 
 const { aiPod, sitPod, standPod } = vi.hoisted(() => ({
@@ -544,5 +544,70 @@ describe('presets (wave 74 §G routes, §F UI)', () => {
     await waitFor(() => expect((screen.getByTestId('pool-picker-preset-save') as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByTestId('pool-picker-preset-save'));
     await waitFor(() => expect(pools.savePreset).toHaveBeenCalledWith('My preset', cubePlan(good.id)));
+  });
+});
+
+/* Each list is read again after this screen's own write: an older read answering last must not put the older list back (`../rooms/latest.ts`). */
+describe('a list read a newer one overtook', () => {
+  const alice = member('u-alice', 'Alice', true);
+  const bob = member('u-bob', 'Bob', true);
+
+  /** A read that answers with what `server()` held when it was asked, once the test releases it. */
+  function heldReads<T>(server: () => T) {
+    const held: (() => void)[] = [];
+    const read = vi.fn(() => {
+      const answer = server();
+      return new Promise<T>((resolve) => held.push(() => resolve(answer)));
+    });
+    const release = async (i: number): Promise<void> => {
+      await act(async () => held[i]!());
+    };
+    return { held, read, release };
+  }
+
+  it('the cubes: the read from before an import lands nothing once the read after it has', async () => {
+    const cube = cubeFixture();
+    let server: CubeSummary[] = [];
+    const cubes = heldReads(() => server);
+    pools.listCubes = cubes.read;
+    pools.importCube = vi.fn(async () => {
+      server = [cube];
+      return { ok: true as const, cube };
+    });
+    render(createElement(DraftLobby, { ...baseProps, pod: plannedPod(cubePlan(cube.id), cube.name, { ok: true, cards: cube.size }), members: [alice, bob] }));
+    await waitFor(() => expect(cubes.held).toHaveLength(1));
+
+    fireEvent.change(screen.getByTestId('pool-picker-import-link'), { target: { value: 'cubecobra.com/cube/x' } });
+    fireEvent.click(screen.getByTestId('pool-picker-import-go'));
+    await waitFor(() => expect(cubes.held).toHaveLength(2));
+    await cubes.release(1);
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-cubes-${cube.id}`)).not.toBeNull());
+    await cubes.release(0);
+    expect(screen.queryByTestId(`pool-picker-cubes-${cube.id}`), 'the older list lands nothing').not.toBeNull();
+  });
+
+  it('the presets: the read after the first delete lands nothing once the read after the second has', async () => {
+    const first = presetFixture({ id: 'p-first', createdBy: 'u-alice' });
+    const second = presetFixture({ id: 'p-second', createdBy: 'u-alice' });
+    let server = [first, second];
+    const presets = heldReads(() => server);
+    pools.listPresets = presets.read;
+    pools.deletePreset = vi.fn(async (id: string) => {
+      server = server.filter((p) => p.id !== id);
+      return { ok: true as const };
+    });
+    render(createElement(DraftLobby, { ...baseProps, pod: plannedPod(first.plan, 'Custom', { ok: true, cards: 15 }), members: [alice, bob] }));
+    await waitFor(() => expect(presets.held).toHaveLength(1));
+    await presets.release(0);
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-preset-${second.id}-delete`)).not.toBeNull());
+
+    fireEvent.click(screen.getByTestId(`pool-picker-preset-${first.id}-delete`));
+    await waitFor(() => expect(presets.held).toHaveLength(2));
+    fireEvent.click(screen.getByTestId(`pool-picker-preset-${second.id}-delete`));
+    await waitFor(() => expect(presets.held).toHaveLength(3));
+    await presets.release(2);
+    await waitFor(() => expect(screen.queryByTestId(`pool-picker-preset-${second.id}`)).toBeNull());
+    await presets.release(1);
+    expect(screen.queryByTestId(`pool-picker-preset-${second.id}`), 'the older list lands nothing').toBeNull();
   });
 });

@@ -328,6 +328,39 @@ describe('SoundBuilder', () => {
     expect(client.retires.at(-1)).toEqual({ file: TAKE_B.file, reason: 'broken' });
   });
 
+  it('a read sent before a later retire answered is asked again, not landed: the retired take stays out', async () => {
+    const client = stubClient({ cells: {}, canEdit: true });
+    const retire = client.retire;
+    // A refused: the screen reads the server again. B: retired.
+    client.retire = async (file, reason) => (file === TAKE_A.file ? null : retire(file, reason));
+    const catalogue = client.catalogue;
+    // The read after the refusal (the second) is held until the test releases it.
+    const held: (() => void)[] = [];
+    let reads = 0;
+    client.catalogue = async () => {
+      const answer = await catalogue();
+      if ((reads += 1) === 2) await new Promise<void>((release) => held.push(release));
+      return answer;
+    };
+    render(createElement(SoundBuilder, { client, player: stubPlayer() }));
+    await screen.findByText('Sound Builder');
+    const pill = (n: number): HTMLElement | null => screen.queryByRole('button', { name: new RegExp(`Water · ${n}: play and pick up`) });
+
+    fireEvent.click(pill(1)!);
+    fireEvent.keyDown(document, { key: 'Delete' });
+    await act(async () => undefined);
+    expect(held, 'the refused retire reads the server again').toHaveLength(1);
+    fireEvent.click(pill(2)!);
+    fireEvent.keyDown(document, { key: 'Delete' });
+    await act(async () => undefined);
+    expect(client.retires).toEqual([{ file: TAKE_B.file, reason: 'bad' }]);
+    expect(pill(2)).toBeNull();
+
+    await act(async () => held[0]!());
+    expect(pill(2), 'the read from before the retire does not bring it back').toBeNull();
+    expect(pill(1)).not.toBeNull();
+  });
+
   it('middle-click marks a take keep, right-click delete, the same click again clears it; the queue never offers a delete', async () => {
     const client = stubClient({ cells: {}, canEdit: true });
     render(createElement(SoundBuilder, { client, player: stubPlayer() }));

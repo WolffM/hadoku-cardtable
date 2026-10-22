@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { CubeSummary } from '@hadoku/shared';
 
 import { InventoryScreen } from './InventoryScreen.tsx';
@@ -126,6 +126,35 @@ describe('InventoryScreen', () => {
     const meta = await waitFor(() => screen.getByTestId(`inventory-meta-${mine.id}`));
     expect(meta.textContent).toContain('5m ago');
     expect(meta.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('a list read sent before a later write answers lands nothing once a newer read has: the deleted cube stays gone', async () => {
+    const mine = cube({ id: 'cc-mine' });
+    const theirs = cube({ id: 'cc-theirs', importedBy: 'u-bob' });
+    let server = [mine, theirs];
+    const held: (() => void)[] = [];
+    // Each read answers with the list as it stood when it was asked, when the test says so.
+    const listCubes = vi.fn(() => {
+      const answer = server;
+      return listCubes.mock.calls.length === 1 ? Promise.resolve(answer) : new Promise<CubeSummary[]>((resolve) => held.push(() => resolve(answer)));
+    });
+    const refreshCube = vi.fn().mockResolvedValue({ ok: true, cube: theirs });
+    const deleteCube = vi.fn(async () => {
+      server = [theirs];
+      return { ok: true as const };
+    });
+    render(createElement(InventoryScreen, { pools: stubPools({ listCubes, refreshCube, deleteCube }), myId: 'u-me' }));
+    await waitFor(() => expect(screen.getByTestId(`inventory-delete-${mine.id}`)).not.toBeNull());
+
+    fireEvent.click(screen.getByTestId(`inventory-refresh-${theirs.id}`));
+    await waitFor(() => expect(held).toHaveLength(1));
+    fireEvent.click(screen.getByTestId(`inventory-delete-${mine.id}`));
+    await waitFor(() => expect(held).toHaveLength(2));
+
+    await act(async () => held[1]!());
+    await waitFor(() => expect(screen.queryByTestId(`inventory-cube-${mine.id}`)).toBeNull());
+    await act(async () => held[0]!());
+    expect(screen.queryByTestId(`inventory-cube-${mine.id}`), 'the older list lands nothing').toBeNull();
   });
 
   it('draws the shared import card', async () => {
