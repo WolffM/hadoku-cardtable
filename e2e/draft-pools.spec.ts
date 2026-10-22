@@ -178,7 +178,7 @@ test(
        * screen — reading the room's own broadcast plan, not a local attempt —
        * is the proof that the real plan never moved.
        */
-      await expect(alice.page.getByTestId(`pool-picker-cube-${UNPLAYABLE_ID}`), 'the injected test cube is listed').toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(alice.page.getByTestId(`pool-picker-cubes-${UNPLAYABLE_ID}`), 'the injected test cube is listed').toBeVisible({ timeout: UI_TIMEOUT });
       await cubeRadio(alice.page, UNPLAYABLE_NAME).click();
       await expect(alice.page.getByTestId('pool-picker-verdict'), 'refused, naming the card Forge does not know').toHaveAttribute('data-state', 'refused', {
         timeout: UI_TIMEOUT,

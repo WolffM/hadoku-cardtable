@@ -15,7 +15,17 @@
  * the tile behind it, for a choice that is the whole screen until it is made. The
  * art is drawn at both sizes and hidden on the small one, so a card that grows
  * already has it (`constructed-mode/ModeRow.tsx` animates the change).
+ *
+ * `renderRow`, wave 73 §B's cube picker: a row that needs more than a label —
+ * a size, an importer, its own refresh/delete buttons beside the radio, not
+ * inside it. `input` is the SAME wired element every other card gets (name,
+ * value, checked, disabled, onChange, test id); `renderRow` only chooses what
+ * markup it sits in, so the input's own behaviour is never duplicated.
+ * Every other caller leaves it unset and gets the plain card exactly as
+ * before — this is additive, not a second way to draw the same thing.
  */
+
+import { Fragment, type ReactNode } from 'react';
 
 import './RadioCards.css';
 
@@ -35,6 +45,8 @@ export function RadioCards<T extends string>({
   onChange,
   testId,
   size = 'small',
+  className,
+  renderRow,
 }: {
   /** The inputs' shared `name`: unique on the page, so two groups never join. */
   name: string;
@@ -47,18 +59,17 @@ export function RadioCards<T extends string>({
   /** The group's test id; each card's input is `<testId>-<value>`. */
   testId: string;
   size?: 'small' | 'large';
+  /** Appended to the group's own `radio-cards` class, for a caller that lays its rows out differently (wave 73 §B's cube picker: a column of full-width rows). */
+  className?: string;
+  /** See the header. `undefined` (every caller but the cube picker) draws the plain card. */
+  renderRow?: (option: RadioCard<T>, input: ReactNode) => ReactNode;
 }) {
   const large = size === 'large';
+  const rootClass = [large ? 'radio-cards radio-cards--large' : 'radio-cards', className].filter((c) => c !== undefined && c !== '').join(' ');
   return (
-    <div
-      className={large ? 'radio-cards radio-cards--large' : 'radio-cards'}
-      role="radiogroup"
-      aria-label={label}
-      aria-disabled={disabled ? 'true' : undefined}
-      data-testid={testId}
-    >
-      {options.map((option) => (
-        <label key={option.value} className="radio-cards__card">
+    <div className={rootClass} role="radiogroup" aria-label={label} aria-disabled={disabled ? 'true' : undefined} data-testid={testId}>
+      {options.map((option) => {
+        const input = (
           <input
             className="radio-cards__input"
             type="radio"
@@ -69,10 +80,16 @@ export function RadioCards<T extends string>({
             disabled={disabled}
             onChange={() => onChange(option.value)}
           />
-          {option.art !== undefined && <img className="radio-cards__art" src={option.art} alt="" decoding="async" draggable={false} />}
-          <span className="radio-cards__label">{option.label}</span>
-        </label>
-      ))}
+        );
+        if (renderRow !== undefined) return <Fragment key={option.value}>{renderRow(option, input)}</Fragment>;
+        return (
+          <label key={option.value} className="radio-cards__card">
+            {input}
+            {option.art !== undefined && <img className="radio-cards__art" src={option.art} alt="" decoding="async" draggable={false} />}
+            <span className="radio-cards__label">{option.label}</span>
+          </label>
+        );
+      })}
     </div>
   );
 }

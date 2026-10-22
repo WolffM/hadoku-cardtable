@@ -116,6 +116,17 @@ vi.mock('../../rooms/api.ts', () => ({
       return room;
     },
   }),
+  // `DraftLobby.tsx` calls this at module scope (`poolsClient()`), and this
+  // file's module graph reaches it on the way to `GameResultScreen` — nothing
+  // in this file's own cases exercises the pool picker, so a minimal stub
+  // that is never called is enough.
+  poolsClient: () => ({
+    listCubes: async () => [],
+    importCube: async () => ({ ok: false as const, message: 'not used' }),
+    refreshCube: async () => ({ ok: false as const, message: 'not used' }),
+    deleteCube: async () => ({ ok: false as const, message: 'not used' }),
+    cubeCards: async () => null,
+  }),
 }));
 
 /*

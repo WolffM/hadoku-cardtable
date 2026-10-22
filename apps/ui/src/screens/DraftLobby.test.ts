@@ -195,14 +195,14 @@ describe('the pool picker (wave 73 §B)', () => {
     const pod = plannedPod(cubePlan(cube.id), cube.name, { ok: true, cards: cube.size });
 
     render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
-    const leaderRadio = await waitFor(() => screen.getByTestId(`pool-picker-cube-${cube.id}`) as HTMLInputElement);
+    const leaderRadio = await waitFor(() => screen.getByTestId(`pool-picker-cubes-${cube.id}`) as HTMLInputElement);
     expect(leaderRadio.disabled, 'the leader may change it').toBe(false);
     expect(leaderRadio.checked, 'the room’s own plan is drawn chosen').toBe(true);
     expect(screen.getByTestId('pool-picker-import-link'), 'the leader gets the import field').not.toBeNull();
 
     cleanup();
     render(createElement(DraftLobby, { ...baseProps, pod, myId: 'u-bob', members: [alice, bob] }));
-    const readerRadio = await waitFor(() => screen.getByTestId(`pool-picker-cube-${cube.id}`) as HTMLInputElement);
+    const readerRadio = await waitFor(() => screen.getByTestId(`pool-picker-cubes-${cube.id}`) as HTMLInputElement);
     expect(readerRadio.disabled, 'everyone else only reads it').toBe(true);
     expect(readerRadio.checked, 'and sees the same choice').toBe(true);
     expect(screen.queryByTestId('pool-picker-import-link'), 'no import field for a non-leader').toBeNull();
@@ -214,7 +214,7 @@ describe('the pool picker (wave 73 §B)', () => {
     const pod = plannedPod(cubePlan(cube.id), cube.name, null);
 
     render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
-    await waitFor(() => expect(screen.getByTestId(`pool-picker-cube-${cube.id}`)).not.toBeNull());
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-cubes-${cube.id}`)).not.toBeNull());
 
     expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('checking');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled, 'Start waits on the first check').toBe(true);
@@ -239,7 +239,7 @@ describe('the pool picker (wave 73 §B)', () => {
     await waitFor(() => expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('refused'));
 
     expect(screen.getByTestId('pool-picker-verdict').textContent).toBe('Forge is not available to check playability — try again once the pool service is up');
-    expect((screen.getByTestId(`pool-picker-cube-${cube.id}`) as HTMLInputElement).checked, 'still shows the room’s own (refused) plan chosen').toBe(true);
+    expect((screen.getByTestId(`pool-picker-cubes-${cube.id}`) as HTMLInputElement).checked, 'still shows the room’s own (refused) plan chosen').toBe(true);
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -267,15 +267,15 @@ describe('the pool picker (wave 73 §B)', () => {
     const pod = plannedPod(cubePlan(good.id), good.name, { ok: true, cards: good.size });
 
     render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
-    await waitFor(() => expect(screen.getByTestId(`pool-picker-cube-${bad.id}`)).not.toBeNull());
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-cubes-${bad.id}`)).not.toBeNull());
 
-    fireEvent.click(screen.getByTestId(`pool-picker-cube-${bad.id}`));
+    fireEvent.click(screen.getByTestId(`pool-picker-cubes-${bad.id}`));
     expect(rooms.setPlan).toHaveBeenCalledWith('r-cube', cubePlan(bad.id));
 
     await waitFor(() => expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('refused'));
     expect(screen.getByTestId('pool-picker-verdict').textContent).toBe('Not A Real Card');
-    expect((screen.getByTestId(`pool-picker-cube-${bad.id}`) as HTMLInputElement).checked, 'the picker shows the attempted cube').toBe(true);
-    expect((screen.getByTestId(`pool-picker-cube-${good.id}`) as HTMLInputElement).checked, 'not the one it replaced').toBe(false);
+    expect((screen.getByTestId(`pool-picker-cubes-${bad.id}`) as HTMLInputElement).checked, 'the picker shows the attempted cube').toBe(true);
+    expect((screen.getByTestId(`pool-picker-cubes-${good.id}`) as HTMLInputElement).checked, 'not the one it replaced').toBe(false);
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled, 'Start is disabled').toBe(true);
     // `DraftLobby` never mutates its own `pod` prop — it only READS it — so "the
     // previous choice is still the room's plan" holds by construction here: the

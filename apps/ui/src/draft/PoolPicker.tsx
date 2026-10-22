@@ -11,15 +11,16 @@
  * the picker draws straight off the room's own feed (`pod.plan`), so a
  * change lands on every seated screen without a reload.
  *
- * Port of the room's own radio-card look (`components/RadioCards.css`) for
- * the choice itself, extended with each imported row's own meta line and
- * actions — `RadioCards` itself has no room for those, so this is its own
- * markup over the same classes rather than a forced fit.
+ * Draws the room's own `RadioCards` component for the choice itself — its
+ * `renderRow` is what lets one row carry a size, an importer and its own
+ * refresh/delete buttons beside the radio, the same wired input every other
+ * `RadioCards` card gets.
  */
 import { useState } from 'react';
 
 import type { CubeSummary, PoolVerdict } from '@hadoku/shared';
 
+import { RadioCards } from '../components/RadioCards.tsx';
 import './PoolPicker.css';
 
 /** A refused verdict only — the arm this picker ever shows the names of. */
@@ -76,46 +77,52 @@ export function PoolPicker({
 
   const verdictState = checking ? 'checking' : refusal !== null ? 'refused' : 'ready';
 
+  // Imported first, then the shortlist (the server's own order, above) — `RadioCards` only takes a flat option list, so the full cube is looked back up by id inside `renderRow`.
+  const ordered = [...imported, ...shortlist];
+  const cubesById = new Map(ordered.map((cube) => [cube.id, cube]));
+
   return (
     <div className="pool-picker" data-testid="pool-picker">
-      <div className="pool-picker__list radio-cards" role="radiogroup" aria-label="Cube" aria-disabled={disabled ? 'true' : undefined} data-testid="pool-picker-cubes">
-        {[...imported, ...shortlist].map((cube) => (
-          <div key={cube.id} className="pool-picker__row">
-            <label className="radio-cards__card pool-picker__card">
-              <input
-                className="radio-cards__input"
-                type="radio"
-                name="pool-picker-cube"
-                value={cube.id}
-                data-testid={`pool-picker-cube-${cube.id}`}
-                checked={selectedId === cube.id}
-                disabled={disabled}
-                onChange={() => onPick(cube.id)}
-              />
-              <span className="pool-picker__name">{cube.name}</span>
-              <span className="pool-picker__size">{cube.size}</span>
-              {cube.origin === 'cubecobra' && (
-                <span className="pool-picker__meta" data-testid={`pool-picker-meta-${cube.id}`}>
-                  {cube.importedBy}
-                  {cube.refreshedAt !== null ? ` · refreshed ${cube.refreshedAt}` : ''}
+      <RadioCards
+        name="pool-picker-cube"
+        label="Cube"
+        testId="pool-picker-cubes"
+        className="pool-picker__list"
+        options={ordered.map((cube) => ({ value: cube.id, label: cube.name }))}
+        value={selectedId}
+        disabled={disabled}
+        onChange={onPick}
+        renderRow={(option, input) => {
+          const cube = cubesById.get(option.value)!;
+          return (
+            <div key={cube.id} className="pool-picker__row">
+              <label className="radio-cards__card pool-picker__card">
+                {input}
+                <span className="pool-picker__name">{cube.name}</span>
+                <span className="pool-picker__size">{cube.size}</span>
+                {cube.origin === 'cubecobra' && (
+                  <span className="pool-picker__meta" data-testid={`pool-picker-meta-${cube.id}`}>
+                    {cube.importedBy}
+                    {cube.refreshedAt !== null ? ` · refreshed ${cube.refreshedAt}` : ''}
+                  </span>
+                )}
+              </label>
+              {cube.origin === 'cubecobra' && leader && (
+                <span className="pool-picker__actions">
+                  <button type="button" className="pool-picker__action" data-testid={`pool-picker-refresh-${cube.id}`} disabled={busy} onClick={() => onRefresh(cube.id)}>
+                    Refresh
+                  </button>
+                  {cube.importedBy === myId && (
+                    <button type="button" className="pool-picker__action" data-testid={`pool-picker-delete-${cube.id}`} disabled={busy} onClick={() => onDelete(cube.id)}>
+                      Delete
+                    </button>
+                  )}
                 </span>
               )}
-            </label>
-            {cube.origin === 'cubecobra' && leader && (
-              <span className="pool-picker__actions">
-                <button type="button" className="pool-picker__action" data-testid={`pool-picker-refresh-${cube.id}`} disabled={busy} onClick={() => onRefresh(cube.id)}>
-                  Refresh
-                </button>
-                {cube.importedBy === myId && (
-                  <button type="button" className="pool-picker__action" data-testid={`pool-picker-delete-${cube.id}`} disabled={busy} onClick={() => onDelete(cube.id)}>
-                    Delete
-                  </button>
-                )}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
+            </div>
+          );
+        }}
+      />
 
       {cubesError !== null && (
         <p className="lobby__error" role="alert" data-testid="pool-picker-list-error">
