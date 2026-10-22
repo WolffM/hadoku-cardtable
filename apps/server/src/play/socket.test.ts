@@ -538,6 +538,22 @@ describe('two seats over the socket', () => {
 		expect(bob.presences, 'nothing reaches the other seat').toHaveLength(0);
 	});
 
+	it('writes a seat’s frame-rate reports into the log with every field the browser sent', async () => {
+		const { h, matchId, alice } = await twoSeats();
+		await alice.request('forge:join', { matchId });
+		// The three shapes `frame-watch.ts` sends for one bad stretch, at their widest.
+		const stretch = { what: 'stretch', n: 1, ms: 2140, frames: 31, worstMs: 412, over50: 18, over100: 9, fps: 14.5, freeze: true, suppressed: 2, attribution: 'loaf', longs: 12, longMaxMs: 412, why: 'recovered' };
+		const board = { what: 'board', n: 1, beats: 2, anims: 34, animTop: 'ram×10,t:transform×12,crash×2', paceQueue: 3, phase: 'COMBAT_DAMAGE', turn: 7, whose: 'theirs', mine: 8, theirs: 9, hand: 4, stack: 0, dom: 5321, ui: '0.32.469', window: '2080x1324' };
+		const loaf = { what: 'loaf', n: 1, rank: 1, atMs: 120, ms: 412, blockMs: 340, workMs: 300, renderMs: 40, layoutMs: 72, scripts: 4, forcedMs: 180, s1: 'TimerHandler:setTimeout|ram|index-abc.js:1234|260|f150' };
+		for (const data of [stretch, board, loaf]) alice.socket.emit('forge:client', { matchId, kind: 'perf', data });
+		await vi.waitFor(() => expect(h.logs.filter((l) => l.evt === 'client')).toHaveLength(3));
+		expect(h.logs.filter((l) => l.evt === 'client-malformed')).toEqual([]);
+		const [a, b, c] = h.logs.filter((l) => l.evt === 'client');
+		expect(a).toEqual({ evt: 'client', matchId, seat: 0, participantId: expect.any(String), kind: 'perf', ...stretch });
+		expect(b).toEqual({ evt: 'client', matchId, seat: 0, participantId: expect.any(String), kind: 'perf', ...board });
+		expect(c).toEqual({ evt: 'client', matchId, seat: 0, participantId: expect.any(String), kind: 'perf', ...loaf });
+	});
+
 	it('relays a seat’s presence to the other seat, stamped with the seat, never back to the sender, and never from a spectator', async () => {
 		const { h, matchId, alice, bob } = await twoSeats();
 		await alice.request('forge:join', { matchId });
