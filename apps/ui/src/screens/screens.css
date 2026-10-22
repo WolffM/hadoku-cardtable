@@ -967,23 +967,6 @@
   margin-bottom: 0;
 }
 
-/* The box around the room's mode moves with its cards when they change size
-   (`constructed-mode/ModeRow.tsx`), rather than snapping to its new height while
-   they are still in flight. */
-.lobby__card:has(> .lobby__modeline) {
-  view-transition-name: room-mode-box;
-}
-
-/* The box is only its border and ground: it resizes as a plain box, never cropped like a card's picture. */
-::view-transition-group(room-mode-box) {
-  overflow: visible;
-}
-
-::view-transition-old(room-mode-box),
-::view-transition-new(room-mode-box) {
-  object-fit: fill;
-}
-
 /* A label that names the deck grid for assistive tech and is not drawn: the
    grid of decks says what it is. */
 .lobby__field--hidden {

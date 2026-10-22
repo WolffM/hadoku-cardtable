@@ -12,9 +12,9 @@
  * mode the leader has not picked), not a default the reader cannot see.
  *
  * `size="large"` draws each card as a tile, its label on top and its `art` filling
- * the tile behind it, for a choice that is the whole screen until it is made; `morph` names each card for
- * a view transition (`<morph>-<value>`), so the same choice drawn at another size
- * can grow or shrink into it (`constructed-mode/ModeRow.tsx`).
+ * the tile behind it, for a choice that is the whole screen until it is made. The
+ * art is drawn at both sizes and hidden on the small one, so a card that grows
+ * already has it (`constructed-mode/ModeRow.tsx` animates the change).
  */
 
 import './RadioCards.css';
@@ -35,7 +35,6 @@ export function RadioCards<T extends string>({
   onChange,
   testId,
   size = 'small',
-  morph,
 }: {
   /** The inputs' shared `name`: unique on the page, so two groups never join. */
   name: string;
@@ -48,8 +47,6 @@ export function RadioCards<T extends string>({
   /** The group's test id; each card's input is `<testId>-<value>`. */
   testId: string;
   size?: 'small' | 'large';
-  /** Each card's view-transition name is `<morph>-<value>`. */
-  morph?: string;
 }) {
   const large = size === 'large';
   return (
@@ -61,7 +58,7 @@ export function RadioCards<T extends string>({
       data-testid={testId}
     >
       {options.map((option) => (
-        <label key={option.value} className="radio-cards__card" style={morph === undefined ? undefined : { viewTransitionName: `${morph}-${option.value}` }}>
+        <label key={option.value} className="radio-cards__card">
           <input
             className="radio-cards__input"
             type="radio"
@@ -72,7 +69,7 @@ export function RadioCards<T extends string>({
             disabled={disabled}
             onChange={() => onChange(option.value)}
           />
-          {large && option.art !== undefined && <img className="radio-cards__art" src={option.art} alt="" decoding="async" draggable={false} />}
+          {option.art !== undefined && <img className="radio-cards__art" src={option.art} alt="" decoding="async" draggable={false} />}
           <span className="radio-cards__label">{option.label}</span>
         </label>
       ))}

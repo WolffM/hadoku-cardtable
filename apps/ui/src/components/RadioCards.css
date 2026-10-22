@@ -118,126 +118,24 @@
     0 1px 1px var(--color-bg-card);
 }
 
-/*
- * A card growing or shrinking between the sizes (`morph`). Each drawing is scaled
- * evenly to cover its moving box, which clips it, so nothing is ever stretched
- * out of shape: a card closes or opens like a window on its picture. Which one
- * shows when depends on the direction (`data-mode-morph`, set for the length of
- * the transition): shrinking, the large card holds and the small button comes in
- * near its own size; growing, the small button goes at once and the large card,
- * its art already decoded, opens from the first frame.
- */
-::view-transition-group(*) {
-  animation-duration: 420ms;
-  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
-  overflow: clip;
-}
-
-::view-transition-old(*),
-::view-transition-new(*) {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-:root[data-mode-morph='shrink']::view-transition-old(*) {
-  animation-name: radio-cards-hold-then-go;
-}
-
-:root[data-mode-morph='shrink']::view-transition-new(*) {
-  animation-name: radio-cards-come-late;
-}
-
-:root[data-mode-morph='grow']::view-transition-old(*) {
-  animation-name: radio-cards-go-early;
-}
-
-:root[data-mode-morph='grow']::view-transition-new(*) {
-  animation-name: radio-cards-come-early;
+/* The art is in the page at both sizes, so it is loaded before a card grows; the small button hides it. */
+.radio-cards:not(.radio-cards--large) .radio-cards__art {
+  opacity: 0;
 }
 
 /*
- * The bottom drawing never thins while the top one fades in over it: each old drawing holds,
- * fully opaque, until the new one above it is opaque, and only then goes. A crossfade where both
- * were part-transparent let the page show through near the end, a flash (Firefox blends the two
- * normally, not additively, so even an even crossfade dims by a quarter at its middle).
- *
- * The page and the room's box: the new drawing fades in over the old for the whole move.
+ * A size change in flight (`data-morphing` on the row's host, `constructed-mode/ModeRow.tsx`):
+ * the cards are taken out of the row's flow and placed by the animation itself, each from where
+ * it was to where it will be, so the row's own layout never moves them mid-way.
  */
-:root[data-mode-morph]::view-transition-old(root),
-:root[data-mode-morph]::view-transition-old(room-mode-box) {
-  animation-name: radio-cards-hold;
+[data-morphing] > .radio-cards {
+  position: relative;
 }
 
-:root[data-mode-morph]::view-transition-new(root),
-:root[data-mode-morph]::view-transition-new(room-mode-box) {
-  animation-name: radio-cards-fade-in;
-}
-
-@keyframes radio-cards-hold {
-  from,
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes radio-cards-fade-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-/* Shrinking: the large card holds; the button fades in over it once near its own size, then the card goes. */
-@keyframes radio-cards-hold-then-go {
-  0%,
-  90% {
-    opacity: 1;
-  }
-
-  91%,
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes radio-cards-come-late {
-  0%,
-  55% {
-    opacity: 0;
-  }
-
-  90%,
-  100% {
-    opacity: 1;
-  }
-}
-
-/* Growing: the large card, art decoded, fades in over the button from the first frame; then the button goes. */
-@keyframes radio-cards-go-early {
-  0%,
-  30% {
-    opacity: 1;
-  }
-
-  31%,
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes radio-cards-come-early {
-  0% {
-    opacity: 0;
-  }
-
-  30%,
-  100% {
-    opacity: 1;
-  }
+[data-morphing] > .radio-cards > .radio-cards__card {
+  position: absolute;
+  box-sizing: border-box;
+  margin: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
