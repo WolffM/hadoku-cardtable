@@ -18,21 +18,59 @@
  * copies, so the "shards of Alara + Alara Reborn" case the operator asked for
  * composes for free.
  *
- * ## Never throws
+ * **Set-cube rounds share this exact mechanism** (wave 74 §E step 2): the
+ * `sources` callback hands back the set's non-basic singleton list the same
+ * way it hands back a cube's list, and `sourceKey` already keys a `'set'`
+ * source by `code:style`, so two set-cube rounds of the same set share one
+ * shuffled copy and a custom plan mixing cubes and set-cubes composes with no
+ * extra code here.
  *
- * A cube too small for the pod wraps (`cursor.pos % size`) rather than
- * dealing short packs or throwing — the same behaviour `engine.ts`'s old
- * private `deal()` had, now exercised here. `poolShortfall` answers "how
- * short" as a value, for a caller that wants to say so before dealing at all.
+ * ## Never throws on a short pool
+ *
+ * A cube (or set-cube) too small for the pod wraps (`cursor.pos % size`)
+ * rather than dealing short packs or throwing — the same behaviour
+ * `engine.ts`'s old private `deal()` had, now exercised here. This is also
+ * ruling 3's "a second copy of the set is added only when short": the FIRST
+ * pass through the shuffled singleton list never repeats a name, and only a
+ * round that would run past the end of that single pass starts seeing a name
+ * again. `poolShortfall` answers "how short" as a value, for a caller that
+ * wants to say so before dealing at all.
+ *
+ * ## Realistic rounds are not sliced from a pool at all
+ *
+ * A realistic round's packs are Forge's own booster collation
+ * (`BoosterGenerator.getBoosterPack`), already seat-shaped — there is no flat
+ * list to shuffle and slice. "Realistic boosters are fetched before `deal`
+ * and passed in, so `deal` stays synchronous and seeded" (wave 74 §E step 2):
+ * the caller resolves `ForgePools.boosters` (an async JVM round-trip) BEFORE
+ * calling `deal`, and hands the already-dealt, already catalog-mapped packs
+ * in through `realistic`, keyed by ROUND INDEX — not by source, since two
+ * realistic rounds of the same set still get independently seeded boosters
+ * (`seed + ':' + round`) and never share a cursor the way cube/set-cube
+ * rounds do.
  */
 
 import type { DraftCard, DraftPlan, PoolSource } from '@hadoku/shared';
 import { derive, shuffle } from './rng.ts';
 
-/** Every card a source could deal from — the plan's own say in where cards come from. */
+/** Every card a source could deal from — the plan's own say in where cards come from. Never called for a `realistic` round (see `RealisticPacks`). */
 export type SourceCards = (src: PoolSource) => readonly DraftCard[];
 
-/** Two sources are the same deal — share one shuffled copy — iff this key matches. */
+/**
+ * Pre-fetched, catalog-mapped packs for one realistic round, `[seat][card]`
+ * — the caller's own say in "what Forge dealt this round". `undefined` for a
+ * round `deal` does not need this for (not `kind: 'set', style: 'realistic'`),
+ * or an oversight the caller should not have made (handled as a thrown error
+ * below, since dealing nothing for a seat is never a valid draft).
+ */
+export type RealisticPacks = (roundIndex: number) => readonly (readonly DraftCard[])[] | undefined;
+
+/** A realistic round's own source (for a clearer error than a type-widened `undefined` read would give). */
+function isRealistic(src: PoolSource): boolean {
+  return src.kind === 'set' && src.style === 'realistic';
+}
+
+/** Two sources are the same deal — share one shuffled copy — iff this key matches. Never consulted for a realistic round. */
 function sourceKey(src: PoolSource): string {
   return src.kind === 'cube' ? `cube:${src.cubeId}` : `set:${src.code}:${src.style}`;
 }
@@ -45,10 +83,10 @@ interface Cursor {
 /**
  * Deal every pack for a plan, `[round][seat]`.
  *
- * Pure and seeded: the same seed, plan and sources give byte-identical packs
- * back. `seed` is usually the draft id, exactly as `engine.ts`'s own dealing
- * used to key off it — a bug report carries the same three strings that
- * reproduce it.
+ * Pure and seeded: the same seed, plan, sources and `realistic` packs give
+ * byte-identical packs back. `seed` is usually the draft id, exactly as
+ * `engine.ts`'s own dealing used to key off it — a bug report carries the
+ * same three strings that reproduce it.
  */
 export function deal(
   plan: DraftPlan,
@@ -56,11 +94,26 @@ export function deal(
   seed: string,
   seatCount: number,
   packSize: number,
+  realistic?: RealisticPacks,
 ): DraftCard[][][] {
   const cursors = new Map<string, Cursor>();
   const rounds: DraftCard[][][] = [];
 
-  for (const src of plan.rounds) {
+  for (let r = 0; r < plan.rounds.length; r++) {
+    const src = plan.rounds[r] as PoolSource;
+
+    if (isRealistic(src)) {
+      const packs = realistic?.(r);
+      if (packs === undefined) {
+        throw new Error(`deal: round ${r} is a realistic set (no pool to shuffle) but no pre-fetched packs were supplied for it`);
+      }
+      if (packs.length !== seatCount) {
+        throw new Error(`deal: round ${r}'s realistic packs have ${packs.length} seats, not ${seatCount}`);
+      }
+      rounds.push(packs.map((pack) => [...pack]));
+      continue;
+    }
+
     const key = sourceKey(src);
     let cursor = cursors.get(key);
     if (cursor === undefined) {
@@ -98,6 +151,7 @@ export function poolShortfall(plan: DraftPlan, sources: SourceCards, seatCount: 
   const demand = new Map<string, number>();
   const size = new Map<string, number>();
   for (const src of plan.rounds) {
+    if (isRealistic(src)) continue; // Forge always hands back exactly seatCount boosters — never short.
     const key = sourceKey(src);
     demand.set(key, (demand.get(key) ?? 0) + seatCount * packSize);
     if (!size.has(key)) size.set(key, sources(src).length);
