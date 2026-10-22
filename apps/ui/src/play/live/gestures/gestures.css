@@ -3,93 +3,12 @@
  * so it travels with the module.
  *
  * It names NOTHING of another lane's: no `.board`, no `.card`, no `.live`. Every
- * selector here is either this module's own class (`.targeter`, `.marquee`) or
+ * selector here is either this module's own class (`.marquee`) or
  * an attribute this module writes (`data-gesture-canvas`, `data-dragging`,
  * `data-marquee`, `data-aiming`, `data-attack-intent`, `data-attack-pending`).
  * That is what keeps lane A's markup and lane C's frame out of this file and
- * this file out of theirs.
- *
- * `.targeter*` moved here from `../live.css`, where wave 20 left it.
+ * this file out of theirs. The arrow is `./arrow.css`'s, with `./arrow.ts`.
  */
-
-/*
- * The targeter arrow. Ours, drawn: a curved shaft and a plain triangular head.
- * No card frame, no mana symbol, no tap symbol — nothing of WotC's, here or
- * anywhere (`CLAUDE.md`). The palette is `styles.css`'s accent, so the arrow
- * reads as the same affordance a selectable card's outline does.
- *
- * It renders into lane A's overlay root and fills it exactly, which is why it
- * takes no size of its own: the overlay covers the canvas, the SVG covers the
- * overlay, and every coordinate `./arrow.ts` computes is in that box. It never
- * takes the pointer — if it did, it would become the element under the cursor
- * and the drop would land on the arrow instead of the target.
- *
- * `overflow: visible` because the head is drawn at the tip: a snap to a card
- * flush against the canvas edge would otherwise be clipped in half.
- */
-.targeter {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.targeter__shaft {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 3;
-  stroke-linecap: round;
-  opacity: 0.85;
-}
-
-.targeter__head {
-  fill: var(--accent);
-}
-
-/* Click targeting (§B.4) is the same arrow, drawn a touch lighter: the player
-   is still choosing and has not committed a gesture to it. */
-.targeter[data-mode='click'] .targeter__shaft {
-  stroke-dasharray: 7 5;
-  opacity: 0.7;
-}
-
-/*
- * The passive arrow for a target Forge already decided (item 8, `./arrow.ts`'s
- * `drawAutoTargetArrows`). Lighter still than the click-targeting dash: nobody
- * is choosing this, it is reporting a fact.
- */
-.targeter--auto .targeter__shaft {
-  stroke-dasharray: 2 4;
-  opacity: 0.55;
-}
-
-.targeter--auto .targeter__head {
-  opacity: 0.55;
-}
-
-/*
- * Combat's lasting arrows in combat's colours, the same as the cards they join
- * (`card.css`: an attacker's outline is the danger colour, a blocker's the
- * success colour), so an attack and a block never read as one another.
- */
-.targeter--auto[data-role='attack'] .targeter__shaft {
-  stroke: var(--danger);
-}
-
-.targeter--auto[data-role='attack'] .targeter__head {
-  fill: var(--danger);
-}
-
-.targeter--auto[data-role='block'] .targeter__shaft {
-  stroke: var(--success);
-}
-
-.targeter--auto[data-role='block'] .targeter__head {
-  fill: var(--success);
-}
 
 /*
  * The box-draw (§B.2). A plain rectangle in the overlay's coordinates, the
@@ -160,7 +79,7 @@
  * ends. `'lifted'`: still following the pointer, deciding what a release
  * would mean. `'parked'`: a card that needed a target has been cast, at the
  * release, and this is pinned exactly where it was let go while the
- * targeter arrow (`.targeter` above) moves from there. `'returning'`:
+ * targeter arrow (`./arrow.css`) moves from there. `'returning'`:
  * floating back to the hand — see the animation rule below.
  *
  * `pointer-events: none` for the reason every other overlay mark has it: a

@@ -15,6 +15,7 @@
 import { centreOf } from '../../lift.ts';
 import type { AutoTargetArrow } from './auto-targets.ts';
 import type { DropTarget, Point } from './types.ts';
+import './arrow.css';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -88,25 +89,21 @@ export function arrowShape(x1: number, y1: number, x2: number, y2: number): Arro
 }
 
 /**
- * J5 (wave 64): the one arrow element every screen that ever draws one
- * builds — the interactive targeter and the passive stack arrows here, and
- * (since this fold) `live/placed.ts`'s `.placed__arrow` and
- * `live/presence.ts`'s mirror of the OTHER seat's arrow, which used to hand-roll
- * the identical `<svg><path/><polygon/></svg>` three more times between them.
- * `className` is the SVG's own; `shaftClass`/`headClass` are each caller's
- * existing stylesheet hook (presence's has none — its CSS selects the bare
- * tags) and `testid`/`extra` are each caller's own markers, all optional so
- * the bare shape is still the whole of what this returns with none given.
+ * The one arrow element every screen that draws one builds, drawn by the one
+ * `.arrow` block (`./arrow.css`): the interactive targeter and the passive
+ * stack arrows here, `live/placed.ts`'s and `live/presence.ts`'s mirror of the
+ * OTHER seat's arrow. `className` adds the caller's own classes, a modifier
+ * and the marker its readers find it by; `testid` is its own marker too.
  */
-export function newArrow(opts: { className: string; testid?: string; shaftClass?: string; headClass?: string }): SVGSVGElement {
+export function newArrow(opts: { className?: string; testid?: string } = {}): SVGSVGElement {
   const svg = document.createElementNS(SVG, 'svg');
-  svg.setAttribute('class', opts.className);
+  svg.setAttribute('class', opts.className === undefined ? 'arrow' : `arrow ${opts.className}`);
   if (opts.testid !== undefined) svg.setAttribute('data-testid', opts.testid);
   svg.setAttribute('aria-hidden', 'true');
   const shaft = document.createElementNS(SVG, 'path');
-  if (opts.shaftClass !== undefined) shaft.setAttribute('class', opts.shaftClass);
+  shaft.setAttribute('class', 'arrow__shaft');
   const head = document.createElementNS(SVG, 'polygon');
-  if (opts.headClass !== undefined) head.setAttribute('class', opts.headClass);
+  head.setAttribute('class', 'arrow__head');
   svg.append(shaft, head);
   return svg;
 }
@@ -136,7 +133,7 @@ export function drawArrow(overlay: HTMLElement, spec: ArrowSpec): void {
   const aimed = spec.snap === null ? { from: spec.from, tip: spec.to } : aimOn(spec.snap, spec.from, spec.target?.kind === 'player' ? 'player' : 'card');
   let svg = overlay.querySelector<SVGSVGElement>('[data-testid="targeter"]');
   if (svg === null) {
-    svg = newArrow({ className: 'targeter', testid: 'targeter', shaftClass: 'targeter__shaft', headClass: 'targeter__head' });
+    svg = newArrow({ testid: 'targeter' });
     overlay.append(svg);
   }
   flag(svg, 'data-source', spec.source === null ? null : String(spec.source));
@@ -240,7 +237,7 @@ const AUTO_TESTID = 'stack-target-arrow';
  * spec, keyed by `data-key` so an unchanged pair is left alone across paints,
  * and every key not in `specs` any more is removed — the stack item resolved,
  * or its target left the board. Same curve and head as `drawArrow`,
- * drawn a touch lighter (`./gestures.css`) so it reads as "already decided"
+ * drawn a touch lighter (`./arrow.css`) so it reads as "already decided"
  * rather than "decide this".
  */
 export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoTargetArrow[]): void {
@@ -252,7 +249,7 @@ export function drawAutoTargetArrows(overlay: HTMLElement, specs: readonly AutoT
     seen.add(spec.key);
     let svg = overlay.querySelector<SVGSVGElement>(`[data-testid="${AUTO_TESTID}"][data-key="${spec.key}"]`);
     if (svg === null) {
-      svg = newArrow({ className: 'targeter targeter--auto', testid: AUTO_TESTID, shaftClass: 'targeter__shaft', headClass: 'targeter__head' });
+      svg = newArrow({ className: 'arrow--auto', testid: AUTO_TESTID });
       svg.setAttribute('data-key', spec.key);
       svg.setAttribute('data-role', spec.role);
       overlay.append(svg);

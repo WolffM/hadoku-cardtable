@@ -1040,7 +1040,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const from = echo.from === null ? null : placeSpot(canvas, echo.from);
     if (from !== null) {
       if (arrow === null) {
-        arrow = newArrow({ className: 'presence__arrow' });
+        arrow = newArrow({ className: 'arrow--theirs presence__arrow' });
         root.append(arrow);
       }
       positionArrow(arrow, from, at, box);

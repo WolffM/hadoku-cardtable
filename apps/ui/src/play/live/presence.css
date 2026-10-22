@@ -113,27 +113,6 @@
   transform: rotate(45deg);
 }
 
-.presence__arrow {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.presence__arrow path {
-  fill: none;
-  stroke: var(--warn);
-  stroke-width: 2;
-  stroke-dasharray: 6 5;
-}
-
-.presence__arrow polygon {
-  fill: var(--accent);
-}
-
 /* The card they let go, travelling from where its back was to its place — or, cancelled, a back going home to their hand (`[data-cast-lift]` positions it; `gestures.css`). */
 .presence__handoff {
   z-index: 3;

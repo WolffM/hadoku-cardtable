@@ -1027,7 +1027,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       seen.add(key);
       let svg = root.querySelector<SVGSVGElement>(`.placed__arrow[data-key="${key}"]`);
       if (svg === null) {
-        svg = newArrow({ className: 'placed__arrow', testid: 'placed-arrow', shaftClass: 'placed__arrow-shaft', headClass: 'placed__arrow-head' });
+        svg = newArrow({ className: 'placed__arrow', testid: 'placed-arrow' });
         svg.setAttribute('data-for', String(item));
         svg.setAttribute('data-key', key);
         root.append(svg);

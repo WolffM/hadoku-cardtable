@@ -403,31 +403,3 @@
   color: var(--ink);
   text-align: center;
 }
-
-/*
- * The targeter arrow, drawn the same way `gestures/arrow.ts`'s own `.targeter`
- * is — this module's own copy rather than a borrowed class, for the same
- * reason `gestures.css`'s header gives for not reaching into another lane's
- * file: `aimAt`/`arrowShape` (pure geometry) are reused; the drawing is not.
- */
-.placed__arrow {
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.placed__arrow-shaft {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 3;
-  stroke-linecap: round;
-  opacity: 0.85;
-}
-
-.placed__arrow-head {
-  fill: var(--accent);
-}

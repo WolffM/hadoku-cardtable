@@ -1,0 +1,87 @@
+/*
+ * The one arrow (`./arrow.ts`'s `newArrow`): the targeter, the stack's arrows
+ * (`../placed.ts`) and the other seat's aim (`../presence.ts`) are all this
+ * block, told apart by a modifier. Ours, drawn: a curved shaft and a plain
+ * triangular head. No card frame, no mana symbol, no tap symbol — nothing of
+ * WotC's, here or anywhere (`CLAUDE.md`). The palette is `styles.css`'s
+ * accent, so the arrow reads as the same affordance a selectable card's
+ * outline does.
+ *
+ * It renders into the board's overlay and fills it exactly, which is why it
+ * takes no size of its own: every coordinate `./arrow.ts` computes is in the
+ * overlay's box. It never takes the pointer — if it did, it would become the
+ * element under the cursor and a drop would land on the arrow instead of the
+ * target. `overflow: visible` because the head is drawn at the tip: a snap to
+ * a card flush against the edge would otherwise be clipped in half.
+ */
+.arrow {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.arrow__shaft {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.arrow__head {
+  fill: var(--accent);
+}
+
+/* Click targeting (§B.4) is the same arrow, drawn a touch lighter: the player is still choosing and has not committed a gesture to it. */
+.arrow[data-mode='click'] .arrow__shaft {
+  stroke-dasharray: 7 5;
+  opacity: 0.7;
+}
+
+/* A target Forge already decided (`drawAutoTargetArrows`): lighter still than the click dash, since nobody is choosing it. */
+.arrow--auto .arrow__shaft {
+  stroke-dasharray: 2 4;
+  opacity: 0.55;
+}
+
+.arrow--auto .arrow__head {
+  opacity: 0.55;
+}
+
+/*
+ * Combat's lasting arrows in combat's colours, the same as the cards they join
+ * (`card.css`: an attacker's outline is the danger colour, a blocker's the
+ * success colour), so an attack and a block never read as one another.
+ */
+.arrow--auto[data-role='attack'] .arrow__shaft {
+  stroke: var(--danger);
+}
+
+.arrow--auto[data-role='attack'] .arrow__head {
+  fill: var(--danger);
+}
+
+.arrow--auto[data-role='block'] .arrow__shaft {
+  stroke: var(--success);
+}
+
+.arrow--auto[data-role='block'] .arrow__head {
+  fill: var(--success);
+}
+
+/* The other seat's aim, in the "theirs" colour, under this seat's own arrow. */
+.arrow--theirs {
+  z-index: 1;
+}
+
+.arrow--theirs .arrow__shaft {
+  stroke: var(--warn);
+  stroke-width: 2;
+  stroke-linecap: butt;
+  stroke-dasharray: 6 5;
+  opacity: 1;
+}

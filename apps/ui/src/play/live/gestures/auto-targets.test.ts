@@ -56,7 +56,7 @@ describe('drawAutoTargetArrows', () => {
     // An attack and a block are told apart by `data-role`, which the stylesheet colours.
     expect(arrows.map((a) => `${a.getAttribute('data-key')}:${a.getAttribute('data-role')}`).sort()).toEqual(['a:attack', 'b:block']);
     for (const a of arrows) {
-      expect(a.classList.contains('targeter--auto')).toBe(true);
+      expect(a.classList.contains('arrow--auto')).toBe(true);
       expect(a.querySelector('path')).not.toBeNull();
       expect(a.querySelector('polygon')).not.toBeNull();
     }
