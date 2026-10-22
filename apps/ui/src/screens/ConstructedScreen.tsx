@@ -1032,7 +1032,7 @@ function RoomTableScreen({
    * rooms are drawn entirely from this — there is no deck to load and no
    * `players` list to read, so `table` says nothing useful about them.
    *
-   * `resolved` flips on the first answer of any kind, success or failure, and
+   * `resolved` flips on the first answer the screen keeps, success or failure, and
    * gates the body below so a streamed room never flashes the builtin table on
    * the way in. It is one extra concurrent request alongside the table read,
    * not a second round trip after it.
@@ -1226,30 +1226,34 @@ function RoomTableScreen({
       // `writes.current` never moves and does not catch it. The later-ISSUED read
       // always wins; an earlier one landing after it is dropped outright, not asked
       // again, because the newer one already has the answer this one would get anyway.
+      // Dropped means it decides NOTHING, opening the body included: a dropped read that
+      // opened it drew the deck picker with no room record, on the newest era rather
+      // than the room's, and swapped the decks when the newer read landed.
       const mySeq = (roomReadSeq.current += 1);
+      const latest = (): boolean => live && mySeq === roomReadSeq.current;
       rooms.get(roomId).then(
         (room) => {
-          if (!live) return;
-          setResolved(true);
+          if (!latest()) return;
           if (room === null) {
+            setResolved(true);
             // The room was here and is not any more: its owner closed it.
             if (modeRef.current !== null) navigate({ kind: 'lobby' }, { replace: true });
             return;
           }
-          if (mySeq !== roomReadSeq.current) return;
           if (issuedAfterWrite !== writes.current) {
             read();
             return;
           }
           modeRef.current ??= room.clientMode;
           setView(room);
+          setResolved(true);
         },
         () => {
           // The room could not be read. That is the same server the table read
           // is asking, and `tableError` below already says so in words; adding
           // a second sentence about it would say it twice. What this must not
           // do is stay silent AND keep the body hidden, so the gate opens.
-          if (live) setResolved(true);
+          if (latest()) setResolved(true);
         },
       );
     };
