@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DraftCard } from '@hadoku/shared';
 import { createDraft } from './engine.ts';
-import { runBots } from './bot.ts';
+import { botTurn, runBots } from './bot.ts';
 
 function card(name: string): DraftCard {
   return {
@@ -60,3 +60,17 @@ describe('runBots — the loud stall log', () => {
     expect((entry.seats as { seatId: number; packSize: number }[])[0]?.packSize).toBe(1);
   });
 });
+
+describe('botTurn — one pick per bot, so a pod is paced rather than drained', () => {
+  it('every bot holding a pack takes exactly one card, and the packs move on once', () => {
+    const packs = [Array.from({ length: 4 }, (_, seat) => Array.from({ length: 3 }, (_, k) => card(`p${seat}-${k}`)))];
+    const state = createDraft({ draftId: 't', seed: 't', packs, seatCount: 4, packCount: 1, packSize: 3, humans: [] });
+    const turn = botTurn(state, vi.fn());
+    expect(turn.picks).toBe(4);
+    expect(turn.state.pools.map((p) => p.length)).toEqual([1, 1, 1, 1]);
+    // Each passed once: every seat holds its neighbour's pack, one card down.
+    expect(turn.state.queues.map((q) => q.map((p) => p.length))).toEqual([[2], [2], [2], [2]]);
+    expect(runBots(state, vi.fn()).state.status).toBe('complete');
+  });
+});
+

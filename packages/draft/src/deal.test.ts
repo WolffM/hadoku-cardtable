@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DraftCard, DraftPlan, PoolSource } from '@hadoku/shared';
 import { deal, poolShortfall, type RealisticPacks } from './deal.ts';
-import { createDraft, pick, waitingOn } from './engine.ts';
+import { createDraft, packOf, pick, waitingOn } from './engine.ts';
 import { runBots } from './bot.ts';
 
 /** Every field but `cardId` — `deal()` now stamps its own per-instance id (wave 74 §E fix-forward: "every dealt card instance gets a unique id within its draft"), so a byte-for-byte content check compares everything else. */
@@ -346,7 +346,7 @@ describe('a full draft, every source kind: completes, and no cardId is ever deal
       const owing = waitingOn(current);
       if (owing.length === 0) continue;
       const seatId = owing[0] as number;
-      const card = (current.packs[seatId] as DraftCard[])[0];
+      const card = packOf(current, seatId)[0];
       if (card === undefined) break;
       const result = pick(current, seatId, card.cardId);
       if (!result.ok) break;

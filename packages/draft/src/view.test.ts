@@ -29,7 +29,7 @@ import {
   type SeatTable,
 } from '@wolffm/rooms-protocol';
 import { DraftViewSchema, type DraftCard, type PoolSource } from '@hadoku/shared';
-import { createDraft, pick, type DraftState } from './engine.ts';
+import { createDraft, packOf, pick, type DraftState } from './engine.ts';
 import { deal } from './deal.ts';
 import { spectatorView, viewFor } from './view.ts';
 
@@ -140,7 +140,7 @@ describe('a pod whose table is bigger than what the engine dealt', () => {
   it('a seat that has picked still reports its picks beside the empty ones', () => {
     const state = dealtForFour();
     state.table = tableWithArrivals(6, ['fk:alice', 'fk:bob']);
-    const card = (state.packs[0] as DraftCard[])[0] as DraftCard;
+    const card = packOf(state, 0)[0] as DraftCard;
     const result = pick(state, 0, card.cardId);
     expect(result.ok).toBe(true);
     if (!result.ok) return;

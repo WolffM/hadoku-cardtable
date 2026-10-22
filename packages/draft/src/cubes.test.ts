@@ -28,7 +28,7 @@ import {
   type DeckFile,
 } from '@hadoku/carddata';
 import type { DraftCard, DraftPlan, PoolSource } from '@hadoku/shared';
-import { createDraft, pick, waitingOn, type DraftState } from './engine.ts';
+import { createDraft, packOf, pick, waitingOn, type DraftState } from './engine.ts';
 import { deal, poolShortfall } from './deal.ts';
 import { runBots } from './bot.ts';
 
@@ -70,7 +70,7 @@ function playOut(start: DraftState): DraftState {
     const owing = waitingOn(current);
     if (owing.length === 0) continue;
     const seatId = owing[0] as number;
-    const card = (current.packs[seatId] as DraftCard[])[0];
+    const card = packOf(current, seatId)[0];
     if (card === undefined) break;
     const result = pick(current, seatId, card.cardId);
     if (!result.ok) break;

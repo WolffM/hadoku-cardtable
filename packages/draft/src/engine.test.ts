@@ -12,8 +12,13 @@ import { DraftViewSchema, type DraftCard, type DraftPlan, type PoolSource } from
 import {
   createDraft,
   directionFor,
+  fromLockstep,
+  packOf,
   pick,
+  pickNumberOf,
+  queueDepth,
   waitingOn,
+  type LockstepState,
   type DraftConfig,
   type DraftEvent,
   type DraftState,
@@ -92,7 +97,7 @@ function playOut(state: DraftState): { state: DraftState; log: string[] } {
     if (owing.length > 0) {
       // A human seat is blocking; pick its first card deterministically.
       const seatId = owing[0] as number;
-      const card = (current.packs[seatId] as DraftCard[])[0];
+      const card = packOf(current, seatId)[0];
       if (card === undefined) break;
       const result = pick(current, seatId, card.cardId);
       if (!result.ok) break;
@@ -147,7 +152,7 @@ describe('the draft runs to completion', () => {
 
   it('every pack is emptied', () => {
     const { state } = playOut(newDraft());
-    for (const pack of state.packs) expect(pack.length).toBe(0);
+    for (const queue of state.queues) expect(queue).toEqual([]);
   });
 
   it('no card is dealt to two seats in a singleton cube', () => {
@@ -170,19 +175,20 @@ describe('the draft runs to completion', () => {
 });
 
 describe('rejections are values, never throws', () => {
-  it('an out-of-turn pick is rejected without throwing', () => {
+  it('a pick with no pack in front of the seat is rejected without throwing', () => {
     let state = newDraft();
-    const card = (state.packs[0] as DraftCard[])[0] as DraftCard;
+    const card = packOf(state, 0)[0] as DraftCard;
     const first = pick(state, 0, card.cardId);
     expect(first.ok).toBe(true);
     if (!first.ok) return;
     state = first.state;
 
-    const second = (state.packs[0] as DraftCard[])[0] as DraftCard;
+    // Seat 0 passed its pack on and seat 7 has not passed one to it yet.
+    const second = packOf(newDraft(), 0)[1] as DraftCard;
     const again = pick(state, 0, second.cardId);
     expect(again.ok).toBe(false);
     if (again.ok) return;
-    expect(again.reason).toBe('already-picked');
+    expect(again.reason).toBe('empty-pack');
     expect(again.state).toBe(state);
   });
 
@@ -245,7 +251,7 @@ describe('hidden information', () => {
         if (other === seatId) continue;
         const theirs = state.pools[other] as DraftCard[];
         const mine = new Set((state.pools[seatId] as DraftCard[]).map((c) => c.cardId));
-        const myPack = new Set((state.packs[seatId] as DraftCard[]).map((c) => c.cardId));
+        const myPack = new Set(packOf(state, seatId).map((c) => c.cardId));
         for (const card of theirs) {
           // A card can legitimately appear in our own pack or pool; what must
           // never appear is one that is exclusively theirs.
@@ -273,9 +279,9 @@ describe('hidden information', () => {
     const state = newDraft();
     const view = viewFor(state, 0);
     if (view.viewer.kind !== 'seat') throw new Error('expected a seat');
-    const before = (state.packs[0] as DraftCard[]).length;
+    const before = packOf(state, 0).length;
     view.viewer.pack.pop();
-    expect((state.packs[0] as DraftCard[]).length).toBe(before);
+    expect(packOf(state, 0).length).toBe(before);
   });
 });
 
@@ -303,7 +309,7 @@ describe('the envelope validates against the published schema', () => {
 
   it('seq advances on every state change', () => {
     const state = newDraft();
-    const card = (state.packs[0] as DraftCard[])[0] as DraftCard;
+    const card = packOf(state, 0)[0] as DraftCard;
     const result = pick(state, 0, card.cardId);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -373,22 +379,160 @@ describe('pool sizing', () => {
 
   it('a short pool still deals full packs', () => {
     const state = newDraft('short', { pool: makePool(100) });
-    for (const pack of state.packs) expect(pack.length).toBe(15);
+    for (const queue of state.queues) expect(queue.map((p) => p.length)).toEqual([15]);
   });
 });
 
 describe('events', () => {
-  it('a pick that completes the round reports the pass', () => {
-    // Bots take all but one seat's pick, then the last pick closes the round.
+  it('a pick reports the card, then the pass to the neighbour', () => {
     const state = runBots(newDraft()).state;
     const owing = waitingOn(state);
     expect(owing.length).toBeGreaterThan(0);
     const seatId = owing[0] as number;
-    const card = (state.packs[seatId] as DraftCard[])[0] as DraftCard;
+    const card = packOf(state, seatId)[0] as DraftCard;
     const result = pick(state, seatId, card.cardId);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const events: DraftEvent[] = result.events;
-    expect(events[0]?.type).toBe('picked');
+    expect(events.map((e) => e.type)).toEqual(['picked', 'pack-passed']);
+    expect(events[1]).toEqual({ type: 'pack-passed', from: seatId, to: (seatId + 1) % 8, direction: 'left' });
+  });
+});
+
+/** Four seats, every one a bot by occupant but driven here by hand, so a test decides who is fast and who is slow. */
+function table(seed = 'async', seatCount = 4, packSize = 6): DraftState {
+  const packs = deal(planOf('test-pool'), () => makePool(seatCount * packSize * 3), seed, seatCount, packSize);
+  return createDraft({ draftId: 'draft:async', seed, packs, seatCount, packCount: 3, packSize, humans: [] });
+}
+
+/** Seat `s` takes the first card of the pack in front of it. */
+function takeFirst(state: DraftState, s: number): DraftState {
+  const card = packOf(state, s)[0];
+  if (card === undefined) throw new Error(`seat ${s} holds no pack`);
+  const result = pick(state, s, card.cardId);
+  if (!result.ok) throw new Error(`seat ${s}: ${result.reason}`);
+  return result.state;
+}
+
+/** Every seat in `fast` picks until none of them holds a pack. */
+function drainFast(state: DraftState, fast: readonly number[]): DraftState {
+  let current = state;
+  for (let guard = 0; guard < 1000; guard++) {
+    const s = fast.find((seat) => packOf(current, seat).length > 0);
+    if (s === undefined) return current;
+    current = takeFirst(current, s);
+  }
+  throw new Error('fast seats never ran dry');
+}
+
+describe('packs queue: each seat picks at its own pace', () => {
+  it('a pick passes the rest of the pack to the neighbour at once, without waiting for the table', () => {
+    const state = takeFirst(table(), 0);
+    expect(state.queues.map((q) => q.length)).toEqual([0, 2, 1, 1]);
+    expect(queueDepth(state, 1)).toBe(1);
+    expect(packOf(state, 1).length).toBe(6);
+    expect(state.queues[1]?.[1]?.length).toBe(5);
+    expect(waitingOn(state)).toEqual([1, 2, 3]);
+    expect(pickNumberOf(state, 0)).toBe(2);
+    expect(pickNumberOf(state, 1)).toBe(1);
+  });
+
+  it('a fast seat accumulates nothing while a slow seat’s queue grows to seats − 1', () => {
+    const slow = 3;
+    const fast = [0, 1, 2];
+    let state = table();
+    let deepest = 0;
+    for (let k = 0; k < 4; k++) {
+      state = drainFast(state, fast);
+      deepest = Math.max(deepest, queueDepth(state, slow));
+      for (const s of fast) expect(queueDepth(state, s)).toBe(0);
+    }
+    // Every pack of the round sits in front of the slow seat: its own and the three behind it.
+    expect(state.queues.map((q) => q.length)).toEqual([0, 0, 0, 4]);
+    expect(queueDepth(state, slow)).toBe(3);
+    expect(deepest).toBe(3);
+    // Nothing in front of the fast seats: they wait on the slow one.
+    expect(waitingOn(state)).toEqual([slow]);
+    // The slow seat picks once: one pack moves on to seat 0, the rest still wait.
+    state = takeFirst(state, slow);
+    expect(state.queues.map((q) => q.length)).toEqual([1, 0, 0, 3]);
+  });
+
+  it('the next round opens only when every pack of this one is empty, with the direction reversed', () => {
+    let state = table('rounds', 4, 3);
+    // Seats 0–2 drain everything they can; seat 3 never picks, so round one cannot end.
+    state = drainFast(state, [0, 1, 2]);
+    expect(state.packNumber).toBe(1);
+    // Three-card packs: seat 0's is emptied by seats 0–2 before it reaches seat 3.
+    expect(queueDepth(state, 3)).toBe(2);
+    const events: DraftEvent[] = [];
+    for (let guard = 0; guard < 100 && state.packNumber === 1; guard++) {
+      const s = waitingOn(state)[0] as number;
+      const card = packOf(state, s)[0] as DraftCard;
+      const result = pick(state, s, card.cardId);
+      if (!result.ok) throw new Error(result.reason);
+      events.push(...result.events);
+      state = result.state;
+    }
+    expect(state.packNumber).toBe(2);
+    expect(events.at(-1)).toEqual({ type: 'round-started', packNumber: 2, direction: 'right' });
+    expect(state.queues.map((q) => q.length)).toEqual([1, 1, 1, 1]);
+    for (let s = 0; s < 4; s++) {
+      expect(pickNumberOf(state, s)).toBe(1);
+      expect((state.pools[s] as DraftCard[]).length).toBe(3);
+    }
+    // Round two passes right: seat 0's pack goes to seat 3.
+    expect(takeFirst(state, 0).queues.map((q) => q.length)).toEqual([0, 1, 1, 2]);
+  });
+
+  it('the same choices make the same draft at any pace', () => {
+    /** Lock-step: everyone picks once, in seat order, every pass. */
+    const lockstep = (start: DraftState) => {
+      let s = start;
+      while (s.status !== 'complete') for (const seat of waitingOn(s)) s = takeFirst(s, seat);
+      return s;
+    };
+    /** Ragged: seat 3 picks only when nobody else can. */
+    const ragged = (start: DraftState) => {
+      let s = start;
+      while (s.status !== 'complete') {
+        s = drainFast(s, [0, 1, 2]);
+        if (s.status !== 'complete' && packOf(s, 3).length > 0) s = takeFirst(s, 3);
+      }
+      return s;
+    };
+    const a = lockstep(table('pace'));
+    const b = ragged(table('pace'));
+    expect(b.pools.map((p) => p.map((c) => c.cardId))).toEqual(a.pools.map((p) => p.map((c) => c.cardId)));
+    for (const pool of a.pools) expect(pool.length).toBe(18);
+  });
+
+  it('a seat’s payload carries the pack it picks from, never the packs waiting behind it', () => {
+    const state = drainFast(table(), [0, 1, 2]);
+    const view = viewFor(state, 3);
+    expect(view.seats.map((s) => s.queueDepth)).toEqual([0, 0, 0, 3]);
+    if (view.viewer.kind !== 'seat') throw new Error('expected a seat');
+    expect(view.viewer.pack.map((c) => c.cardId)).toEqual(packOf(state, 3).map((c) => c.cardId));
+    const json = JSON.stringify(view);
+    for (const waiting of (state.queues[3] as DraftCard[][]).slice(1)) {
+      for (const card of waiting) expect(json).not.toContain(`"${card.cardId}"`);
+    }
+    // Everyone sees the pile's depth, and the spectator sees the slowest seat's pick.
+    expect(spectatorView(state).seats[3]?.queueDepth).toBe(3);
+    expect(spectatorView(state).pickNumber).toBe(1);
+    expect(viewFor(state, 0).pickNumber).toBe(pickNumberOf(state, 0));
+  });
+
+  it('reads a draft saved before packs queued: a seat that had picked has passed its pack on', () => {
+    const fresh = table('saved');
+    const packs = fresh.queues.map((q) => (q[0] as DraftCard[]).slice());
+    packs[1] = packs[1]!.slice(1);
+    const { queues: _q, roundPicks: _r, ...rest } = fresh;
+    const saved: LockstepState = { ...rest, packs, picked: [1], pickNumber: 1 };
+    const state = fromLockstep(saved);
+    expect(state.queues.map((q) => q.length)).toEqual([1, 0, 2, 1]);
+    expect(state.queues[2]?.[1]).toEqual(packs[1]);
+    expect(state.roundPicks).toEqual([0, 1, 0, 0]);
+    expect(fromLockstep(state)).toBe(state);
   });
 });
