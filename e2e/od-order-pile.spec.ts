@@ -22,9 +22,9 @@
  * and Forge asks their order. `scry-one-prompt`: Foresee's Scry 4, the two-group order — and Foresee's
  * draw is the proof of which way round the top row is. `order-drag-ponder`: Ponder puts three back on top,
  * and its draw is the card the row drew farthest from the library. `ol-relic-exile`: Relic of Progenitus
- * exiles alice's three graveyard cards, Forge asks their order (*"this needs an auto button"*, the operator,
- * 2026-10-16): since 2026-10-19 an order that places every card opens with all of them in its one zone
- * (`MovePrompt.tsx`), so OK answers it in one press with Forge's own order.
+ * exiles alice's three graveyard cards and Forge asks their order, which the server answers with Forge's
+ * own (`exileOrder`, `arrange.ts`): exile has no order (the operator, 2026-10-22: *"we can remove all
+ * questions about exile order"*), so no order sheet opens.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one the test SKIPS and
  * its title says why.
@@ -32,7 +32,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castCard, clickPermanent, livePrompt, makeTitled, offered, passOverStack, promptMethod, resizeWindow } from './play/board.ts';
+import { castCard, clickPermanent, livePrompt, makeTitled, offered, passOverStack, promptMethod, resizeWindow, serverLog } from './play/board.ts';
 import { answerConfirm, confirmOpen } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { dragRowOnto, settle } from './play/order.ts';
@@ -356,8 +356,11 @@ test(
   },
 );
 
+/** `ol-relic-exile.state`'s graveyard for alice: the cards "Exile all graveyards" moves together. */
+const RELIC_GRAVEYARD = ['Lightning Bolt', 'Counterspell', 'Ponder'];
+
 test(
-  titled('Relic of Progenitus’s “exile all graveyards”: the exile order opens ready, one press of OK closes it, and the cards land in exile in the order Forge offered them'),
+  titled('Relic of Progenitus’s “exile all graveyards”: Forge’s exile order is answered for alice, no order sheet opens, and her three graveyard cards land in exile'),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
@@ -370,39 +373,26 @@ test(
       const relic = await ownPermanent(page, 'Relic of Progenitus');
       expect(await clickPermanent(page, relic), 'Relic of Progenitus is offered').toBe(true);
       const exileAll = page.locator('section[data-prompt="getAbilityToPlay"] [data-testid="prompt-choice"]').filter({ hasText: /graveyards/i });
+      const exiled = page.locator('.seat[data-viewer] [data-zone="exile"] [data-board-card]');
+      const shown = new Set<string>();
       await expect
         .poll(
           async () => {
             const method = await promptMethod(page);
-            if (method === 'order') return 'order';
+            if (method !== null) shown.add(method);
             if ((await exileAll.count()) > 0) await exileAll.first().click({ timeout: 1_000 }).catch(() => undefined);
-            else if (method !== null) await answerPrompt(page).catch(() => undefined);
+            else if (method !== null && method !== 'order') await answerPrompt(page).catch(() => undefined);
             for (const p of [page, bob.page]) await passOverStack(p);
-            return method ?? 'none';
+            const names = await exiled.evaluateAll((els) => els.map((e) => e.querySelector('.card__name')?.textContent?.trim() ?? ''));
+            return RELIC_GRAVEYARD.filter((name) => names.includes(name)).length;
           },
-          { timeout: 60_000, intervals: [250], message: 'Forge asks the order of the cards going to exile' },
+          { timeout: 60_000, intervals: [250], message: 'the three graveyard cards reached exile' },
         )
-        .toBe('order');
-      const prompt = livePrompt(page);
-      console.log(`[od] relic prompt ${JSON.stringify(((await prompt.textContent()) ?? '').replace(/\s+/g, ' ').slice(0, 160))}`);
-      await expect(prompt, 'the exile question').toContainText('exile');
-      const offered = await rowsIds(page.getByTestId('zone-dest'));
-      expect(offered, 'the three graveyard cards are ordered, all in the one zone').toHaveLength(3);
-      await page.getByTestId('prompt-submit').click();
-      await expect.poll(() => promptMethod(page), { timeout: 15_000, message: 'one press of OK answered the order' }).not.toBe('order');
-      const exiled = page.locator('.seat[data-viewer] [data-zone="exile"] [data-board-card]');
-      let inExile: number[] = [];
-      await expect
-        .poll(
-          async () => {
-            inExile = (await exiled.evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-board-card'))))).filter((id) => offered.includes(id));
-            return inExile.length;
-          },
-          { timeout: 15_000, message: 'the three cards reached exile' },
-        )
-        .toBe(3);
-      console.log(`[od] relic offered ${JSON.stringify(offered)} exile ${JSON.stringify(inExile)}`);
-      expect(inExile, 'the cards are in exile in the order Forge offered them').toEqual(offered);
+        .toBe(RELIC_GRAVEYARD.length);
+      const answered = serverLog(stack).filter((r) => r.evt === 'ask-auto-answered' && r.seat === 0 && r.method === 'order');
+      console.log(`[od] relic shown ${JSON.stringify([...shown])} answered ${JSON.stringify(answered.map((r) => r.why))}`);
+      expect(answered.map((r) => r.why), 'Forge asked the exile order and the server answered it with Forge’s own').toEqual(['exile has no order']);
+      expect([...shown], 'no order sheet opened').not.toContain('order');
     } finally {
       await stack.stop();
     }

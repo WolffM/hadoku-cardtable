@@ -1,7 +1,8 @@
-# The operator, 2026-10-16, over "Choose order of cards to put into the exile zone": "this needs an
-# auto button." Alice (seat 0) holds her main phase with Relic of Progenitus and an untapped Island;
-# three different cards sit in her graveyard and none in Bob's, so "Exile all graveyards" asks only her
-# the order of her three (`GameActionUtil.orderCardsByTheirOwners`). `e2e/od-order-pile.spec.ts`.
+# Alice (seat 0) holds her main phase with Relic of Progenitus and an untapped Island; three different
+# cards sit in her graveyard and none in Bob's, so "Exile all graveyards" asks only her the order of her
+# three (`GameActionUtil.orderCardsByTheirOwners`). The server answers it with Forge's own order and
+# never shows it: the operator, 2026-10-22, "we can remove all questions about exile order".
+# `e2e/od-order-pile.spec.ts`.
 turn=1
 activeplayer=human
 activephase=MAIN1
