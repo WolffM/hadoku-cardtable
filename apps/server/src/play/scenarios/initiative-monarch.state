@@ -1,0 +1,20 @@
+# The initiative, the Undercity and the monarch, as Forge puts them on the board (the operator,
+# 2026-10-22: "i don't see 'initiative' anywhere. i feel like either this should be a card or
+# represented as an emblem. same with other stuff like monarch" and "'undercity' has no art").
+#
+# Seat 0 (human) casts White Plume Adventurer ({2}{W}: it enters, you take the initiative, you
+# venture into Undercity — Secret Entrance finds a basic land), then Thorn of the Black Rose
+# ({3}{B}: you become the monarch).
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=White Plume Adventurer;Thorn of the Black Rose
+humanbattlefield=Plains;Plains;Plains;Swamp;Swamp;Swamp;Swamp
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
