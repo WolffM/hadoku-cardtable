@@ -73,14 +73,14 @@ export interface ScenarioMatch {
   matchId: string;
 }
 
-/** The named `[state]` key's value, split on `;`, empty-string dropped to `[]`. */
-function scenarioHand(scenario: string, key: 'humanhand' | 'aihand'): string[] {
+/** The card names a `[state]` key lists: split on `;`, each without its `|` options; an empty or absent key is `[]`. */
+export function scenarioCards(scenario: string, key: 'humanhand' | 'aihand' | 'humanbattlefield' | 'aibattlefield'): string[] {
   const line = new RegExp(`^${key}=(.*)$`, 'm').exec(scenario)?.[1] ?? '';
-  return line.trim() === '' ? [] : line.split(';').map((name) => name.trim());
+  return line.trim() === '' ? [] : line.split(';').map((entry) => entry.split('|')[0]!.trim());
 }
 
 /** `true` when every name in `want` is present in `have` at least as many times (by name, order aside). */
-function handContains(have: string[], want: string[]): boolean {
+function containsEach(have: string[], want: string[]): boolean {
   const pool = [...have];
   for (const name of want) {
     const i = pool.indexOf(name);
@@ -115,7 +115,7 @@ async function awaitScenarioHand(page: Page, scenarioName: string, seat: 'human'
     page.locator('[data-zone="hand"][data-owner="you"] [data-board-card] .card__name').allTextContents();
   const deadline = Date.now() + 20_000;
   let have = await names();
-  while (!handContains(have, want)) {
+  while (!containsEach(have, want)) {
     if (Date.now() >= deadline) {
       throw new Error(`scenario "${scenarioName}" did not apply: ${seat} hand is ${JSON.stringify(have)}`);
     }
@@ -338,8 +338,8 @@ export async function startScenarioMatch(
   // concurrently: one seat's hand can land before the other's, and there is
   // no ordering between them to wait on.
   await Promise.all([
-    awaitScenarioHand(alice.page, scenarioName, 'human', scenarioHand(scenario, 'humanhand')),
-    awaitScenarioHand(bob.page, scenarioName, 'ai', scenarioHand(scenario, 'aihand')),
+    awaitScenarioHand(alice.page, scenarioName, 'human', scenarioCards(scenario, 'humanhand')),
+    awaitScenarioHand(bob.page, scenarioName, 'ai', scenarioCards(scenario, 'aihand')),
   ]);
 
   return { alice, bob, matchId };
@@ -370,11 +370,21 @@ export async function startScenarioVsAi(
   await boardUp(alice.page);
   await options.beforeKeep?.(alice);
 
-  const theirs = /^aibattlefield=(.*)$/m.exec(scenario)?.[1]?.split(';').map((entry) => entry.split('|')[0]!.trim()) ?? [];
-  const applied = async (): Promise<boolean> => {
-    const names = await alice.page.locator('.seat:not([data-viewer]) [data-zone="battlefield"] [data-board-card] .card__name').allTextContents();
-    return theirs.every((name) => names.includes(name));
+  // Applied once her screen draws every card the scenario scripts that she can see: seat 1's battlefield,
+  // her own, and her hand. A scenario that scripts none of them has nothing to wait for.
+  const scripted = {
+    theirs: scenarioCards(scenario, 'aibattlefield'),
+    mine: scenarioCards(scenario, 'humanbattlefield'),
+    hand: scenarioCards(scenario, 'humanhand'),
   };
+  if (Object.values(scripted).every((names) => names.length === 0)) {
+    throw new Error(`scenario "${scenarioName}" scripts no card alice can see, so nothing says it applied`);
+  }
+  const drawn = (selector: string): Promise<string[]> => alice.page.locator(`${selector} [data-board-card] .card__name`).allTextContents();
+  const applied = async (): Promise<boolean> =>
+    containsEach(await drawn('.seat:not([data-viewer]) [data-zone="battlefield"]'), scripted.theirs) &&
+    containsEach(await drawn('.seat[data-viewer] [data-zone="battlefield"]'), scripted.mine) &&
+    containsEach(await drawn('[data-zone="hand"][data-owner="you"]'), scripted.hand);
   const clicked = new Set<string>();
   const deadline = Date.now() + 30_000;
   while (!(await applied())) {
