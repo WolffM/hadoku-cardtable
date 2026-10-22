@@ -106,6 +106,7 @@ import {
 import { botSeatAcross, pairRound, roundsFor, standings, type MatchResult, type PodPlayer, type StandingsRow } from '@hadoku/draft';
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { isGauntletState, type GauntletState } from './gauntlet.ts';
+import { planDisplayName } from './plan.ts';
 import { leaveSeat, readySeat, seatList, sitAt, type TableSeat, type TableSeats } from './seats.ts';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, statsModeOf, type SeriesGame, type SeriesRecord, type SeriesRoom } from './series.ts';
 
@@ -590,8 +591,18 @@ export interface PodChecks {
 	built(podId: string, memberId: string): boolean;
 	seatState(podId: string, memberId: string): unknown;
 	holdsSeriesDeck(state: unknown): boolean;
-	/** A source's display name (`PodView.planName`) — `draftRooms.ts`'s resolver, by the same rule `cubeMetaOf` reads it with. */
-	planNameOf(source: PoolSource): string;
+	/**
+	 * The plan's display name (`PodView.planName`, wave 74 §Wire contract) —
+	 * `room/plan.ts`'s `planDisplayName`, bound to `draftRooms.ts`'s resolver
+	 * for a single source's own name (the same rule `cubeMetaOf` reads it
+	 * with).
+	 */
+	planNameOf(plan: DraftPlan): string;
+}
+
+/** The fallback a single source's name gets with no `DraftRooms` wired (no jar/no cube store) — same shape `draftRooms.ts`'s real resolver produces, so `NO_POD_CHECKS` and the wired case read identically in a room screen. */
+function fallbackSourceName(source: PoolSource): string {
+	return source.kind === 'cube' ? source.cubeId : `${source.code} · ${source.style === 'realistic' ? 'Realistic' : 'Set-cube'}`;
 }
 
 const NO_POD_CHECKS: PodChecks = {
@@ -599,7 +610,7 @@ const NO_POD_CHECKS: PodChecks = {
 	built: () => false,
 	seatState: () => null,
 	holdsSeriesDeck: () => true,
-	planNameOf: (source) => (source.kind === 'cube' ? source.cubeId : `${source.code} (${source.style})`),
+	planNameOf: (plan) => planDisplayName(plan, fallbackSourceName),
 };
 
 /**
@@ -722,7 +733,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// `room.plan` is frozen the instant `draftStartedAt` is set (`PUT
 	// …/pod/plan` refuses from there — see `RoomRecord.plan`'s own doc), so
 	// reading it here is right in every phase, not just `lobby`.
-	const planFields = { plan: room.plan, planName: checks.planNameOf(room.plan.rounds[0]), verdict: room.planVerdict };
+	const planFields = { plan: room.plan, planName: checks.planNameOf(room.plan), verdict: room.planVerdict };
 	// Filled only in `lobby` — the wire contract's own words ("lobby phase: the
 	// 8 pod seats"). Once drafting starts, who is at what SEAT is the draft
 	// engine's own business (`room/draftRooms.ts`'s `viewForParticipant`), and
@@ -2655,7 +2666,7 @@ class FileLobby implements Lobby {
 		room.plan = plan;
 		room.planVerdict = verdict;
 		this.#persist(room);
-		this.#log({ event: 'pod-plan-set', roomId, memberId, planName: this.#podChecks.planNameOf(plan.rounds[0]) });
+		this.#log({ event: 'pod-plan-set', roomId, memberId, planName: this.#podChecks.planNameOf(plan) });
 		return { ok: true, room: this.#view(room) };
 	}
 

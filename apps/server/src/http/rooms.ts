@@ -110,6 +110,7 @@ import {
 	SetDraftPlanBodySchema,
 	SitBodySchema,
 	WatchpartyBindBodySchema,
+	type DraftCard,
 	type DraftPlan,
 	type PoolVerdict,
 } from '@hadoku/shared';
@@ -120,6 +121,7 @@ import {
 	type Lobby,
 	type RoomView,
 } from '../room/lobby.js';
+import type { DraftRooms } from '../room/draftRooms.js';
 import { jsonLogger } from '../log.js';
 
 /** The single answer for "no such room" and "wrong password". Byte-identical by construction. */
@@ -158,6 +160,64 @@ export interface RoomsDeps {
 	 * C's `createCubeStore` and D's `createForgePools` at step 6).
 	 */
 	checkPlan: (plan: DraftPlan) => Promise<PoolVerdict>;
+	/**
+	 * Wave 74 §E step 2: a realistic round's boosters are fetched HERE, before
+	 * `lobby.startDraft` — never inside `draftRooms.open()`, which stays
+	 * synchronous ("realistic boosters are fetched before `deal` and passed
+	 * in"). `forge: null` (no jar) refuses `/start` for a plan with any
+	 * realistic round, named, the same "never a pass by default" rule
+	 * `room/plan.ts`'s verdict already holds — everything else about `/start`
+	 * is unchanged. Every test that never plans a realistic round (everything
+	 * before this wave) can omit this whole block; `attachRooms` then refuses
+	 * `/start` for one instead of silently mis-dealing it.
+	 */
+	realistic?: {
+		forge: RealisticBoosterSource | null;
+		catalog: RealisticCatalog;
+		draftRooms: Pick<DraftRooms, 'cacheRealisticRound'>;
+	};
+}
+
+/** The slice of D's `ForgePools` this file needs for one round's boosters — structural, like `room/plan.ts`'s own `ForgeChecker`. */
+export interface RealisticBoosterSource {
+	boosters(code: string, count: number, seed: string): Promise<{ name: string; set: string; collectorNumber: string }[][]>;
+}
+
+/** The slice of G's `CardCatalog` this file needs — `byName` always; `byPrinting`, if present, wins first (feature-detected: G's method may not exist yet — see `hasPrintingLookup`). */
+export interface RealisticCatalog {
+	byName(name: string): DraftCard | null;
+}
+
+function hasPrintingLookup(c: RealisticCatalog): c is RealisticCatalog & { byPrinting(set: string, collectorNumber: string): DraftCard | null } {
+	return typeof (c as { byPrinting?: unknown }).byPrinting === 'function';
+}
+
+/**
+ * One booster card, mapped to a `DraftCard` through the catalog — the set's
+ * own printing when `byPrinting` exists and knows it, `byName` otherwise.
+ * A name neither resolves is the honest `missingText` stand-in: `checkSource`
+ * should have refused this source before a leader ever reached `/start` with
+ * it, so this is a defensive fallback, not the expected path.
+ */
+function resolveBoosterCard(catalog: RealisticCatalog, card: { name: string; set: string; collectorNumber: string }): DraftCard {
+	if (hasPrintingLookup(catalog)) {
+		const byPrinting = catalog.byPrinting(card.set, card.collectorNumber);
+		if (byPrinting !== null) return byPrinting;
+	}
+	const byName = catalog.byName(card.name);
+	if (byName !== null) return byName;
+	return {
+		cardId: `${card.set}-${card.collectorNumber}-${card.name}`,
+		name: card.name,
+		manaCost: [],
+		manaValue: 0,
+		colors: [],
+		typeLine: '',
+		oracleText: '',
+		setCode: card.set,
+		collectorNumber: card.collectorNumber,
+		rarity: 'special',
+	};
 }
 
 function callerOf(req: Request): Caller {
@@ -429,12 +489,47 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		res.json(roomBody(room, caller.id));
 	});
 
-	rooms.post('/:id/start', (req: Request, res: Response) => {
+	rooms.post('/:id/start', async (req: Request, res: Response) => {
 		if (parseBody(EmptyBodySchema, req, res) === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
+
+		// Wave 74 §E step 2: a realistic round's boosters are fetched and
+		// cached BEFORE `lobby.startDraft` ever runs — `draftRooms.open()` (the
+		// FIRST socket `join`'s own call, not this route's) reads them back
+		// synchronously. Only while the pod is still in its lobby: a second
+		// `/start` from the other browser (idempotent, by design — see this
+		// file's header) must not re-fetch, and a room that is already
+		// drafting or done has nothing left to pre-fetch for anyway.
+		const room = lobby.get(id);
+		if (room?.pod?.phase === 'lobby') {
+			const realisticRounds: number[] = [];
+			room.pod.plan.rounds.forEach((src, round) => {
+				if (src.kind === 'set' && src.style === 'realistic') realisticRounds.push(round);
+			});
+			if (realisticRounds.length > 0) {
+				if (deps.realistic === undefined || deps.realistic.forge === null) {
+					return res.status(409).json({ error: 'the pool service is not available to deal a realistic round — try again once it is up' });
+				}
+				const { forge, catalog, draftRooms } = deps.realistic;
+				const pod = lobby.podDraft(id);
+				const seatCount = pod?.seats ?? POD_SEATS;
+				try {
+					for (const round of realisticRounds) {
+						const src = room.pod.plan.rounds[round];
+						if (src === undefined || src.kind !== 'set') continue;
+						const boosters = await forge.boosters(src.code, seatCount, `${id}:${round}`);
+						const packs = boosters.map((pack) => pack.map((c) => resolveBoosterCard(catalog, c)));
+						draftRooms.cacheRealisticRound(id, round, packs);
+					}
+				} catch (err) {
+					return res.status(409).json({ error: `could not deal the realistic round(s): ${(err as Error).message}` });
+				}
+			}
+		}
+
 		const result = lobby.startDraft(id, caller.id);
 		if (!result.ok) {
 			// `not-member` is deliberately the same answer as `no-room`.
@@ -571,18 +666,17 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	});
 
 	/**
-	 * The leader's pool choice (wave 73 §A), lobby phase only — the wire
-	 * contract's own words: "it runs the verdict first. Refused: 409 {
-	 * verdict }, and the plan is unchanged. Accepted: 200, and the plan is
-	 * broadcast on the room like any pod change." `kind: 'set'` is refused at
-	 * 400 this wave (sets are wave 74); everything else goes to `checkPlan`
-	 * BEFORE `lobby.setPodPlan` ever sees it, since that is this request's one
-	 * piece of async I/O (`room/plan.ts`'s `checkSource`/`checkPlan`).
+	 * The leader's pool choice (wave 73 §A; wave 74 §E adds `kind: 'set'`),
+	 * lobby phase only — the wire contract's own words: "it runs the verdict
+	 * first. Refused: 409 { verdict }, and the plan is unchanged. Accepted:
+	 * 200, and the plan is broadcast on the room like any pod change." Every
+	 * source — cube or set, either style — goes to `checkPlan` BEFORE
+	 * `lobby.setPodPlan` ever sees it, since that is this request's one piece
+	 * of async I/O (`room/plan.ts`'s `checkSource`/`checkPlan`).
 	 */
 	rooms.put('/:id/pod/plan', async (req: Request, res: Response) => {
 		const parsed = SetDraftPlanBodySchema.safeParse(req.body);
 		if (!parsed.success) return badRequest(res, 'body is { plan: { rounds: [source, source, source] } }');
-		if (parsed.data.plan.rounds.some((r) => r.kind === 'set')) return badRequest(res, 'set sources are not supported yet');
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
