@@ -60,9 +60,14 @@ import {
   RoomTablesSchema,
   RoomPodSchema,
   RoomModeSchema,
+  CubeSummarySchema,
+  PoolVerdictSchema,
   type ConstructedMode,
+  type CubeSummary,
+  type DraftPlan,
   type GameType,
   type ModeOptions,
+  type PoolVerdict,
   type RoomMode,
   type RoomPod,
   type RoomTable,
@@ -454,6 +459,31 @@ export interface RoomsClient {
    * its view.
    */
   start(roomId: string): Promise<RoomOutcome>;
+  /**
+   * Set a draft room's pool — the LEADER's call, lobby phase only
+   * (`PUT /api/rooms/:id/pod/plan`, wave 73 §A's contract).
+   *
+   * The server runs the verdict before accepting: a refusal is a 409 carrying
+   * the verdict that failed it, and the room's plan is left exactly as it
+   * was — this is the one write whose failure body is meaningful beyond a
+   * sentence, so it gets its own outcome type rather than `RoomOutcome`.
+   */
+  setPlan(roomId: string, plan: DraftPlan): Promise<SetPlanOutcome>;
+}
+
+/**
+ * `RoomsClient.setPlan`'s own outcome: a refusal carries the verdict that
+ * failed it (`null` only when the server's refusal body itself did not parse —
+ * a reachability problem, not a verdict), so the picker can show the
+ * unplayable/missing names without a second round trip.
+ */
+export type SetPlanOutcome = { ok: true; room: RoomView } | { ok: false; message: string; verdict: PoolVerdict | null };
+
+/** A 409 refusal's own body — `{ verdict }`, per the contract. `null` for anything else. */
+function refusalVerdict(body: unknown): PoolVerdict | null {
+  if (!isRecord(body)) return null;
+  const parsed = PoolVerdictSchema.safeParse(body.verdict);
+  return parsed.success ? parsed.data : null;
 }
 
 /**
@@ -684,11 +714,116 @@ export function roomsClient(
       return write(`/${encodeURIComponent(roomId)}/start`, {}, 'Could not start the draft');
     },
 
+    async setPlan(roomId, plan) {
+      let res: Response;
+      try {
+        res = await fetchImpl(url(`/${encodeURIComponent(roomId)}/pod/plan`), {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ plan }),
+        });
+      } catch {
+        return { ok: false, message: 'Could not reach the server.', verdict: null };
+      }
+      const body = await bodyOf(res);
+      if (res.status === 409) {
+        return { ok: false, message: 'That pool is not Forge-playable.', verdict: refusalVerdict(body) };
+      }
+      if (!res.ok) return { ok: false, message: `Could not set the pool: ${serverMessage(body, res.status)}.`, verdict: null };
+      const room = parseRoomView(body);
+      if (room === null) return { ok: false, message: 'The server answered with something that is not a room.', verdict: null };
+      return { ok: true, room };
+    },
+
     bindWatchparty(watchpartyRoom) {
       return write('/watchparty', { room: watchpartyRoom }, 'Could not open this room’s table');
     },
     setAvatar(roomId, avatarId) {
       return write(`/${encodeURIComponent(roomId)}/identity`, { avatarId }, 'Could not set your avatar');
+    },
+  };
+}
+
+/* ── pools: the cube picker's own list (C's routes, wave 73 §C) ────────── */
+
+/**
+ * `GET/POST/DELETE /api/pools/cubes…` — C's own store, mounted by A's
+ * `index.ts`. Not room-scoped (a cube is shared across every room), so this
+ * is its own client rather than a method on `RoomsClient`; it lives beside it
+ * because the wire surface is small and the picker is this wave's only
+ * caller.
+ */
+export interface PoolsClient {
+  /** Imported first (newest first), then the shortlist, in file order — the server's own order, kept. */
+  listCubes(): Promise<CubeSummary[]>;
+  importCube(link: string): Promise<{ ok: true; cube: CubeSummary } | { ok: false; message: string }>;
+  refreshCube(id: string): Promise<{ ok: true; cube: CubeSummary } | { ok: false; message: string }>;
+  /** 403 (not the importer) and 400 (a shortlist cube) both read as a plain refusal — the picker never offers the control to anyone else. */
+  deleteCube(id: string): Promise<{ ok: true } | { ok: false; message: string }>;
+}
+
+export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base: string = defaultApiBase()): PoolsClient {
+  const url = (path: string): string => `${base}pools/cubes${path}`;
+
+  return {
+    async listCubes() {
+      let res: Response;
+      try {
+        res = await fetchImpl(url(''), { credentials: 'same-origin' });
+      } catch {
+        throw new Error('Could not reach the server.');
+      }
+      const body = await bodyOf(res);
+      if (!res.ok) throw new Error(`Could not load the cube list: ${serverMessage(body, res.status)}.`);
+      const parsed = CubeSummarySchema.array().safeParse(body);
+      if (!parsed.success) throw new Error('The server sent something that is not a cube list.');
+      return parsed.data;
+    },
+
+    async importCube(link) {
+      let res: Response;
+      try {
+        res = await fetchImpl(url('/import'), {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ link }),
+        });
+      } catch {
+        return { ok: false, message: 'Could not reach the server.' };
+      }
+      const body = await bodyOf(res);
+      if (!res.ok) return { ok: false, message: `Could not import that cube: ${serverMessage(body, res.status)}.` };
+      const parsed = CubeSummarySchema.safeParse(body);
+      if (!parsed.success) return { ok: false, message: 'The server imported something that is not a cube.' };
+      return { ok: true, cube: parsed.data };
+    },
+
+    async refreshCube(id) {
+      let res: Response;
+      try {
+        res = await fetchImpl(url(`/${encodeURIComponent(id)}/refresh`), { method: 'POST', credentials: 'same-origin', headers: JSON_HEADERS, body: '{}' });
+      } catch {
+        return { ok: false, message: 'Could not reach the server.' };
+      }
+      const body = await bodyOf(res);
+      if (!res.ok) return { ok: false, message: `Could not refresh that cube: ${serverMessage(body, res.status)}.` };
+      const parsed = CubeSummarySchema.safeParse(body);
+      if (!parsed.success) return { ok: false, message: 'The server refreshed something that is not a cube.' };
+      return { ok: true, cube: parsed.data };
+    },
+
+    async deleteCube(id) {
+      let res: Response;
+      try {
+        res = await fetchImpl(url(`/${encodeURIComponent(id)}`), { method: 'DELETE', credentials: 'same-origin' });
+      } catch {
+        return { ok: false, message: 'Could not reach the server.' };
+      }
+      if (res.ok) return { ok: true };
+      const body = await bodyOf(res);
+      return { ok: false, message: `Could not delete that cube: ${serverMessage(body, res.status)}.` };
     },
   };
 }

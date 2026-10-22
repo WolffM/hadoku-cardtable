@@ -62,7 +62,6 @@ import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from
 import {
   applyPick as socketPick,
   closeDraft,
-  cubeName,
   isComplete,
   startDraft,
   watchSeat,
@@ -85,8 +84,9 @@ import { PodBracket } from './pod/PodBracket.tsx';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
 import { followMatchOnce } from '../play/live/matchStart.ts';
-import { preloadCubeArt } from '../play/live/art-preload.ts';
+import { preloadCubeArt, viewerCards } from '../play/live/art-preload.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
+import type { PlannedPod } from './DraftLobby.tsx';
 import { roomsClient } from '../rooms/api.ts';
 import { deckStoreClient } from '../deck/deckStore.ts';
 import './PodScreen.css';
@@ -155,13 +155,22 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   const open = seats.filter((s) => s.occupant === null).length;
   const done = draft !== null && isComplete(draft);
 
-  // Every pack's art, warmed in the background: a page opened mid-draft never came through the lobby.
-  useEffect(() => void preloadCubeArt(), []);
+  // This seat's visible cards, warmed in the background as each new pack or pool arrives
+  // (wave 73 §B: the plan's own cards, since no bundled file names them any more — see `art-preload.ts`'s header).
+  useEffect(() => {
+    if (view !== null) preloadCubeArt(viewerCards(view));
+  }, [view]);
 
   /** The ROOM's own pod state — `null` until the first read answers. */
   const ctx = usePodContext(draftId, podSource);
   const phase = ctx?.pod?.phase;
   const inRounds = phase === 'rounds' || phase === 'done';
+  /**
+   * TEMPORARY, wave 73 §B: `PodView` does not yet carry `planName` — it
+   * lands with lane A's later commit (§A.6); see `DraftLobby.tsx`'s own note
+   * on this same gap. `plannedPod` is `null` exactly when `ctx.pod` is.
+   */
+  const plannedPod = (ctx?.pod ?? null) as PlannedPod | null;
 
   const closeClient = useMemo(() => roomsClient(), []);
   const buildStore = useMemo(() => ({ podId: draftId, client: deckStoreClient() }), [draftId]);
@@ -245,7 +254,10 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
 
       {/* What is being drafted and who is at the table, on one line under the room's name. */}
       <div className="pod__meta">
-        {draft !== null && cubeName(draft) !== null && <span className="pod__cube">{cubeName(draft)}</span>}
+        {/* Round 1's source name today (the Cube tab fills every round alike); a per-round label is wave 74's Custom tab. */}
+        {plannedPod !== null && typeof plannedPod.planName === 'string' && plannedPod.planName !== '' && (
+          <span className="pod__cube">{plannedPod.planName}</span>
+        )}
         <PodSeats
           connected={draft?.connected === true}
           everConnected={draft?.everConnected === true}

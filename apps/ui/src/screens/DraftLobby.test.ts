@@ -9,9 +9,10 @@
  * `.test.ts`, not `.test.tsx` — the root vitest config globs
  * `apps/*\/src/**\/*.test.ts`.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { CubeSummary, DraftPlan, PoolVerdict } from '@hadoku/shared';
 
 const { aiPod, sitPod, standPod } = vi.hoisted(() => ({
   aiPod: vi.fn(),
@@ -21,7 +22,8 @@ const { aiPod, sitPod, standPod } = vi.hoisted(() => ({
 
 vi.mock('./pod/client.ts', () => ({ aiPod, sitPod, standPod }));
 
-import { DraftLobby } from './DraftLobby.tsx';
+import { DraftLobby, type PlannedPod } from './DraftLobby.tsx';
+import type { PoolsClient, RoomsClient } from '../rooms/api.ts';
 import { POD_SEATS, type PodView } from './pod/wire.ts';
 
 afterEach(() => {
@@ -37,6 +39,20 @@ const member = (id: string, name: string, ready = false): { id: string; name: st
 });
 
 const noop = (): void => undefined;
+
+/** A pool picker that never touches the network: every test supplies its own answers. */
+let pools: PoolsClient;
+let rooms: Pick<RoomsClient, 'setPlan'>;
+beforeEach(() => {
+  pools = {
+    listCubes: vi.fn().mockResolvedValue([]),
+    importCube: vi.fn(),
+    refreshCube: vi.fn(),
+    deleteCube: vi.fn(),
+  };
+  rooms = { setPlan: vi.fn() };
+});
+
 const baseProps = {
   roomId: 'r-cube',
   leaderId: 'u-alice',
@@ -47,6 +63,12 @@ const baseProps = {
   error: null,
   onReady: noop,
   onRetry: noop,
+  get pools() {
+    return pools;
+  },
+  get rooms() {
+    return rooms;
+  },
 };
 
 const podFixture = (over: Partial<PodView> = {}): PodView => ({
@@ -64,6 +86,41 @@ const podFixture = (over: Partial<PodView> = {}): PodView => ({
   // — B's own lane fills in the real picker/verdict fixtures on rebase.
   plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
   planName: 'Test Cube',
+  verdict: null,
+  ...over,
+});
+
+/**
+ * TEMPORARY, wave 73 §B: `PodView` does not carry `plan`/`planName`/`verdict`
+ * until lane A's later land (§A.6) — see `DraftLobby.tsx`'s own note. A
+ * planned pod is built from the same `podFixture` plus those three fields,
+ * which `DraftLobby`'s cast then reads back off the `pod` prop exactly as it
+ * will once they are real.
+ */
+const plannedPod = (plan: DraftPlan, planName: string, verdict: PoolVerdict | null, over: Partial<PodView> = {}): PlannedPod => ({
+  ...podFixture(over),
+  plan,
+  planName,
+  verdict,
+});
+
+const cubePlan = (cubeId: string): DraftPlan => ({
+  rounds: [
+    { kind: 'cube', cubeId },
+    { kind: 'cube', cubeId },
+    { kind: 'cube', cubeId },
+  ],
+});
+
+const cubeFixture = (over: Partial<CubeSummary> = {}): CubeSummary => ({
+  id: 'vintage-cube-2025-12',
+  name: 'MTGO Vintage Cube 2025-12',
+  size: 540,
+  origin: 'shortlist',
+  cubeCobraId: null,
+  importedBy: null,
+  importedAt: null,
+  refreshedAt: null,
   verdict: null,
   ...over,
 });
@@ -91,8 +148,12 @@ describe('the draft lobby', () => {
 
   it('the ready-toggle keeps its own meaning regardless of seating', () => {
     const onReady = vi.fn();
+    // A ready pool (wave 73 §B): the ready-toggle's OWN gate is what this test
+    // is about, and that gate must not be entangled with the pool's — see
+    // "the pool picker" describe block below for the verdict's own gating.
+    const pod = plannedPod(cubePlan('c'), 'C', { ok: true, cards: 1 });
 
-    render(createElement(DraftLobby, { ...baseProps, pod: podFixture(), onReady, members: [member('u-alice', 'Alice'), member('u-bob', 'Bob')] }));
+    render(createElement(DraftLobby, { ...baseProps, pod, onReady, members: [member('u-alice', 'Alice'), member('u-bob', 'Bob')] }));
 
     screen.getByTestId('ready-toggle').click();
     expect(onReady).toHaveBeenCalledWith(true);
@@ -123,5 +184,95 @@ describe('the draft lobby', () => {
     screen.getByTestId('pod-seat-2').querySelector('button')?.click();
     await waitFor(() => expect(sitPod).toHaveBeenCalledWith('r-cube', 2));
     await waitFor(() => expect(screen.getByTestId('pod-seat-error').textContent).toBe('the lobby phase has ended'));
+  });
+});
+
+describe('the pool picker (wave 73 §B)', () => {
+  const alice = member('u-alice', 'Alice', true);
+  const bob = member('u-bob', 'Bob', true);
+
+  it('the leader edits the picker; a non-leader sees the same list, read-only, with no import field', async () => {
+    const cube = cubeFixture();
+    vi.mocked(pools.listCubes).mockResolvedValue([cube]);
+    const pod = plannedPod(cubePlan(cube.id), cube.name, { ok: true, cards: cube.size });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    const leaderRadio = await waitFor(() => screen.getByTestId(`pool-picker-cube-${cube.id}`) as HTMLInputElement);
+    expect(leaderRadio.disabled, 'the leader may change it').toBe(false);
+    expect(leaderRadio.checked, 'the room’s own plan is drawn chosen').toBe(true);
+    expect(screen.getByTestId('pool-picker-import-link'), 'the leader gets the import field').not.toBeNull();
+
+    cleanup();
+    render(createElement(DraftLobby, { ...baseProps, pod, myId: 'u-bob', members: [alice, bob] }));
+    const readerRadio = await waitFor(() => screen.getByTestId(`pool-picker-cube-${cube.id}`) as HTMLInputElement);
+    expect(readerRadio.disabled, 'everyone else only reads it').toBe(true);
+    expect(readerRadio.checked, 'and sees the same choice').toBe(true);
+    expect(screen.queryByTestId('pool-picker-import-link'), 'no import field for a non-leader').toBeNull();
+  });
+
+  it('a null verdict reads as checking, and disables Ready', async () => {
+    const cube = cubeFixture();
+    vi.mocked(pools.listCubes).mockResolvedValue([cube]);
+    const pod = plannedPod(cubePlan(cube.id), cube.name, null);
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-cube-${cube.id}`)).not.toBeNull());
+
+    expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('checking');
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled, 'Start waits on the first check').toBe(true);
+  });
+
+  it('an ok verdict shows the card count, and Ready is enabled', async () => {
+    const cube = cubeFixture({ size: 540 });
+    vi.mocked(pools.listCubes).mockResolvedValue([cube]);
+    const pod = plannedPod(cubePlan(cube.id), cube.name, { ok: true, cards: 540 });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    await waitFor(() => expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('ready'));
+
+    expect(screen.getByTestId('pool-picker-verdict').textContent).toBe('540 cards');
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('a refused pick shows the attempted cube chosen and its unplayable names, disables Ready, and leaves the room’s own plan untouched', async () => {
+    const good = cubeFixture({ id: 'vintage-cube-2025-12', name: 'MTGO Vintage Cube 2025-12' });
+    const bad = cubeFixture({ id: 'test-unplayable', name: 'A cube Forge does not know' });
+    vi.mocked(pools.listCubes).mockResolvedValue([good, bad]);
+    vi.mocked(rooms.setPlan).mockResolvedValue({
+      ok: false,
+      message: 'refused',
+      verdict: { ok: false, unplayable: ['Not A Real Card'], missingText: [] },
+    });
+    const pod = plannedPod(cubePlan(good.id), good.name, { ok: true, cards: good.size });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-cube-${bad.id}`)).not.toBeNull());
+
+    fireEvent.click(screen.getByTestId(`pool-picker-cube-${bad.id}`));
+    expect(rooms.setPlan).toHaveBeenCalledWith('r-cube', cubePlan(bad.id));
+
+    await waitFor(() => expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('refused'));
+    expect(screen.getByTestId('pool-picker-verdict').textContent).toBe('Not A Real Card');
+    expect((screen.getByTestId(`pool-picker-cube-${bad.id}`) as HTMLInputElement).checked, 'the picker shows the attempted cube').toBe(true);
+    expect((screen.getByTestId(`pool-picker-cube-${good.id}`) as HTMLInputElement).checked, 'not the one it replaced').toBe(false);
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled, 'Start is disabled').toBe(true);
+    // `DraftLobby` never mutates its own `pod` prop — it only READS it — so "the
+    // previous choice is still the room's plan" holds by construction here: the
+    // fixture handed in still names `good`, untouched by the refused attempt.
+    expect(pod.plan).toEqual(cubePlan(good.id));
+  });
+
+  it('refresh is open to any leader; delete only shows for the importer', async () => {
+    const mine = cubeFixture({ id: 'cc-mine', name: 'My import', origin: 'cubecobra', cubeCobraId: 'mine', importedBy: 'u-alice' });
+    const theirs = cubeFixture({ id: 'cc-theirs', name: 'Their import', origin: 'cubecobra', cubeCobraId: 'theirs', importedBy: 'u-bob' });
+    vi.mocked(pools.listCubes).mockResolvedValue([mine, theirs]);
+    const pod = plannedPod(cubePlan(mine.id), mine.name, { ok: true, cards: mine.size });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-refresh-${mine.id}`)).not.toBeNull());
+
+    expect(screen.getByTestId(`pool-picker-refresh-${theirs.id}`), 'refresh: any friend').not.toBeNull();
+    expect(screen.getByTestId(`pool-picker-delete-${mine.id}`), 'delete: the importer').not.toBeNull();
+    expect(screen.queryByTestId(`pool-picker-delete-${theirs.id}`), 'delete: not another friend').toBeNull();
   });
 });

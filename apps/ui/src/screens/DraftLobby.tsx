@@ -30,18 +30,59 @@
  * as things are loaded"*). Which seat is mine comes from `myId`, the server's
  * own `you.id` for this room — never whoami's id, which for an admin session
  * is not the member id the pod's seats name.
+ *
+ * ## The pool picker (wave 73 §B)
+ *
+ * The leader picks the cube the pod drafts from here, in the "Cube" tab (Set
+ * and Custom are wave 74). `PoolPicker` is purely presentational; every
+ * write — the pick itself, an import, a refresh, a delete — is made right
+ * here, the same way the seat actions above already are (`pod/client.ts`'s
+ * functions, called directly rather than threaded through `ConstructedScreen`
+ * as a prop) — `ConstructedScreen.tsx` is untouched this wave.
+ *
+ * A pick is NOT the same round trip as a seat action: the server runs the
+ * verdict first (`PUT /api/rooms/:id/pod/plan`), and a refusal leaves the
+ * room's plan exactly as it was. So the refused attempt is never visible on
+ * `pod.plan` — it is held here, locally, only until the next attempt (or a
+ * reload) — which is what `attempt` below is for.
  */
 
 import { useEffect, useRef, useState } from 'react';
 
-import type { RoomMember } from '../rooms/api.ts';
-import { preloadCubeArt } from '../play/live/art-preload.ts';
+import type { CubeSummary, DraftPlan, PoolVerdict } from '@hadoku/shared';
+
+import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
+import { PoolPicker, type Refusal } from '../draft/PoolPicker.tsx';
 import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
 import { POD_AI, POD_CLOSED, podDealable, type PodView } from './pod/wire.ts';
 
 export { podDealable };
+
+/**
+ * TEMPORARY, wave 73 §B: `PodView` does not yet carry `plan` / `planName` /
+ * `verdict` — those land with lane A's later commit (§A.6), after this one.
+ * This file is written against the wire contract's verbatim text (the wave
+ * file's own instruction while A's field is still in flight); this cast is
+ * the one place that gap lives, and it is a no-op the moment `pod.ts` grows
+ * the fields for real.
+ */
+export type PlannedPod = PodView & { plan: DraftPlan; planName: string; verdict: PoolVerdict | null };
+
+/**
+ * Round 1's cube — the Cube tab fills all three rounds with one choice, so
+ * this is the whole plan's cube for now. `undefined` reads as "no plan yet",
+ * which today (before `pod.ts` carries one at all) is every pod there is.
+ */
+function cubeIdOf(plan: DraftPlan | undefined): string | null {
+  if (plan === undefined) return null;
+  const round1 = plan.rounds[0];
+  return round1.kind === 'cube' ? round1.cubeId : null;
+}
+
+const defaultPools = poolsClient();
+const defaultRooms = roomsClient();
 
 export function DraftLobby({
   roomId,
@@ -55,6 +96,8 @@ export function DraftLobby({
   error,
   onReady,
   onRetry,
+  pools = defaultPools,
+  rooms = defaultRooms,
 }: {
   roomId: string;
   /** The room read's `RoomView.pod`; null for a body that carried none. */
@@ -69,10 +112,12 @@ export function DraftLobby({
   error: string | null;
   onReady: (ready: boolean) => void;
   onRetry: () => void;
+  /** Tests inject a stub. Production leaves it undefined. */
+  pools?: PoolsClient;
+  rooms?: Pick<RoomsClient, 'setPlan'>;
 }) {
   const myMemberId = myId === '' ? null : myId;
-  // The cube's art warms while the room fills, so the first pack — and every one after — draws at once.
-  useEffect(() => void preloadCubeArt(), []);
+  const amLeader = myId !== '' && myId === leaderId;
 
   const [seatError, setSeatError] = useState<string | null>(null);
   /**
@@ -106,6 +151,62 @@ export function DraftLobby({
   const doClose = (seat: number, closed: boolean): void => act(() => closePod(roomId, seat, closed));
   const doStand = (): void => act(() => standPod(roomId));
 
+  /* ── the pool picker: the room's cube list, and the plan write ───────── */
+  const plannedPod = pod as PlannedPod | null; // TEMPORARY — see the type's own note
+  const planCubeId = cubeIdOf(plannedPod?.plan);
+  /** `undefined` (today, before `pod.ts` carries one) reads exactly like `null` (still checking). */
+  const verdict = plannedPod?.verdict ?? null;
+
+  const [cubes, setCubes] = useState<CubeSummary[]>([]);
+  const [cubesError, setCubesError] = useState<string | null>(null);
+  const loadCubes = (): void => {
+    pools
+      .listCubes()
+      .then((list) => {
+        setCubes(list);
+        setCubesError(null);
+      })
+      .catch((e: unknown) => setCubesError(e instanceof Error ? e.message : String(e)));
+  };
+  useEffect(() => void loadCubes(), []);
+
+  const [planBusy, setPlanBusy] = useState(false);
+  /**
+   * The last attempted pick's own refusal, and which cube it tried. A
+   * refusal never changes `pod.plan` (the contract: "Refused… the plan is
+   * unchanged"), so this is the one place that attempt is remembered —
+   * local to this browser, and cleared by the next attempt.
+   */
+  const [attempt, setAttempt] = useState<{ cubeId: string; refusal: Refusal } | null>(null);
+
+  const pickCube = (cubeId: string): void => {
+    if (cubeId === planCubeId && attempt === null) return;
+    setPlanBusy(true);
+    setAttempt(null);
+    const plan: DraftPlan = { rounds: [{ kind: 'cube', cubeId }, { kind: 'cube', cubeId }, { kind: 'cube', cubeId }] };
+    rooms.setPlan(roomId, plan).then((r) => {
+      setPlanBusy(false);
+      if (!r.ok) setAttempt({ cubeId, refusal: r.verdict !== null && !r.verdict.ok ? r.verdict : { ok: false, unplayable: [], missingText: [r.message] } });
+    });
+  };
+
+  const withCubes = (call: () => Promise<{ ok: true } | { ok: false; message: string }>): void => {
+    setPlanBusy(true);
+    call().then((r) => {
+      setPlanBusy(false);
+      if (r.ok) loadCubes();
+      else setCubesError(r.message);
+    });
+  };
+  const importCube = (link: string): void => withCubes(() => pools.importCube(link));
+  const refreshCube = (id: string): void => withCubes(() => pools.refreshCube(id));
+  const deleteCube = (id: string): void => withCubes(() => pools.deleteCube(id));
+
+  const selectedId = attempt?.cubeId ?? planCubeId;
+  const checking = plannedPod !== null && attempt === null && verdict === null;
+  const planOk = verdict !== null && verdict.ok;
+  const readyCards = verdict !== null && verdict.ok ? verdict.cards : null;
+
   return (
     <section className="lobby__card" data-testid="draft-lobby">
       {pod !== null && (
@@ -126,6 +227,24 @@ export function DraftLobby({
               {seatError}
             </p>
           )}
+
+          <h2>Cube</h2>
+          <PoolPicker
+            cubes={cubes}
+            cubesError={cubesError}
+            selectedId={selectedId}
+            leader={amLeader}
+            busy={planBusy}
+            checking={checking}
+            refusal={attempt?.refusal ?? null}
+            readyCards={readyCards}
+            myId={myMemberId ?? ''}
+            onPick={pickCube}
+            onImport={importCube}
+            onRefresh={refreshCube}
+            onDelete={deleteCube}
+          />
+
           <PodSpectators pod={pod} members={members} myId={myMemberId} leaderId={leaderId} />
         </>
       )}
@@ -139,7 +258,7 @@ export function DraftLobby({
         className="lobby__go"
         data-testid="ready-toggle"
         aria-pressed={iAmReady}
-        disabled={dealing || members.length === 0}
+        disabled={dealing || members.length === 0 || (pod !== null && (planBusy || attempt !== null || !planOk))}
         onClick={() => onReady(!iAmReady)}
       >
         {iAmReady ? 'Stand down' : 'Ready'}
