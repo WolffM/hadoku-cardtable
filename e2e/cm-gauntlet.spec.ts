@@ -15,12 +15,18 @@
  * is played yet. She concedes, and the result's Next game takes her back to the room, where the
  * Gauntlet is choosing game 2 with game 1's two decks on record and played.
  *
+ * Ruling 13 (2026-10-21): she chooses game 2 on the room's own screen, and every frame from that
+ * press to the board shows the Gauntlet, never the lobby. She concedes again, the AI takes the
+ * Gauntlet 2–0, and the result offers no Rematch. Back in the room the games are stacked top to
+ * bottom, the table is unlocked, she stands up, and the mode is hers to change.
+ *
  * `[cm-gauntlet]` lines are the evidence. Needs a Forge build; without one the test SKIPS and its title says why.
  */
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
 import type { GauntletView } from '../packages/shared/src/gauntlet.ts';
 
+import { resizeWindow } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
@@ -189,13 +195,25 @@ test(titled('a Gauntlet vs the AI to its end: the draw, the snake, both choices 
     await alice.page.getByTestId('game-result-room').click();
     await expect.poll(() => new URL(alice.page.url()).hash).toBe(`#/room/${roomId}`);
 
-    // Ruling 13.3: the games stack top to bottom.
+    // Ruling 13.3: the games stack top to bottom, and three of them fit 1280×800 with the room above
+    // them: the third is projected one row below the second. At 125% the room's own options row and
+    // seats wrap to two lines each above the result, and that alone puts a third game past 800px:
+    // measured and logged there, asserted where the room above fits its own rows.
     await expect(alice.page.getByTestId('gauntlet-result')).toBeVisible({ timeout: 15_000 });
+    await resizeWindow(alice.page, { width: 1280, height: 800 });
     const games = alice.page.getByTestId('gauntlet-result').getByTestId('gauntlet-game');
     await expect(games).toHaveCount(2);
-    const [g1, g2] = [(await games.nth(0).boundingBox())!, (await games.nth(1).boundingBox())!];
-    expect(g2.y, 'game 2 below game 1').toBeGreaterThanOrEqual(g1.y + g1.height);
-    console.log(`[cm-gauntlet] result: game boxes ${JSON.stringify([g1, g2])}`);
+    for (const scale of ['0.8', '1', '1.25']) {
+      await alice.page.evaluate((v) => document.documentElement.style.setProperty('--ui-scale', v), scale);
+      const [g1, g2] = [(await games.nth(0).boundingBox())!, (await games.nth(1).boundingBox())!];
+      expect(g2.y, `game 2 below game 1 at ${scale}`).toBeGreaterThanOrEqual(g1.y + g1.height);
+      const third = g2.y + g2.height + (g2.y - g1.y);
+      const page = await alice.page.evaluate(() => ({ height: innerHeight, scrollW: document.documentElement.scrollWidth, width: innerWidth }));
+      console.log(`[cm-gauntlet] result at ${scale}: games ${JSON.stringify([g1, g2])} third ends ${third} of ${page.height}`);
+      if (scale !== '1.25') expect(third, `three games fit 800px at ${scale}`).toBeLessThanOrEqual(page.height);
+      expect(page.scrollW, `no sideways scroll at ${scale}`).toBeLessThanOrEqual(page.width);
+    }
+    await alice.page.evaluate(() => document.documentElement.style.removeProperty('--ui-scale'));
 
     // Ruling 13.4: the room is free again — not locked, the mode the leader's to change, and the seat hers to give back.
     const done = await api<{ room: { locked: boolean; matchId: string | null } }>('GET', `/tables/rooms/${roomId}`);

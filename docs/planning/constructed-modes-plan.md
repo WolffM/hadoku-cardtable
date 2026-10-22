@@ -114,6 +114,20 @@ not.
     sideboarding half was already true by ruling 10 (`lobby.test.ts`, "a player
     leaves the room during sideboarding").
 
+13. **Gauntlet feedback** (2026-10-21), verbatim:
+    *"1. when match is finished don't show 'rematch' button.
+    2. i notice there seems to be a brief interim where we show the lobby
+    screen after a deck is selected and before the new game begins. this is a
+    bit weird, let's go stragiht from deck selection into the next game.
+    3. let's display the matches vertically after a match is conclued rather
+    than in a horizontal line."* *"also after a match is concluded i should be
+    able to start a new match and standup or even convert the room to a new
+    type. 'both players are ready — the table is locked'
+    https://hadoku.me/cardtable/#/room/r-70206f58bbf1 this room appears to be
+    locked now even though the match is done?"* A decided Gauntlet holds
+    nothing an unfinished one does: no Rematch, the table unlocked, the mode
+    the leader's again, and a Ready begins the next Gauntlet.
+
 ## Design
 
 ### Words and ids
@@ -177,7 +191,9 @@ Its phases are `options → reveal → banpick → choose → playing → done`.
 5. **Playing:** a Bo3 of normal Forge matches, each using its chosen `.dck`.
    Played decks are struck off. After a game, it's back to Choose until the
    series is decided.
-6. **Done:** the room shows the result. The leader may pick a mode again.
+6. **Done:** the room shows the result, one game to a row. The table is free
+   (ruling 13): seats stand, the leader may pick a mode again, and a Ready
+   begins the next Gauntlet.
 
 ### All Random
 

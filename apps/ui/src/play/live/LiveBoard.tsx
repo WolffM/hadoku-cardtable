@@ -1866,7 +1866,7 @@ export function rematchOf(table: RoomTable | null, alone: boolean): Rematch {
  * room does and readies nothing: the room starts that game once it is set up
  * (the operator, 2026-10-21: *"when players select 'Next Game' it should take
  * them back to the deck picker"*). **In a pod room there is no Rematch at
- * all** (`room.pod !== null`) — Back to room already opens the pod
+ * all** (`room.pod !== null`), nor once a Gauntlet is decided — Back to room already opens the pod
  * (`#/room/<id>` renders `PodScreen` for a draft room), so there is nothing
  * else for this button to do.
  */
@@ -2170,6 +2170,12 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
    */
   const inPod = room !== null && room.pod !== null;
   /**
+   * A Gauntlet is never rematched: between its games the button is Next game,
+   * and once it is decided the next Gauntlet is set up in the room (the
+   * operator, 2026-10-21: *"when match is finished don't show 'rematch' button"*).
+   */
+  const rematchable = !inPod && room?.mode !== 'gauntlet';
+  /**
    * The table id the reads below address — a ref, not state, because the
    * table-scoped read inside the SAME refresh cycle that learns it has to
    * use what THIS cycle just learned, not last render's.
@@ -2421,7 +2427,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
               Next
             </button>
           )}
-          {!inPod && !showSideboard && (
+          {!showSideboard && (nextInRoom ? !inPod : rematchable) && (
             <button
               type="button"
               className="button"

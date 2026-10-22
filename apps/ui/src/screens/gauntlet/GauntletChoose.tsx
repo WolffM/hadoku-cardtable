@@ -88,7 +88,22 @@ export function GauntletChoose({ view, options, onChoose }: { view: GauntletView
 }
 
 /** One game's two decks, face to face, P1's first; a deck the view does not name is face down. */
-export function RevealedGame({ view, game, options, bind, index }: { view: GauntletView; game: GauntletGame; options: ReadonlyMap<string, DeckOption>; bind: (id: string) => TileBinding; index: number }) {
+export function RevealedGame({
+  view,
+  game,
+  options,
+  bind,
+  index,
+  names = true,
+}: {
+  view: GauntletView;
+  game: GauntletGame;
+  options: ReadonlyMap<string, DeckOption>;
+  bind: (id: string) => TileBinding;
+  index: number;
+  /** False where the players are named once above every game (the result). */
+  names?: boolean;
+}) {
   const order = seatOrder(view);
   return (
     <div className="gauntlet__match" data-testid="gauntlet-game" data-game={index + 1} data-winner={game.winner ?? undefined}>
@@ -98,7 +113,7 @@ export function RevealedGame({ view, game, options, bind, index }: { view: Gaunt
         const option = id === null ? undefined : options.get(id);
         return (
           <div key={seat} className="gauntlet__match-seat" data-seat={seat} data-won={game.winner === seat || undefined}>
-            <PlayerName view={view} seat={seat} player={i === 0 ? 'p1' : 'p2'} />
+            {names && <PlayerName view={view} seat={seat} player={i === 0 ? 'p1' : 'p2'} />}
             {id === null ? (
               <span className="gauntlet__slot gauntlet__slot--hidden" data-testid="gauntlet-hidden" aria-hidden="true" />
             ) : (

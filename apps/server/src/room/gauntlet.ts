@@ -2,7 +2,7 @@
  * The Gauntlet: a pure state machine, stored on a Constructed room and driven
  * by `http/routes.ts` (`docs/planning/constructed-modes-plan.md`, "Gauntlet").
  *
- *   options → reveal → banpick → choose → playing → (choose → playing)* → done
+ *   options → reveal → banpick → choose → playing → (choose → playing)* → done (→ options)
  *
  * - **options**: the leader's family/era (or random) are the room's mode
  *   options; each seat readies here.
@@ -17,6 +17,9 @@
  * - **playing**: one normal Forge match with the two chosen decks. The room's
  *   series says whether that game decided it — `gameOver` is told, never
  *   counts wins itself.
+ * - **done**: the result, kept for the room to show. It holds nothing an
+ *   unfinished Gauntlet does (`gauntletHoldsTable`), and a seat's next Ready
+ *   begins a new one.
  *
  * A deck choice is its chooser's alone until its game is over (ruling 9):
  * `viewOfGauntlet` is the one place the state is shown to anyone, and it names
@@ -181,11 +184,25 @@ function pickOne<T>(items: readonly T[], random: () => number): T {
 	return pickRandom(items, random)!;
 }
 
+/**
+ * A seat's Ready, in options. After a decided Gauntlet a Ready begins the next
+ * one: the result stays on screen until somebody readies again.
+ */
 export function setGauntletReady(state: GauntletState, seat: GauntletSeatIndex, ready: boolean): GauntletResult {
-	if (state.phase !== 'options') return { ok: false, reason: 'drawn' };
-	const next: [boolean, boolean] = [...state.ready];
+	const from = state.phase === 'done' ? newGauntlet() : state;
+	if (from.phase !== 'options') return { ok: false, reason: 'drawn' };
+	const next: [boolean, boolean] = [...from.ready];
 	next[seat] = ready;
-	return { ok: true, state: { ...state, ready: next } };
+	return { ok: true, state: { ...from, ready: next } };
+}
+
+/**
+ * From the draw until it is decided the Gauntlet's seats are fixed: nobody sits
+ * or stands, and its decks are dealt. Before the draw, and once decided, the
+ * table is the room's again (ruling 13).
+ */
+export function gauntletHoldsTable(state: GauntletState): boolean {
+	return state.phase !== 'options' && state.phase !== 'done';
 }
 
 /**
@@ -307,7 +324,8 @@ export function gameOver(state: GauntletState, result: { seriesOver: boolean; wi
 	if (state.phase !== 'playing') return { ok: false, reason: 'not-playing' };
 	const played = { ...state, games: state.games.map((g, i) => (i === state.games.length - 1 ? { ...g, winner: result.winner } : g)) };
 	if (result.seriesOver || unplayedPicks(played, 0).length === 0 || unplayedPicks(played, 1).length === 0) {
-		return { ok: true, state: { ...played, phase: 'done', winner: result.winner } };
+		// Decided: the result is kept, and the Ready that began it is spent.
+		return { ok: true, state: { ...played, phase: 'done', ready: [false, false], winner: result.winner } };
 	}
 	return { ok: true, state: enterChoose(played) };
 }

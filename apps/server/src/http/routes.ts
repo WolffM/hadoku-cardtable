@@ -1065,13 +1065,14 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	/**
-	 * Both seats ready, or a match live: the table is nobody's to leave. The
-	 * ruling (2026-10-12): "players should be able to give up their seat, but
-	 * not after both players are ready. when both players are ready and the
-	 * match is initiated then they are locked in until they concede".
+	 * Both seats ready, a match live, or a Gauntlet drawn and not yet decided:
+	 * the table is nobody's to leave. The ruling (2026-10-12): "players should
+	 * be able to give up their seat, but not after both players are ready. when
+	 * both players are ready and the match is initiated then they are locked in
+	 * until they concede". A decided series or Gauntlet holds nothing (ruling 13).
 	 */
-	function tableLocked(players: TablePlayer[], matchId: string | null): boolean {
-		return matchId !== null || (players.length >= TABLE_SEATS && players.every((p) => p.state.ready));
+	function tableLocked(room: RoomViewLike, players: TablePlayer[], matchId: string | null): boolean {
+		return matchId !== null || (players.length >= TABLE_SEATS && players.every((p) => p.state.ready)) || gauntlets?.holdsTable(room) === true;
 	}
 
 	/**
@@ -1122,7 +1123,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				// match is live, the seats are locked and nobody stands up. One fact,
 				// so the screen draws Stand up disabled from the same bit the server
 				// refuses on (`tableLocked`).
-				locked: tableLocked(players, matchId),
+				locked: tableLocked(room, players, matchId),
 				// The table's series phase, read AFTER `liveMatchId`'s own write, so a
 				// table read that just recorded a game already says where it led. A
 				// screen that follows the table learns of a move into `sideboarding`
@@ -1613,7 +1614,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			res.json(tableView(room, me, table));
 			return;
 		}
-		if (tableLocked(players, matchId) || gauntlets?.holdsTable(room) === true) {
+		if (tableLocked(room, players, matchId)) {
 			res.status(409).json({ error: 'both players are ready — the table is locked' });
 			return;
 		}

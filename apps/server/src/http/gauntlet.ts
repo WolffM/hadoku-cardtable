@@ -33,6 +33,7 @@ import {
 	gameDecks,
 	gameOver,
 	gauntletEras,
+	gauntletHoldsTable,
 	newGauntlet,
 	seatOfMember,
 	setGauntletReady,
@@ -84,7 +85,7 @@ export interface GauntletDeps {
 export interface GauntletHandle {
 	/** A Constructed room in Gauntlet mode: its decks are dealt, never loaded. */
 	isGauntlet(room: GauntletRoom): boolean;
-	/** True once a Gauntlet room has drawn: its seats are fixed and its decks are dealt, never loaded. */
+	/** True from a Gauntlet room's draw until it is decided: its seats are fixed and its decks are dealt, never loaded. */
 	holdsTable(room: GauntletRoom): boolean;
 	/** Why a match may not start in this room now, or null. Null for any room that is not a Gauntlet. */
 	startRefusal(room: GauntletRoom): string | null;
@@ -324,7 +325,7 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 
 	return {
 		isGauntlet,
-		holdsTable: (room) => isGauntlet(room) && stateOf(room).phase !== 'options',
+		holdsTable: (room) => isGauntlet(room) && gauntletHoldsTable(stateOf(room)),
 		startRefusal(room) {
 			if (!isGauntlet(room)) return null;
 			return stateOf(room).phase === 'playing' ? null : 'a Gauntlet game starts once both decks are chosen';

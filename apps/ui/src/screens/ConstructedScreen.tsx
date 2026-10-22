@@ -1324,9 +1324,15 @@ function RoomTableScreen({
   /**
    * What stands between my seat and Ready: in Classic, a legal deck of my
    * own; in Gauntlet and All Random the room deals the decks, so only the seat
-   * (and a Gauntlet only before its draw).
+   * (and a Gauntlet only before its draw, or once it is decided, to begin the next).
    */
-  const canReady = mode === 'classic' ? deckId !== '' && myLegal : mode === 'gauntlet' ? seated && (gauntlet?.phase ?? 'options') === 'options' : seated;
+  const canReady =
+    mode === 'classic' ? deckId !== '' && myLegal : mode === 'gauntlet' ? seated && ['options', 'done'].includes(gauntlet?.phase ?? 'options') : seated;
+  /**
+   * A Gauntlet game dealt: from the choice to the board, and while it is played, the room is that
+   * game (the operator, 2026-10-21: *"let's go stragiht from deck selection into the next game"*).
+   */
+  const gauntletGame = mode === 'gauntlet' && gauntlet?.phase === 'playing';
   /**
    * The room's own table record (wave 71 §D's wire shape, via `@hadoku/shared`),
    * for the SERIES it carries — `wins`, `games`, `phase` — none of which
@@ -1948,6 +1954,28 @@ function RoomTableScreen({
       .finally(() => setBusy(false));
   };
 
+  /** Back in the room by choice while the game goes on: the way into it again. */
+  const matchLink = matchId !== null && (
+    <a className="lobby__go" data-testid="room-match-link" href={routeHash({ kind: 'match', matchId })}>
+      {players.some((p) => p.you) ? 'Play' : 'Watch'}
+    </a>
+  );
+  const startRefused = startRefusal !== null && (
+    <div className="lobby__error" role="alert" data-testid="start-refused">
+      <p>{startRefusal}</p>
+      <button
+        type="button"
+        data-testid="start-retry"
+        onClick={() => {
+          asked.current = false;
+          setStartRefusal(null);
+        }}
+      >
+        Try again
+      </button>
+    </div>
+  );
+
   /*
    * The pod: the draft room's second phase, and the whole screen while it lasts.
    *
@@ -2067,6 +2095,7 @@ function RoomTableScreen({
           <>
             {/* The mode, and the chosen mode's options beside it. With no mode
                 chosen this row is the whole room (the operator, 2026-10-21). */}
+            {!gauntletGame && (
             <section className="lobby__card">
               <div className="lobby__modeline">
                 <ModeRow mode={mode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
@@ -2108,9 +2137,11 @@ function RoomTableScreen({
                 </p>
               )}
             </section>
+            )}
 
             {mode !== null && (
               <>
+            {!gauntletGame && (
             <section className="lobby__card">
               {/* Where the table stands sits on its heading's line, which has the
                   width to spare: a line added under the seats comes off the room's height. */}
@@ -2124,12 +2155,7 @@ function RoomTableScreen({
                 <p className="lobby__note" data-testid="start-state">
                   {startStateText(players, bothReady, starting, matchId)}
                 </p>
-                {/* Back in the room by choice while the game goes on: the way into it again. */}
-                {matchId !== null && (
-                  <a className="lobby__go" data-testid="room-match-link" href={routeHash({ kind: 'match', matchId })}>
-                    {players.some((p) => p.you) ? 'Play' : 'Watch'}
-                  </a>
-                )}
+                {matchLink}
               </div>
               <ul className="tables__players" data-testid="room-players">
                 {[0, 1].map((seat) => {
@@ -2191,32 +2217,24 @@ function RoomTableScreen({
                   );
                 })}
               </ul>
-              {startRefusal !== null && (
-                <div className="lobby__error" role="alert" data-testid="start-refused">
-                  <p>{startRefusal}</p>
-                  <button
-                    type="button"
-                    data-testid="start-retry"
-                    onClick={() => {
-                      asked.current = false;
-                      setStartRefusal(null);
-                    }}
-                  >
-                    Try again
-                  </button>
-                </div>
-              )}
+              {startRefused}
             </section>
+            )}
 
             {mode === 'gauntlet' ? (
-              // The board between games too, from the choice onward; never beside a live match.
-              gauntlet !== null && matchId === null && (
-                <GauntletScreen
-                  view={gauntlet}
-                  onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck))}
-                  onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck))}
-                  onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
-                />
+              // The board between games too, from the choice onward; while a game is dealt or played,
+              // that game alone, with the way into it.
+              gauntlet !== null && (
+                <>
+                  <GauntletScreen
+                    view={gauntlet}
+                    onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck))}
+                    onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck))}
+                    onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck))}
+                  />
+                  {gauntletGame && matchLink}
+                  {gauntletGame && startRefused}
+                </>
               )
             ) : spectating ? (
               <section className="lobby__card">

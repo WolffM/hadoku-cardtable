@@ -2166,6 +2166,22 @@ describe('a room table', () => {
 		// Restored: 2 passed.
 	});
 
+	/** Ruling 13.4, for Classic: a decided series holds nothing — the start spent both Readys, and the match is over. */
+	it('a decided Classic series leaves the table unlocked: both seats stand', async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		const started = await startRoom(h, 'alice');
+		expect(started.status).toBe(201);
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: null });
+		expect(h.lobby.get(ROOM)?.tables[0]?.series.phase).toBe('done');
+		const read = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		expect(read.body.room, 'a decided series leaves the table unlocked').toMatchObject({ locked: false, matchId: null });
+		for (const user of ['alice', 'bob']) expect((await call(h, 'POST', `/api/tables/rooms/${ROOM}/stand`, {}, edgeHeaders(user))).status).toBe(200);
+	});
+
 	/**
 	 * Wave 25 §A, the consequence stated: a drafted deck is not brought to a room
 	 * table at all, because a room table's rules are its room's pool and a drafted
