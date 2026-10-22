@@ -121,10 +121,53 @@
 /*
  * A card growing or shrinking between the sizes (`morph`): its box moves on the
  * page's own transition timing, the old drawing fading as the new one forms.
+ * Both drawings fill the moving box (the browser's default keeps each one's own
+ * proportions, so a large card's picture hung below the small button it was
+ * shrinking into).
  */
 ::view-transition-group(*) {
   animation-duration: 420ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+::view-transition-old(*),
+::view-transition-new(*) {
+  height: 100%;
+}
+
+/* The crossfade staggered: the old drawing holds through the first part of the move and the new
+   one comes in near its own size, so neither is seen badly stretched (the new button's name was,
+   blown up to the large card's size, on an even fade). */
+::view-transition-old(*) {
+  animation-name: radio-cards-out;
+}
+
+::view-transition-new(*) {
+  animation-name: radio-cards-in;
+}
+
+@keyframes radio-cards-out {
+  0%,
+  35% {
+    opacity: 1;
+  }
+
+  65%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes radio-cards-in {
+  0%,
+  45% {
+    opacity: 0;
+  }
+
+  80%,
+  100% {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
