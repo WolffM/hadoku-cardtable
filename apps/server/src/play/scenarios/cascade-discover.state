@@ -1,0 +1,19 @@
+# Cascade and discover offer a card from exile, and the decision window draws it whole (the operator,
+# 2026-10-22: "effects like discover/cascade must [show] the full card that they are casting. at the
+# moment it just shows text").
+#
+# Seat 0 (human) casts Bloodbraid Elf ({2}{R}{G}, cascade): it exiles Mountains until Lightning Bolt
+# and offers it. Then Geological Appraiser ({2}{R}{R}, discover 3), which finds Opt.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Bloodbraid Elf;Geological Appraiser
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Forest;Forest
+humanlibrary=Mountain;Lightning Bolt;Mountain;Opt;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

@@ -2486,6 +2486,11 @@ function pressWithSound(match: LiveMatch, which: 'ok' | 'cancel'): boolean {
   return pressed;
 }
 
+/** The board draws this card whole: a permanent on a battlefield, or a spell on the stack. */
+function drawnWhole(view: BoardView, cardId: number): boolean {
+  return battlefieldCardIds(view).has(cardId) || view.stack.some((e) => e.sourceCardId === cardId);
+}
+
 export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useSyncExternalStore(
     (listener) => subscribe(match, listener),
@@ -2704,10 +2709,16 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * true for the same bar.
    */
   const confirmPrompt = !spectator && !askOpen && !playOrDraw && isConfirmPrompt(bar);
-  /* A yes/no about a card still in a library (a scry 1's Top or Bottom): the board has no face of it, so the window draws it. */
+  /*
+   * A yes/no about a card the board does not draw whole draws it in the window: a scry 1's library
+   * card, the card cascade or discover offers to cast from exile (the operator, 2026-10-22: "effects
+   * like discover/cascade must [show] the full card that they are casting. at the moment it just
+   * shows text"), a card in a hand or a graveyard. A permanent or a spell on the stack the board
+   * already draws: the window points at it there, as an optional trigger's source always has.
+   */
   const confirmCardId = confirmPrompt ? match.promptCard : null;
   const confirmCard =
-    confirmCardId !== null && match.view?.players.some((p) => p.libraryIds?.includes(confirmCardId) === true) === true
+    confirmCardId !== null && match.view !== null && !drawnWhole(match.view, confirmCardId)
       ? { id: confirmCardId, tile: promptTileFor(lookupFromState(match.state), confirmCardId) }
       : undefined;
   /* "Your move": a decision window opened for this seat — an ask, or a yes/no in the decision area. */
