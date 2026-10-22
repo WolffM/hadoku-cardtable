@@ -1871,6 +1871,11 @@ describe('a mana payment pops out of the corner', () => {
     // Forge's labels, not ours.
     expect(getByTestId('live-payment-ok').textContent).toBe('Auto');
     expect(getByTestId('live-payment-cancel').textContent).toBe('Cancel');
+    // Two answers: Forge's button one bottom-left, its Cancel bottom-right.
+    const row = sheet.querySelector<HTMLElement>('.answers')!;
+    expect(row.dataset.pair).toBe('true');
+    expect(row.firstElementChild).toBe(getByTestId('live-payment-ok'));
+    expect(row.lastElementChild).toBe(getByTestId('live-payment-cancel'));
     /*
      * And it is NOT `live-prompt`. That id means "one of Forge's fifteen asks is
      * open" to three e2e readers — `e2e/play/prompts.ts` switches on the host's
@@ -2010,6 +2015,16 @@ describe('Concede asks first', () => {
     // The safe button has the focus: Enter on a dialog nobody read must not end
     // the game.
     expect(document.activeElement).toBe(getByTestId('live-concede-no'));
+  });
+
+  it('its two answers sit at the box’s opposite ends: Concede bottom-left, Cancel bottom-right', async () => {
+    const { getByTestId } = await liveBoard();
+    fireEvent.click(getByTestId('live-concede'));
+    const ask = await waitFor(() => getByTestId('live-concede-ask'));
+    const row = ask.querySelector<HTMLElement>('.answers')!;
+    expect(row.dataset.pair).toBe('true');
+    expect(row.firstElementChild).toBe(getByTestId('live-concede-yes'));
+    expect(row.lastElementChild).toBe(getByTestId('live-concede-no'));
   });
 
   it('cancel closes it and sends nothing', async () => {
