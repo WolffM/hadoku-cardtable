@@ -106,13 +106,14 @@ test(titled('Tinker with two artifacts: the sacrifice is on screen the moment Fo
     expect(thopter, 'alice has her Ornithopter').not.toBeUndefined();
     const { bauble, from } = await castTinker(page, stack);
 
-    // Forge asks the sacrifice first, before it takes the mana.
+    // Forge asks the sacrifice first, before it takes the mana. The Ornithopter is what says the sacrifice is on
+    // screen: the Bauble's own ability already had it offered at the priority before (run 39832352790).
     await expect
-      .poll(() => isOffered(page, bauble), { timeout: 20_000, message: `the sacrifice is on screen — ${await drawn(page)}` })
+      .poll(() => isOffered(page, thopter!), { timeout: 20_000, message: `the sacrifice is on screen — ${await drawn(page)}` })
       .toBe(true);
     const paidForHer = () => serverLog(stack).some((r) => r.evt === 'auto-paid' && r.seat === 0 && r.cost === '{2}{U}');
     expect(paidForHer(), 'the sacrifice is asked before the mana is taken').toBe(false);
-    expect(await isOffered(page, thopter!), 'the Ornithopter is offered too').toBe(true);
+    expect(await isOffered(page, bauble), 'the Bauble is offered too').toBe(true);
     // Forge sends the question's words after the offer (`setSelectables`, then `tempShowZones` answered by
     // this screen, then the prompt): wait for the words, not one read taken between the two.
     await expect.poll(() => says(page), { timeout: 5_000, message: `the board words the sacrifice — ${await drawn(page)}` }).toMatch(/sacrifice/i);
