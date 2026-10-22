@@ -47,6 +47,19 @@
  * No image code path (D13): every field this writes is named explicitly, and
  * the control at the bottom of `main` refuses to write a catalog carrying an
  * image field or an image-shaped URL, exactly as `build-pool.ts`'s does.
+ *
+ * ## `runBuildCatalog` (wave 74 §G)
+ *
+ * The CLI's own work — read `cards.jsonl`, build the index, write the
+ * catalog, run the D13 control — is `runBuildCatalog`, callable directly so
+ * the server's catalog-refresh job (`apps/server/src/pools/refresh.ts`) can
+ * rebuild in-process without shelling out. `main` is now a thin wrapper:
+ * same argv parsing, same two `console.log` lines, same `process.exit(1)` on
+ * a bad cache or a D13 violation — no behaviour change to the CLI. The only
+ * difference is that `runBuildCatalog` THROWS on those two failures instead
+ * of calling `process.exit` itself, which is what makes it safe to call
+ * in-process: a refresh job that caught `process.exit` would still take the
+ * whole server down with it.
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -104,21 +117,36 @@ export function buildCatalog(index: CardIndex): CatalogFile {
   return { cards, aliases };
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const dataArg = args.find((a) => a.startsWith('--data='));
-  const outArg = args.find((a) => a.startsWith('--out='));
-  const dataDir = dataArg ? resolve(dataArg.slice('--data='.length)) : defaultDataDir();
-  const outPath = outArg ? resolve(outArg.slice('--out='.length)) : resolve(process.env.CARDTABLE_CATALOG ?? defaultOutPath());
+export interface RunBuildCatalogOptions {
+  readonly dataDir?: string;
+  readonly outPath?: string;
+}
+
+export interface RunBuildCatalogResult {
+  readonly outPath: string;
+  readonly cardCount: number;
+  readonly aliasCount: number;
+  readonly printings: number;
+}
+
+/**
+ * Read `<dataDir>/cards.jsonl`, build the catalog, write it to `outPath`, and
+ * run the D13 image control — the whole CLI minus argv parsing and console
+ * output. Throws (never `process.exit`s) on a missing cache or a D13
+ * violation, so a caller running this in-process — `main` below, or the
+ * server's refresh job — decides what to do about the failure instead of
+ * the process dying under it.
+ */
+export async function runBuildCatalog(options: RunBuildCatalogOptions = {}): Promise<RunBuildCatalogResult> {
+  const dataDir = options.dataDir ?? defaultDataDir();
+  const outPath = options.outPath ?? resolve(process.env.CARDTABLE_CATALOG ?? defaultOutPath());
 
   const cachePath = resolve(dataDir, 'cards.jsonl');
   let raw: string;
   try {
     raw = await readFile(cachePath, 'utf8');
   } catch {
-    console.error(`No card cache at ${cachePath}.\nRun: pnpm --filter @hadoku/carddata sync (or pass --data=)`);
-    process.exit(1);
-    return;
+    throw new Error(`No card cache at ${cachePath}.\nRun: pnpm --filter @hadoku/carddata sync (or pass --data=)`);
   }
 
   const cards: GameplayCard[] = [];
@@ -134,7 +162,6 @@ async function main(): Promise<void> {
 
   const cardCount = Object.keys(catalog.cards).length;
   const aliasCount = Object.keys(catalog.aliases).length;
-  console.log(`catalog: ${cardCount} cards, ${aliasCount} aliases, from ${index.printings} printings -> ${outPath}`);
 
   // The control that matters: no image data may reach a payload built from
   // this file. Same discipline as `build-pool.ts`'s control, and the same
@@ -145,20 +172,39 @@ async function main(): Promise<void> {
   for (const card of Object.values(catalog.cards)) {
     for (const [key, value] of Object.entries(card as Record<string, unknown>)) {
       if (IMAGE_FIELD.test(key)) {
-        console.error(`D13 VIOLATION: field "${key}" on ${String((card as Record<string, unknown>).name)}. Refusing to write it.`);
-        process.exit(1);
+        throw new Error(`D13 VIOLATION: field "${key}" on ${String((card as Record<string, unknown>).name)}. Refusing to write it.`);
       }
       if (typeof value === 'string' && IMAGE_URL.test(value)) {
-        console.error(`D13 VIOLATION: image URL in "${key}" on ${String((card as Record<string, unknown>).name)}. Refusing to write it.`);
-        process.exit(1);
+        throw new Error(`D13 VIOLATION: image URL in "${key}" on ${String((card as Record<string, unknown>).name)}. Refusing to write it.`);
       }
     }
   }
-  console.log(`D13 control: ${cardCount} cards, no image field and no image URL.`);
+
+  return { outPath, cardCount, aliasCount, printings: index.printings };
 }
 
-// Guarded so `buildCatalog` can be imported by a unit test without running
-// the whole CLI — `build-catalog.test.ts` does exactly that. Same guard
-// `build-pool.ts` uses; see its tail comment for why `import.meta.main` is
-// the right check.
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const dataArg = args.find((a) => a.startsWith('--data='));
+  const outArg = args.find((a) => a.startsWith('--out='));
+  const dataDir = dataArg ? resolve(dataArg.slice('--data='.length)) : undefined;
+  const outPath = outArg ? resolve(outArg.slice('--out='.length)) : undefined;
+
+  let result: RunBuildCatalogResult;
+  try {
+    result = await runBuildCatalog({ dataDir, outPath });
+  } catch (err) {
+    console.error((err as Error).message);
+    process.exit(1);
+    return;
+  }
+
+  console.log(`catalog: ${result.cardCount} cards, ${result.aliasCount} aliases, from ${result.printings} printings -> ${result.outPath}`);
+  console.log(`D13 control: ${result.cardCount} cards, no image field and no image URL.`);
+}
+
+// Guarded so `buildCatalog`/`runBuildCatalog` can be imported by a unit test
+// or the server's refresh job without running the whole CLI —
+// `build-catalog.test.ts` does exactly that. Same guard `build-pool.ts` uses;
+// see its tail comment for why `import.meta.main` is the right check.
 if (import.meta.main) await main();

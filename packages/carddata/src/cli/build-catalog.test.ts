@@ -14,10 +14,13 @@
  * rather than carrying a second, stale copy.
  */
 
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildCardIndex } from '../resolve.ts';
 import type { GameplayCard } from '../scryfall/project.ts';
-import { buildCatalog } from './build-catalog.ts';
+import { buildCatalog, runBuildCatalog } from './build-catalog.ts';
 
 const JACE = {
   id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -89,5 +92,52 @@ describe('buildCatalog', () => {
     const index = buildCardIndex([JACE]);
     const catalog = buildCatalog(index);
     expect(catalog.aliases["jace, vryn's prodigy"]).toBe("jace, vryn's prodigy // jace, telepath unbound");
+  });
+});
+
+/**
+ * `runBuildCatalog` — the same build, driven end to end from a `cards.jsonl`
+ * on disk rather than an in-memory `CardIndex`, so `apps/server/src/pools/refresh.ts`
+ * (wave 74 §G) has a function it can call in-process instead of shelling out.
+ * No CLI argv here on purpose: `main`'s own argv parsing is untouched and
+ * unexercised by this file — these tests are for the extracted function.
+ */
+describe('runBuildCatalog', () => {
+  let dataDir: string;
+
+  beforeEach(async () => {
+    dataDir = await mkdtemp(join(tmpdir(), 'build-catalog-data-'));
+  });
+
+  afterEach(async () => {
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
+  it('reads cards.jsonl from dataDir and writes a catalog to outPath', async () => {
+    await writeFile(join(dataDir, 'cards.jsonl'), `${JSON.stringify(FIRE_ICE)}\n`, 'utf8');
+    const outDir = await mkdtemp(join(tmpdir(), 'build-catalog-out-'));
+    const outPath = join(outDir, 'cards.json');
+
+    const result = await runBuildCatalog({ dataDir, outPath });
+
+    expect(result.outPath).toBe(outPath);
+    expect(result.cardCount).toBe(1);
+    expect(result.aliasCount).toBeGreaterThanOrEqual(0); // a split card's halves (Fire, Ice) alias to the whole
+    const written = JSON.parse(await readFile(outPath, 'utf8')) as { cards: Record<string, unknown> };
+    expect(written.cards['fire // ice']).toBeDefined();
+
+    await rm(outDir, { recursive: true, force: true });
+  });
+
+  it('throws (never process.exit) when dataDir has no cards.jsonl, carrying the same message main() used to print', async () => {
+    await expect(runBuildCatalog({ dataDir, outPath: join(dataDir, 'cards.json') })).rejects.toThrow(/No card cache at/);
+  });
+
+  it('reports printings from the index, which can exceed cardCount for a multi-printing name', async () => {
+    const reprint = { ...FIRE_ICE, id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', set: 'mh2', collector_number: '227' };
+    await writeFile(join(dataDir, 'cards.jsonl'), `${JSON.stringify(FIRE_ICE)}\n${JSON.stringify(reprint)}\n`, 'utf8');
+    const result = await runBuildCatalog({ dataDir, outPath: join(dataDir, 'cards.json') });
+    expect(result.cardCount).toBe(1); // one name -> one catalog entry (build-catalog.ts's own rule)
+    expect(result.printings).toBe(2); // both printings were indexed by buildCardIndex
   });
 });
