@@ -92,6 +92,7 @@ import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
 import { attachTrim } from './http/trim.js';
 import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
+import { attachSetRoutes, createSetsStore } from './pools/sets.js';
 import { loadCardCatalog } from './pools/catalog.js';
 import { createForgePools, type ForgePools } from './pools/forge.js';
 import { serveCover } from './cover.js';
@@ -412,13 +413,31 @@ const forgePools: ForgePools | null = forge.ok
 	? createForgePools(forge.config, jsonLogger('cardtable-pools'))
 	: null;
 
-/** `src.kind === 'set'` never reaches a pod this wave — `PUT …/pod/plan` refuses it at 400 before any room's plan is ever set to one. */
+// Wave 74 §E: every set Forge has a draft template for, plus each one's
+// resolved card list (set-cube size) and name — `createSetsStore`'s own
+// cache. Warmed here, once, rather than lazily on the first `GET
+// /api/pools/sets` or the first plan a leader picks: `poolResolver.name`
+// below needs a set's real name SYNCHRONOUSLY (`DraftRooms.nameOf`,
+// `PodView.planName`), and warming here is also what makes a leader's first
+// pick of ANY set instant — `cardsFor` then hits `list()`'s own cache
+// instead of a fresh Forge round-trip. `[]` without a jar, no warming to do.
+const setsStore = createSetsStore({ forge: forgePools, catalog, log: jsonLogger('cardtable-pools') });
+const setsList = await setsStore.list();
+if (forge.ok && setsList.length === 0) console.warn('[cardtable] draft pool: Forge reports no draftable sets — the Set tab is empty');
+
 const poolResolver: PoolSourceResolver = {
 	cards(src) {
-		return src.kind === 'cube' ? (cubeStore.cards(src.cubeId) ?? []) : [];
+		if (src.kind === 'cube') return cubeStore.cards(src.cubeId) ?? [];
+		if (src.style === 'set-cube') return setsStore.cachedCards(src.code) ?? [];
+		// A realistic round is never asked for a pool to shuffle — its packs are
+		// pre-fetched and cached per draft id (`DraftRooms.cacheRealisticRound`,
+		// wired by `http/rooms.ts`'s `/start`), never through this seam.
+		return [];
 	},
 	name(src) {
-		return src.kind === 'cube' ? (cubeStore.list().find((c) => c.id === src.cubeId)?.name ?? src.cubeId) : `${src.code} (${src.style})`;
+		if (src.kind === 'cube') return cubeStore.list().find((c) => c.id === src.cubeId)?.name ?? src.cubeId;
+		const setName = setsStore.nameOf(src.code) ?? src.code;
+		return `${setName} · ${src.style === 'realistic' ? 'Realistic' : 'Set-cube'}`;
 	},
 };
 const defaultCubeCards = cubeStore.cards(DEFAULT_CUBE_ID) ?? null;
@@ -429,7 +448,7 @@ const defaultCubeCards = cubeStore.cards(DEFAULT_CUBE_ID) ?? null;
 // hatch; see config.ts's own doc). Warned at boot, grouped with the other
 // boot warnings, below.
 const checkDraftPlan = (plan: DraftPlan): Promise<PoolVerdict> =>
-	checkPlan(plan, { cubes: cubeStore, forge: forgePools, uncheckedWithoutJar: CONFIG.testUncheckedPools });
+	checkPlan(plan, { cubes: cubeStore, sets: setsStore, forge: forgePools, uncheckedWithoutJar: CONFIG.testUncheckedPools });
 
 const lobby = await openLobby({
 	dir: CONFIG.roomsDir,
@@ -451,6 +470,20 @@ attachRooms(api, {
 		// An unfinished draft has no deck to keep; a finished one stays on its drafters' Decks page.
 		const draft = draftRooms?.find(roomId);
 		if (draft !== undefined && stateOf(draft).status !== 'complete') draftRooms?.delete(roomId);
+	},
+	// Wave 74 §E step 2: `POST …/start` fetches a realistic round's boosters
+	// and caches them on `draftRooms` BEFORE `lobby.startDraft` ever runs, so
+	// `draftRooms.open()` (the first socket `join`'s own call) stays
+	// synchronous. `draftRooms` is built below, after `poolResolver` — this
+	// object is a closure, read lazily the first time `/start` actually needs
+	// it, so the forward reference resolves once `draftRooms` is assigned.
+	realistic: {
+		forge: forgePools,
+		catalog,
+		get draftRooms() {
+			if (draftRooms === null) throw new Error('draftRooms is not wired — no shortlist cube loaded');
+			return draftRooms;
+		},
 	},
 });
 attachTournaments(api, { tournaments });
@@ -548,6 +581,10 @@ attachDecks(api, { draftRooms, room: (id) => lobby.get(id) });
 // and at refresh (never a cached verdict — "An import is checked when it is
 // saved"), the same `checkCards` `room/plan.ts`'s own `checkSource` runs.
 attachCubeRoutes(api, { store: cubeStore, check: (cards) => checkCards(cards, forgePools, { uncheckedWithoutJar: CONFIG.testUncheckedPools }) });
+
+// GET /api/pools/sets — every set Forge can draft (ruling 8), newest first,
+// each with its set-cube size and a cache-only verdict (wave 74 §E step 4).
+attachSetRoutes(api, { store: setsStore });
 
 // ── Matches ──────────────────────────────────────────────────────────────────
 // One child JVM per match; see src/play/README.md. Without a configured Forge
