@@ -1153,11 +1153,6 @@ button {
   color: var(--ink-dim);
 }
 
-/* The pack's layout at the foot of the column, under the pod. */
-.draft__aside > .draft__bar {
-  margin-top: auto;
-}
-
 
 /*
  * Card art — the image, from our CDN or upstream, covering the text tile.
