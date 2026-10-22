@@ -156,6 +156,53 @@ describe('loadCardCatalog byPrinting', () => {
 		expect(lea?.scryfallId).not.toBe(m19?.scryfallId);
 	});
 
+	it("answers a printing's OWN rarity, not the chosen printing's — Blazing Torch is ZEN's uncommon and ISD's common", async () => {
+		const path = await writeCatalog(dir, {
+			cards: { 'lightning bolt': { ...BOLT, rarity: 'uncommon' } },
+			aliases: {},
+			printings: {
+				'LEA:161': { key: 'lightning bolt', scryfallId: LEA_BOLT_SCRYFALL_ID, rarity: 'uncommon' },
+				'M19:141': { key: 'lightning bolt', scryfallId: M19_BOLT_SCRYFALL_ID, rarity: 'common' },
+			},
+		});
+		const catalog = loadCardCatalog(path);
+		expect(catalog.byPrinting('M19', '141')?.rarity).toBe('common');
+		expect(catalog.byPrinting('LEA', '161')?.rarity).toBe('uncommon');
+	});
+
+	it("lays the printing over every face too — its set line, its rarity and its own back image", async () => {
+		const chosenId = '45f81bc4-0c86-4f8a-8b7e-7b1c9a1e6a11';
+		const otherId = 'cccccccc-0000-4000-8000-000000000003';
+		const back = {
+			name: 'Insectile Aberration',
+			scryfallId: `${chosenId}#back`,
+			manaCost: [],
+			manaValue: 0,
+			colors: ['U'],
+			typeLine: 'Creature — Human Insect',
+			oracleText: 'Flying',
+			setCode: 'ISD',
+			collectorNumber: '51',
+			rarity: 'common',
+		};
+		const path = await writeCatalog(dir, {
+			cards: { 'delver of secrets // insectile aberration': { ...DELVER, scryfallId: chosenId, faces: [back] } },
+			aliases: {},
+			printings: { 'MID:47': { key: 'delver of secrets // insectile aberration', scryfallId: otherId, rarity: 'uncommon' } },
+		});
+		const face = loadCardCatalog(path).byPrinting('MID', '47')?.faces?.[0];
+		expect(face).toMatchObject({ name: 'Insectile Aberration', setCode: 'MID', collectorNumber: '47', rarity: 'uncommon', scryfallId: `${otherId}#back` });
+	});
+
+	it("keeps the card's own rarity for a ref from an older file that carries none", async () => {
+		const path = await writeCatalog(dir, {
+			cards: { 'lightning bolt': BOLT },
+			aliases: {},
+			printings: { 'M19:141': { key: 'lightning bolt', scryfallId: M19_BOLT_SCRYFALL_ID } },
+		});
+		expect(loadCardCatalog(path).byPrinting('M19', '141')?.rarity).toBe('common');
+	});
+
 	it('misses a printing with no entry in `printings` at all (the caller falls back to byName)', async () => {
 		const path = await writeCatalog(dir, {
 			cards: { 'lightning bolt': BOLT },

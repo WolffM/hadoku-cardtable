@@ -157,6 +157,14 @@ describe('buildCatalog printings', () => {
     expect(leaRef?.scryfallId).toBe(LEA_BOLT.id);
   });
 
+  it("each printing's ref carries that printing's own rarity", () => {
+    const index = buildCardIndex([{ ...LEA_BOLT, rarity: 'uncommon' } as unknown as GameplayCard, M19_BOLT]);
+    const catalog = buildCatalog(index);
+    expect((catalog.cards['lightning bolt'] as { rarity: string }).rarity).toBe('uncommon');
+    expect(catalog.printings['LEA:161']?.rarity).toBe('uncommon');
+    expect(catalog.printings['M19:141']?.rarity).toBe('common');
+  });
+
   it('a digital-only printing is still indexed by its own set+collector number', () => {
     const digital = { ...M19_BOLT, id: 'cccccccc-0000-4000-8000-000000000003', set: 'mb2', collector_number: '9', digital: true } as unknown as GameplayCard;
     const index = buildCardIndex([LEA_BOLT, digital]);
