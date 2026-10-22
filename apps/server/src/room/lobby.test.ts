@@ -25,13 +25,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
 import type { Tournament } from './tournaments.ts';
 import { loadPool } from './pool.ts';
-import { POD_SEATS } from '@hadoku/shared';
+import { POD_SEATS, type PoolVerdict } from '@hadoku/shared';
 import {
 	AVATAR_ID_MAX,
 	AVATAR_POOL,
@@ -2661,5 +2661,102 @@ describe('a constructed room’s mode', () => {
 		const quarantined = logged.filter((e) => e.event === 'room-quarantined');
 		expect(quarantined.map((e) => e.roomId).sort()).toEqual(['r-mmmmmmmmmmm4', 'r-mmmmmmmmmmm5']);
 		expect(quarantined.every((e) => String(e.reason).includes('app.mode'))).toBe(true);
+	});
+});
+
+/*
+ * wave 73 §A follow-up (manager, 2026-10-22): a new room's default plan has
+ * `verdict: null` until a PUT runs one — but nothing PUTs on a room nobody
+ * has touched yet, so `planVerdict` stayed null forever and B's Start gate
+ * (disabled unless `verdict.ok`) could never open. A room whose plan has no
+ * verdict — just created, or just restored with one still null — is checked
+ * in the BACKGROUND, the result lands via `#persist` (disk + `onChange`,
+ * same as any other pod mutation), and concurrent checks of the identical
+ * plan are deduped to one call.
+ */
+describe("a room's plan checks itself — created or restored, not only PUT", () => {
+	it('a newly created draft room gets its verdict with no PUT at all, and the change is observable', async () => {
+		const dir = await tempDir();
+		let calls = 0;
+		const checkPlan = async (): Promise<PoolVerdict> => {
+			calls++;
+			return { ok: true, cards: 42 };
+		};
+		const lobby = await openLobby({ dir, checkPlan });
+		const changed: string[] = [];
+		lobby.onChange((id) => changed.push(id));
+		const made = lobby.create(ALICE, { name: 'auto-check', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		// Not synchronous: the create answers before the background check lands.
+		expect(made.room.pod?.verdict).toBeNull();
+		await vi.waitFor(() => expect(lobby.get(made.room.id)?.pod?.verdict).toEqual({ ok: true, cards: 42 }));
+		expect(calls).toBe(1);
+		expect(changed).toContain(made.room.id);
+	});
+
+	it('dedupes concurrent checks of the identical plan across rooms — one call, not two', async () => {
+		const dir = await tempDir();
+		let calls = 0;
+		let resolveCheck: ((v: PoolVerdict) => void) | null = null;
+		const checkPlan = (): Promise<PoolVerdict> => {
+			calls++;
+			return new Promise((resolve) => {
+				resolveCheck = resolve;
+			});
+		};
+		const lobby = await openLobby({ dir, checkPlan });
+		const a = lobby.create(ALICE, { name: 'a', gameType: 'draft', clientMode: 'builtin' });
+		const b = lobby.create(BOB, { name: 'b', gameType: 'draft', clientMode: 'builtin' });
+		if (!a.ok || !b.ok) throw new Error('create failed');
+		// Both rooms open on the identical DEFAULT_PLAN — one in-flight check, not two.
+		expect(calls).toBe(1);
+		resolveCheck!({ ok: true, cards: 1 });
+		await vi.waitFor(() => {
+			expect(lobby.get(a.room.id)?.pod?.verdict).toEqual({ ok: true, cards: 1 });
+			expect(lobby.get(b.room.id)?.pod?.verdict).toEqual({ ok: true, cards: 1 });
+		});
+	});
+
+	it("a constructed room's plan field is never checked — it drafts nothing", async () => {
+		const dir = await tempDir();
+		const checkPlan = vi.fn();
+		const lobby = await openLobby({ dir, checkPlan });
+		lobby.create(ALICE, { name: 'c', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		await new Promise((r) => setTimeout(r, 20));
+		expect(checkPlan).not.toHaveBeenCalled();
+	});
+
+	it('a room restored with a null verdict (the checker never answered before the process died) is checked again at boot', async () => {
+		const dir = await tempDir();
+		// Never resolves — simulates a process that died mid-check, leaving the
+		// snapshot on disk with `planVerdict: null`.
+		const first = await openLobby({ dir, checkPlan: () => new Promise<PoolVerdict>(() => {}) });
+		const made = first.create(ALICE, { name: 'r', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		expect(made.room.pod?.verdict).toBeNull();
+
+		let resolved = 0;
+		const second = await openLobby({
+			dir,
+			checkPlan: async () => {
+				resolved++;
+				return { ok: true, cards: 7 };
+			},
+		});
+		await vi.waitFor(() => expect(second.get(made.room.id)?.pod?.verdict).toEqual({ ok: true, cards: 7 }));
+		expect(resolved).toBe(1);
+	});
+
+	it('a failed check logs rather than throwing, and leaves the verdict null for a later check to pick up', async () => {
+		const dir = await tempDir();
+		const logged: Record<string, unknown>[] = [];
+		const checkPlan = async (): Promise<PoolVerdict> => {
+			throw new Error('forge pool service unreachable');
+		};
+		const lobby = await openLobby({ dir, checkPlan, log: (e) => void logged.push(e) });
+		const made = lobby.create(ALICE, { name: 'fails', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		await vi.waitFor(() => expect(logged.some((e) => e.event === 'plan-check-failed')).toBe(true));
+		expect(lobby.get(made.room.id)?.pod?.verdict).toBeNull();
 	});
 });
