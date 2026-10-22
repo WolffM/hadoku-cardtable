@@ -279,7 +279,12 @@ describe('the pool picker (wave 73 §B)', () => {
     await waitFor(() => expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('refused'));
 
     expect(screen.getByTestId('pool-picker-verdict').textContent).toBe('Forge is not available to check playability — try again once the pool service is up');
-    expect((screen.getByTestId(`pool-picker-cubes-${cube.id}`) as HTMLInputElement).checked, 'still shows the room’s own (refused) plan chosen').toBe(true);
+    // `pool-picker-verdict` renders on the first pass from the `pod` prop; the cube
+    // radios come from the async `pools.listCubes()` and may not have landed yet —
+    // `findByTestId`, not `getByTestId`, so a slow fake (or a busy CI runner)
+    // does not flake this (hadoku-cardtable-76, 1 failure in 30 unmodified).
+    const radio = (await screen.findByTestId(`pool-picker-cubes-${cube.id}`)) as HTMLInputElement;
+    expect(radio.checked, 'still shows the room’s own (refused) plan chosen').toBe(true);
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -412,9 +417,12 @@ describe('the Custom tab (wave 74 §F)', () => {
     fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
     await waitFor(() => expect(screen.getByTestId('pool-picker-custom-round-0')).not.toBeNull());
 
-    // Round 0: the good cube.
-    fireEvent.click(screen.getByTestId('pool-picker-custom-round-0-cubes-good-cube'));
+    // Round 0: the good cube. The round's CONTAINER renders at once; its cube
+    // rows come from the async `pools.listCubes()` — `findByTestId`, not a
+    // bare `getByTestId`, for the first touch of a list-derived row.
+    fireEvent.click(await screen.findByTestId('pool-picker-custom-round-0-cubes-good-cube'));
     // Round 1 (a second round of the same source works too — rounds are independent).
+    // `cubes` has already resolved by the line above, so a plain read is safe here.
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-1-cubes-good-cube'));
     // Round 2: switch to Set, pick the one whose OWN cached verdict is already bad.
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-2-type-set'));
@@ -439,7 +447,8 @@ describe('the Custom tab (wave 74 §F)', () => {
     fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
     await waitFor(() => expect(screen.getByTestId('pool-picker-custom-round-0')).not.toBeNull());
 
-    fireEvent.click(screen.getByTestId('pool-picker-custom-round-0-cubes-good-cube'));
+    // First touch of a cube row (listCubes-derived) — findByTestId, not getByTestId; see the test above.
+    fireEvent.click(await screen.findByTestId('pool-picker-custom-round-0-cubes-good-cube'));
     expect(rooms.setPlan, 'two of three rounds still unchosen').not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId('pool-picker-custom-round-1-cubes-good-cube'));
     expect(rooms.setPlan, 'one round still unchosen').not.toHaveBeenCalled();
@@ -495,7 +504,9 @@ describe('presets (wave 74 §G routes, §F UI)', () => {
     render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
     fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
     await waitFor(() => expect(screen.getByTestId('pool-picker-custom-round-0')).not.toBeNull());
-    for (const round of [0, 1, 2]) fireEvent.click(screen.getByTestId(`pool-picker-custom-round-${round}-cubes-good-cube`));
+    // Round 0 is the first touch of a cube row (listCubes-derived) — findByTestId, not getByTestId; see the test above.
+    fireEvent.click(await screen.findByTestId('pool-picker-custom-round-0-cubes-good-cube'));
+    for (const round of [1, 2]) fireEvent.click(screen.getByTestId(`pool-picker-custom-round-${round}-cubes-good-cube`));
     // The third round's pick fires the real (mocked) `setPlan` round trip —
     // wait for it to settle (Save is disabled, same as Ready, while busy)
     // before touching the save form.
