@@ -443,4 +443,27 @@ describe('a series result', () => {
 			['bot', 1],
 		]);
 	});
+
+	it('a Bo3 that ended undecided at 1-1 is a draw: both seats first, one game won each', async () => {
+		const { stats, sent } = seriesStats();
+		stats.seriesEnd({
+			roomId: 'r-abcdefabcdef',
+			tableId: 't-00000001',
+			mode: 'classic',
+			bestOf: 3,
+			seats: [
+				{ memberId: ALICE_ID, name: 'Alice' },
+				{ memberId: 'fk:nobodyknowsme0', name: 'Bob' },
+			],
+			wins: [1, 1],
+			games: GAMES.slice(0, 2),
+			winner: null,
+		});
+		await vi.waitFor(() => expect(sent).toHaveLength(1));
+		expect(sent[0]).toMatchObject({ attrs: { mode: 'classic', bestOf: 3, score: '1-1' }, counters: { games: 2 } });
+		expect(sent[0]!.seats.map((s) => [s.displayName, s.placement, s.counters?.wins])).toEqual([
+			['Alice', 1, 1],
+			['Bob', 1, 1],
+		]);
+	});
 });

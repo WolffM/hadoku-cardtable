@@ -1300,7 +1300,8 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 	/** A room with Alice and Bob seated at the first table and game 1 under way; `ended` collects every series result. */
 	async function playingTable(opts: { checks?: PodChecks } = {}) {
 		const ended: SeriesEnd[] = [];
-		const lobby = await openLobby({ dir: await tempDir(), onSeriesEnd: (end) => ended.push(end) });
+		const logged: Record<string, unknown>[] = [];
+		const lobby = await openLobby({ dir: await tempDir(), onSeriesEnd: (end) => ended.push(end), log: (e) => void logged.push(e) });
 		if (opts.checks !== undefined) lobby.setPodChecks(opts.checks);
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 		if (!made.ok) throw new Error('create failed');
@@ -1309,7 +1310,7 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 		expect(lobby.join(id, BOB).ok).toBe(true);
 		expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
 		expect(lobby.setTableMatch(id, tableId, 'm-game-1')).toBe(true);
-		return { lobby, id, tableId, ended };
+		return { lobby, id, tableId, ended, logged };
 	}
 
 	it('starts as Bo1 and is done after one game; the result waits for the room to move on', async () => {
@@ -1463,12 +1464,12 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 	});
 
 	/*
-	 * The operator, 2026-10-21: "in that case we just record the completed games
-	 * as Bo1, uncompleted games are trashed". A Bo3 whose players leave before it
-	 * is decided is not recorded as a Bo3 at all: each finished game is its own
-	 * Bo1, keyed by its own match, and a game still in play counts for nothing.
+	 * Rulings 10 and 14 (`constructed-modes-plan.md`). A Bo3 that ends undecided
+	 * — its players leave it, or the room changes under it — records what was
+	 * finished: one game is a Bo1 of that game; two (1-1) are still the Bo3, a
+	 * draw. A game still in play counts for nothing.
 	 */
-	describe('a Bo3 its players leave undecided records each finished game as a Bo1', () => {
+	describe('a Bo3 that ends undecided: one finished game is a Bo1, 1-1 is a drawn Bo3', () => {
 		/** Alice and Bob in a Bo3 (a Rematch) at 1-1, game 3 under way. */
 		async function oneAllAndPlaying() {
 			const t = await playingTable();
@@ -1492,11 +1493,31 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 			games: [{ matchId, winner }],
 			winner,
 		});
+		const drawnBo3 = (id: string, tableId: string, mode = 'classic') => ({
+			...bo1(id, tableId, 'm-game-1', 0),
+			mode,
+			bestOf: 3,
+			wins: [1, 1],
+			games: [
+				{ matchId: 'm-game-1', winner: 0 },
+				{ matchId: 'm-game-2', winner: 1 },
+			],
+			winner: null,
+		});
+		/** Alice and Bob at 1-1 in sideboarding for game 3, nothing in play. */
+		async function oneAllBetween() {
+			const t = await playingTable();
+			t.lobby.recordGameResult(t.id, t.tableId, { matchId: 'm-game-1', winner: 0 });
+			expect(t.lobby.beginSideboarding(t.id, t.tableId)).toBe(true);
+			expect(t.lobby.setTableMatch(t.id, t.tableId, 'm-game-2')).toBe(true);
+			expect(t.lobby.recordGameResult(t.id, t.tableId, { matchId: 'm-game-2', winner: 1 })).toMatchObject({ phase: 'sideboarding' });
+			return t;
+		}
 
-		it('a player leaves the room mid-game: the two finished games are two Bo1s, game 3 is discarded, and the table moves on', async () => {
+		it('a player leaves the room mid-game at 1-1: the Bo3 is recorded as a draw, game 3 is discarded, and the table moves on', async () => {
 			const { lobby, id, tableId, ended } = await oneAllAndPlaying();
 			expect(lobby.leave(id, BOB.id).ok).toBe(true);
-			expect(ended).toEqual([bo1(id, tableId, 'm-game-1', 0), bo1(id, tableId, 'm-game-2', 1)]);
+			expect(ended).toEqual([drawnBo3(id, tableId)]);
 			expect(lobby.get(id)?.tables[0]?.series, 'the abandoned series is over').toMatchObject({ phase: 'done', games: [{ matchId: 'm-game-1' }, { matchId: 'm-game-2' }] });
 			// Game 3 ends after the leave: nothing is recorded for it.
 			expect(lobby.recordGameResult(id, tableId, { matchId: 'm-game-3', winner: 0 })).toMatchObject({ ok: true, phase: 'done' });
@@ -1506,7 +1527,7 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 			expect(lobby.setTableMatch(id, tableId, 'm-next')).toBe(true);
 			expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 1, wins: [0, 0], games: [], phase: 'playing' });
 			expect(lobby.close(id, ALICE.id).ok).toBe(true);
-			expect(ended).toHaveLength(2);
+			expect(ended).toHaveLength(1);
 		});
 
 		it('a player stands up between games: the same, the way a Bo1 ends when its seat is left', async () => {
@@ -1542,10 +1563,69 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 			expect(ended).toEqual([{ ...bo1(id, tableId, 'm-gauntlet-1', 1), mode: 'gauntlet' }]);
 		});
 
-		it('the room is swept mid-series: each finished game is a Bo1, and a game in play is not one', async () => {
+		it('the room is swept mid-series at 1-1: a drawn Bo3, and the game in play is not one of its games', async () => {
 			const { lobby, id, tableId, ended } = await oneAllAndPlaying();
 			expect(lobby.sweep(-1)).toEqual([id]);
-			expect(ended).toEqual([bo1(id, tableId, 'm-game-1', 0), bo1(id, tableId, 'm-game-2', 1)]);
+			expect(ended).toEqual([drawnBo3(id, tableId)]);
+		});
+
+		describe('a room change the series cannot continue through interrupts it (ruling 14)', () => {
+			const changes: [string, (lobby: Lobby, id: string) => { ok: boolean }][] = [
+				['the mode', (lobby, id) => lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'full' } })],
+				['the game type', (lobby, id) => lobby.setGameType(id, ALICE.id, 'draft')],
+				['the pool', (lobby, id) => lobby.setFormat(id, ALICE.id, lobby.get(id)?.format === POOLS[0] ? POOLS[1]! : POOLS[0]!)],
+			];
+
+			for (const [what, change] of changes) {
+				it(`changing ${what} in sideboarding at 1-0 records game 1 as a Bo1, logs it interrupted, and leaves the table clean`, async () => {
+					const { lobby, id, tableId, ended, logged } = await playingTable();
+					lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
+					expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+					expect(change(lobby, id).ok).toBe(true);
+					expect(ended).toEqual([bo1(id, tableId, 'm-game-1', 0)]);
+					expect(logged).toContainEqual(expect.objectContaining({ event: 'table-series-ended', tableId, undecided: 'interrupted' }));
+					// Nothing of the old series is left to continue or to rematch.
+					expect(lobby.get(id)?.tables[0]).toMatchObject({ seats: [null, null], ready: [false, false], matchId: null, series: { wins: [0, 0], games: [], phase: 'seating' } });
+					expect(lobby.beginSideboarding(id, tableId)).toBe(false);
+				});
+
+				it(`changing ${what} at 1-1 between games records the drawn Bo3`, async () => {
+					const { lobby, id, tableId, ended } = await oneAllBetween();
+					expect(change(lobby, id).ok).toBe(true);
+					expect(ended).toEqual([drawnBo3(id, tableId)]);
+				});
+
+				it(`changing ${what} is refused while a game is in play, and the series carries on`, async () => {
+					const { lobby, id, tableId, ended } = await oneAllAndPlaying();
+					expect(change(lobby, id)).toEqual({ ok: false, reason: 'mode-locked' });
+					expect(ended).toEqual([]);
+					expect(lobby.get(id)?.tables[0]).toMatchObject({ seats: [ALICE.id, BOB.id], matchId: 'm-game-3', series: { length: 3, wins: [1, 1], phase: 'playing' } });
+				});
+			}
+
+			it('changing the mode options interrupts it too, and the next start is a fresh series in the new options', async () => {
+				const { lobby, id, tableId, ended } = await playingTable();
+				expect(lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 })).toMatchObject({ phase: 'done' });
+				expect(lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'full' } }).ok).toBe(true);
+				ended.length = 0;
+				expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
+				expect(lobby.setTableMatch(id, tableId, 'm-random-1')).toBe(true);
+				lobby.recordGameResult(id, tableId, { matchId: 'm-random-1', winner: 0 });
+				expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+				expect(lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'modern' } }).ok).toBe(true);
+				expect(ended).toEqual([{ ...bo1(id, tableId, 'm-random-1', 0), mode: 'random' }]);
+				expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
+				expect(lobby.setTableMatch(id, tableId, 'm-random-2')).toBe(true);
+				expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 1, wins: [0, 0], games: [], phase: 'playing' });
+			});
+
+			it('a decided Bo1 the room moves on from is still its one Bo1, not an interruption', async () => {
+				const { lobby, id, tableId, ended, logged } = await playingTable();
+				lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });
+				expect(lobby.setGameType(id, ALICE.id, 'draft').ok).toBe(true);
+				expect(ended).toEqual([bo1(id, tableId, 'm-game-1', 1)]);
+				expect(logged.filter((e) => e.event === 'table-series-ended')).toEqual([expect.not.objectContaining({ undecided: expect.anything() })]);
+			});
 		});
 
 		it('a decided Bo3 is still one Bo3 when a player leaves after it', async () => {
