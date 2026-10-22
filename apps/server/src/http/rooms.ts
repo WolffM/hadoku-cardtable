@@ -183,27 +183,24 @@ export interface RealisticBoosterSource {
 	boosters(code: string, count: number, seed: string): Promise<{ name: string; set: string; collectorNumber: string }[][]>;
 }
 
-/** The slice of G's `CardCatalog` this file needs — `byName` always; `byPrinting`, if present, wins first (feature-detected: G's method may not exist yet — see `hasPrintingLookup`). */
+/** The slice of G's `CardCatalog` this file needs — both always present (`pools/catalog.ts`'s own `CardCatalog`), `byPrinting` tried first. */
 export interface RealisticCatalog {
 	byName(name: string): DraftCard | null;
-}
-
-function hasPrintingLookup(c: RealisticCatalog): c is RealisticCatalog & { byPrinting(set: string, collectorNumber: string): DraftCard | null } {
-	return typeof (c as { byPrinting?: unknown }).byPrinting === 'function';
+	byPrinting(set: string, collectorNumber: string): DraftCard | null;
 }
 
 /**
  * One booster card, mapped to a `DraftCard` through the catalog — the set's
- * own printing when `byPrinting` exists and knows it, `byName` otherwise.
- * A name neither resolves is the honest `missingText` stand-in: `checkSource`
- * should have refused this source before a leader ever reached `/start` with
- * it, so this is a defensive fallback, not the expected path.
+ * own printing when `byPrinting` knows it (it misses until the catalog's
+ * first rebuild with a `printings` section — `pools/catalog.ts`'s own doc),
+ * `byName` otherwise. A name neither resolves is the honest `missingText`
+ * stand-in: `checkSource` should have refused this source before a leader
+ * ever reached `/start` with it, so this is a defensive fallback, not the
+ * expected path.
  */
 function resolveBoosterCard(catalog: RealisticCatalog, card: { name: string; set: string; collectorNumber: string }): DraftCard {
-	if (hasPrintingLookup(catalog)) {
-		const byPrinting = catalog.byPrinting(card.set, card.collectorNumber);
-		if (byPrinting !== null) return byPrinting;
-	}
+	const byPrinting = catalog.byPrinting(card.set, card.collectorNumber);
+	if (byPrinting !== null) return byPrinting;
 	const byName = catalog.byName(card.name);
 	if (byName !== null) return byName;
 	return {

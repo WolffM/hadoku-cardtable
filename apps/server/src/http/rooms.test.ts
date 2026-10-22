@@ -1493,7 +1493,7 @@ describe('POST /api/rooms/:id/start', () => {
 							return Array.from({ length: count }, () => [{ name: 'Mystery Card', set: code, collectorNumber: '1' }]);
 						},
 					},
-					catalog: { byName: () => null }, // nothing resolves — proves the honest missingText fallback still lets the deal happen
+					catalog: { byName: () => null, byPrinting: () => null }, // nothing resolves — proves the honest missingText fallback still lets the deal happen
 					draftRooms: { cacheRealisticRound: (draftId, round, packs) => cached.push({ draftId, round, packs }) },
 				},
 			});
@@ -1519,7 +1519,7 @@ describe('POST /api/rooms/:id/start', () => {
 							throw new Error('the pool JVM is gone');
 						},
 					},
-					catalog: { byName: () => null },
+					catalog: { byName: () => null, byPrinting: () => null },
 					draftRooms: { cacheRealisticRound: () => undefined },
 				},
 			});
@@ -1541,7 +1541,7 @@ describe('POST /api/rooms/:id/start', () => {
 							return Array.from({ length: count }, () => [{ name: 'Mystery Card', set: code, collectorNumber: '1' }]);
 						},
 					},
-					catalog: { byName: () => null },
+					catalog: { byName: () => null, byPrinting: () => null },
 					draftRooms: { cacheRealisticRound: () => undefined },
 				},
 			});
