@@ -17,7 +17,7 @@
  * no markup of ours around it beyond the positioning box. A card's own
  * proportion (488 × 680) is forced here so the placement math in `index.ts`
  * — which sizes the panel as `width × width · 680/488` — is the truth in the
- * DOM: with art the whole-card image covers the tile exactly (`styles.css`,
+ * DOM: with art the whole-card image covers the tile exactly (`CardTile.css`,
  * `.card__art`), without it the text tile fills the same box.
  *
  * The board's tighter tile type (`.board .card` in `../board.css`) applies to

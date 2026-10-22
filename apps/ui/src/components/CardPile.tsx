@@ -2,7 +2,7 @@
  * A pile of cards: its heading (what it holds, and how many), then its cards
  * overlapped in a column, each showing its name strip, the last one whole — the
  * draft's picks and the deck builder's piles are both this, drawn by
- * `.pile` in `styles.css`. A pile taller than its box is split into `cols`
+ * `.pile` in `CardPile.css`. A pile taller than its box is split into `cols`
  * side-by-side columns under its one heading (`cardFit.ts`'s `pilesAt`), and
  * its card width is the `--cw` of whatever holds it.
  */
@@ -10,6 +10,7 @@
 import type { ReactNode } from 'react';
 
 import { columnsOf, cssPx, outerHeight } from './cardFit.ts';
+import './CardPile.css';
 
 export function CardPile<T>({
   head,

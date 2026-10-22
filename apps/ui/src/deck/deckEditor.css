@@ -5,7 +5,7 @@
  * the pool grid and the piles and sets one card width, `--cw`, at which both
  * fit (`components/cardFit.ts`), and the pool grid's height. A pile overlaps
  * its cards to show each one's name bar: the overlap is the card's height
- * less a fifth of its width (`.pile`, `styles.css`); a pile taller than its room splits
+ * less a fifth of its width (`.pile`, `components/CardPile.css`); a pile taller than its room splits
  * into columns side by side.
  */
 

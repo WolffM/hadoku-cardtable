@@ -76,7 +76,7 @@ function GroupHead({ id }: { id: GroupId }) {
 const POOL_ID_OFFSET = 1000;
 
 /**
- * How long a tile's entrance FLIP runs — the one duration `styles.css`'s
+ * How long a tile's entrance FLIP runs — the one duration `draft.css`'s
  * `pool__tile--enter` transition, this file's own cleanup timer, and
  * `DraftScreen.tsx`'s own (which clears `recentlyAdded` so the NEXT pick can
  * set it again) all read, so the three can never drift apart.
@@ -242,7 +242,7 @@ export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color'
  * `enterFrom` is read once — `useRef` so a later render (the `null` that
  * clears `DraftScreen`'s own state after `POOL_ENTER_MS`) does not restart it.
  * `pool__tile--enter` carries the transition and lets a click through the
- * tile in flight (`styles.css`); nothing reads the class once React drops it
+ * tile in flight (`draft.css`); nothing reads the class once React drops it
  * on the state-driven re-render.
  */
 function PoolTile({ card, tileId, enterFrom, from }: { card: DraftCard; tileId: string; enterFrom: PoolEnterRect | null; from: Area | null }) {

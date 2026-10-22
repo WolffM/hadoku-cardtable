@@ -1,0 +1,57 @@
+/*
+ * A pile of cards (`CardPile.tsx`): the draft's picks and the deck builder's piles. Its heading,
+ * then its cards overlapped in a column, every card showing its name strip and the last one whole,
+ * at the `--cw` its screen fits. A pile never moves under the pointer: each card's top
+ * shows, and hovering it opens the inspector (the operator, 2026-10-19: "when cards are stacked,
+ * just don't bring them forward. that way it's always easy to hover all cards").
+ */
+.pile {
+  flex: 0 0 auto;
+  min-width: var(--cw);
+}
+
+.pile__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px;
+  /* As wide as the pile's cards, never wider: a heading must not widen its pile past the fit. */
+  width: 0;
+  min-width: 100%;
+  margin: 0;
+  padding: 0 2px 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+}
+
+.pile[data-empty] .pile__head {
+  opacity: 0.45;
+}
+
+.pile__label {
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pile__cols {
+  display: flex;
+  gap: var(--pile-gap, 8px);
+}
+
+.pile__stack {
+  display: flex;
+  flex-direction: column;
+  width: var(--cw);
+  padding-bottom: 4px;
+}
+
+.pile__stack > * + * {
+  margin-top: calc(var(--cw) * (var(--pile-peek) - 1 / (var(--card-ratio))));
+}

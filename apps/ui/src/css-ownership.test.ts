@@ -45,7 +45,6 @@ const SHARED: Record<string, string> = {
 
 /** Blocks (rules A, B) and classes (rule C) whose fix is in a sheet another lane holds. Each must still fail, or its entry goes. */
 const PENDING: Record<string, string> = {
-  card: 'card.css styles CardTile’s `.card` for the board without scoping it',
 };
 
 /** Classes other packages draw, which our sheets restyle. */

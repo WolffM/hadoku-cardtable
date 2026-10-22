@@ -62,6 +62,7 @@ import { cardImageUrl } from '../draft/cardImage.ts';
 import { withRelatedFaces } from '../draft/related.ts';
 import { playRole, roleHandler } from '../sound/index.ts';
 import { documentScope } from '../dom.ts';
+import './CardTile.css';
 
 const RARITY_LETTER: Record<string, string> = {
   common: 'C',
@@ -137,7 +138,7 @@ export interface CardTileProps {
   liveText?: string | null;
   /**
    * The board's `BoardCard.conditionMet` (`play/adapter.ts`): Forge says this card's own condition
-   * is on. The tile glows (`play/card.css`, `.card[data-condition-met]`) and the ability word that
+   * is on. The tile glows (`CardTile.css`, `.card[data-condition-met]`) and the ability word that
    * names the condition is tinted. The inspector clones this tile, so it shows both too.
    */
   conditionMet?: boolean;

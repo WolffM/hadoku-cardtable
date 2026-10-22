@@ -4,7 +4,7 @@
  * wraps, the dual lists stack below 560px, and nothing here references an image.
  *
  * The card grids (`prompt__cards`) are the wave-20 half of "prompts are
- * cards": the tiles inside them are the draft's own `.card` panel (styles.css)
+ * cards": the tiles inside them are the draft's own `.card` panel (`CardTile.css`)
  * with the board's tile classes (`card.css`) reused read-only for proportion
  * and selection. A prompt styles its own layout; it never restyles a card.
  */
@@ -282,7 +282,7 @@
  * `--card-w` here is the prompt's own size (the board sizes cards per zone in
  * `board.css`; a prompt is not a zone and inherits the draft table's 190px,
  * which is the wrong look for a choice). `auto-fill` + `minmax` is the same
- * wrap `styles.css` gives the pack: N cards is N columns until they stop
+ * wrap `draft.css` gives the pack: N cards is N columns until they stop
  * fitting.
  */
 .prompt__cards {

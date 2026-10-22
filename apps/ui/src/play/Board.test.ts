@@ -1136,6 +1136,8 @@ describe('marks', () => {
 
 const BOARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'board.css'), 'utf8');
 const CARD_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', 'card.css'), 'utf8');
+/** `CardTile`'s own sheet: every card the board draws is one. */
+const TILE_CSS = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play', '../components/CardTile.css'), 'utf8');
 
 /**
  * A stylesheet with its comments taken out, so a grep for a rule cannot be
@@ -1167,7 +1169,7 @@ function turnOf(css: (el: Element, property: string) => string, boardCard: Eleme
  */
 function styled(): (el: Element, property: string) => string {
   const sheet = document.createElement('style');
-  sheet.textContent = `${BOARD_CSS}\n${CARD_CSS}`;
+  sheet.textContent = `${TILE_CSS}\n${BOARD_CSS}\n${CARD_CSS}`;
   document.head.append(sheet);
   onTestFinished(() => sheet.remove());
   return (el, property) => getComputedStyle(el).getPropertyValue(property).trim();
@@ -3552,7 +3554,7 @@ describe('§A.15 — a card’s state is drawn', () => {
     // Inward, on a layer of its own: every other card state draws OUTSIDE the tile (the offered
     // ring and the can-act blur are the tile's box-shadow, combat rings the face's outline), so
     // this rule may set neither, and an offered card that is also met shows both.
-    const rules = withoutComments(CARD_CSS);
+    const rules = withoutComments(TILE_CSS);
     for (const rule of rules.matchAll(/([^{}]*data-condition-met[^{}]*)\{([^{}]*)\}/g)) {
       if (rule[1]!.includes('::after')) expect(rule[2], 'drawn inward').toMatch(/box-shadow:[^;]*inset/);
       else expect(rule[2], `${rule[1]!.trim()} leaves the tile's own rings alone`).not.toMatch(/(^|[^-])(box-shadow|outline)\s*:/);

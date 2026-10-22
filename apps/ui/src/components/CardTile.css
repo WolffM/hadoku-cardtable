@@ -1,0 +1,274 @@
+/* ── a card, our layout ────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  height: var(--card-h);
+  padding: 9px 10px 9px 14px;
+  text-align: left;
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.card--pickable {
+  font: inherit;
+  color: inherit;
+}
+
+.card--pickable:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.card--pickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card--pickable:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Colour identity as a stripe down the leading edge — ours, not a frame. */
+.card__stripe {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  /* A band of each of the card's colours, in WUBRG order (`ColorSymbol.tsx`'s `stripeOf`). */
+  background: var(--stripe, var(--c-generic));
+}
+
+.card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.card__name {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.card__type {
+  color: var(--ink-dim);
+  font-size: 11px;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 5px;
+}
+
+.card__rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink);
+  /* Every face, at any size: shrinks to the room its tile has (a flex item's `min-height: auto` would grow
+     the tile instead), and text past it is cut off under a fade, never scrolled; the inspector draws it larger. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, currentColor calc(100% - 1em), transparent);
+}
+
+.card__rules-line {
+  display: block;
+}
+
+.card__foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.card__print {
+  color: var(--ink-faint);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.card__rarity {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.card__stat {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Card art — the image, from our CDN or upstream, covering the text tile.
+ *
+ * The text tile is NOT replaced. It stays in the DOM underneath as the
+ * fallback: a card with no resolvable art never gets an image, and a failed
+ * fetch (a CDN key that was never uploaded, say) removes the img and reveals
+ * the text. A card is always readable, image or not.
+ *
+ * `object-fit: cover` with the card's own aspect ratio means the image is never
+ * distorted, skewed or stretched. That was one of Scryfall's presentation rules
+ * when the art was theirs; it stays because the art is a placeholder that may be
+ * re-sourced from somewhere with the same rules, and because a stretched card
+ * looks broken either way. No filter, no blur, no desaturation, no overlay that
+ * could clip the copyright line.
+ */
+.card__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  /* Above the text tile, below nothing else. */
+  z-index: 1;
+  pointer-events: none;
+  /* No filter of any kind here. See the note above: altering the image is a
+     presentation-rule violation, not a style choice. */
+}
+
+/*
+ * A tile carrying art takes the CARD's aspect ratio, not the text layout's.
+ *
+ * The text tile is sized by its content — measured at 241x268, a ratio of
+ * 0.90 — while a Magic card is 488x680, or 0.72. Painting one into the other
+ * with `object-fit: cover` crops the difference off the top and bottom.
+ *
+ * Two reasons this rule stays, and both are load-bearing:
+ *
+ * 1. A cropped card simply looks broken. The bottom of a card is its type line,
+ *    stats and print info; lopping it off produces a tile that reads as a
+ *    rendering bug regardless of where the bytes came from.
+ * 2. The licensing reason, which is now dormant rather than gone. Under
+ *    Scryfall's image guidelines you may not cover, crop or clip off the
+ *    copyright or artist name — printed at the bottom of the card, exactly
+ *    where a mismatched box crops. We host the art ourselves now, but it is a
+ *    placeholder and may revert to a source with presentation rules, so the
+ *    constraint is kept rather than re-derived later.
+ *
+ * So the box is made card-shaped and the image fills it exactly: nothing is
+ * cropped, nothing is distorted, and the credit stays legible.
+ *
+ * Scoped with :has() so text-only tiles — a card with no resolvable art, and any
+ * failed fetch — keep their content-sized layout.
+ */
+.card:has(.card__art) {
+  aspect-ratio: var(--card-ratio);
+  height: auto;
+}
+
+/*
+ * A face that shares its card's image (`components/faceCrop.ts`): its own part of the image, upright,
+ * in a frame the tile's shape. Where the part is not card-shaped (an adventure's inset) the frame's
+ * own ground shows around it, so the whole card never peeks out. The image's box is set inline.
+ */
+.card__crop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--bg-card);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.card__crop > .card__art {
+  inset: auto;
+  object-fit: fill;
+  border-radius: 0;
+}
+
+/*
+ * A door's state, on its tile wherever it is drawn — the board, the inspector's enlargement, a choice
+ * between doors (`CardTile`'s `DoorMark`). A locked door's half is dimmed by a scrim under a padlock; an
+ * unlocked one is at full strength under an open door in the success ink.
+ */
+.card__door {
+  position: absolute;
+  z-index: 2;
+  top: 11%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: max(14px, 18%);
+  aspect-ratio: 1;
+  translate: -50% 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink-dim);
+  pointer-events: none;
+}
+
+.card__door[data-door-mark='unlocked'] {
+  color: var(--success-ink);
+  border-color: var(--success);
+}
+
+.card__door-art {
+  width: 70%;
+  height: 70%;
+  fill: currentcolor;
+}
+
+/* A locked door's half is under a scrim, a layer over the image — never a filter on it (`cardImageRules.test.ts`). */
+.card[data-door='locked']::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--scrim) 70%, transparent);
+  pointer-events: none;
+}
+
+/* ── condition met: this card's own condition is on ──────────────────── */
+
+/*
+ * The operator, 2026-10-15: *"i would like it if the game told you when things like 'metalcraft'
+ * are active … in hearthstone the card turns orange when its conditional effect is 'active'."*
+ * Forge's own verdict (`adapter.ts`'s `BoardCard.conditionMet`), on the tile itself so a card in
+ * hand, on the battlefield and in the inspector's clone all wear it.
+ *
+ * The frame glows INWARD: a warm rim on the card's edge fading into it. Every other card state
+ * draws OUTSIDE the card — the offered ring and the can-act blur are box-shadows on the tile, the
+ * attack, block and focus rings are outlines on the face — so this one never covers any of them,
+ * and a card that is offered and also met shows both. A layer over the image, never a filter on
+ * it (the cast-forbidden veil's own rule). `isolation` keeps it inside the tile, under the
+ * badges the face draws beside it.
+ */
+.card[data-condition-met] {
+  isolation: isolate;
+}
+
+.card[data-condition-met]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* The art's own level (`.card__art`, above): drawn after it, so over it. */
+  z-index: 1;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 2px var(--condition),
+    inset 0 0 14px 3px color-mix(in srgb, var(--condition) 55%, transparent);
+  pointer-events: none;
+}
+
+/* The ability word that names the condition, where the tile's own rules text shows. */
+.card[data-condition-met] .card__ability-word {
+  color: var(--condition-ink);
+  font-weight: 700;
+}

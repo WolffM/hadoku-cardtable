@@ -63,6 +63,7 @@ import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
 import { SeatBar } from './SeatBar.tsx';
 import { SpectatorNotice } from './SpectatorNotice.tsx';
 import { prefersReducedMotion } from '../play/motion.ts';
+import './draft.css';
 
 const rectOf = (r: DOMRect): PoolEnterRect => ({ left: r.left, top: r.top, width: r.width, height: r.height });
 
@@ -109,7 +110,7 @@ export interface DraftScreenProps {
 
 /**
  * The draft body's ref: exactly as tall as the window below it, so the two
- * halves fill the screen and the page itself never scrolls (`styles.css`,
+ * halves fill the screen and the page itself never scrolls (`draft.css`,
  * layout). The pod's skeleton (`PodScreen.tsx`) wears it too, so the draft
  * lands on the same lines.
  */

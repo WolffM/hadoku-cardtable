@@ -9,9 +9,11 @@ import { describe, expect, it } from 'vitest';
 
 type Rgb = [number, number, number];
 
-// @reads apps/ui/src/*.css
+// @reads apps/ui/src/*.css apps/ui/src/components/*.css
 const themeCss = readFileSync(new URL('../../node_modules/@wolffm/themes/src/style.css', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const ownCss = readFileSync(new URL('../styles.css', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+/** The draft table's sheets: the global one, and the draft screen's and its cards' own. */
+const draftCss = ['../styles.css', '../components/draft.css', '../components/CardTile.css', '../components/CardPile.css'].map((p) => readFileSync(new URL(p, import.meta.url), 'utf8'));
 
 function hex(v: string | undefined): Rgb | null {
   if (v === undefined) return null;
@@ -118,8 +120,8 @@ describe('the accent as text', () => {
     expect(oldWorst).toBeLessThan(3);
   });
 
-  it('is what the stylesheet draws glyphs with: no `color: var(--accent)` left in styles.css', () => {
-    expect(ownCss).not.toMatch(/(^|[^-])color:\s*var\(--accent\)/m);
+  it('is what the draft table draws glyphs with: no `color: var(--accent)` left in its sheets', () => {
+    for (const css of draftCss) expect(css).not.toMatch(/(^|[^-])color:\s*var\(--accent\)/m);
   });
 });
 

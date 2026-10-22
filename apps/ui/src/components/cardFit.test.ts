@@ -116,10 +116,10 @@ describe('a column of controls fits its box: its lengths scale down instead of s
   });
 
   it("the draft's side column is such a column, and never shows a scroll bar", () => {
-    const css = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/components', '../styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    const aside = /\.draft__aside \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    const sheet = (name: string): string => readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/components', name), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const aside = /\.draft__aside \{([^}]*)\}/.exec(sheet('draft.css'))?.[1] ?? '';
     expect(aside).not.toMatch(/overflow(-y)?:\s*(auto|scroll)/);
-    const fit = /\.fit-scale \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    const fit = /\.fit-scale \{([^}]*)\}/.exec(sheet('../styles.css'))?.[1] ?? '';
     expect(fit, 'a fit column redefines the UI scale\'s units, so every length inside it follows').toMatch(/--ui-px:[^;]*var\(--fit/);
     expect(fit).toMatch(/--ui-rem:[^;]*var\(--fit/);
   });
