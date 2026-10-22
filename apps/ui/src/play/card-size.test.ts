@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { battlefieldCardWidth, forgetCardWidths, handCardWidth, onCardWidthsChanged } from './card-size.ts';
 import { installPlaced } from './live/placed.ts';
 import type { BoardView, StackEntry } from './adapter.ts';
+import { observeZoneBoxes } from './zone-box.ts';
 
 /** A board whose battlefield row lays its cards out at 64px (the row's own `--card-w`). */
 function board(): HTMLElement {
@@ -42,7 +43,7 @@ class Resizes {
     this.observed.clear();
   }
   resize(el: Element): void {
-    if (this.observed.has(el)) this.report([{ target: el } as ResizeObserverEntry], this as unknown as ResizeObserver);
+    if (this.observed.has(el)) this.report([{ target: el, contentBoxSize: [{ inlineSize: 0, blockSize: 0 }] } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
   }
 }
 
@@ -163,6 +164,35 @@ describe('a card’s width is measured once, and again only when what it was rea
     expect(heard).toHaveBeenCalledTimes(1);
     expect(battlefieldCardWidth(canvas, 'you')).toBe(77);
     stop();
+  });
+
+  it('a width measured before its zone’s box was written is measured again once it is, and whoever draws at it hears the change', () => {
+    const observers: Resizes[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class extends Resizes {
+        constructor(report: ResizeObserverCallback) {
+          super(report);
+          observers.push(this);
+        }
+      },
+    );
+    const canvas = board();
+    canvas.querySelector('.board')!.insertAdjacentHTML('beforeend', '<section class="seat"><div class="zone zone--hand" data-zone="hand" data-owner="you"><ul class="zone__cards"></ul></div></section>');
+    const zone = canvas.querySelector<HTMLElement>('.zone--hand')!;
+    const boxes = observeZoneBoxes()!;
+    boxes.sync(canvas);
+    // A reload draws its stack before the first observation writes any zone's box: the empty hand's row has no width yet.
+    expect(handCardWidth(canvas), 'no hand width yet: the battlefield’s').toBe(64);
+    const heard = vi.fn();
+    const stop = onCardWidthsChanged(heard);
+    // `board.css`'s `--card-w` resolves off the `--zone-h` the observer writes; jsdom computes no calc, so the row says it.
+    zone.querySelector<HTMLElement>('.zone__cards')!.style.setProperty('--card-w', '92px');
+    observers[0]!.resize(zone);
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(handCardWidth(canvas), 'the hand row’s, now that its zone is sized').toBe(92);
+    stop();
+    boxes.disconnect();
   });
 
   it('with no ResizeObserver to say when a width goes stale, every call measures', () => {
