@@ -3385,14 +3385,17 @@ describe('spectator, names and the end of the game (wave 31 §S)', () => {
     const { s, m } = await fullGame();
     expect(m.over).toBe(false);
     await sendAndApply(s, m, [
-      parseServerFrame({ kind: 'notify', method: 'showErrorDialog', title: 'Match ended', message: 'Forge stopped.' }),
+      parseServerFrame({ kind: 'notify', method: 'showErrorDialog', title: 'Game over', message: 'Forge stopped.', matchEnded: true }),
     ]);
     expect(m.over).toBe(true);
   });
 
-  it('an unrelated error dialog does not end the game', async () => {
+  it('an unrelated error dialog does not end the game, whatever its title', async () => {
     const { s, m } = await fullGame();
-    await sendAndApply(s, m, [parseServerFrame({ kind: 'notify', method: 'showErrorDialog', title: 'Oops', message: 'x' })]);
+    await sendAndApply(s, m, [
+      parseServerFrame({ kind: 'notify', method: 'showErrorDialog', title: 'Oops', message: 'x' }),
+      parseServerFrame({ kind: 'notify', method: 'showErrorDialog', title: 'Match ended', message: 'x' }),
+    ]);
     expect(m.over).toBe(false);
   });
 });
