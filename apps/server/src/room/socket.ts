@@ -121,6 +121,7 @@ import {
 } from './emit.js';
 import { identityFromHeaders } from './identity.js';
 import type { Lobby } from './lobby.js';
+import { jsonLogger } from '../log.js';
 
 /**
  * Picks per participant, not per socket.
@@ -171,9 +172,7 @@ interface DraftSocketHandle {
 	close(): void;
 }
 
-function defaultLog(line: Record<string, unknown>): void {
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-draft', ...line }));
-}
+const defaultLog = jsonLogger('cardtable-draft');
 
 /** `tierOf` over the sanitized handshake headers. */
 function handshakeTier(headers: IncomingHttpHeaders): string {

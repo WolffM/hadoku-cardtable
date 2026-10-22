@@ -140,6 +140,7 @@ import {
 } from '@hadoku/room-store';
 
 import { participantHandle } from './identity.js';
+import { jsonLogger } from '../log.js';
 
 /** The hosting app's room state: one draft. */
 export interface DraftApp {
@@ -457,9 +458,7 @@ function quarantineSnapshotSync(dir: string, draftId: string, reason: string): v
 	writeFileSync(join(quarantineDir, `${name}.reason.txt`), `${reason}\n`, 'utf8');
 }
 
-function logDraft(entry: Record<string, unknown>): void {
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-draft', ...entry }));
-}
+const logDraft = jsonLogger('cardtable-draft');
 
 /** What persists for one pod. Everything else on `DraftApp` is config echoed back in (`disconnectGraceMs`) or reconstructed fresh (`onDeferredChange`, `vacating`, `persist`) — never read off disk. */
 interface PersistedDraftApp {

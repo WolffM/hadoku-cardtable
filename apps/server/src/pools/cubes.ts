@@ -43,12 +43,13 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, unlinkSync } from 'node:fs';
 import { mkdir, open, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import express, { type NextFunction, type Request, type Response, type Router } from 'express';
+import express, { type Request, type Response, type Router } from 'express';
 
 import { DraftCardSchema, ImportCubeBodySchema, type CubeSummary, type DraftCard, type PoolVerdict } from '@hadoku/shared';
-import { identityFromHeaders } from '../room/identity.js';
+import { bodyErrors, httpCaller } from '../http/request.js';
 import type { CardCatalog } from './catalog.ts';
 import { fetchCubeCobraCube, parseCubeCobraLink, type CubeCobraCard, type CubeCobraCube, type FetchJson } from './cubecobra.ts';
+import { jsonLogger } from '../log.js';
 
 export interface CubeStore {
 	list(): CubeSummary[];
@@ -78,9 +79,7 @@ interface Entry {
 	raw: readonly CubeCobraCard[] | null;
 }
 
-function log(entry: Record<string, unknown>): void {
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-pools', ...entry }));
-}
+const log = jsonLogger('cardtable-pools');
 
 interface RawShortlistFile {
 	cube?: unknown;
@@ -439,11 +438,10 @@ export interface AttachCubeRoutesDeps {
  */
 export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void {
 	const { store, check } = deps;
-	const warn = deps.log ?? ((entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-pools', ...entry })));
+	const warn = deps.log ?? log;
 	const cubes = express.Router();
 	cubes.use(express.json({ limit: '4kb' }));
 
-	const callerOf = (req: Request): string => identityFromHeaders(req.headers, `http-${randomUUID()}`);
 
 	const checkAndSave = async (summary: CubeSummary): Promise<CubeSummary> => {
 		const cards = store.cards(summary.id);
@@ -475,7 +473,7 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 	cubes.post('/import', (req: Request, res: Response) => {
 		const parsed = ImportCubeBodySchema.safeParse(req.body);
 		if (!parsed.success) return badRequest(res, 'body is { link }, 1 to 300 characters');
-		const caller = callerOf(req);
+		const caller = httpCaller(req);
 		store
 			.importLink(parsed.data.link, caller)
 			.then((summary) => checkAndSave(summary))
@@ -492,7 +490,7 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 
 	cubes.post('/:id/refresh', (req: Request, res: Response) => {
 		const id = String(req.params.id);
-		const caller = callerOf(req);
+		const caller = httpCaller(req);
 		store
 			.refresh(id, caller)
 			.then((summary) => checkAndSave(summary))
@@ -509,7 +507,7 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 
 	cubes.delete('/:id', (req: Request, res: Response) => {
 		const id = String(req.params.id);
-		const caller = callerOf(req);
+		const caller = httpCaller(req);
 		try {
 			store.remove(id, caller);
 			res.status(204).end();
@@ -519,14 +517,5 @@ export function attachCubeRoutes(api: Router, deps: AttachCubeRoutesDeps): void 
 	});
 
 	api.use('/pools/cubes', cubes);
-	// `express.json()`'s parse failure, same shape as `http/decks.ts`'s handler.
-	api.use('/pools/cubes', (err: unknown, _req: Request, res: Response, next: NextFunction) => {
-		if (res.headersSent) return next(err);
-		const e = err as { type?: unknown; status?: unknown };
-		if (e.type === 'entity.parse.failed' || (typeof e.status === 'number' && e.status >= 400 && e.status < 500)) {
-			res.status(400).json({ error: 'the request body could not be read' });
-			return;
-		}
-		next(err);
-	});
+	api.use('/pools/cubes', bodyErrors());
 }

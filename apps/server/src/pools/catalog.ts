@@ -23,6 +23,7 @@
 import { readFileSync } from 'node:fs';
 import { foldName, normaliseName } from '@hadoku/carddata';
 import { DraftCardSchema, type DraftCard } from '@hadoku/shared';
+import { jsonLogger } from '../log.js';
 
 export interface CardCatalog {
 	byName(name: string): DraftCard | null;
@@ -35,9 +36,7 @@ interface CatalogFile {
 	aliases: Record<string, unknown>;
 }
 
-function log(entry: Record<string, unknown>): void {
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-pools', ...entry }));
-}
+const log = jsonLogger('cardtable-pools');
 
 const EMPTY_CATALOG: CardCatalog = { byName: () => null };
 

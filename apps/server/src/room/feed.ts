@@ -47,6 +47,7 @@ import { ROOM_FEED_CHANNEL, RoomWatchSchema, type RoomChanged } from '@hadoku/sh
 
 import { identityFromHeaders } from './identity.js';
 import { ROOM_STALE_MS, type Lobby } from './lobby.js';
+import { jsonLogger } from '../log.js';
 
 /** Well inside `ROOM_STALE_MS`, so an open room never stops being offered. */
 const FEED_TOUCH_MS = ROOM_STALE_MS / 6;
@@ -69,9 +70,7 @@ interface Watcher {
 	list: boolean;
 }
 
-function defaultLog(line: Record<string, unknown>): void {
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-feed', ...line }));
-}
+const defaultLog = jsonLogger('cardtable-feed');
 
 export function attachRoomFeed(io: SocketIOServer, deps: RoomFeedDeps): RoomFeedHandle {
 	const log = deps.log ?? defaultLog;

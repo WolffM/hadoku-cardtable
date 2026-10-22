@@ -21,12 +21,12 @@
  * them by, so nobody can list or touch another drafter's deck.
  */
 
-import { randomUUID } from 'node:crypto';
-import express, { type NextFunction, type Request, type Response, type Router } from 'express';
+import express, { type Request, type Response, type Router } from 'express';
 
 import { RenameDeckBodySchema, type MyDeck, type PodView } from '@hadoku/shared';
 import { builtDeckOf, setDeckMeta, stateOf, viewForParticipant, type DraftRoom, type DraftRooms } from '../room/draftRooms.js';
-import { identityFromHeaders } from '../room/identity.js';
+import { bodyErrors, httpCaller } from './request.js';
+import { jsonLogger } from '../log.js';
 
 export interface DecksDeps {
 	/** Null when the server has no draft rooms (no cube pool loaded). */
@@ -57,11 +57,9 @@ function deckIn(room: DraftRoom, caller: string, deps: DecksDeps, draftRooms: Dr
 }
 
 export function attachDecks(api: Router, deps: DecksDeps): void {
-	const log = deps.log ?? ((entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-decks', ...entry })));
+	const log = deps.log ?? jsonLogger('cardtable-decks');
 	const decks = express.Router();
 	decks.use(express.json({ limit: '4kb' }));
-
-	const callerOf = (req: Request): string => identityFromHeaders(req.headers, `http-${randomUUID()}`);
 
 	decks.get('/', (req: Request, res: Response) => {
 		const draftRooms = deps.draftRooms;
@@ -69,7 +67,7 @@ export function attachDecks(api: Router, deps: DecksDeps): void {
 			res.json({ decks: [] });
 			return;
 		}
-		const caller = callerOf(req);
+		const caller = httpCaller(req);
 		const mine = draftRooms
 			.all()
 			.flatMap((room) => deckIn(room, caller, deps, draftRooms) ?? [])
@@ -81,7 +79,7 @@ export function attachDecks(api: Router, deps: DecksDeps): void {
 	const concludedDeck = (req: Request, res: Response): { room: DraftRoom; caller: string; deck: MyDeck } | null => {
 		const podId = String(req.params.podId);
 		const room = deps.draftRooms?.find(podId);
-		const caller = callerOf(req);
+		const caller = httpCaller(req);
 		const deck = room === undefined || deps.draftRooms === null ? null : deckIn(room, caller, deps, deps.draftRooms);
 		if (room === undefined || deck === null) {
 			res.status(404).json({ error: `you have no deck from ${JSON.stringify(podId)}` });
@@ -116,14 +114,5 @@ export function attachDecks(api: Router, deps: DecksDeps): void {
 	});
 
 	api.use('/decks', decks);
-	// `express.json()`'s parse failure, same shape as `http/drafts.ts`'s handler.
-	api.use('/decks', (err: unknown, _req: Request, res: Response, next: NextFunction) => {
-		if (res.headersSent) return next(err);
-		const e = err as { type?: unknown; status?: unknown };
-		if (e.type === 'entity.parse.failed' || (typeof e.status === 'number' && e.status >= 400 && e.status < 500)) {
-			res.status(400).json({ error: 'the request body could not be read' });
-			return;
-		}
-		next(err);
-	});
+	api.use('/decks', bodyErrors());
 }

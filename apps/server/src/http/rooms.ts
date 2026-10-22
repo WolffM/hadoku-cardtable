@@ -92,12 +92,11 @@
  * input, and Express's default error handler would print it to stderr.
  */
 
-import { randomUUID } from 'node:crypto';
-import { Router, type NextFunction, type Request, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { userNameOf } from '../edge-auth.js';
-import { identityFromHeaders } from '../room/identity.js';
+import { bodyErrors, httpCaller } from './request.js';
 import {
 	CONSTRUCTED_MODES,
 	DEFAULT_GAME_TYPE,
@@ -126,6 +125,7 @@ import {
 	type RoomSettings,
 	type RoomView,
 } from '../room/lobby.js';
+import { jsonLogger } from '../log.js';
 
 /** The single answer for "no such room" and "wrong password". Byte-identical by construction. */
 export const NO_MATCH = { error: 'no room with that id and password' } as const;
@@ -174,7 +174,7 @@ function callerOf(req: Request): Caller {
 	// "2a25151a-5ec8-…". The name arrives edge-injected beside the id
 	// (`X-User-Name`); a key that was never named falls back to a word rather
 	// than an identifier, because a roster is for humans.
-	return { id: identityFromHeaders(req.headers, `http-${randomUUID()}`), name: userNameOf(req) ?? 'friend' };
+	return { id: httpCaller(req), name: userNameOf(req) ?? 'friend' };
 }
 
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -468,9 +468,7 @@ function notDurable(res: Response, verb = 'create or join'): void {
 export function attachRooms(api: Router, deps: RoomsDeps): void {
 	const { lobby } = deps;
 	const log =
-		deps.log ??
-		((entry: Record<string, unknown>) =>
-			console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })));
+		deps.log ?? jsonLogger('cardtable-rooms');
 	const now = deps.now ?? Date.now;
 	const joinLimiter = new MultiRateLimiter<string>(deps.joinRateLimit ?? JOIN_RATE_LIMIT);
 
@@ -898,19 +896,5 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 
 	api.use('/rooms', rooms);
 
-	// Errors on /rooms — chiefly `express.json()`'s parse failure, raised on the
-	// api router BEFORE `rooms` runs. Answered here without the message (it
-	// quotes the body, which may hold a password) and logged by name only.
-	api.use('/rooms', (err: unknown, _req: Request, res: Response, next: NextFunction) => {
-		if (res.headersSent) return next(err);
-		const e = err as { type?: unknown; status?: unknown; name?: unknown };
-		if (e.type === 'entity.parse.failed') {
-			return badRequest(res, 'body is not valid JSON');
-		}
-		if (typeof e.status === 'number' && e.status >= 400 && e.status < 500) {
-			return badRequest(res, 'the request body could not be read');
-		}
-		log({ event: 'rooms-error', name: typeof e.name === 'string' ? e.name : 'unknown' });
-		res.status(500).json({ error: 'internal error' });
-	});
+	api.use('/rooms', bodyErrors((name) => log({ event: 'rooms-error', name })));
 }

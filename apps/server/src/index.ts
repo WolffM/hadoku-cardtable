@@ -97,6 +97,7 @@ import { createForgePools, type ForgePools } from './pools/forge.js';
 import { serveCover } from './cover.js';
 import { newestFormat, openLobby } from './room/lobby.js';
 import { openTournaments } from './room/tournaments.js';
+import { jsonLogger } from './log.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
 import { recordMatch } from '@wolffm/prefs-client/games';
 
@@ -258,8 +259,7 @@ const CONTAINER_SCRIPT = findContainerScript();
 if (CONTAINER_SCRIPT === null) {
 	console.warn('[cardtable] no scripts/stream/container.sh — room-keyed streams are OFF (the static bench is unaffected)');
 }
-const streamLog = (entry: Record<string, unknown>): void =>
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-stream', ...entry }));
+const streamLog = jsonLogger('cardtable-stream');
 const roomStreams =
 	CONTAINER_SCRIPT === null
 		? null
@@ -365,10 +365,11 @@ const newRoomFormat = process.env.CARDTABLE_NEW_ROOM_FORMAT;
 if (newRoomFormat !== undefined && newRoomFormat !== 'newest') {
 	throw new Error(`CARDTABLE_NEW_ROOM_FORMAT must be 'newest' or unset, not ${JSON.stringify(newRoomFormat)}`);
 }
+const roomsLog = jsonLogger('cardtable-rooms');
 // Every pod that played a round, kept past its room for the stats popout's Tournaments tab.
 const tournaments = await openTournaments(
 	process.env.CARDTABLE_TOURNAMENTS_FILE ?? resolve(CONFIG.logDir, '../data/tournaments.json'),
-	(entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
+	roomsLog,
 );
 // ── Match stats ──────────────────────────────────────────────────────────────
 // A finished room match is reported with this server's service key; without
@@ -376,8 +377,7 @@ const tournaments = await openTournaments(
 // game over (`tables.matchStart`), so a match taken back after a restart is
 // reported too. Built before the lobby, which reports every series result
 // (`onSeriesEnd`) from its first sweep on; `tables` exists before any game ends.
-const statsLog = (entry: Record<string, unknown>): void =>
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-stats', ...entry }));
+const statsLog = jsonLogger('cardtable-stats');
 const matchStats = createMatchStats({
 	keys: statsKeys,
 	log: statsLog,
@@ -415,7 +415,7 @@ if (cubeStore.list().length === 0) console.warn(`[cardtable] draft pool: no shor
 // never the match bridge — a pool request can never stall a game. `null`
 // without a configured Forge build, same gate `attachPlay`'s match host uses.
 const forgePools: ForgePools | null = forge.ok
-	? createForgePools(forge.config, (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-pools', ...entry })))
+	? createForgePools(forge.config, jsonLogger('cardtable-pools'))
 	: null;
 
 /** `src.kind === 'set'` never reaches a pod this wave — `PUT …/pod/plan` refuses it at 400 before any room's plan is ever set to one. */
@@ -441,7 +441,7 @@ const lobby = await openLobby({
 	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
 	formats: library.formats,
 	...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat(library.formats) } : {}),
-	log: (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', ...entry })),
+	log: roomsLog,
 	onTournament: (t) => tournaments.record(t),
 	onSeriesEnd: (end) => matchStats.seriesEnd(end),
 	// A room's plan checks itself in the background (new; restored with a null
@@ -486,9 +486,7 @@ const io = new SocketIOServer(httpServer, {
 // fetch with room to spare, and delays announcing a genuine drop by an amount
 // nobody waiting on a pick will notice. See draftRooms.ts's header.
 const DISCONNECT_GRACE_MS = 5_000;
-const draftPolicy = draftEmitPolicy((line) =>
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-draft', ...line }))
-);
+const draftPolicy = draftEmitPolicy(jsonLogger('cardtable-draft'));
 const draftRooms = cubeStore.list().length > 0
 	? createDraftRooms({
 			resolver: poolResolver,
@@ -507,7 +505,7 @@ const draftRooms = cubeStore.list().length > 0
 // A deploy mid-pod resumes it: the lobby restored the room's pod, the registry
 // its draft. A room whose draft did not come back goes back to its lobby.
 const lostDrafts = lobby.releaseLostDrafts((roomId) => draftRooms?.find(roomId) !== undefined);
-if (lostDrafts.length > 0) console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', event: 'drafts-lost', rooms: lostDrafts }));
+if (lostDrafts.length > 0) roomsLog({ event: 'drafts-lost', rooms: lostDrafts });
 attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier });
 // Every room write, pushed to the screens that have the room (or the list) open,
 // so none of them reads it on a timer. Behind the gate attachDraftSocket installed.
@@ -522,7 +520,7 @@ attachRoomFeed(io, { lobby });
 const ROOM_SWEEP_MS = 60 * 60_000;
 const sweepRooms = (): void => {
 	const dropped = lobby.sweep();
-	if (dropped.length > 0) console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-rooms', event: 'rooms-swept', rooms: dropped.length }));
+	if (dropped.length > 0) roomsLog({ event: 'rooms-swept', rooms: dropped.length });
 };
 sweepRooms();
 setInterval(sweepRooms, ROOM_SWEEP_MS).unref();
@@ -584,7 +582,7 @@ play = attachPlay(io, api, {
 	// same role the one bundled pool always did.
 	formatNames: roomFormatNames(tables.library, defaultCubeCards),
 	// A seat's own spell is held while it can play a card that copies it (`play/spell-copiers.ts`).
-	...(forge.ok ? { spellCopiers: spellCopierLookup(forge.config.res, (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-play', ...entry }))) } : {}),
+	...(forge.ok ? { spellCopiers: spellCopierLookup(forge.config.res, jsonLogger('cardtable-play')) } : {}),
 	// A seat's face is its holder's avatar in the room that started the match.
 	seatAvatar: tables.seatAvatar,
 	// A seat's deck colours pick the match's music (`play/deck-colors.ts`).
@@ -689,8 +687,7 @@ function shutdown(signal: string): void {
 	if (shuttingDown) return;
 	shuttingDown = true;
 	const startedAt = Date.now();
-	const say = (entry: Record<string, unknown>): void =>
-		console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable', ...entry }));
+	const say = jsonLogger('cardtable');
 	say({ evt: 'shutdown-begin', signal });
 
 	// Spelled through `PlayHandle` rather than importing `ReapResult`: the barrel

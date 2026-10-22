@@ -168,7 +168,7 @@
  * two in the same order against the real `attachPlay`.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import express, { type NextFunction, type Request, type Response, type Router } from 'express';
 import { deckFromDeckFile, isBasicLand, poolOf } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
@@ -179,7 +179,7 @@ import { RandomOptionsSchema, secureRandom, type RandomPool, type RoomModeState,
 import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
-import { identityFromHeaders } from '../room/identity.js';
+import { httpCaller } from './request.js';
 import { FREE_PICK, draftIdOfPool, draftPoolId, type Lobby, type PodChecks } from '../room/lobby.js';
 import { drawRandomDecks } from '../room/random-decks.js';
 import { statsModeOf } from '../room/series.js';
@@ -204,6 +204,7 @@ import {
 import { attachGauntlet, type GauntletHandle } from './gauntlet.js';
 import { deckLines, type TablesLibrary } from './library.js';
 import type { GauntletState } from '../room/gauntlet.js';
+import { jsonLogger } from '../log.js';
 
 export type TablesLog = (entry: Record<string, unknown>) => void;
 
@@ -412,9 +413,7 @@ export interface GameOverMatch {
 	outcome(): GameOutcome | null;
 }
 
-function defaultLog(entry: Record<string, unknown>): void {
-	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-tables', ...entry }));
-}
+const defaultLog = jsonLogger('cardtable-tables');
 
 /**
  * ONE PERSON's drafted pool, by the participant id that person is known by.
@@ -446,17 +445,6 @@ export function draftPoolForMember(memberId: string, rooms: DraftRooms | null): 
 		if (view.viewer.kind !== 'seat') return { ok: false, error: `you have no seat in draft ${JSON.stringify(draftId)}` };
 		return { ok: true, pool: view.viewer.pool };
 	};
-}
-
-/**
- * The caller, by the derivation lane A mints `RoomMember.id` with.
- *
- * The socket id argument is only reached when the edge named nobody, and then
- * the id is ephemeral and random, so it matches no seat and no member — which
- * is the right answer for someone the edge could not name.
- */
-function callerIdOf(req: Request): string {
-	return identityFromHeaders(req.headers, `http-${randomUUID()}`);
 }
 
 /* ── what a room holds for each player ───────────────────────────────── */
@@ -685,7 +673,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	});
 
 	/** The gate as the CALLER sees it: for the routes whose deck is the caller's own. */
-	const context = (req: Request): GateContext => contextFor(callerIdOf(req));
+	const context = (req: Request): GateContext => contextFor(httpCaller(req));
 
 	/* ── the catalog ────────────────────────────────────────────────── */
 
@@ -810,7 +798,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 						const out = dealDecks(room, table.id, playersOf(gauntletRooms, room, table.id), decks, era, { vsBot: players[1].memberId === null, ready: true });
 						if (!out.ok) log({ evt: 'gauntlet-deal-failed', room: room.id, error: out.error });
 					},
-					callerOf: callerIdOf,
+					callerOf: httpCaller,
 					random: deps.random ?? secureRandom,
 					log,
 					...(deps.schedule === undefined ? {} : { schedule: deps.schedule }),
@@ -876,7 +864,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 */
 	function tableFor(req: Request, res: Response, roomId: string): { room: RoomViewLike; me: string } | null {
 		const room = rooms?.get(roomId);
-		const me = callerIdOf(req);
+		const me = httpCaller(req);
 		if (room === undefined || !room.members.some((m) => m.id === me)) {
 			notFound(res);
 			return null;
@@ -1551,7 +1539,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		}
 		const roomId = String(req.params.roomId);
 		const room = rooms.get(roomId);
-		const me = callerIdOf(req);
+		const me = httpCaller(req);
 		if (room === undefined || !room.members.some((m) => m.id === me)) {
 			notFound(res);
 			return;
@@ -1577,7 +1565,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const roomId = String(req.params.roomId);
 		const tableId = String(req.params.tableId);
 		const room = rooms.get(roomId);
-		const me = callerIdOf(req);
+		const me = httpCaller(req);
 		if (room === undefined || !room.members.some((m) => m.id === me)) {
 			notFound(res);
 			return;

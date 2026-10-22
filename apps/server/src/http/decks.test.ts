@@ -149,4 +149,17 @@ describe('/api/decks', () => {
 		const again = await openApp(restarted, lobby);
 		expect(decksOf((await call(again, 'GET', '/api/decks')).json).map((d) => [d.id, d.name, d.concluded])).toEqual([['pod-a', 'Blue tempo', true]]);
 	});
+
+	it('answers a malformed JSON body without echoing it', async () => {
+		const storeDir = await mkdtemp(join(tmpdir(), 'cardtable-decks-test-'));
+		dirs.push(storeDir);
+		const base = await openApp(createDraftRooms({ ...singlePoolResolver(cube), storeDir }), new Map());
+		const res = await fetch(`${base}/api/decks/pod-a`, {
+			method: 'PATCH',
+			headers: { ...edgeHeaders('alice'), 'content-type': 'application/json' },
+			body: '{"name": "Blue tem',
+		});
+		expect(res.status).toBe(400);
+		expect(await res.json()).toEqual({ error: 'body is not valid JSON' });
+	});
 });
