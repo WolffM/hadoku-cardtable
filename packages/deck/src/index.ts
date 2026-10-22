@@ -31,6 +31,8 @@
 
 export {
   BASIC_LAND_NAMES,
+  BASIC_LAND_OF,
+  COLOR_OF_BASIC_LAND,
   LIMITED_MIN_MAIN_DECK_SIZE,
   basicLand,
   cardKey,

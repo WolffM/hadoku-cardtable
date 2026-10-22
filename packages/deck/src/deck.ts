@@ -33,6 +33,8 @@ import {
   type DeckFile,
 } from '@hadoku/carddata/dck';
 
+import { DECK_COLORS, type DeckColor } from './colors.ts';
+
 /**
  * Forge: `MagicColor.Constant.BASIC_LANDS` (MagicColor.java:138). Five names,
  * and notably not `Wastes` — Forge treats that one as a normal card.
@@ -44,6 +46,12 @@ export const BASIC_LAND_NAMES: readonly string[] = [
   'Mountain',
   'Forest',
 ];
+
+/** The basic land of each colour: `BASIC_LAND_NAMES` is in WUBRG order. */
+export const BASIC_LAND_OF = Object.fromEntries(DECK_COLORS.map((c, i) => [c, BASIC_LAND_NAMES[i]!])) as Readonly<Record<DeckColor, string>>;
+
+/** Each basic land's colour. */
+export const COLOR_OF_BASIC_LAND: Readonly<Record<string, DeckColor>> = Object.fromEntries(DECK_COLORS.map((c) => [BASIC_LAND_OF[c], c]));
 
 const BASIC_LAND_SET = new Set(BASIC_LAND_NAMES);
 

@@ -26,7 +26,7 @@
  * so they carry `delayMs` to stay in that order.
  */
 
-import { DECK_COLORS } from '@hadoku/deck';
+import { COLOR_OF_BASIC_LAND, DECK_COLORS } from '@hadoku/deck';
 import { COLOUR_IDS, type ColourId, type DraftCard, type ParadigmId } from '@hadoku/shared';
 
 import { viewerOf, type BoardCard, type BoardCardChoice, type BoardPlayer, type BoardView } from '../adapter.ts';
@@ -50,8 +50,6 @@ interface Placed {
   owner: BoardPlayer;
   entry: BoardCard;
 }
-
-const BASIC_LAND: Readonly<Record<string, string>> = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
 
 /**
  * Whether a library was shuffled between two views. Forge re-sends the whole
@@ -92,7 +90,7 @@ const isType = (entry: BoardCard, t: string): boolean => types(entry).includes(t
 
 const ALL_COLOURS = [...DECK_COLORS];
 const BASIC_TYPE = /\b(Plains|Island|Swamp|Mountain|Forest)\b/g;
-const basicTypeColours = (text: string): string[] => [...text.matchAll(BASIC_TYPE)].map((m) => BASIC_LAND[m[1]!]!);
+const basicTypeColours = (text: string): string[] => [...text.matchAll(BASIC_TYPE)].map((m) => COLOR_OF_BASIC_LAND[m[1]!]!);
 
 /**
  * A land's colours, which it has none of as a card. All read off the face in

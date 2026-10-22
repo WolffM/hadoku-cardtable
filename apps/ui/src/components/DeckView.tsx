@@ -69,6 +69,7 @@ import {
   BASIC_LAND_NAMES,
   basicLand,
   cardKey,
+  COLOR_OF_BASIC_LAND,
   deckProblems,
   mainDeckSize,
   moveToMain,
@@ -101,20 +102,6 @@ export interface DeckViewProps {
   onDownload?: (filename: string, text: string) => void;
 }
 
-/**
- * Which pip a basic land shows.
- *
- * Also the colour a basic contributes to {@link mainDeckColors} — a deck with
- * twelve Forests in it is green even if every spell in it is Phyrexian.
- */
-const BASIC_PIP: Record<string, string> = {
-  Plains: 'W',
-  Island: 'U',
-  Swamp: 'B',
-  Mountain: 'R',
-  Forest: 'G',
-};
-
 /* ── a deck's colours ────────────────────────────────────────────────── */
 
 /**
@@ -132,7 +119,7 @@ export function mainDeckColors(
   const tokens: string[] = [];
   for (const entry of deck.main) tokens.push(...(index.get(cardKey(entry.card))?.manaCost ?? []));
   for (const entry of deck.basics) {
-    const pip = entry.count > 0 ? BASIC_PIP[entry.card.name] : undefined;
+    const pip = entry.count > 0 ? COLOR_OF_BASIC_LAND[entry.card.name] : undefined;
     if (pip !== undefined) tokens.push(pip);
   }
   return foldDeckColors(tokens);
@@ -258,7 +245,7 @@ export function DeckView({ draftId, pool, onDownload = downloadFile }: DeckViewP
           const count = deck.basics.find((e) => cardKey(e.card) === key)?.count ?? 0;
           return (
             <span key={name} className="deck__basic" data-testid={`basic-${name}`}>
-              <ManaPip token={BASIC_PIP[name] ?? 'C'} />
+              <ManaPip token={COLOR_OF_BASIC_LAND[name] ?? 'C'} />
               <button
                 type="button"
                 aria-label={`one fewer ${name}`}

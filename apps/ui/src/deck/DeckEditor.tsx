@@ -53,6 +53,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import type { CardRequest, DeckEntry } from '@hadoku/carddata/dck';
 import {
   BASIC_LAND_NAMES,
+  BASIC_LAND_OF,
+  COLOR_OF_BASIC_LAND,
   LIMITED_MIN_MAIN_DECK_SIZE,
   basicLand,
   cardKey,
@@ -81,7 +83,7 @@ import { TopLayer } from '../topLayer.tsx';
 import { uiPx } from '../settings/ui-scale.ts';
 import { cardHeightOf, cssPx, gridAt, largestCard, pilesAt, useBox } from '../components/cardFit.ts';
 import { MV_CAP, MV_SPAN, groupCards, mvLabel, isCreatureFace, isLandFace, sortCards, type SortKey } from './cardOrder.ts';
-import { BASIC_OF, cardIndex, COLOR_OF_BASIC, draftedSeat, mainSummary, namedCardPool, withSuggestedBasics } from './build.ts';
+import { cardIndex, draftedSeat, mainSummary, namedCardPool, withSuggestedBasics } from './build.ts';
 import type { TablesClient, Verdict } from '../screens/tables.ts';
 import './deckEditor.css';
 
@@ -245,7 +247,7 @@ export function DeckEditor({
     else toSide(tile);
   };
   const split = useCardSplit((key, to) => dropOnto(to, key));
-  const setBasic = (c: ManaColor, count: number): void => setDeck((d) => setBasicLand(d, basicLand(BASIC_OF[c]), Math.max(0, count)));
+  const setBasic = (c: ManaColor, count: number): void => setDeck((d) => setBasicLand(d, basicLand(BASIC_LAND_OF[c]), Math.max(0, count)));
   const autoBasics = (): void => setDeck((d) => withSuggestedBasics(d, poolIndex, minMain));
 
   /* ── the pool's filter and sort ── */
@@ -372,7 +374,7 @@ export function DeckEditor({
   const curve = Array.from({ length: MV_CAP + 1 }, (_, mv) => piles[mv]!.length);
   const basics: Record<ManaColor, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   for (const e of deck.basics) {
-    const c = COLOR_OF_BASIC[e.card.name];
+    const c = COLOR_OF_BASIC_LAND[e.card.name];
     if (c !== undefined) basics[c] += e.count;
   }
   // A save that failed, or a check that could not be asked. Never a verdict.
@@ -529,7 +531,7 @@ export function DeckEditor({
             {allowBasics && (
               <div className="deck-editor__basics" data-testid="basics">
                 {DECK_COLORS.map((c) => {
-                  const name = BASIC_OF[c];
+                  const name = BASIC_LAND_OF[c];
                   return (
                     <div key={c} className="deck-editor__basic" data-testid={`basic-${name}`}>
                       <button type="button" className="deck-editor__step" aria-label={`one fewer ${name}`} data-testid={`basic-${name}-less`} disabled={basics[c] === 0} onClick={() => setBasic(c, basics[c] - 1)}>
