@@ -17,7 +17,7 @@
 import { Children, createContext, useContext, useState, type MouseEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
-import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
+import { artIdOf, KNOWN_ART_IDS } from '../adapter.ts';
 import { PlayerMark } from '../marks.tsx';
 import type { DraftCard } from '@hadoku/shared';
 import type { AskSource } from '@hadoku/forge-wire';
@@ -221,7 +221,8 @@ export function PromptShell({
  * name and printing come from `lookup.ts` — so the tile is built here from
  * those two facts, and the art is resolved exactly as the board resolves it:
  * through the w19 art-id table (`adapter.ts`'s `KNOWN_ART_IDS`,
- * `@hadoku/carddata/art`) by `scryfallIdFor(index, name, setCode)`, then by
+ * `@hadoku/carddata/art`) by the board's own `artIdOf` — a token by its `ImageKey`, then the
+ * name and set — then by
  * `CardTile` → `cardImageUrl`. No prompt names an image host, and none ever
  * builds a URL.
  *
@@ -252,7 +253,7 @@ export function PromptShell({
  * the card's own facts and nothing else; `label`, when a caller has one, only
  * replaces the words on the tile.
  */
-export function promptCardTile(forgeId: number, name: string, setCode = '', label?: string): DraftCard {
+export function promptCardTile(forgeId: number, name: string, setCode = '', label?: string, imageKey?: string): DraftCard {
   const card: DraftCard = {
     cardId: `w${forgeId}`,
     // What the tile says. Forge's own wording wins where a caller has it — it
@@ -270,7 +271,7 @@ export function promptCardTile(forgeId: number, name: string, setCode = '', labe
     // wire did not carry (`adapter.ts` maps unknown the same way).
     rarity: 'special',
   };
-  const scryfallId = scryfallIdFor(KNOWN_ART_IDS, name, setCode);
+  const scryfallId = artIdOf(KNOWN_ART_IDS, name, setCode, imageKey);
   if (scryfallId !== undefined) card.scryfallId = scryfallId;
   return card;
 }
@@ -314,7 +315,7 @@ export function promptTileFor(lookup: PromptLookup, forgeId: number, label?: str
   const facts = lookup.card(forgeId);
   const identity = facts?.name ?? (label === undefined ? `card #${forgeId}` : nameFromForgeLabel(label, forgeId));
   // Forge's wording, without the " (id)" its `CardView.toString()` ends in: an id is never a card's name.
-  const card = promptCardTile(forgeId, identity, facts?.setCode ?? '', label === undefined ? undefined : nameFromForgeLabel(label, forgeId));
+  const card = promptCardTile(forgeId, identity, facts?.setCode ?? '', label === undefined ? undefined : nameFromForgeLabel(label, forgeId), facts?.imageKey);
   // Its other faces, the board's own (`lookup.faces`: the one on show first), for the inspector's wheel.
   const faces = lookup.faces?.(forgeId).slice(1) ?? [];
   if (faces.length > 0) card.faces = [...faces];

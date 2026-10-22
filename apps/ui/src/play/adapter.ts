@@ -1516,8 +1516,7 @@ function faceCard(id: number, face: WireObject | undefined, name: string, artIds
     collectorNumber: '',
     rarity: RARITY[enumOf(face, 'Rarity') ?? ''] ?? 'special',
   };
-  // A token by its tokenscript first: its name may be shared by printings of other tokens.
-  const scryfallId = hidden ? undefined : (tokenArtId(artIds, strOf(face, 'ImageKey')) ?? scryfallIdFor(artIds, name, card.setCode));
+  const scryfallId = hidden ? undefined : artIdOf(artIds, name, card.setCode, strOf(face, 'ImageKey'));
   if (scryfallId !== undefined) card.scryfallId = scryfallId;
   if (core.includes('Creature')) {
     card.power = String(readInt(face, 'Power'));
@@ -1588,6 +1587,17 @@ function otherFaces(state: WireState, id: number, view: WireObject, shown: Draft
  * Every face of card `id` this seat may see, the one on show first — for a choice between them
  * (`prompts/lookup.ts`'s `faces`). Empty for a card this seat was sent nothing for.
  */
+/**
+ * A face's art id, the one way every card on the table is resolved — the board, and a decision
+ * window's tile (`prompts/PromptShell.tsx`), which once looked up by name alone and so drew a
+ * token whose only row is its tokenscript (the Wicked Role) with art on the board and none in the
+ * window. A token by its tokenscript first (`ImageKey`): its name may be shared by printings of
+ * other tokens, or have no row at all. Then the exact printing, then any printing of the name.
+ */
+export function artIdOf(artIds: ArtIdIndex, name: string, setCode: string, imageKey?: string | null): string | undefined {
+  return tokenArtId(artIds, imageKey) ?? scryfallIdFor(artIds, name, setCode);
+}
+
 export function cardFaces(state: WireState, id: number, artIds: ArtIdIndex = KNOWN_ART_IDS): TileCard[] {
   const view = state.get(deltaKey(DELTA_TYPE.card, id));
   if (view === undefined) return [];

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 
+import { artIdOf, KNOWN_ART_IDS } from '../adapter.ts';
 import type { WireObject } from '../wire.ts';
+import { promptTileFor } from './PromptShell.tsx';
 import { isZoneDividerLabel, lookupFromState, plainRulesText, promptLines, promptText, selectionText, translateTargetWords, type PromptParts } from './lookup.ts';
 
 const card = (id: number): [string, WireObject] => [deltaKey(DELTA_TYPE.card, id), { _type: DELTA_TYPE.card, _id: id }];
@@ -27,6 +29,19 @@ describe('lookupFromState', () => {
 
   it('no object at all is no facts', () => {
     expect(lookupFromState(new Map()).card(5)).toBeUndefined();
+  });
+
+  // 2026-10-22: *"'wicked' role doesn't have art when shown within a decision window, but it was
+  // displaying art while on the board."* The Wicked Role's only art row is its tokenscript's
+  // (`t:role_wicked`): the window's tile is resolved by the board's own `artIdOf`, `ImageKey` first.
+  it('a token in a decision window draws the art the board draws, by its ImageKey', () => {
+    const [key, obj] = face(31, 'Wicked Role', 'WOE');
+    const lookup = lookupFromState(new Map([card(31), [key, { ...obj, ImageKey: { t: 'str', v: 't:role_wicked|WOE|5' } } as WireObject]]));
+    expect(lookup.card(31)).toMatchObject({ name: 'Wicked Role', setCode: 'WOE', imageKey: 't:role_wicked|WOE|5' });
+    const tile = promptTileFor(lookup, 31);
+    expect(tile.scryfallId, 'the window draws the Wicked Role').toBe(KNOWN_ART_IDS.get('t:role_wicked'));
+    expect(tile.scryfallId).toBe(artIdOf(KNOWN_ART_IDS, 'Wicked Role', 'WOE', 't:role_wicked|WOE|5'));
+    expect(KNOWN_ART_IDS.get('t:role_wicked')).toBeDefined();
   });
 });
 
