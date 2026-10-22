@@ -887,6 +887,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	// is not touched for either.
 	rooms?.setPodChecks?.({
 		holdsSeriesDeck,
+		// A bare source's name, independent of any `DraftRoom` — a room still
+		// in its lobby has not built one yet (`draftRooms.ts`'s `nameOf`).
+		planNameOf(source) {
+			return deps.draftRooms?.nameOf(source) ?? (source.kind === 'cube' ? source.cubeId : `${source.code} (${source.style})`);
+		},
 		draftComplete(podId) {
 			const room = deps.draftRooms?.find(podId);
 			return room !== undefined && stateOf(room).status === 'complete';

@@ -25,6 +25,7 @@
  */
 
 import { z } from 'zod';
+import { DraftPlanSchema, PoolVerdictSchema } from './pool.ts';
 
 /** A draft room's phases, lobby to done — `draft-pods-plan.md`'s "Pods". */
 export const POD_PHASES = ['lobby', 'drafting', 'building', 'rounds', 'done'] as const;
@@ -110,6 +111,16 @@ export const PodViewSchema = z.strictObject({
   drafters: z.array(z.string().min(1)),
   /** Drafters whose deck is saved and legal — `building`'s own gate for starting `rounds`. */
   built: z.array(z.string().min(1)),
+  /**
+   * The room's pool choice (wave 73 §A) — the Settled default (Vintage Cube
+   * 2025-12 × 3) until the leader picks otherwise, frozen once drafting
+   * starts (`PUT /api/rooms/:id/pod/plan` is `lobby`-phase only).
+   */
+  plan: DraftPlanSchema,
+  /** The display name of round 1's source — `cube.name` for a cube, or a set's own name once wave 74 adds those. */
+  planName: z.string(),
+  /** `plan`'s last playability check, or `null` while one is running or before the first ever ran. */
+  verdict: PoolVerdictSchema.nullable(),
 });
 export type PodView = z.infer<typeof PodViewSchema>;
 

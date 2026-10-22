@@ -1,12 +1,17 @@
 /**
- * The cube a server-run draft is dealt from.
+ * Reading one `{cube,size,cards}` file — a cube, in the shape every one of
+ * them is written: the UI's single bundled pool once, and now any of the 8
+ * shortlisted cube files under `apps/server/pools/cubes/` (wave 73 §A, built
+ * by `packages/carddata/src/cli/build-pool.ts`'s `--out-dir=`), each a
+ * `PoolSource` a room's plan can name by file stem
+ * (`packages/shared/src/pool.ts`'s `CubeSummary.id`).
  *
- * The engine takes a pool of cards, not a cube name — `createDraft` has no
- * opinion about where the cards came from. This is the one place that answers
+ * The engine takes cards, not a cube name — `createDraft`'s `packs` has no
+ * opinion about where they came from. This is the one place that answers
  * that question for the server, and it answers it from a file on disk rather
  * than by reaching into another workspace member's module graph: `apps/ui`
- * bundles the same file for its in-process source, and the two must not become
- * a build-order dependency on each other.
+ * bundles the same file shape for its in-process source, and the two must
+ * not become a build-order dependency on each other.
  *
  * ## A verdict, not a throw
  *

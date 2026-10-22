@@ -71,13 +71,18 @@ import {
 import { createSeatTable, isDurableParticipantId } from '@wolffm/rooms-protocol';
 import {
 	DEFAULT_GAME_TYPE,
+	DraftPlanSchema,
 	GAME_TYPES,
 	POD_SEATS,
+	PoolVerdictSchema,
 	RoomModeSchema,
 	SERIES_PHASES,
 	type ConstructedMode,
+	type DraftPlan,
 	type GameType,
 	type ModeOptions,
+	type PoolSource,
+	type PoolVerdict,
 	type RoomMode,
 	type PodMember,
 	type PodPhase,
@@ -89,7 +94,7 @@ import {
 // (which `@hadoku/shared` holds) cannot import these — this file is the one
 // place both sides meet (wave 72 §P).
 import { botSeatAcross, pairRound, roundsFor, standings, type MatchResult, type PodPlayer, type StandingsRow } from '@hadoku/draft';
-import type { PodDeal } from './draftRooms.ts';
+import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { isGauntletState, type GauntletState } from './gauntlet.ts';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, statsModeOf, type SeriesGame, type SeriesRecord, type SeriesRoom } from './series.ts';
 
@@ -526,6 +531,11 @@ export type StandPodResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' };
 
+export type SetPodPlanResult =
+	| { ok: true; room: RoomView }
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' | 'not-leader' }
+	| { ok: false; reason: 'refused'; verdict: PoolVerdict };
+
 export type CloseRoomResult =
 	| { ok: true; matches: string[] }
 	| { ok: false; reason: 'no-room' | 'not-leader' };
@@ -644,6 +654,8 @@ export interface PodChecks {
 	built(podId: string, memberId: string): boolean;
 	seatState(podId: string, memberId: string, tableId: string): unknown;
 	holdsSeriesDeck(state: unknown): boolean;
+	/** A source's display name (`PodView.planName`) — `draftRooms.ts`'s resolver, by the same rule `cubeMetaOf` reads it with. */
+	planNameOf(source: PoolSource): string;
 }
 
 const NO_POD_CHECKS: PodChecks = {
@@ -651,6 +663,7 @@ const NO_POD_CHECKS: PodChecks = {
 	built: () => false,
 	seatState: () => null,
 	holdsSeriesDeck: () => true,
+	planNameOf: (source) => (source.kind === 'cube' ? source.cubeId : `${source.code} (${source.style})`),
 };
 
 /**
@@ -770,6 +783,10 @@ function rankedStandings(humans: string[], results: MatchResult[]): (StandingsRo
 /** `RoomView.pod`, for a `draft` room only — `viewOf` answers `null` for a `constructed-1v1` one. */
 function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	const phase = podPhaseOf(room, checks);
+	// `room.plan` is frozen the instant `draftStartedAt` is set (`PUT
+	// …/pod/plan` refuses from there — see `RoomRecord.plan`'s own doc), so
+	// reading it here is right in every phase, not just `lobby`.
+	const planFields = { plan: room.plan, planName: checks.planNameOf(room.plan.rounds[0]), verdict: room.planVerdict };
 	// Filled only in `lobby` — the wire contract's own words ("lobby phase: the
 	// 8 pod seats"). Once drafting starts, who is at what SEAT is the draft
 	// engine's own business (`room/draftRooms.ts`'s `viewForParticipant`), and
@@ -777,7 +794,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// answer from — this field is not a second source for either.
 	const seats = phase === 'lobby' ? podSeatsView(room) : EMPTY_POD_SEATS;
 	if (phase === 'lobby') {
-		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [] };
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [], ...planFields };
 	}
 	// Seated at `draftStartedAt` and fixed from there (`#dealPodRounds`'s own
 	// `humans`), falling back to the CURRENT seats for a pod whose rounds have
@@ -785,12 +802,12 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// back to before `#dealPodRounds` has run.
 	const humans = room.pod?.humans ?? seatedHumans(room);
 	if (phase === 'drafting') {
-		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: humans, built: [] };
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: humans, built: [], ...planFields };
 	}
 	// Done building: pressed Play (`playPod`) with a deck that is still legal.
 	const built = humans.filter((id) => room.podPlaying.includes(id) && checks.built(room.id, id));
 	if (phase === 'building') {
-		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, drafters: humans, built };
+		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, drafters: humans, built, ...planFields };
 	}
 	const pod = room.pod as PodRecord; // `podPhaseOf` answers `rounds`/`done` only when `room.pod !== null`.
 	// The AI you played is ranked beside you (the operator, 2026-10-19: "why am i the only one in that room").
@@ -806,6 +823,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 		bye: pod.bye,
 		drafters: humans,
 		built,
+		...planFields,
 	};
 }
 
@@ -1098,6 +1116,16 @@ export interface Lobby {
 	 * seat to a bot, and the first members to connect evict one each.
 	 */
 	podDraft(roomId: string): PodDeal | null;
+	/**
+	 * The leader's pool choice (`PUT /api/rooms/:id/pod/plan`): leader only,
+	 * `lobby` phase only, and only with an ALREADY-COMPUTED `verdict` — this
+	 * method is synchronous and does no Forge/catalog I/O itself (that is the
+	 * route's job, via `room/plan.ts`, before calling here). A refused verdict
+	 * (`verdict.ok === false`) is reported back but never written: the room
+	 * keeps its previous plan, per the wire contract's "Refused: 409 { verdict
+	 * }, and the plan is unchanged."
+	 */
+	setPodPlan(roomId: string, memberId: string, plan: DraftPlan, verdict: PoolVerdict): SetPodPlanResult;
 
 	/* ── the Gauntlet ───────────────────────────────────────────────────── */
 
@@ -1250,6 +1278,16 @@ interface RoomRecord {
 	matches: string[];
 	/** ms since epoch once the draft was dealt; null in the lobby phase. */
 	draftStartedAt: number | null;
+	/**
+	 * A draft room's pool choice (wave 73 §A) — the Settled default (Vintage
+	 * Cube 2025-12 × 3) until the leader picks otherwise. Meaningful only while
+	 * `draftStartedAt === null` — `PUT …/pod/plan` refuses once it is set, so
+	 * `podDraft`'s own read of this is frozen by construction from there, same
+	 * as `podSeats` below.
+	 */
+	plan: DraftPlan;
+	/** The last verdict run on `plan` — null while a check is in flight, or before the first one ever ran. */
+	planVerdict: PoolVerdict | null;
 	/** The 8 pod seats (wave 72 §P), by member id. Meaningful only while `draftStartedAt === null`; frozen from there — `#dealPodRounds`'s own `PodRecord.humans` is what the pod plays. */
 	podSeats: (string | null)[];
 	/** The character each AI seat plays as, by pod seat — null where no AI sits. Kept the tournament through. */
@@ -1305,6 +1343,10 @@ interface StoredApp {
 	 * did NOT come back is put back in its lobby (`releaseLostDrafts`).
 	 */
 	draftStartedAt: number | null;
+	/** Absent for a room written before wave 73 §A: the Settled default (Vintage Cube 2025-12 × 3), same as every pod drafted before a plan existed. */
+	plan?: DraftPlan;
+	/** Absent for a room written before wave 73 §A, or whose plan has never been checked. */
+	planVerdict?: PoolVerdict | null;
 	/** Absent on disk for a room written before wave 72 §P: the default (8 nulls) is nobody seated, same as before the pod lobby existed. */
 	podSeats: (string | null)[];
 	/** Absent for a room written before AI seats had characters: none has one. */
@@ -1470,6 +1512,11 @@ const appCodec: AppCodec<StoredApp> = {
 		if (a.draftStartedAt !== undefined && a.draftStartedAt !== null && typeof a.draftStartedAt !== 'number') {
 			throw new Error('app.draftStartedAt is not a number');
 		}
+		// Absent is a room written before wave 73 §A, which drafted the server's one global cube.
+		if (a.plan !== undefined && !DraftPlanSchema.safeParse(a.plan).success) throw new Error('app.plan is invalid');
+		if (a.planVerdict !== undefined && a.planVerdict !== null && !PoolVerdictSchema.safeParse(a.planVerdict).success) {
+			throw new Error('app.planVerdict is invalid');
+		}
 		// Absent is a room written before wave 72 §P, which has nobody seated.
 		if (a.podSeats !== undefined && !isStoredPodSeats(a.podSeats)) throw new Error('app.podSeats is invalid');
 		if (a.podAi !== undefined && !isStoredPodSeats(a.podAi)) throw new Error('app.podAi is invalid');
@@ -1516,6 +1563,8 @@ const appCodec: AppCodec<StoredApp> = {
 			matchId,
 			matches: a.matches === undefined ? [] : [...(a.matches as string[])],
 			draftStartedAt: a.draftStartedAt === undefined ? null : (a.draftStartedAt as number | null),
+			plan: a.plan === undefined ? DEFAULT_PLAN : (a.plan as DraftPlan),
+			planVerdict: a.planVerdict === undefined ? null : (a.planVerdict as PoolVerdict | null),
 			podSeats: a.podSeats === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(a.podSeats as (string | null)[])],
 			podAi: a.podAi === undefined ? new Array<string | null>(POD_SEATS).fill(null) : [...(a.podAi as (string | null)[])],
 			pod: a.pod === undefined || a.pod === null ? null : (a.pod as PodRecord),
@@ -1789,6 +1838,8 @@ class FileLobby implements Lobby {
 			matchId: room.tables[0]?.matchId ?? null,
 			matches: [...room.matches],
 			draftStartedAt: room.draftStartedAt,
+			plan: room.plan,
+			planVerdict: room.planVerdict,
 			podSeats: [...room.podSeats],
 			podAi: [...room.podAi],
 			podPlaying: [...room.podPlaying],
@@ -2231,6 +2282,8 @@ class FileLobby implements Lobby {
 			],
 			matches: [],
 			draftStartedAt: null,
+			plan: DEFAULT_PLAN,
+			planVerdict: null,
 			podSeats: new Array<string | null>(POD_SEATS).fill(null),
 			podAi: new Array<string | null>(POD_SEATS).fill(null),
 			pod: null,
@@ -2546,7 +2599,23 @@ class FileLobby implements Lobby {
 				return member === undefined ? [] : [{ participantId: place.id, displayName: member.name, seat, ...(member.avatarId === undefined ? {} : { avatarId: member.avatarId }) }];
 			}),
 			bots: table.flatMap((place, seat) => (place.kind === 'ai' ? [place.persona === null ? { name: `Bot ${seat}` } : { name: place.persona.name, avatarId: place.persona.avatarId }] : [])),
+			plan: room.plan,
 		};
+	}
+
+	setPodPlan(roomId: string, memberId: string, plan: DraftPlan, verdict: PoolVerdict): SetPodPlanResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!room.members.some((m) => m.id === memberId)) return { ok: false, reason: 'not-member' };
+		if (room.gameType !== 'draft') return { ok: false, reason: 'not-draft' };
+		if (room.draftStartedAt !== null) return { ok: false, reason: 'not-lobby' };
+		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		if (!verdict.ok) return { ok: false, reason: 'refused', verdict };
+		room.plan = plan;
+		room.planVerdict = verdict;
+		this.#persist(room);
+		this.#log({ event: 'pod-plan-set', roomId, memberId, planName: this.#podChecks.planNameOf(plan.rounds[0]) });
+		return { ok: true, room: this.#view(room) };
 	}
 
 	sitPod(roomId: string, memberId: string, seat?: number): SitPodResult {
@@ -2773,6 +2842,11 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// exists, puts back in its lobby only a room whose draft did not
 					// come back — `open` would deal a brand new one over the top.
 					draftStartedAt: app.draftStartedAt,
+					// Restored, same as any other lobby setting: the leader's pool
+					// choice (and its last verdict) outlive a restart same as `format`.
+					// `?? ` covers a record written before wave 73 §A, same as `podAi` below.
+					plan: app.plan ?? DEFAULT_PLAN,
+					planVerdict: app.planVerdict ?? null,
 					// Restored, like `ready` and unlike the draft itself: who sat in the
 					// pod lobby is a property of the ROOM, not of the in-memory draft, so
 					// it survives a restart the room comes back from in its lobby phase.

@@ -26,11 +26,13 @@
 
 import {
   createDraft,
+  deal,
   pick as enginePick,
   runBots,
   viewFor,
   type DraftState,
 } from '@hadoku/draft';
+import type { PoolSource } from '@hadoku/shared';
 import { expectDraftView } from './validate.ts';
 import type { DraftCard, DraftView } from './types.ts';
 import poolData from './pool.json';
@@ -72,11 +74,15 @@ const POD = [
  * the draft, which is the right feel — the table waits for you, not you for it.
  */
 export function startDraft(seed: string): LiveDraft {
+  // One cube, all three rounds — the in-process harness never grows a second
+  // source; `deal()` is still the one place packs are built, same as a room.
+  const source: PoolSource = { kind: 'cube', cubeId: 'bundled' };
+  const plan = { rounds: [source, source, source] as [PoolSource, PoolSource, PoolSource] };
   const engine = createDraft({
     draftId: `draft:${seed}`,
     epoch: `${seed}:1`,
     seed,
-    pool: POOL.cards,
+    packs: deal(plan, () => POOL.cards, seed, 8, 15),
     seatCount: 8,
     packCount: 3,
     packSize: 15,

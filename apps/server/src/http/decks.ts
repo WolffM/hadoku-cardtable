@@ -37,13 +37,14 @@ export interface DecksDeps {
 }
 
 /** The caller's deck in this pod, or null: no seat, the draft is not finished, or they deleted it. */
-function deckIn(room: DraftRoom, caller: string, deps: DecksDeps, cube: string): MyDeck | null {
+function deckIn(room: DraftRoom, caller: string, deps: DecksDeps, draftRooms: DraftRooms): MyDeck | null {
 	if (room.app.state === null || stateOf(room).status !== 'complete') return null;
 	const view = viewForParticipant(room, caller);
 	if (view.viewer.kind !== 'seat') return null;
 	const meta = room.app.deckMeta[caller];
 	if (meta?.deleted === true) return null;
 	const lobbyRoom = deps.room(room.roomId);
+	const cube = draftRooms.cubeMetaOf(room).name;
 	return {
 		id: room.roomId,
 		name: meta?.name ?? lobbyRoom?.name ?? cube,
@@ -71,7 +72,7 @@ export function attachDecks(api: Router, deps: DecksDeps): void {
 		const caller = callerOf(req);
 		const mine = draftRooms
 			.all()
-			.flatMap((room) => deckIn(room, caller, deps, draftRooms.cube.name) ?? [])
+			.flatMap((room) => deckIn(room, caller, deps, draftRooms) ?? [])
 			.sort((a, b) => b.createdAt - a.createdAt);
 		res.json({ decks: mine });
 	});
@@ -81,7 +82,7 @@ export function attachDecks(api: Router, deps: DecksDeps): void {
 		const podId = String(req.params.podId);
 		const room = deps.draftRooms?.find(podId);
 		const caller = callerOf(req);
-		const deck = room === undefined || deps.draftRooms === null ? null : deckIn(room, caller, deps, deps.draftRooms.cube.name);
+		const deck = room === undefined || deps.draftRooms === null ? null : deckIn(room, caller, deps, deps.draftRooms);
 		if (room === undefined || deck === null) {
 			res.status(404).json({ error: `you have no deck from ${JSON.stringify(podId)}` });
 			return null;

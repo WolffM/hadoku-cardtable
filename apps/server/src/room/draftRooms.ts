@@ -128,8 +128,8 @@ import {
 	type SeatId,
 	type SeatTable,
 } from '@wolffm/rooms-protocol';
-import { botSeatAcross, createDraft, isBotSeat, spectatorView, viewFor, watcherView, type BotSeat, type DraftState, type HumanSeat } from '@hadoku/draft';
-import { cursorOf, type CubeMeta, type DraftCard, type DraftView, type WireCursor } from '@hadoku/shared';
+import { botSeatAcross, createDraft, deal, isBotSeat, spectatorView, viewFor, watcherView, type BotSeat, type DraftState, type HumanSeat } from '@hadoku/draft';
+import { cursorOf, type CubeMeta, type DraftCard, type DraftPlan, type DraftView, type PoolSource, type WireCursor } from '@hadoku/shared';
 import {
 	applySnapshot,
 	decodeSnapshot,
@@ -230,9 +230,59 @@ export const DEFAULT_PARAMS: DraftParams = {
 	disconnectGraceMs: 0,
 };
 
+/**
+ * The shortlist file stem `build-pool --out-dir=` gave MTGO Vintage Cube
+ * 2025-12 (`packages/carddata/src/cli/build-pool.ts`'s `slug()`) — the
+ * `CubeSummary.id`/`PoolSource.cubeId` this server knows it by.
+ */
+export const DEFAULT_CUBE_ID = 'mtgo-vintage-cube-2025-12';
+
+/** Settled, 2026-10-21: a new draft room's plan before its leader ever picks one — "the Vintage Cube 2025-12 three times". */
+export const DEFAULT_PLAN: DraftPlan = {
+	rounds: [
+		{ kind: 'cube', cubeId: DEFAULT_CUBE_ID },
+		{ kind: 'cube', cubeId: DEFAULT_CUBE_ID },
+		{ kind: 'cube', cubeId: DEFAULT_CUBE_ID },
+	],
+};
+
+/**
+ * What a room needs to turn a `PoolSource` into cards and a name — the
+ * server's one answer to "where do a pod's packs come from", now that it is
+ * per room rather than the single file `index.ts` used to load at boot.
+ *
+ * `index.ts` wires this: today (steps 1-5, before C's `CubeStore` lands) from
+ * the shortlist files directly; `createCubeStore`'s `cards`/`list` answer the
+ * same two questions once step 6 swaps it in.
+ */
+export interface PoolSourceResolver {
+	/** Every card a source holds — handed straight to `@hadoku/draft`'s `deal()`. */
+	cards(src: PoolSource): readonly DraftCard[];
+	/** Its display name — `CubeMeta.name`, `PodView.planName`. */
+	name(src: PoolSource): string;
+}
+
+/**
+ * A resolver (and the matching default plan) for a server with exactly one
+ * cube, under one id — the shape every draft room used before per-room plans
+ * existed. For tests, and for `apps/ui/src/draft/live.ts`'s bundled pool,
+ * which never grows a second source.
+ */
+export function singlePoolResolver(cube: { name: string; cards: readonly DraftCard[] }): {
+	resolver: PoolSourceResolver;
+	defaultPlan: DraftPlan;
+} {
+	const source: PoolSource = { kind: 'cube', cubeId: 'default' };
+	return {
+		resolver: { cards: () => cube.cards, name: () => cube.name },
+		defaultPlan: { rounds: [source, source, source] },
+	};
+}
+
 export interface DraftRoomsOptions {
-	pool: readonly DraftCard[];
-	cube: CubeMeta;
+	resolver: PoolSourceResolver;
+	/** A new room's plan before its leader ever picks one — Settled: Vintage Cube 2025-12 × 3. */
+	defaultPlan: DraftPlan;
 	params?: Partial<DraftParams>;
 	/** Injectable so a test can pin the epoch. */
 	now?: () => number;
@@ -258,7 +308,6 @@ export interface DraftRoomsOptions {
 }
 
 export interface DraftRooms {
-	readonly cube: CubeMeta;
 	readonly params: DraftParams;
 	/**
 	 * Get or create the room for a draft. Creating one deals the whole draft.
@@ -299,6 +348,10 @@ export interface DraftRooms {
 	 * first humans to connect evict one each.
 	 */
 	setPodLookup(lookup: (draftId: string) => PodDeal | null): void;
+	/** The cube this room's pod is (or will be) dealt from — round 1's source, by name and declared size. `DraftStateMessage.cube`, `MyDeck.cube`'s source. */
+	cubeMetaOf(room: DraftRoom): CubeMeta;
+	/** A bare source's display name — `PodView.planName` for a room still in its lobby, no `DraftRoom` built yet. */
+	nameOf(src: PoolSource): string;
 }
 
 /**
@@ -312,6 +365,14 @@ export interface PodDeal {
 	humans: readonly HumanSeat[];
 	/** The AI seats as players, in seat order: each persona's name and character. */
 	bots: readonly BotSeat[];
+	/**
+	 * This pod's plan — the room's own `plan` (`room/lobby.ts`'s `podDraft`),
+	 * at whatever it was set to when the draft was built. The lobby refuses to
+	 * change it once `draftStartedAt` is set, which is before `build()` ever
+	 * runs for a brand-new room, so what is read here is frozen by construction
+	 * rather than by a second lock.
+	 */
+	plan: DraftPlan;
 }
 
 /*
@@ -538,8 +599,14 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		}
 	}
 
+	/** The plan a draft id's pod is set to right now — its own, or the server's default for a room nobody has planned yet. */
+	const planFor = (draftId: string): DraftPlan => podLookup(draftId)?.plan ?? options.defaultPlan;
+
 	const build = (draftId: string): DraftState => {
 		const pod = podLookup(draftId);
+		const plan = pod?.plan ?? options.defaultPlan;
+		// A pod with seats closed deals that many fewer (`room/lobby.ts`'s `podDraft`).
+		const seatCount = pod?.seats ?? params.seatCount;
 		return createDraft({
 			draftId,
 			// A new INCARNATION every time a draft is built, so a client holding
@@ -548,12 +615,13 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// sequence numbers across two different shuffles.
 			epoch: `${draftId}:${now()}`,
 			// The id IS the seed: the same pod id deals the same draft, which is
-			// what makes a bug report reproducible and a restore possible.
+			// what makes a bug report reproducible and a restore possible — for
+			// BOTH `deal()` and `createDraft` itself, which is what keeps the two
+			// in step without threading a second seed through.
 			seed: draftId,
-			pool: options.pool,
-			// A pod with seats closed deals that many fewer (`room/lobby.ts`'s `podDraft`).
-			seatCount: pod?.seats ?? params.seatCount,
-			packCount: params.packCount,
+			packs: deal(plan, options.resolver.cards, draftId, seatCount, params.packSize),
+			seatCount,
+			packCount: plan.rounds.length,
 			packSize: params.packSize,
 			humans: pod?.humans ?? [],
 			bots: pod?.bots ?? [],
@@ -562,7 +630,6 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 	};
 
 	return {
-		cube: options.cube,
 		params,
 		open(draftId) {
 			// Idempotent: an existing room is returned untouched, and in
@@ -601,6 +668,13 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		},
 		setPodLookup(lookup) {
 			podLookup = lookup;
+		},
+		cubeMetaOf(room) {
+			const src = planFor(room.roomId).rounds[0] as PoolSource;
+			return { name: options.resolver.name(src), size: options.resolver.cards(src).length };
+		},
+		nameOf(src) {
+			return options.resolver.name(src);
 		},
 	};
 }

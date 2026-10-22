@@ -340,11 +340,11 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					// here, and only when the table actually changed — an
 					// unchanged seq would reach them as a duplicate anyway.
 					if (outcome.changed) {
-						emitJoinSnapshot(io, room, socket.id, rooms.cube, policy);
+						emitJoinSnapshot(io, room, socket.id, rooms.cubeMetaOf(room), policy);
 					} else {
 						sendTo(
 							socket,
-							stateMessage(viewForClient(room, outcome.client), rooms.cube),
+							stateMessage(viewForClient(room, outcome.client), rooms.cubeMetaOf(room)),
 							policy,
 						);
 					}
@@ -381,7 +381,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					});
 					// A full snapshot, to the asker only. A draft payload is
 					// small and a delta protocol is a second thing to get wrong.
-					sendTo(socket, stateMessage(ownView(room), rooms.cube), policy);
+					sendTo(socket, stateMessage(ownView(room), rooms.cubeMetaOf(room)), policy);
 					return;
 				}
 
@@ -398,7 +398,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					}
 					client.app.watching = msg.drafter;
 					log({ evt: 'watch', participantId, draftId: room.roomId, drafter: msg.drafter });
-					sendTo(socket, stateMessage(viewForClient(room, client), rooms.cube), policy);
+					sendTo(socket, stateMessage(viewForClient(room, client), rooms.cubeMetaOf(room)), policy);
 					return;
 				}
 

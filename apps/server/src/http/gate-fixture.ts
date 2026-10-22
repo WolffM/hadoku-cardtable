@@ -6,6 +6,11 @@
  * The pool is real: 45 cards of the committed cube, read by the server's own
  * loader. The deck is the one the BROWSER writes — the UI's own `deckFromPool`,
  * `setBasicLand` and `.dck` writer — so this is the file a player would submit.
+ *
+ * Reads a shortlisted cube file (wave 73 §A), not the UI's bundled
+ * `pool.json` — see `docs/planning/wave73-2026-10-21.md`'s blast radius table:
+ * "gate-fixture.ts's load of the UI's pool.json moves to a shortlisted cube
+ * file."
  */
 
 import { dirname, resolve } from 'node:path';
@@ -24,7 +29,7 @@ export const DRAFT = 'amber-lantern-k7q4';
 export const UW_DELVER = 'power-2012-1-todd-anderson-uw-delver';
 export const POWER_2012 = '2012-07-13';
 
-const cube = loadPool(resolve(REPO_ROOT, 'apps/ui/src/draft/pool.json'));
+const cube = loadPool(resolve(REPO_ROOT, 'apps/server/pools/cubes/mtgo-vintage-cube-2025-12.json'));
 if (!cube.ok) throw new Error(`cube pool did not load: ${cube.detail}`);
 
 /**

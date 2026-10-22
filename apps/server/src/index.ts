@@ -65,7 +65,7 @@
 
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -73,10 +73,10 @@ import { Server as SocketIOServer } from 'socket.io';
 import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
-import { createDraftRooms, stateOf } from './room/draftRooms.js';
+import { createDraftRooms, DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
 import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
-import { loadPool } from './room/pool.js';
+import { loadPool, type CubePool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, type PlayHandle } from './play/index.js';
@@ -404,14 +404,35 @@ attachSounds(api, {
 	dir: process.env.CARDTABLE_SOUNDS_DIR ?? resolve(CONFIG.logDir, '../data/sounds'),
 });
 
-// ── The draft room ───────────────────────────────────────────────────────────
-// The cube the pod is dealt from. Read once at boot, like the base-path check
-// and for the same reason: a synchronous read of a 280 kB file does not belong
-// on a request path, and a rebuild is a redeploy.
-const POOL_FILE = process.env.CARDTABLE_POOL_FILE
-	? resolve(process.env.CARDTABLE_POOL_FILE)
-	: resolve(PKG_ROOT, '../ui/src/draft/pool.json');
-const poolLoad = loadPool(POOL_FILE);
+// ── The draft room's cube shortlist ──────────────────────────────────────────
+// Interim wiring (wave73 §A steps 1-5): a draft room's pool is now its own
+// PLAN, not one file the whole server shares — but C's `createCubeStore` and
+// D's `createForgePools` land in their own lanes, so until step 6 swaps them
+// in, every shortlisted cube is read directly off disk here, the same
+// `{cube,size,cards}` shape (and the same `loadPool`) the single bundled pool
+// always used. Read once at boot, like the base-path check and for the same
+// reason: a synchronous read does not belong on a request path, and a
+// rebuild is a redeploy.
+const CUBES_DIR = process.env.CARDTABLE_SHORTLIST_DIR ?? resolve(PKG_ROOT, 'pools/cubes');
+const shortlist = new Map<string, CubePool>();
+for (const file of existsSync(CUBES_DIR) ? readdirSync(CUBES_DIR).filter((f) => f.endsWith('.json')) : []) {
+	const id = file.slice(0, -'.json'.length);
+	const load = loadPool(resolve(CUBES_DIR, file));
+	if (load.ok) shortlist.set(id, load.pool);
+	else console.warn(`[cardtable] draft pool: shortlist cube ${file} did not load (${load.detail})`);
+}
+if (shortlist.size === 0) console.warn(`[cardtable] draft pool: no shortlist cubes loaded from ${CUBES_DIR} — draft rooms are disabled`);
+
+/** `src.kind === 'set'` never reaches a pod this wave — `PUT …/pod/plan` refuses it at 400 before any room's plan is ever set to one. */
+const poolResolver: PoolSourceResolver = {
+	cards(src) {
+		return src.kind === 'cube' ? (shortlist.get(src.cubeId)?.cards ?? []) : [];
+	},
+	name(src) {
+		return src.kind === 'cube' ? (shortlist.get(src.cubeId)?.meta.name ?? src.cubeId) : `${src.code} (${src.style})`;
+	},
+};
+const defaultCubeCards = shortlist.get(DEFAULT_CUBE_ID)?.cards ?? null;
 
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
@@ -432,10 +453,10 @@ const DISCONNECT_GRACE_MS = 5_000;
 const draftPolicy = draftEmitPolicy((line) =>
 	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-draft', ...line }))
 );
-const draftRooms = poolLoad.ok
+const draftRooms = shortlist.size > 0
 	? createDraftRooms({
-			pool: poolLoad.pool.cards,
-			cube: poolLoad.pool.meta,
+			resolver: poolResolver,
+			defaultPlan: DEFAULT_PLAN,
 			params: { disconnectGraceMs: DISCONNECT_GRACE_MS },
 			// The grace ran out: the seat was vacated on a timer, with no socket
 			// event to answer, so the broadcast is made here.
@@ -515,13 +536,17 @@ play = attachPlay(io, api, {
 	},
 	keys: statsKeys,
 	// A card-name ask offers the names of the room's pool (`play/names.ts`).
-	formatNames: roomFormatNames(tables.library, poolLoad.ok ? poolLoad.pool.cards : null),
+	// Not per-room (unlike a pod's own packs): these two are a static reference
+	// set for autocomplete/costs across every constructed table, unrelated to
+	// which cube a given pod drafted — the DEFAULT shortlisted cube serves that
+	// same role the one bundled pool always did.
+	formatNames: roomFormatNames(tables.library, defaultCubeCards),
 	// A seat's own spell is held while it can play a card that copies it (`play/spell-copiers.ts`).
 	...(forge.ok ? { spellCopiers: spellCopierLookup(forge.config.res, (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-play', ...entry }))) } : {}),
 	// A seat's face is its holder's avatar in the room that started the match.
 	seatAvatar: tables.seatAvatar,
 	// A seat's deck colours pick the match's music (`play/deck-colors.ts`).
-	deckCosts: roomDeckCosts(tables.library, poolLoad.ok ? poolLoad.pool.cards : null),
+	deckCosts: roomDeckCosts(tables.library, defaultCubeCards),
 });
 // `attachPlay` has adopted every match an earlier server left running, so a
 // room still pointing at one that did not come back can let go of it now.
@@ -666,15 +691,13 @@ httpServer.listen(CONFIG.port, CONFIG.host, () => {
 	console.log(`[cardtable] listening on ${CONFIG.host}:${CONFIG.port}`);
 	console.log(`[cardtable] tier floor: ${CONFIG.minTier}`);
 	console.log(`[cardtable] browser bridge on ${browserBridge.path} (same floor, re-applied at the upgrade)`);
-	if (poolLoad.ok) {
-		console.log(`[cardtable] draft socket ready — ${poolLoad.detail}`);
+	if (shortlist.size > 0) {
+		console.log(`[cardtable] draft socket ready — ${shortlist.size} shortlisted cube(s) loaded`);
 	} else {
 		// Same register as the bundle check: the server is up and one feature is
 		// not, and saying which is what keeps "it just does nothing" from being
 		// a state anyone has to debug from the outside.
-		console.error(
-			`[cardtable] NO CUBE POOL (${poolLoad.reason}): ${poolLoad.detail} — every draft join will answer unknown-draft`
-		);
+		console.error(`[cardtable] NO CUBE SHORTLIST at ${CUBES_DIR} — every draft join will answer unknown-draft`);
 	}
 	if (CONFIG.edgeAuthSecret === '') {
 		console.warn(
