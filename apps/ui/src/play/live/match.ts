@@ -255,7 +255,7 @@ import { io } from 'socket.io-client';
 
 import { defaultSocketPath } from '../../draft/socket.ts';
 import { normalizeAvatarId } from '../../room/avatar.ts';
-import { drawsFaceUp, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
+import { attackLockedIn, drawsFaceUp, manaCostTokens, opponentOf, toBoardView, viewerOf, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
 import { preloadMatchArt } from './art-preload.ts';
 import { pressableBar, type BarHold } from './bar-hold.ts';
@@ -876,6 +876,11 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    */
   watcher: boolean;
   /**
+   * This screen has seen the current Declare Attackers step's attack locked in (`attackLockedIn`), kept
+   * until the step ends: once the attacker passes, a vigilant attack looks on the wire as it did mid-pick.
+   */
+  attackLocked: boolean;
+  /**
    * The Forge player id drawn at the BOTTOM when it is not the snapshot's own
    * (`flipPerspective`). A watcher's choice, kept on the client only: the
    * public projection holds nothing hidden, so which side is "me" changes
@@ -1076,6 +1081,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     coinToss: null,
     spectator: false,
     watcher: false,
+    attackLocked: false,
     perspective: null,
     over: false,
     finished: false,
@@ -2913,7 +2919,9 @@ function redraw(match: LiveMatch): void {
           deathCauses: match.deathCauses,
           promptCards: promptCardsOf(match),
           watcher: match.watcher,
+          attackLocked: match.attackLocked,
         });
+  match.attackLocked = match.view?.phase === 'COMBAT_DECLARE_ATTACKERS' && (match.attackLocked || attackLockedIn(match.view.players));
   // A watcher's wire carries the bottom player's hand as hidden cards (the
   // public projection, `apps/server/src/play/visibility.ts`): drawn as the
   // backs strip every opponent's hand already is, never as blank faces.

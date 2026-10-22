@@ -902,6 +902,20 @@ export interface AdaptOptions {
   promptCards?: ReadonlySet<number>;
   /** A watcher's screen, not a seat's: like every player but the attacker, it sees an attack once it is locked in. */
   watcher?: boolean;
+  /** This screen has already seen this Declare Attackers step's attack locked in ({@link attackLockedIn}). */
+  attackLocked?: boolean;
+}
+
+/**
+ * Whether Declare Attackers' attack is locked in, by what this one state shows. Priority alone cannot
+ * say: the defender held it last in Beginning of Combat, keeps it on the wire while the attacker picks,
+ * and holds it again once the attacker passes. What the OK moves is the attacker's priority
+ * (`PhaseHandler` gives it only once the declaration is done) and the attackers' tap, in one delta; a
+ * tapped creature cannot be picked, so a tapped attacker is a locked one. A vigilant attack taps
+ * nothing, so a screen keeps what it saw for the rest of the step (`match.ts`'s `attackLocked`).
+ */
+export function attackLockedIn(players: readonly BoardPlayer[]): boolean {
+  return players.some((p) => (p.isActive && p.hasPriority) || p.battlefield.some((c) => c.attacking && c.tapped));
 }
 
 // ── what a card's printed power and toughness are ───────────────────────────
@@ -1829,6 +1843,7 @@ export function toBoardView(
     deathCauses,
     promptCards = new Set(),
     watcher = false,
+    attackLocked = false,
   }: AdaptOptions,
 ): BoardView {
   const game = [...state.values()].find((o) => o._type === DELTA_TYPE.game);
@@ -1988,11 +2003,10 @@ export function toBoardView(
   // An attack is the attacker's own until it is locked in (the operator, 2026-10-22: "avoid turning the
   // attackers red from the opponents perspective until the attackers actually locked in"). Forge marks
   // each creature `Attacking` as it is picked, and the step is COMBAT_DECLARE_ATTACKERS before the OK and
-  // after it. What the OK moves is priority: the defender held it last in Beginning of Combat, and
-  // `PhaseHandler` gives it to the attacker only once the declaration is done, in the delta that taps the
-  // attackers. Until then every other screen, and a watcher's, draws no attacker and no attack.
+  // after it. Until then every other screen, and a watcher's, draws no attacker and no attack.
   const active = players.find((p) => p.isActive);
-  const picking = phase === 'COMBAT_DECLARE_ATTACKERS' && active !== undefined && !active.hasPriority && (watcher || !active.isViewer);
+  const picking =
+    phase === 'COMBAT_DECLARE_ATTACKERS' && active !== undefined && (watcher || !active.isViewer) && !attackLocked && !attackLockedIn(players);
   return {
     combat: picking ? [] : readCombat(game),
     seq,
