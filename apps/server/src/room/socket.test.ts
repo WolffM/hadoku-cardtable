@@ -63,7 +63,7 @@ import type { DraftRoom, DraftRooms } from './draftRooms.js';
 import type { Lobby } from './lobby.js';
 import type { CubePool } from './pool.js';
 
-const POOL_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
+const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
 const EDGE_SECRET = 'test-edge-auth-secret';
 
 /*
@@ -96,7 +96,7 @@ beforeAll(async () => {
 	roomsMod = await import('./draftRooms.ts');
 	lobbyMod = await import('./lobby.ts');
 	const poolMod = await import('./pool.ts');
-	const load = poolMod.loadPool(POOL_FILE);
+	const load = poolMod.loadPool(BUNDLED_POOL_FIXTURE);
 	if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
 	pool = load.pool;
 });

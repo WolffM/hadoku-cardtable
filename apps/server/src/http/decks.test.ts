@@ -22,7 +22,7 @@ import { createDraftRooms, joinDraftRoom, singlePoolResolver, stateOf, type Draf
 import { identityFromHeaders } from '../room/identity.ts';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
-const POOL_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
+const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
 
 let decksMod: typeof import('./decks.ts');
 let draftsMod: typeof import('./drafts.ts');
@@ -36,7 +36,7 @@ beforeAll(async () => {
 	decksMod = await import('./decks.ts');
 	draftsMod = await import('./drafts.ts');
 	edgeMod = await import('../edge-auth.ts');
-	const load = loadPool(POOL_FILE);
+	const load = loadPool(BUNDLED_POOL_FIXTURE);
 	if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
 	cube = load.pool;
 });

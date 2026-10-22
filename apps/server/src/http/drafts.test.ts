@@ -34,7 +34,7 @@ import { identityFromHeaders } from '../room/identity.ts';
 import { loadTablesLibrary } from './library.ts';
 
 const EDGE_SECRET = 'test-edge-auth-secret';
-const POOL_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
+const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
 const library = loadTablesLibrary(resolve(dirname(fileURLToPath(import.meta.url)), '../../../..'));
 
 // `draftRooms.ts`/`identity.ts` read no env at import time, so they are
@@ -56,7 +56,7 @@ beforeAll(async () => {
 	routesMod = await import('./routes.ts');
 	edgeMod = await import('../edge-auth.ts');
 
-	const load = loadPool(POOL_FILE);
+	const load = loadPool(BUNDLED_POOL_FIXTURE);
 	if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
 	cube = load.pool;
 });

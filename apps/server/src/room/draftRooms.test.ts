@@ -67,7 +67,7 @@ import { loadPool, type CubePool } from './pool.js';
  * invented cards is the difference between testing the seat logic and testing
  * the seat logic against something that resembles a draft.
  */
-const POOL_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
+const BUNDLED_POOL_FIXTURE = resolve(dirname(fileURLToPath(import.meta.url)), '../../../ui/src/draft/pool.json');
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa';
 const BOB = 'fk:bbbbbbbbbbbbbbbb';
@@ -76,7 +76,7 @@ const CAROL = 'fk:cccccccccccccccc';
 let pool: CubePool;
 
 beforeAll(() => {
-	const load = loadPool(POOL_FILE);
+	const load = loadPool(BUNDLED_POOL_FIXTURE);
 	if (!load.ok) throw new Error(`the bundled cube pool did not load: ${load.detail}`);
 	pool = load.pool;
 });
@@ -127,7 +127,7 @@ describe('loadPool', () => {
 	});
 
 	it('is a verdict, not a throw, when the file is not there', () => {
-		const load = loadPool(resolve(POOL_FILE, '..', 'no-such-pool.json'));
+		const load = loadPool(resolve(BUNDLED_POOL_FIXTURE, '..', 'no-such-pool.json'));
 		expect(load.ok).toBe(false);
 		if (!load.ok) expect(load.reason).toBe('missing');
 	});
