@@ -28,12 +28,19 @@ interface BodySchema<T> {
  * else, in the `{ error }` body every route answers with.
  */
 export function parseBody<T>(schema: BodySchema<T>, req: Request, res: Response): T | null {
-	const parsed = schema.safeParse(req.body);
-	if (parsed.success) return parsed.data;
+	const parsed = readBody(schema, req.body);
+	if (parsed.ok) return parsed.value;
+	res.status(400).json({ error: parsed.error });
+	return null;
+}
+
+/** A body by its shared schema, or the refusal `parseBody` would answer with. */
+export function readBody<T>(schema: BodySchema<T>, body: unknown): { ok: true; value: T } | { ok: false; error: string } {
+	const parsed = schema.safeParse(body);
+	if (parsed.success) return { ok: true, value: parsed.data };
 	const { issues } = parsed.error;
 	const issue = issues.find((i) => i.code === 'unrecognized_keys' && i.path.length === 0) ?? issues[0];
-	res.status(400).json({ error: issue?.message ?? 'the request body could not be read' });
-	return null;
+	return { ok: false, error: issue?.message ?? 'the request body could not be read' };
 }
 
 /**

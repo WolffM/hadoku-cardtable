@@ -353,6 +353,7 @@ export {
   type RoomTableSeries,
   type RoomTable,
 } from './room-tables.ts';
+export { FORMAT_ID_MAX, SCENARIO_MAX, StartMatchBodySchema, type StartMatchBody } from './play-requests.ts';
 export {
   RoomMemberSchema,
   RoomYouSchema,

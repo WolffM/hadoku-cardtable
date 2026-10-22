@@ -1694,6 +1694,8 @@ describe('parseStartBody: every refusal, word for word', () => {
 		[{ opponent: 1, decks: 'x' }, "opponent is 'human' or 'ai'"],
 		[{ decks: 'x' }, 'decks is a two-element array'],
 		[{ decks: [null] }, 'decks is a two-element array'],
+		[{ decks: [7] }, 'decks is a two-element array'],
+		[{ decks: [null, null, ''] }, 'decks is a two-element array'],
 		[{ decks: null, names: 1 }, 'names is a two-element array'],
 		[{ decks: [null, ''] }, 'each deck is .dck text (at most 64 KiB) or null'],
 		[{ decks: [7, null] }, 'each deck is .dck text (at most 64 KiB) or null'],

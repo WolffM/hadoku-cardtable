@@ -93,7 +93,7 @@ import {
 	PresenceSchema,
 	fullControlFrame,
 	MATCH_EVENTS,
-	MAX_DCK_BYTES,
+	StartMatchBodySchema,
 	parseAutoYield,
 	parseClientEnvelope,
 	parseFullControl,
@@ -121,7 +121,7 @@ import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } 
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import type { SpellCopy } from './spell-copiers.js';
-import { httpCaller } from '../http/request.js';
+import { httpCaller, readBody } from '../http/request.js';
 import { jsonLogger } from '../log.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
@@ -326,51 +326,10 @@ function uniqueSeatNames(names: [string | undefined, string | undefined]): [stri
  * handler before a match is ever created.
  */
 export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | { ok: false; error: string } {
-	const b = (body ?? {}) as Record<string, unknown>;
-	if (typeof b !== 'object' || Array.isArray(b)) return { ok: false, error: 'body must be an object' };
-	for (const key of Object.keys(b)) {
-		if (
-			key !== 'opponent' &&
-			key !== 'decks' &&
-			key !== 'names' &&
-			key !== 'scenario' &&
-			key !== 'format' &&
-			key !== 'handSmoothing' &&
-			key !== 'chooser'
-		) {
-			return { ok: false, error: `unknown field ${key}` };
-		}
-	}
-	const opponent = b.opponent ?? 'human';
-	if (opponent !== 'human' && opponent !== 'ai') return { ok: false, error: "opponent is 'human' or 'ai'" };
-	const decks = b.decks ?? [null, null];
-	if (!Array.isArray(decks) || decks.length !== 2) return { ok: false, error: 'decks is a two-element array' };
-	for (const d of decks) {
-		if (d !== null && (typeof d !== 'string' || d.length === 0 || d.length > MAX_DCK_BYTES)) {
-			return { ok: false, error: 'each deck is .dck text (at most 64 KiB) or null' };
-		}
-	}
-	let names: [string | undefined, string | undefined] = [undefined, undefined];
-	if (b.names !== undefined) {
-		const raw = b.names;
-		if (!Array.isArray(raw) || raw.length !== 2) return { ok: false, error: 'names is a two-element array' };
-		names = uniqueSeatNames([sanitizeSeatName(raw[0]), sanitizeSeatName(raw[1])]);
-	}
-	let scenario: string | undefined;
-	if (b.scenario !== undefined) {
-		if (typeof b.scenario !== 'string' || b.scenario.length === 0 || b.scenario.length > 64 * 1024) {
-			return { ok: false, error: 'scenario is the text of a puzzle [state] section (at most 64 KiB)' };
-		}
-		scenario = b.scenario;
-	}
-	if (b.format !== undefined && (typeof b.format !== 'string' || b.format.length === 0 || b.format.length > 200)) {
-		return { ok: false, error: 'format is a format id' };
-	}
-	const format = b.format as string | undefined;
-	if (b.handSmoothing !== undefined && typeof b.handSmoothing !== 'boolean') return { ok: false, error: 'handSmoothing is a boolean' };
-	const handSmoothing = b.handSmoothing as boolean | undefined;
-	if (b.chooser !== undefined && b.chooser !== 0 && b.chooser !== 1) return { ok: false, error: 'chooser is 0 or 1' };
-	const chooser = b.chooser as 0 | 1 | undefined;
+	const parsed = readBody(StartMatchBodySchema, body);
+	if (!parsed.ok) return parsed;
+	const { opponent, decks, scenario, format, handSmoothing, chooser } = parsed.value;
+	const names = parsed.value.names === undefined ? [undefined, undefined] : uniqueSeatNames([sanitizeSeatName(parsed.value.names[0]), sanitizeSeatName(parsed.value.names[1])]);
 	// `CARDTABLE_PLAY_SEED` fixes Forge's shuffles, the coin toss and the precon
 	// pick (`play/README.md`, `MatchSpec.seed`), and `bridgeConfig` spreads the
 	// whole spec to the JVM. `jvm.test.ts` has always used it by building a spec
@@ -404,13 +363,13 @@ export function parseStartBody(body: unknown): { ok: true; spec: MatchSpec } | {
 			{
 				name: names[0] ?? 'Seat 1',
 				ai: false,
-				deck: decks[0] as string | null,
+				deck: decks[0],
 				...(names[0] === undefined ? {} : { displayName: names[0] }),
 			},
 			{
 				name: names[1] ?? (opponent === 'ai' ? 'Forge AI' : 'Seat 2'),
 				ai: opponent === 'ai',
-				deck: decks[1] as string | null,
+				deck: decks[1],
 				...(names[1] === undefined ? {} : { displayName: names[1] }),
 			},
 		],
