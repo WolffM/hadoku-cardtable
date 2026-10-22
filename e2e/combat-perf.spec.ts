@@ -17,9 +17,10 @@
  * main, compositor, raster workers, GPU process) and its heaviest events; the slowest frames with what
  * each thread did in them; and the top self-time functions.
  *
- * Three variants, one match each, so a cost can be put on a suspect: `as-is`; `no-shake` (the board's
- * `composite: 'add'` shake runs for 0 ms); `flat-copies` (every ram copy without shadow, outline or
- * filter). Nothing is asserted on milliseconds — a CI runner draws in software; the lines are the
+ * Variants, one match each, so a cost can be put on a suspect: `as-is`; `no-shake` (the board's
+ * `composite: 'add'` shake runs for 0 ms); `shake-replace` (the same shake with `composite: 'replace'`);
+ * `board-layer` (the shaken `section.board` promoted with `will-change: translate`); `flat-copies` (every
+ * ram copy without shadow, outline or filter). Nothing is asserted on milliseconds — a CI runner draws in software; the lines are the
  * evidence.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one the test SKIPS and its
@@ -41,7 +42,7 @@ const log = (line: string): void => console.log(`[combat-perf] ${line}`);
 /** Compositor, raster and GPU on top of the main-thread categories: the main thread may be idle while raster is not. */
 const TRACE = [...CATEGORIES, 'viz', 'benchmark', 'disabled-by-default-devtools.timeline.frame', 'disabled-by-default-gpu.service', 'disabled-by-default-viz.gpu_composite_time'];
 
-type Variant = 'as-is' | 'no-shake' | 'flat-copies';
+type Variant = 'as-is' | 'no-shake' | 'shake-replace' | 'board-layer' | 'flat-copies';
 
 interface Screen {
   name: 'alice' | 'bob';
@@ -297,14 +298,16 @@ async function measure(browserCdp: CDPSession, screens: Screen[], window: string
 
 /** Turn a suspect off on `page`, so its share of the cost shows against `as-is`. */
 async function applyVariant(page: Page, variant: Variant): Promise<void> {
-  if (variant === 'no-shake')
-    await page.evaluate(() => {
+  if (variant === 'no-shake' || variant === 'shake-replace')
+    await page.evaluate((v) => {
       const original = Element.prototype.animate;
       Element.prototype.animate = function (this: Element, frames: Keyframe[] | PropertyIndexedKeyframes | null, options?: number | KeyframeAnimationOptions) {
         const add = typeof options === 'object' && options.composite === 'add';
-        return original.call(this, frames, add ? { ...options, duration: 0 } : options);
+        // `replace` is the same motion (the board has no translate of its own) on an animation Chrome may run on the compositor.
+        return original.call(this, frames, add ? (v === 'no-shake' ? { ...options, duration: 0 } : { ...options, composite: 'replace' }) : options);
       };
-    });
+    }, variant);
+  if (variant === 'board-layer') await page.addStyleTag({ content: 'section.board { will-change: translate; }' });
   if (variant === 'flat-copies') await page.addStyleTag({ content: '.board-ram, .board-ram * { box-shadow: none !important; outline: none !important; filter: none !important; }' });
 }
 
@@ -403,7 +406,7 @@ async function attack(browser: Browser, jar: Extract<ReturnType<typeof forgeAvai
   }
 }
 
-for (const variant of ['as-is', 'no-shake', 'flat-copies'] as const) {
+for (const variant of ['as-is', 'no-shake', 'shake-replace', 'board-layer', 'flat-copies'] as const) {
   test(titled(`combat perf (${variant}): six attackers declared, two blocked, four charge — frame intervals and where each frame goes, on both screens`), async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
     if (!forge.ok) return;
