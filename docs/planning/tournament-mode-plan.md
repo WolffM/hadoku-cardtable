@@ -29,6 +29,14 @@ The operator's words are quoted verbatim. **Design** is ours and may change. The
    seats are allowed in the lobby. The field (humans + AI) is fixed at Lock seats, and an odd count still
    gives a bye. After the lock, nothing adds an AI: no auto-fill, and no AI replacing a leaver.
 
+6. **Gauntlet's locked decks, verbatim:** *"can't we keep the locked decks the same way we keep it for
+   the other game modes? i guess in the case of gauntlet it's an array of decks rather than a single."*
+   and *"i just meant both locked and unlocked mode should work. we can play gauntlet tournament with
+   locked deck after the first draft, or play it so each match is a fresh gauntlet"*. One per-entrant
+   locked-deck slot serves all three modes. For a Gauntlet entrant it holds what their FIRST match's
+   Gauntlet draft produced (an array of decks), and every later match skips the draft and plays from
+   it. With Each round, every match is a fresh Gauntlet.
+
 ## What exists (2026-10-22, from code)
 
 - **Pods** (`apps/server/src/room/lobby.ts`) have everything Swiss needs:
@@ -72,10 +80,10 @@ player sit down with at this table?*
   - **All Random:** best-of-3 on one dealt deck. With `locked`, each player is dealt once at the lock
     (the existing `dealRandom` logic, called once per player) and keeps it every round. With
     `per-round`, it's dealt fresh per round, as a normal All Random table is.
-  - **Gauntlet:** the Gauntlet's own built-in flow per match. With `locked`, the player's Gauntlet
-    choice set (whatever the Gauntlet deals a player to choose from) is fixed at the lock and reused.
-    With `per-round`, it's dealt fresh per match, as today. If the Gauntlet's state can't be carried
-    per player without restructuring it, the lane reports instead of guessing.
+  - **Gauntlet:** the Gauntlet's own built-in flow. With `locked`, the entrant's first match runs it
+    in full, draft included. The result (the deck array) fills their locked-deck slot, and later
+    matches play from it with no draft (ruling 6). With `per-round`, every match is a fresh
+    Gauntlet.
 - **Rounds, standings, end:** exactly the pod's. Results are recorded per match, the next round starts
   by itself, standings use pod tiebreaks, the bracket view and standings come from the pod components,
   and the finished tournament is archived to the stats Tournaments tab.
