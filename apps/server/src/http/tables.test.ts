@@ -31,7 +31,12 @@ import type { MatchReport } from '@wolffm/prefs-client/games';
 import type { ClientFrame } from '@hadoku/forge-wire';
 import type { JvmRecord, MatchHostFactory, MatchSpec } from '../play/host.js';
 import type { MatchRegistry } from '../play/match.js';
-import { MATCH_EVENTS } from '../play/transport.js';
+import {
+	MATCH_EVENTS,
+	type DraftCard,
+	type RoomModeState,
+	type RoomTable,
+} from '@hadoku/shared';
 import { loadTranscript, replayFactory, type ReplayHost } from '../play/fixtures/transcript.js';
 import { botPoolAcross, createDraftRooms, joinDraftRoom, stateOf, type DraftRooms } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
@@ -42,7 +47,6 @@ import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
 import { act, choose, drawGauntlet, gauntletEras, newGauntlet, startBanpick, viewOfGauntlet, type GauntletState } from '../room/gauntlet.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from '../stats/index.js';
-import type { DraftCard, RoomModeState, RoomTable } from '@hadoku/shared';
 import { checkSeat, type SeatVerdict } from './gate.js';
 import type { TablesRooms } from './routes.js';
 import { LIBRARY, formatIdOf, type LibraryCollection } from '@hadoku/deck/library';

@@ -92,6 +92,18 @@ import {
 	PRESENCE_EVENT,
 	PRESENCE_MAX_PER_SECOND,
 	PresenceSchema,
+	fullControlFrame,
+	MATCH_EVENTS,
+	parseAutoYield,
+	parseClientEnvelope,
+	parseFullControl,
+	parseMatchRequest,
+	parsePhaseStop,
+	parseStopPreference,
+	phaseStopFrame,
+	parseTriggerDecision,
+	type MatchError,
+	type MatchSnapshot,
 } from '@hadoku/shared';
 import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
 import { parseDck } from '@hadoku/carddata/dck';
@@ -107,20 +119,6 @@ import { namedStopPolicy, STOP_POLICY_NAMES, withEndStepStop, type StopPolicy } 
 import { MAX_CONCURRENT_MATCHES, type MatchHostFactory, type MatchSpec, type ReapResult } from './host.js';
 import { WATCHER_SEAT, createMatchRegistry, type Match, type MatchRegistry, type MatchSpecWithIdentity } from './match.js';
 import type { SpellCopy } from './spell-copiers.js';
-import {
-	fullControlFrame,
-	MATCH_EVENTS,
-	parseAutoYield,
-	parseClientEnvelope,
-	parseFullControl,
-	parseMatchRequest,
-	parsePhaseStop,
-	parseStopPreference,
-	phaseStopFrame,
-	parseTriggerDecision,
-	type MatchError,
-	type MatchSnapshot,
-} from './transport.js';
 
 export type PlayLog = (entry: Record<string, unknown>) => void;
 

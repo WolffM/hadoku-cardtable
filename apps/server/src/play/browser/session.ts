@@ -41,7 +41,7 @@
 import type { ParticipantId } from '@wolffm/rooms-protocol';
 
 import type { MatchRegistry } from '../match.js';
-import type { MatchError, MatchSnapshot, ServerEnvelope } from '../transport.js';
+import type { MatchError, MatchSnapshot, ServerEnvelope } from '@hadoku/shared';
 import type { BrowserFanout, SeatBound } from './fanout.js';
 import { parseBrowserRequest, type BrowserMessage, type BrowserRequest } from './protocol.js';
 

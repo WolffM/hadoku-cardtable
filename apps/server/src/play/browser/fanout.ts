@@ -35,7 +35,7 @@
  * assumption and this is a check.
  */
 
-import type { ServerEnvelope } from '../transport.js';
+import type { ServerEnvelope } from '@hadoku/shared';
 
 /** What the fanout needs of a connection. `BrowserSession` is the implementation. */
 export interface SeatBound {

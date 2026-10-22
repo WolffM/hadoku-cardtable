@@ -77,7 +77,7 @@ import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine } from './
 import { createMatchRegistry } from './match.js';
 import { finishMulligan, scenarioText, startScenario, waitUntil as waitUntilScenario } from './scenario.js';
 import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
-import type { ServerEnvelope } from './transport.js';
+import type { ServerEnvelope } from '@hadoku/shared';
 
 const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });
 const title = available.ok

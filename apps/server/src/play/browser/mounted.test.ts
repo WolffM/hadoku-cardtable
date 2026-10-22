@@ -331,7 +331,7 @@ describe('the endpoint a server started from src/index.ts actually exposes', () 
 
 let bridgeMod: typeof import('./index.ts');
 let playMod: typeof import('../socket.ts');
-let transportMod: typeof import('../transport.ts');
+let transportMod: typeof import('@hadoku/shared');
 let edgeMod: typeof import('../../edge-auth.ts');
 
 interface Mount {
@@ -413,7 +413,7 @@ beforeAll(async () => {
 	vi.resetModules();
 	bridgeMod = await import('./index.ts');
 	playMod = await import('../socket.ts');
-	transportMod = await import('../transport.ts');
+	transportMod = await import('@hadoku/shared');
 	edgeMod = await import('../../edge-auth.ts');
 });
 

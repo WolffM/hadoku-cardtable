@@ -109,7 +109,16 @@ import {
 	type TriggerDecision,
 	YIELDING,
 } from '@hadoku/forge-wire';
-import { selfAnswer, stopAt, stopCovers, type RememberedTrigger, type StopPhase } from '@hadoku/shared';
+import {
+	selfAnswer,
+	stopAt,
+	stopCovers,
+	type RememberedTrigger,
+	type StopPhase,
+	type MatchSnapshot,
+	type ServerEnvelope,
+	type WireCursor,
+} from '@hadoku/shared';
 
 import {
 	chosenCostConfirm,
@@ -146,7 +155,6 @@ import { fallbackFor, type Fallback } from './unparsed.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory, MatchSpec } from './host.js';
 import { faceNames, namesForFormat } from './names.js';
 import type { SpellCopy } from './spell-copiers.js';
-import type { MatchSnapshot, ServerEnvelope, WireCursor } from './transport.js';
 
 /**
  * `host.ts`'s `SeatSpec`, widened with the name the caller gave the seat. The

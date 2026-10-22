@@ -58,7 +58,7 @@ import { ClientFrameSchema } from '@hadoku/forge-wire';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine, type JvmHostFactory, type MatchSpec } from './host.js';
 import { MATCH_ENDED_TITLE, createMatchRegistry, type Match } from './match.js';
 import { foldFrames, type StateFrame } from './visibility.js';
-import type { ServerEnvelope } from './transport.js';
+import type { ServerEnvelope } from '@hadoku/shared';
 import { leaked, rawStatesOf, secretsFor } from './fixtures/transcript.js';
 
 const available = jvmHostConfig();

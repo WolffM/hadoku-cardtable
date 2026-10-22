@@ -22,7 +22,7 @@ import { afterEach } from 'vitest';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeCommand, type BridgeLine, type JvmHostConfig, type MatchHost } from './host.js';
 import { createMatchRegistry, type Match, type SeatIdentity } from './match.js';
 import { PHASE_BY_UI_NAME, type StopPolicy } from './auto.js';
-import type { ServerEnvelope } from './transport.js';
+import type { ServerEnvelope } from '@hadoku/shared';
 import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
 
 export const available = jvmHostConfig({ ...process.env, CARDTABLE_PLAY_WARM_SPARE: '0' });

@@ -29,7 +29,7 @@ const EDGE_SECRET = 'test-edge-auth-secret';
 
 let socketMod: typeof import('./socket.ts');
 let edgeMod: typeof import('../edge-auth.ts');
-let transportMod: typeof import('./transport.ts');
+let transportMod: typeof import('@hadoku/shared');
 
 beforeAll(async () => {
 	// config.ts reads the environment once, at load — see room/socket.test.ts.
@@ -38,7 +38,7 @@ beforeAll(async () => {
 	vi.resetModules();
 	socketMod = await import('./socket.ts');
 	edgeMod = await import('../edge-auth.ts');
-	transportMod = await import('./transport.ts');
+	transportMod = await import('@hadoku/shared');
 });
 
 const TRANSCRIPT = loadTranscript();

@@ -46,7 +46,7 @@ import { BrowserFanout } from './fanout.js';
 const EDGE_SECRET = 'browser-bridge-test-edge-secret';
 
 let bridgeMod: typeof import('./index.ts');
-let transportMod: typeof import('../transport.ts');
+let transportMod: typeof import('@hadoku/shared');
 
 beforeAll(async () => {
 	// config.ts reads the environment once, at load — see socket.test.ts.
@@ -54,7 +54,7 @@ beforeAll(async () => {
 	delete process.env.CARDTABLE_INSECURE_NO_EDGE_AUTH;
 	vi.resetModules();
 	bridgeMod = await import('./index.ts');
-	transportMod = await import('../transport.ts');
+	transportMod = await import('@hadoku/shared');
 });
 
 const TRANSCRIPT = loadTranscript();

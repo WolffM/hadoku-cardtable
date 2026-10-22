@@ -32,9 +32,9 @@ import {
 	parseClientEnvelope,
 	parseMatchRequest,
 	type MatchSnapshot,
-	type Parsed,
+	type MatchWireParse,
 	type ServerEnvelope,
-} from '../transport.js';
+} from '@hadoku/shared';
 
 /** Bumped when a shape changes. Sent in `hello` so a stale client says so loudly. */
 export const BROWSER_PROTOCOL_VERSION = 1;
@@ -73,7 +73,7 @@ function ridOf(raw: Record<string, unknown>): { ok: true; rid: string | null } |
  * is handed to `transport.ts`'s parsers unchanged, so the error paths — and the
  * error text — are the ones the socket.io path already produces.
  */
-export function parseBrowserRequest(text: string): Parsed<BrowserRequest> {
+export function parseBrowserRequest(text: string): MatchWireParse<BrowserRequest> {
 	let raw: unknown;
 	try {
 		raw = JSON.parse(text);

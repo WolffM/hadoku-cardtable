@@ -39,7 +39,7 @@ import { ClientFrameSchema } from '@hadoku/forge-wire';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeLine } from './host.js';
 import { createMatchRegistry } from './match.js';
 import { foldFrames, keyOf, TYPE, type StateFrame, type WireObj } from './visibility.js';
-import type { ServerEnvelope } from './transport.js';
+import type { ServerEnvelope } from '@hadoku/shared';
 
 const available = jvmHostConfig();
 const title = available.ok

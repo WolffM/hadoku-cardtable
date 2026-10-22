@@ -45,7 +45,7 @@ import {
 import { FORGE_PREFERENCES } from './host.js';
 import { copyTargets, parseCardScript, type SpellCopy } from './spell-copiers.js';
 import { createMatchRegistry, type Match } from './match.js';
-import type { ServerEnvelope } from './transport.js';
+import type { ServerEnvelope } from '@hadoku/shared';
 import { loadTranscript, replayFactory, type ReplayHost } from './fixtures/transcript.js';
 
 /* ── The real prompt fixtures ────────────────────────────────────────── */
