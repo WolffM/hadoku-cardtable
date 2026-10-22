@@ -25,7 +25,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { reservationFor, seatOf, type SeatId } from '@wolffm/rooms-protocol';
 import { moveToMain } from '@hadoku/deck';
 import { pick, runBots } from '@hadoku/draft';
-import type { DraftCard } from '@hadoku/shared';
+import { SaveDraftDeckBodySchema, type DraftCard } from '@hadoku/shared';
 
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
 import { loadPool, type CubePool } from '../room/pool.ts';
@@ -227,6 +227,19 @@ describe('PUT /api/drafts/:podId/deck', () => {
 		expect(put.status).toBe(400);
 		expect(put.json.issues).toEqual(expect.arrayContaining([expect.stringContaining('Black Lotus')]));
 		expect((await call(h, 'GET', '/api/drafts/pod-d/mine', { as: 'alice' })).json.deck).toBeNull();
+	});
+
+	it('refuses exactly the bodies the shared schema refuses — the UI checks a save with it before sending', async () => {
+		const draftRooms = createDraftRooms({ ...singlePoolResolver(cube), storeDir: null });
+		finishPodFor(draftRooms, 'pod-s', 'alice', 'sock-a');
+		const h = await openApp(draftRooms);
+		const bodies: unknown[] = [[], {}, { dck: 5 }, { dck: '' }, { dck: '   \n' }, { dck: 'x'.repeat(64 * 1024 + 1) }, { dck: '[main]\n', name: 'x' }];
+		for (const body of bodies) {
+			const put = await call(h, 'PUT', '/api/drafts/pod-s/deck', { as: 'alice', body });
+			const shared = SaveDraftDeckBodySchema.safeParse(body);
+			expect({ body, status: put.status, sharedAccepts: shared.success }).toEqual({ body, status: 400, sharedAccepts: false });
+			expect(put.json.issues).toEqual([shared.error?.issues[0]?.message]);
+		}
 	});
 
 	it('404s a caller with no seat, same as GET', async () => {
