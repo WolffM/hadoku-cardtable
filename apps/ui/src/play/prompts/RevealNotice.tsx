@@ -35,7 +35,7 @@
  * some kind of reveal and then damage dealt animation"*).
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 
 import { REVEAL_BEAT_MS } from '../motion.ts';
 
@@ -60,7 +60,14 @@ export function RevealNotice({ reveal, lookup, onDone }: { reveal: AskOf<'getCho
     return () => clearTimeout(timer);
   }, []);
   return (
-    <div className="reveal-notice" data-testid="live-reveal" data-call-id={reveal.callId} data-reveal-beat={beat ? '' : undefined} role="status">
+    <div
+      className="reveal-notice"
+      data-testid="live-reveal"
+      data-call-id={reveal.callId}
+      data-reveal-beat={beat ? '' : undefined}
+      style={{ '--reveal-beat-ms': `${REVEAL_BEAT_MS}ms` } as CSSProperties}
+      role="status"
+    >
       <ul className="reveal-notice__cards">
         {rows.map((c) =>
           c.card !== null ? (

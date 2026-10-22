@@ -26,7 +26,7 @@
   -webkit-text-stroke: 2px var(--bg);
   text-shadow: 0 0 2px var(--bg);
   paint-order: stroke fill;
-  animation: board-number-rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+  animation: board-number-rise var(--rise-ms) cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
 }
 
 .board-number[data-number-colour='danger'] {
@@ -40,8 +40,8 @@
 /* A change of 5 or more pops before it rises — two animations, the pop finishing before the rise's own delay elapses. */
 .board-number[data-number-pop] {
   animation:
-    board-number-pop 90ms ease-out,
-    board-number-rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 90ms forwards;
+    board-number-pop var(--pop-ms) ease-out,
+    board-number-rise var(--rise-ms) cubic-bezier(0.2, 0.7, 0.2, 1) var(--pop-ms) forwards;
 }
 
 @keyframes board-number-pop {
@@ -56,7 +56,7 @@
   }
 }
 
-/* Rises 28px over 700ms; opacity holds until the last 280ms, then fades to 0. */
+/* Rises 28px over `--rise-ms` (`numbers.ts`'s RISE_MS, which sets it); opacity holds until the last 40%, then fades to 0. */
 @keyframes board-number-rise {
   0% {
     transform: translate(-50%, -50%) translateY(0);
@@ -76,7 +76,7 @@
 @media (prefers-reduced-motion: reduce) {
   .board-number,
   .board-number[data-number-pop] {
-    animation: board-number-fade 700ms linear forwards;
+    animation: board-number-fade var(--rise-ms) linear forwards;
   }
 }
 
@@ -106,7 +106,7 @@
  * in a row, which would count toward its zone's scroll overflow (table-fit).
  */
 [data-hit-flash] {
-  animation: effect-hit-flash 360ms ease-out;
+  animation: effect-hit-flash var(--hit-flash-ms) ease-out;
 }
 
 @keyframes effect-hit-flash {
@@ -125,7 +125,7 @@
  * it glows before what it causes is drawn. Ink overflow only, as the flash above.
  */
 .board-card[data-reveal-beat] {
-  animation: effect-reveal-beat 450ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  animation: effect-reveal-beat var(--reveal-beat-ms) cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
 @keyframes effect-reveal-beat {
@@ -144,7 +144,7 @@
 
 /* An arrival with nowhere to travel from (or under reduced motion): it fades in where it is. */
 [data-arriving-from]:not([data-cast-landing]) {
-  animation: effect-arrive 240ms ease-out;
+  animation: effect-arrive var(--arrive-fade-ms) ease-out;
 }
 
 @keyframes effect-arrive {
@@ -175,7 +175,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   [data-hit-flash] {
-    animation: effect-hit-flash-reduced 360ms linear;
+    animation: effect-hit-flash-reduced var(--hit-flash-ms) linear;
   }
 }
 

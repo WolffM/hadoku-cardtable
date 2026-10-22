@@ -139,6 +139,14 @@ export const LIFE_COLOUR_MS = 1500;
 const HIT_FLASH_MS = 360;
 /** An arrival with nowhere to travel from fades in over this long. */
 const ARRIVE_FADE_MS = 240;
+/** The lengths `numbers.css` animates over, set on the canvas so the sheet never restates one. */
+const DURATIONS = [
+  ['--rise-ms', RISE_MS],
+  ['--pop-ms', POP_MS],
+  ['--hit-flash-ms', HIT_FLASH_MS],
+  ['--arrive-fade-ms', ARRIVE_FADE_MS],
+  ['--reveal-beat-ms', REVEAL_BEAT_MS],
+] as const;
 /** On a permanent's row element while it arrives from what made it: that card's id, empty when unknown. */
 const ARRIVING_ATTR = 'data-arriving-from';
 /** A reveal the server answered for this seat (`match.ts`'s `revealed`): the cards it showed, and when it arrived. */
@@ -416,6 +424,7 @@ function centreIn(target: Boxed, box: DOMRect, dx = 0, dy = 0): { x: number; y: 
 
 export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): NumbersHandle {
   let live = true;
+  for (const [name, ms] of DURATIONS) canvas.style.setProperty(name, `${ms}ms`);
   let prevView: BoardView | null = null;
   /** How many numbers are currently active at each anchor key — `stackLayout`'s own input, decremented on cleanup. */
   const activeAt = new Map<string, number>();
@@ -962,6 +971,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     },
     dispose() {
       live = false;
+      for (const [name] of DURATIONS) canvas.style.removeProperty(name);
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
       for (const settle of [...playing]) settle();
