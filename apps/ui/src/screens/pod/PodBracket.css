@@ -44,7 +44,7 @@
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--color-border-light);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: var(--color-bg-card);
   color: var(--color-text);
 }
@@ -166,7 +166,7 @@
   width: 240px;
   padding: 7px 10px;
   border: 1px dashed var(--color-border-light);
-  border-radius: 8px;
+  border-radius: var(--radius);
   color: var(--color-text-secondary);
 }
 
@@ -205,5 +205,5 @@
   width: 200px;
   height: 86px;
   border: 1px dashed var(--color-border-light);
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
