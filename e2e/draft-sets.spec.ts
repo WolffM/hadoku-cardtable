@@ -102,6 +102,40 @@ function attachPackCapture(page: Page): { latest: () => readonly WireCard[] | nu
   return { latest: () => latest };
 }
 
+/** Poll `capture.latest()`, or `null` once `timeout` elapses with nothing captured. */
+async function pollLatest(capture: { latest: () => readonly WireCard[] | null }, timeout: number): Promise<readonly WireCard[] | null> {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const found = capture.latest();
+    if (found !== null) return found;
+    if (Date.now() > deadline) return null;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+/**
+ * `capture.latest()`, waited for, with one reload as a fallback.
+ *
+ * CDP's websocket frame capture (`page.on('websocket')`) can occasionally
+ * miss the one frame a draft page ever sends before any pick — a known
+ * Playwright/CDP timing gap, not a torn JSON chunk (seen live: the DOM
+ * already showed a full 15-card pack while `capture.latest()` stayed
+ * `null`). A reload's own `join` is a GUARANTEED fresh, complete baseline
+ * (`packages/shared/src/wire.ts`'s own doc: "a client joining mid-stream…
+ * its snapshot… is what establishes the baseline"), and `page.on('websocket',
+ * …)` survives a reload on the same `Page` object, so the SAME capture
+ * catches it the second time.
+ */
+async function capturedPack(page: Page, capture: { latest: () => readonly WireCard[] | null }): Promise<readonly WireCard[]> {
+  const first = await pollLatest(capture, 5_000);
+  if (first !== null) return first;
+  await page.reload();
+  await waitForPack(page, 'the reloaded seat');
+  const second = await pollLatest(capture, 5_000);
+  if (second !== null) return second;
+  throw new Error("no draft:s2c state frame carrying a seat's pack was ever captured, even after a reload");
+}
+
 /** Every card name the viewer's open pack currently shows, off `CardTile`'s own `aria-label` ("Pick <name>"). */
 async function packCardNames(page: Page): Promise<string[]> {
   const labels = await page.locator('[data-testid="pack"] [data-testid="card"]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label') ?? ''));
@@ -112,6 +146,9 @@ async function packCardNames(page: Page): Promise<string[]> {
 async function packCardSets(page: Page): Promise<string[]> {
   return page.locator('[data-testid="pack"] [data-testid="card"] .setsym').evaluateAll((els) => els.map((el) => el.getAttribute('data-set') ?? ''));
 }
+
+/** The five basic land names — the one card Forge's own booster recipe can source from a DIFFERENT set (see `waitForPackFromSet`'s own note). */
+const BASIC_LAND_NAMES = new Set(['Plains', 'Island', 'Swamp', 'Mountain', 'Forest']);
 
 /**
  * Wait for the viewer's pack to render, failing with a message that NAMES
@@ -143,14 +180,52 @@ async function waitForPack(page: Page, who: string, timeout = UI_TIMEOUT): Promi
     if ((await page.getByTestId('pod-waiting').count()) > 0) {
       throw new Error(
         `${who}: the pod dealt, but stayed on its loading skeleton (data-testid="pod-waiting") for over ${timeout}ms — the draft view never reached this seat. Check apps/ui/src/draft/socket.ts's ingest(): a rejected state message (stats.invalid > 0) leaves the pack unset forever, with no error drawn on screen.`,
+        { cause: err },
       );
     }
     const podError = page.getByTestId('pod-error');
     if ((await podError.count()) > 0) {
-      throw new Error(`${who}: the pod shows an error instead of a pack: ${(await podError.textContent()) ?? '(no text)'}`);
+      throw new Error(`${who}: the pod shows an error instead of a pack: ${(await podError.textContent()) ?? '(no text)'}`, { cause: err });
     }
     throw err;
   }
+}
+
+/**
+ * Wait for the viewer's pack to be a NEW round's — not merely "a pack is
+ * visible" (`waitForPack`), which a round boundary can pass trivially: the
+ * `[data-testid="pack"]` element is already on screen from the PREVIOUS
+ * round and stays mounted across the boundary, so `toBeVisible` alone
+ * cannot tell "still round 2's pack, one socket round trip behind" from
+ * "round 3's own pack, printed in ARB" (hit live: the round-3 assertion ran
+ * one frame too early and read round 2's own ALA cards). Polls the pack's
+ * own `data-set` attributes until every card is the expected code, the
+ * same signal `packCardSets` reads, never a blind snapshot right after a
+ * visibility check.
+ *
+ * `landCode` is Forge's own real-product quirk, confirmed in
+ * `forge-gui/res/editions/Alara Reborn.txt`: `Booster=10 Common, 3
+ * Uncommon, 1 RareMythic, 1 BasicLand ALA` — Alara Reborn printed no basic
+ * lands of its own, so Forge's own booster template deals one from Shards
+ * of Alara, by name in the edition file, not a bug anywhere in this repo.
+ * Defaults to `code` (no exception) for a set whose own basics are its own.
+ */
+async function waitForPackFromSet(page: Page, who: string, code: string, landCode: string = code, timeout = UI_TIMEOUT): Promise<void> {
+  await waitForPack(page, who, timeout);
+  await expect
+    .poll(
+      async () => {
+        const names = await packCardNames(page);
+        const sets = await packCardSets(page);
+        if (names.length !== 15 || sets.length !== 15) return [`${names.length}/${sets.length} cards (want 15 each)`];
+        return names
+          .map((name, i) => ({ name, set: sets[i] }))
+          .filter(({ name, set }) => (BASIC_LAND_NAMES.has(name) ? set !== code && set !== landCode : set !== code))
+          .map(({ name, set }) => `${name} (${set})`);
+      },
+      { timeout, message: `${who}: never settled on an all-${code} pack (a basic land may be ${landCode})` },
+    )
+    .toEqual([]);
 }
 
 /** The set radio for `code` — the picker's own test id, which this spec controls (`PoolPicker.tsx`). */
@@ -291,8 +366,7 @@ test(
       await waitForPack(alice.page, "alice's first pack");
       const names = await packCardNames(alice.page);
       expect(names.length, 'the pack drew cards at all (DOM)').toBe(15);
-      const entries = alicePack.latest();
-      if (entries === null) throw new Error("alice's pack: no draft:s2c state frame carrying a seat's pack was ever captured");
+      const entries = await capturedPack(alice.page, alicePack);
       expect(entries.length, `the pack drew cards at all (wire): ${JSON.stringify(entries.map((e) => e.name))}`).toBe(15);
       const summary = entries.map((e) => e.name).join(', ');
       const dfcs = entries.filter((e) => Array.isArray(e.faces) && e.faces.length > 0);
@@ -347,19 +421,13 @@ test(
       for (const p of [alice, bob]) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── round 1's first pack is every card printed in ALA ── */
-      await waitForPack(alice.page, "alice's round-1 pack");
-      const round1Sets = await packCardSets(alice.page);
-      expect(round1Sets.length, 'round 1 drew cards at all').toBe(15);
-      for (const code of round1Sets) expect(code, `round 1’s card is printed in ${ALA.code}`).toBe(ALA.code);
+      await waitForPackFromSet(alice.page, "alice's round-1 pack", ALA.code);
 
       /* ── pick every card of rounds 1 and 2 (30 picks) to reach round 3 ── */
       await Promise.all([pickUntil(alice.page, 30), pickUntil(bob.page, 30)]);
 
       /* ── round 3's first pack is every card printed in ARB ── */
-      await waitForPack(alice.page, "alice's round-3 pack");
-      const round3Sets = await packCardSets(alice.page);
-      expect(round3Sets.length, 'round 3 drew cards at all').toBe(15);
-      for (const code of round3Sets) expect(code, `round 3’s card is printed in ${ARB.code}`).toBe(ARB.code);
+      await waitForPackFromSet(alice.page, "alice's round-3 pack", ARB.code, ALA.code);
     } finally {
       await stack.stop();
     }
