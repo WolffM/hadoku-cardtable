@@ -964,11 +964,43 @@
   visibility: hidden;
 }
 
-.prompt__actions {
+/*
+ * Every decision box's answers (`AnswerRow`, `PromptShell.tsx`). Two answers
+ * are a pair: the first anchored bottom-left, the last bottom-right, and the
+ * row's aside (the "Always" box) centred between them by the two auto margins.
+ * The margins, not `space-between`, so a pair that wraps still keeps its second
+ * answer at the right edge.
+ */
+.answers {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.answers[data-pair] > :first-child {
+  margin-right: auto;
+}
+
+.answers[data-pair] > :last-child {
+  margin-left: auto;
+}
+
+/*
+ * One look for every answer a caller did not style itself (`:where` keeps this
+ * under `.prompt__submit`, `.button`, `.confirm__button`): the same outline,
+ * padding and height as OK, never the browser's own button face.
+ */
+:where(.answers) button {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+}
+
+:where(.answers) button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /*

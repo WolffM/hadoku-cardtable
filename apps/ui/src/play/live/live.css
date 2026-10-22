@@ -705,13 +705,6 @@
   overflow-wrap: anywhere;
 }
 
-.confirm__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .confirm__check {
   display: inline-flex;
   align-items: center;
@@ -720,6 +713,11 @@
   color: var(--ink-dim);
   font-size: 13px;
   cursor: pointer;
+}
+
+/* Between a pair's two answers it is centred: the answers' own auto margins split the space. */
+.answers[data-pair] > .confirm__check {
+  margin-right: 0;
 }
 
 .confirm__button {

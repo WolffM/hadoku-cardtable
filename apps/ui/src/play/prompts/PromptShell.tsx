@@ -14,7 +14,7 @@
  * cards"* — a tutor choice is the board's card look, never a text list).
  */
 
-import { createContext, useContext, useState, type MouseEvent, type ReactNode } from 'react';
+import { Children, createContext, useContext, useState, type MouseEvent, type ReactNode } from 'react';
 
 import { CardTile } from '../../components/CardTile.tsx';
 import { KNOWN_ART_IDS, scryfallIdFor } from '../adapter.ts';
@@ -44,7 +44,10 @@ export interface PromptShellProps {
   submitLabel?: string;
   /** Omit for a prompt that answers without a button (the zone prompts). */
   onSubmit?: () => void;
-  /** Buttons beside submit, e.g. "Decline" on an optional choice. */
+  /**
+   * The other answers, after submit in the row (`AnswerRow`): an array, one
+   * node per answer, affirmative first, so the row can count them.
+   */
   actions?: ReactNode;
   /** The card the whole question is about, drawn beside the title and the message (`promptThumb`). */
   face?: ReactNode;
@@ -192,8 +195,7 @@ export function PromptShell({
         </ul>
       )}
       {(onSubmit !== undefined || actions !== undefined) && (
-        <div className="prompt__actions">
-          {actions}
+        <AnswerRow className="prompt__actions">
           {onSubmit !== undefined && (
             <button
               type="button"
@@ -205,7 +207,8 @@ export function PromptShell({
               {submitLabel}
             </button>
           )}
-        </div>
+          {actions}
+        </AnswerRow>
       )}
     </section>
   );
@@ -359,6 +362,42 @@ export function promptThumb(lookup: PromptLookup, ref: { kind: string; id: numbe
     <span className="prompt__thumb" data-thumb="card" data-card-id={ref.id} data-testid={testId}>
       <CardTile card={promptTileFor(lookup, ref.id)} />
     </span>
+  );
+}
+
+/**
+ * Every decision box's answers, as one row along its bottom: the prompt
+ * sheet's (`PromptShell`), `ConfirmPrompt`'s, and the board's own concede and
+ * payment boxes. The operator, 2026-10-21: *"a question with yes/no must put
+ * yes/no on opposite ends of the decision box. anchor one bottom left, the
+ * other bottom right."* So exactly two answers make a pair (`data-pair`,
+ * `prompts.css`): the first, the affirmative — Forge's button one, the sheet's
+ * OK — anchored bottom-left, the second bottom-right, and `aside` (the
+ * "Always" box, the payment's life button) between them. Any other count
+ * stays at the right edge, with `aside` leading. Children are the answers,
+ * affirmative first; the row counts them, so a caller hands each one as its
+ * own child (an array, never one fragment). Every answer is a real button with one look and one height:
+ * a sheet's Cancel used to be a text link pinned to the row's top beside a
+ * filled OK, and its other answers the browser's own grey face.
+ */
+export function AnswerRow({ className, aside, children }: { className?: string; aside?: ReactNode; children: ReactNode }) {
+  const answers = Children.toArray(children);
+  const pair = answers.length === 2;
+  return (
+    <div className={className === undefined ? 'answers' : `${className} answers`} data-pair={pair || undefined}>
+      {pair ? (
+        <>
+          {answers[0]}
+          {aside}
+          {answers[1]}
+        </>
+      ) : (
+        <>
+          {aside}
+          {answers}
+        </>
+      )}
+    </div>
   );
 }
 

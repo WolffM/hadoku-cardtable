@@ -1951,11 +1951,13 @@ function askQuestion(cards: number): Promise<QuestionFit> {
     grid.appendChild(li);
   }
   const actions = document.createElement('div');
-  actions.className = 'prompt__actions';
-  for (const word of ['Cancel', 'OK']) {
+  // `AnswerRow`'s markup for a selection's OK + Cancel: a pair, OK first.
+  actions.className = 'prompt__actions answers';
+  actions.setAttribute('data-pair', 'true');
+  for (const word of ['OK', 'Cancel']) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'prompt__submit';
+    if (word === 'OK') b.className = 'prompt__submit';
     b.textContent = word;
     actions.appendChild(b);
   }

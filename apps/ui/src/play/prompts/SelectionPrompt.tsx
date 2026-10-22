@@ -180,22 +180,18 @@ export function SelectionPrompt({ message: rawMessage, context = null, source = 
       label={rawMessage}
       context={context === null ? null : promptText(context)}
       face={source === null ? undefined : promptThumb(lookup, { kind: 'card', id: source }, 'prompt-source')}
-      actions={
-        done === undefined && cancel === undefined ? undefined : (
-          <>
-            {cancel !== undefined && (
-              <button type="button" className="prompt__link" data-testid="selection-cancel" disabled={!cancel.enabled} onClick={cancel.onClick}>
-                {cancel.label}
-              </button>
-            )}
-            {done !== undefined && (
-              <button type="button" className="prompt__submit" data-testid="selection-done" disabled={!done.enabled} onClick={done.onClick}>
-                {done.label}
-              </button>
-            )}
-          </>
-        )
-      }
+      actions={[
+        done !== undefined && (
+          <button key="done" type="button" className="prompt__submit" data-testid="selection-done" disabled={!done.enabled} onClick={done.onClick}>
+            {done.label}
+          </button>
+        ),
+        cancel !== undefined && (
+          <button key="cancel" type="button" data-testid="selection-cancel" disabled={!cancel.enabled} onClick={cancel.onClick}>
+            {cancel.label}
+          </button>
+        ),
+      ]}
     >
       <ul className="prompt__cards" data-testid="prompt-cards">
         {cards.map((id) => {

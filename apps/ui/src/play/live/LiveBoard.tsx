@@ -279,7 +279,7 @@ import { RulesText } from '../prompts/RulesText.tsx';
 import { ManaPip } from '../../components/ManaPip.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
 import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';
-import { promptTileFor } from '../prompts/PromptShell.tsx';
+import { AnswerRow, promptTileFor } from '../prompts/PromptShell.tsx';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
 import { stackAsk } from './gestures/stack.ts';
@@ -1505,8 +1505,6 @@ function PhaseRail({ view, stop, onStop }: { view: BoardView; stop: StopPhase | 
  * dialog is expected to do and costs one handler.
  */
 function ConcedeAsk({ onConcede, onCancel }: { onConcede: () => void; onCancel: () => void }) {
-  const titleId = useId();
-  const messageId = useId();
   return (
     <div
       className="live__ask"
@@ -1515,34 +1513,14 @@ function ConcedeAsk({ onConcede, onCancel }: { onConcede: () => void; onCancel: 
         if (event.key === 'Escape') onCancel();
       }}
     >
-      <section className="confirm" role="alertdialog" aria-labelledby={titleId} aria-describedby={messageId}>
-        <h2 className="confirm__title" id={titleId}>
-          Concede
-        </h2>
-        <p className="confirm__message" id={messageId}>
-          You lose this game.
-        </p>
-        <div className="confirm__actions">
-          <button
-            type="button"
-            className="button confirm__button"
-            data-testid="live-concede-no"
-            data-default
-            autoFocus
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="button confirm__button live__danger"
-            data-testid="live-concede-yes"
-            onClick={onConcede}
-          >
-            Concede
-          </button>
-        </div>
-      </section>
+      <ConfirmPrompt
+        testId="live-concede-sheet"
+        role="alertdialog"
+        title="Concede"
+        message="You lose this game."
+        button1={{ label: 'Concede', enabled: true, testId: 'live-concede-yes', danger: true, onClick: onConcede }}
+        button2={{ label: 'Cancel', enabled: true, testId: 'live-concede-no', isDefault: true, onClick: onCancel }}
+      />
     </div>
   );
 }
@@ -1605,18 +1583,21 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
             <RulesText text={context} />
           </p>
         )}
-        <div className="confirm__actions">
-          {lifePayable(match) && (
-            <button
-              type="button"
-              className="button confirm__button"
-              data-testid="live-payment-life"
-              disabled={bar === null || lifePayer(match) === null}
-              onClick={() => payWithLife(match)}
-            >
-              <ManaPip token="P" /> {lifePerPress(match)} life
-            </button>
-          )}
+        <AnswerRow
+          aside={
+            lifePayable(match) && (
+              <button
+                type="button"
+                className="button confirm__button"
+                data-testid="live-payment-life"
+                disabled={bar === null || lifePayer(match) === null}
+                onClick={() => payWithLife(match)}
+              >
+                <ManaPip token="P" /> {lifePerPress(match)} life
+              </button>
+            )
+          }
+        >
           <button
             type="button"
             className="button confirm__button"
@@ -1636,7 +1617,7 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
           >
             {bar === null || bar.label2 === '' ? 'Cancel' : bar.label2}
           </button>
-        </div>
+        </AnswerRow>
       </section>
     </div>
   );
@@ -2434,7 +2415,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
             {refusal}
           </p>
         )}
-        <div className="confirm__actions">
+        <div className="confirm__actions answers">
           {showSideboard && roomId !== null && choice !== null && (
             <button type="button" className="button" data-testid="game-result-next" data-highlight="true" disabled={leaving} onClick={() => setNextPressed(true)}>
               Next

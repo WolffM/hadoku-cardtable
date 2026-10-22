@@ -110,6 +110,7 @@ import { CardTile } from '../../components/CardTile.tsx';
 import { colorWordToken, ManaPip } from '../../components/ManaPip.tsx';
 import { AUTO_PAY_LABEL, type LiveButtons } from '../live/match.ts';
 import '../live/live.css';
+import { AnswerRow } from './PromptShell.tsx';
 import { RulesText } from './RulesText.tsx';
 
 /** Forge's own `lblOK` (`en-US.properties:598`) — see the module header's mechanical set. */
@@ -205,6 +206,8 @@ export interface ConfirmPromptButton {
   answer?: 'yes' | 'no';
   /** Why the button is disabled, shown on hover by the board's tooltip (`data-tip`). */
   tip?: string;
+  /** An answer that cannot be taken back (Concede): drawn in the warning colour (`.live__danger`). */
+  danger?: boolean;
   onClick: () => void;
 }
 
@@ -239,10 +242,10 @@ export interface ConfirmPromptProps {
 
 /**
  * Presentational only — never touches `LiveMatch` or the wire. `LiveBoard.tsx`
- * mounts this for all three of its two-button questions: `isConfirmPrompt`'s
- * bar yes/no, `isPlayOrDrawPrompt`'s coin toss, and `ask.method ===
- * 'showConfirmDialog'`. Every `onClick` it is handed is already one of
- * `LiveBoard.tsx`'s own senders (`pressButton`/`answerConfirm`) — this
+ * mounts this for every one of its two-button questions: `isConfirmPrompt`'s
+ * bar yes/no, `isPlayOrDrawPrompt`'s coin toss, `ask.method ===
+ * 'showConfirmDialog'`, the bar decision, and the Concede confirmation. Every
+ * `onClick` it is handed is one of `LiveBoard.tsx`'s own handlers — this
  * component sends nothing itself.
  */
 export function ConfirmPrompt({ testId, role = 'dialog', title, message, context, coin, callId, button1, button2, check, card }: ConfirmPromptProps) {
@@ -276,19 +279,22 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, context
           <RulesText text={context} />
         </p>
       )}
-      <div className="confirm__actions">
-        {check !== undefined && (
-          <label className="confirm__check">
-            <input type="checkbox" data-testid={check.testId} checked={check.checked} onChange={(event) => check.onChange(event.currentTarget.checked)} />
-            {check.label}
-          </label>
-        )}
+      <AnswerRow
+        aside={
+          check !== undefined && (
+            <label className="confirm__check">
+              <input type="checkbox" data-testid={check.testId} checked={check.checked} onChange={(event) => check.onChange(event.currentTarget.checked)} />
+              {check.label}
+            </label>
+          )
+        }
+      >
         {[button1, button2].map((b, i) => {
           if (b === undefined) return null;
           const button = (
             <button
               type="button"
-              className="button confirm__button"
+              className={b.danger === true ? 'button confirm__button live__danger' : 'button confirm__button'}
               data-testid={b.testId}
               data-answer={b.answer}
               data-default={b.isDefault || undefined}
@@ -317,7 +323,7 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, context
             </span>
           );
         })}
-      </div>
+      </AnswerRow>
     </section>
   );
 }
