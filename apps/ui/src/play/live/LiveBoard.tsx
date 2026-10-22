@@ -3357,42 +3357,66 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * be right above the decision box."* A pop-up is centred in its column and
    * its height is its content's, so CSS alone cannot know where its top is;
    * this measures it (`questionTopOf`) and `board.css`'s
-   * `.board__mid[data-question]` hangs the band from it. Every render, and on
-   * any resize of the root or of what is in the column (a prompt that grows
-   * from its own state re-renders nothing here).
+   * `.board__mid[data-question]` hangs the band from it. On a resize of the
+   * root or of anything in the column, never on a render: one observer, made
+   * once, and each render only hands it the sheets it has not seen (a new
+   * sheet is reported once it is observed; a prompt that grows from its own
+   * state re-renders nothing here, and its resize reports it).
    */
   const relayoutFrame = useRef(0);
-  useEffect(() => () => cancelAnimationFrame(relayoutFrame.current), []);
+  const questions = useRef<{ root: HTMLElement; observer: ResizeObserver; sheets: Set<Element>; match: LiveMatch } | null>(null);
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(relayoutFrame.current);
+      questions.current?.observer.disconnect();
+      questions.current = null;
+    },
+    [],
+  );
   useLayoutEffect(() => {
     const root = rootRef.current;
-    if (root === null) return undefined;
-    const sync = (): void => {
-      const top = questionTopOf(root);
-      // No pop-up to measure: the last measured edge stands, so the band does
-      // not jump to the column's top for the frame between a spell reaching
-      // the stack and the pop-up that asks about it (the operator,
-      // 2026-10-07: the band "was only there briefly" at the top), and stays
-      // put when a pop-up closes. Before any pop-up has been measured,
-      // `board.css` falls back to where one sits.
-      if (top === null) return;
-      const value = `${top}px`;
-      if (root.style.getPropertyValue('--question-top') === value) return;
-      root.style.setProperty('--question-top', value);
-      /*
-       * The band moved with no frame from Forge: arcs drawn from its thumbnails
-       * repaint (`relayout`). On the next frame, never inside this commit: the
-       * same wake settles a played card's landing, which measures the card's
-       * slot, and `Board` moves a dropped card into its slot in a passive
-       * effect that has not run yet here (measured: the landing flew 190px wide).
-       */
-      cancelAnimationFrame(relayoutFrame.current);
-      relayoutFrame.current = requestAnimationFrame(() => relayout(match));
-    };
-    sync();
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync);
-    observer?.observe(root);
-    for (const el of root.querySelectorAll(QUESTION_SELECTOR)) observer?.observe(el);
-    return () => observer?.disconnect();
+    if (root === null || typeof ResizeObserver === 'undefined') return;
+    let q = questions.current;
+    if (q?.root !== root) {
+      q?.observer.disconnect();
+      const sync = (): void => {
+        const top = questionTopOf(root);
+        // No pop-up to measure: the last measured edge stands, so the band does
+        // not jump to the column's top for the frame between a spell reaching
+        // the stack and the pop-up that asks about it (the operator,
+        // 2026-10-07: the band "was only there briefly" at the top), and stays
+        // put when a pop-up closes. Before any pop-up has been measured,
+        // `board.css` falls back to where one sits.
+        if (top === null) return;
+        const value = `${top}px`;
+        if (root.style.getPropertyValue('--question-top') === value) return;
+        root.style.setProperty('--question-top', value);
+        /*
+         * The band moved with no frame from Forge: arcs drawn from its thumbnails
+         * repaint (`relayout`). On the next frame, never inside this commit: the
+         * same wake settles a played card's landing, which measures the card's
+         * slot, and `Board` moves a dropped card into its slot in a passive
+         * effect that has not run yet here (measured: the landing flew 190px wide).
+         */
+        cancelAnimationFrame(relayoutFrame.current);
+        const now = questions.current?.match;
+        if (now !== undefined) relayoutFrame.current = requestAnimationFrame(() => relayout(now));
+      };
+      q = { root, observer: new ResizeObserver(sync), sheets: new Set(), match };
+      q.observer.observe(root);
+      questions.current = q;
+    }
+    q.match = match;
+    for (const el of q.sheets) {
+      if (el.isConnected) continue;
+      q.observer.unobserve(el);
+      q.sheets.delete(el);
+    }
+    for (const el of root.querySelectorAll(QUESTION_SELECTOR)) {
+      if (q.sheets.has(el)) continue;
+      q.sheets.add(el);
+      q.observer.observe(el);
+    }
   });
 
   if (status === 'match-gone') {
