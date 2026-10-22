@@ -87,13 +87,13 @@ const BOLT = card('Instant', ['R']);
  */
 const POOL_LAND_ROWS: Readonly<Record<string, string>> = {
   'Abandoned Air Temple': 'W|land',
-  'Witch Enchanter // Witch-Blessed Meadow': 'C|creature',
+  'Witch Enchanter // Witch-Blessed Meadow': 'W|creature',
   'Otawara, Soaring City': 'U|land',
   'Shelldock Isle': 'U|land',
-  'Sink into Stupor // Soporific Springs': 'C|spell',
+  'Sink into Stupor // Soporific Springs': 'U|spell',
   'Urborg, Tomb of Yawgmoth': 'B|land',
   'Arena of Glory': 'R|land',
-  'Sundering Eruption // Volcanic Fissure': 'C|spell',
+  'Sundering Eruption // Volcanic Fissure': 'R|spell',
   'Boseiju, Who Endures': 'G|land',
   'Shifting Woodland': 'G|land',
   'Yavimaya, Cradle of Growth': 'G|land',

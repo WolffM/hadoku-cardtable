@@ -125,7 +125,9 @@
     "W"
    ],
    "manaValue": 2,
-   "colors": [],
+   "colors": [
+    "W"
+   ],
    "typeLine": "Legendary Creature — Cat Warrior // Legendary Planeswalker — Ajani",
    "oracleText": "When Ajani enters, create a 2/1 white Cat Warrior creature token.\nWhenever one or more other Cats you control die, you may exile Ajani, then return him to the battlefield transformed under his owner's control.",
    "setCode": "MH3",
@@ -1080,7 +1082,9 @@
     "W"
    ],
    "manaValue": 4,
-   "colors": [],
+   "colors": [
+    "W"
+   ],
    "typeLine": "Creature — Human Warlock // Land",
    "oracleText": "When this creature enters, destroy target artifact or enchantment an opponent controls.",
    "setCode": "MH3",
@@ -1129,7 +1133,9 @@
     "U"
    ],
    "manaValue": 1,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Legendary Creature — Moonfolk Wizard // Legendary Planeswalker — Tamiyo",
    "oracleText": "Flying\nWhenever Tamiyo attacks, investigate. (Create a Clue token. It's an artifact with \"{2}, Sacrifice this token: Draw a card.\")\nWhen you draw your third card in a turn, exile Tamiyo, then return her to the battlefield transformed under her owner's control.",
    "setCode": "MH3",
@@ -1183,7 +1189,9 @@
     "U"
    ],
    "manaValue": 2,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Legendary Creature — Human Wizard // Legendary Planeswalker — Jace",
    "oracleText": "{T}: Draw a card, then discard a card. If there are five or more cards in your graveyard, exile Jace, then return him to the battlefield transformed under his owner's control.",
    "setCode": "ORI",
@@ -2540,7 +2548,9 @@
     "U"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Instant // Land",
    "oracleText": "Return target spell or nonland permanent an opponent controls to its owner's hand.",
    "setCode": "MH3",
@@ -2569,7 +2579,9 @@
     "B"
    ],
    "manaValue": 1,
-   "colors": [],
+   "colors": [
+    "B"
+   ],
    "typeLine": "Legendary Creature — Human Knight // Legendary Creature — Human Knight",
    "oracleText": "Deathtouch\nDarkness — Whenever Cecil deals damage, you lose that much life. Then if your life total is less than or equal to half your starting life total, untap Cecil and transform it.",
    "setCode": "FIN",
@@ -2602,7 +2614,9 @@
     "B"
    ],
    "manaValue": 1,
-   "colors": [],
+   "colors": [
+    "B"
+   ],
    "typeLine": "Creature — Wall // Creature — Eye Horror",
    "oracleText": "Defender\n{2}{B}: Transform this creature. Activate only as a sorcery.",
    "setCode": "VOW",
@@ -4559,7 +4573,9 @@
     "R"
    ],
    "manaValue": 7,
-   "colors": [],
+   "colors": [
+    "R"
+   ],
    "typeLine": "Legendary Creature — Elder Dinosaur // Legendary Creature — Phyrexian Elder Dinosaur",
    "oracleText": "Trample\nWhen Etali enters, each player exiles cards from the top of their library until they exile a nonland card. You may cast any number of spells from among the nonland cards exiled this way without paying their mana costs.\n{9}{G/P}: Transform Etali. Activate only as a sorcery.",
    "setCode": "MOM",
@@ -5022,7 +5038,9 @@
     "R"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "R"
+   ],
    "typeLine": "Enchantment — Saga // Enchantment Creature — Goblin Shaman",
    "oracleText": "(As this Saga enters and after your draw step, add a lore counter.)\nI — Create a 2/2 red Goblin Shaman creature token with \"Whenever this token attacks, create a Treasure token.\"\nII — You may discard up to two cards. If you do, draw that many cards.\nIII — Exile this Saga, then return it to the battlefield transformed under your control.",
    "setCode": "NEO",
@@ -5087,7 +5105,9 @@
     "R"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "R"
+   ],
    "typeLine": "Sorcery // Land",
    "oracleText": "Destroy target land. Its controller may search their library for a basic land card, put it onto the battlefield tapped, then shuffle. Creatures without flying can't block this turn.",
    "setCode": "MH3",
@@ -7305,7 +7325,10 @@
     "U"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "U",
+    "W"
+   ],
    "typeLine": "Legendary Creature — Human Avatar Ally // Legendary Creature — Avatar Spirit Ally",
    "oracleText": "Flash\nFlying\nWhen Aang enters, airbend up to one other target creature or spell. (Exile it. While it's exiled, its owner may cast it for {2} rather than its mana cost.)\nWaterbend {8}: Transform Aang.",
    "setCode": "TLA",

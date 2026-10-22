@@ -31,14 +31,18 @@
  * and the same name resolved through a cube's `.dck` reference land on the
  * same printing.
  *
- * ## Why the projection below is NOT imported from `build-pool.ts`
+ * ## The projection is shared with `build-pool.ts`
  *
- * `build-pool.ts`'s `toDraftCard`/`faceCards`/`manaTokens`/`rarityOf` do
- * exactly this projection already, but that file belongs to another wave-73
- * lane this wave (lane A) and this lane may not edit it. The functions below
- * are deliberately small and stateless copies — a later pass should extract
- * one shared projection both CLIs call; nothing here depends on the
- * duplication staying.
+ * `toDraftCard`/`faceCards`/`manaTokens`/`rarityOf`/`cardColors` live in
+ * `../draft-card.ts` and both CLIs import them — wave 73 §C follow-up 2
+ * deleted the two copies this file and `build-pool.ts` used to carry. That
+ * is also where the colour fix lives: before it, this file's own copy of the
+ * projection read a card's colour straight off `colors`, which Scryfall
+ * leaves `null` for `transform`/`modal_dfc` layouts — so a name like Jace,
+ * Vryn's Prodigy came out of this catalog colourless (`[]`) while
+ * `build-pool.ts`'s cubes already had the fix. `cardColors` falls back to
+ * the front face's (or, for split/adventure/flip/meld, every face's union —
+ * Fire // Ice is `['R','U']`) exactly as `build-pool.ts`'s cubes do.
  *
  * No image code path (D13): every field this writes is named explicitly, and
  * the control at the bottom of `main` refuses to write a catalog carrying an
@@ -49,7 +53,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
-import { otherFaces } from '../faces.ts';
+import { toDraftCard } from '../draft-card.ts';
 import { buildCardIndex, normaliseName, type CardIndex } from '../resolve.ts';
 import type { GameplayCard } from '../scryfall/project.ts';
 
@@ -65,94 +69,11 @@ function defaultOutPath(): string {
   return resolve(homedir(), '.local', 'share', 'cardtable', 'catalog', 'cards.json');
 }
 
-/** The five real colours. Scryfall's `colors` is already exactly this set. */
-const COLORS = new Set(['W', 'U', 'B', 'R', 'G']);
-
-/** Mirrors `build-pool.ts`'s `manaTokens` — see its header for why tokens, not a rendered string. */
-function manaTokens(cost: string | undefined): string[] {
-  if (typeof cost !== 'string' || cost.length === 0) return [];
-  return [...cost.matchAll(/\{([^}]+)\}/g)].map((m) => m[1] as string);
-}
-
-function rarityOf(raw: unknown): string {
-  const r = typeof raw === 'string' ? raw : 'common';
-  return ['common', 'uncommon', 'rare', 'mythic'].includes(r) ? r : 'special';
-}
-
 function isDigital(card: GameplayCard): boolean {
   return (card as Record<string, unknown>)['digital'] === true;
 }
 
-/** Mirrors `build-pool.ts`'s `toDraftCard`. Every field is named explicitly — never a `{...card}` spread. */
-function toDraftCard(card: GameplayCard, cardId: string): Record<string, unknown> {
-  const raw = card as Record<string, unknown>;
-  const faces = Array.isArray(raw.card_faces) ? (raw.card_faces as Array<Record<string, unknown>>) : null;
-  const front = faces?.[0];
-
-  const manaCost = manaTokens(
-    (typeof raw.mana_cost === 'string' && raw.mana_cost.length > 0
-      ? raw.mana_cost
-      : typeof front?.mana_cost === 'string'
-        ? front.mana_cost
-        : '') as string,
-  );
-
-  const colors = Array.isArray(raw.colors)
-    ? (raw.colors as unknown[]).filter((c): c is string => typeof c === 'string' && COLORS.has(c))
-    : [];
-
-  const out: Record<string, unknown> = {
-    cardId,
-    // Scryfall's id, so the BROWSER can derive an image URL for itself. Not a
-    // URL, and not their `image_uris` blob — see `build-pool.ts`'s header.
-    ...(typeof raw.id === 'string' ? { scryfallId: raw.id } : {}),
-    name: String(raw.name ?? front?.name ?? 'Unknown'),
-    manaCost,
-    manaValue: typeof raw.cmc === 'number' ? raw.cmc : 0,
-    colors,
-    typeLine: String(raw.type_line ?? front?.type_line ?? ''),
-    oracleText: String(raw.oracle_text ?? front?.oracle_text ?? ''),
-    setCode: String(raw.set ?? '???').toUpperCase(),
-    collectorNumber: String(raw.collector_number ?? '0'),
-    rarity: rarityOf(raw.rarity),
-  };
-  if (typeof raw.power === 'string') out.power = raw.power;
-  if (typeof raw.toughness === 'string') out.toughness = raw.toughness;
-  if (typeof raw.loyalty === 'string') out.loyalty = raw.loyalty;
-  const others = faceCards(card, out);
-  if (others.length > 0) out.faces = others;
-  return out;
-}
-
-/** Mirrors `build-pool.ts`'s `faceCards` — see its header for the Etali / meld-result caveat. */
-function faceCards(card: GameplayCard, front: Record<string, unknown>): Array<Record<string, unknown>> {
-  const raw = card as Record<string, unknown>;
-  const printed = Array.isArray(raw.card_faces) ? (raw.card_faces as Array<Record<string, unknown>>) : [];
-  return otherFaces(card).flatMap(({ name, artId }) => {
-    const face = printed.find((f) => f.name === name);
-    if (face === undefined) return [];
-    const colors = Array.isArray(face.colors) ? (face.colors as unknown[]).filter((c): c is string => typeof c === 'string' && COLORS.has(c)) : [];
-    const manaCost = manaTokens(typeof face.mana_cost === 'string' ? face.mana_cost : '');
-    const out: Record<string, unknown> = {
-      scryfallId: artId,
-      name,
-      manaCost,
-      manaValue: typeof face.cmc === 'number' ? face.cmc : manaCost.reduce((n, t) => n + (/^\d+$/.test(t) ? Number(t) : t === 'X' ? 0 : 1), 0),
-      colors,
-      typeLine: String(face.type_line ?? ''),
-      oracleText: String(face.oracle_text ?? ''),
-      setCode: front.setCode,
-      collectorNumber: front.collectorNumber,
-      rarity: front.rarity,
-    };
-    if (typeof face.power === 'string') out.power = face.power;
-    if (typeof face.toughness === 'string') out.toughness = face.toughness;
-    if (typeof face.loyalty === 'string') out.loyalty = face.loyalty;
-    return [out];
-  });
-}
-
-interface CatalogFile {
+export interface CatalogFile {
   cards: Record<string, unknown>;
   aliases: Record<string, string>;
 }
@@ -163,7 +84,7 @@ interface CatalogFile {
  * alias (the key reached the card through a weaker variant). See the file
  * header for why this is the whole algorithm.
  */
-function buildCatalog(index: CardIndex): CatalogFile {
+export function buildCatalog(index: CardIndex): CatalogFile {
   const cards: Record<string, unknown> = {};
   const aliases: Record<string, string> = {};
 
@@ -236,4 +157,8 @@ async function main(): Promise<void> {
   console.log(`D13 control: ${cardCount} cards, no image field and no image URL.`);
 }
 
-await main();
+// Guarded so `buildCatalog` can be imported by a unit test without running
+// the whole CLI — `build-catalog.test.ts` does exactly that. Same guard
+// `build-pool.ts` uses; see its tail comment for why `import.meta.main` is
+// the right check.
+if (import.meta.main) await main();
