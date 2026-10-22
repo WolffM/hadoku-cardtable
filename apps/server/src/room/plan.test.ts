@@ -178,6 +178,37 @@ describe('checkCards — the shared core, also apps/server/src/pools/cubes.ts’
 });
 
 /*
+ * CI fix-forward (run 39715510788): the jar-less e2e stack's own escape
+ * hatch (CONFIG.testUncheckedPools, threaded in here as checkCards' third
+ * argument) — never from production, never a substitute for a real catalog
+ * check.
+ */
+describe('checkCards — the jar-less e2e escape hatch', () => {
+  it('opt-in + no jar: ok when every card resolved', async () => {
+    const cards = [card('A'), card('B')];
+    expect(await checkCards(cards, null, { uncheckedWithoutJar: true })).toEqual({ ok: true, cards: 2 });
+  });
+
+  it('opt-in + no jar: missingText still refuses — this is an escape from "no jar", never from "no catalog text"', async () => {
+    const cards = [card('A'), { ...card('Mystery'), typeLine: '' }];
+    expect(await checkCards(cards, null, { uncheckedWithoutJar: true })).toEqual({ ok: false, unplayable: [], missingText: ['Mystery'] });
+  });
+
+  it('no opt-in + no jar: refused, unchanged', async () => {
+    const verdict = await checkCards([card('A')], null);
+    expect(verdict.ok).toBe(false);
+  });
+
+  it('opt-in WITH a jar: the real check still runs — the flag never stands in for Forge', async () => {
+    const cards = [card('A'), card('Not Real')];
+    const forge: ForgeChecker = { check: vi.fn(async (names: readonly string[]) => names.filter((n) => n === 'Not Real')) };
+    const verdict = await checkCards(cards, forge, { uncheckedWithoutJar: true });
+    expect(verdict).toEqual({ ok: false, unplayable: ['Not Real'], missingText: [] });
+    expect(forge.check).toHaveBeenCalledWith(['A', 'Not Real']);
+  });
+});
+
+/*
  * Step 6: the real C module, not a fake — `createCubeStore` against the
  * committed shortlist `index.ts` points `shortlistDir` at. Proves the actual
  * wiring `index.ts` does, not a stand-in for it: the 8-cube shortlist loads,

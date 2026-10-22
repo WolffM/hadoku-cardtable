@@ -96,6 +96,29 @@ export const CONFIG = {
 	playProbe: process.env.CARDTABLE_PLAY_PROBE === '1',
 
 	/**
+	 * `CARDTABLE_E2E_UNCHECKED_POOLS=1`: the jar-less e2e stack's own escape
+	 * hatch, wave 73 §A follow-up (CI `check` run 39715510788: a jar-less
+	 * server can never pass a plan's verdict, so `Lobby.startDraft` refused
+	 * `plan-not-ready` forever and `draft.spec`'s "two friends draft a whole
+	 * pod" never dealt).
+	 *
+	 * With it, `room/plan.ts`'s `checkCards` answers OK for a source whose
+	 * cards all resolved (`missingText` still refuses — this is an escape from
+	 * "no jar", never from "no catalog text") instead of refusing with "Forge
+	 * is not available". A source checked WITH a jar is unaffected either way:
+	 * nothing here ever stands in for a real `forge.check`.
+	 *
+	 * Nothing in this repo's own deploy path (the PM2 wrapper, the vault
+	 * broker) ever sets this — `config.test.ts` pins that a config built from
+	 * a bare `process.env` (nothing set) reads `false`. `e2e/harness.ts` sets
+	 * it on its OWN jar-less server only (never `e2e/play/harness.ts`'s,
+	 * which has a real jar and keeps running the real check regardless of
+	 * this flag). `index.ts` logs a boot warning whenever it reads true, the
+	 * same register `EDGE_AUTH_SECRET`'s own dev hatch warns at.
+	 */
+	testUncheckedPools: process.env.CARDTABLE_E2E_UNCHECKED_POOLS === '1',
+
+	/**
 	 * `CARDTABLE_PLAY_SEED`: fixes Forge's shuffles, the coin toss and the precon
 	 * pick for every match this server starts, or undefined (production) for an
 	 * unseeded one. Read at each start, not at boot, so a test can set it.
