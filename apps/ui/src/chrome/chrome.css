@@ -257,20 +257,3 @@
   :is(.app, .draft, .board, .deck, .deckrow, .rooms, .spectate, .conn, .prompt, .confirm) {
   color: var(--ink);
 }
-
-/*
- * The other half of the same seam, and the only rule here that is a patch.
- *
- * `.pods__title` ("Draft pods", `rooms/rooms.css:183`) sits OUTSIDE the dark
- * islands above — its section has no background of its own, so it renders
- * straight onto the themed page — and it paints from the table palette. Against
- * a light theme that measured 2.44:1, which is not readable, and the chrome is
- * what put it there.
- *
- * This belongs one line up in `rooms.css`, as `--ink-dim` → `--color-text-
- * secondary`. That file is not this lane's, so the fix lives here until it can
- * be moved; delete this rule when it is.
- */
-.cardtable-chrome .pods__title {
-  color: var(--color-text-secondary);
-}

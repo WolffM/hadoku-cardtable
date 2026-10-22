@@ -323,39 +323,6 @@
   opacity: 0.6;
 }
 
-.lobby__form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.lobby__form label {
-  flex-basis: 100%;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.lobby__form input {
-  flex: 1 1 220px;
-  min-width: 0;
-  background: var(--color-bg-alt);
-  color: var(--color-text);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--hdk-radius);
-  padding: 9px 10px;
-  font: inherit;
-}
-
-.lobby__form button {
-  background: var(--color-bg-hover);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--hdk-radius);
-  padding: 9px 16px;
-}
-
 .lobby__error {
   margin: 0;
   color: var(--color-warning);
@@ -475,13 +442,6 @@
 }
 
 /* ── constructed (`#/play`) and a match (`#/match/<id>`) ─────────────── */
-
-.tables__seat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-}
 
 /*
  * The two seats at a room's table, as a table: one row each, the same cells in
@@ -727,7 +687,6 @@
   stroke-linejoin: round;
 }
 
-.tables__seat select,
 .lobby__card select {
   padding: 0.45rem 0.6rem;
   background: var(--color-bg-alt);
@@ -736,26 +695,6 @@
   border-radius: var(--hdk-radius);
   font: inherit;
   max-width: 100%;
-}
-
-.tables__opponent {
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius);
-  margin: 0 0 1rem;
-  padding: 0.5rem 0.75rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
-}
-
-.tables__invite {
-  width: min(32rem, 100%);
-  padding: 0.3rem 0.5rem;
-  background: var(--color-bg-alt);
-  color: var(--color-text);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--hdk-radius);
-  font: inherit;
 }
 
 /* The locked-room prompt. A direct link to a room you have the password for

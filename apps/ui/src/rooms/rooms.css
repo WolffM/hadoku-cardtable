@@ -238,37 +238,14 @@
   border-color: var(--color-border);
 }
 
-.rooms__hint {
-  margin: 0;
-  font-size: 13px;
-  color: var(--ink-faint);
-}
-
 .rooms__create .lobby__go {
   margin-top: 6px;
-}
-
-/* ── draft pods: kept, but secondary ─────────────────────────────────── */
-
-.pods .lobby__card {
-  background: transparent;
 }
 
 .front {
   display: flex;
   flex-direction: column;
   gap: 24px;
-}
-
-.pods__title {
-  font-size: 15px;
-  color: var(--ink-dim);
-  margin: 0 0 8px;
-}
-
-.pods .lobby__card h3 {
-  font-size: 16px;
-  margin: 0;
 }
 
 /* A room you are in: closing the tab never leaves one, so it is where you come back to. */

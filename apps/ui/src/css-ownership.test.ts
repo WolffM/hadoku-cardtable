@@ -52,16 +52,7 @@ const PENDING: Record<string, string> = {
   confirm: 'prompts.css adds `.confirm__card` to the confirm prompt’s block',
   deckpick: 'DecksScreen.css styles the screen kit’s deck picker',
   pod: 'screens.css and settings.css style the pod screen’s block',
-  pods: 'dead: rooms.css',
-  pods__title: 'dead: rooms.css, chrome.css',
-  deck__sub: 'dead: spectate.css',
-  zone__head: 'dead: board.css',
   stack__art: 'dead: card.css',
-  rooms__hint: 'dead: rooms.css',
-  lobby__form: 'dead: screens.css',
-  tables__seat: 'dead: screens.css',
-  tables__opponent: 'dead: screens.css',
-  tables__invite: 'dead: screens.css',
 };
 
 /** Classes other packages draw, which our sheets restyle. */

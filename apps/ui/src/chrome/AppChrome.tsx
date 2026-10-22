@@ -162,9 +162,9 @@
  *    `import.meta.env`** — `BASE_URL` for the api base, `DEV` for a
  *    dev-only affordance. Build-time, not runtime, and both optional-chain.
  *    Named so a wrapper that changes the base path knows where it is read.
- * 5. **`chrome.css` reaches DOWN**, at its last three blocks, naming
+ * 5. **`chrome.css` reaches DOWN**, at its last blocks, naming
  *    `.app`, `.draft`, `.board`, `.deck`, `.deckrow`, `.rooms`, `.spectate`,
- *    `.conn`, `.prompt`, `.confirm` and `.pods__title`. That is this lane's
+ *    `.conn`, `.prompt` and `.confirm`. That is this lane's
  *    own file and it is the island seam above — deliberate, but it is a
  *    coupling in the other direction and it is the thing to delete when
  *    those sheets move onto semantic tokens.
