@@ -947,8 +947,7 @@ test('a player drafts from the seat they sat in: pack 1 passes along the table, 
 /* ── §Acceptance: draft, build, leave and return, then real Forge ────── */
 
 /**
- * The room leave the UI has no button for (`PodScreen`'s "← Lobby" only
- * navigates away; it never calls this) — the same route `rooms/api.ts`'s
+ * The room leave the UI has no button for — the same route `rooms/api.ts`'s
  * `leave()` sends, by the caller's own page so the identity is theirs. This
  * is what C's "owns their pool for good… through leave" actually exercises.
  */

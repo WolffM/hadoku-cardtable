@@ -123,16 +123,6 @@ export function DecksScreen({ decks: givenDecks, deckRecords = fetchDeckRecords 
   return (
     <div className="shell shell--fit" data-testid="decks">
       <nav className="shell__head">
-        <a
-          className="shell__link"
-          href="#/"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate({ kind: 'lobby' });
-          }}
-        >
-          ← Lobby
-        </a>
         <div className="shell__tools">
           <SettingsGear />
         </div>

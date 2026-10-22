@@ -248,16 +248,6 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   const bar = (
     <>
       <div className="pod__who">
-        <a
-          className="shell__link"
-          href="#/"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate({ kind: 'lobby' });
-          }}
-        >
-          ← Lobby
-        </a>
         {ctx !== null && ctx.name !== '' && <strong className="pod__name" data-testid="pod-name">{ctx.name}</strong>}
       </div>
 
