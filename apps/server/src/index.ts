@@ -66,7 +66,6 @@
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -82,7 +81,7 @@ import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, type PlayHandle } from './play/index.js';
-import { attachStream, attachStreamRoutes, streamLayout, STREAM_BASE_PORT } from './stream/index.js';
+import { attachStream, attachStreamRoutes, streamLayout } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
 import { attachTables, loadTablesLibrary } from './http/index.js';
@@ -302,7 +301,7 @@ const ensureRoomStreams = (roomKey: string): void => {
 
 attachStreamRoutes(app, {
 	minTier: CONFIG.minTier,
-	streamBasePort: STREAM_BASE_PORT,
+	streamBasePort: CONFIG.streamBasePort,
 	...STREAM_LAYOUT,
 	rooms: roomStreams,
 	ensureRoom: ensureRoomStreams,
@@ -349,26 +348,22 @@ if (!forge.ok) {
 
 // The room list the front page shows, and the per-player state a table reads.
 // Persisted, because this repo redeploys several times a day and an in-memory
-// room would take its members and its password with it every time. `data/` is
-// gitignored, so a `git pull` deploy leaves it alone; e2e sets CARDTABLE_LOG_DIR
-// and therefore gets its own directory rather than production's.
+// room would take its members and its password with it every time (`CONFIG.dataDir`).
 //
 // **Above the draft socket, and it has to be.** The socket's readiness gate is
 // a lobby read: a `join` deals a pod only for a room whose draft the lobby says
 // has started (wave 23, `room/socket.ts`), so `attachDraftSocket` takes the
 // lobby as a required dep and cannot be wired before it exists.
 //
-// A new room opens on a random era (`randomFormat`). `CARDTABLE_NEW_ROOM_FORMAT=newest` pins
-// every new room to the newest Standard era instead: the e2e harnesses set it, because their
-// specs read a fresh room's pool and a run must not depend on a draw.
-const newRoomFormat = process.env.CARDTABLE_NEW_ROOM_FORMAT;
+// A new room opens on a random era (`randomFormat`) unless `CONFIG.newRoomFormat` pins it.
+const newRoomFormat = CONFIG.newRoomFormat;
 if (newRoomFormat !== undefined && newRoomFormat !== 'newest') {
 	throw new Error(`CARDTABLE_NEW_ROOM_FORMAT must be 'newest' or unset, not ${JSON.stringify(newRoomFormat)}`);
 }
 const roomsLog = jsonLogger('cardtable-rooms');
 // Every pod that played a round, kept past its room for the stats popout's Tournaments tab.
 const tournaments = await openTournaments(
-	process.env.CARDTABLE_TOURNAMENTS_FILE ?? resolve(CONFIG.logDir, '../data/tournaments.json'),
+	CONFIG.tournamentsFile,
 	roomsLog,
 );
 // ── Match stats ──────────────────────────────────────────────────────────────
@@ -405,10 +400,8 @@ const matchStats = createMatchStats({
 // `data/rooms` — lane B's e2e harness already sets this env var and expects
 // it to be the import dir directly, not a parent of one.
 const SHORTLIST_DIR = resolve(PKG_ROOT, 'pools/cubes');
-const CUBES_DIR = process.env.CARDTABLE_CUBES_DIR ?? resolve(CONFIG.logDir, '../data/cubes');
-const CATALOG_PATH = process.env.CARDTABLE_CATALOG ?? resolve(homedir(), '.local/share/cardtable/catalog/cards.json');
-const catalog = loadCardCatalog(CATALOG_PATH);
-const cubeStore = createCubeStore({ shortlistDir: SHORTLIST_DIR, importDir: CUBES_DIR, catalog });
+const catalog = loadCardCatalog(CONFIG.catalogPath);
+const cubeStore = createCubeStore({ shortlistDir: SHORTLIST_DIR, importDir: CONFIG.cubesDir, catalog });
 if (cubeStore.list().length === 0) console.warn(`[cardtable] draft pool: no shortlist cubes loaded from ${SHORTLIST_DIR} — draft rooms are disabled`);
 
 // The pool service's own long-lived JVM (`play/bridge/PoolService.java`),
@@ -438,7 +431,7 @@ const checkDraftPlan = (plan: DraftPlan): Promise<PoolVerdict> =>
 	checkPlan(plan, { cubes: cubeStore, forge: forgePools, uncheckedWithoutJar: CONFIG.testUncheckedPools });
 
 const lobby = await openLobby({
-	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
+	dir: CONFIG.roomsDir,
 	formats: library.formats,
 	...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat(library.formats) } : {}),
 	log: roomsLog,
@@ -467,7 +460,7 @@ attachTournaments(api, { tournaments });
 // admin's assignments. No in-memory open step — `attachSounds` reads and
 // writes the directory per request, same as `attachTables` reads `decks/`.
 attachSounds(api, {
-	dir: process.env.CARDTABLE_SOUNDS_DIR ?? resolve(CONFIG.logDir, '../data/sounds'),
+	dir: CONFIG.soundsDir,
 });
 
 const httpServer = createServer(app);
@@ -499,7 +492,7 @@ const draftRooms = cubeStore.list().length > 0
 			// 45-minute draft must survive this process restarting on every push
 			// to main. `storeDir`'s own doc on why the default is OFF rather than
 			// computing this inline.
-			storeDir: process.env.CARDTABLE_DRAFTS_DIR ?? resolve(CONFIG.logDir, '../data/drafts'),
+			storeDir: CONFIG.draftsDir,
 		})
 	: null;
 // A deploy mid-pod resumes it: the lobby restored the room's pod, the registry
@@ -563,7 +556,7 @@ play = attachPlay(io, api, {
 	minTier: CONFIG.minTier,
 	host: forge.ok ? jvmHostFactory(forge.config) : null,
 	// Diagnostics for a live check only. Never set in production (see play/socket.ts).
-	probe: process.env.CARDTABLE_PLAY_PROBE === '1',
+	probe: CONFIG.playProbe,
 	devIdentity: CONFIG.allowUnverifiedEdge && CONFIG.edgeAuthSecret === '',
 	// Two listeners on one event: the stats report (`matchStats.gameOver`) and
 	// the room's own series ledger, recorded AT ONCE rather than waiting for a
@@ -625,7 +618,7 @@ const browserBridge = attachBrowserBridge(httpServer, {
 // order, as the bridge above.
 const streamHandle = attachStream(httpServer, {
 	minTier: CONFIG.minTier,
-	streamBasePort: STREAM_BASE_PORT,
+	streamBasePort: CONFIG.streamBasePort,
 	...STREAM_LAYOUT,
 	rooms: roomStreams,
 	ensureRoom: ensureRoomStreams,

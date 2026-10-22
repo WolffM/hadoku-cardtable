@@ -44,3 +44,27 @@ describe('CONFIG.testUncheckedPools', () => {
     }
   });
 });
+
+describe('CONFIG.dataDir', () => {
+  const VARS = ['CARDTABLE_LOG_DIR', 'CARDTABLE_ROOMS_DIR', 'CARDTABLE_DRAFTS_DIR'] as const;
+
+  it('sits beside the log directory, and each store under it unless its own variable says otherwise', async () => {
+    const saved = VARS.map((name) => process.env[name]);
+    process.env.CARDTABLE_LOG_DIR = '/srv/ct/logs';
+    process.env.CARDTABLE_ROOMS_DIR = '/elsewhere/rooms';
+    delete process.env.CARDTABLE_DRAFTS_DIR;
+    vi.resetModules();
+    try {
+      const { CONFIG } = await import('./config.ts');
+      expect(CONFIG.dataDir).toBe('/srv/ct/data');
+      expect(CONFIG.roomsDir).toBe('/elsewhere/rooms');
+      expect(CONFIG.draftsDir).toBe('/srv/ct/data/drafts');
+      expect(CONFIG.tournamentsFile).toBe('/srv/ct/data/tournaments.json');
+    } finally {
+      VARS.forEach((name, i) => {
+        if (saved[i] === undefined) delete process.env[name];
+        else process.env[name] = saved[i];
+      });
+    }
+  });
+});

@@ -294,10 +294,8 @@ interface DraftRoomsOptions {
 	/**
 	 * Where pods are persisted (P6, `@hadoku/room-store`'s snapshot format).
 	 * `undefined` or `null` — the default — disables persistence outright: pure
-	 * in-memory, today's behaviour. `index.ts` opts in explicitly, the same way
-	 * it does for `CARDTABLE_ROOMS_DIR`/`CARDTABLE_SOUNDS_DIR`
-	 * (`process.env.CARDTABLE_DRAFTS_DIR ?? resolve(CONFIG.logDir,
-	 * '../data/drafts')`). Defaulting to a real directory instead would make
+	 * in-memory, today's behaviour. `index.ts` opts in explicitly with
+	 * `CONFIG.draftsDir`, as it does with `CONFIG.roomsDir`. Defaulting to a real directory instead would make
 	 * every OTHER test that builds a `DraftRooms` and does not know this option
 	 * exists — `http/tables.test.ts`, `room/socket.test.ts` — start touching
 	 * real disk, and possibly colliding on the same `draftId`s this file's own

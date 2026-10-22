@@ -225,7 +225,7 @@ export type CatalogFormat = Pick<TableFormat, 'id' | 'family'>;
  * so `library.formats.at(-1)` is no longer necessarily a Standard era.
  *
  * What a room written before `format` existed reads back as, and the fixed
- * default a server started with `CARDTABLE_ROOM_FORMAT=newest` opens every new
+ * default a server started with `CARDTABLE_NEW_ROOM_FORMAT=newest` opens every new
  * room on. `NO_FORMAT` when the catalog has no Standard era at all (an empty
  * library, or a catalog that is Modern/Legacy only).
  *

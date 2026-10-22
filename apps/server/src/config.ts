@@ -5,7 +5,7 @@
  * vault broker) can inject them without a code edit.
  */
 
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
@@ -17,6 +17,9 @@ const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 /** Resolve a configured path against the package root unless it is absolute. */
 const resolveDir = (value: string): string =>
 	isAbsolute(value) ? value : resolve(PKG_ROOT, value);
+
+const LOG_DIR = resolveDir(process.env.CARDTABLE_LOG_DIR || 'logs');
+const DATA_DIR = resolve(LOG_DIR, '../data');
 
 export const CONFIG = {
 	/** Port this server listens on. cloudflared points the tunnel hostname here. */
@@ -90,7 +93,40 @@ export const CONFIG = {
 	statsBaseUrl: process.env.CARDTABLE_STATS_BASE_URL || 'https://hadoku.me/prefs',
 
 	/** Structured access log destination (gitignored, created on boot). */
-	logDir: resolveDir(process.env.CARDTABLE_LOG_DIR || 'logs'),
+	logDir: LOG_DIR,
+
+	/**
+	 * The server's persisted state, beside the log directory. `data/` is
+	 * gitignored, so a `git pull` deploy leaves it alone; e2e sets
+	 * CARDTABLE_LOG_DIR and therefore gets its own directory rather than
+	 * production's.
+	 */
+	dataDir: DATA_DIR,
+
+	/** Every pod that played a round, kept past its room (`CARDTABLE_TOURNAMENTS_FILE`). */
+	tournamentsFile: process.env.CARDTABLE_TOURNAMENTS_FILE ?? join(DATA_DIR, 'tournaments.json'),
+
+	/** The lobby's rooms, one file each (`CARDTABLE_ROOMS_DIR`). */
+	roomsDir: process.env.CARDTABLE_ROOMS_DIR ?? join(DATA_DIR, 'rooms'),
+
+	/** The sound builder's uploads and assignments (`CARDTABLE_SOUNDS_DIR`). */
+	soundsDir: process.env.CARDTABLE_SOUNDS_DIR ?? join(DATA_DIR, 'sounds'),
+
+	/** Each draft's state, so a pod survives a restart (`CARDTABLE_DRAFTS_DIR`). */
+	draftsDir: process.env.CARDTABLE_DRAFTS_DIR ?? join(DATA_DIR, 'drafts'),
+
+	/** A friend's Cube Cobra imports, flat `<id>.json` (`CARDTABLE_CUBES_DIR`). */
+	cubesDir: process.env.CARDTABLE_CUBES_DIR ?? join(DATA_DIR, 'cubes'),
+
+	/** The card catalog the pools resolve against (`CARDTABLE_CATALOG`). */
+	catalogPath: process.env.CARDTABLE_CATALOG ?? resolve(homedir(), '.local/share/cardtable/catalog/cards.json'),
+
+	/**
+	 * `CARDTABLE_NEW_ROOM_FORMAT=newest` pins every new room to the newest
+	 * Standard era instead of a random one: the e2e harnesses set it, because
+	 * their specs read a fresh room's pool and a run must not depend on a draw.
+	 */
+	newRoomFormat: process.env.CARDTABLE_NEW_ROOM_FORMAT,
 
 	/** `CARDTABLE_PLAY_PROBE=1`: the e2e harness's dev diagnostics — the scenario routes and the frame and stop traces. Never on in production. */
 	playProbe: process.env.CARDTABLE_PLAY_PROBE === '1',
