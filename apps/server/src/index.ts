@@ -67,7 +67,8 @@ import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { dirname, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
 import { CONFIG, INDEX_HTML } from './config.js';
@@ -93,6 +94,8 @@ import { attachSounds } from './http/sounds.js';
 import { attachTrim } from './http/trim.js';
 import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
 import { attachSetRoutes, createSetsStore } from './pools/sets.js';
+import { attachPresetRoutes, createPresetStore } from './pools/presets.js';
+import { createCatalogRefresh } from './pools/refresh.js';
 import { loadCardCatalog } from './pools/catalog.js';
 import { createForgePools, type ForgePools } from './pools/forge.js';
 import { serveCover } from './cover.js';
@@ -586,6 +589,28 @@ attachCubeRoutes(api, { store: cubeStore, check: (cards) => checkCards(cards, fo
 // each with its set-cube size and a cache-only verdict (wave 74 §E step 4).
 attachSetRoutes(api, { store: setsStore });
 
+// GET/POST/DELETE /api/pools/presets — G's named custom plans, shared with
+// the group (wave 74 §G). `data/presets.json`, alongside `data/cubes`.
+const presetStore = createPresetStore({ path: join(CONFIG.dataDir, 'presets.json') });
+attachPresetRoutes(api, { store: presetStore });
+
+// Keep the catalog current with Scryfall's daily bulk file, with no restart
+// (wave 74 §G). `CARDTABLE_SCRYFALL_DIR`, same shared cache land.sh's art
+// pipeline uses (`fdc3aaf5`) — never a lane's own fixture dir outside a test.
+// `onSwap` is wave 74 §E's own half: a catalog swap can turn a `missingText`
+// refusal into a pass, so every cached SET verdict refused for missing text
+// is dropped (`pools/sets.ts`'s own cache; a cube's verdict lives in
+// `cubeStore`, C's module, unowned and untouched this wave).
+const SCRYFALL_DIR = process.env.CARDTABLE_SCRYFALL_DIR ?? resolve(homedir(), '.local/share/cardtable/scryfall');
+const catalogRefresh = createCatalogRefresh({
+	catalog,
+	scryfallDir: SCRYFALL_DIR,
+	catalogPath: CONFIG.catalogPath,
+	onSwap: () => setsStore.clearMissingTextVerdicts(),
+	log: jsonLogger('cardtable-pools'),
+});
+const stopCatalogRefresh = catalogRefresh.start();
+
 // ── Matches ──────────────────────────────────────────────────────────────────
 // One child JVM per match; see src/play/README.md. Without a configured Forge
 // build the route answers 503 and nothing else changes. `forge` itself is
@@ -741,6 +766,8 @@ function shutdown(signal: string): void {
 	// best-effort: the deadline below still bounds the whole shutdown even if
 	// this never resolves.
 	forgePools?.close().catch((err: unknown) => say({ evt: 'shutdown-pool-service-failed', error: (err as Error).message }));
+	// Stops the 24 h timer; an in-flight run (if any) finishes on its own — `start()`'s own doc.
+	stopCatalogRefresh();
 
 	const finish = (why: string): void => {
 		say({ evt: 'shutdown-done', signal, why, ms: Date.now() - startedAt, handed: outcome.handed.length, ended: outcome.ended.length });
