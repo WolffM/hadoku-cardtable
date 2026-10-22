@@ -6,8 +6,8 @@
   "license": "GPL-3.0-or-later",
   "description": "Browser end-to-end: two friends draft one pod against the real built server. Not shipped.",
   "scripts": {
-    "test": "node --test isolation.test.ts && playwright test -c playwright.config.ts",
-    "test:checker": "node --test isolation.test.ts",
+    "test": "node --test isolation.test.ts grind.test.ts && playwright test -c playwright.config.ts",
+    "test:checker": "node --test isolation.test.ts grind.test.ts",
     "test:browser": "playwright test -c playwright.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "install-browsers": "node install-browsers.ts"
