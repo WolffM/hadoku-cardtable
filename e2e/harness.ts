@@ -171,6 +171,10 @@ const server = spawn(process.execPath, [SERVER_JS], {
     // (wave 74 §E, after a lane's own manual boot left a `.partial` file
     // there). Production is the only server this stays on for.
     CARDTABLE_CATALOG_REFRESH: '0',
+    // Bots take a turn every 100 ms rather than production's 1.2 s: a spec drives
+    // 45 picks a drafter, and at production's pace the bots, not the product,
+    // would be what it waits on. Still a clock, so packs queue as they do live.
+    CARDTABLE_DRAFT_BOT_PICK_MS: '100',
   },
 });
 

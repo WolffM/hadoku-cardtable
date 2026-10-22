@@ -71,6 +71,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server as SocketIOServer } from 'socket.io';
+import { podPickNumber } from '@hadoku/draft';
 import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
@@ -178,7 +179,7 @@ app.get(
 				id: r.roomId,
 				status: r.app.state?.status,
 				packNumber: r.app.state?.packNumber,
-				pickNumber: r.app.state?.pickNumber,
+				pickNumber: r.app.state === null ? undefined : podPickNumber(r.app.state),
 			})),
 	})
 );
@@ -547,7 +548,7 @@ const draftRooms = cubeStore.list().length > 0
 // its draft. A room whose draft did not come back goes back to its lobby.
 const lostDrafts = lobby.releaseLostDrafts((roomId) => draftRooms?.find(roomId) !== undefined);
 if (lostDrafts.length > 0) roomsLog({ event: 'drafts-lost', rooms: lostDrafts });
-attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier });
+attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier, botPickMs: CONFIG.draftBotPickMs });
 // Every room write, pushed to the screens that have the room (or the list) open,
 // so none of them reads it on a timer. Behind the gate attachDraftSocket installed.
 attachRoomFeed(io, { lobby });

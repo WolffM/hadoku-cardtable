@@ -876,7 +876,7 @@ describe('a room is dealt from its OWN plan, not a server-global cube', () => {
 
 		const room = r.open('pod-legacy');
 		const state = stateOf(room);
-		for (const pack of state.packs) {
+		for (const pack of state.queues.flat()) {
 			for (const card of pack) expect(card.name.startsWith('legacy')).toBe(true);
 		}
 		expect(r.cubeMetaOf(room)).toEqual({ name: 'legacy', size: 360 });
@@ -886,7 +886,7 @@ describe('a room is dealt from its OWN plan, not a server-global cube', () => {
 		const r = createDraftRooms({ resolver: twoCubeResolver(), defaultPlan: legacyPlan(), now: () => 1_700_000_000_000, storeDir: null });
 		const room = r.open('pod-default');
 		const state = stateOf(room);
-		for (const pack of state.packs) {
+		for (const pack of state.queues.flat()) {
 			for (const card of pack) expect(card.name.startsWith('legacy')).toBe(true);
 		}
 	});
@@ -909,7 +909,7 @@ describe('a room is dealt from its OWN plan, not a server-global cube', () => {
 		r.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan: { rounds: [src, src, src] } }));
 		const room = r.open('pod-set-cube');
 		const state = stateOf(room);
-		for (const pack of state.packs) {
+		for (const pack of state.queues.flat()) {
 			for (const card of pack) expect(card.name.startsWith('ARB')).toBe(true);
 		}
 	});

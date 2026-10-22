@@ -612,6 +612,10 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         // — a real Scryfall download, every e2e run (wave 74 §E). Production
         // is the only server this stays on for.
         CARDTABLE_CATALOG_REFRESH: '0',
+        // Bots take a turn every 100 ms rather than production's 1.2 s: a spec drives
+        // 45 picks a drafter, and at production's pace the bots, not the product,
+        // would be what it waits on. Still a clock, so packs queue as they do live.
+        CARDTABLE_DRAFT_BOT_PICK_MS: '100',
       },
     });
   /** Whoever is waiting on a line the server has not written yet — see {@link sparesWarm}. */

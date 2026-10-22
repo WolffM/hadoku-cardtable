@@ -887,7 +887,7 @@ describe('a drafted deck', () => {
 		const seat = joinDraftRoom(room, 'sock-a', alice, 'friend').seat;
 		if (seat === null) throw new Error('alice was not seated');
 		const state = stateOf(room);
-		const pool = state.packs.flat().slice(0, 45);
+		const pool = state.queues.flat(2).slice(0, 45);
 		state.pools[seat] = pool;
 		return pool;
 	}
@@ -1131,7 +1131,7 @@ describe('bypass routes, each refused with the card named', () => {
 		const seat = joinDraftRoom(room, 'sock-a', alice, 'friend').seat;
 		if (seat === null) throw new Error('alice was not seated');
 		const state = stateOf(room);
-		const pool = state.packs.flat().slice(0, 45);
+		const pool = state.queues.flat(2).slice(0, 45);
 		state.pools[seat] = pool;
 		let deck = deckFromPool('amber-lantern-k7q4', pool);
 		for (const card of pool.slice(0, 40)) {
@@ -2239,7 +2239,7 @@ describe('a room table', () => {
 		const seat = joinDraftRoom(draftRoom, 'sock-a', ALICE, 'friend').seat;
 		if (seat === null) throw new Error('alice was not seated');
 		const state = stateOf(draftRoom);
-		const pool = state.packs.flat().slice(0, 45);
+		const pool = state.queues.flat(2).slice(0, 45);
 		state.pools[seat] = pool;
 		let built = deckFromPool(draftId, pool);
 		for (const card of pool.slice(0, 40)) {
@@ -2877,7 +2877,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 		const seatB = joinDraftRoom(room, `sock-b-${draftId}`, BOB, 'friend').seat;
 		if (seatA === null || seatB === null) throw new Error('both drafters must be seated');
 		const state = stateOf(room);
-		const cards = state.packs.flat();
+		const cards = state.queues.flat(2);
 		const alice = cards.slice(0, 45);
 		const bob = cards.slice(45, 90);
 		state.pools[seatA] = alice;
@@ -2996,7 +2996,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 		const state = stateOf(room);
 		const across = (state.table.seats.findIndex((s) => s.occupant?.kind === 'human' && s.occupant.participantId === ALICE) + 4) % 8;
 		expect(isBotSeat(state, across)).toBe(true);
-		state.pools[across] = state.packs.flat().slice(90, 135);
+		state.pools[across] = state.queues.flat(2).slice(90, 135);
 		openRoom(h);
 		expect((await putDeck(h, 'alice', built(pools.alice))).status).toBe(200);
 
@@ -3012,7 +3012,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 		const pools = pod(h);
 		const state = stateOf(h.rooms.find(POD)!);
 		const across = (state.table.seats.findIndex((s) => s.occupant?.kind === 'human' && s.occupant.participantId === ALICE) + 4) % 8;
-		state.pools[across] = state.packs.flat().slice(90, 135);
+		state.pools[across] = state.queues.flat(2).slice(90, 135);
 		openRoom(h);
 		expect((await putDeck(h, 'alice', built(pools.alice))).status).toBe(200);
 		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
@@ -3032,7 +3032,7 @@ describe('a pod table plays each drafter’s own pool', () => {
 		const pools = pod(h);
 		const state = stateOf(h.rooms.find(POD)!);
 		const across = (state.table.seats.findIndex((s) => s.occupant?.kind === 'human' && s.occupant.participantId === ALICE) + 4) % 8;
-		state.pools[across] = state.packs.flat().slice(90, 135);
+		state.pools[across] = state.queues.flat(2).slice(90, 135);
 		openRoom(h);
 		expect((await putDeck(h, 'alice', built(pools.alice))).status).toBe(200);
 		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));

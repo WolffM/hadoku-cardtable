@@ -67,16 +67,19 @@
  * a draft is driven by whatever arrives over a wire, and a wire delivers
  * nonsense routinely.
  *
- * ## A pick is one envelope, and it says it is complete
+ * ## Bots pick on a clock, one card each per turn
  *
- * A human pick is followed by every bot pick the round owes, in one `runBots`
- * call, and the engine bumps `seq` once per change — so the envelope that goes
- * out has jumped by several. That is still ONE envelope per pick, on purpose:
- * one per bot pick would trade one round trip for seven, each a full payload.
- * Instead the envelope is marked `carries: 'full-state'`, because a
- * `DraftView` is the recipient's whole table and the skipped seqs are
- * superseded rather than missing. Unmarked, the client read every round as a
- * gap and resynced (Wave 10: 90 picks, 90 resyncs).
+ * Every seat picks at its own pace (`@hadoku/draft`'s queues). A bot that took
+ * cards the moment a pack reached it would drain the pod into the next human's
+ * pile at once, so bots take turns: every `botPickMs` each bot holding a pack
+ * takes one card (`botTurn`), and the turn goes out as one envelope. At
+ * `botPickMs: 0` bots catch up within the pick that fed them (`runBots`), which
+ * is what a test that drives the engine by hand wants.
+ *
+ * Either way an envelope may jump `seq` by several, and is marked
+ * `carries: 'full-state'`, because a `DraftView` is the recipient's whole table
+ * and the skipped seqs are superseded rather than missing. Unmarked, the client
+ * read every round as a gap and resynced (Wave 10: 90 picks, 90 resyncs).
  */
 
 import type { Request } from 'express';
@@ -84,7 +87,7 @@ import type { IncomingHttpHeaders } from 'node:http';
 import type { Server as SocketIOServer } from 'socket.io';
 import { MultiRateLimiter, emitPerRecipient, type EmitPolicy, type RateLimitConfig } from '@wolffm/rooms-server';
 import { seatOf, type ParticipantId } from '@wolffm/rooms-protocol';
-import { pick as enginePick, runBots } from '@hadoku/draft';
+import { botTurn, botsOwe, pick as enginePick, runBots } from '@hadoku/draft';
 import {
 	DRAFT_CHANNEL,
 	errorMessage,
@@ -165,6 +168,8 @@ interface DraftSocketDeps {
 	minTier: string;
 	log?: EmitLog;
 	rateLimit?: RateLimitConfig;
+	/** How long a bot turn takes. `CONFIG.draftBotPickMs` in production; 0 (the default) picks at once. */
+	botPickMs?: number;
 }
 
 interface DraftSocketHandle {
@@ -222,6 +227,39 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	const log = deps.log ?? defaultLog;
 	const policy = draftEmitPolicy(log);
 	const limiter = new MultiRateLimiter<ParticipantId>(deps.rateLimit ?? PICK_RATE_LIMIT);
+	const botPickMs = deps.botPickMs ?? 0;
+	const botTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+	/**
+	 * Every bot holding a pack picks. At `botPickMs: 0`, at once and in place —
+	 * the caller's own envelope carries it. Otherwise one card each per turn on
+	 * the clock, each turn its own envelope, until no bot holds a pack.
+	 */
+	const advanceBots = (room: DraftRoom): void => {
+		const draftId = room.roomId;
+		if (botTimers.has(draftId) || !botsOwe(stateOf(room))) return;
+		if (botPickMs <= 0) {
+			const advanced = runBots(stateOf(room), (entry) => log(entry));
+			room.app.state = advanced.state;
+			log({ evt: 'bot-picks', draftId, picks: advanced.picks, seq: advanced.state.seq });
+			return;
+		}
+		const timer = setTimeout(() => {
+			botTimers.delete(draftId);
+			// Found again: the room may have been forgotten while the turn waited.
+			const current = deps.rooms?.find(draftId);
+			if (current === undefined) return;
+			const turn = botTurn(stateOf(current), (entry) => log(entry));
+			if (turn.picks > 0) {
+				current.app.state = turn.state;
+				log({ evt: 'bot-picks', draftId, picks: turn.picks, seq: turn.state.seq });
+				emitPickStep(io, current, policy);
+			}
+			if (!turn.stalled) advanceBots(current);
+		}, botPickMs);
+		timer.unref();
+		botTimers.set(draftId, timer);
+	};
 
 	// (1) Provenance. Runs on the handshake request itself, which is the only
 	// place the edge's headers exist for a socket.
@@ -335,6 +373,10 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 						seat: outcome.seat,
 						changed: outcome.changed,
 					});
+					// On the clock, a pod's bots start on their first packs once
+					// someone is at the table; a join to a pod already going finds
+					// them running. Picking at once, they wait for a pick to feed them.
+					if (botPickMs > 0) advanceBots(room);
 					// A baseline for the arrival; a step for everyone already
 					// here, and only when the table actually changed — an
 					// unchanged seq would reach them as a duplicate anyway.
@@ -427,9 +469,6 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 						reject(room, result.reason);
 						return;
 					}
-					// Bots catch up immediately, so the pod is never waiting on
-					// a seat nobody is sitting in.
-					const advanced = runBots(result.state, (entry) => log(entry));
 					// No re-alias of `room.seats`. The registry was seeded with
 					// a seat-table FACTORY returning this draft's table
 					// (`draftRooms.ts` `open`), and the engine spreads its
@@ -439,15 +478,16 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					// factory exists to remove — and if the engine ever did
 					// start copying the table it would paper over a real bug
 					// instead of letting it fail.
-					room.app.state = advanced.state;
+					room.app.state = result.state;
 					log({
 						evt: 'pick',
 						participantId,
 						seat,
 						draftId: room.roomId,
-						botPicks: advanced.picks,
-						seq: advanced.state.seq,
+						seq: result.state.seq,
 					});
+					// The pack this pick passed may be a bot's next.
+					advanceBots(room);
 					emitPickStep(io, room, policy);
 					return;
 				}
@@ -458,6 +498,8 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	return {
 		close(): void {
 			limiter.deregister();
+			for (const timer of botTimers.values()) clearTimeout(timer);
+			botTimers.clear();
 		},
 	};
 }

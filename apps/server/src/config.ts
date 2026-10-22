@@ -112,6 +112,14 @@ export const CONFIG = {
 	/** The sound builder's uploads and assignments (`CARDTABLE_SOUNDS_DIR`). */
 	soundsDir: process.env.CARDTABLE_SOUNDS_DIR ?? join(DATA_DIR, 'sounds'),
 
+	/**
+	 * How long a draft bot takes over a pick (`CARDTABLE_DRAFT_BOT_PICK_MS`): every
+	 * bot holding a pack takes one card per turn. Long enough that bots do not
+	 * drain a pod into the slowest human's pile at once, short enough that a
+	 * quick drafter rarely waits on one.
+	 */
+	draftBotPickMs: parseInt(process.env.CARDTABLE_DRAFT_BOT_PICK_MS || '1200', 10),
+
 	/** Each draft's state, so a pod survives a restart (`CARDTABLE_DRAFTS_DIR`). */
 	draftsDir: process.env.CARDTABLE_DRAFTS_DIR ?? join(DATA_DIR, 'drafts'),
 

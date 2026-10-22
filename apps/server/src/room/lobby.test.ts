@@ -19,7 +19,7 @@
 import { newGauntlet } from './gauntlet.ts';
 import { FileRoomStore, STORE_VERSION, type RoomSnapshot } from '@hadoku/room-store';
 import { createSeatTable, humanSeats, seatOf } from '@wolffm/rooms-protocol';
-import { pick, type DraftState } from '@hadoku/draft';
+import { packOf, pick, pickNumberOf, type DraftState } from '@hadoku/draft';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -2668,7 +2668,7 @@ describe('the pod seat is the draft table', () => {
 	function everyonePicks(state: DraftState): DraftState {
 		let next = state;
 		for (let seat = 0; seat < next.seatCount; seat++) {
-			const result = pick(next, seat, next.packs[seat]![0]!.cardId);
+			const result = pick(next, seat, packOf(next, seat)[0]!.cardId);
 			if (!result.ok) throw new Error(`seat ${seat} could not pick: ${result.reason}`);
 			next = result.state;
 		}
@@ -2698,13 +2698,13 @@ describe('the pod seat is the draft table', () => {
 		const dealt = stateOf(room);
 		expect([ALICE, BOB, CAROL].map((m) => seatOf(dealt.table, m.id)), 'each player drafts from the seat they sat in').toEqual([0, 3, 5]);
 
-		const opened = dealt.packs.map((p) => p.map((c) => c.cardId));
+		const opened = dealt.queues.map((_, seat) => packOf(dealt, seat).map((c) => c.cardId));
 		const passed = everyonePicks(dealt);
-		expect(passed.pickNumber).toBe(2);
+		expect(pickNumberOf(passed, 0)).toBe(2);
 		// Pack 1 passes left: seat 1's pack, less its first pick, is now in front of seat 2 ...
-		expect(passed.packs[1]!.map((c) => c.cardId)).toEqual(opened[0]!.slice(1));
+		expect(packOf(passed, 1).map((c) => c.cardId)).toEqual(opened[0]!.slice(1));
 		// ... and the player in seat 4 holds what seat 3 opened.
-		expect(passed.packs[seatOf(passed.table, BOB.id)!]!.map((c) => c.cardId)).toEqual(opened[2]!.slice(1));
+		expect(packOf(passed, seatOf(passed.table, BOB.id)!).map((c) => c.cardId)).toEqual(opened[2]!.slice(1));
 	});
 
 	it('a player alone at the pod plays the AI that drafted across the table from the seat they chose', async () => {

@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { reservationFor, seatOf, type SeatId } from '@wolffm/rooms-protocol';
 import { moveToMain } from '@hadoku/deck';
-import { pick, runBots } from '@hadoku/draft';
+import { packOf, pick, runBots } from '@hadoku/draft';
 import { SaveDraftDeckBodySchema, type DraftCard } from '@hadoku/shared';
 
 import { deckFromPool, dckTextOf } from '../../../ui/src/draft/deckFromPool.ts';
@@ -139,7 +139,7 @@ function finishPodFor(
 	const seat = joinDraftRoom(room, clientId, participantId, 'friend').seat;
 	if (seat === null) throw new Error(`${who} was not seated`);
 	const state = stateOf(room);
-	const pool = state.packs.flat().slice(0, 45);
+	const pool = state.queues.flat(2).slice(0, 45);
 	state.pools[seat] = pool;
 	state.status = 'complete';
 	return { room, seat, pool };
@@ -382,9 +382,9 @@ describe('the pick that completes a pod is persisted by itself', () => {
 		let guard = 0;
 		while (stateOf(room).status === 'drafting' && guard < 50) {
 			const state = stateOf(room);
-			const pack = state.packs[seat] as DraftCard[];
+			const pack = packOf(state, seat);
 			let next = state;
-			if (pack.length > 0 && !state.picked.includes(seat)) {
+			if (pack.length > 0) {
 				const result = pick(state, seat, (pack[0] as DraftCard).cardId);
 				if (!result.ok) throw new Error(`pick rejected: ${result.reason}`);
 				next = result.state;

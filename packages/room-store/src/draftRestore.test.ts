@@ -30,6 +30,7 @@ import { classifySeq, occupantOf, seatOf, type SeatId } from '@wolffm/rooms-prot
 import {
   createDraft,
   deal,
+  packOf,
   pick,
   runBots,
   viewFor,
@@ -116,8 +117,7 @@ const draftCodec: RoomCodec<DraftState> = {
 
 /** Drive the draft: bots pick for themselves, humans take the first card. */
 function driveHumanPick(state: DraftState, seatId: SeatId): DraftState {
-  const pack = state.packs[seatId] as DraftCard[];
-  const card = pack[0] as DraftCard;
+  const card = packOf(state, seatId)[0] as DraftCard;
   const result = pick(state, seatId, card.cardId);
   if (!result.ok) throw new Error(`pick rejected: ${result.reason}`);
   return runBots(result.state).state;
@@ -170,7 +170,7 @@ describe('§5.1 / §6 — a cube draft survives a cold restart', () => {
     const beforeEpoch = room.app.epoch;
     const beforeSeq = room.app.seq;
     const beforePools = room.app.pools.map((p) => p.map((c) => c.cardId));
-    const beforePacks = room.app.packs.map((p) => p.map((c) => c.cardId));
+    const beforePacks = room.app.queues.map((q) => q.map((p) => p.map((c) => c.cardId)));
     const beforeView = viewFor(room.app, aliceSeat);
     const beforeOccupants = room.seats.seats.map((s) => s.occupant);
 
@@ -197,7 +197,7 @@ describe('§5.1 / §6 — a cube draft survives a cold restart', () => {
 
     // Every pool, card for card, in pick order.
     expect(restored.app.pools.map((p) => p.map((c) => c.cardId))).toEqual(beforePools);
-    expect(restored.app.packs.map((p) => p.map((c) => c.cardId))).toEqual(beforePacks);
+    expect(restored.app.queues.map((q) => q.map((p) => p.map((c) => c.cardId)))).toEqual(beforePacks);
     expect(restored.app.pools[aliceSeat]).toEqual(beforeView.viewer.kind === 'seat'
       ? beforeView.viewer.pool
       : []);
@@ -215,7 +215,7 @@ describe('§5.1 / §6 — a cube draft survives a cold restart', () => {
     );
 
     // ── The next pick lands on the right seat with the right pool. ───────────
-    const nextCard = (restored.app.packs[aliceSeat] as DraftCard[])[0] as DraftCard;
+    const nextCard = packOf(restored.app, aliceSeat)[0] as DraftCard;
     const result = pick(restored.app, aliceSeat, nextCard.cardId);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -315,8 +315,7 @@ describe('§5.1 / §6 — a cube draft survives a cold restart', () => {
     let guard = 0;
     while (state.status === 'drafting' && guard < 200) {
       for (const seat of [0, 1]) {
-        if ((state.packs[seat] as DraftCard[]).length === 0) continue;
-        if (state.picked.includes(seat)) continue;
+        if (packOf(state, seat).length === 0) continue;
         state = driveHumanPick(state, seat);
       }
       guard += 1;

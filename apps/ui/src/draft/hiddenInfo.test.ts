@@ -42,7 +42,6 @@ describe('no payload carries a seat another seat may not see', () => {
 
     expect(spectator.seq).toBe(seated.seq);
     expect(spectator.packNumber).toBe(seated.packNumber);
-    expect(spectator.pickNumber).toBe(seated.pickNumber);
     expect(spectator.waitingOn).toEqual(seated.waitingOn);
     expect(spectator.seats).toEqual(seated.seats);
   });
@@ -63,6 +62,14 @@ describe('the leak detector actually bites', () => {
     const payload = clone(FIXTURES[0].raw) as { seats: Array<Record<string, unknown>> };
     payload.seats[2].pool = [{ cardId: 'leak-1', name: 'Ancestral Recall' }];
     expect(findLeakedCardPaths(payload)).toEqual(['$.seats[2].pool[0]']);
+  });
+
+  it('a seat’s pile travels as a count; the packs in it are a leak', () => {
+    const payload = clone(FIXTURES[0].raw) as { seats: Array<Record<string, unknown>> };
+    payload.seats[3].queueDepth = 3;
+    expect(findLeakedCardPaths(payload)).toEqual([]);
+    payload.seats[3].queue = [[{ cardId: 'leak-4', name: 'Time Walk' }]];
+    expect(findLeakedCardPaths(payload)).toEqual(['$.seats[3].queue[0][0]']);
   });
 
   it('catches a card on a spectator payload', () => {

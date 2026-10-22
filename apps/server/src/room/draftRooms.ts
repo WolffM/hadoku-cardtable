@@ -100,8 +100,8 @@
  * room leaves the map, so the room is still resolvable inside one.
  *
  * **No bot backfill on a drop.** `unseatParticipant` empties the seat rather
- * than handing it to a bot, so `waitingOn` keeps naming it and the round waits
- * for the drafter to come back. That is what a held seat MEANS; padding it with
+ * than handing it to a bot, so its packs keep queueing in front of it and the
+ * pod waits on that pile for the drafter to come back. That is what a held seat MEANS; padding it with
  * a bot would pick their cards for them while they reconnect. The cost is that
  * one dropped player stalls the pod until they return or the hold expires, and
  * that is a product decision to revisit with a real pod, not a bug to paper
@@ -131,6 +131,7 @@ import {
 	botSeatAcross,
 	createDraft,
 	deal,
+	fromLockstep,
 	isBotSeat,
 	spectatorView,
 	viewFor,
@@ -138,6 +139,7 @@ import {
 	type BotSeat,
 	type DraftState,
 	type HumanSeat,
+	type LockstepState,
 	type RealisticPacks,
 } from '@hadoku/draft';
 import { cursorOf, type CubeMeta, type DraftCard, type DraftPlan, type DraftView, type PoolSource, type WireCursor } from '@hadoku/shared';
@@ -570,11 +572,16 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 					// holding a pre-restart cursor gets `epoch-change` rather than
 					// reading the restored seq as a flood of duplicates. See this
 					// module's header and `draftRestore.test.ts`.
-					// A snapshot from before seats carried characters has no `avatarIds`.
+					// A snapshot from before seats carried characters has no `avatarIds`;
+					// one from before packs queued has a pack per seat (`fromLockstep`).
 					state:
 						persisted.state === null
 							? null
-							: { ...persisted.state, avatarIds: (persisted.state as Partial<DraftState>).avatarIds ?? {}, epoch: ctx.restoreId },
+							: {
+									...fromLockstep(persisted.state as DraftState | LockstepState),
+									avatarIds: (persisted.state as Partial<DraftState>).avatarIds ?? {},
+									epoch: ctx.restoreId,
+								},
 					builtDecks: persisted.builtDecks ?? {},
 					deckMeta: persisted.deckMeta ?? {},
 				});

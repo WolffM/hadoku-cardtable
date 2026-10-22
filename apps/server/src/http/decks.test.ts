@@ -88,7 +88,7 @@ function seatIn(draftRooms: DraftRooms, draftId: string, who: string, complete: 
 	const seat = joinDraftRoom(room, `c-${who}-${draftId}`, identityFromHeaders(edgeHeaders(who), 'x'), 'friend').seat;
 	if (seat === null) throw new Error(`${who} was not seated`);
 	const state = stateOf(room);
-	state.pools[seat] = state.packs.flat().slice(0, 45);
+	state.pools[seat] = state.queues.flat(2).slice(0, 45);
 	if (complete) state.status = 'complete';
 }
 

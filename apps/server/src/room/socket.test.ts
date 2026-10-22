@@ -160,7 +160,9 @@ async function bootLobby(): Promise<Lobby> {
 	return lobby;
 }
 
-async function boot(deps: { rateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number } } = {}): Promise<Harness> {
+async function boot(
+	deps: { rateLimit?: { capacity: number; refillAmount: number; refillIntervalMs: number }; botPickMs?: number } = {},
+): Promise<Harness> {
 	const rooms = roomsMod.createDraftRooms({ ...roomsMod.singlePoolResolver(pool) });
 	const lobby = await bootLobby();
 	const http = createServer();
@@ -176,6 +178,7 @@ async function boot(deps: { rateLimit?: { capacity: number; refillAmount: number
 			lines.push(line);
 		},
 		rateLimit: deps.rateLimit,
+		botPickMs: deps.botPickMs,
 	});
 	await new Promise<void>((done) => http.listen(0, '127.0.0.1', done));
 	const port = (http.address() as AddressInfo).port;
@@ -633,7 +636,7 @@ describe('two sockets in one room', () => {
 
 /* ── Rejections are values ───────────────────────────────────────────── */
 
-describe('an out-of-turn pick', () => {
+describe('a pick the engine refuses', () => {
 	it("comes back as an error envelope with the engine's own code, and changes nothing", async () => {
 		const alice = await connect(live().port, edgeHeaders('alice'));
 		const bob = await connect(live().port, edgeHeaders('bob'));
@@ -651,15 +654,13 @@ describe('an out-of-turn pick', () => {
 		if (afterPick?.viewer.kind !== 'seat') throw new Error('alice should still be seated');
 		const seqAfterPick = afterPick.seq;
 
-		// The round has not advanced — bob still owes a pick — so alice picking
-		// again is out of turn.
-		const second = afterPick.viewer.pack[0];
-		if (second === undefined) throw new Error('the pack should still have cards');
-		alice.send(pickCard(startedRoomId, second.cardId));
+		// The card she just took has gone on to her pool: asking for it again is
+		// a pick the engine refuses.
+		alice.send(pickCard(startedRoomId, taken.cardId));
 		await waitUntil(() => errors(alice).length > 0, 'the rejection');
 
 		expect(errors(alice)).toHaveLength(1);
-		expect(errors(alice)[0]?.code).toBe('already-picked');
+		expect(errors(alice)[0]?.code).toBe('card-not-in-pack');
 		// The socket is fine and the draft did not move.
 		expect(alice.socket.connected).toBe(true);
 		expect(roomsSeq()).toBe(seqAfterPick);
@@ -742,6 +743,40 @@ describe('the step after a pick', () => {
 		expect(roomsSeq() - bobSeqBefore).toBeGreaterThan(1);
 	});
 });
+
+/* ── Bots on the clock ───────────────────────────────────────────────── */
+
+describe('bots on the clock', () => {
+	it('take one card each per turn once someone is seated, and the packs pile up in front of a seat that does not pick', async () => {
+		await harness?.close();
+		harness = await boot({ botPickMs: 40 });
+		const alice = await connect(live().port, edgeHeaders('alice'));
+		await joinAndSettle(alice);
+		const opening = lastView(alice);
+		if (opening?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		const seat = opening.viewer.seatId;
+		expect(opening.seats[seat]?.queueDepth).toBe(0);
+
+		// One bot turn: every bot holding a pack took exactly one card.
+		await waitUntil(() => lines().some((l) => l.evt === 'bot-picks'), 'the first bot turn');
+		const first = lines().find((l) => l.evt === 'bot-picks');
+		expect(first?.picks).toBe(7);
+
+		// Alice never picks, so every other pack of the round ends up waiting on her.
+		await waitUntil(() => lastView(alice)?.seats[seat]?.queueDepth === 7, 'the whole round to wait on alice', 10_000);
+		const piled = lastView(alice);
+		expect(piled?.seats.filter((s) => s.id !== seat).map((s) => s.queueDepth)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+		expect(piled?.waitingOn).toEqual([seat]);
+		// She still sees only the pack she is picking from: her own, untouched.
+		if (piled?.viewer.kind !== 'seat') throw new Error('alice should be seated');
+		expect(piled.viewer.pack.map((c) => c.cardId)).toEqual(opening.viewer.pack.map((c) => c.cardId));
+		expect(piled.pickNumber).toBe(1);
+	});
+});
+
+function lines(): Array<Record<string, unknown>> {
+	return live().lines;
+}
 
 function roomsSeq(): number {
 	return roomsMod.stateOf(room()).seq;
