@@ -76,18 +76,7 @@
 .shell__foot {
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
   font-size: 12px;
-  max-width: 70ch;
-}
-
-.shell__foot p {
-  margin: 0 0 6px;
-}
-
-.shell__disclaimer {
-  font-size: 11px;
 }
 
 .shell__link {

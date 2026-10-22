@@ -35,7 +35,6 @@ import { navigate } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
 import { DecksButton } from './DecksButton.tsx';
-import { Disclaimer } from '../components/Disclaimer.tsx';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
@@ -66,23 +65,20 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
       </main>
       {stats !== undefined && <StatsPopout player={stats.player} tournaments={stats.tournaments === true} source={statsSource} />}
 
-      <footer className="shell__foot">
-        <Disclaimer />
-        {import.meta.env?.DEV === true && (
-          <p>
-            <a
-              className="shell__link"
-              href="#/debug"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate({ kind: 'debug' });
-              }}
-            >
-              Developer harness
-            </a>
-          </p>
-        )}
-      </footer>
+      {import.meta.env?.DEV === true && (
+        <footer className="shell__foot">
+          <a
+            className="shell__link"
+            href="#/debug"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate({ kind: 'debug' });
+            }}
+          >
+            Developer harness
+          </a>
+        </footer>
+      )}
     </div>
   );
 }

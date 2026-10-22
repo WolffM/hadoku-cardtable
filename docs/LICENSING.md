@@ -189,8 +189,8 @@ Roughly in order of how much attention each attracts:
    token PARSER is not, and is what maps onto the font's classes.
 5. **Keep the friend gate.** The `/cardtable/` prefix is friend-tier at the edge.
    Do not add a public tier. Do not add anonymous access "just for the draft".
-6. **Carry the disclaimer** (`NOTICE.md`, and in the UI footer: *"Unofficial
-   fan project; not affiliated with or endorsed by Wizards of the Coast."*).
+6. **Carry the disclaimer** in `NOTICE.md`. The UI footer carried it too until
+   2026-10-21, when the operator removed it (D23).
 7. **If we ever want to open this up** — stop and think properly first. Every
    mitigation above is "we are tiny and private". Opening up removes all of them
    at once.
@@ -311,7 +311,7 @@ guideline against what the UI actually does:
 | Don't distort, skew, stretch, blur, sharpen, desaturate or recolour | Images are drawn at their true ratio, and no CSS `filter` is applied to card art at rest. States such as summoning sickness are shown with an overlay on top of the card, not by altering the image. **One knowing departure (D22):** while a spell is held on the stack, its face is drawn through a slight heat haze and `saturate(1.16)`. Both drop off as it resolves. |
 | Don't add your own watermark | Nothing is added to or baked into the image; overlays are separate elements. |
 | Using `art_crop` obliges you to surface artist + copyright in the same interface | Engaged by the three cropped views above; each names the artist. |
-| Don't present a card as though someone other than Wizards made it | `NOTICE.md` and the UI footer carry *"Unofficial fan project; not affiliated with or endorsed by Wizards of the Coast."* No WotC logo, wordmark or card frame appears in our own chrome (§2 rule 4). |
+| Don't present a card as though someone other than Wizards made it | `NOTICE.md` carries the unaffiliated/unendorsed disclaimer; the UI footer no longer does (D23). No WotC logo, wordmark or card frame appears in our own chrome (§2 rule 4). |
 
 **There is no blanket prohibition on caching, storing or serving the image
 bytes** in Scryfall's terms. The nearest thing is a *data* rule — *"You may not

@@ -826,3 +826,13 @@ The exception is the one selector `.placed__hover > :is(.placed__tile,
 .placed__back)`, listed by name in the test. Any other filter on a card image
 still fails it. `docs/LICENSING.md` §3.1 records the departure.
 
+
+## D23 — The UI carries no disclaimer footer · settled · 2026-10-21 · operator
+
+**Amends `LICENSING.md` §2 rule 6.** The lobby footer's *"Unofficial fan
+project; not affiliated with or endorsed by Wizards of the Coast. Card names,
+text and images are ™ & © Wizards of the Coast."* line is gone, and with it the
+footer's border. The operator asked for both to go. `NOTICE.md` keeps its
+disclaimer; the footer remains only in dev builds, for the developer-harness
+link. Do not restore the UI line from rule 6's old wording or D15's
+"Closed 2026-10-11" note.
