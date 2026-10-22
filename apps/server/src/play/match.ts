@@ -273,6 +273,45 @@ function askGist(frame: ServerFrame): { source?: number; title?: string } {
 
 export type MatchStatus = 'starting' | 'running' | 'over' | 'failed' | 'stopped';
 
+/**
+ * How a game ended. A game is finished only when Forge called it — a victory
+ * and a defeat (an explicit concede is a defeat), or a draw by the rules. A
+ * game the server ended any other way (nobody came back, the room closed, the
+ * JVM died, the server stopped) has no outcome at all: no report, and no game
+ * in its table's series.
+ */
+export type GameOutcome =
+	| { kind: 'won'; winner: 0 | 1; conceded: boolean }
+	| { kind: 'drawn' }
+	/** Forge named a winner that no seat can be told from. */
+	| { kind: 'unplaced' };
+
+/** What {@link gameOutcome} reads off a match. */
+export interface OutcomeFacts {
+	endedAt: number | null;
+	winner: string | null;
+	winnerSeat: 0 | 1 | null;
+	concededBy: number | null;
+	spec: { seats: readonly { name: string }[] };
+}
+
+/**
+ * The ONE place a game's outcome is classified; every reader of a result (the
+ * stats report, the table's series) asks this. Null when the game did not
+ * finish. The winner is the seat that did not concede, else the seat Forge's
+ * own losers leave standing ({@link winnerSeatFromLosers}), else the seat whose
+ * name — the name Forge was given, unique within the match — Forge named.
+ */
+export function gameOutcome(match: OutcomeFacts): GameOutcome | null {
+	if (match.endedAt === null) return null;
+	if (match.concededBy === 0 || match.concededBy === 1) return { kind: 'won', winner: match.concededBy === 0 ? 1 : 0, conceded: true };
+	// Forge names no winner only for a draw (`GameOutcome.getWinningLobbyPlayer`).
+	if (match.winner === null) return { kind: 'drawn' };
+	if (match.winnerSeat !== null) return { kind: 'won', winner: match.winnerSeat, conceded: false };
+	const named = match.spec.seats.findIndex((s) => s.name === match.winner);
+	return named === 0 || named === 1 ? { kind: 'won', winner: named, conceded: false } : { kind: 'unplaced' };
+}
+
 export interface OpenAsk {
 	callId: string;
 	method: string;
@@ -2026,6 +2065,11 @@ export class Match {
 		this.host?.stop();
 	}
 
+	/** See {@link gameOutcome}. */
+	outcome(): GameOutcome | null {
+		return gameOutcome(this);
+	}
+
 	/* ── Forge → browser ────────────────────────────────────────────── */
 
 	private send(s: SeatState, frame: ServerFrame, mark: 'displayOnly' | 'pairsWithNext' | null = null): void {
@@ -2169,6 +2213,11 @@ export class Match {
 				return;
 			}
 			case 'gameover':
+				// A game the server already ended has no result: the line was in the pipe when it stopped or failed.
+				if (this.status === 'stopped' || this.status === 'failed') {
+					this.deps.log({ evt: 'game-over-ignored', matchId: this.id, status: this.status, winner: line.winner });
+					return;
+				}
 				this.status = 'over';
 				this.winner = line.winner;
 				this.winnerSeat = winnerSeatFromLosers(this.seats, line.losers);

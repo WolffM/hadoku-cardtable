@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { winnerSeatOf } from '../http/routes.ts';
-import { winnerSeatFromLosers } from './match.ts';
+import { gameOutcome, winnerSeatFromLosers } from './match.ts';
 
 const human = (seat: number, playerId: number | null) => ({ seat, playerId });
 
@@ -29,16 +28,25 @@ describe("a game's winning seat, from Forge's own losers", () => {
   });
 });
 
-describe('winnerSeatOf', () => {
-  const seats = [{ displayName: 'Hadoku' }, {}];
+describe('gameOutcome — the one classification of how a game ended', () => {
+  const ended = { endedAt: 1, winner: null, winnerSeat: null, concededBy: null, spec: { seats: [{ name: 'Hadoku' }, { name: 'Forge AI' }] } };
 
-  it('reads a concede first, then the losers, then the winner’s name', () => {
-    expect(winnerSeatOf({ winner: null, winnerSeat: 1, concededBy: 1, seats })).toBe(0);
-    expect(winnerSeatOf({ winner: 'Forge AI', winnerSeat: 1, concededBy: null, seats })).toBe(1);
-    expect(winnerSeatOf({ winner: 'Hadoku', winnerSeat: null, concededBy: null, seats })).toBe(0);
+  it('is null until Forge calls the game: a game the server ended has no outcome', () => {
+    expect(gameOutcome({ ...ended, endedAt: null, winner: 'Hadoku' })).toBeNull();
   });
 
-  it('is null for an AI win with no losers to go on — the gap the losers close', () => {
-    expect(winnerSeatOf({ winner: 'Forge AI', winnerSeat: null, concededBy: null, seats })).toBeNull();
+  it('reads a concede first, then the losers, then the winner’s name', () => {
+    expect(gameOutcome({ ...ended, winnerSeat: 1, concededBy: 1 })).toEqual({ kind: 'won', winner: 0, conceded: true });
+    expect(gameOutcome({ ...ended, winner: 'Hadoku', winnerSeat: 1 })).toEqual({ kind: 'won', winner: 1, conceded: false });
+    expect(gameOutcome({ ...ended, winner: 'Hadoku' })).toEqual({ kind: 'won', winner: 0, conceded: false });
+  });
+
+  it('a concede Forge ends with no winner named is still the conceder’s loss', () => {
+    expect(gameOutcome({ ...ended, concededBy: 0 })).toEqual({ kind: 'won', winner: 1, conceded: true });
+  });
+
+  it('no winner named and no concede is a draw; a winner no seat answers to cannot be placed', () => {
+    expect(gameOutcome(ended)).toEqual({ kind: 'drawn' });
+    expect(gameOutcome({ ...ended, winner: 'Knight' })).toEqual({ kind: 'unplaced' });
   });
 });

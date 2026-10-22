@@ -1448,6 +1448,16 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 			expect(lobby.get(id)?.tables[0]?.series.phase).toBe('done');
 		});
 
+		it('a player leaves the room during sideboarding: game 1 is recorded as a Bo1 and the match is closed', async () => {
+			const { lobby, id, tableId, ended } = await playingTable();
+			lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
+			expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+			expect(lobby.leave(id, BOB.id).ok).toBe(true);
+			expect(ended).toEqual([bo1(id, tableId, 'm-game-1', 0)]);
+			expect(lobby.get(id)?.tables[0]?.series.phase).toBe('done');
+			expect(lobby.beginSideboarding(id, tableId)).toBe(false);
+		});
+
 		it('a Gauntlet left after game 1 records game 1 as a Gauntlet Bo1', async () => {
 			const { lobby, id, tableId, ended } = await playingTable();
 			lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });

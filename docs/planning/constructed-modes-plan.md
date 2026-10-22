@@ -101,6 +101,19 @@ not.
     Gauntlet deal the bot's deck as before. Also ruled: Classic keeps the seats
     above the deck picker (no change).
 
+12. **A game not brought to victory/defeat is not finished** (2026-10-21),
+    verbatim: *"i dont know how forge can finish a game that a player left? i
+    guess if they left and the opponent killed them? if a match was not
+    brought to victory/defeat then it was not finished."* *"correct, if the
+    match is aborted during sideboarding then we record the Bo1 result and the
+    match is closed"*. An explicit concede is a defeat, so it counts. A game the
+    server ends any other way (a player leaves or nobody comes back, the room
+    closes, the JVM dies, the server stops) produces no game report and no game
+    in its series. One classification decides it, `play/match.ts`'s
+    `gameOutcome`, read by the stats report and the series alike. The
+    sideboarding half was already true by ruling 10 (`lobby.test.ts`, "a player
+    leaves the room during sideboarding").
+
 ## Design
 
 ### Words and ids

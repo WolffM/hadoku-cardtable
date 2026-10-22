@@ -36,10 +36,11 @@
  * is its own fresh Forge match, and `lobby.ts`'s `setTableMatch` /
  * `recordGameResult` / `releaseTableMatch` keep the ledger — length, wins,
  * games, phase. `liveMatchId` below is where a finished or vanished match
- * reaches that ledger: `over` records the game and may move the phase to
- * `sideboarding` or `done` (`winnerSeatOf` decides the seat); anything else
- * that is not live any more (`stopped`/`failed`, or the registry has simply
- * lost the match) just releases the table with no outcome recorded.
+ * reaches that ledger (`endTableMatch`): a game that finished
+ * (`play/match.ts`'s `gameOutcome`, which the stats report reads too) is
+ * recorded and may move the phase to `sideboarding` or `done`; one that did
+ * not (the server stopped it, the JVM failed, or the registry has simply lost
+ * the match) just releases the table with no outcome recorded.
  *
  * **Eager, since wave 72 §P.** `TablesHandle.gameOver` does the same `over`
  * work the moment play says a match ended (`index.ts` composes it onto the
@@ -183,7 +184,7 @@ import { FREE_PICK, draftIdOfPool, draftPoolId, type PodChecks } from '../room/l
 import { drawRandomDecks } from '../room/random-decks.js';
 import { statsModeOf } from '../room/series.js';
 import type { MatchSpec } from '../play/host.js';
-import { AI_SEAT_OWNER } from '../play/match.js';
+import { AI_SEAT_OWNER, type GameOutcome } from '../play/match.js';
 import { summarizeDeck, type MatchStartInput } from '../stats/index.js';
 import {
 	checkSeat,
@@ -338,14 +339,8 @@ export interface TablesMatches {
 				/** The seat's holder changed their avatar: re-sends `forge:seats` to every socket. */
 				seatAvatarChanged(seat: number): void;
 				stop(): void;
-				/** Forge's own winning player's NAME (`PlayBridge.java`'s `getWinningLobbyPlayer().getName()`) — see `winnerSeatOf`. */
-				winner: string | null;
-				/** The winning seat from Forge's own losers — see `winnerSeatOf`. */
-				winnerSeat?: 0 | 1 | null;
-				/** The seat whose concede Forge was sent, or null. */
-				concededBy: number | null;
-				/** Each seat's own display name, as sent to Forge — `winnerSeatOf` matches `winner` against these. */
-				seats: readonly { displayName?: string }[];
+				/** See `play/match.ts`'s `gameOutcome`. */
+				outcome(): GameOutcome | null;
 		  }
 		| undefined;
 }
@@ -432,13 +427,11 @@ export interface TablesHandle {
 	gameOver(match: GameOverMatch): void;
 }
 
-/** The part of play's `Match` that deciding and recording its outcome needs — see `winnerSeatOf`. */
+/** The part of play's `Match` that recording its outcome needs. */
 export interface GameOverMatch {
 	id: string;
-	winner: string | null;
-	winnerSeat?: 0 | 1 | null;
-	concededBy: number | null;
-	seats: readonly { displayName?: string }[];
+	status: string;
+	outcome(): GameOutcome | null;
 }
 
 function defaultLog(entry: Record<string, unknown>): void {
@@ -720,35 +713,6 @@ export function relayAvatarToMatch(rooms: TablesRooms, registry: TablesMatches |
 	}
 }
 
-/**
- * Which seat won a table's just-finished match, for the series ledger.
- *
- * `concededBy` is the reliable signal (a seat index, set from the wire frame
- * `apps/server/src/play/match.ts` itself read): the OTHER seat won. Without a
- * concede, Forge's own `winner` is the WINNING player's display NAME
- * (`PlayBridge.java`'s `getWinningLobbyPlayer().getName()`), matched against
- * each seat's own `displayName` (the same string `startFromRoom` sent Forge as
- * `names`) — after Forge's own losers mapped by seat (`Match.winnerSeat`), which
- * is what decides an AI game. `null` when nothing resolves a seat — two seats
- * with the same name, or no winner at all — rather than a guess:
- * `RoomTableGame.winner` allows it.
- */
-export function winnerSeatOf(match: {
-	winner: string | null;
-	winnerSeat?: 0 | 1 | null;
-	concededBy: number | null;
-	seats: readonly { displayName?: string }[];
-}): 0 | 1 | null {
-	if (match.concededBy === 0) return 1;
-	if (match.concededBy === 1) return 0;
-	// Forge's own losers, mapped by seat (`Match.winnerSeat`): the one answer an
-	// AI game has, whose AI seat no name matches.
-	if (match.winnerSeat === 0 || match.winnerSeat === 1) return match.winnerSeat;
-	if (match.winner === null) return null;
-	const seat = match.seats.findIndex((s) => s.displayName === match.winner);
-	return seat === 0 || seat === 1 ? seat : null;
-}
-
 export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	const log = deps.log ?? defaultLog;
 	const { library } = deps;
@@ -990,37 +954,6 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	}
 
 	/**
-	 * The room's match if it is still one you could play, and null otherwise —
-	 * releasing a match id the registry has forgotten OR has marked finished.
-	 * Rooms persist across a restart and so do matches, but only the ones play
-	 * could adopt: a room whose match did not come back holds the id of a match
-	 * that no longer exists, and without this could never start another one.
-	 * `releaseGoneMatches` runs this over every room at boot.
-	 *
-	 * **`over` releases too, not only `stopped`/`failed` (R16).** A finished
-	 * match sits in `over` for `overGraceMs` (ten minutes) before its host
-	 * actually stops — the window that lets a disconnected player's socket
-	 * still catch the final frame. Treating only `stopped`/`failed` as "not
-	 * live" left a room holding a genuinely-finished match for that whole
-	 * window, so reading the room during it sent a returning player straight
-	 * back into the game that just ended, and kept a Rematch's Ready refused as
-	 * "the match has already started". The match itself is untouched here
-	 * — this only decides whether the ROOM still points at it — so a player
-	 * still on the match screen mid-grace is unaffected.
-	 *
-	 * This is the one place in the server that can ask play's match registry
-	 * about a table's match, so it is also where the table is told to let go
-	 * of it. **Two different letting-go's, since wave 71 (§D bullet 3):** a
-	 * match the registry reports `over` ACTUALLY ended, so the series ledger
-	 * advances (`recordGameResult` — the game is appended, a seat's `wins` may
-	 * increment, the phase may become `sideboarding` or `done`); a match that
-	 * is simply GONE (`stopped`/`failed`, or the registry has no record at
-	 * all) has no outcome to record (`releaseTableMatch` — the series' phase is
-	 * untouched). Either way the decks stay held — a Rematch plays them again
-	 * — and nobody is ready, because the start that made this match spent both
-	 * Readys.
-	 */
-	/**
 	 * A table's game ACTUALLY ended: the ledger records it, and once that
 	 * makes the series `done`, every seat goes back to its registered deck
 	 * (`TablePlayerState.seriesDeck`). MTG's own rule: sideboarding lasts for
@@ -1042,24 +975,60 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		}
 	}
 
+	/**
+	 * A table's match is not live any more. **Two different letting-go's, since
+	 * wave 71 (§D bullet 3):** a game that finished (`gameOutcome`: Forge called
+	 * a victory and a defeat, a concede among them, or a draw) advances the
+	 * series ledger (`recordGameResult` — the game is appended, a seat's `wins`
+	 * may increment, the phase may become `sideboarding` or `done`); one that
+	 * did not (the server stopped it, the JVM failed, or the registry has no
+	 * record at all) has no outcome to record (`releaseTableMatch` — the
+	 * series' phase is untouched).
+	 */
+	function endTableMatch(room: RoomViewLike, table: RoomTable, matchId: string, match: Omit<GameOverMatch, 'id'> | undefined): void {
+		if (rooms === null) return;
+		const outcome = match?.outcome() ?? null;
+		if (outcome !== null) {
+			recordGame(room, table, matchId, outcome.kind === 'won' ? outcome.winner : null);
+			return;
+		}
+		rooms.releaseTableMatch(room.id, table.id);
+		log({ evt: 'table-match-cleared', room: room.id, table: table.id, matchId, reason: match?.status ?? 'gone' });
+	}
+
+	/**
+	 * The room's match if it is still one you could play, and null otherwise —
+	 * releasing a match id the registry has forgotten OR has marked finished.
+	 * Rooms persist across a restart and so do matches, but only the ones play
+	 * could adopt: a room whose match did not come back holds the id of a match
+	 * that no longer exists, and without this could never start another one.
+	 * `releaseGoneMatches` runs this over every room at boot.
+	 *
+	 * **`over` releases too, not only `stopped`/`failed` (R16).** A finished
+	 * match sits in `over` for `overGraceMs` (ten minutes) before its host
+	 * actually stops — the window that lets a disconnected player's socket
+	 * still catch the final frame. Treating only `stopped`/`failed` as "not
+	 * live" left a room holding a genuinely-finished match for that whole
+	 * window, so reading the room during it sent a returning player straight
+	 * back into the game that just ended, and kept a Rematch's Ready refused as
+	 * "the match has already started". The match itself is untouched here
+	 * — this only decides whether the ROOM still points at it — so a player
+	 * still on the match screen mid-grace is unaffected.
+	 *
+	 * This is the one place in the server that can ask play's match registry
+	 * about a table's match, so it is also where the table is told to let go
+	 * of it (`endTableMatch`). Either way the decks stay held — a Rematch
+	 * plays them again — and nobody is ready, because the start that made this
+	 * match spent both Readys.
+	 */
 	function liveMatchId(room: RoomViewLike, table: RoomTable): string | null {
 		if (table.matchId === null) return null;
 		const registry = deps.matches?.() ?? null;
 		// No registry to ask: report what the table holds rather than clearing it.
 		if (registry === null || rooms === null) return table.matchId;
 		const match = registry.get(table.matchId);
-		if (match === undefined) {
-			rooms.releaseTableMatch(room.id, table.id);
-			log({ evt: 'table-match-cleared', room: room.id, table: table.id, matchId: table.matchId, reason: 'gone' });
-			return null;
-		}
-		if (match.status !== 'over' && match.status !== 'stopped' && match.status !== 'failed') return table.matchId;
-		if (match.status === 'over') {
-			recordGame(room, table, table.matchId, winnerSeatOf(match));
-		} else {
-			rooms.releaseTableMatch(room.id, table.id);
-			log({ evt: 'table-match-cleared', room: room.id, table: table.id, matchId: table.matchId, reason: match.status });
-		}
+		if (match?.status === 'starting' || match?.status === 'running') return table.matchId;
+		endTableMatch(room, table, table.matchId, match);
 		return null;
 	}
 
@@ -2203,7 +2172,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			if (room === undefined) return;
 			const table = room.tables.find((t) => t.matchId === match.id);
 			if (table === undefined) return;
-			recordGame(room, table, match.id, winnerSeatOf(match));
+			endTableMatch(room, table, match.id, match);
 		},
 	};
 }

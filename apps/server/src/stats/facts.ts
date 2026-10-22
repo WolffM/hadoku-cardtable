@@ -228,12 +228,13 @@ function reasonLost(end: SeatEnd): EndReason {
 }
 
 /**
- * The facts of a match whose game is over, or null when it is not over or no
- * placement can be told — a winner the seats do not name, and no seat's state
- * saying who lost.
+ * The facts of a finished game, or null when it did not finish or no seat can
+ * be placed — both decided by `play/match.ts`'s `gameOutcome`, the one
+ * classification the table's series reads too.
  */
 export function matchFacts(match: Match): MatchFacts | null {
-	if (match.endedAt === null) return null;
+	const outcome = match.outcome();
+	if (outcome === null || outcome.kind === 'unplaced' || match.endedAt === null) return null;
 	const reader = match.seats.find((s) => !s.ai && s.history.length > 0);
 	const frames = (reader?.history ?? []) as unknown as StateFrame[];
 	const state = foldFrames(frames);
@@ -252,17 +253,10 @@ export function matchFacts(match: Match): MatchFacts | null {
 		return pid === null || !state.has(keyOf(TYPE.player, pid)) ? null : endOf(state, pid);
 	});
 
-	const winnerSeat = match.winner === null ? null : match.spec.seats.findIndex((s) => s.name === match.winner);
-	let placements: number[];
-	if (match.winner === null) placements = match.seats.map(() => 1);
-	else if (winnerSeat !== null && winnerSeat >= 0) placements = match.seats.map((s) => (s.seat === winnerSeat ? 1 : 2));
-	else if (ends.every((e) => e !== null) && ends.some((e) => e!.hasLost)) placements = ends.map((e) => (e!.hasLost ? 2 : 1));
-	else return null;
-
-	const loser = placements.findIndex((p) => p > 1);
-	const loserEnd = loser < 0 ? null : ends[loser];
+	const placements = match.seats.map((s) => (outcome.kind === 'won' && s.seat !== outcome.winner ? 2 : 1));
+	const loserEnd = outcome.kind === 'won' ? ends[outcome.winner === 0 ? 1 : 0] : null;
 	const endReason: EndReason | null =
-		loser < 0 ? null : match.concededBy !== null ? 'concede' : loserEnd === null || loserEnd === undefined ? 'other' : reasonLost(loserEnd);
+		outcome.kind !== 'won' ? null : outcome.conceded ? 'concede' : loserEnd === null || loserEnd === undefined ? 'other' : reasonLost(loserEnd);
 
 	const game = state.get(GAME_KEY);
 	return {

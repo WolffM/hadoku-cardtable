@@ -42,9 +42,7 @@ function registry(live: Record<string, { owners: string[]; status?: string }>): 
 				},
 				seatAvatarChanged: (seat) => void calls.push([id, seat]),
 				stop: () => undefined,
-				winner: null,
-				concededBy: null,
-				seats: [],
+				outcome: () => null,
 			};
 		},
 	};

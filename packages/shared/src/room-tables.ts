@@ -48,9 +48,9 @@ export type RoomTablePlayer = z.infer<typeof RoomTablePlayerSchema>;
 
 /**
  * One game's result: the Forge match it was played as, and which seat won.
- * `winner` is `null` for a game this room could not attribute to a seat (an
- * ambiguous natural game-over — see `apps/server/src/http/routes.ts`'s
- * `winnerSeatOf`), never a guess.
+ * `winner` is `null` for a draw, or a game Forge called that no seat can be
+ * told the winner of (`apps/server/src/play/match.ts`'s `gameOutcome`), never
+ * a guess. A game that did not finish is not a game here at all.
  */
 export const RoomTableGameSchema = z.strictObject({
   matchId: z.string().min(1),
