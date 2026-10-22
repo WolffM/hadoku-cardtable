@@ -294,7 +294,7 @@ import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-c
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
 import { hoverControl, isMuted, playRole, playSoundEvents, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
 import { useMatchMusic } from '../../sound/match-music.ts';
-import { boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, whenBoardStill } from '../motion.ts';
+import { boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, prefersReducedMotion, whenBoardStill } from '../motion.ts';
 import {
   abortAsk,
   answerAsk,
@@ -436,15 +436,6 @@ export function questionTopOf(root: HTMLElement): number | null {
     .map((box) => box.top);
   return tops.length === 0 ? null : Math.min(...tops) - frame.getBoundingClientRect().top;
 }
-
-/**
- * Whether the board animates (a played card's flight to its slot, the other
- * seat's hand-off). Fast Mode is pacing — no delays before the server's own
- * answers — and a 300 ms flight is not a delay, so it never turns motion off
- * (the operator, 2026-10-08, Fast Mode unchecked and no flight: the gate was
- * wrong either way). Only the person's own reduced-motion setting does.
- */
-const motionWanted = (): boolean => !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 /**
  * Client telemetry (`@hadoku/shared`'s `telemetry.ts`): the server writes it
@@ -3204,7 +3195,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       if (boardLayout !== persistedLayout || fastMode !== (prefs.fastMode ?? PLAY_PREFS_DEFAULTS.fastMode)) return;
       settingsReported.current = true;
     }
-    reportClient(match.transport, match.matchId, 'info', { ui: __HADOKU_UI_VERSION__, fastMode, boardLayout, reducedMotion: !motionWanted(), window: `${window.innerWidth}x${window.innerHeight}` });
+    reportClient(match.transport, match.matchId, 'info', { ui: __HADOKU_UI_VERSION__, fastMode, boardLayout, reducedMotion: prefersReducedMotion(), window: `${window.innerWidth}x${window.innerHeight}` });
   }, [match, spectator, prefs, fastMode, boardLayout]);
   useEffect(() => {
     // `snapshots === 0` is "no join has completed yet" — sending before that
@@ -3231,7 +3222,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     // A watcher's pointer belongs to nobody: no drag, no box, no arrow.
     if (canvas === null || spectator) return undefined;
     // Read through a ref, so toggling Fast Mode mid-match does not tear the layer down mid-gesture.
-    const handle = installGestures({ canvas, match, motion: motionWanted, report: (kind, data) => reportClient(match.transport, match.matchId, kind, data) });
+    const handle = installGestures({ canvas, match, motion: () => !prefersReducedMotion(), report: (kind, data) => reportClient(match.transport, match.matchId, kind, data) });
     return () => handle.dispose();
   }, [match, spectator]);
 
@@ -3294,7 +3285,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           const mine = view.players.find((p) => p.isViewer)?.name ?? null;
           return view.stack.filter((item) => !item.isAbility && item.sourceCardId !== null && item.controllerName !== mine).map((item) => item.sourceCardId!);
         },
-        motion: motionWanted,
         // A watcher sends none (`reportClient`'s own rule).
         report: spectator ? undefined : (kind, data) => reportClient(match.transport, match.matchId, kind, data),
       },

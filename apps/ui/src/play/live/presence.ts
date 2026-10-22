@@ -86,7 +86,7 @@ import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cas
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
-import { afterGlide, GLIDE_MS, PLACEMENT_WAIT_MS } from '../motion.ts';
+import { afterGlide, GLIDE_MS, PLACEMENT_WAIT_MS, prefersReducedMotion } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
 import { hitAt, scopeOf } from '../../dom.ts';
 import './presence.css';
@@ -152,8 +152,8 @@ export interface PresenceHost {
   readonly theirCards?: () => readonly number[];
   /** AE26: the subset of `theirCards` that is on the STACK (by card id) — a spell held there, never a permanent still being drawn. */
   readonly theirStackCards?: () => readonly number[];
-  /** Whether motion is on (Fast Mode off); the handoff travels only then. */
-  readonly motion?: () => boolean;
+  /** Defaults to the real `prefers-reduced-motion` media query; the handoff travels only without it. */
+  readonly reducedMotion?: () => boolean;
   /**
    * Whether THIS seat is actively aiming — a selection is open, or a stack
    * ask is (`match.selectables !== null || stackAsk(match) !== null`, the
@@ -435,6 +435,7 @@ export function forgetPendingPlaced(): void {
 export function installPresence(options: { canvas: HTMLElement; host: PresenceHost }): PresenceHandle {
   const { canvas, host } = options;
   let live = true;
+  const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
 
   /* ── sending ─────────────────────────────────────────────────────── */
 
@@ -690,7 +691,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   /** Telemetry for the play in hand (`./handover-report.ts`): when its release reached this screen, its glide began, its spell was seen on the stack. */
   let play: { releasedAt: number; glideStartedAt: number | null; stackFrameAt: number | null } = { releasedAt: 0, glideStartedAt: null, stackFrameAt: null };
   function receiverFacts(card: number, how: string, from: Point | null, to: Point | null): HandoverFacts {
-    return { screen: 'receiver', card, how, from, to, glideStartedAt: play.glideStartedAt, releasedAt: play.releasedAt === 0 ? null : play.releasedAt, stackFrameAt: play.stackFrameAt, motion: host.motion?.() === true };
+    return { screen: 'receiver', card, how, from, to, glideStartedAt: play.glideStartedAt, releasedAt: play.releasedAt === 0 ? null : play.releasedAt, stackFrameAt: play.stackFrameAt, motion: !reduced() };
   }
   /**
    * The stand-in's glide into its gap (`onPlacement`): `'seeking'` while the board has yet to draw
@@ -1114,7 +1115,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     const backs = theirHandBacks();
     const slot = backs[backs.length - 1];
     stopWaiting('home');
-    if (from === null || from.width === 0 || slot === undefined || host.motion?.() !== true) return;
+    if (from === null || from.width === 0 || slot === undefined || reduced()) return;
     const ghost = document.createElement('div');
     ghost.className = 'presence__handoff';
     ghost.setAttribute('aria-hidden', 'true');
@@ -1250,7 +1251,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   function flyTile(card: number, from: Point): void {
     const settled = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
     const tile = settled?.querySelector('.card');
-    if (!(settled instanceof HTMLElement) || !tile || host.motion?.() !== true) {
+    if (!(settled instanceof HTMLElement) || !tile || reduced()) {
       reportHandover(host.report, 'landing', canvas, receiverFacts(card, !(settled instanceof HTMLElement) || !tile ? 'no-tile' : 'motion-off', from, drawnCentreOf(settled)));
       return;
     }

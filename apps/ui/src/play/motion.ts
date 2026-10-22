@@ -18,7 +18,10 @@ export const PLACEMENT_WAIT_MS = 15_000;
  */
 export const GLIDE_MS = 300;
 
-/** The viewer asked for less motion: every animated surface draws its end state instead. */
+/**
+ * The viewer asked for less motion: every animated surface draws its end state instead. Fast Mode
+ * is pacing, not motion, and never turns an animation off (the operator, 2026-10-08).
+ */
 export function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
