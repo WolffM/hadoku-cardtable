@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
-import { fetchTournaments, Tournaments, type Tournament } from './Tournaments.tsx';
+import type { Tournament } from '@hadoku/shared';
+
+import { fetchTournaments, Tournaments } from './Tournaments.tsx';
 
 afterEach(() => {
   cleanup();

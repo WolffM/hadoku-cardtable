@@ -76,6 +76,28 @@ export const PodStandingsRowSchema = z.strictObject({
 });
 export type PodStandingsRow = z.infer<typeof PodStandingsRowSchema>;
 
+/**
+ * A pod that played a round, kept past its room for the stats popout's
+ * Tournaments tab: the server's stored record and `GET /api/tournaments`'s
+ * rows are this one shape, so both keep the same records.
+ */
+export const TournamentSchema = z.object({
+  /** `<roomId>-<draftStartedAt>`: one per pod, so a room that drafts twice keeps both. */
+  id: z.string(),
+  name: z.string(),
+  /** ms since epoch: the draft's deal, and the last round's end or the close. */
+  startedAt: z.number(),
+  endedAt: z.number(),
+  /** Closed by its owner before its last round finished. */
+  closed: z.boolean(),
+  rounds: z.number(),
+  /** Display names by id, the AI included — the room that knew them is gone. */
+  names: z.record(z.string(), z.string()),
+  standings: z.array(PodStandingsRowSchema),
+  results: z.array(PodMatchResultSchema),
+});
+export type Tournament = z.infer<typeof TournamentSchema>;
+
 /** One of the current round's tables: the two players seated at it. */
 export const PodPairingSchema = z.strictObject({
   tableId: z.string().min(1),

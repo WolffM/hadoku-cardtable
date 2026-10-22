@@ -12,23 +12,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import type { MatchResult, StandingsRow } from '@hadoku/draft';
-
-export interface Tournament {
-	/** `<roomId>-<draftStartedAt>`: one per pod, so a room that drafts twice keeps both. */
-	id: string;
-	name: string;
-	/** ms since epoch: the draft's deal, and the last round's end or the close. */
-	startedAt: number;
-	endedAt: number;
-	/** Closed by its owner before its last round finished. */
-	closed: boolean;
-	rounds: number;
-	/** Display names by id, the AI included — the room that knew them is gone. */
-	names: Record<string, string>;
-	standings: (StandingsRow & { rank: number })[];
-	results: MatchResult[];
-}
+import { TournamentSchema, type Tournament } from '@hadoku/shared';
 
 export interface Tournaments {
 	/** Keeps the first record for an id: a pod archived when it finished is not overwritten by its room's close. */
@@ -40,29 +24,12 @@ export interface Tournaments {
 /** The most kept; the oldest go first. */
 const TOURNAMENTS_KEPT = 500;
 
-function isTournament(v: unknown): v is Tournament {
-	if (typeof v !== 'object' || v === null) return false;
-	const t = v as Record<string, unknown>;
-	return (
-		typeof t.id === 'string' &&
-		typeof t.name === 'string' &&
-		typeof t.startedAt === 'number' &&
-		typeof t.endedAt === 'number' &&
-		typeof t.closed === 'boolean' &&
-		typeof t.rounds === 'number' &&
-		typeof t.names === 'object' &&
-		t.names !== null &&
-		Array.isArray(t.standings) &&
-		Array.isArray(t.results)
-	);
-}
-
 export async function openTournaments(file: string, log: (entry: Record<string, unknown>) => void): Promise<Tournaments> {
 	let all: Tournament[] = [];
 	try {
 		const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));
 		if (!Array.isArray(parsed)) throw new Error('not an array');
-		all = parsed.filter(isTournament);
+		all = parsed.flatMap((t) => TournamentSchema.safeParse(t).data ?? []);
 		if (all.length !== parsed.length) log({ event: 'tournaments-dropped', dropped: parsed.length - all.length });
 	} catch (err) {
 		if ((err as NodeJS.ErrnoException).code !== 'ENOENT') log({ event: 'tournaments-unreadable', err: String(err) });

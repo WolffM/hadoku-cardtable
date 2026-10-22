@@ -8,32 +8,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { PodStandings, type PodResultLike, type PodStandingsRowLike } from '../screens/pod/PodStandings.tsx';
+import { TournamentSchema, type Tournament } from '@hadoku/shared';
 
-export interface Tournament {
-  id: string;
-  name: string;
-  endedAt: number;
-  closed: boolean;
-  names: Record<string, string>;
-  standings: PodStandingsRowLike[];
-  results: PodResultLike[];
-}
-
-function isTournament(v: unknown): v is Tournament {
-  if (typeof v !== 'object' || v === null) return false;
-  const t = v as Record<string, unknown>;
-  return (
-    typeof t.id === 'string' &&
-    typeof t.name === 'string' &&
-    typeof t.endedAt === 'number' &&
-    typeof t.closed === 'boolean' &&
-    typeof t.names === 'object' &&
-    t.names !== null &&
-    Array.isArray(t.standings) &&
-    Array.isArray(t.results)
-  );
-}
+import { PodStandings } from '../screens/pod/PodStandings.tsx';
 
 function apiBase(): string {
   const base = import.meta.env?.BASE_URL;
@@ -45,7 +22,7 @@ export async function fetchTournaments(fetchImpl: typeof fetch = fetch): Promise
   const res = await fetchImpl(`${apiBase()}tournaments`, { credentials: 'same-origin' });
   if (!res.ok) throw new Error(`Could not load the tournaments (${res.status}).`);
   const body = (await res.json()) as { tournaments?: unknown };
-  return Array.isArray(body.tournaments) ? body.tournaments.filter(isTournament) : [];
+  return Array.isArray(body.tournaments) ? body.tournaments.flatMap((t) => TournamentSchema.safeParse(t).data ?? []) : [];
 }
 
 const DATE = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });

@@ -92,6 +92,7 @@ import {
 	type PoolVerdict,
 	type RoomMode,
 	type RoomSettings,
+	type Tournament,
 	type PodMember,
 	type PodPhase,
 	type PodView,
@@ -107,7 +108,6 @@ import { isGauntletState, type GauntletState } from './gauntlet.ts';
 import { leaveSeat, readySeat, seatList, sitAt, type TableSeat, type TableSeats } from './seats.ts';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, statsModeOf, type SeriesGame, type SeriesRecord, type SeriesRoom } from './series.ts';
 
-import type { Tournament } from './tournaments.ts';
 // A type only: the catalog itself is loaded once, at boot, by `index.ts`
 // (`http/library.ts`'s `loadTablesLibrary`) and handed in as `formats`.
 import type { TableFormat } from '../http/library.js';

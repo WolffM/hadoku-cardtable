@@ -353,6 +353,7 @@ export {
   PodStandingsRowSchema,
   PodPairingSchema,
   PodViewSchema,
+  TournamentSchema,
   RoomPodSchema,
   type PodPhase,
   type PodMember,
@@ -362,6 +363,7 @@ export {
   type PodPairing,
   type PodView,
   type RoomPod,
+  type Tournament,
 } from './pod.ts';
 export {
   PoolSourceSchema,

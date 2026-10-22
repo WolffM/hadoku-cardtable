@@ -29,9 +29,8 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import { poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
-import type { Tournament } from './tournaments.ts';
 import { loadPool } from './pool.ts';
-import { AVATAR_ID_MAX, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, type ClientMode, type PoolVerdict } from '@hadoku/shared';
+import { AVATAR_ID_MAX, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, type ClientMode, type PoolVerdict, type Tournament } from '@hadoku/shared';
 import {
 	AVATAR_POOL,
 	draftIdOfPool,

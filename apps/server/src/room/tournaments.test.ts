@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { openTournaments, type Tournament } from './tournaments.ts';
+import type { Tournament } from '@hadoku/shared';
+
+import { openTournaments } from './tournaments.ts';
 
 const dirs: string[] = [];
 afterEach(async () => {
