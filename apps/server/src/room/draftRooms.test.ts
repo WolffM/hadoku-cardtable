@@ -888,4 +888,90 @@ describe('a room is dealt from its OWN plan, not a server-global cube', () => {
 			for (const card of pack) expect(card.name.startsWith('legacy')).toBe(true);
 		}
 	});
+
+	/*
+	 * Wave 74 §E step 2: a `kind: 'set', style: 'set-cube'` round is dealt
+	 * through the SAME `PoolSourceResolver.cards` seam a cube round is — no
+	 * new plumbing in `draftRooms.ts` for it at all, which is the point of
+	 * this test (it would fail just by `twoCubeResolver`-style wiring not
+	 * recognising the source, not by any set-cube-specific bug).
+	 */
+	it('a set-cube round is dealt through the resolver exactly like a cube round', () => {
+		const ARB = makeNamedCube('ARB', 145);
+		const resolver: PoolSourceResolver = {
+			cards: (src) => (src.kind === 'set' && src.code === 'ARB' ? ARB : VINTAGE),
+			name: (src) => (src.kind === 'set' ? `${src.code} (${src.style})` : src.cubeId),
+		};
+		const src: PoolSource = { kind: 'set', code: 'ARB', style: 'set-cube' };
+		const r = createDraftRooms({ resolver, defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		r.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan: { rounds: [src, src, src] } }));
+		const room = r.open('pod-set-cube');
+		const state = stateOf(room);
+		for (const pack of state.packs) {
+			for (const card of pack) expect(card.name.startsWith('ARB')).toBe(true);
+		}
+	});
+});
+
+/*
+ * Wave 74 §E step 2: "realistic boosters are fetched before `deal` and
+ * passed in, so `deal` stays synchronous and seeded." `cacheRealisticRound`
+ * is the seam `http/rooms.ts`'s `POST …/start` route uses for that — these
+ * tests drive it directly, the same way the suite above drives
+ * `setPodLookup` directly rather than through a route.
+ */
+describe('cacheRealisticRound — realistic packs are read back once, by draft id and round', () => {
+	function makeNamedCube(name: string, size: number): DraftCard[] {
+		return Array.from({ length: size }, (_, i) => ({
+			cardId: `${name}-${i}`,
+			name: `${name} ${i}`,
+			manaCost: [],
+			manaValue: 0,
+			colors: [],
+			typeLine: 'Creature — Test',
+			oracleText: '',
+			setCode: 'TST',
+			collectorNumber: String(i + 1),
+			rarity: 'common' as const,
+		}));
+	}
+
+	function forgePacks(seatCount: number, tag: string): DraftCard[][] {
+		return Array.from({ length: seatCount }, (_, seat) => makeNamedCube(`${tag}-seat${seat}`, 15));
+	}
+
+	const REALISTIC: PoolSource = { kind: 'set', code: 'ISD', style: 'realistic' };
+
+	function realisticResolver(): PoolSourceResolver {
+		return {
+			cards: () => {
+				throw new Error('a realistic round must never ask the resolver for a pool');
+			},
+			name: (src) => (src.kind === 'set' ? `${src.code} (${src.style})` : src.cubeId),
+		};
+	}
+
+	it("a realistic round is dealt exactly from the packs cacheRealisticRound was given, never from the resolver", () => {
+		const r = createDraftRooms({ resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		r.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan: { rounds: [REALISTIC, REALISTIC, REALISTIC] } }));
+		const packs = forgePacks(8, 'isd');
+		r.cacheRealisticRound('pod-realistic', 0, packs);
+		r.cacheRealisticRound('pod-realistic', 1, packs);
+		r.cacheRealisticRound('pod-realistic', 2, packs);
+		const room = r.open('pod-realistic');
+		const state = stateOf(room);
+		expect(JSON.stringify(state.rounds[0])).toBe(JSON.stringify(packs));
+	});
+
+	it('the cached round is consumed once — a SECOND open() for a different draft id never sees a stale entry', () => {
+		const r = createDraftRooms({ resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		r.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan: { rounds: [REALISTIC, REALISTIC, REALISTIC] } }));
+		r.cacheRealisticRound('pod-a', 0, forgePacks(8, 'a'));
+		r.cacheRealisticRound('pod-a', 1, forgePacks(8, 'a'));
+		r.cacheRealisticRound('pod-a', 2, forgePacks(8, 'a'));
+		r.open('pod-a');
+		// pod-b never had anything cached for it — dealing it must throw rather
+		// than silently reuse pod-a's stashed packs.
+		expect(() => r.open('pod-b')).toThrow(/realistic/);
+	});
 });
