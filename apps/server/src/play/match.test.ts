@@ -25,7 +25,8 @@ import {
 
 import { STRICT_PAYMENT_POLICY } from './auto.js';
 import type { BridgeCommand, BridgeLine, HostEvents, JvmRecord, MatchHost, MatchHostFactory } from './host.js';
-import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity, type SeatIdentity } from './match.js';
+import { ACT_SILENCE_MS, ANSWER_SILENCE_MS, MATCH_ENDED_TITLE, WATCHER_SEAT, createMatchRegistry, frameGist, type Match, type MatchSpecWithIdentity } from './match.js';
+import type { SeatIdentity } from '@hadoku/shared';
 import {
 	FLYING_FILE,
 	FLYING_MATCH,

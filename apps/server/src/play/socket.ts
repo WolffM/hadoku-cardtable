@@ -103,6 +103,8 @@ import {
 	phaseStopFrame,
 	parseTriggerDecision,
 	type MatchError,
+	type MatchRole,
+	type MatchSeats,
 	type MatchSnapshot,
 } from '@hadoku/shared';
 import { createSeatTable, type ParticipantId } from '@wolffm/rooms-protocol';
@@ -768,10 +770,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	 * `'watcher'` (2026-10-12) is a socket with NO seat — the room's crowd —
 	 * on the shared public channel (`Match.watcherSnapshot`), refused every input.
 	 */
-	const tellRole = (target: { emit: (event: string, payload: unknown) => unknown }, matchId: string, role: 'player' | 'spectator' | 'watcher'): void => {
-		target.emit(MATCH_EVENTS.role, { matchId, role });
+	const tellRole = (target: { emit: (event: string, payload: unknown) => unknown }, matchId: string, role: MatchRole['role']): void => {
+		target.emit(MATCH_EVENTS.role, { matchId, role } satisfies MatchRole);
 	};
-	const roleOf = (matchId: string, seat: number, socketId: string): 'player' | 'spectator' | 'watcher' =>
+	const roleOf = (matchId: string, seat: number, socketId: string): MatchRole['role'] =>
 		seat === WATCHER_SEAT ? 'watcher' : isController(matchId, seat, socketId) ? 'player' : 'spectator';
 	/** The log line a refused input gets: a watcher's and a spectator's are told apart. */
 	const refusedInput = (seat: number): 'c2s-watcher' | 'c2s-spectator' => (seat === WATCHER_SEAT ? 'c2s-watcher' : 'c2s-spectator');
@@ -905,12 +907,10 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 						 * THIS socket, both seats always (an avatar is not hidden
 						 * information, the same reasoning `routes.ts`'s `tableView` uses).
 						 *
-						 * `MATCH_EVENTS.seats` since wave 64 §S (S1): the shared transport
-						 * module carries the event NAME now, even though its payload schema
-						 * (`SeatIdentitySchema`/`MatchSeatsSchema`) stays client-side in
-						 * `apps/ui/src/play/live/transport.ts` — nothing here parses it.
+						 * The payload is the shared `MatchSeats`, which the client parses
+						 * with `MatchSeatsSchema`.
 						 */
-						socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() });
+						socket.emit(MATCH_EVENTS.seats, { matchId: result.matchId, seats: match.seatIdentities() } satisfies MatchSeats);
 						// Every card either seat could show, so this browser decodes the art before any of it is drawn (`@hadoku/shared`'s `art.ts`).
 						socket.emit(ART_EVENT, { matchId: result.matchId, cards: artOf(match.spec) });
 						// This seat's deck colours, before its role, for the match's music (`@hadoku/shared`'s `deck-colors.ts`).

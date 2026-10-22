@@ -122,6 +122,7 @@ import {
 	type RememberedTrigger,
 	type StopPhase,
 	type MatchSnapshot,
+	type SeatIdentity,
 	type ServerEnvelope,
 	type WireCursor,
 } from '@hadoku/shared';
@@ -191,52 +192,6 @@ export type MatchSpecWithIdentity = Omit<MatchSpec, 'seats'> & {
 	seats: [SeatSpecWithIdentity, SeatSpecWithIdentity];
 };
 
-/** One seat, as {@link Match.seatIdentities} reports it — see that method's header. */
-export interface SeatIdentity {
-	seat: number;
-	claimed: boolean;
-	playerId: number | null;
-	avatarId?: string;
-	/** The name Forge shows for this seat; absent when the caller named none (wave 31 §S). */
-	name?: string;
-	/**
-	 * This seat's own open ask or mana payment, so the
-	 * OTHER seat's banner can say what it is waiting FOR instead of just that it
-	 * is waiting. Absent whenever this seat has neither — the same two-state
-	 * rule {@link SeatIdentity.avatarId} already follows.
-	 *
-	 * `method` is the ask's own wire method (`getChoices`,
-	 * `chooseSingleEntityForEffect`, `confirm`, …), or the synthetic `'pay'` for
-	 * `InputPayMana` — which is never a blocking ask (`match.ts`'s own
-	 * `payingMana` mirror, {@link Match.waitingOnFor}). The CLIENT owns turning
-	 * this into a verb (`LiveBoard.tsx`'s table, Settled) — this file only
-	 * reports the fact.
-	 *
-	 * `hostCard` is the name Forge's last `showPromptMessage` named for this
-	 * seat's input, resolved against the OTHER seat's OWN folded history
-	 * ({@link Match.waitingOnFor}) — never the asking seat's. A card still in a
-	 * hand is absent from the other seat's state and resolves to `null`; a
-	 * card on the stack or a battlefield is public either way and resolves to
-	 * its name. This is what keeps `e2e/play.spec.ts`'s isolation check green: a
-	 * hand card's name never crosses, because the lookup that would see it is
-	 * never the one used.
-	 */
-	waitingOn?: { method: string; hostCard: string | null };
-	/**
-	 * The coin toss, told to BOTH seats the moment Forge asks the winner
-	 * "play or draw" — the same row on every seat's entry, so either screen
-	 * can draw the flip landing on the winner's face while the loser would
-	 * otherwise see only "Waiting for {name}…" (the operator, three times: R2,
-	 * W1, 2026-10-08 "both players should see the coinflip"). Forge sends the
-	 * losing seat nothing for this moment (`LiveBoard.tsx`'s note on
-	 * `isWaitingForPregameDecision`), so the server is the only place both
-	 * can be told. Present from the Play/Draw bar going live until that seat's
-	 * bar changes (the answer); absent otherwise.
-	 */
-	coinToss?: { winner: number; at: number };
-	/** This seat's player left and is past the grace (`SeatState.away`). Absent while they are here. */
-	away?: true;
-}
 import {
 	createProjector,
 	foldFrames,

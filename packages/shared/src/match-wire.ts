@@ -117,13 +117,8 @@ export const MATCH_EVENTS = {
   /**
    * Wave 29 §B item 4: every seat's `{ seat, claimed, playerId, avatarId?,
    * name?, waitingOn? }`, sent on this event right after the full-control
-   * echo, on every join AND every resync. The payload schema
-   * (`SeatIdentitySchema`/`MatchSeatsSchema`) stays in `apps/ui`'s own
-   * `transport.ts`: nothing on the server parses it, only builds and sends
-   * it (`Match.seatIdentities()`), so there is no second copy to fold — only
-   * the event NAME was duplicated (the server used to spell it as a bare
-   * string specifically because this map did not carry it; wave 64 §S closed
-   * that gap).
+   * echo, on every join AND every resync. See {@link MatchSeatsSchema}: the
+   * server builds it as that type, the client parses it with that schema.
    */
   seats: 'forge:seats',
   /**
@@ -131,8 +126,7 @@ export const MATCH_EVENTS = {
    * one that controls it, or a spectator of it. Server → client only, to the
    * one socket, after every join and resync and again on promotion. The
    * server enforces (it refuses a spectator's inputs); the client only
-   * explains. The payload schema (`MatchRoleSchema`) stays in `apps/ui`'s own
-   * `transport.ts` for the same reason `seats`' does.
+   * explains. See {@link MatchRoleSchema}.
    */
   role: 'forge:role',
   /**
@@ -436,6 +430,53 @@ export interface MatchError {
   error: string;
 }
 
+/**
+ * `forge:seats`: one entry per seat, the shape the server's
+ * `Match.seatIdentities()` builds. `avatarId` is `unknown` rather than a
+ * string on purpose: three states can arrive (a string, `null`, absent) even
+ * though the server only ever sends a string or omits the key, and a string
+ * type would make one stray `null` refuse the WHOLE seat list instead of
+ * drawing that one seat's fallback bust.
+ */
+export const SeatIdentitySchema = z
+  .object({
+    seat: z.number().int().min(0),
+    claimed: z.boolean(),
+    /** Null until that seat's `openView` has landed — see `MatchSnapshot.playerId`'s own note. */
+    playerId: z.number().int().nullable(),
+    avatarId: z.unknown().optional(),
+    /** The name Forge shows for this seat. Absent when the server was not told one. */
+    name: z.string().min(1).optional(),
+    /**
+     * This seat's own open ask or mana payment, so the OTHER seat's banner can
+     * say what it is waiting for. `method` is the ask's wire method, or the
+     * synthetic `'pay'`; the client owns turning it into a verb. `hostCard` is
+     * the card Forge named for the ask, resolved against the OTHER seat's own
+     * state, so a card still in a hand is `null` and never crosses.
+     */
+    waitingOn: z.object({ method: z.string().min(1), hostCard: z.string().min(1).nullable() }).strict().optional(),
+    /**
+     * The coin toss: the same row on every seat's entry while the winner's
+     * Play/Draw bar is live, so BOTH screens draw the flip landing on the
+     * winner. Forge tells the losing seat nothing for this moment.
+     */
+    coinToss: z.object({ winner: z.number().int().min(0), at: z.unknown() }).strict().optional(),
+    /** This seat's player left, past the server's grace. Absent while they are here. */
+    away: z.boolean().optional(),
+  })
+  .strict();
+export type SeatIdentity = z.infer<typeof SeatIdentitySchema>;
+
+export const MatchSeatsSchema = z.object({ matchId: z.string().min(1), seats: SeatIdentitySchema.array() }).strict();
+export type MatchSeats = z.infer<typeof MatchSeatsSchema>;
+
+/** Which kind of connection a socket is for its seat (`forge:role`). */
+export const MATCH_ROLES = ['player', 'spectator', 'watcher'] as const;
+export const MatchRoleSchema = z
+  .object({ matchId: z.string().min(1), role: z.enum(MATCH_ROLES, { error: 'role is player, spectator or watcher' }) })
+  .strict();
+export type MatchRole = z.infer<typeof MatchRoleSchema>;
+
 /* ── Parsing, with paths — the one adapter both mirrors re-wrote ─────── */
 
 export interface WireIssue {
@@ -450,6 +491,14 @@ export function parseWith<T>(schema: { safeParse(raw: unknown): z.ZodSafeParseRe
   const result = schema.safeParse(raw);
   if (result.success) return { ok: true, value: result.data };
   return { ok: false, errors: result.error.issues.map((i) => ({ path: formatPath(i.path as (string | number)[]), message: i.message })) };
+}
+
+export function parseMatchSeats(raw: unknown): MatchWireParse<MatchSeats> {
+  return parseWith(MatchSeatsSchema, raw);
+}
+
+export function parseMatchRole(raw: unknown): MatchWireParse<MatchRole> {
+  return parseWith(MatchRoleSchema, raw);
 }
 
 export function parseMatchRequest(raw: unknown): MatchWireParse<MatchRequest> {

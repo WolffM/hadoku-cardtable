@@ -20,7 +20,8 @@ import { afterEach } from 'vitest';
 
 import { playWorkDir } from '../config.js';
 import { jvmHostConfig, jvmHostFactory, liveJvmCount, type BridgeCommand, type BridgeLine, type JvmHostConfig, type MatchHost } from './host.js';
-import { createMatchRegistry, type Match, type SeatIdentity } from './match.js';
+import type { SeatIdentity } from '@hadoku/shared';
+import { createMatchRegistry, type Match } from './match.js';
 import { PHASE_BY_UI_NAME, type StopPolicy } from './auto.js';
 import type { ServerEnvelope } from '@hadoku/shared';
 import { foldFrames, type StateFrame, type WireObj } from './visibility.js';

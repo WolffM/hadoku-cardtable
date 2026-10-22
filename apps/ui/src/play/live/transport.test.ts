@@ -44,16 +44,13 @@ describe('the match transport schemas live once', () => {
     expect('fullControlEcho' in uiTransport).toBe(false);
   });
 
-  it('what is NOT shared stays exactly one place each: the server never parses forge:seats/forge:role', () => {
-    // SeatIdentitySchema/MatchSeatsSchema/MatchRoleSchema/MatchAckSchema have
-    // no server-side mirror to collide with — the server only builds and
-    // sends their payloads (`Match.seatIdentities()`), it never parses them.
-    expect(uiTransport.SeatIdentitySchema).toBeDefined();
-    expect(uiTransport.MatchSeatsSchema).toBeDefined();
-    expect(uiTransport.MatchRoleSchema).toBeDefined();
+  it('forge:seats and forge:role parse with the shared schemas: the server builds the shared types, and no schema of their own is left here', () => {
+    expect(uiTransport.parseMatchSeats).toBe(shared.parseMatchSeats);
+    expect(uiTransport.parseMatchRole).toBe(shared.parseMatchRole);
+    for (const name of ['SeatIdentitySchema', 'MatchSeatsSchema', 'MatchRoleSchema']) expect(name in uiTransport).toBe(false);
   });
 
-  it('MATCH_EVENTS carries forge:seats and forge:role — only the payload schema stayed local', () => {
+  it('MATCH_EVENTS carries forge:seats and forge:role', () => {
     expect(uiTransport.MATCH_EVENTS.seats).toBe('forge:seats');
     expect(uiTransport.MATCH_EVENTS.role).toBe('forge:role');
   });
