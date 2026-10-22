@@ -366,11 +366,14 @@ test(
 /*
  * The operator, 2026-10-15: *"let's show a 'crossed swords' pill icon on top of cards that have been
  * selected as attackers."* Forge's own `Attacking` is set by the click that declares a creature in
- * `InputAttack`, so the mark is on BOTH screens from that click, comes off when the creature is called
- * back (a second click), and is gone once combat has ended. On the turned attacker it is the `<li>`'s
- * own, so it sits upright on the card's top-left corner while the art inside turns.
+ * `InputAttack`, so the mark is on the attacker's screen from that click and comes off when the
+ * creature is called back (a second click). The defender sees it only once the attack is locked in (the
+ * operator, 2026-10-22: "avoid turning the attackers red from the opponents perspective until the
+ * attackers actually locked in"), and it is gone from both once combat has ended. On the turned
+ * attacker it is the `<li>`'s own, so it sits upright on the card's top-left corner while the art
+ * inside turns.
  */
-test(titled('a selected attacker wears the crossed-swords mark on both screens, upright on its turned card, off when called back and after combat'), async ({ browser }) => {
+test(titled('a selected attacker wears the crossed-swords mark, upright on its turned card: on the attacker’s screen from the click, on the defender’s once locked in, off when called back and after combat'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -415,11 +418,8 @@ test(titled('a selected attacker wears the crossed-swords mark on both screens, 
     await expect(attacker, 'Memnite is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
     for (const page of pages) await expect(swords(page), 'no mark before it is selected').toHaveCount(0);
 
-    // Selected: Forge's own `Attacking`, and the mark, on both screens.
-    expect(await pressOffered(attacker), 'Memnite pressed').toBe(true);
-    for (const page of pages) await expect(swords(page), 'the click that selects it marks it, on both screens').toHaveCount(1, { timeout: 10_000 });
-    await log('selected');
-    for (const page of pages) {
+    /** The mark as drawn on `page`: Forge's declared attacker, upright on the turned card's own top-left corner. */
+    const expectUpright = async (page: Page): Promise<void> => {
       const r = await read(page);
       expect(r.attacking, 'it is Forge’s declared attacker').toBe('true');
       expect(r.tip).toBe('Attacking');
@@ -430,17 +430,40 @@ test(titled('a selected attacker wears the crossed-swords mark on both screens, 
       expect(r.markBox!.left - r.card.left, 'on the turned card’s own left edge').toBeLessThanOrEqual(4);
       expect(r.markBox!.top - r.card.top, 'on the turned card’s own top edge').toBeLessThanOrEqual(4);
       expect(r.markBox!.top - r.card.top, 'not hanging above it').toBeGreaterThanOrEqual(0);
-    }
+    };
+    /**
+     * The defender's screen draws no mark while the attacker is still choosing. Forge sends each pick to
+     * the defender as it lands (`PlayBridge`'s `CombatSync`; measured within a few ms of the attacker's
+     * own), so a mark that was going to show has shown well inside this settle.
+     */
+    const unmarkedOnDefender = async (why: string): Promise<void> => {
+      await bob.page.waitForTimeout(1_500);
+      await expect(swords(bob.page), why).toHaveCount(0);
+      expect((await read(bob.page)).attacking, why).toBeNull();
+    };
 
-    // Called back: a second click undeclares it, and the mark goes with it on both screens.
+    // Selected: Forge's own `Attacking`, and the mark, on the attacker's screen only.
+    expect(await pressOffered(attacker), 'Memnite pressed').toBe(true);
+    await expect(swords(alice.page), 'the click that selects it marks it on the attacker’s screen').toHaveCount(1, { timeout: 10_000 });
+    await unmarkedOnDefender('the defender sees no attacker while the attack is still being chosen');
+    await log('selected');
+    await expectUpright(alice.page);
+
+    // Called back: a second click undeclares it, and the mark goes with it.
     await attacker.locator('button').first().click();
-    for (const page of pages) await expect(swords(page), 'calling it back takes the mark off, on both screens').toHaveCount(0, { timeout: 10_000 });
+    await expect(swords(alice.page), 'calling it back takes the mark off').toHaveCount(0, { timeout: 10_000 });
+    await unmarkedOnDefender('nor once it is called back');
     await log('called-back');
 
-    // Selected again, then combat runs out: the mark stays through combat and is gone by Main 2.
+    // Selected again and locked in: the mark is on both screens, stays through combat and is gone by Main 2.
     await expect(attacker, 'it is offered again').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
     expect(await pressOffered(attacker), 'Memnite pressed again').toBe(true);
-    for (const page of pages) await expect(swords(page), 'selected again, marked again').toHaveCount(1, { timeout: 10_000 });
+    await expect(swords(alice.page), 'selected again, marked again').toHaveCount(1, { timeout: 10_000 });
+    await unmarkedOnDefender('still the attacker’s own choice');
+    await clickOnce(alice.page, await says(alice.page), 'ok');
+    await expect(swords(bob.page), 'locked in: the defender sees the attacker').toHaveCount(1, { timeout: 10_000 });
+    await log('locked-in');
+    await expectUpright(bob.page);
     await passUntilPhase(pages, /^MAIN2$/, 30_000);
     for (const page of pages) await expect(swords(page), 'combat has ended: the mark is gone').toHaveCount(0, { timeout: 10_000 });
     await log('main2');
