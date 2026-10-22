@@ -72,6 +72,15 @@
  * stays dark, lights once Ornithopter is cast, and is dark again on the next turn. Rix Maadi Reveler
  * (spectacle, no opponent has lost life) and Monastery Raid (freerunning, no combat damage) stay dark.
  *
+ * The operator, 2026-10-21: "i would have expected to see crush of tentacles change to 3UU in my
+ * hand", ruling "only conditional costs": the hand shows an alternative cost only while a condition
+ * that can change in the game unlocks it — Forge's own `SpellAbilityRestriction.alternativeCostMet`
+ * — and only when it is cheaper. Crush of Tentacles shows {4}{U}{U}, then {3}{U}{U} after Ornithopter,
+ * then {4}{U}{U} on turn 2. Skewer the Critics (no "spectacle paid" bonus) lights and shows {R} once
+ * Flame Rift made an opponent lose life; Rix Maadi Reveler lights then but keeps its cheaper printed
+ * cost. Mulldrifter's evoke is unconditional, so it shows {4}{U} and stays dark; Etherium Sculptor
+ * still takes {1} off Chief of the Foundry.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
@@ -178,8 +187,8 @@ const ALTERNATIVE_COSTS = [
 	'activephase=MAIN1',
 	'humanlife=20',
 	'ailife=20',
-	'humanhand=Crush of Tentacles;Crush of Tentacles;Ornithopter;Rix Maadi Reveler;Monastery Raid',
-	'humanbattlefield=Island;Island;Island;Mountain;Mountain',
+	'humanhand=Crush of Tentacles;Crush of Tentacles;Ornithopter;Rix Maadi Reveler;Monastery Raid;Skewer the Critics;Flame Rift;Mulldrifter;Chief of the Foundry',
+	'humanbattlefield=Island;Island;Island;Mountain;Mountain;Etherium Sculptor',
 	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
 	'humangraveyard=',
 	'aihand=',
@@ -208,6 +217,27 @@ function firstConditionMet(s: Scenario, seat: number, from: number): number[] | 
 		if (Array.isArray(met)) return met;
 	}
 	return null;
+}
+
+/** A cost as `ManaCost.serialize` writes it: the generic amount, then each shard's name, joined by \u0006. */
+const mana = (generic: number, ...shards: string[]): string => [String(generic), ...shards].join('\u0006');
+
+type Held = { cost?: string; printed?: string; costBy?: string[] };
+
+/** The latest `heldChanges` `seat` was sent from `from` on, by card id, or null when none has been. */
+function latestHeld(s: Scenario, seat: number, from = 0): Map<number, Held> | null {
+	const lists = s.sent
+		.slice(from)
+		.filter((x) => x.seat === seat)
+		.map((x) => (x.envelope.frame as unknown as { heldChanges?: (Held & { card: { id: number } })[] }).heldChanges)
+		.filter((h): h is (Held & { card: { id: number } })[] => Array.isArray(h));
+	const last = lists.at(-1);
+	return last === undefined ? null : new Map(last.map((h) => [h.card.id, { cost: h.cost, printed: h.printed, costBy: h.costBy }]));
+}
+
+/** The cost the hand shows for `c`: the changed cost when `held` lists one, else the printed cost (absent). */
+function shown(held: Map<number, Held> | null, c: Card): Held | undefined {
+	return held?.get(c.id);
 }
 
 function named(cards: readonly Card[], name: string): Card {
@@ -430,7 +460,7 @@ describe.skipIf(!available.ok)(title, () => {
 		120_000,
 	);
 	it(
-		'an alternative cost lights only while it can be cast that way: Crush of Tentacles dark in an opening hand, lit after another spell, dark again next turn',
+		'a conditional alternative cost lights and sets the hand cost only while it can be cast that way: Crush of Tentacles 4UU and dark in an opening hand, 3UU and lit after another spell, 4UU and dark next turn; Skewer the Critics at R once an opponent lost life; Mulldrifter keeps its printed cost; a reducer still reduces',
 		async () => {
 			if (!available.ok) return;
 			const s = await startScenario(available.config, { seed: 88, decks: DECKS, scenario: ALTERNATIVE_COSTS });
@@ -442,12 +472,22 @@ describe.skipIf(!available.ok)(title, () => {
 				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
 				const hand = s.zone(0, 'Hand');
 				const crushes = hand.filter((c) => c.name === 'Crush of Tentacles');
-				const others = [named(hand, 'Rix Maadi Reveler'), named(hand, 'Monastery Raid')];
+				const reveler = named(hand, 'Rix Maadi Reveler');
+				const raid = named(hand, 'Monastery Raid');
+				const skewer = named(hand, 'Skewer the Critics');
+				const mulldrifter = named(hand, 'Mulldrifter');
+				const chief = named(hand, 'Chief of the Foundry');
+				const others = [reveler, raid, skewer, mulldrifter];
 				const lit = (met: number[] | null): string => JSON.stringify(hand.filter((c) => met?.includes(c.id)).map((c) => `${c.name}#${c.id}`));
 				const before = latestConditionMet(s, 0);
 				console.log(`[cs-condition-met.jvm] no spell cast: conditionMet=${JSON.stringify(before)} → ${lit(before)}`);
 				expect(before, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
 				for (const c of [...crushes, ...others]) expect(before, `${c.name}#${c.id} is off before any spell`).not.toContain(c.id);
+				const heldBefore = latestHeld(s, 0);
+				console.log(`[cs-condition-met.jvm] no spell cast: heldChanges=${JSON.stringify([...(heldBefore ?? [])])}`);
+				expect(heldBefore, 'seat 0 was sent heldChanges').not.toBeNull();
+				for (const c of [...crushes, ...others]) expect(shown(heldBefore, c), `${c.name}#${c.id} shows its printed cost`).toBeUndefined();
+				expect(shown(heldBefore, chief), 'Etherium Sculptor reduces Chief of the Foundry').toEqual({ cost: mana(2), printed: mana(3), costBy: ['Etherium Sculptor'] });
 
 				const cast = s.sent.length;
 				await castNamed(s, 0, 'Ornithopter');
@@ -459,13 +499,38 @@ describe.skipIf(!available.ok)(title, () => {
 				console.log(`[cs-condition-met.jvm] after Ornithopter: conditionMet=${JSON.stringify(after)} → ${lit(after)}`);
 				for (const c of crushes) expect(after, `${c.name}#${c.id} is on once another spell was cast`).toContain(c.id);
 				for (const c of others) expect(after, `${c.name}#${c.id} is off`).not.toContain(c.id);
+				const heldAfter = latestHeld(s, 0, cast);
+				console.log(`[cs-condition-met.jvm] after Ornithopter: heldChanges=${JSON.stringify([...(heldAfter ?? [])])}`);
+				for (const c of crushes) expect(shown(heldAfter, c), `${c.name}#${c.id} shows its surge cost`).toEqual({ cost: mana(3, 'BLUE', 'BLUE'), printed: mana(4, 'BLUE', 'BLUE'), costBy: ['Surge'] });
+				for (const c of others) expect(shown(heldAfter, c), `${c.name}#${c.id} shows its printed cost`).toBeUndefined();
+
+				const rift = s.sent.length;
+				await castNamed(s, 0, 'Flame Rift');
+				await waitUntil(() => {
+					s.answerAsks();
+					return latestConditionMet(s, 0, rift) !== null && latestHeld(s, 0, rift) !== null;
+				}, 'a conditionMet snapshot and heldChanges after Flame Rift resolved', 15_000, s);
+				const lost = latestConditionMet(s, 0, rift);
+				const heldLost = latestHeld(s, 0, rift);
+				console.log(`[cs-condition-met.jvm] after Flame Rift: conditionMet=${JSON.stringify(lost)} → ${lit(lost)} heldChanges=${JSON.stringify([...(heldLost ?? [])])}`);
+				for (const c of [skewer, reveler]) expect(lost, `${c.name}#${c.id} is on once an opponent lost life`).toContain(c.id);
+				expect(shown(heldLost, skewer), 'Skewer the Critics shows its spectacle cost').toEqual({ cost: mana(0, 'RED'), printed: mana(2, 'RED'), costBy: ['Spectacle'] });
+				expect(shown(heldLost, reveler), 'Rix Maadi Reveler keeps its cheaper printed cost').toBeUndefined();
+				for (const c of [raid, mulldrifter]) {
+					expect(lost, `${c.name}#${c.id} is off`).not.toContain(c.id);
+					expect(shown(heldLost, c), `${c.name}#${c.id} shows its printed cost`).toBeUndefined();
+				}
 
 				/* Both seats pass every stop, so turns fly by: read the first snapshot after turn 2 began. */
 				const turnTwo = (): number => s.sent.findIndex((x) => x.seat === 0 && x.envelope.frame.method === 'message' && /^Turn 2\b/.test((x.envelope.frame as unknown as { message: string }).message));
-				await passUntil(s, () => turnTwo() >= 0 && firstConditionMet(s, 0, turnTwo()) !== null, 'a conditionMet snapshot on turn 2');
+				await passUntil(s, () => turnTwo() >= 0 && firstConditionMet(s, 0, turnTwo()) !== null && latestHeld(s, 0, turnTwo()) !== null, 'a conditionMet snapshot and heldChanges on turn 2');
 				const next = firstConditionMet(s, 0, turnTwo());
 				console.log(`[cs-condition-met.jvm] turn 2: conditionMet=${JSON.stringify(next)} → ${lit(next)}`);
 				for (const c of crushes) expect(next, `${c.name}#${c.id} is off again on the next turn`).not.toContain(c.id);
+				const heldNext = latestHeld(s, 0, turnTwo());
+				console.log(`[cs-condition-met.jvm] turn 2: heldChanges=${JSON.stringify([...(heldNext ?? [])])}`);
+				expect(heldNext, 'seat 0 was sent heldChanges on turn 2').not.toBeNull();
+				for (const c of [...crushes, skewer]) expect(shown(heldNext, c), `${c.name}#${c.id} shows its printed cost again`).toBeUndefined();
 			} finally {
 				await s.stop();
 			}
