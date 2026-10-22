@@ -163,10 +163,13 @@ test(titled('Serra Avenger is not offered on its caster\'s first three turns, an
     const b = bob.page;
     await expect.poll(() => named(a, HAND, 'Serra Avenger'), { timeout: 45_000, message: 'alice holds Serra Avenger' }).not.toBeUndefined();
     const serra = (await named(a, HAND, 'Serra Avenger'))!;
-    // Forge counts a player's turns from the game's real start: the coin toss's winner plays first and has had one.
-    const toss = serverLog(stack).find((l) => l.evt === 'coin-toss');
-    const before = toss?.winner === 0 ? 1 : 0;
-    console.log(`[w69-offers] serra: coin toss won by seat ${String(toss?.winner)}, so alice has had ${before} turn(s) at the scenario's start`);
+    // Forge counts a player's turns from the game's real start, before the scenario replaced it: whoever went first
+    // there has had one. That is Forge's own word to the seats, not the toss — its winner may draw.
+    const first = serverLog(stack)
+      .map((l) => (typeof l.message === 'string' ? /^(\w+), you are going first/.exec(l.message)?.[1] : undefined))
+      .find((name) => name !== undefined);
+    const before = first === 'Alice' ? 1 : 0;
+    console.log(`[w69-offers] serra: ${String(first)} went first, so alice has had ${before} turn(s) at the scenario's start`);
 
     const rows: { gameTurn: number; own: number; offered: boolean; returned?: boolean }[] = [];
     let seen = -1;
