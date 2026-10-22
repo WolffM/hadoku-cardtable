@@ -383,17 +383,18 @@ export function promptThumb(lookup: PromptLookup, ref: { kind: string; id: numbe
 export function AnswerRow({ className, aside, children }: { className?: string; aside?: ReactNode; children: ReactNode }) {
   const answers = Children.toArray(children);
   const pair = answers.length === 2;
+  const side = aside === undefined || aside === null || aside === false ? null : <span className="answers__aside">{aside}</span>;
   return (
     <div className={className === undefined ? 'answers' : `${className} answers`} data-pair={pair || undefined}>
       {pair ? (
         <>
           {answers[0]}
-          {aside}
+          {side}
           {answers[1]}
         </>
       ) : (
         <>
-          {aside}
+          {side}
           {answers}
         </>
       )}

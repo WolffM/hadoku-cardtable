@@ -709,19 +709,13 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-right: auto;
   color: var(--ink-dim);
   font-size: 13px;
   cursor: pointer;
 }
 
-/* Between a pair's two answers it is centred: the answers' own auto margins split the space. */
-.answers[data-pair] > .confirm__check {
-  margin-right: 0;
-}
-
 .confirm__button {
-  min-width: 88px;
+  min-width: 72px;
   padding: 8px 14px;
   font-size: 14px;
 }

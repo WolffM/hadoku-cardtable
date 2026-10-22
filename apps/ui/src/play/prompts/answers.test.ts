@@ -61,7 +61,9 @@ describe('a two-answer decision anchors its answers bottom-left and bottom-right
     );
     expectPair(container, '[data-testid="prompt-confirm-yes"]', '[data-testid="prompt-confirm-no"]');
     const row = answerRow(container);
-    expect(Array.from(row.children).indexOf(row.querySelector('.confirm__check')!)).toBe(1);
+    const aside = row.children[1]!;
+    expect(aside.classList.contains('answers__aside')).toBe(true);
+    expect(aside.querySelector('.confirm__check')).not.toBeNull();
   });
 
   it("the mulligan's Keep/Mulligan: Keep left, Mulligan right", () => {

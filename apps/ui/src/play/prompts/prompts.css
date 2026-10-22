@@ -987,15 +987,36 @@
 }
 
 /*
+ * The aside leads a row of one answer, and between a pair it takes the middle
+ * at no width of its own (`flex-basis: 0`, `min-width: 0`), so it never pushes
+ * the second answer onto a line above the first: its words wrap inside the
+ * space the two answers leave.
+ */
+.answers__aside {
+  display: flex;
+  align-items: center;
+  margin-right: auto;
+}
+
+.answers[data-pair] > .answers__aside {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  margin-right: 0;
+  text-align: center;
+}
+
+/*
  * One look for every answer a caller did not style itself (`:where` keeps this
- * under `.prompt__submit`, `.button`, `.confirm__button`): the same outline,
- * padding and height as OK, never the browser's own button face.
+ * under `.prompt__submit`, `.button`, `.confirm__button`): an outline, never
+ * the browser's own button face. Its height is the browser button's, so no
+ * sheet grows; beside a taller OK the row stretches it to OK's height.
  */
 :where(.answers) button {
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 6px 14px;
+  padding: 1px 14px;
 }
 
 :where(.answers) button:disabled {
