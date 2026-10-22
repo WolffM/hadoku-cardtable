@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 
 import { FREE_PICK } from '@hadoku/shared';
+import { ActionButton } from '../../components/ActionButton.tsx';
 import { erasOf, FORMAT_TABS, newestFormat, poolIsOnTab, type FormatFamily, type TableFormat } from '../tables.ts';
 
 /** Free pick's browse: a format's library, or the decks you drafted (`#/decks`). */
@@ -214,13 +215,13 @@ export function ClassicOptions({
                   whole library is the pool and everyone browses it by format
                   on this row; off, the leader's tabs pick the room's era again. Off
                   lands on the era being browsed, else that format's newest. */}
-              <button
-                type="button"
+              <ActionButton
+                action={freePick ? 'free-pick-off' : 'free-pick-on'}
                 className="lobby__free-pick ct-toggle"
                 aria-pressed={freePick}
                 data-testid="free-pick"
                 disabled={disabled}
-                onClick={() => {
+                onPress={() => {
                   if (!freePick) {
                     onBrowse({ family: formatTab, era: '' });
                     onPool(FREE_PICK);
@@ -232,19 +233,19 @@ export function ClassicOptions({
                 }}
               >
                 Free pick
-              </button>
+              </ActionButton>
               {/* The room's first match setting: the opening hand nearer the
                   deck's land ratio, each mulligan weighted toward it. */}
-              <button
-                type="button"
+              <ActionButton
+                action={handSmoothing ? 'hand-smoothing-off' : 'hand-smoothing-on'}
                 className="lobby__free-pick ct-toggle"
                 aria-pressed={handSmoothing}
                 data-testid="hand-smoothing"
                 disabled={disabled}
-                onClick={onHandSmoothing}
+                onPress={onHandSmoothing}
               >
                 Hand smoothing
-              </button>
+              </ActionButton>
             </span>
           )}
     </>

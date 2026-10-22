@@ -820,20 +820,21 @@ describe('the says, the toggle, and the ability label', () => {
 
   it('the toggle: off by default, a click sends forge:full-control and the button says on, and back', async () => {
     const { s, m, getByTestId } = await liveBoard();
-    const toggle = getByTestId('live-full-control') as HTMLButtonElement;
-    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    // Each state is its own element (`ActionButton`): read the toggle afresh after every press.
+    const toggle = (): HTMLElement => getByTestId('live-full-control');
+    expect(toggle().getAttribute('aria-pressed')).toBe('false');
     expect(s.received.filter((r) => r.event === 'forge:full-control')).toEqual([]);
 
-    fireEvent.click(toggle);
-    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('true'));
+    fireEvent.click(toggle());
+    await waitFor(() => expect(toggle().getAttribute('aria-pressed')).toBe('true'));
     await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:full-control')).toHaveLength(1));
     expect(s.received.filter((r) => r.event === 'forge:full-control')[0]!.payload).toEqual({
       matchId: s.matchId,
       on: true,
     });
 
-    fireEvent.click(toggle);
-    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('false'));
+    fireEvent.click(toggle());
+    await waitFor(() => expect(toggle().getAttribute('aria-pressed')).toBe('false'));
     await waitFor(() => expect(s.received.filter((r) => r.event === 'forge:full-control')).toHaveLength(2));
     expect(s.received.filter((r) => r.event === 'forge:full-control')[1]!.payload).toEqual({
       matchId: s.matchId,
@@ -3150,18 +3151,19 @@ describe('Auto Yield / Cancel Yield (the End Turn slot, on the other seat’s tu
     await untilMatch(m, () => expect(m.view!.activePlayerId).toBe(them.id));
 
     fireEvent.click(getByTestId('live-button-end-turn'));
-    const button = getByTestId('live-button-end-turn') as HTMLButtonElement;
-    await waitFor(() => expect(button.textContent).toBe('Cancel Yield'));
-    expect(button.dataset.yield).toBe('on');
+    // Each state is its own element (`ActionButton`): read the button afresh after every press.
+    const button = (): HTMLElement => getByTestId('live-button-end-turn');
+    await waitFor(() => expect(button().textContent).toBe('Cancel Yield'));
+    expect(button().dataset.yield).toBe('on');
     await waitFor(() => expect(s.received.some((r) => r.event === 'forge:auto-yield')).toBe(true));
     expect(s.received.filter((r) => r.event === 'forge:auto-yield').map((r) => r.payload)).toEqual([
       { matchId: s.matchId, on: true },
     ]);
     expect(await s.framesFrom(m)).toEqual([]);
 
-    fireEvent.click(button);
-    await waitFor(() => expect(button.textContent).toBe('Auto Yield'));
-    expect(button.dataset.yield).toBe('off');
+    fireEvent.click(button());
+    await waitFor(() => expect(button().textContent).toBe('Auto Yield'));
+    expect(button().dataset.yield).toBe('off');
   });
 
   it('the turn moving back to the viewer restores End Turn, and never carries a highlight meant for it', async () => {

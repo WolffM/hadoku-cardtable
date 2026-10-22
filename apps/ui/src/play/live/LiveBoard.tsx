@@ -272,6 +272,7 @@ import { DeckEditor, type ReadyState } from '../../deck/DeckEditor.tsx';
 import { deckStoreClient } from '../../deck/deckStore.ts';
 import { dckTextOf } from '../../draft/deckFromPool.ts';
 import { libraryDeckText, namedCardPool } from '../../deck/build.ts';
+import { ActionButton } from '../../components/ActionButton.tsx';
 import { Avatar } from '../../components/Avatar.tsx';
 import { drawnCards, opponentOf, PHASE_LABEL, viewerOf, type BoardPlayer, type BoardView, type StackEntry } from '../adapter.ts';
 import { Board, POISON_TO_LOSE, poisonOf, type BoardInteraction, type BoardLayout, type HeldTags } from '../Board.tsx';
@@ -2410,17 +2411,17 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
             </button>
           )}
           {!showSideboard && (nextInRoom ? !inPod : rematchable) && (
-            <button
-              type="button"
+            <ActionButton
+              action={nextInRoom ? 'next-game' : rematch.mine ? 'rematch-withdraw' : 'rematch'}
               className="button"
               data-testid="game-result-rematch"
               aria-pressed={nextInRoom ? undefined : rematch.mine}
               data-highlight={nextInRoom || rematch.highlight ? 'true' : undefined}
               disabled={nextInRoom ? roomId === null || leaving : !rematch.possible || busy || leaving}
-              onClick={nextInRoom ? onBackToRoom : onRematch}
+              onPress={nextInRoom ? onBackToRoom : onRematch}
             >
               {nextInRoom ? 'Next game' : 'Rematch'}
-            </button>
+            </ActionButton>
           )}
           {backButtons}
         </div>
@@ -3691,29 +3692,29 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         >
           Next Phase
         </button>
-        <button
-          type="button"
+        <ActionButton
+          action={yieldMode ? (autoYieldOn ? 'yield-cancel' : 'yield') : 'end-turn'}
           className="live__end-turn"
           data-testid="live-button-end-turn"
           data-highlight={endTurnHighlighted ? '' : undefined}
           data-nudge={nudgeEndTurn ? '' : undefined}
           data-yield={yieldMode ? (autoYieldOn ? 'on' : 'off') : undefined}
           disabled={yieldMode ? spectator : !endTurnEnabled}
-          onClick={() => (yieldMode ? setAutoYield(match, !autoYieldOn) : endTurn(match))}
+          onPress={() => (yieldMode ? setAutoYield(match, !autoYieldOn) : endTurn(match))}
         >
           {yieldMode ? (autoYieldOn ? 'Cancel Yield' : 'Auto Yield') : 'End Turn'}
-        </button>
-        <button
-          type="button"
+        </ActionButton>
+        <ActionButton
+          action={match.fullControl ? 'full-control-off' : 'full-control-on'}
           className="live__toggle"
           data-testid="live-full-control"
           aria-pressed={match.fullControl}
           disabled={spectator}
           title="Full control"
-          onClick={() => setFullControl(match, !match.fullControl)}
+          onPress={() => setFullControl(match, !match.fullControl)}
         >
           Full control
-        </button>
+        </ActionButton>
         {/*
          * Concede (§C.4), last. It sends NOTHING: it opens the confirmation,
          * and only that dialog's own yes reaches `concede`. Pressable with a

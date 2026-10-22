@@ -169,6 +169,7 @@ import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
+import { ActionButton } from '../components/ActionButton.tsx';
 import { mainDeckColors } from '../components/DeckView.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
@@ -2164,16 +2165,16 @@ function RoomTableScreen({
                       {/* Sitting is its own act (2026-10-12): one button per free seat, dead
                           once I hold one, once the table is locked, or once a match is under way. */}
                       <span className="tables__actions">
-                      <button
-                        type="button"
+                      <ActionButton
+                        action="sit"
                         className="tables__sit"
                         data-testid="seat-sit"
                         data-seat={seat}
                         disabled={seated || tableLocked || underway}
-                        onClick={sitDown}
+                        onPress={sitDown}
                       >
                         Sit here
-                      </button>
+                      </ActionButton>
                       {/*
                        * Forge's AI takes this seat (the operator, 2026-10-02 and
                        * 2026-10-16): offered while nobody ELSE is seated, on the one
@@ -2183,15 +2184,15 @@ function RoomTableScreen({
                        * pool, and holds the same gate.
                        */}
                       {botSeat === seat && (
-                        <button
-                          type="button"
+                        <ActionButton
+                          action="vs-bot"
                           className="tables__sit"
                           data-testid="play-vs-bot"
                           disabled={!canReady || underway}
-                          onClick={mode === 'gauntlet' ? () => gauntletMove(() => client.gauntletReady(roomId, true, true)) : startVsBot}
+                          onPress={mode === 'gauntlet' ? () => gauntletMove(() => client.gauntletReady(roomId, true, true)) : startVsBot}
                         >
                           AI
-                        </button>
+                        </ActionButton>
                       )}
                       </span>
                       </span>
@@ -2504,9 +2505,9 @@ function PlayerRow({
           </svg>
         )}
         {onStand !== undefined && (
-          <button type="button" className="tables__stand" data-testid="seat-stand" disabled={standDisabled} onClick={onStand}>
+          <ActionButton action="stand" className="tables__stand" data-testid="seat-stand" disabled={standDisabled} onPress={onStand}>
             Stand up
-          </button>
+          </ActionButton>
         )}
       </span>
       {player.deck !== undefined && <OwnDeckCells seat={seat} deck={player.deck} />}
@@ -2518,21 +2519,21 @@ function PlayerRow({
           label={player.ready ? 'ready' : 'not ready'}
         />
       ) : (
-        <button
-          type="button"
+        <ActionButton
+          action={player.ready ? 'unready' : 'ready'}
           className="pill pill--ready pill--button"
           data-testid="ready-toggle"
           data-state={player.ready ? 'yes' : 'no'}
           data-mark={player.ready ? 'tick' : 'ring'}
           aria-pressed={player.ready}
           disabled={readyDisabled}
-          onClick={onReady}
+          onPress={onReady}
         >
           <svg className="pill__mark" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
             {player.ready ? <path d={TICK} /> : <circle cx="6" cy="6" r="3.4" />}
           </svg>
           Ready
-        </button>
+        </ActionButton>
       )}
     </li>
   );

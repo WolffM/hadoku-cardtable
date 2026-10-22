@@ -1773,13 +1773,14 @@ describe('the table’s pool', () => {
   it('Free pick: the leader’s toggle puts the room on every deck, and off again on an era', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null, format: '2011-07-15' });
     await waitFor(() => expect(offered()).toEqual([SECOND_DECK]));
-    const toggle = screen.getByTestId('free-pick');
-    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    // Each state is its own element (`ActionButton`): read the toggle afresh after every press.
+    const toggle = (): HTMLElement => screen.getByTestId('free-pick');
+    expect(toggle().getAttribute('aria-pressed')).toBe('false');
 
     await act(async () => {
-      fireEvent.click(toggle);
+      fireEvent.click(toggle());
     });
-    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('true'));
+    await waitFor(() => expect(toggle().getAttribute('aria-pressed')).toBe('true'));
     expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ format: 'free' }]);
     // Every deck, whatever its era — the deck 2011 bans included — and no era to choose.
     await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
@@ -1789,9 +1790,9 @@ describe('the table’s pool', () => {
     expect(screen.getByTestId('browse-tab-standard').getAttribute('aria-selected')).toBe('true');
 
     await act(async () => {
-      fireEvent.click(toggle);
+      fireEvent.click(toggle());
     });
-    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('false'));
+    await waitFor(() => expect(toggle().getAttribute('aria-pressed')).toBe('false'));
     // Back on the browsed tab's newest era.
     expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ format: 'free' }, { format: '2011-07-15' }]);
     expect((screen.getByTestId('format') as HTMLSelectElement).value).toBe('2011-07-15');
@@ -1938,12 +1939,14 @@ describe('the table’s pool', () => {
 
   it('Hand smoothing: on by default, and the leader’s toggle turns it off on the room', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
-    const toggle = await screen.findByTestId('hand-smoothing');
-    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    await screen.findByTestId('hand-smoothing');
+    // Each state is its own element (`ActionButton`): read the toggle afresh after every press.
+    const toggle = (): HTMLElement => screen.getByTestId('hand-smoothing');
+    expect(toggle().getAttribute('aria-pressed')).toBe('true');
     await act(async () => {
-      fireEvent.click(toggle);
+      fireEvent.click(toggle());
     });
-    await waitFor(() => expect(toggle.getAttribute('aria-pressed')).toBe('false'));
+    await waitFor(() => expect(toggle().getAttribute('aria-pressed')).toBe('false'));
     expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ settings: { handSmoothing: false } }]);
   });
 

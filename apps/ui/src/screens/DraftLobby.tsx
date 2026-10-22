@@ -82,6 +82,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { CubeSummary, DraftPlan, DraftPreset, PoolSource, SetSummary } from '@hadoku/shared';
 
+import { ActionButton } from '../components/ActionButton.tsx';
 import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
 import { PoolPicker, type PoolTab, type Refusal, type SourceStyle } from '../draft/PoolPicker.tsx';
@@ -414,16 +415,16 @@ export function DraftLobby({
       <p className="lobby__note" data-testid="draft-state">
         {draftStateText(pod, members, dealing)}
       </p>
-      <button
-        type="button"
+      <ActionButton
+        action={iAmReady ? 'unready' : 'ready'}
         className="lobby__go"
         data-testid="ready-toggle"
         aria-pressed={iAmReady}
         disabled={dealing || members.length === 0 || (pod !== null && (planBusy || pendingLocalAttempt || !planOk))}
-        onClick={() => onReady(!iAmReady)}
+        onPress={() => onReady(!iAmReady)}
       >
         {iAmReady ? 'Stand down' : 'Ready'}
-      </button>
+      </ActionButton>
     </div>
   );
 
