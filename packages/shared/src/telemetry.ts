@@ -44,8 +44,12 @@ export const ClientEventSchema = z
      * (landed, floated home unanswered, offered back, …), after how long, and
      * the decision open at that moment, so "it went back to my hand while the
      * question was up" is read from the log.
+     * `perf`: the frame rate (`live/frame-watch.ts`) — a stretch of dropped
+     * frames, what the board was drawing as it began and, where the browser
+     * can say, the code the long frames ran; and a periodic summary of every
+     * frame, so "it has gotten a lot more laggy" is read from the log.
      */
-    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in', 'effect', 'park']),
+    kind: z.enum(['info', 'handover', 'landing', 'sound', 'bar-stuck', 'stand-in', 'effect', 'park', 'perf']),
     data: z.record(z.string().min(1).max(32), ScalarSchema).refine((d) => Object.keys(d).length <= 16, 'at most 16 fields'),
   })
   .strict();
