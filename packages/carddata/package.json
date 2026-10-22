@@ -17,6 +17,7 @@
     "resolve": "node --max-old-space-size=6144 src/cli/resolve-cubes.ts",
     "gen:set-codes": "node src/cli/gen-set-codes.ts",
     "build-pool": "node --max-old-space-size=6144 src/cli/build-pool.ts",
+    "build-catalog": "node --max-old-space-size=6144 src/cli/build-catalog.ts",
     "upload-art": "node src/cli/upload-art.ts"
   },
   "dependencies": {
