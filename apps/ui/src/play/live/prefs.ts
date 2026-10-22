@@ -48,7 +48,6 @@ import { CallIdSchema, ShowConfirmDialogReplySchema } from '@hadoku/forge-wire';
 
 import type { BoardLayout } from '../Board.tsx';
 import { UI_SCALE } from '../../settings/ui-scale.ts';
-import { DEFAULT_TRIM, isTrimOption, TRIM_FAMILY_IDS, type Trim, type TrimFamily } from '../../settings/trim.ts';
 
 const borrowed = {
   /** A non-empty string: `CallIdSchema` is `z.string().min(1)`. */
@@ -67,15 +66,6 @@ const BoardLayoutPrefSchema = borrowed.nonEmptyString.refine(
   { message: "must be 'single' or 'type-separated'" },
 );
 
-/** One family's trim: a name from `TRIM_FAMILIES`, refined off a string like the board layout. */
-function trimOptionSchema(family: TrimFamily) {
-  return borrowed.nonEmptyString.refine((v) => isTrimOption(family, v), { message: `not a ${family} trim` }).optional();
-}
-
-const TrimPrefSchema = borrowed.emptyObject
-  .extend(Object.fromEntries(TRIM_FAMILY_IDS.map((family) => [family, trimOptionSchema(family)])) as Record<TrimFamily, ReturnType<typeof trimOptionSchema>>)
-  .strict();
-
 /** The settings panel's whole persisted shape. Every field optional: a fresh viewer has none yet, and `defaults` below fills the gap. `.strict()`, like every other schema in this lane — a misspelled or retired field is an error, not silently dropped. */
 export const PlayPrefsSchema = borrowed.emptyObject
   .extend({
@@ -86,8 +76,6 @@ export const PlayPrefsSchema = borrowed.emptyObject
     fastMode: borrowed.boolean.optional(),
     /** The UI scale (`../../settings/ui-scale.ts`), the whole app's, not only a match's. */
     uiScale: borrowed.number.refine((v) => v >= UI_SCALE.min && v <= UI_SCALE.max, { message: 'outside the UI scale range' }).optional(),
-    /** Panel and page decoration (`../../settings/trim.ts`), one choice per family; none by default. */
-    trim: TrimPrefSchema.optional(),
   })
   .strict();
 
@@ -98,7 +86,6 @@ export interface PlayPrefs {
   endStepStop?: boolean;
   fastMode?: boolean;
   uiScale?: number;
-  trim?: Trim;
 }
 
 /**
@@ -119,12 +106,11 @@ function fastModeDefaultOverride(): boolean {
  * (paced) everywhere except inside the e2e harness — see this module's
  * header.
  */
-export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; endStepStop: boolean; fastMode: boolean; uiScale: number; trim: Trim } = {
+export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; endStepStop: boolean; fastMode: boolean; uiScale: number } = {
   boardLayout: 'single',
   endStepStop: true,
   fastMode: fastModeDefaultOverride(),
   uiScale: 1,
-  trim: DEFAULT_TRIM,
 };
 
 /**
@@ -189,12 +175,22 @@ export function dropRetiredStopAtEndStep(blob: Record<string, unknown>): Record<
   return rest;
 }
 
+/**
+ * `trim` was each player's own panel decoration for a day (2026-10-21) before the operator made it
+ * the site's, one look for every player (`../../settings/siteTrim.ts`). A blob that still carries it
+ * would fail the `.strict()` parse whole, so it is dropped on read.
+ */
+export function dropPersonalTrim(blob: Record<string, unknown>): Record<string, unknown> {
+  const { trim: _retired, ...rest } = blob;
+  return rest;
+}
+
 export function getPlayPrefsClient(): PrefsClient<PlayPrefs> {
   instance ??= createPrefsClient({
     appId: 'cardtable-play',
     schema: schemaAcrossZodInstances,
     defaults: PLAY_PREFS_DEFAULTS,
-    migrations: [dropRetiredStopAtEndStep],
+    migrations: [dropRetiredStopAtEndStep, dropPersonalTrim],
   }) as unknown as PrefsClient<PlayPrefs>;
   return instance;
 }

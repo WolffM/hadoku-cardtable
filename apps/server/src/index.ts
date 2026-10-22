@@ -90,6 +90,7 @@ import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
 import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
+import { attachTrim } from './http/trim.js';
 import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
 import { loadCardCatalog } from './pools/catalog.js';
 import { createForgePools, type ForgePools } from './pools/forge.js';
@@ -462,6 +463,7 @@ attachTournaments(api, { tournaments });
 attachSounds(api, {
 	dir: CONFIG.soundsDir,
 });
+attachTrim(api, { file: resolve(CONFIG.dataDir, 'trim.json') });
 
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {

@@ -197,7 +197,7 @@ async function readAssignments(dir: string, log: JsonLog): Promise<StoredAssignm
  * untouched; nothing ever reads a half-written file because nothing is ever
  * renamed into place until the write is complete.
  */
-async function atomicWriteJson(target: string, data: unknown): Promise<void> {
+export async function atomicWriteJson(target: string, data: unknown): Promise<void> {
 	await mkdir(join(target, '..'), { recursive: true });
 	const tmp = `${target}.${process.pid}.${randomUUID()}.tmp`;
 	const handle = await open(tmp, 'w');

@@ -41,7 +41,8 @@ import { AppChrome } from './chrome/AppChrome.tsx';
 import { RoomShell } from './room/RoomShell.tsx';
 import { useWhoami } from './room/whoami.ts';
 import { roomsClient } from './rooms/api.ts';
-import { useTrim, useUiScale } from './settings/Settings.tsx';
+import { useUiScale } from './settings/Settings.tsx';
+import { useTrim } from './settings/siteTrim.ts';
 
 export type AppProps = ScreenProps;
 

@@ -11,8 +11,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_TRIM } from '../../settings/trim.ts';
-import { FAST_MODE_DEFAULT_GLOBAL, PLAY_PREFS_DEFAULTS, PlayPrefsSchema, dropRetiredStopAtEndStep } from './prefs.ts';
+import { FAST_MODE_DEFAULT_GLOBAL, PLAY_PREFS_DEFAULTS, PlayPrefsSchema, dropPersonalTrim, dropRetiredStopAtEndStep } from './prefs.ts';
 
 describe('PlayPrefsSchema', () => {
   it('accepts a full, valid blob', () => {
@@ -41,21 +40,17 @@ describe('PlayPrefsSchema', () => {
     const saved = { boardLayout: 'type-separated', stopAtEndStep: false, fastMode: true };
     expect(PlayPrefsSchema.safeParse(saved).success).toBe(false);
     const migrated = PlayPrefsSchema.safeParse({ ...PLAY_PREFS_DEFAULTS, ...dropRetiredStopAtEndStep(saved) });
-    expect(migrated.success && migrated.data).toEqual({ boardLayout: 'type-separated', endStepStop: true, fastMode: true, uiScale: 1, trim: DEFAULT_TRIM });
+    expect(migrated.success && migrated.data).toEqual({ boardLayout: 'type-separated', endStepStop: true, fastMode: true, uiScale: 1 });
   });
 
   it('rejects a non-boolean fastMode', () => {
     expect(PlayPrefsSchema.safeParse({ fastMode: 'on' }).success).toBe(false);
   });
 
-  it('accepts a trim of one choice per family, and none at all', () => {
-    expect(PlayPrefsSchema.safeParse({ trim: { frame: 'scoop', corner: 'gems', groundCorner: 'wedge' } }).success).toBe(true);
-    expect(PlayPrefsSchema.safeParse({ trim: {} }).success).toBe(true);
-  });
-
-  it('rejects a trim option its family does not have, and a family that does not exist', () => {
-    expect(PlayPrefsSchema.safeParse({ trim: { frame: 'gems' } }).success).toBe(false);
-    expect(PlayPrefsSchema.safeParse({ trim: { sparkle: 'on' } }).success).toBe(false);
+  it('a blob saved with the retired personal trim parses once migrated, everything else kept', () => {
+    const saved = { fastMode: true, trim: { frame: 'scoop' } };
+    expect(PlayPrefsSchema.safeParse(saved).success, 'strict: the old field alone fails the parse').toBe(false);
+    expect(PlayPrefsSchema.safeParse(dropPersonalTrim(saved))).toEqual({ success: true, data: { fastMode: true } });
   });
 
   it('rejects an unknown field — .strict(), like every other schema in this lane', () => {
@@ -65,7 +60,7 @@ describe('PlayPrefsSchema', () => {
 
 describe('PLAY_PREFS_DEFAULTS', () => {
   it('matches Board’s own default (item 11: single), the End step stop’s (on), and Fast Mode’s (off — paced)', () => {
-    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, fastMode: false, uiScale: 1, trim: DEFAULT_TRIM });
+    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, fastMode: false, uiScale: 1 });
   });
 
   it('parses through its own schema — the defaults are themselves valid prefs', () => {

@@ -34,7 +34,6 @@ import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { SoundSettings } from './SoundSettings.tsx';
 import { useDismiss } from '../popover.ts';
 import { applyUiScale, clampUiScale, UI_SCALE, uiLength } from './ui-scale.ts';
-import { applyTrim } from './trim.ts';
 import './settings.css';
 
 /** The gap between the popover and what opened it, and its distance from the viewport's edges. */
@@ -164,18 +163,6 @@ export function useUiScale(root: () => HTMLElement | null): void {
     forgetCardWidths();
     return () => applyUiScale(el, 1);
   }, [root, scale]);
-}
-
-/** The saved trim (`./trim.ts`), written on the same root as the UI scale. */
-export function useTrim(root: () => HTMLElement | null): void {
-  const { prefs } = usePrefs(getPlayPrefsClient());
-  const trim = prefs?.trim;
-  useLayoutEffect(() => {
-    const el = root();
-    if (el === null) return undefined;
-    applyTrim(el, trim ?? {});
-    return () => applyTrim(el, {});
-  }, [root, trim]);
 }
 
 /** Which trigger has the popover open, if any. Pressing that trigger again closes it. */
