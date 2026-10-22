@@ -23,7 +23,6 @@ import { cardsCount } from '../draft/PoolPicker.tsx';
 import { CubeArt } from '../draft/CubeArt.tsx';
 import { ImportCube } from '../draft/ImportCube.tsx';
 import { poolsClient, type PoolsClient } from '../rooms/api.ts';
-import { navigate } from './route.ts';
 import { useWhoami } from '../room/whoami.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import './InventoryScreen.css';
@@ -117,16 +116,6 @@ export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsC
   return (
     <div className="shell shell--fit" data-testid="inventory">
       <nav className="shell__head">
-        <a
-          className="shell__link"
-          href="#/"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate({ kind: 'lobby' });
-          }}
-        >
-          ← Lobby
-        </a>
         <div className="shell__tools">
           <SettingsGear />
         </div>
