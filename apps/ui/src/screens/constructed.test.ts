@@ -373,14 +373,26 @@ function stubServer(table: Table) {
       choice.rules.kind === 'standard' ? choice.rules.format : '',
     );
 
-  /** A room read parked on the wire: it answers with the record AS IT WAS when read, once its own release is called. */
-  let heldRead: Promise<void> | null = null;
-  const holdNextRoomRead = (): (() => void) => {
+  /** Reads parked on the wire, by what they read: each answers with its record AS IT WAS when read, once its own release is called. */
+  const held = new Map<'room' | 'gauntlet', Promise<void>>();
+  const holdNext = (read: 'room' | 'gauntlet'): (() => void) => {
     let release: () => void = () => undefined;
-    heldRead = new Promise<void>((r) => {
-      release = r;
-    });
+    held.set(
+      read,
+      new Promise<void>((r) => {
+        release = r;
+      }),
+    );
     return () => release();
+  };
+  /** The parked answer for `read`, if the next one was held; null to answer it live. */
+  const answerHeld = async (read: 'room' | 'gauntlet', record: () => unknown): Promise<Response | null> => {
+    const gate = held.get(read);
+    if (gate === undefined) return null;
+    held.delete(read);
+    const stale = record();
+    await gate;
+    return json(200, stale);
   };
   let roomRead: () => void = () => undefined;
   const roomAnswered = new Promise<void>((r) => {
@@ -428,13 +440,8 @@ function stubServer(table: Table) {
         );
         return json(200, roomRecord());
       }
-      if (heldRead !== null) {
-        const stale = roomRecord();
-        const gate = heldRead;
-        heldRead = null;
-        await gate;
-        return json(200, stale);
-      }
+      const parked = await answerHeld('room', roomRecord);
+      if (parked !== null) return parked;
       roomRead();
       return table.roomUnreadable === true ? json(503, { error: 'rooms are restarting' }) : json(200, roomRecord());
     }
@@ -467,7 +474,7 @@ function stubServer(table: Table) {
       table.draftStartedAt = '2026-09-26T10:00:00.000Z';
       return json(200, roomRecord());
     }
-    if (url.endsWith(`/tables/rooms/${ROOM}/gauntlet`)) return json(200, gauntletOf(table));
+    if (url.endsWith(`/tables/rooms/${ROOM}/gauntlet`)) return (await answerHeld('gauntlet', () => gauntletOf(table))) ?? json(200, gauntletOf(table));
     if (url.endsWith(`/tables/rooms/${ROOM}/gauntlet/ready`)) {
       const { ready } = body as { ready: boolean };
       const before = gauntletOf(table);
@@ -579,7 +586,8 @@ function stubServer(table: Table) {
   return {
     calls,
     table,
-    holdNextRoomRead,
+    holdNextRoomRead: () => holdNext('room'),
+    holdNextGauntletRead: () => holdNext('gauntlet'),
     client: tablesClient(fetchImpl, '/cardtable/api/'),
     rooms: roomsClient(fetchImpl, '/cardtable/api/'),
     /** Everyone's record per deck; empty unless a test sets one. Never the real stats service. */
@@ -2531,6 +2539,24 @@ describe('the room’s mode', () => {
     expect((await screen.findByTestId('gauntlet-title')).textContent).toBe('Modern — 2014');
     for (const m of ['classic', 'gauntlet', 'random']) expect(radio(m).disabled).toBe(true);
     expect(screen.getByTestId('ready-toggle')).toHaveProperty('disabled', true);
+  });
+
+  it('a Gauntlet read the feed asked before a newer one cannot put the older board back when it lands after it', async () => {
+    const server = stubServer({ players: [{ ...mySeat(), deck: null }, opponent()], matchId: null, mode: { mode: 'gauntlet', modeOptions: {} } });
+    const stepped = steppedFeed();
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, roomId: ROOM, feed: stepped.feed }));
+    const ready = await screen.findByTestId('ready-toggle');
+    await waitFor(() => expect(ready.getAttribute('aria-pressed')).toBe('false'));
+    // A ping whose read parks on the wire holding the board as it is: nobody ready.
+    const releaseOlder = server.holdNextGauntletRead();
+    await stepped.reread(1);
+    // The other screen readies me (my second tab), and the next ping's read lands first.
+    server.table.gauntlet = { ...gauntletOf(server.table), ready: [true, false] };
+    await stepped.reread(1);
+    await waitFor(() => expect(screen.getByTestId('ready-toggle').getAttribute('aria-pressed')).toBe('true'));
+    releaseOlder();
+    for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
+    expect(screen.getByTestId('ready-toggle').getAttribute('aria-pressed'), 'the older board did not come back').toBe('true');
   });
 
   // The operator, 2026-10-21: "the avatar isn't rendering properly on the coinflip animation".
