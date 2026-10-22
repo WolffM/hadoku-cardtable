@@ -3,11 +3,13 @@
  * Their match's log (`m-a58ab8a6bb79`, 01:05Z): thirteen permanents, the four-lane layout switched on,
  * and off again seven seconds later — thirteen columns had already taken the lanes to two rows of small
  * cards. A row now narrows to three quarters of the card a second row would draw before it takes one
- * (`board.css`, "When to add a row") — at 1280×800 that is twelve columns at `--card-min`; a
- * thirteenth would draw under it, where names stop reading.
+ * (`board.css`, "When to add a row") — but never past `--card-min`, where names stop reading: a row
+ * that cannot hold its columns at that width takes the second row instead.
  *
- * Scenario `row-squish`: twelve lone permanents (eight lands, four creatures). At each width the lanes
- * stay one row, every card at least `--card-min` wide (its name readable), and nothing overflows.
+ * Scenario `row-squish`: twelve lone permanents (eight lands, four creatures). From 1366 up the lanes
+ * stay one row; at 1280×800 (a 698px battlefield inside its gutter) the eight-land lane is 380px
+ * against the 384px eight cards at `--card-min` need, so they draw two rows. At every width every
+ * card is at least `--card-min` wide (its name readable), and no lane and no battlefield overflows.
  */
 import { expect, test } from '@playwright/test';
 
@@ -31,11 +33,11 @@ test(titled('twelve permanents in the four lanes squish into one row before they
     const cards = page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card');
     await expect(cards, 'twelve lone permanents').toHaveCount(12, { timeout: 30_000 });
     await chooseLanes(alice);
-    for (const [width, height] of [
-      [1280, 800],
-      [1366, 768],
-      [1440, 900],
-      [1920, 1080],
+    for (const [width, height, want] of [
+      [1280, 800, 2],
+      [1366, 768, 1],
+      [1440, 900, 1],
+      [1920, 1080, 1],
     ] as const) {
       await resizeWindow(page, { width, height });
       await expect(cards).toHaveCount(12);
@@ -59,16 +61,18 @@ test(titled('twelve permanents in the four lanes squish into one row before they
             narrowest: Math.min(...boxes.map((b) => b.width)),
             cardMin,
             overflow: zone.scrollWidth - zone.clientWidth,
+            laneOverflow: Math.max(...Array.from(zone.querySelectorAll<HTMLElement>('.zone__row')).map((lane) => lane.scrollWidth - lane.clientWidth)),
           };
         });
-      // The lanes settle on their row count from a measured box: wait for one row, then read it.
+      // The lanes settle on their row count from a measured box: wait for it, then read it.
       await expect
-        .poll(async () => (await read()).rows, { message: `${width}x${height}: the lanes draw one row — ${JSON.stringify(await read())}` })
-        .toBe(1);
+        .poll(async () => (await read()).rows, { message: `${width}x${height}: the lanes draw ${want} row(s) — ${JSON.stringify(await read())}` })
+        .toBe(want);
       const r = await read();
-      console.log(`[row-squish] ${width}x${height} zone ${r.zone} aspect ${r.aspect}, ${r.cols} columns: ${r.rows} row, narrowest card ${r.narrowest.toFixed(1)}px (floor ${r.cardMin}px), overflow ${r.overflow}px`);
+      console.log(`[row-squish] ${width}x${height} zone ${r.zone} aspect ${r.aspect}, ${r.cols} columns: ${r.rows} row(s), narrowest card ${r.narrowest.toFixed(1)}px (floor ${r.cardMin}px), overflow ${r.overflow}px, lanes ${r.laneOverflow}px`);
       expect(r.narrowest, `${width}x${height}: every card at least --card-min wide`).toBeGreaterThanOrEqual(r.cardMin - 0.5);
       expect(r.overflow, `${width}x${height}: nothing overflows the battlefield`).toBeLessThanOrEqual(0);
+      expect(r.laneOverflow, `${width}x${height}: no lane's cards run past it`).toBeLessThanOrEqual(1);
     }
   } finally {
     await stack.stop();
