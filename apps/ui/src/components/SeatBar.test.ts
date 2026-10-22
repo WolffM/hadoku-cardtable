@@ -75,11 +75,11 @@ describe('the pod as a circle', () => {
     expect(screen.getByTestId('seat-7').querySelector('svg.face__art')).not.toBeNull();
   });
 
-  it('names the viewer’s own seat You, and keeps their name for the tooltip', () => {
+  it('names the viewer’s own seat by their own name, like every other seat', () => {
     const view = seatView(0, 'left');
     render(createElement(SeatBar, { view }));
     const name = screen.getByTestId('seat-0').querySelector('.seatbar__name')!;
-    expect(name.textContent).toBe('You');
+    expect(name.textContent).toBe(view.seats[0]!.displayName);
     expect(name.getAttribute('title')).toBe(view.seats[0]!.displayName);
   });
 });
