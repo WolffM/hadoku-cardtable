@@ -1078,7 +1078,9 @@ public final class PlayBridge {
      *     and it is what decides an alternative cost. Forge makes each way of casting a spell its own
      *     copy, paid that way by construction, so the surge copy's {@code Condition$ Surge} always
      *     holds there; whether it lights is whether the spell can be cast that way now (surge's
-     *     "another spell this turn", spectacle's, prowl's, freerunning's);</li>
+     *     "another spell this turn", spectacle's, prowl's, freerunning's). Such a copy lights
+     *     whether or not its script has a "paid" bonus ({@link #conditional}), and the hand shows its
+     *     cost while it does ({@code SeatGui.heldChanges});</li>
      * <li>a branching count: an SVar {@code Count$<Name>.<if>.<else>} (Galvanic Blast's
      *     {@code Count$Metalcraft.4.2}, {@code Count$Compare X GE1.<if>.<else>}), asked through
      *     {@code AbilityUtils.xCount} with two marker numbers in place of its branches: the marker
@@ -1181,9 +1183,24 @@ public final class PlayBridge {
             for (final SpellAbility sa : c.getSpellAbilities()) {
                 if (!sa.isIntrinsic() || !worksHere(sa, here)) { continue; }
                 for (SpellAbility s = sa; s != null; s = s.getSubAbility()) { name(named, s); }
-                if (((!quiet.contains(sa) && restricted(sa)) || chainOn(sa, controller, quiet)) && sa.getRestrictions().checkOtherRestrictions(c, sa, controller)) { return true; }
+                if (((!quiet.contains(sa) && restricted(sa)) || chainOn(sa, controller, quiet) || conditional(sa, controller)) && usable(sa, c, controller)) { return true; }
             }
             return branchOn(c, named);
+        }
+
+        /** Whether Forge's own restriction lets {@code p} cast or activate {@code sa} of {@code c} now. */
+        static boolean usable(final SpellAbility sa, final forge.game.card.Card c, final forge.game.player.Player p) {
+            return sa.getRestrictions().checkOtherRestrictions(c, sa, p);
+        }
+
+        /**
+         * Whether {@code sa} is a way of casting its spell that a condition unlocks (surge, spectacle,
+         * prowl, freerunning), as Forge's restriction decides it
+         * ({@code SpellAbilityRestriction.alternativeCostMet}); an unconditional alternative cost (evoke,
+         * dash, overload …) and the spell's own cost are not.
+         */
+        static boolean conditional(final SpellAbility sa, final forge.game.player.Player p) {
+            return forge.game.spellability.SpellAbilityRestriction.alternativeCostMet(sa, p) != null;
         }
 
         /** The static modes whose whole effect is a permission to cast a spell. */
@@ -3328,9 +3345,11 @@ public final class PlayBridge {
         /**
          * {@code heldChanges}: what continuous effects change about the cards this seat holds — the
          * cost of each held spell as Forge would charge it now ({@code RaiseCost}, {@code ReduceCost}
-         * and {@code SetCost} statics: Thalia, Jace's Sanctum, Trinisphere, a card's own affinity), and
-         * a flash a {@code CastWithFlash} static grants a card that has none (Vedalken Orrery). Each
-         * entry names the cards whose statics did it. A card nothing changes is not listed; the list is
+         * and {@code SetCost} statics: Thalia, Jace's Sanctum, Trinisphere, a card's own affinity), or
+         * the cheaper alternative cost a condition has unlocked now ({@link ConditionsOn#conditional}
+         * and {@link ConditionsOn#usable}, the gate that lights the card: surge once another spell was
+         * cast), and a flash a {@code CastWithFlash} static grants a card that has none (Vedalken
+         * Orrery). Each entry names the cards whose statics did it, and an alternative cost by its name. A card nothing changes is not listed; the list is
          * the whole hand's, so a cost that went back to printed drops out.
          *
          * The cost is {@code CostAdjustment}'s own arithmetic, step by step in its order (raises on the
@@ -3366,7 +3385,20 @@ public final class PlayBridge {
                     final JsonObject o = new JsonObject();
                     final java.util.LinkedHashSet<String> by = new java.util.LinkedHashSet<>();
                     final ManaCost printed = new forge.game.mana.ManaCostBeingPaid(sa.getPayCosts().getTotalMana()).toManaCost();
-                    final ManaCost now = steps.cost(sa, around, by);
+                    ManaCost now = steps.cost(sa, around, by);
+                    for (final SpellAbility alt : c.getSpellAbilities()) {
+                        if (!alt.isIntrinsic() || !alt.isSpell() || alt.getPayCosts() == null
+                                || !ConditionsOn.conditional(alt, mine) || !ConditionsOn.usable(alt, c, mine)) { continue; }
+                        alt.setActivatingPlayer(mine);
+                        final java.util.LinkedHashSet<String> altBy = new java.util.LinkedHashSet<>();
+                        altBy.add(alt.getAlternativeCost().name());
+                        final ManaCost altNow = steps.cost(alt, around, altBy);
+                        if (altNow.getCMC() < now.getCMC()) {
+                            now = altNow;
+                            by.clear();
+                            by.addAll(altBy);
+                        }
+                    }
                     if (!ManaCost.serialize(now).equals(ManaCost.serialize(printed))) {
                         o.addProperty("cost", ManaCost.serialize(now));
                         o.addProperty("printed", ManaCost.serialize(printed));
