@@ -42,6 +42,7 @@ import {
 	type SeatId,
 } from '@wolffm/rooms-protocol';
 import { pick as enginePick } from '@hadoku/draft';
+import type { DraftCard, DraftPlan, PoolSource } from '@hadoku/shared';
 
 import {
 	createDraftRooms,
@@ -57,6 +58,7 @@ import {
 	type DraftRoom,
 	type DraftRooms,
 	type PodDeal,
+	type PoolSourceResolver,
 } from './draftRooms.js';
 import { loadPool, type CubePool } from './pool.js';
 
@@ -816,5 +818,74 @@ describe('viewForParticipant', () => {
 
 		const theirs = viewForParticipant(room, CAROL);
 		expect(theirs.viewer).toEqual({ kind: 'spectator' });
+	});
+});
+
+/*
+ * wave 73 §A, done-when: "a server test sets a plan, starts the pod, and
+ * finds the first pack in that cube." Two distinct cubes behind one
+ * resolver, keyed by `PoolSource.cubeId` — the shape `index.ts`'s real
+ * shortlist resolver has — so setting the LOOKUP's plan to the non-default
+ * one is the whole test: `build()` reads `podLookup(draftId)?.plan`, deals
+ * from whichever cube that plan names, and nothing else about the room
+ * changes.
+ */
+describe('a room is dealt from its OWN plan, not a server-global cube', () => {
+	function makeNamedCube(name: string, size: number): DraftCard[] {
+		return Array.from({ length: size }, (_, i) => ({
+			cardId: `${name}-${i}`,
+			name: `${name} ${i}`,
+			manaCost: [],
+			manaValue: 0,
+			colors: [],
+			typeLine: 'Creature — Test',
+			oracleText: '',
+			setCode: 'TST',
+			collectorNumber: String(i + 1),
+			rarity: 'common' as const,
+		}));
+	}
+
+	const VINTAGE = makeNamedCube('vintage', 360);
+	const LEGACY = makeNamedCube('legacy', 360);
+
+	function twoCubeResolver(): PoolSourceResolver {
+		return {
+			cards: (src) => (src.kind === 'cube' && src.cubeId === 'legacy' ? LEGACY : VINTAGE),
+			name: (src) => (src.kind === 'cube' ? src.cubeId : `${src.code}:${src.style}`),
+		};
+	}
+
+	function legacyPlan(): DraftPlan {
+		const src: PoolSource = { kind: 'cube', cubeId: 'legacy' };
+		return { rounds: [src, src, src] };
+	}
+
+	it("setting a room's plan to a non-default cube deals its first pack from that cube", () => {
+		const r = createDraftRooms({
+			resolver: twoCubeResolver(),
+			defaultPlan: DEFAULT_PLAN, // names a cube this resolver does not even know — proves the room never falls back to it once a plan is set.
+			now: () => 1_700_000_000_000,
+			storeDir: null,
+		});
+		// `podDraft` (wired in production from `lobby.ts`) is where a pod's own
+		// plan reaches `build()` — set here directly, the same seam.
+		r.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan: legacyPlan() }));
+
+		const room = r.open('pod-legacy');
+		const state = stateOf(room);
+		for (const pack of state.packs) {
+			for (const card of pack) expect(card.name.startsWith('legacy')).toBe(true);
+		}
+		expect(r.cubeMetaOf(room)).toEqual({ name: 'legacy', size: 360 });
+	});
+
+	it('a room with no pod lookup wired deals the DEFAULT plan, not the other cube', () => {
+		const r = createDraftRooms({ resolver: twoCubeResolver(), defaultPlan: legacyPlan(), now: () => 1_700_000_000_000, storeDir: null });
+		const room = r.open('pod-default');
+		const state = stateOf(room);
+		for (const pack of state.packs) {
+			for (const card of pack) expect(card.name.startsWith('legacy')).toBe(true);
+		}
 	});
 });
