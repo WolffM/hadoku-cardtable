@@ -9,8 +9,9 @@
  * seat's bar, with the avatar not moved by an inch; and hovering her avatar, or a medallion, opens
  * the board's one expanded view on every emblem she has, each as its trigger's chip — the operator,
  * 2026-10-21: *"we already have the emblem card chip for the trigger, we can just use that. and when
- * hovering over the player, then we display the card chips."* — with no illustrator or copyright
- * line (an emblem has no art of its own), inside the 1280×800 window.
+ * hovering over the player, then we display the card chips."* — inside the 1280×800 window. A chip
+ * draws the emblem's own printing, with its credit, where Forge's edition names one (its `[other]`
+ * rows, 2026-10-22).
  *
  * Scenario: `em-emblems`. Every step prints one `[em]` line (claws keep artifacts only on red).
  *
@@ -205,7 +206,6 @@ test(titled('emblems ring their owner’s avatar on both screens, clear of the p
         const chips = want.map((w) => ({ name: `Emblem — ${w.name}`, text: w.says }));
         for (const shown of [onFace, onMedallion]) {
           expect(shown.chips.map((c) => ({ name: c.name.replace(/^Emblem\s*[—–-]\s*/, 'Emblem — ').replace(/[’']/g, '’'), text: c.text })), `${who}: one chip per emblem`).toEqual(chips);
-          expect(shown.text, `${who}: an emblem has no art of its own, so no credit line`).not.toMatch(/Illus\.|WotC/);
           expect(inside(shown.box, { x: 0, y: 0, w: 1280, h: 800 }), `${who}: the chips fit the window`).toBe(true);
         }
         await page.mouse.move(0, 0);

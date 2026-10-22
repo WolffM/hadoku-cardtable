@@ -92,7 +92,7 @@ import { parseDck, type CardRequest } from '../../packages/carddata/src/dck.ts';
 import { buildCardIndex, resolveCard, type CardIndex } from '../../packages/carddata/src/resolve.ts';
 import { FORGE_TO_SCRYFALL_SET } from '../../packages/carddata/src/set-codes.ts';
 import type { GameplayCard } from '../../packages/carddata/src/scryfall/project.ts';
-import { ART_ID_TABLE_VERSION } from '../../packages/carddata/src/art/ids.ts';
+import { ART_ID_TABLE_VERSION, BACK_FACE } from '../../packages/carddata/src/art/ids.ts';
 import { otherFaces } from '../../packages/carddata/src/faces.ts';
 import { scenarioCardNames } from '../../apps/server/src/play/art.ts';
 
@@ -384,16 +384,21 @@ interface ForgeTokenPrinting {
   /** Lowercased Scryfall set the edition files its tokens under: `TokensCode`, else `t` + `ScryfallCode` (`CardEdition.java`'s own rule). */
   tokenSet: string;
   collectorNumber: string;
+  /** Forge draws the printing's back face: its number carries `☇` (`initiative`, the back of CLB's Undercity token). */
+  back: boolean;
 }
 
 /**
- * Every numbered `[tokens]` line of every Forge edition (`forge-gui/res/editions/*.txt`:
+ * Every numbered `[tokens]` and `[other]` line of every Forge edition (`forge-gui/res/editions/*.txt`:
  * `29 c_3_3_a_phyrexian_wurm_deathtouch @Raymond Swanland`). Forge puts exactly these three — the
  * tokenscript, the edition, the number — in a token's `ImageKey`
  * (`t:c_3_3_a_phyrexian_wurm_deathtouch|2XM|29|1`, read off a real game by `token-art.jvm.test.ts`),
  * so they name ONE Scryfall printing, where a token's name may name several: Forge calls Wurmcoil
  * Engine's deathtouch and lifelink Wurms and Phyrexia: All Will Be One Commander's toxic one all
- * "Phyrexian Wurm Token". Null when `editions/` is not there.
+ * "Phyrexian Wurm Token". `[other]` names what Forge draws for a game piece that is not a token —
+ * the monarch, the initiative, the city's blessing (`StaticData.getOtherImageKey`, the same
+ * `t:<name>|<set>|<number>` key): `20☇ initiative`, `☇` for the printing's back face. Null when
+ * `editions/` is not there.
  */
 function forgeTokenPrintings(forgeResDir: string): ForgeTokenPrinting[] | null {
   const dir = join(forgeResDir, 'editions');
@@ -413,11 +418,14 @@ function forgeTokenPrintings(forgeResDir: string): ForgeTokenPrinting[] | null {
     const scryfallCode = field('ScryfallCode') ?? forgeCode;
     if (forgeCode === null || scryfallCode === null) continue;
     const tokenSet = (field('TokensCode') ?? `t${scryfallCode}`).toLowerCase();
-    const section = /^\[tokens\]\s*$([\s\S]*?)(?=^\[|(?![\s\S]))/m.exec(text)?.[1] ?? '';
-    for (const line of section.split(/\r?\n/)) {
-      const m = /^\s*(\S+)\s+([a-z0-9_]+)\b/.exec(line);
-      if (m === null) continue;
-      out.push({ script: m[2]!, forgeCode: forgeCode.toUpperCase(), tokenSet, collectorNumber: m[1]! });
+    for (const name of ['tokens', 'other']) {
+      const section = new RegExp(`^\\[${name}\\]\\s*$([\\s\\S]*?)(?=^\\[|(?![\\s\\S]))`, 'm').exec(text)?.[1] ?? '';
+      for (const line of section.split(/\r?\n/)) {
+        const m = /^\s*(\S+)\s+([a-z0-9_]+)\b/.exec(line);
+        if (m === null) continue;
+        const back = m[1]!.endsWith('☇');
+        out.push({ script: m[2]!, forgeCode: forgeCode.toUpperCase(), tokenSet, collectorNumber: back ? m[1]!.slice(0, -1) : m[1]!, back });
+      }
     }
   }
   return out;
@@ -820,15 +828,15 @@ async function run(cacheDir: string, outFile: string, forgeResDir: string | null
         if (set !== null && number !== null && str(card, 'id') !== null) bySetNumber.set(`${set.toLowerCase()}|${number}`, card);
       }
       const exact: [string, string, string][] = []; // script, Forge set, id
-      const anyPrinting = new Map<string, GameplayCard>();
+      const anyPrinting = new Map<string, { card: GameplayCard; back: boolean }>();
       for (const p of printings) {
         const card = bySetNumber.get(`${p.tokenSet}|${p.collectorNumber}`);
         if (card === undefined) continue;
-        exact.push([p.script, p.forgeCode, str(card, 'id')!]);
+        exact.push([p.script, p.forgeCode, `${str(card, 'id')!}${p.back ? BACK_FACE : ''}`]);
         const best = anyPrinting.get(p.script);
-        if (best === undefined || tokenPrintingOrder(card, best) < 0) anyPrinting.set(p.script, card);
+        if (best === undefined || tokenPrintingOrder(card, best.card) < 0) anyPrinting.set(p.script, { card, back: p.back });
       }
-      const fallback = new Map([...anyPrinting].map(([script, card]) => [script, str(card, 'id')!]));
+      const fallback = new Map([...anyPrinting].map(([script, { card, back }]) => [script, `${str(card, 'id')!}${back ? BACK_FACE : ''}`]));
       for (const script of [...fallback.keys()].sort()) put(`t:${script}`, fallback.get(script)!, 'tokens');
       // A per-set row only where it names a different printing from the script's own row.
       for (const [script, forgeCode, id] of exact) if (fallback.get(script) !== id) put(`t:${script}|${forgeCode}`, id, 'tokens');

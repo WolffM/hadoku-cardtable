@@ -333,6 +333,15 @@ describe('a token’s art follows its tokenscript, not its name', () => {
     expect(tokenArtId(KNOWN, 't:w_1_1_spirit_flying|AVR|1|1')).toBe(TABLE.ids['t:w_1_1_spirit_flying|AVR']);
   });
 
+  it('the initiative, the monarch and the Undercity draw their art by the keys a real game sent', () => {
+    // Read off a real game by `designations.jvm.test.ts`. The initiative is the back of CLB's
+    // Undercity token (`20☇ initiative` in Forge's `[other]`); the monarch, Commander Masters'.
+    expect(tokenArtId(KNOWN, 't:initiative|CLB|20☇')).toBe('2c65185b-6cf0-451d-985e-56aa45d9a57d#back');
+    expect(tokenArtId(KNOWN, 't:undercity|CLB|20')).toBe('2c65185b-6cf0-451d-985e-56aa45d9a57d');
+    expect(tokenArtId(KNOWN, 't:monarch|CMM|50')).toBe(TABLE.ids['t:monarch|CMM']);
+    expect(TABLE.ids['t:monarch|CMM']).toBeDefined();
+  });
+
   it('is nothing for a card that is not a token, or a script the table does not know', () => {
     expect(tokenArtId(KNOWN, 'c:Mountain|MRD|1')).toBeUndefined();
     expect(tokenArtId(KNOWN, 't:no_such_tokenscript|2XM|1|1')).toBeUndefined();
