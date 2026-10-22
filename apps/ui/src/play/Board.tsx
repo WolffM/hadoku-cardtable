@@ -4112,6 +4112,7 @@ export function Board({
    * these, and in this order: `numbers` decides the beats (and when a resolving spell may fade, which
    * `placed` reads below), and `departures` is told what each card looked like only after.
    */
+  const departures = useRef<ReturnType<typeof installDepartures> | null>(null);
   const [shown, setShown] = useState<{ view: BoardView; leaving: ReadonlyMap<number, { departure: Departure; at: number }> }>(() => ({
     view,
     leaving: new Map(),
@@ -4120,7 +4121,10 @@ export function Board({
   if (shown.view !== view) {
     const next = new Map(leaving);
     for (const id of next.keys()) if (view.players.some((p) => p.battlefield.some((c) => c.id === id))) next.delete(id);
-    if (!fastMode) for (const departure of departuresOf(shown.view, view)) next.set(departure.cardId, { departure, at: Date.now() });
+    const gone = fastMode ? [] : departuresOf(shown.view, view);
+    for (const departure of gone) next.set(departure.cardId, { departure, at: Date.now() });
+    // Read here, while the DOM is still the last commit's: the one commit that draws a departure reads boxes.
+    if (gone.length > 0) departures.current?.capture();
     leaving = next;
     setShown({ view, leaving: next });
   }
@@ -4162,7 +4166,6 @@ export function Board({
   const shownPile = pileCards.length > 0 ? openPile : null;
   const openPileOf = (playerId: number) => (zone: PileZone) =>
     setOpenPile(shownPile?.playerId === playerId && shownPile.zone === zone ? null : { playerId, zone });
-  const departures = useRef<ReturnType<typeof installDepartures> | null>(null);
   useLayoutEffect(() => {
     const el = root.current;
     if (el === null) return undefined;

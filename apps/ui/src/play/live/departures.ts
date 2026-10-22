@@ -306,8 +306,14 @@ export interface DeparturesHost {
 }
 
 export interface DeparturesHandle {
-  /** Remember how every battlefield card is drawn now — the next commit's departures are copied from it. */
+  /** Remember which element draws each battlefield card now — the next commit's departures are copied from it. Reads no box. */
   snapshot(): void;
+  /**
+   * The commit being rendered draws departures: read where each card `snapshot` kept is drawn, before
+   * React writes that commit, for its layout report. The one box read a departure costs; a commit with
+   * none reads nothing.
+   */
+  capture(): void;
   /** The gap where `departure`'s card was: start its exit `delayMs` from now. */
   leave(departure: Departure, delayMs: number): void;
   dispose(): void;
@@ -365,7 +371,7 @@ function fitTurned(wrap: HTMLElement, copies: readonly HTMLElement[], top: numbe
 export function installDepartures(canvas: HTMLElement, host: DeparturesHost): DeparturesHandle {
   /** Each battlefield card's element as of the last commit, by id. */
   let drawn = new Map<number, HTMLElement>();
-  /** Each battlefield card's box as of the last commit, by id. */
+  /** Each battlefield card's box before the commit that draws departures, by id (`capture`). */
   let boxes = new Map<number, DOMRect>();
   /** This commit's departures, for its layout report: how many, and the most a copy sat off its card. */
   let pending: { count: number; copyDx: number; copyDy: number } | null = null;
@@ -460,10 +466,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       boxes = new Map();
       for (const el of canvas.querySelectorAll<HTMLElement>('[data-zone="battlefield"] [data-board-card]')) {
         const id = Number(el.getAttribute('data-board-card'));
-        if (Number.isFinite(id) && !drawn.has(id)) {
-          drawn.set(id, el);
-          boxes.set(id, el.getBoundingClientRect());
-        }
+        if (Number.isFinite(id) && !drawn.has(id)) drawn.set(id, el);
       }
       if (pending === null) return;
       const batch = pending;
@@ -497,6 +500,10 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
           rowShiftLaterCard: later.card,
         });
       }, 250);
+    },
+    capture() {
+      boxes = new Map();
+      for (const [id, el] of drawn) if (el.isConnected) boxes.set(id, el.getBoundingClientRect());
     },
     leave(departure, delayMs) {
       const done = (): void => host.onDone(departure.cardId);
