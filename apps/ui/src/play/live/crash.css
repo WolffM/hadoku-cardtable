@@ -81,6 +81,18 @@
   overflow: clip;
 }
 
+/*
+ * And the board is its own layer for the length of it, so the shake moves the board's pixels rather than
+ * painting them again: unpromoted, every frame of a shake re-rastered the whole board — the operator,
+ * 2026-10-22, "when cards start moving out to attack, i notice framerate drops"; 38 fps against 52 with
+ * no shake, the raster workers busy ~440 ms a second against ~115 (`e2e/combat-perf.spec.ts`). Only
+ * while shaking: a board that is always a layer is the containing block of a lifted card's
+ * `position: fixed` (`board.css`), which the shake's own translate already makes it while it runs.
+ */
+[data-shaking] > .board {
+  will-change: translate;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .effect-crash {
     display: none;
