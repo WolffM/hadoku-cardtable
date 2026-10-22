@@ -44,8 +44,6 @@ const SHARED: Record<string, string> = {
 
 /** Blocks (rules A, B) and classes (rule C) whose fix is in a sheet another lane holds. Each must still fail, or its entry goes. */
 const PENDING: Record<string, string> = {
-  live: 'screens/DebugHarness.tsx draws `.live` beside LiveBoard; the harness is being deleted',
-  shell: 'live.css and deckEditor.css restyle the screen kit’s shell',
   zone: 'prompts.css adds `.zone__types` to the board’s block',
   card: 'card.css styles CardTile’s `.card` for the board without scoping it',
   confirm: 'prompts.css adds `.confirm__card` to the confirm prompt’s block',

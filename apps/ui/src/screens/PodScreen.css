@@ -42,13 +42,13 @@
   grid-area: close;
 }
 
-.pod__bar.pod__bar--side > .ct-settings-gear {
+.pod__bar.pod__bar--side > .ct-round-button {
   grid-area: gear;
   margin: 0;
 }
 
 /* Anything else in the box (the room's watchers) takes a whole row of its own. */
-.pod__bar--side > :not(.pod__who, .pod__meta, .room-close, .room-close__ask, .ct-settings-gear) {
+.pod__bar--side > :not(.pod__who, .pod__meta, .room-close, .room-close__ask, .ct-round-button) {
   grid-column: 1 / -1;
 }
 
@@ -114,7 +114,7 @@
   color: var(--color-warning);
 }
 
-.pod__bar > .ct-settings-gear {
+.pod__bar > .ct-round-button {
   margin-left: auto;
 }
 

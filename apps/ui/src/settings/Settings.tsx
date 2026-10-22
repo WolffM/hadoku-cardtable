@@ -197,7 +197,7 @@ export function SettingsGear() {
     <>
       <button
         type="button"
-        className="ct-settings-gear"
+        className="ct-round-button"
         aria-label="Settings"
         aria-expanded={trigger !== null}
         data-testid="settings-gear"

@@ -65,37 +65,8 @@
   color: var(--danger-ink);
 }
 
-.ct-decks-button {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--color-border);
-  border-radius: 50%;
-  background: var(--color-bg-card);
-  color: var(--color-text-secondary);
-}
-
-.ct-decks-button:hover,
-.ct-decks-button:focus-visible {
-  color: var(--color-text);
-}
-
-/* Beside the trophy, which sits beside the gear (stats.css). */
-.shell__head:has(> .ct-decks-button) {
-  padding-right: 124px;
-}
-
-.shell__head > .ct-decks-button {
-  position: absolute;
-  top: 0;
-  right: 80px;
-}
-
 /* The editor's head on the Decks page: back, then the deck's name and actions, on one row. */
-.shell__head.decks__head {
+.decks__head.shell__head {
   flex-direction: row;
   align-items: center;
   gap: 12px;

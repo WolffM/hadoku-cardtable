@@ -29,11 +29,3 @@
   align-self: flex-start;
   gap: 0.5rem;
 }
-
-/* In a room's header: top right, beside the settings gear. */
-.shell__head > .room-close,
-.shell__head > .room-close__ask {
-  position: absolute;
-  top: 4px;
-  right: 44px;
-}

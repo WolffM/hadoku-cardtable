@@ -55,35 +55,6 @@
   color: var(--color-text);
 }
 
-/* The trophy beside the gear: the same round button, one place to its left. */
-.ct-stats-button {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--color-border);
-  border-radius: 50%;
-  background: var(--color-bg-card);
-  color: var(--color-text-secondary);
-}
-
-.ct-stats-button:hover,
-.ct-stats-button:focus-visible {
-  color: var(--color-text);
-}
-
-.shell__head:has(> .ct-stats-button) {
-  padding-right: 84px;
-}
-
-.shell__head > .ct-stats-button {
-  position: absolute;
-  top: 0;
-  right: 40px;
-}
-
 /* The popout's two tabs: the players' boards and the past tournaments. */
 .ct-stats-popout__tabs {
   display: flex;

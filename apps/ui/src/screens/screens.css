@@ -63,6 +63,34 @@
   gap: 4px;
 }
 
+/* The settings gear at the head's right end, in the flow of the page rather
+   than fixed, so it never sits over a screen's controls or the room's chat. */
+.shell__head:has(> .ct-round-button) {
+  position: relative;
+  padding-right: 44px;
+}
+
+.shell__head > .ct-round-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+/* In a room's head: Close, beside the gear. */
+.shell__head > .room-close,
+.shell__head > .room-close__ask {
+  position: absolute;
+  top: 4px;
+  right: 44px;
+}
+
+/* The front page's round buttons, in a row at the right. */
+.shell__tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .shell__title {
   font-size: 28px;
   letter-spacing: -0.01em;
@@ -88,6 +116,34 @@
 .shell__link:hover,
 .shell__link:focus-visible {
   text-decoration: underline;
+}
+
+/* The match (`MatchScreen`): one viewport tall, the table edge to edge. The
+   bar's bottom margin and the page's side inset on this route are
+   `chrome/chrome.css`'s "One page boundary" rules, shared with every route
+   that draws the room's chat. */
+.shell--match {
+  height: 100%;
+  min-height: 0;
+  max-width: none;
+  /* The full width, said outright. `.shell`'s `margin: 0 auto` makes a flex
+     item shrink to its content instead of stretching, so wherever the shell is
+     the content box's own flex child — no watchparty frame between them, as in
+     the watchparty embed (D21) — the table came out a 234px column. */
+  width: 100%;
+  gap: 2px;
+  /* No side padding: the page's edge is the header's (see the rule above), and
+     the table starts exactly there. It was 8px, which put the table 24px
+     outside the bar that sits over it. */
+  padding: 4px 0 2px;
+  /* `clip`, not `hidden`: a hidden box can still be scrolled — focusing a
+     button in a prompt would slide the whole table up with no way back. */
+  overflow: clip;
+}
+
+/* The match sizes the table: `.live` takes the window only mounted bare. */
+.shell--match .live {
+  height: auto;
 }
 
 /* ── a screen that fits the window: the front page and a room ─────── */

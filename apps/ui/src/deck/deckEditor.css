@@ -559,7 +559,7 @@
 
 /* ── `#/deck/<podId>`: the editor takes the whole fitted screen ── */
 
-.shell.deck-screen {
+.deck-screen.shell {
   max-width: none;
   padding: 10px 16px 12px;
   gap: 8px;

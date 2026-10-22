@@ -179,7 +179,7 @@ export function StatsButton({ source }: { source?: StatsSource }) {
   useEffect(() => prefetchStats(source), [source]);
   return (
     <a
-      className="ct-stats-button"
+      className="ct-round-button"
       href={routeHash({ kind: 'stats' })}
       aria-label="Stats"
       data-testid="lobby-stats"

@@ -55,7 +55,7 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
           one in the page said it twice — operator, 2026-09-27. The other
           screens' `shell__head` earns its place by naming the ROOM or the
           deck; the lobby has nothing to add that the header has not said. */}
-      <nav className="shell__head">
+      <nav className="shell__tools">
         <DecksButton />
         <StatsButton source={statsSource} />
         <SettingsGear />

@@ -40,8 +40,7 @@
   font-weight: 600;
 }
 
-.ct-settings__close,
-.ct-settings-gear {
+.ct-settings__close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -135,36 +134,4 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/*
- * Outside a match: a round gear at the right end of each screen's own head
- * row (`.shell__head`, the pod's `.pod__bar`), in the flow rather than fixed,
- * so it never sits over a screen's controls or the room's chat.
- */
-.ct-settings-gear {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border-color: var(--color-border);
-  border-radius: 50%;
-  background: var(--color-bg-card);
-  color: var(--color-text-secondary);
-}
-
-.ct-settings-gear:hover,
-.ct-settings-gear[aria-expanded='true'],
-.ct-settings-gear:focus-visible {
-  color: var(--color-text);
-}
-
-.shell__head:has(> .ct-settings-gear) {
-  position: relative;
-  padding-right: 44px;
-}
-
-.shell__head > .ct-settings-gear {
-  position: absolute;
-  top: 0;
-  right: 0;
 }

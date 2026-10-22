@@ -24,6 +24,27 @@
   box-shadow: var(--hdk-shadow-lg);
 }
 
+/* A round icon button in a head: the decks, the stats, the settings gear. */
+.ct-round-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+}
+
+.ct-round-button:hover,
+.ct-round-button[aria-expanded='true'],
+.ct-round-button:focus-visible {
+  color: var(--color-text);
+}
+
 /* Explicit colour-scheme per variant. "dark only" also tells Dark Reader to
    keep its hands off a theme that is already dark. */
 .cardtable-chrome[data-dark-theme='false'] {
