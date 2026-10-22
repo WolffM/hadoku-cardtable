@@ -175,6 +175,44 @@ describe('server → client', () => {
     expect(text).toContain('$.view.viewer.pack[0].image_uris');
   });
 
+  /**
+   * The live incident (2026-10-22): a realistic booster's foil card
+   * (`PaperCard.isFoil()`, carried onto the wire by `DraftCardSchema.foil`)
+   * made EVERY state message holding it fail `safeParseServerMessage` —
+   * `semantics.ts`'s `checkCard` runs over the RAW payload, by design,
+   * because Zod strips an unknown key before a hand-rolled check ever sees
+   * it (this file's own header), so `draft.ts` growing a field means
+   * nothing until `semantics.ts`'s `CARD_FIELDS` allowlist grows with it.
+   * `apps/ui/src/draft/socket.ts`'s `ingest()` drops a schema-invalid
+   * message silently (counted in `stats.invalid`, nothing on screen), which
+   * is why this looked exactly like the production incident
+   * `docs/planning/wave74-2026-10-21.md` logged as an unconfirmed stall: a
+   * draft room whose dealt packs happen to include a foil freezes every
+   * seat the instant that foil's own pack/pool state is sent, with no
+   * error anywhere — reproduced live via `draft-sets.spec.ts`'s "a custom
+   * plan..." test, which deals enough ALA/ARB realistic packs (~21% foil
+   * chance each) that one shows up in nearly every run.
+   */
+  it('a card’s own foil (D22) is a known field, not a leak — unlike a face carrying one', () => {
+    const foiled = view();
+    const pack = (foiled.viewer as { pack: DraftCard[] }).pack;
+    pack[0] = { ...pack[0]!, foil: true };
+    const result = safeParseServerMessage(updateMessage(foiled));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(((result.value as { view: DraftView }).view.viewer as { pack: DraftCard[] }).pack[0]!.foil).toBe(true);
+
+    // A FACE carrying foil is still a real finding — only the physical card is foil or not.
+    const facedFoil = view();
+    const facedPack = (facedFoil.viewer as { pack: DraftCard[] }).pack;
+    const back = { ...card('x2', 'Some Back'), foil: true } as Record<string, unknown>;
+    delete back.cardId;
+    facedPack[0] = { ...facedPack[0]!, faces: [back as never] };
+    const rejected = safeParseServerMessage(updateMessage(facedFoil));
+    expect(rejected.ok).toBe(false);
+    if (rejected.ok) return;
+    expect(rejected.errors.map((e) => e.path)).toContain('$.view.viewer.pack[0].faces[0].foil');
+  });
+
   it('carries a card’s other faces, and holds each face to a card’s own field rules', () => {
     const faced = view();
     const pack = (faced.viewer as { pack: DraftCard[] }).pack;
