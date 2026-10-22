@@ -78,13 +78,17 @@
  * (wave 74 §E: a realistic booster's pack should draw the SET'S OWN art, not
  * whatever printing this catalog happened to pick as its one text entry).
  * `cards`/`aliases` are unchanged by this — same keys, same values.
+ *
+ * A ref carries its printing's own `rarity` too: rarity is the printing's,
+ * not the card's (Blazing Torch is ZEN's uncommon and ISD's common), and a
+ * realistic pack's slots are counted by it.
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
-import { toDraftCard } from './draft-card.ts';
+import { rarityOf, toDraftCard } from './draft-card.ts';
 import { buildCardIndex, normaliseName, type CardIndex } from './resolve.ts';
 import type { GameplayCard } from './scryfall/project.ts';
 
@@ -110,6 +114,8 @@ export interface PrintingRef {
   key: string;
   /** This SPECIFIC printing's own id — not the chosen printing's. Absent only if Scryfall ever omits one. */
   scryfallId?: string;
+  /** This printing's own rarity, `rarityOf`'s reading of it. */
+  rarity: string;
 }
 
 export interface CatalogFile {
@@ -146,7 +152,8 @@ export function buildCatalog(index: CardIndex): CatalogFile {
         if (set === null || collector === null) continue;
         const printingKey = `${set.toUpperCase()}:${collector}`;
         if (printingKey in printings) continue; // first one wins; two cards sharing a set+collector number should not happen
-        printings[printingKey] = typeof raw.id === 'string' ? { key, scryfallId: raw.id } : { key };
+        const rarity = rarityOf(raw.rarity);
+        printings[printingKey] = typeof raw.id === 'string' ? { key, scryfallId: raw.id, rarity } : { key, rarity };
       }
     } else if (!(key in aliases)) {
       aliases[key] = canonicalKey;

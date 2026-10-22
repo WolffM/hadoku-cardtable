@@ -12659,2639 +12659,3298 @@
   "printings": {
     "ALA:1": {
       "key": "akrasan squire",
-      "scryfallId": "59fdc045-b938-4321-aec3-51685cbbaa52"
+      "scryfallId": "59fdc045-b938-4321-aec3-51685cbbaa52",
+      "rarity": "common"
     },
     "ALA:10": {
       "key": "ethersworn canonist",
-      "scryfallId": "2aebe7a8-b982-4be4-83ca-3594e8f606b4"
+      "scryfallId": "2aebe7a8-b982-4be4-83ca-3594e8f606b4",
+      "rarity": "rare"
     },
     "ALA:100": {
       "key": "flameblast dragon",
-      "scryfallId": "5544b26b-0bc4-4c1b-9616-613e9bf08557"
+      "scryfallId": "5544b26b-0bc4-4c1b-9616-613e9bf08557",
+      "rarity": "rare"
     },
     "ALA:101": {
       "key": "goblin assault",
-      "scryfallId": "d039402e-2c74-4bea-b360-b93979b52698"
+      "scryfallId": "d039402e-2c74-4bea-b360-b93979b52698",
+      "rarity": "rare"
     },
     "ALA:102": {
       "key": "goblin mountaineer",
-      "scryfallId": "1afa1475-797d-4cdc-93d6-e186c25e0bf5"
+      "scryfallId": "1afa1475-797d-4cdc-93d6-e186c25e0bf5",
+      "rarity": "common"
     },
     "ALA:103": {
       "key": "hell's thunder",
-      "scryfallId": "848f6c49-0913-4f12-886d-8b6defe8bfab"
+      "scryfallId": "848f6c49-0913-4f12-886d-8b6defe8bfab",
+      "rarity": "rare"
     },
     "ALA:104": {
       "key": "hissing iguanar",
-      "scryfallId": "4b8b8b90-cb6e-4910-bc40-d96b78b0d70c"
+      "scryfallId": "4b8b8b90-cb6e-4910-bc40-d96b78b0d70c",
+      "rarity": "common"
     },
     "ALA:105": {
       "key": "incurable ogre",
-      "scryfallId": "5ad3381e-ae2f-40cf-8a7b-62375e9f453e"
+      "scryfallId": "5ad3381e-ae2f-40cf-8a7b-62375e9f453e",
+      "rarity": "common"
     },
     "ALA:106": {
       "key": "jund battlemage",
-      "scryfallId": "ee8c962f-11b0-48f7-bbba-a2212e41990f"
+      "scryfallId": "ee8c962f-11b0-48f7-bbba-a2212e41990f",
+      "rarity": "uncommon"
     },
     "ALA:107": {
       "key": "lightning talons",
-      "scryfallId": "8fc1ad4c-b394-48b9-9a5a-ec9f42bf6a00"
+      "scryfallId": "8fc1ad4c-b394-48b9-9a5a-ec9f42bf6a00",
+      "rarity": "common"
     },
     "ALA:108": {
       "key": "magma spray",
-      "scryfallId": "708ec768-f455-48e4-b834-e0a2b3768c45"
+      "scryfallId": "708ec768-f455-48e4-b834-e0a2b3768c45",
+      "rarity": "common"
     },
     "ALA:109": {
       "key": "predator dragon",
-      "scryfallId": "352c3c86-1662-4055-b814-026826632cff"
+      "scryfallId": "352c3c86-1662-4055-b814-026826632cff",
+      "rarity": "rare"
     },
     "ALA:11": {
       "key": "excommunicate",
-      "scryfallId": "6fe080bc-e642-4fce-b4ee-bbe25d735673"
+      "scryfallId": "6fe080bc-e642-4fce-b4ee-bbe25d735673",
+      "rarity": "common"
     },
     "ALA:110": {
       "key": "resounding thunder",
-      "scryfallId": "680b7955-d939-4195-aba8-b46a8c925616"
+      "scryfallId": "680b7955-d939-4195-aba8-b46a8c925616",
+      "rarity": "common"
     },
     "ALA:111": {
       "key": "ridge rannet",
-      "scryfallId": "4275a8dd-f777-4160-b773-9a868e743218"
+      "scryfallId": "4275a8dd-f777-4160-b773-9a868e743218",
+      "rarity": "common"
     },
     "ALA:112": {
       "key": "rockslide elemental",
-      "scryfallId": "d4f26025-8777-41a2-a871-ea8d1af164ae"
+      "scryfallId": "d4f26025-8777-41a2-a871-ea8d1af164ae",
+      "rarity": "uncommon"
     },
     "ALA:113": {
       "key": "scourge devil",
-      "scryfallId": "976e2ba9-8d23-4aca-8b50-4beb598d4a60"
+      "scryfallId": "976e2ba9-8d23-4aca-8b50-4beb598d4a60",
+      "rarity": "uncommon"
     },
     "ALA:114": {
       "key": "skeletonize",
-      "scryfallId": "96c7f048-3e2b-4e97-a900-36da9b6ee2a8"
+      "scryfallId": "96c7f048-3e2b-4e97-a900-36da9b6ee2a8",
+      "rarity": "uncommon"
     },
     "ALA:115": {
       "key": "soul's fire",
-      "scryfallId": "e59a0305-65f8-45c4-859e-6c73544dfa3e"
+      "scryfallId": "e59a0305-65f8-45c4-859e-6c73544dfa3e",
+      "rarity": "common"
     },
     "ALA:116": {
       "key": "thorn-thrash viashino",
-      "scryfallId": "e7987de9-d812-4615-845a-3a90572d9b44"
+      "scryfallId": "e7987de9-d812-4615-845a-3a90572d9b44",
+      "rarity": "common"
     },
     "ALA:117": {
       "key": "thunder-thrash elder",
-      "scryfallId": "5552da28-01a3-4277-9e69-b297c3874ea4"
+      "scryfallId": "5552da28-01a3-4277-9e69-b297c3874ea4",
+      "rarity": "uncommon"
     },
     "ALA:118": {
       "key": "viashino skeleton",
-      "scryfallId": "b9451a62-31a4-4aaf-beef-2bf149f25ae3"
+      "scryfallId": "b9451a62-31a4-4aaf-beef-2bf149f25ae3",
+      "rarity": "common"
     },
     "ALA:119": {
       "key": "vicious shadows",
-      "scryfallId": "d040791e-eee4-4eef-ace1-507216a5d268"
+      "scryfallId": "d040791e-eee4-4eef-ace1-507216a5d268",
+      "rarity": "rare"
     },
     "ALA:12": {
       "key": "guardians of akrasa",
-      "scryfallId": "4f718030-cc41-4e0d-a1ca-a33f577dc1fb"
+      "scryfallId": "4f718030-cc41-4e0d-a1ca-a33f577dc1fb",
+      "rarity": "common"
     },
     "ALA:120": {
       "key": "vithian stinger",
-      "scryfallId": "bf290e2f-2c78-4cf5-8925-0c598ec0d60e"
+      "scryfallId": "bf290e2f-2c78-4cf5-8925-0c598ec0d60e",
+      "rarity": "common"
     },
     "ALA:121": {
       "key": "volcanic submersion",
-      "scryfallId": "0ec1f1fa-41c9-4bc0-9171-902cd456aa73"
+      "scryfallId": "0ec1f1fa-41c9-4bc0-9171-902cd456aa73",
+      "rarity": "common"
     },
     "ALA:122": {
       "key": "where ancients tread",
-      "scryfallId": "797e3faa-9573-4639-be99-517708c06218"
+      "scryfallId": "797e3faa-9573-4639-be99-517708c06218",
+      "rarity": "rare"
     },
     "ALA:123": {
       "key": "algae gharial",
-      "scryfallId": "946e08b5-1c99-467c-abba-07ddede07a6c"
+      "scryfallId": "946e08b5-1c99-467c-abba-07ddede07a6c",
+      "rarity": "uncommon"
     },
     "ALA:124": {
       "key": "behemoth's herald",
-      "scryfallId": "b51e84d7-bf9f-454f-bdcd-a2458b1b5b33"
+      "scryfallId": "b51e84d7-bf9f-454f-bdcd-a2458b1b5b33",
+      "rarity": "uncommon"
     },
     "ALA:125": {
       "key": "cavern thoctar",
-      "scryfallId": "34748acb-7045-42b6-a93f-a3f11a1bc839"
+      "scryfallId": "34748acb-7045-42b6-a93f-a3f11a1bc839",
+      "rarity": "common"
     },
     "ALA:126": {
       "key": "court archers",
-      "scryfallId": "a3776b1c-4a3f-43b9-962e-64010f286ba5"
+      "scryfallId": "a3776b1c-4a3f-43b9-962e-64010f286ba5",
+      "rarity": "common"
     },
     "ALA:127": {
       "key": "cylian elf",
-      "scryfallId": "b3afaab6-4768-4852-a0b6-4e6a0295bde7"
+      "scryfallId": "b3afaab6-4768-4852-a0b6-4e6a0295bde7",
+      "rarity": "common"
     },
     "ALA:128": {
       "key": "druid of the anima",
-      "scryfallId": "de32bf78-73c2-4cd4-b3b3-ef8be53e1e5e"
+      "scryfallId": "de32bf78-73c2-4cd4-b3b3-ef8be53e1e5e",
+      "rarity": "common"
     },
     "ALA:129": {
       "key": "drumhunter",
-      "scryfallId": "9d83b664-a17e-4a48-8b9a-bd3af2d9cd87"
+      "scryfallId": "9d83b664-a17e-4a48-8b9a-bd3af2d9cd87",
+      "rarity": "uncommon"
     },
     "ALA:13": {
       "key": "gustrider exuberant",
-      "scryfallId": "5343e6f2-7db7-4731-8e1b-70bf74316a79"
+      "scryfallId": "5343e6f2-7db7-4731-8e1b-70bf74316a79",
+      "rarity": "common"
     },
     "ALA:130": {
       "key": "elvish visionary",
-      "scryfallId": "faccfa5f-4d89-4a86-92d7-36cb5a16c5c9"
+      "scryfallId": "faccfa5f-4d89-4a86-92d7-36cb5a16c5c9",
+      "rarity": "common"
     },
     "ALA:131": {
       "key": "feral hydra",
-      "scryfallId": "46f76986-e9fb-4c51-b946-880b501775b0"
+      "scryfallId": "46f76986-e9fb-4c51-b946-880b501775b0",
+      "rarity": "rare"
     },
     "ALA:132": {
       "key": "gift of the gargantuan",
-      "scryfallId": "1850be87-54de-49b3-a407-6fb2b278b25c"
+      "scryfallId": "1850be87-54de-49b3-a407-6fb2b278b25c",
+      "rarity": "common"
     },
     "ALA:133": {
       "key": "godtoucher",
-      "scryfallId": "032059cb-c1ad-4cc9-a89d-d68289800312"
+      "scryfallId": "032059cb-c1ad-4cc9-a89d-d68289800312",
+      "rarity": "common"
     },
     "ALA:134": {
       "key": "jungle weaver",
-      "scryfallId": "5f46870b-3d8d-4aae-8d59-6bd88a50b37c"
+      "scryfallId": "5f46870b-3d8d-4aae-8d59-6bd88a50b37c",
+      "rarity": "common"
     },
     "ALA:135": {
       "key": "keeper of progenitus",
-      "scryfallId": "bcb023a2-e929-47e9-bd58-cbc6f241e7a4"
+      "scryfallId": "bcb023a2-e929-47e9-bd58-cbc6f241e7a4",
+      "rarity": "rare"
     },
     "ALA:136": {
       "key": "lush growth",
-      "scryfallId": "d62047f2-a41f-44b5-a6bc-28e35fad093b"
+      "scryfallId": "d62047f2-a41f-44b5-a6bc-28e35fad093b",
+      "rarity": "common"
     },
     "ALA:137": {
       "key": "mighty emergence",
-      "scryfallId": "8ee66318-4dbb-49a3-a3c8-ee0e1a9f02b7"
+      "scryfallId": "8ee66318-4dbb-49a3-a3c8-ee0e1a9f02b7",
+      "rarity": "uncommon"
     },
     "ALA:138": {
       "key": "manaplasm",
-      "scryfallId": "c48d2cc1-9868-4509-a541-728faf355b6d"
+      "scryfallId": "c48d2cc1-9868-4509-a541-728faf355b6d",
+      "rarity": "rare"
     },
     "ALA:139": {
       "key": "mosstodon",
-      "scryfallId": "05afd921-ef3b-40fe-a1a8-582ee94ed3f0"
+      "scryfallId": "05afd921-ef3b-40fe-a1a8-582ee94ed3f0",
+      "rarity": "common"
     },
     "ALA:14": {
       "key": "invincible hymn",
-      "scryfallId": "712c64bc-ba0c-4bab-9329-54805f4efa8a"
+      "scryfallId": "712c64bc-ba0c-4bab-9329-54805f4efa8a",
+      "rarity": "rare"
     },
     "ALA:140": {
       "key": "mycoloth",
-      "scryfallId": "15360a16-b785-4ffe-bfa8-6c7f6a37455d"
+      "scryfallId": "15360a16-b785-4ffe-bfa8-6c7f6a37455d",
+      "rarity": "rare"
     },
     "ALA:141": {
       "key": "naturalize",
-      "scryfallId": "7531879b-d5fd-4b60-b838-733883571473"
+      "scryfallId": "7531879b-d5fd-4b60-b838-733883571473",
+      "rarity": "common"
     },
     "ALA:142": {
       "key": "naya battlemage",
-      "scryfallId": "4fe73f62-2e80-4d5f-b7b5-c54c895a3e4d"
+      "scryfallId": "4fe73f62-2e80-4d5f-b7b5-c54c895a3e4d",
+      "rarity": "uncommon"
     },
     "ALA:143": {
       "key": "ooze garden",
-      "scryfallId": "623e57ed-7ed7-4283-b48f-77ecacad70b0"
+      "scryfallId": "623e57ed-7ed7-4283-b48f-77ecacad70b0",
+      "rarity": "rare"
     },
     "ALA:144": {
       "key": "resounding roar",
-      "scryfallId": "217bf237-a758-4500-b221-5e88fed9d0fc"
+      "scryfallId": "217bf237-a758-4500-b221-5e88fed9d0fc",
+      "rarity": "common"
     },
     "ALA:145": {
       "key": "rhox charger",
-      "scryfallId": "8aaae6a3-ae3c-4b7e-82e8-69147f61ee18"
+      "scryfallId": "8aaae6a3-ae3c-4b7e-82e8-69147f61ee18",
+      "rarity": "uncommon"
     },
     "ALA:146": {
       "key": "sacellum godspeaker",
-      "scryfallId": "cad80819-22d4-43a8-97b2-7cf20f61bca5"
+      "scryfallId": "cad80819-22d4-43a8-97b2-7cf20f61bca5",
+      "rarity": "rare"
     },
     "ALA:147": {
       "key": "savage hunger",
-      "scryfallId": "0367fac8-6990-4544-ac7d-ed363b55a9cf"
+      "scryfallId": "0367fac8-6990-4544-ac7d-ed363b55a9cf",
+      "rarity": "common"
     },
     "ALA:148": {
       "key": "skullmulcher",
-      "scryfallId": "b5178576-573d-4da8-97ae-a684e1e95fa4"
+      "scryfallId": "b5178576-573d-4da8-97ae-a684e1e95fa4",
+      "rarity": "rare"
     },
     "ALA:149": {
       "key": "soul's might",
-      "scryfallId": "77ef536d-d55b-447a-b6ab-04123f1cfaa3"
+      "scryfallId": "77ef536d-d55b-447a-b6ab-04123f1cfaa3",
+      "rarity": "common"
     },
     "ALA:15": {
       "key": "knight of the skyward eye",
-      "scryfallId": "1d56e2bf-1937-42c1-8f61-1fd93e84cef7"
+      "scryfallId": "1d56e2bf-1937-42c1-8f61-1fd93e84cef7",
+      "rarity": "common"
     },
     "ALA:150": {
       "key": "spearbreaker behemoth",
-      "scryfallId": "132367ee-22e9-48e2-82e0-62ad9aaa62f3"
+      "scryfallId": "132367ee-22e9-48e2-82e0-62ad9aaa62f3",
+      "rarity": "rare"
     },
     "ALA:151": {
       "key": "topan ascetic",
-      "scryfallId": "6d0952ed-efc7-4ff5-a233-e64c0f11119b"
+      "scryfallId": "6d0952ed-efc7-4ff5-a233-e64c0f11119b",
+      "rarity": "uncommon"
     },
     "ALA:152": {
       "key": "wild nacatl",
-      "scryfallId": "5eb18038-eb6a-4d27-ba52-52a1cee6b512"
+      "scryfallId": "5eb18038-eb6a-4d27-ba52-52a1cee6b512",
+      "rarity": "common"
     },
     "ALA:153": {
       "key": "agony warp",
-      "scryfallId": "e246294f-7614-48e9-a655-647faf0bf697"
+      "scryfallId": "e246294f-7614-48e9-a655-647faf0bf697",
+      "rarity": "common"
     },
     "ALA:154": {
       "key": "ajani vengeant",
-      "scryfallId": "8fc108a3-15e5-44ab-a6e2-182b309f9c0c"
+      "scryfallId": "8fc108a3-15e5-44ab-a6e2-182b309f9c0c",
+      "rarity": "mythic"
     },
     "ALA:155": {
       "key": "bant charm",
-      "scryfallId": "65b65c87-b084-44aa-b841-411a3c73e234"
+      "scryfallId": "65b65c87-b084-44aa-b841-411a3c73e234",
+      "rarity": "uncommon"
     },
     "ALA:156": {
       "key": "blightning",
-      "scryfallId": "3c05e8a2-b7d0-4f24-b2ae-8e4db30e5842"
+      "scryfallId": "3c05e8a2-b7d0-4f24-b2ae-8e4db30e5842",
+      "rarity": "common"
     },
     "ALA:157": {
       "key": "blood cultist",
-      "scryfallId": "fb468da0-b72b-4b46-994a-20677206ffb7"
+      "scryfallId": "fb468da0-b72b-4b46-994a-20677206ffb7",
+      "rarity": "uncommon"
     },
     "ALA:158": {
       "key": "branching bolt",
-      "scryfallId": "e7468876-f401-4a75-81c0-bed09cdda3e1"
+      "scryfallId": "e7468876-f401-4a75-81c0-bed09cdda3e1",
+      "rarity": "common"
     },
     "ALA:159": {
       "key": "brilliant ultimatum",
-      "scryfallId": "593409fd-26ef-463e-9101-ec5ad53dfd67"
+      "scryfallId": "593409fd-26ef-463e-9101-ec5ad53dfd67",
+      "rarity": "rare"
     },
     "ALA:16": {
       "key": "knight of the white orchid",
-      "scryfallId": "642c6354-4dab-45c9-a1a6-57bd16f16e30"
+      "scryfallId": "642c6354-4dab-45c9-a1a6-57bd16f16e30",
+      "rarity": "rare"
     },
     "ALA:160": {
       "key": "broodmate dragon",
-      "scryfallId": "aea1360e-7c6b-400c-893a-82d93e53101e"
+      "scryfallId": "aea1360e-7c6b-400c-893a-82d93e53101e",
+      "rarity": "rare"
     },
     "ALA:161": {
       "key": "bull cerodon",
-      "scryfallId": "bbae0fe2-5d52-434c-8ad1-4a5e42f4b7c4"
+      "scryfallId": "bbae0fe2-5d52-434c-8ad1-4a5e42f4b7c4",
+      "rarity": "uncommon"
     },
     "ALA:162": {
       "key": "carrion thrash",
-      "scryfallId": "f14c7b9e-eb80-4842-8aa3-1d0c46d9677e"
+      "scryfallId": "f14c7b9e-eb80-4842-8aa3-1d0c46d9677e",
+      "rarity": "common"
     },
     "ALA:163": {
       "key": "clarion ultimatum",
-      "scryfallId": "39e8bf21-0baf-4ee9-b224-b9eee50df280"
+      "scryfallId": "39e8bf21-0baf-4ee9-b224-b9eee50df280",
+      "rarity": "rare"
     },
     "ALA:164": {
       "key": "cruel ultimatum",
-      "scryfallId": "0d267804-23de-4521-ae64-4dd5cd836c6c"
+      "scryfallId": "0d267804-23de-4521-ae64-4dd5cd836c6c",
+      "rarity": "rare"
     },
     "ALA:165": {
       "key": "deft duelist",
-      "scryfallId": "c4885a83-9410-4c88-b45e-1e1626fe90ea"
+      "scryfallId": "c4885a83-9410-4c88-b45e-1e1626fe90ea",
+      "rarity": "common"
     },
     "ALA:166": {
       "key": "empyrial archangel",
-      "scryfallId": "43b789ea-df50-49a5-bd64-3b74b4042f83"
+      "scryfallId": "43b789ea-df50-49a5-bd64-3b74b4042f83",
+      "rarity": "mythic"
     },
     "ALA:167": {
       "key": "esper charm",
-      "scryfallId": "a3d70a07-8d91-462c-aa96-901cc9a81531"
+      "scryfallId": "a3d70a07-8d91-462c-aa96-901cc9a81531",
+      "rarity": "uncommon"
     },
     "ALA:168": {
       "key": "fire-field ogre",
-      "scryfallId": "70db6085-9707-4902-966d-b13bb6a0f62f"
+      "scryfallId": "70db6085-9707-4902-966d-b13bb6a0f62f",
+      "rarity": "uncommon"
     },
     "ALA:169": {
       "key": "goblin deathraiders",
-      "scryfallId": "76fd1253-1af1-42a7-9875-4d6ac9ce722c"
+      "scryfallId": "76fd1253-1af1-42a7-9875-4d6ac9ce722c",
+      "rarity": "common"
     },
     "ALA:17": {
       "key": "knight-captain of eos",
-      "scryfallId": "02ef25ce-4d6a-45ff-8b6b-fd5c29307099"
+      "scryfallId": "02ef25ce-4d6a-45ff-8b6b-fd5c29307099",
+      "rarity": "rare"
     },
     "ALA:170": {
       "key": "godsire",
-      "scryfallId": "e2539ff7-2b7d-47e3-bd77-3138a6c42d2b"
+      "scryfallId": "e2539ff7-2b7d-47e3-bd77-3138a6c42d2b",
+      "rarity": "mythic"
     },
     "ALA:171": {
       "key": "grixis charm",
-      "scryfallId": "a98a6695-44ce-445f-b476-e18a0b5dd8f2"
+      "scryfallId": "a98a6695-44ce-445f-b476-e18a0b5dd8f2",
+      "rarity": "uncommon"
     },
     "ALA:172": {
       "key": "hellkite overlord",
-      "scryfallId": "89185829-5c93-4fd9-8c56-11820be6a970"
+      "scryfallId": "89185829-5c93-4fd9-8c56-11820be6a970",
+      "rarity": "mythic"
     },
     "ALA:173": {
       "key": "hindering light",
-      "scryfallId": "98e43870-4bed-4d76-a633-a6326c736d22"
+      "scryfallId": "98e43870-4bed-4d76-a633-a6326c736d22",
+      "rarity": "common"
     },
     "ALA:174": {
       "key": "jhessian infiltrator",
-      "scryfallId": "1761d867-2eb0-406b-b175-97a90c457844"
+      "scryfallId": "1761d867-2eb0-406b-b175-97a90c457844",
+      "rarity": "uncommon"
     },
     "ALA:175": {
       "key": "jund charm",
-      "scryfallId": "7a0ddf00-926c-4283-a8b2-daa02fa99b8b"
+      "scryfallId": "7a0ddf00-926c-4283-a8b2-daa02fa99b8b",
+      "rarity": "uncommon"
     },
     "ALA:176": {
       "key": "kederekt creeper",
-      "scryfallId": "701498e5-1d4d-42f4-9dd0-5d4cf78f0e68"
+      "scryfallId": "701498e5-1d4d-42f4-9dd0-5d4cf78f0e68",
+      "rarity": "common"
     },
     "ALA:177": {
       "key": "kiss of the amesha",
-      "scryfallId": "993b094f-1d43-4240-9333-398464fc1ac6"
+      "scryfallId": "993b094f-1d43-4240-9333-398464fc1ac6",
+      "rarity": "uncommon"
     },
     "ALA:178": {
       "key": "kresh the bloodbraided",
-      "scryfallId": "d485fe46-ed24-4b55-8ddc-ac2fdf4eec93"
+      "scryfallId": "d485fe46-ed24-4b55-8ddc-ac2fdf4eec93",
+      "rarity": "mythic"
     },
     "ALA:179": {
       "key": "mayael the anima",
-      "scryfallId": "316b1fd1-5ec4-4bdc-938b-cbace1bb3f42"
+      "scryfallId": "316b1fd1-5ec4-4bdc-938b-cbace1bb3f42",
+      "rarity": "mythic"
     },
     "ALA:18": {
       "key": "marble chalice",
-      "scryfallId": "b76e9580-9154-476b-923f-b23bf55db026"
+      "scryfallId": "b76e9580-9154-476b-923f-b23bf55db026",
+      "rarity": "common"
     },
     "ALA:180": {
       "key": "naya charm",
-      "scryfallId": "47748c3a-c60a-4f2e-9eb8-2675c067bb9c"
+      "scryfallId": "47748c3a-c60a-4f2e-9eb8-2675c067bb9c",
+      "rarity": "uncommon"
     },
     "ALA:181": {
       "key": "necrogenesis",
-      "scryfallId": "1dc3ea5f-1261-4f27-a87a-2b4475ad6a4b"
+      "scryfallId": "1dc3ea5f-1261-4f27-a87a-2b4475ad6a4b",
+      "rarity": "uncommon"
     },
     "ALA:182": {
       "key": "prince of thralls",
-      "scryfallId": "56d6e8a2-d1b0-4aae-95f5-6ecc5718d454"
+      "scryfallId": "56d6e8a2-d1b0-4aae-95f5-6ecc5718d454",
+      "rarity": "mythic"
     },
     "ALA:183": {
       "key": "punish ignorance",
-      "scryfallId": "9bc37d01-ffe5-4dfe-b59e-204df82d1d36"
+      "scryfallId": "9bc37d01-ffe5-4dfe-b59e-204df82d1d36",
+      "rarity": "rare"
     },
     "ALA:184": {
       "key": "qasali ambusher",
-      "scryfallId": "be4e1284-eea2-4fc4-99e4-ed53176939ba"
+      "scryfallId": "be4e1284-eea2-4fc4-99e4-ed53176939ba",
+      "rarity": "uncommon"
     },
     "ALA:185": {
       "key": "rafiq of the many",
-      "scryfallId": "249c188d-c11d-46f7-a2d8-a67df4ba401b"
+      "scryfallId": "249c188d-c11d-46f7-a2d8-a67df4ba401b",
+      "rarity": "mythic"
     },
     "ALA:186": {
       "key": "rakeclaw gargantuan",
-      "scryfallId": "d1995ab8-7382-4c2a-b8c7-8b9272cab4fb"
+      "scryfallId": "d1995ab8-7382-4c2a-b8c7-8b9272cab4fb",
+      "rarity": "common"
     },
     "ALA:187": {
       "key": "realm razer",
-      "scryfallId": "da3ecfc6-1f9e-443e-a445-51df518025a5"
+      "scryfallId": "da3ecfc6-1f9e-443e-a445-51df518025a5",
+      "rarity": "rare"
     },
     "ALA:188": {
       "key": "rhox war monk",
-      "scryfallId": "19fb67e1-b791-4246-aebc-49fcf0f92c6c"
+      "scryfallId": "19fb67e1-b791-4246-aebc-49fcf0f92c6c",
+      "rarity": "uncommon"
     },
     "ALA:189": {
       "key": "rip-clan crasher",
-      "scryfallId": "8d61c4a0-054b-479e-82d9-dc60c5c708e2"
+      "scryfallId": "8d61c4a0-054b-479e-82d9-dc60c5c708e2",
+      "rarity": "common"
     },
     "ALA:19": {
       "key": "metallurgeon",
-      "scryfallId": "4ad9f9d5-62c1-4dae-a2c8-5552210a70a4"
+      "scryfallId": "4ad9f9d5-62c1-4dae-a2c8-5552210a70a4",
+      "rarity": "uncommon"
     },
     "ALA:190": {
       "key": "sangrite surge",
-      "scryfallId": "16b4527e-e449-45d0-a551-634e2ceb21c4"
+      "scryfallId": "16b4527e-e449-45d0-a551-634e2ceb21c4",
+      "rarity": "uncommon"
     },
     "ALA:191": {
       "key": "sarkhan vol",
-      "scryfallId": "ce89ded2-db31-43c0-b00c-999d5d3fa5c6"
+      "scryfallId": "ce89ded2-db31-43c0-b00c-999d5d3fa5c6",
+      "rarity": "mythic"
     },
     "ALA:192": {
       "key": "sedraxis specter",
-      "scryfallId": "c6ca8f2a-ee0e-4708-97d8-c1836d824d4e"
+      "scryfallId": "c6ca8f2a-ee0e-4708-97d8-c1836d824d4e",
+      "rarity": "rare"
     },
     "ALA:193": {
       "key": "sedris, the traitor king",
-      "scryfallId": "70206cff-9f54-4e27-982c-b0093a51d358"
+      "scryfallId": "70206cff-9f54-4e27-982c-b0093a51d358",
+      "rarity": "mythic"
     },
     "ALA:194": {
       "key": "sharuum the hegemon",
-      "scryfallId": "6589eaa8-95ec-4c97-8155-185487560ae6"
+      "scryfallId": "6589eaa8-95ec-4c97-8155-185487560ae6",
+      "rarity": "mythic"
     },
     "ALA:195": {
       "key": "sigil blessing",
-      "scryfallId": "8ae9ce20-d283-4d29-8140-bc4cf8de66df"
+      "scryfallId": "8ae9ce20-d283-4d29-8140-bc4cf8de66df",
+      "rarity": "common"
     },
     "ALA:196": {
       "key": "sphinx sovereign",
-      "scryfallId": "d0fc130e-57ed-40a7-a9ba-d689e7dc3698"
+      "scryfallId": "d0fc130e-57ed-40a7-a9ba-d689e7dc3698",
+      "rarity": "mythic"
     },
     "ALA:197": {
       "key": "sprouting thrinax",
-      "scryfallId": "8950df86-1e27-4b6b-8b5c-25298a3bda85"
+      "scryfallId": "8950df86-1e27-4b6b-8b5c-25298a3bda85",
+      "rarity": "uncommon"
     },
     "ALA:198": {
       "key": "steward of valeron",
-      "scryfallId": "92e21ff9-0030-4e53-8ddf-86d8e78e347f"
+      "scryfallId": "92e21ff9-0030-4e53-8ddf-86d8e78e347f",
+      "rarity": "common"
     },
     "ALA:199": {
       "key": "stoic angel",
-      "scryfallId": "62d559e0-ae4e-4e21-bd3b-726fffb87d2b"
+      "scryfallId": "62d559e0-ae4e-4e21-bd3b-726fffb87d2b",
+      "rarity": "rare"
     },
     "ALA:2": {
       "key": "angel's herald",
-      "scryfallId": "36197ed0-4382-4de3-8359-73cb74edc78b"
+      "scryfallId": "36197ed0-4382-4de3-8359-73cb74edc78b",
+      "rarity": "uncommon"
     },
     "ALA:20": {
       "key": "oblivion ring",
-      "scryfallId": "895c270d-84d8-4c7f-9df3-5a595e113dd7"
+      "scryfallId": "895c270d-84d8-4c7f-9df3-5a595e113dd7",
+      "rarity": "common"
     },
     "ALA:200": {
       "key": "swerve",
-      "scryfallId": "10affb59-7c57-4b72-892b-d813f385f4a9"
+      "scryfallId": "10affb59-7c57-4b72-892b-d813f385f4a9",
+      "rarity": "uncommon"
     },
     "ALA:201": {
       "key": "thoughtcutter agent",
-      "scryfallId": "8c9af048-43c2-44ff-9ca0-2a81609a4e91"
+      "scryfallId": "8c9af048-43c2-44ff-9ca0-2a81609a4e91",
+      "rarity": "uncommon"
     },
     "ALA:202": {
       "key": "tidehollow sculler",
-      "scryfallId": "1abecc77-07f2-43e4-8585-0a8199cdcf01"
+      "scryfallId": "1abecc77-07f2-43e4-8585-0a8199cdcf01",
+      "rarity": "uncommon"
     },
     "ALA:203": {
       "key": "tidehollow strix",
-      "scryfallId": "4aafc65d-faa8-4bfe-83ac-7714c969022b"
+      "scryfallId": "4aafc65d-faa8-4bfe-83ac-7714c969022b",
+      "rarity": "common"
     },
     "ALA:204": {
       "key": "titanic ultimatum",
-      "scryfallId": "8d28fd77-1f7c-47b4-b9ff-55835a7f2526"
+      "scryfallId": "8d28fd77-1f7c-47b4-b9ff-55835a7f2526",
+      "rarity": "rare"
     },
     "ALA:205": {
       "key": "tower gargoyle",
-      "scryfallId": "10504d1b-8d3e-411a-bf40-51a8e7a863a0"
+      "scryfallId": "10504d1b-8d3e-411a-bf40-51a8e7a863a0",
+      "rarity": "uncommon"
     },
     "ALA:206": {
       "key": "violent ultimatum",
-      "scryfallId": "7e6ac9ce-e163-426f-8fbd-5ee1ec177dc1"
+      "scryfallId": "7e6ac9ce-e163-426f-8fbd-5ee1ec177dc1",
+      "rarity": "rare"
     },
     "ALA:207": {
       "key": "waveskimmer aven",
-      "scryfallId": "e75ebcb4-5db8-4c72-9f65-8ee8f2c893ea"
+      "scryfallId": "e75ebcb4-5db8-4c72-9f65-8ee8f2c893ea",
+      "rarity": "common"
     },
     "ALA:208": {
       "key": "windwright mage",
-      "scryfallId": "9aba0e7d-9146-402f-898e-16a0ff08d368"
+      "scryfallId": "9aba0e7d-9146-402f-898e-16a0ff08d368",
+      "rarity": "common"
     },
     "ALA:209": {
       "key": "woolly thoctar",
-      "scryfallId": "7d5907d5-ae5c-4c9d-a5df-61f1c94f979d"
+      "scryfallId": "7d5907d5-ae5c-4c9d-a5df-61f1c94f979d",
+      "rarity": "uncommon"
     },
     "ALA:21": {
       "key": "ranger of eos",
-      "scryfallId": "1a30ee26-5f78-4ac2-9105-1baa9ece8a21"
+      "scryfallId": "1a30ee26-5f78-4ac2-9105-1baa9ece8a21",
+      "rarity": "rare"
     },
     "ALA:210": {
       "key": "lich's mirror",
-      "scryfallId": "78aa9a89-b7bf-49bc-a6e8-793d52120a22"
+      "scryfallId": "78aa9a89-b7bf-49bc-a6e8-793d52120a22",
+      "rarity": "mythic"
     },
     "ALA:211": {
       "key": "minion reflector",
-      "scryfallId": "5d2a48f9-4f14-4d19-b3dc-3bf3fafac32d"
+      "scryfallId": "5d2a48f9-4f14-4d19-b3dc-3bf3fafac32d",
+      "rarity": "rare"
     },
     "ALA:212": {
       "key": "obelisk of bant",
-      "scryfallId": "0cefe6ab-c018-4b87-8948-295a28f63cb1"
+      "scryfallId": "0cefe6ab-c018-4b87-8948-295a28f63cb1",
+      "rarity": "common"
     },
     "ALA:213": {
       "key": "obelisk of esper",
-      "scryfallId": "19869e75-0925-45dc-b5d9-6968fbfb35b5"
+      "scryfallId": "19869e75-0925-45dc-b5d9-6968fbfb35b5",
+      "rarity": "common"
     },
     "ALA:214": {
       "key": "obelisk of grixis",
-      "scryfallId": "5200e41f-fe10-4c39-ab12-c6e13fb81a3d"
+      "scryfallId": "5200e41f-fe10-4c39-ab12-c6e13fb81a3d",
+      "rarity": "common"
     },
     "ALA:215": {
       "key": "obelisk of jund",
-      "scryfallId": "ffe1a49a-5c1c-4274-a2ed-9a8a44abfaa6"
+      "scryfallId": "ffe1a49a-5c1c-4274-a2ed-9a8a44abfaa6",
+      "rarity": "common"
     },
     "ALA:216": {
       "key": "obelisk of naya",
-      "scryfallId": "df6317b0-15fd-4924-9302-41bed2354546"
+      "scryfallId": "df6317b0-15fd-4924-9302-41bed2354546",
+      "rarity": "common"
     },
     "ALA:217": {
       "key": "quietus spike",
-      "scryfallId": "e90d1b27-fb90-4649-a905-f8e90d4a1852"
+      "scryfallId": "e90d1b27-fb90-4649-a905-f8e90d4a1852",
+      "rarity": "rare"
     },
     "ALA:218": {
       "key": "relic of progenitus",
-      "scryfallId": "90c41192-64ef-43aa-9af0-75f0d3f56688"
+      "scryfallId": "90c41192-64ef-43aa-9af0-75f0d3f56688",
+      "rarity": "common"
     },
     "ALA:219": {
       "key": "sigil of distinction",
-      "scryfallId": "a4ac2d98-bc5d-4823-9903-b880988ff0f4"
+      "scryfallId": "a4ac2d98-bc5d-4823-9903-b880988ff0f4",
+      "rarity": "rare"
     },
     "ALA:22": {
       "key": "resounding silence",
-      "scryfallId": "5b3b0908-5408-41fd-8e69-2bc785e19304"
+      "scryfallId": "5b3b0908-5408-41fd-8e69-2bc785e19304",
+      "rarity": "common"
     },
     "ALA:220": {
       "key": "arcane sanctum",
-      "scryfallId": "6edc0681-4252-4d3d-baf3-f03c22af1208"
+      "scryfallId": "6edc0681-4252-4d3d-baf3-f03c22af1208",
+      "rarity": "uncommon"
     },
     "ALA:221": {
       "key": "bant panorama",
-      "scryfallId": "b22c6b34-0066-47f8-8062-9363c024fa56"
+      "scryfallId": "b22c6b34-0066-47f8-8062-9363c024fa56",
+      "rarity": "common"
     },
     "ALA:222": {
       "key": "crumbling necropolis",
-      "scryfallId": "94da8e38-77a4-4d25-9e1f-f33c246f60c8"
+      "scryfallId": "94da8e38-77a4-4d25-9e1f-f33c246f60c8",
+      "rarity": "uncommon"
     },
     "ALA:223": {
       "key": "esper panorama",
-      "scryfallId": "03324b45-dd69-45d2-a1c0-e3cc4cf1eaf5"
+      "scryfallId": "03324b45-dd69-45d2-a1c0-e3cc4cf1eaf5",
+      "rarity": "common"
     },
     "ALA:224": {
       "key": "grixis panorama",
-      "scryfallId": "ca30ea9e-9302-4dd0-a572-b5c6e6894851"
+      "scryfallId": "ca30ea9e-9302-4dd0-a572-b5c6e6894851",
+      "rarity": "common"
     },
     "ALA:225": {
       "key": "jund panorama",
-      "scryfallId": "a2b31fcd-43eb-44ad-b63e-4f2e6984963c"
+      "scryfallId": "a2b31fcd-43eb-44ad-b63e-4f2e6984963c",
+      "rarity": "common"
     },
     "ALA:226": {
       "key": "jungle shrine",
-      "scryfallId": "e4f0d262-cbfe-42d2-9066-0b48a38995d6"
+      "scryfallId": "e4f0d262-cbfe-42d2-9066-0b48a38995d6",
+      "rarity": "uncommon"
     },
     "ALA:227": {
       "key": "naya panorama",
-      "scryfallId": "fba31e86-0924-424d-b4e3-41a878e3e0e1"
+      "scryfallId": "fba31e86-0924-424d-b4e3-41a878e3e0e1",
+      "rarity": "common"
     },
     "ALA:228": {
       "key": "savage lands",
-      "scryfallId": "f6bcded3-6eea-4533-a855-e03d4c4620d6"
+      "scryfallId": "f6bcded3-6eea-4533-a855-e03d4c4620d6",
+      "rarity": "uncommon"
     },
     "ALA:229": {
       "key": "seaside citadel",
-      "scryfallId": "c1995d2a-4550-4c84-ad44-183b06579e98"
+      "scryfallId": "c1995d2a-4550-4c84-ad44-183b06579e98",
+      "rarity": "uncommon"
     },
     "ALA:23": {
       "key": "rockcaster platoon",
-      "scryfallId": "4ab62812-acc5-4b4b-97d3-106e399d69da"
+      "scryfallId": "4ab62812-acc5-4b4b-97d3-106e399d69da",
+      "rarity": "uncommon"
     },
     "ALA:230": {
       "key": "plains",
-      "scryfallId": "e94e2710-7b95-46d0-8261-0afa6b192e70"
+      "scryfallId": "e94e2710-7b95-46d0-8261-0afa6b192e70",
+      "rarity": "common"
     },
     "ALA:231": {
       "key": "plains",
-      "scryfallId": "2ef285a1-dbd0-4e41-9f04-a9120a0421f7"
+      "scryfallId": "2ef285a1-dbd0-4e41-9f04-a9120a0421f7",
+      "rarity": "common"
     },
     "ALA:232": {
       "key": "plains",
-      "scryfallId": "bcdd1595-d94d-46b1-b87f-b910ae35fa3a"
+      "scryfallId": "bcdd1595-d94d-46b1-b87f-b910ae35fa3a",
+      "rarity": "common"
     },
     "ALA:233": {
       "key": "plains",
-      "scryfallId": "20aec487-ac03-4912-969b-f537864902ce"
+      "scryfallId": "20aec487-ac03-4912-969b-f537864902ce",
+      "rarity": "common"
     },
     "ALA:234": {
       "key": "island",
-      "scryfallId": "2fdcf679-4269-4ed9-84f1-1ac7a513f475"
+      "scryfallId": "2fdcf679-4269-4ed9-84f1-1ac7a513f475",
+      "rarity": "common"
     },
     "ALA:235": {
       "key": "island",
-      "scryfallId": "7e659905-5f87-4181-8fc8-59ab2138b7fc"
+      "scryfallId": "7e659905-5f87-4181-8fc8-59ab2138b7fc",
+      "rarity": "common"
     },
     "ALA:236": {
       "key": "island",
-      "scryfallId": "2bf6f14a-99d1-4abd-b36f-a5819718a43f"
+      "scryfallId": "2bf6f14a-99d1-4abd-b36f-a5819718a43f",
+      "rarity": "common"
     },
     "ALA:237": {
       "key": "island",
-      "scryfallId": "afb31304-eff0-44f9-b240-b7fa631ea4ce"
+      "scryfallId": "afb31304-eff0-44f9-b240-b7fa631ea4ce",
+      "rarity": "common"
     },
     "ALA:238": {
       "key": "swamp",
-      "scryfallId": "45cbe554-ffdc-4de6-bf27-57790b71effb"
+      "scryfallId": "45cbe554-ffdc-4de6-bf27-57790b71effb",
+      "rarity": "common"
     },
     "ALA:239": {
       "key": "swamp",
-      "scryfallId": "e809db1f-12d7-4556-bdd2-db832f991cd0"
+      "scryfallId": "e809db1f-12d7-4556-bdd2-db832f991cd0",
+      "rarity": "common"
     },
     "ALA:24": {
       "key": "sanctum gargoyle",
-      "scryfallId": "1da1a2d5-d1fe-4aa2-aa83-64d6c269f7bc"
+      "scryfallId": "1da1a2d5-d1fe-4aa2-aa83-64d6c269f7bc",
+      "rarity": "common"
     },
     "ALA:240": {
       "key": "swamp",
-      "scryfallId": "bc6ec4ca-ab4c-4d5f-98df-aa166b60bb1d"
+      "scryfallId": "bc6ec4ca-ab4c-4d5f-98df-aa166b60bb1d",
+      "rarity": "common"
     },
     "ALA:241": {
       "key": "swamp",
-      "scryfallId": "e3133726-0eda-480c-9d67-64719cb77f1d"
+      "scryfallId": "e3133726-0eda-480c-9d67-64719cb77f1d",
+      "rarity": "common"
     },
     "ALA:242": {
       "key": "mountain",
-      "scryfallId": "7c2cc19c-84ce-4c0b-b56f-7a2b3878a26e"
+      "scryfallId": "7c2cc19c-84ce-4c0b-b56f-7a2b3878a26e",
+      "rarity": "common"
     },
     "ALA:243": {
       "key": "mountain",
-      "scryfallId": "fcfb1db3-c0ea-4f8d-8208-5f8895ff686d"
+      "scryfallId": "fcfb1db3-c0ea-4f8d-8208-5f8895ff686d",
+      "rarity": "common"
     },
     "ALA:244": {
       "key": "mountain",
-      "scryfallId": "969d5979-8ae8-4442-a3a5-3412ffeb5af8"
+      "scryfallId": "969d5979-8ae8-4442-a3a5-3412ffeb5af8",
+      "rarity": "common"
     },
     "ALA:245": {
       "key": "mountain",
-      "scryfallId": "b64e4622-e905-49da-948f-aeba1ba674ce"
+      "scryfallId": "b64e4622-e905-49da-948f-aeba1ba674ce",
+      "rarity": "common"
     },
     "ALA:246": {
       "key": "forest",
-      "scryfallId": "12495cfa-ab19-4e9e-a49e-a94499f664a2"
+      "scryfallId": "12495cfa-ab19-4e9e-a49e-a94499f664a2",
+      "rarity": "common"
     },
     "ALA:247": {
       "key": "forest",
-      "scryfallId": "af8a605e-73a6-4666-ae08-ec6e9845e629"
+      "scryfallId": "af8a605e-73a6-4666-ae08-ec6e9845e629",
+      "rarity": "common"
     },
     "ALA:248": {
       "key": "forest",
-      "scryfallId": "368be73f-24d2-44db-a55e-d04176db3142"
+      "scryfallId": "368be73f-24d2-44db-a55e-d04176db3142",
+      "rarity": "common"
     },
     "ALA:249": {
       "key": "forest",
-      "scryfallId": "2a0bc8e3-b106-43bb-acf6-885328d24a65"
+      "scryfallId": "2a0bc8e3-b106-43bb-acf6-885328d24a65",
+      "rarity": "common"
     },
     "ALA:25": {
       "key": "scourglass",
-      "scryfallId": "b8993b57-3060-45ca-80ed-3366784ec61d"
+      "scryfallId": "b8993b57-3060-45ca-80ed-3366784ec61d",
+      "rarity": "rare"
     },
     "ALA:250": {
       "key": "rafiq of the many",
-      "scryfallId": "2e181878-d9fb-44d5-98ce-2899793ab2e7"
+      "scryfallId": "2e181878-d9fb-44d5-98ce-2899793ab2e7",
+      "rarity": "mythic"
     },
     "ALA:26": {
       "key": "sighted-caste sorcerer",
-      "scryfallId": "d07e2d4c-a33b-42b1-9576-2269d137a868"
+      "scryfallId": "d07e2d4c-a33b-42b1-9576-2269d137a868",
+      "rarity": "common"
     },
     "ALA:27": {
       "key": "sigiled paladin",
-      "scryfallId": "4b22520d-c495-4528-9b24-4aa19e046a9e"
+      "scryfallId": "4b22520d-c495-4528-9b24-4aa19e046a9e",
+      "rarity": "uncommon"
     },
     "ALA:28": {
       "key": "soul's grace",
-      "scryfallId": "3d2e8701-f2c3-4cc1-ac81-ba1987d80fec"
+      "scryfallId": "3d2e8701-f2c3-4cc1-ac81-ba1987d80fec",
+      "rarity": "common"
     },
     "ALA:29": {
       "key": "sunseed nurturer",
-      "scryfallId": "9d44447e-09d1-450f-907f-42f79b004fe7"
+      "scryfallId": "9d44447e-09d1-450f-907f-42f79b004fe7",
+      "rarity": "uncommon"
     },
     "ALA:3": {
       "key": "angelic benediction",
-      "scryfallId": "dd1b9071-7dde-4128-8b18-1d7b07904638"
+      "scryfallId": "dd1b9071-7dde-4128-8b18-1d7b07904638",
+      "rarity": "uncommon"
     },
     "ALA:30": {
       "key": "welkin guide",
-      "scryfallId": "198363f2-1a19-4954-b527-6d10ac277719"
+      "scryfallId": "198363f2-1a19-4954-b527-6d10ac277719",
+      "rarity": "common"
     },
     "ALA:31": {
       "key": "yoked plowbeast",
-      "scryfallId": "ddbbc7dc-efdf-46e8-bf19-0daa4034f6ec"
+      "scryfallId": "ddbbc7dc-efdf-46e8-bf19-0daa4034f6ec",
+      "rarity": "common"
     },
     "ALA:32": {
       "key": "call to heel",
-      "scryfallId": "0206c951-e38f-43ae-b4d2-0c71b6ccf8b1"
+      "scryfallId": "0206c951-e38f-43ae-b4d2-0c71b6ccf8b1",
+      "rarity": "common"
     },
     "ALA:33": {
       "key": "cancel",
-      "scryfallId": "479f56c2-8256-4325-909a-bf460505dbc5"
+      "scryfallId": "479f56c2-8256-4325-909a-bf460505dbc5",
+      "rarity": "common"
     },
     "ALA:34": {
       "key": "cathartic adept",
-      "scryfallId": "8e63626d-f55c-4155-9712-511f591c0614"
+      "scryfallId": "8e63626d-f55c-4155-9712-511f591c0614",
+      "rarity": "common"
     },
     "ALA:35": {
       "key": "cloudheath drake",
-      "scryfallId": "7f71ec76-47e1-4f55-bc57-e7b1c88baedd"
+      "scryfallId": "7f71ec76-47e1-4f55-bc57-e7b1c88baedd",
+      "rarity": "common"
     },
     "ALA:36": {
       "key": "coma veil",
-      "scryfallId": "2d5b820c-fd07-4e1f-9451-da9267347acd"
+      "scryfallId": "2d5b820c-fd07-4e1f-9451-da9267347acd",
+      "rarity": "common"
     },
     "ALA:37": {
       "key": "courier's capsule",
-      "scryfallId": "39ae12ff-8039-4aac-aa50-f879376888a1"
+      "scryfallId": "39ae12ff-8039-4aac-aa50-f879376888a1",
+      "rarity": "common"
     },
     "ALA:38": {
       "key": "covenant of minds",
-      "scryfallId": "6ef9a534-8938-4f73-aa62-dd4d81a18cc1"
+      "scryfallId": "6ef9a534-8938-4f73-aa62-dd4d81a18cc1",
+      "rarity": "rare"
     },
     "ALA:39": {
       "key": "dawnray archer",
-      "scryfallId": "86c1ff65-8ad5-42e0-9e4c-1caf83ab86e0"
+      "scryfallId": "86c1ff65-8ad5-42e0-9e4c-1caf83ab86e0",
+      "rarity": "uncommon"
     },
     "ALA:4": {
       "key": "angelsong",
-      "scryfallId": "0832e87f-afef-41a5-ba36-3eaf65551576"
+      "scryfallId": "0832e87f-afef-41a5-ba36-3eaf65551576",
+      "rarity": "common"
     },
     "ALA:40": {
       "key": "esper battlemage",
-      "scryfallId": "2cac0076-8bd5-4fe2-bac8-fd102688fdcb"
+      "scryfallId": "2cac0076-8bd5-4fe2-bac8-fd102688fdcb",
+      "rarity": "uncommon"
     },
     "ALA:41": {
       "key": "etherium astrolabe",
-      "scryfallId": "d60731c6-7a25-4f2b-8ed1-2469a2d300c6"
+      "scryfallId": "d60731c6-7a25-4f2b-8ed1-2469a2d300c6",
+      "rarity": "uncommon"
     },
     "ALA:42": {
       "key": "etherium sculptor",
-      "scryfallId": "0d050f2d-bd65-4ab9-9ea6-9deba91b2792"
+      "scryfallId": "0d050f2d-bd65-4ab9-9ea6-9deba91b2792",
+      "rarity": "common"
     },
     "ALA:43": {
       "key": "fatestitcher",
-      "scryfallId": "7e4becff-8280-4e29-a370-bf82fb6734d5"
+      "scryfallId": "7e4becff-8280-4e29-a370-bf82fb6734d5",
+      "rarity": "uncommon"
     },
     "ALA:44": {
       "key": "filigree sages",
-      "scryfallId": "08790aaf-0142-4b20-89cf-cdaffeea4582"
+      "scryfallId": "08790aaf-0142-4b20-89cf-cdaffeea4582",
+      "rarity": "uncommon"
     },
     "ALA:45": {
       "key": "gather specimens",
-      "scryfallId": "bbadf982-f22e-4f4f-b5c9-ac387f25c15f"
+      "scryfallId": "bbadf982-f22e-4f4f-b5c9-ac387f25c15f",
+      "rarity": "rare"
     },
     "ALA:46": {
       "key": "jhessian lookout",
-      "scryfallId": "f55b1b92-575e-4b6f-9179-21d0bc1acd11"
+      "scryfallId": "f55b1b92-575e-4b6f-9179-21d0bc1acd11",
+      "rarity": "common"
     },
     "ALA:47": {
       "key": "kathari screecher",
-      "scryfallId": "150cf865-79e2-4f74-a872-44e1e5bc73c4"
+      "scryfallId": "150cf865-79e2-4f74-a872-44e1e5bc73c4",
+      "rarity": "common"
     },
     "ALA:48": {
       "key": "kederekt leviathan",
-      "scryfallId": "97e04b01-ba98-4b69-976e-9ab8be3b5f7a"
+      "scryfallId": "97e04b01-ba98-4b69-976e-9ab8be3b5f7a",
+      "rarity": "rare"
     },
     "ALA:49": {
       "key": "master of etherium",
-      "scryfallId": "322cdf67-5b36-43f9-99b3-f0e24d423314"
+      "scryfallId": "322cdf67-5b36-43f9-99b3-f0e24d423314",
+      "rarity": "rare"
     },
     "ALA:5": {
       "key": "bant battlemage",
-      "scryfallId": "2c597b1d-d8b5-4922-a3f2-1f173a73ea2a"
+      "scryfallId": "2c597b1d-d8b5-4922-a3f2-1f173a73ea2a",
+      "rarity": "uncommon"
     },
     "ALA:50": {
       "key": "memory erosion",
-      "scryfallId": "26fcee4c-58f4-43c6-832b-ca04ded704c7"
+      "scryfallId": "26fcee4c-58f4-43c6-832b-ca04ded704c7",
+      "rarity": "rare"
     },
     "ALA:51": {
       "key": "mindlock orb",
-      "scryfallId": "55c84e9f-ccbb-4fbc-98e1-4072968a1f8a"
+      "scryfallId": "55c84e9f-ccbb-4fbc-98e1-4072968a1f8a",
+      "rarity": "rare"
     },
     "ALA:52": {
       "key": "outrider of jhess",
-      "scryfallId": "d3b681c8-6d20-4e43-95f8-e83d34626145"
+      "scryfallId": "d3b681c8-6d20-4e43-95f8-e83d34626145",
+      "rarity": "common"
     },
     "ALA:53": {
       "key": "protomatter powder",
-      "scryfallId": "273e2198-5549-4e82-8580-8769284d729d"
+      "scryfallId": "273e2198-5549-4e82-8580-8769284d729d",
+      "rarity": "uncommon"
     },
     "ALA:54": {
       "key": "resounding wave",
-      "scryfallId": "f3eca679-076d-42f0-9ec0-b8116a94e373"
+      "scryfallId": "f3eca679-076d-42f0-9ec0-b8116a94e373",
+      "rarity": "common"
     },
     "ALA:55": {
       "key": "sharding sphinx",
-      "scryfallId": "1722d394-ef72-4265-bc5b-eed7b91f5cb4"
+      "scryfallId": "1722d394-ef72-4265-bc5b-eed7b91f5cb4",
+      "rarity": "rare"
     },
     "ALA:56": {
       "key": "skill borrower",
-      "scryfallId": "ac7ac7c8-8e01-4f80-a3fa-d533cb594d7c"
+      "scryfallId": "ac7ac7c8-8e01-4f80-a3fa-d533cb594d7c",
+      "rarity": "rare"
     },
     "ALA:57": {
       "key": "spell snip",
-      "scryfallId": "d6870203-ece9-4fe0-912b-2dcf685f3eb0"
+      "scryfallId": "d6870203-ece9-4fe0-912b-2dcf685f3eb0",
+      "rarity": "common"
     },
     "ALA:58": {
       "key": "sphinx's herald",
-      "scryfallId": "bd7e2501-2d36-41eb-a77a-747b62affc09"
+      "scryfallId": "bd7e2501-2d36-41eb-a77a-747b62affc09",
+      "rarity": "uncommon"
     },
     "ALA:59": {
       "key": "steelclad serpent",
-      "scryfallId": "71b02044-f3b4-425c-8e6c-697fff2c4ef7"
+      "scryfallId": "71b02044-f3b4-425c-8e6c-697fff2c4ef7",
+      "rarity": "common"
     },
     "ALA:6": {
       "key": "battlegrace angel",
-      "scryfallId": "b9be1142-3ba8-4915-9541-757e59ed046c"
+      "scryfallId": "b9be1142-3ba8-4915-9541-757e59ed046c",
+      "rarity": "rare"
     },
     "ALA:60": {
       "key": "tezzeret the seeker",
-      "scryfallId": "3b214b6f-4734-4200-8467-92d7e3469b5d"
+      "scryfallId": "3b214b6f-4734-4200-8467-92d7e3469b5d",
+      "rarity": "mythic"
     },
     "ALA:61": {
       "key": "tortoise formation",
-      "scryfallId": "59ff8324-42b8-4eeb-8d0b-ea679c984933"
+      "scryfallId": "59ff8324-42b8-4eeb-8d0b-ea679c984933",
+      "rarity": "common"
     },
     "ALA:62": {
       "key": "vectis silencers",
-      "scryfallId": "c0198220-073f-4479-a1c4-1bd626891e28"
+      "scryfallId": "c0198220-073f-4479-a1c4-1bd626891e28",
+      "rarity": "common"
     },
     "ALA:63": {
       "key": "ad nauseam",
-      "scryfallId": "0a4ce4a1-65e3-4b40-be35-8fc55a968ec8"
+      "scryfallId": "0a4ce4a1-65e3-4b40-be35-8fc55a968ec8",
+      "rarity": "rare"
     },
     "ALA:64": {
       "key": "archdemon of unx",
-      "scryfallId": "b260fbe1-21cb-4a66-aca3-e504b67ed712"
+      "scryfallId": "b260fbe1-21cb-4a66-aca3-e504b67ed712",
+      "rarity": "rare"
     },
     "ALA:65": {
       "key": "banewasp affliction",
-      "scryfallId": "fef85030-d591-407d-8045-c595326dd6fa"
+      "scryfallId": "fef85030-d591-407d-8045-c595326dd6fa",
+      "rarity": "common"
     },
     "ALA:66": {
       "key": "blister beetle",
-      "scryfallId": "7f42bdeb-5a51-4303-96d8-9722f95d2905"
+      "scryfallId": "7f42bdeb-5a51-4303-96d8-9722f95d2905",
+      "rarity": "common"
     },
     "ALA:67": {
       "key": "bone splinters",
-      "scryfallId": "d4a4b3a3-b7ae-4210-8037-098fdf5808d0"
+      "scryfallId": "d4a4b3a3-b7ae-4210-8037-098fdf5808d0",
+      "rarity": "common"
     },
     "ALA:68": {
       "key": "corpse connoisseur",
-      "scryfallId": "feecfe75-ca1e-4e89-af2f-0e4ed2df1ead"
+      "scryfallId": "feecfe75-ca1e-4e89-af2f-0e4ed2df1ead",
+      "rarity": "uncommon"
     },
     "ALA:69": {
       "key": "cunning lethemancer",
-      "scryfallId": "972891e6-6a23-40df-af22-adf8cd7ea582"
+      "scryfallId": "972891e6-6a23-40df-af22-adf8cd7ea582",
+      "rarity": "rare"
     },
     "ALA:7": {
       "key": "cradle of vitality",
-      "scryfallId": "c5e54ce5-b496-4669-af2b-04a41ba20423"
+      "scryfallId": "c5e54ce5-b496-4669-af2b-04a41ba20423",
+      "rarity": "rare"
     },
     "ALA:70": {
       "key": "death baron",
-      "scryfallId": "4d59b5e5-fc16-4f1a-9f17-f42908473531"
+      "scryfallId": "4d59b5e5-fc16-4f1a-9f17-f42908473531",
+      "rarity": "rare"
     },
     "ALA:71": {
       "key": "deathgreeter",
-      "scryfallId": "de74fa19-943e-4606-a793-ab5ccbe8db4a"
+      "scryfallId": "de74fa19-943e-4606-a793-ab5ccbe8db4a",
+      "rarity": "common"
     },
     "ALA:72": {
       "key": "demon's herald",
-      "scryfallId": "f5aa309e-5df3-4419-9e9c-3fd928c1e360"
+      "scryfallId": "f5aa309e-5df3-4419-9e9c-3fd928c1e360",
+      "rarity": "uncommon"
     },
     "ALA:73": {
       "key": "dreg reaver",
-      "scryfallId": "e7771eba-bc2d-40f2-bab4-5e9cc4fe8f34"
+      "scryfallId": "e7771eba-bc2d-40f2-bab4-5e9cc4fe8f34",
+      "rarity": "common"
     },
     "ALA:74": {
       "key": "dregscape zombie",
-      "scryfallId": "4b65b7ad-4ab0-4622-81f4-434254625a1e"
+      "scryfallId": "4b65b7ad-4ab0-4622-81f4-434254625a1e",
+      "rarity": "common"
     },
     "ALA:75": {
       "key": "executioner's capsule",
-      "scryfallId": "48185059-fff9-47b0-9774-ad37dee345ed"
+      "scryfallId": "48185059-fff9-47b0-9774-ad37dee345ed",
+      "rarity": "common"
     },
     "ALA:76": {
       "key": "fleshbag marauder",
-      "scryfallId": "f71e4391-04a8-4df8-9d52-3a3480bcd5b6"
+      "scryfallId": "f71e4391-04a8-4df8-9d52-3a3480bcd5b6",
+      "rarity": "uncommon"
     },
     "ALA:77": {
       "key": "glaze fiend",
-      "scryfallId": "2e030fb1-12a8-4c28-836f-8097ec753271"
+      "scryfallId": "2e030fb1-12a8-4c28-836f-8097ec753271",
+      "rarity": "common"
     },
     "ALA:78": {
       "key": "grixis battlemage",
-      "scryfallId": "4dbd260c-a625-42a4-8192-27e42e18ac0f"
+      "scryfallId": "4dbd260c-a625-42a4-8192-27e42e18ac0f",
+      "rarity": "uncommon"
     },
     "ALA:79": {
       "key": "immortal coil",
-      "scryfallId": "0b79ec57-7c45-4ef9-9051-449d473b65ea"
+      "scryfallId": "0b79ec57-7c45-4ef9-9051-449d473b65ea",
+      "rarity": "rare"
     },
     "ALA:8": {
       "key": "dispeller's capsule",
-      "scryfallId": "d3cf0771-10d6-427a-b4e5-3e1d4db14667"
+      "scryfallId": "d3cf0771-10d6-427a-b4e5-3e1d4db14667",
+      "rarity": "common"
     },
     "ALA:80": {
       "key": "infest",
-      "scryfallId": "fb9dd080-5e13-4334-8614-8eec41ae89c2"
+      "scryfallId": "fb9dd080-5e13-4334-8614-8eec41ae89c2",
+      "rarity": "uncommon"
     },
     "ALA:81": {
       "key": "onyx goblet",
-      "scryfallId": "3686eb57-e9c8-480f-8ab4-2894e1b5fe20"
+      "scryfallId": "3686eb57-e9c8-480f-8ab4-2894e1b5fe20",
+      "rarity": "common"
     },
     "ALA:82": {
       "key": "puppet conjurer",
-      "scryfallId": "cc6ee904-95ca-4ec3-ad7d-ee084aa0c00f"
+      "scryfallId": "cc6ee904-95ca-4ec3-ad7d-ee084aa0c00f",
+      "rarity": "uncommon"
     },
     "ALA:83": {
       "key": "resounding scream",
-      "scryfallId": "64d27eb7-2d3b-4daf-9cf6-c254fdacceb0"
+      "scryfallId": "64d27eb7-2d3b-4daf-9cf6-c254fdacceb0",
+      "rarity": "common"
     },
     "ALA:84": {
       "key": "salvage titan",
-      "scryfallId": "2b02c538-c2f9-47ef-9a07-8a41fe172d10"
+      "scryfallId": "2b02c538-c2f9-47ef-9a07-8a41fe172d10",
+      "rarity": "rare"
     },
     "ALA:85": {
       "key": "scavenger drake",
-      "scryfallId": "30b7806f-c28f-40d4-b79e-f5a7725db298"
+      "scryfallId": "30b7806f-c28f-40d4-b79e-f5a7725db298",
+      "rarity": "uncommon"
     },
     "ALA:86": {
       "key": "shadowfeed",
-      "scryfallId": "19ccd8c7-7472-47df-9d3e-1b5fb1431118"
+      "scryfallId": "19ccd8c7-7472-47df-9d3e-1b5fb1431118",
+      "rarity": "common"
     },
     "ALA:87": {
       "key": "shore snapper",
-      "scryfallId": "157e5763-4892-47e4-8fd5-f576844c0a0d"
+      "scryfallId": "157e5763-4892-47e4-8fd5-f576844c0a0d",
+      "rarity": "common"
     },
     "ALA:88": {
       "key": "skeletal kathari",
-      "scryfallId": "a3e7e593-e5b0-4348-b8e5-20173d41aa39"
+      "scryfallId": "a3e7e593-e5b0-4348-b8e5-20173d41aa39",
+      "rarity": "common"
     },
     "ALA:89": {
       "key": "tar fiend",
-      "scryfallId": "fa1903f8-2863-4203-9552-a75759fa8c94"
+      "scryfallId": "fa1903f8-2863-4203-9552-a75759fa8c94",
+      "rarity": "rare"
     },
     "ALA:9": {
       "key": "elspeth, knight-errant",
-      "scryfallId": "44c52e52-2b1c-4ca8-ab6d-20d97a342704"
+      "scryfallId": "44c52e52-2b1c-4ca8-ab6d-20d97a342704",
+      "rarity": "mythic"
     },
     "ALA:90": {
       "key": "undead leotau",
-      "scryfallId": "7ab9a62a-5503-430d-8b67-061a46b5c22c"
+      "scryfallId": "7ab9a62a-5503-430d-8b67-061a46b5c22c",
+      "rarity": "common"
     },
     "ALA:91": {
       "key": "vein drinker",
-      "scryfallId": "b6402470-d829-4b9a-840c-1f97d6fd786f"
+      "scryfallId": "b6402470-d829-4b9a-840c-1f97d6fd786f",
+      "rarity": "rare"
     },
     "ALA:92": {
       "key": "viscera dragger",
-      "scryfallId": "6d6d2d84-7141-4485-8379-b3c71af47cd1"
+      "scryfallId": "6d6d2d84-7141-4485-8379-b3c71af47cd1",
+      "rarity": "common"
     },
     "ALA:93": {
       "key": "bloodpyre elemental",
-      "scryfallId": "89e39677-5e04-45af-8f4c-1d4b6e737213"
+      "scryfallId": "89e39677-5e04-45af-8f4c-1d4b6e737213",
+      "rarity": "common"
     },
     "ALA:94": {
       "key": "bloodthorn taunter",
-      "scryfallId": "8769e8f6-15ad-4f1b-bb4d-848ae6b7549e"
+      "scryfallId": "8769e8f6-15ad-4f1b-bb4d-848ae6b7549e",
+      "rarity": "common"
     },
     "ALA:95": {
       "key": "caldera hellion",
-      "scryfallId": "88866ce7-0b81-4b6c-a17e-ce5e51a0f2da"
+      "scryfallId": "88866ce7-0b81-4b6c-a17e-ce5e51a0f2da",
+      "rarity": "rare"
     },
     "ALA:96": {
       "key": "crucible of fire",
-      "scryfallId": "38a2d4ba-7bd0-4852-aad3-dfdaf5368e3e"
+      "scryfallId": "38a2d4ba-7bd0-4852-aad3-dfdaf5368e3e",
+      "rarity": "rare"
     },
     "ALA:97": {
       "key": "dragon fodder",
-      "scryfallId": "9eab4120-e7d8-4132-a304-30b88e3175e2"
+      "scryfallId": "9eab4120-e7d8-4132-a304-30b88e3175e2",
+      "rarity": "common"
     },
     "ALA:98": {
       "key": "dragon's herald",
-      "scryfallId": "2d5873e8-ba15-4a24-aab8-91f1f390d821"
+      "scryfallId": "2d5873e8-ba15-4a24-aab8-91f1f390d821",
+      "rarity": "uncommon"
     },
     "ALA:99": {
       "key": "exuberant firestoker",
-      "scryfallId": "c5c08845-d195-447e-9e4d-020dcab5f80f"
+      "scryfallId": "c5c08845-d195-447e-9e4d-020dcab5f80f",
+      "rarity": "uncommon"
     },
     "ARB:1": {
       "key": "ardent plea",
-      "scryfallId": "9d521737-ee07-4387-bc07-5ced53db374d"
+      "scryfallId": "9d521737-ee07-4387-bc07-5ced53db374d",
+      "rarity": "uncommon"
     },
     "ARB:10": {
       "key": "sanctum plowbeast",
-      "scryfallId": "73887514-7644-4b2b-8c67-4b7e64150478"
+      "scryfallId": "73887514-7644-4b2b-8c67-4b7e64150478",
+      "rarity": "common"
     },
     "ARB:100": {
       "key": "stun sniper",
-      "scryfallId": "f413258e-2915-41e1-ba0d-98d9d0673ab2"
+      "scryfallId": "f413258e-2915-41e1-ba0d-98d9d0673ab2",
+      "rarity": "uncommon"
     },
     "ARB:101": {
       "key": "lorescale coatl",
-      "scryfallId": "e81c31c9-d7d7-4b45-893e-7e36d26c645f"
+      "scryfallId": "e81c31c9-d7d7-4b45-893e-7e36d26c645f",
+      "rarity": "uncommon"
     },
     "ARB:102": {
       "key": "nulltread gargantuan",
-      "scryfallId": "a263f594-621e-46af-8561-f7eee565a19a"
+      "scryfallId": "a263f594-621e-46af-8561-f7eee565a19a",
+      "rarity": "uncommon"
     },
     "ARB:103": {
       "key": "sages of the anima",
-      "scryfallId": "f98a21af-cd1a-4438-a4c2-0c92ad92efef"
+      "scryfallId": "f98a21af-cd1a-4438-a4c2-0c92ad92efef",
+      "rarity": "rare"
     },
     "ARB:104": {
       "key": "vedalken heretic",
-      "scryfallId": "5ab2ba75-e52e-46f5-8a34-3fe1e07446fd"
+      "scryfallId": "5ab2ba75-e52e-46f5-8a34-3fe1e07446fd",
+      "rarity": "rare"
     },
     "ARB:105": {
       "key": "winged coatl",
-      "scryfallId": "bd23ae2b-9f69-4d8d-87f9-ebcbccd67342"
+      "scryfallId": "bd23ae2b-9f69-4d8d-87f9-ebcbccd67342",
+      "rarity": "common"
     },
     "ARB:106": {
       "key": "enigma sphinx",
-      "scryfallId": "7fcfe9da-4c82-4476-8e83-24297fe5c176"
+      "scryfallId": "7fcfe9da-4c82-4476-8e83-24297fe5c176",
+      "rarity": "rare"
     },
     "ARB:107": {
       "key": "esper sojourners",
-      "scryfallId": "896d502a-d9c3-4101-92af-a8c9d945f47b"
+      "scryfallId": "896d502a-d9c3-4101-92af-a8c9d945f47b",
+      "rarity": "common"
     },
     "ARB:108": {
       "key": "etherwrought page",
-      "scryfallId": "568785f1-47c7-4011-926f-44693f7e0233"
+      "scryfallId": "568785f1-47c7-4011-926f-44693f7e0233",
+      "rarity": "uncommon"
     },
     "ARB:109": {
       "key": "sen triplets",
-      "scryfallId": "418f8ecb-544b-430c-8ae9-61aaaf2dfba6"
+      "scryfallId": "418f8ecb-544b-430c-8ae9-61aaaf2dfba6",
+      "rarity": "mythic"
     },
     "ARB:11": {
       "key": "shield of the righteous",
-      "scryfallId": "9e6474b6-1e1a-4c29-8f01-1cabf729b34f"
+      "scryfallId": "9e6474b6-1e1a-4c29-8f01-1cabf729b34f",
+      "rarity": "uncommon"
     },
     "ARB:110": {
       "key": "sphinx of the steel wind",
-      "scryfallId": "c860cf0f-ef68-455f-9c71-a6dd25b51d71"
+      "scryfallId": "c860cf0f-ef68-455f-9c71-a6dd25b51d71",
+      "rarity": "mythic"
     },
     "ARB:111": {
       "key": "drastic revelation",
-      "scryfallId": "90f1f430-d6a5-4380-95f2-9e0fc9e81597"
+      "scryfallId": "90f1f430-d6a5-4380-95f2-9e0fc9e81597",
+      "rarity": "uncommon"
     },
     "ARB:112": {
       "key": "grixis sojourners",
-      "scryfallId": "0cde5f43-0b91-45c9-9382-20ea6328266f"
+      "scryfallId": "0cde5f43-0b91-45c9-9382-20ea6328266f",
+      "rarity": "common"
     },
     "ARB:113": {
       "key": "thraximundar",
-      "scryfallId": "3c1a69e5-d099-4b13-8072-f341430f31a1"
+      "scryfallId": "3c1a69e5-d099-4b13-8072-f341430f31a1",
+      "rarity": "mythic"
     },
     "ARB:114": {
       "key": "unscythe, killer of kings",
-      "scryfallId": "cc647ef4-1f17-4b8b-a312-60d548347d12"
+      "scryfallId": "cc647ef4-1f17-4b8b-a312-60d548347d12",
+      "rarity": "rare"
     },
     "ARB:115": {
       "key": "dragon appeasement",
-      "scryfallId": "3bb8fb53-000a-4a04-afdf-38f2cd052c72"
+      "scryfallId": "3bb8fb53-000a-4a04-afdf-38f2cd052c72",
+      "rarity": "uncommon"
     },
     "ARB:116": {
       "key": "jund sojourners",
-      "scryfallId": "893c08b2-1391-4aaf-b79c-d1125b232f73"
+      "scryfallId": "893c08b2-1391-4aaf-b79c-d1125b232f73",
+      "rarity": "common"
     },
     "ARB:117": {
       "key": "karrthus, tyrant of jund",
-      "scryfallId": "7956a90f-e27b-4d5a-bc23-70e878b2dfeb"
+      "scryfallId": "7956a90f-e27b-4d5a-bc23-70e878b2dfeb",
+      "rarity": "mythic"
     },
     "ARB:118": {
       "key": "lavalanche",
-      "scryfallId": "749981d6-78e7-4f53-80a8-f211e61bd532"
+      "scryfallId": "749981d6-78e7-4f53-80a8-f211e61bd532",
+      "rarity": "rare"
     },
     "ARB:119": {
       "key": "madrush cyclops",
-      "scryfallId": "21d4fd58-2052-4f97-b634-f89e2139d980"
+      "scryfallId": "21d4fd58-2052-4f97-b634-f89e2139d980",
+      "rarity": "rare"
     },
     "ARB:12": {
       "key": "sovereigns of lost alara",
-      "scryfallId": "2d2a9e7e-649f-457b-aba7-9c74c2704adf"
+      "scryfallId": "2d2a9e7e-649f-457b-aba7-9c74c2704adf",
+      "rarity": "rare"
     },
     "ARB:120": {
       "key": "gloryscale viashino",
-      "scryfallId": "8e02e9e6-4cff-404a-94a3-e844ef7cadee"
+      "scryfallId": "8e02e9e6-4cff-404a-94a3-e844ef7cadee",
+      "rarity": "uncommon"
     },
     "ARB:121": {
       "key": "mayael's aria",
-      "scryfallId": "bfd6f5dc-2fa6-450a-a1b1-6b6e31773365"
+      "scryfallId": "bfd6f5dc-2fa6-450a-a1b1-6b6e31773365",
+      "rarity": "rare"
     },
     "ARB:122": {
       "key": "naya sojourners",
-      "scryfallId": "7e2de336-8c61-45b1-affd-6322530b91ca"
+      "scryfallId": "7e2de336-8c61-45b1-affd-6322530b91ca",
+      "rarity": "common"
     },
     "ARB:123": {
       "key": "retaliator griffin",
-      "scryfallId": "289adeb9-952d-437e-aa66-358a780dc083"
+      "scryfallId": "289adeb9-952d-437e-aa66-358a780dc083",
+      "rarity": "rare"
     },
     "ARB:124": {
       "key": "uril, the miststalker",
-      "scryfallId": "11e22185-47d0-465b-8181-afe194af5cac"
+      "scryfallId": "11e22185-47d0-465b-8181-afe194af5cac",
+      "rarity": "mythic"
     },
     "ARB:125": {
       "key": "bant sojourners",
-      "scryfallId": "eff007af-0329-4872-8621-41e90d9f06e6"
+      "scryfallId": "eff007af-0329-4872-8621-41e90d9f06e6",
+      "rarity": "common"
     },
     "ARB:126": {
       "key": "finest hour",
-      "scryfallId": "d3bb726e-e561-4a14-913d-afde1964c64a"
+      "scryfallId": "d3bb726e-e561-4a14-913d-afde1964c64a",
+      "rarity": "rare"
     },
     "ARB:127": {
       "key": "flurry of wings",
-      "scryfallId": "dbabaf1d-0220-438d-8263-e23d8010fe24"
+      "scryfallId": "dbabaf1d-0220-438d-8263-e23d8010fe24",
+      "rarity": "uncommon"
     },
     "ARB:128": {
       "key": "jenara, asura of war",
-      "scryfallId": "d643c335-e3a7-461d-a024-095795ab6770"
+      "scryfallId": "d643c335-e3a7-461d-a024-095795ab6770",
+      "rarity": "mythic"
     },
     "ARB:129": {
       "key": "wargate",
-      "scryfallId": "8f4fe11d-c404-489a-b17f-34f33b1597e8"
+      "scryfallId": "8f4fe11d-c404-489a-b17f-34f33b1597e8",
+      "rarity": "rare"
     },
     "ARB:13": {
       "key": "stormcaller's boon",
-      "scryfallId": "15931d65-9b4e-4506-8f1d-714d06f9c2f3"
+      "scryfallId": "15931d65-9b4e-4506-8f1d-714d06f9c2f3",
+      "rarity": "common"
     },
     "ARB:130": {
       "key": "maelstrom nexus",
-      "scryfallId": "425b3c5b-de65-46b2-b26d-347cc31beb4c"
+      "scryfallId": "425b3c5b-de65-46b2-b26d-347cc31beb4c",
+      "rarity": "mythic"
     },
     "ARB:131": {
       "key": "arsenal thresher",
-      "scryfallId": "f63c72f4-fbce-41c5-a46f-bfe4d1833965"
+      "scryfallId": "f63c72f4-fbce-41c5-a46f-bfe4d1833965",
+      "rarity": "common"
     },
     "ARB:132": {
       "key": "esper stormblade",
-      "scryfallId": "e60ac6f0-fdec-4e2c-86c6-02d36c7bbaf5"
+      "scryfallId": "e60ac6f0-fdec-4e2c-86c6-02d36c7bbaf5",
+      "rarity": "common"
     },
     "ARB:133": {
       "key": "thopter foundry",
-      "scryfallId": "42b8d797-b01d-49cf-9818-d84bba17029d"
+      "scryfallId": "42b8d797-b01d-49cf-9818-d84bba17029d",
+      "rarity": "uncommon"
     },
     "ARB:134": {
       "key": "grixis grimblade",
-      "scryfallId": "9dbcb812-15ad-4878-9968-cfa65a352703"
+      "scryfallId": "9dbcb812-15ad-4878-9968-cfa65a352703",
+      "rarity": "common"
     },
     "ARB:135": {
       "key": "sewn-eye drake",
-      "scryfallId": "dbf97c08-e074-4353-b9fa-c79793622585"
+      "scryfallId": "dbf97c08-e074-4353-b9fa-c79793622585",
+      "rarity": "common"
     },
     "ARB:136": {
       "key": "slave of bolas",
-      "scryfallId": "6fc177ec-dcd5-409d-a278-d84c3e6d28fa"
+      "scryfallId": "6fc177ec-dcd5-409d-a278-d84c3e6d28fa",
+      "rarity": "uncommon"
     },
     "ARB:137": {
       "key": "giant ambush beetle",
-      "scryfallId": "0f6782d0-5399-4853-ae6f-0d05372dbf34"
+      "scryfallId": "0f6782d0-5399-4853-ae6f-0d05372dbf34",
+      "rarity": "uncommon"
     },
     "ARB:138": {
       "key": "jund hackblade",
-      "scryfallId": "61e3b73a-598b-4854-b811-2fd40fbce2d0"
+      "scryfallId": "61e3b73a-598b-4854-b811-2fd40fbce2d0",
+      "rarity": "common"
     },
     "ARB:139": {
       "key": "sangrite backlash",
-      "scryfallId": "fa56b15e-d02d-4306-82a6-ced778fee90f"
+      "scryfallId": "fa56b15e-d02d-4306-82a6-ced778fee90f",
+      "rarity": "common"
     },
     "ARB:14": {
       "key": "talon trooper",
-      "scryfallId": "266a6a0d-5c56-47f5-92d0-f883f1bb7630"
+      "scryfallId": "266a6a0d-5c56-47f5-92d0-f883f1bb7630",
+      "rarity": "common"
     },
     "ARB:140": {
       "key": "marisi's twinclaws",
-      "scryfallId": "cadf8cc5-ea30-46b6-99b4-e6f19eb46306"
+      "scryfallId": "cadf8cc5-ea30-46b6-99b4-e6f19eb46306",
+      "rarity": "uncommon"
     },
     "ARB:141": {
       "key": "naya hushblade",
-      "scryfallId": "5eed1b7f-0672-4066-9e21-c5252f6dc482"
+      "scryfallId": "5eed1b7f-0672-4066-9e21-c5252f6dc482",
+      "rarity": "common"
     },
     "ARB:142": {
       "key": "trace of abundance",
-      "scryfallId": "6151001a-cf4b-4f95-a986-7181313e2224"
+      "scryfallId": "6151001a-cf4b-4f95-a986-7181313e2224",
+      "rarity": "common"
     },
     "ARB:143": {
       "key": "bant sureblade",
-      "scryfallId": "162feb2b-e641-4338-bcf1-1f7e7a11bb9d"
+      "scryfallId": "162feb2b-e641-4338-bcf1-1f7e7a11bb9d",
+      "rarity": "common"
     },
     "ARB:144": {
       "key": "crystallization",
-      "scryfallId": "cd0e9e1b-bd37-43a7-abd3-4582315a268d"
+      "scryfallId": "cd0e9e1b-bd37-43a7-abd3-4582315a268d",
+      "rarity": "common"
     },
     "ARB:145": {
       "key": "messenger falcons",
-      "scryfallId": "f088f625-9c72-4949-8e53-c2313397a197"
+      "scryfallId": "f088f625-9c72-4949-8e53-c2313397a197",
+      "rarity": "uncommon"
     },
     "ARB:15": {
       "key": "unbender tine",
-      "scryfallId": "6ac7672c-c75f-4ce4-8f28-2c5db623e752"
+      "scryfallId": "6ac7672c-c75f-4ce4-8f28-2c5db623e752",
+      "rarity": "uncommon"
     },
     "ARB:16": {
       "key": "wall of denial",
-      "scryfallId": "dd66cb50-6ef5-4b1f-b6c3-ad1210d2d380"
+      "scryfallId": "dd66cb50-6ef5-4b1f-b6c3-ad1210d2d380",
+      "rarity": "uncommon"
     },
     "ARB:17": {
       "key": "architects of will",
-      "scryfallId": "edd69ea7-aab6-4f30-98f4-640cb0a6046c"
+      "scryfallId": "edd69ea7-aab6-4f30-98f4-640cb0a6046c",
+      "rarity": "common"
     },
     "ARB:18": {
       "key": "brainbite",
-      "scryfallId": "925c08bd-120d-49a5-a258-bda3859c1d4c"
+      "scryfallId": "925c08bd-120d-49a5-a258-bda3859c1d4c",
+      "rarity": "common"
     },
     "ARB:19": {
       "key": "deny reality",
-      "scryfallId": "f138fe9f-3cb9-4f16-adc4-76fcb0c7e064"
+      "scryfallId": "f138fe9f-3cb9-4f16-adc4-76fcb0c7e064",
+      "rarity": "common"
     },
     "ARB:2": {
       "key": "aven mimeomancer",
-      "scryfallId": "49876185-e23d-4137-8612-1347da3a1df6"
+      "scryfallId": "49876185-e23d-4137-8612-1347da3a1df6",
+      "rarity": "rare"
     },
     "ARB:20": {
       "key": "etherium abomination",
-      "scryfallId": "312bbd63-d6ff-4da5-868f-ed68cbc12d43"
+      "scryfallId": "312bbd63-d6ff-4da5-868f-ed68cbc12d43",
+      "rarity": "common"
     },
     "ARB:21": {
       "key": "illusory demon",
-      "scryfallId": "f4d69f7f-ac70-477b-9246-8d81fef7d335"
+      "scryfallId": "f4d69f7f-ac70-477b-9246-8d81fef7d335",
+      "rarity": "uncommon"
     },
     "ARB:22": {
       "key": "jhessian zombies",
-      "scryfallId": "14d3f7fd-f414-4c17-ad63-c8b39bde301d"
+      "scryfallId": "14d3f7fd-f414-4c17-ad63-c8b39bde301d",
+      "rarity": "common"
     },
     "ARB:23": {
       "key": "kathari remnant",
-      "scryfallId": "e27c56c6-fd72-4917-96d1-d7f9f8236fa2"
+      "scryfallId": "e27c56c6-fd72-4917-96d1-d7f9f8236fa2",
+      "rarity": "uncommon"
     },
     "ARB:24": {
       "key": "lich lord of unx",
-      "scryfallId": "df38c422-7830-4f25-b74b-ed90b7047f53"
+      "scryfallId": "df38c422-7830-4f25-b74b-ed90b7047f53",
+      "rarity": "rare"
     },
     "ARB:25": {
       "key": "mask of riddles",
-      "scryfallId": "8cc0c40f-1d6c-4940-9c0a-566458a8ab04"
+      "scryfallId": "8cc0c40f-1d6c-4940-9c0a-566458a8ab04",
+      "rarity": "uncommon"
     },
     "ARB:26": {
       "key": "mind funeral",
-      "scryfallId": "335168b9-bc12-4459-9b7e-56f568a8887a"
+      "scryfallId": "335168b9-bc12-4459-9b7e-56f568a8887a",
+      "rarity": "uncommon"
     },
     "ARB:27": {
       "key": "mistvein borderpost",
-      "scryfallId": "7974a0de-6c14-431d-bfdb-2e76a1778ad0"
+      "scryfallId": "7974a0de-6c14-431d-bfdb-2e76a1778ad0",
+      "rarity": "common"
     },
     "ARB:28": {
       "key": "nemesis of reason",
-      "scryfallId": "105176cc-26b0-42a8-8913-5540f54656f7"
+      "scryfallId": "105176cc-26b0-42a8-8913-5540f54656f7",
+      "rarity": "rare"
     },
     "ARB:29": {
       "key": "soul manipulation",
-      "scryfallId": "bcd3cb05-c6f9-435a-a0e7-1f85da4a36eb"
+      "scryfallId": "bcd3cb05-c6f9-435a-a0e7-1f85da4a36eb",
+      "rarity": "common"
     },
     "ARB:3": {
       "key": "ethercaste knight",
-      "scryfallId": "094a235d-a5b8-434e-b4b0-c982da45a54d"
+      "scryfallId": "094a235d-a5b8-434e-b4b0-c982da45a54d",
+      "rarity": "common"
     },
     "ARB:30": {
       "key": "soulquake",
-      "scryfallId": "4b3a7470-b93e-4c3a-ab1c-0a4dd401e95a"
+      "scryfallId": "4b3a7470-b93e-4c3a-ab1c-0a4dd401e95a",
+      "rarity": "rare"
     },
     "ARB:31": {
       "key": "time sieve",
-      "scryfallId": "c620e565-f5e1-467c-a1d1-8d05228b2f37"
+      "scryfallId": "c620e565-f5e1-467c-a1d1-8d05228b2f37",
+      "rarity": "rare"
     },
     "ARB:32": {
       "key": "vedalken ghoul",
-      "scryfallId": "01072149-fe5e-4139-b3b2-3810fd220c8e"
+      "scryfallId": "01072149-fe5e-4139-b3b2-3810fd220c8e",
+      "rarity": "common"
     },
     "ARB:33": {
       "key": "anathemancer",
-      "scryfallId": "ab106855-bd85-4c00-b596-c46d34f8cdd0"
+      "scryfallId": "ab106855-bd85-4c00-b596-c46d34f8cdd0",
+      "rarity": "uncommon"
     },
     "ARB:34": {
       "key": "bituminous blast",
-      "scryfallId": "fd6a3c48-b01e-4462-a4a1-8d5009a6a844"
+      "scryfallId": "fd6a3c48-b01e-4462-a4a1-8d5009a6a844",
+      "rarity": "uncommon"
     },
     "ARB:35": {
       "key": "breath of malfegor",
-      "scryfallId": "7a12e4d0-8471-46ac-85e4-a2ea5be8bf8f"
+      "scryfallId": "7a12e4d0-8471-46ac-85e4-a2ea5be8bf8f",
+      "rarity": "common"
     },
     "ARB:36": {
       "key": "deathbringer thoctar",
-      "scryfallId": "f09f166f-dd3c-4cf5-b5f9-3989f46f050c"
+      "scryfallId": "f09f166f-dd3c-4cf5-b5f9-3989f46f050c",
+      "rarity": "rare"
     },
     "ARB:37": {
       "key": "defiler of souls",
-      "scryfallId": "16e8b418-04af-4b99-b8fd-deb1fe21a61c"
+      "scryfallId": "16e8b418-04af-4b99-b8fd-deb1fe21a61c",
+      "rarity": "mythic"
     },
     "ARB:38": {
       "key": "demonic dread",
-      "scryfallId": "fb81132e-ab33-435f-ade4-af4416d36044"
+      "scryfallId": "fb81132e-ab33-435f-ade4-af4416d36044",
+      "rarity": "common"
     },
     "ARB:39": {
       "key": "demonspine whip",
-      "scryfallId": "ff5a4434-0d5e-4ba8-8d10-cba9b4db5713"
+      "scryfallId": "ff5a4434-0d5e-4ba8-8d10-cba9b4db5713",
+      "rarity": "uncommon"
     },
     "ARB:4": {
       "key": "ethersworn shieldmage",
-      "scryfallId": "c5340e18-faed-4787-a42c-c12935bb0646"
+      "scryfallId": "c5340e18-faed-4787-a42c-c12935bb0646",
+      "rarity": "common"
     },
     "ARB:40": {
       "key": "igneous pouncer",
-      "scryfallId": "83d59b32-d47f-4b05-87eb-58ffb8006fa8"
+      "scryfallId": "83d59b32-d47f-4b05-87eb-58ffb8006fa8",
+      "rarity": "common"
     },
     "ARB:41": {
       "key": "kathari bomber",
-      "scryfallId": "6c0d4f83-6319-4d40-9fee-6a44b05c8e9e"
+      "scryfallId": "6c0d4f83-6319-4d40-9fee-6a44b05c8e9e",
+      "rarity": "common"
     },
     "ARB:42": {
       "key": "lightning reaver",
-      "scryfallId": "24a0860d-d3b9-4a00-a8cb-617bc317b93d"
+      "scryfallId": "24a0860d-d3b9-4a00-a8cb-617bc317b93d",
+      "rarity": "rare"
     },
     "ARB:43": {
       "key": "monstrous carabid",
-      "scryfallId": "b09e668d-02ca-4164-88ee-c7ea6c665975"
+      "scryfallId": "b09e668d-02ca-4164-88ee-c7ea6c665975",
+      "rarity": "common"
     },
     "ARB:44": {
       "key": "sanity gnawers",
-      "scryfallId": "c088d28d-16c2-4dd2-b036-946dfdb8ec98"
+      "scryfallId": "c088d28d-16c2-4dd2-b036-946dfdb8ec98",
+      "rarity": "uncommon"
     },
     "ARB:45": {
       "key": "singe-mind ogre",
-      "scryfallId": "ab1564d7-43fe-4072-91a6-622713848b7e"
+      "scryfallId": "ab1564d7-43fe-4072-91a6-622713848b7e",
+      "rarity": "common"
     },
     "ARB:46": {
       "key": "terminate",
-      "scryfallId": "dc8acab8-4469-4baa-af2f-a3f49b841a55"
+      "scryfallId": "dc8acab8-4469-4baa-af2f-a3f49b841a55",
+      "rarity": "common"
     },
     "ARB:47": {
       "key": "thought hemorrhage",
-      "scryfallId": "b2b38a7e-d7c4-40c2-ba54-ae5649589cc9"
+      "scryfallId": "b2b38a7e-d7c4-40c2-ba54-ae5649589cc9",
+      "rarity": "rare"
     },
     "ARB:48": {
       "key": "veinfire borderpost",
-      "scryfallId": "75ad0cc1-66bd-43c3-a296-c36cf9a64e85"
+      "scryfallId": "75ad0cc1-66bd-43c3-a296-c36cf9a64e85",
+      "rarity": "common"
     },
     "ARB:49": {
       "key": "blitz hellion",
-      "scryfallId": "0b4a16be-ab3b-4020-9f26-631c0ee6730a"
+      "scryfallId": "0b4a16be-ab3b-4020-9f26-631c0ee6730a",
+      "rarity": "rare"
     },
     "ARB:5": {
       "key": "fieldmist borderpost",
-      "scryfallId": "9650a717-b1e4-4cd2-894d-766f6b311369"
+      "scryfallId": "9650a717-b1e4-4cd2-894d-766f6b311369",
+      "rarity": "common"
     },
     "ARB:50": {
       "key": "bloodbraid elf",
-      "scryfallId": "7ef67487-c8e5-49bb-b0f7-e073ff2e31f1"
+      "scryfallId": "7ef67487-c8e5-49bb-b0f7-e073ff2e31f1",
+      "rarity": "uncommon"
     },
     "ARB:51": {
       "key": "colossal might",
-      "scryfallId": "294330bb-3e77-4524-be2c-3299cf6f841f"
+      "scryfallId": "294330bb-3e77-4524-be2c-3299cf6f841f",
+      "rarity": "common"
     },
     "ARB:52": {
       "key": "deadshot minotaur",
-      "scryfallId": "aacb131b-74c9-4e6c-9466-27710bc9441f"
+      "scryfallId": "aacb131b-74c9-4e6c-9466-27710bc9441f",
+      "rarity": "common"
     },
     "ARB:53": {
       "key": "dragon broodmother",
-      "scryfallId": "f7f99431-ae43-4b68-82f0-faf940216c91"
+      "scryfallId": "f7f99431-ae43-4b68-82f0-faf940216c91",
+      "rarity": "mythic"
     },
     "ARB:54": {
       "key": "firewild borderpost",
-      "scryfallId": "eb37a8bd-6b6c-47f3-b7a0-5a20fa2d507c"
+      "scryfallId": "eb37a8bd-6b6c-47f3-b7a0-5a20fa2d507c",
+      "rarity": "common"
     },
     "ARB:55": {
       "key": "godtracker of jund",
-      "scryfallId": "7bd3fb7a-3eed-4b0a-9de0-ed8b7cf03533"
+      "scryfallId": "7bd3fb7a-3eed-4b0a-9de0-ed8b7cf03533",
+      "rarity": "common"
     },
     "ARB:56": {
       "key": "gorger wurm",
-      "scryfallId": "00e5a9be-bfb2-466b-b0fe-3b24694e9f84"
+      "scryfallId": "00e5a9be-bfb2-466b-b0fe-3b24694e9f84",
+      "rarity": "common"
     },
     "ARB:57": {
       "key": "mage slayer",
-      "scryfallId": "2d0bfe8c-120c-4c4b-8709-efe40e26a35c"
+      "scryfallId": "2d0bfe8c-120c-4c4b-8709-efe40e26a35c",
+      "rarity": "uncommon"
     },
     "ARB:58": {
       "key": "predatory advantage",
-      "scryfallId": "595ae3af-cc28-407a-a045-a6d71cd6be60"
+      "scryfallId": "595ae3af-cc28-407a-a045-a6d71cd6be60",
+      "rarity": "rare"
     },
     "ARB:59": {
       "key": "rhox brute",
-      "scryfallId": "237de286-5bf0-4c8e-8504-2d01d3133b55"
+      "scryfallId": "237de286-5bf0-4c8e-8504-2d01d3133b55",
+      "rarity": "common"
     },
     "ARB:6": {
       "key": "filigree angel",
-      "scryfallId": "7a0c7a2a-85c1-4b20-95b9-04aab0bd0d3b"
+      "scryfallId": "7a0c7a2a-85c1-4b20-95b9-04aab0bd0d3b",
+      "rarity": "rare"
     },
     "ARB:60": {
       "key": "spellbreaker behemoth",
-      "scryfallId": "a197e3f2-e69f-4716-9979-a304a87506c3"
+      "scryfallId": "a197e3f2-e69f-4716-9979-a304a87506c3",
+      "rarity": "rare"
     },
     "ARB:61": {
       "key": "valley rannet",
-      "scryfallId": "2027335a-224b-411d-a59f-f4ad39b38a69"
+      "scryfallId": "2027335a-224b-411d-a59f-f4ad39b38a69",
+      "rarity": "common"
     },
     "ARB:62": {
       "key": "vengeful rebirth",
-      "scryfallId": "80a504fb-b3ce-40f9-8fcb-86d5ad038e5d"
+      "scryfallId": "80a504fb-b3ce-40f9-8fcb-86d5ad038e5d",
+      "rarity": "uncommon"
     },
     "ARB:63": {
       "key": "violent outburst",
-      "scryfallId": "1b58856a-f88e-4625-8636-62b5c717b956"
+      "scryfallId": "1b58856a-f88e-4625-8636-62b5c717b956",
+      "rarity": "common"
     },
     "ARB:64": {
       "key": "vithian renegades",
-      "scryfallId": "7459a075-1a5d-4053-ab49-21bb696b6400"
+      "scryfallId": "7459a075-1a5d-4053-ab49-21bb696b6400",
+      "rarity": "uncommon"
     },
     "ARB:65": {
       "key": "behemoth sledge",
-      "scryfallId": "84e4a224-2db7-47d0-ba8b-98aeb50ad5d3"
+      "scryfallId": "84e4a224-2db7-47d0-ba8b-98aeb50ad5d3",
+      "rarity": "uncommon"
     },
     "ARB:66": {
       "key": "captured sunlight",
-      "scryfallId": "fcafc9eb-efa3-4f6c-a2ca-aec8692fddc1"
+      "scryfallId": "fcafc9eb-efa3-4f6c-a2ca-aec8692fddc1",
+      "rarity": "common"
     },
     "ARB:67": {
       "key": "dauntless escort",
-      "scryfallId": "832309e0-c047-4c82-baa3-16f3c76e4b6f"
+      "scryfallId": "832309e0-c047-4c82-baa3-16f3c76e4b6f",
+      "rarity": "rare"
     },
     "ARB:68": {
       "key": "enlisted wurm",
-      "scryfallId": "66605149-3959-4a51-8400-350e6fac2ab2"
+      "scryfallId": "66605149-3959-4a51-8400-350e6fac2ab2",
+      "rarity": "uncommon"
     },
     "ARB:69": {
       "key": "grizzled leotau",
-      "scryfallId": "2b388381-9e13-4ce7-b5b3-56a74cc23d93"
+      "scryfallId": "2b388381-9e13-4ce7-b5b3-56a74cc23d93",
+      "rarity": "common"
     },
     "ARB:7": {
       "key": "glassdust hulk",
-      "scryfallId": "397e6ff5-f5ee-4963-9942-4aa25f5eb64a"
+      "scryfallId": "397e6ff5-f5ee-4963-9942-4aa25f5eb64a",
+      "rarity": "common"
     },
     "ARB:70": {
       "key": "knight of new alara",
-      "scryfallId": "0d3fc235-d0d7-41f8-b35a-6e08761f7fa4"
+      "scryfallId": "0d3fc235-d0d7-41f8-b35a-6e08761f7fa4",
+      "rarity": "rare"
     },
     "ARB:71": {
       "key": "knotvine paladin",
-      "scryfallId": "a715673f-77f1-46d6-91ae-01fb3af54760"
+      "scryfallId": "a715673f-77f1-46d6-91ae-01fb3af54760",
+      "rarity": "rare"
     },
     "ARB:72": {
       "key": "leonin armorguard",
-      "scryfallId": "8a57cdbd-3cd2-47c1-aec8-7f4fd7a7b804"
+      "scryfallId": "8a57cdbd-3cd2-47c1-aec8-7f4fd7a7b804",
+      "rarity": "common"
     },
     "ARB:73": {
       "key": "mycoid shepherd",
-      "scryfallId": "8331079e-0193-4243-9db9-ec7762a27633"
+      "scryfallId": "8331079e-0193-4243-9db9-ec7762a27633",
+      "rarity": "rare"
     },
     "ARB:74": {
       "key": "pale recluse",
-      "scryfallId": "13fad19c-fd45-45cf-b58c-82cdcdf49b06"
+      "scryfallId": "13fad19c-fd45-45cf-b58c-82cdcdf49b06",
+      "rarity": "common"
     },
     "ARB:75": {
       "key": "qasali pridemage",
-      "scryfallId": "75256550-bbe0-499d-909e-af10691749c2"
+      "scryfallId": "75256550-bbe0-499d-909e-af10691749c2",
+      "rarity": "common"
     },
     "ARB:76": {
       "key": "reborn hope",
-      "scryfallId": "59038868-6278-4d8c-a107-35aa85b5648f"
+      "scryfallId": "59038868-6278-4d8c-a107-35aa85b5648f",
+      "rarity": "uncommon"
     },
     "ARB:77": {
       "key": "sigil captain",
-      "scryfallId": "f767f262-57fd-4479-b719-189942ddfd9e"
+      "scryfallId": "f767f262-57fd-4479-b719-189942ddfd9e",
+      "rarity": "uncommon"
     },
     "ARB:78": {
       "key": "sigil of the nayan gods",
-      "scryfallId": "a856dec4-fe4f-477c-9300-e9de86d3cc95"
+      "scryfallId": "a856dec4-fe4f-477c-9300-e9de86d3cc95",
+      "rarity": "common"
     },
     "ARB:79": {
       "key": "sigiled behemoth",
-      "scryfallId": "e0195ee6-c5d9-402e-8339-2caa50c4e46b"
+      "scryfallId": "e0195ee6-c5d9-402e-8339-2caa50c4e46b",
+      "rarity": "common"
     },
     "ARB:8": {
       "key": "meddling mage",
-      "scryfallId": "1a55308b-5772-430a-93e4-b65c416b86cf"
+      "scryfallId": "1a55308b-5772-430a-93e4-b65c416b86cf",
+      "rarity": "rare"
     },
     "ARB:80": {
       "key": "wildfield borderpost",
-      "scryfallId": "90a788e7-f3c8-41cc-9f1a-2e9f58aabc0e"
+      "scryfallId": "90a788e7-f3c8-41cc-9f1a-2e9f58aabc0e",
+      "rarity": "common"
     },
     "ARB:81": {
       "key": "identity crisis",
-      "scryfallId": "930d0de1-39af-4b08-81a3-2cca8aae5d40"
+      "scryfallId": "930d0de1-39af-4b08-81a3-2cca8aae5d40",
+      "rarity": "rare"
     },
     "ARB:82": {
       "key": "necromancer's covenant",
-      "scryfallId": "10e39147-6261-4e49-b6f2-28584582489f"
+      "scryfallId": "10e39147-6261-4e49-b6f2-28584582489f",
+      "rarity": "rare"
     },
     "ARB:83": {
       "key": "tainted sigil",
-      "scryfallId": "abcf3694-d6b0-459d-8c3a-1532237b487a"
+      "scryfallId": "abcf3694-d6b0-459d-8c3a-1532237b487a",
+      "rarity": "uncommon"
     },
     "ARB:84": {
       "key": "vectis dominator",
-      "scryfallId": "1cfb7589-a53e-4580-bd92-641fd4785934"
+      "scryfallId": "1cfb7589-a53e-4580-bd92-641fd4785934",
+      "rarity": "common"
     },
     "ARB:85": {
       "key": "zealous persecution",
-      "scryfallId": "07d8ae46-14ec-4878-ba8a-a47d4508c6d7"
+      "scryfallId": "07d8ae46-14ec-4878-ba8a-a47d4508c6d7",
+      "rarity": "uncommon"
     },
     "ARB:86": {
       "key": "cloven casting",
-      "scryfallId": "c62ee3ea-8b85-4b14-87ae-7fca1d98b98b"
+      "scryfallId": "c62ee3ea-8b85-4b14-87ae-7fca1d98b98b",
+      "rarity": "rare"
     },
     "ARB:87": {
       "key": "double negative",
-      "scryfallId": "2c7e3c58-3cda-4891-8b3d-33bb21568cf5"
+      "scryfallId": "2c7e3c58-3cda-4891-8b3d-33bb21568cf5",
+      "rarity": "uncommon"
     },
     "ARB:88": {
       "key": "magefire wings",
-      "scryfallId": "be18c2d9-60c4-454b-b6c7-7c22ed2985fb"
+      "scryfallId": "be18c2d9-60c4-454b-b6c7-7c22ed2985fb",
+      "rarity": "common"
     },
     "ARB:89": {
       "key": "skyclaw thrash",
-      "scryfallId": "fafde9c4-57c0-4ae5-a4db-38aae434ddcd"
+      "scryfallId": "fafde9c4-57c0-4ae5-a4db-38aae434ddcd",
+      "rarity": "uncommon"
     },
     "ARB:9": {
       "key": "offering to asha",
-      "scryfallId": "260fe443-ca03-42b1-bcee-86e5173c1aaf"
+      "scryfallId": "260fe443-ca03-42b1-bcee-86e5173c1aaf",
+      "rarity": "common"
     },
     "ARB:90": {
       "key": "spellbound dragon",
-      "scryfallId": "551518b7-1b71-4fa6-8828-5ae08eab1887"
+      "scryfallId": "551518b7-1b71-4fa6-8828-5ae08eab1887",
+      "rarity": "rare"
     },
     "ARB:91": {
       "key": "lord of extinction",
-      "scryfallId": "fbf60d69-fc68-4b23-a9e8-9d310c00a865"
+      "scryfallId": "fbf60d69-fc68-4b23-a9e8-9d310c00a865",
+      "rarity": "mythic"
     },
     "ARB:92": {
       "key": "maelstrom pulse",
-      "scryfallId": "eb651c3a-cb27-4b73-8eb6-b87d65211097"
+      "scryfallId": "eb651c3a-cb27-4b73-8eb6-b87d65211097",
+      "rarity": "rare"
     },
     "ARB:93": {
       "key": "marrow chomper",
-      "scryfallId": "d31a32e7-e709-4524-8752-ad0ec8c77fde"
+      "scryfallId": "d31a32e7-e709-4524-8752-ad0ec8c77fde",
+      "rarity": "uncommon"
     },
     "ARB:94": {
       "key": "morbid bloom",
-      "scryfallId": "684ebc3a-e3b4-4dee-92ff-4a85556e0571"
+      "scryfallId": "684ebc3a-e3b4-4dee-92ff-4a85556e0571",
+      "rarity": "uncommon"
     },
     "ARB:95": {
       "key": "putrid leech",
-      "scryfallId": "aaa47568-5668-4a9f-ad1c-9a13010ffc2b"
+      "scryfallId": "aaa47568-5668-4a9f-ad1c-9a13010ffc2b",
+      "rarity": "common"
     },
     "ARB:96": {
       "key": "cerodon yearling",
-      "scryfallId": "f6a85165-5aed-4e26-a314-1370d4638deb"
+      "scryfallId": "f6a85165-5aed-4e26-a314-1370d4638deb",
+      "rarity": "common"
     },
     "ARB:97": {
       "key": "fight to the death",
-      "scryfallId": "5552ca9b-0245-4f91-9646-a5b5443863a2"
+      "scryfallId": "5552ca9b-0245-4f91-9646-a5b5443863a2",
+      "rarity": "rare"
     },
     "ARB:98": {
       "key": "glory of warfare",
-      "scryfallId": "a6117bf5-4084-45bd-82aa-81cf6d9b7eb4"
+      "scryfallId": "a6117bf5-4084-45bd-82aa-81cf6d9b7eb4",
+      "rarity": "rare"
     },
     "ARB:99": {
       "key": "intimidation bolt",
-      "scryfallId": "17e4fb54-9f31-4d75-b4ab-7b11f745b807"
+      "scryfallId": "17e4fb54-9f31-4d75-b4ab-7b11f745b807",
+      "rarity": "uncommon"
     },
     "ISD:1": {
       "key": "abbey griffin",
-      "scryfallId": "bf87803b-e7c6-4122-add4-72e596167b7e"
+      "scryfallId": "bf87803b-e7c6-4122-add4-72e596167b7e",
+      "rarity": "common"
     },
     "ISD:10": {
       "key": "divine reckoning",
-      "scryfallId": "446ea3a4-206a-4097-87c1-c04bb7812972"
+      "scryfallId": "446ea3a4-206a-4097-87c1-c04bb7812972",
+      "rarity": "rare"
     },
     "ISD:100": {
       "key": "falkenrath noble",
-      "scryfallId": "e2286f94-4cf9-4462-b5d7-cee7f6910018"
+      "scryfallId": "e2286f94-4cf9-4462-b5d7-cee7f6910018",
+      "rarity": "uncommon"
     },
     "ISD:101": {
       "key": "ghoulcaller's chant",
-      "scryfallId": "2b8c1b10-2155-404a-8f20-eb8f643849d6"
+      "scryfallId": "2b8c1b10-2155-404a-8f20-eb8f643849d6",
+      "rarity": "common"
     },
     "ISD:102": {
       "key": "ghoulraiser",
-      "scryfallId": "52c537d1-2d57-4a87-9dac-594d40d95633"
+      "scryfallId": "52c537d1-2d57-4a87-9dac-594d40d95633",
+      "rarity": "common"
     },
     "ISD:103": {
       "key": "gruesome deformity",
-      "scryfallId": "5696db03-206f-4e7e-9b65-ccef31bfd7d2"
+      "scryfallId": "5696db03-206f-4e7e-9b65-ccef31bfd7d2",
+      "rarity": "common"
     },
     "ISD:104": {
       "key": "heartless summoning",
-      "scryfallId": "14f8f638-b7fc-4e38-8623-ce7d2ebc82e6"
+      "scryfallId": "14f8f638-b7fc-4e38-8623-ce7d2ebc82e6",
+      "rarity": "rare"
     },
     "ISD:105": {
       "key": "liliana of the veil",
-      "scryfallId": "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d"
+      "scryfallId": "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d",
+      "rarity": "mythic"
     },
     "ISD:106": {
       "key": "manor skeleton",
-      "scryfallId": "e7b45197-d5c2-48c8-b72e-00236552e338"
+      "scryfallId": "e7b45197-d5c2-48c8-b72e-00236552e338",
+      "rarity": "common"
     },
     "ISD:107": {
       "key": "markov patrician",
-      "scryfallId": "29c3d3f7-5e28-4fec-8422-87856fcd1e8e"
+      "scryfallId": "29c3d3f7-5e28-4fec-8422-87856fcd1e8e",
+      "rarity": "common"
     },
     "ISD:108": {
       "key": "maw of the mire",
-      "scryfallId": "90b34a03-3270-412c-90ca-03c1b3e61222"
+      "scryfallId": "90b34a03-3270-412c-90ca-03c1b3e61222",
+      "rarity": "common"
     },
     "ISD:109": {
       "key": "moan of the unhallowed",
-      "scryfallId": "3e2c5a8f-c03a-40ab-8390-ff6b5b654717"
+      "scryfallId": "3e2c5a8f-c03a-40ab-8390-ff6b5b654717",
+      "rarity": "uncommon"
     },
     "ISD:11": {
       "key": "doomed traveler",
-      "scryfallId": "652c3bbb-cac8-47ad-81de-41e954e17a29"
+      "scryfallId": "652c3bbb-cac8-47ad-81de-41e954e17a29",
+      "rarity": "common"
     },
     "ISD:110": {
       "key": "morkrut banshee",
-      "scryfallId": "fff9989f-77a3-4f73-ade6-c04306c98501"
+      "scryfallId": "fff9989f-77a3-4f73-ade6-c04306c98501",
+      "rarity": "uncommon"
     },
     "ISD:111": {
       "key": "night terrors",
-      "scryfallId": "5091658c-0314-42ee-87d8-95d3f457c4ab"
+      "scryfallId": "5091658c-0314-42ee-87d8-95d3f457c4ab",
+      "rarity": "common"
     },
     "ISD:112": {
       "key": "reaper from the abyss",
-      "scryfallId": "f0d74c3e-8370-419b-808d-96b8d9306024"
+      "scryfallId": "f0d74c3e-8370-419b-808d-96b8d9306024",
+      "rarity": "mythic"
     },
     "ISD:113": {
       "key": "rotting fensnake",
-      "scryfallId": "c21cbb10-9157-4887-a752-29b9e94fc77a"
+      "scryfallId": "c21cbb10-9157-4887-a752-29b9e94fc77a",
+      "rarity": "common"
     },
     "ISD:114": {
       "key": "screeching bat // stalking vampire",
-      "scryfallId": "88db324f-11f1-43d3-a897-f4e3caf8d642"
+      "scryfallId": "88db324f-11f1-43d3-a897-f4e3caf8d642",
+      "rarity": "uncommon"
     },
     "ISD:115": {
       "key": "sever the bloodline",
-      "scryfallId": "5c6da820-dfb9-4b61-aff8-56dfc9f4894e"
+      "scryfallId": "5c6da820-dfb9-4b61-aff8-56dfc9f4894e",
+      "rarity": "rare"
     },
     "ISD:116": {
       "key": "skeletal grimace",
-      "scryfallId": "b9b28f37-d6b8-4d35-95e9-9533aea0a071"
+      "scryfallId": "b9b28f37-d6b8-4d35-95e9-9533aea0a071",
+      "rarity": "common"
     },
     "ISD:117": {
       "key": "skirsdag high priest",
-      "scryfallId": "09aa6b66-f69b-4f89-b802-e30c247f90e3"
+      "scryfallId": "09aa6b66-f69b-4f89-b802-e30c247f90e3",
+      "rarity": "rare"
     },
     "ISD:118": {
       "key": "stromkirk patrol",
-      "scryfallId": "d86634a1-7016-4500-8857-924d51857bad"
+      "scryfallId": "d86634a1-7016-4500-8857-924d51857bad",
+      "rarity": "common"
     },
     "ISD:119": {
       "key": "tribute to hunger",
-      "scryfallId": "f77e0f88-2285-4b59-9165-9948c75d77a3"
+      "scryfallId": "f77e0f88-2285-4b59-9165-9948c75d77a3",
+      "rarity": "uncommon"
     },
     "ISD:12": {
       "key": "elder cathar",
-      "scryfallId": "c21b9e51-fecd-4f9a-9354-a6dc1613feb3"
+      "scryfallId": "c21b9e51-fecd-4f9a-9354-a6dc1613feb3",
+      "rarity": "common"
     },
     "ISD:120": {
       "key": "typhoid rats",
-      "scryfallId": "4490ce65-c73a-4809-abd1-ccc3175bd2a4"
+      "scryfallId": "4490ce65-c73a-4809-abd1-ccc3175bd2a4",
+      "rarity": "common"
     },
     "ISD:121": {
       "key": "unbreathing horde",
-      "scryfallId": "1a91ea47-0c06-4333-a309-ac360c5cc9bd"
+      "scryfallId": "1a91ea47-0c06-4333-a309-ac360c5cc9bd",
+      "rarity": "rare"
     },
     "ISD:122": {
       "key": "unburial rites",
-      "scryfallId": "2794c82b-e5ce-4369-894e-bf56c6402ae1"
+      "scryfallId": "2794c82b-e5ce-4369-894e-bf56c6402ae1",
+      "rarity": "uncommon"
     },
     "ISD:123": {
       "key": "vampire interloper",
-      "scryfallId": "48105c2e-ee36-4117-b56b-3440298da995"
+      "scryfallId": "48105c2e-ee36-4117-b56b-3440298da995",
+      "rarity": "common"
     },
     "ISD:124": {
       "key": "victim of night",
-      "scryfallId": "ee4c6135-eee9-43ec-bbe8-76912352dcac"
+      "scryfallId": "ee4c6135-eee9-43ec-bbe8-76912352dcac",
+      "rarity": "common"
     },
     "ISD:125": {
       "key": "village cannibals",
-      "scryfallId": "a5400460-da9d-437b-bb81-cf382beb371e"
+      "scryfallId": "a5400460-da9d-437b-bb81-cf382beb371e",
+      "rarity": "uncommon"
     },
     "ISD:126": {
       "key": "walking corpse",
-      "scryfallId": "8e033384-3334-4082-9541-f2443d3bc424"
+      "scryfallId": "8e033384-3334-4082-9541-f2443d3bc424",
+      "rarity": "common"
     },
     "ISD:127": {
       "key": "ancient grudge",
-      "scryfallId": "e5e7b966-7c5b-44e6-a6df-4bd7af4edaa9"
+      "scryfallId": "e5e7b966-7c5b-44e6-a6df-4bd7af4edaa9",
+      "rarity": "common"
     },
     "ISD:128": {
       "key": "ashmouth hound",
-      "scryfallId": "900ff07e-e5d2-4fe6-ad1a-d0d7e1a272ea"
+      "scryfallId": "900ff07e-e5d2-4fe6-ad1a-d0d7e1a272ea",
+      "rarity": "common"
     },
     "ISD:129": {
       "key": "balefire dragon",
-      "scryfallId": "b0dce4ac-f472-4f3b-b01a-eff0902a578f"
+      "scryfallId": "b0dce4ac-f472-4f3b-b01a-eff0902a578f",
+      "rarity": "mythic"
     },
     "ISD:13": {
       "key": "elite inquisitor",
-      "scryfallId": "c9411c44-92a8-4f5d-b3de-d80046649c8c"
+      "scryfallId": "c9411c44-92a8-4f5d-b3de-d80046649c8c",
+      "rarity": "rare"
     },
     "ISD:130": {
       "key": "blasphemous act",
-      "scryfallId": "509ce648-fb76-486d-8b39-183e368b7cb7"
+      "scryfallId": "509ce648-fb76-486d-8b39-183e368b7cb7",
+      "rarity": "rare"
     },
     "ISD:131": {
       "key": "bloodcrazed neonate",
-      "scryfallId": "68d2452e-309d-44ae-9360-9d6e22a15e2b"
+      "scryfallId": "68d2452e-309d-44ae-9360-9d6e22a15e2b",
+      "rarity": "common"
     },
     "ISD:132": {
       "key": "brimstone volley",
-      "scryfallId": "6960f2da-6b84-4680-8ab2-f0567a5d1b0a"
+      "scryfallId": "6960f2da-6b84-4680-8ab2-f0567a5d1b0a",
+      "rarity": "common"
     },
     "ISD:133": {
       "key": "burning vengeance",
-      "scryfallId": "fd403810-840b-46ac-ae6e-5df23ce16fec"
+      "scryfallId": "fd403810-840b-46ac-ae6e-5df23ce16fec",
+      "rarity": "uncommon"
     },
     "ISD:134": {
       "key": "charmbreaker devils",
-      "scryfallId": "a9197a67-6609-496c-9aae-825ede4f755b"
+      "scryfallId": "a9197a67-6609-496c-9aae-825ede4f755b",
+      "rarity": "rare"
     },
     "ISD:135": {
       "key": "crossway vampire",
-      "scryfallId": "3e7a137f-e19e-43a6-aab8-02b175c9d626"
+      "scryfallId": "3e7a137f-e19e-43a6-aab8-02b175c9d626",
+      "rarity": "common"
     },
     "ISD:136": {
       "key": "curse of stalked prey",
-      "scryfallId": "11a18883-8990-40a0-bcb2-e01d0e82bfad"
+      "scryfallId": "11a18883-8990-40a0-bcb2-e01d0e82bfad",
+      "rarity": "rare"
     },
     "ISD:137": {
       "key": "curse of the nightly hunt",
-      "scryfallId": "49cbfcf2-462e-4bbf-a529-a70816eb1436"
+      "scryfallId": "49cbfcf2-462e-4bbf-a529-a70816eb1436",
+      "rarity": "uncommon"
     },
     "ISD:138": {
       "key": "curse of the pierced heart",
-      "scryfallId": "71010182-c004-4d18-adab-80319cd1e625"
+      "scryfallId": "71010182-c004-4d18-adab-80319cd1e625",
+      "rarity": "common"
     },
     "ISD:139": {
       "key": "desperate ravings",
-      "scryfallId": "2ba3ab3e-d16c-492f-a860-6d8efcadf679"
+      "scryfallId": "2ba3ab3e-d16c-492f-a860-6d8efcadf679",
+      "rarity": "uncommon"
     },
     "ISD:14": {
       "key": "feeling of dread",
-      "scryfallId": "846a2f9e-ad4f-4666-b152-fdeab7559d86"
+      "scryfallId": "846a2f9e-ad4f-4666-b152-fdeab7559d86",
+      "rarity": "common"
     },
     "ISD:140": {
       "key": "devil's play",
-      "scryfallId": "c80596a4-b464-4b9e-8186-94a1c44838eb"
+      "scryfallId": "c80596a4-b464-4b9e-8186-94a1c44838eb",
+      "rarity": "rare"
     },
     "ISD:141": {
       "key": "falkenrath marauders",
-      "scryfallId": "b9c09887-6d2b-48b4-a483-16b8a45babd0"
+      "scryfallId": "b9c09887-6d2b-48b4-a483-16b8a45babd0",
+      "rarity": "rare"
     },
     "ISD:142": {
       "key": "feral ridgewolf",
-      "scryfallId": "78c66cc0-cb0f-4daf-8141-0923ad46a834"
+      "scryfallId": "78c66cc0-cb0f-4daf-8141-0923ad46a834",
+      "rarity": "common"
     },
     "ISD:143": {
       "key": "furor of the bitten",
-      "scryfallId": "ff4a4c19-6427-4a03-a543-992c910e668f"
+      "scryfallId": "ff4a4c19-6427-4a03-a543-992c910e668f",
+      "rarity": "common"
     },
     "ISD:144": {
       "key": "geistflame",
-      "scryfallId": "1b856f31-ac80-4338-95a5-3f8acda74cfe"
+      "scryfallId": "1b856f31-ac80-4338-95a5-3f8acda74cfe",
+      "rarity": "common"
     },
     "ISD:145": {
       "key": "hanweir watchkeep // bane of hanweir",
-      "scryfallId": "2b14ed17-1a35-4c49-ac46-3cad42d46c14"
+      "scryfallId": "2b14ed17-1a35-4c49-ac46-3cad42d46c14",
+      "rarity": "uncommon"
     },
     "ISD:146": {
       "key": "harvest pyre",
-      "scryfallId": "4d6220b4-a5b8-45c8-9422-fab9eb32322c"
+      "scryfallId": "4d6220b4-a5b8-45c8-9422-fab9eb32322c",
+      "rarity": "common"
     },
     "ISD:147": {
       "key": "heretic's punishment",
-      "scryfallId": "d2c9e963-bb0c-4490-8238-9476b924abf7"
+      "scryfallId": "d2c9e963-bb0c-4490-8238-9476b924abf7",
+      "rarity": "rare"
     },
     "ISD:148": {
       "key": "infernal plunge",
-      "scryfallId": "b3f50e17-c29c-4d2c-b3e7-45d1216b81ea"
+      "scryfallId": "b3f50e17-c29c-4d2c-b3e7-45d1216b81ea",
+      "rarity": "common"
     },
     "ISD:149": {
       "key": "instigator gang // wildblood pack",
-      "scryfallId": "bb90a6f1-c7f2-4c2e-ab1e-59c5c7937841"
+      "scryfallId": "bb90a6f1-c7f2-4c2e-ab1e-59c5c7937841",
+      "rarity": "rare"
     },
     "ISD:15": {
       "key": "fiend hunter",
-      "scryfallId": "f1e4c7d8-11a5-40fe-962b-7e938bf08616"
+      "scryfallId": "f1e4c7d8-11a5-40fe-962b-7e938bf08616",
+      "rarity": "uncommon"
     },
     "ISD:150": {
       "key": "into the maw of hell",
-      "scryfallId": "5d188d9b-7a12-4eaf-855b-af4f0204dc5a"
+      "scryfallId": "5d188d9b-7a12-4eaf-855b-af4f0204dc5a",
+      "rarity": "uncommon"
     },
     "ISD:151": {
       "key": "kessig wolf",
-      "scryfallId": "3255480b-c1cf-43d9-a40e-43e38112bb18"
+      "scryfallId": "3255480b-c1cf-43d9-a40e-43e38112bb18",
+      "rarity": "common"
     },
     "ISD:152": {
       "key": "kruin outlaw // terror of kruin pass",
-      "scryfallId": "ec00d2d2-6597-474a-9353-345bbedfe57e"
+      "scryfallId": "ec00d2d2-6597-474a-9353-345bbedfe57e",
+      "rarity": "rare"
     },
     "ISD:153": {
       "key": "night revelers",
-      "scryfallId": "e3f82c5c-77fa-45f3-a91e-4c2489444855"
+      "scryfallId": "e3f82c5c-77fa-45f3-a91e-4c2489444855",
+      "rarity": "common"
     },
     "ISD:154": {
       "key": "nightbird's clutches",
-      "scryfallId": "b5c7410d-b69b-41a3-b469-e12c6ffc7578"
+      "scryfallId": "b5c7410d-b69b-41a3-b469-e12c6ffc7578",
+      "rarity": "common"
     },
     "ISD:155": {
       "key": "past in flames",
-      "scryfallId": "23af6033-4930-48e4-821d-14cbbe1754b4"
+      "scryfallId": "23af6033-4930-48e4-821d-14cbbe1754b4",
+      "rarity": "mythic"
     },
     "ISD:156": {
       "key": "pitchburn devils",
-      "scryfallId": "d31d3de5-4028-457f-8eba-82e829061a40"
+      "scryfallId": "d31d3de5-4028-457f-8eba-82e829061a40",
+      "rarity": "common"
     },
     "ISD:157": {
       "key": "rage thrower",
-      "scryfallId": "f16db004-3e0c-491b-b8b6-0ae046d11761"
+      "scryfallId": "f16db004-3e0c-491b-b8b6-0ae046d11761",
+      "rarity": "uncommon"
     },
     "ISD:158": {
       "key": "rakish heir",
-      "scryfallId": "4afab3a6-95e3-4786-94f2-d9aa7365a4de"
+      "scryfallId": "4afab3a6-95e3-4786-94f2-d9aa7365a4de",
+      "rarity": "uncommon"
     },
     "ISD:159": {
       "key": "reckless waif // merciless predator",
-      "scryfallId": "028aeebc-4073-4595-94da-02f9f96ea148"
+      "scryfallId": "028aeebc-4073-4595-94da-02f9f96ea148",
+      "rarity": "uncommon"
     },
     "ISD:16": {
       "key": "gallows warden",
-      "scryfallId": "15947b20-8c8e-42ed-9599-8b180a382d21"
+      "scryfallId": "15947b20-8c8e-42ed-9599-8b180a382d21",
+      "rarity": "uncommon"
     },
     "ISD:160": {
       "key": "riot devils",
-      "scryfallId": "cd35107b-6aaf-4fd8-bf1c-12b724d1482e"
+      "scryfallId": "cd35107b-6aaf-4fd8-bf1c-12b724d1482e",
+      "rarity": "common"
     },
     "ISD:161": {
       "key": "rolling temblor",
-      "scryfallId": "060ce982-94dd-4b9e-b240-15da297e29f9"
+      "scryfallId": "060ce982-94dd-4b9e-b240-15da297e29f9",
+      "rarity": "uncommon"
     },
     "ISD:162": {
       "key": "scourge of geier reach",
-      "scryfallId": "e0c25932-96e7-4ae5-b544-8780f92d0be7"
+      "scryfallId": "e0c25932-96e7-4ae5-b544-8780f92d0be7",
+      "rarity": "uncommon"
     },
     "ISD:163": {
       "key": "skirsdag cultist",
-      "scryfallId": "e63fa0de-2ec3-41ff-8e5d-0b54f400f27f"
+      "scryfallId": "e63fa0de-2ec3-41ff-8e5d-0b54f400f27f",
+      "rarity": "uncommon"
     },
     "ISD:164": {
       "key": "stromkirk noble",
-      "scryfallId": "9c16cf74-f9e0-4d80-9a29-b91dec0b6b38"
+      "scryfallId": "9c16cf74-f9e0-4d80-9a29-b91dec0b6b38",
+      "rarity": "rare"
     },
     "ISD:165": {
       "key": "tormented pariah // rampaging werewolf",
-      "scryfallId": "6151cae7-92a4-4891-a952-21def412d3e4"
+      "scryfallId": "6151cae7-92a4-4891-a952-21def412d3e4",
+      "rarity": "common"
     },
     "ISD:166": {
       "key": "traitorous blood",
-      "scryfallId": "8220f18a-f23f-4fe6-bb58-58b6c5f36c79"
+      "scryfallId": "8220f18a-f23f-4fe6-bb58-58b6c5f36c79",
+      "rarity": "common"
     },
     "ISD:167": {
       "key": "vampiric fury",
-      "scryfallId": "de4fd254-0ae9-498d-b9da-4fb3d6a1a55c"
+      "scryfallId": "de4fd254-0ae9-498d-b9da-4fb3d6a1a55c",
+      "rarity": "common"
     },
     "ISD:168": {
       "key": "village ironsmith // ironfang",
-      "scryfallId": "cd5435d0-789f-4c42-8efc-165c072404a2"
+      "scryfallId": "cd5435d0-789f-4c42-8efc-165c072404a2",
+      "rarity": "common"
     },
     "ISD:169": {
       "key": "ambush viper",
-      "scryfallId": "0c082aa8-bf7f-47f2-baf8-43ad253fd7d7"
+      "scryfallId": "0c082aa8-bf7f-47f2-baf8-43ad253fd7d7",
+      "rarity": "common"
     },
     "ISD:17": {
       "key": "geist-honored monk",
-      "scryfallId": "5d51355e-55fa-43bb-a5de-fc55ac7b6446"
+      "scryfallId": "5d51355e-55fa-43bb-a5de-fc55ac7b6446",
+      "rarity": "rare"
     },
     "ISD:170": {
       "key": "avacyn's pilgrim",
-      "scryfallId": "7eb39e97-53c2-4df0-9fb3-a3d6a24ec41f"
+      "scryfallId": "7eb39e97-53c2-4df0-9fb3-a3d6a24ec41f",
+      "rarity": "common"
     },
     "ISD:171": {
       "key": "boneyard wurm",
-      "scryfallId": "75f3d9eb-462c-41b5-ad1a-baab7dc5eac3"
+      "scryfallId": "75f3d9eb-462c-41b5-ad1a-baab7dc5eac3",
+      "rarity": "uncommon"
     },
     "ISD:172": {
       "key": "bramblecrush",
-      "scryfallId": "60fa219e-5dba-4d49-9cae-40d254f140e4"
+      "scryfallId": "60fa219e-5dba-4d49-9cae-40d254f140e4",
+      "rarity": "uncommon"
     },
     "ISD:173": {
       "key": "caravan vigil",
-      "scryfallId": "9a8dfb98-a975-41bf-8aac-c0001c9ddaa7"
+      "scryfallId": "9a8dfb98-a975-41bf-8aac-c0001c9ddaa7",
+      "rarity": "common"
     },
     "ISD:174": {
       "key": "creeping renaissance",
-      "scryfallId": "b965069d-8513-41ab-98f6-3fbd46c19e2d"
+      "scryfallId": "b965069d-8513-41ab-98f6-3fbd46c19e2d",
+      "rarity": "rare"
     },
     "ISD:175": {
       "key": "darkthicket wolf",
-      "scryfallId": "fec37c5a-8223-441c-a8a6-8da1a2dfc3fb"
+      "scryfallId": "fec37c5a-8223-441c-a8a6-8da1a2dfc3fb",
+      "rarity": "common"
     },
     "ISD:176": {
       "key": "daybreak ranger // nightfall predator",
-      "scryfallId": "25b54a1d-e201-453b-9173-b04e06ee6fb7"
+      "scryfallId": "25b54a1d-e201-453b-9173-b04e06ee6fb7",
+      "rarity": "rare"
     },
     "ISD:177": {
       "key": "elder of laurels",
-      "scryfallId": "32b82ef0-c974-4357-b21a-4c2a28ec7279"
+      "scryfallId": "32b82ef0-c974-4357-b21a-4c2a28ec7279",
+      "rarity": "rare"
     },
     "ISD:178": {
       "key": "essence of the wild",
-      "scryfallId": "dec48cba-1b5d-44e7-9e25-16922dedb67d"
+      "scryfallId": "dec48cba-1b5d-44e7-9e25-16922dedb67d",
+      "rarity": "mythic"
     },
     "ISD:179": {
       "key": "festerhide boar",
-      "scryfallId": "31740fe9-27d2-416e-93de-509ac1a7b7cd"
+      "scryfallId": "31740fe9-27d2-416e-93de-509ac1a7b7cd",
+      "rarity": "common"
     },
     "ISD:18": {
       "key": "ghostly possession",
-      "scryfallId": "c3f048d9-ca13-485d-ad92-de4695b7dc18"
+      "scryfallId": "c3f048d9-ca13-485d-ad92-de4695b7dc18",
+      "rarity": "common"
     },
     "ISD:180": {
       "key": "full moon's rise",
-      "scryfallId": "02a35eac-b962-466e-a4da-a4010c68ef16"
+      "scryfallId": "02a35eac-b962-466e-a4da-a4010c68ef16",
+      "rarity": "uncommon"
     },
     "ISD:181": {
       "key": "garruk relentless // garruk, the veil-cursed",
-      "scryfallId": "b4160322-ff40-41a4-887a-73cd6b85ae45"
+      "scryfallId": "b4160322-ff40-41a4-887a-73cd6b85ae45",
+      "rarity": "mythic"
     },
     "ISD:182": {
       "key": "gatstaf shepherd // gatstaf howler",
-      "scryfallId": "57f0907f-74f4-4d86-93df-f2e50c9d0b2f"
+      "scryfallId": "57f0907f-74f4-4d86-93df-f2e50c9d0b2f",
+      "rarity": "uncommon"
     },
     "ISD:183": {
       "key": "gnaw to the bone",
-      "scryfallId": "416148c8-13d3-46d3-ac93-6eb7cbab2881"
+      "scryfallId": "416148c8-13d3-46d3-ac93-6eb7cbab2881",
+      "rarity": "common"
     },
     "ISD:184": {
       "key": "grave bramble",
-      "scryfallId": "8be1d4d2-5215-44b2-9b67-627d088efdb5"
+      "scryfallId": "8be1d4d2-5215-44b2-9b67-627d088efdb5",
+      "rarity": "common"
     },
     "ISD:185": {
       "key": "grizzled outcasts // krallenhorde wantons",
-      "scryfallId": "4b43b0cb-a5a3-47b4-9b6b-9d2638222bb6"
+      "scryfallId": "4b43b0cb-a5a3-47b4-9b6b-9d2638222bb6",
+      "rarity": "common"
     },
     "ISD:186": {
       "key": "gutter grime",
-      "scryfallId": "a9d007a2-163d-4e09-a70b-280a6fa3203b"
+      "scryfallId": "a9d007a2-163d-4e09-a70b-280a6fa3203b",
+      "rarity": "rare"
     },
     "ISD:187": {
       "key": "hamlet captain",
-      "scryfallId": "1203ae4f-4d69-490f-8a7c-dadbefa6d697"
+      "scryfallId": "1203ae4f-4d69-490f-8a7c-dadbefa6d697",
+      "rarity": "uncommon"
     },
     "ISD:188": {
       "key": "hollowhenge scavenger",
-      "scryfallId": "6c9ff632-0e27-4521-9e9d-5725e618f5dd"
+      "scryfallId": "6c9ff632-0e27-4521-9e9d-5725e618f5dd",
+      "rarity": "uncommon"
     },
     "ISD:189": {
       "key": "kessig cagebreakers",
-      "scryfallId": "fae22886-da03-49f2-873c-98a7ea2ee17d"
+      "scryfallId": "fae22886-da03-49f2-873c-98a7ea2ee17d",
+      "rarity": "rare"
     },
     "ISD:19": {
       "key": "intangible virtue",
-      "scryfallId": "0dd21f5e-d284-4072-87b9-7f0e6140fe60"
+      "scryfallId": "0dd21f5e-d284-4072-87b9-7f0e6140fe60",
+      "rarity": "uncommon"
     },
     "ISD:190": {
       "key": "kindercatch",
-      "scryfallId": "4954e8a3-e72b-4f28-8762-2b1c658c31b6"
+      "scryfallId": "4954e8a3-e72b-4f28-8762-2b1c658c31b6",
+      "rarity": "common"
     },
     "ISD:191": {
       "key": "lumberknot",
-      "scryfallId": "6c86c84e-9bab-4a2c-b594-7f7b4b6bba88"
+      "scryfallId": "6c86c84e-9bab-4a2c-b594-7f7b4b6bba88",
+      "rarity": "uncommon"
     },
     "ISD:192": {
       "key": "make a wish",
-      "scryfallId": "d0a8508d-25a7-4fb2-8aa3-349275f80c42"
+      "scryfallId": "d0a8508d-25a7-4fb2-8aa3-349275f80c42",
+      "rarity": "uncommon"
     },
     "ISD:193": {
       "key": "mayor of avabruck // howlpack alpha",
-      "scryfallId": "dd8ca448-f734-4cb9-b1d5-790eed9a4b2d"
+      "scryfallId": "dd8ca448-f734-4cb9-b1d5-790eed9a4b2d",
+      "rarity": "rare"
     },
     "ISD:194": {
       "key": "moldgraf monstrosity",
-      "scryfallId": "f387c86a-702f-4f86-bcb9-d2bfa46fd211"
+      "scryfallId": "f387c86a-702f-4f86-bcb9-d2bfa46fd211",
+      "rarity": "rare"
     },
     "ISD:195": {
       "key": "moonmist",
-      "scryfallId": "57153c3f-9e55-418c-b67b-36901f29f9c1"
+      "scryfallId": "57153c3f-9e55-418c-b67b-36901f29f9c1",
+      "rarity": "common"
     },
     "ISD:196": {
       "key": "mulch",
-      "scryfallId": "52a1dabd-82df-4814-9d64-bf7bf9c1018d"
+      "scryfallId": "52a1dabd-82df-4814-9d64-bf7bf9c1018d",
+      "rarity": "common"
     },
     "ISD:197": {
       "key": "naturalize",
-      "scryfallId": "236f1a8c-13ab-4ab3-b11f-082054d297e5"
+      "scryfallId": "236f1a8c-13ab-4ab3-b11f-082054d297e5",
+      "rarity": "common"
     },
     "ISD:198": {
       "key": "orchard spirit",
-      "scryfallId": "aac43ced-35b0-4e70-a049-1a65db9b2b1e"
+      "scryfallId": "aac43ced-35b0-4e70-a049-1a65db9b2b1e",
+      "rarity": "common"
     },
     "ISD:199": {
       "key": "parallel lives",
-      "scryfallId": "01033dae-fec1-41f2-b7f2-cc6a43331790"
+      "scryfallId": "01033dae-fec1-41f2-b7f2-cc6a43331790",
+      "rarity": "rare"
     },
     "ISD:2": {
       "key": "angel of flight alabaster",
-      "scryfallId": "8dfe629f-485c-4619-9713-32d2ae406e63"
+      "scryfallId": "8dfe629f-485c-4619-9713-32d2ae406e63",
+      "rarity": "rare"
     },
     "ISD:20": {
       "key": "mausoleum guard",
-      "scryfallId": "2c7b19de-96a6-4590-bfc3-31b0c7b2e25e"
+      "scryfallId": "2c7b19de-96a6-4590-bfc3-31b0c7b2e25e",
+      "rarity": "uncommon"
     },
     "ISD:200": {
       "key": "prey upon",
-      "scryfallId": "b7b3eaf0-4207-4bac-923d-29f348c95a35"
+      "scryfallId": "b7b3eaf0-4207-4bac-923d-29f348c95a35",
+      "rarity": "common"
     },
     "ISD:201": {
       "key": "ranger's guile",
-      "scryfallId": "c90742ae-c48b-4d32-a6b7-aa51a94018bd"
+      "scryfallId": "c90742ae-c48b-4d32-a6b7-aa51a94018bd",
+      "rarity": "common"
     },
     "ISD:202": {
       "key": "somberwald spider",
-      "scryfallId": "43003ad7-2f42-4c85-8b00-77cbf3f50a7b"
+      "scryfallId": "43003ad7-2f42-4c85-8b00-77cbf3f50a7b",
+      "rarity": "common"
     },
     "ISD:203": {
       "key": "spider spawning",
-      "scryfallId": "f97007af-6642-4105-8d8c-4223681e1cf9"
+      "scryfallId": "f97007af-6642-4105-8d8c-4223681e1cf9",
+      "rarity": "uncommon"
     },
     "ISD:204": {
       "key": "spidery grasp",
-      "scryfallId": "ccbdfd82-d025-4070-a1f5-4ee759978bcb"
+      "scryfallId": "ccbdfd82-d025-4070-a1f5-4ee759978bcb",
+      "rarity": "common"
     },
     "ISD:205": {
       "key": "splinterfright",
-      "scryfallId": "37068a41-bc5c-44b9-a307-5d3919794233"
+      "scryfallId": "37068a41-bc5c-44b9-a307-5d3919794233",
+      "rarity": "rare"
     },
     "ISD:206": {
       "key": "travel preparations",
-      "scryfallId": "e9654ae7-af2c-4956-be3a-68befa33f523"
+      "scryfallId": "e9654ae7-af2c-4956-be3a-68befa33f523",
+      "rarity": "common"
     },
     "ISD:207": {
       "key": "tree of redemption",
-      "scryfallId": "c6110bba-5c2d-4183-9dd0-d85a4cc42753"
+      "scryfallId": "c6110bba-5c2d-4183-9dd0-d85a4cc42753",
+      "rarity": "mythic"
     },
     "ISD:208": {
       "key": "ulvenwald mystics // ulvenwald primordials",
-      "scryfallId": "8325c570-4d74-4e65-891c-3e153abf4bf9"
+      "scryfallId": "8325c570-4d74-4e65-891c-3e153abf4bf9",
+      "rarity": "uncommon"
     },
     "ISD:209": {
       "key": "villagers of estwald // howlpack of estwald",
-      "scryfallId": "e42a0a3d-a987-4b24-b9d4-27380a12e093"
+      "scryfallId": "e42a0a3d-a987-4b24-b9d4-27380a12e093",
+      "rarity": "common"
     },
     "ISD:21": {
       "key": "mentor of the meek",
-      "scryfallId": "bd8f179a-f6ab-4d4c-8195-ed077a7770d3"
+      "scryfallId": "bd8f179a-f6ab-4d4c-8195-ed077a7770d3",
+      "rarity": "rare"
     },
     "ISD:210": {
       "key": "woodland sleuth",
-      "scryfallId": "3088a924-58c6-4ab7-baf0-842d6688fcec"
+      "scryfallId": "3088a924-58c6-4ab7-baf0-842d6688fcec",
+      "rarity": "common"
     },
     "ISD:211": {
       "key": "wreath of geists",
-      "scryfallId": "7604e22e-1f29-4a8f-b887-b18f43e3745e"
+      "scryfallId": "7604e22e-1f29-4a8f-b887-b18f43e3745e",
+      "rarity": "uncommon"
     },
     "ISD:212": {
       "key": "evil twin",
-      "scryfallId": "3a53487a-c00b-42da-904c-f022a0c5b1ed"
+      "scryfallId": "3a53487a-c00b-42da-904c-f022a0c5b1ed",
+      "rarity": "rare"
     },
     "ISD:213": {
       "key": "geist of saint traft",
-      "scryfallId": "35b57113-b39a-460b-b4aa-02606b40bbd0"
+      "scryfallId": "35b57113-b39a-460b-b4aa-02606b40bbd0",
+      "rarity": "mythic"
     },
     "ISD:214": {
       "key": "grimgrin, corpse-born",
-      "scryfallId": "a8648734-ed6c-471f-91a1-6b710bbaf370"
+      "scryfallId": "a8648734-ed6c-471f-91a1-6b710bbaf370",
+      "rarity": "mythic"
     },
     "ISD:215": {
       "key": "olivia voldaren",
-      "scryfallId": "ed750692-ba6a-4a89-ad6d-92fda7edc2cb"
+      "scryfallId": "ed750692-ba6a-4a89-ad6d-92fda7edc2cb",
+      "rarity": "mythic"
     },
     "ISD:216": {
       "key": "blazing torch",
-      "scryfallId": "4e14fc60-f300-40f0-b712-4e339dc27929"
+      "scryfallId": "4e14fc60-f300-40f0-b712-4e339dc27929",
+      "rarity": "common"
     },
     "ISD:217": {
       "key": "butcher's cleaver",
-      "scryfallId": "e141fe62-515e-4fe4-b032-81f169ec58d6"
+      "scryfallId": "e141fe62-515e-4fe4-b032-81f169ec58d6",
+      "rarity": "uncommon"
     },
     "ISD:218": {
       "key": "cellar door",
-      "scryfallId": "97bdfb00-7773-4af6-895c-c90088a96b07"
+      "scryfallId": "97bdfb00-7773-4af6-895c-c90088a96b07",
+      "rarity": "uncommon"
     },
     "ISD:219": {
       "key": "cobbled wings",
-      "scryfallId": "24abd762-e533-491a-97b6-aed40c214e9d"
+      "scryfallId": "24abd762-e533-491a-97b6-aed40c214e9d",
+      "rarity": "common"
     },
     "ISD:22": {
       "key": "midnight haunting",
-      "scryfallId": "fe1eb098-7128-4ec8-8218-51fdde3e8326"
+      "scryfallId": "fe1eb098-7128-4ec8-8218-51fdde3e8326",
+      "rarity": "uncommon"
     },
     "ISD:220": {
       "key": "creepy doll",
-      "scryfallId": "762a598b-8753-47ec-9dd6-2c3d8882fda6"
+      "scryfallId": "762a598b-8753-47ec-9dd6-2c3d8882fda6",
+      "rarity": "rare"
     },
     "ISD:221": {
       "key": "demonmail hauberk",
-      "scryfallId": "aa33caa8-2a07-4f6c-a6c2-d21cf2d61193"
+      "scryfallId": "aa33caa8-2a07-4f6c-a6c2-d21cf2d61193",
+      "rarity": "uncommon"
     },
     "ISD:222": {
       "key": "galvanic juggernaut",
-      "scryfallId": "d14bc109-d5d5-4777-90e4-bef26d106571"
+      "scryfallId": "d14bc109-d5d5-4777-90e4-bef26d106571",
+      "rarity": "uncommon"
     },
     "ISD:223": {
       "key": "geistcatcher's rig",
-      "scryfallId": "cfb8ecf0-8c12-4a14-9a75-4cc5bf9e47f1"
+      "scryfallId": "cfb8ecf0-8c12-4a14-9a75-4cc5bf9e47f1",
+      "rarity": "uncommon"
     },
     "ISD:224": {
       "key": "ghoulcaller's bell",
-      "scryfallId": "863e7c2a-698c-4dce-a10b-ca58e4affa57"
+      "scryfallId": "863e7c2a-698c-4dce-a10b-ca58e4affa57",
+      "rarity": "common"
     },
     "ISD:225": {
       "key": "graveyard shovel",
-      "scryfallId": "1a4b8888-a10c-48b1-ba19-c041e5667b29"
+      "scryfallId": "1a4b8888-a10c-48b1-ba19-c041e5667b29",
+      "rarity": "uncommon"
     },
     "ISD:226": {
       "key": "grimoire of the dead",
-      "scryfallId": "d268d078-b854-47c1-bc7f-7698723405a2"
+      "scryfallId": "d268d078-b854-47c1-bc7f-7698723405a2",
+      "rarity": "mythic"
     },
     "ISD:227": {
       "key": "inquisitor's flail",
-      "scryfallId": "3014f59d-9012-473a-8bb1-8085c6e91632"
+      "scryfallId": "3014f59d-9012-473a-8bb1-8085c6e91632",
+      "rarity": "uncommon"
     },
     "ISD:228": {
       "key": "manor gargoyle",
-      "scryfallId": "6bb40965-9096-4a19-b71d-4da2a5b36baa"
+      "scryfallId": "6bb40965-9096-4a19-b71d-4da2a5b36baa",
+      "rarity": "rare"
     },
     "ISD:229": {
       "key": "mask of avacyn",
-      "scryfallId": "4ff1acce-bed4-452c-8416-06726004f2e8"
+      "scryfallId": "4ff1acce-bed4-452c-8416-06726004f2e8",
+      "rarity": "uncommon"
     },
     "ISD:23": {
       "key": "mikaeus, the lunarch",
-      "scryfallId": "c22dc283-ea54-4344-b1ca-fd6cc05080d9"
+      "scryfallId": "c22dc283-ea54-4344-b1ca-fd6cc05080d9",
+      "rarity": "mythic"
     },
     "ISD:230": {
       "key": "one-eyed scarecrow",
-      "scryfallId": "5d495d85-6458-44d5-b3b4-5e09569057e3"
+      "scryfallId": "5d495d85-6458-44d5-b3b4-5e09569057e3",
+      "rarity": "common"
     },
     "ISD:231": {
       "key": "runechanter's pike",
-      "scryfallId": "0f54e38b-b4a0-4406-a635-7a5ab3722f25"
+      "scryfallId": "0f54e38b-b4a0-4406-a635-7a5ab3722f25",
+      "rarity": "rare"
     },
     "ISD:232": {
       "key": "sharpened pitchfork",
-      "scryfallId": "4ce20f19-a159-40e6-bb67-6108872ac1e0"
+      "scryfallId": "4ce20f19-a159-40e6-bb67-6108872ac1e0",
+      "rarity": "uncommon"
     },
     "ISD:233": {
       "key": "silver-inlaid dagger",
-      "scryfallId": "f8b8162a-68f0-45df-bb25-8fd4487257a4"
+      "scryfallId": "f8b8162a-68f0-45df-bb25-8fd4487257a4",
+      "rarity": "uncommon"
     },
     "ISD:234": {
       "key": "traveler's amulet",
-      "scryfallId": "a5b0afa7-e9f9-4751-af36-d85343fabc26"
+      "scryfallId": "a5b0afa7-e9f9-4751-af36-d85343fabc26",
+      "rarity": "common"
     },
     "ISD:235": {
       "key": "trepanation blade",
-      "scryfallId": "2182be77-9186-4d16-a070-9577d4392999"
+      "scryfallId": "2182be77-9186-4d16-a070-9577d4392999",
+      "rarity": "uncommon"
     },
     "ISD:236": {
       "key": "witchbane orb",
-      "scryfallId": "53e0bf16-62f5-4b62-96e8-bc7e049bcf89"
+      "scryfallId": "53e0bf16-62f5-4b62-96e8-bc7e049bcf89",
+      "rarity": "rare"
     },
     "ISD:237": {
       "key": "wooden stake",
-      "scryfallId": "7e2825f5-8112-4108-910a-4303b2d57356"
+      "scryfallId": "7e2825f5-8112-4108-910a-4303b2d57356",
+      "rarity": "common"
     },
     "ISD:238": {
       "key": "clifftop retreat",
-      "scryfallId": "fd7e1bf9-bd6a-48e3-9331-178e5142c06a"
+      "scryfallId": "fd7e1bf9-bd6a-48e3-9331-178e5142c06a",
+      "rarity": "rare"
     },
     "ISD:239": {
       "key": "gavony township",
-      "scryfallId": "b5f73443-2fe8-424f-8e71-fc7ce1f3a3eb"
+      "scryfallId": "b5f73443-2fe8-424f-8e71-fc7ce1f3a3eb",
+      "rarity": "rare"
     },
     "ISD:24": {
       "key": "moment of heroism",
-      "scryfallId": "ba8d15bc-889d-4fd0-9688-00e22db30036"
+      "scryfallId": "ba8d15bc-889d-4fd0-9688-00e22db30036",
+      "rarity": "common"
     },
     "ISD:240": {
       "key": "ghost quarter",
-      "scryfallId": "1c6456ed-0ffb-4d22-b252-5775076030ce"
+      "scryfallId": "1c6456ed-0ffb-4d22-b252-5775076030ce",
+      "rarity": "uncommon"
     },
     "ISD:241": {
       "key": "hinterland harbor",
-      "scryfallId": "72f15306-56fe-4643-bb4c-4c7c12378d01"
+      "scryfallId": "72f15306-56fe-4643-bb4c-4c7c12378d01",
+      "rarity": "rare"
     },
     "ISD:242": {
       "key": "isolated chapel",
-      "scryfallId": "b3c1a371-5ded-4a3a-bf96-503c4f1a665d"
+      "scryfallId": "b3c1a371-5ded-4a3a-bf96-503c4f1a665d",
+      "rarity": "rare"
     },
     "ISD:243": {
       "key": "kessig wolf run",
-      "scryfallId": "4a8447fe-7368-470a-911a-1083ec6cc831"
+      "scryfallId": "4a8447fe-7368-470a-911a-1083ec6cc831",
+      "rarity": "rare"
     },
     "ISD:244": {
       "key": "moorland haunt",
-      "scryfallId": "1d5569e3-278c-4cf3-860e-712010333fe6"
+      "scryfallId": "1d5569e3-278c-4cf3-860e-712010333fe6",
+      "rarity": "rare"
     },
     "ISD:245": {
       "key": "nephalia drownyard",
-      "scryfallId": "ef058312-6926-49f8-ae72-a8d60fedbf6c"
+      "scryfallId": "ef058312-6926-49f8-ae72-a8d60fedbf6c",
+      "rarity": "rare"
     },
     "ISD:246": {
       "key": "shimmering grotto",
-      "scryfallId": "a48e7a7a-574f-4850-9697-8cb276a5812c"
+      "scryfallId": "a48e7a7a-574f-4850-9697-8cb276a5812c",
+      "rarity": "common"
     },
     "ISD:247": {
       "key": "stensia bloodhall",
-      "scryfallId": "cc2741d8-2c02-4acd-8ca2-55b4bf6aef1c"
+      "scryfallId": "cc2741d8-2c02-4acd-8ca2-55b4bf6aef1c",
+      "rarity": "rare"
     },
     "ISD:248": {
       "key": "sulfur falls",
-      "scryfallId": "4968b65d-50e5-4d7e-b78b-cdada1cbf7a7"
+      "scryfallId": "4968b65d-50e5-4d7e-b78b-cdada1cbf7a7",
+      "rarity": "rare"
     },
     "ISD:249": {
       "key": "woodland cemetery",
-      "scryfallId": "67139101-ec5e-434b-be3a-21338cc33840"
+      "scryfallId": "67139101-ec5e-434b-be3a-21338cc33840",
+      "rarity": "rare"
     },
     "ISD:25": {
       "key": "nevermore",
-      "scryfallId": "67b610fe-36ee-4d58-8ed4-04e7a12587b2"
+      "scryfallId": "67b610fe-36ee-4d58-8ed4-04e7a12587b2",
+      "rarity": "rare"
     },
     "ISD:250": {
       "key": "plains",
-      "scryfallId": "d595ba72-3334-48f4-9ea9-a43f5e824aa8"
+      "scryfallId": "d595ba72-3334-48f4-9ea9-a43f5e824aa8",
+      "rarity": "common"
     },
     "ISD:251": {
       "key": "plains",
-      "scryfallId": "fceab58a-304a-40e4-8830-837a7b51d31b"
+      "scryfallId": "fceab58a-304a-40e4-8830-837a7b51d31b",
+      "rarity": "common"
     },
     "ISD:252": {
       "key": "plains",
-      "scryfallId": "b75ca372-c110-4321-b497-8841547f3c2b"
+      "scryfallId": "b75ca372-c110-4321-b497-8841547f3c2b",
+      "rarity": "common"
     },
     "ISD:253": {
       "key": "island",
-      "scryfallId": "cf258641-b73c-4813-8a23-da47cf79eca5"
+      "scryfallId": "cf258641-b73c-4813-8a23-da47cf79eca5",
+      "rarity": "common"
     },
     "ISD:254": {
       "key": "island",
-      "scryfallId": "48b51501-d3b3-480f-9bcb-e66420c4db06"
+      "scryfallId": "48b51501-d3b3-480f-9bcb-e66420c4db06",
+      "rarity": "common"
     },
     "ISD:255": {
       "key": "island",
-      "scryfallId": "2e19f6dd-9eed-4656-b8c7-e64b61446d7f"
+      "scryfallId": "2e19f6dd-9eed-4656-b8c7-e64b61446d7f",
+      "rarity": "common"
     },
     "ISD:256": {
       "key": "swamp",
-      "scryfallId": "a5a14894-2936-4fc4-b6a5-f9c73c32b177"
+      "scryfallId": "a5a14894-2936-4fc4-b6a5-f9c73c32b177",
+      "rarity": "common"
     },
     "ISD:257": {
       "key": "swamp",
-      "scryfallId": "8d37e23b-7898-4b5d-b088-d4e54947f579"
+      "scryfallId": "8d37e23b-7898-4b5d-b088-d4e54947f579",
+      "rarity": "common"
     },
     "ISD:258": {
       "key": "swamp",
-      "scryfallId": "fcd2ecdd-37ee-4351-833a-f4eac3c55eca"
+      "scryfallId": "fcd2ecdd-37ee-4351-833a-f4eac3c55eca",
+      "rarity": "common"
     },
     "ISD:259": {
       "key": "mountain",
-      "scryfallId": "17de9f2c-e051-404c-8ec0-c35f500efd67"
+      "scryfallId": "17de9f2c-e051-404c-8ec0-c35f500efd67",
+      "rarity": "common"
     },
     "ISD:26": {
       "key": "paraselene",
-      "scryfallId": "406380ab-2695-4084-99a5-f5560304f8cb"
+      "scryfallId": "406380ab-2695-4084-99a5-f5560304f8cb",
+      "rarity": "uncommon"
     },
     "ISD:260": {
       "key": "mountain",
-      "scryfallId": "3a200286-67f3-4bff-8a53-3e76733414fa"
+      "scryfallId": "3a200286-67f3-4bff-8a53-3e76733414fa",
+      "rarity": "common"
     },
     "ISD:261": {
       "key": "mountain",
-      "scryfallId": "d2075dfe-b48c-46e3-bde1-f9f8e3b9d928"
+      "scryfallId": "d2075dfe-b48c-46e3-bde1-f9f8e3b9d928",
+      "rarity": "common"
     },
     "ISD:262": {
       "key": "forest",
-      "scryfallId": "b606f644-1728-4cb3-90ed-121838875de1"
+      "scryfallId": "b606f644-1728-4cb3-90ed-121838875de1",
+      "rarity": "common"
     },
     "ISD:263": {
       "key": "forest",
-      "scryfallId": "16f52885-1f01-4f06-90a8-1a0ecf291ab5"
+      "scryfallId": "16f52885-1f01-4f06-90a8-1a0ecf291ab5",
+      "rarity": "common"
     },
     "ISD:264": {
       "key": "forest",
-      "scryfallId": "4dea3762-c6ae-4304-aee4-6c3f56685319"
+      "scryfallId": "4dea3762-c6ae-4304-aee4-6c3f56685319",
+      "rarity": "common"
     },
     "ISD:27": {
       "key": "purify the grave",
-      "scryfallId": "7cf39365-e468-46ac-bb5b-7f43faa19458"
+      "scryfallId": "7cf39365-e468-46ac-bb5b-7f43faa19458",
+      "rarity": "uncommon"
     },
     "ISD:28": {
       "key": "rally the peasants",
-      "scryfallId": "514fe7de-16b2-42c0-adb1-f0af1c89cfd6"
+      "scryfallId": "514fe7de-16b2-42c0-adb1-f0af1c89cfd6",
+      "rarity": "uncommon"
     },
     "ISD:29": {
       "key": "rebuke",
-      "scryfallId": "267185ac-a176-423e-a7f8-ee966d1d9a1e"
+      "scryfallId": "267185ac-a176-423e-a7f8-ee966d1d9a1e",
+      "rarity": "common"
     },
     "ISD:3": {
       "key": "angelic overseer",
-      "scryfallId": "221d999c-dde1-4a0f-87cf-9e9f44969f94"
+      "scryfallId": "221d999c-dde1-4a0f-87cf-9e9f44969f94",
+      "rarity": "mythic"
     },
     "ISD:30": {
       "key": "selfless cathar",
-      "scryfallId": "5a1dc067-1972-4d46-ad5d-56e6a563f638"
+      "scryfallId": "5a1dc067-1972-4d46-ad5d-56e6a563f638",
+      "rarity": "common"
     },
     "ISD:31": {
       "key": "silverchase fox",
-      "scryfallId": "0a81bfab-3397-4562-8b82-5f24cef167e3"
+      "scryfallId": "0a81bfab-3397-4562-8b82-5f24cef167e3",
+      "rarity": "common"
     },
     "ISD:32": {
       "key": "slayer of the wicked",
-      "scryfallId": "1c2cd68e-ff4c-49c7-ba0d-f2299d9c21f4"
+      "scryfallId": "1c2cd68e-ff4c-49c7-ba0d-f2299d9c21f4",
+      "rarity": "uncommon"
     },
     "ISD:33": {
       "key": "smite the monstrous",
-      "scryfallId": "0103f3b1-88c2-4cbf-a67c-49420f92970f"
+      "scryfallId": "0103f3b1-88c2-4cbf-a67c-49420f92970f",
+      "rarity": "common"
     },
     "ISD:34": {
       "key": "spare from evil",
-      "scryfallId": "d01b5d97-b5ae-42a7-944a-feb12febd63c"
+      "scryfallId": "d01b5d97-b5ae-42a7-944a-feb12febd63c",
+      "rarity": "common"
     },
     "ISD:35": {
       "key": "spectral rider",
-      "scryfallId": "b47e4e56-8bde-480d-b59c-17a017665b19"
+      "scryfallId": "b47e4e56-8bde-480d-b59c-17a017665b19",
+      "rarity": "uncommon"
     },
     "ISD:36": {
       "key": "stony silence",
-      "scryfallId": "f56a5a73-5f10-4f97-989f-7cea0a8d95e3"
+      "scryfallId": "f56a5a73-5f10-4f97-989f-7cea0a8d95e3",
+      "rarity": "rare"
     },
     "ISD:37": {
       "key": "thraben purebloods",
-      "scryfallId": "16db28f4-3d96-42f5-a264-592fdc2d4196"
+      "scryfallId": "16db28f4-3d96-42f5-a264-592fdc2d4196",
+      "rarity": "common"
     },
     "ISD:38": {
       "key": "thraben sentry // thraben militia",
-      "scryfallId": "58ae9cbc-d88d-42df-ab76-63ab5d05c023"
+      "scryfallId": "58ae9cbc-d88d-42df-ab76-63ab5d05c023",
+      "rarity": "common"
     },
     "ISD:39": {
       "key": "unruly mob",
-      "scryfallId": "491c6e40-151a-4efd-980c-e6b6a1057c58"
+      "scryfallId": "491c6e40-151a-4efd-980c-e6b6a1057c58",
+      "rarity": "common"
     },
     "ISD:4": {
       "key": "avacynian priest",
-      "scryfallId": "08a47828-a79a-4189-9eef-2a5fc5125b61"
+      "scryfallId": "08a47828-a79a-4189-9eef-2a5fc5125b61",
+      "rarity": "common"
     },
     "ISD:40": {
       "key": "urgent exorcism",
-      "scryfallId": "516a437c-a2ee-43c6-876c-1a63a455c97c"
+      "scryfallId": "516a437c-a2ee-43c6-876c-1a63a455c97c",
+      "rarity": "common"
     },
     "ISD:41": {
       "key": "village bell-ringer",
-      "scryfallId": "cb6912b3-bab9-4937-afdd-3711e6d792a0"
+      "scryfallId": "cb6912b3-bab9-4937-afdd-3711e6d792a0",
+      "rarity": "common"
     },
     "ISD:42": {
       "key": "voiceless spirit",
-      "scryfallId": "d24d9bd7-5721-4436-a86f-35e376727f46"
+      "scryfallId": "d24d9bd7-5721-4436-a86f-35e376727f46",
+      "rarity": "common"
     },
     "ISD:43": {
       "key": "armored skaab",
-      "scryfallId": "ce4d00f2-30e6-41d5-b997-c66350fe783c"
+      "scryfallId": "ce4d00f2-30e6-41d5-b997-c66350fe783c",
+      "rarity": "common"
     },
     "ISD:44": {
       "key": "back from the brink",
-      "scryfallId": "b4bba140-5c06-4542-9ae0-b2517104ab7c"
+      "scryfallId": "b4bba140-5c06-4542-9ae0-b2517104ab7c",
+      "rarity": "rare"
     },
     "ISD:45": {
       "key": "battleground geist",
-      "scryfallId": "129905ef-5b3b-4860-923c-109a7d7cad80"
+      "scryfallId": "129905ef-5b3b-4860-923c-109a7d7cad80",
+      "rarity": "uncommon"
     },
     "ISD:46": {
       "key": "cackling counterpart",
-      "scryfallId": "8a2a2b93-94dc-4285-a6fd-455a796426bc"
+      "scryfallId": "8a2a2b93-94dc-4285-a6fd-455a796426bc",
+      "rarity": "rare"
     },
     "ISD:47": {
       "key": "civilized scholar // homicidal brute",
-      "scryfallId": "7bf864db-4754-433d-9d77-6695f78f6c09"
+      "scryfallId": "7bf864db-4754-433d-9d77-6695f78f6c09",
+      "rarity": "uncommon"
     },
     "ISD:48": {
       "key": "claustrophobia",
-      "scryfallId": "b7e5f600-4d19-42a4-b57e-650c76041798"
+      "scryfallId": "b7e5f600-4d19-42a4-b57e-650c76041798",
+      "rarity": "common"
     },
     "ISD:49": {
       "key": "curiosity",
-      "scryfallId": "b212c36a-6d1f-4217-b384-1c2b0e07b68a"
+      "scryfallId": "b212c36a-6d1f-4217-b384-1c2b0e07b68a",
+      "rarity": "uncommon"
     },
     "ISD:5": {
       "key": "bonds of faith",
-      "scryfallId": "cc8d1ce0-78c5-4e97-9cca-33e7b6ff3440"
+      "scryfallId": "cc8d1ce0-78c5-4e97-9cca-33e7b6ff3440",
+      "rarity": "common"
     },
     "ISD:50": {
       "key": "curse of the bloody tome",
-      "scryfallId": "c7865e11-263b-4d61-af54-907c1acbb54f"
+      "scryfallId": "c7865e11-263b-4d61-af54-907c1acbb54f",
+      "rarity": "common"
     },
     "ISD:51": {
       "key": "delver of secrets // insectile aberration",
-      "scryfallId": "11bf83bb-c95b-4b4f-9a56-ce7a1816307a"
+      "scryfallId": "11bf83bb-c95b-4b4f-9a56-ce7a1816307a",
+      "rarity": "common"
     },
     "ISD:52": {
       "key": "deranged assistant",
-      "scryfallId": "a4c03171-5ff0-4f79-bb03-16decf7d34ce"
+      "scryfallId": "a4c03171-5ff0-4f79-bb03-16decf7d34ce",
+      "rarity": "common"
     },
     "ISD:53": {
       "key": "dissipate",
-      "scryfallId": "5d778082-bcdb-423a-b16f-57ac0d4dace7"
+      "scryfallId": "5d778082-bcdb-423a-b16f-57ac0d4dace7",
+      "rarity": "uncommon"
     },
     "ISD:54": {
       "key": "dream twist",
-      "scryfallId": "d5dd8790-bfdf-427d-8e8d-a5c3a64a3063"
+      "scryfallId": "d5dd8790-bfdf-427d-8e8d-a5c3a64a3063",
+      "rarity": "common"
     },
     "ISD:55": {
       "key": "forbidden alchemy",
-      "scryfallId": "eb22ae62-6207-4693-87cf-7adf0fc1fe29"
+      "scryfallId": "eb22ae62-6207-4693-87cf-7adf0fc1fe29",
+      "rarity": "common"
     },
     "ISD:56": {
       "key": "fortress crab",
-      "scryfallId": "87ca16d4-089f-42a7-a648-55301a77faea"
+      "scryfallId": "87ca16d4-089f-42a7-a648-55301a77faea",
+      "rarity": "common"
     },
     "ISD:57": {
       "key": "frightful delusion",
-      "scryfallId": "38c9ba98-90b4-4c28-9eef-a4fe0913b921"
+      "scryfallId": "38c9ba98-90b4-4c28-9eef-a4fe0913b921",
+      "rarity": "common"
     },
     "ISD:58": {
       "key": "grasp of phantoms",
-      "scryfallId": "02655d3d-82d0-4be6-bb64-25e1478edfc3"
+      "scryfallId": "02655d3d-82d0-4be6-bb64-25e1478edfc3",
+      "rarity": "uncommon"
     },
     "ISD:59": {
       "key": "hysterical blindness",
-      "scryfallId": "5aeaa757-e3b0-4606-a689-e8a20a686c3a"
+      "scryfallId": "5aeaa757-e3b0-4606-a689-e8a20a686c3a",
+      "rarity": "common"
     },
     "ISD:6": {
       "key": "champion of the parish",
-      "scryfallId": "f7314414-c2d2-48ed-af2c-764cf0207c62"
+      "scryfallId": "f7314414-c2d2-48ed-af2c-764cf0207c62",
+      "rarity": "rare"
     },
     "ISD:60": {
       "key": "invisible stalker",
-      "scryfallId": "0013620d-8e17-4246-86bf-71eafd51b806"
+      "scryfallId": "0013620d-8e17-4246-86bf-71eafd51b806",
+      "rarity": "uncommon"
     },
     "ISD:61": {
       "key": "laboratory maniac",
-      "scryfallId": "809205f3-acf5-4244-b360-09ce4ba76795"
+      "scryfallId": "809205f3-acf5-4244-b360-09ce4ba76795",
+      "rarity": "rare"
     },
     "ISD:62": {
       "key": "lantern spirit",
-      "scryfallId": "b50a5772-f411-458a-97f9-9f3967bb79c5"
+      "scryfallId": "b50a5772-f411-458a-97f9-9f3967bb79c5",
+      "rarity": "uncommon"
     },
     "ISD:63": {
       "key": "lost in the mist",
-      "scryfallId": "1e5fc39d-590a-436b-ab90-a1741d2ae3da"
+      "scryfallId": "1e5fc39d-590a-436b-ab90-a1741d2ae3da",
+      "rarity": "common"
     },
     "ISD:64": {
       "key": "ludevic's test subject // ludevic's abomination",
-      "scryfallId": "ebf5e16f-a8bd-419f-b5ca-8c7fce09c4f1"
+      "scryfallId": "ebf5e16f-a8bd-419f-b5ca-8c7fce09c4f1",
+      "rarity": "rare"
     },
     "ISD:65": {
       "key": "makeshift mauler",
-      "scryfallId": "d869de57-9454-47ff-af14-eaefd387047a"
+      "scryfallId": "d869de57-9454-47ff-af14-eaefd387047a",
+      "rarity": "common"
     },
     "ISD:66": {
       "key": "memory's journey",
-      "scryfallId": "265aaa73-1a1e-4282-a860-f7c422f21db3"
+      "scryfallId": "265aaa73-1a1e-4282-a860-f7c422f21db3",
+      "rarity": "uncommon"
     },
     "ISD:67": {
       "key": "mindshrieker",
-      "scryfallId": "ab1e52af-6746-4ec6-afbf-008594c874f8"
+      "scryfallId": "ab1e52af-6746-4ec6-afbf-008594c874f8",
+      "rarity": "rare"
     },
     "ISD:68": {
       "key": "mirror-mad phantasm",
-      "scryfallId": "b20eea41-9daf-4ac1-8bad-bb4aa211bb53"
+      "scryfallId": "b20eea41-9daf-4ac1-8bad-bb4aa211bb53",
+      "rarity": "mythic"
     },
     "ISD:69": {
       "key": "moon heron",
-      "scryfallId": "a24de601-1d7b-41c4-aba1-fdb6fd8d5251"
+      "scryfallId": "a24de601-1d7b-41c4-aba1-fdb6fd8d5251",
+      "rarity": "common"
     },
     "ISD:7": {
       "key": "chapel geist",
-      "scryfallId": "790cdf67-80d6-4ade-aecf-f77120b509b0"
+      "scryfallId": "790cdf67-80d6-4ade-aecf-f77120b509b0",
+      "rarity": "common"
     },
     "ISD:70": {
       "key": "murder of crows",
-      "scryfallId": "f914f7e4-06fc-4943-8597-b7f834938c00"
+      "scryfallId": "f914f7e4-06fc-4943-8597-b7f834938c00",
+      "rarity": "uncommon"
     },
     "ISD:71": {
       "key": "rooftop storm",
-      "scryfallId": "ab01d871-ba50-400a-95e7-09af9e34405f"
+      "scryfallId": "ab01d871-ba50-400a-95e7-09af9e34405f",
+      "rarity": "rare"
     },
     "ISD:72": {
       "key": "runic repetition",
-      "scryfallId": "53e47ba6-3a55-41b4-b8fe-580041669408"
+      "scryfallId": "53e47ba6-3a55-41b4-b8fe-580041669408",
+      "rarity": "uncommon"
     },
     "ISD:73": {
       "key": "selhoff occultist",
-      "scryfallId": "aeac4885-bd04-42bd-8e10-06c3efbce108"
+      "scryfallId": "aeac4885-bd04-42bd-8e10-06c3efbce108",
+      "rarity": "common"
     },
     "ISD:74": {
       "key": "sensory deprivation",
-      "scryfallId": "454739db-a3d6-45e8-849a-287438c36627"
+      "scryfallId": "454739db-a3d6-45e8-849a-287438c36627",
+      "rarity": "common"
     },
     "ISD:75": {
       "key": "silent departure",
-      "scryfallId": "a18dea16-d535-4310-94ff-836645253d73"
+      "scryfallId": "a18dea16-d535-4310-94ff-836645253d73",
+      "rarity": "common"
     },
     "ISD:76": {
       "key": "skaab goliath",
-      "scryfallId": "7c1134a5-5434-4733-812b-3587b1817813"
+      "scryfallId": "7c1134a5-5434-4733-812b-3587b1817813",
+      "rarity": "uncommon"
     },
     "ISD:77": {
       "key": "skaab ruinator",
-      "scryfallId": "44c40cdc-a11a-47df-b902-d8fbe9014d03"
+      "scryfallId": "44c40cdc-a11a-47df-b902-d8fbe9014d03",
+      "rarity": "mythic"
     },
     "ISD:78": {
       "key": "snapcaster mage",
-      "scryfallId": "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58"
+      "scryfallId": "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
+      "rarity": "rare"
     },
     "ISD:79": {
       "key": "spectral flight",
-      "scryfallId": "f7149f2a-6917-4ad7-8035-c7a1babd4d4b"
+      "scryfallId": "f7149f2a-6917-4ad7-8035-c7a1babd4d4b",
+      "rarity": "common"
     },
     "ISD:8": {
       "key": "cloistered youth // unholy fiend",
-      "scryfallId": "f8b8f0b4-71e1-4822-99a1-b1b3c2f10cb2"
+      "scryfallId": "f8b8f0b4-71e1-4822-99a1-b1b3c2f10cb2",
+      "rarity": "uncommon"
     },
     "ISD:80": {
       "key": "stitched drake",
-      "scryfallId": "ad81266a-488f-449a-9daf-637727564865"
+      "scryfallId": "ad81266a-488f-449a-9daf-637727564865",
+      "rarity": "common"
     },
     "ISD:81": {
       "key": "stitcher's apprentice",
-      "scryfallId": "7e0fcc53-cd0b-4b4c-b6de-5d301232106a"
+      "scryfallId": "7e0fcc53-cd0b-4b4c-b6de-5d301232106a",
+      "rarity": "common"
     },
     "ISD:82": {
       "key": "sturmgeist",
-      "scryfallId": "c409d1d0-fc45-40bf-adac-83b680209a38"
+      "scryfallId": "c409d1d0-fc45-40bf-adac-83b680209a38",
+      "rarity": "rare"
     },
     "ISD:83": {
       "key": "think twice",
-      "scryfallId": "53e44060-a9a2-4095-9f5b-f60297525315"
+      "scryfallId": "53e44060-a9a2-4095-9f5b-f60297525315",
+      "rarity": "common"
     },
     "ISD:84": {
       "key": "undead alchemist",
-      "scryfallId": "717f4592-6c81-43ac-8975-f6d5d6710310"
+      "scryfallId": "717f4592-6c81-43ac-8975-f6d5d6710310",
+      "rarity": "rare"
     },
     "ISD:85": {
       "key": "abattoir ghoul",
-      "scryfallId": "59cf0906-04fa-4b30-a7a6-3d117931154f"
+      "scryfallId": "59cf0906-04fa-4b30-a7a6-3d117931154f",
+      "rarity": "uncommon"
     },
     "ISD:86": {
       "key": "altar's reap",
-      "scryfallId": "4dc2eec4-7e68-45d5-8736-6b32a47c671b"
+      "scryfallId": "4dc2eec4-7e68-45d5-8736-6b32a47c671b",
+      "rarity": "common"
     },
     "ISD:87": {
       "key": "army of the damned",
-      "scryfallId": "260a4544-a1eb-4d07-943f-0401ae288e13"
+      "scryfallId": "260a4544-a1eb-4d07-943f-0401ae288e13",
+      "rarity": "mythic"
     },
     "ISD:88": {
       "key": "bitterheart witch",
-      "scryfallId": "cf2ff2b4-8f40-42c0-af3c-b55bfa8839be"
+      "scryfallId": "cf2ff2b4-8f40-42c0-af3c-b55bfa8839be",
+      "rarity": "uncommon"
     },
     "ISD:89": {
       "key": "bloodgift demon",
-      "scryfallId": "f271addb-e267-4397-b181-f1eaeabbfe71"
+      "scryfallId": "f271addb-e267-4397-b181-f1eaeabbfe71",
+      "rarity": "rare"
     },
     "ISD:9": {
       "key": "dearly departed",
-      "scryfallId": "d008061f-cda4-4bcf-b6b3-d1b4a251cc66"
+      "scryfallId": "d008061f-cda4-4bcf-b6b3-d1b4a251cc66",
+      "rarity": "rare"
     },
     "ISD:90": {
       "key": "bloodline keeper // lord of lineage",
-      "scryfallId": "13896468-e3d0-4bcb-b09e-b5c187aecb03"
+      "scryfallId": "13896468-e3d0-4bcb-b09e-b5c187aecb03",
+      "rarity": "rare"
     },
     "ISD:91": {
       "key": "brain weevil",
-      "scryfallId": "40e1bd88-939a-4adc-8693-210a7ba9a5a1"
+      "scryfallId": "40e1bd88-939a-4adc-8693-210a7ba9a5a1",
+      "rarity": "common"
     },
     "ISD:92": {
       "key": "bump in the night",
-      "scryfallId": "5c3ec389-a267-484f-994d-4a29ef494eb1"
+      "scryfallId": "5c3ec389-a267-484f-994d-4a29ef494eb1",
+      "rarity": "common"
     },
     "ISD:93": {
       "key": "corpse lunge",
-      "scryfallId": "2a74b987-527a-4560-a018-19d6bdf7e8b7"
+      "scryfallId": "2a74b987-527a-4560-a018-19d6bdf7e8b7",
+      "rarity": "common"
     },
     "ISD:94": {
       "key": "curse of death's hold",
-      "scryfallId": "1774d0a8-1cd3-4582-ace0-1caff92af0e7"
+      "scryfallId": "1774d0a8-1cd3-4582-ace0-1caff92af0e7",
+      "rarity": "rare"
     },
     "ISD:95": {
       "key": "curse of oblivion",
-      "scryfallId": "c15cbd2f-8bbf-423a-81fe-521fd99bc8bf"
+      "scryfallId": "c15cbd2f-8bbf-423a-81fe-521fd99bc8bf",
+      "rarity": "common"
     },
     "ISD:96": {
       "key": "dead weight",
-      "scryfallId": "7933987e-7b8c-4d5a-804a-708d6bb6d231"
+      "scryfallId": "7933987e-7b8c-4d5a-804a-708d6bb6d231",
+      "rarity": "common"
     },
     "ISD:97": {
       "key": "diregraf ghoul",
-      "scryfallId": "4ed5790a-3354-49c2-89b6-3fc0de8dcc7c"
+      "scryfallId": "4ed5790a-3354-49c2-89b6-3fc0de8dcc7c",
+      "rarity": "uncommon"
     },
     "ISD:98": {
       "key": "disciple of griselbrand",
-      "scryfallId": "0c4acaa1-7d99-41ce-81ce-f6aef3e4dc1d"
+      "scryfallId": "0c4acaa1-7d99-41ce-81ce-f6aef3e4dc1d",
+      "rarity": "uncommon"
     },
     "ISD:99": {
       "key": "endless ranks of the dead",
-      "scryfallId": "5db15c5f-80b7-4f7f-985a-9bbec3199ad9"
+      "scryfallId": "5db15c5f-80b7-4f7f-985a-9bbec3199ad9",
+      "rarity": "rare"
     }
   }
 }

@@ -46,7 +46,7 @@
 
 import { readFileSync } from 'node:fs';
 import { foldName, normaliseName } from '@hadoku/carddata';
-import { DraftCardSchema, type DraftCard } from '@hadoku/shared';
+import { DraftCardSchema, RaritySchema, type DraftCard, type Rarity } from '@hadoku/shared';
 import { jsonLogger } from '../log.js';
 
 export interface CardCatalog {
@@ -64,6 +64,14 @@ export interface CardCatalog {
 interface PrintingRefFile {
 	key?: unknown;
 	scryfallId?: unknown;
+	rarity?: unknown;
+}
+
+interface PrintingRef {
+	key: string;
+	scryfallId: string | undefined;
+	/** Absent on a ref from a file built before refs carried it: the canonical card's own rarity stands. */
+	rarity: Rarity | undefined;
 }
 
 interface CatalogFile {
@@ -78,8 +86,8 @@ interface CatalogFile {
 interface CatalogState {
 	cards: Map<string, DraftCard>;
 	aliases: Map<string, string>;
-	/** `<SET>:<collector_number>` -> {key, scryfallId}; resolved against `cards` lazily in `byPrinting`, never duplicated into a second `DraftCard` map. */
-	printings: Map<string, { key: string; scryfallId: string | undefined }>;
+	/** `<SET>:<collector_number>` -> its ref; resolved against `cards` lazily in `byPrinting`, never duplicated into a second `DraftCard` map. */
+	printings: Map<string, PrintingRef>;
 }
 
 const log = jsonLogger('cardtable-pools');
@@ -129,7 +137,7 @@ function parseCatalogState(path: string): CatalogState | null {
 	// catalog with no printings index is not a reported fault, every
 	// `byPrinting` call on it just answers null and the caller falls back
 	// to `byName`, same as a name the join never resolved.
-	const printings = new Map<string, { key: string; scryfallId: string | undefined }>();
+	const printings = new Map<string, PrintingRef>();
 	let printingsRejected = 0;
 	if (typeof file.printings === 'object' && file.printings !== null) {
 		for (const [printingKeyStr, value] of Object.entries(file.printings)) {
@@ -138,7 +146,12 @@ function parseCatalogState(path: string): CatalogState | null {
 				printingsRejected++;
 				continue;
 			}
-			printings.set(printingKeyStr, { key: ref.key, scryfallId: typeof ref.scryfallId === 'string' ? ref.scryfallId : undefined });
+			const rarity = RaritySchema.safeParse(ref.rarity);
+			printings.set(printingKeyStr, {
+				key: ref.key,
+				scryfallId: typeof ref.scryfallId === 'string' ? ref.scryfallId : undefined,
+				rarity: rarity.success ? rarity.data : undefined,
+			});
 		}
 	}
 
@@ -180,12 +193,14 @@ export function loadCardCatalog(path: string): CardCatalog {
 			if (ref === undefined) return null;
 			const canonical = state.cards.get(ref.key);
 			if (canonical === undefined) return null;
-			return {
-				...canonical,
-				setCode: set.toUpperCase(),
-				collectorNumber,
-				scryfallId: ref.scryfallId ?? canonical.scryfallId,
-			};
+			const printed = { setCode: set.toUpperCase(), collectorNumber, rarity: ref.rarity ?? canonical.rarity };
+			const scryfallId = ref.scryfallId ?? canonical.scryfallId;
+			// A face draws the card's own image or its back (`<id>#back`): the same image of THIS printing.
+			const chosen = canonical.scryfallId;
+			const faceArt = (id: string): string =>
+				chosen !== undefined && scryfallId !== undefined && id.startsWith(chosen) ? scryfallId + id.slice(chosen.length) : id;
+			const faces = canonical.faces?.map((face) => ({ ...face, ...printed, ...(face.scryfallId === undefined ? {} : { scryfallId: faceArt(face.scryfallId) }) }));
+			return { ...canonical, ...printed, scryfallId, ...(faces === undefined ? {} : { faces }) };
 		},
 
 		swap(nextPath: string = path): boolean {
