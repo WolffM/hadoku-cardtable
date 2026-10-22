@@ -112,6 +112,19 @@ export {
   type SyncResult,
 } from './scryfall/bulk.ts';
 
+// Re-exported so the server's catalog-refresh job (`apps/server/src/pools/refresh.ts`,
+// wave 74 §G) can rebuild in-process without a deep import — `@hadoku/carddata`'s
+// own `exports` map only publishes this entry point.
+export {
+  buildCatalog,
+  runBuildCatalog,
+  type CatalogFile,
+  type RunBuildCatalogOptions,
+  type RunBuildCatalogResult,
+} from './cli/build-catalog.ts';
+
+export { parseArgs as parseSyncCardsArgs, runSyncCards } from './cli/sync-cards.ts';
+
 export {
   projectCard,
   ALLOWED_CARD_FIELDS,
