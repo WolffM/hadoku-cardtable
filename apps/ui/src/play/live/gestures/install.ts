@@ -246,6 +246,7 @@ import { spotOf } from '../presence.ts';
 import { afterGlide, prefersReducedMotion } from '../../motion.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
+import { RAMMING_ATTR } from '../ram.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
 import { CAST_LANDING_ATTR, expectedGapBox,
   CAST_LIFT_ATTR,
@@ -415,18 +416,20 @@ function onBattlefield(match: LiveMatch, id: number): boolean {
  * module already calls once per paint, not a second drawer. A band with
  * several attackers (banding) draws every blocker to the band's first
  * attacker — Forge gives the whole band one shared assignment, so there is no
- * second one to point at.
+ * second one to point at. A block goes with the ram of either creature in it
+ * (`rammed`), as the attack arrow does.
  */
-function blockArrows(canvas: ParentNode, match: LiveMatch): AutoTargetArrow[] {
+function blockArrows(canvas: ParentNode, match: LiveMatch, rammed: ReadonlySet<number>): AutoTargetArrow[] {
   const out: AutoTargetArrow[] = [];
   for (const band of match.view?.combat ?? []) {
     const blockerIds = band.plannedBlockers ?? [];
     if (blockerIds.length === 0) continue;
     const attackerId = band.attackers[0];
-    if (attackerId === undefined) continue;
+    if (attackerId === undefined || rammed.has(attackerId)) continue;
     const to = cardBox(canvas, attackerId);
     if (to === null) continue;
     for (const blockerId of blockerIds) {
+      if (rammed.has(blockerId)) continue;
       const source = cardBox(canvas, blockerId);
       if (source === null) continue;
       out.push({ key: `block:${blockerId}:${attackerId}`, from: centreOf(source), to, kind: 'card', role: 'block' });
@@ -457,6 +460,13 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let hover: { at: Point; node: EventTarget | null } | null = null;
   /** What was drawn last, so `onChange` fires on a change and not on every move. */
   let shape = '';
+  /**
+   * The creatures whose ram has set off in the combat on the board (`../ram.ts` marks a creature's own
+   * element `[data-ramming]` as its copy leaves): their attack and block arrows are spent (the operator,
+   * 2026-10-22: "can we have arrows disappear once the attack animations actually start?"). Kept until
+   * the combat ends, so an arrow does not come back once its creature is home again.
+   */
+  const rammed = new Set<number>();
   let live = true;
   /** A targeted cast already sent, pinned, waiting on Forge — see the module header. Null: no cast in flight. */
   let parked: Parked | null = null;
@@ -778,8 +788,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // so feeding them here too would draw every stack-item arrow twice. Only
     // the lasting attack arrow and the lasting block arrow — neither a
     // stack-item concern — stay on this reconciler.
+    if ((match.view?.combat ?? []).length === 0) rammed.clear();
     if (overlay !== null) {
-      drawAutoTargetArrows(overlay, [...combatArrows(canvas, match), ...blockArrows(canvas, match), ...aimedArrows()]);
+      drawAutoTargetArrows(overlay, [...combatArrows(canvas, match, rammed), ...blockArrows(canvas, match, rammed), ...aimedArrows()]);
     }
     if (next === shape) return;
     shape = next;
@@ -1774,6 +1785,14 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
   const observer = new MutationObserver((records) => {
     if (!live) return;
+    const setOff = records.flatMap((r) =>
+      r.type === 'attributes' && r.target instanceof Element && r.target.hasAttribute(RAMMING_ATTR) ? [Number(r.target.getAttribute('data-board-card'))] : [],
+    );
+    if (setOff.length > 0) {
+      for (const id of setOff) if (Number.isInteger(id)) rammed.add(id);
+      paint();
+    }
+    if (records.every((r) => r.type === 'attributes')) return;
     // Our own arrow and marquee live in the overlay; reacting to those would be
     // reacting to ourselves.
     const overlay = overlayOf(canvas);
@@ -1783,7 +1802,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     settleParkedIfResolved();
     syncParkedGhost();
   });
-  observer.observe(canvas, { childList: true, subtree: true });
+  observer.observe(canvas, { childList: true, subtree: true, attributes: true, attributeFilter: [RAMMING_ATTR] });
   paint();
 
   return {

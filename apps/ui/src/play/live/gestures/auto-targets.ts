@@ -44,11 +44,14 @@ export interface AutoTargetArrow {
  * at a time, so the key is stable for as long as the band stands, and the
  * reconciler removes it the moment combat ends and `view.combat` is empty
  * again (no band survives into the next paint to keep its key "seen").
+ * An attacker in `rammed` has already set off at what it hit, and its ram is
+ * the attack now: it draws no arrow.
  */
-export function combatArrows(canvas: ParentNode, match: LiveMatch): AutoTargetArrow[] {
+export function combatArrows(canvas: ParentNode, match: LiveMatch, rammed: ReadonlySet<number>): AutoTargetArrow[] {
   const out: AutoTargetArrow[] = [];
   for (const band of match.view?.combat ?? []) {
     for (const attackerId of band.attackers) {
+      if (rammed.has(attackerId)) continue;
       const source = cardBox(canvas, attackerId);
       if (source === null) continue;
       const to = band.defender.kind === 'card' ? cardBox(canvas, band.defender.id) : faceBox(canvas, band.defender.id);

@@ -109,7 +109,7 @@ describe('combatArrows', () => {
     el({ 'data-board-card': '10' });
     const pw = el({ 'data-board-card': '55' });
     const match = matchWithCombat([{ attackers: [10], defender: { kind: 'card', id: 55 } }]);
-    const arrows = combatArrows(document.body, match);
+    const arrows = combatArrows(document.body, match, new Set());
     expect(arrows).toEqual([{ key: 'combat:10', from: expect.anything(), to: pw, kind: 'card', role: 'attack' }]);
     expect(arrows[0]!.to).toBe(pw);
   });
@@ -118,7 +118,7 @@ describe('combatArrows', () => {
     el({ 'data-board-card': '10' });
     const face = el({ 'data-player-face': '', 'data-player-id': '1' });
     const match = matchWithCombat([{ attackers: [10], defender: { kind: 'player', id: 1 } }]);
-    const arrows = combatArrows(document.body, match);
+    const arrows = combatArrows(document.body, match, new Set());
     expect(arrows).toEqual([{ key: 'combat:10', from: expect.anything(), to: face, kind: 'player', role: 'attack' }]);
   });
 
@@ -127,7 +127,7 @@ describe('combatArrows', () => {
     el({ 'data-board-card': '11' });
     const face = el({ 'data-player-face': '', 'data-player-id': '1' });
     const match = matchWithCombat([{ attackers: [10, 11], defender: { kind: 'player', id: 1 } }]);
-    const arrows = combatArrows(document.body, match);
+    const arrows = combatArrows(document.body, match, new Set());
     expect(arrows.map((a) => a.key).sort()).toEqual(['combat:10', 'combat:11']);
     for (const a of arrows) expect(a.to).toBe(face);
   });
@@ -135,11 +135,11 @@ describe('combatArrows', () => {
   it('skips a band whose attacker or defender is not on screen', () => {
     // Neither card 10 nor player 1 is mounted.
     const match = matchWithCombat([{ attackers: [10], defender: { kind: 'player', id: 1 } }]);
-    expect(combatArrows(document.body, match)).toEqual([]);
+    expect(combatArrows(document.body, match, new Set())).toEqual([]);
   });
 
   it('draws nothing outside combat — an absent or empty `view.combat`', () => {
-    expect(combatArrows(document.body, matchWithCombat([]))).toEqual([]);
-    expect(combatArrows(document.body, { view: {} } as unknown as LiveMatch)).toEqual([]);
+    expect(combatArrows(document.body, matchWithCombat([]), new Set())).toEqual([]);
+    expect(combatArrows(document.body, { view: {} } as unknown as LiveMatch, new Set())).toEqual([]);
   });
 });
