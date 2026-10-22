@@ -6,28 +6,20 @@
  * prevent this from happening once and for all?") is a seat whose game is waiting on it with
  * nothing on its screen to press. The client may still hold a live bar back for a moment — a
  * press it has just sent must not be pressed twice — but only through {@link pressableBar},
- * with a reason, and never for longer than {@link BAR_HOLD_MAX_MS}: past that the server's own
+ * with a reason, and never for longer than `HOLD_MAX_MS` (`./timed-hold.ts`): past that the server's own
  * bar is what is drawn. {@link barStuck} is the check that the rest of the screen kept the
  * promise, and what `LiveBoard` reports as `bar-stuck` when it did not.
  */
 
 import type { LiveButtons } from './match.ts';
-
-/** The longest a client-side hold may keep a bar the server sent live from being pressed. */
-export const BAR_HOLD_MAX_MS = 2_000;
+import { holdStands, type TimedHold } from './timed-hold.ts';
 
 /** How long the screen may offer nothing to press under a live server window before it is reported. */
 export const BAR_STUCK_MS = 2_000;
 
-/** A client-side hold on the bar: why, and since when (`Date.now()`). */
-export interface BarHold {
+/** A client-side hold on the bar, and why. */
+export interface BarHold extends TimedHold {
   readonly reason: string;
-  readonly since: number;
-}
-
-/** Whether `hold` still stands at `now`. */
-export function holdStands(hold: BarHold | null, now: number): hold is BarHold {
-  return hold !== null && now - hold.since < BAR_HOLD_MAX_MS;
 }
 
 /** The bar this seat may press at `now`: the server's, with both buttons off while a hold stands. */

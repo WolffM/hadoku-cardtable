@@ -65,7 +65,7 @@ import {
   type MatchTransport,
 } from './match.ts';
 import { confirmAsk, fixtureFrames, startReplayServer, until, type ReplayServer } from './replay-server.ts';
-import { BAR_HOLD_MAX_MS } from './bar-hold.ts';
+import { HOLD_MAX_MS } from './timed-hold.ts';
 import { diffViews, planRams } from './numbers.ts';
 import { MATCH_EVENTS, parseMatchAck, parseServerEnvelope } from './transport.ts';
 
@@ -911,7 +911,7 @@ describe('clicking the board: only what Forge offered', () => {
     expect(s.clientFrames().map((f) => (f.ok && 'method' in f.value ? f.value.method : null))).toEqual(['selectButtonOk', 'selectCard']);
   });
 
-  it('a press holds the bar back until Forge shows the next one, and never longer than BAR_HOLD_MAX_MS', async () => {
+  it('a press holds the bar back until Forge shows the next one, and never longer than HOLD_MAX_MS', async () => {
     const { s, m } = await fullGame();
     await sendAndApply(s, m, [prompt('Priority'), bar(true)]);
     const pressedAt = Date.now();
@@ -922,8 +922,8 @@ describe('clicking the board: only what Forge offered', () => {
     expect(liveBar(m)?.enable1).toBe(false);
     expect(pressButton(m, 'ok')).toBe(false);
     // Forge says nothing more: the bar it showed is live again, as are the board's clicks.
-    await until('the hold to lapse', () => m.barHold === null, BAR_HOLD_MAX_MS + 2000);
-    expect(Date.now() - pressedAt).toBeGreaterThanOrEqual(BAR_HOLD_MAX_MS - 50);
+    await until('the hold to lapse', () => m.barHold === null, HOLD_MAX_MS + 2000);
+    expect(Date.now() - pressedAt).toBeGreaterThanOrEqual(HOLD_MAX_MS - 50);
     expect(liveBar(m)?.enable1).toBe(true);
     expect(m.inputLive).toBe(true);
     expect(pressButton(m, 'ok')).toBe(true);
@@ -1351,7 +1351,7 @@ describe('genuinelyAsked: the fact the board’s priority flag gates on (T9)', (
     expect(pressButton(m, 'ok')).toBe(true);
     expect(genuinelyAsked(m, 'you', { ownDecisionOpen: false, waitingForOpponent: true })).toBe(false);
     expect(genuinelyAsked(m, 'them', { ownDecisionOpen: false, waitingForOpponent: true })).toBe(true);
-    await until('the hold to lapse', () => m.barHold === null, BAR_HOLD_MAX_MS + 2000);
+    await until('the hold to lapse', () => m.barHold === null, HOLD_MAX_MS + 2000);
     expect(genuinelyAsked(m, 'you', { ownDecisionOpen: false, waitingForOpponent: false })).toBe(true);
   });
 
@@ -2621,7 +2621,7 @@ describe('X1/W14 — attackDefenders and attackAssignment, off the state channel
     expect([...combatCandidates(m)]).toEqual([attacker]);
     expect(pressButton(m, 'ok')).toBe(true);
     expect(combatCandidates(m).size).toBe(0);
-    await until('the hold to lapse', () => m.barHold === null, BAR_HOLD_MAX_MS + 2000);
+    await until('the hold to lapse', () => m.barHold === null, HOLD_MAX_MS + 2000);
     expect([...combatCandidates(m)]).toEqual([attacker]);
   });
 

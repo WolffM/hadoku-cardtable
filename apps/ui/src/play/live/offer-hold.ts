@@ -20,7 +20,7 @@
  *  - a question this seat answers by hand (any ask `selfAnswer` does not answer) ends it;
  *  - the game waiting on another seat (`forge:seats`' `waitingOn`) ends it;
  *  - the turn or the phase moving on ends it;
- *  - and it never stands longer than {@link OFFER_HOLD_MAX_MS}.
+ *  - and it never stands longer than `HOLD_MAX_MS` (`./timed-hold.ts`).
  *
  * It is drawing only. What a click may SEND is still `boardInteraction`, Forge's real state
  * (`selectCard`, `selectPlayer` and the gesture layer read nothing else), so a held outline never
@@ -28,16 +28,12 @@
  */
 
 import type { LiveClickables } from './match.ts';
-
-/** The longest the board keeps drawing an offer after a click while Forge says nothing. */
-export const OFFER_HOLD_MAX_MS = 2_000;
+import { holdStands, type TimedHold } from './timed-hold.ts';
 
 /** A click's turnaround: the offer to keep drawing, and the moment it belongs to. */
-export interface OfferHold {
+export interface OfferHold extends TimedHold {
   /** The last non-empty offer since the click, never including what was clicked. */
   offer: LiveClickables;
-  /** `Date.now()` at the click. */
-  readonly since: number;
   readonly turn: number;
   readonly phase: string | null;
 }
@@ -59,8 +55,7 @@ const isEmpty = (offer: LiveClickables): boolean => offer.selectable.size === 0 
 
 /** The offer the board draws: Forge's own (`real`), or the held one through a silence after a click. */
 export function drawnOfferOf(real: LiveClickables, hold: OfferHold | null, facts: OfferFacts): LiveClickables {
-  if (hold === null || !isEmpty(real)) return real;
-  if (facts.now - hold.since >= OFFER_HOLD_MAX_MS) return real;
+  if (!holdStands(hold, facts.now) || !isEmpty(real)) return real;
   if (facts.turn !== hold.turn || facts.phase !== hold.phase) return real;
   if (facts.forgeNamedASet || facts.askedByHand || facts.waitingOnAnother) return real;
   return hold.offer;

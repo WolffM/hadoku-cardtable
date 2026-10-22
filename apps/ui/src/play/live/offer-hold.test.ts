@@ -6,7 +6,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { LiveClickables } from './match.ts';
-import { drawnOfferOf, followOffer, OFFER_HOLD_MAX_MS, type OfferFacts, type OfferHold } from './offer-hold.ts';
+import { drawnOfferOf, followOffer, type OfferFacts, type OfferHold } from './offer-hold.ts';
+import { HOLD_MAX_MS } from './timed-hold.ts';
 
 const offer = (cards: number[], players: number[] = []): LiveClickables => ({
   selectable: new Set(cards),
@@ -38,13 +39,13 @@ describe('drawnOfferOf', () => {
     ['the game waits on another seat', { waitingOnAnother: true }],
     ['the phase moved on', { phase: 'COMBAT_BEGIN' }],
     ['the turn moved on', { turn: 4 }],
-    ['the bound ran out', { now: 1_000 + OFFER_HOLD_MAX_MS }],
+    ['the bound ran out', { now: 1_000 + HOLD_MAX_MS }],
   ])('draws nothing once %s', (_why, change) => {
     expect(drawnOfferOf(NOTHING, hold(), { ...silent, ...change })).toBe(NOTHING);
   });
 
   it('holds right up to the bound', () => {
-    expect(drawnOfferOf(NOTHING, hold(), { ...silent, now: 1_000 + OFFER_HOLD_MAX_MS - 1 }).selectable.size).toBe(2);
+    expect(drawnOfferOf(NOTHING, hold(), { ...silent, now: 1_000 + HOLD_MAX_MS - 1 }).selectable.size).toBe(2);
   });
 });
 

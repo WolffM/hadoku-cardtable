@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { BAR_HOLD_MAX_MS, barStuck, holdStands, pressableBar } from './bar-hold.ts';
+import { barStuck, pressableBar } from './bar-hold.ts';
+import { HOLD_MAX_MS, holdStands } from './timed-hold.ts';
 
 const live = { label1: 'OK', label2: 'End Turn', enable1: true, enable2: true };
 const dead = { ...live, enable1: false, enable2: false };
 
-describe('the bar invariant: a live server bar is pressable unless a hold stands, and a hold never outlives BAR_HOLD_MAX_MS', () => {
+describe('the bar invariant: a live server bar is pressable unless a hold stands, and a hold never outlives HOLD_MAX_MS', () => {
   it('no hold: the server bar, untouched', () => {
     expect(pressableBar(live, null, 0)).toBe(live);
     expect(pressableBar(null, null, 0)).toBeNull();
@@ -14,14 +15,14 @@ describe('the bar invariant: a live server bar is pressable unless a hold stands
   it('a standing hold takes both buttons off', () => {
     const hold = { reason: 'pressed-ok', since: 1_000 };
     expect(pressableBar(live, hold, 1_000)).toEqual(dead);
-    expect(pressableBar(live, hold, 1_000 + BAR_HOLD_MAX_MS - 1)).toEqual(dead);
+    expect(pressableBar(live, hold, 1_000 + HOLD_MAX_MS - 1)).toEqual(dead);
   });
 
-  it('every hold lapses at BAR_HOLD_MAX_MS, whatever its reason', () => {
+  it('every hold lapses at HOLD_MAX_MS, whatever its reason', () => {
     for (const reason of ['pressed-ok', 'pressed-cancel', 'anything']) {
       const hold = { reason, since: 1_000 };
-      expect(holdStands(hold, 1_000 + BAR_HOLD_MAX_MS)).toBe(false);
-      expect(pressableBar(live, hold, 1_000 + BAR_HOLD_MAX_MS)).toBe(live);
+      expect(holdStands(hold, 1_000 + HOLD_MAX_MS)).toBe(false);
+      expect(pressableBar(live, hold, 1_000 + HOLD_MAX_MS)).toBe(live);
     }
   });
 });

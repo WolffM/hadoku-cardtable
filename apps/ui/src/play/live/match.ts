@@ -258,8 +258,9 @@ import { normalizeAvatarId } from '../../room/avatar.ts';
 import { drawsFaceUp, manaCostTokens, toBoardView, type BoardCard, type BoardView, type DamageHit, type DeathCause, type FaceHit, type PoolColor } from '../adapter.ts';
 import type { Revealed } from './numbers.ts';
 import { preloadMatchArt } from './art-preload.ts';
-import { BAR_HOLD_MAX_MS, pressableBar, type BarHold } from './bar-hold.ts';
-import { drawnOfferOf, followOffer, OFFER_HOLD_MAX_MS, type OfferHold } from './offer-hold.ts';
+import { pressableBar, type BarHold } from './bar-hold.ts';
+import { drawnOfferOf, followOffer, type OfferHold } from './offer-hold.ts';
+import { lapseHold } from './timed-hold.ts';
 import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import type { PromptParts } from '../prompts/lookup.ts';
 import { foldPackets, type FoldablePacket, type FoldResult, type WireState } from '../fold.ts';
@@ -602,7 +603,7 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
   /**
    * The one client-side hold on {@link LiveMatch.buttons} (`./bar-hold.ts`): set by
    * {@link pressButton}, cleared by the next `updateButtons`, and never standing longer than
-   * `BAR_HOLD_MAX_MS`. Read the bar a seat may press through {@link liveBar}, never by
+   * `HOLD_MAX_MS`. Read the bar a seat may press through {@link liveBar}, never by
    * editing `buttons`.
    */
   barHold: BarHold | null;
@@ -1272,7 +1273,7 @@ export function liveBar(match: LiveMatch): LiveButtons | null {
 
 /**
  * Hold the bar back — the ONLY way this client keeps a live bar from being pressed. The next
- * `updateButtons` lifts it; if none comes within `BAR_HOLD_MAX_MS`, Forge kept the input it
+ * `updateButtons` lifts it; if none comes within `HOLD_MAX_MS`, Forge kept the input it
  * showed, and the bar and the board's clicks are live again as they were.
  */
 function holdBar(match: LiveMatch, reason: string): void {
@@ -1280,12 +1281,11 @@ function holdBar(match: LiveMatch, reason: string): void {
   const wasLive = match.inputLive;
   match.barHold = hold;
   match.inputLive = false;
-  setTimeout(() => {
-    if (match.barHold !== hold) return;
+  lapseHold(hold, () => match.barHold, () => {
     match.barHold = null;
     match.inputLive = wasLive;
     notify(match);
-  }, BAR_HOLD_MAX_MS);
+  });
 }
 
 /**
@@ -1650,12 +1650,11 @@ function holdOffer(match: LiveMatch): void {
   if (view === null) return;
   const hold: OfferHold = { offer: boardInteraction(match), since: Date.now(), turn: view.turn, phase: view.phase };
   match.offerHold = hold;
-  setTimeout(() => {
-    if (match.offerHold !== hold) return;
+  lapseHold(hold, () => match.offerHold, () => {
     match.offerHold = null;
     match.deferredSelect = null;
     notify(match);
-  }, OFFER_HOLD_MAX_MS);
+  });
 }
 
 /**
