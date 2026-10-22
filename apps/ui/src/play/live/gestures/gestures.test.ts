@@ -68,6 +68,7 @@ import { GLIDE_MS } from '../../motion.ts';
 import { TAPPED_PENDING_ATTR, UNTAPPED_PENDING_ATTR } from './commit.ts';
 import { installGestures } from './index.ts';
 import { PARK_UNANSWERED_MS } from './install.ts';
+import { RAMMING_ATTR } from '../ram.ts';
 import type { GestureHandle } from './types.ts';
 
 /*
@@ -1742,6 +1743,51 @@ describe('on the attacking screen, the defender’s blocks draw as they are assi
     await waitFor(() => expect(arrow()).not.toBeNull());
     s.send(combat([]));
     await waitFor(() => expect(arrow()).toBeNull());
+  });
+});
+
+/* ── an attack's arrows leave with its ram ────────────────────────────── */
+
+describe('an attacker’s arrows go the moment its ram sets off', () => {
+  it('each attacker’s own arrow and the block arrow on it go as it rams, and stay gone until combat ends', async () => {
+    const { s, m, canvas } = await gestureBoard();
+    const [first, second] = theirsOf(m).battlefield.map((c) => c.id) as [number, number];
+    const blocker = mineOf(m).battlefield[0]!.id;
+    const combat = (on: boolean): ServerFrame =>
+      stateDelta({
+        [GAME_KEY]: {
+          _type: 3,
+          _id: 1,
+          CombatView: on
+            ? { t: 'combat', atk: [[first], [second]], def: [[1, mineOf(m).id], [1, mineOf(m).id]], blk: [[blocker], []], pblk: [[blocker], []] }
+            : null,
+        },
+      });
+    const arrow = (key: string) => overlayOf(canvas).querySelector(`[data-testid="stack-target-arrow"][data-key="${key}"]`);
+    s.send(phaseDelta('COMBAT_DAMAGE', theirsOf(m).id));
+    s.send(attackingDelta([first, second]));
+    s.send(combat(true));
+    await waitFor(() => expect([arrow(`combat:${first}`), arrow(`combat:${second}`), arrow(`block:${blocker}:${first}`)]).not.toContain(null));
+
+    // `ram.ts` hides the creature's own element the moment its copy sets off.
+    cardEl(canvas, first).setAttribute(RAMMING_ATTR, '');
+    await waitFor(() => expect(arrow(`combat:${first}`)).toBeNull());
+    expect(arrow(`block:${blocker}:${first}`), 'the block on it goes with it').toBeNull();
+    expect(arrow(`combat:${second}`), 'the one still waiting to ram keeps its arrow').not.toBeNull();
+
+    // Home again, and the board repainted: still gone, for as long as this combat stands.
+    cardEl(canvas, first).removeAttribute(RAMMING_ATTR);
+    s.send(phaseDelta('COMBAT_END', theirsOf(m).id));
+    await untilMatch(m, () => expect(m.view!.phase).toBe('COMBAT_END'));
+    await frame();
+    expect(arrow(`combat:${first}`)).toBeNull();
+    expect(arrow(`combat:${second}`)).not.toBeNull();
+
+    // A later combat draws the same creature’s arrow again.
+    s.send(combat(false));
+    await waitFor(() => expect(arrow(`combat:${second}`)).toBeNull());
+    s.send(combat(true));
+    await waitFor(() => expect(arrow(`combat:${first}`)).not.toBeNull());
   });
 });
 
