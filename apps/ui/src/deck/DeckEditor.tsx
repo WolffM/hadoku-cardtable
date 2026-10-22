@@ -56,10 +56,12 @@ import {
   LIMITED_MIN_MAIN_DECK_SIZE,
   basicLand,
   cardKey,
+  DECK_COLORS,
   isBasicLand,
   mainDeckSize,
   moveToMain,
   moveToSideboard,
+  POOL_COLORS,
   setBasicLand,
   sideboardSize,
   type Deck,
@@ -79,7 +81,7 @@ import { TopLayer } from '../topLayer.tsx';
 import { uiPx } from '../settings/ui-scale.ts';
 import { cardHeightOf, cssPx, gridAt, largestCard, pilesAt, useBox } from '../components/cardFit.ts';
 import { MV_CAP, MV_SPAN, groupCards, mvLabel, isCreatureFace, isLandFace, sortCards, type SortKey } from './cardOrder.ts';
-import { cardIndex, draftedSeat, mainSummary, namedCardPool, suggestBasics } from './build.ts';
+import { BASIC_OF, cardIndex, COLOR_OF_BASIC, draftedSeat, mainSummary, namedCardPool, withSuggestedBasics } from './build.ts';
 import type { TablesClient, Verdict } from '../screens/tables.ts';
 import './deckEditor.css';
 
@@ -113,11 +115,8 @@ export interface DeckEditorProps {
   minMain?: number;
 }
 
-const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
 /** The largest a card is drawn here, at 100%. */
 const MAX_CARD_W = 150;
-const BASIC_OF: Record<ManaColor, string> = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
-const PIP_OF: Record<string, ManaColor> = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' };
 
 /** A basic land's face: the library art, a land's type line, and no colour of its own. */
 const BASIC_FACES: ReadonlyMap<string, DraftCard> = new Map(
@@ -247,13 +246,7 @@ export function DeckEditor({
   };
   const split = useCardSplit((key, to) => dropOnto(to, key));
   const setBasic = (c: ManaColor, count: number): void => setDeck((d) => setBasicLand(d, basicLand(BASIC_OF[c]), Math.max(0, count)));
-  const autoBasics = (): void =>
-    setDeck((d) => {
-      const want = suggestBasics(d, poolIndex, minMain);
-      let next = d;
-      for (const c of COLORS) next = setBasicLand(next, basicLand(BASIC_OF[c]), want[c]);
-      return next;
-    });
+  const autoBasics = (): void => setDeck((d) => withSuggestedBasics(d, poolIndex, minMain));
 
   /* ── the pool's filter and sort ── */
   const [filter, setFilter] = useState<PoolFilter>({ colors: new Set(), type: null, mv: null });
@@ -379,7 +372,7 @@ export function DeckEditor({
   const curve = Array.from({ length: MV_CAP + 1 }, (_, mv) => piles[mv]!.length);
   const basics: Record<ManaColor, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   for (const e of deck.basics) {
-    const c = PIP_OF[e.card.name];
+    const c = COLOR_OF_BASIC[e.card.name];
     if (c !== undefined) basics[c] += e.count;
   }
   // A save that failed, or a check that could not be asked. Never a verdict.
@@ -403,7 +396,7 @@ export function DeckEditor({
             {sideboardSize(deck)}
           </span>
           <div className="deck-editor__chips" role="group" aria-label="colour">
-            {[...COLORS, 'C' as const].map((c) => (
+            {POOL_COLORS.map((c) => (
               <button key={c} type="button" className="deck-editor__chip" data-testid={`filter-${c}`} aria-pressed={filter.colors.has(c)} onClick={() => toggleColor(c)}>
                 <ManaPip token={c} />
               </button>
@@ -535,7 +528,7 @@ export function DeckEditor({
             <Curve curve={curve} />
             {allowBasics && (
               <div className="deck-editor__basics" data-testid="basics">
-                {COLORS.map((c) => {
+                {DECK_COLORS.map((c) => {
                   const name = BASIC_OF[c];
                   return (
                     <div key={c} className="deck-editor__basic" data-testid={`basic-${name}`}>
@@ -590,12 +583,12 @@ function EditorCard({ tile, from, onMove, flash }: { tile: Tile; from: Area; onM
 
 /** The deck's colours: a bar in proportion to its coloured symbols, and each colour's pip with its count. */
 function ColourBar({ colors, pips }: { colors: readonly string[]; pips: Record<ManaColor, number> }) {
-  const total = COLORS.reduce((n, c) => n + pips[c], 0);
+  const total = DECK_COLORS.reduce((n, c) => n + pips[c], 0);
   return (
     <span className="deck-editor__colours" data-testid="deck-colors" data-colors={colors.join('')}>
       <span className="deck-editor__colourbar" aria-hidden="true">
         {total > 0 &&
-          COLORS.filter((c) => pips[c] > 0).map((c) => <span key={c} className="deck-editor__colourseg" data-c={c} style={{ flexGrow: pips[c] }} />)}
+          DECK_COLORS.filter((c) => pips[c] > 0).map((c) => <span key={c} className="deck-editor__colourseg" data-c={c} style={{ flexGrow: pips[c] }} />)}
       </span>
       <span className="deck-editor__colourpips">
         {colors.map((c) => (

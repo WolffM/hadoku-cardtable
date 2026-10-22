@@ -51,7 +51,9 @@
 
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 
-import type { DraftCard, ManaColor } from '../draft/types.ts';
+import { DECK_COLORS } from '@hadoku/deck';
+
+import type { DraftCard } from '../draft/types.ts';
 import { MV_SPAN, groupCards, mvLabel, type GroupBy, type GroupId } from '../deck/cardOrder.ts';
 import { DraggableCard, DropArea, useCardSplit, type Area } from '../deck/dragMove.tsx';
 import { uiPx } from '../settings/ui-scale.ts';
@@ -60,8 +62,6 @@ import { CardTile } from './CardTile.tsx';
 import { cssPx, fitPiles, useBox } from './cardFit.ts';
 import { ColorSymbol, type ColorSymbolId } from './ColorSymbol.tsx';
 import { ManaPip } from './ManaPip.tsx';
-
-const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
 
 /** The largest a pick is drawn, at 100%. */
 const MAX_POOL_W = 140;
@@ -112,7 +112,7 @@ export interface PoolViewProps {
 }
 
 export function PoolView({ cards, recentlyAdded, owner = null, groupBy = 'color', onGroupBy, sideboard, onMove }: PoolViewProps) {
-  const counts = COLORS.map(
+  const counts = DECK_COLORS.map(
     (c) => [c, cards.filter((card) => card.colors.includes(c)).length] as const,
   );
   const [measure, box, curve] = useBox<HTMLDivElement>();

@@ -24,7 +24,7 @@
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEventHandler } from 'react';
 
-import type { DraftCard, ManaColor } from '@hadoku/shared';
+import type { DraftCard } from '@hadoku/shared';
 import { BACK_FACE } from '@hadoku/carddata/art';
 
 import { CardTile } from '../components/CardTile.tsx';
@@ -32,7 +32,7 @@ import { mountInspector } from '../play/inspect/index.ts';
 
 import { DeckColors } from '../components/DeckView.tsx';
 import { ManaCost } from '../components/ManaPip.tsx';
-import type { DeckColor } from '@hadoku/deck';
+import { DECK_COLORS, type DeckColor } from '@hadoku/deck';
 import type { DeckStyle } from '@hadoku/deck/library';
 
 import { sortCards } from '../deck/cardOrder.ts';
@@ -162,8 +162,6 @@ export function peekOrder(lines: readonly PeekLine[]): { spells: PeekLine[]; fre
 
 const total = (lines: readonly PeekLine[]) => lines.reduce((n, l) => n + l.count, 0);
 
-const COLORS: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
-
 /**
  * A card known only by its name, cost and art id — a library deck's line: the
  * wire sends names. The inspector enlarges it as the art when there is an id,
@@ -184,7 +182,7 @@ export function namedFace(
     name,
     manaCost: [...cost],
     manaValue,
-    colors: COLORS.filter((c) => symbols.has(c)),
+    colors: DECK_COLORS.filter((c) => symbols.has(c)),
     ...(scryfallId === undefined ? {} : { scryfallId }),
     // Its back faces (`backFaceNames`), each drawn as its own back image.
     ...(scryfallId === undefined || backFaces.length === 0

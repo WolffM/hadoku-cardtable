@@ -147,13 +147,11 @@ import {
   type ArtIdTableFile,
 } from '@hadoku/carddata/art';
 import {
-  basicLand,
   deckColorsByName,
   LIMITED_MIN_MAIN_DECK_SIZE,
   mainDeckSize,
   manaTokensOf,
   moveToMain,
-  setBasicLand,
   type Deck,
   type DeckColor,
 } from '@hadoku/deck';
@@ -177,7 +175,7 @@ import deckArtTraits from '../draft/deck-art-traits.json' with { type: 'json' };
 import { assignDeckArt, rankDeckArt, traitsOfDraftCard, type DeckArtChoice } from './deckArt.ts';
 import { artCredit, useArtist } from '../draft/artists.ts';
 import { cardImageUrl, prefetchCardImages } from '../draft/cardImage.ts';
-import { cardIndex, mainSummary } from '../deck/build.ts';
+import { cardIndex, withSuggestedBasics } from '../deck/build.ts';
 import { dckTextOf, deckFromPool, draftBuild, savedBuild } from '../draft/deckFromPool.ts';
 import type { DraftTransport } from '../draft/socket.ts';
 import type { DraftCard } from '../draft/types.ts';
@@ -391,14 +389,6 @@ const MY_DECK = 'mine:';
 /** Basics in an auto-built limited deck: the limited convention, one number. */
 export const DRAFTED_BASICS = 17;
 
-const BASIC_FOR: Record<'W' | 'U' | 'B' | 'R' | 'G', string> = {
-  W: 'Plains',
-  U: 'Island',
-  B: 'Swamp',
-  R: 'Mountain',
-  G: 'Forest',
-};
-
 /**
  * A playable deck out of a drafted pool, with no choices asked: what a finished
  * draft with no saved build (or an unreadable one) is shown as.
@@ -411,35 +401,15 @@ const BASIC_FOR: Record<'W' | 'U' | 'B' | 'R' | 'G', string> = {
  * Everything drafted goes in the maindeck (45 ≥ `LIMITED_MIN_MAIN_DECK_SIZE`, and
  * a card you did not draft has no way in — `newDeck` opens with the pool
  * sideboarded and only `moveToMain` moves anything), and `DRAFTED_BASICS` basics
- * are split by the maindeck's own coloured pips. The basics come from the table
- * rather than the pool, which is what `setBasicLand` is and what the gate's
- * `splitBasicLands` exempts from the pool check.
- *
- * Largest-remainder, not `round` per colour: rounding five shares independently
- * gives 16 or 18 lands as often as 17, and the deck the person plays should have
- * the number of lands it says it has.
+ * are split by the maindeck's own coloured pips, through the editor's Auto
+ * (`withSuggestedBasics`) aimed at the maindeck plus seventeen. The basics come
+ * from the table rather than the pool, which is what `setBasicLand` is and what
+ * the gate's `splitBasicLands` exempts from the pool check.
  */
 export function draftedDeckOf(draftId: string, pool: readonly DraftCard[]): Deck {
   let deck = deckFromPool(draftId, pool);
   for (const entry of [...deck.sideboard]) deck = moveToMain(deck, entry.card, entry.count);
-
-  const { pips } = mainSummary(deck, cardIndex(pool));
-  const colors = Object.keys(BASIC_FOR) as (keyof typeof BASIC_FOR)[];
-  const total = colors.reduce((n, c) => n + pips[c], 0);
-  if (total === 0) return deck;
-
-  const exact = colors.map((c) => ({ color: c, want: (DRAFTED_BASICS * pips[c]) / total }));
-  const counts = new Map(exact.map((e) => [e.color, Math.floor(e.want)]));
-  let left = DRAFTED_BASICS - [...counts.values()].reduce((a, b) => a + b, 0);
-  for (const e of [...exact].sort((a, b) => b.want - Math.floor(b.want) - (a.want - Math.floor(a.want)))) {
-    if (left <= 0) break;
-    counts.set(e.color, (counts.get(e.color) ?? 0) + 1);
-    left -= 1;
-  }
-  for (const [color, count] of counts) {
-    if (count > 0) deck = setBasicLand(deck, basicLand(BASIC_FOR[color]), count);
-  }
-  return deck;
+  return withSuggestedBasics(deck, cardIndex(pool), mainDeckSize(deck) + DRAFTED_BASICS);
 }
 
 /**

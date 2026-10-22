@@ -15,7 +15,7 @@
  * checks the text against the CALLER's pool, with the text from `dckTextOf`.
  */
 
-import { cardKey, DECK_COLORS, isBasicLand, manaTokensOf, type Deck, cardRequestOf } from '@hadoku/deck';
+import { BASIC_LAND_NAMES, basicLand, cardKey, cardRequestOf, type Deck, DECK_COLORS, type DeckColor, isBasicLand, manaTokensOf, setBasicLand } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseCardRequest, type DeckEntry } from '@hadoku/carddata/dck';
 import { artIdIndexFromTable, backFaceNames, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
@@ -112,7 +112,13 @@ export function mainSummary(deck: Deck, index: ReadonlyMap<string, DraftCard>): 
   return summary;
 }
 
-export type BasicCounts = Record<'W' | 'U' | 'B' | 'R' | 'G', number>;
+export type BasicCounts = Record<DeckColor, number>;
+
+/** The basic land of each colour: Forge's `BASIC_LANDS` are listed in WUBRG order. */
+export const BASIC_OF = Object.fromEntries(DECK_COLORS.map((c, i) => [c, BASIC_LAND_NAMES[i]!])) as Record<DeckColor, string>;
+
+/** Each basic land's colour. */
+export const COLOR_OF_BASIC: Readonly<Record<string, DeckColor>> = Object.fromEntries(DECK_COLORS.map((c) => [BASIC_OF[c], c]));
 
 /**
  * How many of each basic the maindeck wants — Forge's
@@ -162,4 +168,12 @@ export function suggestBasics(deck: Deck, index: ReadonlyMap<string, DraftCard>,
     total -= shards[c];
   }
   return out;
+}
+
+/** `deck` with its basics replaced by `suggestBasics`' counts: the editor's Auto, and the deck a drafted pool opens as. */
+export function withSuggestedBasics(deck: Deck, index: ReadonlyMap<string, DraftCard>, target: number): Deck {
+  const want = suggestBasics(deck, index, target);
+  let next = deck;
+  for (const c of DECK_COLORS) next = setBasicLand(next, basicLand(BASIC_OF[c]), want[c]);
+  return next;
 }

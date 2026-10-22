@@ -10,21 +10,21 @@
  * as `['R','U']`), so nothing here may depend on that order.
  */
 
+import { DECK_COLORS } from '@hadoku/deck';
+
 import type { ManaColor } from '../draft/types.ts';
 import { ManaPip } from './ManaPip.tsx';
 
-const WUBRG: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G'];
-
 /** `colors` as one key in WUBRG order, each colour once: `['R','U']` → `'UR'`, none → `''`. */
 export function wubrgKey(colors: readonly ManaColor[]): string {
-  return WUBRG.filter((c) => colors.includes(c)).join('');
+  return DECK_COLORS.filter((c) => colors.includes(c)).join('');
 }
 
 const HUE: Record<ManaColor, string> = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' };
 
 /** A colour set as a card's identity stripe: an equal band of each colour, in WUBRG order; none is the colourless hue. */
 export function stripeOf(colors: readonly ManaColor[]): string {
-  const bands = WUBRG.filter((c) => colors.includes(c));
+  const bands = DECK_COLORS.filter((c) => colors.includes(c));
   if (bands.length === 0) return 'var(--c-generic)';
   const at = (i: number): string => `${Math.round((i * 10000) / bands.length) / 100}%`;
   return `linear-gradient(${bands.map((c, i) => `var(--c-${HUE[c]}) ${at(i)} ${at(i + 1)}`).join(', ')})`;

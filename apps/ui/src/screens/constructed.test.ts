@@ -2892,8 +2892,7 @@ describe('draftedDeckOf', () => {
     // the pool sideboarded and only `moveToMain` moves anything.
     expect(deckBuilt.main.reduce((n, e) => n + e.count, 0)).toBe(45);
     expect(deckBuilt.sideboard).toEqual([]);
-    // The lands, split by the maindeck's own pips — largest remainder, so the
-    // total is the number it says and not 16 or 18.
+    // The lands, split by the maindeck's own pips.
     expect(deckBuilt.basics.reduce((n, e) => n + e.count, 0)).toBe(DRAFTED_BASICS);
     expect(mainDeckSize(deckBuilt)).toBe(45 + DRAFTED_BASICS);
     for (const entry of deckBuilt.basics) expect(BASIC_LAND_NAMES).toContain(entry.card.name);
