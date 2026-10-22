@@ -704,7 +704,18 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		},
 		cubeMetaOf(room) {
 			const src = planFor(room.roomId).rounds[0] as PoolSource;
-			return { name: options.resolver.name(src), size: options.resolver.cards(src).length };
+			const size = options.resolver.cards(src).length;
+			// `CubeMeta.size` (`@hadoku/shared`'s `CubeMetaSchema`) is
+			// `z.number().int().positive()` — a 0 here fails the WHOLE
+			// `state` message's schema parse on the browser, which never
+			// recovers (the production incident this guards: a realistic
+			// round's resolver answered `[]`, since its packs come from
+			// `cacheRealisticRound`, never a shared pool). Whatever the
+			// resolver answers, the wire never sees a non-positive size: a
+			// pod's seats × pack size is still an honest, always-positive
+			// stand-in for "how big is this source" when the resolver has
+			// nothing better.
+			return { name: options.resolver.name(src), size: size > 0 ? size : params.seatCount * params.packSize };
 		},
 		nameOf(src) {
 			return options.resolver.name(src);

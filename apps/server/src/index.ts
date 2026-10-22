@@ -437,11 +437,16 @@ await warmSetsStore(setsStore);
 const poolResolver: PoolSourceResolver = {
 	cards(src) {
 		if (src.kind === 'cube') return cubeStore.cards(src.cubeId) ?? [];
-		if (src.style === 'set-cube') return setsStore.cachedCards(src.code) ?? [];
-		// A realistic round is never asked for a pool to shuffle — its packs are
-		// pre-fetched and cached per draft id (`DraftRooms.cacheRealisticRound`,
-		// wired by `http/rooms.ts`'s `/start`), never through this seam.
-		return [];
+		// Both set styles answer with the SAME card list (`setsStore.cachedCards`,
+		// the set's non-basic singletons) — `deal()` never calls this for a
+		// realistic round (its packs come from `cacheRealisticRound`, wired by
+		// `http/rooms.ts`'s `/start`) and `poolShortfall` already skips it, so
+		// this is purely for `cubeMetaOf`'s wire-facing size: answering `[]`
+		// here made `CubeMeta.size` 0, which fails `CubeMetaSchema`'s
+		// `positive()` and rejects the browser's whole `state` message — the
+		// production incident this line fixes. `cubeMetaOf` itself also never
+		// forwards a non-positive size now, belt and suspenders.
+		return setsStore.cachedCards(src.code) ?? [];
 	},
 	name(src) {
 		if (src.kind === 'cube') return cubeStore.list().find((c) => c.id === src.cubeId)?.name ?? src.cubeId;
