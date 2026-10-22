@@ -304,7 +304,7 @@ a.sound-builder__btn {
 }
 
 .sound-builder__pill[data-placed] {
-  box-shadow: inset 0 0 0 1px var(--color-success);
+  box-shadow: inset 0 0 0 1px var(--success);
 }
 
 .sound-builder__pill[aria-pressed='true'] {
@@ -425,7 +425,7 @@ a.sound-builder__btn {
 }
 
 .sound-builder__cell[data-unsaved] {
-  border-color: var(--color-warning);
+  border-color: var(--warn);
 }
 
 .sound-builder__cell .sound-builder__hint {
@@ -671,15 +671,15 @@ a.sound-builder__btn {
    never reads as the thin "placed somewhere" outline, which is the same success colour. */
 .sound-builder__pill[data-mark='keep'],
 .sound-queue__choice[data-mark='keep'] {
-  border-color: var(--color-success);
-  background: var(--color-success);
-  color: var(--color-on-success);
+  border-color: var(--success);
+  background: var(--success);
+  color: var(--on-success);
 }
 
 .sound-builder__pill[data-mark='trash'],
 .sound-queue__choice[data-mark='trash'] {
-  border-color: var(--color-danger);
-  background: var(--color-danger-bg);
+  border-color: var(--danger);
+  background: var(--danger-bg);
   text-decoration: line-through;
 }
 
@@ -830,8 +830,8 @@ a.sound-builder__btn {
 }
 
 .music-review__rate[aria-pressed='true'][data-rating='keep'] {
-  background: var(--color-success);
-  color: var(--color-on-success);
+  background: var(--success);
+  color: var(--on-success);
 }
 
 .music-review__rate[aria-pressed='true'][data-rating='maybe'] {
@@ -841,8 +841,8 @@ a.sound-builder__btn {
 }
 
 .music-review__rate[aria-pressed='true'][data-rating='no'] {
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .music-review__pick {
@@ -884,11 +884,11 @@ a.sound-builder__btn {
 }
 
 .music-review__submit[data-state='failed'] {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
+  background: var(--danger);
+  border-color: var(--danger);
 }
 
 .music-review__reset[data-armed] {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
+  border-color: var(--danger);
+  color: var(--danger);
 }

@@ -142,7 +142,7 @@
   display: inline-flex;
   gap: 6px;
   align-items: center;
-  color: var(--color-warning);
+  color: var(--warn);
 }
 
 .pod-bracket__live::before {

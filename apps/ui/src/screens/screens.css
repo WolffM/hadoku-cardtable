@@ -381,7 +381,7 @@
 
 .lobby__error {
   margin: 0;
-  color: var(--color-warning);
+  color: var(--warn);
 }
 
 /* ── constructed (`#/play`) and a match (`#/match/<id>`) ─────────────── */
@@ -579,13 +579,13 @@
 }
 
 .pill[data-state='yes'] {
-  color: var(--color-success-dark);
-  background: var(--color-success-bg);
+  color: var(--success-dark);
+  background: var(--success-bg);
 }
 
 .pill[data-state='no'] {
-  color: var(--color-warning-dark);
-  background: var(--color-warning-bg);
+  color: var(--warn-dark);
+  background: var(--warn-bg);
   border-style: dashed;
 }
 

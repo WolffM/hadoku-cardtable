@@ -150,6 +150,13 @@
    */
   --danger: var(--color-danger);
   --success: var(--color-success);
+  /* The theme's pairings for a state drawn as a tinted chip: ink on its own pale fill. */
+  --on-success: var(--color-on-success);
+  --success-bg: var(--color-success-bg);
+  --success-dark: var(--color-success-dark);
+  --danger-bg: var(--color-danger-bg);
+  --warn-bg: var(--color-warning-bg);
+  --warn-dark: var(--color-warning-dark);
   --danger-ink: color-mix(in srgb, var(--danger) 50%, var(--ink));
   --success-ink: color-mix(in srgb, var(--success) 30%, var(--ink));
 

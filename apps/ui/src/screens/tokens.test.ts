@@ -278,6 +278,15 @@ describe('no hardcoded colours', () => {
     expect(found).toEqual([]);
   });
 
+  it('a state colour is read through its alias (`--success`, `--danger`, `--warn` and their pairings), never the theme’s own name, outside the two global sheets', () => {
+    const found: string[] = [];
+    for (const rel of sheets) {
+      if (rel === 'styles.css' || rel === 'chrome/chrome.css') continue;
+      for (const m of readFileSync(new URL(rel, root), 'utf8').matchAll(/var\(--color-(?:on-)?(?:success|danger|warning)[a-z-]*\)/g)) found.push(`${rel}: ${m[0]}`);
+    }
+    expect(found).toEqual([]);
+  });
+
   it('every theme defines every colour token the stylesheets read, so nothing resolves to nothing', () => {
     const used = new Set<string>();
     for (const rel of sheets) for (const m of readFileSync(new URL(rel, root), 'utf8').matchAll(/var\(--color-([a-z-]+)\)/g)) used.add(m[1]);
