@@ -307,13 +307,14 @@ function stubServer(table: Table) {
   const records = new Map<string, { games: number; wins: number; losses: number; draws: number }>();
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-  const gameType = table.gameType ?? 'constructed-1v1';
+  /** What the room plays now: the leader's `{ gameType }` PATCH moves it. */
+  const gameType = () => table.gameType ?? 'constructed-1v1';
   /** The library this table's server has. See `Table.decks`. */
   const decks = (): TableDeck[] => table.decks ?? DECKS;
   table.format ??= FORMATS[0].id;
   const iAmLeader = () => table.leader !== false;
   const view = () => ({
-    room: { id: ROOM, name: 'Friday night', gameType, matchId: table.matchId, seats: 2, locked: table.locked === true || table.matchId !== null },
+    room: { id: ROOM, name: 'Friday night', gameType: gameType(), matchId: table.matchId, seats: 2, locked: table.locked === true || table.matchId !== null },
     you: { player: table.players.some((p) => p.you), leader: iAmLeader() },
     players: table.players.map((p, seat) => ({ ...p, seat })),
   });
@@ -331,7 +332,7 @@ function stubServer(table: Table) {
     // The leader is a member ID, which is what the screen matches on — the
     // display name is not unique, and no browser can derive its own id.
     leader: 'p-alice',
-    gameType,
+    gameType: gameType(),
     format: table.format,
     settings: table.settings ?? { handSmoothing: true },
     ...(table.mode === undefined ? { mode: 'classic', modeOptions: {} } : table.mode === null ? { mode: null, modeOptions: null } : table.mode),
@@ -398,7 +399,16 @@ function stubServer(table: Table) {
        */
       if ((init?.method ?? 'GET') === 'PATCH') {
         if (table.refusePatch !== undefined) return json(table.refusePatch.status, { error: table.refusePatch.error });
-        const asked = body as { format?: unknown; mode?: unknown; settings?: { handSmoothing?: boolean } };
+        const asked = body as { format?: unknown; mode?: unknown; gameType?: string; settings?: { handSmoothing?: boolean } };
+        // The type, as `lobby.ts` sets it: under the mode's lock, and a change leaves the mode unchosen and nobody ready.
+        if (asked.gameType !== undefined) {
+          if (table.players.some((p) => p.ready)) return json(409, { error: 'mode-locked' });
+          if (asked.gameType !== gameType()) table.mode = null;
+          table.gameType = asked.gameType;
+          table.players = table.players.map((p) => ({ ...p, ready: false }));
+          table.members = table.members?.map((m) => ({ ...m, ready: false }));
+          return json(200, roomRecord());
+        }
         // The mode, as `lobby.ts` sets it: refused once anybody is ready, and a change clears readiness.
         if (asked.mode !== undefined) {
           if (table.players.some((p) => p.ready)) return json(409, { error: 'mode-locked' });
@@ -1125,6 +1135,7 @@ describe('a room’s table', () => {
         setFormat: async () => ({ ok: false as const, message: 'not used' }),
         setSettings: async () => ({ ok: false as const, message: 'not used' }),
         setRoomMode: async () => ({ ok: false as const, message: 'not used' }),
+        setGameType: async () => ({ ok: false as const, message: 'not used' }),
         leave: async () => ({ ok: false as const, message: 'not used' }),
         close: async () => ({ ok: false as const, message: 'not used' }),
         join: async (roomId: string, password?: string) => {
@@ -2571,6 +2582,93 @@ describe('the room’s mode', () => {
     fireEvent.click(radio('random'));
     expect((await screen.findByTestId('table-error')).textContent).toContain('mode-locked');
     expect(radio('classic').checked).toBe(true);
+  });
+});
+
+/* ── the room's type: Constructed or Draft, in the room as in the create form ── */
+
+describe('the room’s type', () => {
+  async function mountTypeRoom(table: Table) {
+    const server = stubServer(table);
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, myDecks: server.myDecks, roomId: ROOM, feed: everyMs(10), makeTransport: () => ({ on: () => {}, emit: () => {}, disconnect: () => {} }) }));
+    await screen.findByTestId('room-game-type');
+    return server;
+  }
+  const typeRadio = (type: string) => screen.getByTestId(`room-game-type-${type}`) as HTMLInputElement;
+  const both = () => ['constructed-1v1', 'draft'].map((t) => [typeRadio(t).checked, typeRadio(t).disabled]);
+  const finished = { length: 1 as const, wins: [1, 0] as [number, number], games: [{ matchId: MATCH, winner: 0 as const }], phase: 'done' as const };
+
+  it('a finished match leaves the leader the type, the create form’s two cards, Constructed chosen', async () => {
+    await mountTypeRoom({ players: [opponent(), mySeat()], matchId: null, series: finished });
+    expect(screen.getByTestId('room-game-type').textContent).toBe('ConstructedDraft');
+    expect(both()).toEqual([
+      [true, false],
+      [false, false],
+    ]);
+  });
+
+  it('is the leader’s: everybody else sees it disabled, and no words about it', async () => {
+    await mountTypeRoom({ players: [opponent()], matchId: null, leader: false });
+    expect(both()).toEqual([
+      [true, true],
+      [false, true],
+    ]);
+    expect(screen.getByTestId('constructed').textContent).not.toMatch(/leader|wait/i);
+  });
+
+  it('is locked when the mode is: somebody ready, or a match live', async () => {
+    const server = await mountTypeRoom({ players: [opponent()], matchId: null });
+    expect(typeRadio('draft').disabled).toBe(false);
+    server.table.players = [opponent({ ready: true })];
+    await waitFor(() => expect(typeRadio('draft').disabled).toBe(true));
+    expect(typeRadio('constructed-1v1').disabled).toBe(true);
+    server.table.players = [opponent()];
+    await waitFor(() => expect(typeRadio('draft').disabled).toBe(false));
+    server.table.matchId = MATCH;
+    await waitFor(() => expect(typeRadio('draft').disabled).toBe(true));
+  });
+
+  it('is locked while a Gauntlet is under way, and the leader’s again once it is decided', async () => {
+    const server = await mountTypeRoom({
+      players: [],
+      matchId: null,
+      mode: { mode: 'gauntlet', modeOptions: {} },
+      gauntlet: { ...gauntletOf({ players: [], matchId: null }), ready: [false, true] },
+    });
+    await waitFor(() => expect(typeRadio('draft').disabled).toBe(true));
+    server.table.gauntlet = { ...gauntletOf({ players: [], matchId: null }), phase: 'done', winner: 1 };
+    await waitFor(() => expect(typeRadio('draft').disabled).toBe(false));
+  });
+
+  it('switching is picking the other card: Draft draws the draft lobby, and Constructed brings the mode row back', async () => {
+    const server = await mountTypeRoom({ players: [opponent()], matchId: null, series: finished });
+    fireEvent.click(typeRadio('draft'));
+    await screen.findByTestId('draft-lobby');
+    expect(typeRadio('draft').checked).toBe(true);
+    expect(screen.queryByTestId('constructed-mode')).toBeNull();
+
+    fireEvent.click(typeRadio('constructed-1v1'));
+    await screen.findByTestId('constructed-mode');
+    expect(screen.queryByTestId('draft-lobby')).toBeNull();
+    expect(typeRadio('constructed-1v1').checked).toBe(true);
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ gameType: 'draft' }, { gameType: 'constructed-1v1' }]);
+  });
+
+  it('a draft room offers it too, disabled for everybody but the leader', async () => {
+    await mountTypeRoom({ players: [], matchId: null, gameType: 'draft', members: [{ id: 'p-alice', name: 'user-alice' }], leader: false });
+    await screen.findByTestId('draft-lobby');
+    expect(both()).toEqual([
+      [false, true],
+      [true, true],
+    ]);
+  });
+
+  it('a type change the server refuses says so in its words, and the room stays what it was', async () => {
+    await mountTypeRoom({ players: [], matchId: null, refusePatch: { status: 409, error: 'a seated player is ready; the game type cannot change now' } });
+    fireEvent.click(typeRadio('draft'));
+    expect((await screen.findByTestId('table-error')).textContent).toContain('the game type cannot change now');
+    expect(typeRadio('constructed-1v1').checked).toBe(true);
+    expect(screen.queryByTestId('draft-lobby')).toBeNull();
   });
 });
 

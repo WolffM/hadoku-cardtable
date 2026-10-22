@@ -2710,6 +2710,27 @@ describe('a constructed room’s mode', () => {
 		expect(drafted.ok && [drafted.room.mode, drafted.room.modeOptions]).toEqual([null, null]);
 	});
 
+	it('locks the game type exactly when the mode is locked: a ready seat or a Gauntlet under way, freed once it is done', async () => {
+		const lobby = await openLobby({ dir: await tempDir(), defaultFormat: POOLS[POOLS.length - 1] });
+		const { id, tableId } = await constructedRoom(lobby, true);
+		expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
+
+		expect(lobby.setPlayerState(id, BOB.id, { v: 1, table: tableId, ready: true, verdict: { legal: true } })).toBe(true);
+		expect(lobby.setGameType(id, ALICE.id, 'draft')).toEqual({ ok: false, reason: 'mode-locked' });
+		expect(lobby.get(id)?.gameType).toBe('constructed-1v1');
+		expect(lobby.setPlayerState(id, BOB.id, { v: 1, table: tableId, ready: false, verdict: { legal: true } })).toBe(true);
+
+		const revealing = { ...newGauntlet(), phase: 'reveal' as const };
+		expect(lobby.setGauntlet(id, revealing)).toBe(true);
+		expect(lobby.setGameType(id, ALICE.id, 'draft')).toEqual({ ok: false, reason: 'mode-locked' });
+
+		expect(lobby.setGauntlet(id, { ...revealing, phase: 'done', winner: 0 })).toBe(true);
+		const drafted = lobby.setGameType(id, ALICE.id, 'draft');
+		expect(drafted.ok && drafted.room.gameType).toBe('draft');
+		const back = lobby.setGameType(id, ALICE.id, 'constructed-1v1');
+		expect(back.ok && [back.room.gameType, back.room.mode]).toEqual(['constructed-1v1', null]);
+	});
+
 	it('restores a constructed room stored before modes existed as classic, and logs it', async () => {
 		const dir = await tempDir();
 		writeFixtureRoom(dir, 'r-mmmmmmmmmmm1', legacyApp());

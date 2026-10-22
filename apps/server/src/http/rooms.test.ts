@@ -1833,4 +1833,21 @@ describe('a constructed room’s mode over HTTP', () => {
 		expect(locked.json()).toMatchObject({ reason: 'mode-locked' });
 		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { mode: string }).mode).toBe('classic');
 	});
+
+	it('PATCH refuses a game type change with 409 mode-locked once a seated player is ready, naming the game type', async () => {
+		const h = await openApp(await tempDir());
+		const created = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Open', mode: 'classic' } })).json() as {
+			id: string;
+			tables: { id: string }[];
+			you: { id: string };
+		};
+		const tableId = created.tables[0]!.id;
+		h.lobby.setPlayerState(created.id, created.you.id, { v: 1, table: tableId, ready: true });
+		h.lobby.setTableSeats(created.id, tableId, [created.you.id, null]);
+
+		const locked = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { gameType: 'draft' } });
+		expect(locked.status).toBe(409);
+		expect(locked.json()).toEqual({ error: 'a seated player is ready; the game type cannot change now', reason: 'mode-locked' });
+		expect(((await call(h, 'GET', `/api/rooms/${created.id}`)).json() as { gameType: string }).gameType).toBe('constructed-1v1');
+	});
 });
