@@ -1,0 +1,19 @@
+# Masticore's upkeep trigger, "sacrifice Masticore unless you discard a card",
+# asked of a seat holding a full hand. The operator, 2026-10-22: "i just got the
+# masticore trigger and i see TWO scroll bars, there should be zero." Lands in
+# bob's (`ai…` keys, seat 1) Cleanup Step; alice's (`human…`, seat 0) next
+# upkeep puts the trigger on the stack, and its discard is a choice of one of
+# her seven cards (`e2e/masticore-fit.spec.ts`).
+turn=1
+activeplayer=ai
+activephase=CLEANUP
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt;Counterspell;Llanowar Elves;Swords to Plowshares;Dark Ritual;Giant Growth;Ancestral Recall
+humanbattlefield=Masticore;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=
+ailibrary=Island;Island;Island;Island;Island;Island;Island;Island
+aigraveyard=
