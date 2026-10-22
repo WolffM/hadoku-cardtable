@@ -44,7 +44,7 @@ import {
 	type SeatId,
 } from '@wolffm/rooms-protocol';
 import { pick as enginePick } from '@hadoku/draft';
-import type { DraftCard, DraftPlan, PoolSource } from '@hadoku/shared';
+import { safeParseServerMessage, stateMessage, type DraftCard, type DraftPlan, type PoolSource } from '@hadoku/shared';
 
 import {
 	createDraftRooms,
@@ -1010,5 +1010,100 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
+	});
+});
+
+/*
+ * PRODUCTION INCIDENT (found by lane F's e2e, since 50b5b06f): a realistic
+ * draft hangs forever. `cubeMetaOf` builds the wire's `CubeMeta` as
+ * `{ name, size: resolver.cards(src).length }`, and `index.ts`'s own
+ * resolver answered `[]` for a realistic source (its packs come from
+ * `cacheRealisticRound`, never a pool to shuffle) — so `size` was 0.
+ * `CubeMetaSchema.size` is `z.number().int().positive()`, so the browser's
+ * `safeParseServerMessage` rejected the WHOLE `state` message and the pod
+ * sat on its skeleton forever. Nothing upstream of `cubeMetaOf` ever
+ * round-tripped the real wire schema — every earlier test (including this
+ * file's own) asserted on `DraftState`/`DraftCard` shapes directly, never on
+ * what actually crosses the socket.
+ *
+ * These tests are deliberately generic over the resolver: `emptyForRealistic`
+ * reproduces exactly the shape of resolver a lane can still write (`cards`
+ * answering `[]` for a style it does not think needs a pool) — not a
+ * specific fix to `index.ts`. The fix that makes these pass lives in
+ * `cubeMetaOf` itself: it must never hand the wire a non-positive size,
+ * whatever the resolver answered.
+ */
+describe('the wire: cubeMetaOf never emits a CubeMeta the real ServerMessage schema would reject', () => {
+	function makeCards(tag: string, size: number): DraftCard[] {
+		return Array.from({ length: size }, (_, i) => ({
+			cardId: `${tag}-${i}`,
+			name: `${tag} ${i}`,
+			manaCost: [],
+			manaValue: 0,
+			colors: [],
+			typeLine: 'Creature — Test',
+			oracleText: '',
+			setCode: 'TST',
+			collectorNumber: String(i + 1),
+			rarity: 'common' as const,
+		}));
+	}
+
+	/** Reproduces the production bug: a realistic source has no shared pool, so a resolver answers `[]` for it — exactly `index.ts`'s resolver before the fix. */
+	function emptyForRealistic(): PoolSourceResolver {
+		return {
+			cards(src) {
+				if (src.kind === 'cube') return makeCards(src.cubeId, 60);
+				if (src.style === 'set-cube') return makeCards(src.code, 60);
+				return []; // the bug
+			},
+			name(src) {
+				return src.kind === 'cube' ? src.cubeId : `${src.code} (${src.style})`;
+			},
+		};
+	}
+
+	/** `cubeMetaOf` reads round 1's source only, so a state message is one `open()` + one `cubeMetaOf()` away, no socket needed. */
+	function stateMessageFor(r: DraftRooms, draftId: string, plan: DraftPlan, realisticRounds: { round: number; packs: DraftCard[][] }[] = []) {
+		r.setPodLookup(() => ({ seats: 8, humans: [], bots: [], plan }));
+		for (const { round, packs } of realisticRounds) r.cacheRealisticRound(draftId, round, packs);
+		const room = r.open(draftId);
+		const view = viewForParticipant(room, ALICE);
+		return stateMessage(view, r.cubeMetaOf(room));
+	}
+
+	function expectValidWireMessage(msg: unknown): void {
+		const parsed = safeParseServerMessage(msg);
+		expect(parsed.ok, parsed.ok ? undefined : JSON.stringify(parsed.errors)).toBe(true);
+	}
+
+	it('a cube round\'s state message round-trips the real schema', () => {
+		const r = createDraftRooms({ resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const plan: DraftPlan = { rounds: [{ kind: 'cube', cubeId: 'vintage' }, { kind: 'cube', cubeId: 'vintage' }, { kind: 'cube', cubeId: 'vintage' }] };
+		expectValidWireMessage(stateMessageFor(r, 'pod-wire-cube', plan));
+	});
+
+	it('a set-cube round\'s state message round-trips the real schema', () => {
+		const r = createDraftRooms({ resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const plan: DraftPlan = { rounds: [{ kind: 'set', code: 'ARB', style: 'set-cube' }, { kind: 'set', code: 'ARB', style: 'set-cube' }, { kind: 'set', code: 'ARB', style: 'set-cube' }] };
+		expectValidWireMessage(stateMessageFor(r, 'pod-wire-set-cube', plan));
+	});
+
+	it('a REALISTIC round\'s state message round-trips the real schema — this is the production bug (fails on main)', () => {
+		const r = createDraftRooms({ resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const plan: DraftPlan = { rounds: [{ kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ISD', style: 'realistic' }] };
+		const packs = Array.from({ length: 8 }, (_, seat) => makeCards(`isd-seat${seat}`, 15));
+		expectValidWireMessage(stateMessageFor(r, 'pod-wire-realistic', plan, [{ round: 0, packs }, { round: 1, packs }, { round: 2, packs }]));
+	});
+
+	it('a MIXED plan (realistic / set-cube / cube) state message round-trips the real schema — fails on main', () => {
+		// `cubeMetaOf` reads round 1's source (`PodView.planName`'s own rule),
+		// so the realistic round has to be FIRST for this plan to exercise the
+		// bug at all — a mixed plan with it in round 2 or 3 would pass on main
+		// too, for the wrong reason (cubeMetaOf never looking at it).
+		const r = createDraftRooms({ resolver: emptyForRealistic(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_000, storeDir: null });
+		const plan: DraftPlan = { rounds: [{ kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ARB', style: 'set-cube' }, { kind: 'cube', cubeId: 'vintage' }] };
+		const packs = Array.from({ length: 8 }, (_, seat) => makeCards(`isd-seat${seat}`, 15));
+		expectValidWireMessage(stateMessageFor(r, 'pod-wire-mixed', plan, [{ round: 0, packs }]));
 	});
 });
