@@ -2071,7 +2071,7 @@ export function lifePayer(match: LiveMatch): number | null {
  * one) is honoured exactly as Forge currently sees it.
  */
 function isOwnBattlefieldLand(view: BoardView, id: number): boolean {
-  const me = view.players.find((p) => p.isViewer);
+  const me = viewerOf(view);
   const card = me?.battlefield.find((c) => c.id === id);
   return card !== undefined && card.card.typeLine.includes('Land');
 }
@@ -2093,7 +2093,7 @@ export function landsOffered(match: LiveMatch): BoardCard[] {
   const view = match.view;
   if (view === null || match.selectables !== null || match.asks.length > 0 || declaringCombat(match)) return [];
   const offered = boardInteraction(match).selectable;
-  const me = view.players.find((p) => p.isViewer);
+  const me = viewerOf(view);
   return (me?.battlefield ?? []).filter((c) => offered.has(c.id) && c.card.typeLine.includes('Land'));
 }
 

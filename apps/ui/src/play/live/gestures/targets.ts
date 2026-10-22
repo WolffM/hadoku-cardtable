@@ -3,13 +3,9 @@
  * reasoning intact; nothing here decides what anything MEANS — `./commit.ts`
  * does that.
  */
-import { centreOf } from '../../lift.ts';
 import { cardBox, faceBox } from '../board-dom.ts';
 import type { LiveClickables } from '../match.ts';
 import type { DropTarget, Point } from './types.ts';
-
-/** The gesture installer and commit read these from here. */
-export { cardBox, centreOf, faceBox };
 
 /**
  * Where an arrow's head lands on a card: the nearest of EIGHT points on its

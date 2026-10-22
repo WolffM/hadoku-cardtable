@@ -20,7 +20,9 @@ import {
   selectPlayer,
   type LiveMatch,
 } from '../match.ts';
-import { cardBox, cardElements, targetUnder } from './targets.ts';
+import { viewerOf } from '../../adapter.ts';
+import { cardBox } from '../board-dom.ts';
+import { cardElements, targetUnder } from './targets.ts';
 import type { DragState, DropTarget } from './types.ts';
 import { playRole } from '../../../sound/index.ts';
 
@@ -277,7 +279,7 @@ export function clearTapPending(root: ParentNode, id: number): void {
 
 /** This seat's own battlefield, off the view. */
 function viewerBattlefield(match: LiveMatch) {
-  return match.view?.players.find((p) => p.isViewer)?.battlefield ?? [];
+  return viewerOf(match.view)?.battlefield ?? [];
 }
 
 export type { DropTarget };

@@ -163,6 +163,7 @@ async function gestureBoard(playerId = 0) {
   gestures = installGestures({
     canvas,
     match: m,
+    reducedMotion: () => true,
     markScan,
     onChange: () => {
       changes += 1;
@@ -3334,12 +3335,12 @@ describe('a played card waits where it was let go until Forge has it on the batt
 
   /** Lift the first hand card and let it go over the viewer's own battlefield, at (400, 300). */
   /** `holdClock`: the board's clock is held from just before the release, so the park's own timers move only when the test moves them. */
-  async function play(motion?: () => boolean, { holdClock = false } = {}) {
+  async function play(reducedMotion?: () => boolean, { holdClock = false } = {}) {
     const board = await gestureBoard();
     const { s, m, canvas } = board;
-    if (motion !== undefined) {
+    if (reducedMotion !== undefined) {
       gestures!.dispose();
-      gestures = installGestures({ canvas, match: m, motion });
+      gestures = installGestures({ canvas, match: m, reducedMotion });
     }
     const hand = mineOf(m).hand!.map((c) => c.id);
     const battlefield = mineOf(m).battlefield.map((c) => c.id);
@@ -3365,7 +3366,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     // appears on the board". Board moves a placed card into its column in a layout effect after the
     // gesture's notify, and a card that becomes its own pile is a new element: the old one was hidden
     // and flown to, the new one painted at once.
-    const { s, m, canvas, card, arrive } = await play(() => true);
+    const { s, m, canvas, card, arrive } = await play(() => false);
 
     /*
      * `install.ts`'s own comment above `landingFrame = requestAnimationFrame(...)` is the guarantee
@@ -3455,11 +3456,11 @@ describe('a played card waits where it was let go until Forge has it on the batt
     await waitFor(() => expect(onMyBattlefield(canvas, card)).not.toBeNull());
     await waitFor(() => expect(canvas.querySelector('[data-cast-lift]')).toBeNull());
     expect(canvas.querySelector('[data-cast-ghost]')).toBeNull();
-    expect(onMyBattlefield(canvas, card)!.hasAttribute('data-cast-landing'), 'no motion asked for: it is simply there').toBe(false);
+    expect(onMyBattlefield(canvas, card)!.hasAttribute('data-cast-landing'), 'reduced motion: it is simply there').toBe(false);
   });
 
   it('with motion on, its stand-in travels from the park point and the row’s own card shows when it gets there', async () => {
-    const { canvas, card, arrive } = await play(() => true);
+    const { canvas, card, arrive } = await play(() => false);
     arrive();
     const arrived = await waitFor(() => {
       const el = onMyBattlefield(canvas, card);
@@ -3486,7 +3487,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
     // The glide ends when the test says so: on a loaded runner the steps below took longer than its 300 ms.
     const glides = holdGlides();
     try {
-      const { s, m, canvas, card, rest, battlefield } = await play(() => true);
+      const { s, m, canvas, card, rest, battlefield } = await play(() => false);
       const ghost = await waitFor(() => {
         const g = canvas.querySelector<HTMLElement>(`[data-cast-ghost="${card}"]`)!;
         expect(g.style.left, 'gliding into the gap').toBe('530px');
@@ -3640,7 +3641,7 @@ describe('a played card waits where it was let go until Forge has it on the batt
   });
 
   it('a creature that is countered just lets go: no landing, nothing left over the board', async () => {
-    const { s, m, canvas, card, rest, battlefield } = await play(() => true);
+    const { s, m, canvas, card, rest, battlefield } = await play(() => false);
     s.send(zones({ Hand: rest, Battlefield: battlefield }));
     s.send(stackItem(9101, card));
     s.send(stackIs([9101]));

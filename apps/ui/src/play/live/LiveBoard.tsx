@@ -3191,7 +3191,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     // A watcher's pointer belongs to nobody: no drag, no box, no arrow.
     if (canvas === null || spectator) return undefined;
     // Read through a ref, so toggling Fast Mode mid-match does not tear the layer down mid-gesture.
-    const handle = installGestures({ canvas, match, motion: () => !prefersReducedMotion(), report: (kind, data) => reportClient(match.transport, match.matchId, kind, data) });
+    const handle = installGestures({ canvas, match, report: (kind, data) => reportClient(match.transport, match.matchId, kind, data) });
     return () => handle.dispose();
   }, [match, spectator]);
 

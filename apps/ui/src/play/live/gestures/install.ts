@@ -243,7 +243,7 @@ import { carryCastOffStack, endPlacement, notePlayedTo, placementAt, previewPlay
 // is the ghost's own handoff signal — see `syncParkedGhost`'s own note.
 import { holdSpell, isPlaced, moveSpell, onSpellDrawn, placeSpell, placeStackItem, releaseSpell } from '../placed.ts';
 import { spotOf } from '../presence.ts';
-import { afterGlide } from '../../motion.ts';
+import { afterGlide, prefersReducedMotion } from '../../motion.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { clearArrow, clearAutoTargetArrows, drawArrow, drawAutoTargetArrows } from './arrow.ts';
@@ -281,7 +281,10 @@ import { clearMarquee, drawMarquee } from './marquee.ts';
 import { guardTextSelection } from './text-press.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
 import { playRole } from '../../../sound/index.ts';
-import { boxOf, cardBox, centreOf, faceBox, targetUnder } from './targets.ts';
+import { centreOf } from '../../lift.ts';
+import { viewerOf } from '../../adapter.ts';
+import { cardBox, faceBox, overlayOf } from '../board-dom.ts';
+import { boxOf, targetUnder } from './targets.ts';
 import {
   clickLatch,
   pastSlop,
@@ -434,6 +437,7 @@ function blockArrows(canvas: ParentNode, match: LiveMatch): AutoTargetArrow[] {
 
 export function installGestures(options: GestureOptions): GestureHandle {
   const { canvas, match } = options;
+  const reduced = (): boolean => options.reducedMotion?.() ?? prefersReducedMotion();
   const marks = installMarks(canvas, { scan: options.markScan ?? markScanWanted() });
   let drag: DragState | null = null;
   let marquee: MarqueeState | null = null;
@@ -544,7 +548,6 @@ export function installGestures(options: GestureOptions): GestureHandle {
    */
   let handPressIndex: number | null = null;
 
-  const overlayOf = (): HTMLElement | null => canvas.querySelector<HTMLElement>('[data-board-overlay]');
 
   const inside = (node: EventTarget | null): boolean =>
     node instanceof Element && (node.closest('.board') !== null || node.closest('[data-zone]') !== null);
@@ -683,7 +686,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     const sel = match.selectables;
     if (sel === null || sel.cards.size === 0) return false;
     if (sel.players !== null && sel.players.size > 0) return false;
-    const hand = match.view?.players.find((p) => p.isViewer)?.hand;
+    const hand = viewerOf(match.view)?.hand;
     if (hand === undefined || hand === null) return false;
     const inHand = new Set(hand.map((c) => c.id));
     for (const id of sel.cards) if (!inHand.has(id)) return false;
@@ -707,7 +710,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   /** Draw whatever the current state means, into lane A's overlay. Absent overlay: nothing. */
   function paint(): void {
-    const overlay = overlayOf();
+    const overlay = overlayOf(canvas);
     flag(CANVAS_ATTR, '');
     flag('data-dragging', drag !== null && drag.moved ? '' : null);
     flag('data-marquee', marquee !== null && marquee.moved ? '' : null);
@@ -944,7 +947,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
         ghost.style.top = `${me.at.y}px`;
         me.glideStartedAt = Date.now();
         // Its stack card, if Forge puts it there meanwhile, waits for the glide to end (`endGlide`).
-        if (options.motion?.() === true && !me.ghostHandedOff) {
+        if (!reduced() && !me.ghostHandedOff) {
           me.gliding = true;
           holdSpell(source);
           stopGlide = afterGlide(ghost, () => endGlide(me));
@@ -959,7 +962,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   }
 
   function casterFacts(p: Parked, how: string, from: Point | null, to: Point | Element | null): HandoverFacts {
-    return { screen: 'caster', card: p.source, how, from, to, glideStartedAt: p.glideStartedAt, releasedAt: p.releasedAt, stackFrameAt: p.stackFrameAt, motion: options.motion?.() === true };
+    return { screen: 'caster', card: p.source, how, from, to, glideStartedAt: p.glideStartedAt, releasedAt: p.releasedAt, stackFrameAt: p.stackFrameAt, motion: !reduced() };
   }
 
   /**
@@ -982,7 +985,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
   function endPark(how: ParkEnd, cause: Record<string, string> = {}): Parked | null {
     const p = parked;
     parked = null;
-    const me = match.view?.players.find((player) => player.isViewer)?.id;
+    const me = viewerOf(match.view)?.id;
     if (p !== null && me !== undefined) endPlacement(me, p.source, how);
     if (p !== null) options.report?.('park', { how, card: p.source, ms: Date.now() - p.releasedAt, played: p.played, ask: match.asks[0]?.method ?? '-', selection: match.selectables !== null, paying: payingMana(match), ...cause });
     stopGlide?.();
@@ -1170,7 +1173,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       const arrived = cardBox(canvas, parked.source);
       if (!(arrived instanceof HTMLElement) || arrived.closest('[data-zone="battlefield"]') === null) return;
       const p = endPark('landed')!;
-      if (p.ghost === null || options.motion?.() !== true) {
+      if (p.ghost === null || reduced()) {
         reportHandover(options.report, 'landing', canvas, casterFacts(p, p.ghost === null ? 'no-ghost' : 'motion-off', drawnCentreOf(p.ghost), drawnCentreOf(arrived)));
         releaseParked(p, false);
         return;
@@ -1258,7 +1261,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       if (tapSent === null) endTapSweep();
       return;
     }
-    const mine = match.view?.players.find((p) => p.isViewer)?.battlefield ?? [];
+    const mine = viewerOf(match.view)?.battlefield ?? [];
     if (tapSent !== null) {
       const sent = mine.find((c) => c.id === tapSent);
       // Not turned on the board yet: Forge has not answered that click.
@@ -1773,7 +1776,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     if (!live) return;
     // Our own arrow and marquee live in the overlay; reacting to those would be
     // reacting to ourselves.
-    const overlay = overlayOf();
+    const overlay = overlayOf(canvas);
     if (records.every((r) => overlay !== null && r.target instanceof Node && overlay.contains(r.target))) return;
     applyMarks();
     // A played card lands on its row's own element, which exists only now.
@@ -1798,7 +1801,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
       observer.disconnect();
       unsubscribe();
       unsubscribePlacedDrawn();
-      const overlay = overlayOf();
+      const overlay = overlayOf(canvas);
       clearArrow(overlay);
       clearAutoTargetArrows(overlay);
       clearMarquee(overlay);

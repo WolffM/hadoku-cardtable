@@ -14,11 +14,11 @@ export interface GestureOptions {
   /** Called when the gesture layer's own visible state changed. Optional. */
   onChange?: () => void;
   /**
-   * Whether an arrival is shown as motion: a played card travels from where it
-   * was let go to its place in the row. False (the person's reduced-motion
-   * setting) and it is simply there. Read at each arrival. Absent: no motion.
+   * Whether the person asked for less motion: then a played card is simply in its row rather
+   * than travelling there from where it was let go. Read at each arrival. Defaults to the real
+   * `prefers-reduced-motion` media query.
    */
-  motion?: () => boolean;
+  reducedMotion?: () => boolean;
   /**
    * Telemetry: a played card's stand-in giving way to its stack card
    * (`handover`) and to the card in its row (`landing`) — `../handover-report.ts`
