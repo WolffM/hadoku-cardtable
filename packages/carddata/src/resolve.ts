@@ -168,13 +168,14 @@ export function foldName(name: string): string {
     .toLowerCase();
 }
 
-function str(card: GameplayCard, field: string): string | null {
+/** A string field of a projected card, or null when it is absent or not a string. */
+export function str(card: GameplayCard, field: string): string | null {
   const value = card[field];
   return typeof value === 'string' ? value : null;
 }
 
 /** The front face's name, for a card that has faces. */
-function frontFaceName(card: GameplayCard): string | null {
+export function frontFaceName(card: GameplayCard): string | null {
   const faces = card['card_faces'];
   if (!Array.isArray(faces) || faces.length === 0) return null;
   const first: unknown = faces[0];

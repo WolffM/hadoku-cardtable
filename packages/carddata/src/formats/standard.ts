@@ -66,7 +66,18 @@
  */
 
 import type { GameplayCard } from '../scryfall/project.ts';
-import { normaliseName, foldName } from '../resolve.ts';
+import { normaliseName, foldName, str } from '../resolve.ts';
+import {
+  formatAt,
+  nameKeysFor,
+  poolAt,
+  type FormatAnswer,
+  type FormatAtOptions,
+  type FormatUnsupported,
+  type GenericFormatPool,
+  type GenericPoolAtOptions,
+  type GenericPoolCard,
+} from './generic-format.ts';
 import { STANDARD_HISTORY, SANCTIONED_MATCHES_NEWEST } from './standard-history.generated.ts';
 import type { StandardSnapshot } from './standard-history.generated.ts';
 
@@ -87,113 +98,25 @@ export type UnsupportedReason =
   /** After the last snapshot: a rotation may have happened and we cannot know. */
   | 'after-known-history';
 
-export interface StandardUnsupported {
-  readonly ok: false;
-  readonly reason: UnsupportedReason;
-  /** The date as asked, unchanged. */
-  readonly date: string;
-  /** The range the table can answer for, so a caller can say so. */
-  readonly supported: { readonly from: string; readonly to: string };
+export type StandardUnsupported = Omit<FormatUnsupported, 'reason'> & { readonly reason: UnsupportedReason };
+
+export type StandardFormat = FormatAnswer;
+
+export type StandardFormatOptions = FormatAtOptions;
+
+/** The generic engine's refusal, with Standard's own name for a date before the table. */
+function asStandard<T extends { readonly ok: true }>(answer: T | FormatUnsupported): T | StandardUnsupported {
+  if (answer.ok) return answer;
+  const { reason, ...rest } = answer;
+  return { ...rest, reason: reason === 'before-format-existed' ? 'before-standard-existed' : reason };
 }
 
-export interface StandardFormat {
-  readonly ok: true;
-  /** The date this format took effect, i.e. the snapshot that was in force. */
-  readonly effective: string;
-  /** The date it stopped being in force, or `null` for the newest snapshot. */
-  readonly supersededBy: string | null;
-  /** Forge's own name, e.g. `Standard (ELD)`. */
-  readonly name: string;
-  /** Legal sets as upper-cased Scryfall codes, in Forge's order. */
-  readonly setList: readonly string[];
-  /** The same, as a set, for membership tests. */
-  readonly sets: ReadonlySet<string>;
-  /** Banned card names exactly as Forge writes them. */
-  readonly banned: readonly string[];
-  /** Restricted card names (the 1995-2003 Type 2 rule). */
-  readonly restricted: readonly string[];
-  /** One of each legendary per deck — Forge's `RestrictedLegendary:true`. */
-  readonly restrictedLegendary: boolean;
-  /** The Forge file this answer came out of. Cite it, don't trust this. */
-  readonly source: string;
-  /**
-   * True when the date is past the end of the transcribed history and the
-   * caller opted in with `allowProvisional`. A rotation may have happened.
-   */
-  readonly provisional: boolean;
-}
-
-export interface StandardFormatOptions {
-  /**
-   * Answer dates after `LAST_EFFECTIVE` by assuming the newest snapshot is
-   * still in force, marking the result `provisional: true`. Off by default:
-   * the newest snapshot is current only as long as the vendored Forge data is.
-   */
-  readonly allowProvisional?: boolean;
-}
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** A real calendar day in `YYYY-MM-DD`, or `null`. Rejects `2019-02-30`. */
-function validIsoDate(date: string): string | null {
-  if (!ISO_DATE.test(date)) return null;
-  const parsed = new Date(`${date}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) return null;
-  // `new Date('2019-02-30')` rolls over to March 2nd rather than failing, so
-  // round-tripping is what actually rejects an impossible day.
-  return parsed.toISOString().slice(0, 10) === date ? date : null;
-}
-
-function unsupported(date: string, reason: UnsupportedReason): StandardUnsupported {
-  return { ok: false, reason, date, supported: { from: FIRST_EFFECTIVE, to: LAST_EFFECTIVE } };
-}
-
-function toFormat(index: number, provisional: boolean): StandardFormat {
-  const snapshot = STANDARD_HISTORY[index];
-  const next = STANDARD_HISTORY[index + 1];
-  return {
-    ok: true,
-    effective: snapshot.effective,
-    supersededBy: next === undefined ? null : next.effective,
-    name: snapshot.name,
-    setList: snapshot.sets,
-    sets: new Set(snapshot.sets),
-    banned: snapshot.banned,
-    restricted: snapshot.restricted,
-    restrictedLegendary: snapshot.restrictedLegendary,
-    source: snapshot.source,
-    provisional,
-  };
-}
-
-/**
- * The Standard format in force on `date`, or an explicit refusal.
- *
- * Snapshots are effective-dated and inclusive: the row effective `2019-08-30`
- * answers for every day from the 30th up to the day before the next row.
- */
+/** The Standard format in force on `date`, or an explicit refusal — `generic-format.ts`'s `formatAt`. */
 export function standardFormatAt(
   date: string,
   options: StandardFormatOptions = {},
 ): StandardFormat | StandardUnsupported {
-  const iso = validIsoDate(date);
-  if (iso === null) return unsupported(date, 'malformed-date');
-  if (iso < FIRST_EFFECTIVE) return unsupported(date, 'before-standard-existed');
-  if (iso > LAST_EFFECTIVE) {
-    if (options.allowProvisional !== true) return unsupported(date, 'after-known-history');
-    return toFormat(STANDARD_HISTORY.length - 1, true);
-  }
-  // Binary search for the last snapshot whose effective date is <= iso. A
-  // linear scan would be fine at 154 rows; this is written to be obviously
-  // correct at the boundary, which is the part that has to be right.
-  let lo = 0;
-  let hi = STANDARD_HISTORY.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (STANDARD_HISTORY[mid].effective <= iso) lo = mid;
-    else hi = mid - 1;
-  }
-  return toFormat(lo, false);
+  return asStandard(formatAt(STANDARD_HISTORY, date, options));
 }
 
 /** A set leaving or entering Standard, derived by diffing adjacent snapshots. */
@@ -285,41 +208,6 @@ export interface PrintingIndexOptions {
   readonly includeDigital?: boolean;
 }
 
-function str(card: GameplayCard, field: string): string | null {
-  const value = card[field];
-  return typeof value === 'string' ? value : null;
-}
-
-/** The front face's name, for a card that has faces. */
-function frontFaceName(card: GameplayCard): string | null {
-  const faces = card['card_faces'];
-  if (!Array.isArray(faces) || faces.length === 0) return null;
-  const first: unknown = faces[0];
-  if (typeof first !== 'object' || first === null) return null;
-  const name = (first as Record<string, unknown>)['name'];
-  return typeof name === 'string' && name.length > 0 ? name : null;
-}
-
-/**
- * Every spelling a ban list might use for this card.
- *
- * Forge bans `Fable of the Mirror-Breaker`; Scryfall's `name` for that card is
- * `Fable of the Mirror-Breaker // Reflection of Kiki-Jiki`. This repo has been
- * here before — 942 cube references write the front face alone, and without
- * front-face matching only 12 of 95 cubes resolved. A ban list is the same
- * problem with much worse consequences, because a missed ban is a banned card
- * sitting legally in a pool.
- */
-function nameKeysFor(card: GameplayCard, name: string): string[] {
-  const keys = new Set<string>([normaliseName(name), foldName(name)]);
-  const front = frontFaceName(card);
-  if (front !== null) {
-    keys.add(normaliseName(front));
-    keys.add(foldName(front));
-  }
-  return [...keys];
-}
-
 /**
  * Group already-projected cards by set.
  *
@@ -376,132 +264,19 @@ export function buildPrintingIndex(
   return { bySet, printings, skipped };
 }
 
-/** One distinct card in a format's pool, with the printings that make it legal. */
-export interface PoolCard {
-  /** Scryfall's top-level `name`, i.e. `Front // Back` for a two-faced card. */
-  readonly name: string;
-  /** Scryfall's `oracle_id`, or `null` if the projection had none. */
-  readonly oracleId: string | null;
-  /** Upper-cased set codes in the format that print this card. */
-  readonly sets: readonly string[];
-  /** One representative printing — the first seen, in `setList` order. */
-  readonly printing: GameplayCard;
-}
+export type PoolCard = GenericPoolCard;
 
-export interface StandardPool {
-  readonly ok: true;
-  readonly format: StandardFormat;
-  /** Distinct legal cards, name-ordered so two runs produce the same report. */
-  readonly cards: readonly PoolCard[];
-  /** Set codes the format names that the index had no printing for. */
-  readonly missingSets: readonly string[];
-  /** Banned names the index could not find a card for. Non-empty is a defect. */
-  readonly unmatchedBans: readonly string[];
-  readonly counts: {
-    /** Sets in the format. */
-    readonly sets: number;
-    /** Printings across those sets, before de-duplication. */
-    readonly printings: number;
-    /** Distinct legal cards after de-duplication and after bans are removed. */
-    readonly cards: number;
-    /** Distinct cards removed by the ban list. */
-    readonly banned: number;
-  };
-}
+export type StandardPool = GenericFormatPool;
 
-export interface StandardPoolOptions extends StandardFormatOptions {
-  /**
-   * Keep banned cards in the pool and report the count anyway. Off by default:
-   * "the Standard pool" means the cards you may play.
-   */
-  readonly includeBanned?: boolean;
-}
+export type StandardPoolOptions = GenericPoolAtOptions;
 
-/**
- * The card pool of the Standard format in force on `date`, or a refusal.
- *
- * A card is in the pool when at least one of its printings is in a legal set —
- * legality is a property of the CARD, not the printing, which is exactly what
- * `legalities.standard` gets right and the set list gets wrong if you forget
- * it. De-duplication is by `oracle_id` where the projection kept one and by
- * normalised name otherwise, so a card reprinted three times inside one format
- * is one pool entry.
- */
+/** The card pool of the Standard format in force on `date`, or a refusal — `generic-format.ts`'s `poolAt`. */
 export function standardPoolAt(
   date: string,
   index: PrintingIndex,
   options: StandardPoolOptions = {},
 ): StandardPool | StandardUnsupported {
-  const format = standardFormatAt(date, options);
-  if (!format.ok) return format;
-
-  const missingSets: string[] = [];
-  const byIdentity = new Map<string, { card: PoolCard; sets: string[] }>();
-  // Every name key any printing in the format answers to, so the ban list can
-  // be matched against front faces and folded spellings as well as `name`.
-  const byNameKey = new Map<string, Set<string>>();
-  let printings = 0;
-
-  for (const setCode of format.setList) {
-    const bucket = index.bySet.get(setCode);
-    if (bucket === undefined || bucket.length === 0) {
-      missingSets.push(setCode);
-      continue;
-    }
-    for (const card of bucket) {
-      printings++;
-      const name = str(card, 'name');
-      if (name === null) continue;
-      const oracleId = str(card, 'oracle_id');
-      const identity = oracleId ?? `name:${normaliseName(name)}`;
-      const existing = byIdentity.get(identity);
-      if (existing === undefined) {
-        byIdentity.set(identity, {
-          card: { name, oracleId, sets: [], printing: card },
-          sets: [setCode],
-        });
-      } else if (!existing.sets.includes(setCode)) {
-        existing.sets.push(setCode);
-      }
-      for (const key of nameKeysFor(card, name)) {
-        const ids = byNameKey.get(key);
-        if (ids === undefined) byNameKey.set(key, new Set([identity]));
-        else ids.add(identity);
-      }
-    }
-  }
-
-  const bannedIdentities = new Set<string>();
-  const unmatchedBans: string[] = [];
-  for (const ban of format.banned) {
-    const ids = byNameKey.get(normaliseName(ban)) ?? byNameKey.get(foldName(ban));
-    if (ids === undefined) {
-      unmatchedBans.push(ban);
-      continue;
-    }
-    for (const id of ids) bannedIdentities.add(id);
-  }
-
-  const cards: PoolCard[] = [];
-  for (const [identity, entry] of byIdentity) {
-    if (!(options.includeBanned === true) && bannedIdentities.has(identity)) continue;
-    cards.push({ ...entry.card, sets: entry.sets });
-  }
-  cards.sort((a, b) => (a.name === b.name ? 0 : a.name < b.name ? -1 : 1));
-
-  return {
-    ok: true,
-    format,
-    cards,
-    missingSets,
-    unmatchedBans,
-    counts: {
-      sets: format.setList.length,
-      printings,
-      cards: cards.length,
-      banned: bannedIdentities.size,
-    },
-  };
+  return asStandard(poolAt(STANDARD_HISTORY, date, index, options));
 }
 
 /** What `isStandardLegalAt` concluded, and why. Never a bare boolean. */
