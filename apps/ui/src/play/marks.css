@@ -1,0 +1,17 @@
+/* `PlayerMark`: the plate, and the head and shoulders on it. The box has no specificity, so a face that draws it says how big. */
+:where(.player-mark) {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.player-mark__plate {
+  fill: var(--bg-card);
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+
+.player-mark__brow,
+.player-mark__bust {
+  fill: var(--ink-faint);
+}

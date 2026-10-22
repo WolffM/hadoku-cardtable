@@ -72,7 +72,7 @@ describe('the pod as a circle', () => {
     render(createElement(SeatBar, { view: seatView(0, 'left') }));
     expect(screen.getByTestId('seat-1').querySelector('img')?.getAttribute('src')).toMatch(/\/media\/sprites\/square_sage\.png$/);
     expect(screen.getByTestId('seat-7').querySelector('img')).toBeNull();
-    expect(screen.getByTestId('seat-7').querySelector('svg.face__art')).not.toBeNull();
+    expect(screen.getByTestId('seat-7').querySelector('svg.player-mark')).not.toBeNull();
   });
 
   it('names the viewer’s own seat by their own name, like every other seat', () => {

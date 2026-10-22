@@ -30,7 +30,7 @@ describe('Avatar', () => {
   });
 
   it('with no id draws the mark, the initial, or nothing', () => {
-    expect(render(createElement(Avatar, { id: undefined, fallback: 'mark' })).container.querySelector('svg.face__art')).not.toBeNull();
+    expect(render(createElement(Avatar, { id: undefined, fallback: 'mark' })).container.querySelector('svg.player-mark')).not.toBeNull();
     expect(render(createElement(Avatar, { id: '  ', fallback: 'initial', name: 'bob' })).container.textContent).toBe('B');
     expect(render(createElement(Avatar, { id: null, fallback: 'none' })).container.innerHTML).toBe('');
   });

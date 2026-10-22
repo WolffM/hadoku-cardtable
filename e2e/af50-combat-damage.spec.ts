@@ -98,7 +98,7 @@ function measure(): Measured {
       name: row.querySelector('.prompt__amount-name')?.textContent?.trim() ?? '',
       card: thumb?.getAttribute('data-card-id') ?? null,
       art: thumb?.querySelector('img.card__art') !== null && thumb !== null,
-      mark: thumb?.querySelector('.face__art') !== null && thumb !== null,
+      mark: thumb?.querySelector('.player-mark') !== null && thumb !== null,
       steppers: steppers.length,
       buttons: row.querySelectorAll('.prompt__stepper button').length,
       spinbuttons: row.querySelectorAll('[role="spinbutton"]').length,

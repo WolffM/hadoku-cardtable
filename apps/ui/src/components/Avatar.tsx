@@ -19,7 +19,7 @@ type AvatarProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'id' | 'src' | 'alt
    * first letter of `name`, `none` nothing at all.
    */
   fallback: 'mark' | 'initial' | 'none';
-  /** The fallback's own class: `PlayerMark`'s, or the initial's box. */
+  /** The fallback's own class: `PlayerMark`'s, or the initial's box. A mark with none stands in the image's place, with its class. */
   fallbackClassName?: string;
   /** Whose face: the initial's letter. */
   name?: string;
@@ -31,7 +31,7 @@ export function Avatar({ id, fallback, fallbackClassName, name = '', ...img }: A
   const url = avatarSquareUrl(id);
   const [failed, setFailed] = useState<string | null>(null);
   if (url !== null && failed !== url) return <img {...img} src={url} alt="" onError={() => setFailed(url)} />;
-  if (fallback === 'mark') return <PlayerMark className={fallbackClassName} />;
+  if (fallback === 'mark') return <PlayerMark className={fallbackClassName ?? img.className} />;
   if (fallback === 'initial') {
     return (
       <span className={fallbackClassName} aria-hidden="true">

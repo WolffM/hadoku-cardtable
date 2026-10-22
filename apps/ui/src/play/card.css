@@ -1373,20 +1373,9 @@
   height: 100%;
 }
 
-.face__plate {
-  fill: var(--bg-card);
-  stroke: var(--line);
-  stroke-width: 1.5;
-}
-
-.face__brow,
-.face__bust {
-  fill: var(--ink-faint);
-}
-
 /* Your own mark reads as yours: the ink is brighter on your side. */
-.face[data-viewer] .face__brow,
-.face[data-viewer] .face__bust {
+.face[data-viewer] .player-mark__brow,
+.face[data-viewer] .player-mark__bust {
   fill: var(--ink-dim);
 }
 
@@ -1422,7 +1411,7 @@
     0 0 0 6px var(--danger);
 }
 
-.face[data-lost] .face__plate {
+.face[data-lost] .player-mark__plate {
   stroke: var(--warn);
 }
 
@@ -1671,13 +1660,13 @@ button.face__hit {
 }
 
 /* The accent says "Forge is asking for a player". Your own face as the way into the settings is not that. */
-button.face__hit:not(.face__hit--settings) .face__plate {
+button.face__hit:not(.face__hit--settings) .player-mark__plate {
   stroke: var(--accent);
   stroke-width: 2.5;
 }
 
-button.face__hit:not(.face__hit--settings) .face__brow,
-button.face__hit:not(.face__hit--settings) .face__bust {
+button.face__hit:not(.face__hit--settings) .player-mark__brow,
+button.face__hit:not(.face__hit--settings) .player-mark__bust {
   fill: var(--accent);
 }
 
