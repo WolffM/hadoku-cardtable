@@ -43,6 +43,7 @@ import '@wolffm/themes/style.css';
 import '@wolffm/themes/icons.css';
 import '../styles.css';
 import '../chrome/chrome.css';
+import '../chrome/trim.css';
 
 /** Beside the entry, under the app's base — the API base resolves from the same `BASE_URL`. */
 const STYLESHEET = `${import.meta.env.BASE_URL}embed/cardtable-embed.css`;

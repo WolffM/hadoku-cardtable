@@ -47,6 +47,16 @@ describe('PlayPrefsSchema', () => {
     expect(PlayPrefsSchema.safeParse({ fastMode: 'on' }).success).toBe(false);
   });
 
+  it('accepts a trim of one choice per family, and none at all', () => {
+    expect(PlayPrefsSchema.safeParse({ trim: { frame: 'scoop', corner: 'gems', groundCorner: 'wedge' } }).success).toBe(true);
+    expect(PlayPrefsSchema.safeParse({ trim: {} }).success).toBe(true);
+  });
+
+  it('rejects a trim option its family does not have, and a family that does not exist', () => {
+    expect(PlayPrefsSchema.safeParse({ trim: { frame: 'gems' } }).success).toBe(false);
+    expect(PlayPrefsSchema.safeParse({ trim: { sparkle: 'on' } }).success).toBe(false);
+  });
+
   it('rejects an unknown field — .strict(), like every other schema in this lane', () => {
     expect(PlayPrefsSchema.safeParse({ boardLayout: 'single', theme: 'dark' }).success).toBe(false);
   });

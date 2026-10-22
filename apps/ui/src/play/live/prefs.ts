@@ -48,6 +48,7 @@ import { CallIdSchema, ShowConfirmDialogReplySchema } from '@hadoku/forge-wire';
 
 import type { BoardLayout } from '../Board.tsx';
 import { UI_SCALE } from '../../settings/ui-scale.ts';
+import { isTrimOption, TRIM_FAMILY_IDS, type Trim, type TrimFamily } from '../../settings/trim.ts';
 
 const borrowed = {
   /** A non-empty string: `CallIdSchema` is `z.string().min(1)`. */
@@ -66,6 +67,15 @@ const BoardLayoutPrefSchema = borrowed.nonEmptyString.refine(
   { message: "must be 'single' or 'type-separated'" },
 );
 
+/** One family's trim: a name from `TRIM_FAMILIES`, refined off a string like the board layout. */
+function trimOptionSchema(family: TrimFamily) {
+  return borrowed.nonEmptyString.refine((v) => isTrimOption(family, v), { message: `not a ${family} trim` }).optional();
+}
+
+const TrimPrefSchema = borrowed.emptyObject
+  .extend(Object.fromEntries(TRIM_FAMILY_IDS.map((family) => [family, trimOptionSchema(family)])) as Record<TrimFamily, ReturnType<typeof trimOptionSchema>>)
+  .strict();
+
 /** The settings panel's whole persisted shape. Every field optional: a fresh viewer has none yet, and `defaults` below fills the gap. `.strict()`, like every other schema in this lane — a misspelled or retired field is an error, not silently dropped. */
 export const PlayPrefsSchema = borrowed.emptyObject
   .extend({
@@ -76,6 +86,8 @@ export const PlayPrefsSchema = borrowed.emptyObject
     fastMode: borrowed.boolean.optional(),
     /** The UI scale (`../../settings/ui-scale.ts`), the whole app's, not only a match's. */
     uiScale: borrowed.number.refine((v) => v >= UI_SCALE.min && v <= UI_SCALE.max, { message: 'outside the UI scale range' }).optional(),
+    /** Panel and page decoration (`../../settings/trim.ts`), one choice per family; none by default. */
+    trim: TrimPrefSchema.optional(),
   })
   .strict();
 
@@ -86,6 +98,7 @@ export interface PlayPrefs {
   endStepStop?: boolean;
   fastMode?: boolean;
   uiScale?: number;
+  trim?: Trim;
 }
 
 /**

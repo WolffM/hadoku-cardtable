@@ -283,7 +283,7 @@ export function DeckPeek({
         ref={ref}
         id={id}
         role="tooltip"
-        className="peek"
+        className="peek ct-panel"
         data-testid="deck-peek"
         style={place}
         onPointerEnter={onPointerEnter}
@@ -291,7 +291,7 @@ export function DeckPeek({
       >
         <header className="peek__head">
           <span className="peek__who">
-            <span className="peek__title">{name ?? label}</span>
+            <span className="peek__title ct-panel__title">{name ?? label}</span>
             {pilot !== undefined && <span className="peek__pilot">{pilot}</span>}
           </span>
           {deckStyle !== undefined && <DeckStyleTag style={deckStyle} />}

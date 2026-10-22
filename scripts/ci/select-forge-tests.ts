@@ -181,7 +181,7 @@ export const GUARDS: Guard[] = [
     // whatever classes it names (33e3f9dc's pod `.seat` collapsed every match). `css-ownership.test.ts`
     // derives this list from the import graph and fails until it matches.
     name: 'the shared stylesheets',
-    paths: /^apps\/ui\/src\/(styles|chrome\/chrome|screens\/(screens|DecksScreen|SoundBuilder)|components\/spectate|play\/live\/live)\.css$/,
+    paths: /^apps\/ui\/src\/(styles|chrome\/(chrome|trim)|screens\/(screens|DecksScreen|SoundBuilder)|components\/spectate|play\/live\/live)\.css$/,
     specs: ['table-fit.spec.ts'],
     jvm: [],
   },

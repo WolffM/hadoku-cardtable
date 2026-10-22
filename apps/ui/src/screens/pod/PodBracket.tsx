@@ -146,7 +146,7 @@ function Card({ match, live, myMemberId, nameOf, avatarOf, onPlay }: { match: Br
     );
   }
   return (
-    <div className="pod-bracket__match" data-testid="pod-tables-row" data-table-id={match.table?.id} data-phase={match.phase} data-mine={mine ? '' : undefined}>
+    <div className="pod-bracket__match ct-panel" data-testid="pod-tables-row" data-table-id={match.table?.id} data-phase={match.phase} data-mine={mine ? '' : undefined}>
       {inner}
     </div>
   );

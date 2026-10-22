@@ -115,9 +115,9 @@ export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
   };
 
   return (
-    <section className="rooms" data-testid="rooms" aria-labelledby="rooms-title">
+    <section className="rooms ct-panel" data-testid="rooms" aria-labelledby="rooms-title">
       <div className="rooms__head">
-        <h2 id="rooms-title" className="rooms__title">
+        <h2 id="rooms-title" className="rooms__title ct-panel__title">
           Rooms
         </h2>
       </div>
@@ -415,7 +415,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
       }}
     >
       <form
-        className="rooms__create ct-surface"
+        className="rooms__create ct-surface ct-panel"
         data-testid="room-create"
         role="dialog"
         aria-modal="true"

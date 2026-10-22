@@ -96,12 +96,12 @@ function PromptTitle({ title }: { title: string }) {
   const split = TITLE_SPLIT.exec(title);
   if (split === null)
     return (
-      <h3 className="prompt__title">
+      <h3 className="prompt__title ct-panel__title">
         <RulesText text={title} />
       </h3>
     );
   return (
-    <h3 className="prompt__title" data-split="">
+    <h3 className="prompt__title ct-panel__title" data-split="">
       <span className="prompt__title-source">
         <RulesText text={split[1]!} />
       </span>
@@ -161,7 +161,7 @@ export function PromptShell({
     </p>
   );
   return (
-    <section className="prompt" data-prompt={method} role="dialog" aria-label={plainRulesText(label ?? title)}>
+    <section className="prompt ct-panel" data-prompt={method} role="dialog" aria-label={plainRulesText(label ?? title)}>
       {head === undefined ? (
         <>
           <PromptTitle title={title} />

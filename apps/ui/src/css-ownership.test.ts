@@ -20,7 +20,7 @@
  *      `['seat', …]`)
  *   C  a class is styled and rendered nowhere
  *
- * `styles.css` and `chrome/chrome.css` are the global sheets, one owner between them.
+ * `styles.css`, `chrome/chrome.css` and `chrome/trim.css` are the global sheets, one owner between them.
  */
 // @reads apps/ui/src/ scripts/ci/select-forge-tests.ts
 import { readdirSync, readFileSync } from 'node:fs';
@@ -32,12 +32,13 @@ import { GUARDS } from '../../../scripts/ci/select-forge-tests.ts';
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 
-const GLOBAL_SHEETS = ['styles.css', 'chrome/chrome.css'];
+const GLOBAL_SHEETS = ['styles.css', 'chrome/chrome.css', 'chrome/trim.css'];
 
 /** Blocks more than one tree draws or styles by design, with why. */
 const SHARED: Record<string, string> = {
   button: 'the app’s one plain button, drawn wherever a screen has a press',
   'ct-surface': 'the chrome’s raised card, under every popover and menu',
+  'ct-panel': 'the trim hook: every panel that takes the decoration chosen in Settings → Trim (`chrome/trim.css`)',
   'cardtable-chrome': 'the chrome root: the app and the embed mount the same one, and the embed adds its modifier',
   'sound-builder': 'the sound tools (builder, sandbox, music review, queue) are one sheet’s screens',
 };

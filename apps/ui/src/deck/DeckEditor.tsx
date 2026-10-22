@@ -392,7 +392,7 @@ export function DeckEditor({
       style={fit === null ? undefined : ({ '--cw': `${fit.cardW}px` } as CSSProperties)}
       {...split.handlers}
     >
-      <DropArea area="pool" over={split.over} className="deck-editor__pool" testid="pool-area">
+      <DropArea area="pool" over={split.over} className="deck-editor__pool ct-panel" testid="pool-area">
         <div className="deck-editor__bar">
           <span className="deck-editor__n" data-testid="side-count" title="pool">
             {sideboardSize(deck)}
@@ -462,7 +462,7 @@ export function DeckEditor({
         </div>
       </DropArea>
 
-      <DropArea area="deck" over={split.over} className="deck-editor__deck" testid="deck-area">
+      <DropArea area="deck" over={split.over} className="deck-editor__deck ct-panel" testid="deck-area">
         <div className="deck-editor__bar">
           <span className="deck-editor__types">
             <span title="creatures" data-testid="count-creatures">

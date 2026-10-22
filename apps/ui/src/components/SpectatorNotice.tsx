@@ -30,7 +30,7 @@ export interface SpectatorNoticeProps {
 
 export function SpectatorNotice({ seatCount }: SpectatorNoticeProps) {
   return (
-    <div className="spectate" data-testid="spectator-notice" role="note">
+    <div className="spectate ct-panel" data-testid="spectator-notice" role="note">
       <span className="spectate__tag">Spectating</span>
       <p className="spectate__text">No pack and no pool — {seatCount} seats visible.</p>
     </div>

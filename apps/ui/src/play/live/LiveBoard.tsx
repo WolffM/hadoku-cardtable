@@ -2346,7 +2346,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
         role="dialog"
         aria-labelledby={titleId}
       >
-        <div className="live__sideboard">
+        <div className="live__sideboard ct-panel">
           <div className="live__sideboard-head">
             <h2 className="confirm__title" id={titleId}>
               {OUTCOME_TITLE[outcome]}
@@ -3496,7 +3496,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * pointer-transparent; open, it is a scrollable panel the player asked
        * for, and a pointer-transparent box cannot be scrolled by hand.
        */}
-      <div className="live__logbook" data-testid="live-logbook" id={logbookId} hidden={!logOpen}>
+      <div className="live__logbook ct-panel" data-testid="live-logbook" id={logbookId} hidden={!logOpen}>
         {/*
          * The turn counter (R11, wave 35): *"remove the turn counter from the
          * phase bar (the log has it)."* It used to be the rail's own `.live__turn`

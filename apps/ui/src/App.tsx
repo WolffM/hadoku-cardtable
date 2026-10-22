@@ -48,7 +48,7 @@ import { AppChrome } from './chrome/AppChrome.tsx';
 import { RoomShell } from './room/RoomShell.tsx';
 import { useWhoami } from './room/whoami.ts';
 import { roomsClient } from './rooms/api.ts';
-import { useUiScale } from './settings/Settings.tsx';
+import { useTrim, useUiScale } from './settings/Settings.tsx';
 
 export type AppProps = ScreenProps;
 
@@ -190,6 +190,7 @@ const documentRoot = (): HTMLElement => document.documentElement;
 export function App({ transport }: AppProps) {
   const route = useRoute();
   useUiScale(documentRoot);
+  useTrim(documentRoot);
   const { room: matchRoom, pending: matchPending } = useMatchRoomId(route.kind === 'match' ? route.matchId : null);
   // `pending` is only ever true for a `match` route (see the hook's own
   // comment); read here as a single flag because it gates TWO things below

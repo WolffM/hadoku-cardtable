@@ -1996,7 +1996,7 @@ function RoomTableScreen({
           <>
         {locked !== null && (
           <form
-            className="lobby__locked"
+            className="lobby__locked ct-panel"
             data-testid="room-locked"
             onSubmit={(e) => {
               e.preventDefault();

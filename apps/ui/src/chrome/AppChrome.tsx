@@ -178,6 +178,7 @@ import { useRef, type ReactNode, type RefObject } from 'react';
 import { HadokuThemeRoot, useHadokuTheme } from '@wolffm/themes';
 import { ensureMatchMedia } from './matchMedia.ts';
 import './chrome.css';
+import './trim.css';
 
 // Before anything from @wolffm/themes runs an effect: one of them calls
 // `window.matchMedia` unguarded. See `matchMedia.ts` for why that is ours to

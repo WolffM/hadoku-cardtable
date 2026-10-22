@@ -253,7 +253,7 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, context
   const messageId = useId();
   return (
     <section
-      className="confirm"
+      className="confirm ct-panel"
       data-testid={testId}
       data-call-id={callId}
       role={role}
@@ -261,7 +261,7 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, context
       aria-describedby={title !== undefined ? messageId : undefined}
     >
       {title !== undefined && (
-        <h2 className="confirm__title" id={titleId}>
+        <h2 className="confirm__title ct-panel__title" id={titleId}>
           {title}
         </h2>
       )}

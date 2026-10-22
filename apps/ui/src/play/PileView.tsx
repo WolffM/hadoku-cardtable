@@ -150,7 +150,7 @@ export function PileView({
       ? ({ visibility: 'hidden' } as CSSProperties)
       : ({ left: `${layout.left}px`, top: `${layout.top}px`, '--card-w': `${layout.cardW}px`, '--pile-cols': layout.cols } as CSSProperties);
   return (
-    <section ref={panel} className="pile-view" data-testid="pile-view" data-zone-view={zone} data-owner={ownerSide} aria-label={label} style={style}>
+    <section ref={panel} className="pile-view ct-panel" data-testid="pile-view" data-zone-view={zone} data-owner={ownerSide} aria-label={label} style={style}>
       <header className="pile-view__head">
         <span>{label}</span>
         <span className="pile-view__count">{count}</span>
