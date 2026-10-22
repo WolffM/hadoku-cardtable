@@ -20,15 +20,14 @@
  * they land; until then `index.ts` passes an interim shortlist-backed
  * `CubeLookup` and a `null` `ForgeChecker` (no jar yet either).
  *
- * ## `missingText` is always empty here
+ * ## `missingText`: C's own signal, read off the cards themselves
  *
- * `CubeLookup.cards(id)` is C's own resolved output — a name the catalog
- * could not produce text for never reaches it to begin with (that is C's
- * import-time job, not this module's). A `missingText` refusal belongs to a
- * `kind: 'set'` source (wave 74's realistic/set-cube rounds, over the jar's
- * own set card lists); this wave's `PUT …/pod/plan` route refuses `kind:
- * 'set'` at 400 before `checkPlan` is ever called with one, so the branch
- * below is defensive rather than reachable.
+ * `CubeLookup.cards(id)` (C's `apps/server/src/pools/cubes.ts`) marks a name
+ * its catalog could not produce text for with `typeLine: ''` — a card that
+ * resolved carries a real type line; `DraftCardSchema.typeLine` has no other
+ * reason to be empty. `checkSource` reads that signal directly rather than
+ * asking C a second question, and never hands those names to Forge at all —
+ * there is no text to check playability of.
  */
 
 import type { CubeSummary, DraftCard, DraftPlan, PoolSource, PoolVerdict } from '@hadoku/shared';
@@ -60,11 +59,15 @@ function sourceKey(src: PoolSource): string {
  * The verdict for ONE source.
  *
  * - An unknown cube id is refused, named.
+ * - A card the catalog could not resolve (`typeLine === ''`) refuses with
+ *   `missingText`, named — checked FIRST, and never sent to Forge: it takes
+ *   precedence over any cached verdict, since it is read straight off this
+ *   call's own `cards()`, never stale the way a cache can be.
  * - Without a jar, an already-cached verdict for that cube (`CubeSummary.verdict`,
  *   from `cubes.list()`) is reused as-is; a cube never yet checked is refused
  *   with a reason rather than passed by default.
- * - With a jar, `forge.check` runs over the cube's own card names, and the
- *   result is cached back onto the store (`setVerdict`) either way.
+ * - With a jar, `forge.check` runs over the RESOLVED cards' names, and the
+ *   result (missingText included) is cached back onto the store (`setVerdict`).
  */
 export async function checkSource(src: PoolSource, deps: PlanCheckDeps): Promise<PoolVerdict> {
 	if (src.kind === 'set') {
@@ -75,14 +78,19 @@ export async function checkSource(src: PoolSource, deps: PlanCheckDeps): Promise
 	const cards = deps.cubes.cards(src.cubeId);
 	if (cards === null) return { ok: false, unplayable: [`unknown cube: ${src.cubeId}`], missingText: [] };
 
+	const missingText = cards.filter((c) => c.typeLine === '').map((c) => c.name);
+	const resolved = cards.filter((c) => c.typeLine !== '');
+
 	if (deps.forge === null) {
+		if (missingText.length > 0) return { ok: false, unplayable: [], missingText };
 		const cached = deps.cubes.list().find((c) => c.id === src.cubeId)?.verdict ?? null;
 		if (cached !== null) return cached;
 		return { ok: false, unplayable: ['Forge is not available to check playability — try again once the pool service is up'], missingText: [] };
 	}
 
-	const unplayable = await deps.forge.check(cards.map((c) => c.name));
-	const verdict: PoolVerdict = unplayable.length === 0 ? { ok: true, cards: cards.length } : { ok: false, unplayable, missingText: [] };
+	const unplayable = await deps.forge.check(resolved.map((c) => c.name));
+	const verdict: PoolVerdict =
+		unplayable.length === 0 && missingText.length === 0 ? { ok: true, cards: resolved.length } : { ok: false, unplayable, missingText };
 	deps.cubes.setVerdict(src.cubeId, verdict);
 	return verdict;
 }

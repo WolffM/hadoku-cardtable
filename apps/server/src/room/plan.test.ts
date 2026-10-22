@@ -103,6 +103,22 @@ describe('checkSource — one source', () => {
     expect(verdict.ok).toBe(false);
     expect(forge.check).not.toHaveBeenCalled();
   });
+
+  it('a card the catalog could not resolve (typeLine: \'\', C\'s own signal) refuses with missingText, named, and never reaches Forge', async () => {
+    const cubes = fakeCubes({ vintage: [card('A'), { ...card('Mystery Card'), typeLine: '' }] });
+    const forge: ForgeChecker = { check: vi.fn().mockResolvedValue([]) };
+    const verdict = await checkSource(CUBE_SRC, { cubes, forge });
+    expect(verdict).toEqual({ ok: false, unplayable: [], missingText: ['Mystery Card'] });
+    expect(forge.check).toHaveBeenCalledWith(['A']);
+    expect(cubes.setVerdict).toHaveBeenCalledWith('vintage', verdict);
+  });
+
+  it('missingText refuses even without a jar, and takes precedence over a cached ok verdict', async () => {
+    const cached: PoolVerdict = { ok: true, cards: 2 };
+    const cubes = fakeCubes({ vintage: [card('A'), { ...card('Mystery Card'), typeLine: '' }] }, [summary('vintage', { verdict: cached })]);
+    const verdict = await checkSource(CUBE_SRC, { cubes, forge: null });
+    expect(verdict).toEqual({ ok: false, unplayable: [], missingText: ['Mystery Card'] });
+  });
 });
 
 describe('checkPlan — a whole plan, deduped by source', () => {
