@@ -15,7 +15,8 @@
  * a production caller left; both are gone with their tests.
  */
 import type { LiveMatch } from '../match.ts';
-import { cardBox, centreOf, faceBox } from './targets.ts';
+import { centreOf } from '../../lift.ts';
+import { cardBox, faceBox } from '../board-dom.ts';
 import type { Point } from './types.ts';
 
 export interface AutoTargetArrow {

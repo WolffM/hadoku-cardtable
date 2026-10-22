@@ -3,13 +3,13 @@
  * reasoning intact; nothing here decides what anything MEANS — `./commit.ts`
  * does that.
  */
+import { centreOf } from '../../lift.ts';
+import { cardBox, faceBox } from '../board-dom.ts';
 import type { LiveClickables } from '../match.ts';
 import type { DropTarget, Point } from './types.ts';
 
-export function centreOf(el: Element): Point {
-  const r = el.getBoundingClientRect();
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-}
+/** The gesture installer and commit read these from here. */
+export { cardBox, centreOf, faceBox };
 
 /**
  * Where an arrow's head lands on a card: the nearest of EIGHT points on its
@@ -36,25 +36,6 @@ export function edgePointNearest(el: Element, from: Point): Point {
     }
   }
   return best!;
-}
-
-/**
- * A card's box on the board: its `data-board-card` `<li>`. Never `data-card-id`
- * alone — the board's `<li>` carries both, and every other element with a bare
- * `data-card-id` is a picture of the card somewhere else: a decision sheet's
- * face of the spell it asks for (`promptThumb`), a selection's tile, a reveal.
- * An arrow drawn from one of those leaves from the sheet, not the card.
- */
-export function cardBox(root: ParentNode, id: number): Element | null {
-  return root.querySelector(`[data-board-card="${id}"]`);
-}
-
-/** A player's face. Lane A's `data-player-face`, with the seat section as the fallback. */
-export function faceBox(root: ParentNode, id: number): Element | null {
-  return (
-    root.querySelector(`[data-player-face][data-player-id="${id}"]`) ??
-    root.querySelector(`[data-testid="player"][data-player-id="${id}"]`)
-  );
 }
 
 export function boxOf(root: ParentNode, target: DropTarget): Element | null {

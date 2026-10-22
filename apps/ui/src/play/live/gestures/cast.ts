@@ -23,7 +23,7 @@ import { viewerOf } from '../../adapter.ts';
 import type { LiveMatch } from '../match.ts';
 import { handCardWidth, sizeAsCard } from '../../card-size.ts';
 import { GLIDE_MS, prefersReducedMotion } from '../../motion.ts';
-import { cardBox } from './targets.ts';
+import { cardBox } from '../board-dom.ts';
 import type { Point } from './types.ts';
 
 /**

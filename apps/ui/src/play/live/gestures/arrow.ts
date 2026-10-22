@@ -12,7 +12,7 @@
  * too, from the same function, into the same overlay. `data-mode` says which
  * gesture drew it, and it is the only thing that is new.
  */
-import { centreOf } from './targets.ts';
+import { centreOf } from '../../lift.ts';
 import type { AutoTargetArrow } from './auto-targets.ts';
 import type { DropTarget, Point } from './types.ts';
 

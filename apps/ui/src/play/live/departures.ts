@@ -50,6 +50,7 @@ import type { BoardCard, BoardView, DeathCause } from '../adapter.ts';
 import './departures.css';
 import { seedOf } from './projectile.ts';
 import { prefersReducedMotion } from '../motion.ts';
+import { overlayOf } from './board-dom.ts';
 
 /**
  * Why a permanent died. Forge's `GameEventCardDied` says it (`DeathCause`, folded here); before a Forge
@@ -381,7 +382,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
   }
 
   function overlay(): HTMLElement | null {
-    return canvas.querySelector<HTMLElement>('[data-board-overlay]');
+    return overlayOf(canvas);
   }
 
   function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, motion: ExitMotion): HTMLElement {

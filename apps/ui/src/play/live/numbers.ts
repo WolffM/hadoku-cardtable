@@ -117,6 +117,7 @@ import {
   prefersReducedMotion,
   REVEAL_BEAT_MS,
 } from '../motion.ts';
+import { battlefieldCard, faceBox, overlayOf } from './board-dom.ts';
 import { DEPARTURE_ATTR, departureCause, departuresOf, exitMotionFor, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { ALIGN_MS, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, type Point, type RamEnd, type RamKind } from './ram.ts';
 import { crash, shake } from './crash.ts';
@@ -438,13 +439,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   const shakes = new Set<() => void>();
 
   function overlay(): HTMLElement | null {
-    return canvas.querySelector<HTMLElement>('[data-board-overlay]');
-  }
-  function faceEl(playerId: number): HTMLElement | null {
-    return canvas.querySelector<HTMLElement>(`[data-player-face][data-player-id="${playerId}"]`);
-  }
-  function battlefieldCard(cardId: number): HTMLElement | null {
-    return canvas.querySelector<HTMLElement>(`[data-zone="battlefield"] [data-board-card="${cardId}"]`);
+    return overlayOf(canvas);
   }
 
   /** The settle of each view's beats still playing: settled at once on dispose, since a board taken down draws nothing more. */
@@ -539,7 +534,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
 
   /** The seat bar's own life span: coloured, and stepped through on its way to what React already rendered there — unless a newer change has landed first. */
   function animateLifeCounter(playerId: number, from: number, to: number, order: number): void {
-    const face = faceEl(playerId);
+    const face = faceBox(canvas, playerId);
     const lifeSpan = face?.querySelector<HTMLElement>('[data-testid="life"]') ?? null;
     if (lifeSpan === null || (lifeLanded.get(playerId) ?? 0) > order) return;
     lifeLanded.set(playerId, order);
@@ -584,7 +579,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
   /** Where a resolving item's effects come from: its source on the battlefield, else where it was drawn on the stack. */
   function sourceOf(item: StackEntry | undefined): Boxed | null {
     if (item === undefined) return null;
-    const onField = item.sourceCardId === null ? null : battlefieldCard(item.sourceCardId);
+    const onField = item.sourceCardId === null ? null : battlefieldCard(canvas, item.sourceCardId);
     return onField ?? stackBoxes.get(item.id) ?? null;
   }
 
@@ -665,7 +660,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
 
   /** A permanent from nowhere visible travels from `from` into its slot, as a played card lands; in place when there is nowhere to come from. */
   function arrive(cardId: number, source: number | null, from: Boxed | null, delayMs: number): void {
-    const el = battlefieldCard(cardId);
+    const el = battlefieldCard(canvas, cardId);
     if (el === null) return;
     el.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
     marked.add(el);
@@ -685,7 +680,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     el.setAttribute(CAST_LANDING_ATTR, '');
     atBeat(() => {
       // React may have drawn the row again meanwhile: the card as it is drawn now.
-      const now = el.isConnected ? el : battlefieldCard(cardId);
+      const now = el.isConnected ? el : battlefieldCard(canvas, cardId);
       if (now === null) return settle();
       now.setAttribute(ARRIVING_ATTR, source === null ? '' : String(source));
       marked.add(now);
@@ -701,7 +696,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
 
   /** Where a card's hit lands: its row card, else the gap its row keeps while it leaves. */
   function hitTarget(cardId: number): HTMLElement | null {
-    return battlefieldCard(cardId) ?? canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${cardId}"]`);
+    return battlefieldCard(canvas, cardId) ?? canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${cardId}"]`);
   }
 
   function apply(diff: ViewDiff, before: BoardView | null, revealed: Revealed | undefined): void {
@@ -750,7 +745,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     const creatures = new Set([before, prevView].flatMap((v) => v?.players.flatMap((pl) => pl.battlefield.filter((c) => c.card.typeLine.includes('Creature')).map((c) => c.id)) ?? []));
     const combat =
       origin === null && !fast() && !reduced() && overlay() !== null
-        ? planRams(diff.hits, diff.faceHits, (id) => leaving.has(id) || battlefieldCard(id) !== null, (id) => creatures.has(id))
+        ? planRams(diff.hits, diff.faceHits, (id) => leaving.has(id) || battlefieldCard(canvas, id) !== null, (id) => creatures.has(id))
         : null;
     /** When the first ram at each player strikes, this view. */
     const charged = new Map<number, number>();
@@ -760,7 +755,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }
 
     for (const change of diff.life) {
-      const face = faceEl(change.playerId);
+      const face = faceBox(canvas, change.playerId);
       if (face === null) continue;
       const order = ++lifeOrder;
       const land = (): void => {
@@ -814,7 +809,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     }
     let fromMaker = 0;
     for (const arrival of diff.arrivals) {
-      const maker = arrival.source === null ? null : battlefieldCard(arrival.source);
+      const maker = arrival.source === null ? null : battlefieldCard(canvas, arrival.source);
       if (maker !== null) fromMaker += 1;
       const delay = nextDelay();
       endMs = Math.max(endMs, delay + GLIDE_MS);
@@ -846,14 +841,14 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     const chargeStart = chargers.length === 0 ? 0 : Math.min(...chargers.map((r) => r.delayMs));
     const fanned = new Map<number, Point>();
     const struckEl = (target: RamPlan['target']): HTMLElement | null =>
-      'playerId' in target ? faceEl(target.playerId) : (root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${target.cardId}"]`) ?? hitTarget(target.cardId));
+      'playerId' in target ? faceBox(canvas, target.playerId) : (root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${target.cardId}"]`) ?? hitTarget(target.cardId));
     const packOf = (target: RamPlan['target']): string => ('playerId' in target ? `fan:${target.playerId}` : `fan:card:${target.cardId}`);
     if (root !== null) {
       const packs = new Map<string, RamPlan[]>();
       for (const r of chargers) packs.set(packOf(r.target), [...(packs.get(packOf(r.target)) ?? []), r]);
       for (const [key, members] of packs) {
         const at = struckEl(members[0]!.target);
-        const boxes = members.map((r) => root.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${r.sourceId}"]`) ?? battlefieldCard(r.sourceId));
+        const boxes = members.map((r) => root.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${r.sourceId}"]`) ?? battlefieldCard(canvas, r.sourceId));
         if (at === null || boxes.some((b) => b === null)) continue;
         const spots = fanOf(boxes.map((b) => boxIn(b!, root)), boxIn(at, root), key, boxIn(root, root));
         members.forEach((r, i) => fanned.set(r.sourceId, spots[i]!));
@@ -868,7 +863,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     let ramsDrawn = 0;
     let attackLeadMs = -1;
     for (const plan of combat?.rams ?? []) {
-      const source = root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${plan.sourceId}"]`) ?? battlefieldCard(plan.sourceId);
+      const source = root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${plan.sourceId}"]`) ?? battlefieldCard(canvas, plan.sourceId);
       const struck = 'cardId' in plan.target ? plan.target.cardId : null;
       const target = struckEl(plan.target);
       if (root === null || source === null || target === null) continue;

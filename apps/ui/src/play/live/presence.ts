@@ -87,6 +87,7 @@ import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, 
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
 import { afterGlide, GLIDE_MS, PLACEMENT_WAIT_MS, prefersReducedMotion } from '../motion.ts';
+import { battlefieldCard, overlayOf, zoneOf } from './board-dom.ts';
 import type { MatchTransport } from './match.ts';
 import { hitAt, scopeOf } from '../../dom.ts';
 import './presence.css';
@@ -193,7 +194,7 @@ const isZone = (v: string | null): v is Zone => v !== null && (ZONES as readonly
 
 /** The board's own box: the overlay covers the canvas exactly. */
 function boardBox(canvas: HTMLElement): DOMRect | null {
-  return canvas.querySelector('[data-board-overlay]')?.getBoundingClientRect() ?? null;
+  return overlayOf(canvas)?.getBoundingClientRect() ?? null;
 }
 
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
@@ -684,7 +685,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     return { hand0: theirHandBacks().length, grave0: theirGraveCount(), echoes: 0, lastEcho: '-', seen: '-', prevEnd: lastEnd === null ? -1 : Date.now() - lastEnd.at, prevHow: lastEnd?.how ?? '-', liftAgo: heldAt === null ? -1 : Date.now() - heldAt, freshAgo: lastFresh === null ? -1 : Date.now() - lastFresh.at, fresh: lastFresh?.ids ?? '-' };
   }
   function theirGraveCount(): number {
-    return Number(canvas.querySelector('[data-zone="graveyard"][data-owner="them"]')?.getAttribute('data-count') ?? -1);
+    return Number(zoneOf(canvas, 'them', 'graveyard')?.getAttribute('data-count') ?? -1);
   }
   /** Where the back stands, or — on its glide into a placement's gap — where it is heading. */
   let backAt: Point | null = null;
@@ -735,7 +736,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   let lifted = true;
 
   function overlay(): HTMLElement | null {
-    return canvas.querySelector<HTMLElement>('[data-board-overlay]');
+    return overlayOf(canvas);
   }
 
   /** Where `el`'s centre is drawn this frame — mid-glide included — or null when it has no box. */
@@ -898,7 +899,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     // A redraw of their row replaces the card's element: the tile is rebuilt on the new one.
     if (liftedCard !== null && (liftedCard.id !== arranging.card || !liftedCard.el.isConnected)) drawArranging(root, box, null);
     if (liftedCard === null) {
-      const el = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${arranging.card}"]`);
+      const el = battlefieldCard(canvas, arranging.card, 'them');
       const face = el?.querySelector('.card');
       if (!(el instanceof HTMLElement) || !face) return;
       const tile = document.createElement('div');
@@ -936,7 +937,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    */
   function glideHandMove(root: HTMLElement, box: DOMRect, move: PresenceEcho['handMove']): void {
     if (move === null) return;
-    const hand = canvas.querySelector<HTMLElement>('[data-zone="hand"][data-owner="them"]');
+    const hand = zoneOf(canvas, 'them', 'hand');
     const backs = hand === null ? [] : [...hand.querySelectorAll<HTMLElement>('li.card-back')];
     const from = backs[move.from]?.getBoundingClientRect();
     const to = backs[move.to]?.getBoundingClientRect();
@@ -1053,7 +1054,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
   }
 
   function onTheirBattlefield(id: number): boolean {
-    return canvas.querySelector(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${id}"]`) !== null;
+    return battlefieldCard(canvas, id, 'them') !== null;
   }
 
   /**
@@ -1249,7 +1250,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
    * travels with motion off, or before the board has drawn the tile.
    */
   function flyTile(card: number, from: Point): void {
-    const settled = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
+    const settled = battlefieldCard(canvas, card, 'them');
     const tile = settled?.querySelector('.card');
     if (!(settled instanceof HTMLElement) || !tile || reduced()) {
       reportHandover(host.report, 'landing', canvas, receiverFacts(card, !(settled instanceof HTMLElement) || !tile ? 'no-tile' : 'motion-off', from, drawnCentreOf(settled)));
@@ -1291,7 +1292,7 @@ export function installPresence(options: { canvas: HTMLElement; host: PresenceHo
     // from the TOP hand into the top battlefield — is not drawn for it.
     if (owner === (host.viewerPlayerId?.() ?? null)) return;
     play = { releasedAt: Date.now(), glideStartedAt: null, stackFrameAt: null };
-    const already = canvas.querySelector<HTMLElement>(`[data-zone="battlefield"][data-owner="them"] [data-board-card="${card}"]`);
+    const already = battlefieldCard(canvas, card, 'them');
     if (already !== null) {
       // The frame came first: the reservation moves the card on the next commit; its tile flies
       // from the release point to wherever it settles.

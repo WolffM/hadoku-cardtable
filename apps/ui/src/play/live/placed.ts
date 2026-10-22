@@ -99,7 +99,8 @@ import { HiddenCard } from '../HiddenCard.tsx';
 import { RulesText } from '../prompts/RulesText.tsx';
 import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
 import { aimAt, newArrow, positionArrow } from './gestures/arrow.ts';
-import { cardBox, centreOf, faceBox } from './gestures/targets.ts';
+import { centreOf } from '../lift.ts';
+import { cardBox, faceBox, overlayOf } from './board-dom.ts';
 import type { Point } from './gestures/types.ts';
 import './placed.css';
 
@@ -575,7 +576,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   const resized = typeof ResizeObserver === 'function' ? new ResizeObserver(() => render()) : null;
 
   const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
-  const overlay = (): HTMLElement | null => canvas.querySelector<HTMLElement>('[data-board-overlay]');
+  const overlay = (): HTMLElement | null => overlayOf(canvas);
 
   function schedule(fn: () => void, ms: number): void {
     const timer = setTimeout(() => {
