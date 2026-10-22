@@ -64,6 +64,14 @@
  * a Zombie and Bard's Company in hand beside a Human stay dark, and Gravecrawler is in Forge's
  * actionable set instead. Anger beside it still lights.
  *
+ * The operator, 2026-10-21: "why is crush of tentacles orange here? i haven't cast any other spells
+ * that would activate surge". Forge makes an alternative cost its own copy of the spell, paid that
+ * way by construction, so its "if the surge cost was paid" (`Condition$ Surge`) always holds there;
+ * what decides it is whether the spell can be cast that way now, Forge's own restriction for that
+ * copy ("you or a teammate cast another spell this turn"). Crush of Tentacles in an opening hand
+ * stays dark, lights once Ornithopter is cast, and is dark again on the next turn. Rix Maadi Reveler
+ * (spectacle, no opponent has lost life) and Monastery Raid (freerunning, no combat damage) stay dark.
+ *
  *   CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… CARDTABLE_PLAY_WORK_DIR=$HOME/.cache/cardtable-play-work/condition-met \
  *   pnpm exec vitest run apps/server/src/play/condition-met.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
@@ -73,7 +81,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { available, deck, finishMulligan, inOwnMain, startScenario, waitUntil, type Card, type Scenario } from './scenario.js';
+import { available, castNamed, deck, finishMulligan, inOwnMain, passUntil, startScenario, waitUntil, type Card, type Scenario } from './scenario.js';
 
 const title = available.ok
 	? 'condition-met: the frame names the cards whose condition is on, against real Forge'
@@ -164,16 +172,42 @@ const PERMISSIONS = [
 	'aigraveyard=',
 ].join('\n');
 
+const ALTERNATIVE_COSTS = [
+	'turn=1',
+	'activeplayer=human',
+	'activephase=MAIN1',
+	'humanlife=20',
+	'ailife=20',
+	'humanhand=Crush of Tentacles;Crush of Tentacles;Ornithopter;Rix Maadi Reveler;Monastery Raid',
+	'humanbattlefield=Island;Island;Island;Mountain;Mountain',
+	'humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp',
+	'humangraveyard=',
+	'aihand=',
+	'aibattlefield=Plains',
+	'ailibrary=Plains;Plains;Plains;Plains;Plains;Plains',
+	'aigraveyard=',
+].join('\n');
+
 /** The graveyard incarnations: each lights from its owner's graveyard while its owner controls its basic land type. */
 const INCARNATIONS = ['Anger', 'Brawn', 'Wonder', 'Filth'];
 
 /** The latest `conditionMet` snapshot `seat` was sent, or null when none has been. */
-function latestConditionMet(s: Scenario, seat: number): number[] | null {
+function latestConditionMet(s: Scenario, seat: number, from = 0): number[] | null {
 	const snapshots = s.sent
+		.slice(from)
 		.filter((x) => x.seat === seat && x.envelope.frame.kind === 'notify')
 		.map((x) => (x.envelope.frame as unknown as { payload?: { conditionMet?: number[] } }).payload?.conditionMet)
 		.filter((p): p is number[] => Array.isArray(p));
 	return snapshots.at(-1) ?? null;
+}
+
+/** The first `conditionMet` snapshot `seat` was sent from `from` on, or null when none has been. */
+function firstConditionMet(s: Scenario, seat: number, from: number): number[] | null {
+	for (const x of s.sent.slice(from)) {
+		const met = x.seat === seat && x.envelope.frame.kind === 'notify' ? (x.envelope.frame as unknown as { payload?: { conditionMet?: number[] } }).payload?.conditionMet : undefined;
+		if (Array.isArray(met)) return met;
+	}
+	return null;
 }
 
 function named(cards: readonly Card[], name: string): Card {
@@ -389,6 +423,49 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(seat0, `Bard's Company#${company.id} is off`).not.toContain(company.id);
 				const anger = named(graveyard, 'Anger');
 				expect(seat0, `Anger#${anger.id} is on`).toContain(anger.id);
+			} finally {
+				await s.stop();
+			}
+		},
+		120_000,
+	);
+	it(
+		'an alternative cost lights only while it can be cast that way: Crush of Tentacles dark in an opening hand, lit after another spell, dark again next turn',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 88, decks: DECKS, scenario: ALTERNATIVE_COSTS });
+			try {
+				await finishMulligan(s);
+				await waitUntil(() => {
+					s.answerAsks();
+					return inOwnMain(s, 0, 1) && s.zone(0, 'Hand').some((c) => c.name === 'Monastery Raid');
+				}, 'seat 0 to hold priority in its own main with the scenario applied', 30_000, s);
+				const hand = s.zone(0, 'Hand');
+				const crushes = hand.filter((c) => c.name === 'Crush of Tentacles');
+				const others = [named(hand, 'Rix Maadi Reveler'), named(hand, 'Monastery Raid')];
+				const lit = (met: number[] | null): string => JSON.stringify(hand.filter((c) => met?.includes(c.id)).map((c) => `${c.name}#${c.id}`));
+				const before = latestConditionMet(s, 0);
+				console.log(`[cs-condition-met.jvm] no spell cast: conditionMet=${JSON.stringify(before)} → ${lit(before)}`);
+				expect(before, 'seat 0 was sent a conditionMet snapshot').not.toBeNull();
+				for (const c of [...crushes, ...others]) expect(before, `${c.name}#${c.id} is off before any spell`).not.toContain(c.id);
+
+				const cast = s.sent.length;
+				await castNamed(s, 0, 'Ornithopter');
+				await waitUntil(() => {
+					s.answerAsks();
+					return latestConditionMet(s, 0, cast) !== null;
+				}, 'a conditionMet snapshot after Ornithopter resolved', 15_000, s);
+				const after = latestConditionMet(s, 0, cast);
+				console.log(`[cs-condition-met.jvm] after Ornithopter: conditionMet=${JSON.stringify(after)} → ${lit(after)}`);
+				for (const c of crushes) expect(after, `${c.name}#${c.id} is on once another spell was cast`).toContain(c.id);
+				for (const c of others) expect(after, `${c.name}#${c.id} is off`).not.toContain(c.id);
+
+				/* Both seats pass every stop, so turns fly by: read the first snapshot after turn 2 began. */
+				const turnTwo = (): number => s.sent.findIndex((x) => x.seat === 0 && x.envelope.frame.method === 'message' && /^Turn 2\b/.test((x.envelope.frame as unknown as { message: string }).message));
+				await passUntil(s, () => turnTwo() >= 0 && firstConditionMet(s, 0, turnTwo()) !== null, 'a conditionMet snapshot on turn 2');
+				const next = firstConditionMet(s, 0, turnTwo());
+				console.log(`[cs-condition-met.jvm] turn 2: conditionMet=${JSON.stringify(next)} → ${lit(next)}`);
+				for (const c of crushes) expect(next, `${c.name}#${c.id} is off again on the next turn`).not.toContain(c.id);
 			} finally {
 				await s.stop();
 			}
