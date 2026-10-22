@@ -39,7 +39,7 @@
  * absolute `/api/…` would reach `hadoku.me/api/…`, which is somebody else.
  */
 
-import { GauntletViewSchema, type GauntletAct, type GauntletView } from '@hadoku/shared';
+import { GauntletViewSchema, newestStandardEra, type GauntletAct, type GauntletView } from '@hadoku/shared';
 
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -59,13 +59,6 @@ export const FORMAT_TABS: ReadonlyArray<{ id: FormatFamily; label: string }> = [
   { id: 'modern', label: 'Modern' },
   { id: 'legacy', label: 'Legacy' },
 ];
-
-/**
- * The Free pick pool's id — any library deck, whatever its era. A mirror of the
- * server's `FREE_PICK` (`apps/server/src/room/lobby.ts`); its `/formats` row has
- * `source: 'free'` and a `family` nobody reads.
- */
-export const FREE_PICK = 'free';
 
 /** A frozen era — not Free pick, whose row also carries a `family`. */
 export function isEra(f: TableFormat): boolean {
@@ -446,17 +439,12 @@ export { pickRandom, secureRandom } from '@hadoku/shared';
  * (`TableFormat.family`), so `formats.at(-1)` is no longer necessarily a
  * Standard era: the room's own default is the newest Standard pool
  * (operator, 2026-09-27), and a catalog ordered with Modern or Legacy last
- * would silently hand that default to the wrong family. This is the same
- * arithmetic as the server's `room/lobby.ts`'s `newestFormat` — used only as
- * the fallback for a room whose record has not been read yet, or a server too
+ * would silently hand that default to the wrong family. The server's own
+ * default reads the same `newestStandardEra` — this is used only as the fallback for a room whose record has not been read yet, or a server too
  * old to send one. Never as a second opinion about a room that answered.
  */
 export function newestFormat(formats: readonly TableFormat[]): string {
-  let newest: TableFormat | null = null;
-  for (const f of formats) {
-    if (isEra(f) && f.family === 'standard' && (newest === null || f.id > newest.id)) newest = f;
-  }
-  return newest?.id ?? '';
+  return newestStandardEra(formats) ?? '';
 }
 
 /** Which decks a pool offers, and whether the server answered for all of them. */

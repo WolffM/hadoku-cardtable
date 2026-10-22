@@ -50,9 +50,8 @@
 import { parseDck } from '@hadoku/carddata/dck';
 import { deckFromDeckFile, deckIssues, formatIssues, isBasicLand, type Deck, type DeckIssue, poolEntries } from '@hadoku/deck';
 import { libraryPoolMismatch, type LibraryDeck } from '@hadoku/deck/library';
-import { MAX_DCK_BYTES, type DraftCard } from '@hadoku/shared';
+import { FREE_PICK, MAX_DCK_BYTES, type DraftCard } from '@hadoku/shared';
 
-import { FREE_PICK } from '../room/lobby.js';
 import type { TablesLibrary } from './library.js';
 
 export type DeckRef = { library: string } | { dck: string };

@@ -399,6 +399,8 @@ export {
   type ModeOptions,
   type RoomMode,
   type RoomModeState,
+  FREE_PICK,
+  newestStandardEra,
 } from './room-modes.ts';
 export {
   AVATAR_ID_MAX,

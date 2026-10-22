@@ -161,7 +161,7 @@ import { LIBRARY_CARD_COSTS, LIBRARY_DECK_STYLES, type DeckStyle } from '@hadoku
  * `RoomTable` (a seat's whole state at one table), and the two would clash by
  * name if both were imported bare into this file.
  */
-import type { ConstructedMode, GauntletOptions as GauntletModeOptions, GauntletView, RandomOptions, RoomTable as SharedRoomTable } from '@hadoku/shared';
+import { FREE_PICK, type ConstructedMode, type GauntletOptions as GauntletModeOptions, type GauntletView, type RandomOptions, type RoomTable as SharedRoomTable } from '@hadoku/shared';
 
 import { navigate, routeHash } from './route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
@@ -199,7 +199,6 @@ import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
 import { seatAvatars } from './gauntlet/seats.tsx';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import {
-  FREE_PICK,
   RANDOM_DECK,
   isEra,
   legalDecksIn,

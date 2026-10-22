@@ -29,7 +29,8 @@ import { myDecksClient, type MyDecksClient } from '../deck/myDecks.ts';
 import { draftedDeckOption, libraryDeckPeek, openDraftedDeck, type PeekedDeck } from '../screens/ConstructedScreen.tsx';
 import { ChipFilterBar, toggled } from '../screens/DeckFilterBar.tsx';
 import { DeckPeek, usePeekHover } from '../screens/DeckPeek.tsx';
-import { FORMAT_TABS, FREE_PICK, tablesClient, type FormatFamily, type TablesClient } from '../screens/tables.ts';
+import { FREE_PICK } from '@hadoku/shared';
+import { FORMAT_TABS, tablesClient, type FormatFamily, type TablesClient } from '../screens/tables.ts';
 
 export type StatsFormat = FormatFamily | typeof FREE_PICK;
 export type StatsRoom = 'constructed' | 'draft';

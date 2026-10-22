@@ -78,6 +78,7 @@ import {
 	DRAFT_POOL_PREFIX,
 	DraftPlanSchema,
 	GameTypeSchema,
+	newestStandardEra,
 	POD_SEATS,
 	PoolVerdictSchema,
 	RoomModeSchema,
@@ -166,14 +167,6 @@ export type FormatId = string;
  */
 export const NO_FORMAT: FormatId = 'unavailable';
 
-/**
- * The pool that is no pool: any library deck against any other, whatever era
- * each was built for (operator, 2026-10-09: *"a lobby toggle for 'Free pick'
- * which allows anyone to pick any deck regardless of format"*). Neither a date
- * nor `draft:`-prefixed, so it can never be mistaken for an era or a pod.
- */
-export const FREE_PICK: FormatId = 'free';
-
 /** A pod's id as a room's pool id. The one place this string is built. */
 export function draftPoolId(draftId: string): FormatId {
 	return `${DRAFT_POOL_PREFIX}${draftId}`;
@@ -198,16 +191,7 @@ export function draftIdOfPool(pool: FormatId): string | null {
 export type CatalogFormat = Pick<TableFormat, 'id' | 'family'>;
 
 /**
- * The newest era whose `family` is `'standard'`, by comparing `id` as a
- * string — which is a safe stand-in for the date: a Standard era's `id` IS its
- * bare `YYYY-MM-DD` date (`http/library.ts`'s `formatIdOf`), so lexicographic
- * order on `id` is chronological order.
- *
- * **The newest STANDARD era — never just "last".** Wave 48 added Modern and
- * Legacy eras to the same catalog (`http/library.ts`'s `TableFormat.family`),
- * so `library.formats.at(-1)` is no longer necessarily a Standard era.
- *
- * What a room written before `format` existed reads back as, and the fixed
+ * The newest Standard era (`newestStandardEra`). What a room written before `format` existed reads back as, and the fixed
  * default a server started with `CARDTABLE_NEW_ROOM_FORMAT=newest` opens every new
  * room on. `NO_FORMAT` when the catalog has no Standard era at all (an empty
  * library, or a catalog that is Modern/Legacy only).
@@ -216,11 +200,7 @@ export type CatalogFormat = Pick<TableFormat, 'id' | 'family'>;
  * `TablesLibrary.formats`), or a fixture catalog in a test.
  */
 export function newestFormat(formats: readonly CatalogFormat[]): FormatId {
-	let newest: string | null = null;
-	for (const f of formats) {
-		if (f.family === 'standard' && (newest === null || f.id > newest)) newest = f.id;
-	}
-	return newest ?? NO_FORMAT;
+	return newestStandardEra(formats) ?? NO_FORMAT;
 }
 
 /**

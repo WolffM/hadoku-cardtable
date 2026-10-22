@@ -9,7 +9,8 @@
 
 import { useEffect, useState } from 'react';
 
-import { erasOf, FORMAT_TABS, FREE_PICK, newestFormat, poolIsOnTab, type FormatFamily, type TableFormat } from '../tables.ts';
+import { FREE_PICK } from '@hadoku/shared';
+import { erasOf, FORMAT_TABS, newestFormat, poolIsOnTab, type FormatFamily, type TableFormat } from '../tables.ts';
 
 /** Free pick's browse: a format's library, or the decks you drafted (`#/decks`). */
 export type BrowseTab = FormatFamily | 'mine';

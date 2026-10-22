@@ -46,6 +46,27 @@ type SameFamilies = [FormatFamily] extends [(typeof FORMAT_FAMILIES)[number]]
 const familiesAgree: SameFamilies = true;
 void familiesAgree;
 
+/**
+ * The pool that is no pool: any library deck against any other, whatever era
+ * each was built for. Neither a date nor `draft:`-prefixed, so it can never be
+ * mistaken for an era or a pod. Its `/formats` row has `source: 'free'`.
+ */
+export const FREE_PICK = 'free';
+
+/**
+ * The newest era whose `family` is `'standard'`, or null when the catalog has
+ * none. Compared by `id` as a string, which is safe: a Standard era's id IS its
+ * bare `YYYY-MM-DD` date, so lexicographic order is chronological. Never just
+ * the last era, because Modern and Legacy eras share the list.
+ */
+export function newestStandardEra(formats: readonly { readonly id: string; readonly family?: string }[]): string | null {
+  let newest: string | null = null;
+  for (const f of formats) {
+    if (f.id !== FREE_PICK && f.family === 'standard' && (newest === null || f.id > newest)) newest = f.id;
+  }
+  return newest;
+}
+
 /** All Random's pools: one family, or `full` for any of them. */
 export const RANDOM_POOLS = ['full', ...FORMAT_FAMILIES] as const;
 export const RandomPoolSchema = z.enum(RANDOM_POOLS);

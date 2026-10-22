@@ -16,8 +16,8 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { AVATAR_ID_MAX } from '@hadoku/shared';
 import {
-  AVATAR_ID_MAX,
   avatarSquareUrl,
   normalizeAvatarId,
   selectedAvatarId,

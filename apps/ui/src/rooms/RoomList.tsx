@@ -48,7 +48,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Icon } from '@wolffm/themes';
-import type { ConstructedMode } from '@hadoku/shared';
+import { ROOM_NAME_MAX, ROOM_PASSWORD_MAX, type ConstructedMode } from '@hadoku/shared';
 
 import { navigate } from '../screens/route.ts';
 import { warmRoom } from './warm.ts';
@@ -317,7 +317,7 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
             id={`room-password-${room.id}`}
             data-testid="room-password"
             type="password"
-            maxLength={200}
+            maxLength={ROOM_PASSWORD_MAX}
             autoComplete="off"
             autoFocus
             value={password}
@@ -437,7 +437,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
           id="room-create-name"
           data-testid="room-create-name"
           value={name}
-          maxLength={60}
+          maxLength={ROOM_NAME_MAX}
           placeholder="Friday night"
           // Firefox counts a text field before a password field as the username when its token is
           // empty, on, off, username, email or tel (LoginManager.shared.sys.mjs); any other opts it out.
@@ -471,7 +471,7 @@ function CreateRoomDialog({ client, onClose }: { client: RoomsClient; onClose: (
           id="room-create-password"
           data-testid="room-create-password"
           type="password"
-          maxLength={200}
+          maxLength={ROOM_PASSWORD_MAX}
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

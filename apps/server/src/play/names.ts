@@ -13,7 +13,8 @@
 import { parseDck } from '@hadoku/carddata/dck';
 
 import type { TablesLibrary } from '../http/library.js';
-import { FREE_PICK, draftIdOfPool } from '../room/lobby.js';
+import { FREE_PICK } from '@hadoku/shared';
+import { draftIdOfPool } from '../room/lobby.js';
 
 /** Every card name a `.dck` text plays, main and sideboard. */
 export function dckNames(dck: string): string[] {

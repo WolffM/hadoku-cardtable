@@ -46,11 +46,8 @@
  */
 
 import { createPrefsClient, type PrefsClient } from '@wolffm/prefs-client';
-import { SeqCursorSchema } from '@hadoku/shared';
+import { AVATAR_ID_MAX, SeqCursorSchema } from '@hadoku/shared';
 import { CallIdSchema } from '@hadoku/forge-wire';
-
-/** Watchparty's bound on the id: `sprite: z.string().min(1).max(32)`. */
-export const AVATAR_ID_MAX = 32;
 
 /**
  * Watchparty's server, on whatever origin serves this page. In production that
