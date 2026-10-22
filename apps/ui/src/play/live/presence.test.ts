@@ -5,7 +5,7 @@
  * geometry here comes from stubbed `getBoundingClientRect`s with real numbers.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { PLACED_EVENT, PLACEMENT_EVENT, PRESENCE_EVENT, PRESENCE_SEND_MS } from '@hadoku/shared';
 
 import { forgetPendingPlacements, pendingPlacementFor } from '../Board.tsx';
@@ -1066,6 +1066,48 @@ describe('receiving', () => {
     expect(canvas.querySelector('.presence__handoff'), 'its copy covers it').not.toBeNull();
     expect(canvas.querySelector('.presence__back'), 'the back handed over to the copy').toBeNull();
     expect(placedMod.placeSpell, 'the stack layer never drew it').not.toHaveBeenCalled();
+    handle.dispose();
+    forgetPendingPlacements();
+  });
+
+  it.each([
+    { reduce: false, motion: true },
+    { reduce: true, motion: false },
+  ])('with no reduced-motion option, the hand-over follows the viewer’s own setting (reduce: $reduce)', async ({ reduce, motion }) => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: reduce && query === '(prefers-reduced-motion: reduce)' }));
+    onTestFinished(() => vi.unstubAllGlobals());
+    const { canvas } = board();
+    fakeClock();
+    document.elementFromPoint = () => null;
+    const t = fakeTransport();
+    const report = vi.fn();
+    let theirs: number[] = [];
+    let onStack: number[] = [];
+    let wake: (() => void) | null = null;
+    const handle = installPresence({
+      canvas,
+      host: { ...host(t), watch: (cb) => ((wake = cb), () => undefined), theirCards: () => theirs, theirStackCards: () => onStack, theirPlayerId: () => 1, report },
+    });
+    t.receive({ matchId: 'm-1', type: 'presence', seat: 1, pointer: { zone: 'battlefield', x: 0.4, y: 0.6 }, held: true, from: null, arranging: null });
+    t.receivePlacement({ matchId: 'm-1', seat: 1, card: 121, slot: 'front', target: { kind: 'at', column: 1 }, at: { zone: 'battlefield', x: 0.4, y: 0.6 } });
+    const gap = document.createElement('li');
+    gap.className = 'zone__gap';
+    gap.setAttribute('data-expected', '');
+    gap.getBoundingClientRect = () => rect({ left: 400, top: 200, width: 60, height: 84 });
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"] ul')!.append(gap);
+    await frame();
+    const back = canvas.querySelector<HTMLElement>('.presence__back[data-waiting]')!;
+    back.getBoundingClientRect = () => rect({ left: 400, top: 200, width: 60, height: 84 });
+    theirs = [121];
+    onStack = [121];
+    wake!();
+    await frame();
+    await frame();
+    await glide();
+    await frame();
+    const handover = report.mock.calls.filter(([kind]) => kind === 'handover');
+    expect(handover).toHaveLength(1);
+    expect(handover[0]![1]).toMatchObject({ screen: 'receiver', card: 121, motion });
     handle.dispose();
     forgetPendingPlacements();
   });
