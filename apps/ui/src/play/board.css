@@ -1123,6 +1123,8 @@
    */
   --group-overhead: 0.35rem;
   --group-gap: 5px;
+  /* The rule between two lanes. */
+  --lane-rule: 1px;
   /* One line of the 9px lane label (12.6px). */
   --row-head-h: 0.8rem;
   --row-head-gap: 2px;
@@ -1203,7 +1205,7 @@
   gap: var(--row-head-gap);
   min-width: 0;
   min-height: 0;
-  border-left: 1px solid var(--line-soft);
+  border-left: var(--lane-rule) solid var(--line-soft);
   /* A card's emphasis paints over the lane beside it; a lane never scrolls (the battlefield's own rule). */
   overflow: clip;
   overflow-clip-margin: var(--emphasis-room);
@@ -1310,13 +1312,13 @@
    * is padding on the zone.
    */
   grid-auto-columns: minmax(
-    min(var(--card-min), calc(var(--zone-w) / round(up, var(--cols, 99) / var(--rows), 1))),
+    min(var(--card-min), calc((var(--zone-w) - 2 * var(--card-pad-x) + var(--cards-gap)) / round(up, var(--cols, 99) / var(--rows), 1) - var(--cards-gap))),
     var(--card-w)
   );
   gap: var(--cards-gap);
   align-content: start;
   justify-content: start;
-  padding: var(--card-pad);
+  padding: var(--card-pad-y) var(--card-pad-x);
 }
 
 /*
@@ -1355,15 +1357,9 @@
 .seat[data-viewer] > .zone--hand > .zone__cards,
 .seat > .zone--hand.zone--backs > .card-backs {
   --card-slack: 8px;
-  --card-pad: 4px 3px;
+  --card-pad-y: 4px;
+  --card-pad-x: 3px;
   --card-w: calc((var(--zone-h) - (var(--rows) - 1) * var(--cards-gap) - var(--card-slack)) / var(--rows) / var(--card-tall));
-}
-
-/* A lane's container is the lane, which is the whole height of the slot; what
-   this list does not get of it is the LANE's own label strip. */
-.seat > .zone--battlefield .zone__row > .zone__cards {
-  --card-slack: calc(6px + var(--row-head-h) + var(--row-head-gap));
-  --card-pad: 2px;
 }
 
 /*
@@ -1379,7 +1375,8 @@
  */
 .seat > .zone--battlefield > .zone__cards {
   --card-slack: 6px;
-  --card-pad: 2px;
+  --card-pad-y: 2px;
+  --card-pad-x: 2px;
 }
 
 /*
@@ -1408,10 +1405,14 @@
 
 .seat > .zone--battlefield .zone__tiers > .zone__cards {
   --card-slack: 6px;
-  --card-pad: 2px;
+  --card-pad-y: 2px;
+  --card-pad-x: 2px;
 
   grid-template-rows: auto;
-  grid-auto-columns: minmax(min(var(--card-min), calc(var(--zone-w) / var(--cols, 99))), var(--card-w));
+  grid-auto-columns: minmax(
+    min(var(--card-min), calc((var(--zone-w) - 2 * var(--card-pad-x) + var(--cards-gap)) / var(--cols, 99) - var(--cards-gap))),
+    var(--card-w)
+  );
   align-content: center;
   min-height: 0;
   /* A tier is the box a card is snapped into: it shows the slot while it is empty. */
@@ -1428,11 +1429,7 @@
  * to THREE QUARTERS of the card the extra row would draw (the operator,
  * 2026-10-13: "let's squish cards a bit more before we make them take up
  * another row"). So the steps are 4/3 of those break-evens — N > 3.72·W/H for
- * two rows, N > 11.2·W/H for three. Further than that runs into `--card-min`:
- * measured live at 1280×800 in the four-lane layout (a 786×200 battlefield,
- * band 3), twelve columns used to be two rows of 63px cards and are one row
- * at `--card-min`; a thirteenth in the same row would be 41px, under it, and
- * names stop reading. A shape narrower than band 3 (a phone, a tall window)
+ * two rows, N > 11.2·W/H for three. A shape narrower than band 3 (a phone, a tall window)
  * keeps the bare break-even: its row has no width to squish into, and a hand
  * there wraps at seven as it did. The shape W/H is the zone's
  * `data-zone-aspect` (the band `zone-box.ts` measured: 3, 4, 5, 6, 8 or 10
@@ -1455,36 +1452,91 @@
  * inner subtraction is negative below T, is 1 at T and is clamped to 1 above it.
  * There is nothing to reset between bands, because each band states the whole
  * arithmetic rather than adding to the one before.
+ *
+ * **And never one row that cannot hold its columns at `--card-min`.** The shape
+ * counts a card as W/N, but a row also pays for its gaps, its padding and, on a
+ * battlefield, the lanes' own widths; a band is a range of shapes and says
+ * nothing of the zone's size. So `--cols-fit` is how many columns of
+ * `--card-min` and a gap the row's width really holds, and a row with more than
+ * that takes the second row whatever its shape says (16 permanents on a 784px
+ * battlefield, band 4, drew one row of lanes 4–6px too narrow for their cards).
+ * The shape's rows are kept when they are more: they are its squish rule.
  */
 
 .zone__rows,
 .zone--hand > :is(.zone__cards, .card-backs),
 .seat > .zone--battlefield > .zone__cards {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 6, 1) + clamp(0, var(--cols, 0) - 20, 1));
+  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 6, 1) + clamp(0, var(--cols, 0) - 20, 1));
+  /* One list: its width, less its padding, plus the gap its last column does not have. */
+  --cols-room: calc(var(--zone-w) - 2 * var(--card-pad-x, 0px) + var(--cards-gap));
+  /* `tan(atan2(a, b))` is `a / b` as a number: dividing two lengths is not in every engine yet. */
+  --cols-fit: round(down, tan(atan2(var(--cols-room), var(--card-min) + var(--cards-gap))) + 0.001, 1);
+  /* And how many rows of `--card-min` its height holds: a second row it has no height for is no help. */
+  --rows-tall: round(
+    down,
+    tan(atan2(var(--zone-h) - var(--card-slack, 0px) + var(--cards-gap), var(--card-min) * var(--card-tall) + var(--cards-gap))) + 0.001,
+    1
+  );
+  --rows: max(var(--rows-shape), min(1 + clamp(0, var(--cols, 0) - var(--cols-fit), 1), var(--rows-tall)));
+}
+
+/*
+ * The four lanes divide the battlefield's width by their columns, after what a lane costs before
+ * its first card: the three gaps between them (every lane is drawn, empty or not), an empty lane's
+ * label width, and a busy lane's flex basis. A lane's own rule and its list's padding are inside its
+ * share. One basis is given back: a lane's share of what is left is its share of the columns, so the
+ * bases of the others more than pay for its rule and padding.
+ */
+.seat > .zone--battlefield > .zone__rows {
+  --lanes-empty: 0;
+  /* A lane's list is the lane's whole height but its own label strip. */
+  --card-slack: calc(6px + var(--row-head-h) + var(--row-head-gap));
+  --card-pad-y: 2px;
+  --card-pad-x: 2px;
+  --cols-room: calc(
+    var(--zone-w) - 3 * var(--group-gap) - var(--lanes-empty) * var(--group-empty-w) - (3 - var(--lanes-empty)) * var(--group-overhead) - var(--lane-rule) -
+      2 * var(--card-pad-x) + var(--cards-gap)
+  );
+}
+
+.seat > .zone--battlefield > .zone__rows:has(> [data-empty]) {
+  --lanes-empty: 1;
+}
+
+.seat > .zone--battlefield > .zone__rows:has(> [data-empty] ~ [data-empty]) {
+  --lanes-empty: 2;
+}
+
+.seat > .zone--battlefield > .zone__rows:has(> [data-empty] ~ [data-empty] ~ [data-empty]) {
+  --lanes-empty: 3;
+}
+
+.seat > .zone--battlefield > .zone__rows:has(> [data-empty] ~ [data-empty] ~ [data-empty] ~ [data-empty]) {
+  --lanes-empty: 4;
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='3'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 12, 1) + clamp(0, var(--cols, 0) - 39, 1));
+  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 12, 1) + clamp(0, var(--cols, 0) - 39, 1));
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='4'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 16, 1) + clamp(0, var(--cols, 0) - 49, 1));
+  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 16, 1) + clamp(0, var(--cols, 0) - 49, 1));
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='5'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 20, 1) + clamp(0, var(--cols, 0) - 61, 1));
+  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 20, 1) + clamp(0, var(--cols, 0) - 61, 1));
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='6'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 25, 1) + clamp(0, var(--cols, 0) - 77, 1));
+  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 25, 1) + clamp(0, var(--cols, 0) - 77, 1));
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='8'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 33, 1) + clamp(0, var(--cols, 0) - 100, 1));
+  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 33, 1) + clamp(0, var(--cols, 0) - 100, 1));
 }
 
 :is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='10'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows: calc(1 + clamp(0, var(--cols, 0) - 40, 1) + clamp(0, var(--cols, 0) - 123, 1));
+  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 40, 1) + clamp(0, var(--cols, 0) - 123, 1));
 }
 
 /*
