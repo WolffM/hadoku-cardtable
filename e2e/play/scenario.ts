@@ -150,7 +150,7 @@ async function boardUp(page: Page): Promise<void> {
  * check in every scenario's own first ask then times out, looking exactly
  * like a product bug.
  */
-async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
+async function keepBothHands(alice: Friend, bob: Friend, first: Friend): Promise<void> {
   const openQuestion = /play or draw|keep your hand|return \d+ card/i;
   // Each side's own "past the mulligan" flag, set from the SAME read that
   // decided whether to click it — not a separate later re-check. Two reads
@@ -253,8 +253,12 @@ async function keepBothHands(alice: Friend, bob: Friend): Promise<void> {
       // never Mulligan, same default this helper always took. Only "return N
       // card(s)" (the bottom-pick SELECTION, not a confirm) is unaffected and
       // still answers through Forge's button one (`enabledOk`).
+      // The toss winner plays only if the scenario makes them the active player, and draws otherwise:
+      // Forge's own turn 1 begins before the scenario replaces the game, so the wrong seat playing it
+      // shows a turn the scenario never had (ux-your-turn, run 39822456271: bob won the toss, played,
+      // and his screen cued "Your turn" for turn 1 180 ms before alice's turn 1 arrived).
       const button = /play or draw/i.test(text)
-        ? f.page.getByTestId('live-play-or-draw-play')
+        ? f.page.getByTestId(f === first ? 'live-play-or-draw-play' : 'live-play-or-draw-draw')
         : /keep your hand/i.test(text)
           ? confirmYes(f.page)
           : enabledOk(f.page);
@@ -330,7 +334,7 @@ export async function startScenarioMatch(
   await bob.page.goto(matchUrl(stack.origin, matchId));
   await boardUp(bob.page);
 
-  await keepBothHands(alice, bob);
+  await keepBothHands(alice, bob, /^activeplayer=ai$/m.test(scenario) ? bob : alice);
 
   // w37 §E.1: fail by name, fast, if the scripted zones never land — rather
   // than let the caller's own `offered(page)` poll time out looking
