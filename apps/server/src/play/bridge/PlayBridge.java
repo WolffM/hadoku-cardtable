@@ -1072,8 +1072,13 @@ public final class PlayBridge {
      *     {@code SpellAbilityCondition.areMet} ({@code ConditionCheckSVar$}, {@code ConditionPresent$},
      *     {@code Condition$ Metalcraft} …) — not a replacement's effect, whose condition is a land's
      *     "enters tapped unless …", a drawback rather than a bonus — and
-     *     an activated ability's {@code Activation$ Threshold}-style restriction
-     *     ({@code SpellAbilityRestriction.checkOtherRestrictions});</li>
+     *     an activated ability's {@code Activation$ Threshold}-style restriction. A spell or ability
+     *     lights only while Forge's own restriction lets it be used
+     *     ({@code SpellAbilityRestriction.checkOtherRestrictions}): that is the restriction above,
+     *     and it is what decides an alternative cost. Forge makes each way of casting a spell its own
+     *     copy, paid that way by construction, so the surge copy's {@code Condition$ Surge} always
+     *     holds there; whether it lights is whether the spell can be cast that way now (surge's
+     *     "another spell this turn", spectacle's, prowl's, freerunning's);</li>
      * <li>a branching count: an SVar {@code Count$<Name>.<if>.<else>} (Galvanic Blast's
      *     {@code Count$Metalcraft.4.2}, {@code Count$Compare X GE1.<if>.<else>}), asked through
      *     {@code AbilityUtils.xCount} with two marker numbers in place of its branches: the marker
@@ -1176,7 +1181,7 @@ public final class PlayBridge {
             for (final SpellAbility sa : c.getSpellAbilities()) {
                 if (!sa.isIntrinsic() || !worksHere(sa, here)) { continue; }
                 for (SpellAbility s = sa; s != null; s = s.getSubAbility()) { name(named, s); }
-                if ((!quiet.contains(sa) && restrictionOn(sa, c, controller)) || chainOn(sa, controller, quiet)) { return true; }
+                if (((!quiet.contains(sa) && restricted(sa)) || chainOn(sa, controller, quiet)) && sa.getRestrictions().checkOtherRestrictions(c, sa, controller)) { return true; }
             }
             return branchOn(c, named);
         }
@@ -1303,13 +1308,13 @@ public final class PlayBridge {
             return on && counts(r.found, trait.getMapParams());
         }
 
-        private static boolean restrictionOn(final SpellAbility sa, final forge.game.card.Card c, final forge.game.player.Player controller) {
+        /** Whether an activated ability's own restriction is an "activate only if …" ({@link #RESTRICTION_CONDITIONS}). */
+        private static boolean restricted(final SpellAbility sa) {
             if (!sa.isActivatedAbility()) { return false; }
             final Recorder r = new Recorder(sa.getMapParams());
             new forge.game.spellability.SpellAbilityRestriction().setRestrictions(r);
             r.found.retainAll(RESTRICTION_CONDITIONS);
-            return counts(r.found, sa.getMapParams())
-                    && sa.getRestrictions().checkOtherRestrictions(c, sa, controller);
+            return counts(r.found, sa.getMapParams());
         }
 
         /**
