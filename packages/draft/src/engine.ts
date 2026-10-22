@@ -45,7 +45,7 @@ import {
   type SeatTable,
 } from '@wolffm/rooms-protocol';
 import type { DraftCard, PassDirection } from '@hadoku/shared';
-import { derive, rngFromSeed, shuffle, type Rng } from './rng.ts';
+import { derive, type Rng } from './rng.ts';
 
 /** One seat's human occupant, as the caller describes it at creation. */
 export interface HumanSeat {
@@ -76,8 +76,14 @@ export interface DraftConfig {
    */
   epoch?: string;
   seed: string;
-  /** The cube. Not mutated. */
-  pool: readonly DraftCard[];
+  /**
+   * Every round, already dealt — `[round][seat]`. `@hadoku/draft`'s own
+   * `deal()` builds this from a `DraftPlan`; the engine no longer shuffles or
+   * slices a pool itself (`docs/planning/draft-pools-plan.md`'s Design: "the
+   * engine stops shuffling and slicing; it passes what it is given"). Not
+   * mutated — `createDraft` copies each pack before handing it out.
+   */
+  packs: readonly (readonly DraftCard[])[][];
   /** `NumPlayers` from the recipe. */
   seatCount: number;
   /** `NumPacks`. */
@@ -144,47 +150,8 @@ export function directionFor(packNumber: number): PassDirection {
   return packNumber % 2 === 1 ? 'left' : 'right';
 }
 
-/**
- * Deal every pack for the whole draft up front.
- *
- * All rounds are cut from one shuffle of the cube, so a card taken in pack 1
- * cannot reappear in pack 3 — which is what `Singleton:True` means, and it is
- * true of 93 of Forge's 94 cube recipes. Dealing lazily per round would need
- * the remaining pool threaded through the state for no benefit.
- */
-function deal(pool: readonly DraftCard[], rng: Rng, rounds: number, seats: number, size: number): DraftCard[][][] {
-  const needed = rounds * seats * size;
-  const shuffled = shuffle(pool, rng);
-  const out: DraftCard[][][] = [];
-  let cursor = 0;
-  for (let r = 0; r < rounds; r++) {
-    const round: DraftCard[][] = [];
-    for (let s = 0; s < seats; s++) {
-      // A pool smaller than the draft needs wraps rather than dealing short
-      // packs, so a 360-card cube can still seat a 10-player pod. The caller is
-      // told by `poolShortfall`; it is a product decision, not an error.
-      const pack: DraftCard[] = [];
-      for (let i = 0; i < size; i++) {
-        pack.push(shuffled[cursor % shuffled.length] as DraftCard);
-        cursor++;
-      }
-      round.push(pack);
-    }
-    out.push(round);
-  }
-  void needed;
-  return out;
-}
-
-/** How many cards short of a clean deal the pool is. 0 when it is big enough. */
-export function poolShortfall(config: Pick<DraftConfig, 'pool' | 'seatCount' | 'packCount' | 'packSize'>): number {
-  const needed = config.seatCount * config.packCount * config.packSize;
-  return Math.max(0, needed - config.pool.length);
-}
-
 /** Build a draft. Seats the humans, then pads the rest with bots. */
 export function createDraft(config: DraftConfig): DraftState {
-  const rng = rngFromSeed(config.seed);
   const table = createSeatTable(config.seatCount, {
     reservationTtlMs: config.reservationTtlMs ?? 0,
   });
@@ -213,7 +180,10 @@ export function createDraft(config: DraftConfig): DraftState {
     if (persona?.avatarId !== undefined) avatarIds[id] = persona.avatarId;
   }
 
-  const rounds = deal(config.pool, rng, config.packCount, config.seatCount, config.packSize);
+  // Copy each pack so the caller's own `DraftCard[][][]` — shared with
+  // whatever built it, `@hadoku/draft`'s `deal()` included — is never mutated
+  // through engine state.
+  const rounds: DraftCard[][][] = config.packs.map((round) => round.map((pack) => pack.slice()));
 
   return {
     draftId: config.draftId,
@@ -228,7 +198,7 @@ export function createDraft(config: DraftConfig): DraftState {
     table,
     displayNames,
     avatarIds,
-    packs: (rounds[0] as DraftCard[][]).map((p) => p.slice()),
+    packs: rounds[0] as DraftCard[][],
     pools: Array.from({ length: config.seatCount }, () => []),
     rounds,
     picked: [],

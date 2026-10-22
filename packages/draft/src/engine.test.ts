@@ -8,16 +8,17 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { DraftViewSchema, type DraftCard } from '@hadoku/shared';
+import { DraftViewSchema, type DraftCard, type DraftPlan, type PoolSource } from '@hadoku/shared';
 import {
   createDraft,
   directionFor,
   pick,
-  poolShortfall,
   waitingOn,
+  type DraftConfig,
   type DraftEvent,
   type DraftState,
 } from './engine.ts';
+import { deal, poolShortfall } from './deal.ts';
 import { runBots } from './bot.ts';
 import { spectatorView, viewFor, viewsForAllSeats } from './view.ts';
 
@@ -50,16 +51,29 @@ const HUMANS = [
   { participantId: 'fk:bob', displayName: 'bob' },
 ];
 
-function newDraft(seed = 'seed-1', overrides: Partial<Parameters<typeof createDraft>[0]> = {}): DraftState {
+/** A plan whose three rounds all draw from the one synthetic pool this test names. */
+function planOf(cubeId: string): DraftPlan {
+  const src: PoolSource = { kind: 'cube', cubeId };
+  return { rounds: [src, src, src] };
+}
+
+function newDraft(
+  seed = 'seed-1',
+  overrides: Partial<DraftConfig> & { pool?: DraftCard[] } = {},
+): DraftState {
+  const { pool, ...configOverrides } = overrides;
+  const seatCount = configOverrides.seatCount ?? 8;
+  const packSize = configOverrides.packSize ?? 15;
+  const packs = deal(planOf('test-pool'), () => pool ?? makePool(540), seed, seatCount, packSize);
   return createDraft({
     draftId: 'draft:test',
     seed,
-    pool: makePool(540),
-    seatCount: 8,
+    packs,
+    seatCount,
     packCount: 3,
-    packSize: 15,
+    packSize,
     humans: HUMANS,
-    ...overrides,
+    ...configOverrides,
   });
 }
 
@@ -352,8 +366,9 @@ describe('seating', () => {
 
 describe('pool sizing', () => {
   it('reports a shortfall rather than silently dealing short packs', () => {
-    expect(poolShortfall({ pool: makePool(360), seatCount: 8, packCount: 3, packSize: 15 })).toBe(0);
-    expect(poolShortfall({ pool: makePool(100), seatCount: 8, packCount: 3, packSize: 15 })).toBe(260);
+    const plan = planOf('test-pool');
+    expect(poolShortfall(plan, () => makePool(360), 8, 15)).toBe(0);
+    expect(poolShortfall(plan, () => makePool(100), 8, 15)).toBe(260);
   });
 
   it('a short pool still deals full packs', () => {

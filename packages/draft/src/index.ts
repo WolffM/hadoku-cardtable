@@ -26,7 +26,6 @@ export {
   waitingOn,
   botSeatAcross,
   directionFor,
-  poolShortfall,
   isBotSeat,
   botRng,
   type DraftConfig,
@@ -38,6 +37,8 @@ export {
   type BotSeat,
   type HumanSeat,
 } from './engine.ts';
+
+export { deal, poolShortfall, type SourceCards } from './deal.ts';
 
 export {
   runBots,

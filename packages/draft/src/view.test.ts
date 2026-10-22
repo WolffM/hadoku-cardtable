@@ -28,8 +28,9 @@ import {
   setSeatCapacity,
   type SeatTable,
 } from '@wolffm/rooms-protocol';
-import { DraftViewSchema, type DraftCard } from '@hadoku/shared';
+import { DraftViewSchema, type DraftCard, type PoolSource } from '@hadoku/shared';
 import { createDraft, pick, type DraftState } from './engine.ts';
+import { deal } from './deal.ts';
 import { spectatorView, viewFor } from './view.ts';
 
 function makePool(size: number): DraftCard[] {
@@ -55,10 +56,12 @@ function makePool(size: number): DraftCard[] {
  * `packSize` is small so the fixture is cheap; nothing here depends on it.
  */
 function dealtForFour(): DraftState {
+  const src: PoolSource = { kind: 'cube', cubeId: 'seat-rows' };
+  const pool = makePool(240);
   return createDraft({
     draftId: 'draft:seat-rows',
     seed: 'seat-rows',
-    pool: makePool(240),
+    packs: deal({ rounds: [src, src, src] }, () => pool, 'seat-rows', 4, 5),
     seatCount: 4,
     packCount: 3,
     packSize: 5,

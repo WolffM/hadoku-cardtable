@@ -27,9 +27,16 @@ import {
   packSize,
   type DeckFile,
 } from '@hadoku/carddata';
-import type { DraftCard } from '@hadoku/shared';
-import { createDraft, pick, poolShortfall, waitingOn, type DraftState } from './engine.ts';
+import type { DraftCard, DraftPlan, PoolSource } from '@hadoku/shared';
+import { createDraft, pick, waitingOn, type DraftState } from './engine.ts';
+import { deal, poolShortfall } from './deal.ts';
 import { runBots } from './bot.ts';
+
+/** A plan whose three rounds all draw from the one real cube this test names. */
+function planOf(cubeId: string): DraftPlan {
+  const src: PoolSource = { kind: 'cube', cubeId };
+  return { rounds: [src, src, src] };
+}
 
 /** Build engine cards from a real cube's real card lines. Sections are lowercased. */
 function poolFromCube(cube: DeckFile): DraftCard[] {
@@ -96,20 +103,14 @@ describe('real cube lists and real recipes', () => {
 
     const pool = poolFromCube(match.cube);
     expect(pool.length).toBe(540);
-    expect(
-      poolShortfall({
-        pool,
-        seatCount: recipe.numPlayers,
-        packCount: recipe.numPacks,
-        packSize: packSize(recipe),
-      }),
-    ).toBe(0);
+    const plan = planOf('vintage');
+    expect(poolShortfall(plan, () => pool, recipe.numPlayers, packSize(recipe))).toBe(0);
 
     const done = playOut(
       createDraft({
         draftId: 'draft:vintage',
         seed: 'vintage-test',
-        pool,
+        packs: deal(plan, () => pool, 'vintage-test', recipe.numPlayers, packSize(recipe)),
         seatCount: recipe.numPlayers,
         packCount: recipe.numPacks,
         packSize: packSize(recipe),
@@ -152,11 +153,13 @@ describe('real cube lists and real recipes', () => {
     expect(cube).toBeDefined();
     if (cube === undefined) return;
 
+    const pool = poolFromCube(cube);
+    const plan = planOf('dupes');
     const done = playOut(
       createDraft({
         draftId: 'draft:dupes',
         seed: 'dupe-check',
-        pool: poolFromCube(cube),
+        packs: deal(plan, () => pool, 'dupe-check', 8, 15),
         seatCount: 8,
         packCount: 3,
         packSize: 15,

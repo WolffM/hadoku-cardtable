@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { DraftCard, PoolSource } from '@hadoku/shared';
+import type { DraftCard, DraftPlan, PoolSource } from '@hadoku/shared';
 import { deal, poolShortfall } from './deal.ts';
 
 /** A synthetic cube, named so a test can tell which cube a card came from. */
@@ -84,11 +84,11 @@ describe('deal — rounds sharing a cube share one shuffled copy', () => {
   });
 
   it('two DIFFERENT cubes in a custom plan each deal from their own pool', () => {
-    const plan = {
+    const plan: DraftPlan = {
       rounds: [
-        { kind: 'cube' as const, cubeId: 'vintage' },
-        { kind: 'cube' as const, cubeId: 'legacy' },
-        { kind: 'cube' as const, cubeId: 'vintage' },
+        { kind: 'cube', cubeId: 'vintage' },
+        { kind: 'cube', cubeId: 'legacy' },
+        { kind: 'cube', cubeId: 'vintage' },
       ],
     };
     const packs = deal(plan, sources, 'custom-plan', 8, 15);
@@ -105,11 +105,11 @@ describe('deal — rounds sharing a cube share one shuffled copy', () => {
 });
 
 describe('deal — a cube too small for the pod', () => {
-  const TINY_X3 = {
+  const TINY_X3: DraftPlan = {
     rounds: [
-      { kind: 'cube' as const, cubeId: 'tiny' },
-      { kind: 'cube' as const, cubeId: 'tiny' },
-      { kind: 'cube' as const, cubeId: 'tiny' },
+      { kind: 'cube', cubeId: 'tiny' },
+      { kind: 'cube', cubeId: 'tiny' },
+      { kind: 'cube', cubeId: 'tiny' },
     ],
   };
 
