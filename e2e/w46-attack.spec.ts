@@ -418,9 +418,13 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
     await expect(attacker, 'Memnite is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
     for (const page of pages) await expect(swords(page), 'no mark before it is selected').toHaveCount(0);
 
-    /** The mark as drawn on `page`: Forge's declared attacker, upright on the turned card's own top-left corner. */
-    const expectUpright = async (page: Page): Promise<void> => {
-      const r = await read(page);
+    /**
+     * The mark as drawn in one read `r`: Forge's declared attacker, upright on the turned card's own top-left
+     * corner. The read that saw the mark is the one checked: with no stop on either seat the whole combat can
+     * run out in a few hundred ms (run 39796470673: lock-in to Main 2 in 300 ms), so a second read can find
+     * combat already over.
+     */
+    const expectUpright = (r: Awaited<ReturnType<typeof read>>): void => {
       expect(r.attacking, 'it is Forge’s declared attacker').toBe('true');
       expect(r.tip).toBe('Attacking');
       expect(r.artTransform, 'the card is turned a quarter').not.toBe('none');
@@ -447,7 +451,7 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
     await expect(swords(alice.page), 'the click that selects it marks it on the attacker’s screen').toHaveCount(1, { timeout: 10_000 });
     await unmarkedOnDefender('the defender sees no attacker while the attack is still being chosen');
     await log('selected');
-    await expectUpright(alice.page);
+    expectUpright(await read(alice.page));
 
     // Called back: a second click undeclares it, and the mark goes with it.
     await attacker.locator('button').first().click();
@@ -461,9 +465,12 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
     await expect(swords(alice.page), 'selected again, marked again').toHaveCount(1, { timeout: 10_000 });
     await unmarkedOnDefender('still the attacker’s own choice');
     await clickOnce(alice.page, await says(alice.page), 'ok');
-    await expect(swords(bob.page), 'locked in: the defender sees the attacker').toHaveCount(1, { timeout: 10_000 });
-    await log('locked-in');
-    await expectUpright(bob.page);
+    let lockedIn: Awaited<ReturnType<typeof read>> | null = null;
+    await expect
+      .poll(async () => (lockedIn = await read(bob.page)).mark, { message: 'locked in: the defender sees the attacker', timeout: 10_000 })
+      .toBe(true);
+    console.log(`[at] locked-in bob ${JSON.stringify(lockedIn)}`);
+    expectUpright(lockedIn!);
     await passUntilPhase(pages, /^MAIN2$/, 30_000);
     for (const page of pages) await expect(swords(page), 'combat has ended: the mark is gone').toHaveCount(0, { timeout: 10_000 });
     await log('main2');
