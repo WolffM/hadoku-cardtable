@@ -944,6 +944,11 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 
 	const REALISTIC: PoolSource = { kind: 'set', code: 'ISD', style: 'realistic' };
 
+	/** Every field but `cardId` — `deal()` now stamps its own per-instance id (the fix-forward for the duplicate-name stall), so a byte-for-byte content check compares everything else. */
+	function withoutId(packs: readonly (readonly DraftCard[])[]): unknown {
+		return packs.map((pack) => pack.map(({ cardId: _cardId, ...rest }) => rest));
+	}
+
 	function realisticResolver(): PoolSourceResolver {
 		return {
 			cards: () => {
@@ -962,7 +967,10 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 		r.cacheRealisticRound('pod-realistic', 2, packs);
 		const room = r.open('pod-realistic');
 		const state = stateOf(room);
-		expect(JSON.stringify(state.rounds[0])).toBe(JSON.stringify(packs));
+		expect(JSON.stringify(withoutId(state.rounds[0]!))).toBe(JSON.stringify(withoutId(packs)));
+		// Every dealt card still gets its own unique id.
+		const ids = (state.rounds[0] as DraftCard[][]).flat().map((c) => c.cardId);
+		expect(new Set(ids).size).toBe(ids.length);
 	});
 
 	it('the cached round is consumed once — a SECOND open() for a different draft id never sees a stale entry', () => {
@@ -1006,7 +1014,7 @@ describe('cacheRealisticRound — realistic packs are read back once, by draft i
 			const restored = createDraftRooms({ resolver: realisticResolver(), defaultPlan: DEFAULT_PLAN, now: () => 1_700_000_000_001, storeDir: dir });
 			const room = restored.open('pod-restore');
 			expect(JSON.stringify(stateOf(room).rounds)).toBe(JSON.stringify(dealt));
-			expect(JSON.stringify(stateOf(room).rounds[0])).toBe(JSON.stringify(originalPacks));
+			expect(JSON.stringify(withoutId(stateOf(room).rounds[0]!))).toBe(JSON.stringify(withoutId(originalPacks)));
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

@@ -8,6 +8,13 @@
 import { describe, expect, it } from 'vitest';
 import type { DraftCard, DraftPlan, PoolSource } from '@hadoku/shared';
 import { deal, poolShortfall, type RealisticPacks } from './deal.ts';
+import { createDraft, pick, waitingOn } from './engine.ts';
+import { runBots } from './bot.ts';
+
+/** Every field but `cardId` — `deal()` now stamps its own per-instance id (wave 74 §E fix-forward: "every dealt card instance gets a unique id within its draft"), so a byte-for-byte content check compares everything else. */
+function withoutId(packs: readonly (readonly DraftCard[])[]): unknown {
+  return packs.map((pack) => pack.map(({ cardId: _cardId, ...rest }) => rest));
+}
 
 /** A synthetic cube, named so a test can tell which cube a card came from. */
 function makeCube(name: string, size: number): DraftCard[] {
@@ -235,7 +242,10 @@ describe('deal — realistic: pre-fetched packs are played back, never shuffled'
   it('round 0 is exactly the packs the caller supplied, byte for byte', () => {
     const realistic: RealisticPacks = (round) => (round === 0 ? forgePacks(8) : undefined);
     const packs = deal(REALISTIC_X1, sources, 'realistic-plan', 8, 15, realistic);
-    expect(JSON.stringify(packs[0])).toBe(JSON.stringify(forgePacks(8)));
+    expect(JSON.stringify(withoutId(packs[0]!))).toBe(JSON.stringify(withoutId(forgePacks(8))));
+    // Every dealt card still gets its own unique id (the fix-forward below).
+    const ids = packs[0]!.flat().map((c) => c.cardId);
+    expect(new Set(ids).size).toBe(ids.length);
     // Round 1 (a cube) still deals normally, untouched by the realistic hook.
     expect(packs[1]!.every((pack) => pack.every((c) => c.name.startsWith('vintage')))).toBe(true);
   });
@@ -262,11 +272,179 @@ describe('deal — realistic: pre-fetched packs are played back, never shuffled'
     const round1 = forgePacks(8).map((pack) => pack.map((c) => ({ ...c, cardId: `${c.cardId}-r1` })));
     const realistic: RealisticPacks = (round) => (round === 0 ? round0 : round === 1 ? round1 : undefined);
     const packs = deal(plan, sources, 'two-realistic-rounds', 8, 15, realistic);
-    expect(JSON.stringify(packs[0])).toBe(JSON.stringify(round0));
-    expect(JSON.stringify(packs[1])).toBe(JSON.stringify(round1));
+    expect(JSON.stringify(withoutId(packs[0]!))).toBe(JSON.stringify(withoutId(round0)));
+    expect(JSON.stringify(withoutId(packs[1]!))).toBe(JSON.stringify(withoutId(round1)));
   });
 
   it('poolShortfall never counts a realistic round — Forge always hands back exactly seatCount boosters', () => {
     expect(poolShortfall(REALISTIC_X1, sources, 8, 15)).toBe(0);
+  });
+});
+
+/*
+ * PRODUCTION INCIDENT (found by lane F's e2e, main 705e2468): a custom
+ * ALA-realistic/ALA-realistic/ARB-realistic draft hung at pick ~3, every
+ * seat (humans and bots) frozen, no error, no log. `runBots` breaks silently
+ * when a full pass makes no progress (`bot.ts`'s own design) — F's frames
+ * showed the same `cardId` held by different seats at the same instant
+ * (e.g. "island" in both seat 0's and seat 1's packs at pick 1): the
+ * catalog's `byName`/`byPrinting` key a card's gameplay fields by NAME, one
+ * cached `DraftCard` per name, never cloned — so a name that recurs (a small
+ * realistic set's commons, or a set-cube's wrap-on-shortfall copies) hands
+ * out the SAME `cardId` to more than one dealt slot.
+ *
+ * `pick()` is proven safe against that BY ITSELF (it is scoped to the
+ * caller's own pack array — see `engine.ts`'s own header on why), and this
+ * suite's own reproduction attempts (several, including one against the
+ * real jar's ALA/ARB boosters through a hand-built version of the real
+ * pipeline) never stalled `runBots` either. The proximate trigger for the
+ * production hang was NOT conclusively identified in the time available —
+ * see this lane's closing note. The fix below stands on its own: it is the
+ * SAME invariant `cubes.test.ts`'s "a draft over a real cube never deals
+ * the same card twice" already holds cube sources to, generalized to every
+ * source kind, at the one mechanism (`deal()`) every dealt card already
+ * passes through.
+ *
+ * These tests drive a FULL draft to completion through the exact
+ * pick/runBots path the socket uses (`playOut`, below — the same shape
+ * `cubes.test.ts`'s own `playOut` already uses), for every source kind and
+ * a mixed plan, and assert both completion AND global `cardId` uniqueness.
+ */
+describe('a full draft, every source kind: completes, and no cardId is ever dealt twice', () => {
+  const SEATS = 8;
+
+  /** A small shared "catalog": the SAME object for every occurrence of a name — exactly `catalog.ts`'s `byName`/`byPrinting` (`cards.get(key)`, never cloned). */
+  function aliasedCatalog(setCode: string) {
+    const cache = new Map<string, DraftCard>();
+    return (i: number): DraftCard => {
+      const name = `${setCode} common ${i}`;
+      const existing = cache.get(name);
+      if (existing !== undefined) return existing;
+      const card: DraftCard = {
+        cardId: name.toLowerCase(), // the catalog's canonical name key — SAME for every occurrence
+        name,
+        manaCost: [],
+        manaValue: 1 + (i % 4),
+        colors: [],
+        typeLine: 'Creature — Test',
+        oracleText: '',
+        setCode,
+        collectorNumber: String(i + 1),
+        rarity: 'common',
+      };
+      cache.set(name, card);
+      return card;
+    };
+  }
+
+  /** `cubes.test.ts`'s own `playOut`: bots catch up, then one human (the lowest-numbered owing seat) picks the first card in their pack — the exact pick/runBots shape `room/socket.ts` drives. */
+  function playOut(state: ReturnType<typeof createDraft>): ReturnType<typeof createDraft> {
+    let current = state;
+    for (let guard = 0; guard < 2000; guard++) {
+      if (current.status === 'complete') break;
+      current = runBots(current).state;
+      const owing = waitingOn(current);
+      if (owing.length === 0) continue;
+      const seatId = owing[0] as number;
+      const card = (current.packs[seatId] as DraftCard[])[0];
+      if (card === undefined) break;
+      const result = pick(current, seatId, card.cardId);
+      if (!result.ok) break;
+      current = result.state;
+    }
+    return current;
+  }
+
+  function assertCompleteNoDuplicates(done: ReturnType<typeof createDraft>): void {
+    expect(done.status).toBe('complete');
+    const seen = new Set<string>();
+    for (const pool of done.pools) {
+      expect((pool as DraftCard[]).length).toBe(45);
+      for (const card of pool as DraftCard[]) {
+        expect(seen.has(card.cardId)).toBe(false);
+        seen.add(card.cardId);
+      }
+    }
+    expect(seen.size).toBe(SEATS * 45);
+  }
+
+  function humansAndNoBots() {
+    return { humans: [{ participantId: 'fk:alice', displayName: 'alice' }, { participantId: 'fk:bob', displayName: 'bob' }] };
+  }
+
+  it('cube: completes with no duplicate cardId', () => {
+    const plan: DraftPlan = { rounds: [{ kind: 'cube', cubeId: 'vintage' }, { kind: 'cube', cubeId: 'vintage' }, { kind: 'cube', cubeId: 'vintage' }] };
+    const done = playOut(
+      createDraft({ draftId: 'full-cube', seed: 'full-cube', packs: deal(plan, sources, 'full-cube', SEATS, 15), seatCount: SEATS, packCount: 3, packSize: 15, ...humansAndNoBots() }),
+    );
+    assertCompleteNoDuplicates(done);
+  });
+
+  it('set-cube: wrap-on-shortfall copies (same name, same cardId pre-fix) complete with no duplicate cardId', () => {
+    const catalog = aliasedCatalog('ARB');
+    const smallSet = Array.from({ length: 60 }, (_, i) => catalog(i)); // < 360 needed — wraps, reusing the SAME names/objects
+    const src: PoolSource = { kind: 'set', code: 'ARB', style: 'set-cube' };
+    const plan: DraftPlan = { rounds: [src, src, src] };
+    const done = playOut(
+      createDraft({ draftId: 'full-set-cube', seed: 'full-set-cube', packs: deal(plan, () => smallSet, 'full-set-cube', SEATS, 15), seatCount: SEATS, packCount: 3, packSize: 15, ...humansAndNoBots() }),
+    );
+    assertCompleteNoDuplicates(done);
+  });
+
+  it('realistic: duplicate names within AND across packs (same cardId pre-fix) complete with no duplicate cardId — the production case', () => {
+    const catalog = aliasedCatalog('ALA');
+    const POOL = 15; // forces within-pack and cross-pack repeats, like a small set's commons
+    const booster = (seedBase: number): DraftCard[] => Array.from({ length: 15 }, (_, i) => catalog((seedBase * 7 + i * 3) % POOL));
+    const roundsPacks: DraftCard[][][] = [
+      Array.from({ length: SEATS }, (_, seat) => booster(seat)),
+      Array.from({ length: SEATS }, (_, seat) => booster(seat + SEATS)),
+      Array.from({ length: SEATS }, (_, seat) => booster(seat + 2 * SEATS)),
+    ];
+    const src: PoolSource = { kind: 'set', code: 'ALA', style: 'realistic' };
+    const plan: DraftPlan = { rounds: [src, src, src] };
+    const neverCalled = (): readonly DraftCard[] => {
+      throw new Error('a realistic round must never ask for a pool to shuffle');
+    };
+    const done = playOut(
+      createDraft({
+        draftId: 'full-realistic',
+        seed: 'full-realistic',
+        packs: deal(plan, neverCalled, 'full-realistic', SEATS, 15, (round) => roundsPacks[round]),
+        seatCount: SEATS,
+        packCount: 3,
+        packSize: 15,
+        ...humansAndNoBots(),
+      }),
+    );
+    assertCompleteNoDuplicates(done);
+  });
+
+  it('mixed: cube / set-cube-with-copies / realistic-with-dupes, one per round, completes with no duplicate cardId', () => {
+    const arb = aliasedCatalog('ARB');
+    const smallSet = Array.from({ length: 60 }, (_, i) => arb(i));
+    const ala = aliasedCatalog('ALA');
+    const POOL = 15;
+    const booster = (seedBase: number): DraftCard[] => Array.from({ length: 15 }, (_, i) => ala((seedBase * 7 + i * 3) % POOL));
+    const realisticRound = Array.from({ length: SEATS }, (_, seat) => booster(seat));
+    const plan: DraftPlan = {
+      rounds: [{ kind: 'cube', cubeId: 'vintage' }, { kind: 'set', code: 'ARB', style: 'set-cube' }, { kind: 'set', code: 'ALA', style: 'realistic' }],
+    };
+    const mixedSources = (src: PoolSource): readonly DraftCard[] => {
+      if (src.kind === 'cube' && src.cubeId === 'vintage') return VINTAGE;
+      if (src.kind === 'set' && src.code === 'ARB') return smallSet;
+      throw new Error(`mixed: unexpected source ${JSON.stringify(src)}`);
+    };
+    const done = playOut(
+      createDraft({
+        draftId: 'full-mixed',
+        seed: 'full-mixed',
+        packs: deal(plan, mixedSources, 'full-mixed', SEATS, 15, (round) => (round === 2 ? realisticRound : undefined)),
+        seatCount: SEATS,
+        packCount: 3,
+        packSize: 15,
+        ...humansAndNoBots(),
+      }),
+    );
+    assertCompleteNoDuplicates(done);
   });
 });
