@@ -157,6 +157,30 @@ describe.skipIf(!available.ok)(title, () => {
 		expect(unplayable).toEqual(['Not A Real Card']);
 	});
 
+	/**
+	 * A real integration bug (lane A booting the wired server against a real
+	 * jar): the verdict sends a cube's `DraftCard` names, which are Scryfall's
+	 * `Front // Back` for every two-faced card — the shape `check`'s own
+	 * callers actually feed it, not the `.dck`-derived names the shortlist test
+	 * above happened to use. Forge never indexes a transform/MDFC/adventure
+	 * card under that joined form (`PlayBridge.forgeCardName`'s own doc), so
+	 * every real cube with one DFC was refused wholesale — including the
+	 * default plan (MTGO Legacy Cube 2021-08 came back with 23 "unplayable"
+	 * names, all DFCs). `check` must resolve the Scryfall-style name to Forge's
+	 * own filing name first, exactly as a drafted deck's own lines do.
+	 */
+	it("check resolves a two-faced card's Scryfall name to Forge's own, and still refuses a wrong pairing", async () => {
+		if (!available.ok) return;
+		const realDfcs = await service().check([
+			"Jace, Vryn's Prodigy // Jace, Telepath Unbound", // transform
+			'Fire // Ice', // split — already Forge's own joined name
+			'Delver of Secrets // Insectile Aberration', // transform
+		]);
+		expect(realDfcs).toEqual([]);
+		const wrongBack = await service().check(["Jace, Vryn's Prodigy // Not His Back"]);
+		expect(wrongBack).toEqual(["Jace, Vryn's Prodigy // Not His Back"]);
+	});
+
 	it('sets() includes ISD and ARB', async () => {
 		if (!available.ok) return;
 		const sets = await service().sets();
