@@ -1635,7 +1635,7 @@ describe('an attack declaration is the attacker’s own until it is locked in', 
   const defender = live.players.find((p) => !p.isActive)!;
   const creature = attacker.battlefield[0]!.id;
 
-  function declaring(priorityTo: number): WireState {
+  function declaring(priorityTo: number): Map<string, WireObject> {
     const state = baseState();
     for (const [key, obj] of state) {
       if (obj._type === DELTA_TYPE.game) {
@@ -1651,14 +1651,30 @@ describe('an attack declaration is the attacker’s own until it is locked in', 
       }
     }
     const card = deltaKey(DELTA_TYPE.card, creature);
-    state.set(card, { ...state.get(card)!, Attacking: { t: 'bool', v: true } } as WireObject);
+    state.set(card, { ...state.get(card)!, Attacking: { t: 'bool', v: true }, Tapped: { t: 'bool', v: false } } as WireObject);
     return state;
   }
 
-  const seenBy = (state: WireState, viewerPlayerId: number, watcher = false) => {
-    const view = toBoardView(state, 27, { viewerPlayerId, watcher });
+  const seenBy = (state: WireState, viewerPlayerId: number, watcher = false, attackLocked = false) => {
+    const view = toBoardView(state, 27, { viewerPlayerId, watcher, attackLocked });
     return { attacking: view.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)), bands: (view.combat ?? []).length };
   };
+
+  const tapped = (state: Map<string, WireObject>): WireState => {
+    setCard(state, creature, 'Tapped', { t: 'bool', v: true });
+    return state;
+  };
+
+  // Once the attacker passes, priority is the defender's again, as it was while the attacker picked.
+  it('the defender holding priority after the attacker passed sees the attack: its attackers are tapped', () => {
+    expect(seenBy(tapped(declaring(defender.id)), defender.id)).toEqual({ attacking: [creature], bands: 1 });
+    expect(seenBy(tapped(declaring(defender.id)), attacker.id, true)).toEqual({ attacking: [creature], bands: 1 });
+  });
+
+  it('a vigilant attack stays drawn once this screen has seen it locked in, though nothing is tapped', () => {
+    expect(seenBy(declaring(defender.id), defender.id, false, true)).toEqual({ attacking: [creature], bands: 1 });
+    expect(seenBy(declaring(defender.id), attacker.id, true, true)).toEqual({ attacking: [creature], bands: 1 });
+  });
 
   it('the defender sees no attacker while the attacker is still picking, and every one once it is locked in', () => {
     expect(seenBy(declaring(defender.id), defender.id)).toEqual({ attacking: [], bands: 0 });
