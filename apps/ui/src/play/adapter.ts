@@ -561,6 +561,15 @@ export interface BoardPlayer {
    */
   emblems?: readonly BoardEmblem[];
   /**
+   * The rest of the player's `Command` zone, as cards: the initiative, the monarch, a dungeon, a
+   * commander, any effect Forge keeps there (an emblem is not one: it is a medallion,
+   * {@link emblems}). The operator, 2026-10-22: *"i don't see 'initiative' anywhere … same with other
+   * stuff like monarch"*, and *"for command zone i guess we need a place for that. maybe by default
+   * we use the bottom right of the board?"* A public zone, sent both seats in full. Absent for a
+   * player with nothing there.
+   */
+  command?: readonly BoardCard[];
+  /**
    * The watchparty character this seat picked, as an id — wave 28 item 4's
    * render half, populated for real as of wave 29 §A.6-8.
    *
@@ -1859,6 +1868,7 @@ export function toBoardView(
     const unheld = unclaimed !== undefined && !isViewer && !unclaimed.seated.has(pid);
     const avatarId = avatarByPlayerId?.get(pid) ?? (unheld ? unclaimed.avatarId : undefined);
     const emblems = readEmblems(state, p, artIds, printedPT);
+    const command = cardsIn(idsOf(p, 'Command').filter((id) => !boolOf(state.get(deltaKey(DELTA_TYPE.card, id)), 'IsEmblem')));
     const hand = isViewer ? cardsIn(handIds).map((c) => seenByOthers(state, c, viewerPlayerId)) : null;
     const holdsStorm = hand?.some((c) => hasKeyword(c.keywords, 'storm')) === true;
     const isActive = pid === activePlayerId;
@@ -1883,6 +1893,7 @@ export function toBoardView(
       manaPool: readManaPool(p, 'Mana'),
       counters: countersOf(p),
       ...(emblems.length === 0 ? {} : { emblems }),
+      ...(command.length === 0 ? {} : { command }),
       ...(holdsStorm ? { storm: prop(game, 'StormCount') === undefined ? 0 : readInt(game, 'StormCount') } : {}),
       ...(extraTurns > 0 ? { extraTurns } : {}),
       ...(isActive && boolOf(p, 'IsExtraTurn') ? { extraTurn: true as const } : {}),

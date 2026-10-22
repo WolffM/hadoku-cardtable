@@ -3700,6 +3700,16 @@ function PlayerArea({
       ) : (
         <HiddenHand player={player} ownerSide={side} interaction={interaction} />
       )}
+      {/*
+       * The Command zone: the initiative, the monarch, a dungeon, a commander — every card there
+       * but an emblem, which is a medallion on the face. At the end of the hand row, the board's
+       * bottom right on yours and the mirror on theirs (the operator, 2026-10-22: "for command zone
+       * i guess we need a place for that. maybe by default we use the bottom right of the board?").
+       * Drawn only while it holds a card, and the hand alone gives it room (`board.css`).
+       */}
+      {player.command !== undefined && player.command.length > 0 && (
+        <Zone owner={player.name} ownerSide={side} zone="command" label="Command zone" cards={player.command} interaction={interaction} />
+      )}
     </section>
   );
 }

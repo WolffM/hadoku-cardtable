@@ -1406,6 +1406,58 @@ describe('emblems — a player’s IsEmblem cards in their Command zone', () => 
 });
 
 /*
+ * The Command zone — the operator, 2026-10-22: *"i don't see 'initiative' anywhere … same with other
+ * stuff like monarch"*. The shape is a real game's (`designations.jvm.test.ts`): `The Initiative` and
+ * `The Monarch` are `EFFECT` cards without `IsEmblem`, their faces' `ImageKey` Forge's `[other]`
+ * pieces (`t:initiative|CLB|20☇`, `t:monarch|CMM|50`).
+ */
+describe('the Command zone — every card there but an emblem, as cards with their art', () => {
+  function putPieces(state: Map<string, WireObject>, playerId: number, cards: { id: number; name: string; imageKey: string; set: string; emblem?: boolean }[]): void {
+    for (const c of cards) {
+      state.set(deltaKey(DELTA_TYPE.card, c.id), {
+        _type: DELTA_TYPE.card,
+        _id: c.id,
+        Owner: { t: 'int', v: playerId },
+        Zone: { t: 'enum', c: 'forge.game.zone.ZoneType', v: 'Command' },
+        GamePieceType: { t: 'enum', c: 'forge.card.GamePieceType', v: 'EFFECT' },
+        ...(c.emblem === true ? { IsEmblem: { t: 'bool', v: true } } : {}),
+        CurrentState: { t: 'int', v: 0 },
+        Name: { t: 'str', v: c.name },
+      } as WireObject);
+      state.set(cardStateKey(c.id, 0), {
+        _type: DELTA_TYPE.cardState,
+        _id: c.id * 16,
+        Name: { t: 'str', v: c.name },
+        ImageKey: { t: 'str', v: c.imageKey },
+        SetCode: { t: 'str', v: c.set },
+      } as WireObject);
+    }
+    setZone(state, playerId, 'Command', cards.map((c) => c.id));
+  }
+
+  it('draws the initiative and the monarch at their player, with art; an emblem stays a medallion', () => {
+    const state = baseState();
+    putPieces(state, 0, [
+      { id: 9101, name: 'The Initiative', imageKey: 't:initiative|CLB|20☇', set: 'CLB' },
+      { id: 9102, name: 'Emblem — Sorin, Lord of Innistrad', imageKey: 't:emblem_sorin_lord_of_innistrad|LCC|1', set: 'LCC', emblem: true },
+    ]);
+    putPieces(state, 1, [{ id: 9103, name: 'The Monarch', imageKey: 't:monarch|CMM|50', set: 'CMM' }]);
+    const view = adapt(state);
+    const mine = view.players.find((p) => p.id === 0)!;
+    const theirs = view.players.find((p) => p.id === 1)!;
+    expect(mine.command?.map((c) => c.card.name)).toEqual(['The Initiative']);
+    expect(mine.emblems?.map((e) => e.id)).toEqual([9102]);
+    expect(theirs.command?.map((c) => c.card.name)).toEqual(['The Monarch']);
+    expect(mine.command?.[0]?.card.scryfallId).toBe('2c65185b-6cf0-451d-985e-56aa45d9a57d#back');
+    expect(theirs.command?.[0]?.card.scryfallId, 'the monarch has its art').toBeDefined();
+  });
+
+  it('a player with nothing there carries no key', () => {
+    for (const p of adapt(baseState()).players) expect(p).not.toHaveProperty('command');
+  });
+});
+
+/*
  * The storm count — the operator, 2026-10-14: *"show storm counter as an emblem if storm card in
  * hand"*. `GameView.StormCount` is one number for the game; the board puts it on the viewer's own
  * seat while their hand holds a Storm card, and never on another seat.

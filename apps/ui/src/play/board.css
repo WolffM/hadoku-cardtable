@@ -896,6 +896,46 @@
 }
 
 /*
+ * The Command zone (`Board.tsx`): a column at the end of the hand row, the board's bottom right on
+ * yours and the top right on theirs. The column exists only while the zone holds a card, and the
+ * battlefield spans it, so the battlefield never changes width: the hand alone gives the room.
+ */
+.board .seat:has(> .zone--command) {
+  grid-template-columns: var(--who-w) minmax(0, 1fr) auto;
+  grid-template-areas:
+    'side field field'
+    'side hand command';
+}
+
+.board .seat:not([data-viewer]):has(> .zone--command) {
+  grid-template-areas:
+    'side hand command'
+    'side field field';
+}
+
+.seat > .zone--command {
+  grid-area: command;
+  min-height: 0;
+}
+
+/* One row of cards, each as tall as the row (`--zone-h`, `zone-box.ts`), side by side. */
+.board .seat .zone--command .zone__cards {
+  --card-w: calc(var(--zone-h, 0px) / var(--card-tall));
+
+  display: flex;
+  gap: var(--cards-gap);
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board .seat .zone--command .zone__cards > li {
+  flex: none;
+  width: var(--card-w);
+}
+
+/*
  * The piles: the graveyard and, under it, exile — the rest of the left column
  * after the avatar and the counts (wave 32 Q9). `flex: 1` is the whole rule: the
  * graveyard is as tall as the column leaves it, and nothing here is a fraction.

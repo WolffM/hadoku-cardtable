@@ -20,7 +20,7 @@
  * callbacks, which the observer runs after, so nothing that reads the board in a frame callback
  * (`e2e/table-fit.spec.ts` does, every frame) sees the old sizes for the one frame of a resize.
  */
-export const ZONE_BOXES = '.seat > .zone--battlefield, .seat > .zone--hand, .zone__row, .seat .zone--graveyard, .seat .zone--exile, .seat .zone--library';
+export const ZONE_BOXES = '.seat > .zone--battlefield, .seat > .zone--hand, .seat > .zone--command, .zone__row, .seat .zone--graveyard, .seat .zone--exile, .seat .zone--library';
 
 /**
  * A pile's own card, measured too: its width is the column the grid gave it, which a crowded row

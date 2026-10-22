@@ -267,6 +267,24 @@ describe('the turn bar is deleted (§A.4)', () => {
   });
 });
 
+describe('the Command zone', () => {
+  // 2026-10-22: *"for command zone i guess we need a place for that. maybe by default we use the bottom right of the board?"*
+  it('draws each player’s Command zone as cards at the end of their hand row, and none for a player with nothing there', () => {
+    const base = boardFromFixture(fixture);
+    const piece = (id: number, name: string): BoardCard => ({ ...base.players[0]!.battlefield[0]!, id, attachedCardIds: [], card: { ...base.players[0]!.battlefield[0]!.card, name } });
+    const view = { ...base, players: base.players.map((p) => (p.isViewer ? { ...p, command: [piece(9001, 'The Initiative'), piece(9002, 'Undercity')] } : p)) };
+    const { seat, zone, container } = renderBoard(view);
+    const mine = zone(0, 'command');
+    expect(mine.getAttribute('aria-label')).toMatch(/Command zone$/);
+    expect(mine.dataset.count).toBe('2');
+    expect([...mine.querySelectorAll<HTMLElement>('.board-card')].map((c) => Number(c.dataset.cardId))).toEqual([9001, 9002]);
+    // After the hand, in the seat: `board.css` puts it in the hand row's last column.
+    expect(mine.previousElementSibling?.getAttribute('data-zone')).toBe('hand');
+    expect(seat(1).querySelector('[data-zone="command"]'), 'the other player holds nothing there').toBeNull();
+    expect(container.querySelectorAll('[data-zone="command"]')).toHaveLength(1);
+  });
+});
+
 describe('players', () => {
   it('draws both players, the viewer last on screen, with their life totals', () => {
     const { getAllByTestId, seat } = renderBoard();
