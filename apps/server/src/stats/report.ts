@@ -165,7 +165,7 @@ export function buildMatchReport(facts: MatchFacts, start: MatchStart): MatchRep
 }
 
 /** The rating pool a series result is recorded in, apart from its games' own (`constructed`), so no game counts twice. */
-export const SERIES_STATS_MODE = 'constructed-series';
+const SERIES_STATS_MODE = 'constructed-series';
 
 /** A series' seat, as `buildSeriesReport` takes it: who it was, already resolved to a stats kind. */
 export interface SeriesSeatStart {

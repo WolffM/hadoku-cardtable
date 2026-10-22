@@ -153,7 +153,7 @@ export function parseDeckRef(raw: unknown, where: string): Parse<DeckRef> {
 	return { ok: false, error: `${where} is { library } or { dck }` };
 }
 
-export function parseRules(raw: unknown, where: string): Parse<DeckRules> {
+function parseRules(raw: unknown, where: string): Parse<DeckRules> {
 	if (!isRecord(raw)) return { ok: false, error: `${where} is { kind: 'standard', format } or { kind: 'draft', draftId }` };
 	if (raw.kind === 'standard') {
 		const extra = onlyKeys(raw, ['kind', 'format'], where);
@@ -257,7 +257,7 @@ function codepoint(ch: string): string {
  *     (`PlayBridge.parseDeck`).
  *   - the characters `ambiguousCharacter` finds, above.
  */
-export function dckShapeIssues(text: string, file: ReturnType<typeof parseDck>): WireIssue[] {
+function dckShapeIssues(text: string, file: ReturnType<typeof parseDck>): WireIssue[] {
 	const issues: WireIssue[] = [];
 
 	const lines = text.split(/\r?\n/);

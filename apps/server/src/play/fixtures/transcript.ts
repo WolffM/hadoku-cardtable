@@ -32,9 +32,9 @@ import { DELTA_TYPE, cardIdOfState, deltaKey } from '@hadoku/forge-wire';
 import type { BridgeCommand, BridgeLine, HostEvents, MatchHost, MatchHostFactory, MatchSpec } from '../host.js';
 import { type WireObj } from '../visibility.js';
 
-export const TRANSCRIPT_FILE = resolve(dirname(fileURLToPath(import.meta.url)), 'bridge-two-seats.ndjson');
+const TRANSCRIPT_FILE = resolve(dirname(fileURLToPath(import.meta.url)), 'bridge-two-seats.ndjson');
 
-export const TRANSCRIPT_MATCH = 'm-transcript01';
+const TRANSCRIPT_MATCH = 'm-transcript01';
 
 /**
  * `bridge-flying-seat1.ndjson` — the red `match.jvm.test.ts` run the manager hit, captured

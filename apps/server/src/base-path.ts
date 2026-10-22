@@ -108,7 +108,7 @@ export function checkBasePath(indexHtmlPath: string, basePrefix: string): BasePa
  * emits them, watchparty imports the `.js`. Every other file in the bundle is
  * content-hashed; these are the only ones whose bytes change under one name.
  */
-export const EMBED_ENTRIES = ['cardtable-embed.js', 'cardtable-embed.css'] as const;
+const EMBED_ENTRIES = ['cardtable-embed.js', 'cardtable-embed.css'] as const;
 
 export function isEmbedEntry(filePath: string): boolean {
 	return EMBED_ENTRIES.some((name) => filePath.endsWith(`${sep}embed${sep}${name}`));

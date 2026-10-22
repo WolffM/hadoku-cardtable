@@ -477,17 +477,17 @@ export interface ReapResult {
 export const MAX_CONCURRENT_MATCHES = 10;
 
 /** The per-JVM heap cap, unless `CARDTABLE_PLAY_JVM_OPTS` sets its own. See "The ceiling". */
-export const DEFAULT_JVM_HEAP = '-Xmx1g';
+const DEFAULT_JVM_HEAP = '-Xmx1g';
 
 /** A spare that died idle is replaced after this long… */
-export const SPARE_RETRY_MS = 5000;
+const SPARE_RETRY_MS = 5000;
 /** …and after this many such deaths in a row, not at all. */
 export const SPARE_MAX_FAILURES = 3;
 
 const LINE_TYPES = new Set(['ready', 'frame', 'probe', 'gameover', 'log', 'fatal', 'rejected', 'stale', 'unsupported', 'pace', 'resent']);
 
 /** A line from the bridge, or null for one that is not a protocol line. */
-export function parseBridgeLine(text: string): BridgeLine | null {
+function parseBridgeLine(text: string): BridgeLine | null {
 	if (!text.startsWith('{')) return null;
 	let value: unknown;
 	try {
@@ -982,7 +982,7 @@ function crashTime(dir: string, mtimeMs: number): number {
  * Enforce the crash-record bound: the newest `CRASH_RECORDS_KEPT` within
  * `CRASH_RECORD_MAX_AGE_MS` stay, the rest go. Returns what it removed.
  */
-export function pruneCrashRecords(workDir: string, now = Date.now()): { kept: string[]; removed: string[] } {
+function pruneCrashRecords(workDir: string, now = Date.now()): { kept: string[]; removed: string[] } {
 	const records = runDirs(workDir)
 		.filter((d) => existsSync(join(d.dir, CRASH_MARKER)))
 		.map((d) => ({ ...d, at: crashTime(d.dir, d.mtimeMs) }))

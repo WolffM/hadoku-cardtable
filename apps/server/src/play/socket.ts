@@ -269,7 +269,7 @@ function playEmitPolicy(log: PlayLog): EmitPolicy {
 }
 
 /** The longest seat name Forge is shown (wave 31 §S). */
-export const SEAT_NAME_MAX = 24;
+const SEAT_NAME_MAX = 24;
 
 /**
  * A caller-supplied seat name, made safe to hand Forge as a player's name and to
@@ -277,7 +277,7 @@ export const SEAT_NAME_MAX = 24;
  * at most {@link SEAT_NAME_MAX} characters. Absent (`undefined`) when nothing
  * printable is left, so the caller falls back to `Seat N`.
  */
-export function sanitizeSeatName(v: unknown): string | undefined {
+function sanitizeSeatName(v: unknown): string | undefined {
 	if (typeof v !== 'string') return undefined;
 	const cleaned = v
 		// eslint-disable-next-line no-control-regex

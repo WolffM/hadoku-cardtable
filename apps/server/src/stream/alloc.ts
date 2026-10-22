@@ -65,7 +65,7 @@ export const ROOM_STREAM_BASE_PORT = CONFIG.roomStreamBasePort;
  * is ~10.4 GiB — four 2-player rooms, or one pod — and leaves the JVM pool and
  * 24 PM2 services their room. Raising it is a memory decision, not a port one.
  */
-export const ROOM_STREAM_POOL = 8;
+const ROOM_STREAM_POOL = 8;
 
 /** Seats in one room. A pod is 8; a constructed table is 2. */
 export const MAX_ROOM_SEATS = 8;
@@ -87,7 +87,7 @@ export const IDLE_RECLAIM_MS = 30 * 60_000;
  * variable, so the script and the server can never disagree about what this
  * server may touch.
  */
-export const CONTAINER_NAME_PREFIX = CONFIG.streamNamePrefix;
+const CONTAINER_NAME_PREFIX = CONFIG.streamNamePrefix;
 
 export interface RoomStreamSeat {
 	seat: number;

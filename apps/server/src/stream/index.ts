@@ -124,8 +124,8 @@ export function roomStreamPathOf(url: string | undefined): RoomStreamPath | null
 	return { roomKey, seat: Number(m[2]), rest: query === undefined ? rest : `${rest}?${query}` };
 }
 
-export const STREAM_DIR = join(homedir(), '.local', 'share', 'cardtable', 'stream');
-export const STREAMS_FILE = join(STREAM_DIR, 'STREAMS');
+const STREAM_DIR = join(homedir(), '.local', 'share', 'cardtable', 'stream');
+const STREAMS_FILE = join(STREAM_DIR, 'STREAMS');
 
 /**
  * How many containers to expose, read from `STREAMS` on disk.

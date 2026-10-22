@@ -50,7 +50,7 @@ const OP = { continuation: 0x0, text: 0x1, binary: 0x2, close: 0x8, ping: 0x9, p
 const MAX_CONTROL_BYTES = 125;
 
 /** One JSON message. A projected `setGameView` for a 60-card deck is ~100 KB. */
-export const DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
+const DEFAULT_MAX_MESSAGE_BYTES = 4 * 1024 * 1024;
 
 export interface WsCloseInfo {
 	code: number;
