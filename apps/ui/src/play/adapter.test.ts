@@ -1394,6 +1394,9 @@ describe('emblems — a player’s IsEmblem cards in their Command zone', () => 
     ]);
     // The source's art, by its bare name: the emblem's own printing (LCC) has no row.
     expect(owner.emblems?.every((e) => e.scryfallId !== undefined && resolveArtUrl(e.scryfallId, MANIFEST) !== null)).toBe(true);
+    // The emblem's own face, as its trigger's chip draws it (`StackEntry.sourceCard`): its own name, and no art of its own.
+    expect(owner.emblems?.map((e) => e.card.name)).toEqual(['Emblem — Sorin, Lord of Innistrad', 'Emblem — Narset Transcendent']);
+    expect(owner.emblems?.map((e) => e.card.scryfallId)).toEqual([undefined, undefined]);
     expect(view.players.find((p) => p.id === 1)!, 'the other player has none').not.toHaveProperty('emblems');
   });
 

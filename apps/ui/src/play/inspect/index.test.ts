@@ -193,6 +193,35 @@ describe('opening', () => {
     expect(panel(), 'and it stays away until the pointer has left the chip').toBeNull();
   });
 
+  it('hovering a player’s avatar or a medallion shows their emblems as the trigger’s chips; a seat with none opens nothing (the operator, 2026-10-21)', () => {
+    // "we already have the emblem card chip for the trigger, we can just use that. and when hovering
+    // over the player, then we display the card chips."
+    const emblem = (id: number, source: string, text: string) => ({
+      id,
+      source,
+      text,
+      card: { ...card(id, `Emblem — ${source}`).card, scryfallId: undefined, typeLine: 'Emblem', manaCost: [], oracleText: '' },
+    });
+    const emblems = [emblem(9001, 'Sorin, Lord of Innistrad', 'Creatures you control get +1/+0.'), emblem(9002, 'Narset Transcendent', "Your opponents can't cast noncreature spells.")];
+    const { panel, board } = mountBoard(undefined, { ...VIEW, players: [YOU, { ...THEM, emblems }] });
+    const face = (id: number) => board.querySelector<HTMLElement>(`[data-player-face][data-player-id="${id}"]`)!;
+
+    hover(face(1).querySelector('.face__hit')!);
+    const shown = panel();
+    expect(shown, 'their avatar opens the one expanded view').not.toBeNull();
+    const chips = Array.from(shown!.querySelectorAll('[data-ability-chip]'));
+    expect(chips.map((c) => c.querySelector('.placed__chip-name')!.textContent)).toEqual(['Emblem — Sorin, Lord of Innistrad', 'Emblem — Narset Transcendent']);
+    expect(chips.map((c) => c.querySelector('.placed__chip-text')!.textContent)).toEqual(['Creatures you control get +1/+0.', "Your opponents can't cast noncreature spells."]);
+    expect(shown!.querySelector('[hidden]'), 'shown, not the hidden copy').toBeNull();
+    expect(shown!.querySelector('.card'), 'chips, not a card').toBeNull();
+
+    hover(face(1).querySelector('[data-emblem]')!);
+    expect(panel()!.querySelectorAll('[data-ability-chip]'), 'a medallion is part of the avatar').toHaveLength(2);
+
+    hover(face(0).querySelector('.face__hit')!);
+    expect(panel(), 'your avatar has no emblems: nothing to show').toBeNull();
+  });
+
   it('while a decision window is open, ANY hovered card enlarges beside the window, never over it', () => {
     // The operator, 2026-10-06: "if theres a decision window up … then the
     // expanded view needs to stack to the left of that decision window."

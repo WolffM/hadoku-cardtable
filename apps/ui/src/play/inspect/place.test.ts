@@ -257,3 +257,31 @@ describe('placeBesideModal avoids the hovered card too', () => {
     expect(overlaps(spot, hover)).toBe(false);
   });
 });
+
+/*
+ * A player's emblems enlarge as a column of chips (`../Board.tsx`'s `SeatEmblems`), not a card: the
+ * panel is as tall as that column, so it is placed by its own proportion, never a card's.
+ */
+describe('a panel that is not a card’s proportion', () => {
+  const CHIPS_TALL = 0.9;
+
+  it('sits by its own height: a short column of chips keeps its full width where a card would shrink', () => {
+    const hand: Rect = { left: 0, top: 400, right: 1200, bottom: 800 };
+    const hover: Rect = { left: 20, top: 300, right: 80, bottom: 360 };
+    const card = placeInspector(hover, BOARD, hand);
+    expect(card.width, 'a card shrinks to the room above the hand').toBeLessThan(PREF_W);
+    const chips = placeInspector(hover, BOARD, hand, CHIPS_TALL);
+    expect(chips.width).toBe(PREF_W);
+    expect(chips.top + chips.width * CHIPS_TALL, 'and it stays above the hand').toBeLessThanOrEqual(hand.top - GAP);
+  });
+
+  it('beside a decision window, too', () => {
+    const modal: Rect = { left: 700, top: 0, right: 1200, bottom: 800 };
+    const hover: Rect = { left: 20, top: 400, right: 80, bottom: 460 };
+    const spot = placeBesideModal(hover, modal, BOARD, CHIPS_TALL);
+    expect(spot.width).toBe(PREF_W);
+    expect(spot.left + spot.width, 'clear of the window').toBeLessThanOrEqual(modal.left - GAP);
+    expect(spot.top, 'level with the avatar').toBe(hover.top);
+    expect(spot.top + spot.width * CHIPS_TALL).toBeLessThanOrEqual(BOARD.bottom - GAP);
+  });
+});

@@ -15,6 +15,7 @@ import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { cardStateKey, DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
+import type { DraftCard } from '@hadoku/shared';
 
 import { createProjector, type StateFrame } from '../../../server/src/play/visibility.ts';
 import { EXIT_MOTIONS, LEAVING_GAP_ATTR } from './live/departures.ts';
@@ -31,6 +32,7 @@ import {
   type BoardCardChoice,
   type BoardCardState,
   type BoardCardWaiting,
+  type BoardEmblem,
   type BoardView,
   type StackEntry,
 } from './adapter.ts';
@@ -316,45 +318,90 @@ describe('players', () => {
   });
 });
 
+/**
+ * An emblem as the adapter reads it: Forge's effect card, `Emblem — <source>`, its own face carrying
+ * no art of its own (`adapter.ts`'s `readEmblems`), and its source's art for the medallion.
+ */
+function emblemOf(id: number, source: string, text: string): BoardEmblem {
+  const card: DraftCard = {
+    cardId: `w${id}`,
+    name: `Emblem — ${source}`,
+    manaCost: [],
+    manaValue: 0,
+    colors: [],
+    typeLine: 'Emblem',
+    oracleText: '',
+    setCode: 'LCC',
+    collectorNumber: '',
+    rarity: 'special',
+  };
+  return { id, source, text, card };
+}
+
 /*
  * The operator, 2026-10-14: *"i need a visual for emblems. let's make it so they go around the
- * player's avatar and hovering the players avatar shows all their emblems."*
+ * player's avatar and hovering the players avatar shows all their emblems."* And 2026-10-21: *"we
+ * already have the emblem card chip for the trigger, we can just use that. and when hovering over
+ * the player, then we display the card chips. i do like the little circular icon around their
+ * avatar, that's cute."*
  */
 describe('emblems around the avatar', () => {
-  const emblem = (id: number, source: string, text: string) => ({ id, source, text });
-  const withEmblems = (n: number) => {
+  const all = [
+    emblemOf(1, 'Sorin, Lord of Innistrad', 'Creatures you control get +1/+0.'),
+    emblemOf(2, 'Gideon, Ally of Zendikar', 'Creatures you control get +1/+1.'),
+    emblemOf(3, 'Elspeth, Sun’s Champion', 'Creatures you control get +2/+2 and have flying.'),
+    emblemOf(4, 'Narset Transcendent', "Your opponents can't cast noncreature spells."),
+    emblemOf(5, 'Venser, the Sojourner', 'Whenever you cast a spell, exile target permanent.'),
+  ];
+  const withEmblems = (n: number, seats: 'them' | 'both' = 'them') => {
     const base = boardFromFixture(fixture);
-    const all = [
-      emblem(1, 'Sorin, Lord of Innistrad', 'Creatures you control get +1/+0.'),
-      emblem(2, 'Gideon, Ally of Zendikar', 'Creatures you control get +1/+1.'),
-      emblem(3, 'Elspeth, Sun’s Champion', 'Creatures you control get +2/+2 and have flying.'),
-      emblem(4, 'Narset Transcendent', "Your opponents can't cast noncreature spells."),
-      emblem(5, 'Venser, the Sojourner', 'Whenever you cast a spell, exile target permanent.'),
-    ].slice(0, n);
-    return { ...base, players: base.players.map((p) => (p.isViewer ? p : { ...p, emblems: all })) };
+    return { ...base, players: base.players.map((p) => (p.isViewer && seats === 'them' ? p : { ...p, emblems: all.slice(0, n) })) };
   };
+  /** The chips a seat's avatar holds for the inspector (`inspect/`): the emblem trigger's own chip, one per emblem. */
+  const chipsOf = (seat: HTMLElement) => Array.from(seat.querySelectorAll<HTMLElement>('[data-player-face] [data-emblem-chips] [data-ability-chip]'));
 
-  it('draws one medallion per emblem around their owner’s avatar, and the avatar and each medallion tip every emblem', () => {
+  it('draws one medallion per emblem around their owner’s avatar, and no text tip on the avatar or a medallion', () => {
     const { seat } = renderBoard(withEmblems(2));
     expect(seat(0).querySelectorAll('[data-emblem]'), 'none on the other seat').toHaveLength(0);
-    expect(seat(0).querySelector('[data-player-face]')!.hasAttribute('data-tip'), 'and no tip on their avatar').toBe(false);
+    expect(chipsOf(seat(0)), 'and no chips on the other seat').toHaveLength(0);
     const medallions = Array.from(seat(1).querySelectorAll<HTMLElement>('[data-emblem]'));
     expect(medallions.map((m) => m.dataset.slot)).toEqual(['0', '1']);
-    const tip = seat(1).querySelector<HTMLElement>('[data-player-face]')!.dataset.tip!;
-    expect(tip.split('\n').slice(0, 2)).toEqual([
-      'Emblem — Sorin, Lord of Innistrad: Creatures you control get +1/+0.',
-      'Emblem — Gideon, Ally of Zendikar: Creatures you control get +1/+1.',
-    ]);
-    for (const m of medallions) expect(m.dataset.tip).toBe(tip);
+    expect(seat(1).querySelector('[data-player-face]')!.hasAttribute('data-tip'), 'the avatar’s hover is the inspector, not a tip').toBe(false);
+    for (const m of medallions) expect(m.hasAttribute('data-tip'), 'nor a medallion’s').toBe(false);
   });
 
-  it('past four, three medallions and a fourth that counts the rest', () => {
+  it('the avatar holds each emblem as its trigger’s chip — the emblem’s name and Forge’s words — on either seat', () => {
+    const { seat } = renderBoard(withEmblems(2, 'both'));
+    for (const id of [0, 1]) {
+      const chips = chipsOf(seat(id));
+      expect(chips.map((c) => c.querySelector('.placed__chip-name')!.textContent), `seat ${id}`).toEqual([
+        'Emblem — Sorin, Lord of Innistrad',
+        'Emblem — Gideon, Ally of Zendikar',
+      ]);
+      expect(chips.map((c) => c.querySelector('.placed__chip-text')!.textContent)).toEqual(['Creatures you control get +1/+0.', 'Creatures you control get +1/+1.']);
+      expect(seat(id).querySelector<HTMLElement>('[data-emblem-chips]')!.hidden, 'drawn for the inspector to enlarge, not on the table').toBe(true);
+    }
+  });
+
+  it('an emblem has no printed art of its own: its chip draws no art and no illustrator or copyright line', () => {
+    const { seat } = renderBoard(withEmblems(3));
+    const chips = chipsOf(seat(1));
+    expect(chips).toHaveLength(3);
+    for (const c of chips) {
+      expect(c.querySelector('img'), 'no art').toBeNull();
+      expect(c.querySelector('.placed__chip-credit'), 'no credit line').toBeNull();
+      expect(c.textContent).not.toMatch(/Illus\.|WotC/);
+    }
+    expect(seat(1).querySelector('.face__emblems')!.getAttribute('aria-label')).not.toMatch(/Illus\.|WotC/);
+  });
+
+  it('past four, three medallions and a fourth that counts the rest — and every emblem is still a chip', () => {
     const { seat } = renderBoard(withEmblems(5));
     expect(seat(1).querySelectorAll('[data-emblem]')).toHaveLength(3);
     const more = seat(1).querySelector<HTMLElement>('[data-emblem-more]')!;
     expect(more.textContent).toBe('+2');
     expect(more.dataset.slot).toBe('3');
-    expect(more.dataset.tip!.split('\n').filter((l) => l.startsWith('Emblem — '))).toHaveLength(5);
+    expect(chipsOf(seat(1))).toHaveLength(5);
   });
 });
 
@@ -364,7 +411,7 @@ describe('emblems around the avatar', () => {
  * being tracked or extra turns, then it'd be good to show it there."*
  */
 describe('the seat’s status zone', () => {
-  const emblem = (id: number) => ({ id, source: `Source ${id}`, text: `Text ${id}.` });
+  const emblem = (id: number) => emblemOf(id, `Source ${id}`, `Text ${id}.`);
   const base = boardFromFixture(fixture);
   const withViewer = (extra: Partial<BoardView['players'][number]>, them: Partial<BoardView['players'][number]> = {}): BoardView => ({
     ...base,
