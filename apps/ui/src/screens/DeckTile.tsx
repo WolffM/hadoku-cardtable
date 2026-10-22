@@ -23,6 +23,8 @@ export type DeckTileProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'child
 };
 
 export function DeckTile({ option, checked, className, children, ref, ...button }: DeckTileProps) {
+  // A deck with a list opens its peek on hover, which names it and its style; a native tooltip on top doubles it.
+  const peekable = option.list !== undefined;
   return (
     <button
       ref={ref}
@@ -35,11 +37,11 @@ export function DeckTile({ option, checked, className, children, ref, ...button 
       {...button}
     >
       <DeckArt artId={option.artId} />
-      <span className="deckpick__name" title={option.label}>
+      <span className="deckpick__name" title={peekable ? undefined : option.label}>
         {option.name ?? option.label}
       </span>
-      {option.deckStyle !== undefined && <DeckStyleTag style={option.deckStyle} markOnly />}
-      <DeckColors colors={option.colors} label={`${option.label}: ${option.colors.length === 0 ? 'colourless' : option.colors.join(' ')}`} />
+      {option.deckStyle !== undefined && <DeckStyleTag style={option.deckStyle} markOnly titled={!peekable} />}
+      <DeckColors colors={option.colors} titled={!peekable} label={`${option.label}: ${option.colors.length === 0 ? 'colourless' : option.colors.join(' ')}`} />
       {option.pilot !== undefined && <span className="deckpick__pilot">{option.pilot}</span>}
       {checked === true && (
         <span className="deckpick__mark" aria-hidden="true">

@@ -224,14 +224,15 @@ export function readManaToken(token: string): ManaSymbol {
  */
 const PIP_SHIM = { display: 'contents', fontSize: 'inherit' } as const;
 
-export function ManaPip({ token }: { token: string }) {
+/** `titled: false` drops the hover text where something else on hover already names the colour (a deck tile's peek). */
+export function ManaPip({ token, titled = true }: { token: string; titled?: boolean }) {
   const symbol = readManaToken(token);
 
   if (symbol.mana === null) {
     // No glyph: the token, printed. `pip--wide` is the existing capsule, which
     // fits a label of more than one character.
     return (
-      <span className="pip pip--wide pip--unknown" title={symbol.title} data-token={token}>
+      <span className="pip pip--wide pip--unknown" title={titled ? symbol.title : undefined} data-token={token}>
         {symbol.label}
       </span>
     );
@@ -247,7 +248,7 @@ export function ManaPip({ token }: { token: string }) {
         className={`ms ms-${symbol.mana} ms-cost`}
         role="img"
         aria-label={symbol.title}
-        title={symbol.title}
+        title={titled ? symbol.title : undefined}
       />
     </span>
   );

@@ -67,7 +67,8 @@ function StyleMark({ style }: { style: DeckStyle }) {
   );
 }
 
-export function DeckStyleTag({ style, markOnly = false }: { style: DeckStyle; markOnly?: boolean }) {
+/** `titled: false` drops the mark's native tooltip where a hover already opens the deck's peek, which names the style. */
+export function DeckStyleTag({ style, markOnly = false, titled = true }: { style: DeckStyle; markOnly?: boolean; titled?: boolean }) {
   return markOnly ? (
     <span
       className="decktag decktag--mark"
@@ -75,7 +76,7 @@ export function DeckStyleTag({ style, markOnly = false }: { style: DeckStyle; ma
       data-style={style}
       role="img"
       aria-label={NAMES[style]}
-      title={NAMES[style]}
+      title={titled ? NAMES[style] : undefined}
     >
       <StyleMark style={style} />
     </span>

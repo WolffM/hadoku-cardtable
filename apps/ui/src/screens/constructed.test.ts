@@ -3342,14 +3342,15 @@ describe('the deck dropdown shows its colours', () => {
 // The operator, 2026-10-16: "the black bar at the bottom has two rows: row1: deckname, deck type
 // icon, color symbols. row2: player name".
 describe('a library deck’s tile names the deck, then its player', () => {
-  it('draws the file’s Archetype on the first line and its Pilot on the second, the whole name in the title and the accessible name', async () => {
+  it('draws the file’s Archetype on the first line and its Pilot on the second, the whole name in the accessible name', async () => {
     await mountRoom({ players: [], matchId: null, decks: [UW_DELVER, LONG_NAME_DECK] });
     const group = await deckPicker();
     const uw = deckRow(UW_DELVER.id);
     expect(UW_DELVER.name).toBe(`${UW_DELVER.archetype} (${UW_DELVER.pilot})`);
     const name = uw.querySelector('.deckpick__name')!;
     expect(name.textContent).toBe(UW_DELVER.archetype);
-    expect(name.getAttribute('title')).toBe(UW_DELVER.name);
+    // No native tooltip: hovering opens the peek, which names the deck (operator, 2026-10-21).
+    expect(name.hasAttribute('title')).toBe(false);
     expect(uw.querySelector('.deckpick__pilot')?.textContent).toBe(UW_DELVER.pilot);
     // Deck, player, style and colours, all in what a reader hears.
     const radio = within(group).getByRole('radio', { name: new RegExp(`${UW_DELVER.archetype}.*Aggro.*W U.*${UW_DELVER.pilot}`) });
@@ -3711,13 +3712,13 @@ describe('the deck chooser', () => {
     // The player's row is a fixed height, drawn or not, so every art band is the same size.
     expect(css(deckRow(UW_DELVER.id), 'grid-template')).toMatch(/'pilot pilot pilot' 22px/);
 
-    // The ellipsis hides the overflow visually, but the full name is still there —
-    // on the element's `title`, so a reader (and a mouse hover) still gets it.
-    const short = deckRow(UW_DELVER.id).querySelector('.deckpick__name');
-    const long = deckRow(LONG_NAME_DECK.id).querySelector('.deckpick__name');
-    expect(short?.getAttribute('title')).toBe(UW_DELVER.name);
-    expect(long?.getAttribute('title')).toBe(LONG_NAME_DECK.name);
-    expect(long?.textContent).toBe(LONG_NAME_DECK.archetype);
+    // The ellipsis hides the overflow visually; the full name is in the tile's accessible name, and a
+    // mouse hover opens the peek, which names it — so no native `title` doubles the peek (operator, 2026-10-21).
+    const long = deckRow(LONG_NAME_DECK.id);
+    expect(long.querySelector('.deckpick__name')?.textContent).toBe(LONG_NAME_DECK.archetype);
+    expect(long.querySelector('.deckpick__name')?.hasAttribute('title')).toBe(false);
+    expect(long.getAttribute('aria-describedby') ?? '', 'not peeked yet').toBe('');
+    expect(within(document.querySelector('.deckpick')! as HTMLElement).getByRole('radio', { name: new RegExp(LONG_NAME_DECK.pilot) })).toBe(long);
   });
 });
 

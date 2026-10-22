@@ -277,6 +277,12 @@ describe('choosing a deck for the next game', () => {
     expect(queryByTestId('deck-peek'), 'and gone on the press').toBeNull();
   });
 
+  // The operator, 2026-10-21: hovering a deck showed "the regular page tooltip in-addition to the deck popout".
+  it('a deck that opens its list on hover carries no native tooltip', () => {
+    const { container } = draw(view({ phase: 'banpick', step: BAN_1 }));
+    for (const tile of tiles(container)) expect(tile.querySelector('[title]'), tile.dataset['deckId']).toBeNull();
+  });
+
   it('a played deck cannot be chosen again', () => {
     const decks = picks().map((d) => (d.id === IDS[4] ? { ...d, played: true } : d));
     const { getByTestId } = draw(view({ phase: 'choose', decks, games: [{ decks: [IDS[4], IDS[5]], winner: 0 }], choice: { mine: null, chosen: [false, false] } }));

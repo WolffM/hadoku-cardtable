@@ -135,9 +135,12 @@ export function mainDeckColors(
 export function DeckColors({
   colors,
   label,
+  titled = true,
 }: {
   colors: readonly DeckColor[];
   label?: string;
+  /** False on a tile whose hover opens the deck's peek: the pips' own tooltips would double it. */
+  titled?: boolean;
 }) {
   return (
     <span
@@ -148,7 +151,7 @@ export function DeckColors({
     >
       {colors.map((color) => (
         <span key={color} className="deckcolors__pip" data-color={color}>
-          <ManaPip token={color} />
+          <ManaPip token={color} titled={titled} />
         </span>
       ))}
       {colors.length === 0 && <span className="deckcolors__none">colourless</span>}
