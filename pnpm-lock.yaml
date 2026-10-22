@@ -96,9 +96,6 @@ importers:
       '@hadoku/deck':
         specifier: workspace:*
         version: link:../../packages/deck
-      '@hadoku/draft':
-        specifier: workspace:*
-        version: link:../../packages/draft
       '@hadoku/forge-wire':
         specifier: workspace:*
         version: link:../../packages/forge-wire

@@ -14,7 +14,6 @@
   "dependencies": {
     "@hadoku/carddata": "workspace:*",
     "@hadoku/deck": "workspace:*",
-    "@hadoku/draft": "workspace:*",
     "@hadoku/forge-wire": "workspace:*",
     "@hadoku/shared": "workspace:*",
     "@wolffm/game-stats-ui": "0.1.5",
