@@ -1287,6 +1287,30 @@ describe('a Match with the shortcuts on (the default)', () => {
 		expect(h.logs.filter((l) => l.evt === 'auto-paid')).toHaveLength(1);
 	});
 
+	it('withholds the payment Forge re-shows, offered set and all, before its Auto lands — a press on it would pass the priority after', () => {
+		// cpy-copy-available, run 39845586028: Forge re-sent the {R} payment with its
+		// `setWeaklySelectable` 14 ms after the Auto; alice's screen pressed that Auto, and the
+		// press passed her priority over her own Bolt.
+		const h = harness();
+		const me = playerOf(h, 0);
+		castOwn(h, 0);
+		const payment = (): void => {
+			push(h, 0, { kind: 'notify', method: 'setWeaklySelectable', cards: [{ kind: 'card', id: 67 }] });
+			push(h, 0, autoBar(true, me));
+			push(h, 0, prompt('Lightning Bolt - deals 3 damage to B.\n\nPay Mana Cost: {R}', me, OWN_CARD));
+		};
+		payment();
+		payment();
+		const shownPayments = () => frames(h, 0).filter((f) => f.kind === 'notify' && f.method === 'showPromptMessage' && f.message.includes('Pay Mana Cost'));
+		expect(h.host.commands.filter((c) => c.t === 'act')).toHaveLength(1);
+		expect(h.logs.filter((l) => l.evt === 'prompt-withheld').map((l) => l.why)).toEqual(['auto-pay', 'repeat']);
+		expect(shownPayments()).toEqual([]);
+		// Once the board has moved, the same payment shown again is Forge's to ask: the seat sees it.
+		putCreature(h, 0, 90);
+		payment();
+		expect(shownPayments()).toHaveLength(1);
+	});
+
 	it('presses Auto when Forge offered two sources to tap — the default is Forge’s plan now', () => {
 		const h = harness();
 		const me = playerOf(h, 0);
