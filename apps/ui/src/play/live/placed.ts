@@ -111,7 +111,11 @@ export const LEAVE_FADE_MS = GLIDE_MS;
 export const RESOLVE_BLINK_MS = 400;
 /** AE27: the countered target's destroy motion, before the counter itself fades. */
 export const COUNTERED_MS = 400;
-/** AE27: how long a countered target waits for its counter to leave the stack too. */
+/**
+ * AE27: how long an item that left while something still on the stack targets it waits for that to leave
+ * too. Forge can send the countered spell off in one delta and the counter in the next (w67-counter, run
+ * 39832352790: 67 ms apart, drawn in two commits), and the counter is only drawn as one when both are gone.
+ */
 export const COUNTER_HOLD_MS = 1000;
 /** A placed card easing to the opacity its state draws it at. */
 const FADE_MS = 250;
@@ -547,6 +551,8 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
   let lastView: BoardView | null = null;
   let interaction: PlacedInteraction | undefined;
   const drawn = new Map<number, Drawn>();
+  /** AE27: items gone from the stack, still drawn while something on it targets them (`awaitCounter`). */
+  const awaitingCounter = new Set<number>();
   /** Abilities on the stack never drawn (nobody stopped), by stack id → their source card's id. */
   const undrawn = new Map<number, number | null>();
   /** The latest shimmer on each board card, so an earlier one's timer never cuts a fresh one short. */
@@ -964,6 +970,19 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }, RESOLVE_BLINK_MS);
   }
 
+  /**
+   * AE27: an item gone from the stack while another still there targets it stays drawn until that one leaves
+   * too, so `render` draws them as a counter; past `COUNTER_HOLD_MS` it leaves the ordinary way.
+   */
+  function awaitCounter(id: number, d: Drawn): void {
+    if (awaitingCounter.has(id)) return;
+    awaitingCounter.add(id);
+    schedule(() => {
+      awaitingCounter.delete(id);
+      if (drawn.get(id) === d && !d.leaving) leave(id, d.isAbility ? null : d.sourceCardId);
+    }, COUNTER_HOLD_MS);
+  }
+
   /** An ability nobody stopped has resolved: its source card on the battlefield, if it is there, shimmers once. */
   function shimmer(cardId: number | null): void {
     if (cardId === null || !onBattlefieldNow(cardId)) return;
@@ -1057,7 +1076,14 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       if (!countered.isAbility && countered.sourceCardId !== null && onBattlefieldNow(countered.sourceCardId)) continue;
       counter(id, target!);
     }
-    for (const [id, d] of departed) leave(id, d.isAbility ? null : d.sourceCardId);
+    for (const [id, d] of departed) {
+      const landed = !d.isAbility && d.sourceCardId !== null && onBattlefieldNow(d.sourceCardId);
+      if (!d.leaving && !landed && view.stack.some((i) => i.targetStackItemId === id)) {
+        awaitCounter(id, d);
+        continue;
+      }
+      leave(id, d.isAbility ? null : d.sourceCardId);
+    }
     settleArrivals();
     for (const [id, sourceCardId] of undrawn) {
       if (currentIds.has(id)) continue;
