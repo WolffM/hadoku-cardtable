@@ -909,6 +909,8 @@ export function DeckChooser({
               if (event.pointerType !== 'touch' && option.list !== undefined) openPeekSoon(index);
             }}
             onPointerLeave={hover.closeSoon}
+            // A press is a choice made: the list it was read from goes, and comes back on the next hover.
+            onPointerDown={hover.close}
             aria-describedby={peek?.key === index ? 'deck-peek' : undefined}
           />
         );

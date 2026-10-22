@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GAUNTLET_REVEAL_MS, type GauntletDeck, type GauntletView } from '@hadoku/shared';
 
 import { FLIP_MS } from '../../play/live/CoinToss.tsx';
+import { PEEK_DELAY_MS } from '../DeckPeek.tsx';
 import { GauntletScreen } from './GauntletScreen.tsx';
 import * as reveal from './reveal.ts';
 import { DEAL_FROM_MS, DEAL_STAGGER_MS, TITLE_MS, revealStage } from './reveal.ts';
@@ -255,6 +256,23 @@ describe('choosing a deck for the next game', () => {
     expect([...options].map((o) => o.dataset.deckId)).toEqual([IDS[4], IDS[6], IDS[8]]);
     fireEvent.click(options[1]!);
     expect(onChoose).toHaveBeenCalledWith(IDS[6]);
+  });
+
+  // The operator, 2026-10-21: "if i'm hovering a deck and i click it the expanded decklist should disappear".
+  it('a press on the deck being peeked closes its list, as the choice is made', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const onChoose = vi.fn();
+    const { getByTestId, queryByTestId } = draw(view({ phase: 'choose', decks: picks(), choice: { mine: null, chosen: [false, false] } }), { onChoose });
+    const tile = getByTestId('gauntlet-choose-mine').querySelector<HTMLButtonElement>('[data-testid="gauntlet-deck"]')!;
+    fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PEEK_DELAY_MS);
+    });
+    expect(queryByTestId('deck-peek'), 'the list is open on hover').not.toBeNull();
+    fireEvent.pointerDown(tile, { pointerType: 'mouse' });
+    fireEvent.click(tile);
+    expect(onChoose).toHaveBeenCalledWith(IDS[4]);
+    expect(queryByTestId('deck-peek'), 'and gone on the press').toBeNull();
   });
 
   it('a played deck cannot be chosen again', () => {

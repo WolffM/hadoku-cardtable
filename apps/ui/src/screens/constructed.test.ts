@@ -1387,6 +1387,18 @@ describe('the deck picker', () => {
       });
     };
 
+    // The operator, 2026-10-21: "if i'm hovering a deck and i click it the expanded decklist should disappear".
+    it('closes when its tile is pressed, and opens again on the next hover', async () => {
+      const { tile } = await openPeek();
+      fireEvent.pointerDown(tile, { pointerType: 'mouse' });
+      fireEvent.click(tile);
+      expect(screen.queryByTestId('deck-peek')).toBeNull();
+      fireEvent.pointerLeave(tile);
+      fireEvent.pointerEnter(tile, { pointerType: 'mouse' });
+      await advance(PEEK_DELAY_MS);
+      expect(screen.getByTestId('deck-peek').querySelector('.peek__title')?.textContent).toBe('Jund');
+    });
+
     it('closes when the room’s screen scrolls the grid, which has no scroll of its own', async () => {
       await openPeek();
       fireEvent.scroll(screen.getByTestId('constructed'));

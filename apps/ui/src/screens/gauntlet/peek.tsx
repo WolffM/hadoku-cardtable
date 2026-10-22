@@ -14,6 +14,7 @@ export interface TileBinding {
   ref: (el: HTMLButtonElement | null) => void;
   onPointerEnter: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerLeave: () => void;
+  onPointerDown: () => void;
   'aria-describedby': string | undefined;
 }
 
@@ -41,6 +42,8 @@ export function useTilePeek(options: ReadonlyMap<string, DeckOption>): {
       });
     },
     onPointerLeave: hover.closeSoon,
+    // A press is a choice made: the list it was read from goes, and comes back on the next hover.
+    onPointerDown: hover.close,
     'aria-describedby': open?.key === id ? PEEK_ID : undefined,
   });
   const peek =
