@@ -398,3 +398,33 @@ export ACESTEP_CHECKPOINTS_DIR=~/.cache/ace-step/checkpoints ACESTEP_DISABLE_TQD
   3 GB made ACE-Step's own VRAM pre-flight refuse takes, and then made model loading fail. `music-generate.py` now
   waits and retries on a pre-flight refusal as it does on out-of-memory (which also covers a game starting
   mid-batch), but run soundscapes between ACE-Step batches, not during them.
+
+### Round 4: battle in costume, and a place you are in (2026-10-22)
+
+The operator's round-3 review (24 keep, 28 maybe, 52 no on their own line) retired every take they voted no;
+their vote beats the other reviewers'. *"in a lot of cases the problem was that the music was too repetitive or
+had some jarring sounds that were ugly"*; the maybes were *"generally okay but not interesting enough"*. The keeps
+are two kinds, and `music-round4.json` writes only those:
+
+- **Battle in costume**: one distinctive non-battle genre played as a fight, with a named duel. *"hellfire tango
+  and aero djent felt like battle music which made them fun"*; mad lab swing, gothic waltz and cathedral of blades
+  are the same shape. Plain battle (hard rock, heavy riff boost) was maybe; stacked heroics (power metal, violin
+  metalcore, string djent) were no.
+- **A place you are in**: *"council hall was very immersive"*. Council hall, organ chorale and humming chorale
+  shared one murmuring stone-hall bed; council hall's music was written as heard from the far end of the hall and
+  sat 7 dB under the bed, the other two sat 8–10 dB over it and were no. Round 4's place prompts are written that
+  way and laid 6 dB under their beds.
+- The 16-bit lane kept 1 take of 31, the sparse abyssal sewer; every bright FM or square lead was no. Three pilots
+  try the sewer's recipe before the other slots get it.
+- No and maybe takes carried about twice the keeps' 2–6 kHz share, and keeps had a lower centroid (median 510 Hz
+  against 740–830). Captions ask for a warm, soft-topped mix.
+- Every round-3 prompt shared one five-tag structure with the main theme twice. Round 4 renders 260 s through-
+  composed structures with a quiet breakdown. Their loop ends match less well (0.29 on the first take, under round
+  1's 0.4 bar) because nothing repeats; the seam percentile is the test that still applies.
+
+```sh
+export ACESTEP_CHECKPOINTS_DIR=~/.cache/ace-step/checkpoints ACESTEP_DISABLE_TQDM=1
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-generate.py --spec scripts/sfx/music-round4.json --seed 70000
+~/.local/opt/ace-step-1.5/.venv/bin/python scripts/sfx/music-finish.py --only rw-r4,rg-r4,w-r4,r-r4,g-r4
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/music-soundscape.py --spec scripts/sfx/music-round4.json --seed 71000
+```

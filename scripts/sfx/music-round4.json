@@ -1,0 +1,195 @@
+{
+ "about": "Match music round 4 (2026-10-22), from the operator's round-3 review. Two kinds of keep landed. \"Battle in costume\": one distinctive non-battle genre played as a fight (the operator: \"hellfire tango and aero djent felt like battle music which made them fun\"); generic battle (hard rock, heavy riff boost) was only maybe, and genre-stacked heroics (power metal, violin metalcore, string djent) were no. \"A place you are in\": the operator: \"council hall was very immersive\"; its music was written as heard from the far end of a hall and laid 7 dB under a murmuring room bed, while organ and humming chorale over the same bed at +8 to +10 dB were no. RG (empty) and RW (maybes only) get two of each. Every prompt asks for a warm, soft-topped mix (no and maybe takes carried about twice the 2-6 kHz share of keeps) and through-composed sections instead of round 3's shared five-tag skeleton with the theme twice (\"too repetitive\"). The 16-bit lane kept one take of 31, the abyssal sewer, a sparse place piece; three pilots try that recipe.",
+ "defaults": {
+  "duration": 260,
+  "steps": 50,
+  "cfg": 7.0,
+  "shift": 1.0
+ },
+ "prompts": [
+  {
+   "id": "rw-r4-balkanbrass",
+   "colour": "RW",
+   "lane": "normal",
+   "name": "RW · brass war band",
+   "takes": 3,
+   "caption": "furious Balkan brass band battle music, blaring tuba bass line, fast trumpet and trombone riffs trading blows, pounding tapan drum and snare, stomping and relentless, two war bands clashing on a parade ground, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - lone tapan drum]\n\n[Clash - full brass riff]\n\n[Duel - trumpets answer trombones]\n\n[Breakdown - tuba and drum alone]\n\n[Charge - tempo surges, brass in unison]\n\n[Duel - new riff, call and response]\n\n[Outro - final stab]",
+   "bpm": 136,
+   "key": "D Minor",
+   "meter": "4"
+  },
+  {
+   "id": "rw-r4-drumline",
+   "colour": "RW",
+   "lane": "normal",
+   "name": "RW · drumline assault",
+   "takes": 3,
+   "caption": "military drumline battle music, crisp marching snares and quads, booming bass drums, brass section stabs, heavy funk bass groove, disciplined and aggressive, a legion advancing in formation, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - snare cadence]\n\n[Advance - drumline and bass groove]\n\n[Brass - stabs over the groove]\n\n[Breakdown - bass drums only]\n\n[Assault - full drumline and brass]\n\n[Cadence - new snare pattern]\n\n[Outro - halt]",
+   "bpm": 128,
+   "key": "G Minor",
+   "meter": "4"
+  },
+  {
+   "id": "rg-r4-showdown",
+   "colour": "RG",
+   "lane": "normal",
+   "name": "RG · wild showdown",
+   "takes": 3,
+   "caption": "spaghetti western showdown turned savage, fuzz baritone guitar twang, thunderous war drums, whip cracks, wordless war cries, galloping rhythm, a duel between a beast tamer and a monster in a canyon, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - lone twang and wind]\n\n[Standoff - war drums build]\n\n[Duel - galloping fuzz riff]\n\n[Breakdown - drums and whip cracks]\n\n[Charge - full gallop, war cries]\n\n[Duel - new riff]\n\n[Outro - final strike]",
+   "bpm": 132,
+   "key": "E Minor",
+   "meter": "4"
+  },
+  {
+   "id": "rg-r4-batucada",
+   "colour": "RG",
+   "lane": "normal",
+   "name": "RG · stampede batucada",
+   "takes": 3,
+   "caption": "samba batucada stampede, huge surdo drums and repinique, heavy stoner metal riffs over the drums, wild and joyful rage, a beast herd carnival charging through the jungle, warm mix, soft rounded high end, no bright piercing lead",
+   "structure": "[Intro - surdo call]\n\n[Stampede - batucada and riffs]\n\n[Break - repinique call and response]\n\n[Breakdown - surdos only]\n\n[Charge - full band, faster]\n\n[Stampede - new riff]\n\n[Outro - surdo hit]",
+   "bpm": 130,
+   "key": "A Minor",
+   "meter": "4"
+  },
+  {
+   "id": "rw-r4-camp",
+   "colour": "RW",
+   "lane": "normal",
+   "name": "RW · war camp at dawn",
+   "takes": 2,
+   "caption": "a slow distant war drum cadence and a lone brass horn playing a few long calls, heard from far across an army camp, lots of space and silence, quiet and steady",
+   "structure": "[Intro - silence and wind]\n\n[Cadence - distant drums]\n\n[Call - lone horn]\n\n[Pause]\n\n[Cadence - distant drums]\n\n[Call - lone horn]",
+   "bpm": 64,
+   "key": "D Minor",
+   "meter": "4",
+   "duration": 240
+  },
+  {
+   "id": "rg-r4-lair",
+   "colour": "RG",
+   "lane": "normal",
+   "name": "RG · beast lair",
+   "takes": 2,
+   "caption": "deep slow ritual drums and a low bone flute playing a few rough phrases, heard from far away inside a jungle cave, lots of space and silence, primal and quiet",
+   "structure": "[Intro - silence and drips]\n\n[Drums - distant slow pulse]\n\n[Phrase - bone flute]\n\n[Pause]\n\n[Drums - distant slow pulse]\n\n[Phrase - bone flute]",
+   "bpm": 60,
+   "key": "E Minor",
+   "meter": "4",
+   "duration": 240
+  },
+  {
+   "id": "w-r4-chip",
+   "colour": "W",
+   "lane": "16-bit",
+   "name": "W · 16-bit dawn cloister",
+   "takes": 2,
+   "caption": "16-bit quiet cloister at dawn, soft sampled choir pad, distant chime, slow harp notes with long echo, serene and hopeful, soft lowpassed SNES SPC700 samples, sparse, long echo, no snare, no bright lead",
+   "structure": "[Intro - choir pad]\n\n[Theme - harp notes]\n\n[Pause - pad alone]\n\n[Theme - chime and harp]\n\n[Outro - pad]",
+   "bpm": 66,
+   "key": "F Major",
+   "meter": "4"
+  },
+  {
+   "id": "r-r4-chip",
+   "colour": "R",
+   "lane": "16-bit",
+   "name": "R · 16-bit magma vault",
+   "takes": 2,
+   "caption": "16-bit deep magma vault, low rumbling bass drone, slow heavy timpani pulse, sparse muted guitar chord stabs with long echo, ominous and hot, soft lowpassed SNES SPC700 samples, sparse, long echo, no snare, no bright lead",
+   "structure": "[Intro - drone]\n\n[Pulse - timpani]\n\n[Stabs - muted guitar chords]\n\n[Pause - drone alone]\n\n[Pulse - timpani and stabs]\n\n[Outro - drone]",
+   "bpm": 80,
+   "key": "D Minor",
+   "meter": "4"
+  },
+  {
+   "id": "g-r4-chip",
+   "colour": "G",
+   "lane": "16-bit",
+   "name": "G · 16-bit mossy hollow",
+   "takes": 2,
+   "caption": "16-bit mossy forest hollow, soft sampled kalimba notes with long echo, low warm pad, gentle wood block, birdsong, calm and alive, soft lowpassed SNES SPC700 samples, sparse, long echo, no snare, no bright lead",
+   "structure": "[Intro - birdsong and pad]\n\n[Theme - kalimba]\n\n[Pause - pad and birds]\n\n[Theme - kalimba and wood block]\n\n[Outro - birdsong]",
+   "bpm": 72,
+   "key": "D Major",
+   "meter": "4"
+  }
+ ],
+ "soundscapes": [
+  {
+   "id": "rw-r4-camp",
+   "colour": "RW",
+   "name": "RW · war camp at dawn",
+   "music": {
+    "take": "rw-r4-camp-2",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "a large army camp at dawn, wind across an open field, banners flapping, distant voices and armour clinking, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "a crackling campfire outdoors in the early morning, field recording",
+     "db": -8
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a blacksmith hammering a sword on an anvil far away outdoors, field recording",
+     "every": 40,
+     "db": -4
+    },
+    {
+     "prompt": "a horse whinnying and stamping in a camp outdoors, field recording",
+     "every": 55,
+     "db": -3
+    },
+    {
+     "prompt": "a company of soldiers marching past in armour on a dirt road, field recording",
+     "every": 90,
+     "db": -5
+    }
+   ]
+  },
+  {
+   "id": "rg-r4-lair",
+   "colour": "RG",
+   "name": "RG · beast lair",
+   "music": {
+    "take": "rg-r4-lair-2",
+    "db": -6
+   },
+   "beds": [
+    {
+     "prompt": "inside a large jungle cave at night, dripping water, distant rumble, warm humid air, field recording",
+     "db": 0
+    },
+    {
+     "prompt": "heavy tropical rain falling on a jungle canopy outside a cave, field recording",
+     "db": -9
+    }
+   ],
+   "events": [
+    {
+     "prompt": "a large beast growling low and deep somewhere in a cave, field recording",
+     "every": 45,
+     "db": -2
+    },
+    {
+     "prompt": "a distant roar of a big wild animal echoing through a jungle, field recording",
+     "every": 80,
+     "db": -5
+    },
+    {
+     "prompt": "rocks tumbling and falling in a cave, field recording",
+     "every": 70,
+     "db": -6
+    }
+   ]
+  }
+ ]
+}

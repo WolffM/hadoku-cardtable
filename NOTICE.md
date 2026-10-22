@@ -110,7 +110,11 @@ data directory (`CARDTABLE_SOUNDS_DIR`) and never bundled into the UI — see
 
 ## Music
 
-The match music, one track per colour and one per colour pair, is the operator's own (added with `scripts/sfx/add-track.py`):
+Each colour and colour pair has match music, chosen per slot in `#/sounds/music`. Generated tracks were rendered
+locally with **ACE-Step 1.5** (code and weights MIT, <https://huggingface.co/ACE-Step>; the output carries no
+attribution requirement), and the soundscapes were assembled from Stable Audio Open renders (credited above). Each
+take's exact model, seed and prompt is stored as its credit in the catalogue. The rest are the operator's own (added
+with `scripts/sfx/add-track.py`):
 
 - Dawnlight Sanctum (white), the operator's own track
 - Tidewatch Archive (blue), the operator's own track
