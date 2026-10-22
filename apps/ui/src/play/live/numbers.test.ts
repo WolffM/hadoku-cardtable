@@ -7,6 +7,8 @@
  * `presence.test.ts` uses for the same reason.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView, StackEntry } from '../adapter.ts';
@@ -917,6 +919,27 @@ describe('installNumbers: a ram', () => {
       faceHits: [{ seq: 1, playerId: 0, sourceId: 50, amount: 3, combat: true }],
     });
     expect(canvas.querySelector('.effect-impact')).toBeNull();
+    handle.dispose();
+  });
+});
+
+/* Each length `numbers.css` animates over is one of the constants, set on the canvas as a `--*-ms`: the sheet restates none. */
+describe('installNumbers: the stylesheet reads its durations', () => {
+  const css = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'numbers.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('numbers.css writes no duration of its own', () => {
+    expect([...css.matchAll(/animation[^;{}]*?\b\d+m?s\b/g)].map((m) => m[0].trim())).toEqual([]);
+  });
+
+  it('the canvas carries every duration the sheet reads, from the constants', () => {
+    const { canvas } = board();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const read = [...new Set([...css.matchAll(/var\((--[\w-]+-ms)\)/g)].map((m) => m[1]!))];
+    expect(read.length).toBeGreaterThan(0);
+    for (const name of read) expect(canvas.style.getPropertyValue(name), name).toMatch(/^\d+ms$/);
+    expect(canvas.style.getPropertyValue('--rise-ms')).toBe(`${RISE_MS}ms`);
+    expect(canvas.style.getPropertyValue('--pop-ms')).toBe(`${POP_MS}ms`);
+    expect(canvas.style.getPropertyValue('--reveal-beat-ms')).toBe(`${REVEAL_BEAT_MS}ms`);
     handle.dispose();
   });
 });
