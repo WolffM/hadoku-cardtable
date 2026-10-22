@@ -88,6 +88,47 @@ export function slug(name: string): string {
 /** The five real colours. Scryfall's `colors` is already exactly this set. */
 const COLORS = new Set(['W', 'U', 'B', 'R', 'G']);
 
+function filterColors(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((c): c is string => typeof c === 'string' && COLORS.has(c)) : [];
+}
+
+/**
+ * Split/adventure/flip/meld already carry a card-level colour; every other
+ * record that has one also means it (checked against `colors=== null` is
+ * never half-populated the other way in the data).
+ */
+const UNION_FACES_LAYOUTS = new Set(['split', 'adventure', 'flip', 'meld']);
+
+/**
+ * One card's real colour — the class fix for a gap live in the shipped pool
+ * (the operator: Jace, Vryn's Prodigy showed colourless).
+ *
+ * Scryfall's CARD-level `colors` is `null` for `transform`/`modal_dfc` (and
+ * `art_series`/`double_faced_token`/`reversible_card`, none of them real
+ * draftable cards) — confirmed against `cards.jsonl`: every `colors === null`
+ * record is one of those five layouts, and no other. The colour lives on
+ * each face instead.
+ *
+ * - `split`/`adventure`/`flip`/`meld`: both halves are one card, so the
+ *   colour is the UNION of every face's own. (In practice Scryfall already
+ *   gives these a card-level `colors`, so this branch is a correctness net
+ *   for data that varies — not the common path — rather than load-bearing
+ *   today.)
+ * - Everything else with faces (`transform`, `modal_dfc`, …): the FRONT
+ *   face's colour is the card's own, same rule `manaCost`/`typeLine`/
+ *   `oracleText` below already use when the card-level field is absent.
+ */
+export function cardColors(raw: { colors?: unknown; layout?: unknown; card_faces?: unknown }): string[] {
+  if (Array.isArray(raw.colors)) return filterColors(raw.colors);
+  const faces = Array.isArray(raw.card_faces) ? (raw.card_faces as Array<{ colors?: unknown }>) : [];
+  if (faces.length === 0) return [];
+  const layout = typeof raw.layout === 'string' ? raw.layout : '';
+  if (UNION_FACES_LAYOUTS.has(layout)) {
+    return [...new Set(filterColors(faces.flatMap((f) => (Array.isArray(f.colors) ? f.colors : []))))];
+  }
+  return filterColors(faces[0]?.colors);
+}
+
 /**
  * Split a Scryfall mana cost string into the pip tokens a renderer needs.
  *
@@ -133,9 +174,7 @@ function toDraftCard(card: GameplayCard, cardId: string): Record<string, unknown
         : '') as string,
   );
 
-  const colors = Array.isArray(raw.colors)
-    ? (raw.colors as unknown[]).filter((c): c is string => typeof c === 'string' && COLORS.has(c))
-    : [];
+  const colors = cardColors(raw);
 
   const out: Record<string, unknown> = {
     cardId,
@@ -173,7 +212,7 @@ function faceCards(card: GameplayCard, front: Record<string, unknown>): Array<Re
   return otherFaces(card).flatMap(({ name, artId }) => {
     const face = printed.find((f) => f.name === name);
     if (face === undefined) return [];
-    const colors = Array.isArray(face.colors) ? (face.colors as unknown[]).filter((c): c is string => typeof c === 'string' && COLORS.has(c)) : [];
+    const colors = filterColors(face.colors);
     const manaCost = manaTokens(typeof face.mana_cost === 'string' ? face.mana_cost : '');
     const out: Record<string, unknown> = {
       scryfallId: artId,
@@ -311,4 +350,8 @@ async function main(): Promise<void> {
   }
 }
 
-await main();
+// Guarded so `cardColors` (and the rest of this file's helpers) can be
+// imported by a unit test without running the whole CLI — `build-pool.test.ts`
+// does exactly that. `import.meta.main` is Node's own answer to "is this the
+// entry script", true only when `node … build-pool.ts` ran this file directly.
+if (import.meta.main) await main();

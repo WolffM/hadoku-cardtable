@@ -1289,7 +1289,9 @@
     "R"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "R"
+   ],
    "typeLine": "Legendary Creature — Human Shaman // Legendary Planeswalker — Chandra",
    "oracleText": "Whenever you cast a red spell, untap Chandra.\n{T}: Chandra deals 1 damage to target player or planeswalker. If Chandra has dealt 3 or more damage this turn, exile her, then return her to the battlefield transformed under her owner's control.",
    "setCode": "ORI",
@@ -1474,7 +1476,9 @@
     "U"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Creature — Human Advisor // Creature — Human Mutant",
    "oracleText": "{T}: Draw a card, then discard a card. If a creature card is discarded this way, untap this creature, then transform it.",
    "setCode": "ISD",
@@ -2139,7 +2143,9 @@
     "U"
    ],
    "manaValue": 5,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Creature — Insect Horror // Creature — Eldrazi Insect",
    "oracleText": "Flying\nWhenever you cast an instant or sorcery spell, create a 1/1 blue Human Wizard creature token. Then if you control three or more Wizards, transform this creature.",
    "setCode": "EMN",
@@ -2278,7 +2284,9 @@
     "G"
    ],
    "manaValue": 2,
-   "colors": [],
+   "colors": [
+    "G"
+   ],
    "typeLine": "Creature — Human Warrior Werewolf // Creature — Werewolf",
    "oracleText": "{2}{G}: Look at the top three cards of your library. You may reveal a creature card from among them and put it into your hand. Put the rest on the bottom of your library in any order.\nAt the beginning of each upkeep, if no spells were cast last turn, transform this creature.",
    "setCode": "SOI",
@@ -3099,7 +3107,9 @@
     "G"
    ],
    "manaValue": 4,
-   "colors": [],
+   "colors": [
+    "G"
+   ],
    "typeLine": "Legendary Planeswalker — Garruk // Legendary Planeswalker — Garruk",
    "oracleText": "When Garruk has two or fewer loyalty counters on him, transform him.\n0: Garruk deals 3 damage to target creature. That creature deals damage equal to its power to him.\n0: Create a 2/2 green Wolf creature token.",
    "setCode": "ISD",
@@ -3985,7 +3995,10 @@
     "G"
    ],
    "manaValue": 4,
-   "colors": [],
+   "colors": [
+    "G",
+    "R"
+   ],
    "typeLine": "Creature — Human Werewolf // Creature — Werewolf",
    "oracleText": "Whenever this creature enters or transforms into Huntmaster of the Fells, create a 2/2 green Wolf creature token and you gain 2 life.\nAt the beginning of each upkeep, if no spells were cast last turn, transform this creature.",
    "setCode": "DKA",
@@ -4169,7 +4182,9 @@
     "U"
    ],
    "manaValue": 2,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Legendary Creature — Human Wizard // Legendary Planeswalker — Jace",
    "oracleText": "{T}: Draw a card, then discard a card. If there are five or more cards in your graveyard, exile Jace, then return him to the battlefield transformed under his owner's control.",
    "setCode": "ORI",
@@ -4415,7 +4430,9 @@
     "G"
    ],
    "manaValue": 1,
-   "colors": [],
+   "colors": [
+    "G"
+   ],
    "typeLine": "Creature — Werewolf Horror // Creature — Eldrazi Werewolf",
    "oracleText": "{4}{G}: Transform this creature.",
    "setCode": "EMN",
@@ -4766,7 +4783,9 @@
     "B"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "B"
+   ],
    "typeLine": "Legendary Creature — Human Cleric // Legendary Planeswalker — Liliana",
    "oracleText": "Lifelink\nWhenever another nontoken creature you control dies, exile Liliana, Heretical Healer, then return her to the battlefield transformed under her owner's control. If you do, create a 2/2 black Zombie creature token.",
    "setCode": "ORI",
@@ -9835,7 +9854,9 @@
     "G"
    ],
    "manaValue": 1,
-   "colors": [],
+   "colors": [
+    "G"
+   ],
    "typeLine": "Creature — Human Werewolf // Creature — Werewolf",
    "oracleText": "{1}{G}: This creature gets +2/+2 until end of turn. Activate only once each turn.\nAt the beginning of each upkeep, if no spells were cast last turn, transform this creature.",
    "setCode": "DKA",

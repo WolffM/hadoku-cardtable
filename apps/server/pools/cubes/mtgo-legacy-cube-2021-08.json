@@ -91,7 +91,9 @@
     "B"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "B"
+   ],
    "typeLine": "Sorcery // Land",
    "oracleText": "Return from your graveyard to the battlefield any number of target creature cards that each have a different mana value X or less.",
    "setCode": "ZNR",
@@ -339,7 +341,9 @@
     "W"
    ],
    "manaValue": 5,
-   "colors": [],
+   "colors": [
+    "W"
+   ],
    "typeLine": "Legendary Creature — Angel // Legendary Creature — Angel",
    "oracleText": "Flash\nFlying, vigilance\nWhen Archangel Avacyn enters, creatures you control gain indestructible until end of turn.\nWhen a non-Angel creature you control dies, transform Archangel Avacyn at the beginning of the next upkeep.",
    "setCode": "SOI",
@@ -810,7 +814,9 @@
     "R"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "R"
+   ],
    "typeLine": "Legendary Creature — God // Legendary Artifact",
    "oracleText": "Whenever you cast a spell, add {R}. Until end of turn, you don't lose this mana as steps and phases end.\nCreatures you control can boast twice during each of your turns rather than once.",
    "setCode": "KHM",
@@ -1005,7 +1011,9 @@
     "B"
    ],
    "manaValue": 4,
-   "colors": [],
+   "colors": [
+    "B"
+   ],
    "typeLine": "Creature — Vampire // Creature — Vampire",
    "oracleText": "Flying\n{T}: Create a 2/2 black Vampire creature token with flying.\n{B}: Transform this creature. Activate only if you control five or more Vampires.",
    "setCode": "ISD",
@@ -2333,7 +2341,9 @@
     "U"
    ],
    "manaValue": 1,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Creature — Human Wizard // Creature — Human Insect",
    "oracleText": "At the beginning of your upkeep, look at the top card of your library. You may reveal that card. If an instant or sorcery card is revealed this way, transform this creature.",
    "setCode": "ISD",
@@ -2976,7 +2986,9 @@
     "W"
    ],
    "manaValue": 7,
-   "colors": [],
+   "colors": [
+    "W"
+   ],
    "typeLine": "Sorcery // Land",
    "oracleText": "Create two 4/4 white Angel Warrior creature tokens with flying. Non-Angel creatures you control gain indestructible until your next turn.",
    "setCode": "ZNR",
@@ -3788,7 +3800,9 @@
     "G"
    ],
    "manaValue": 4,
-   "colors": [],
+   "colors": [
+    "G"
+   ],
    "typeLine": "Legendary Planeswalker — Garruk // Legendary Planeswalker — Garruk",
    "oracleText": "When Garruk has two or fewer loyalty counters on him, transform him.\n0: Garruk deals 3 damage to target creature. That creature deals damage equal to its power to him.\n0: Create a 2/2 green Wolf creature token.",
    "setCode": "ISD",
@@ -4087,7 +4101,9 @@
     "U"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Creature — Shapeshifter Rogue // Land",
    "oracleText": "You may have this creature enter as a copy of a creature you control, except it's a Shapeshifter Rogue in addition to its other types.",
    "setCode": "ZNR",
@@ -4802,7 +4818,10 @@
     "G"
    ],
    "manaValue": 4,
-   "colors": [],
+   "colors": [
+    "G",
+    "R"
+   ],
    "typeLine": "Creature — Human Werewolf // Creature — Werewolf",
    "oracleText": "Whenever this creature enters or transforms into Huntmaster of the Fells, create a 2/2 green Wolf creature token and you gain 2 life.\nAt the beginning of each upkeep, if no spells were cast last turn, transform this creature.",
    "setCode": "DKA",
@@ -5059,7 +5078,9 @@
     "U"
    ],
    "manaValue": 2,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Legendary Creature — Human Wizard // Legendary Planeswalker — Jace",
    "oracleText": "{T}: Draw a card, then discard a card. If there are five or more cards in your graveyard, exile Jace, then return him to the battlefield transformed under his owner's control.",
    "setCode": "ORI",
@@ -5460,7 +5481,9 @@
     "W"
    ],
    "manaValue": 1,
-   "colors": [],
+   "colors": [
+    "W"
+   ],
    "typeLine": "Legendary Creature — Human Soldier // Legendary Planeswalker — Gideon",
    "oracleText": "At end of combat, if Kytheon and at least two other creatures attacked this combat, exile Kytheon, then return him to the battlefield transformed under his owner's control.\n{2}{W}: Kytheon gains indestructible until end of turn.",
    "setCode": "ORI",
@@ -5579,7 +5602,9 @@
     "W"
    ],
    "manaValue": 1,
-   "colors": [],
+   "colors": [
+    "W"
+   ],
    "typeLine": "Legendary Enchantment // Legendary Land",
    "oracleText": "When Legion's Landing enters, create a 1/1 white Vampire creature token with lifelink.\nWhen you attack with three or more creatures, transform Legion's Landing.",
    "setCode": "XLN",
@@ -6761,7 +6786,9 @@
     "G"
    ],
    "manaValue": 3,
-   "colors": [],
+   "colors": [
+    "G"
+   ],
    "typeLine": "Legendary Creature — Elf Scout // Legendary Planeswalker — Nissa",
    "oracleText": "When Nissa enters, you may search your library for a basic Forest card, reveal it, put it into your hand, then shuffle.\nWhenever a land you control enters, if you control seven or more lands, exile Nissa, then return her to the battlefield transformed under her owner's control.",
    "setCode": "ORI",
@@ -8554,7 +8581,9 @@
     "U"
    ],
    "manaValue": 2,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Legendary Enchantment // Legendary Land",
    "oracleText": "At the beginning of your upkeep, surveil 1. Then if you have seven or more cards in your graveyard, you may transform Search for Azcanta. (Look at the top card of your library. You may put that card into your graveyard.)",
    "setCode": "XLN",
@@ -9696,7 +9725,9 @@
     "G"
    ],
    "manaValue": 2,
-   "colors": [],
+   "colors": [
+    "G"
+   ],
    "typeLine": "Creature — Elemental // Land",
    "oracleText": "{T}: Add {G}.",
    "setCode": "ZNR",
@@ -9936,7 +9967,9 @@
     "U"
    ],
    "manaValue": 2,
-   "colors": [],
+   "colors": [
+    "U"
+   ],
    "typeLine": "Creature — Horror // Creature — Kraken Horror",
    "oracleText": "Defender\nThis creature enters with four ice counters on it.\nWhenever you cast an instant or sorcery spell, remove an ice counter from this creature. Then if it has no ice counters on it, transform it.",
    "setCode": "SOI",
@@ -10415,7 +10448,9 @@
     "G"
    ],
    "manaValue": 7,
-   "colors": [],
+   "colors": [
+    "G"
+   ],
    "typeLine": "Sorcery // Land",
    "oracleText": "Look at the top seven cards of your library. You may put a creature card from among them onto the battlefield. If that card has mana value 3 or less, it enters with three additional +1/+1 counters on it. Put the rest on the bottom of your library in a random order.",
    "setCode": "ZNR",
@@ -10688,7 +10723,9 @@
     "B"
    ],
    "manaValue": 2,
-   "colors": [],
+   "colors": [
+    "B"
+   ],
    "typeLine": "Legendary Creature — God // Legendary Planeswalker — Tibalt",
    "oracleText": "When Valki enters, each opponent reveals their hand. For each opponent, exile a creature card they revealed this way until Valki leaves the battlefield.\n{X}: Choose a creature card exiled with Valki with mana value X. Valki becomes a copy of that card.",
    "setCode": "KHM",
