@@ -19,9 +19,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { REVERSED_ROLES, SOUND_MATRIX, SOUND_ROLES, type CellId, type SoundBus, type SoundTake } from '@hadoku/shared';
+import { REVERSED_ROLES, SOUND_MATRIX, SOUND_ROLES, type CellId, type SoundBus } from '@hadoku/shared';
 
 import { soundsClient, type SoundsClient } from '../sound/builderClient.ts';
+import { useSoundAssignments } from '../sound/useSoundAssignments.ts';
 import { GainSlider } from '../sound/GainSlider.tsx';
 import { DEFAULT_MIX, type MixSettings, type PlanResult } from '../sound/mix.ts';
 import { createMixer, type Mixer } from '../sound/mixer.ts';
@@ -70,12 +71,7 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
   const client = useMemo(() => givenClient ?? soundsClient(), [givenClient]);
   const mixer = useMemo(() => givenMixer ?? createMixer((f) => client.takeUrl(f)), [givenMixer, client]);
 
-  const [loaded, setLoaded] = useState(false);
-  const [canEdit, setCanEdit] = useState(false);
-  const [canView, setCanView] = useState(false);
-  const [takes, setTakes] = useState<SoundTake[]>([]);
-  const [cells, setCells] = useState<Record<string, string[]>>({});
-  const [gains, setGains] = useState<Record<string, number>>({});
+  const { loaded, canEdit, canView, takes, cells, gains, setGains } = useSoundAssignments(client);
   const [scenarioId, setScenarioId] = useState(SCENARIOS[0]!.id);
   const [identities, setIdentities] = useState<Identities>({ me: 'RG', opp: 'UB' });
   const [speed, setSpeed] = useState(1);
@@ -90,22 +86,6 @@ export function SoundSandbox({ client: givenClient, mixer: givenMixer }: SoundSa
   // Read when the run ends, not when it started, so ticking Loop mid-run counts.
   const loopRef = useRef(loop);
   loopRef.current = loop;
-
-  useEffect(() => {
-    let alive = true;
-    void Promise.all([client.catalogue(), client.assignments()]).then(([t, a]) => {
-      if (!alive) return;
-      setTakes(t);
-      setCells(a.cells);
-      setGains(a.gains);
-      setCanEdit(a.canEdit);
-      setCanView(a.canView);
-      setLoaded(true);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [client]);
 
   useEffect(() => mixer.planner.setAssignments(cells, gains), [mixer, cells, gains]);
   useEffect(() => {

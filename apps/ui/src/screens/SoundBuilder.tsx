@@ -50,7 +50,7 @@
  * artifact used (`.tw { overflow-x: auto }`).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   rowHasParadigm,
@@ -65,6 +65,7 @@ import {
 
 import { ManaCost } from '../components/ManaPip.tsx';
 import { pickRandom, soundsClient, type SoundsClient } from '../sound/builderClient.ts';
+import { useSoundAssignments } from '../sound/useSoundAssignments.ts';
 import { GainSlider } from '../sound/GainSlider.tsx';
 import { createMixer, type Mixer } from '../sound/mixer.ts';
 import { SoundQueue } from './SoundQueue.tsx';
@@ -117,12 +118,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
   const client = useMemo(() => givenClient ?? soundsClient(), [givenClient]);
   const player = useMemo(() => givenPlayer ?? createMixer((f) => client.takeUrl(f)), [givenPlayer, client]);
 
-  const [loaded, setLoaded] = useState(false);
-  const [canEdit, setCanEdit] = useState(false);
-  const [canView, setCanView] = useState(false);
-  const [takes, setTakes] = useState<SoundTake[]>([]);
-  const [cells, setCells] = useState<Record<string, string[]>>({});
-  const [gains, setGains] = useState<Record<string, number>>({});
+  const { loaded, canEdit, canView, takes, setTakes, cells, setCells, gains, setGains, reload } = useSoundAssignments(client);
   const [tab, setTab] = useState<Tab>('roles');
   const [query, setQuery] = useState('');
   const [unplacedOnly, setUnplacedOnly] = useState(false);
@@ -132,16 +128,6 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
   /** The last take retired from here, while its Undo is offered. */
   const [retired, setRetired] = useState<{ take: SoundTake; reason: RetireReason } | null>(null);
   const lastPickRef = useRef<Map<string, string>>(new Map());
-
-  const reload = useCallback(async (): Promise<void> => {
-    const [t, a] = await Promise.all([client.catalogue(), client.assignments()]);
-    setTakes(t);
-    setCells(a.cells);
-    setGains(a.gains);
-    setCanEdit(a.canEdit);
-    setCanView(a.canView);
-    setLoaded(true);
-  }, [client]);
 
   useEffect(() => {
     let alive = true;
@@ -194,22 +180,6 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
       toggleMark(file, 'trash');
     },
   });
-
-  useEffect(() => {
-    let alive = true;
-    void Promise.all([client.catalogue(), client.assignments()]).then(([t, a]) => {
-      if (!alive) return;
-      setTakes(t);
-      setCells(a.cells);
-      setGains(a.gains);
-      setCanEdit(a.canEdit);
-      setCanView(a.canView);
-      setLoaded(true);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [client]);
 
   /*
    * Esc puts a held take down, wherever the focus is — the artifact's own rule.
