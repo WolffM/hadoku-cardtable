@@ -10,12 +10,12 @@ import { describe, expect, it } from 'vitest';
 const here = import.meta.dirname ?? 'apps/ui/src/play/live';
 const text = (file: string): string => readFileSync(resolve(here, file), 'utf8');
 
-/** Each sheet, and the modules that write what it reads. */
+/** Each sheet, and the modules that write what it reads: its own, and `motion.ts`'s house durations. */
 const SHEETS: Record<string, readonly string[]> = {
   'numbers.css': ['numbers.ts'],
-  'placed.css': ['placed.ts'],
-  'presence.css': ['presence.ts'],
-  'gestures/gestures.css': ['gestures/install.ts', 'gestures/cast.ts'],
+  'placed.css': ['placed.ts', '../motion.ts'],
+  'presence.css': ['presence.ts', '../motion.ts'],
+  'gestures/gestures.css': ['gestures/install.ts', '../motion.ts'],
 };
 
 /** A `transition` or `animation` value's parts, split on the commas outside parentheses. */

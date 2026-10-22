@@ -11,12 +11,26 @@
  */
 export const PLACEMENT_WAIT_MS = 15_000;
 
-/**
- * The house glide — a float-back, a hand FLIP, the other seat's hand-move —
- * so both screens move in step. `gestures.css` and `presence.css` write the
- * same 300ms in their transitions.
- */
+/** The house glide — a float-back, a hand FLIP, the other seat's hand-move — so both screens move in step. */
 export const GLIDE_MS = 300;
+
+/** The other seat's pointer, and whatever moves with it, gliding between the samples presence sends about sixteen times a second. */
+export const FOLLOW_MS = 90;
+
+/** The lengths every layer on the board animates over, as the `--*-ms` their sheets read. */
+export const HOUSE_DURATIONS = [
+  ['--glide-ms', GLIDE_MS],
+  ['--follow-ms', FOLLOW_MS],
+] as const;
+
+/**
+ * Writes each `[name, ms]` on `el` as `<ms>ms`, for a sheet to read with `var()`: a length is written
+ * once, by the module that times it. Never taken off again: each is a constant, and more than one
+ * layer on a canvas writes the house ones.
+ */
+export function writeDurations(el: HTMLElement, durations: readonly (readonly [string, number])[]): void {
+  for (const [name, ms] of durations) el.style.setProperty(name, `${ms}ms`);
+}
 
 /**
  * The viewer asked for less motion: every animated surface draws its end state instead. Fast Mode

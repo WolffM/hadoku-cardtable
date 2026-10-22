@@ -30,7 +30,7 @@
    * (`e2e/w33.spec.ts`/`e2e/w36.spec.ts`'s own hover cases).
    */
   pointer-events: auto;
-  transition: opacity 250ms ease;
+  transition: opacity var(--fade-ms) ease;
 }
 
 /*
@@ -151,14 +151,14 @@
  */
 .placed[data-placed-gliding] {
   transition:
-    opacity 250ms ease,
-    left 90ms linear,
-    top 90ms linear;
+    opacity var(--fade-ms) ease,
+    left var(--follow-ms) linear,
+    top var(--follow-ms) linear;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .placed[data-placed-gliding] {
-    transition: opacity 250ms ease;
+    transition: opacity var(--fade-ms) ease;
   }
 }
 
@@ -234,10 +234,10 @@
   opacity: 0;
   scale: 0.5;
   transition:
-    left 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
-    top 300ms cubic-bezier(0.3, 0.7, 0.3, 1),
-    scale 300ms ease-in,
-    opacity 300ms ease-in;
+    left var(--leave-fade-ms) cubic-bezier(0.3, 0.7, 0.3, 1),
+    top var(--leave-fade-ms) cubic-bezier(0.3, 0.7, 0.3, 1),
+    scale var(--leave-fade-ms) ease-in,
+    opacity var(--leave-fade-ms) ease-in;
 }
 
 /*
@@ -247,7 +247,7 @@
  */
 /* Not under a landing (`gestures/cast.ts`'s `data-cast-landing` hides the card until its stand-in arrives): the settle is seen from its first frame. */
 .board-card[data-stack-settle]:not([data-cast-landing]) > .board-card__face {
-  animation: stack-settle 300ms cubic-bezier(0.3, 0.7, 0.3, 1) both;
+  animation: stack-settle var(--glide-ms) cubic-bezier(0.3, 0.7, 0.3, 1) both;
 }
 
 @keyframes stack-settle {
@@ -273,7 +273,7 @@
  * here: `placed.ts` removes both at once.
  */
 .placed[data-placed-resolving] > .placed__hover {
-  animation: var(--stack-hover), placed-resolve 400ms ease-in-out;
+  animation: var(--stack-hover), placed-resolve var(--resolve-blink-ms) ease-in-out;
 }
 
 @keyframes placed-resolve {
@@ -293,7 +293,7 @@
 
 .placed[data-placed-countered] {
   transition: none;
-  animation: placed-countered 400ms ease-in forwards;
+  animation: placed-countered var(--countered-ms) ease-in forwards;
 }
 
 @keyframes placed-countered {

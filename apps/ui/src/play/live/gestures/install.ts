@@ -243,7 +243,7 @@ import { carryCastOffStack, endPlacement, notePlayedTo, placementAt, previewPlay
 // is the ghost's own handoff signal — see `syncParkedGhost`'s own note.
 import { holdSpell, isPlaced, moveSpell, onSpellDrawn, placeSpell, placeStackItem, releaseSpell } from '../placed.ts';
 import { spotOf } from '../presence.ts';
-import { afterGlide, prefersReducedMotion } from '../../motion.ts';
+import { afterGlide, HOUSE_DURATIONS, prefersReducedMotion, writeDurations } from '../../motion.ts';
 import { drawnCentreOf, reportHandover, type HandoverFacts } from '../handover-report.ts';
 import { combatArrows, type AutoTargetArrow } from './auto-targets.ts';
 import { RAMMING_ATTR } from '../ram.ts';
@@ -440,6 +440,7 @@ function blockArrows(canvas: ParentNode, match: LiveMatch, rammed: ReadonlySet<n
 
 export function installGestures(options: GestureOptions): GestureHandle {
   const { canvas, match } = options;
+  writeDurations(canvas, HOUSE_DURATIONS);
   const reduced = (): boolean => options.reducedMotion?.() ?? prefersReducedMotion();
   const marks = installMarks(canvas, { scan: options.markScan ?? markScanWanted() });
   let drag: DragState | null = null;

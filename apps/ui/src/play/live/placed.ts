@@ -93,7 +93,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { CardTile } from '../../components/CardTile.tsx';
 import { artReady, cardImageUrl } from '../../draft/cardImage.ts';
 import { battlefieldCardWidth, handCardWidth, onCardWidthsChanged, sizeAsCard } from '../card-size.ts';
-import { GLIDE_MS, PLACEMENT_WAIT_MS, prefersReducedMotion, takeResolutionEffects } from '../motion.ts';
+import { GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, prefersReducedMotion, takeResolutionEffects, writeDurations } from '../motion.ts';
 import { AbilityChip } from './AbilityChip.tsx';
 import { HiddenCard } from '../HiddenCard.tsx';
 import { viewerOf, type BoardView, type StackEntry } from '../adapter.ts';
@@ -111,6 +111,16 @@ export const LEAVE_FADE_MS = GLIDE_MS;
 export const RESOLVE_BLINK_MS = 400;
 /** AE27: the countered target's destroy motion, before the counter itself fades. */
 export const COUNTERED_MS = 400;
+/** A placed card easing to the opacity its state draws it at. */
+const FADE_MS = 250;
+/** The lengths `placed.css` animates over, set on the canvas so the sheet never restates one. */
+const DURATIONS = [
+  ...HOUSE_DURATIONS,
+  ['--fade-ms', FADE_MS],
+  ['--leave-fade-ms', LEAVE_FADE_MS],
+  ['--resolve-blink-ms', RESOLVE_BLINK_MS],
+  ['--countered-ms', COUNTERED_MS],
+] as const;
 /** On a permanent's own board card once it resolves off the stack, until its settle has run (`placed.css`'s `stack-settle`). */
 export const STACK_SETTLE_ATTR = 'data-stack-settle';
 /** One turn of the sheen round a card whose ability resolved with nobody stopping it (`card.css`). */
@@ -535,6 +545,7 @@ function itemLabel(item: StackEntry): string {
 }
 
 export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): PlacedHandle {
+  writeDurations(canvas, DURATIONS);
   let live = true;
   let lastView: BoardView | null = null;
   let interaction: PlacedInteraction | undefined;

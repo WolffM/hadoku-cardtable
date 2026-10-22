@@ -110,6 +110,7 @@ import {
   animationsSettled,
   noteBoardDrawing,
   noteBoardSounds,
+  writeDurations,
   noteCardImpact,
   noteExitBeat,
   noteLifeImpact,
@@ -424,7 +425,7 @@ function centreIn(target: Boxed, box: DOMRect, dx = 0, dy = 0): { x: number; y: 
 
 export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): NumbersHandle {
   let live = true;
-  for (const [name, ms] of DURATIONS) canvas.style.setProperty(name, `${ms}ms`);
+  writeDurations(canvas, DURATIONS);
   let prevView: BoardView | null = null;
   /** How many numbers are currently active at each anchor key — `stackLayout`'s own input, decremented on cleanup. */
   const activeAt = new Map<string, number>();
@@ -971,7 +972,6 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     },
     dispose() {
       live = false;
-      for (const [name] of DURATIONS) canvas.style.removeProperty(name);
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
       for (const settle of [...playing]) settle();

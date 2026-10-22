@@ -86,7 +86,7 @@ import { CAST_LANDING_ATTR, expectedGapBox, landCastGhost } from './gestures/cas
 import { drawnCentreOf, PRESENCE_CARD_ATTR, reportHandover, type HandoverFacts, type Report } from './handover-report.ts';
 import { commitSpell, holdSpell, onSpellMoved, placeSpell, placeStackItem, releaseSpell } from './placed.ts';
 import { handCardWidth, sizeAsCard } from '../card-size.ts';
-import { afterGlide, GLIDE_MS, PLACEMENT_WAIT_MS, prefersReducedMotion } from '../motion.ts';
+import { afterGlide, GLIDE_MS, HOUSE_DURATIONS, PLACEMENT_WAIT_MS, prefersReducedMotion, writeDurations } from '../motion.ts';
 import { battlefieldCard, overlayOf, zoneOf } from './board-dom.ts';
 import type { MatchTransport } from './match.ts';
 import { hitAt, scopeOf } from '../../dom.ts';
@@ -435,6 +435,7 @@ export function forgetPendingPlaced(): void {
 
 export function installPresence(options: { canvas: HTMLElement; host: PresenceHost }): PresenceHandle {
   const { canvas, host } = options;
+  writeDurations(canvas, HOUSE_DURATIONS);
   let live = true;
   const reduced = (): boolean => host.reducedMotion?.() ?? prefersReducedMotion();
 
