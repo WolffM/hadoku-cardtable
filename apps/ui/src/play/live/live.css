@@ -641,19 +641,6 @@
   max-width: none;
 }
 
-/* The card a yes/no is about, when the board has none to point at (`ConfirmPrompt.tsx`'s `card`). */
-.confirm__card {
-  --card-w: 7rem;
-
-  align-self: center;
-  width: var(--card-w);
-}
-
-.confirm__card .card {
-  aspect-ratio: 488 / 680;
-  height: auto;
-}
-
 /*
  * The payment window (wave 25 §C.2). *"If an effect happens that is necessary,
  * it should popout into its own popover modal on top of the game not in some

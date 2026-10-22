@@ -110,6 +110,7 @@ import { CardTile } from '../../components/CardTile.tsx';
 import { colorWordToken, ManaPip } from '../../components/ManaPip.tsx';
 import { AUTO_PAY_LABEL, type LiveButtons } from '../live/match.ts';
 import '../live/live.css';
+import './ConfirmPrompt.css';
 import { AnswerRow } from './PromptShell.tsx';
 import { RulesText } from './RulesText.tsx';
 
