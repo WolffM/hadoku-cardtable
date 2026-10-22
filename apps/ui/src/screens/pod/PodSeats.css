@@ -1,19 +1,121 @@
 /*
- * The pod's 8-seat grid — wave 72 §R.1.
- *
- * Every seat ROW reuses `screens.css`'s `.tables__row` and its children
- * unchanged (see `PodSeats.tsx`'s header on why — port, don't redraw). This
- * file holds only the one thing that is new: a container that fits 8 rows
- * instead of the 1v1 table's 2, as a simple responsive list rather than a
- * fixed grid, so it never forces a horizontal scroll at the narrower widths
- * `lobby-fit.spec.ts` measures.
+ * The pod's 8 seats, as a strip of avatars — AF305 §B. A flex row that wraps
+ * (never a fixed grid): at 1280px wide it is one row of 8, and it folds to
+ * fewer per row as the viewport narrows, never forcing the page to scroll
+ * sideways (`e2e/lobby-fit.spec.ts` measures exactly that).
  */
 
 .pod-seats {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.pod-seats__seat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 76px;
+}
+
+.pod-seats__avatar-wrap {
+  position: relative;
+  display: flex;
+}
+
+.pod-seats__avatar {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  box-sizing: border-box;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 15px;
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+  border: 2px solid transparent;
+}
+
+.pod-seats__avatar[data-ready='true'] {
+  box-shadow: 0 0 0 3px var(--success);
+}
+
+.pod-seats__avatar[data-ready='false'] {
+  border-color: var(--color-border-light);
+}
+
+.pod-seats__avatar--open {
+  background: transparent;
+  border: 2px dashed var(--color-border-light);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+}
+
+.pod-seats__avatar--open:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.pod-seats__avatar--closed {
+  background: var(--color-bg-alt);
+  color: var(--color-text-tertiary);
+  border-color: var(--color-border-light);
+}
+
+.pod-seats__avatar--ai {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  font-size: 12px;
+}
+
+.pod-seats__crown {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  padding: 1px;
+  border-radius: 999px;
+  background: var(--color-bg-card);
+  fill: var(--color-primary);
+}
+
+.pod-seats__label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pod-seats__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 3px;
+}
+
+.pod-seats__action {
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm, 4px);
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.pod-seats__action:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

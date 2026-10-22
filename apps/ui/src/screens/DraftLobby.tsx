@@ -365,26 +365,53 @@ export function DraftLobby({
   const backgroundRefusal = verdict !== null && !verdict.ok ? verdict : null;
   const refusal = (tab === 'custom' ? customAttempt : attempt?.refusal) ?? backgroundRefusal;
 
+  /**
+   * The draft-state line and the Ready button: always drawn (`pod` may
+   * still be null for the one frame before the room's own read lands), and
+   * one shared element — never two copies — so it sits inside the pod strip
+   * once seats exist, and stands alone before they do.
+   */
+  const side = (
+    <div className="pod-strip__side">
+      <p className="lobby__note" data-testid="draft-state">
+        {draftStateText(pod, members, dealing)}
+      </p>
+      <button
+        type="button"
+        className="lobby__go"
+        data-testid="ready-toggle"
+        aria-pressed={iAmReady}
+        disabled={dealing || members.length === 0 || (pod !== null && (planBusy || pendingLocalAttempt || !planOk))}
+        onClick={() => onReady(!iAmReady)}
+      >
+        {iAmReady ? 'Stand down' : 'Ready'}
+      </button>
+    </div>
+  );
+
   return (
     <section className="lobby__card" data-testid="draft-lobby">
-      {pod !== null && (
+      {pod !== null ? (
         <>
-          <h2>Seats</h2>
-          <PodSeats
-            seats={pod.seats}
-            myMemberId={myMemberId}
-            leaderId={leaderId}
-            readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
-            onSit={doSit}
-            onStand={doStand}
-            onAi={doAi}
-            onClose={doClose}
-          />
+          <div className="pod-strip">
+            <PodSeats
+              seats={pod.seats}
+              myMemberId={myMemberId}
+              leaderId={leaderId}
+              readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
+              onSit={doSit}
+              onStand={doStand}
+              onAi={doAi}
+              onClose={doClose}
+            />
+            {side}
+          </div>
           {seatError !== null && (
             <p className="ct-error" role="alert" data-testid="pod-seat-error">
               {seatError}
             </p>
           )}
+          <PodSpectators pod={pod} members={members} myId={myMemberId} leaderId={leaderId} />
 
           <h2>Pool</h2>
           <PoolPicker
@@ -414,25 +441,10 @@ export function DraftLobby({
             onLoadPreset={loadPreset}
             onDeletePreset={deletePreset}
           />
-
-          <PodSpectators pod={pod} members={members} myId={myMemberId} leaderId={leaderId} />
         </>
+      ) : (
+        side
       )}
-
-      <p className="lobby__note" data-testid="draft-state">
-        {draftStateText(pod, members, dealing)}
-      </p>
-
-      <button
-        type="button"
-        className="lobby__go"
-        data-testid="ready-toggle"
-        aria-pressed={iAmReady}
-        disabled={dealing || members.length === 0 || (pod !== null && (planBusy || pendingLocalAttempt || !planOk))}
-        onClick={() => onReady(!iAmReady)}
-      >
-        {iAmReady ? 'Stand down' : 'Ready'}
-      </button>
 
       {error !== null && (
         <div className="ct-error" role="alert" data-testid="draft-error">

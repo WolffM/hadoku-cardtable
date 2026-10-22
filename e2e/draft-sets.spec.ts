@@ -51,7 +51,7 @@
  */
 import { expect, test, type Browser, type Page, type WebSocket } from '@playwright/test';
 
-import { readyPod } from './podSeats.ts';
+import { readyPod, selectCustomRound } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
@@ -409,6 +409,8 @@ test(
         { round: 2, set: ARB },
       ];
       for (const { round, set } of rounds) {
+        // AF305 §B: only the ACTIVE round's picker is mounted — select its slot first.
+        await selectCustomRound(alice.page, round as 0 | 1 | 2);
         await alice.page.getByTestId(`pool-picker-custom-round-${round}-type-set`).click();
         await alice.page.getByTestId(`pool-picker-custom-round-${round}-sets-${set.code}`).click();
         await alice.page.getByTestId(`pool-picker-custom-round-${round}-style-realistic`).click();

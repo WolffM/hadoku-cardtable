@@ -24,6 +24,19 @@
 
 import { expect, type Page } from '@playwright/test';
 
+/**
+ * Selects a Custom pack slot (AF305 §B, "the draft room redesign, option
+ * B"): the picker draws only the ACTIVE round's cube/set gallery, so a round
+ * other than the default (round 0) must be picked here before any of that
+ * round's own test ids (`pool-picker-custom-round-<n>-type-set`,
+ * `…-cubes-<id>`, `…-sets-<code>`, `…-style-<style>`) resolve. Added in the
+ * shared driver, not per spec (AF305's brief) — a spec that already named a
+ * round's own id just needs this one call in front of it.
+ */
+export async function selectCustomRound(page: Page, round: 0 | 1 | 2): Promise<void> {
+  await page.getByTestId(`pool-picker-custom-round-${round}`).click();
+}
+
 /** Press Ready only once the pod's own plan verdict reads `ready` — never a blind press (see the header). */
 export async function readyPod(page: Page, timeout = 60_000): Promise<void> {
   await expect(page.getByTestId('pool-picker-verdict'), 'the pod’s plan check settles before Ready').toHaveAttribute('data-state', 'ready', { timeout });

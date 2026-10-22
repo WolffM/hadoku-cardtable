@@ -232,9 +232,19 @@
   gap: 12px;
 }
 
-.lobby__card h2,
-.pod-spectators h2 {
+.lobby__card h2 {
   font-size: 17px;
+}
+
+/* AF305 §B: watchers as one quiet line in the pod strip, comma-separated — no heading, no list. */
+.pod-spectators {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.pod-spectators__name:not(:last-child)::after {
+  content: ', ';
 }
 
 .lobby__note {
@@ -353,6 +363,32 @@
   color: var(--warn);
 }
 
+/*
+ * AF305 §B: the pod as a strip — the seat avatars on the left, the
+ * draft-state line and the Ready button on the right. Stacks on a narrow
+ * screen (`e2e/lobby-fit.spec.ts`'s phone widths) rather than squeezing both
+ * halves into one row.
+ */
+.pod-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.pod-strip__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.pod-strip__side .lobby__note {
+  margin: 0;
+  text-align: right;
+}
+
 /* ── constructed (`#/play`) and a match (`#/match/<id>`) ─────────────── */
 
 /*
@@ -409,14 +445,6 @@
       'deck deck'
       'deck-ready rules';
   }
-}
-
-/* A row with no deck to show — a pod seat — is the name's line
-   alone, at every width. After the phone rule so it wins there too. */
-.tables__row--line {
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: var(--seat-line);
-  grid-template-areas: 'who deck-ready';
 }
 
 /* An open seat keeps its row's lines (the seat does not grow when it is

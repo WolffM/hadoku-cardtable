@@ -1,23 +1,26 @@
 /*
- * The pod's 8 seats — wave 72 §R.1.
+ * The pod's 8 seats, as a strip of avatars (AF305 §B — the operator: "the
+ * draft room look ugly at the moment", picking "B - Cube Gallery"). Was the
+ * 1v1 table's seat ROWS, ported verbatim (wave 72 §R.1); a strip of 8 rows
+ * read as a long list, so this redesign keeps every seat ACTION (Sit, AI,
+ * Close/Open, Remove AI, Stand) but draws each seat as a round avatar with
+ * its name underneath and its actions beside it, rather than a line in a
+ * table. None of that is hover-only: a phone has no hover, so every action
+ * is its own always-visible, labelled button.
  *
- * Reuses the 1v1 table's seat-row classes verbatim (`.tables__row`,
- * `.tables__who`, `.tables__who--seat`, `.tables__name`, `.tables__crown`,
- * `.tables__sit`, `.tables__stand` — `screens.css`, `ConstructedScreen.tsx`'s
- * `PlayerRow` and its empty-seat branch), per the brief: "the 8 pod seats on
- * the same seat-row components the 1v1 table uses… port, don't redraw."
- * `ConstructedScreen.tsx` is not this lane's to import a component FROM
- * (it is Q's file), so this is new JSX wearing the same classes rather than
- * a shared export — a port of the look, not a literal re-export.
+ * The ready ring (`data-ready` on the avatar, the success token) replaces
+ * the `StatusPill` as the seat's OWN at-a-glance signal, but the pill stays
+ * too — `pod-seat-<n>-ready` is in the id contract, and colour alone is not
+ * a status (a third of the operator's friends could not read it — the same
+ * reasoning `ConstructedScreen.tsx`'s `StatusPill` was built for).
  *
  * Unlike a 1v1 seat, a pod seat carries no deck/legal state (drafting has
  * not happened yet) — just who is there, whether they are ready, and
  * whether they lead the room. Readiness itself is unaffected by seating
  * (`apps/server/src/room/lobby.ts`'s `startDraft`: the gate counts seated
- * members once anyone has sat, and every member before that — the exact
- * gate a room without pod seats always had), so this draws a ready pill for
- * whoever is seated but never toggles it — `ready-toggle` stays the single,
- * global control it already is.
+ * members once anyone has sat, and every member before that), so this draws
+ * a ready ring for whoever is seated but never toggles it — `ready-toggle`
+ * stays the single, global control it already is.
  *
  * Purely presentational: a parent (`DraftLobby.tsx`) owns the fetch and the
  * sit/stand calls, which is what makes this unit-testable with fixtures
@@ -55,56 +58,60 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand,
         const occupant = seats[seat] ?? null;
         if (occupant === null) {
           return (
-            <li key={seat} className="tables__row tables__row--line tables__row--empty" data-testid={`pod-seat-${seat}`}>
-              <span className="tables__who tables__who--seat">
-                <span className="tables__name">Open seat</span>
-                <span className="tables__actions">
-                  <button
-                    type="button"
-                    className="tables__sit"
-                    data-testid="pod-seat-sit"
-                    data-seat={seat}
-                    disabled={iAmSeated}
-                    onClick={() => onSit(seat)}
-                  >
-                    Sit here
+            <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`}>
+              <button
+                type="button"
+                className="pod-seats__avatar pod-seats__avatar--open"
+                data-testid="pod-seat-sit"
+                data-seat={seat}
+                aria-label={`Sit in seat ${seat + 1}`}
+                disabled={iAmSeated}
+                onClick={() => onSit(seat)}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+              <span className="pod-seats__label">Open</span>
+              <span className="pod-seats__actions">
+                <button type="button" className="pod-seats__action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} onClick={() => onAi(seat, true)}>
+                  AI
+                </button>
+                {iLead && (
+                  <button type="button" className="pod-seats__action" data-testid="pod-seat-close" data-seat={seat} aria-label={`Close seat ${seat + 1}`} onClick={() => onClose(seat, true)}>
+                    Close
                   </button>
-                  {/* The same AI button as the 1v1 table's empty seat. */}
-                  <button type="button" className="tables__sit" data-testid="pod-seat-ai" data-seat={seat} onClick={() => onAi(seat, true)}>
-                    AI
-                  </button>
-                  {iLead && (
-                    <button type="button" className="tables__sit" data-testid="pod-seat-close" data-seat={seat} onClick={() => onClose(seat, true)}>
-                      Close
-                    </button>
-                  )}
-                </span>
+                )}
               </span>
             </li>
           );
         }
         if (occupant.memberId === POD_CLOSED) {
           return (
-            <li key={seat} className="tables__row tables__row--line tables__row--closed" data-testid={`pod-seat-${seat}`} data-closed="">
-              <span className="tables__who tables__who--seat">
-                <span className="tables__name">Closed</span>
-                {iLead && (
-                  <span className="tables__actions">
-                    <button type="button" className="tables__sit" data-testid="pod-seat-open" data-seat={seat} onClick={() => onClose(seat, false)}>
-                      Open
-                    </button>
-                  </span>
-                )}
+            <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-closed="">
+              <span className="pod-seats__avatar pod-seats__avatar--closed" aria-hidden="true">
+                ×
               </span>
+              <span className="pod-seats__label">Closed</span>
+              {iLead && (
+                <span className="pod-seats__actions">
+                  <button type="button" className="pod-seats__action" data-testid="pod-seat-open" data-seat={seat} aria-label={`Open seat ${seat + 1}`} onClick={() => onClose(seat, false)}>
+                    Open
+                  </button>
+                </span>
+              )}
             </li>
           );
         }
         if (occupant.memberId === POD_AI) {
           return (
-            <li key={seat} className="tables__row tables__row--line" data-testid={`pod-seat-${seat}`} data-ai="">
-              <span className="tables__who tables__who--seat">
-                <strong className="tables__name">{occupant.name}</strong>
-                <button type="button" className="tables__stand" data-testid="pod-seat-ai-remove" data-seat={seat} onClick={() => onAi(seat, false)}>
+            <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`} data-ai="">
+              <span className="pod-seats__avatar pod-seats__avatar--ai" aria-hidden="true">
+                AI
+              </span>
+              <span className="pod-seats__label">{occupant.name}</span>
+              <span className="pod-seats__actions">
+                <button type="button" className="pod-seats__action" data-testid="pod-seat-ai-remove" data-seat={seat} aria-label={`Remove AI from seat ${seat + 1}`} onClick={() => onAi(seat, false)}>
                   Remove
                 </button>
               </span>
@@ -115,27 +122,27 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, onSit, onStand,
         const leads = occupant.memberId === leaderId && leaderId !== '';
         const ready = readyOf(occupant.memberId);
         return (
-          <li key={seat} className="tables__row tables__row--line" data-testid={`pod-seat-${seat}`}>
-            <span className="tables__who tables__who--seat">
-              <strong className="tables__name">{mine ? `${occupant.name} (you)` : occupant.name}</strong>
+          <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`}>
+            <span className="pod-seats__avatar-wrap">
+              <span className="pod-seats__avatar" data-ready={ready ? 'true' : 'false'}>
+                {occupant.name.charAt(0).toUpperCase()}
+              </span>
               {leads && (
-                <svg className="tables__crown" data-testid={`pod-seat-${seat}-leader`} viewBox="0 0 12 12" role="img" aria-label="Room owner">
+                <svg className="pod-seats__crown" data-testid={`pod-seat-${seat}-leader`} viewBox="0 0 12 12" role="img" aria-label="Room owner">
                   <title>Room owner</title>
                   <path d={CROWN} />
                 </svg>
               )}
-              {mine && (
-                <button type="button" className="tables__stand" data-testid="pod-seat-stand" onClick={() => onStand()}>
-                  Stand up
-                </button>
-              )}
             </span>
-            <StatusPill
-              testId={`pod-seat-${seat}-ready`}
-              state={ready ? 'yes' : 'no'}
-              mark={ready ? 'tick' : 'ring'}
-              label={ready ? 'ready' : 'not ready'}
-            />
+            <span className="pod-seats__label">{mine ? `${occupant.name} (you)` : occupant.name}</span>
+            <StatusPill testId={`pod-seat-${seat}-ready`} state={ready ? 'yes' : 'no'} mark={ready ? 'tick' : 'ring'} label={ready ? 'ready' : 'not ready'} />
+            {mine && (
+              <span className="pod-seats__actions">
+                <button type="button" className="pod-seats__action" data-testid="pod-seat-stand" aria-label="Stand up" onClick={() => onStand()}>
+                  Stand
+                </button>
+              </span>
+            )}
           </li>
         );
       })}
