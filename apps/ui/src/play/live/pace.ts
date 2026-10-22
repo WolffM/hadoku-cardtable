@@ -461,6 +461,8 @@ export interface PacedMatchTransport extends MatchTransport {
   setEndingTurn(ending: boolean): void;
   /** The seat's Forge player, read as each frame arrives — null for a watcher, or before the snapshot names it ({@link ownAct}). */
   setSeatPlayer(player: () => number | null): void;
+  /** How many frames are held, waiting their turn: the frame rate's reports read it (`frame-watch.ts`). */
+  queued(): number;
 }
 
 /** Narrows a plain `MatchTransport` (the dev harness's, a test's own stub) from one this wrapper built. Structural, not a brand: `setFast` is this interface's only addition. */
@@ -724,6 +726,9 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     },
     setSeatPlayer(player: () => number | null): void {
       seatPlayer = player;
+    },
+    queued(): number {
+      return queue.length;
     },
     setEndingTurn(value: boolean): void {
       endingTurn = value;

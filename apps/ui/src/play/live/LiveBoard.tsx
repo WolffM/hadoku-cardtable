@@ -288,6 +288,7 @@ import { installPresence } from './presence.ts';
 import { setChainHalted } from './placed.ts';
 import { installArrangementSync } from './arrangement-sync.ts';
 import { isPacedTransport } from './pace.ts';
+import { boardFacts, watchFrames, type FrameWatch } from './frame-watch.ts';
 import { BAR_STUCK_MS, barStuck } from './bar-hold.ts';
 import { deriveSoundEvents } from './sound-events.ts';
 import { phaseSoundGate } from './phase-sound.ts';
@@ -295,7 +296,7 @@ import { NO_PRIORITY_CUE, nextPriorityCue, type PriorityCue } from './priority-c
 import { matchStartSounded, openNewMatch } from './matchStart.ts';
 import { hoverControl, isMuted, playRole, playSoundEvents, takeUiTally, type DelayedSoundEvent } from '../../sound/index.ts';
 import { useMatchMusic } from '../../sound/match-music.ts';
-import { boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, prefersReducedMotion, whenBoardStill } from '../motion.ts';
+import { boardDrawing, boardSoundsAt, cardImpactAt, exitBeatAt, lifeImpactAt, prefersReducedMotion, whenBoardStill } from '../motion.ts';
 import {
   abortAsk,
   answerAsk,
@@ -2664,6 +2665,29 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       flush();
     };
   }, [match.matchId]);
+  // The frame rate, in the match's log (`./frame-watch.ts`): its bad stretches, what the board was doing, and a summary every few turns.
+  const frameWatch = useRef<FrameWatch | null>(null);
+  useEffect(() => {
+    if (spectator) return undefined;
+    const watch = watchFrames({
+      report: (data) => reportClient(match.transport, match.matchId, 'perf', data),
+      board: () => ({
+        ...boardFacts(match.view),
+        beats: boardDrawing(),
+        paceQueue: isPacedTransport(match.transport) ? match.transport.queued() : -1,
+        ui: __HADOKU_UI_VERSION__,
+      }),
+    });
+    frameWatch.current = watch;
+    return () => {
+      frameWatch.current = null;
+      watch.dispose();
+    };
+  }, [match, spectator]);
+  const frameTurn = match.view?.turn ?? -1;
+  useEffect(() => {
+    if (frameTurn >= 0) frameWatch.current?.noteTurn(frameTurn);
+  }, [frameTurn]);
   /*
    * T4 (shape 1, lane G): every Forge yes/no that is an ANSWER rather than a
    * priority pass — the shockland's "pay 2 life?", the mulligan's

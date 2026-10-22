@@ -161,6 +161,11 @@ export function noteBoardDrawing(over: Promise<unknown>): void {
   });
 }
 
+/** How many views' beats the board is drawing now: the frame rate's reports read it (`live/frame-watch.ts`). */
+export function boardDrawing(): number {
+  return drawing.size;
+}
+
 /** Runs `done` once nothing the board is drawing is still playing — at once when it is still. Returns a cancel. */
 export function whenBoardStill(done: () => void): () => void {
   if (drawing.size === 0) {
