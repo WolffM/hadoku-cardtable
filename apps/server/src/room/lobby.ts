@@ -506,7 +506,7 @@ export type RecordGameResultResult =
 
 export type StartDraftResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-ready' };
+	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-ready' | 'plan-not-ready' };
 
 /**
  * `not-member` covers a room that does not exist too (same bucket `join` and
@@ -2490,6 +2490,14 @@ class FileLobby implements Lobby {
 		const seated = seatedHumans(room);
 		if (seated.length === 0 || room.podSeats.includes(null)) return { ok: false, reason: 'not-ready' };
 		if (seated.some((id) => room.members.find((m) => m.id === id)?.ready !== true)) return { ok: false, reason: 'not-ready' };
+		// The operator, on playability: "it shouldn't even get to the drafting
+		// stage" — a SERVER rule, checked last (after every other gate, so an
+		// unrelated refusal still reports its OWN reason), because this is the
+		// one gate nothing upstream of here can be trusted to have enforced. A
+		// UI disabling Start on a bad verdict is not this: a direct POST must
+		// refuse too. `null` (never checked, or a check still in flight) and
+		// `ok: false` (refused) are the same answer here — neither may deal.
+		if (room.planVerdict === null || !room.planVerdict.ok) return { ok: false, reason: 'plan-not-ready' };
 		room.draftStartedAt = this.#now();
 		this.#persist(room);
 		this.#log({ event: 'room-draft-started', roomId, members: room.members.length, seated: seated.length });

@@ -691,7 +691,9 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 				error:
 					result.reason === 'not-draft'
 						? 'this room is not playing a draft'
-						: 'every seat needs a player or the AI, and every player ready, before the draft starts',
+						: result.reason === 'plan-not-ready'
+							? 'the draft pool is still being checked, or was refused — pick a different one, or wait'
+							: 'every seat needs a player or the AI, and every player ready, before the draft starts',
 			});
 		}
 		res.json(roomBody(result.room, caller.id));

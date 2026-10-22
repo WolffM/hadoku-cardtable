@@ -924,6 +924,7 @@ describe('a draft that has started', () => {
 		expect(first.sitPod(id, BOB.id, 1).ok).toBe(true);
 		for (const m of [ALICE, BOB]) expect(first.setReady(id, m.id, true)).toBe(true);
 		fillWithAi(first, id, ALICE.id);
+		approvePlan(first, id);
 		expect(first.startDraft(id, ALICE.id).ok).toBe(true);
 		first.setPodChecks(checks);
 		expect(first.playPod(id, ALICE.id).ok).toBe(true);
@@ -2000,6 +2001,7 @@ describe('Lobby.startDraft — no open seat, and only the seated are waited on',
 		expect(lobby.aiPod(id, ALICE.id, 7, true).ok).toBe(true);
 		// Every character is taken by now (two members, six AI seats): the last AI seat shares one with a member.
 		expect(lobby.get(id)?.pod?.seats[7]).toEqual({ memberId: POD_AI, name: 'Sage' });
+		approvePlan(lobby, id);
 		// BOB never sat: a spectator, not ready, and not waited on.
 		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
 		expect(lobby.get(id)?.pod?.drafters).toEqual([ALICE.id]);
@@ -2025,6 +2027,7 @@ describe('Lobby.startDraft — no open seat, and only the seated are waited on',
 		expect(lobby.get(id)?.pod?.seats[3]).toEqual({ memberId: BOB.id, name: BOB.name });
 		expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
 		expect(lobby.get(id)?.pod?.seats.some((s) => s?.memberId === ALICE.id)).toBe(false);
+		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
 	});
 });
@@ -2043,6 +2046,7 @@ describe("a draft room's pod — phase, wave 72 §P", () => {
 		expect(lobby.get(id)?.pod?.seats[0]).toEqual({ memberId: ALICE.id, name: ALICE.name });
 		expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
 		fillWithAi(lobby, id, ALICE.id);
+		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 
 		// Unwired PodChecks (the default, and the instant before `attachTables`
@@ -2114,6 +2118,7 @@ describe('Lobby.playPod', () => {
 		expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
 		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
 		fillWithAi(lobby, id, ALICE.id);
+		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 		return { lobby, id };
 	}
@@ -2173,6 +2178,7 @@ describe('Lobby.playPod', () => {
 		for (const m of [ALICE, BOB]) expect(lobby.setReady(id, m.id, true)).toBe(true);
 		fillWithAi(lobby, id, ALICE.id);
 		expect(lobby.podDraft(id)?.bots).toHaveLength(6);
+		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
 		const started = playAll(lobby, id, [ALICE, BOB]);
@@ -2196,6 +2202,7 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		expect(lobby.sitPod(id, CAROL.id, 2).ok).toBe(true);
 		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
 		fillWithAi(lobby, id, ALICE.id);
+		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 		return { lobby, id };
@@ -2299,6 +2306,7 @@ describe('a 3-member draft room that never sits still reaches rounds — wave 72
 		// Nobody ever calls sitPod.
 		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
 		fillWithAi(lobby, id, ALICE.id);
+		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 
 		// The fallback gate's own gap, closed: without the auto-seat this would
@@ -2354,6 +2362,7 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 		expect(lobby.sitPod(id, BOB.id, 4).ok).toBe(true);
 		for (const m of [ALICE, BOB]) expect(lobby.setReady(id, m.id, true)).toBe(true);
 		fillWithAi(lobby, id, ALICE.id);
+		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 		lobby.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id]) }));
 		expect(playAll(lobby, id, [ALICE, BOB]).ok).toBe(true);
@@ -2410,6 +2419,7 @@ describe('Lobby.close, and the tournaments a pod leaves behind', () => {
 			for (const [i, m] of [ALICE, BOB, CAROL].entries()) expect(l.sitPod(made.room.id, m.id, i).ok).toBe(true);
 			for (const m of [ALICE, BOB, CAROL]) expect(l.setReady(made.room.id, m.id, true)).toBe(true);
 			fillWithAi(l, made.room.id, ALICE.id);
+			approvePlan(l, made.room.id);
 			expect(l.startDraft(made.room.id, ALICE.id).ok).toBe(true);
 			l.setPodChecks(fakeChecks({ draftComplete: true, built: new Set([ALICE.id, BOB.id, CAROL.id]) }));
 			expect(playAll(l, made.room.id, [ALICE, BOB, CAROL]).ok).toBe(true);
@@ -2510,6 +2520,7 @@ describe('closed pod seats', () => {
 		const deal = lobby.podDraft(id)!;
 		expect(deal.seats).toBe(4);
 		expect(deal.bots).toHaveLength(2);
+		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
 		expect(lobby.podDraft(id)?.humans.map((h) => h.participantId)).toEqual([ALICE.id, BOB.id]);
 
@@ -2547,6 +2558,7 @@ describe('the pod seat is the draft table', () => {
 		expect(lobby.sitPod(id, CAROL.id, 5).ok).toBe(true);
 		for (const seat of [1, 2, 4, 6, 7]) expect(lobby.aiPod(id, ALICE.id, seat, true).ok).toBe(true);
 		for (const m of [ALICE, BOB, CAROL]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		approvePlan(lobby, id);
 		expect(lobby.startDraft(id, ALICE.id)).toMatchObject({ ok: true });
 
 		const load = loadPool(CUBE_FILE);

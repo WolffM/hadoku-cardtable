@@ -171,6 +171,22 @@ async function call(
 	return { status: res.status, text, json: () => JSON.parse(text) };
 }
 
+/** A plan whose rounds are one cube — content does not matter here, only that `PUT …/pod/plan` accepts it (`openApp`'s default `checkPlan` is always-ok). */
+const APPROVABLE_PLAN = { rounds: [{ kind: 'cube', cubeId: 'approve' }, { kind: 'cube', cubeId: 'approve' }, { kind: 'cube', cubeId: 'approve' }] };
+
+/**
+ * `startDraft`'s own gate (wave 73 §A follow-up — "it shouldn't even get to
+ * the drafting stage" is a server rule, not just B's disabled Start button)
+ * refuses until the room's plan has an OK verdict. `openLobby` is never
+ * given a `checkPlan` in this harness, so nothing auto-checks one — every
+ * test that starts a draft for real approves it through the real route
+ * first, the same way a leader would.
+ */
+async function approvePlan(h: Harness, roomId: string, as = 'alice'): Promise<void> {
+	const res = await call(h, 'PUT', `/api/rooms/${roomId}/pod/plan`, { as, body: { plan: APPROVABLE_PLAN } });
+	if (res.status !== 200) throw new Error(`approvePlan failed: ${res.status} ${res.text}`);
+}
+
 /** The stored salt and hash of the one locked room in `dir`, read the way a human would. */
 function storedSecret(dir: string): { salt: string; hash: string } {
 	const secrets = readdirSync(dir)
@@ -785,6 +801,7 @@ describe('PATCH /api/rooms/:id { format }', () => {
 			.json() as import('../room/lobby.ts').RoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
 		for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
+		await approvePlan(h, room.id);
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' })).status).toBe(200);
 
 		const patched = await call(h, 'PATCH', `/api/rooms/${room.id}`, { as: 'alice', body: { format: OLDEST_POOL } });
@@ -850,6 +867,7 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 			.json() as import('../room/lobby.ts').RoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
 		for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
+		await approvePlan(h, room.id);
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' })).status).toBe(200);
 
 		const res = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: PLAN } });
@@ -1366,6 +1384,7 @@ describe('POST /api/rooms/:id/start', () => {
 		for (let seat = 2; seat < 8; seat++) expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat, on: true } })).status).toBe(200);
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat: 2, on: 'yes' } })).status).toBe(400);
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'bob', body: { seat: 0, on: true } })).status).toBe(409);
+		await approvePlan(h, room.id);
 		// Bob is not the leader, and starts it anyway: any member may ask.
 		const started = await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'bob' });
 		expect(started.status).toBe(200);
@@ -1406,6 +1425,7 @@ describe('PATCH /api/rooms/:id while a draft is running', () => {
 			.json() as import('../room/lobby.ts').RoomView;
 		await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
 		for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
+		await approvePlan(h, room.id);
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/start`, { as: 'alice' })).status).toBe(200);
 
 		const patched = await call(h, 'PATCH', `/api/rooms/${room.id}`, {
