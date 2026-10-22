@@ -51,6 +51,7 @@
  */
 import { expect, test, type Browser, type Page, type WebSocket } from '@playwright/test';
 
+import { collationCounts, type WireCard } from './draft-sets.collation.ts';
 import { readyPod, selectCustomRound } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
@@ -65,13 +66,6 @@ const UI_TIMEOUT = 30_000;
 const ISD = { code: 'ISD', name: 'Innistrad' };
 const ALA = { code: 'ALA', name: 'Shards of Alara' };
 const ARB = { code: 'ARB', name: 'Alara Reborn' };
-
-interface WireCard {
-  name: string;
-  rarity: string;
-  faces?: unknown[];
-  setCode: string;
-}
 
 /**
  * Captures the viewer's own open pack straight off the draft socket's
@@ -360,8 +354,14 @@ test(
        * the WHOLE 15 therefore double-counts whenever the DFC happens to
        * land on "uncommon" (seen live: Gatstaf Shepherd // Gatstaf Howler,
        * an uncommon DFC, made 4 "uncommon" cards look like a wrong pack).
-       * The DFC is found FIRST and set aside; the three rarity counts are
-       * checked over the other 14 — the `:!dfc` slots' own cards.
+       *
+       * A FOIL double-counts the same way, from a different mechanism:
+       * `getBoosterPack` can append one extra foil card of any rarity on top
+       * of a common slot it shrank to make room (`draft-sets.collation.ts`'s
+       * own header has the full derivation — this is what reds this spec at
+       * random, runs 39828615022 and 39808764418). The DFC and the foil are
+       * both found FIRST and set aside (`collationCounts`); the three rarity
+       * counts are checked over what is left.
        */
       await waitForPack(alice.page, "alice's first pack");
       const names = await packCardNames(alice.page);
@@ -369,13 +369,11 @@ test(
       const entries = await capturedPack(alice.page, alicePack);
       expect(entries.length, `the pack drew cards at all (wire): ${JSON.stringify(entries.map((e) => e.name))}`).toBe(15);
       const summary = entries.map((e) => e.name).join(', ');
-      const dfcs = entries.filter((e) => Array.isArray(e.faces) && e.faces.length > 0);
-      expect(dfcs.length, `exactly one double-faced card (names: ${summary})`).toBe(1);
-      const nonDfc = entries.filter((e) => !(Array.isArray(e.faces) && e.faces.length > 0));
-      const rareOrMythic = nonDfc.filter((e) => e.rarity === 'rare' || e.rarity === 'mythic');
-      const uncommons = nonDfc.filter((e) => e.rarity === 'uncommon');
-      expect(rareOrMythic.length, `exactly one non-DFC rare/mythic (names: ${summary})`).toBe(1);
-      expect(uncommons.length, `exactly three non-DFC uncommons (names: ${summary})`).toBe(3);
+      const counts = collationCounts(entries);
+      expect(counts.dfcCount, `exactly one double-faced card (names: ${summary})`).toBe(1);
+      expect(counts.foilCount, `at most one foil card (names: ${summary})`).toBeLessThanOrEqual(1);
+      expect(counts.rareOrMythicCount, `exactly one non-DFC, non-foil rare/mythic (names: ${summary})`).toBe(1);
+      expect(counts.uncommonCount, `exactly three non-DFC, non-foil uncommons (names: ${summary})`).toBe(3);
     } finally {
       await stack.stop();
     }

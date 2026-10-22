@@ -129,6 +129,13 @@ export const DraftCardSchema = z.object({
   ...CardFaceFields,
   /** Every face but the one this card shows, in printed order. Absent for a card with one face. */
   faces: z.array(CardFaceSchema).optional(),
+  /**
+   * A realistic booster's own foil, carried off Forge's `PaperCard.isFoil()`
+   * (`apps/server/src/play/bridge/PoolService.java`) — `getBoosterPack` can add one of any
+   * rarity in place of a common slot card, same as a paper pack. Absent means not foil; a cube
+   * or set-cube card never sets it.
+   */
+  foil: z.boolean().optional(),
 });
 
 /**

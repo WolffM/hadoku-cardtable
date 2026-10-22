@@ -260,6 +260,13 @@ public final class PoolService {
      * {@code count} draft boosters of {@code code}, seeded through {@link MyRandom#setRandom}
      * so the same seed gives the same boosters (same seed, same sequence of
      * {@link BoosterGenerator#getBoosterPack} calls, deterministic {@link Random}).
+     *
+     * Each card carries its own {@link PaperCard#isFoil()} — {@code getBoosterPack} itself may
+     * add one foil of any rarity, per the edition's foil chance, in place of a common slot card
+     * (its own doc: {@code FoilAlwaysInCommonSlot}, default true). Dropping that flag is what
+     * made a realistic pack's rarity collation look wrong at random: the foil card is real and
+     * extra, not a miscount, and a reader must set it aside the way it already sets the DFC
+     * aside (`e2e/draft-sets.spec.ts`'s header).
      */
     private static void handleBoosters(final JsonObject req, final JsonObject resp) {
         final String code = req.get("code").getAsString();
@@ -282,6 +289,7 @@ public final class PoolService {
                 c.addProperty("name", pc.getName());
                 c.addProperty("set", pc.getEdition());
                 c.addProperty("collectorNumber", pc.getCollectorNumber());
+                c.addProperty("foil", pc.isFoil());
                 packArr.add(c);
             }
             boosters.add(packArr);

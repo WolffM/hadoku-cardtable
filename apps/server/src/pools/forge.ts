@@ -59,6 +59,12 @@ export interface BoosterCard {
 	name: string;
 	set: string;
 	collectorNumber: string;
+	/**
+	 * `PaperCard.isFoil()`, carried straight off `PoolService.java`. `getBoosterPack` can add one
+	 * foil of any rarity in place of a common slot card (the edition's own foil chance) — a real,
+	 * EXTRA card a reader must set aside before counting a pack's rarity collation, not a miscount.
+	 */
+	foil: boolean;
 }
 
 export interface ForgePools {
@@ -223,6 +229,21 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 		return resp;
 	}
 
+	/** `resp.boosters`, checked field-by-field rather than cast — a wire card missing `foil` (an old jar, a protocol slip) fails loudly instead of handing every reader `undefined`. */
+	function parseBoosters(value: unknown): BoosterCard[][] {
+		if (!Array.isArray(value)) throw new Error(`boosters: expected an array of packs, got ${JSON.stringify(value)}`);
+		return value.map((pack) => {
+			if (!Array.isArray(pack)) throw new Error(`boosters: expected a pack of cards, got ${JSON.stringify(pack)}`);
+			return pack.map((card) => {
+				const c = card as Record<string, unknown>;
+				if (typeof c.name !== 'string' || typeof c.set !== 'string' || typeof c.collectorNumber !== 'string' || typeof c.foil !== 'boolean') {
+					throw new Error(`boosters: malformed card: ${JSON.stringify(card)}`);
+				}
+				return { name: c.name, set: c.set, collectorNumber: c.collectorNumber, foil: c.foil };
+			});
+		});
+	}
+
 	return {
 		async check(names) {
 			const resp = expectOk(await call('check', { names }), 'check');
@@ -238,7 +259,7 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 		},
 		async boosters(code, count, seed) {
 			const resp = expectOk(await call('boosters', { code, count, seed }), 'boosters');
-			return resp.boosters as BoosterCard[][];
+			return parseBoosters(resp.boosters);
 		},
 		async close() {
 			const c = child;

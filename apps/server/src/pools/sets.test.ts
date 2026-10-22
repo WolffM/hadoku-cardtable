@@ -33,7 +33,7 @@ function card(name: string, code: string): DraftCard {
 const EMPTY_CATALOG: CatalogLookup = { byName: () => null };
 
 function booster(names: string[], code: string): BoosterCard[] {
-	return names.map((name) => ({ name, set: code, collectorNumber: '1' }));
+	return names.map((name) => ({ name, set: code, collectorNumber: '1', foil: false }));
 }
 
 function fakeForge(opts: {

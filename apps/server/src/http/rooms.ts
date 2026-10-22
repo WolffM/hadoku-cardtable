@@ -182,7 +182,7 @@ export interface RoomsDeps {
 
 /** The slice of D's `ForgePools` this file needs for one round's boosters — structural, like `room/plan.ts`'s own `ForgeChecker`. */
 export interface RealisticBoosterSource {
-	boosters(code: string, count: number, seed: string): Promise<{ name: string; set: string; collectorNumber: string }[][]>;
+	boosters(code: string, count: number, seed: string): Promise<{ name: string; set: string; collectorNumber: string; foil?: boolean }[][]>;
 }
 
 /** The slice of G's `CardCatalog` this file needs — both always present (`pools/catalog.ts`'s own `CardCatalog`), `byPrinting` tried first. */
@@ -199,24 +199,29 @@ export interface RealisticCatalog {
  * stand-in: `checkSource` should have refused this source before a leader
  * ever reached `/start` with it, so this is a defensive fallback, not the
  * expected path.
+ *
+ * `card.foil` rides along onto the result (never onto the catalog's own cached
+ * object — a fresh copy, since the same catalog card backs every non-foil
+ * copy dealt across the whole pod). Absent/false stays absent on the
+ * `DraftCard`, matching `DraftCardSchema.foil`'s "absent means not foil".
  */
-function resolveBoosterCard(catalog: RealisticCatalog, card: { name: string; set: string; collectorNumber: string }): DraftCard {
-	const byPrinting = catalog.byPrinting(card.set, card.collectorNumber);
-	if (byPrinting !== null) return byPrinting;
-	const byName = catalog.byName(card.name);
-	if (byName !== null) return byName;
-	return {
-		cardId: `${card.set}-${card.collectorNumber}-${card.name}`,
-		name: card.name,
-		manaCost: [],
-		manaValue: 0,
-		colors: [],
-		typeLine: '',
-		oracleText: '',
-		setCode: card.set,
-		collectorNumber: card.collectorNumber,
-		rarity: 'special',
-	};
+function resolveBoosterCard(catalog: RealisticCatalog, card: { name: string; set: string; collectorNumber: string; foil?: boolean }): DraftCard {
+	const resolved =
+		catalog.byPrinting(card.set, card.collectorNumber) ??
+		catalog.byName(card.name) ??
+		({
+			cardId: `${card.set}-${card.collectorNumber}-${card.name}`,
+			name: card.name,
+			manaCost: [],
+			manaValue: 0,
+			colors: [],
+			typeLine: '',
+			oracleText: '',
+			setCode: card.set,
+			collectorNumber: card.collectorNumber,
+			rarity: 'special',
+		} satisfies DraftCard);
+	return card.foil === true ? { ...resolved, foil: true } : resolved;
 }
 
 function callerOf(req: Request): Caller {
