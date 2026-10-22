@@ -6,7 +6,8 @@
  * Close/Open, Remove AI, Stand) but draws each seat as a round avatar with
  * its name underneath and its actions beside it, rather than a line in a
  * table. None of that is hover-only: a phone has no hover, so every action
- * is its own always-visible, labelled button.
+ * is its own always-visible, labelled button — an `ActionButton`, because a
+ * seat's AI and the Remove the room draws in its place are one position.
  *
  * The ready ring (`data-ready` on the avatar, the success token) replaces
  * the `StatusPill` as the seat's OWN at-a-glance signal, but the pill stays
@@ -27,6 +28,7 @@
  * (`PodSeats.test.ts`) instead of a mocked server.
  */
 
+import { ActionButton } from '../../components/ActionButton.tsx';
 import { Avatar } from '../../components/Avatar.tsx';
 import { CROWN, StatusPill } from '../ConstructedScreen.tsx';
 import { POD_AI, POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
@@ -62,28 +64,28 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
         if (occupant === null) {
           return (
             <li key={seat} className="pod-seats__seat" data-testid={`pod-seat-${seat}`}>
-              <button
-                type="button"
+              <ActionButton
+                action="sit"
                 className="pod-seats__avatar pod-seats__avatar--open"
                 data-testid="pod-seat-sit"
                 data-seat={seat}
                 aria-label={`Sit in seat ${seat + 1}`}
                 disabled={iAmSeated}
-                onClick={() => onSit(seat)}
+                onPress={() => onSit(seat)}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
                   <path d="M12 5v14M5 12h14" />
                 </svg>
-              </button>
+              </ActionButton>
               <span className="pod-seats__label">Open</span>
               <span className="pod-seats__actions">
-                <button type="button" className="pod-seats__action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} onClick={() => onAi(seat, true)}>
+                <ActionButton action="ai" className="pod-seats__action" data-testid="pod-seat-ai" data-seat={seat} aria-label={`Fill seat ${seat + 1} with AI`} onPress={() => onAi(seat, true)}>
                   AI
-                </button>
+                </ActionButton>
                 {iLead && (
-                  <button type="button" className="pod-seats__action" data-testid="pod-seat-close" data-seat={seat} aria-label={`Close seat ${seat + 1}`} onClick={() => onClose(seat, true)}>
+                  <ActionButton action="close" className="pod-seats__action" data-testid="pod-seat-close" data-seat={seat} aria-label={`Close seat ${seat + 1}`} onPress={() => onClose(seat, true)}>
                     Close
-                  </button>
+                  </ActionButton>
                 )}
               </span>
             </li>
@@ -98,9 +100,9 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
               <span className="pod-seats__label">Closed</span>
               {iLead && (
                 <span className="pod-seats__actions">
-                  <button type="button" className="pod-seats__action" data-testid="pod-seat-open" data-seat={seat} aria-label={`Open seat ${seat + 1}`} onClick={() => onClose(seat, false)}>
+                  <ActionButton action="open" className="pod-seats__action" data-testid="pod-seat-open" data-seat={seat} aria-label={`Open seat ${seat + 1}`} onPress={() => onClose(seat, false)}>
                     Open
-                  </button>
+                  </ActionButton>
                 </span>
               )}
             </li>
@@ -115,9 +117,9 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
               </span>
               <span className="pod-seats__label">{occupant.name}</span>
               <span className="pod-seats__actions">
-                <button type="button" className="pod-seats__action" data-testid="pod-seat-ai-remove" data-seat={seat} aria-label={`Remove AI from seat ${seat + 1}`} onClick={() => onAi(seat, false)}>
+                <ActionButton action="ai-remove" className="pod-seats__action" data-testid="pod-seat-ai-remove" data-seat={seat} aria-label={`Remove AI from seat ${seat + 1}`} onPress={() => onAi(seat, false)}>
                   Remove
-                </button>
+                </ActionButton>
               </span>
             </li>
           );
@@ -148,9 +150,9 @@ export function PodSeats({ seats, myMemberId, leaderId, readyOf, avatarIdOf, onS
             <StatusPill testId={`pod-seat-${seat}-ready`} state={ready ? 'yes' : 'no'} mark={ready ? 'tick' : 'ring'} label={ready ? 'ready' : 'not ready'} />
             {mine && (
               <span className="pod-seats__actions">
-                <button type="button" className="pod-seats__action" data-testid="pod-seat-stand" aria-label="Stand up" onClick={() => onStand()}>
+                <ActionButton action="stand" className="pod-seats__action" data-testid="pod-seat-stand" aria-label="Stand up" onPress={onStand}>
                   Stand
-                </button>
+                </ActionButton>
               </span>
             )}
           </li>
