@@ -393,30 +393,6 @@ const MATCH_GONE_REFUSAL = 'unknown-match';
 export const MATCH_GONE_SENTENCE =
   'This match is no longer running on the server — it ended when the server restarted or when Forge stopped. Nothing you did caused it. Start a new match to play again.';
 
-/**
- * This socket is WATCHING: the account holds the seat in another window, and
- * only that window may act (`LiveMatch.spectator`, shape 3 of the wave's agreed
- * seams — the server's `forge:role`). Read through a structural type so this file
- * does not depend on the field's landing order; `false` until the server says.
- */
-function isSpectator(match: LiveMatch): boolean {
-  return (match as { spectator?: boolean }).spectator === true;
-}
-
-/**
- * This socket holds NO seat (`LiveMatch.watcher`, `forge:role` `watcher`,
- * 2026-10-12): the public projection, both hands as backs, no controls drawn
- * at all, and a perspective of its own choosing. Always also a spectator.
- */
-function isWatcher(match: LiveMatch): boolean {
-  return (match as { watcher?: boolean }).watcher === true;
-}
-
-/** The server's `ended` frame has arrived (`LiveMatch.over`, shape 4). */
-function isOver(match: LiveMatch): boolean {
-  return (match as { over?: boolean }).over === true;
-}
-
 /* ── wave 51 §A.6: the stack sits right above the decision area ───────── */
 
 /** What occupies the decision column: a pop-up's sheet, or a card staged for its target. */
@@ -638,7 +614,7 @@ function WaitingPop({ sentence }: { sentence: string }) {
  * seat to wait on.
  */
 export function isWaitingForOpponent(match: LiveMatch): boolean {
-  if (isSpectator(match)) return false;
+  if (match.spectator) return false;
   const view = match.view;
   if (view === null || view.gameOver) return false;
   return theirWaitingOn(match) !== null || theyLeft(match);
@@ -661,7 +637,7 @@ export function theyLeft(match: LiveMatch): boolean {
  * to bob, alice's flag for him never lit).
  */
 export function opponentHoldsAWindow(match: LiveMatch): boolean {
-  if (isSpectator(match) || match.seat === null || match.waitingOn === null) return false;
+  if (match.spectator || match.seat === null || match.waitingOn === null) return false;
   const view = match.view;
   if (view === null || view.gameOver) return false;
   return match.waitingOn.has(match.seat === 0 ? 1 : 0);
@@ -2516,9 +2492,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * inert — and hover, the inspector and the log stay. `spectator` is read every
    * render, so a promotion lifts all of it without a reload.
    */
-  const spectator = isSpectator(match);
-  const watcher = isWatcher(match);
-  const over = isOver(match);
+  const spectator = match.spectator;
+  const watcher = match.watcher;
+  const over = match.over;
   const pending = currentAsk(match);
   /*
    * The table's sound: every view the pacer releases is diffed against the one
@@ -3165,7 +3141,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   }, [prefs, match]);
   // Whose acts go out as Forge sends them (`./pace.ts`, "The seat's own acts"): this seat's player, never a watcher's.
   useEffect(() => {
-    if (isPacedTransport(match.transport)) match.transport.setSeatPlayer(() => (isSpectator(match) ? null : match.playerId));
+    if (isPacedTransport(match.transport)) match.transport.setSeatPlayer(() => (match.spectator ? null : match.playerId));
   }, [match]);
   function handleFastModeChange(next: boolean): void {
     setFastModeState(next);
