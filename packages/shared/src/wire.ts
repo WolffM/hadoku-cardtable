@@ -248,10 +248,12 @@ export function isPickRejection(code: WireErrorCode): code is PickRejectionCode 
 /**
  * What cube this draft is being run from. Descriptive only.
  *
- * Optional because the engine does not know it — `createDraft` takes a pool of
- * cards, not a cube name — so a server that has not been told cannot invent
- * one. The UI shows it when it is there and says nothing when it is not,
- * rather than printing a placeholder that looks like data.
+ * Optional because the engine does not know it — `createDraft` takes already-
+ * dealt packs, not a cube name (wave 73 §A: a room's own `DraftPlan` names a
+ * source, `@hadoku/draft`'s `deal()` turns it into cards) — so a server that
+ * has not been told cannot invent one. The UI shows it when it is there and
+ * says nothing when it is not, rather than printing a placeholder that looks
+ * like data.
  */
 export const CubeMetaSchema = z.strictObject({
   name: z.string().min(1),
