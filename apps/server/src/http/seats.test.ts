@@ -10,7 +10,7 @@
  */
 
 import express from 'express';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -213,6 +213,53 @@ describe('a constructed table', () => {
 		expect(roomSeats(after)).toEqual([['bob', 'alice']]);
 		expect(await seats(after)).toEqual({ players: [['bob', false], ['alice', true]], locked: false });
 		expect(after.lobby.setMode(after.roomId, ALICE.id, { mode: 'gauntlet', modeOptions: {} })).toEqual({ ok: false, reason: 'mode-locked' });
+	});
+});
+
+describe('a room stored before the lobby held its seats', () => {
+	/**
+	 * What that build wrote: each seat in its member's blob (`table`, `seatedAt`,
+	 * `ready` beside the deck), a table's `seats` a copy refreshed only by a
+	 * table read and no `ready` beside them, and a Gauntlet with its own `ready`.
+	 */
+	async function storedTheOldWay(): Promise<Stack> {
+		const s = await boot();
+		await s.call('alice', 'PUT', '/deck', DECK);
+		await s.call('bob', 'PUT', '/deck', OTHER);
+		await s.close();
+		open.splice(open.indexOf(s), 1);
+		const [file] = await readdir(s.dir);
+		const path = join(s.dir, file!);
+		const snapshot = JSON.parse(await readFile(path, 'utf8')) as {
+			members: { participantId: string; app: { state: Record<string, unknown>; ready: boolean } | null }[];
+			app: { tables: Record<string, unknown>[]; gauntlet?: unknown };
+		};
+		const table = snapshot.app.tables[0]!;
+		const blob = (id: string) => snapshot.members.find((m) => m.participantId === id)!.app!.state;
+		// Bob sat first and Alice readied; Alice's row predates multi-table rooms.
+		Object.assign(blob(BOB.id), { table: table.id, seatedAt: 100, ready: false });
+		Object.assign(blob(ALICE.id), { seatedAt: 200, ready: true });
+		table.seats = [null, null];
+		delete table.ready;
+		snapshot.app.gauntlet = { phase: 'options', ready: [false, true], players: null, era: null, revealAt: null, first: null, decks: [], marks: [], stepIndex: 0, taken: 0, games: [], choices: [null, null], winner: null };
+		await writeFile(path, JSON.stringify(snapshot));
+		return boot(s.dir, s.roomId);
+	}
+
+	it('seats each player from their own blob, in the order they sat, with their Ready and their deck', async () => {
+		const s = await storedTheOldWay();
+		expect(roomSeats(s)).toEqual([['bob', 'alice']]);
+		expect(await seats(s)).toEqual({ players: [['bob', false], ['alice', true]], locked: false });
+		const mine = await s.call('alice', 'GET', '');
+		expect((mine.body.players as { deck?: { name: string } }[])[1]!.deck?.name).toBe('UG Polymorph (Antoine Ruel)');
+		expect(s.lobby.setMode(s.roomId, ALICE.id, { mode: 'gauntlet', modeOptions: {} })).toEqual({ ok: false, reason: 'mode-locked' });
+		await s.call('bob', 'POST', '/ready', { ready: true });
+		expect((await seats(s)).locked).toBe(true);
+	});
+
+	it('restores a Gauntlet stored with its own Readys, which the table seats now hold', async () => {
+		const s = await storedTheOldWay();
+		expect(s.lobby.gauntlet(s.roomId)?.phase).toBe('options');
 	});
 });
 

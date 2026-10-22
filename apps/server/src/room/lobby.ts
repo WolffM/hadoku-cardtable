@@ -24,10 +24,10 @@
  *
  * The snapshot's `members` are the room's members, and each member's `app` blob
  * carries two things: the room's own readiness flag (`ready`, what a draft
- * starts on) and the constructed table's per-player state blob (deck choice and
- * its own ready flag, written by `http/routes.ts`) — which is exactly what that
+ * starts on) and the constructed table's per-player state blob (the deck the
+ * seat holds, written by `http/routes.ts`) — which is exactly what that
  * field is for. The room-level `app` blob carries name, leader, game type,
- * client mode, format, match id and `draftStartedAt`, plus the password's salt
+ * client mode, format, tables (who sits at each and their Readys), match id and `draftStartedAt`, plus the password's salt
  * and scrypt hash. A room written before `clientMode` existed has no such key
  * and reads back `builtin`; one written before `ready`/`draftStartedAt` existed
  * reads back `false` and `null`; one written before `format` existed reads back
@@ -96,6 +96,7 @@ import {
 import { botSeatAcross, pairRound, roundsFor, standings, type MatchResult, type PodPlayer, type StandingsRow } from '@hadoku/draft';
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { isGauntletState, type GauntletState } from './gauntlet.ts';
+import { leaveSeat, readySeat, seatList, sitAt, type TableSeat, type TableSeats } from './seats.ts';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, statsModeOf, type SeriesGame, type SeriesRecord, type SeriesRoom } from './series.ts';
 
 import type { Tournament } from './tournaments.ts';
@@ -349,9 +350,8 @@ export interface RoomMember {
 	/**
 	 * The ROOM's readiness, which is what a draft starts on.
 	 *
-	 * Not the constructed table's ready flag: that one lives in the player-state
-	 * blob beside the deck choice (`http/routes.ts`), because it means "my deck
-	 * is loaded and legal" and is refused without one. This one means "I am
+	 * Not a table seat's Ready (`TableRecord.ready`), which means "my deck is
+	 * loaded and legal" and is refused without one. This one means "I am
 	 * ready for this room to begin" and needs no deck. A room switching game
 	 * type clears it — see `setGameType`.
 	 */
@@ -431,7 +431,7 @@ export interface Caller {
 	name: string;
 }
 
-export interface CreateRoomInput {
+interface CreateRoomInput {
 	name: string;
 	gameType: GameType;
 	/** The one place this is ever set. Required here; the HTTP layer defaults a missing field. */
@@ -442,7 +442,7 @@ export interface CreateRoomInput {
 	mode?: RoomMode;
 }
 
-export type CreateResult =
+type CreateResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'not-durable' };
 
@@ -450,21 +450,21 @@ export type CreateResult =
  * `no-match` covers BOTH "no such room" and "wrong password", on purpose: the
  * HTTP layer must not be able to tell them apart, so this layer does not either.
  */
-export type JoinResult =
+type JoinResult =
 	| { ok: true; room: RoomView; alreadyMember: boolean }
 	| { ok: false; reason: 'no-match' | 'not-durable' };
 
-export type SetGameTypeResult =
+type SetGameTypeResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
 
 /** `setFormat`'s refusals, plus a draft room (which has no mode) and `modeLocked`. */
-export type SetModeResult =
+type SetModeResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'mode-locked' };
 
 /** Deliberately the same three refusals as `SetGameTypeResult`: one leader, one shape. */
-export type SetFormatResult =
+type SetFormatResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' };
 
@@ -492,19 +492,19 @@ const SETTING_KEYS = Object.keys(DEFAULT_ROOM_SETTINGS) as (keyof RoomSettings)[
 const RETIRED_SETTING_KEYS = ['matchLength', 'sideboarding'];
 
 /** The same three refusals as `SetFormatResult`: one leader, one shape. */
-export type SetSettingsResult = SetFormatResult;
+type SetSettingsResult = SetFormatResult;
 
-export type AddTableResult = | { ok: true; room: RoomView; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
+type AddTableResult = | { ok: true; room: RoomView; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
 
-export type RemoveTableResult =
+type RemoveTableResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'no-such-table' | 'first-table' | 'not-idle' };
 
-export type RecordGameResultResult =
+type RecordGameResultResult =
 	| { ok: true; room: RoomView; phase: SeriesPhase }
 	| { ok: false; reason: 'no-room' | 'no-such-table' };
 
-export type StartDraftResult =
+type StartDraftResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-ready' | 'plan-not-ready' };
 
@@ -513,21 +513,21 @@ export type StartDraftResult =
  * `setReady` already use): there is no sentence a caller who is not in a room
  * needs that is different from "no such room".
  */
-export type LeaveResult =
+type LeaveResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' };
 
 /* ── the pod (wave 72 §P) ─────────────────────────────────────────────────── */
 
-export type SitPodResult =
+type SitPodResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'pod-full' };
 
-export type ClosePodResult =
+type ClosePodResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-leader' | 'not-draft' | 'not-lobby' | 'bad-seat' | 'seat-taken' | 'too-few' };
 
-export type StandPodResult =
+type StandPodResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' };
 
@@ -536,11 +536,11 @@ export type SetPodPlanResult =
 	| { ok: false; reason: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' | 'not-leader' }
 	| { ok: false; reason: 'refused'; verdict: PoolVerdict };
 
-export type CloseRoomResult =
+type CloseRoomResult =
 	| { ok: true; matches: string[] }
 	| { ok: false; reason: 'no-room' | 'not-leader' };
 
-export type PlayPodResult =
+type PlayPodResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-drafter' | 'not-built' };
 
@@ -567,13 +567,13 @@ function podSize(room: RoomRecord): number {
 }
 
 /** An AI seat as a player: one of the room's characters, by its own name (the operator, 2026-10-19). */
-export interface AiPersona {
+interface AiPersona {
 	name: string;
 	avatarId: string;
 }
 
 /** `knight` → Knight. */
-export function personaOf(avatarId: string): AiPersona {
+function personaOf(avatarId: string): AiPersona {
 	return { name: avatarId.charAt(0).toUpperCase() + avatarId.slice(1), avatarId };
 }
 
@@ -652,7 +652,7 @@ function aiOpponent(room: RoomRecord): AiPersona | null {
 export interface PodChecks {
 	draftComplete(podId: string): boolean;
 	built(podId: string, memberId: string): boolean;
-	seatState(podId: string, memberId: string, tableId: string): unknown;
+	seatState(podId: string, memberId: string): unknown;
 	holdsSeriesDeck(state: unknown): boolean;
 	/** A source's display name (`PodView.planName`) — `draftRooms.ts`'s resolver, by the same rule `cubeMetaOf` reads it with. */
 	planNameOf(source: PoolSource): string;
@@ -860,17 +860,17 @@ export const POD_SPARED_MS = 24 * 60 * 60_000;
  */
 export const ROOM_STALE_MS = 30 * 60_000;
 
-export interface AvatarChange {
+interface AvatarChange {
 	roomId: string;
 	memberId: string;
 	/** The new, normalised value; null when it was cleared. */
 	avatarId: string | null;
 }
 
-export type AvatarChangeListener = (change: AvatarChange) => void;
+type AvatarChangeListener = (change: AvatarChange) => void;
 
 /** A room was written, created or forgotten. The id only: what changed is the room's to say when it is read. */
-export type RoomChangeListener = (roomId: string) => void;
+type RoomChangeListener = (roomId: string) => void;
 
 /** How many of a room's matches it remembers, newest last, for `roomOfMatch`. */
 export const ROOM_MATCHES_KEPT = 8;
@@ -897,7 +897,7 @@ export interface Lobby {
 	get(roomId: string): RoomView | undefined;
 	/** Whether `memberId` is a member of `roomId`. False when there is no such room. */
 	isMember(roomId: string, memberId: string): boolean;
-	/** Per-member opaque state owned by lane C (deck choice, ready). Not part of RoomView. undefined when unset / no room / not a member. */
+	/** Per-member opaque state owned by `http/routes.ts` (the deck a seat holds). Not part of RoomView. undefined when unset / no room / not a member. */
 	playerState(roomId: string, memberId: string): unknown;
 	/** false when there is no such room or memberId is not a member. Persisted. */
 	setPlayerState(roomId: string, memberId: string, state: unknown): boolean;
@@ -951,19 +951,19 @@ export interface Lobby {
 	 * connects evicts one.
 	 */
 	startDraft(roomId: string, callerId: string): StartDraftResult;
+	/** Who sits at `tableId`, in seat order, with each seat's Ready. Empty when there is no such room or table. */
+	seats(roomId: string, tableId: string): TableSeat[];
 	/**
-	 * A seat at `tableId` is occupied or vacated. `seats` replaces the table's
-	 * whole two-element seat list (padded with `null`); `http/routes.ts` is the
-	 * authority on WHO holds a seat (its own per-member opaque blob, tagged with
-	 * the table id) and pushes the result here after every sit, stand or
-	 * deck-load that can change it — this is the mirror `viewOf` reads to build
-	 * `RoomTable.players` for `GET /api/rooms/:id`, which never touches that
-	 * opaque blob. A no-op write (the seats already match) does not persist,
-	 * the same discipline `setAvatar`/`releaseMatch` keep for their own
-	 * idempotent case — so calling this on every READ of a table is safe. False
-	 * when there is no such room or table.
+	 * `memberId` takes the first open seat at `tableId`, giving up a seat held
+	 * at any other table of the room. True when they hold one there afterwards
+	 * (a seat already held is a no-op); false when there is no such room, table
+	 * or member, or both seats are someone else's.
 	 */
-	setTableSeats(roomId: string, tableId: string, seats: readonly (string | null)[]): boolean;
+	sit(roomId: string, tableId: string, memberId: string): boolean;
+	/** `memberId` gives their seat at `tableId` back, Ready and all. False when there is no such room or table. */
+	stand(roomId: string, tableId: string, memberId: string): boolean;
+	/** A seated player's Ready. False when `memberId` holds no seat at `tableId`. */
+	setSeatReady(roomId: string, tableId: string, memberId: string, ready: boolean): boolean;
 	/**
 	 * Start a table's next game: sets `matchId`, and advances the series.
 	 *
@@ -972,8 +972,10 @@ export interface Lobby {
 	 * From `sideboarding` or `between`, this is the next game of the SAME
 	 * series. From `playing` (a replacement match after the previous one simply
 	 * vanished — `http/routes.ts`'s `liveMatchId`), nothing about the series
-	 * changes either. Every case ends in `phase: 'playing'`. `false` when there
-	 * is no such room or table, or the table already has a live match.
+	 * changes either. Every case ends in `phase: 'playing'`. The start spends
+	 * every seat's Ready, so nothing is left ready to start again when the match
+	 * ends or a restart lets go of it. `false` when there is no such room or
+	 * table, or the table already has a live match.
 	 */
 	setTableMatch(roomId: string, tableId: string, matchId: string): boolean;
 	/**
@@ -1069,9 +1071,9 @@ export interface Lobby {
 	/**
 	 * Leader only. Changes the pool both seats' decks are checked against.
 	 *
-	 * A change DROPS every member's readiness and every member's table state —
-	 * the deck choice, the verdict and the `.dck` text `http/routes.ts` holds in
-	 * the per-member blob. A verdict is a verdict in one pool: what somebody
+	 * A change DROPS every member's readiness, every seat and every member's
+	 * table state — the deck choice, the verdict and the `.dck` text
+	 * `http/routes.ts` holds in the per-member blob. A verdict is a verdict in one pool: what somebody
 	 * readied with is not what this table is now, for the same reason loading a
 	 * new deck un-readies you. The blob stays opaque to this file — it is
 	 * dropped whole, not edited, because every part of it was produced under the
@@ -1168,9 +1170,9 @@ export interface Lobby {
 }
 
 /** Structured, and never carries a password, hash or salt. */
-export type LobbyLog = (entry: Record<string, unknown>) => void;
+type LobbyLog = (entry: Record<string, unknown>) => void;
 
-export interface OpenLobbyOptions {
+interface OpenLobbyOptions {
 	/** Where room snapshots live. Created if missing. Never tmpfs in production. */
 	dir: string;
 	log?: LobbyLog;
@@ -1241,15 +1243,9 @@ function passwordMatches(secret: Secret, password: string): boolean {
 
 // ── the stored record ────────────────────────────────────────────────────────
 
-/**
- * One of a room's tables. `seats` is a MIRROR (see `Lobby.setTableSeats`'s
- * doc): `http/routes.ts`'s per-member opaque blob is the authority on who
- * actually holds a seat, and pushes the current pair here on every change, so
- * `viewOf` can build `RoomTable.players` without reading that blob's shape.
- */
-interface TableRecord {
+/** One of a room's tables: who sits at it and their Readys (`seats.ts`), its live match and its series. */
+interface TableRecord extends TableSeats {
 	id: string;
-	seats: [string | null, string | null];
 	matchId: string | null;
 	series: SeriesRecord;
 }
@@ -1341,8 +1337,10 @@ interface StoredApp {
 	 * Always resolved by `deserialize`: a record written before wave 71 (which
 	 * plays exactly one table) is migrated into a one-table list holding
 	 * `matchId` below (kept on disk too, for a rollback: see `#persist`).
+	 * `ready` is absent only for a table stored before the lobby held its seats,
+	 * which `openLobby` seats from its members (`seatsFromMembers`).
 	 */
-	tables: TableRecord[];
+	tables: StoredTable[];
 	/** Pre-wave-71 shape, and `tables[0].matchId` restated for a build that rolls back to reading it. */
 	matchId: string | null;
 	/** A finished match's result screen still asks which room it was. */
@@ -1435,6 +1433,8 @@ function isStoredGame(v: unknown): v is SeriesGame {
 
 const isSeat = (s: unknown): s is string | null => s === null || typeof s === 'string';
 
+type StoredTable = Omit<TableRecord, 'ready'> & Partial<Pick<TableRecord, 'ready'>>;
+
 type StoredSeries = Omit<SeriesRecord, 'played' | 'mode' | 'settled'> & Partial<SeriesRecord>;
 
 /** `played`, `mode` and `settled` may be absent: a record written before them (see `storedTable`). */
@@ -1450,11 +1450,12 @@ function isStoredSeries(v: unknown): v is StoredSeries {
 	return isSeriesPhase(s.phase);
 }
 
-function isStoredTable(v: unknown): v is Omit<TableRecord, 'series'> & { series: unknown } {
+function isStoredTable(v: unknown): v is Omit<StoredTable, 'series'> & { series: unknown } {
 	if (typeof v !== 'object' || v === null) return false;
 	const t = v as Record<string, unknown>;
 	if (typeof t.id !== 'string') return false;
 	if (!Array.isArray(t.seats) || t.seats.length !== 2 || !t.seats.every(isSeat)) return false;
+	if (t.ready !== undefined && !(Array.isArray(t.ready) && t.ready.length === 2 && t.ready.every((r) => typeof r === 'boolean'))) return false;
 	if (t.matchId !== null && typeof t.matchId !== 'string') return false;
 	return isStoredSeries(t.series);
 }
@@ -1466,11 +1467,12 @@ function isStoredTable(v: unknown): v is Omit<TableRecord, 'series'> & { series:
  * existed is settled once finished, so a result from before is never recorded
  * now. A retired field (`rematchOf`) is dropped.
  */
-function storedTable(t: Omit<TableRecord, 'series'> & { series: StoredSeries }, room: SeriesRoom): TableRecord {
+function storedTable(t: Omit<StoredTable, 'series'> & { series: StoredSeries }, room: SeriesRoom): StoredTable {
 	const { length, wins, games, phase, played, mode, settled } = t.series;
 	return {
 		id: t.id,
 		seats: [...t.seats],
+		...(t.ready === undefined ? {} : { ready: [...t.ready] }),
 		matchId: t.matchId,
 		series: { length, wins: [...wins], games: games.map((g) => ({ ...g })), phase, played: played ?? [...t.seats], mode: mode ?? statsModeOf(room), settled: settled ?? phase === 'done' },
 	};
@@ -1549,7 +1551,7 @@ const appCodec: AppCodec<StoredApp> = {
 		// life" to hold — a format id (`newestFormat()`) and `clientMode`
 		// (`'builtin'`) are migrated the same deterministic way already.
 		const seriesRoom: SeriesRoom = { gameType: a.gameType, mode: mode.mode };
-		const tables: TableRecord[] =
+		const tables: StoredTable[] =
 			a.tables === undefined
 				? [
 						{
@@ -1600,9 +1602,7 @@ const codec: RoomCodec<StoredApp, unknown> = { app: appCodec };
 function tableView(table: TableRecord, members: readonly MemberRecord[], room: RoomRecord): RoomTable {
 	return {
 		id: table.id,
-		players: table.seats
-			.filter((id): id is string => id !== null)
-			.map((id) => ({ memberId: id, name: members.find((m) => m.id === id)?.name ?? '' })),
+		players: seatList(table).map(({ memberId }) => ({ memberId, name: members.find((m) => m.id === memberId)?.name ?? '' })),
 		matchId: table.matchId,
 		series: {
 			length: table.series.phase === 'seating' ? seriesFormatOf(room).length : table.series.length,
@@ -1695,17 +1695,20 @@ export function watchpartyRoomId(watchpartyRoom: string): string {
 const WATCHPARTY_ROOM: CreateRoomInput = { name: 'Watchparty table', gameType: DEFAULT_GAME_TYPE, clientMode: DEFAULT_CLIENT_MODE };
 
 /**
- * BOTH readiness flags, and the deck hold with them — what a change to the
- * table's pool or mode costs everybody. The room's `ready` is readiness for
- * this table; the table's own ready flag and the deck verdict live inside the
- * per-member blob `http/routes.ts` owns, and every part of that blob — the
- * choice, the verdict, the checked `.dck` — was produced for the table that
- * just changed. So the blob is dropped whole rather than edited.
+ * Every readiness flag, every seat and the deck holds with them — what a
+ * change to the table's pool or mode costs everybody. The per-member blob
+ * `http/routes.ts` owns — the choice, the verdict, the checked `.dck` — was
+ * produced for the table that just changed, so it is dropped whole rather
+ * than edited, and a seat without its deck is given back with it.
  */
 function dropHolds(room: RoomRecord): void {
 	for (const member of room.members) {
 		member.ready = false;
 		member.state = undefined;
+	}
+	for (const table of room.tables) {
+		table.seats = [null, null];
+		table.ready = [false, false];
 	}
 }
 
@@ -1717,28 +1720,37 @@ function sameOptions(a: ModeOptions, b: ModeOptions): boolean {
 }
 
 /**
- * Whether a seated member has said they are ready: the room's own flag, or the
- * table's, which is the one field of `http/routes.ts`'s per-member blob this
- * file reads (`ready: true`, the same test `unboxReady` makes on disk).
- */
-function seatedReady(room: RoomRecord): boolean {
-	const seated = new Set(room.tables.flatMap((t) => t.seats).filter((id): id is string => id !== null));
-	return room.members.some((m) => seated.has(m.id) && (m.ready || unboxReady(m.state)));
-}
-
-/**
  * Whether a constructed room's mode can no longer change (operator ruling 8:
  * *"not anymore once players ready up"*). Every reason a mode freezes is one
  * line here, so `setMode` and `setGameType` ask one question.
  */
 function modeLocked(room: RoomRecord): boolean {
-	return seatedReady(room) || gauntletUnderWay(room.gauntlet);
+	return room.tables.some((t) => t.ready.some(Boolean)) || gauntletUnderWay(room.gauntlet);
 }
 
-/** A Gauntlet a seat has readied for, or whose reveal has started, and that is not yet done. */
+/** A Gauntlet whose reveal has started, and that is not yet done. */
 function gauntletUnderWay(g: GauntletState | null): boolean {
-	if (g === null || g.phase === 'done') return false;
-	return g.phase !== 'options' || g.ready.some(Boolean);
+	return g !== null && g.phase !== 'options' && g.phase !== 'done';
+}
+
+/**
+ * A table stored before this file held its seats. Its `seats` were a copy,
+ * refreshed only when the table was read, of what each member's
+ * `http/routes.ts` blob said: the table it sat at (none meant the first), when
+ * it sat (`seatedAt`, the seat order) and its Ready. So the seats are rebuilt
+ * from the blobs, which were the record; the blobs' own copies are then
+ * ignored.
+ */
+function seatsFromMembers(table: StoredTable, first: boolean, members: readonly MemberRecord[]): TableRecord {
+	const held = members.flatMap((m) => {
+		const s = m.state as { v?: unknown; table?: unknown; seatedAt?: unknown; ready?: unknown } | undefined;
+		if (typeof s !== 'object' || s === null || s.v !== 1 || typeof s.seatedAt !== 'number') return [];
+		if (typeof s.table === 'string' ? s.table !== table.id : !first) return [];
+		return [{ memberId: m.id, seatedAt: s.seatedAt, ready: s.ready === true }];
+	});
+	held.sort((a, b) => a.seatedAt - b.seatedAt);
+	const [one, two] = held;
+	return { ...table, seats: [one?.memberId ?? null, two?.memberId ?? null], ready: [one?.ready ?? false, two?.ready ?? false] };
 }
 
 function unboxState(app: unknown): unknown {
@@ -2034,27 +2046,35 @@ class FileLobby implements Lobby {
 		return room === undefined || table === undefined ? undefined : { room, table };
 	}
 
-	/** Un-ready only the members holding one of this table's two seats — R16, scoped to the table. */
-	#unreadyTable(room: RoomRecord, table: TableRecord): void {
-		for (const id of table.seats) {
-			if (id === null) continue;
-			const member = room.members.find((m) => m.id === id);
-			if (member !== undefined) member.ready = false;
-		}
-	}
-
 	#recordMatch(room: RoomRecord, matchId: string): void {
 		if (!room.matches.includes(matchId)) room.matches = [...room.matches, matchId].slice(-ROOM_MATCHES_KEPT);
 	}
 
-	setTableSeats(roomId: string, tableId: string, seats: readonly (string | null)[]): boolean {
+	seats(roomId: string, tableId: string): TableSeat[] {
+		const found = this.#table(roomId, tableId);
+		return found === undefined ? [] : seatList(found.table);
+	}
+
+	sit(roomId: string, tableId: string, memberId: string): boolean {
+		const found = this.#table(roomId, tableId);
+		if (found === undefined || !found.room.members.some((m) => m.id === memberId)) return false;
+		const { room, table } = found;
+		if (table.seats.includes(memberId)) return true;
+		if (!sitAt(room.tables, table, memberId)) return false;
+		this.#persist(room);
+		return true;
+	}
+
+	stand(roomId: string, tableId: string, memberId: string): boolean {
 		const found = this.#table(roomId, tableId);
 		if (found === undefined) return false;
-		const next: [string | null, string | null] = [seats[0] ?? null, seats[1] ?? null];
-		// Idempotent, and a no-op write is not persisted — safe to call on every
-		// read of a table, which is what keeps this mirror from drifting.
-		if (found.table.seats[0] === next[0] && found.table.seats[1] === next[1]) return true;
-		found.table.seats = next;
+		if (leaveSeat(found.table, memberId)) this.#persist(found.room);
+		return true;
+	}
+
+	setSeatReady(roomId: string, tableId: string, memberId: string, ready: boolean): boolean {
+		const found = this.#table(roomId, tableId);
+		if (found === undefined || !readySeat(found.table, memberId, ready)) return false;
 		this.#persist(found.room);
 		return true;
 	}
@@ -2073,6 +2093,7 @@ class FileLobby implements Lobby {
 		// `phase === 'playing'` already (a replacement match after the previous
 		// one simply vanished, `releaseTableMatch`): nothing about the series changes.
 		table.matchId = matchId;
+		table.ready = [false, false];
 		this.#recordMatch(room, matchId);
 		this.#persist(room);
 		this.#log({ event: 'table-match-started', roomId, tableId, matchId });
@@ -2087,7 +2108,7 @@ class FileLobby implements Lobby {
 		// `setAvatar` keeps for its own idempotent case.
 		if (table.matchId === null) return true;
 		table.matchId = null;
-		this.#unreadyTable(room, table);
+		table.ready = [false, false];
 		this.#persist(room);
 		this.#log({ event: 'table-match-released', roomId, tableId });
 		return true;
@@ -2101,7 +2122,7 @@ class FileLobby implements Lobby {
 		table.matchId = null;
 		// A game that ends after its series was left is discarded: that series is already recorded.
 		if (!table.series.settled) table.series = recordGame(table.series, seriesFormatOf(room), { matchId: result.matchId, winner: result.winner });
-		this.#unreadyTable(room, table);
+		table.ready = [false, false];
 		// Wave 72 §P: a pod round advances ITSELF the instant every one of its
 		// tables is `done` — see `#finishPodTable`.
 		if (table.series.phase === 'done' && room.pod !== null) this.#finishPodTable(room, table);
@@ -2169,6 +2190,7 @@ class FileLobby implements Lobby {
 		const table: TableRecord = {
 			id: mintTableId(room.tables.map((t) => t.id)),
 			seats: [a, b],
+			ready: [false, false],
 			matchId: null,
 			series: newSeries(room, [a, b], 'seating'),
 		};
@@ -2176,7 +2198,7 @@ class FileLobby implements Lobby {
 		for (const id of b === null ? [a] : [a, b]) {
 			const member = room.members.find((m) => m.id === id);
 			if (member === undefined) continue;
-			const state = this.#podChecks.seatState(room.id, id, table.id);
+			const state = this.#podChecks.seatState(room.id, id);
 			if (state !== null && state !== undefined) member.state = state;
 		}
 		return table.id;
@@ -2272,6 +2294,7 @@ class FileLobby implements Lobby {
 		const table: TableRecord = {
 			id: mintTableId(room.tables.map((t) => t.id)),
 			seats: [null, null],
+			ready: [false, false],
 			matchId: null,
 			series: newSeries(room, [null, null], 'seating'),
 		};
@@ -2304,7 +2327,10 @@ class FileLobby implements Lobby {
 		const index = room.members.findIndex((m) => m.id === memberId);
 		if (index === -1) return { ok: false, reason: 'not-member' };
 		const wasLeader = room.leader === memberId;
-		for (const table of room.tables) this.#settleSeries(room, table, false, memberId);
+		for (const table of room.tables) {
+			this.#settleSeries(room, table, false, memberId);
+			leaveSeat(table, memberId);
+		}
 		room.members.splice(index, 1);
 		// The operator's ruling: leadership passes to whoever remaining joined
 		// EARLIEST, not to array order (today the same thing, since `join`
@@ -2353,6 +2379,7 @@ class FileLobby implements Lobby {
 				{
 					id: mintTableId([]),
 					seats: [null, null],
+					ready: [false, false],
 					matchId: null,
 					series: newSeries({ gameType: input.gameType, mode: input.mode?.mode ?? null }, [null, null], 'seating'),
 				},
@@ -2930,7 +2957,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// done, `http/routes.ts`'s `releaseGoneMatches` lets go of every
 					// match that did not — a room must never advertise "playing" a game
 					// that died with the old process.
-					tables: app.tables,
+					tables: app.tables.map((t, i) => (t.ready === undefined ? seatsFromMembers(t, i === 0, members) : { ...t, ready: t.ready })),
 					matches: app.matches,
 					// **Restored, the draft with it.** `room/draftRooms.ts` writes every
 					// pod to disk and restores them all at boot, so a deploy mid-pod

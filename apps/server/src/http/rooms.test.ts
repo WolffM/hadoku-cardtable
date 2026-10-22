@@ -1825,8 +1825,8 @@ describe('a constructed room’s mode over HTTP', () => {
 		};
 		const tableId = created.tables[0]!.id;
 		const alice = (created as unknown as { you: { id: string } }).you.id;
-		h.lobby.setPlayerState(created.id, alice, { v: 1, table: tableId, ready: true });
-		h.lobby.setTableSeats(created.id, tableId, [alice, null]);
+		h.lobby.sit(created.id, tableId, alice);
+		h.lobby.setSeatReady(created.id, tableId, alice, true);
 
 		const locked = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { mode: 'random', modeOptions: { pool: 'full' } } });
 		expect(locked.status).toBe(409);
@@ -1842,8 +1842,8 @@ describe('a constructed room’s mode over HTTP', () => {
 			you: { id: string };
 		};
 		const tableId = created.tables[0]!.id;
-		h.lobby.setPlayerState(created.id, created.you.id, { v: 1, table: tableId, ready: true });
-		h.lobby.setTableSeats(created.id, tableId, [created.you.id, null]);
+		h.lobby.sit(created.id, tableId, created.you.id);
+		h.lobby.setSeatReady(created.id, tableId, created.you.id, true);
 
 		const locked = await call(h, 'PATCH', `/api/rooms/${created.id}`, { as: 'alice', body: { gameType: 'draft' } });
 		expect(locked.status).toBe(409);

@@ -43,6 +43,7 @@ import { botDeckText } from '../room/botDeck.js';
 import { isBotSeat } from '@hadoku/draft';
 import { draftPoolId } from '../room/lobby.js';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf } from '../room/series.js';
+import { leaveSeat, readySeat, seatList, sitAt, type TableSeats } from '../room/seats.js';
 import { identityFromHeaders } from '../room/identity.js';
 import { loadPool } from '../room/pool.js';
 import { act, choose, drawGauntlet, gameOver, gauntletEras, newGauntlet, startBanpick, viewOfGauntlet, type GauntletState } from '../room/gauntlet.js';
@@ -302,6 +303,8 @@ interface FakeRoom {
 	/** Every match this room started, on any table, as `Lobby.roomOfMatch` remembers them. */
 	matches: string[];
 	state: Map<string, unknown>;
+	/** Each table's seats and Readys, by table id, through `room/seats.ts` as the real lobby keeps them; `tables[].players` is drawn from it. */
+	seats: Map<string, TableSeats>;
 	/** Wave 72 §P: `RoomViewLike` carries it now, but no test in this file plays a pod — every fake room is constructed and this stays `null`. */
 	pod: { phase: string } | null;
 	/** A Constructed room's mode and its options (`@hadoku/shared`'s `RoomModeState`); absent reads as no mode chosen. The mode sizes its series (`room/series.ts`'s `seriesFormatOf`). */
@@ -329,6 +332,20 @@ function fakeLobby(): FakeLobby {
 	};
 	let nextTableId = 0;
 	const mintTable = () => `t-fake${String(nextTableId++).padStart(4, '0')}`;
+	/** A table's seats, made empty on first use. */
+	const seatsAt = (roomId: string, tableId: string): { room: FakeRoom; table: RoomTable; seats: TableSeats } | undefined => {
+		const room = held.get(roomId);
+		const table = room?.tables.find((t) => t.id === tableId);
+		if (room === undefined || table === undefined) return undefined;
+		let seats = room.seats.get(tableId);
+		if (seats === undefined) room.seats.set(tableId, (seats = { seats: [null, null], ready: [false, false] }));
+		return { room, table, seats };
+	};
+	/** Redraw `RoomTable.players` from the seats, as the real lobby's `viewOf` does. */
+	const drawSeats = (at: { room: FakeRoom; table: RoomTable; seats: TableSeats }): true => {
+		at.table.players = seatList(at.seats).map(({ memberId }) => ({ memberId, name: at.room.members.find((m) => m.id === memberId)?.name ?? '' }));
+		return true;
+	};
 	return {
 		open(id, members, gameType = 'constructed-1v1', format = POWER_2010) {
 			// The first member is the leader, as `lobby.create` makes the creator one.
@@ -343,6 +360,7 @@ function fakeLobby(): FakeLobby {
 				tables: [emptyTable(mintTable(), seriesFormatOf({ gameType }).length)],
 				matches: [],
 				state: new Map(),
+				seats: new Map(),
 				pod: null,
 			};
 			held.set(id, room);
@@ -370,14 +388,26 @@ function fakeLobby(): FakeLobby {
 			else room.state.set(memberId, JSON.parse(JSON.stringify(state)) as unknown);
 			return true;
 		},
-		setTableSeats(roomId, tableId, seats) {
-			const room = held.get(roomId);
-			const table = room?.tables.find((t) => t.id === tableId);
-			if (room === undefined || table === undefined) return false;
-			table.players = seats
-				.filter((mid): mid is string => mid !== null)
-				.map((mid) => ({ memberId: mid, name: room.members.find((m) => m.id === mid)?.name ?? '' }));
-			return true;
+		seats: (roomId, tableId) => {
+			const at = seatsAt(roomId, tableId);
+			return at === undefined ? [] : seatList(at.seats);
+		},
+		sit(roomId, tableId, memberId) {
+			const at = seatsAt(roomId, tableId);
+			if (at === undefined || !at.room.members.some((m) => m.id === memberId)) return false;
+			const every = at.room.tables.map((t) => seatsAt(roomId, t.id)!);
+			if (!sitAt(every.map((t) => t.seats), at.seats, memberId)) return false;
+			return every.every(drawSeats);
+		},
+		stand(roomId, tableId, memberId) {
+			const at = seatsAt(roomId, tableId);
+			if (at === undefined) return false;
+			leaveSeat(at.seats, memberId);
+			return drawSeats(at);
+		},
+		setSeatReady(roomId, tableId, memberId, ready) {
+			const at = seatsAt(roomId, tableId);
+			return at !== undefined && readySeat(at.seats, memberId, ready);
 		},
 		// The series through `room/series.ts`'s own rules, so this fake never
 		// restates them; who played and whether it is recorded are the real
@@ -393,6 +423,7 @@ function fakeLobby(): FakeLobby {
 				table.series = { ...table.series, phase: 'playing' };
 			}
 			table.matchId = matchId;
+			seatsAt(roomId, tableId)!.seats.ready = [false, false];
 			if (!room.matches.includes(matchId)) room.matches.push(matchId);
 			return true;
 		},
@@ -401,8 +432,9 @@ function fakeLobby(): FakeLobby {
 			const table = room?.tables.find((t) => t.id === tableId);
 			if (room === undefined || table === undefined) return false;
 			table.matchId = null;
-			// Every member's table state (the deck hold and its own `ready`) is
-			// opaque to this fake, same as the real lobby: kept whole.
+			// Every member's table state (the deck hold) is opaque to this fake,
+			// same as the real lobby: kept whole. The seats are un-readied.
+			seatsAt(roomId, tableId)!.seats.ready = [false, false];
 			return true;
 		},
 		recordGameResult(roomId, tableId, result) {
@@ -410,6 +442,7 @@ function fakeLobby(): FakeLobby {
 			const table = room?.tables.find((t) => t.id === tableId);
 			if (room === undefined || table === undefined) return { ok: false };
 			table.matchId = null;
+			seatsAt(roomId, tableId)!.seats.ready = [false, false];
 			const { length, wins, games, phase } = recordGame({ ...table.series, played: [null, null], mode: 'classic', settled: false }, seriesFormatOf(room), result);
 			table.series = { length, wins, games, phase };
 			return { ok: true };
@@ -1785,11 +1818,14 @@ describe('a room table', () => {
 			expect((await putDeck(h, 'bob', deckBody(SECOND_DECK))).status).toBe(200);
 			// What a pre-2026-10-12 deploy persisted: the deck's fields flat beside `ready`.
 			const stored = h.lobby.room(ROOM)!.state.get(BOB) as { deck: Record<string, unknown> };
+			const tableId = h.lobby.room(ROOM)!.tables[0]!.id;
+			h.lobby.sit(ROOM, tableId, ALICE);
+			h.lobby.setSeatReady(ROOM, tableId, ALICE, true);
 			h.lobby.setPlayerState(ROOM, ALICE, { v: 1, ...stored.deck, ready: true, seatedAt: 1 });
 			const seen = await view(h, 'alice');
 			expect(players(seen.body).map((p) => [p.name, p.deck?.name, p.ready])).toEqual([
-				['user-alice', 'Jund (Emanuele Giusti)', true],
 				['user-bob', undefined, false],
+				['user-alice', 'Jund (Emanuele Giusti)', true],
 			]);
 			// And a start reads the migrated deck: both ready, it launches.
 			expect((await setReady(h, 'bob')).status).toBe(200);
@@ -2776,7 +2812,7 @@ describe('a room table', () => {
 
 		it('a seat holds its series deck until it loads another — what keeps a finished Bo1 open to a Rematch', () => {
 			const deck = { choice: { deck: { library: UG_POLYMORPH } }, verdict: { legal: true }, text: 'A' };
-			const row = { v: 1, seatedAt: 1, ready: false, deck, seriesDeck: deck };
+			const row = { v: 1, deck, seriesDeck: deck };
 			expect(routesMod.holdsSeriesDeck(row)).toBe(true);
 			expect(routesMod.holdsSeriesDeck({ ...row, seriesDeck: 'A' }), 'a registered deck persisted as text alone').toBe(true);
 			expect(routesMod.holdsSeriesDeck({ ...row, deck: { ...deck, text: 'B' } }), 'another deck').toBe(false);
@@ -3412,7 +3448,7 @@ describe('a Gauntlet table', () => {
 		let g = startBanpick(drawn.state);
 		const stub = (id: string) => ({ id, name: id, archetype: id, pilot: '', colors: [], main: [], sideboard: [] });
 		while (g.phase === 'banpick') {
-			const step = viewOfGauntlet(g, null, stub).step!;
+			const step = viewOfGauntlet(g, null, [false, false], stub).step!;
 			const out = act(g, step.seat, step.act, g.decks.find((_, i) => g.marks[i] === null)!);
 			if (!out.ok) throw new Error(out.reason);
 			g = out.state;
@@ -3466,7 +3502,7 @@ describe('a Gauntlet table', () => {
 		if (!playing.ok) throw new Error(playing.reason);
 		const done = gameOver(playing.state, { seriesOver: true, winner: 1 });
 		if (!done.ok) throw new Error(done.reason);
-		h.lobby.setGauntlet!(ROOM, { ...done.state, ready: [true, false] });
+		h.lobby.setGauntlet!(ROOM, done.state);
 		room.tables[0]!.series = { ...room.tables[0]!.series, phase: 'done' };
 
 		expect(await locked(), 'a decided Gauntlet leaves the table unlocked').toBe(false);

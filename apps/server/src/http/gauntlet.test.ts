@@ -36,6 +36,7 @@ afterEach(async () => {
 
 async function boot(seated: string[], modeOptions: GauntletRoom['modeOptions'] = { family: 'modern' }): Promise<Harness> {
 	let gauntlet: GauntletState | null = null;
+	const ready = new Set<string>();
 	const room: GauntletRoom & { format: string } = {
 		id: 'r-1',
 		gameType: 'constructed-1v1',
@@ -67,7 +68,8 @@ async function boot(seated: string[], modeOptions: GauntletRoom['modeOptions'] =
 			},
 		},
 		library,
-		seated: () => seated.map((id) => ({ memberId: id, name: room.members.find((m) => m.id === id)!.name })),
+		seated: () => seated.map((id) => ({ memberId: id, name: room.members.find((m) => m.id === id)!.name, ready: ready.has(id) })),
+		setReady: (_room, id, on) => void (on ? ready.add(id) : ready.delete(id)),
 		dealGame: (_room, decks, players, era) => dealt.push({ decks, players, era }),
 		now: () => clock.now,
 		callerOf: (req) => String(req.headers['x-test-user']),

@@ -35,8 +35,8 @@ import {
 	gauntletEras,
 	gauntletHoldsTable,
 	newGauntlet,
+	readyFor,
 	seatOfMember,
-	setGauntletReady,
 	startBanpick,
 	viewOfGauntlet,
 	type GauntletDeckInfo,
@@ -68,8 +68,10 @@ export interface GauntletDeps {
 		setGauntlet(roomId: string, gauntlet: GauntletState | null): boolean;
 	};
 	library: TablesLibrary;
-	/** Who sits at the room's first table, in seat order. */
-	seated(room: GauntletRoom): { memberId: string; name: string }[];
+	/** Who sits at the room's first table, in seat order, with each seat's Ready. */
+	seated(room: GauntletRoom): { memberId: string; name: string; ready: boolean }[];
+	/** A seat's Ready at the room's first table. */
+	setReady(room: GauntletRoom, memberId: string, ready: boolean): void;
 	/** Deal the game's two decks, by seat, at the room's first table in the Gauntlet's era (`http/routes.ts`'s `dealDecks`). */
 	dealGame(room: GauntletRoom, decks: [string, string], players: [GauntletPlayer, GauntletPlayer], era: string): void;
 	/** The caller's participant id. */
@@ -205,7 +207,8 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 
 	function answer(res: Response, room: GauntletRoom, me: string): void {
 		const state = stateOf(room);
-		res.json(viewOfGauntlet(state, viewer(room, state, me), deckInfo(state.era?.id)));
+		const seated = deps.seated(room);
+		res.json(viewOfGauntlet(state, viewer(room, state, me), [seated[0]?.ready === true, seated[1]?.ready === true], deckInfo(state.era?.id)));
 	}
 
 	function refuse(res: Response, out: Extract<GauntletResult, { ok: false }>): void {
@@ -243,7 +246,7 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 			res.status(409).json({ error: 'the AI plays a table with one seated player' });
 			return;
 		}
-		const readied = setGauntletReady(state, seat, body.ready);
+		const readied = readyFor(state);
 		if (!readied.ok) {
 			refuse(res, readied);
 			return;
@@ -251,8 +254,9 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 		const players: GauntletPlayer[] = seated.map((p) => ({ memberId: p.memberId, name: p.name }));
 		const vsAi = body.ai === true && body.ready;
 		if (vsAi) players.push({ memberId: null, name: room.ai?.name ?? 'AI' });
-		const everyone = vsAi || (seated.length === 2 && readied.state.ready.every(Boolean));
+		const everyone = vsAi || (seated.length === 2 && body.ready && seated.every((p) => p.memberId === me || p.ready));
 		if (!everyone) {
+			deps.setReady(room, me, body.ready);
 			commit(room, state, readied.state);
 			log({ evt: 'gauntlet-ready', room: room.id, seat, ready: body.ready });
 			answer(res, room, me);
@@ -270,6 +274,7 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 			refuse(res, drawn);
 			return;
 		}
+		deps.setReady(room, me, true);
 		commit(room, state, drawn.state);
 		log({ evt: 'gauntlet-drawn', room: room.id, era: drawn.state.era!.id, first: drawn.state.first, decks: drawn.state.decks, ai: vsAi });
 		answer(res, room, me);

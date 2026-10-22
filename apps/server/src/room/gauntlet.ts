@@ -5,7 +5,8 @@
  *   options → reveal → banpick → choose → playing → (choose → playing)* → done (→ options)
  *
  * - **options**: the leader's family/era (or random) are the room's mode
- *   options; each seat readies here.
+ *   options; each seat readies here, with the table seat's own Ready
+ *   (`room/seats.ts`).
  * - **reveal**: both seats ready, so the era, ten distinct decks of it and the
  *   coin flip are drawn — once, and kept, so a reconnect replays the same
  *   reveal. Nothing can be acted on until the room starts the ban/pick.
@@ -47,12 +48,11 @@ import {
 } from '@hadoku/shared';
 
 /** Where a drawn deck stands: null while open. */
-export type GauntletMark = { act: GauntletAct; by: GauntletSeatIndex } | null;
+type GauntletMark = { act: GauntletAct; by: GauntletSeatIndex } | null;
 
 /** What the room stores. JSON all the way down. */
 export interface GauntletState {
 	phase: GauntletPhase;
-	ready: [boolean, boolean];
 	/** Fixed at the draw. */
 	players: [GauntletPlayer, GauntletPlayer] | null;
 	era: GauntletEra | null;
@@ -94,7 +94,6 @@ export function isGauntletState(v: unknown): v is GauntletState {
 	const era = g.era as Record<string, unknown> | null;
 	return (
 		(GAUNTLET_PHASES as readonly unknown[]).includes(g.phase) &&
-		isPair(g.ready, (x) => typeof x === 'boolean') &&
 		(g.players === null || isPair(g.players, isPlayer)) &&
 		(era === null || (typeof era === 'object' && isString(era.id) && isString(era.family) && isString(era.title))) &&
 		(g.first === null || isSeat(g.first)) &&
@@ -121,7 +120,7 @@ export interface GauntletEraPool extends GauntletEra {
 /** What the view says about a deck besides its status: the room deck tile's and its peek's data. */
 export type GauntletDeckInfo = Omit<GauntletDeck, 'status' | 'by' | 'played'>;
 
-export type GauntletRefusal =
+type GauntletRefusal =
 	| 'drawn'
 	| 'no-era'
 	| 'not-banpick'
@@ -164,7 +163,6 @@ export function gauntletEras(formats: readonly { id: string; family: string }[],
 export function newGauntlet(): GauntletState {
 	return {
 		phase: 'options',
-		ready: [false, false],
 		players: null,
 		era: null,
 		revealAt: null,
@@ -185,15 +183,13 @@ function pickOne<T>(items: readonly T[], random: () => number): T {
 }
 
 /**
- * A seat's Ready, in options. After a decided Gauntlet a Ready begins the next
- * one: the result stays on screen until somebody readies again.
+ * The Gauntlet a seat's Ready acts on: the one in options. After a decided
+ * Gauntlet a Ready begins the next one: the result stays on screen until
+ * somebody readies again.
  */
-export function setGauntletReady(state: GauntletState, seat: GauntletSeatIndex, ready: boolean): GauntletResult {
+export function readyFor(state: GauntletState): GauntletResult {
 	const from = state.phase === 'done' ? newGauntlet() : state;
-	if (from.phase !== 'options') return { ok: false, reason: 'drawn' };
-	const next: [boolean, boolean] = [...from.ready];
-	next[seat] = ready;
-	return { ok: true, state: { ...from, ready: next } };
+	return from.phase === 'options' ? { ok: true, state: from } : { ok: false, reason: 'drawn' };
 }
 
 /**
@@ -324,8 +320,8 @@ export function gameOver(state: GauntletState, result: { seriesOver: boolean; wi
 	if (state.phase !== 'playing') return { ok: false, reason: 'not-playing' };
 	const played = { ...state, games: state.games.map((g, i) => (i === state.games.length - 1 ? { ...g, winner: result.winner } : g)) };
 	if (result.seriesOver || unplayedPicks(played, 0).length === 0 || unplayedPicks(played, 1).length === 0) {
-		// Decided: the result is kept, and the Ready that began it is spent.
-		return { ok: true, state: { ...played, phase: 'done', ready: [false, false], winner: result.winner } };
+		// Decided: the result is kept.
+		return { ok: true, state: { ...played, phase: 'done', winner: result.winner } };
 	}
 	return { ok: true, state: enterChoose(played) };
 }
@@ -364,18 +360,19 @@ function underWay(state: GauntletState, index: number): boolean {
 }
 
 /**
- * What `viewer` (a table seat, or null for anyone else in the room) is shown.
- * The game under way names only the viewer's own deck, and only a game that is
- * over plays its decks: before then nothing here depends on the other seat's choice.
+ * What `viewer` (a table seat, or null for anyone else in the room) is shown,
+ * beside the table seats' Readys. The game under way names only the viewer's
+ * own deck, and only a game that is over plays its decks: before then nothing
+ * here depends on the other seat's choice.
  */
-export function viewOfGauntlet(state: GauntletState, viewer: GauntletSeatIndex | null, deckInfo: (id: string) => GauntletDeckInfo): GauntletView {
+export function viewOfGauntlet(state: GauntletState, viewer: GauntletSeatIndex | null, ready: [boolean, boolean], deckInfo: (id: string) => GauntletDeckInfo): GauntletView {
 	const played = new Set(state.games.flatMap((g, i) => (underWay(state, i) ? [] : g.decks)));
 	const step = state.phase === 'banpick' ? GAUNTLET_SNAKE[state.stepIndex]! : null;
 	return {
 		phase: state.phase,
 		you: viewer,
 		players: state.players,
-		ready: state.ready,
+		ready,
 		era: state.era,
 		revealAt: state.revealAt,
 		first: state.first,

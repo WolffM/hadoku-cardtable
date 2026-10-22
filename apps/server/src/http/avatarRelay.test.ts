@@ -119,12 +119,11 @@ describe('a room and its match across a restart', () => {
 			first.join(made.room.id, BOB);
 			first.setAvatar(made.room.id, ALICE.id, 'sage');
 			first.setAvatar(made.room.id, BOB.id, 'herald');
-			first.setReady(made.room.id, ALICE.id, true);
-			// A real HTTP read keeps this mirror in sync (`routes.ts`'s `tableView`);
-			// asserted directly so `releaseTableMatch`'s per-table un-ready has
-			// someone to un-ready, as it would after any real table read.
-			first.setTableSeats(made.room.id, made.room.tables[0]!.id, [ALICE.id, BOB.id]);
-			first.setTableMatch(made.room.id, made.room.tables[0]!.id, matchId);
+			const tableId = made.room.tables[0]!.id;
+			first.sit(made.room.id, tableId, ALICE.id);
+			first.sit(made.room.id, tableId, BOB.id);
+			first.setSeatReady(made.room.id, tableId, ALICE.id, true);
+			first.setTableMatch(made.room.id, tableId, matchId);
 			rooms.push(made.room.id);
 		}
 		return { dir, adoptedRoom: rooms[0]!, diedRoom: rooms[1]! };
@@ -168,7 +167,7 @@ describe('a room and its match across a restart', () => {
 		const t = await afterTheDeploy();
 		const died = t.lobby.get(t.diedRoom);
 		expect(died?.matchId).toBeNull();
-		expect(died?.members.every((m) => !m.ready), 'the start that made it spent the Readys').toBe(true);
+		expect(t.lobby.seats(t.diedRoom, died!.tables[0]!.id).map((s) => s.ready), 'the start that made it spent the Readys').toEqual([false, false]);
 		expect(t.lobby.list().find((r) => r.id === t.diedRoom)?.matchId).toBeNull();
 		// Still the room that started it, for that match's result screen.
 		expect(t.lobby.roomOfMatch('m-died0000001')?.id).toBe(t.diedRoom);

@@ -11,7 +11,7 @@ import {
 	gauntletEras,
 	gauntletHoldsTable,
 	newGauntlet,
-	setGauntletReady,
+	readyFor,
 	startBanpick,
 	viewOfGauntlet,
 	type GauntletDeckInfo,
@@ -116,7 +116,7 @@ describe('the eras a Gauntlet is drawn from', () => {
 		expect(new Set(s.state.decks).size).toBe(GAUNTLET_DECKS);
 		expect(s.state.decks.every((d) => d.startsWith('modern-2022-04-29-'))).toBe(true);
 		expect([0, 1]).toContain(s.state.first);
-		expect(viewOfGauntlet(s.state, null, info).revealAt, 'the reveal starts at the draw').toBe(NOW);
+		expect(viewOfGauntlet(s.state, null, [false, false], info).revealAt, 'the reveal starts at the draw').toBe(NOW);
 		// Both coin faces come up across seeds.
 		const firsts = new Set(Array.from({ length: 20 }, (_, i) => drawn(HUMANS, seeded(i + 1)).first));
 		expect(firsts).toEqual(new Set([0, 1]));
@@ -129,11 +129,10 @@ describe('the eras a Gauntlet is drawn from', () => {
 });
 
 describe('ready', () => {
-	it('records each seat, and only in options', () => {
-		let s = setGauntletReady(newGauntlet(), 0, true);
-		expect(s.ok && s.state.ready).toEqual([true, false]);
-		s = setGauntletReady(drawn(), 1, true);
-		expect(s).toEqual({ ok: false, reason: 'drawn' });
+	it('acts only in options', () => {
+		const fresh = newGauntlet();
+		expect(readyFor(fresh)).toEqual({ ok: true, state: fresh });
+		expect(readyFor(drawn())).toEqual({ ok: false, reason: 'drawn' });
 	});
 });
 
@@ -144,7 +143,7 @@ describe('the ban/pick snake', () => {
 		const p2 = (1 - p1) as GauntletSeatIndex;
 		const order: [GauntletSeatIndex, string][] = [];
 		while (s.phase === 'banpick') {
-			const step = viewOfGauntlet(s, null, info).step!;
+			const step = viewOfGauntlet(s, null, [false, false], info).step!;
 			order.push([step.seat, step.act]);
 			const out = act(s, step.seat, step.act, openDecks(s)[0]!);
 			if (!out.ok) throw new Error(out.reason);
@@ -197,9 +196,9 @@ describe('choosing each game deck', () => {
 		if (!one.ok) throw new Error(one.reason);
 		s = one.state;
 		expect(s.phase).toBe('choose');
-		expect(viewOfGauntlet(s, 0, info).choice).toEqual({ mine: a, chosen: [true, false] });
-		expect(viewOfGauntlet(s, 1, info).choice).toEqual({ mine: null, chosen: [true, false] });
-		const watcher = viewOfGauntlet(s, null, info);
+		expect(viewOfGauntlet(s, 0, [false, false], info).choice).toEqual({ mine: a, chosen: [true, false] });
+		expect(viewOfGauntlet(s, 1, [false, false], info).choice).toEqual({ mine: null, chosen: [true, false] });
+		const watcher = viewOfGauntlet(s, null, [false, false], info);
 		expect(watcher.choice).toEqual({ mine: null, chosen: [true, false] });
 		expect(JSON.stringify(watcher)).not.toContain(`"mine":"${a}"`);
 		expect(watcher.games).toEqual([]);
@@ -208,7 +207,7 @@ describe('choosing each game deck', () => {
 		s = two.state;
 		expect(s.phase).toBe('playing');
 		expect(gameDecks(s)).toEqual([a, b]);
-		expect(viewOfGauntlet(s, null, info).games, 'revealed to the table, never to the room').toEqual([{ decks: [null, null], winner: null }]);
+		expect(viewOfGauntlet(s, null, [false, false], info).games, 'revealed to the table, never to the room').toEqual([{ decks: [null, null], winner: null }]);
 	});
 
 	it('refuses a deck that is not the seat’s own pick', () => {
@@ -242,12 +241,12 @@ describe('choosing each game deck', () => {
 		// One unplayed deck each: nothing to choose, so game 3 is dealt at once.
 		expect(s.phase).toBe('playing');
 		expect(gameDecks(s)).toEqual([a3, b3]);
-		expect(viewOfGauntlet(s, null, info).decks.filter((d) => d.played), 'game 3’s decks are played once it is over').toHaveLength(4);
+		expect(viewOfGauntlet(s, null, [false, false], info).decks.filter((d) => d.played), 'game 3’s decks are played once it is over').toHaveLength(4);
 		after = gameOver(s, { seriesOver: true, winner: 0 });
 		if (!after.ok) throw new Error(after.reason);
 		expect(after.state.phase).toBe('done');
 		expect(after.state.winner).toBe(0);
-		expect(viewOfGauntlet(after.state, null, info).games.map((g) => g.winner), 'each game keeps its winner: 2-1').toEqual([0, 1, 0]);
+		expect(viewOfGauntlet(after.state, null, [false, false], info).games.map((g) => g.winner), 'each game keeps its winner: 2-1').toEqual([0, 1, 0]);
 	});
 
 	it('ends after two games when the series is decided', () => {
@@ -265,9 +264,7 @@ describe('choosing each game deck', () => {
 /** Ruling 13.4: a decided Gauntlet keeps its result and nothing an unfinished one holds. */
 describe('a decided Gauntlet', () => {
 	function decided(): GauntletState {
-		let s = setGauntletReady(newGauntlet(), 0, true);
-		if (!s.ok) throw new Error(s.reason);
-		let g = banpickAll({ ...drawn(), ready: s.state.ready });
+		let g = banpickAll(drawn());
 		for (const seat of [0, 1] as const) {
 			const out = choose(g, seat, picksOf(g, seat)[0]!);
 			if (!out.ok) throw new Error(out.reason);
@@ -278,26 +275,22 @@ describe('a decided Gauntlet', () => {
 		return over.state;
 	}
 
-	it('keeps its games and winner, and no seat is left ready', () => {
+	it('keeps its games and winner', () => {
 		const done = decided();
 		expect(done.phase).toBe('done');
 		expect(done.winner).toBe(1);
 		expect(done.games).toHaveLength(1);
-		expect(done.ready).toEqual([false, false]);
 	});
 
 	it('holds the table from the draw until it is decided, and not before or after', () => {
 		expect(gauntletHoldsTable(newGauntlet())).toBe(false);
-		const readied = setGauntletReady(newGauntlet(), 0, true);
-		expect(readied.ok && gauntletHoldsTable(readied.state)).toBe(false);
 		expect(gauntletHoldsTable(drawn())).toBe(true);
 		expect(gauntletHoldsTable(banpickAll(drawn()))).toBe(true);
 		expect(gauntletHoldsTable(decided())).toBe(false);
 	});
 
-	it('a Ready after it is decided begins a new Gauntlet, with that seat ready', () => {
-		const again = setGauntletReady(decided(), 1, true);
-		expect(again).toEqual({ ok: true, state: { ...newGauntlet(), ready: [false, true] } });
+	it('a Ready after it is decided begins a new Gauntlet', () => {
+		expect(readyFor(decided())).toEqual({ ok: true, state: newGauntlet() });
 	});
 });
 
@@ -322,12 +315,12 @@ describe('a deck choice is its chooser’s alone until its game is over', () => 
 			const runs = picksOf(start, seat).map((deck) => game1(seat, deck));
 			for (const viewer of [other, null]) {
 				for (const [step, phase] of [[0, 'choose'], [1, 'playing']] as const) {
-					const seen = runs.map((run) => viewOfGauntlet(run[step]!, viewer, info));
+					const seen = runs.map((run) => viewOfGauntlet(run[step]!, viewer, [false, false], info));
 					expect(seen[0]!.phase).toBe(phase);
 					expect(seen[1], `seat ${seat}'s choice, seen by ${String(viewer)} in ${phase}`).toEqual(seen[0]);
 					expect(seen[2], `seat ${seat}'s choice, seen by ${String(viewer)} in ${phase}`).toEqual(seen[0]);
 				}
-				const after = runs.map((run) => viewOfGauntlet(run[2]!, viewer, info));
+				const after = runs.map((run) => viewOfGauntlet(run[2]!, viewer, [false, false], info));
 				expect(after[1], 'once the game is over its decks are on record').not.toEqual(after[0]);
 			}
 		}
@@ -338,12 +331,12 @@ describe('a deck choice is its chooser’s alone until its game is over', () => 
 		const a = picksOf(start, 0)[1]!;
 		const b = picksOf(start, 1)[0]!;
 		const [, playing, over] = game1(0, a);
-		expect(viewOfGauntlet(playing!, 0, info).games).toEqual([{ decks: [a, null], winner: null }]);
-		expect(viewOfGauntlet(playing!, 1, info).games).toEqual([{ decks: [null, b], winner: null }]);
-		expect(viewOfGauntlet(playing!, null, info).games).toEqual([{ decks: [null, null], winner: null }]);
+		expect(viewOfGauntlet(playing!, 0, [false, false], info).games).toEqual([{ decks: [a, null], winner: null }]);
+		expect(viewOfGauntlet(playing!, 1, [false, false], info).games).toEqual([{ decks: [null, b], winner: null }]);
+		expect(viewOfGauntlet(playing!, null, [false, false], info).games).toEqual([{ decks: [null, null], winner: null }]);
 		for (const viewer of [0, 1, null] as const) {
-			expect(viewOfGauntlet(playing!, viewer, info).decks.filter((d) => d.played), `nothing played yet, for ${String(viewer)}`).toEqual([]);
-			const after = viewOfGauntlet(over!, viewer, info);
+			expect(viewOfGauntlet(playing!, viewer, [false, false], info).decks.filter((d) => d.played), `nothing played yet, for ${String(viewer)}`).toEqual([]);
+			const after = viewOfGauntlet(over!, viewer, [false, false], info);
 			expect(after.phase).toBe('choose');
 			expect(after.games).toEqual([{ decks: [a, b], winner: 0 }]);
 			expect(after.decks.filter((d) => d.played).map((d) => d.id), `both played decks, for ${String(viewer)}`).toEqual(start.decks.filter((d) => d === a || d === b));
@@ -358,7 +351,7 @@ describe('the AI seat', () => {
 		let aiActs = 0;
 		while (s.phase === 'banpick') {
 			const move = aiMove(s, random);
-			const step = viewOfGauntlet(s, null, info).step!;
+			const step = viewOfGauntlet(s, null, [false, false], info).step!;
 			if (step.seat === 1) {
 				expect(move).not.toBeNull();
 				expect(move!.kind).toBe('act');
@@ -381,7 +374,7 @@ describe('the AI seat', () => {
 		if (!chosen.ok) throw new Error(chosen.reason);
 		// Its choice made, the AI waits on the human.
 		expect(aiMove(chosen.state, random)).toBeNull();
-		expect(viewOfGauntlet(chosen.state, 0, info).choice).toEqual({ mine: null, chosen: [false, true] });
+		expect(viewOfGauntlet(chosen.state, 0, [false, false], info).choice).toEqual({ mine: null, chosen: [false, true] });
 	});
 
 	it('has no move in a game between humans', () => {
@@ -408,7 +401,7 @@ describe('the view', () => {
 		const out = act(s, s.first!, 'ban', deck);
 		if (!out.ok) throw new Error(out.reason);
 		s = out.state;
-		const view = viewOfGauntlet(s, 0, info);
+		const view = viewOfGauntlet(s, 0, [false, false], info);
 		expect(view.decks).toHaveLength(GAUNTLET_DECKS);
 		expect(view.decks[0]).toMatchObject({ id: deck, status: 'banned', by: s.first, played: false, colors: ['R'] });
 		expect(view.decks[1]).toMatchObject({ status: 'open', by: null });
