@@ -65,7 +65,8 @@
 
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -74,11 +75,10 @@ import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
 import { createDraftRooms, DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
-import { checkPlan, type CubeLookup } from './room/plan.js';
-import type { CubeSummary, DraftPlan, PoolVerdict } from '@hadoku/shared';
+import { checkCards, checkPlan } from './room/plan.js';
+import type { DraftPlan, PoolVerdict } from '@hadoku/shared';
 import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
-import { loadPool, type CubePool } from './room/pool.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
 import { attachPlay, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, type PlayHandle } from './play/index.js';
@@ -91,6 +91,9 @@ import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
 import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
+import { attachCubeRoutes, createCubeStore } from './pools/cubes.js';
+import { loadCardCatalog } from './pools/catalog.js';
+import { createForgePools, type ForgePools } from './pools/forge.js';
 import { serveCover } from './cover.js';
 import { newestFormat, openLobby } from './room/lobby.js';
 import { openTournaments } from './room/tournaments.js';
@@ -334,6 +337,16 @@ const PKG_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const REPO_ROOT = resolve(PKG_ROOT, '../..');
 const library = loadTablesLibrary(REPO_ROOT);
 
+// ── Forge availability ───────────────────────────────────────────────────────
+// Read once, here rather than down by `attachPlay` where it used to live:
+// `createForgePools` (the draft pool service's own JVM, below) needs the same
+// jar/res config `attachPlay`'s match JVMs do, and it is wired before
+// `attachRooms` so `checkPlan` has a real `ForgePools` from the start.
+const forge = jvmHostConfig();
+if (!forge.ok) {
+	console.warn(`[cardtable] play: no Forge (${forge.reason}) — POST /api/play/matches answers 503, and every draft plan is refused until one is`);
+}
+
 // The room list the front page shows, and the per-player state a table reads.
 // Persisted, because this repo redeploys several times a day and an in-memory
 // room would take its members and its password with it every time. `data/` is
@@ -378,64 +391,47 @@ const matchStats = createMatchStats({
 	}),
 });
 
-// ── The draft room's cube shortlist ──────────────────────────────────────────
-// Interim wiring (wave73 §A steps 1-5): a draft room's pool is now its own
-// PLAN, not one file the whole server shares — but C's `createCubeStore` and
-// D's `createForgePools` land in their own lanes, so until step 6 swaps them
-// in, every shortlisted cube is read directly off disk here, the same
-// `{cube,size,cards}` shape (and the same `loadPool`) the single bundled pool
-// always used. Read once at boot, like the base-path check and for the same
-// reason: a synchronous read does not belong on a request path, and a
-// rebuild is a redeploy. Built before `attachRooms` below, which needs
-// `checkPlan` for `PUT …/pod/plan`.
-const CUBES_DIR = process.env.CARDTABLE_SHORTLIST_DIR ?? resolve(PKG_ROOT, 'pools/cubes');
-const shortlist = new Map<string, CubePool>();
-for (const file of existsSync(CUBES_DIR) ? readdirSync(CUBES_DIR).filter((f) => f.endsWith('.json')) : []) {
-	const id = file.slice(0, -'.json'.length);
-	const load = loadPool(resolve(CUBES_DIR, file));
-	if (load.ok) shortlist.set(id, load.pool);
-	else console.warn(`[cardtable] draft pool: shortlist cube ${file} did not load (${load.detail})`);
-}
-if (shortlist.size === 0) console.warn(`[cardtable] draft pool: no shortlist cubes loaded from ${CUBES_DIR} — draft rooms are disabled`);
+// ── The draft room's cube pools: shortlist + imports + Forge playability ───
+// Step 6 (wave73 §A): C's `CubeStore` and D's `ForgePools`, wired for real —
+// this replaces the interim shortlist map/`CubeLookup` object steps 1-5 built
+// here directly. Built before `attachRooms` below, which needs `checkPlan`
+// for `PUT …/pod/plan`, and before `attachCubeRoutes`, which needs the store.
+//
+// `shortlistDir` is the committed, generated 8-cube list
+// (`packages/carddata/src/cli/build-pool.ts --out-dir=`) — read-only, never
+// `CARDTABLE_*`-overridden, because it ships with the bundle like any other
+// asset. `importDir` (`CARDTABLE_CUBES_DIR`) is writable: a friend's Cube
+// Cobra imports, flat `<id>.json`, alongside `CARDTABLE_ROOMS_DIR`'s
+// `data/rooms` — lane B's e2e harness already sets this env var and expects
+// it to be the import dir directly, not a parent of one.
+const SHORTLIST_DIR = resolve(PKG_ROOT, 'pools/cubes');
+const CUBES_DIR = process.env.CARDTABLE_CUBES_DIR ?? resolve(CONFIG.logDir, '../data/cubes');
+const CATALOG_PATH = process.env.CARDTABLE_CATALOG ?? resolve(homedir(), '.local/share/cardtable/catalog/cards.json');
+const catalog = loadCardCatalog(CATALOG_PATH);
+const cubeStore = createCubeStore({ shortlistDir: SHORTLIST_DIR, importDir: CUBES_DIR, catalog });
+if (cubeStore.list().length === 0) console.warn(`[cardtable] draft pool: no shortlist cubes loaded from ${SHORTLIST_DIR} — draft rooms are disabled`);
+
+// The pool service's own long-lived JVM (`play/bridge/PoolService.java`),
+// never the match bridge — a pool request can never stall a game. `null`
+// without a configured Forge build, same gate `attachPlay`'s match host uses.
+const forgePools: ForgePools | null = forge.ok
+	? createForgePools(forge.config, (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-pools', ...entry })))
+	: null;
 
 /** `src.kind === 'set'` never reaches a pod this wave — `PUT …/pod/plan` refuses it at 400 before any room's plan is ever set to one. */
 const poolResolver: PoolSourceResolver = {
 	cards(src) {
-		return src.kind === 'cube' ? (shortlist.get(src.cubeId)?.cards ?? []) : [];
+		return src.kind === 'cube' ? (cubeStore.cards(src.cubeId) ?? []) : [];
 	},
 	name(src) {
-		return src.kind === 'cube' ? (shortlist.get(src.cubeId)?.meta.name ?? src.cubeId) : `${src.code} (${src.style})`;
+		return src.kind === 'cube' ? (cubeStore.list().find((c) => c.id === src.cubeId)?.name ?? src.cubeId) : `${src.code} (${src.style})`;
 	},
 };
-const defaultCubeCards = shortlist.get(DEFAULT_CUBE_ID)?.cards ?? null;
+const defaultCubeCards = cubeStore.cards(DEFAULT_CUBE_ID) ?? null;
 
-// `room/plan.ts`'s `CubeLookup`, interim-backed by the shortlist above (no
-// imports, no deletes, no Cube Cobra — that is step 6's `createCubeStore`).
-// Verdicts live only for this process's life, same as the shortlist itself.
-const shortlistVerdicts = new Map<string, PoolVerdict>();
-const cubeLookup: CubeLookup = {
-	list(): readonly CubeSummary[] {
-		return [...shortlist.entries()].map(([id, pool]) => ({
-			id,
-			name: pool.meta.name,
-			size: pool.meta.size,
-			origin: 'shortlist',
-			cubeCobraId: null,
-			importedBy: null,
-			importedAt: null,
-			refreshedAt: null,
-			verdict: shortlistVerdicts.get(id) ?? null,
-		}));
-	},
-	cards: (id) => shortlist.get(id)?.cards ?? null,
-	setVerdict: (id, verdict) => {
-		shortlistVerdicts.set(id, verdict);
-	},
-};
-// No jar wired yet (D's `createForgePools`, step 6): every plan not already
-// cached in `shortlistVerdicts` is refused, with a reason — `room/plan.ts`'s
-// own rule, "it never passes by default".
-const checkDraftPlan = (plan: DraftPlan): Promise<PoolVerdict> => checkPlan(plan, { cubes: cubeLookup, forge: null });
+// Without a jar, `room/plan.ts`'s own rule applies: every source not already
+// checked at this pin is refused, with a reason. It never passes by default.
+const checkDraftPlan = (plan: DraftPlan): Promise<PoolVerdict> => checkPlan(plan, { cubes: cubeStore, forge: forgePools });
 
 const lobby = await openLobby({
 	dir: process.env.CARDTABLE_ROOMS_DIR ?? resolve(CONFIG.logDir, '../data/rooms'),
@@ -485,7 +481,7 @@ const DISCONNECT_GRACE_MS = 5_000;
 const draftPolicy = draftEmitPolicy((line) =>
 	console.log(JSON.stringify({ t: new Date().toISOString(), svc: 'cardtable-draft', ...line }))
 );
-const draftRooms = shortlist.size > 0
+const draftRooms = cubeStore.list().length > 0
 	? createDraftRooms({
 			resolver: poolResolver,
 			defaultPlan: DEFAULT_PLAN,
@@ -546,11 +542,17 @@ attachDrafts(api, { draftRooms });
 // GET/PATCH/DELETE /api/decks — every finished draft as the drafter's deck.
 attachDecks(api, { draftRooms, room: (id) => lobby.get(id) });
 
+// GET/POST/DELETE /api/pools/cubes — the cube picker's own data: the
+// shortlist plus any Cube Cobra import. `check` re-verifies fresh at import
+// and at refresh (never a cached verdict — "An import is checked when it is
+// saved"), the same `checkCards` `room/plan.ts`'s own `checkSource` runs.
+attachCubeRoutes(api, { store: cubeStore, check: (cards) => checkCards(cards, forgePools) });
+
 // ── Matches ──────────────────────────────────────────────────────────────────
 // One child JVM per match; see src/play/README.md. Without a configured Forge
-// build the route answers 503 and nothing else changes.
-const forge = jvmHostConfig();
-if (!forge.ok) console.warn(`[cardtable] play: no Forge (${forge.reason}) — POST /api/play/matches answers 503`);
+// build the route answers 503 and nothing else changes. `forge` itself is
+// read once, up top (see its own header), because the draft pool service
+// needs it before this point.
 play = attachPlay(io, api, {
 	minTier: CONFIG.minTier,
 	host: forge.ok ? jvmHostFactory(forge.config) : null,
@@ -698,6 +700,10 @@ function shutdown(signal: string): void {
 	// `-Xmx1g` JVM sat there until the next boot swept it. `left` would be that
 	// leak still happening and is the line to grep for if it ever comes back.
 	say({ evt: 'shutdown-jvms', ...outcome.reaped });
+	// The pool service's own JVM, separate from every match host above —
+	// best-effort: the deadline below still bounds the whole shutdown even if
+	// this never resolves.
+	forgePools?.close().catch((err: unknown) => say({ evt: 'shutdown-pool-service-failed', error: (err as Error).message }));
 
 	const finish = (why: string): void => {
 		say({ evt: 'shutdown-done', signal, why, ms: Date.now() - startedAt, handed: outcome.handed.length, ended: outcome.ended.length });
@@ -723,13 +729,13 @@ httpServer.listen(CONFIG.port, CONFIG.host, () => {
 	console.log(`[cardtable] listening on ${CONFIG.host}:${CONFIG.port}`);
 	console.log(`[cardtable] tier floor: ${CONFIG.minTier}`);
 	console.log(`[cardtable] browser bridge on ${browserBridge.path} (same floor, re-applied at the upgrade)`);
-	if (shortlist.size > 0) {
-		console.log(`[cardtable] draft socket ready — ${shortlist.size} shortlisted cube(s) loaded`);
+	if (cubeStore.list().length > 0) {
+		console.log(`[cardtable] draft socket ready — ${cubeStore.list().length} cube(s) in the store`);
 	} else {
 		// Same register as the bundle check: the server is up and one feature is
 		// not, and saying which is what keeps "it just does nothing" from being
 		// a state anyone has to debug from the outside.
-		console.error(`[cardtable] NO CUBE SHORTLIST at ${CUBES_DIR} — every draft join will answer unknown-draft`);
+		console.error(`[cardtable] NO CUBE SHORTLIST at ${SHORTLIST_DIR} — every draft join will answer unknown-draft`);
 	}
 	if (CONFIG.edgeAuthSecret === '') {
 		console.warn(

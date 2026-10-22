@@ -94,6 +94,11 @@ function pod(over: Partial<PodView>): PodView {
     bye: null,
     drafters: [],
     built: [],
+    // wave 73 §A step 6: PodView gains these three. Minimal valid default only
+    // — B's own lane fills in the real picker/verdict fixtures on rebase.
+    plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
+    planName: 'Test Cube',
+    verdict: null,
     ...over,
   };
 }
