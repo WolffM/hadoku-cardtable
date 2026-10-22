@@ -9,7 +9,7 @@
  * date; this file is that declaration transcribed, with the source file named
  * on every row so a boundary can be re-checked rather than trusted. Same
  * transcribe-don't-derive approach as `standard-history.generated.ts`
- * (`gen-standard-history.ts`'s header has the full argument).
+ * (`gen-format-history.ts`'s header has the full argument).
  *
  *   288 rows, 1996-05-01 .. 2026-08-14
  *   Top-level files only. 0 subdirectories were skipped.

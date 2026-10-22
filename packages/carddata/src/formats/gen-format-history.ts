@@ -1,28 +1,36 @@
 /*
- * Generator for `modern-history.generated.ts` and `legacy-history.generated.ts`.
+ * Generator for `standard-history.generated.ts`, `modern-history.generated.ts`
+ * and `legacy-history.generated.ts`.
  *
- * Same job as `gen-standard-history.ts`, generalised over the subtype: Modern
- * and Legacy do not rotate, but their ban lists and set lists still change
- * dated file by dated file, exactly the way Standard's do, so the same
- * transcribe-don't-derive approach applies verbatim. `gen-standard-history.ts`
- * is left untouched rather than rewritten to share this script — wave 48 §T
- * requires `standardPoolAt` stay unchanged in BEHAVIOUR, and refactoring its
- * generator carries regression risk for zero benefit to Standard.
+ * Standard's rotation history is not a rule you can compute. The model changed
+ * four times — block rotation with biennial core sets, block rotation with
+ * annual core sets, the 2016 two-block experiment, and the 2023 three-year
+ * extension — and each change carries exceptions that a rule misses. So this
+ * package does not encode a rule. It transcribes a dated table, and the table
+ * comes with a citation per row.
  *
- * Source, per subtype:
+ * The source is Forge's own archived format data:
  *
- *   forge-gui/res/formats/Archived/Modern/<effective-date>.txt   (103 files)
- *   forge-gui/res/formats/Archived/Legacy/<effective-date>.txt   (288 files)
- *   forge-gui/res/formats/Sanctioned/Modern.txt                  (current)
- *   forge-gui/res/formats/Sanctioned/Legacy.txt                  (current)
+ *   forge-gui/res/formats/Archived/Standard/<effective-date>.txt   (154 files)
+ *   forge-gui/res/formats/Sanctioned/Standard.txt                  (current)
  *
- * Regenerate with:
+ * Each file is a `[format]` section with `Effective:`, `Sets:` (Forge set
+ * codes), and optionally `Banned:`, `Restricted:` and `RestrictedLegendary:`.
+ * That is Forge declaring what Standard was on a date, in the same way
+ * `set-codes.generated.ts` is Forge declaring which Scryfall set its own codes
+ * mean — and it is checkable by anyone with the vendored checkout, which is the
+ * entire point (see `dck.ts` for the house style this follows).
  *
- *   node src/formats/gen-format-history.ts --subtype=Modern --formats=../../forge/forge-gui/res/formats
- *   node src/formats/gen-format-history.ts --subtype=Legacy --formats=../../forge/forge-gui/res/formats
+ * Modern and Legacy do not rotate, but their ban lists and set lists still
+ * change dated file by dated file the same way, from `Archived/Modern/` (103
+ * files) and `Archived/Legacy/` (288 files), so the same transcription applies.
  *
  * `forge/` is gitignored and absent in CI, so the table is transcribed into a
- * committed `.ts` file rather than read at runtime, same as Standard's.
+ * committed `.ts` file rather than read at runtime. Regenerate with:
+ *
+ *   node src/formats/gen-format-history.ts --subtype=Standard --formats=../../forge/forge-gui/res/formats
+ *   node src/formats/gen-format-history.ts --subtype=Modern --formats=../../forge/forge-gui/res/formats
+ *   node src/formats/gen-format-history.ts --subtype=Legacy --formats=../../forge/forge-gui/res/formats
  *
  * Forge is GPL-3.0-or-later and so is this repo.
  */
@@ -86,8 +94,8 @@ function stringArray(items: readonly string[], indent: string): string {
 
 function main(): void {
   const subtype = arg('subtype');
-  if (subtype !== 'Modern' && subtype !== 'Legacy') {
-    throw new Error(`--subtype must be Modern or Legacy, got ${JSON.stringify(subtype)}`);
+  if (subtype !== 'Standard' && subtype !== 'Modern' && subtype !== 'Legacy') {
+    throw new Error(`--subtype must be Standard, Modern or Legacy, got ${JSON.stringify(subtype)}`);
   }
   const lower = subtype.toLowerCase();
   const upper = subtype.toUpperCase();
@@ -95,9 +103,14 @@ function main(): void {
   const archivedDir = join(formatsDir, 'Archived', subtype);
   const out = join(HERE, `${lower}-history.generated.ts`);
 
-  // TOP LEVEL ONLY — same reason as Standard's: a subdirectory under
-  // `Archived/<Subtype>/` would hold a regional variant, not the format
-  // itself, and mixing it in would corrupt the table by whole snapshots.
+  // TOP LEVEL ONLY, and this is not incidental. `Archived/Standard/` has a
+  // `China/` subdirectory holding 8 more dated files — a regional variant of
+  // the format, not Standard. `find -type f` returns 162 there; `-maxdepth 1`
+  // returns 154. Mixing the eight in would corrupt the table by whole
+  // snapshots, which is the "silently wrong by one set" failure this module is
+  // built to refuse. `isFile()` is what keeps them out, so it is asserted here
+  // as a count rather than left to the `.txt` suffix happening to exclude a
+  // directory name.
   const entries = readdirSync(archivedDir, { withFileTypes: true });
   const files = entries
     .filter((e) => e.isFile() && e.name.endsWith('.txt'))
@@ -107,13 +120,13 @@ function main(): void {
 
   const rows: { parsed: ParsedFormat; source: string; scryfallSets: string[] }[] = [];
   const untranslatable: string[] = [];
-  // Unlike Standard — where `Effective:` matches the filename on all 154 rows
-  // — Modern's archive has one file (`2018-02-19.txt`, `Effective:2018-02-12`)
-  // where it does not. A hard refuse here (Standard's own policy) would block
-  // the whole table over one row this wave's range (2012-2016) never reaches.
-  // The invariant the binary search actually needs is monotonic `effective`
-  // values in file order, checked below; a filename/Effective disagreement
-  // that does NOT break that order is recorded, not refused.
+  // The filename is the effective date in Forge's data, and on all 154 of
+  // Standard's rows the two agree; a disagreement there is a typo, and the
+  // table refuses to pick a winner silently. Modern's archive has one file
+  // (`2018-02-19.txt`, `Effective:2018-02-12`) where they do not. The
+  // invariant the binary search actually needs is monotonic `effective` values
+  // in file order, checked below, so for Modern and Legacy a disagreement that
+  // does NOT break that order is recorded, not refused.
   const filenameMismatches: string[] = [];
 
   for (const file of files) {
@@ -121,6 +134,7 @@ function main(): void {
     const effective = parsed.effective;
     if (effective === null) throw new Error(`${file}: no Effective: line`);
     if (effective !== file.replace(/\.txt$/, '')) {
+      if (subtype === 'Standard') throw new Error(`${file}: Effective:${effective} disagrees with the filename`);
       filenameMismatches.push(`${file}: Effective:${effective}`);
     }
     const scryfallSets: string[] = [];
@@ -136,6 +150,8 @@ function main(): void {
   }
 
   if (untranslatable.length > 0) {
+    // Refusing beats emitting a table with holes in it: a pool that is
+    // silently short one set is the exact failure this module exists to avoid.
     throw new Error(`Forge set codes with no ScryfallCode:\n  ${untranslatable.join('\n  ')}`);
   }
 
@@ -176,7 +192,69 @@ function main(): void {
     })
     .join('\n');
 
-  const text = `/*
+  // Standard's table predates the other two and keeps its own wording and
+  // export names (`STANDARD_HISTORY`, `SANCTIONED_MATCHES_NEWEST`).
+  const text =
+    subtype === 'Standard'
+      ? `/*
+ * GENERATED FILE — do not edit by hand.
+ *
+ * Regenerate with:
+ *   node src/formats/gen-format-history.ts --subtype=Standard --formats=<forge-gui/res/formats>
+ *
+ * Source: Forge's own archived Standard format data, one file per date on
+ * which Standard changed. Forge is declaring what Standard WAS on each date;
+ * this file is that declaration transcribed, with the source file named on
+ * every row so a boundary can be re-checked rather than trusted.
+ *
+ *   ${rows.length} rows, ${rows[0].parsed.effective} .. ${newest.parsed.effective}
+ *   Top-level files only. ${String(subdirectories.length)} subdirector${subdirectories.length === 1 ? 'y was' : 'ies were'} skipped${
+   subdirectories.length === 0 ? '' : ` (${subdirectories.join(', ')})`
+ }: they hold
+ *   regional variants of the format and are not Standard.
+ *   Sets are Scryfall codes, translated through Forge's own ScryfallCode table
+ *   (\`set-codes.generated.ts\`). ${untranslatable.length} codes failed to translate.
+ *   Sanctioned/Standard.txt (Forge's "Standard now") ${
+     sanctionedMatchesNewest ? 'MATCHES' : 'DOES NOT MATCH'
+   } the newest row,
+ *   which is what makes that row the current format rather than a stale one.
+ *
+ * \`forge/\` is gitignored and absent in CI, so this table is committed rather
+ * than read at runtime. That is the same reason \`set-codes.generated.ts\` is
+ * committed.
+ *
+ * Forge is GPL-3.0-or-later and so is this repo.
+ */
+
+/** One dated snapshot of Standard, transcribed from one Forge format file. */
+export interface StandardSnapshot {
+  /** ISO date this snapshot took effect, inclusive. */
+  readonly effective: string;
+  /** Forge's own name for the snapshot, e.g. \`Standard (ELD)\`. */
+  readonly name: string;
+  /** Legal sets as Scryfall codes, upper-cased, in Forge's order. */
+  readonly sets: readonly string[];
+  /** The same sets as Forge writes them, so a row can be diffed against source. */
+  readonly forgeSets: readonly string[];
+  /** Banned card names, exactly as Forge writes them. */
+  readonly banned: readonly string[];
+  /** Restricted card names — the 1995-2003 Type 2 rule, empty since. */
+  readonly restricted: readonly string[];
+  /** Forge's \`RestrictedLegendary:true\`: one of each legendary per deck. */
+  readonly restrictedLegendary: boolean;
+  /** The Forge file this row was read out of, relative to \`res/formats/\`. */
+  readonly source: string;
+}
+
+/** Every dated snapshot, oldest first. Adjacent rows bracket every date. */
+export const STANDARD_HISTORY: readonly StandardSnapshot[] = [
+${body}
+];
+
+/** Whether Forge's undated \`Sanctioned/Standard.txt\` equals the newest row. */
+export const SANCTIONED_MATCHES_NEWEST = ${String(sanctionedMatchesNewest)};
+`
+      : `/*
  * GENERATED FILE — do not edit by hand.
  *
  * Regenerate with:
@@ -187,7 +265,7 @@ function main(): void {
  * date; this file is that declaration transcribed, with the source file named
  * on every row so a boundary can be re-checked rather than trusted. Same
  * transcribe-don't-derive approach as \`standard-history.generated.ts\`
- * (\`gen-standard-history.ts\`'s header has the full argument).
+ * (\`gen-format-history.ts\`'s header has the full argument).
  *
  *   ${rows.length} rows, ${rows[0].parsed.effective} .. ${newest.parsed.effective}
  *   Top-level files only. ${String(subdirectories.length)} subdirector${subdirectories.length === 1 ? 'y was' : 'ies were'} skipped${

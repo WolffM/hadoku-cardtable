@@ -2,7 +2,7 @@
  * GENERATED FILE — do not edit by hand.
  *
  * Regenerate with:
- *   node src/formats/gen-standard-history.ts --formats=<forge-gui/res/formats>
+ *   node src/formats/gen-format-history.ts --subtype=Standard --formats=<forge-gui/res/formats>
  *
  * Source: Forge's own archived Standard format data, one file per date on
  * which Standard changed. Forge is declaring what Standard WAS on each date;
