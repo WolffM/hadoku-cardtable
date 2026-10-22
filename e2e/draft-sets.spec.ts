@@ -30,23 +30,26 @@
  * jar, so this runs through `play/harness.ts`'s real stack and skips the same
  * way without one.
  *
- * ## Reading rarity from the catalog, not the screen
+ * ## Reading rarity (and a face) from the wire, never the screen
  *
- * `CardCatalog.byName` (`apps/server/src/pools/catalog.ts`) resolves a name to
- * its `DraftCard`, built once at server boot from the SAME file this reads
- * directly: `$CARDTABLE_CATALOG` (default `~/.local/share/cardtable/catalog/cards.json`),
- * `{ cards: Record<canonicalKey, DraftCard>, aliases }`. Rather than re-deriving
- * the server's own name-folding (`@hadoku/carddata`'s `normaliseName`/`foldName`,
- * not importable from `e2e/` — no `@hadoku/*` symlink there), this matches on
- * each entry's own `.name` field, which is the exact printed name the pack's
- * `aria-label` ("Pick <name>") already carries — the same field, read twice
- * from two independent places, is the whole point of a catalog cross-check.
+ * Rarity and "is this a DFC" come off each pack card's own `rarity`/`faces`
+ * fields, read straight from the draft socket's own `draft:s2c` frame — the
+ * exact `DraftCard[]` the server dealt, never re-derived.
+ *
+ * An EARLIER version of this spec re-looked a card up by bare NAME against
+ * the whole catalog file (`$CARDTABLE_CATALOG`'s `{cards}` map) to get its
+ * rarity, on the theory that "the catalog's rarity" meant reading the
+ * catalog file directly rather than the wire. That broke live: the
+ * catalog's by-NAME map holds one entry per name — ONE printing's rarity —
+ * and a card reprinted at a different rarity elsewhere (`Diregraf Ghoul`
+ * resolved to its promo printing, `PISD`, not Innistrad's own) made the
+ * pack look wrong when it was not. The wire's `rarity` is the field for
+ * the EXACT printing `catalog.byPrinting` resolved for THIS pack
+ * (`apps/server/src/http/rooms.ts`'s `resolveBoosterCard`), which is the
+ * only rarity this spec can trust — "the catalog's rarity", read off the
+ * card the catalog itself produced, not a second, looser lookup by name.
  */
-import { homedir } from 'node:os';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page, type WebSocket } from '@playwright/test';
 
 import { readyPod } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
@@ -63,23 +66,40 @@ const ISD = { code: 'ISD', name: 'Innistrad' };
 const ALA = { code: 'ALA', name: 'Shards of Alara' };
 const ARB = { code: 'ARB', name: 'Alara Reborn' };
 
-interface CatalogCard {
+interface WireCard {
   name: string;
   rarity: string;
   faces?: unknown[];
+  setCode: string;
 }
 
-/** `$CARDTABLE_CATALOG`'s own `{cards}` map, by VALUE rather than by its (folded) key — see the file header. */
-function loadCatalog(): CatalogCard[] {
-  const path = process.env.CARDTABLE_CATALOG ?? resolve(homedir(), '.local/share/cardtable/catalog/cards.json');
-  const file = JSON.parse(readFileSync(path, 'utf8')) as { cards?: Record<string, unknown> };
-  return Object.values(file.cards ?? {}) as CatalogCard[];
-}
-
-function catalogEntry(catalog: CatalogCard[], name: string): CatalogCard {
-  const found = catalog.find((c) => c.name === name);
-  if (found === undefined) throw new Error(`the catalog has no entry named ${JSON.stringify(name)}`);
-  return found;
+/**
+ * Captures the viewer's own open pack straight off the draft socket's
+ * `draft:s2c` frames (`packages/shared/src/wire.ts`'s `DRAFT_CHANNEL`,
+ * `DraftStateMessage`/`DraftPatchMessage`) — the server's own `DraftCard[]`,
+ * never the DOM and never a second lookup by name (see the file header).
+ *
+ * Must be attached BEFORE the draft socket connects (right after the page
+ * is created, well before the pod deals) — `page.on('websocket', …)` only
+ * sees sockets opened AFTER it is registered.
+ */
+function attachPackCapture(page: Page): { latest: () => readonly WireCard[] | null } {
+  let latest: readonly WireCard[] | null = null;
+  page.on('websocket', (ws: WebSocket) => {
+    ws.on('framereceived', (f) => {
+      if (typeof f.payload !== 'string' || !f.payload.startsWith('42') || !f.payload.includes('"draft:s2c"')) return;
+      let decoded: unknown;
+      try {
+        decoded = JSON.parse(f.payload.slice(f.payload.indexOf('[')));
+      } catch {
+        return; // not a full JSON frame (e.g. a torn chunk) — ignore, the next frame carries the same state again
+      }
+      const msg = (decoded as [string, { view?: { viewer?: { kind?: string; pack?: WireCard[] } } }])[1];
+      const viewer = msg.view?.viewer;
+      if (viewer?.kind === 'seat' && Array.isArray(viewer.pack)) latest = viewer.pack;
+    });
+  });
+  return { latest: () => latest };
 }
 
 /** Every card name the viewer's open pack currently shows, off `CardTile`'s own `aria-label` ("Pick <name>"). */
@@ -231,6 +251,8 @@ test(
       alice = entered.alice;
       bob = entered.bob;
       const players = [alice, bob];
+      // Attached now, well before the pod deals — see attachPackCapture's own note.
+      const alicePack = attachPackCapture(alice.page);
 
       /* ── alice (the leader) opens the Set tab and picks Innistrad · Realistic ── */
       for (const p of players) await expect(p.page.getByTestId('pool-picker'), `${p.name}: the pool picker is up`).toBeVisible({ timeout: UI_TIMEOUT });
@@ -250,18 +272,36 @@ test(
       await fillRestWithAi(alice.page, UI_TIMEOUT);
       for (const p of players) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
 
-      /* ── alice's first pack is Forge's ISD collation: 1 rare/mythic, 3 uncommon, 1 DFC — from the catalog, never the screen ── */
+      /*
+       * ── alice's first pack is Forge's ISD collation: 1 rare/mythic, 3
+       * uncommon, 1 DFC — from the catalog, never the screen ──
+       *
+       * Innistrad's own recipe (`Booster=9 Common:!dfc, 3 Uncommon:!dfc, 1
+       * RareMythic:!dfc, 1 dfc, 1 BasicLand`): the three rarity-named slots
+       * are each `:!dfc` — they never emit the pack's own DFC — but the
+       * `dfc` slot itself draws from a sheet with NO rarity filter, so the
+       * double-faced card can itself be common, uncommon, rare or mythic,
+       * independently. Counting "every card whose rarity is uncommon" over
+       * the WHOLE 15 therefore double-counts whenever the DFC happens to
+       * land on "uncommon" (seen live: Gatstaf Shepherd // Gatstaf Howler,
+       * an uncommon DFC, made 4 "uncommon" cards look like a wrong pack).
+       * The DFC is found FIRST and set aside; the three rarity counts are
+       * checked over the other 14 — the `:!dfc` slots' own cards.
+       */
       await waitForPack(alice.page, "alice's first pack");
       const names = await packCardNames(alice.page);
-      expect(names.length, 'the pack drew cards at all').toBe(15);
-      const catalog = loadCatalog();
-      const entries = names.map((n) => catalogEntry(catalog, n));
-      const rareOrMythic = entries.filter((e) => e.rarity === 'rare' || e.rarity === 'mythic');
-      const uncommons = entries.filter((e) => e.rarity === 'uncommon');
+      expect(names.length, 'the pack drew cards at all (DOM)').toBe(15);
+      const entries = alicePack.latest();
+      if (entries === null) throw new Error("alice's pack: no draft:s2c state frame carrying a seat's pack was ever captured");
+      expect(entries.length, `the pack drew cards at all (wire): ${JSON.stringify(entries.map((e) => e.name))}`).toBe(15);
+      const summary = entries.map((e) => e.name).join(', ');
       const dfcs = entries.filter((e) => Array.isArray(e.faces) && e.faces.length > 0);
-      expect(rareOrMythic.length, `exactly one rare/mythic (names: ${names.join(', ')})`).toBe(1);
-      expect(uncommons.length, `exactly three uncommons (names: ${names.join(', ')})`).toBe(3);
-      expect(dfcs.length, `exactly one double-faced card (names: ${names.join(', ')})`).toBe(1);
+      expect(dfcs.length, `exactly one double-faced card (names: ${summary})`).toBe(1);
+      const nonDfc = entries.filter((e) => !(Array.isArray(e.faces) && e.faces.length > 0));
+      const rareOrMythic = nonDfc.filter((e) => e.rarity === 'rare' || e.rarity === 'mythic');
+      const uncommons = nonDfc.filter((e) => e.rarity === 'uncommon');
+      expect(rareOrMythic.length, `exactly one non-DFC rare/mythic (names: ${summary})`).toBe(1);
+      expect(uncommons.length, `exactly three non-DFC uncommons (names: ${summary})`).toBe(3);
     } finally {
       await stack.stop();
     }
