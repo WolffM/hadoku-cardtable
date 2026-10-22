@@ -78,19 +78,24 @@ describe('showInputDialog', () => {
 });
 
 describe('confirm', () => {
-  it('titles itself with the card and answers true for the first button, false for the second', () => {
+  it('titles itself with the card and answers true for Forge\'s first button, false for its second', () => {
     const first = mountPrompt('confirm', askFor('confirm'));
     expect(first.getByRole('dialog').getAttribute('aria-label')).toBe('Fire Urchin — ability');
     expect(first.getByText(/Use triggered ability of Fire Urchin \(21\)\?/)).toBeTruthy();
-    fireEvent.click(first.getAllByTestId('prompt-option')[0]!);
+    fireEvent.click(first.getAllByTestId('prompt-option').find((b) => b.getAttribute('data-answer') === 'true')!);
     expect(first.answers).toEqual([true]);
     expectWireReply('confirm', first.answers[0]);
     cleanup();
 
     const second = mountPrompt('confirm', askFor('confirm'));
-    fireEvent.click(second.getAllByTestId('prompt-option')[1]!);
+    fireEvent.click(second.getAllByTestId('prompt-option').find((b) => b.getAttribute('data-answer') === 'false')!);
     expect(second.answers).toEqual([false]);
     expectWireReply('confirm', second.answers[0]);
+  });
+
+  it('puts yes last, bottom right, so a hurried click on the first button is never the yes (operator, 2026-10-22)', () => {
+    const { getAllByTestId } = mountPrompt('confirm', askFor('confirm'));
+    expect(getAllByTestId('prompt-option').map((b) => b.getAttribute('data-answer'))).toEqual(['false', 'true']);
   });
 
   it('cannot answer false to a one-button confirm: there is only the one button', () => {
@@ -109,7 +114,8 @@ describe('confirm', () => {
   it('draws a mana pip, not the bare word, for a colour-named confirm button — the one-component contract', () => {
     const ask = { ...askFor('confirm'), options: ['Blue', 'Black'] };
     const { getAllByTestId } = mountPrompt('confirm', ask);
-    const [blue, black] = getAllByTestId('prompt-option');
+    const byLabel = (label: string) => getAllByTestId('prompt-option').find((b) => b.getAttribute('aria-label') === label);
+    const [blue, black] = [byLabel('Blue'), byLabel('Black')];
     expect(blue!.textContent, 'no bare "Blue" word').toBe('');
     expect(black!.textContent, 'no bare "Black" word').toBe('');
     expect(blue!.querySelector('.ms-u'), 'the blue pip').not.toBeNull();

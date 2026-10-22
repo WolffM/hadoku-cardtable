@@ -6,8 +6,9 @@
  *
  * Every decision box's answers are one row (`AnswerRow`). When it holds exactly
  * two answers the row is a pair: the affirmative (Forge's button one, the
- * sheet's OK) is its first child, anchored bottom-left, and the other answer is
- * its last child, anchored bottom-right; anything else in the row (the
+ * sheet's OK) is its LAST child, anchored bottom-right (the operator, 2026-10-22:
+ * *"yes always bottom right."*), and the other answer is its first child,
+ * anchored bottom-left; anything else in the row (the
  * "Always" box) sits between them. jsdom has no layout, so the anchoring is
  * pinned the way `PromptShell.test.ts` pins the scrolling body: the markup's
  * order plus the CSS rule that turns that order into the two corners.
@@ -36,8 +37,10 @@ function answerRow(root: ParentNode): HTMLElement {
   return rows[0]!;
 }
 
-/** The row is a pair, and `left`/`right` are its first and last children. */
-function expectPair(root: ParentNode, left: string, right: string): void {
+/** The row is a pair: the affirmative is its LAST child (bottom right), the other answer its first (bottom left). */
+function expectPair(root: ParentNode, affirmative: string, other: string): void {
+  const left = other;
+  const right = affirmative;
   const row = answerRow(root);
   expect(row.dataset.pair, 'two answers make a pair').toBe('true');
   const first = row.firstElementChild!;
@@ -49,7 +52,7 @@ function expectPair(root: ParentNode, left: string, right: string): void {
 const noop = () => {};
 
 describe('a two-answer decision anchors its answers bottom-left and bottom-right', () => {
-  it('the bar yes/no: Yes left, No right, with the Always box between them', () => {
+  it('the bar yes/no: No left, Yes right, with the Always box between them', () => {
     const { container } = render(
       createElement(ConfirmPrompt, {
         testId: 'live-confirm',
@@ -66,7 +69,7 @@ describe('a two-answer decision anchors its answers bottom-left and bottom-right
     expect(aside.querySelector('.confirm__check')).not.toBeNull();
   });
 
-  it("the mulligan's Keep/Mulligan: Keep left, Mulligan right", () => {
+  it("the mulligan's Keep/Mulligan: Mulligan left, Keep right", () => {
     const { container } = render(
       createElement(ConfirmPrompt, {
         testId: 'live-confirm',
@@ -78,7 +81,7 @@ describe('a two-answer decision anchors its answers bottom-left and bottom-right
     expectPair(container, '[data-testid="prompt-confirm-yes"]', '[data-testid="prompt-confirm-no"]');
   });
 
-  it('the coin toss: Play left, Draw right', () => {
+  it('the coin toss: Draw left, Play right', () => {
     const { container } = render(
       createElement(ConfirmPrompt, {
         testId: 'live-play-or-draw',
@@ -90,7 +93,7 @@ describe('a two-answer decision anchors its answers bottom-left and bottom-right
     expectPair(container, '[data-testid="live-play-or-draw-play"]', '[data-testid="live-play-or-draw-draw"]');
   });
 
-  it("showConfirmDialog: its yes left, its no right, whichever one Forge's default focuses", () => {
+  it("showConfirmDialog: its no left, its yes right, whichever one Forge's default focuses", () => {
     const { container } = render(
       createElement(ConfirmPrompt, {
         testId: 'confirm-dialog',
@@ -103,12 +106,12 @@ describe('a two-answer decision anchors its answers bottom-left and bottom-right
     expectPair(container, '[data-answer="yes"]', '[data-answer="no"]');
   });
 
-  it("the confirm ask: Forge's first option left, its second right", () => {
+  it("the confirm ask: Forge's second option left, its first right", () => {
     const { container } = mountPrompt('confirm', { ...askFor('confirm'), options: ['Blue', 'Black'] });
     expectPair(container, '[data-answer="true"]', '[data-answer="false"]');
   });
 
-  it('a two-option showOptionDialog: option one left, option two right', () => {
+  it('a two-option showOptionDialog: option two left, option one right', () => {
     const ask = { ...askFor('showOptionDialog'), options: ['Play first', 'Draw first'] };
     const { container, getAllByTestId } = mountPrompt('showOptionDialog', ask);
     const [one, two] = getAllByTestId('prompt-option');
@@ -118,22 +121,22 @@ describe('a two-answer decision anchors its answers bottom-left and bottom-right
     expect(row.lastElementChild).toBe(two);
   });
 
-  it('showInputDialog: OK left, Cancel right', () => {
+  it('showInputDialog: Cancel left, OK right', () => {
     const { container } = mountPrompt('showInputDialog', askFor('showInputDialog'));
     expectPair(container, '[data-testid="prompt-submit"]', '[data-testid="prompt-cancel"]');
   });
 
-  it('sideboarding: Done left, Keep deck right', () => {
+  it('sideboarding: Keep deck left, Done right', () => {
     const { container } = mountPrompt('sideboard', askFor('sideboard'));
     expectPair(container, '[data-testid="prompt-submit"]', '[data-testid="prompt-cancel"]');
   });
 
-  it('combat damage: OK left, Auto right', () => {
+  it('combat damage: Auto left, OK right', () => {
     const { container } = mountPrompt('assignCombatDamage', askFor('assignCombatDamage'));
     expectPair(container, '[data-testid="prompt-submit"]', '[data-testid="prompt-auto"]');
   });
 
-  it("a selection sheet's OK/Cancel: OK left, Cancel right", () => {
+  it("a selection sheet's OK/Cancel: Cancel left, OK right", () => {
     const { container } = render(
       createElement(SelectionPrompt, {
         message: 'Select up to 2 lands to sacrifice',

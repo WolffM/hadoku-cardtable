@@ -314,4 +314,18 @@ describe('ConfirmPrompt — the question first, the ability under it', () => {
     rerender(createElement(ConfirmPrompt, { testId: 'live-confirm', message: 'Do you want to sacrifice Augur of Skulls?', context: null }));
     expect(queryByTestId('prompt-source-text')).toBeNull();
   });
+
+  it('puts its first button, the yes, last: bottom right (operator, 2026-10-22: "yes always bottom right")', () => {
+    const yes = vi.fn();
+    const no = vi.fn();
+    const { getByTestId } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'Pay 2 life?',
+        button1: { label: 'Yes', enabled: true, testId: 'yes', onClick: yes },
+        button2: { label: 'No', enabled: true, testId: 'no', onClick: no },
+      }),
+    );
+    expect(getByTestId('no').compareDocumentPosition(getByTestId('yes')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
