@@ -51,7 +51,7 @@ function Pile({
   return (
     <section aria-label={label}>
       <h4 className="prompt__col-head">
-        {label} <span className="zone__count">{total}</span>
+        {label} {total}
       </h4>
       <ul className="prompt__list" data-testid={testId}>
         {entries.map((e) => (

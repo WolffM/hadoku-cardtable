@@ -301,24 +301,24 @@ function ZonesSheet({
           {side === 'dest' && exact !== null && (
             <>
               {' '}
-              <span className="zone__count" data-testid="zone-count">
+              <span data-testid="zone-count">
                 {lists[side].length}/{exact}
               </span>
             </>
           )}
         </h4>
         {side === 'dest' && oneEach !== undefined && (
-          <ul className="zone__types">
+          <ul className="prompt__types">
             {oneEach.map(({ type }) => (
               <li
                 key={type}
-                className="zone__type"
+                className="prompt__type"
                 data-testid="zone-type"
                 data-type={type}
                 data-filled={fit?.filled.has(type) || undefined}
                 data-could={open.has(type) || undefined}
               >
-                {type} <span className="zone__count">{fit?.filled.has(type) ? 1 : 0}/1</span>
+                {type} {fit?.filled.has(type) ? 1 : 0}/1
               </li>
             ))}
           </ul>

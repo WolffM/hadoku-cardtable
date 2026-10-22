@@ -68,11 +68,9 @@
 
 /*
  * A card tile on the board keeps a card's proportion instead of `--card-h`:
- * on the battlefield, in a hand, in a pile, and on the stack, where the same
- * `CardTile` draws the item's source card.
+ * on the battlefield, in a hand and in a pile.
  */
-.board-card .card,
-.stack__art .card {
+.board-card .card {
   aspect-ratio: 488 / 680;
   height: auto;
 }
@@ -1084,9 +1082,12 @@
  * `LiveBoard.tsx`), so both cases are written out rather than assumed.
  *
  * The glow is one token, so whatever else Forge offers — a pile, the pool — wears the same one
- * (`inset` before it where a box clips what is drawn outside it).
+ * (`inset` before it where a box clips what is drawn outside it). It is declared wherever
+ * `styles.css` declares `--warn`, since a custom property resolves where it is declared.
  */
-:root {
+:root,
+[data-theme],
+.cardtable-chrome {
   --can-act-glow: 0 0 10px 3px color-mix(in srgb, var(--warn) 62%, transparent);
 }
 
@@ -1777,7 +1778,8 @@ button.face__hit:focus-visible .seat__ring {
   background: color-mix(in srgb, var(--ink-faint) 34%, transparent);
 }
 
-.card-back + .card-back {
+/* The hand's backs overlap; a back drawn anywhere else stands alone. */
+.card-backs > .card-back + .card-back {
   margin-left: calc(var(--card-back-w) * -0.6);
 }
 

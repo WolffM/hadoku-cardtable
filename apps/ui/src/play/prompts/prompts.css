@@ -872,7 +872,6 @@
 
   position: absolute;
   top: 0;
-  margin: 0;
   border-color: var(--ink-faint);
   box-shadow: 0 0 6px var(--shadow);
 }
@@ -926,7 +925,7 @@
 
 /* A pick of one card per type: each type over the answer's zone, filled once the cards fill it
    whichever way they are read, dashed while a card of several types could fill it. */
-.zone__types {
+.prompt__types {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -935,7 +934,7 @@
   list-style: none;
 }
 
-.zone__type {
+.prompt__type {
   padding: 1px 8px;
   border: 1px solid var(--ink-dim);
   border-radius: 999px;
@@ -944,12 +943,12 @@
   white-space: nowrap;
 }
 
-.zone__type[data-filled] {
+.prompt__type[data-filled] {
   border-color: var(--success);
   color: var(--success-ink);
 }
 
-.zone__type[data-could] {
+.prompt__type[data-could] {
   border-style: dashed;
   border-color: var(--success);
 }
@@ -1216,18 +1215,6 @@
   }
 }
 
-/* The card a yes/no is about, when the board has none to point at (`ConfirmPrompt.tsx`'s `card`). */
-.confirm__card {
-  --card-w: 7rem;
-
-  align-self: center;
-  width: var(--card-w);
-}
-
-.confirm__card .card {
-  aspect-ratio: 488 / 680;
-  height: auto;
-}
 
 .reveal-notice > .prompt__submit {
   align-self: flex-end;
