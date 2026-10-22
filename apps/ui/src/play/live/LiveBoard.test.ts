@@ -5084,7 +5084,41 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
    * nothing, so the boxes are given; what is pinned is the arithmetic and that
    * the root carries it only while something is in the column.
    */
+  /** jsdom has no `ResizeObserver`: this one reports a target as a real one does, once after it is observed and again when a test resizes it. */
+  class Resizes {
+    static made = 0;
+    static all: Resizes[] = [];
+    readonly observed = new Set<Element>();
+    constructor(private readonly report: ResizeObserverCallback) {
+      Resizes.made += 1;
+      Resizes.all.push(this);
+    }
+    observe(el: Element): void {
+      this.observed.add(el);
+      queueMicrotask(() => {
+        if (this.observed.has(el)) this.report([Resizes.entry(el)], this as unknown as ResizeObserver);
+      });
+    }
+    unobserve(el: Element): void {
+      this.observed.delete(el);
+    }
+    disconnect(): void {
+      this.observed.clear();
+    }
+    static entry(target: Element): ResizeObserverEntry {
+      return { target, contentRect: new DOMRect(), contentBoxSize: [], borderBoxSize: [], devicePixelContentBoxSize: [] };
+    }
+    static resize(el: Element): void {
+      for (const o of Resizes.all) if (o.observed.has(el)) o.report([Resizes.entry(el)], o as unknown as ResizeObserver);
+    }
+  }
+
   it('§A.6: --question-top is the topmost sheet’s top edge in the band’s frame, and only while a question is up', async () => {
+    vi.stubGlobal('ResizeObserver', Resizes);
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+      Resizes.all = [];
+    });
     const { s, m, getByTestId, container, rerender } = await liveBoard();
     const rects = new Map<string, number>([
       ['board', 40],
@@ -5108,9 +5142,13 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
       const woken = vi.fn();
       const unsubscribe = subscribe(m, woken);
       const revision = m.revision;
-      rects.set('confirm', 360);
+      const made = Resizes.made;
       rerender(createElement(LiveBoard, { match: m }));
-      expect(root.style.getPropertyValue('--question-top'), 'measured in the commit').toBe('320px');
+      rerender(createElement(LiveBoard, { match: m }));
+      expect(Resizes.made, 'a render builds no observer: the one made at mount watches').toBe(made);
+      rects.set('confirm', 360);
+      act(() => Resizes.resize(container.querySelector('.live__prompt > *')!));
+      expect(root.style.getPropertyValue('--question-top'), 'measured on the resize').toBe('320px');
       expect(woken, 'not inside the commit: a landing measured there flies to the wrong slot').not.toHaveBeenCalled();
       await waitFor(() => expect(woken, 'the band moved: subscribers repaint on the next frame').toHaveBeenCalled());
       expect(m.revision, 'and no new revision').toBe(revision);
