@@ -98,11 +98,18 @@ export function startEdge(opts: EdgeOptions): Promise<Server> {
       (up) => {
         res.writeHead(up.statusCode ?? 502, up.headers);
         up.pipe(res);
+        up.on('error', () => res.destroy());
       },
     );
+    // This runs inside the Playwright worker: an `error` nobody listens for is thrown there, and fails
+    // whatever test is running with no stack (waiting.spec, run 39766532205, "read ECONNRESET"). A reset
+    // on either side ends the other, as the real edge would.
     upstream.on('error', (err) => {
-      res.writeHead(502, { 'content-type': 'text/plain' }).end(`edge: upstream error ${err.message}`);
+      if (res.headersSent) res.destroy();
+      else res.writeHead(502, { 'content-type': 'text/plain' }).end(`edge: upstream error ${err.message}`);
     });
+    req.on('error', () => upstream.destroy());
+    res.on('error', () => upstream.destroy());
     req.pipe(upstream);
   });
 
