@@ -28,7 +28,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ApplyDeltaSchema, GameEventListSchema, safeParseServerFrame, type PrintedPT, type PrintedTypes, DELTA_TYPE, cardIdOfState, deltaKey } from '@hadoku/forge-wire';
+import { ApplyDeltaSchema, GameEventListSchema, safeParseServerFrame, type PrintedPT, type PrintedTypes, DELTA_TYPE, cardIdOfState, deltaKey, idsOf } from '@hadoku/forge-wire';
 
 import {
 	cardVisibility,
@@ -1077,6 +1077,47 @@ describe('a card the seat was shown stays shown while it stays put', () => {
 		shuffled.project(delta([ended, player(1, { Hand: [10], Library: [21, 22] })]));
 		shuffled.project(renewed([card(20)], [player(1, { Hand: [10], Library: [20, 22, 21] })]));
 		expect({ bottom: bottom.visibilityOf(20), shuffled: shuffled.visibilityOf(20) }).toEqual({ bottom: 'hidden', shuffled: 'hidden' });
+	});
+
+	describe('the library the seat is sent keeps a known top card while Forge has it in no zone list', () => {
+		const ended = { _type: DELTA_TYPE.card, _id: 20, PlayerMayLook: null } as unknown as WireObj;
+		/** Seat 0's client state after these projected frames: bob's library, top first. */
+		const library = (emitted: readonly (StateFrame | null)[]): number[] =>
+			idsOf(foldFrames(emitted.filter((f): f is StateFrame => f !== null)).get(deltaKey(DELTA_TYPE.player, 1)), 'Library');
+		const gap = (): { p: ReturnType<typeof createProjector>; out: (StateFrame | null)[] } => {
+			const p = createProjector(0);
+			const out = [p.project(opening({ 20: [0] })), p.project(delta([ended, player(1, { Hand: [10], Library: [21, 22] })]))];
+			return { p, out };
+		};
+
+		it('a fate seal keeping it on top: alice is never sent bob’s library without it (fs-known-top, run 39845586028)', () => {
+			const { p, out } = gap();
+			expect(library(out), 'between the two packets').toEqual([20, 21, 22]);
+			out.push(p.project(renewed([card(20)], [player(1, { Hand: [10], Library: [20, 21, 22] })])));
+			expect(library(out)).toEqual([20, 21, 22]);
+			expect(held(out, 20)).toEqual({ t: 'str', v: 'Lightning Bolt' });
+		});
+
+		it('it lands elsewhere: the library is sent as Forge has it, though Forge sends no list of its own', () => {
+			const exiled = gap();
+			exiled.out.push(exiled.p.project(delta([{ _type: DELTA_TYPE.player, _id: 1, Exile: list([20]) } as WireObj])));
+			expect(library(exiled.out)).toEqual([21, 22]);
+			const bottom = gap();
+			bottom.out.push(bottom.p.project(renewed([card(20)], [player(1, { Hand: [10], Library: [21, 22, 20] })])));
+			expect(library(bottom.out)).toEqual([21, 22, 20]);
+		});
+
+		it('a card cast off the top is on the stack, not held in the library', () => {
+			const p = createProjector(0);
+			const out = [p.project(opening({ 20: [0] })), p.project(delta([{ ...card(20, [0]), Zone: { t: 'enum', v: 'Stack' } }, player(1, { Hand: [10], Library: [21, 22] })]))];
+			expect(library(out)).toEqual([21, 22]);
+		});
+
+		it('an unknown card between two lists is not held: the seat never learns where it was', () => {
+			const p = createProjector(0);
+			const out = [p.project(opening()), p.project(delta([player(1, { Hand: [10], Library: [21, 22] })]))];
+			expect(library(out)).toEqual([21, 22]);
+		});
 	});
 
 	it("names the holder too when it was shown its own top card as well (Goblin Guide's reveal)", () => {
