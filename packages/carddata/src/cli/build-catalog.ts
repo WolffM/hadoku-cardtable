@@ -86,9 +86,19 @@ function isDigital(card: GameplayCard): boolean {
   return (card as Record<string, unknown>)['digital'] === true;
 }
 
+/** One printing's own art, by `<SET>:<collector_number>` — see `buildCatalog`'s header. */
+export interface PrintingRef {
+  /** The canonical key this printing's card is stored under in `cards`. */
+  key: string;
+  /** This SPECIFIC printing's own id — not the chosen printing's. Absent only if Scryfall ever omits one. */
+  scryfallId?: string;
+}
+
 export interface CatalogFile {
   cards: Record<string, unknown>;
   aliases: Record<string, string>;
+  /** Every printing read, keyed `<SET>:<collector_number>` — not only the one chosen for `cards`. */
+  printings: Record<string, PrintingRef>;
 }
 
 /**
@@ -96,10 +106,24 @@ export interface CatalogFile {
  * either a canonical entry (the key IS the card's own top-level name) or an
  * alias (the key reached the card through a weaker variant). See the file
  * header for why this is the whole algorithm.
+ *
+ * `printings` is a SECOND output built alongside: for a canonical key, every
+ * entry in that SAME bucket with a rank-0 match (its own exact full name,
+ * not some other card's folded/front-face collision landing in the same
+ * bucket string) is another printing of the chosen card — a reprint, a
+ * digital-only edition, whatever `cards.jsonl` carries — even when it was
+ * NOT the one `toDraftCard` was called on. `apps/server/src/pools/catalog.ts`'s
+ * `byPrinting(set, collectorNumber)` reads this to answer a specific
+ * printing's own `scryfallId` while still serving the canonical card's text,
+ * which is the entire reason it exists (wave 74 §E: a realistic booster's
+ * pack should draw the SET'S OWN art, not whatever printing this catalog
+ * happened to pick as its one text entry). `cards`/`aliases` are unchanged
+ * by this — same keys, same values, same CLI behaviour.
  */
 export function buildCatalog(index: CardIndex): CatalogFile {
   const cards: Record<string, unknown> = {};
   const aliases: Record<string, string> = {};
+  const printings: Record<string, PrintingRef> = {};
 
   for (const [key, bucket] of index.byName) {
     if (bucket.length === 0) continue;
@@ -109,12 +133,22 @@ export function buildCatalog(index: CardIndex): CatalogFile {
     const canonicalKey = normaliseName(String((best.card as Record<string, unknown>).name ?? ''));
     if (key === canonicalKey) {
       cards[key] = toDraftCard(best.card, key);
+      for (const entry of bucket) {
+        if (entry.rank !== 0) continue; // this card's own exact name, not a same-string collision from a different card
+        const raw = entry.card as Record<string, unknown>;
+        const set = typeof raw.set === 'string' ? raw.set : null;
+        const collector = typeof raw.collector_number === 'string' ? raw.collector_number : null;
+        if (set === null || collector === null) continue;
+        const printingKey = `${set.toUpperCase()}:${collector}`;
+        if (printingKey in printings) continue; // first one wins; two cards sharing a set+collector number should not happen
+        printings[printingKey] = typeof raw.id === 'string' ? { key, scryfallId: raw.id } : { key };
+      }
     } else if (!(key in aliases)) {
       aliases[key] = canonicalKey;
     }
   }
 
-  return { cards, aliases };
+  return { cards, aliases, printings };
 }
 
 export interface RunBuildCatalogOptions {

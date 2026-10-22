@@ -21,16 +21,19 @@
  *
  * ## `byPrinting` and `swap` (wave 74 §G)
  *
- * `byPrinting(set, collectorNumber)` answers from the SAME one-printing-
- * per-name data `byName` does — `build-catalog.ts` keeps exactly one chosen
- * printing per card (paper preferred; see its header), never every printing
- * a card has ever had. So `byPrinting` is a best-effort index over that one
- * printing per card, built here at load time from the `setCode` +
- * `collectorNumber` the file already carries: it answers a realistic
- * booster's own printing when the catalog's canonical pick happens to be
- * that set, and otherwise misses. Wave 74 §E's realistic-pack mapping is
- * written to fall back to `byName` on a miss — this never grows the catalog
- * file's shape, so `build-catalog.ts` needed no behaviour change.
+ * `byPrinting(set, collectorNumber)` is why a realistic booster's own-set
+ * card draws the SET'S OWN art rather than whatever printing `build-catalog`
+ * happened to choose as the one text entry under `cards` — the whole point
+ * of the method, per wave 74 §E. The catalog file's `printings` section
+ * (`build-catalog.ts`'s header has the derivation) carries EVERY printing
+ * `cards.jsonl` had a set + collector number for, each pointing at its
+ * card's canonical key plus its OWN `scryfallId` — so the answer here is the
+ * canonical card's text with the REQUESTED printing's own `setCode`,
+ * `collectorNumber` and `scryfallId` laid over it, never the chosen
+ * printing's. `cards`/`aliases` carry one entry per name either way; only
+ * `printings` grew to cover every printing, which is why this miss rate
+ * went from "nearly every real card" to "only a name the catalog could not
+ * resolve at all" (still callers fall back to `byName` on a miss there).
  *
  * `swap(path?)` reloads the file at `path` (or the path this catalog was
  * built from, if omitted) and, only on a successful parse, replaces the
@@ -48,7 +51,7 @@ import { jsonLogger } from '../log.js';
 
 export interface CardCatalog {
 	byName(name: string): DraftCard | null;
-	/** Best-effort: only the catalog's one chosen printing per card is indexed. Callers fall back to `byName`. */
+	/** The canonical card's text with THIS printing's own setCode/collectorNumber/scryfallId. Misses only on a name the catalog never resolved at all; callers fall back to `byName`. */
 	byPrinting(set: string, collectorNumber: string): DraftCard | null;
 	/**
 	 * Reload from `path` (default: the path this catalog was built from) and,
@@ -58,26 +61,34 @@ export interface CardCatalog {
 	swap(path?: string): boolean;
 }
 
+interface PrintingRefFile {
+	key?: unknown;
+	scryfallId?: unknown;
+}
+
 interface CatalogFile {
 	/** Canonical name key -> the full card, re-validated against `DraftCardSchema` on load. */
 	cards: Record<string, unknown>;
 	/** Any other key (front-face, folded, folded-front-face) -> the canonical key above. */
 	aliases: Record<string, unknown>;
+	/** `<SET>:<collector_number>` -> this printing's own ref (`build-catalog.ts`'s `PrintingRef`). Absent on an older file — see `parseCatalogState`. */
+	printings?: Record<string, unknown>;
 }
 
 interface CatalogState {
 	cards: Map<string, DraftCard>;
 	aliases: Map<string, string>;
-	printings: Map<string, DraftCard>;
+	/** `<SET>:<collector_number>` -> {key, scryfallId}; resolved against `cards` lazily in `byPrinting`, never duplicated into a second `DraftCard` map. */
+	printings: Map<string, { key: string; scryfallId: string | undefined }>;
 }
 
 const log = jsonLogger('cardtable-pools');
 
 const EMPTY_STATE: CatalogState = { cards: new Map(), aliases: new Map(), printings: new Map() };
 
-/** `setCode` is already uppercased by `build-catalog.ts`; uppercase here too so a caller's case never misses. */
+/** Uppercase the set so a caller's case never misses; the file's own keys are already uppercase (`build-catalog.ts` upper-cases `setCode`). */
 function printingKey(setCode: string, collectorNumber: string): string {
-	return `${setCode.toUpperCase()}#${collectorNumber}`;
+	return `${setCode.toUpperCase()}:${collectorNumber}`;
 }
 
 /** Parse one catalog file into lookup state, or `null` on a reported fault (never throws). */
@@ -97,17 +108,12 @@ function parseCatalogState(path: string): CatalogState | null {
 	const file = raw as Partial<CatalogFile>;
 
 	const cards = new Map<string, DraftCard>();
-	const printings = new Map<string, DraftCard>();
 	let rejected = 0;
 	if (typeof file.cards === 'object' && file.cards !== null) {
 		for (const [key, value] of Object.entries(file.cards)) {
 			const parsed = DraftCardSchema.safeParse(value);
-			if (parsed.success) {
-				cards.set(key, parsed.data);
-				printings.set(printingKey(parsed.data.setCode, parsed.data.collectorNumber), parsed.data);
-			} else {
-				rejected++;
-			}
+			if (parsed.success) cards.set(key, parsed.data);
+			else rejected++;
 		}
 	}
 
@@ -118,7 +124,25 @@ function parseCatalogState(path: string): CatalogState | null {
 		}
 	}
 
-	log({ evt: 'catalog-loaded', path, cards: cards.size, aliases: aliases.size, printings: printings.size, rejected });
+	// Absent on a catalog file built before this field existed (an older
+	// deploy's cache, a hand-written test fixture that predates it) — a
+	// catalog with no printings index is not a reported fault, every
+	// `byPrinting` call on it just answers null and the caller falls back
+	// to `byName`, same as a name the join never resolved.
+	const printings = new Map<string, { key: string; scryfallId: string | undefined }>();
+	let printingsRejected = 0;
+	if (typeof file.printings === 'object' && file.printings !== null) {
+		for (const [printingKeyStr, value] of Object.entries(file.printings)) {
+			const ref = value as PrintingRefFile;
+			if (typeof ref.key !== 'string') {
+				printingsRejected++;
+				continue;
+			}
+			printings.set(printingKeyStr, { key: ref.key, scryfallId: typeof ref.scryfallId === 'string' ? ref.scryfallId : undefined });
+		}
+	}
+
+	log({ evt: 'catalog-loaded', path, cards: cards.size, aliases: aliases.size, printings: printings.size, rejected, printingsRejected });
 
 	return { cards, aliases, printings };
 }
@@ -152,7 +176,16 @@ export function loadCardCatalog(path: string): CardCatalog {
 		},
 
 		byPrinting(set: string, collectorNumber: string): DraftCard | null {
-			return state.printings.get(printingKey(set, collectorNumber)) ?? null;
+			const ref = state.printings.get(printingKey(set, collectorNumber));
+			if (ref === undefined) return null;
+			const canonical = state.cards.get(ref.key);
+			if (canonical === undefined) return null;
+			return {
+				...canonical,
+				setCode: set.toUpperCase(),
+				collectorNumber,
+				scryfallId: ref.scryfallId ?? canonical.scryfallId,
+			};
 		},
 
 		swap(nextPath: string = path): boolean {

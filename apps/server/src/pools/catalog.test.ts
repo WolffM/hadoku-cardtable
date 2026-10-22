@@ -1,6 +1,7 @@
 /**
  * `loadCardCatalog` against a tiny hand-built catalog file — the shape
- * `build-catalog.ts` writes (`{ cards, aliases }`), never the 17 MB real one.
+ * `build-catalog.ts` writes (`{ cards, aliases, printings }`), never the
+ * 26 MB real one.
  */
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -39,7 +40,15 @@ const DELVER = {
 	toughness: '1',
 };
 
-async function writeCatalog(dir: string, file: { cards: Record<string, unknown>; aliases: Record<string, unknown> }): Promise<string> {
+/** BOLT's own id — the catalog's CHOSEN printing (LEA #161). */
+const LEA_BOLT_SCRYFALL_ID = 'aaaaaaaa-0000-4000-8000-000000000001';
+/** A DIFFERENT printing of the same card — M19 #141, its own art — never the chosen one under `cards`. */
+const M19_BOLT_SCRYFALL_ID = 'bbbbbbbb-0000-4000-8000-000000000002';
+
+async function writeCatalog(
+	dir: string,
+	file: { cards: Record<string, unknown>; aliases: Record<string, unknown>; printings?: Record<string, unknown> },
+): Promise<string> {
 	const path = join(dir, 'cards.json');
 	await writeFile(path, JSON.stringify(file), 'utf8');
 	return path;
@@ -113,19 +122,64 @@ describe('loadCardCatalog byPrinting', () => {
 		await rm(dir, { recursive: true, force: true });
 	});
 
-	it('answers the catalog\'s one chosen printing by set + collector number, case aside', async () => {
-		const path = await writeCatalog(dir, { cards: { 'lightning bolt': BOLT }, aliases: {} });
+	it('answers the chosen printing by set + collector number, case aside, with its own scryfallId', async () => {
+		const path = await writeCatalog(dir, {
+			cards: { 'lightning bolt': BOLT },
+			aliases: {},
+			printings: { 'LEA:161': { key: 'lightning bolt', scryfallId: LEA_BOLT_SCRYFALL_ID } },
+		});
 		const catalog = loadCardCatalog(path);
 		expect(catalog.byPrinting('lea', '161')?.name).toBe('Lightning Bolt');
-		expect(catalog.byPrinting('LEA', '161')?.name).toBe('Lightning Bolt');
+		expect(catalog.byPrinting('LEA', '161')?.scryfallId).toBe(LEA_BOLT_SCRYFALL_ID);
 	});
 
-	it('misses a printing the catalog did not choose as its canonical one (the caller falls back to byName)', async () => {
+	it('answers a DIFFERENT printing of the same card — the whole reason byPrinting exists — with its OWN scryfallId, not the chosen printing\'s', async () => {
+		const path = await writeCatalog(dir, {
+			cards: { 'lightning bolt': BOLT }, // BOLT itself carries no scryfallId; the chosen printing has none recorded here on purpose
+			aliases: {},
+			printings: {
+				'LEA:161': { key: 'lightning bolt', scryfallId: LEA_BOLT_SCRYFALL_ID },
+				'M19:141': { key: 'lightning bolt', scryfallId: M19_BOLT_SCRYFALL_ID },
+			},
+		});
+		const catalog = loadCardCatalog(path);
+
+		const m19 = catalog.byPrinting('M19', '141');
+		expect(m19?.name).toBe('Lightning Bolt'); // same text as the canonical card
+		expect(m19?.oracleText).toBe(BOLT.oracleText);
+		expect(m19?.setCode).toBe('M19'); // THIS printing's own set
+		expect(m19?.collectorNumber).toBe('141'); // THIS printing's own collector number
+		expect(m19?.scryfallId).toBe(M19_BOLT_SCRYFALL_ID); // THIS printing's own art, not LEA's
+
+		const lea = catalog.byPrinting('LEA', '161');
+		expect(lea?.scryfallId).toBe(LEA_BOLT_SCRYFALL_ID);
+		expect(lea?.scryfallId).not.toBe(m19?.scryfallId);
+	});
+
+	it('misses a printing with no entry in `printings` at all (the caller falls back to byName)', async () => {
+		const path = await writeCatalog(dir, {
+			cards: { 'lightning bolt': BOLT },
+			aliases: {},
+			printings: { 'LEA:161': { key: 'lightning bolt', scryfallId: LEA_BOLT_SCRYFALL_ID } },
+		});
+		const catalog = loadCardCatalog(path);
+		expect(catalog.byPrinting('FDN', '1')).toBeNull();
+	});
+
+	it('misses every printing on an older-shape file with no `printings` section at all', async () => {
 		const path = await writeCatalog(dir, { cards: { 'lightning bolt': BOLT }, aliases: {} });
 		const catalog = loadCardCatalog(path);
-		// The catalog's one Lightning Bolt entry is LEA #161; a different printing's
-		// set + collector number is simply not indexed.
-		expect(catalog.byPrinting('M19', '141')).toBeNull();
+		expect(catalog.byPrinting('LEA', '161')).toBeNull();
+	});
+
+	it("a printings entry whose key names a card not in `cards` (a malformed file) misses rather than throwing", async () => {
+		const path = await writeCatalog(dir, {
+			cards: { 'lightning bolt': BOLT },
+			aliases: {},
+			printings: { 'LEA:161': { key: 'some other card not in cards', scryfallId: LEA_BOLT_SCRYFALL_ID } },
+		});
+		const catalog = loadCardCatalog(path);
+		expect(catalog.byPrinting('LEA', '161')).toBeNull();
 	});
 
 	it('answers null when the file has never been loaded', () => {
@@ -155,6 +209,7 @@ describe('loadCardCatalog swap', () => {
 		await writeCatalog(dir, {
 			cards: { 'delver of secrets // insectile aberration': DELVER },
 			aliases: { 'delver of secrets': 'delver of secrets // insectile aberration' },
+			printings: { 'ISD:51': { key: 'delver of secrets // insectile aberration', scryfallId: DELVER.scryfallId } },
 		});
 		const swapped = catalog.swap();
 
