@@ -20,6 +20,8 @@
  * callbacks, which the observer runs after, so nothing that reads the board in a frame callback
  * (`e2e/table-fit.spec.ts` does, every frame) sees the old sizes for the one frame of a resize.
  */
+import { remeasureCardWidths } from './card-size.ts';
+
 export const ZONE_BOXES = '.seat > .zone--battlefield, .seat > .zone--hand, .seat > .zone--command, .zone__row, .seat .zone--graveyard, .seat .zone--exile, .seat .zone--library';
 
 /**
@@ -29,21 +31,29 @@ export const ZONE_BOXES = '.seat > .zone--battlefield, .seat > .zone--hand, .sea
  */
 export const CARD_BOXES = '.board-card[data-pile-size]';
 
-/** A card's drawn width, written; exported for the tests. */
-export function writeCardBox(el: HTMLElement, width: number): void {
-  el.style.setProperty('--card-drawn-w', `${width}px`);
+/** A card's drawn width, written; exported for the tests. True when it changed. */
+export function writeCardBox(el: HTMLElement, width: number): boolean {
+  return writeLength(el, '--card-drawn-w', width);
+}
+
+function writeLength(el: HTMLElement, name: string, px: number): boolean {
+  const value = `${px}px`;
+  if (el.style.getPropertyValue(name) === value) return false;
+  el.style.setProperty(name, value);
+  return true;
 }
 
 /** The bands `board.css` steps on, widest first. */
 const ASPECT_BANDS = [10, 8, 6, 5, 4, 3] as const;
 
-/** One box's measure, written; exported for the tests. */
-export function writeZoneBox(el: HTMLElement, width: number, height: number): void {
-  el.style.setProperty('--zone-w', `${width}px`);
-  el.style.setProperty('--zone-h', `${height}px`);
+/** One box's measure, written; exported for the tests. True when it changed. */
+export function writeZoneBox(el: HTMLElement, width: number, height: number): boolean {
+  const wide = writeLength(el, '--zone-w', width);
+  const tall = writeLength(el, '--zone-h', height);
   const band = height > 0 ? ASPECT_BANDS.find((b) => width / height >= b) : undefined;
   if (band === undefined) el.removeAttribute('data-zone-aspect');
   else el.setAttribute('data-zone-aspect', String(band));
+  return wide || tall;
 }
 
 export interface ZoneBoxes {
@@ -57,16 +67,16 @@ export function observeZoneBoxes(): ZoneBoxes | null {
   if (typeof ResizeObserver === 'undefined') return null;
   const observed = new Set<Element>();
   const cards = new Set<Element>();
-  const write = (el: HTMLElement, width: number, height: number): void => {
-    if (cards.has(el)) writeCardBox(el, width);
-    else writeZoneBox(el, width, height);
-  };
-  // Read from the entries alone, then written in one pass: no layout read after a write.
+  const write = (el: HTMLElement, width: number, height: number): boolean => (cards.has(el) ? writeCardBox(el, width) : writeZoneBox(el, width, height));
+  // Read from the entries alone, then written in one pass: no layout read after a write. The card
+  // widths the layers draw at are read from these boxes, so they are measured again once they move.
   const observer = new ResizeObserver((entries) => {
+    let moved = false;
     for (const entry of entries) {
       const box = entry.contentBoxSize[0];
-      if (box !== undefined && entry.target instanceof HTMLElement) write(entry.target, box.inlineSize, box.blockSize);
+      if (box !== undefined && entry.target instanceof HTMLElement) moved = write(entry.target, box.inlineSize, box.blockSize) || moved;
     }
+    if (moved) remeasureCardWidths();
   });
   const onResize = (): void => {
     // Every box read, then every box written: one layout for the lot.
@@ -75,7 +85,9 @@ export function observeZoneBoxes(): ZoneBoxes | null {
       const pad = (a: string, b: string): number => (Number.parseFloat(style.getPropertyValue(a)) || 0) + (Number.parseFloat(style.getPropertyValue(b)) || 0);
       return { el, width: el.clientWidth - pad('padding-left', 'padding-right'), height: el.clientHeight - pad('padding-top', 'padding-bottom') };
     });
-    for (const { el, width, height } of measured) write(el, width, height);
+    let moved = false;
+    for (const { el, width, height } of measured) moved = write(el, width, height) || moved;
+    if (moved) remeasureCardWidths();
   };
   window.addEventListener('resize', onResize);
   return {

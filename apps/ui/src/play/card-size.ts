@@ -20,8 +20,9 @@
  * bit more laggy … i notice it mostly when draging cards around").
  *
  * Each width is measured once and kept until the row or its first card changes
- * size (a `ResizeObserver` on both), the row's first card is a different one, or
- * the UI scale moves (`forgetCardWidths`). Any read of a box forces the browser
+ * size (a `ResizeObserver` on both), a zone's box is written (`zone-box.ts`), the
+ * row's first card is a different one, or the UI scale moves (`forgetCardWidths`).
+ * Any read of a box forces the browser
  * to lay out whatever the commit before it changed, and the stack layer asks on
  * every commit: measured, this was a fifth of a combat's main-thread time.
  */
@@ -74,8 +75,14 @@ function rowWidth(list: HTMLElement): number | null {
   return probeWidth(list, probe);
 }
 
-/** Every kept width measured again after a resize; the layers drawing at them redraw only when one moved. */
-function remeasure(): void {
+/**
+ * Every kept width measured again: after a resize of a row or its first card, and after `zone-box.ts`
+ * writes a zone's box, which every row's `--card-w` resolves off. That write comes from the zones'
+ * own observer, after the first layout, so a width read before it (a reload's replay draws its stack
+ * at once) is read from a row nothing has sized yet; an empty row never resizes when it is. The
+ * layers drawing at the widths redraw only when one moved.
+ */
+export function remeasureCardWidths(): void {
   let moved = false;
   for (const kind of ['drawn', 'row'] as const) {
     for (const [list, m] of kept[kind]) {
@@ -107,7 +114,7 @@ function watch(list: HTMLElement, m: Measured): void {
 
 /** `kind`'s width in `list`, from the last measure while it still holds. Measured every call where nothing can say it went stale. */
 function widthIn(kind: keyof typeof kept, list: HTMLElement): number | null {
-  if (resizes === null && typeof ResizeObserver === 'function') resizes = new ResizeObserver(remeasure);
+  if (resizes === null && typeof ResizeObserver === 'function') resizes = new ResizeObserver(remeasureCardWidths);
   if (resizes === null) return measures[kind](list);
   const first = firstCard(list);
   const known = kept[kind].get(list);
