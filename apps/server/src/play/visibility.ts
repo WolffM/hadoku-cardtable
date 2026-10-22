@@ -566,6 +566,8 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 	const libraries = new Map<number, number[]>();
 	/** Where each card last stood in a library, kept while it is in no zone list — what a card Forge re-creates there is read against. */
 	const libraryPlaces = new Map<number, { holder: number; index: number }>();
+	/** Each library this seat was last sent with a card {@link heldLibrary} kept in it, by holder. */
+	const heldSent = new Map<number, string>();
 	/** Forge's `PlayerMayLook` grants as last folded — a look that ended in this packet still explains its moves. */
 	let grantsBefore = new Map<number, number[]>();
 	/** The cards the whole table could see as of the last packet — {@link tableCards}. */
@@ -810,6 +812,49 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		}
 	}
 
+	/**
+	 * `holder`'s library as this seat is sent it: Forge's, with each card this seat knows there put
+	 * back where it last stood while Forge has it in no zone list and does not say it is anywhere but
+	 * a library. Forge re-creates a fate seal's kept card in two packets, out of every list and then
+	 * back on top, and a busy host draws the packet between (fs-known-top, run 39845586028: the Bolt
+	 * gone from alice's screen for 110 ms). A card cast off the top says Stack, and is not held.
+	 */
+	function heldLibrary(holder: number, library: readonly number[], zones: ZoneIndex): number[] {
+		const out = [...library];
+		if (who === null) return out;
+		const held: { cardId: number; index: number }[] = [];
+		for (const [cardId, was] of knownTo(who)) {
+			if (was.zone !== 'Library' || was.holder !== holder || zones.byCard.has(cardId)) continue;
+			const card = raw.get(deltaKey(DELTA_TYPE.card, cardId));
+			const place = libraryPlaces.get(cardId);
+			const zone = card === undefined ? null : enumOf(card, 'Zone');
+			if (card === undefined || place?.holder !== holder || (zone !== null && zone !== 'Library')) continue;
+			held.push({ cardId, index: place.index });
+		}
+		for (const { cardId, index } of held.sort((a, b) => a.index - b.index)) out.splice(Math.min(index, out.length), 0, cardId);
+		return out;
+	}
+
+	/** Send each library as {@link heldLibrary} has it wherever that differs from what this seat was last sent. */
+	function holdKnownTops(newObjects: ObjTable, objectDeltas: ObjTable): void {
+		const zones = zonesNow ?? indexZones(raw);
+		for (const [holder, library] of libraries) {
+			const out = heldLibrary(holder, library, zones);
+			const key = JSON.stringify(out);
+			const holding = out.length !== library.length;
+			const playerKey = deltaKey(DELTA_TYPE.player, holder);
+			const listed = newObjects[playerKey] ?? objectDeltas[playerKey];
+			// Nothing held now or before, or the same list held again with no list of Forge's to correct.
+			if (!holding && !heldSent.has(holder)) continue;
+			if (holding && heldSent.get(holder) === key && listed?.Library === undefined) continue;
+			if (holding) heldSent.set(holder, key);
+			else heldSent.delete(holder);
+			const value = { t: 'list', v: out.map((v) => ({ t: 'int', v })) };
+			if (newObjects[playerKey] !== undefined) newObjects[playerKey] = { ...newObjects[playerKey], Library: value };
+			else objectDeltas[playerKey] = { ...(objectDeltas[playerKey] ?? { _type: DELTA_TYPE.player, _id: holder }), Library: value };
+		}
+	}
+
 	/** Project one object by its key; null when the viewer gets nothing for it. */
 	function projectObject(key: string, obj: WireObj, vis: Map<number, Visibility>): WireObj | null {
 		const type = deltaKeyType(Number(key));
@@ -864,6 +909,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		}
 		for (const [cardId, now] of vis) sent.set(cardId, now);
 		syncLooks(vis, newObjects, objectDeltas);
+		holdKnownTops(newObjects, objectDeltas);
 
 		return { seq: packet.seq, checksum: 0, checksumProperties: [], newObjects, objectDeltas, events: [] };
 	}
@@ -971,6 +1017,7 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 					sent.clear();
 					sentLook.clear();
 					libraries.clear();
+					heldSent.clear();
 					grantsBefore = new Map();
 					onTable = new Set();
 					foldInto(raw, {
