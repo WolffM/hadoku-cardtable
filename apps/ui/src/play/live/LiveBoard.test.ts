@@ -105,6 +105,9 @@ const roomsClientState = vi.hoisted(() => ({
   /** Called after each `get` answers — a test that needs the room to move between reads sets it. */
   afterGet: null as (() => void) | null,
   gets: 0,
+  /** While set, each `get` holds its answer (the room as it was when asked) until a test calls one of `held`. */
+  hold: false,
+  held: [] as (() => void)[],
 }));
 vi.mock('../../rooms/api.ts', () => ({
   roomsClient: () => ({
@@ -113,6 +116,7 @@ vi.mock('../../rooms/api.ts', () => ({
       const room = roomsClientState.room;
       roomsClientState.gets += 1;
       roomsClientState.afterGet?.();
+      if (roomsClientState.hold) await new Promise<void>((release) => roomsClientState.held.push(release));
       return room;
     },
   }),
@@ -168,6 +172,9 @@ const tableState = vi.hoisted(() => ({
   decks: vi.fn(() => [] as { id: string; main: { name: string; count: number }[]; sideboard: { name: string; count: number }[] }[]),
   /** The server's 409 from `PUT …/deck`'s sideboard check — null answers `{ok: true}` as usual. */
   loadDeckRefusal: null as string | null,
+  /** While set, each table read holds its answer (the table as it was when asked) until a test calls one of `held`. */
+  hold: false,
+  held: [] as (() => void)[],
 }));
 vi.mock('../../screens/tables.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../screens/tables.ts')>();
@@ -189,7 +196,11 @@ vi.mock('../../screens/tables.ts', async (importOriginal) => {
   return {
     ...actual,
     tablesClient: () => ({
-      table: async () => ({ ok: true as const, table: table() }),
+      table: async () => {
+        const answer = { ok: true as const, table: table() };
+        if (tableState.hold) await new Promise<void>((release) => tableState.held.push(release));
+        return answer;
+      },
       decks: async () => tableState.decks(),
       loadDeck: async (roomId: string, deck: unknown, tableId?: string) => {
         // Forwarded the same discipline `tables.ts`'s own `withTable` keeps on
@@ -285,6 +296,8 @@ afterEach(async () => {
   roomsClientState.room = null;
   roomsClientState.afterGet = null;
   roomsClientState.gets = 0;
+  roomsClientState.hold = false;
+  roomsClientState.held = [];
   tableState.me = { ready: false, present: true, choice: null };
   tableState.other = { ready: false, present: true };
   tableState.matchId = null;
@@ -295,6 +308,8 @@ afterEach(async () => {
   tableState.loadDeck.mockClear();
   tableState.decks.mockClear();
   tableState.loadDeckRefusal = null;
+  tableState.hold = false;
+  tableState.held = [];
 });
 
 /**
@@ -3694,6 +3709,68 @@ describe('R16 — the result screen, drawn over the board', () => {
     await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-next00000000'));
     expect(tableState.startRoom).toHaveBeenCalledTimes(1);
     expect(tableState.startRoom).toHaveBeenCalledWith('r-1');
+  });
+
+  /* Two reads of the same thing in flight: the older answering last must not put the older state back (`../../rooms/latest.ts`). */
+  describe('a read a newer one overtook', () => {
+    const release = async (held: (() => void)[], i: number): Promise<void> => {
+      await act(async () => {
+        held[i]!();
+      });
+    };
+
+    it('the table: an older read answering last does not take back what the newer one showed', async () => {
+      const { check } = await victoryInRoom();
+      tableState.hold = true;
+      tableState.other.ready = true;
+      roomPing();
+      await waitFor(() => expect(tableState.held).toHaveLength(1));
+      tableState.other.ready = false;
+      roomPing();
+      await waitFor(() => expect(tableState.held).toHaveLength(2));
+
+      await release(tableState.held, 1);
+      expect(check(false), 'the newer read: they have not pressed').toBeNull();
+      await release(tableState.held, 0);
+      expect(check(false), 'the older read lands nothing').toBeNull();
+    });
+
+    it('the table: a read sent before my own Rematch answered is asked again, not landed', async () => {
+      const { rematch, check } = await victoryInRoom();
+      await waitFor(() => expect(rematch().disabled).toBe(false));
+      tableState.hold = true;
+      roomPing();
+      await waitFor(() => expect(tableState.held).toHaveLength(1));
+      fireEvent.click(rematch());
+      await waitFor(() => expect(check(true), 'my check').not.toBeNull());
+
+      tableState.hold = false;
+      await release(tableState.held, 0);
+      await waitFor(() => expect(check(true), 'the read from before my press does not take it back').not.toBeNull());
+      expect(rematch().getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('the room: an older read answering last does not put the older room back', async () => {
+      const series = { length: 3, wins: [2, 1], games: [], phase: 'done' };
+      roomsClientState.room = { settings: { handSmoothing: true }, mode: null, tables: [{ id: 't-1', players: [], matchId: null, series }], pod: null };
+      const { queryByTestId } = await victoryInRoom();
+      await waitFor(() => expect(queryByTestId('game-result-rematch')).not.toBeNull());
+
+      // Each table move makes the tick read the room again.
+      roomsClientState.hold = true;
+      tableState.other.ready = true;
+      roomPing();
+      await waitFor(() => expect(roomsClientState.held).toHaveLength(1));
+      roomsClientState.room = { ...roomsClientState.room, mode: 'gauntlet' };
+      tableState.other.ready = false;
+      roomPing();
+      await waitFor(() => expect(roomsClientState.held).toHaveLength(2));
+
+      await release(roomsClientState.held, 1);
+      await waitFor(() => expect(queryByTestId('game-result-rematch'), 'the newer room: a Gauntlet').toBeNull());
+      await release(roomsClientState.held, 0);
+      expect(queryByTestId('game-result-rematch'), 'the older room lands nothing').toBeNull();
+    });
   });
 
   it("the other screen started the match: this one follows the room's new match", async () => {

@@ -255,6 +255,31 @@ describe('the list', () => {
     expect(feed.targets(), 'leaving the lobby stops following').toEqual([]);
   });
 
+  it.each([
+    ['a list', (resolve: (r: Response) => void) => resolve(json(200, { rooms: [OPEN] }))],
+    ['a failure', (resolve: (r: Response) => void) => resolve(json(503, {}))],
+  ])('a list read the server answers after a newer one lands nothing: the newer list stays (older answer: %s)', async (_what, answerOlder) => {
+    const held: ((r: Response) => void)[] = [];
+    const fetchImpl: Fetch = () => new Promise<Response>((resolve) => held.push(resolve));
+    const feed = manualFeed();
+    render(createElement(LobbyScreen, { rooms: roomsClient(fetchImpl, '/cardtable/api/'), feed }));
+    await waitFor(() => expect(held).toHaveLength(1));
+    await act(async () => {
+      feed.ping();
+    });
+    expect(held).toHaveLength(2);
+
+    await act(async () => {
+      held[1]!(json(200, { rooms: [OPEN, LOCKED] }));
+    });
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(2));
+    await act(async () => {
+      answerOlder(held[0]!);
+    });
+    expect(screen.getAllByTestId('room-row')).toHaveLength(2);
+    expect(screen.queryByTestId('rooms-stale')).toBeNull();
+  });
+
   it('drops a malformed room rather than rendering undefined', () => {
     expect(parseRoomView({ ...OPEN, locked: 'yes' })).toBeNull();
     expect(parseRoomView({ ...OPEN, id: 'Not An Id!' })).toBeNull();
