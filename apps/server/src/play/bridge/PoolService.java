@@ -1,0 +1,260 @@
+/*
+ * hadoku-cardtable: the Forge pool service.
+ * Copyright (C) 2026  hadoku-cardtable contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import forge.GuiDesktop;
+import forge.StaticData;
+import forge.card.CardEdition;
+import forge.card.CardRarity;
+import forge.gui.GuiBase;
+import forge.item.PaperCard;
+import forge.item.SealedTemplate;
+import forge.item.generation.BoosterGenerator;
+import forge.localinstance.properties.ForgeNetPreferences;
+import forge.localinstance.properties.ForgePreferences.FPref;
+import forge.model.FModel;
+import forge.util.MyRandom;
+
+import java.io.BufferedReader;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.text.SimpleDateFormat;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Random;
+
+/**
+ * Answers draft-pool questions ({@code docs/planning/draft-pools-plan.md}, "The jar's pool
+ * service") on its own long-lived JVM, separate from the per-match bridge
+ * ({@code PlayBridge.java}) so a pool request can never stall a game. One JSON object per
+ * line on stdin, one back on stdout — the same shape of protocol, a different, much smaller
+ * vocabulary: {@code check}, {@code sets}, {@code setCards}, {@code boosters}, {@code stop}.
+ *
+ * <p>Compiled and launched by {@code apps/server/src/pools/forge.ts}, which reuses
+ * {@code host.ts}'s {@code jvmHostConfig}/{@code bridgeLaunch} (the same compile-once,
+ * launch-by-classname helpers the match bridge uses) rather than duplicating them — see
+ * that file's header for why.
+ *
+ * <p>No match, no lobby, no network server: just {@code FModel.initialize} for the card
+ * database ({@code StaticData}), then {@code CardEdition.hasBoosterTemplate},
+ * {@code BoosterGenerator.getBoosterPack} and {@code MyRandom.setRandom}, exactly as
+ * verified in the plan. {@code GuiDesktop} is used directly (no bridge-specific EDT
+ * overrides needed — nothing here ever calls {@code hostMatch}).
+ */
+public final class PoolService {
+    private PoolService() { }
+
+    private static final Gson GSON = new GsonBuilder().serializeNulls().create();
+    private static final SimpleDateFormat ISO_DATE = new SimpleDateFormat("yyyy-MM-dd");
+
+    /** The real stdout, captured before Forge's own boot noise is sent to stderr instead. */
+    private static PrintStream protocol;
+
+    public static void main(final String[] args) throws Exception {
+        protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
+        System.setOut(System.err);
+
+        GuiBase.setInterface(new GuiDesktop());
+        FModel.initialize(null, prefs -> {
+            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, false);
+            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
+            return null;
+        });
+        if (StaticData.instance() == null) {
+            fatal("Forge did not initialise (no StaticData) — is res/ in the working directory?");
+            return;
+        }
+        // UPnP ASK would open a modal dialog; this process never hosts a network server at all,
+        // but FModel.initialize touches net preferences regardless. See PlayBridge.bootForge.
+        FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.UPnP, "NEVER");
+
+        emit(line("ready"));
+
+        final BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+        String text;
+        while ((text = in.readLine()) != null) {
+            if (text.isBlank()) { continue; }
+            handle(text);
+        }
+        // stdin closed (the Node side exited without sending stop): go quietly.
+        Runtime.getRuntime().halt(0);
+    }
+
+    private static JsonObject line(final String t) {
+        final JsonObject o = new JsonObject();
+        o.addProperty("t", t);
+        return o;
+    }
+
+    private static void emit(final JsonObject o) {
+        protocol.println(GSON.toJson(o));
+        protocol.flush();
+    }
+
+    private static void fatal(final String message) {
+        final JsonObject o = line("fatal");
+        o.addProperty("message", message);
+        emit(o);
+        Runtime.getRuntime().halt(1);
+    }
+
+    /** One request line in, one response line out. A bad line (no id) is logged to stderr, never answered. */
+    private static void handle(final String text) {
+        final JsonObject req;
+        try {
+            req = JsonParser.parseString(text).getAsJsonObject();
+        } catch (final Exception e) {
+            System.err.println("[PoolService] not a JSON object, ignored: " + text);
+            return;
+        }
+        final String id = req.has("id") && !req.get("id").isJsonNull() ? req.get("id").getAsString() : null;
+        if (id == null) {
+            System.err.println("[PoolService] request has no id, ignored: " + text);
+            return;
+        }
+        final String op = req.has("op") && !req.get("op").isJsonNull() ? req.get("op").getAsString() : null;
+        final JsonObject resp = new JsonObject();
+        resp.addProperty("id", id);
+        try {
+            if ("stop".equals(op)) {
+                resp.addProperty("ok", true);
+                emit(resp);
+                Runtime.getRuntime().halt(0);
+                return;
+            } else if ("check".equals(op)) {
+                handleCheck(req, resp);
+            } else if ("sets".equals(op)) {
+                handleSets(resp);
+            } else if ("setCards".equals(op)) {
+                handleSetCards(req, resp);
+            } else if ("boosters".equals(op)) {
+                handleBoosters(req, resp);
+            } else {
+                resp.addProperty("ok", false);
+                resp.addProperty("error", "unknown op: " + op);
+            }
+        } catch (final Exception e) {
+            resp.addProperty("ok", false);
+            resp.addProperty("error", e.toString());
+        }
+        emit(resp);
+    }
+
+    /** Names {@code StaticData.getCommonCards()} does not know at this jar's pin. */
+    private static void handleCheck(final JsonObject req, final JsonObject resp) {
+        final JsonArray unknown = new JsonArray();
+        for (final JsonElement e : req.getAsJsonArray("names")) {
+            final String name = e.getAsString();
+            if (StaticData.instance().getCommonCards().getCard(name) == null) { unknown.add(name); }
+        }
+        resp.addProperty("ok", true);
+        resp.add("unknown", unknown);
+    }
+
+    /** Every set the jar can make a draft booster for (ruling 8: searchable, newest first is the caller's job). */
+    private static void handleSets(final JsonObject resp) {
+        final JsonArray sets = new JsonArray();
+        for (final CardEdition ed : StaticData.instance().getEditions()) {
+            if (!ed.hasBoosterTemplate()) { continue; }
+            final JsonObject s = new JsonObject();
+            s.addProperty("code", ed.getCode());
+            s.addProperty("name", ed.getName());
+            s.addProperty("date", ISO_DATE.format(ed.getDate()));
+            s.addProperty("type", ed.getType().name());
+            sets.add(s);
+        }
+        resp.addProperty("ok", true);
+        resp.add("sets", sets);
+    }
+
+    /** Non-basic unique names in the set (ruling 2: set-cube is one copy of every non-basic card). */
+    private static void handleSetCards(final JsonObject req, final JsonObject resp) {
+        final String code = req.get("code").getAsString();
+        final CardEdition ed = StaticData.instance().getEditions().get(code);
+        if (ed == null) {
+            resp.addProperty("ok", false);
+            resp.addProperty("error", "no such set: " + code);
+            return;
+        }
+        final LinkedHashSet<String> names = new LinkedHashSet<>();
+        for (final CardEdition.EditionEntry entry : ed.getAllCardsInSet()) {
+            if (entry.rarity() != CardRarity.BasicLand) { names.add(entry.name()); }
+        }
+        final JsonArray arr = new JsonArray();
+        for (final String n : names) { arr.add(n); }
+        resp.addProperty("ok", true);
+        resp.add("cards", arr);
+    }
+
+    /**
+     * {@code count} draft boosters of {@code code}, seeded through {@link MyRandom#setRandom}
+     * so the same seed gives the same boosters (same seed, same sequence of
+     * {@link BoosterGenerator#getBoosterPack} calls, deterministic {@link Random}).
+     */
+    private static void handleBoosters(final JsonObject req, final JsonObject resp) {
+        final String code = req.get("code").getAsString();
+        final int count = req.get("count").getAsInt();
+        final String seed = req.get("seed").getAsString();
+        final CardEdition ed = StaticData.instance().getEditions().get(code);
+        if (ed == null || !ed.hasBoosterTemplate()) {
+            resp.addProperty("ok", false);
+            resp.addProperty("error", "no draft booster for set: " + code);
+            return;
+        }
+        final SealedTemplate template = ed.getBoosterTemplate();
+        MyRandom.setRandom(new Random(seedToLong(seed)));
+        final JsonArray boosters = new JsonArray();
+        for (int i = 0; i < count; i++) {
+            final List<PaperCard> pack = BoosterGenerator.getBoosterPack(template);
+            final JsonArray packArr = new JsonArray();
+            for (final PaperCard pc : pack) {
+                final JsonObject c = new JsonObject();
+                c.addProperty("name", pc.getName());
+                c.addProperty("set", pc.getEdition());
+                c.addProperty("collectorNumber", pc.getCollectorNumber());
+                packArr.add(c);
+            }
+            boosters.add(packArr);
+        }
+        resp.addProperty("ok", true);
+        resp.add("boosters", boosters);
+    }
+
+    /** A stable 64-bit seed from an arbitrary string, so the wire seed can be anything the caller likes. */
+    private static long seedToLong(final String seed) {
+        try {
+            final MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+            final byte[] digest = sha256.digest(seed.getBytes(StandardCharsets.UTF_8));
+            long v = 0;
+            for (int i = 0; i < 8; i++) { v = (v << 8) | (digest[i] & 0xFFL); }
+            return v;
+        } catch (final Exception e) {
+            return seed.hashCode();
+        }
+    }
+}
