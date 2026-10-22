@@ -37,7 +37,7 @@ import {
   type NumericChoiceRange,
   type SearchRow,
 } from './rules.ts';
-import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
+import { assertAnswerable, checkedReply, type AskOf, type PromptProps } from './types.ts';
 import type { CardRef, EntityRef } from '@hadoku/forge-wire';
 import type { TileCard } from '../../components/faceCrop.ts';
 
@@ -94,6 +94,44 @@ function UnofferedRow({ row, lookup }: { row: SearchRow; lookup: PromptLookup })
       <RowFace entity={row.ref} lookup={lookup} />
       <span className="prompt__tag">not offered</span>
     </span>
+  );
+}
+
+/**
+ * A search's one grid (§D.2): choosable first, in Forge's order; then what Forge only revealed.
+ * `rules.ts` owns the order and the flag. A radio for one choice, a checkbox for several.
+ */
+function SearchRows({
+  ask,
+  type,
+  checked,
+  pick,
+  confirm,
+  lookup,
+}: {
+  ask: AskOf<'chooseSingleEntityForEffect'> | AskOf<'chooseEntitiesForEffect'>;
+  type: 'radio' | 'checkbox';
+  checked: (option: number) => boolean;
+  pick: (option: number) => void;
+  confirm: (option: number) => void;
+  lookup: PromptLookup;
+}) {
+  const rows = searchRows(ask);
+  const anyCards = rows.some((r) => r.ref.kind === 'card');
+  return (
+    <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
+      {rows.map((row) => (
+        <li key={`${row.ref.kind}:${row.ref.id}`} data-card-id={row.ref.kind === 'card' ? row.ref.id : undefined} data-choosable={row.choosable ? undefined : 'false'}>
+          {row.option === null ? (
+            <UnofferedRow row={row} lookup={lookup} />
+          ) : (
+            <PickChoice type={type} data={{ 'data-ref': `${row.ref.kind}:${row.ref.id}` }} checked={checked(row.option)} onPick={() => pick(row.option!)} onConfirm={() => confirm(row.option!)}>
+              <RowFace entity={row.ref} lookup={lookup} />
+            </PickChoice>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -319,10 +357,6 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
   );
   const chosen = picks[0] ?? null;
   const reply = replyOf(picks);
-  // Choosable first, in Forge's order; then what Forge only revealed. One grid,
-  // not two — §D.2. `rules.ts` owns the order and the flag.
-  const rows = searchRows(ask);
-  const anyCards = rows.some((r) => r.ref.kind === 'card');
 
   return (
     <PromptShell
@@ -333,29 +367,7 @@ export function ChooseSingleEntityPrompt({ ask, onAnswer, lookup }: PromptProps<
       submitLabel={reply === null && ask.isOptional ? 'Choose none' : 'OK'}
     >
       <DelayedRevealNote reveal={ask.delayedReveal} lookup={lookup} />
-      <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
-        {rows.map((row) => (
-          <li
-            key={`${row.ref.kind}:${row.ref.id}`}
-            data-card-id={row.ref.kind === 'card' ? row.ref.id : undefined}
-            data-choosable={row.choosable ? undefined : 'false'}
-          >
-            {row.option === null ? (
-              <UnofferedRow row={row} lookup={lookup} />
-            ) : (
-              <PickChoice
-                type="radio"
-                data={{ 'data-ref': `${row.ref.kind}:${row.ref.id}` }}
-                checked={chosen === row.option}
-                onPick={() => pick(row.option!)}
-                onConfirm={() => confirm(row.option!)}
-              >
-                <RowFace entity={row.ref} lookup={lookup} />
-              </PickChoice>
-            )}
-          </li>
-        ))}
-      </ul>
+      <SearchRows ask={ask} type="radio" checked={(option) => chosen === option} pick={pick} confirm={confirm} lookup={lookup} />
       {ask.isOptional && chosen !== null && (
         <button type="button" className="prompt__link" onClick={() => setChosen([])}>
           Clear choice
@@ -378,10 +390,6 @@ export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'cho
       onAnswer(checkedReply('chooseEntitiesForEffect', reply));
     },
   );
-  // Choosable first, then what Forge only revealed — the same one grid §D.2
-  // gives the single-choice prompt.
-  const rows = searchRows(ask);
-  const anyCards = rows.some((r) => r.ref.kind === 'card');
 
   return (
     <PromptShell method="chooseEntitiesForEffect" title={promptText(ask.title)} problems={problems} onSubmit={submit}>
@@ -389,29 +397,7 @@ export function ChooseEntitiesPrompt({ ask, onAnswer, lookup }: PromptProps<'cho
       <p className="prompt__hint" data-testid="prompt-bounds">
         {boundsText(chosen.length, bounds.min, bounds.max)}
       </p>
-      <ul className={anyCards ? 'prompt__cards' : 'prompt__list'} data-testid={anyCards ? 'prompt-cards' : undefined}>
-        {rows.map((row) => (
-          <li
-            key={`${row.ref.kind}:${row.ref.id}`}
-            data-card-id={row.ref.kind === 'card' ? row.ref.id : undefined}
-            data-choosable={row.choosable ? undefined : 'false'}
-          >
-            {row.option === null ? (
-              <UnofferedRow row={row} lookup={lookup} />
-            ) : (
-              <PickChoice
-                type="checkbox"
-                data={{ 'data-ref': `${row.ref.kind}:${row.ref.id}` }}
-                checked={chosen.includes(row.option)}
-                onPick={() => pick(row.option!)}
-                onConfirm={() => confirm(row.option!)}
-              >
-                <RowFace entity={row.ref} lookup={lookup} />
-              </PickChoice>
-            )}
-          </li>
-        ))}
-      </ul>
+      <SearchRows ask={ask} type="checkbox" checked={(option) => chosen.includes(option)} pick={pick} confirm={confirm} lookup={lookup} />
     </PromptShell>
   );
 }
