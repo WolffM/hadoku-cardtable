@@ -340,4 +340,24 @@ describe('attachCubeRoutes', () => {
 		expect((await call(base, 'POST', '/api/pools/cubes/nope/refresh', 'alice')).status).toBe(404);
 		expect((await call(base, 'DELETE', '/api/pools/cubes/nope', 'alice')).status).toBe(404);
 	});
+
+	it("GET :id/cards answers the cube's cards — lane B preloads a plan's art from this before the deal", async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const store = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG });
+		const base = await openApp(store);
+		const res = await call(base, 'GET', '/api/pools/cubes/demo-cube/cards', 'alice');
+		expect(res.status).toBe(200);
+		const cards = res.json as DraftCard[];
+		expect(cards).toHaveLength(2);
+		expect(cards.map((c) => c.name).sort()).toEqual(['Forest', 'Island']);
+	});
+
+	it('GET :id/cards is 404 for an unknown id', async () => {
+		const { shortlistDir, importDir } = await makeDirs();
+		const store = createCubeStore({ shortlistDir, importDir, catalog: EMPTY_CATALOG });
+		const base = await openApp(store);
+		const res = await call(base, 'GET', '/api/pools/cubes/nope/cards', 'alice');
+		expect(res.status).toBe(404);
+		expect(res.json).toEqual({ error: expect.any(String) });
+	});
 });
