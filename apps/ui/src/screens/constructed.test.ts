@@ -2088,6 +2088,11 @@ describe('a draft room', () => {
     bye: null,
     drafters: [],
     built: [],
+    // wave 73 §A: PodView gains these three (PodViewSchema is a strictObject,
+    // so a pod literal missing them fails parsePodView and nothing renders).
+    plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
+    planName: 'Test Cube',
+    verdict: null,
   });
 
   async function mountDraft(table: Partial<Table> = {}, feed: RoomFeed = everyMs(10)) {
