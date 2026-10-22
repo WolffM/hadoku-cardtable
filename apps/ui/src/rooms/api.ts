@@ -37,16 +37,23 @@ import {
   RoomBodySchema,
   CubeSummarySchema,
   DraftCardSchema,
+  DraftPresetSchema,
   PoolVerdictSchema,
+  SetSummarySchema,
   type ClientMode,
+  type ConstructedMode,
   type CubeSummary,
   type DraftCard,
   type DraftPlan,
+  type DraftPreset,
   type GameType,
   type PoolVerdict,
   type RoomBody,
   type RoomMode,
+  type RoomPod,
   type RoomSettings,
+  type RoomTable,
+  type SetSummary,
 } from '@hadoku/shared';
 
 import { apiBase, appBase, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch } from '../http.ts';
@@ -482,10 +489,24 @@ export interface PoolsClient {
    * between the room's plan and this call costs a warm-up, not a screen.
    */
   cubeCards(id: string): Promise<DraftCard[] | null>;
+  /**
+   * Every set Forge has a draft booster template for (ruling 8), newest
+   * first — `GET /api/pools/sets` (wave 74 §E). `verdict` is cached-only; this
+   * never triggers a check.
+   */
+  listSets(): Promise<SetSummary[]>;
+  /** Named custom plans, shared with the group (wave 74 §G). `GET /api/pools/presets`. */
+  listPresets(): Promise<DraftPreset[]>;
+  /** `POST /api/pools/presets`. The caller is the server's own resolved friend id, same as a cube import. */
+  savePreset(name: string, plan: DraftPlan): Promise<{ ok: true; preset: DraftPreset } | { ok: false; message: string }>;
+  /** `DELETE /api/pools/presets/:id` → 204, or a refusal — 403 unless the caller is the preset's own creator (same rule as a cube import, ruling 4/the plan's "Presets" ruling). */
+  deletePreset(id: string): Promise<{ ok: true } | { ok: false; message: string }>;
 }
 
 export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base: string = apiBase()): PoolsClient {
   const url = (path: string): string => `${base}pools/cubes${path}`;
+  /** Sets and presets sit beside `pools/cubes`, not under it — the pools root, same base. */
+  const poolsUrl = (path: string): string => `${base}pools${path}`;
 
   return {
     async listCubes() {
@@ -553,6 +574,65 @@ export function poolsClient(fetchImpl: Fetch = (i, init) => fetch(i, init), base
       const body = await bodyOf(res);
       const parsed = DraftCardSchema.array().safeParse(body);
       return parsed.success ? parsed.data : null;
+    },
+
+    async listSets() {
+      let res: Response;
+      try {
+        res = await fetchImpl(poolsUrl('/sets'), { credentials: 'same-origin' });
+      } catch {
+        throw new Error('Could not reach the server.');
+      }
+      const body = await bodyOf(res);
+      if (!res.ok) throw new Error(`Could not load the set list: ${serverMessage(body, res.status)}.`);
+      const parsed = SetSummarySchema.array().safeParse(body);
+      if (!parsed.success) throw new Error('The server sent something that is not a set list.');
+      return parsed.data;
+    },
+
+    async listPresets() {
+      let res: Response;
+      try {
+        res = await fetchImpl(poolsUrl('/presets'), { credentials: 'same-origin' });
+      } catch {
+        throw new Error('Could not reach the server.');
+      }
+      const body = await bodyOf(res);
+      if (!res.ok) throw new Error(`Could not load the presets: ${serverMessage(body, res.status)}.`);
+      const parsed = DraftPresetSchema.array().safeParse(body);
+      if (!parsed.success) throw new Error('The server sent something that is not a preset list.');
+      return parsed.data;
+    },
+
+    async savePreset(name, plan) {
+      let res: Response;
+      try {
+        res = await fetchImpl(poolsUrl('/presets'), {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: JSON_HEADERS,
+          body: JSON.stringify({ name, plan }),
+        });
+      } catch {
+        return { ok: false, message: 'Could not reach the server.' };
+      }
+      const body = await bodyOf(res);
+      if (!res.ok) return { ok: false, message: `Could not save that preset: ${serverMessage(body, res.status)}.` };
+      const parsed = DraftPresetSchema.safeParse(body);
+      if (!parsed.success) return { ok: false, message: 'The server saved something that is not a preset.' };
+      return { ok: true, preset: parsed.data };
+    },
+
+    async deletePreset(id) {
+      let res: Response;
+      try {
+        res = await fetchImpl(poolsUrl(`/presets/${encodeURIComponent(id)}`), { method: 'DELETE', credentials: 'same-origin' });
+      } catch {
+        return { ok: false, message: 'Could not reach the server.' };
+      }
+      if (res.ok) return { ok: true };
+      const body = await bodyOf(res);
+      return { ok: false, message: `Could not delete that preset: ${serverMessage(body, res.status)}.` };
     },
   };
 }

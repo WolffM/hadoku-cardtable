@@ -12,7 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { CubeSummary, DraftPlan, PoolVerdict } from '@hadoku/shared';
+import type { CubeSummary, DraftPlan, DraftPreset, PoolSource, PoolVerdict, SetSummary } from '@hadoku/shared';
 
 const { aiPod, sitPod, standPod } = vi.hoisted(() => ({
   aiPod: vi.fn(),
@@ -53,8 +53,15 @@ beforeEach(() => {
     refreshCube: vi.fn(),
     deleteCube: vi.fn(),
     cubeCards: vi.fn().mockResolvedValue(null),
+    listSets: vi.fn().mockResolvedValue([]),
+    listPresets: vi.fn().mockResolvedValue([]),
+    savePreset: vi.fn(),
+    deletePreset: vi.fn(),
   };
-  rooms = { setPlan: vi.fn() };
+  // A default resolved outcome, so a test that picks something without caring
+  // what the server answers (most of the Set/Custom/preset tests below) does
+  // not crash on an unresolved mock; a test that DOES care overrides it.
+  rooms = { setPlan: vi.fn().mockResolvedValue({ ok: true, room: {} as unknown as never }) };
 });
 
 const baseProps = {
@@ -120,6 +127,39 @@ const cubeFixture = (over: Partial<CubeSummary> = {}): CubeSummary => ({
   importedAt: null,
   refreshedAt: null,
   verdict: null,
+  ...over,
+});
+
+const setFixture = (over: Partial<SetSummary> = {}): SetSummary => ({
+  code: 'ISD',
+  name: 'Innistrad',
+  date: '2011-09-30',
+  type: 'Expansion',
+  cards: 231,
+  verdict: null,
+  ...over,
+});
+
+const setPlan = (code: string, style: 'realistic' | 'set-cube' = 'realistic'): DraftPlan => ({
+  rounds: [
+    { kind: 'set', code, style },
+    { kind: 'set', code, style },
+    { kind: 'set', code, style },
+  ],
+});
+
+const customPlan = (rounds: [PoolSource, PoolSource, PoolSource]): DraftPlan => ({ rounds });
+
+const presetFixture = (over: Partial<DraftPreset> = {}): DraftPreset => ({
+  id: 'preset-1',
+  name: 'Alara block',
+  plan: customPlan([
+    { kind: 'set', code: 'ALA', style: 'realistic' },
+    { kind: 'set', code: 'ALA', style: 'realistic' },
+    { kind: 'set', code: 'ARB', style: 'realistic' },
+  ]),
+  createdBy: 'u-alice',
+  createdAt: new Date().toISOString(),
   ...over,
 });
 
@@ -320,5 +360,150 @@ describe('the pool picker (wave 73 §B)', () => {
 
     await waitFor(() => expect(pools.cubeCards).toHaveBeenCalledWith(cube.id));
     await waitFor(() => expect(preloadCubeArt).toHaveBeenCalledWith([card]));
+  });
+});
+
+describe('the Set tab (wave 74 §F)', () => {
+  const alice = member('u-alice', 'Alice', true);
+  const bob = member('u-bob', 'Bob', true);
+
+  it('a non-leader follows the room onto the Set tab with no interaction of their own, and sees the same set/style chosen', async () => {
+    const isd = setFixture();
+    vi.mocked(pools.listSets).mockResolvedValue([isd]);
+    const pod = plannedPod(setPlan(isd.code), 'Innistrad · Realistic', { ok: true, cards: isd.cards });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, myId: 'u-bob', members: [alice, bob] }));
+
+    await waitFor(() => expect(screen.getByTestId('pool-picker-tab-set').getAttribute('aria-selected')).toBe('true'));
+    const setRadio = (await waitFor(() => screen.getByTestId(`pool-picker-sets-${isd.code}`))) as HTMLInputElement;
+    expect(setRadio.checked, 'the room’s own set is drawn chosen').toBe(true);
+    expect((screen.getByTestId('pool-picker-style-realistic') as HTMLInputElement).checked, 'and its style').toBe(true);
+    // A non-leader's tabs are read-only — the room's plan drives them, never a click.
+    expect((screen.getByTestId('pool-picker-tab-set') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('the leader opens the Set tab, picks a set and a style, and the whole plan is one source three times', async () => {
+    const isd = setFixture();
+    vi.mocked(pools.listSets).mockResolvedValue([isd]);
+    const pod = podFixture();
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    fireEvent.click(screen.getByTestId('pool-picker-tab-set'));
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-sets-${isd.code}`)).not.toBeNull());
+
+    fireEvent.click(screen.getByTestId(`pool-picker-sets-${isd.code}`));
+    fireEvent.click(screen.getByTestId('pool-picker-style-realistic'));
+    await waitFor(() => expect(rooms.setPlan).toHaveBeenLastCalledWith('r-cube', setPlan(isd.code, 'realistic')));
+  });
+});
+
+describe('the Custom tab (wave 74 §F)', () => {
+  const alice = member('u-alice', 'Alice', true);
+  const bob = member('u-bob', 'Bob', true);
+
+  it('a refused round names which round and lists the cards, from that source’s own cached verdict — not a round trip', async () => {
+    const good = cubeFixture({ id: 'good-cube', name: 'A fine cube' });
+    const bad = setFixture({ code: 'ARB', name: 'Alara Reborn', verdict: { ok: false, unplayable: ['Some Card Forge Does Not Know'], missingText: [] } });
+    vi.mocked(pools.listCubes).mockResolvedValue([good]);
+    vi.mocked(pools.listSets).mockResolvedValue([bad]);
+    const pod = podFixture();
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
+    await waitFor(() => expect(screen.getByTestId('pool-picker-custom-round-0')).not.toBeNull());
+
+    // Round 0: the good cube.
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-0-cubes-good-cube'));
+    // Round 1 (a second round of the same source works too — rounds are independent).
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1-cubes-good-cube'));
+    // Round 2: switch to Set, pick the one whose OWN cached verdict is already bad.
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-2-type-set'));
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-custom-round-2-sets-${bad.code}`)).not.toBeNull());
+    fireEvent.click(screen.getByTestId(`pool-picker-custom-round-2-sets-${bad.code}`));
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-2-style-realistic'));
+
+    const round2Verdict = await waitFor(() => screen.getByTestId('pool-picker-custom-round-2-verdict'));
+    expect(round2Verdict.getAttribute('data-state'), 'round 2 names itself refused') .toBe('refused');
+    expect(round2Verdict.textContent, 'and lists the cards').toBe('Some Card Forge Does Not Know');
+    // Rounds 0 and 1 carry no verdict of their own yet (never checked at this pin).
+    expect(screen.queryByTestId('pool-picker-custom-round-0-verdict')).toBeNull();
+    expect(screen.queryByTestId('pool-picker-custom-round-1-verdict')).toBeNull();
+  });
+
+  it('writes the whole plan only once every round has a concrete source', async () => {
+    const good = cubeFixture({ id: 'good-cube' });
+    vi.mocked(pools.listCubes).mockResolvedValue([good]);
+    const pod = podFixture();
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
+    await waitFor(() => expect(screen.getByTestId('pool-picker-custom-round-0')).not.toBeNull());
+
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-0-cubes-good-cube'));
+    expect(rooms.setPlan, 'two of three rounds still unchosen').not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-1-cubes-good-cube'));
+    expect(rooms.setPlan, 'one round still unchosen').not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('pool-picker-custom-round-2-cubes-good-cube'));
+    await waitFor(() => expect(rooms.setPlan).toHaveBeenCalledWith('r-cube', cubePlan(good.id)));
+  });
+});
+
+describe('presets (wave 74 §G routes, §F UI)', () => {
+  const alice = member('u-alice', 'Alice', true);
+  const bob = member('u-bob', 'Bob', true);
+
+  it('a preset saved by Alice is listed for whoever leads next; only Alice (its creator) may delete it', async () => {
+    // Preset management sits beside import/refresh/delete, the Cube tab's
+    // own leader-only actions (`PoolPicker.tsx`'s `CubeRow`: a non-leader
+    // never sees that block at all, not merely disabled) — so this proves
+    // the creator rule with BOTH renders leading, never a non-leader's
+    // screen, which would not draw the block in the first place. Listing a
+    // preset for every member regardless of leadership is §G's own route
+    // test (`GET /api/pools/presets`), not this component's.
+    const mine = presetFixture({ id: 'p-mine', createdBy: 'u-alice' });
+    vi.mocked(pools.listPresets).mockResolvedValue([mine]);
+    const pod = plannedPod(mine.plan, 'Custom', { ok: true, cards: 15 });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-preset-${mine.id}`)).not.toBeNull());
+    expect(screen.getByTestId(`pool-picker-preset-${mine.id}-delete`), 'the creator, leading, deletes').not.toBeNull();
+
+    cleanup();
+    render(createElement(DraftLobby, { ...baseProps, pod, myId: 'u-bob', leaderId: 'u-bob', members: [alice, bob] }));
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-preset-${mine.id}`)).not.toBeNull());
+    expect(screen.queryByTestId(`pool-picker-preset-${mine.id}-delete`), 'a DIFFERENT leader, not its creator, may not').toBeNull();
+  });
+
+  it('loading a preset writes its plan', async () => {
+    const preset = presetFixture();
+    vi.mocked(pools.listPresets).mockResolvedValue([preset]);
+    const pod = plannedPod(preset.plan, 'Custom', { ok: true, cards: 15 });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    await waitFor(() => expect(screen.getByTestId(`pool-picker-preset-${preset.id}-load`)).not.toBeNull());
+
+    fireEvent.click(screen.getByTestId(`pool-picker-preset-${preset.id}-load`));
+    await waitFor(() => expect(rooms.setPlan).toHaveBeenCalledWith('r-cube', preset.plan));
+  });
+
+  it('saving names the three chosen rounds', async () => {
+    const good = cubeFixture({ id: 'good-cube' });
+    vi.mocked(pools.listCubes).mockResolvedValue([good]);
+    vi.mocked(pools.savePreset).mockResolvedValue({ ok: true, preset: presetFixture() });
+    const pod = podFixture();
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
+    await waitFor(() => expect(screen.getByTestId('pool-picker-custom-round-0')).not.toBeNull());
+    for (const round of [0, 1, 2]) fireEvent.click(screen.getByTestId(`pool-picker-custom-round-${round}-cubes-good-cube`));
+    // The third round's pick fires the real (mocked) `setPlan` round trip —
+    // wait for it to settle (Save is disabled, same as Ready, while busy)
+    // before touching the save form.
+    await waitFor(() => expect(rooms.setPlan).toHaveBeenCalledWith('r-cube', cubePlan(good.id)));
+
+    fireEvent.change(screen.getByTestId('pool-picker-preset-name'), { target: { value: 'My preset' } });
+    await waitFor(() => expect((screen.getByTestId('pool-picker-preset-save') as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByTestId('pool-picker-preset-save'));
+    await waitFor(() => expect(pools.savePreset).toHaveBeenCalledWith('My preset', cubePlan(good.id)));
   });
 });

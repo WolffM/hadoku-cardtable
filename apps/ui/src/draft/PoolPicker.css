@@ -2,11 +2,65 @@
  * `PoolPicker`: the room's own radio-card look (`components/RadioCards.css`),
  * one row per cube — a name, a size and, for an imported one, who imported it
  * and its own refresh/delete. Theme tokens only.
+ *
+ * Wave 74 §F: the tabs reuse `.lobby__format-tabs`/`.ct-toggle` verbatim
+ * (`screens.css`, the constructed room's format tabs) rather than a second
+ * tab look; the Set/Custom additions below are new.
  */
 .pool-picker {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.pool-picker__tabs {
+  margin-bottom: 0;
+}
+
+.pool-picker__set-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pool-picker__search {
+  font: inherit;
+  padding: 0.3rem 0.6rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius);
+}
+
+.pool-picker__rounds {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pool-picker__round {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+}
+
+.pool-picker__round-title {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--color-text-secondary);
+}
+
+.pool-picker__round-verdict {
+  font-size: 0.85em;
+}
+
+.pool-picker__presets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .pool-picker__list {
