@@ -77,8 +77,30 @@ describe('a pile is a queue along the arrow into its seat', () => {
     });
   });
 
-  it('where an arrow is shorter than four packs (a pod of eight), the seat takes the four places nearest its head instead', () => {
-    expect(pileRoom(pod(8)).map((p) => p.along)).toEqual(Array(8).fill('room'));
+  it('where an arrow is shorter than four packs (a pod of eight), the queue still lines it: as many as fit against the stroke, the rest in files further out, each turned with the arrow', () => {
+    const room = pod(8);
+    const piles = pileRoom(room);
+    const along = piles.flatMap((pile, at) => (pile.along === 'arrow' ? [at] : []));
+    expect(along.length, 'most seats queue on their arrow').toBeGreaterThanOrEqual(5);
+    for (const at of along) {
+      const pile = piles[at]!;
+      const face = room.faces[at]!;
+      const sx = room.sides[at]!;
+      const line = room.line(at);
+      const width = room.arrows[room.inbound[at]!]!.width;
+      const spots = pile.places.map((p) => ({ x: face.x + p.x * sx * PACK, y: face.y + p.y * PACK, turn: p.turn * sx }));
+      const offs = spots.map((spot) => Math.hypot(spot.x - room.hub.x, spot.y - room.hub.y));
+      for (const [i, spot] of spots.entries()) {
+        // Turned with the ring the arrow runs on, also where a file runs on past its tail.
+        const heading = (Math.atan2(spot.y - room.hub.y, spot.x - room.hub.x) * 180) / Math.PI + 90;
+        expect(offs[i]!, `seat ${at} pack ${i} outside its arrow`).toBeGreaterThan(Math.hypot(line[0]!.x - room.hub.x, line[0]!.y - room.hub.y) + width / 2);
+        const off = ((((spot.turn - heading) % 180) + 270) % 180) - 90;
+        expect(Math.abs(off), `seat ${at} pack ${i} turned with its arrow`).toBeLessThan(6);
+        // A pack is never in a nearer file than the one before it: the queue only moves out.
+        if (i > 0) expect(offs[i]!, `seat ${at} pack ${i} in the same file or further out`).toBeGreaterThan(offs[i - 1]! - 0.5);
+      }
+      expect(new Set(offs.map((o) => Math.round(o * 2))).size, `seat ${at} needs more than one file`).toBeGreaterThan(1);
+    }
   });
 
   it('jostles a queue only a little as it fills: a crowded queue, still a queue', () => {
