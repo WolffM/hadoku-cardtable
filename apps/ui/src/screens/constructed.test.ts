@@ -373,14 +373,14 @@ function stubServer(table: Table) {
       choice.rules.kind === 'standard' ? choice.rules.format : '',
     );
 
-  /** A room read parked on the wire: it answers with the record AS IT WAS when read, once released. */
+  /** A room read parked on the wire: it answers with the record AS IT WAS when read, once its own release is called. */
   let heldRead: Promise<void> | null = null;
-  let releaseHeld: (() => void) | null = null;
   const holdNextRoomRead = (): (() => void) => {
+    let release: () => void = () => undefined;
     heldRead = new Promise<void>((r) => {
-      releaseHeld = r;
+      release = r;
     });
-    return () => releaseHeld?.();
+    return () => release();
   };
   let roomRead: () => void = () => undefined;
   const roomAnswered = new Promise<void>((r) => {
@@ -2828,6 +2828,43 @@ describe('a room read that overlapped the leader’s own write', () => {
     // The held, earlier-issued read's stale answer lands now.
     for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
     expect(select.value, 'the stale, earlier-issued read did not win over the newer one').toBe('2011-07-15');
+  });
+});
+
+describe('a room read a newer one overtook', () => {
+  /**
+   * CI `check` (39704881156, 39724078736 and four before them): the deck-peek
+   * tests lost their peek mid-test. A room read slower than the feed's next
+   * ping is dropped for the newer one — but it opened the screen's body first,
+   * with no room record, so the picker drew the NEWEST era's decks (the
+   * fallback pool) and then swapped to the room's own pool when the newer read
+   * landed, closing whatever was open on it. The first answer the screen
+   * keeps is the one that opens it.
+   */
+  it('opens nothing until the read the screen keeps has answered, so the picker never shows a pool the room is not on', async () => {
+    const server = stubServer({ players: [opponent()], matchId: null });
+    const stepped = steppedFeed();
+    const releaseFirst = server.holdNextRoomRead();
+    render(
+      createElement(ConstructedScreen, {
+        client: server.client,
+        deckRecords: server.deckRecords,
+        rooms: server.rooms,
+        roomId: ROOM,
+        feed: stepped.feed,
+      }),
+    );
+    await waitFor(() => expect(roomReads(server)).toBe(1));
+    // The feed pings again while the first read is still on the wire.
+    const releaseSecond = server.holdNextRoomRead();
+    await stepped.reread(1);
+    expect(roomReads(server)).toBe(2);
+    releaseFirst();
+    for (let turn = 0; turn < 5; turn += 1) await act(async () => {});
+    expect(screen.queryByTestId('deck-mine'), 'no picker from a read the screen dropped').toBeNull();
+    releaseSecond();
+    await deckPicker();
+    expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]);
   });
 });
 
