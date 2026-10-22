@@ -340,7 +340,6 @@ describe('the room a match route puts the chat in', () => {
     expect(roomIdFor(parseRoute('#/draft/pod-1'), ignored)).toEqual({ roomId: 'pod-1', chatId: 'pod-1' });
     expect(roomIdFor(parseRoute('#/deck/pod-1'), ignored)).toEqual({ roomId: 'pod-1', chatId: 'pod-1' });
     expect(roomIdFor(parseRoute('#/'), ignored)).toBeNull();
-    expect(roomIdFor(parseRoute('#/debug'), ignored)).toBeNull();
   });
 });
 

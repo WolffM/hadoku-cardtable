@@ -3,17 +3,15 @@
  * The three states §B says a draft must stop hiding: spectating, a held seat,
  * and the deck at the end.
  *
- * ## Why this mounts `DraftScreen` and not `App`
+ * ## Why these build their own payloads
  *
- * `DraftScreen.test.ts` drives the whole app through the committed fixture
- * picker, and that is the right shape for the fixtures — it proves the app
- * renders what the server would really have sent. None of the three states here
- * has a committed fixture, and adding one would change `FIXTURES.length`, which
- * the debug harness's label (`Fixtures — five committed payloads`) and lane A's
- * tests both spell out. So these build the payload they need and render the
- * screen directly. The payloads are still fixture-derived — every card comes
- * out of a committed file — so nothing here asserts against a shape the engine
- * could not emit.
+ * `DraftScreen.test.ts` drives the screen through the committed fixtures, which
+ * proves it renders what the server would really have sent. None of the three
+ * states here has a committed fixture, and adding one would change
+ * `FIXTURES.length`, which other tests spell out. So these build the payload
+ * they need. The payloads are still fixture-derived — every card comes out of a
+ * committed file — so nothing here asserts against a shape the engine could not
+ * emit.
  *
  * No JSX: the root vitest config globs `apps/*\/src/**\/*.test.ts`, so a `.tsx`
  * test is silently NOT COLLECTED and proves nothing. `createElement` keeps this

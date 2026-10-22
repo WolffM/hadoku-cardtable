@@ -105,11 +105,9 @@ afterEach(() => {
 /* ── one door ────────────────────────────────────────────────────────── */
 
 describe('the front door', () => {
-  it('is the lobby, not the developer harness', () => {
+  it('is the lobby, not a draft', () => {
     open();
     expect(screen.getByTestId('lobby')).toBeTruthy();
-    // The harness is still in the build; it is just no longer what you meet.
-    expect(screen.queryByText('Fixtures — five committed payloads')).toBeNull();
     expect(screen.queryByTestId('pack')).toBeNull();
   });
 
@@ -146,10 +144,9 @@ describe('the front door', () => {
     expect(screen.getByTestId('lobby')).toBeTruthy();
   });
 
-  it('still has the harness, one hash away', () => {
+  it('shows the lobby where the developer harness was', () => {
     open('#/debug');
-    expect(screen.getByText('Fixtures — five committed payloads')).toBeTruthy();
-    expect(screen.queryByTestId('lobby')).toBeNull();
+    expect(screen.getByTestId('lobby')).toBeTruthy();
   });
 });
 

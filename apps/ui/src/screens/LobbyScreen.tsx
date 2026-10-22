@@ -31,7 +31,6 @@
 import { RoomList } from '../rooms/RoomList.tsx';
 import type { RoomsClient } from '../rooms/api.ts';
 import type { RoomFeed } from '../rooms/feed.ts';
-import { navigate } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
 import { DecksButton } from './DecksButton.tsx';
@@ -64,21 +63,6 @@ export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProp
         <RoomList client={rooms} feed={feed} />
       </main>
       {stats !== undefined && <StatsPopout player={stats.player} tournaments={stats.tournaments === true} source={statsSource} />}
-
-      {import.meta.env?.DEV === true && (
-        <footer className="shell__foot">
-          <a
-            className="shell__link"
-            href="#/debug"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate({ kind: 'debug' });
-            }}
-          >
-            Developer harness
-          </a>
-        </footer>
-      )}
     </div>
   );
 }

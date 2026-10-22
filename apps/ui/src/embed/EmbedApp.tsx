@@ -38,7 +38,7 @@
  *
  * In memory (`routeInMemory`, set up by `./index.tsx`), never the page's hash.
  * The routes that are not a table — the room list, the stats popout over it,
- * the format picker, the debug harness, the sound tools — go to the bound room
+ * the format picker, the sound tools — go to the bound room
  * instead: in a watchparty room there is exactly one table, and "back to the
  * lobby" means it.
  */
@@ -56,7 +56,7 @@ import { scaleRootOf } from '../settings/ui-scale.ts';
 import type { GameBundleContext } from './contract.ts';
 import './embed.css';
 
-const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'decks', 'play', 'debug', 'sounds', 'sounds-sandbox', 'sounds-music']);
+const NOT_A_TABLE: ReadonlySet<Route['kind']> = new Set(['lobby', 'stats', 'decks', 'play', 'sounds', 'sounds-sandbox', 'sounds-music']);
 
 export interface EmbedAppProps {
   ctx: GameBundleContext;

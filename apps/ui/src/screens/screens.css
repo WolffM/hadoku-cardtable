@@ -101,12 +101,6 @@
   color: var(--color-text-secondary);
 }
 
-.shell__foot {
-  margin-top: auto;
-  padding-top: 16px;
-  font-size: 12px;
-}
-
 .shell__link {
   color: var(--color-primary);
   text-decoration: none;

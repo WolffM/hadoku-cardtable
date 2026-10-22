@@ -1,14 +1,7 @@
 /*
  * The router, and nothing else.
  *
- * Until this wave `App.tsx` WAS the app: a Source switcher, a seed box and a
- * fixture picker, which is the harness that was built to exercise the engine.
- * The operator's report on opening production was exact — *"it still has the
- * weird dev ui… i still haven't seen actual gameplay of the engine"* — and the
- * diagnosis is that the harness was the front door. It is not deleted; it moved
- * to `#/debug` and is `DebugHarness`.
- *
- * What is here now is a switch over the hash — `screens/Screen.tsx`, which the
+ * It is a switch over the hash — `screens/Screen.tsx`, which the
  * watchparty embed (`embed/`, D21) renders too — inside the standalone page's
  * header and room chrome. No router dependency, no server change: see
  * `screens/route.ts` for why the hash and not the path.
@@ -19,7 +12,6 @@
  *   `#/deck/<draftId>`   `DeckScreen`
  *   `#/play`             `ConstructedScreen` — pick a format and a deck
  *   `#/match/<matchId>`  `MatchScreen` — the invite link and the live board
- *   `#/debug`            `DebugHarness` — the old front door
  *   `#/sounds`           `SoundBuilder` — friend tier and above; its editing is admin-only
  *   `#/sounds/sandbox`   `SoundSandbox` — friend tier and above; its gain saves are admin-only
  *   `#/sounds/music`     `MusicReview` — friend tier and above: compare the match music, submit picks
@@ -144,7 +136,7 @@ function useMatchRoomId(matchId: string | null): { room: RoomPlace | null; pendi
 
 /**
  * The room and chat this route belongs in, or null for the routes that are
- * not a shared place: the lobby, the format picker and the debug harness.
+ * not a shared place: the lobby and the format picker.
  *
  * A draft room and its deck screen share one watchparty room on purpose — it is
  * the same people either side of the draft finishing, and making them rejoin a
@@ -200,7 +192,7 @@ export function App({ transport }: AppProps) {
 
   // The lobby's music everywhere a player is, silence on the tools. A match
   // swaps in its own (`LiveBoard` → `setMatchMusic`).
-  const silent = route.kind === 'debug' || route.kind === 'sounds' || route.kind === 'sounds-sandbox' || route.kind === 'sounds-music';
+  const silent = route.kind === 'sounds' || route.kind === 'sounds-sandbox' || route.kind === 'sounds-music';
   useEffect(() => setScreenMusic(silent ? null : 'music.lobby'), [silent]);
 
   // The fleet's identity, read once here and threaded down. `RoomShell` reads

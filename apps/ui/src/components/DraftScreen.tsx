@@ -98,13 +98,13 @@ export interface DraftScreenProps {
    * it, which is what production wants; a test passes one to read the bytes.
    */
   onDownloadDeck?: (filename: string, text: string) => void;
-  /** The room's name, drawn when there is no `side` to name it. A screen with no room (the debug harness) says Draft. */
+  /** The room's name, drawn when there is no `side` to name it. A screen with no room says Draft. */
   title?: string;
   /** The room's own bar, drawn at the top of the side column (`PodScreen`). */
   side?: ReactNode;
   /** A spectator's choice of whose pack and picks to watch. Absent: the seats are not pressable. */
   onWatch?: (seatId: number) => void;
-  /** Where the drafter's build is kept (`useDraftBuild`). Absent: the split lives in this screen only (the debug harness). */
+  /** Where the drafter's build is kept (`useDraftBuild`). Absent: the split lives in this screen only. */
   buildStore?: DraftBuildStore | null;
 }
 

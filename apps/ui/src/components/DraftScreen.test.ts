@@ -4,9 +4,9 @@
  *
  * §C's bar is "`pnpm --filter @hadoku/ui dev` renders a full pack from a
  * fixture and a pick updates the view". A dev server and a screenshot prove
- * that once; this mounts the real `App` against the real committed fixtures,
- * counts the cards, clicks one, and asserts the view changed — which proves it
- * every time anyone runs `pnpm check`.
+ * that once; this mounts the real `DraftScreen` against the real committed
+ * fixtures, counts the cards, clicks one, and asserts the view changed — which
+ * proves it every time anyone runs `pnpm check`.
  *
  * No JSX here on purpose: the root vitest config globs `apps/*\/src/**\/*.test.ts`,
  * so a `.tsx` test would not be collected by the gate that actually runs in CI.
@@ -14,42 +14,46 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createElement } from 'react';
+import { createElement, Fragment, useMemo, useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
-import { App } from '../App.tsx';
+import { FIXTURES, loadFixtures } from '../draft/fixtures.ts';
+import { applyPayload, initialState, type TableState } from '../draft/table.ts';
+import { TopLayer } from '../topLayer.tsx';
+import { DraftScreen } from './DraftScreen.tsx';
+import type { PackLayout } from './PackView.tsx';
 import { POOL_ENTER_MS } from './PoolView.tsx';
 
 afterEach(cleanup);
 
 /**
- * Mount `App` at the debug route and switch it to the fixture source.
- *
- * The app now boots into a LIVE draft — the real engine over the real bundled
- * cube — because that is what someone opening it wants. These tests are the
- * fixture regression net, so they select the fixture source explicitly rather
- * than relying on which source happens to be the default. That coupling is why
- * they all failed the moment the default changed, and selecting here is the fix
- * that survives the default changing again.
- *
- * ## The hash, which is new this wave
- *
- * `App` is a router now: `#/` is the lobby, `#/draft/<id>` the pod, `#/deck/<id>`
- * the deck, `#/debug` the harness. The Source switcher, the seed box and the
- * fixture picker moved to `#/debug` verbatim, labels and testids intact — the
- * harness was the front door and is now the back one, but it is not deleted,
- * because its fixtures are what three waves of UI tests assert against.
- *
- * So the hash is set BEFORE `render`. `useRoute` reads `location.hash` on mount
- * and a default-route render would put the lobby on screen and every query
- * below would fail on an element that is simply not on that page.
+ * The screen on the committed fixtures: a button per fixture, titled with its
+ * file, and the payload after the one shown as the screen's "next payload".
  */
-function mount() {
-  window.location.hash = '#/debug';
-  const result = render(createElement(App));
-  fireEvent.click(screen.getByText('Fixtures — five committed payloads'));
-  return result;
+function OnFixtures() {
+  const views = useMemo(() => loadFixtures(), []);
+  const [state, setState] = useState<TableState>(() => initialState(views[0]!));
+  const [layout, setLayout] = useState<PackLayout>('fan');
+  const next = views.find((v) => v.draftId === state.view.draftId && v.seq > state.view.seq) ?? null;
+  return createElement(
+    Fragment,
+    null,
+    FIXTURES.map((fixture, i) =>
+      createElement('button', { key: fixture.file, type: 'button', title: fixture.file, onClick: () => setState(initialState(views[i]!)) }, fixture.label),
+    ),
+    createElement(DraftScreen, {
+      state,
+      onChange: setState,
+      nextPayload: next,
+      onAdvance: next === null ? undefined : () => setState((prev) => applyPayload(prev, next)),
+      layout,
+      onLayoutChange: setLayout,
+    }),
+    createElement(TopLayer, { fixed: true }),
+  );
 }
+
+const mount = () => render(createElement(OnFixtures));
 
 const packCards = () => within(screen.getByTestId('pack')).queryAllByTestId('card');
 const poolCards = () => within(screen.getByTestId('pool')).queryAllByTestId('card');

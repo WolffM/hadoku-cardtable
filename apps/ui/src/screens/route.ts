@@ -18,7 +18,6 @@
  *   `#/deck/<draftId>`   the deck built out of that draft's pool
  *   `#/play`             constructed: pick a format and a deck, start a match
  *   `#/match/<matchId>`  a match: the invite link for the other seat, and the board
- *   `#/debug`            the developer harness that used to be the front door
  *   `#/sounds`           the sound builder (wave 50) — friend tier and above; editing is admin-only
  *   `#/sounds/sandbox`   the sound sandbox — scenarios played through the mixer, friend tier and above
  *   `#/sounds/music`     the match-music review — compare, pick and submit, friend tier and above
@@ -68,7 +67,6 @@ export type Route =
   | { kind: 'play' }
   | { kind: 'match'; matchId: string }
   | { kind: 'room'; roomId: string }
-  | { kind: 'debug' }
   /** Friend tier and above: each screen renders nothing until the server's `/api/sounds` answers (`canView`). */
   | { kind: 'sounds' }
   | { kind: 'sounds-sandbox' }
@@ -89,7 +87,6 @@ export type Route =
 export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, '').replace(/^\/+/, '').replace(/\/+$/, '');
   if (path === '') return { kind: 'lobby' };
-  if (path === 'debug') return { kind: 'debug' };
   if (path === 'play') return { kind: 'play' };
   if (path === 'sounds') return { kind: 'sounds' };
   if (path === 'sounds/sandbox') return { kind: 'sounds-sandbox' };
@@ -139,8 +136,6 @@ export function routeHash(route: Route): string {
   switch (route.kind) {
     case 'lobby':
       return '#/';
-    case 'debug':
-      return '#/debug';
     case 'sounds':
       return '#/sounds';
     case 'sounds-sandbox':

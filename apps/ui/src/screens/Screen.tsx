@@ -8,7 +8,6 @@
 import { useEffect } from 'react';
 
 import { ConstructedScreen } from './ConstructedScreen.tsx';
-import { DebugHarness } from './DebugHarness.tsx';
 import { DeckScreen } from './DeckScreen.tsx';
 import { DecksScreen } from './DecksScreen.tsx';
 import { LobbyScreen } from './LobbyScreen.tsx';
@@ -49,8 +48,6 @@ export function Screen({ transport }: ScreenProps) {
   const route = useRoute();
 
   switch (route.kind) {
-    case 'debug':
-      return <DebugHarness />;
     case 'sounds':
       return <SoundBuilder />;
     case 'sounds-sandbox':

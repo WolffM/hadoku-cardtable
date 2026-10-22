@@ -24,7 +24,6 @@ import { canonicalAddress, parseRoute, routeUrl, routeHash, type Route } from '.
 describe('parseRoute', () => {
   it('reads the routes', () => {
     expect(parseRoute('#/')).toEqual({ kind: 'lobby' });
-    expect(parseRoute('#/debug')).toEqual({ kind: 'debug' });
     expect(parseRoute('#/sounds')).toEqual({ kind: 'sounds' });
     expect(parseRoute('#/sounds/sandbox')).toEqual({ kind: 'sounds-sandbox' });
     expect(parseRoute('#/sounds/music')).toEqual({ kind: 'sounds-music' });
@@ -66,7 +65,6 @@ describe('parseRoute', () => {
   it('round-trips every route through routeHash', () => {
     const routes: Route[] = [
       { kind: 'lobby' },
-      { kind: 'debug' },
       { kind: 'sounds' },
       { kind: 'sounds-sandbox' },
       { kind: 'sounds-music' },

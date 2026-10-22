@@ -33,10 +33,8 @@ import {
   applyPick,
   closeDraft,
   cubeName,
-  cubeSize,
   ingest,
   isComplete,
-  myPool,
   mySeat,
   socketPath,
   startDraft,
@@ -474,9 +472,9 @@ describe('rejections', () => {
   });
 });
 
-/* ── The surface `live.ts` shares ────────────────────────────────────── */
+/* ── The driver's surface ────────────────────────────────────── */
 
-describe('the same surface as the in-process source', () => {
+describe('the driver’s surface', () => {
   let stub: Stub;
   let draft: SocketDraft;
   beforeEach(() => {
@@ -486,11 +484,9 @@ describe('the same surface as the in-process source', () => {
 
   it('answers nothing useful before the first snapshot, without throwing', () => {
     expect(draft.view).toBeNull();
-    expect(myPool(draft)).toEqual([]);
     expect(isComplete(draft)).toBe(false);
     expect(mySeat(draft)).toBeNull();
     expect(cubeName(draft)).toBeNull();
-    expect(cubeSize(draft)).toBeNull();
   });
 
   it('applyPick emits a pick by card id, and says nothing about a seat', () => {
@@ -506,11 +502,10 @@ describe('the same surface as the in-process source', () => {
     expect(pick).toEqual({ type: 'pick', draftId: 'draft:test', cardId: card.cardId });
   });
 
-  it('myPool and mySeat read the viewer slice', () => {
+  it('mySeat reads the viewer slice', () => {
     ingest(draft, stateMessage(at(1)));
     const seat = draft.view?.viewer;
     if (seat?.kind !== 'seat') throw new Error('fixture 0 must be a seat view');
-    expect(myPool(draft)).toEqual(seat.pool);
     expect(mySeat(draft)).toBe(seat.seatId);
   });
 
@@ -519,7 +514,6 @@ describe('the same surface as the in-process source', () => {
     expect(cubeName(draft)).toBeNull();
     ingest(draft, stateMessage(at(2), { name: 'Vintage Cube', size: 540 }));
     expect(cubeName(draft)).toBe('Vintage Cube');
-    expect(cubeSize(draft)).toBe(540);
   });
 
   it('isComplete is derived: the pool holds every pick the draft has', () => {

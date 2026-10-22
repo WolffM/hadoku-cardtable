@@ -1,23 +1,15 @@
 /*
  * A draft driven by a server, over socket.io.
  *
- * This is the third source, beside `fixtures.ts` and `live.ts`, and it is
- * deliberately shaped like `live.ts`: `startDraft`, `applyPick`, `isComplete`,
- * `myPool`. `DraftScreen` cannot tell which one is driving it, which is the
- * property the fixture lane was built to preserve and the reason this file is
- * ~300 lines instead of a rewrite of the UI.
+ * It produces what `fixtures.ts` does, a `DraftView` payload, so
+ * `DraftScreen` cannot tell which one is driving it: the property the fixture
+ * lane was built to preserve.
  *
- * **`live.ts` stays.** It is how a draft is testable without a server, and it
- * is how a rendering regression gets bisected against a source that cannot
- * have a network bug. Nothing here replaces it.
+ * ## Time
  *
- * ## The one thing that is genuinely different: time
- *
- * `live.ts` is synchronous — `applyPick` returns the next view. Here the next
- * view arrives later, or not at all, and `applyPick` only emits. That
- * difference is absorbed in `App.tsx`, not in `DraftScreen`'s props: the screen
- * still takes a `TableState` and an `onPick`, and the harness decides when it
- * has one to give.
+ * The next view arrives later, or not at all, and `applyPick` only emits. That
+ * is absorbed by the screen that drives this (`PodScreen.tsx`), not in
+ * `DraftScreen`'s props: the screen still takes a `TableState` and an `onPick`.
  *
  * ## The base path, which is the failure nobody can read
  *
@@ -70,7 +62,6 @@ import {
   watchDraft,
   safeParseServerMessage,
   type CubeMeta,
-  type DraftCard,
   type DraftStateMessage,
   type DraftUpdateMessage,
   type DraftView,
@@ -138,7 +129,7 @@ export interface SocketDraft {
   stats: SocketStats;
   /** Bumped on every observable change, so React has something to key on. */
   revision: number;
-  /* Internals. Not part of the surface `live.ts` shares. */
+  /* Internals. */
   transport: DraftTransport;
   resyncPending: boolean;
   onChange: ((draft: SocketDraft) => void) | null;
@@ -314,9 +305,7 @@ export function startDraft(options: SocketDraftOptions): SocketDraft {
  * Emits and returns; the new state arrives as an envelope. `DraftScreen`
  * already shows the pick as pending until a payload lands (see `table.ts`), so
  * the round trip is visible rather than papered over with a guess about what
- * the next pack will be.
- *
- * Returns the same handle so the call site reads like `live.ts`'s.
+ * the next pack will be. Returns the same handle.
  */
 export function applyPick(draft: SocketDraft, cardId: string): SocketDraft {
   send(draft, pickCard(draft.draftId, cardId));
@@ -344,21 +333,9 @@ export function isComplete(draft: SocketDraft): boolean {
   return view.viewer.pool.length >= view.packCount * view.packSize;
 }
 
-/** Every card this client has taken, in pick order. Empty before the snapshot. */
-export function myPool(draft: SocketDraft): DraftCard[] {
-  const view = draft.view;
-  if (view === null || view.viewer.kind !== 'seat') return [];
-  return view.viewer.pool;
-}
-
-/** Which cube, if the server named one. `live.ts`'s `CUBE_NAME`, over a wire. */
+/** Which cube, if the server named one. */
 export function cubeName(draft: SocketDraft): string | null {
   return draft.cube?.name ?? null;
-}
-
-/** How big that cube is, if the server named one. `live.ts`'s `CUBE_SIZE`. */
-export function cubeSize(draft: SocketDraft): number | null {
-  return draft.cube?.size ?? null;
 }
 
 /** The seat this client is sitting in, or null while spectating or waiting. */
