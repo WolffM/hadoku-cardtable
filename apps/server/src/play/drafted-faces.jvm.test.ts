@@ -18,12 +18,11 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { basicLand, moveToMain, newDeck, setBasicLand, toDeckFile, writeDck } from '@hadoku/deck';
+import { basicLand, cardRequestOf, moveToMain, newDeck, setBasicLand, toDeckFile, writeDck } from '@hadoku/deck';
 import { describe, expect, it } from 'vitest';
 
 import { DELTA_TYPE, deltaKey, idsOf } from '@hadoku/forge-wire';
 
-import { draftCardRequest } from '../http/draftPool.js';
 import { loadPool } from '../room/pool.js';
 import { available, deck, finishMulligan, inOwnMain, landPayer, passUntil, startScenario, waitUntil, type Scenario } from './scenario.js';
 
@@ -38,7 +37,7 @@ if (FABLE === undefined) throw new Error('the cube no longer holds Fable of the 
 
 /** The deck the browser writes for a pool of 23 Fables, with 17 Mountains from the basics buttons. */
 function fableDeck(): string {
-	const card = draftCardRequest(FABLE!);
+	const card = cardRequestOf(FABLE!);
 	let d = newDeck('Drafted Fables', [{ count: 23, card }]);
 	d = moveToMain(d, card, 23);
 	d = setBasicLand(d, basicLand('Mountain'), 17);

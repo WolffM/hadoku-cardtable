@@ -11,15 +11,11 @@
  */
 
 import { committedColours, scoreCard } from '@hadoku/draft';
-import { basicLand, moveToMain, newDeck, setBasicLand, toDeckFile, writeDck, type Deck } from '@hadoku/deck';
+import { BASIC_LAND_OF, basicLand, cardRequestOf, moveToMain, newDeck, poolEntries, setBasicLand, toDeckFile, writeDck, type Deck } from '@hadoku/deck';
 import type { DraftCard, ManaColor } from '@hadoku/shared';
-
-import { draftCardRequest, draftPoolEntries } from '../http/draftPool.js';
 
 export const BOT_DECK_SPELLS = 23;
 export const BOT_DECK_SIZE = 40;
-
-const BASIC_OF: Record<ManaColor, string> = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
 
 function isLand(card: DraftCard): boolean {
 	return /\bLand\b/.test(card.typeLine);
@@ -59,20 +55,20 @@ export function botBasics(spells: readonly DraftCard[], pool: readonly DraftCard
 	let given = 0;
 	for (const c of colours) {
 		const n = Math.floor((lands * pips[c]) / total);
-		counts.set(BASIC_OF[c], n);
+		counts.set(BASIC_LAND_OF[c], n);
 		given += n;
 	}
 	// The rounding remainder goes to the colour with the most pips.
 	const top = colours.reduce((a, b) => (pips[b] > pips[a] ? b : a));
-	counts.set(BASIC_OF[top], (counts.get(BASIC_OF[top]) ?? 0) + lands - given);
+	counts.set(BASIC_LAND_OF[top], (counts.get(BASIC_LAND_OF[top]) ?? 0) + lands - given);
 	return counts;
 }
 
 /** The `.dck` text of a bot's deck from its drafted pool. */
 export function botDeckText(pool: readonly DraftCard[], name: string): string {
 	const spells = botSpells(pool);
-	let deck: Deck = newDeck(name, draftPoolEntries(pool));
-	for (const card of spells) deck = moveToMain(deck, draftCardRequest(card), 1);
+	let deck: Deck = newDeck(name, poolEntries(pool));
+	for (const card of spells) deck = moveToMain(deck, cardRequestOf(card), 1);
 	for (const [basic, count] of botBasics(spells, pool)) deck = setBasicLand(deck, basicLand(basic), count);
 	return writeDck(toDeckFile(deck));
 }

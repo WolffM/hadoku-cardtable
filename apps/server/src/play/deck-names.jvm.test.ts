@@ -25,10 +25,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { composeCardRequest } from '@hadoku/deck';
+import { cardRequestOf, composeCardRequest } from '@hadoku/deck';
 import { describe, expect, it } from 'vitest';
 
-import { draftCardRequest } from '../http/draftPool.js';
 import { loadPool } from '../room/pool.js';
 import { bridgeLaunch, jvmHostConfig } from './host.js';
 
@@ -87,7 +86,7 @@ describe.skipIf(!available.ok)(title, () => {
 
 		/** Each line Forge reads, the card it should play, and the set a drafted line names. */
 		const lines = new Map<string, { name: string; set: string | null }>([
-			...twoFaced.map((c) => [composeCardRequest(draftCardRequest(c)), { name: CUBE[c.name]!, set: c.setCode }] as const),
+			...twoFaced.map((c) => [composeCardRequest(cardRequestOf(c)), { name: CUBE[c.name]!, set: c.setCode }] as const),
 			...Object.entries(OTHERS).map(([line, name]) => [line, { name, set: null }] as const),
 			// A back face that is not the front's: not a card, so Forge removes it — never guessed at.
 			['Etali, Primal Conqueror // Stomp', { name: 'Etali, Primal Conqueror // Stomp', set: null }],
