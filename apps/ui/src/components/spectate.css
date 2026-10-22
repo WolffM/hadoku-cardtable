@@ -156,7 +156,7 @@
   marker-end: url(#podcircle-head);
 }
 
-/* The arc into the bottom seat: where the viewer's next pack comes from. */
+/* The arc into the seat in view (yours, or the one you watch): where its next pack comes from. */
 .podcircle__arc--in {
   stroke: var(--accent);
   stroke-width: 1.2;
@@ -267,10 +267,11 @@
   color: var(--accent-ink);
 }
 
-/* A spectator's seats: the one watched, and the rest to press. */
+/* A spectator's seats: the one watched, and the rest to press. A filter, not a box-shadow, so the glow survives the picking ring's animation. */
 .seatbar__seat--watched .seatbar__face {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+  filter: drop-shadow(0 0 5px var(--accent));
 }
 
 .seatbar__watch {

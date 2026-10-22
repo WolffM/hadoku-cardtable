@@ -9,10 +9,12 @@
  * them for who is passing to who."* So the seats sit around a ring in `SeatId`
  * order — the order the pack passes along, which is the content, not the
  * styling — and an arc between each pair of neighbours points the way this
- * pack goes (`packages/draft/src/engine.ts`: left is seat s to s + 1). The
- * table is turned so the viewer's own seat (a spectator's watched one, else
- * seat 0) is at the bottom, and the arc that ends there — where their next pack
- * comes from — is the one drawn lit. The pack and pick counters are its centre.
+ * pack goes (`packages/draft/src/engine.ts`: left is seat s to s + 1). A seated
+ * player's table is turned so their own seat is at the bottom; everyone else's
+ * keeps seat 0 there, whichever seat they watch, so pressing a seat moves only
+ * its outline and never the table (the operator, 2026-10-21). The arc into the
+ * seat in view — yours, or the one you watch — is drawn lit: where its next pack
+ * comes from. The pack and pick counters are the circle's centre.
  *
  * ## What a seat may show
  *
@@ -67,7 +69,8 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
   const watchable = watchedId !== null && onWatch !== undefined;
   const seats = view.seats;
   const n = seats.length;
-  const bottom = Math.max(0, seats.findIndex((s) => s.id === (viewerSeatId ?? watchedId ?? 0)));
+  const bottom = Math.max(0, seats.findIndex((s) => s.id === (viewerSeatId ?? 0)));
+  const inView = seats.findIndex((s) => s.id === (viewerSeatId ?? watchedId));
   // Clockwise from the bottom, in seat order: screen angles grow clockwise.
   const angleOf = (at: number): number => 90 + (((at - bottom + n) % n) * 360) / n;
   const left = view.passDirection === 'left';
@@ -80,8 +83,8 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
     const d = left
       ? `M ${fixed(x0)} ${fixed(y0)} A ${RING} ${RING} 0 0 1 ${fixed(x1)} ${fixed(y1)}`
       : `M ${fixed(x1)} ${fixed(y1)} A ${RING} ${RING} 0 0 0 ${fixed(x0)} ${fixed(y0)}`;
-    const intoBottom = left ? next === bottom : at === bottom;
-    return { d, intoBottom };
+    const intoView = left ? next === inView : at === inView;
+    return { d, intoView };
   });
 
   return (
@@ -103,7 +106,7 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
               <path className="podcircle__head podcircle__head--in" d="M1 1 L8 5 L1 9" />
             </marker>
           </defs>
-          {n > 1 && arcs.map((arc, at) => <path key={at} className={arc.intoBottom ? 'podcircle__arc podcircle__arc--in' : 'podcircle__arc'} d={arc.d} />)}
+          {n > 1 && arcs.map((arc, at) => <path key={at} className={arc.intoView ? 'podcircle__arc podcircle__arc--in' : 'podcircle__arc'} d={arc.d} />)}
         </svg>
 
         <div className="podcircle__centre">
