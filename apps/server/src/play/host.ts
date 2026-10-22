@@ -243,6 +243,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import {
 	appendFileSync,
 	closeSync,
+	cpSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
@@ -251,7 +252,6 @@ import {
 	readFileSync,
 	readlinkSync,
 	realpathSync,
-	renameSync,
 	rmSync,
 	statSync,
 	symlinkSync,
@@ -599,8 +599,10 @@ export const BRIDGE_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
  * that launcher does too.
  *
  * Two processes may compile the same version at once (a deploy beside a CI job):
- * each compiles into its own temporary directory and RENAMES it into place, so a
- * JVM never sees half a directory, and the loser's copy is deleted.
+ * each compiles into its own temporary directory and MERGES it into place
+ * (`cpSync`, recursive — creates `dir` if it is not there yet, adds to it
+ * otherwise), so a JVM never sees half a directory and two mains sharing a
+ * version (see `bridgeVersion`) never race each other out.
  *
  * With no `javac` there (a `java` from `PATH`), or a compile that fails, this is
  * the source launcher exactly as before, and a failed compile is logged. Each
@@ -614,13 +616,7 @@ export const BRIDGE_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
  * `javac` to find and compile `PlayBridge.java` too. It is a no-op for
  * `PlayBridge.java`'s own compile: nothing in that file references a sibling
  * class `javac` cannot already resolve from the jar, so `-sourcepath` is never
- * consulted and the compiled output is unchanged. The one thing this does NOT
- * do is track `PlayBridge.java` as an input to `PoolService.java`'s cache key
- * (`version`, below, hashes only `config.bridgeSource`'s own bytes) — an edit
- * to `PlayBridge.java` alone, with `PoolService.java` untouched, would reuse a
- * stale compiled `PlayBridge.class` until `PoolService.java` next changes or
- * the cache is pruned. Not a concern this wave (nothing edits `PlayBridge.java`
- * here); a wave that does should widen this.
+ * consulted for it, and the compiled output is unchanged.
  */
 export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, unknown>) => void): { args: string[]; how: 'compiled' | 'source' } {
 	const source = { args: ['-cp', config.jar, config.bridgeSource], how: 'source' as const };
@@ -629,13 +625,7 @@ export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, 
 	const main = basename(config.bridgeSource, '.java');
 	let dir: string;
 	try {
-		const jar = statSync(config.jar);
-		const version = createHash('sha256')
-			.update(readFileSync(config.bridgeSource))
-			.update(JSON.stringify([config.jar, jar.size, jar.mtimeMs, realpathSync(config.java)]))
-			.digest('hex')
-			.slice(0, 24);
-		dir = join(config.bridgeCache, version);
+		dir = join(config.bridgeCache, bridgeVersion(config));
 	} catch (err) {
 		log({ evt: 'bridge-compile-failed', error: (err as Error).message });
 		return source;
@@ -663,12 +653,15 @@ export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, 
 		if (javacRun.status !== 0 || !existsSync(join(staging, `${main}.class`))) {
 			throw new Error(`javac exited ${javacRun.status ?? javacRun.signal ?? javacRun.error?.message}: ${(javacRun.stderr ?? '').slice(-2000)}`);
 		}
-		try {
-			renameSync(staging, dir);
-		} catch (err) {
-			// Another process put the same version there first. Theirs is as good as ours.
-			if (!existsSync(join(dir, `${main}.class`))) throw err;
-		}
+		// `dir` may already hold another main's classes under this same version
+		// (e.g. PoolService.java's compile pulled PlayBridge.java in via
+		// -sourcepath, and PlayBridge.java is later compiled on its own — same
+		// version, since it covers every sibling, so the same directory). A plain
+		// rename would fail the moment `dir` already exists non-empty; `cpSync`
+		// merges, and does so safely even in the concurrent-process race this
+		// replaces, because the bytes two processes would write for the same
+		// file are identical (same source, same jar, same JDK).
+		cpSync(staging, dir, { recursive: true });
 		log({ evt: 'bridge-compiled', dir, ms: Date.now() - started });
 	} catch (err) {
 		log({ evt: 'bridge-compile-failed', error: (err as Error).message });
@@ -686,6 +679,38 @@ export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, 
 		log({ evt: 'bridge-cache-prune-failed', dir: config.bridgeCache, error: (err as Error).message });
 	}
 	return compiled;
+}
+
+/**
+ * Every input that decides a compiled bridge's cache directory. Not just
+ * `config.bridgeSource`'s own bytes: `javac`'s `-sourcepath` (above) can pull
+ * ANY `.java` file beside it into the compile, so the key has to cover every
+ * sibling in that directory, hashed in a fixed (sorted) order for a
+ * deterministic digest — otherwise an edit to a file that IS referenced,
+ * with the referencing file itself unchanged, would keep the old key and so
+ * silently serve a stale compiled class for it.
+ *
+ * Covering the whole directory means `PlayBridge.java`'s own key also changes
+ * when `PoolService.java` changes, and vice versa, even on an edit that
+ * changes nothing either file's compile actually depends on. Accepted for
+ * simplicity: the alternative is having `javac` report exactly which
+ * siblings it resolved for THAT compile (it does not expose this), and
+ * tracking it per bridge source — real staleness is worse than an occasional
+ * needless recompile.
+ *
+ * Exported so the key itself is unit-testable (`host.test.ts`, "an edited
+ * SIBLING .java changes the key too") without a real compile.
+ */
+export function bridgeVersion(config: JvmHostConfig): string {
+	const dir = dirname(config.bridgeSource);
+	const siblings = readdirSync(dir)
+		.filter((f) => f.endsWith('.java'))
+		.sort();
+	const hash = createHash('sha256');
+	for (const file of siblings) hash.update(readFileSync(join(dir, file)));
+	const jar = statSync(config.jar);
+	hash.update(JSON.stringify([config.jar, jar.size, jar.mtimeMs, realpathSync(config.java)]));
+	return hash.digest('hex').slice(0, 24);
 }
 
 /* ── A JVM that outlives us: the fifos, the record, the stream ───────── */
