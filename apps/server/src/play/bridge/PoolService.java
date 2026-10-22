@@ -25,8 +25,10 @@ import com.google.gson.JsonParser;
 
 import forge.GuiDesktop;
 import forge.StaticData;
+import forge.card.CardDb;
 import forge.card.CardEdition;
 import forge.card.CardRarity;
+import forge.card.CardRules;
 import forge.gui.GuiBase;
 import forge.item.PaperCard;
 import forge.item.SealedTemplate;
@@ -65,6 +67,18 @@ import java.util.Random;
  * {@code BoosterGenerator.getBoosterPack} and {@code MyRandom.setRandom}, exactly as
  * verified in the plan. {@code GuiDesktop} is used directly (no bridge-specific EDT
  * overrides needed — nothing here ever calls {@code hostMatch}).
+ *
+ * <p>{@code handleCheck} calls {@link PlayBridge#forgeCardName} directly — a
+ * package-private static method of the sibling class, reachable because both
+ * classes are top-level in the same (unnamed) package — rather than
+ * reimplementing the Scryfall-name-to-Forge-name rule a second time. That is
+ * why {@code host.ts}'s {@code bridgeLaunch} compiles this file with
+ * {@code PlayBridge.java}'s own directory on {@code javac}'s
+ * {@code -sourcepath}: without it, compiling {@code PoolService.java} alone
+ * cannot resolve {@code PlayBridge}, and the no-javac source-launcher fallback
+ * cannot resolve it at all (JEP 330's single-file mode has no sourcepath), so
+ * {@code forge.ts} refuses to spawn in that case rather than let the JVM fail
+ * to compile silently underneath it.
  */
 public final class PoolService {
     private PoolService() { }
@@ -165,15 +179,46 @@ public final class PoolService {
         emit(resp);
     }
 
-    /** Names {@code StaticData.getCommonCards()} does not know at this jar's pin. */
+    /** Names that would refuse the match a cube or deck drafts into — not merely names the card DB has never heard of. */
     private static void handleCheck(final JsonObject req, final JsonObject resp) {
+        final CardDb cards = StaticData.instance().getCommonCards();
         final JsonArray unknown = new JsonArray();
         for (final JsonElement e : req.getAsJsonArray("names")) {
             final String name = e.getAsString();
-            if (StaticData.instance().getCommonCards().getCard(name) == null) { unknown.add(name); }
+            if (!isPlayable(name, cards)) { unknown.add(name); }
         }
         resp.addProperty("ok", true);
         resp.add("unknown", unknown);
+    }
+
+    /**
+     * Would a match play {@code name}, exactly as {@code PlayBridge.parseDeck}/
+     * {@code unsupportedIn} already decide for a drafted deck? Two rules, both
+     * already applied there, both needed here:
+     *
+     * <ol>
+     *   <li>{@code name} may be Scryfall's {@code Front // Back} for a two-faced
+     *   card — the shape every {@code DraftCard} and so every cube's name list
+     *   carries. Forge never indexes a transform/MDFC/adventure/flip card under
+     *   that joined form ({@code PlayBridge.forgeCardName}'s own doc), so without
+     *   this step every one of those names comes back "unplayable" even though
+     *   Forge plays the card happily under its own name — the bug this method
+     *   exists to fix (a real cube's plan was refused wholesale on exactly this).
+     *   {@code forgeCardName} resolves it; a pair that is not a real card (the
+     *   back half wrong) is left as written, which then correctly fails the
+     *   lookup below.</li>
+     *   <li>Known to the card DB is not the same as playable: {@code
+     *   CardRules.isUnsupported()} is what {@code Deck.getValid} drops at match
+     *   start ({@code unsupportedIn}), so a known-but-unsupported card is
+     *   unplayable too.</li>
+     * </ol>
+     */
+    private static boolean isPlayable(final String name, final CardDb cards) {
+        final String forgeName = PlayBridge.forgeCardName(name, n -> cards.getRules(n, false));
+        final PaperCard card = cards.getCard(forgeName);
+        if (card == null) { return false; }
+        final CardRules rules = card.getRules();
+        return rules == null || !rules.isUnsupported();
     }
 
     /** Every set the jar can make a draft booster for (ruling 8: searchable, newest first is the caller's job). */

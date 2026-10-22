@@ -605,6 +605,22 @@ export const BRIDGE_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
  * With no `javac` there (a `java` from `PATH`), or a compile that fails, this is
  * the source launcher exactly as before, and a failed compile is logged. Each
  * `jvm-spawned` line says which one that JVM got.
+ *
+ * `-sourcepath <bridgeSource's own directory>` is on every `javac` invocation
+ * (wave 73 §D): `PlayBridge.java` and `PoolService.java` sit beside each other
+ * there, and `PoolService.java` calls `PlayBridge.forgeCardName` — a
+ * package-private static method, reachable because both are top-level classes
+ * in the same (unnamed) package — so compiling `PoolService.java` alone needs
+ * `javac` to find and compile `PlayBridge.java` too. It is a no-op for
+ * `PlayBridge.java`'s own compile: nothing in that file references a sibling
+ * class `javac` cannot already resolve from the jar, so `-sourcepath` is never
+ * consulted and the compiled output is unchanged. The one thing this does NOT
+ * do is track `PlayBridge.java` as an input to `PoolService.java`'s cache key
+ * (`version`, below, hashes only `config.bridgeSource`'s own bytes) — an edit
+ * to `PlayBridge.java` alone, with `PoolService.java` untouched, would reuse a
+ * stale compiled `PlayBridge.class` until `PoolService.java` next changes or
+ * the cache is pruned. Not a concern this wave (nothing edits `PlayBridge.java`
+ * here); a wave that does should widen this.
  */
 export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, unknown>) => void): { args: string[]; how: 'compiled' | 'source' } {
 	const source = { args: ['-cp', config.jar, config.bridgeSource], how: 'source' as const };
@@ -639,7 +655,11 @@ export function bridgeLaunch(config: JvmHostConfig, log: (entry: Record<string, 
 	const started = Date.now();
 	try {
 		mkdirSync(staging, { recursive: true });
-		const javacRun = spawnSync(javac, ['-proc:none', '-nowarn', '-cp', config.jar, '-d', staging, config.bridgeSource], { encoding: 'utf8', timeout: 120_000 });
+		const javacRun = spawnSync(
+			javac,
+			['-proc:none', '-nowarn', '-cp', config.jar, '-sourcepath', dirname(config.bridgeSource), '-d', staging, config.bridgeSource],
+			{ encoding: 'utf8', timeout: 120_000 },
+		);
 		if (javacRun.status !== 0 || !existsSync(join(staging, `${main}.class`))) {
 			throw new Error(`javac exited ${javacRun.status ?? javacRun.signal ?? javacRun.error?.message}: ${(javacRun.stderr ?? '').slice(-2000)}`);
 		}

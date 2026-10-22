@@ -155,6 +155,19 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 	function spawnChild(): ChildProcessWithoutNullStreams {
 		const run = stagePoolDir(poolConfig);
 		const bridge = bridgeLaunch(poolConfig, log);
+		if (bridge.how !== 'compiled') {
+			// PoolService.java calls PlayBridge.forgeCardName, resolved only via
+			// javac's -sourcepath (host.ts's bridgeLaunch). JEP 330's single-file
+			// source launcher has no sourcepath equivalent, so it would fail to
+			// compile PoolService.java INSIDE the JVM — a late, opaque crash well
+			// after this point. Refuse to spawn at all instead: a clear, synchronous
+			// rejection here beats a mysterious "the pool JVM is gone" after one.
+			throw new Error(
+				'the pool service needs a compiled bridge (javac) and none is available — PoolService.java calls ' +
+					"PlayBridge.forgeCardName, which the no-javac source launcher cannot resolve; see the preceding " +
+					'"bridge-compile-failed" log line, or that no javac exists beside CARDTABLE_JAVA',
+			);
+		}
 		const c = spawn(poolConfig.java, ['-Djava.awt.headless=true', `-Djava.io.tmpdir=${join(run, 'tmp')}`, ...poolConfig.jvmOpts, ...bridge.args], {
 			cwd: run,
 			stdio: ['pipe', 'pipe', 'pipe'],
