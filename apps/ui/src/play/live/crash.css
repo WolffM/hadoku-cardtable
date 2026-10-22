@@ -48,7 +48,8 @@
   border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--dust) 55%, transparent) 0, transparent 70%);
   opacity: 0;
-  animation: effect-crash-dust 700ms ease-out forwards;
+  /* `--crash-ms` is `crash.ts`'s CRASH_MS, the one source. */
+  animation: effect-crash-dust var(--crash-ms) ease-out forwards;
 }
 
 @keyframes effect-crash-dust {

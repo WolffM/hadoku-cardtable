@@ -60,6 +60,7 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string):
   el.style.left = `${at.x}px`;
   el.style.top = `${at.y}px`;
   el.style.setProperty('--power-size', powerSize(power).toFixed(2));
+  el.style.setProperty('--crash-ms', `${CRASH_MS}ms`);
   const ring = document.createElement('span');
   ring.className = 'effect-crash__ring';
   el.append(ring);
