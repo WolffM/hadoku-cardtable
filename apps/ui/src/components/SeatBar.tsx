@@ -124,11 +124,11 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
               <li
                 key={seat.id}
                 className={[
-                  'seat',
-                  waiting ? 'seat--waiting' : 'seat--done',
-                  isYou ? 'seat--you' : '',
-                  watched ? 'seat--watched' : '',
-                  held ? 'seat--held' : '',
+                  'seatbar__seat',
+                  waiting ? 'seatbar__seat--waiting' : 'seatbar__seat--done',
+                  isYou ? 'seatbar__seat--you' : '',
+                  watched ? 'seatbar__seat--watched' : '',
+                  held ? 'seatbar__seat--held' : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -141,27 +141,27 @@ export function SeatBar({ view, onWatch }: { view: DraftView; onWatch?: (seatId:
                 {watchable && !watched && (
                   <button
                     type="button"
-                    className="seat__watch"
+                    className="seatbar__watch"
                     data-testid={`seat-${seat.id}-watch`}
                     aria-label={`Watch ${seat.displayName}`}
                     onClick={() => onWatch(seat.id)}
                   />
                 )}
-                <span className="seat__face">
+                <span className="seatbar__face">
                   {/* `alt=""`: the seat's name is right under it and says who this is. */}
                   {face === null ? <PlayerMark /> : <img src={face} alt="" />}
                 </span>
-                <span className="seat__label">
+                <span className="seatbar__label">
                   {/* Your own seat says so in one word: it is also the lit one at the bottom. */}
-                  <span className="seat__name" title={seat.displayName}>
+                  <span className="seatbar__name" title={seat.displayName}>
                     {status === 'empty' ? <em>empty</em> : isYou ? 'You' : seat.displayName}
                   </span>
                   {held && (
-                    <span className="seat__held" data-testid={`seat-${seat.id}-held`} title={SEAT_HELD_NOTE}>
+                    <span className="seatbar__held" data-testid={`seat-${seat.id}-held`} title={SEAT_HELD_NOTE}>
                       held
                     </span>
                   )}
-                  <span className="seat__picked" data-testid={`seat-${seat.id}-picked`}>
+                  <span className="seatbar__picked" data-testid={`seat-${seat.id}-picked`}>
                     {seat.pickedCount}
                   </span>
                 </span>

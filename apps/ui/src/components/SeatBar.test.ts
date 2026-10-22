@@ -78,7 +78,7 @@ describe('the pod as a circle', () => {
   it('names the viewer’s own seat You, and keeps their name for the tooltip', () => {
     const view = seatView(0, 'left');
     render(createElement(SeatBar, { view }));
-    const name = screen.getByTestId('seat-0').querySelector('.seat__name')!;
+    const name = screen.getByTestId('seat-0').querySelector('.seatbar__name')!;
     expect(name.textContent).toBe('You');
     expect(name.getAttribute('title')).toBe(view.seats[0]!.displayName);
   });
