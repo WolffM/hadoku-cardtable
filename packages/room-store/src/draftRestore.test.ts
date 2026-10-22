@@ -29,6 +29,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { classifySeq, occupantOf, seatOf, type SeatId } from '@wolffm/rooms-protocol';
 import {
   createDraft,
+  deal,
   pick,
   runBots,
   viewFor,
@@ -36,7 +37,7 @@ import {
   type DraftConfig,
   type DraftState,
 } from '@hadoku/draft';
-import type { DraftCard } from '@hadoku/shared';
+import type { DraftCard, DraftPlan, PoolSource } from '@hadoku/shared';
 import { ManualClock } from './clock.ts';
 import { FileRoomStore } from './fileStore.ts';
 import { RoomPersistence } from './persistence.ts';
@@ -74,11 +75,18 @@ function makePool(size: number): DraftCard[] {
   }));
 }
 
+/** One cube, all three rounds — `@hadoku/draft`'s `deal()` builds the packs `createDraft` used to shuffle itself (wave 73 §A: `DraftConfig.pool` → `packs`). */
+function planOf(): DraftPlan {
+  const src: PoolSource = { kind: 'cube', cubeId: 'draft-restore-test' };
+  return { rounds: [src, src, src] };
+}
+
 function draftConfig(seed: string): DraftConfig {
+  const pool = makePool(240);
   return {
     draftId: 'pod-1',
     seed,
-    pool: makePool(240),
+    packs: deal(planOf(), () => pool, seed, 4, 15),
     seatCount: 4,
     packCount: 3,
     packSize: 15,
