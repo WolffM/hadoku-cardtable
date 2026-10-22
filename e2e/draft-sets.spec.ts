@@ -93,6 +93,46 @@ async function packCardSets(page: Page): Promise<string[]> {
   return page.locator('[data-testid="pack"] [data-testid="card"] .setsym').evaluateAll((els) => els.map((el) => el.getAttribute('data-set') ?? ''));
 }
 
+/**
+ * Wait for the viewer's pack to render, failing with a message that NAMES
+ * the stuck state rather than Playwright's bare "element not found".
+ *
+ * Found live (2026-10-22): a server bug (`apps/server/src/index.ts`'s
+ * `poolResolver.cards` returning `[]` for a realistic round, which fed
+ * `CubeMeta.size: 0` into a wire schema requiring `positive()`) left the pod
+ * on its loading skeleton forever — `apps/ui/src/draft/socket.ts`'s
+ * `ingest()` silently drops a state message that fails
+ * `safeParseServerMessage` (counted in `stats.invalid`/`lastInvalid`, never
+ * surfaced anywhere) and `table` never leaves `null`, so `PodScreen.tsx`'s
+ * `DraftSkeleton` (`data-testid="pod-waiting"`) never ends — no console
+ * error, no crash, no server fault logged. A bare `toBeVisible` timeout on
+ * the pack read "element(s) not found" with nothing pointing at why.
+ *
+ * Reading `stats.invalid` itself would need new client instrumentation —
+ * `PodScreen.tsx` is explicitly "owned by nobody this wave" and
+ * `draft/socket.ts` is not this lane's row either — so this reads only what
+ * is already in the DOM: whether the skeleton is STILL up is enough to name
+ * this failure instead of guessing at it.
+ */
+async function waitForPack(page: Page, who: string, timeout = UI_TIMEOUT): Promise<void> {
+  const pack = page.locator('[data-testid="pack"] [data-testid="card"]').first();
+  try {
+    await expect(pack, `${who}: the pack is up`).toBeVisible({ timeout });
+    return;
+  } catch (err) {
+    if ((await page.getByTestId('pod-waiting').count()) > 0) {
+      throw new Error(
+        `${who}: the pod dealt, but stayed on its loading skeleton (data-testid="pod-waiting") for over ${timeout}ms — the draft view never reached this seat. Check apps/ui/src/draft/socket.ts's ingest(): a rejected state message (stats.invalid > 0) leaves the pack unset forever, with no error drawn on screen.`,
+      );
+    }
+    const podError = page.getByTestId('pod-error');
+    if ((await podError.count()) > 0) {
+      throw new Error(`${who}: the pod shows an error instead of a pack: ${(await podError.textContent()) ?? '(no text)'}`);
+    }
+    throw err;
+  }
+}
+
 /** The set radio for `code` — the picker's own test id, which this spec controls (`PoolPicker.tsx`). */
 function setRadio(page: Page, code: string) {
   return page.getByTestId(`pool-picker-sets-${code}`);
@@ -211,7 +251,7 @@ test(
       for (const p of players) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── alice's first pack is Forge's ISD collation: 1 rare/mythic, 3 uncommon, 1 DFC — from the catalog, never the screen ── */
-      await expect(alice.page.locator('[data-testid="pack"] [data-testid="card"]').first(), "alice's first pack is up").toBeVisible({ timeout: UI_TIMEOUT });
+      await waitForPack(alice.page, "alice's first pack");
       const names = await packCardNames(alice.page);
       expect(names.length, 'the pack drew cards at all').toBe(15);
       const catalog = loadCatalog();
@@ -267,7 +307,7 @@ test(
       for (const p of [alice, bob]) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── round 1's first pack is every card printed in ALA ── */
-      await expect(alice.page.locator('[data-testid="pack"] [data-testid="card"]').first(), "alice's round-1 pack is up").toBeVisible({ timeout: UI_TIMEOUT });
+      await waitForPack(alice.page, "alice's round-1 pack");
       const round1Sets = await packCardSets(alice.page);
       expect(round1Sets.length, 'round 1 drew cards at all').toBe(15);
       for (const code of round1Sets) expect(code, `round 1’s card is printed in ${ALA.code}`).toBe(ALA.code);
@@ -276,7 +316,7 @@ test(
       await Promise.all([pickUntil(alice.page, 30), pickUntil(bob.page, 30)]);
 
       /* ── round 3's first pack is every card printed in ARB ── */
-      await expect(alice.page.locator('[data-testid="pack"] [data-testid="card"]').first(), "alice's round-3 pack is up").toBeVisible({ timeout: UI_TIMEOUT });
+      await waitForPack(alice.page, "alice's round-3 pack");
       const round3Sets = await packCardSets(alice.page);
       expect(round3Sets.length, 'round 3 drew cards at all').toBe(15);
       for (const code of round3Sets) expect(code, `round 3’s card is printed in ${ARB.code}`).toBe(ARB.code);
