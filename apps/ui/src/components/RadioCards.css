@@ -57,7 +57,8 @@
 
 /*
  * The large size: a choice that is the whole screen until it is made — the room's
- * mode before the leader picks one. Tiles, each its emblem over its name, centred.
+ * mode before the leader picks one. Tiles, each its name on top and its art filling
+ * the tile behind it (the operator, 2026-10-21).
  */
 .radio-cards--large {
   justify-content: center;
@@ -70,11 +71,11 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  width: 168px;
-  height: 152px;
-  padding: 16px;
+  justify-content: flex-start;
+  width: 200px;
+  height: 184px;
+  padding: 12px;
+  overflow: hidden;
   background: var(--color-bg-card);
   color: var(--color-text);
   border-radius: calc(var(--hdk-radius) * 2);
@@ -92,17 +93,29 @@
   box-shadow: 0 8px 22px color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
-.radio-cards__icon {
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
-  color: var(--color-primary);
+.radio-cards__art {
+  position: absolute;
+  inset: 22px 10px 6px;
+  width: calc(100% - 20px);
+  height: calc(100% - 28px);
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  transition: transform 160ms ease;
 }
 
-.radio-cards__icon svg {
-  width: 100%;
-  height: 100%;
+.radio-cards--large .radio-cards__card:not(:has(:disabled)):hover .radio-cards__art {
+  transform: scale(1.04);
+}
+
+/* The name over the art: above it in the stack, with a halo in the card's own colour so it reads on any art. */
+.radio-cards--large .radio-cards__label {
+  position: relative;
+  z-index: 1;
+  text-shadow:
+    0 0 6px var(--color-bg-card),
+    0 0 2px var(--color-bg-card),
+    0 1px 1px var(--color-bg-card);
 }
 
 /*
@@ -119,7 +132,8 @@
     transition: none;
   }
 
-  .radio-cards--large .radio-cards__card:not(:has(:disabled)):hover {
+  .radio-cards--large .radio-cards__card:not(:has(:disabled)):hover,
+  .radio-cards--large .radio-cards__card:not(:has(:disabled)):hover .radio-cards__art {
     transform: none;
   }
 }

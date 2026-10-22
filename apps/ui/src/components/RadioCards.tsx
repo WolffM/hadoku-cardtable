@@ -11,21 +11,19 @@
  * `value` may be null: nothing chosen yet is a state of its own (a room whose
  * mode the leader has not picked), not a default the reader cannot see.
  *
- * `size="large"` draws each card as a tile with its `icon` over its label, for a
- * choice that is the whole screen until it is made; `morph` names each card for
+ * `size="large"` draws each card as a tile, its label on top and its `art` filling
+ * the tile behind it, for a choice that is the whole screen until it is made; `morph` names each card for
  * a view transition (`<morph>-<value>`), so the same choice drawn at another size
  * can grow or shrink into it (`constructed-mode/ModeRow.tsx`).
  */
-
-import type { ReactNode } from 'react';
 
 import './RadioCards.css';
 
 export interface RadioCard<T extends string> {
   value: T;
   label: string;
-  /** Drawn above the label on a large card; decoration, the label names the card. */
-  icon?: ReactNode;
+  /** An image URL drawn behind the label on a large card; decoration, the label names the card. */
+  art?: string;
 }
 
 export function RadioCards<T extends string>({
@@ -74,7 +72,7 @@ export function RadioCards<T extends string>({
             disabled={disabled}
             onChange={() => onChange(option.value)}
           />
-          {large && option.icon !== undefined && <span className="radio-cards__icon">{option.icon}</span>}
+          {large && option.art !== undefined && <img className="radio-cards__art" src={option.art} alt="" decoding="async" draggable={false} />}
           <span className="radio-cards__label">{option.label}</span>
         </label>
       ))}

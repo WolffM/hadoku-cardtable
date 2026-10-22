@@ -21,17 +21,22 @@ const group = (): HTMLElement => screen.getByTestId('constructed-mode');
 const row = (mode: 'classic' | 'gauntlet' | 'random' | null) => createElement(ModeRow, { mode, disabled: false, onChoose: () => {} });
 
 describe('ModeRow', () => {
-  it('is large while no mode is chosen: each mode an emblem over its name', () => {
+  it('is large while no mode is chosen: each mode its name over its art, from the CDN', () => {
     render(row(null));
     expect(group().classList.contains('radio-cards--large')).toBe(true);
-    expect(group().querySelectorAll('.radio-cards__icon svg')).toHaveLength(3);
+    const art = [...group().querySelectorAll<HTMLImageElement>('img.radio-cards__art')];
+    expect(art).toHaveLength(3);
+    for (const img of art) {
+      expect(img.getAttribute('src')).toMatch(/^https:\/\/cdn\.hadoku\.me\/[0-9a-f]{64}\.webp$/);
+      expect(img.getAttribute('alt'), 'decoration: the name says which mode').toBe('');
+    }
     expect(group().textContent).toBe('ClassicGauntletAll Random');
   });
 
-  it('is the compact row once a mode is chosen, with no emblems', () => {
+  it('is the compact row once a mode is chosen, with no art', () => {
     render(row('gauntlet'));
     expect(group().classList.contains('radio-cards--large')).toBe(false);
-    expect(group().querySelector('.radio-cards__icon')).toBeNull();
+    expect(group().querySelector('img')).toBeNull();
     expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).checked).toBe(true);
   });
 
