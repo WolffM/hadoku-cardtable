@@ -90,6 +90,8 @@ async function openApp(
 		closed?: (roomId: string, matches: readonly string[]) => void;
 		/** Wave 73 §A: `PUT …/pod/plan`'s verdict. Defaults to always-ok — the plan tests that need a refusal pass their own. */
 		checkPlan?: (plan: DraftPlan) => Promise<PoolVerdict>;
+		/** Wave 74 §E step 2: `/start`'s realistic-round pre-fetch. Omitted everywhere a test never plans a realistic round. */
+		realistic?: import('./rooms.ts').RoomsDeps['realistic'];
 	} = {},
 ): Promise<Harness> {
 	const log = (entry: Record<string, unknown>): void => {
@@ -112,6 +114,7 @@ async function openApp(
 		joinRateLimit: opts.joinRateLimit,
 		closed: opts.closed,
 		checkPlan: opts.checkPlan ?? (async (plan) => ({ ok: true, cards: plan.rounds.length * 10 })),
+		...(opts.realistic === undefined ? {} : { realistic: opts.realistic }),
 	});
 	app.use('/api', api);
 
@@ -837,7 +840,7 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 		],
 	};
 
-	it('is the leader\'s, lobby phase only: a non-leader gets 403, a stranger 404, a set source 400, and the leader\'s choice reads back', async () => {
+	it('is the leader\'s, lobby phase only: a non-leader gets 403, a stranger 404, and the leader\'s choice reads back', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Cube night', gameType: 'draft' } }))
 			.json() as import('../room/lobby.ts').RoomView;
@@ -846,10 +849,6 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 		expect((await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'carol', body: { plan: PLAN } })).status).toBe(404);
 		expect((await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'bob', body: { plan: PLAN } })).status).toBe(403);
 
-		const setSource = { rounds: [{ kind: 'set', code: 'ISD', style: 'realistic' }, PLAN.rounds[0], PLAN.rounds[0]] };
-		const setRes = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: setSource } });
-		expect(setRes.status).toBe(400);
-
 		const ok = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: PLAN } });
 		expect(ok.status).toBe(200);
 		expect((ok.json() as import('../room/lobby.ts').RoomView).pod?.plan).toEqual(PLAN);
@@ -857,6 +856,30 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 
 		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
 		expect(after.pod?.plan).toEqual(PLAN);
+	});
+
+	/*
+	 * Wave 74 §E: "PUT /api/rooms/:id/pod/plan stops refusing kind: 'set'" —
+	 * the blast-radius table's own words. `openApp`'s default `checkPlan` is
+	 * always-ok regardless of source kind, so this is purely the ROUTE no
+	 * longer 400ing a set source before `checkPlan` ever runs; set verdicts
+	 * for real are `room/plan.test.ts`'s job.
+	 */
+	it('accepts a kind: \'set\' source — the 400 refusal this wave removes — and a mixed plan\'s planName joins the round names', async () => {
+		const h = await openApp(await tempDir());
+		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Set night', gameType: 'draft' } }))
+			.json() as import('../room/lobby.ts').RoomView;
+
+		const allSetCube = { rounds: [{ kind: 'set', code: 'ISD', style: 'set-cube' }, { kind: 'set', code: 'ISD', style: 'set-cube' }, { kind: 'set', code: 'ISD', style: 'set-cube' }] };
+		const allRes = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: allSetCube } });
+		expect(allRes.status).toBe(200);
+		expect((allRes.json() as import('../room/lobby.ts').RoomView).pod?.plan).toEqual(allSetCube);
+
+		const mixed = { rounds: [{ kind: 'set', code: 'ALA', style: 'realistic' }, { kind: 'set', code: 'ALA', style: 'realistic' }, { kind: 'set', code: 'ARB', style: 'realistic' }] };
+		const mixedRes = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: mixed } });
+		expect(mixedRes.status).toBe(200);
+		const planName = (mixedRes.json() as import('../room/lobby.ts').RoomView).pod?.planName;
+		expect(planName).toBe(['ALA · Realistic', 'ALA · Realistic', 'ARB · Realistic'].join(' / '));
 	});
 
 	it('a refused verdict is 409 { verdict } and leaves the room\'s plan unchanged', async () => {
@@ -1428,6 +1451,106 @@ describe('POST /api/rooms/:id/start', () => {
 		const withBody = await call(h, 'POST', `/api/rooms/${table.id}/start`, { as: 'alice', body: { gameType: 'draft' } });
 		expect(withBody.status).toBe(400);
 		expect(withBody.json()).toEqual({ error: 'unknown field(s): gameType' });
+	});
+
+	/*
+	 * Wave 74 §E step 2: "realistic boosters are fetched before `deal` and
+	 * passed in" — fetched HERE, in this route, before `lobby.startDraft`
+	 * ever runs. These drive the fetch+cache end to end with fakes; the deal
+	 * itself (that `draftRooms.open()` reads the cached packs back) is
+	 * `draftRooms.test.ts`'s own coverage.
+	 */
+	describe('a realistic round', () => {
+		const REALISTIC_PLAN = {
+			rounds: [{ kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'set', code: 'ISD', style: 'realistic' }, { kind: 'cube', cubeId: 'legacy' }],
+		};
+
+		async function fullPod(h: Harness, plan: unknown): Promise<string> {
+			const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Realistic night', gameType: 'draft' } }))
+				.json() as import('../room/lobby.ts').RoomView;
+			await call(h, 'POST', `/api/rooms/${room.id}/ready`, { as: 'alice', body: { ready: true } });
+			for (let seat = 1; seat < 8; seat++) await call(h, 'POST', `/api/rooms/${room.id}/pod/ai`, { as: 'alice', body: { seat, on: true } });
+			expect((await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan } })).status).toBe(200);
+			return room.id;
+		}
+
+		it('without a jar (`realistic` undefined), /start refuses a realistic plan rather than dealing it blind', async () => {
+			const h = await openApp(await tempDir());
+			const id = await fullPod(h, REALISTIC_PLAN);
+			const res = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
+			expect(res.status).toBe(409);
+			expect((res.json() as { error: string }).error).toContain('pool service is not available');
+		});
+
+		it('fetches one booster call per realistic round, maps it through the catalog, caches it, and only THEN starts', async () => {
+			const cached: { draftId: string; round: number; packs: unknown }[] = [];
+			const boostersCalls: { code: string; count: number; seed: string }[] = [];
+			const h = await openApp(await tempDir(), {
+				realistic: {
+					forge: {
+						boosters: async (code, count, seed) => {
+							boostersCalls.push({ code, count, seed });
+							return Array.from({ length: count }, () => [{ name: 'Mystery Card', set: code, collectorNumber: '1' }]);
+						},
+					},
+					catalog: { byName: () => null }, // nothing resolves — proves the honest missingText fallback still lets the deal happen
+					draftRooms: { cacheRealisticRound: (draftId, round, packs) => cached.push({ draftId, round, packs }) },
+				},
+			});
+			const id = await fullPod(h, REALISTIC_PLAN);
+
+			const res = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
+			expect(res.status).toBe(200);
+			// Two realistic rounds (0 and 1), the cube round (2) untouched.
+			expect(boostersCalls.map((c) => c.code)).toEqual(['ISD', 'ISD']);
+			expect(boostersCalls[0]?.seed).toBe(`${id}:0`);
+			expect(boostersCalls[1]?.seed).toBe(`${id}:1`);
+			expect(cached.map((c) => c.round)).toEqual([0, 1]);
+			expect(cached.every((c) => c.draftId === id)).toBe(true);
+			const firstPackCard = (cached[0]?.packs as { name: string }[][])[0]?.[0];
+			expect(firstPackCard?.name).toBe('Mystery Card');
+		});
+
+		it('a failed booster fetch refuses /start with 409 and never calls startDraft', async () => {
+			const h = await openApp(await tempDir(), {
+				realistic: {
+					forge: {
+						boosters: async () => {
+							throw new Error('the pool JVM is gone');
+						},
+					},
+					catalog: { byName: () => null },
+					draftRooms: { cacheRealisticRound: () => undefined },
+				},
+			});
+			const id = await fullPod(h, REALISTIC_PLAN);
+			const res = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
+			expect(res.status).toBe(409);
+			expect((res.json() as { error: string }).error).toContain('the pool JVM is gone');
+			const after = (await call(h, 'GET', `/api/rooms/${id}`)).json() as import('../room/lobby.ts').RoomView;
+			expect(after.draftStartedAt).toBeNull();
+		});
+
+		it('a second /start (idempotent) never re-fetches — the pod is already past its lobby', async () => {
+			let calls = 0;
+			const h = await openApp(await tempDir(), {
+				realistic: {
+					forge: {
+						boosters: async (code, count) => {
+							calls++;
+							return Array.from({ length: count }, () => [{ name: 'Mystery Card', set: code, collectorNumber: '1' }]);
+						},
+					},
+					catalog: { byName: () => null },
+					draftRooms: { cacheRealisticRound: () => undefined },
+				},
+			});
+			const id = await fullPod(h, REALISTIC_PLAN);
+			expect((await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' })).status).toBe(200);
+			expect(calls).toBe(2); // the two realistic rounds, once each
+			expect((await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' })).status).toBe(200);
+			expect(calls).toBe(2); // unchanged — the second, redundant /start never re-fetched
+		});
 	});
 });
 

@@ -30,6 +30,7 @@ import { poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
 import { loadPool } from './pool.ts';
+import { planDisplayName } from './plan.ts';
 import { AVATAR_ID_MAX, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, type ClientMode, type PoolVerdict, type Tournament } from '@hadoku/shared';
 import {
 	AVATAR_POOL,
@@ -1952,7 +1953,7 @@ function fakeChecks(opts: { draftComplete?: boolean; built?: Set<string> } = {})
 		built: (_podId, memberId) => built.has(memberId),
 		seatState: (_podId, memberId) => ({ seatedFor: memberId }),
 		holdsSeriesDeck: () => true,
-		planNameOf: (source) => (source.kind === 'cube' ? source.cubeId : `${source.code} (${source.style})`),
+		planNameOf: (plan) => planDisplayName(plan, (source) => (source.kind === 'cube' ? source.cubeId : `${source.code} (${source.style})`)),
 	};
 }
 
