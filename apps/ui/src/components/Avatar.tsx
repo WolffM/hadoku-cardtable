@@ -23,6 +23,7 @@ type AvatarProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'id' | 'src' | 'alt
   fallbackClassName?: string;
   /** Whose face: the initial's letter. */
   name?: string;
+  'data-testid'?: string;
 };
 
 /** `alt=""` always: every face sits beside the name that says who it is. */
