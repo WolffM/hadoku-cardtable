@@ -7,11 +7,11 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach } from 'vitest';
 
 import { PodSeats } from './PodSeats.tsx';
-import { POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
+import { POD_AI, POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
 
 afterEach(cleanup);
 
@@ -272,5 +272,56 @@ describe('the pod seat grid', () => {
     const withoutAvatar = screen.getByTestId('pod-seat-1').querySelector('.pod-seats__avatar');
     expect(withoutAvatar?.querySelector('img'), 'no image for a member with none').toBeNull();
     expect(withoutAvatar?.textContent, "falls back to the member's own initial").toBe('N');
+  });
+
+  /*
+   * forge.yml 39844107553: the driver only ever pressed AI, and the server took
+   * AI seat 2, then seat 2 given back, then AI seat 3 — the press landed on the
+   * seat's Remove, drawn into the very node its AI had been.
+   */
+  describe('a press meant for one action never fires its inverse', () => {
+    const seatsWithAi = (): PodSeatsValue => {
+      const seats = emptySeats();
+      seats[0] = { memberId: 'u-alice', name: 'Alice' };
+      return seats;
+    };
+    const propsOf = (seats: PodSeatsValue, onAi: (seat: number, on: boolean) => void) => ({
+      seats,
+      myMemberId: 'u-alice',
+      leaderId: 'u-alice',
+      readyOf: () => false,
+      avatarIdOf: () => undefined,
+      onSit: () => undefined,
+      onStand: () => undefined,
+      onAi,
+      onClose: () => undefined,
+    });
+
+    it('a press resolved against the AI button, landing after the room fills the seat, does not remove the AI', () => {
+      const onAi = vi.fn();
+      const before = seatsWithAi();
+      const { rerender } = render(createElement(PodSeats, propsOf(before, onAi)));
+      const aiButton = screen.getAllByTestId('pod-seat-ai').find((b) => b.dataset.seat === '2')!;
+      const after = seatsWithAi();
+      after[2] = { memberId: POD_AI, name: 'AI' };
+      rerender(createElement(PodSeats, propsOf(after, onAi)));
+      fireEvent.click(aiButton, { detail: 1 });
+      expect(onAi).not.toHaveBeenCalledWith(2, false);
+    });
+
+    it('the second click of a double click on AI does nothing on the Remove that the first click drew', () => {
+      const onAi = vi.fn();
+      const { rerender } = render(createElement(PodSeats, propsOf(seatsWithAi(), onAi)));
+      fireEvent.click(screen.getAllByTestId('pod-seat-ai').find((b) => b.dataset.seat === '2')!, { detail: 1 });
+      expect(onAi).toHaveBeenCalledWith(2, true);
+      const after = seatsWithAi();
+      after[2] = { memberId: POD_AI, name: 'AI' };
+      rerender(createElement(PodSeats, propsOf(after, onAi)));
+      fireEvent.click(screen.getByTestId('pod-seat-ai-remove'), { detail: 2 });
+      expect(onAi).toHaveBeenCalledTimes(1);
+      // A deliberate press on Remove still removes.
+      fireEvent.click(screen.getByTestId('pod-seat-ai-remove'), { detail: 1 });
+      expect(onAi).toHaveBeenLastCalledWith(2, false);
+    });
   });
 });
