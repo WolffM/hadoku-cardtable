@@ -14,5 +14,5 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"]
   },
-  "include": ["*.ts"]
+  "include": ["*.ts", "fixtures/*.ts"]
 }

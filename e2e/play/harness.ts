@@ -134,6 +134,18 @@ export const PLAY_DRAFTS_DIR = resolve(RUN_DIR, 'play-drafts');
  */
 export const PLAY_CUBES_DIR = resolve(RUN_DIR, 'play-cubes');
 /**
+ * This stack's card catalog — a committed FIXTURE
+ * (`e2e/fixtures/sets-catalog.json`, built by
+ * `e2e/fixtures/build-sets-catalog.ts`), never the real
+ * `~/.local/share/cardtable/catalog/cards.json` a deploy builds offline and
+ * only hokon has. A claw has none of that file at all: without this, every
+ * card in every set is `missingText` and `room/plan.ts`'s verdict refuses
+ * every realistic/set-cube source outright (found live, run `39746410366`,
+ * `catalog-load-failed: ENOENT`). The fixture covers exactly the sets
+ * `draft-sets.spec.ts` deals (ISD, ALA, ARB) plus the five basic lands.
+ */
+export const PLAY_CATALOG = resolve(import.meta.dirname, '..', 'fixtures', 'sets-catalog.json');
+/**
  * The PARENT of every stack's work dir — never itself a server's
  * `CARDTABLE_PLAY_WORK_DIR`. See "…and the work dir must not be shared with
  * ANOTHER STACK either". Never production's `/tmp/cardtable-play`, and the
@@ -544,6 +556,7 @@ export async function startPlayStack(forge: { jar: string; res: string }): Promi
         CARDTABLE_ROOMS_DIR: PLAY_ROOMS_DIR,
         CARDTABLE_DRAFTS_DIR: PLAY_DRAFTS_DIR,
         CARDTABLE_CUBES_DIR: PLAY_CUBES_DIR,
+        CARDTABLE_CATALOG: PLAY_CATALOG,
         CARDTABLE_PLAY_WORK_DIR: workDir,
         EDGE_AUTH_SECRET: secret,
         CARDTABLE_FORGE_JAR: forge.jar,
