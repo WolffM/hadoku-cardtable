@@ -1,12 +1,126 @@
 /*
- * The pod's `rounds`/`done` phases — wave 72 §R.2.
- *
- * A dedicated file rather than an addition to `screens.css`. Colour from
- * `@wolffm/themes` only.
+ * The pod screen (`PodScreen.tsx`): its bar, and its `rounds`/`done` phases.
+ * Colour from `@wolffm/themes` only.
  */
+
+.pod__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  padding: 12px 16px;
+}
+
+/* In the draft's side column: the room's name with Close and the gear on one row, what is
+   drafted and who is at the table under it, the room's watchers below (the operator,
+   2026-10-21, with the pod drawn as a circle under this). */
+.pod__bar--side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'who close gear'
+    'meta meta meta';
+  align-items: center;
+  gap: 6px 8px;
+  padding: 10px 12px;
+}
+
+.pod__bar--side > .pod__who {
+  grid-area: who;
+  min-width: 0;
+}
+
+.pod__bar--side > .pod__meta {
+  grid-area: meta;
+}
+
+.pod__bar--side > .room-close,
+.pod__bar--side > .room-close__ask {
+  grid-area: close;
+}
+
+.pod__bar.pod__bar--side > .ct-settings-gear {
+  grid-area: gear;
+  margin: 0;
+}
+
+/* Anything else in the box (the room's watchers) takes a whole row of its own. */
+.pod__bar--side > :not(.pod__who, .pod__meta, .room-close, .room-close__ask, .ct-settings-gear) {
+  grid-column: 1 / -1;
+}
+
+.pod__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+
+.pod__who {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pod__cube,
+.pod__tally {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.pod__seats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pod__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-neutral);
+  flex: none;
+}
+
+.pod__dot--on {
+  background: var(--color-success);
+}
+
+/* The leader's Close: the pod bar's own button size, not a room header's small one. */
+.pod__bar .room-close {
+  align-self: center;
+  padding: 7px 14px;
+  font-size: inherit;
+  line-height: inherit;
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-light);
+}
+
+.pod__bar .room-close--danger {
+  border-color: var(--danger);
+}
+
+.pod__bar .room-close__ask {
+  align-self: center;
+}
+
+.pod__error {
+  margin: 0;
+  color: var(--color-warning);
+}
+
+.pod__bar > .ct-settings-gear {
+  margin-left: auto;
+}
 
 .pod__rounds {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 16px;
   padding: 16px;
@@ -19,10 +133,6 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
-}
-
-.pod__rounds {
-  flex: 1;
 }
 
 .pod__board {

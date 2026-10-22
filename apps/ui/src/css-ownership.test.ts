@@ -49,8 +49,6 @@ const PENDING: Record<string, string> = {
   zone: 'prompts.css adds `.zone__types` to the board’s block',
   card: 'card.css styles CardTile’s `.card` for the board without scoping it',
   confirm: 'prompts.css adds `.confirm__card` to the confirm prompt’s block',
-  deckpick: 'DecksScreen.css styles the screen kit’s deck picker',
-  pod: 'screens.css and settings.css style the pod screen’s block',
   stack__art: 'dead: card.css',
 };
 
