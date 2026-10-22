@@ -6,8 +6,8 @@
  *
  * - `what: 'stretch'` — a bad stretch: a second with {@link SLOW_IN_WINDOW} slow gaps, or one gap over
  *   {@link FREEZE_MS}, until the frames recover. One report per stretch, however long it lasts.
- * - `what: 'board'` — what the board was doing as the stretch began: its beats, the pace queue, the
- *   running animations by what they move, the turn and the counts.
+ * - `what: 'board'` — what the board was doing at the stretch's worst frame: its beats, the pace queue,
+ *   the running animations by what they move, the turn and the counts.
  * - `what: 'loaf'` — one per long frame the browser attributed (Chrome's `long-animation-frame`): how its
  *   time split between script, the render phase's callbacks and style and layout, and the scripts that ran.
  * - `what: 'summary'` — every frame since the last summary, every {@link SUMMARY_EVERY_TURNS} turns, as
@@ -85,9 +85,9 @@ export interface ObserverClass {
 export interface FrameWatchHost {
   /** Where a `perf` event's data goes. */
   report: (data: Data) => void;
-  /** What the board is doing, read once as a stretch opens. */
+  /** What the board is doing, read as a stretch opens and again at each new worst frame in it. */
   board: () => Data;
-  /** The page's own facts (DOM size, running animations, window), read once as a stretch opens. Defaults to {@link pageFacts}. */
+  /** The page's own facts (DOM size, running animations), read with {@link FrameWatchHost.board}. Defaults to {@link pageFacts}. */
   page?: () => Data;
   /** Test seams: the real `requestAnimationFrame`, `cancelAnimationFrame`, `performance.now`, `document` and `PerformanceObserver` by default. */
   raf?: (callback: (t: number) => void) => number;
@@ -95,7 +95,7 @@ export interface FrameWatchHost {
   now?: () => number;
   doc?: Pick<Document, 'visibilityState' | 'addEventListener' | 'removeEventListener'>;
   /** Where a closing tab says so (`pagehide`): the real `window` by default. */
-  win?: Pick<Window, 'addEventListener' | 'removeEventListener'>;
+  win?: Pick<Window, 'addEventListener' | 'removeEventListener' | 'innerWidth' | 'innerHeight'>;
   observer?: ObserverClass | null;
 }
 
@@ -201,14 +201,13 @@ export function boardFacts(view: BoardView | null): Data {
   };
 }
 
-/** The page's own facts, read once as a stretch opens: the DOM's size, the animations running, the window. */
+/** The page's own facts, read with the board's: the DOM's size and the animations running. */
 export function pageFacts(): Data {
   const animations = typeof document.getAnimations === 'function' ? document.getAnimations() : [];
   return {
     anims: animations.filter((a) => a.playState === 'running').length,
     animTop: animationTop(animations),
     dom: document.getElementsByTagName('*').length,
-    window: `${window.innerWidth}x${window.innerHeight}`,
   };
 }
 
@@ -249,6 +248,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
   let watchedMs = 0;
   let worst = 0;
   let selfMs = 0;
+  let selfFrames = 0;
   let stretches = 0;
   let suppressedTotal = 0;
   let summaryTurn = -1;
@@ -264,7 +264,8 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
   let sOver100 = 0;
   let sFreeze = false;
   let tailFrames = 0;
-  let onset: Data = {};
+  // What the board was doing at the stretch's worst frame so far.
+  let board: Data = {};
 
   // Reports.
   let n = 0;
@@ -308,7 +309,12 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       count(gaps[i]!);
     }
     lastSlow = t;
-    onset = { ...host.board(), ...page() };
+    snapshot(t);
+  }
+
+  /** The board as it is now, `t` into the stretch: a few DOM reads, so only at a new worst. */
+  function snapshot(t: number): void {
+    board = { atMs: Math.round(t - start), ...host.board(), ...page() };
   }
 
   function count(gap: number): void {
@@ -349,9 +355,10 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       longs: inside.length,
       longMaxMs: Math.round(inside.reduce((m, e) => Math.max(m, e.duration), 0)),
       why,
+      window: `${win.innerWidth}x${win.innerHeight}`,
     });
     suppressed = 0;
-    host.report({ what: 'board', n, ...onset });
+    host.report({ what: 'board', n, ...board });
     if (attribution !== 'loaf') return;
     [...inside]
       .sort((a, b) => b.duration - a.duration)
@@ -376,6 +383,8 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
     watchedMs += gap;
     if (gap > worst) worst = gap;
     histogram[bucketOf(gap)]! += 1;
+    // The monitor's own cost is timed on frames outside a stretch: a stretch's reads and reports are its cost, not a frame's.
+    const plain = !open;
     if (gap > SLOW_MS) {
       slowEnds[slowAt % SLOW_IN_WINDOW] = t;
       slowGaps[slowAt % SLOW_IN_WINDOW] = gap;
@@ -383,6 +392,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       if (open) {
         sFrames += tailFrames;
         tailFrames = 0;
+        if (gap > sWorst) snapshot(t);
         count(gap);
         lastSlow = t;
       } else if (gap > FREEZE_MS || (slowAt >= SLOW_IN_WINDOW && t - slowEnds[slowAt % SLOW_IN_WINDOW]! <= WINDOW_MS)) {
@@ -393,7 +403,10 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       tailFrames += 1;
       if (t - lastSlow >= RECOVER_MS) closeStretch('recovered');
     }
-    selfMs += now() - began;
+    if (plain && !open) {
+      selfMs += now() - began;
+      selfFrames += 1;
+    }
   }
 
   function startLoop(): void {
@@ -433,7 +446,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       reports,
       suppressed: suppressedTotal,
       // The monitor's own cost per frame, in µs: what it adds to every frame it times.
-      selfUs: Math.round((selfMs * 100_000) / frames) / 100,
+      selfUs: Math.round((selfMs * 100_000) / Math.max(1, selfFrames)) / 100,
       attribution,
     });
     histogram.fill(0);
@@ -441,6 +454,7 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
     watchedMs = 0;
     worst = 0;
     selfMs = 0;
+    selfFrames = 0;
     stretches = 0;
     suppressedTotal = 0;
     summaryTurn = lastTurn;

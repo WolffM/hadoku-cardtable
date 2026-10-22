@@ -33,6 +33,7 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
   const listeners = new Set<() => void>();
   const pageHide = new Set<() => void>();
   const sent: Data[] = [];
+  let reads = 0;
   const observers: { callback: (list: { getEntries(): readonly unknown[] }) => void; type: string; disconnected: boolean }[] = [];
   const Observer = class {
     static supportedEntryTypes = options.types ?? [];
@@ -53,8 +54,11 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
       expect(ClientEventSchema.safeParse({ matchId: 'm', kind: 'perf', data }).success, JSON.stringify(data)).toBe(true);
       sent.push(data);
     },
-    board: () => ({ phase: 'COMBAT_DECLARE_ATTACKERS', turn: 5, whose: 'yours', mine: 10, theirs: 6, hand: 3, stack: 0, paceQueue: 2, beats: 1, ui: '0.0.0' }),
-    page: () => ({ anims: 12, animTop: 'board-ram×10,t:left×2', dom: 4000, window: '2080x1324' }),
+    board: () => {
+      reads += 1;
+      return { phase: 'COMBAT_DECLARE_ATTACKERS', turn: 5, whose: 'yours', mine: 10, theirs: 6, hand: 3, stack: 0, paceQueue: 2, beats: 1, ui: '0.0.0' };
+    },
+    page: () => ({ anims: 12, animTop: 'board-ram×10,t:left×2', dom: 4000 }),
     raf: (cb) => {
       pending = cb;
       return nextHandle++;
@@ -71,6 +75,8 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
       removeEventListener: (_: string, l: () => void) => listeners.delete(l),
     } as unknown as FrameWatchHost['doc'],
     win: {
+      innerWidth: 2080,
+      innerHeight: 1324,
       addEventListener: (_: string, l: () => void) => pageHide.add(l),
       removeEventListener: (_: string, l: () => void) => pageHide.delete(l),
     } as unknown as FrameWatchHost['win'],
@@ -103,6 +109,9 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
       visibility = v;
       for (const l of listeners) l();
     },
+    get reads() {
+      return reads;
+    },
     get clock() {
       return clock;
     },
@@ -123,12 +132,29 @@ describe('watchFrames', () => {
     t.frames(80, 16); // recovered
     expect(t.of('stretch')).toHaveLength(1);
     const [stretch] = t.of('stretch');
-    expect(stretch).toMatchObject({ n: 1, frames: 13, worstMs: 150, over50: 11, over100: 1, freeze: false, suppressed: 0, attribution: 'none', longs: 0, why: 'recovered' });
+    expect(stretch).toMatchObject({ n: 1, frames: 13, worstMs: 150, over50: 11, over100: 1, freeze: false, suppressed: 0, attribution: 'none', longs: 0, why: 'recovered', window: '2080x1324' });
     // From the first slow gap's start to the last one's end: 10×80 + 2×16 + 150.
     expect(stretch!.ms).toBe(982);
     expect(stretch!.fps).toBe(13.2);
-    expect(t.of('board')).toEqual([{ what: 'board', n: 1, phase: 'COMBAT_DECLARE_ATTACKERS', turn: 5, whose: 'yours', mine: 10, theirs: 6, hand: 3, stack: 0, paceQueue: 2, beats: 1, ui: '0.0.0', anims: 12, animTop: 'board-ram×10,t:left×2', dom: 4000, window: '2080x1324' }]);
+    // Read as it opened and at its worst frame, its last.
+    expect(t.reads).toBe(2);
+    expect(t.of('board')).toEqual([{ what: 'board', n: 1, atMs: 982, phase: 'COMBAT_DECLARE_ATTACKERS', turn: 5, whose: 'yours', mine: 10, theirs: 6, hand: 3, stack: 0, paceQueue: 2, beats: 1, ui: '0.0.0', anims: 12, animTop: 'board-ram×10,t:left×2', dom: 4000 }]);
     expect(t.of('loaf'), 'no attribution offered').toEqual([]);
+    watch.dispose();
+  });
+
+  it('reads the board as a stretch opens and at each new worst frame in it, never on a smooth frame', () => {
+    const t = tab();
+    const watch = watchFrames(t.host);
+    t.frames(500, 16);
+    expect(t.reads).toBe(0);
+    t.frame(300); // opens
+    t.frames(3, 80); // slower than nothing so far: no new worst
+    t.frame(350); // a new worst
+    t.frames(5, 60);
+    t.frames(200, 16);
+    expect(t.reads).toBe(2);
+    expect(t.of('board')[0]).toMatchObject({ atMs: 300 + 3 * 80 + 350 });
     watch.dispose();
   });
 
