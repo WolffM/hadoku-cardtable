@@ -1,7 +1,7 @@
 /*
  * Cardtable mounted the way watchparty mounts it (D21): `embed-host.html`, a
  * page on the same origin but outside `/cardtable/`, `import()`s the built
- * `/cardtable/embed/cardtable-embed.js` and calls `mount(slot, ctx)`.
+ * `/cardtable/embed/cardtable-embed.js` and calls `mountEmbed(slot, ctx)`.
  *
  * Two tests:
  *
@@ -20,13 +20,13 @@
  *
  * `[embed]` lines are the evidence.
  */
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-import { EMBED_HOST_PATH } from './edge.ts';
-import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
+import { EDGE_ORIGIN, PREFIX } from './identities.ts';
 import { twoLegalDecks } from './play/enter.ts';
 import { makeTitled } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
+import { chooseClassic, embedContext, embedHostUrl, mountEmbed } from './play/embed.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { TURN_TEXT } from './play/turn.ts';
 
@@ -116,18 +116,6 @@ interface Leaks {
 
 const leaks = (page: Page): Promise<Leaks> => page.evaluate(() => (window as unknown as { __embedLeaks: () => Leaks }).__embedLeaks());
 
-async function contextFor(browser: Browser, name: string): Promise<BrowserContext> {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await context.addCookies([{ name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
-  await context.addInitScript(instrument);
-  return context;
-}
-
-function hostUrl(origin: string, roomKey: string, extra = ''): string {
-  return `${origin}${EMBED_HOST_PATH}?roomKey=${encodeURIComponent(roomKey)}&mount=manual${extra}#/host-route`;
-}
-
-const mount = (page: Page): Promise<void> => page.evaluate(() => (window as unknown as { embedHost: { mount(): Promise<void> } }).embedHost.mount());
 const unmount = (page: Page): Promise<void> => page.evaluate(() => (window as unknown as { embedHost: { unmount(): void } }).embedHost.unmount());
 
 /** socket.io requests the page makes from now on; read it after the window you care about. */
@@ -155,21 +143,10 @@ async function residue(page: Page): Promise<{ shadowChildren: number; shadowShee
 /** The character alice picked in watchparty, as its picker leaves it in the prefs cache (`room/avatar.ts`). */
 const ALICE_SPRITE = 'e2e-sprite-embed';
 
-/**
- * The bound room is made by the binding (`lobby.bindWatchparty`) with no mode, so it opens on the
- * leader's mode row with no seats yet, as any room created without one does; its leader picks
- * Classic, as `e2e/play/rooms.ts`'s create helper does for every other spec's room.
- */
-async function chooseClassic(page: Page): Promise<void> {
-  const classic = page.getByTestId('constructed-mode-classic');
-  await classic.click();
-  await expect(classic).toBeChecked();
-}
-
 test('the embed binds one watchparty room to one table and leaves the host page as it found it', async ({ browser }) => {
   const roomKey = `embed-${Date.now()}`;
-  const alice = await contextFor(browser, 'alice');
-  const bob = await contextFor(browser, 'bob');
+  const alice = await embedContext(browser, 'alice', instrument);
+  const bob = await embedContext(browser, 'bob', instrument);
   // The e2e edge stamps identity but serves no `/session/whoami`; answer it the
   // way hadoku.me does for a friend, because the avatar hop keys on that answer.
   for (const [context, who] of [[alice, 'alice'], [bob, 'bob']] as const) {
@@ -182,13 +159,13 @@ test('the embed binds one watchparty room to one table and leaves the host page 
   );
   try {
     const a = await alice.newPage();
-    await a.goto(hostUrl(EDGE_ORIGIN, roomKey, '&theme=ocean-dark'));
+    await a.goto(embedHostUrl(EDGE_ORIGIN, roomKey, '&theme=ocean-dark'));
     await a.waitForFunction(() => 'embedHost' in window);
     const before = await leaks(a);
     const hostLook = () => a.evaluate(() => [getComputedStyle(document.body).backgroundColor, getComputedStyle(document.body).fontFamily]);
     const hostBefore = await hostLook();
 
-    await mount(a);
+    await mountEmbed(a);
     const embed = a.getByTestId('cardtable-embed');
     await expect(embed).toHaveAttribute('data-bound-room', /^wp-[0-9a-f]{20}$/);
     const roomId = await embed.getAttribute('data-bound-room');
@@ -229,8 +206,8 @@ test('the embed binds one watchparty room to one table and leaves the host page 
 
     // Bob, same watchparty room: same table, and alice is no longer alone.
     const b = await bob.newPage();
-    await b.goto(hostUrl(EDGE_ORIGIN, roomKey));
-    await mount(b);
+    await b.goto(embedHostUrl(EDGE_ORIGIN, roomKey));
+    await mountEmbed(b);
     await expect(b.getByTestId('cardtable-embed')).toHaveAttribute('data-bound-room', roomId!);
     await expect(b.getByTestId('constructed')).toBeVisible();
     // Since 2026-10-12 the bot button is gated on the SEAT, not the room, so
@@ -299,7 +276,7 @@ test('the embed binds one watchparty room to one table and leaves the host page 
     expect(await a.getByTestId('game-slot').getAttribute('data-theme'), 'unmount takes the theme back off the slot').toBeNull();
 
     // The same slot mounts again, onto the same table.
-    await mount(a);
+    await mountEmbed(a);
     await expect(a.getByTestId('cardtable-embed')).toHaveAttribute('data-bound-room', roomId!);
     await expect(a.getByTestId('constructed')).toBeVisible();
     await unmount(a);
@@ -320,10 +297,10 @@ test(titled('the embed plays a match against Forge’s AI, and unmount closes it
     await alice.context.addInitScript(instrument);
     const page = alice.page;
     const choice = await twoLegalDecks(alice.context.request, stack.origin);
-    await page.goto(hostUrl(stack.origin, `embed-ai-${Date.now()}`));
+    await page.goto(embedHostUrl(stack.origin, `embed-ai-${Date.now()}`));
     await page.waitForFunction(() => 'embedHost' in window);
     const before = await leaks(page);
-    await mount(page);
+    await mountEmbed(page);
     await expect(page.getByTestId('constructed')).toBeVisible({ timeout: 30_000 });
     await chooseClassic(page);
     await page.getByTestId('format').selectOption(choice.format);

@@ -3,25 +3,16 @@
  * play, one watches; the loser concedes; Main menu takes the loser AND the
  * watcher back to the bound room, unseated, where the watcher can sit.
  */
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-import { EMBED_HOST_PATH } from './edge.ts';
-import { SESSION_COOKIE } from './identities.ts';
 import { twoLegalDecks } from './play/enter.ts';
 import { makeTitled } from './play/board.ts';
+import { chooseClassic, embedContext, embedHostUrl, mountEmbed } from './play/embed.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { TURN_TEXT } from './play/turn.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
-
-async function contextFor(browser: Browser, name: string): Promise<BrowserContext> {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await context.addCookies([{ name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
-  return context;
-}
-const hostUrl = (origin: string, roomKey: string): string => `${origin}${EMBED_HOST_PATH}?roomKey=${encodeURIComponent(roomKey)}&mount=manual#/host-route`;
-const mount = (page: Page): Promise<void> => page.evaluate(() => (window as unknown as { embedHost: { mount(): Promise<void> } }).embedHost.mount());
 
 test(titled('embed turnover: the loser and a watcher press Main menu and are back at the seats; the watcher sits'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -32,15 +23,17 @@ test(titled('embed turnover: the loser and a watcher press Main menu and are bac
   try {
     const pages: Record<string, Page> = {};
     for (const name of ['alice', 'bob', 'carol']) {
-      const ctx = await contextFor(browser, name);
+      const ctx = await embedContext(browser, name);
       const page = await ctx.newPage();
-      await page.goto(hostUrl(stack.origin, roomKey));
+      await page.goto(embedHostUrl(stack.origin, roomKey));
       await page.waitForFunction(() => 'embedHost' in window);
-      await mount(page);
+      await mountEmbed(page);
       await expect(page.getByTestId('constructed'), `${name} is at the bound table`).toBeVisible({ timeout: 30_000 });
       pages[name] = page;
     }
     const { alice, bob, carol } = pages;
+    // alice bound the room first, so she leads it and picks its mode.
+    await chooseClassic(alice);
     const choice = await twoLegalDecks(alice.context().request, stack.origin);
     await alice.getByTestId('format').selectOption(choice.format);
     await expect(bob.getByTestId('format-fixed')).toHaveAttribute('data-format', choice.format);
