@@ -12,6 +12,20 @@
  *
  * No types are built: Node 24 strips TypeScript natively, so this file is the
  * executable.
+ *
+ * `main` is exported as `runSyncCards(argv)` — same argv parsing, same
+ * console output, same exit codes — so the server's catalog-refresh job
+ * (`apps/server/src/pools/refresh.ts`, wave 74 §G) could run it as a CHILD
+ * process if it ever needs that (this file's own CLI behaviour untouched
+ * either way). Running it IN-PROCESS instead calls `sync()` from
+ * `../scryfall/bulk.ts` directly — already exported, already side-effect
+ * clean (returns a `SyncResult`, never calls `process.exit`) — because the
+ * refresh job needs that result's `upToDate` flag to decide whether to
+ * rebuild the catalog, and `runSyncCards` only ever returns a bare exit code.
+ * Guarding the CLI body behind `import.meta.main` (the same convention
+ * `build-catalog.ts`/`build-pool.ts` already use) is the fix that makes this
+ * file importable at all: before this change, importing it from anywhere ran
+ * the whole sync as a side effect of the import.
  */
 
 import { resolve } from 'node:path';
@@ -73,8 +87,7 @@ export function parseArgs(argv: readonly string[]): Args {
   return { bulkType, outDir, force, limit };
 }
 
-async function main(): Promise<number> {
-  const argv = process.argv.slice(2);
+export async function runSyncCards(argv: readonly string[]): Promise<number> {
   if (argv.includes('--help') || argv.includes('-h')) {
     console.log(usage());
     return 0;
@@ -119,4 +132,7 @@ async function main(): Promise<number> {
   }
 }
 
-process.exitCode = await main();
+// Guarded so `parseArgs`/`runSyncCards` can be imported (e.g. by a test, or
+// the server's refresh job) without running the whole sync as a side effect
+// of the import — same convention `build-catalog.ts`/`build-pool.ts` use.
+if (import.meta.main) process.exitCode = await runSyncCards(process.argv.slice(2));
