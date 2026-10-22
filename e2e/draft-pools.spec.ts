@@ -45,7 +45,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { fillWithAi } from './podSeats.ts';
+import { fillWithAi, readyPod } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
@@ -90,13 +90,16 @@ const UNPLAYABLE_NAME = 'Zzyzzyva, Card Forge Does Not Know';
 
 /**
  * `PLAY_CUBES_DIR/<id>.json` — `importDir`'s own on-disk shape, per
- * `apps/server/src/pools/cubes.ts`'s header (landed §C, `ffc26caf`): `cards`
- * is the TRIMMED Cube Cobra projection (`{ name, scryfallId }`, never the
- * derived `DraftCard[]`) — the catalog resolves gameplay text by name at
- * load, which is exactly how a name it does not know (this fixture's whole
- * point) produces `missingText` rather than a shape error. Must run BEFORE
- * `startPlayStack`: the store reads this directory once, at the spawned
- * server's own boot (`PLAY_CUBES_DIR`'s own comment in `play/harness.ts`).
+ * `apps/server/src/pools/cubes.ts`'s `parseImportFile`: `id`/`name`/
+ * `cubeCobraId`/`importedBy`/`importedAt` all strings (`cubeCobraId: null`
+ * parses as "malformed" — confirmed by reading `parseImportFile` after it
+ * rejected a first draft of this fixture), `cards` the TRIMMED Cube Cobra
+ * projection (`{ name, scryfallId }`, never the derived `DraftCard[]`) — the
+ * catalog resolves gameplay text by name at load, which is exactly how a
+ * name it does not know (this fixture's whole point) produces `missingText`
+ * rather than a shape error. Must run BEFORE `startPlayStack`: the store
+ * reads this directory once, at the spawned server's own boot
+ * (`PLAY_CUBES_DIR`'s own comment in `play/harness.ts`).
  */
 function seedUnplayableCube(): void {
   rmSync(PLAY_CUBES_DIR, { recursive: true, force: true });
@@ -106,7 +109,7 @@ function seedUnplayableCube(): void {
     JSON.stringify({
       id: UNPLAYABLE_ID,
       name: UNPLAYABLE_NAME,
-      cubeCobraId: null,
+      cubeCobraId: 'e2e-fixture',
       importedBy: 'fk:e2e-fixture',
       importedAt: new Date().toISOString(),
       refreshedAt: null,
@@ -195,7 +198,7 @@ test(
       await alice.page.locator('[data-testid="pod-seat-sit"][data-seat="0"]').click();
       await bob.page.locator('[data-testid="pod-seat-sit"][data-seat="1"]').click();
       for (const p of players) await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds their own seat`).toBeVisible({ timeout: UI_TIMEOUT });
-      for (const p of players) await p.page.getByTestId('ready-toggle').click();
+      for (const p of players) await readyPod(p.page);
       await fillWithAi(alice.page, UI_TIMEOUT);
       for (const p of players) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
 

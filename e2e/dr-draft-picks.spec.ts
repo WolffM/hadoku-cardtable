@@ -22,7 +22,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { fillWithAi } from './podSeats.ts';
+import { fillWithAi, readyPod } from './podSeats.ts';
 import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
@@ -114,7 +114,7 @@ test(titled('the picks sort by colour or mana value, a pick dragged to the sideb
     await resizeWindow(page, SIZES[0]);
     await expect(page.getByTestId('pod-seats')).toBeVisible({ timeout: UI_TIMEOUT });
     await page.locator('[data-testid="pod-seat-sit"][data-seat="0"]').click();
-    await page.getByTestId('ready-toggle').click();
+    await readyPod(page);
     await fillWithAi(page, UI_TIMEOUT);
     await expect(page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
     const grid = page.getByRole('group', { name: 'Pack layout' }).getByRole('button', { name: 'grid' });

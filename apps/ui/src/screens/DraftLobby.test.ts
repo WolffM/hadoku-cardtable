@@ -25,7 +25,7 @@ vi.mock('./pod/client.ts', () => ({ aiPod, sitPod, standPod }));
 const { preloadCubeArt } = vi.hoisted(() => ({ preloadCubeArt: vi.fn() }));
 vi.mock('../play/live/art-preload.ts', () => ({ preloadCubeArt }));
 
-import { DraftLobby, type PlannedPod } from './DraftLobby.tsx';
+import { DraftLobby } from './DraftLobby.tsx';
 import type { PoolsClient, RoomsClient } from '../rooms/api.ts';
 import { POD_SEATS, type PodView } from './pod/wire.ts';
 
@@ -94,14 +94,8 @@ const podFixture = (over: Partial<PodView> = {}): PodView => ({
   ...over,
 });
 
-/**
- * TEMPORARY, wave 73 §B: `PodView` does not carry `plan`/`planName`/`verdict`
- * until lane A's later land (§A.6) — see `DraftLobby.tsx`'s own note. A
- * planned pod is built from the same `podFixture` plus those three fields,
- * which `DraftLobby`'s cast then reads back off the `pod` prop exactly as it
- * will once they are real.
- */
-const plannedPod = (plan: DraftPlan, planName: string, verdict: PoolVerdict | null, over: Partial<PodView> = {}): PlannedPod => ({
+/** `podFixture` plus the three pool-picker fields set to specific values, for a test that cares which ones. */
+const plannedPod = (plan: DraftPlan, planName: string, verdict: PoolVerdict | null, over: Partial<PodView> = {}): PodView => ({
   ...podFixture(over),
   plan,
   planName,
@@ -224,6 +218,29 @@ describe('the pool picker (wave 73 §B)', () => {
 
     expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('checking');
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled, 'Start waits on the first check').toBe(true);
+  });
+
+  it("a refused BACKGROUND verdict (no local attempt — e.g. no jar yet) shows refused, never an empty 'ready'", async () => {
+    // Found live (2026-10-22): the CURRENT plan's own verdict can be refused
+    // with nobody having attempted a pick (room/plan.ts's checkCards, no
+    // jar: "never passes by default"). The verdict line used to default to
+    // `ready` whenever no LOCAL attempt had failed, drawing an empty line
+    // while Ready stayed correctly disabled — a driver waiting on the
+    // `ready` state by itself got stuck forever.
+    const cube = cubeFixture();
+    vi.mocked(pools.listCubes).mockResolvedValue([cube]);
+    const pod = plannedPod(cubePlan(cube.id), cube.name, {
+      ok: false,
+      unplayable: ['Forge is not available to check playability — try again once the pool service is up'],
+      missingText: [],
+    });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    await waitFor(() => expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('refused'));
+
+    expect(screen.getByTestId('pool-picker-verdict').textContent).toBe('Forge is not available to check playability — try again once the pool service is up');
+    expect((screen.getByTestId(`pool-picker-cube-${cube.id}`) as HTMLInputElement).checked, 'still shows the room’s own (refused) plan chosen').toBe(true);
+    expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('an ok verdict shows the card count, and Ready is enabled', async () => {

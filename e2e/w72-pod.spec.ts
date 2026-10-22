@@ -19,7 +19,7 @@
  * acceptance text only needs a round to RESOLVE, not a full game.
  */
 import { trimMainDeck } from './deckBuilder.ts';
-import { fillWithAi } from './podSeats.ts';
+import { fillWithAi, readyPod } from './podSeats.ts';
 import { expect, test } from '@playwright/test';
 
 import { PREFIX } from './identities.ts';
@@ -133,7 +133,7 @@ test(
       for (const p of players) await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds their own seat`).toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── ready, deal, draft, build ──────────────────────────────────── */
-      for (const p of players) await p.page.getByTestId('ready-toggle').click();
+      for (const p of players) await readyPod(p.page);
       await fillWithAi(alice.page, UI_TIMEOUT);
       for (const p of players) await expect(p.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: UI_TIMEOUT });
       await Promise.all(players.map((p) => draftUntilDone(p)));

@@ -59,7 +59,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import type { CubeSummary, DraftPlan, PoolVerdict } from '@hadoku/shared';
+import type { CubeSummary, DraftPlan } from '@hadoku/shared';
 
 import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
 import { PoolPicker, type Refusal } from '../draft/PoolPicker.tsx';
@@ -72,19 +72,9 @@ import { POD_AI, POD_CLOSED, podDealable, type PodView } from './pod/wire.ts';
 export { podDealable };
 
 /**
- * TEMPORARY, wave 73 §B: `PodView` does not yet carry `plan` / `planName` /
- * `verdict` — those land with lane A's later commit (§A.6), after this one.
- * This file is written against the wire contract's verbatim text (the wave
- * file's own instruction while A's field is still in flight); this cast is
- * the one place that gap lives, and it is a no-op the moment `pod.ts` grows
- * the fields for real.
- */
-export type PlannedPod = PodView & { plan: DraftPlan; planName: string; verdict: PoolVerdict | null };
-
-/**
  * Round 1's cube — the Cube tab fills all three rounds with one choice, so
- * this is the whole plan's cube for now. `undefined` reads as "no plan yet",
- * which today (before `pod.ts` carries one at all) is every pod there is.
+ * this is the whole plan's cube for now. `undefined` reads as "no plan at
+ * all" (a constructed room, whose `pod` is null and never reaches this).
  */
 function cubeIdOf(plan: DraftPlan | undefined): string | null {
   if (plan === undefined) return null;
@@ -174,13 +164,11 @@ export function DraftLobby({
   const doStand = (): void => act(() => standPod(roomId));
 
   /* ── the pool picker: the room's cube list, and the plan write ───────── */
-  const plannedPod = pod as PlannedPod | null; // TEMPORARY — see the type's own note
-  const planCubeId = cubeIdOf(plannedPod?.plan);
-  /** `undefined` (today, before `pod.ts` carries one) reads exactly like `null` (still checking). */
-  const verdict = plannedPod?.verdict ?? null;
+  const planCubeId = cubeIdOf(pod?.plan);
+  const verdict = pod?.verdict ?? null;
 
   // The plan's own cube(s), warmed before the deal — joined so the effect's dependency is one stable string, not a new array each render.
-  const planCubeIdsKey = cubeIdsOf(plannedPod?.plan).join(',');
+  const planCubeIdsKey = cubeIdsOf(pod?.plan).join(',');
   useEffect(() => {
     if (planCubeIdsKey === '') return;
     let cancelled = false;
@@ -240,9 +228,21 @@ export function DraftLobby({
   const deleteCube = (id: string): void => withCubes(() => pools.deleteCube(id));
 
   const selectedId = attempt?.cubeId ?? planCubeId;
-  const checking = plannedPod !== null && attempt === null && verdict === null;
+  const checking = pod !== null && attempt === null && verdict === null;
   const planOk = verdict !== null && verdict.ok;
   const readyCards = verdict !== null && verdict.ok ? verdict.cards : null;
+  /**
+   * What the picker shows refused: a local attempt's own refusal, else the
+   * CURRENT plan's own background verdict when THAT is refused (no jar yet,
+   * or a Forge pin change that re-failed a once-good cube) — never defaulted
+   * to "ready" just because nobody locally attempted anything. Found live:
+   * without this, `readyCards === null` (verdict refused) but `refusal` (the
+   * old, attempt-only field) stayed `null` too, so the verdict line showed
+   * `data-state="ready"` with no text while Ready stayed correctly disabled
+   * — a driver waiting on "ready" by state got stuck forever (draft.spec.ts's
+   * jar-less tests, 2026-10-22).
+   */
+  const refusal = attempt?.refusal ?? (verdict !== null && !verdict.ok ? verdict : null);
 
   return (
     <section className="lobby__card" data-testid="draft-lobby">
@@ -273,7 +273,7 @@ export function DraftLobby({
             leader={amLeader}
             busy={planBusy}
             checking={checking}
-            refusal={attempt?.refusal ?? null}
+            refusal={refusal}
             readyCards={readyCards}
             myId={myMemberId ?? ''}
             onPick={pickCube}

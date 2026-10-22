@@ -60,7 +60,7 @@ import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { trimMainDeck } from './deckBuilder.ts';
-import { fillWithAi } from './podSeats.ts';
+import { fillWithAi, readyPod } from './podSeats.ts';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 import { envelopesOf, type RawCapture } from './frames.ts';
@@ -564,7 +564,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
 
   /* ── the readiness gate: one ready is not enough ──────────────────── */
 
-  await alice.page.getByTestId('ready-toggle').click();
+  await readyPod(alice.page);
   await expect
     .poll(async () => (await roomState(alice, roomId)).members.filter((m) => m.ready).length, {
       message: 'the lobby records alice ready',
@@ -579,7 +579,7 @@ test('two friends draft a whole pod from the room list: ready, pick, pass, wheel
 
   /* ── both ready: the pack appears, with bots in the empty seats ───── */
 
-  await bob.page.getByTestId('ready-toggle').click();
+  await readyPod(bob.page);
   // Both seated and ready, six seats open: still no deal until the AI holds them.
   expect((await roomState(alice, roomId)).draftStartedAt, 'an open seat holds the deal').toBeNull();
   await fillWithAi(alice.page, UI_TIMEOUT);
@@ -859,7 +859,7 @@ test("a member who never sat watches the draft: a drafter's pack and picks, read
       .toBe(2);
 
     // Alice sits and readies; the AI takes every other seat. Bob never sits.
-    await alice.page.getByTestId('ready-toggle').click();
+    await readyPod(alice.page);
     await fillWithAi(alice.page, UI_TIMEOUT);
     await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
     await expect(bob.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
@@ -921,7 +921,7 @@ test('a player drafts from the seat they sat in: pack 1 passes along the table, 
       await p.page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).click();
       await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds the seat they chose`).toBeVisible({ timeout: UI_TIMEOUT });
     }
-    for (const p of [alice, bob]) await p.page.getByTestId('ready-toggle').click();
+    for (const p of [alice, bob]) await readyPod(p.page);
     await fillWithAi(alice.page, UI_TIMEOUT);
     for (const p of [alice, bob]) await expect(p.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
     expect(await seatFromWire(alice), 'alice drafts from the seat she sat in').toBe(1);
@@ -1039,8 +1039,8 @@ test(
       await enterFromList(bob, podId, podName, { origin });
       await expectLobbyNotPod(bob);
 
-      await alice.page.getByTestId('ready-toggle').click();
-      await bob.page.getByTestId('ready-toggle').click();
+      await readyPod(alice.page);
+      await readyPod(bob.page);
       await fillWithAi(alice.page, UI_TIMEOUT);
       await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
       await expect(bob.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
@@ -1101,7 +1101,7 @@ test(
       // She owns the room and closes two seats: the draft deals six (the operator, 2026-10-19).
       for (const seat of [6, 7]) await alice.page.locator(`[data-testid="pod-seat-close"][data-seat="${seat}"]`).click();
       await expect(alice.page.locator('[data-testid^="pod-seat-"][data-closed]')).toHaveCount(2);
-      await alice.page.getByTestId('ready-toggle').click();
+      await readyPod(alice.page);
       await fillWithAi(alice.page, UI_TIMEOUT);
       await expect(alice.page.getByTestId('pod')).toBeVisible({ timeout: UI_TIMEOUT });
       await expect(alice.page.locator('[data-testid="seat-bar"] [data-testid^="seat-"][data-occupant]'), 'a draft of six').toHaveCount(6);

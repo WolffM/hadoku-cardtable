@@ -86,7 +86,7 @@ import { PodSpectators } from './pod/PodSpectators.tsx';
 import { followMatchOnce } from '../play/live/matchStart.ts';
 import { preloadCubeArt, viewerCards } from '../play/live/art-preload.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
-import { cubeIdsOf, type PlannedPod } from './DraftLobby.tsx';
+import { cubeIdsOf } from './DraftLobby.tsx';
 import { poolsClient, roomsClient } from '../rooms/api.ts';
 import { deckStoreClient } from '../deck/deckStore.ts';
 import './PodScreen.css';
@@ -165,18 +165,12 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   const ctx = usePodContext(draftId, podSource);
   const phase = ctx?.pod?.phase;
   const inRounds = phase === 'rounds' || phase === 'done';
-  /**
-   * TEMPORARY, wave 73 §B: `PodView` does not yet carry `planName` — it
-   * lands with lane A's later commit (§A.6); see `DraftLobby.tsx`'s own note
-   * on this same gap. `plannedPod` is `null` exactly when `ctx.pod` is.
-   */
-  const plannedPod = (ctx?.pod ?? null) as PlannedPod | null;
 
   // The plan's own cube(s), warmed from `GET /api/pools/cubes/:id/cards` —
   // a reload mid-draft lands here directly, never through `DraftLobby.tsx`,
   // so the lobby's own warm-up (same idea, same helper) never ran for it.
   const poolsForArt = useMemo(() => poolsClient(), []);
-  const planCubeIdsKey = cubeIdsOf(plannedPod?.plan).join(',');
+  const planCubeIdsKey = cubeIdsOf(ctx?.pod?.plan).join(',');
   useEffect(() => {
     if (planCubeIdsKey === '') return;
     let cancelled = false;
@@ -273,9 +267,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
       {/* What is being drafted and who is at the table, on one line under the room's name. */}
       <div className="pod__meta">
         {/* Round 1's source name today (the Cube tab fills every round alike); a per-round label is wave 74's Custom tab. */}
-        {plannedPod !== null && typeof plannedPod.planName === 'string' && plannedPod.planName !== '' && (
-          <span className="pod__cube">{plannedPod.planName}</span>
-        )}
+        {ctx?.pod != null && ctx.pod.planName !== '' && <span className="pod__cube">{ctx.pod.planName}</span>}
         <PodSeats
           connected={draft?.connected === true}
           everConnected={draft?.everConnected === true}
