@@ -326,48 +326,25 @@ type SetGameTypeResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
 
-/**
- * `setFormat`'s refusals, plus a draft room (which has no mode) and
- * `tournament-mode-unsupported` (`TOURNAMENT_UNSUPPORTED_MODES`'s own doc).
- */
+/** `setFormat`'s refusals, plus a draft room (which has no mode). */
 type SetModeResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'mode-locked' | 'tournament-mode-unsupported' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'not-constructed' | 'mode-locked' };
 
 /** Deliberately the same refusals as `SetGameTypeResult`: one leader, one shape. */
 type SetFormatResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
 
-/**
- * A tournament pod and a Gauntlet cannot combine yet: `room.gauntlet` is one
- * `GauntletState` per ROOM (`RoomRecord.gauntlet`'s own doc), but a
- * tournament round can pair more than one Gauntlet table at once — the
- * second table's Ready would stomp the first's state. `setMode`/`setSettings`
- * both refuse the combination outright (`tournament-mode-unsupported`) until
- * that storage is per-table — a follow-up item, not guessed at here.
- */
-const TOURNAMENT_UNSUPPORTED_MODES: readonly ConstructedMode[] = ['gauntlet'];
-
-/** Whether `mode` could not carry a tournament today (`TOURNAMENT_UNSUPPORTED_MODES`'s own doc). */
-function tournamentUnsupported(mode: ConstructedMode | null): boolean {
-	return mode !== null && TOURNAMENT_UNSUPPORTED_MODES.includes(mode);
-}
-
 /** Every setting has a default, so a room stored before a setting existed reads back on it without a migration. */
 const SETTING_KEYS = Object.keys(DEFAULT_ROOM_SETTINGS) as (keyof RoomSettings)[];
 /** Settings a room stored before they were retired: read and dropped, so the room still parses. */
 const RETIRED_SETTING_KEYS = ['matchLength', 'sideboarding'];
 
-/**
- * `SetFormatResult`'s three refusals (one leader, one shape), plus
- * `tournament-mode-unsupported` (`TOURNAMENT_UNSUPPORTED_MODES`'s own doc) —
- * this is the one route that can turn `tournament` on, so it is the one
- * that has to refuse it for a mode that cannot carry it yet.
- */
+/** `SetFormatResult`'s three refusals (one leader, one shape). */
 type SetSettingsResult =
 	| { ok: true; room: RoomView }
-	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' | 'tournament-mode-unsupported' };
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'draft-started' | 'mode-locked' };
 
 type AddTableResult = | { ok: true; room: RoomView; table: RoomTable } | { ok: false; reason: 'no-room' | 'not-leader' };
 
@@ -774,6 +751,12 @@ function isStoredPodSeats(v: unknown): v is (string | null)[] {
 function isStoredLockedDecks(v: unknown): v is Record<string, unknown> {
 	if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
 	return Object.values(v).every((x) => (typeof x === 'object' && x !== null) || (Array.isArray(x) && x.every((d) => typeof d === 'string')));
+}
+
+/** A room's Gauntlets by table id (`RoomRecord.gauntlets`'s own doc): a plain object, every value a Gauntlet this build understands. */
+function isStoredGauntlets(v: unknown): v is Record<string, GauntletState> {
+	if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+	return Object.values(v).every(isGauntletState);
 }
 
 /**
@@ -1216,14 +1199,24 @@ export interface Lobby {
 
 	/* ── the Gauntlet ───────────────────────────────────────────────────── */
 
-	/** The room's stored Gauntlet, or null when it has none (or there is no such room). */
-	gauntlet(roomId: string): GauntletState | null;
 	/**
-	 * Store the room's Gauntlet — `http/gauntlet.ts` is its only writer, and
-	 * `gauntlet.ts` decides every move. `null` forgets it. False when there is
-	 * no such room.
+	 * This table's stored Gauntlet, or null when it has none (or there is no
+	 * such room/table) — one per TABLE, so a tournament round's several
+	 * Gauntlet tables never share state. `tableId` defaults to `tables[0]`'s
+	 * — a plain Gauntlet room's only one, and `http/routes.ts`'s own
+	 * adapter, which has not yet been given a real one to pass (its own
+	 * patch is this lane's report), reads exactly that table today.
 	 */
-	setGauntlet(roomId: string, gauntlet: GauntletState | null): boolean;
+	gauntlet(roomId: string, tableId?: string): GauntletState | null;
+	/**
+	 * Store a table's Gauntlet — `http/gauntlet.ts` is its only writer, and
+	 * `gauntlet.ts` decides every move. `null` forgets it. False when there is
+	 * no such room. `tableId` is LAST and optional, defaulting to `tables[0]`'s
+	 * — `gauntlet`'s own doc on why, and the one place that distinction matters:
+	 * an existing 2-argument call (`roomId`, `gauntlet`) must keep meaning what
+	 * it always has.
+	 */
+	setGauntlet(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean;
 	/**
 	 * A tournament's locked deck(s) by entrant id (`RoomRecord.lockedDecks`'s
 	 * own doc). `room/lobby.ts` itself fills Classic/All Random's at the lock
@@ -1232,6 +1225,16 @@ export interface Lobby {
 	 * draft rather than at the lock. False when there is no such room.
 	 */
 	setLockedDeck(roomId: string, entrant: string, deck: unknown): boolean;
+	/**
+	 * The tournament pairing at `tableId` — the two entrant ids (a member id,
+	 * or a pod AI entrant's `` `ai:<seat>` ``), the AI's slot (if any) always
+	 * last so `http/gauntlet.ts`'s own seat convention (the human is Gauntlet
+	 * seat 0, a vs-AI table's synthetic AI player seat 1) lines up with
+	 * whichever of the two this returns a locked pick set for — and whether
+	 * this tournament's deck policy is `locked` at all. `null` for a
+	 * non-tournament room, or a table with no current pairing.
+	 */
+	tournamentPairingOf(roomId: string, tableId: string): { entrants: [string, string]; locked: boolean } | null;
 	/** This entrant's locked deck, or `undefined` when none is stored (or there is no such room/entrant). */
 	lockedDeckOf(roomId: string, entrant: string): unknown;
 	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
@@ -1408,8 +1411,15 @@ interface RoomRecord {
 	 * (`docs/planning/tournament-mode-plan.md`'s Design).
 	 */
 	lockedDecks: Record<string, unknown>;
-	/** A Gauntlet room's Gauntlet (`gauntlet.ts`), kept whole so a reconnect replays the same draw. Null until it first moves. */
-	gauntlet: GauntletState | null;
+	/**
+	 * A Gauntlet room's Gauntlet (`gauntlet.ts`), kept whole so a reconnect
+	 * replays the same draw — one per TABLE, keyed by table id, so a
+	 * tournament round's several Gauntlet tables each keep their own
+	 * (`docs/planning/tournament-mode-plan.md`: Gauntlet in tournament mode).
+	 * A plain Gauntlet room has exactly one key, `tables[0].id`. Absent for a
+	 * table that has never moved.
+	 */
+	gauntlets: Record<string, GauntletState>;
 	createdAt: number;
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
 	updatedAt: number;
@@ -1471,8 +1481,10 @@ interface StoredApp {
 	podPlaying?: string[];
 	/** Absent for a room written before tournament mode: nothing was ever locked. */
 	lockedDecks?: Record<string, unknown>;
-	/** Absent for a room written before Gauntlets, or whose Gauntlet has never moved. */
+	/** Absent for a room written before Gauntlets, or whose Gauntlet has never moved. The pre-per-table shape, kept ONLY so `appCodec.deserialize` can migrate it onto `tables[0].id` (`gauntlets`'s own doc) — never written again. */
 	gauntlet?: GauntletState | null;
+	/** Absent for a room written before Gauntlet tournaments: one per table, keyed by table id (`RoomRecord.gauntlets`'s own doc). */
+	gauntlets?: Record<string, GauntletState>;
 	secret: Secret | null;
 }
 
@@ -1650,7 +1662,13 @@ const appCodec: AppCodec<StoredApp> = {
 		// (a Classic/Random deck, or a Gauntlet entrant's deck-id array) is opaque
 		// here, the same discipline `MemberRecord.state` already keeps.
 		if (a.lockedDecks !== undefined && !isStoredLockedDecks(a.lockedDecks)) throw new Error('app.lockedDecks is invalid');
-		if (a.gauntlet !== undefined && a.gauntlet !== null && !isGauntletState(a.gauntlet)) throw new Error('app.gauntlet is invalid');
+		// `gauntlets` (per-table) is the current shape; `gauntlet` (per-room) is
+		// the pre-tournament one, read ONLY when `gauntlets` is absent (a record
+		// this build never writes both for — see the migration below).
+		if (a.gauntlets !== undefined && !isStoredGauntlets(a.gauntlets)) throw new Error('app.gauntlets is invalid');
+		if (a.gauntlets === undefined && a.gauntlet !== undefined && a.gauntlet !== null && !isGauntletState(a.gauntlet)) {
+			throw new Error('app.gauntlet is invalid');
+		}
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
 		const mode = storedMode(a);
 		const settings = storedSettings(a.settings as Partial<RoomSettings> | undefined);
@@ -1695,7 +1713,16 @@ const appCodec: AppCodec<StoredApp> = {
 			pod: a.pod === undefined || a.pod === null ? null : (a.pod as PodRecord),
 			podPlaying: a.podPlaying === undefined ? [] : [...(a.podPlaying as string[])],
 			lockedDecks: a.lockedDecks === undefined ? {} : { ...(a.lockedDecks as Record<string, unknown>) },
-			gauntlet: (a.gauntlet as GauntletState | null | undefined) ?? null,
+			// Migrated from the pre-tournament one-per-room shape (`gauntlets`'s own
+			// doc): a record with the old field and no new one lands its single
+			// Gauntlet on `tables[0]`, the only table such a record could ever have
+			// had. Never both — `#persist` only ever writes `gauntlets` from here on.
+			gauntlets:
+				a.gauntlets !== undefined
+					? { ...(a.gauntlets as Record<string, GauntletState>) }
+					: a.gauntlet !== undefined && a.gauntlet !== null && tables.length > 0
+						? { [tables[0]!.id]: a.gauntlet as GauntletState }
+						: {},
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 		};
 	},
@@ -1848,12 +1875,12 @@ function modeLocked(room: RoomRecord): boolean {
  * the pool included, though a Ready alone does not freeze the pool.
  */
 function inPlay(room: RoomRecord): boolean {
-	return room.tables.some((t) => t.matchId !== null) || gauntletUnderWay(room.gauntlet);
+	return room.tables.some((t) => t.matchId !== null) || gauntletUnderWay(room.gauntlets);
 }
 
-/** A Gauntlet whose reveal has started, and that is not yet done. */
-function gauntletUnderWay(g: GauntletState | null): boolean {
-	return g !== null && g.phase !== 'options' && g.phase !== 'done';
+/** A Gauntlet whose reveal has started, and that is not yet done — true if ANY of the room's tables is one. */
+function gauntletUnderWay(gauntlets: Record<string, GauntletState>): boolean {
+	return Object.values(gauntlets).some((g) => g.phase !== 'options' && g.phase !== 'done');
 }
 
 /**
@@ -2008,7 +2035,7 @@ class FileLobby implements Lobby {
 			podAi: [...room.podAi],
 			podPlaying: [...room.podPlaying],
 			lockedDecks: { ...room.lockedDecks },
-			gauntlet: room.gauntlet,
+			gauntlets: { ...room.gauntlets },
 			pod:
 				room.pod === null
 					? null
@@ -2618,7 +2645,7 @@ class FileLobby implements Lobby {
 			pod: null,
 			podPlaying: [],
 			lockedDecks: {},
-			gauntlet: null,
+			gauntlets: {},
 			createdAt: now,
 			updatedAt: now,
 			members: [newMember([], caller, now)],
@@ -2828,7 +2855,7 @@ class FileLobby implements Lobby {
 			room.gameType = gameType;
 			room.mode = null;
 			room.modeOptions = null;
-			room.gauntlet = null;
+			room.gauntlets = {};
 			this.#interruptSeries(room);
 		}
 		// Readiness is readiness for a particular game: a member who readied for
@@ -2862,14 +2889,13 @@ class FileLobby implements Lobby {
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
 		if (room.gameType !== 'constructed-1v1') return { ok: false, reason: 'not-constructed' };
-		if (room.settings.tournament && tournamentUnsupported(mode.mode)) return { ok: false, reason: 'tournament-mode-unsupported' };
 		if (room.mode === mode.mode && room.modeOptions !== null && sameOptions(room.modeOptions, mode.modeOptions)) {
 			return { ok: true, room: this.#view(room) };
 		}
 		if (modeLocked(room)) return { ok: false, reason: 'mode-locked' };
 		room.mode = mode.mode;
 		room.modeOptions = { ...mode.modeOptions };
-		room.gauntlet = null;
+		room.gauntlets = {};
 		// A deck held for one mode was chosen for that mode's table, exactly as a
 		// deck held in one pool was checked in that pool.
 		this.#interruptSeries(room);
@@ -2884,7 +2910,6 @@ class FileLobby implements Lobby {
 		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
 		if (room.draftStartedAt !== null) return { ok: false, reason: 'draft-started' };
 		const next = { ...room.settings, ...settings };
-		if (next.tournament && tournamentUnsupported(room.mode)) return { ok: false, reason: 'tournament-mode-unsupported' };
 		if (SETTING_KEYS.every((k) => next[k] === room.settings[k])) return { ok: true, room: this.#view(room) };
 		room.settings = next;
 		this.#persist(room);
@@ -2981,16 +3006,36 @@ class FileLobby implements Lobby {
 		return released;
 	}
 
-	gauntlet(roomId: string): GauntletState | null {
-		return this.#rooms.get(roomId)?.gauntlet ?? null;
+	gauntlet(roomId: string, tableId?: string): GauntletState | null {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return null;
+		return room.gauntlets[tableId ?? room.tables[0]!.id] ?? null;
 	}
 
-	setGauntlet(roomId: string, gauntlet: GauntletState | null): boolean {
+	setGauntlet(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return false;
-		room.gauntlet = gauntlet;
+		const table = tableId ?? room.tables[0]!.id;
+		const next = { ...room.gauntlets };
+		if (gauntlet === null) delete next[table];
+		else next[table] = gauntlet;
+		room.gauntlets = next;
 		this.#persist(room);
 		return true;
+	}
+
+	tournamentPairingOf(roomId: string, tableId: string): { entrants: [string, string]; locked: boolean } | null {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined || !isTournamentRoom(room)) return null;
+		const pairing = room.pod?.pairings.find((p) => p.tableId === tableId);
+		if (pairing === undefined) return null;
+		const [a, b] = pairing.players;
+		// The AI's slot (if either is one) always LAST, matching the seat
+		// convention `http/gauntlet.ts`'s vs-AI ready already uses (the human is
+		// Gauntlet seat 0, the synthesized AI player seat 1) — never both: an
+		// AI-vs-AI pairing settles without a table (`#pairRound`'s own doc).
+		const entrants: [string, string] = isAiEntrant(a) ? [b, a] : [a, b];
+		return { entrants, locked: room.settings.tournamentDecks === 'locked' };
 	}
 
 	setLockedDeck(roomId: string, entrant: string, deck: unknown): boolean {
@@ -3287,7 +3332,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					podPlaying: app.podPlaying ?? [],
 					// Restored, like `podPlaying`: a tournament's locked deck(s) survive a restart with it.
 					lockedDecks: app.lockedDecks ?? {},
-					gauntlet: app.gauntlet ?? null,
+					gauntlets: app.gauntlets ?? {},
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.
