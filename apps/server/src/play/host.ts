@@ -298,6 +298,13 @@ export interface MatchSpec {
 	 */
 	scenario?: string;
 	/**
+	 * Start on {@link scenario}'s board with no coin toss and no mulligan — Forge's
+	 * own Puzzle game type, which skips both (`GameAction.startGame`). Set only by
+	 * `socket.ts` for a board-state room's own scenario; a test's scenario keeps the
+	 * ordinary opening its drivers click through.
+	 */
+	skipOpening?: boolean;
+	/**
 	 * The room's format id (`room/lobby.ts`'s `FormatId`): what a card-name ask is
 	 * narrowed to (`names.ts`). Inert in the JVM — `configFrom` never reads it — and
 	 * kept in `config.json` so a match taken back after a restart still has it.

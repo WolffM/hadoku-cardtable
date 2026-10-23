@@ -1271,6 +1271,30 @@ describe('a room table', () => {
 		expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
 		expect((await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'))).status).toBe(201);
 		expect(h.specs[0]?.scenario).toBe(scenario);
+		expect(h.specs[0]?.skipOpening).toBe(true);
+	});
+
+	// The operator, 2026-10-23: "i would have expected to see an active game
+	// here". Entering a board room starts its game: the caller is seated, dealt
+	// a library deck if they hold none, and the match opens on the board — no
+	// coin toss, no mulligan.
+	it('seats and deals the caller of a board-state room who holds no deck, and starts the AI on its board', async () => {
+		const h = await boot();
+		const room = h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
+		room.scenario = 'turn=1\nactiveplayer=human\nactivephase=MAIN1\nhumanlife=20\nailife=20\n';
+		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+		expect(res.status).toBe(201);
+		expect(h.specs[0]?.skipOpening).toBe(true);
+		expect(h.specs[0]?.seats[0].deck).toEqual(expect.any(String));
+		expect(h.specs[0]?.seats[1].deck).toEqual(expect.any(String));
+	});
+
+	it('still asks for a deck in an ordinary room — only a board room deals one', async () => {
+		const h = await boot();
+		h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
+		const res = await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'));
+		expect(res.status).toBe(409);
+		expect(h.specs).toHaveLength(0);
 	});
 
 	it('never carries a scenario onto an ordinary room’s match — `FakeRoom.scenario` absent is every room a friend ever opens', async () => {
@@ -1281,6 +1305,7 @@ describe('a room table', () => {
 		await setReady(h, 'bob');
 		expect((await startRoom(h, 'alice')).status).toBe(201);
 		expect(h.specs[0]?.scenario).toBeUndefined();
+		expect(h.specs[0]?.skipOpening).toBeUndefined();
 	});
 
 	// Lane testing-tourney, 2026-10-23: a testing room's own game never reaches

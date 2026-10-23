@@ -309,6 +309,8 @@ export interface ScenarioOptions {
 	 * `keepHands`/`passUntil` answer it exactly as they do for any other match.
 	 */
 	scenario?: string;
+	/** `MatchSpec.skipOpening`: a board room's opening — no coin toss, no mulligan. */
+	skipOpening?: boolean;
 	/**
 	 * TEST-only: what reaches the match of each bridge line — the line, a
 	 * changed one, or `null` to lose it on the way, as a frame lost between the
@@ -353,6 +355,7 @@ export async function startScenario(config: JvmHostConfig, options: ScenarioOpti
 			{ name: names[1], ai: options.aiOpponent === true, deck: options.decks[1] },
 		],
 		...(options.scenario === undefined ? {} : { scenario: options.scenario }),
+		...(options.skipOpening === undefined ? {} : { skipOpening: options.skipOpening }),
 	});
 	// Killed, not waited out: the bridge's own clean stop takes 4.4 s on a real
 	// match (measured 2026-10-06; `host.ts`, "Going down") and nothing a scenario

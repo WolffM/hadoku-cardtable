@@ -240,6 +240,15 @@ public final class PlayBridge {
     static String scenario = null;
 
     /**
+     * Optional. A board-state room's match opens on {@link #scenario}'s board with no
+     * coin toss and no mulligan: the match runs under Forge's Puzzle game type, whose
+     * only effects in {@code GameAction.startGame} are exactly those two skips (seat 0
+     * goes first; the scenario's {@code activeplayer=} still decides whose turn it is)
+     * and no sideboarding between games. {@code false} keeps the ordinary opening.
+     */
+    static boolean skipOpening = false;
+
+    /**
      * The room's hand smoothing setting: Forge's filtered hands
      * ({@code StaticData.setFilteredHandsEnabled}), which keeps the opening hand closer
      * to the deck's land ratio and weights each mulligan's redraw toward it
@@ -295,6 +304,7 @@ public final class PlayBridge {
         seed = root.has("seed") && !root.get("seed").isJsonNull() ? root.get("seed").getAsLong() : null;
         scenario = root.has("scenario") && !root.get("scenario").isJsonNull() ? root.get("scenario").getAsString() : null;
         handSmoothing = root.has("handSmoothing") && root.get("handSmoothing").getAsBoolean();
+        skipOpening = root.has("skipOpening") && root.get("skipOpening").getAsBoolean();
         chooser = root.has("chooser") && !root.get("chooser").isJsonNull() ? root.get("chooser").getAsInt() : null;
         final List<SeatConfig> seats = new ArrayList<>();
         for (final JsonElement e : root.getAsJsonArray("seats")) {
@@ -5114,13 +5124,32 @@ public final class PlayBridge {
                 @Override public void startMatch(final GameRules rules, final Set<GameType> variants,
                         final List<RegisteredPlayer> players, final Map<RegisteredPlayer, IGuiGame> guis,
                         final MusicPlaylist playlist) {
-                    rules.setWarnAboutAICards(false);
+                    final GameRules played = skipOpening ? puzzleRules(rules) : rules;
+                    played.setWarnAboutAICards(false);
                     for (final RegisteredPlayer rp : players) {
                         if (rp.getPlayer() instanceof forge.player.LobbyPlayerHuman stock && !(stock instanceof SeatPlayer)) {
                             rp.setPlayer(new SeatPlayer(stock));
                         }
                     }
-                    super.startMatch(rules, variants, players, guis, playlist);
+                    super.startMatch(played, variants, players, guis, playlist);
+                }
+
+                /** {@code rules} under Forge's Puzzle game type ({@link #skipOpening}); a game type is fixed when its rules are built. */
+                private GameRules puzzleRules(final GameRules rules) {
+                    final GameRules puzzle = new GameRules(GameType.Puzzle);
+                    puzzle.setManaBurn(rules.hasManaBurn());
+                    puzzle.setOrderCombatants(rules.hasOrderCombatants());
+                    puzzle.setPoisonCountersToLose(rules.getPoisonCountersToLose());
+                    puzzle.setGamesPerMatch(rules.getGamesPerMatch());
+                    puzzle.setPlayForAnte(rules.useAnte());
+                    puzzle.setMatchAnteRarity(rules.getMatchAnteRarity());
+                    puzzle.setAnteIncludeBasicLands(rules.getAnteIncludeBasicLands());
+                    puzzle.setSideboardForAI(rules.getSideboardForAI());
+                    puzzle.setAISideboardingEnabled(rules.getAISideboardingEnabled());
+                    puzzle.setAllowCheatShuffle(rules.isAllowCheatShuffle());
+                    puzzle.setUseGrayText(rules.useGrayText());
+                    puzzle.setSimTimeout(rules.getSimTimeout());
+                    return puzzle;
                 }
             };
             final String text = scenario;

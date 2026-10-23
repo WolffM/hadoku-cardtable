@@ -566,7 +566,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 			res.status(503).json({ error: `the server is already running ${max} matches` });
 			return;
 		}
-		const match = matches.create(parsed.spec);
+		// A board room's own board opens on the board itself: no coin toss, no mulligan (`MatchSpec.skipOpening`).
+		const match = matches.create(res.locals.trustedScenario === true ? { ...parsed.spec, skipOpening: true } : parsed.spec);
 		roomFor(match);
 		log({ evt: 'match-created', matchId: match.id, opponent: parsed.spec.seats[1].ai ? 'ai' : 'human' });
 		const running = await match.whenRunning(deps.startTimeoutMs ?? 60_000);

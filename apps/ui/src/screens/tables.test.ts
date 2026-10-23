@@ -70,4 +70,9 @@ describe('TablesClient — the table id every call takes', () => {
     await client.startVsBot('r-1', undefined, { rematch: true });
     expect(calls[3]!.body, 'a Rematch says so').toEqual({ room: 'r-1', bot: true, rematch: true });
   });
+
+  it('startVsBot: a 200 is the match already running at the table — a board room entered again opens it', async () => {
+    const running: Fetch = async () => new Response(JSON.stringify({ matchId: 'm-live' }), { status: 200, headers: { 'content-type': 'application/json' } });
+    expect(await tablesClient(running, '/api/').startVsBot('r-1')).toEqual({ ok: true, matchId: 'm-live' });
+  });
 });

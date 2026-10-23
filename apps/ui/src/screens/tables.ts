@@ -401,10 +401,9 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       return { ok: false, error: errorOf(body, status), seats: null };
     },
     startVsBot: async (roomId, tableId, opts) => {
-      // Always 201: a bot match is yours alone to start, so there is no other
-      // player's already-started match to catch up to, unlike `startRoom`.
+      // 201 started it; 200 is the match already running at this table.
       const { status, body } = await post('play/matches', withTable({ room: roomId, bot: true, ...(opts?.rematch === true ? { rematch: true } : {}) }, tableId));
-      if (status === 201 && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
+      if ((status === 201 || status === 200) && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
       return { ok: false, error: errorOf(body, status), seats: null };
     },
   };

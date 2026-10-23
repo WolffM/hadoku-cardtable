@@ -100,6 +100,24 @@ describe.skipIf(!available.ok)(title, () => {
 	);
 
 	it(
+		"a board room's opening: straight onto the board, no coin toss and no mulligan for anyone to answer",
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 1, decks: DECKS, scenario: scenarioText('tr-combat'), skipOpening: true, aiOpponent: true });
+			try {
+				// Nothing is answered: an ask for play-or-draw or a mulligan would hold this short of priority.
+				await waitUntil(() => s.prompt(0).startsWith('Priority:') && s.buttons(0)?.enable1 === true, 'priority on the board, unasked', 60_000, s);
+				expect(s.turn(0)).toEqual({ n: 4, owner: s.names[0] });
+				expect(s.phase(0)).toBe('Main phase, precombat');
+				expect(s.zone(0, 'Battlefield').map((c) => c.name).sort()).toEqual(['Boggart Brute', 'Colossal Dreadmaw', 'Forest', 'Forest', 'Grizzly Bears', 'Mountain'].sort());
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
 		'tr-protection: flying, ward (both shapes), hexproof, shroud, menace and trample on one board, including a flyer with ward on each side',
 		async () => {
 			if (!available.ok) return;

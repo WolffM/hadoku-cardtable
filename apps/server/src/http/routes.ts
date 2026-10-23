@@ -1389,6 +1389,20 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		return id === null ? null : library.deck(id)!.text;
 	}
 
+	/** Seat `me` at a board-state room's empty table with the deck they hold, or a legal library one. The reason it could not, or null. */
+	function seatOnBoard(room: RoomViewLike, tableId: string, me: string): string | null {
+		if (rooms === null) return null;
+		if (!rooms.sit(room.id, tableId, me)) return 'this table has no seat for you';
+		const mine = playersOf(rooms, room, tableId).find((p) => p.member.id === me);
+		if (mine === undefined || mine.state.deck !== null) return null;
+		const pool = effectivePoolOf(room);
+		const id = pickLibraryBotDeckId(pool, me);
+		const deck = id === null ? null : tableDeckOfLibrary(id, rulesOf(pool), me);
+		if (deck === null) return `no deck in the library is legal in ${poolName(pool)}`;
+		rooms.setPlayerState(room.id, me, { ...mine.state, deck });
+		return null;
+	}
+
 	/** A library deck, as a `TableDeck` — `checkSeat`'s own verdict, wrapped exactly as `PUT …/deck` holds one. `null` when it is not legal (should not happen for a deck this file itself picked). */
 	function tableDeckOfLibrary(deckId: string, rules: DeckRules, owner: string): TableDeck | null {
 		const verdict = checkSeat({ deck: { library: deckId }, rules }, contextFor(owner));
@@ -1858,6 +1872,18 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return;
 		}
 		let players = playersOf(rooms, room, table.id);
+		// A board-state room is entered straight into its game (the operator,
+		// 2026-10-23: "i would have expected to see an active game here"): its
+		// caller is seated and, holding no deck, dealt a legal library one —
+		// the board replaces the hand and battlefield it would have dealt.
+		if (vsBot && room.scenario !== undefined && room.pod === null && players.length === 0) {
+			const refusal = seatOnBoard(room, table.id, me);
+			if (refusal !== null) {
+				res.status(409).json({ error: refusal });
+				return;
+			}
+			players = playersOf(rooms, room, table.id);
+		}
 		if (vsBot) {
 			// One person against Forge's AI, from a room (the operator, 2026-10-02:
 			// "would be nice to be able to add a bot so i dont have to play against

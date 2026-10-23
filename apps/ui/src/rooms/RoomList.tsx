@@ -54,6 +54,8 @@ import { Icon } from '@wolffm/themes';
 import { ROOM_NAME_MAX, ROOM_PASSWORD_MAX, type ConstructedMode } from '@hadoku/shared';
 
 import { navigate } from '../screens/route.ts';
+import { tablesClient } from '../screens/tables.ts';
+import { openNewMatch } from '../play/live/matchStart.ts';
 import { warmRoom } from './warm.ts';
 import { roomFeed, type RoomFeed } from './feed.ts';
 import { playRole } from '../sound/index.ts';
@@ -226,6 +228,14 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
     setBusy(true);
     setError(null);
     const outcome = await client.join(room.id, withPassword);
+    if (outcome.ok && room.scenario !== undefined && room.pod === null) {
+      // A board-state room (no pod: a tournament's board is its round's table) opens on its game, the one already running or a new one against the AI.
+      const started = await tablesClient().startVsBot(room.id);
+      if (started.ok) {
+        openNewMatch(started.matchId);
+        return;
+      }
+    }
     if (outcome.ok) {
       // Still busy: the room is read before it is shown, so it opens drawn.
       await warmRoom(outcome.room);
