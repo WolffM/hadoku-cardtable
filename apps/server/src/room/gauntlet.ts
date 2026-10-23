@@ -202,27 +202,39 @@ export function gauntletHoldsTable(state: GauntletState): boolean {
 }
 
 /**
- * Draw the era, ten distinct decks of it and the coin flip. With no options
- * the family is drawn first, then an era of it, as a new room's random era is
- * (`lobby.ts`'s `randomFormat`), so a family with many eras does not crowd the
- * others out.
+ * The era a fresh draw opens with — the family is drawn first, then an era of
+ * it, as a new room's random era is (`lobby.ts`'s `randomFormat`), so a
+ * family with many eras does not crowd the others out. `null` when nothing
+ * eligible matches `options`.
+ *
+ * Also what a tournament's `locked` resume shows (`resumeLockedGauntlet`'s
+ * `era`, `http/gauntlet.ts`'s caller): a resumed Gauntlet draws no decks, so
+ * it has no era of its own to carry forward — this picks one to DISPLAY,
+ * the same way a fresh draw would, so the screen still reads "an era" rather
+ * than nothing.
  */
+export function pickEra(eras: readonly GauntletEraPool[], options: GauntletOptions, random: () => number): GauntletEraPool | null {
+	const eligible = eras.filter(
+		(e) => e.decks.length >= GAUNTLET_DECKS && (options.era === undefined || e.id === options.era) && (options.family === undefined || e.family === options.family),
+	);
+	if (eligible.length === 0) return null;
+	const families = [...new Set(eligible.map((e) => e.family))];
+	const family = pickOne(families, random);
+	return pickOne(
+		eligible.filter((e) => e.family === family),
+		random,
+	);
+}
+
+/** Draw the era, ten distinct decks of it and the coin flip (`pickEra`'s own doc for the era). */
 export function drawGauntlet(
 	state: GauntletState,
 	input: { players: [GauntletPlayer, GauntletPlayer]; eras: readonly GauntletEraPool[]; options: GauntletOptions; random: () => number; now: number },
 ): GauntletResult {
 	if (state.phase !== 'options') return { ok: false, reason: 'drawn' };
-	const { options, random } = input;
-	const eligible = input.eras.filter(
-		(e) => e.decks.length >= GAUNTLET_DECKS && (options.era === undefined || e.id === options.era) && (options.family === undefined || e.family === options.family),
-	);
-	if (eligible.length === 0) return { ok: false, reason: 'no-era' };
-	const families = [...new Set(eligible.map((e) => e.family))];
-	const family = pickOne(families, random);
-	const pool = pickOne(
-		eligible.filter((e) => e.family === family),
-		random,
-	);
+	const { random } = input;
+	const pool = pickEra(input.eras, input.options, random);
+	if (pool === null) return { ok: false, reason: 'no-era' };
 	const deck = [...pool.decks];
 	for (let i = 0; i < GAUNTLET_DECKS; i++) {
 		const j = i + Math.min(deck.length - i - 1, Math.floor(random() * (deck.length - i)));
