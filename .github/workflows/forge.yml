@@ -76,9 +76,13 @@ on:
         default: ''
       runs_on:
         description: >-
-          A JSON array of runner labels for this dispatch's jobs, e.g.
-          `["self-hosted","claw-4"]` — the fleet's jdk21 canary has to land on
-          the node it is testing. Empty = the usual jdk21 pool.
+          Leave this empty. It is for `fleet prove-job` only, which mints a
+          runner carrying a label unique to that one proof and passes
+          `["self-hosted","<that label>"]` here. A node name such as `claw-8`
+          is NOT a label any runner carries, so a run pinned to one queues
+          forever and pages ci:queue-health (runs 40004510183 and
+          40004506914, 2026-10-23). To land on one node, use prove-job.
+          Empty = the usual jdk21 pool.
         required: false
         default: ''
   # The full set. Every two hours (at :17) when main moved since the last
