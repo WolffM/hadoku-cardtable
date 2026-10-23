@@ -312,6 +312,8 @@ interface FakeRoom {
 	modeOptions?: RoomModeState['modeOptions'];
 	/** `Lobby.gauntlet`'s stored Gauntlet; absent reads as none. */
 	gauntlet?: GauntletState | null;
+	/** `room/lobby.ts`'s `RoomRecord.scenario` — absent is every room a friend ever opens. Mutable directly, same as `settings` above: no fake setter exists for a field only `room/testing-rooms.ts` ever sets on the real lobby. */
+	scenario?: string;
 }
 
 interface FakeLobby extends TablesRooms {
@@ -1249,6 +1251,31 @@ describe('a room table', () => {
 		expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
 		expect((await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'))).status).toBe(201);
 		expect(h.specs[0]?.handSmoothing).toBe(false);
+	});
+
+	// Lane testing-states, 2026-10-23: a board-state testing room's own
+	// `RoomRecord.scenario` rides onto the match `startFromRoom` starts — the
+	// one legitimate production path around `/api/play/matches`' own
+	// `scenario-needs-probe` gate (`play/socket.ts`), since nothing about
+	// THIS harness's `attachPlay` sets `probe: true`.
+	it("carries a board-state room's own scenario onto the match it starts vs the AI, with no CARDTABLE_PLAY_PROBE needed", async () => {
+		const h = await boot();
+		const room = h.lobby.open(ROOM, [{ id: ALICE, name: 'user-alice' }]);
+		const scenario = 'turn=1\nactiveplayer=human\nactivephase=MAIN1\nhumanlife=20\nailife=20\nhumanhand=\nhumanbattlefield=\nhumanlibrary=Mountain\nhumangraveyard=\naihand=\naibattlefield=\nailibrary=Mountain\naigraveyard=\n';
+		room.scenario = scenario;
+		expect((await putDeck(h, 'alice', deckBody(UG_POLYMORPH))).status).toBe(200);
+		expect((await start(h, { room: ROOM, bot: true }, '/api/play/matches', 'application/json', edgeHeaders('alice'))).status).toBe(201);
+		expect(h.specs[0]?.scenario).toBe(scenario);
+	});
+
+	it('never carries a scenario onto an ordinary room’s match — `FakeRoom.scenario` absent is every room a friend ever opens', async () => {
+		const h = await boot();
+		openRoom(h);
+		await bothLoaded(h);
+		await setReady(h, 'alice');
+		await setReady(h, 'bob');
+		expect((await startRoom(h, 'alice')).status).toBe(201);
+		expect(h.specs[0]?.scenario).toBeUndefined();
 	});
 
 	// The operator, 2026-10-11: "let's make it 5 max per person".

@@ -112,6 +112,14 @@ const roomFields = {
    * carries with `testing: true`", never a client-side tier check.
    */
   testing: z.boolean().catch(false),
+  /**
+   * A board-state testing room's own Forge puzzle board (`room/lobby.ts`'s
+   * `RoomRecord.scenario`, set only by `room/testing-rooms.ts`). Absent for
+   * every other room, and for a non-admin — `GET /api/rooms` omits a testing
+   * room entirely for one, same as `testing` above, so this never reaches a
+   * client that could not already see the room it belongs to.
+   */
+  scenario: z.string().optional(),
 };
 
 /**

@@ -1,0 +1,24 @@
+# "Testing: Board — Stack" (room/testing-rooms.ts): seat 1 (ai)'s own Main
+# Phase 1, its Lightning Bolt already put on the stack targeting seat 0's
+# Grizzly Bears (`aiputonstack`) — devMode's stack push hands priority to the
+# ACTIVE player first (ai), which has nothing else to add and passes, so the
+# human lands with a live priority window, the spell still unresolved
+# ("Stack: 1 to Resolve"), Counterspell in hand and two untapped Islands to
+# cast it — confirmed against real Forge (lane testing-states' probe, deleted
+# after). Waterfall Aerialist (flying + Ward 2) sits on the human's board,
+# untouched by the Bolt, so the ward trigger itself can be exercised
+# separately from the counter-or-not decision this stack is for.
+turn=3
+activeplayer=ai
+activephase=MAIN1
+humanlife=18
+ailife=16
+humanhand=Counterspell
+humanbattlefield=Island;Island;Grizzly Bears|Id:501;Waterfall Aerialist
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain;Mountain;Boggart Brute
+aiputonstack=Lightning Bolt->501
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

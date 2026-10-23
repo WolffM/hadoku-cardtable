@@ -316,6 +316,16 @@ interface CreateRoomInput {
 	 * `false` is every room a friend ever creates.
 	 */
 	testing?: boolean;
+	/**
+	 * A board-state testing room's own Forge puzzle `[state]` text
+	 * (`room/testing-rooms.ts`), set the same way `testing` is: no field for it
+	 * in `CreateRoomBodySchema`, so no CREATE body a client sends — admin or
+	 * not — can ever set one. It DOES ride on `RoomView` (`viewOf`, below) once
+	 * set, same as `testing` itself — harmless, since a non-admin cannot reach
+	 * a testing room at all. `http/routes.ts`'s `startFromRoom` is what reads
+	 * it back onto a match.
+	 */
+	scenario?: string;
 }
 
 type CreateResult =
@@ -1437,6 +1447,8 @@ interface RoomRecord {
 	gauntlets: Record<string, GauntletState>;
 	/** A seeded, admin-only room (`room/testing-rooms.ts`). Never swept, never stale (`sweep`, `offered`), and `close()` bypasses the leader check for it. */
 	testing: boolean;
+	/** A board-state testing room's own scenario (`CreateRoomInput.scenario`'s doc). Absent for every room that is not one. */
+	scenario?: string;
 	createdAt: number;
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
 	updatedAt: number;
@@ -1504,6 +1516,8 @@ interface StoredApp {
 	gauntlets?: Record<string, GauntletState>;
 	/** Absent for a room written before testing rooms existed, which reads back `false` — every such room is an ordinary one. */
 	testing?: boolean;
+	/** Absent for a room written before board-state testing rooms existed, or that is not one: every such room has no scenario. */
+	scenario?: string;
 	secret: Secret | null;
 }
 
@@ -1699,6 +1713,7 @@ const appCodec: AppCodec<StoredApp> = {
 			throw new Error('app.gauntlet is invalid');
 		}
 		if (a.testing !== undefined && typeof a.testing !== 'boolean') throw new Error('app.testing is invalid');
+		if (a.scenario !== undefined && typeof a.scenario !== 'string') throw new Error('app.scenario is invalid');
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
 		const mode = storedMode(a);
 		const settings = storedSettings(a.settings as Partial<RoomSettings> | undefined);
@@ -1755,6 +1770,7 @@ const appCodec: AppCodec<StoredApp> = {
 						: {},
 			// Absent is a room written before testing rooms existed: every such room is an ordinary one.
 			testing: a.testing === true,
+			...(a.scenario === undefined ? {} : { scenario: a.scenario as string }),
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 		};
 	},
@@ -1831,6 +1847,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		ai: roomAi(room),
 		createdAt: new Date(room.createdAt).toISOString(),
 		testing: room.testing,
+		...(room.scenario === undefined ? {} : { scenario: room.scenario }),
 	};
 }
 
@@ -2082,6 +2099,7 @@ class FileLobby implements Lobby {
 			lockedDecks: { ...room.lockedDecks },
 			gauntlets: { ...room.gauntlets },
 			testing: room.testing,
+			...(room.scenario === undefined ? {} : { scenario: room.scenario }),
 			pod:
 				room.pod === null
 					? null
@@ -2713,6 +2731,7 @@ class FileLobby implements Lobby {
 			lockedDecks: {},
 			gauntlets: {},
 			testing: input.testing === true,
+			...(input.scenario === undefined ? {} : { scenario: input.scenario }),
 			createdAt: now,
 			updatedAt: now,
 			members: [newMember([], caller, now)],
@@ -3442,6 +3461,7 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// Restored, like every other room-level flag: a restart never turns
 					// a testing room into an ordinary one or back.
 					testing: app.testing === true,
+					...(app.scenario === undefined ? {} : { scenario: app.scenario }),
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.

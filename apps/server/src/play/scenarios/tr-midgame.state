@@ -1,0 +1,19 @@
+# "Testing: Board — Midgame" (room/testing-rooms.ts): the operator, 2026-10-23,
+# wants "more complex board states … so i can validate the ui and game actions
+# better" — a turn-6 position with both sides built out: lands, creatures
+# tapped and untapped, an equipped creature, an enchanted one, a +1/+1
+# counter, a token, a planeswalker at non-starting loyalty, cards in both
+# hands and both graveyards, and life totals that are not the default 20.
+turn=6
+activeplayer=human
+activephase=MAIN1
+humanlife=14
+ailife=11
+humanhand=Lightning Bolt;Giant Growth
+humanbattlefield=Forest;Island;Grizzly Bears|Tapped;Llanowar Elves|Id:301|Counters:P1P1=1;Bonesplitter|AttachedTo:301;Hill Giant|Id:302;Rancor|AttachedTo:302;Elspeth, Sun's Champion|Counters:LOYALTY=5;T:w_1_1_soldier
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=Mountain;Lightning Bolt
+aihand=Shock
+aibattlefield=Mountain;Swamp|Tapped;Boggart Brute|Id:401|Tapped;Colossal Dreadmaw|Id:402|Counters:P1P1=1;T:r_1_1_goblin
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=Forest;Shock

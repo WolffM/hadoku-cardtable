@@ -258,6 +258,8 @@ export interface RoomViewLike {
 	pod: { phase: string; results?: readonly { playerA: string; playerB: string | null }[] } | null;
 	/** A seeded, admin-only testing room (`room/lobby.ts`'s `RoomRecord.testing`). Absent on a registry that predates testing rooms, same as every other flag here — reads as `false`. */
 	testing?: boolean;
+	/** A board-state testing room's own scenario (`room/lobby.ts`'s `RoomRecord.scenario`). Absent for every other room. `startFromRoom`'s only reader. */
+	scenario?: string;
 }
 
 /** The subset of `room/lobby.ts`'s `Lobby` a table uses. */
@@ -2050,6 +2052,16 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			return answer(payload);
 		}) as typeof res.json;
 
+		// A board-state testing room's own scenario (`room/lobby.ts`'s
+		// `RoomRecord.scenario`): never from this request's body — there is no
+		// field for it in `startFromRoom`'s own allow-list above — only from the
+		// room, which only `room/testing-rooms.ts` can ever set it on. Marked
+		// trusted on `res.locals` (never JSON, so no client can forge it) for
+		// `play/socket.ts`'s probe gate, the one legitimate production path
+		// around "a scenario is a TEST facility, never a production one".
+		const scenario = room.scenario;
+		if (scenario !== undefined) res.locals.trustedScenario = true;
+
 		// Play's own body. Each deck is the text its own player's rule checked. No
 		// avatars: a seat's face is read from this room for as long as the match
 		// runs (`seatAvatar`), so the match never holds a copy that could go stale.
@@ -2064,6 +2076,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				format: pool,
 				handSmoothing: room.settings.handSmoothing,
 				...(chooser === undefined ? {} : { chooser }),
+				...(scenario === undefined ? {} : { scenario }),
 			};
 			next();
 			return;
@@ -2079,6 +2092,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			format: pool,
 			handSmoothing: room.settings.handSmoothing,
 			...(chooser === undefined ? {} : { chooser }),
+			...(scenario === undefined ? {} : { scenario }),
 		};
 		next();
 	}
