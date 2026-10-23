@@ -67,7 +67,12 @@
   outline: none;
 }
 
-.pod-bracket__match:has(> .pod-bracket__hit:hover),
+/*
+ * Lit while pressed, or reached by keyboard — never on a pointer passing over it: the operator, 2026-10-23,
+ * *"its a little painful to scroll through the list and see it activate constantly. can we have that only
+ * happen on click?"*. The pointer cursor still says it is a way in.
+ */
+.pod-bracket__match:has(> .pod-bracket__hit:active),
 .pod-bracket__match:has(> .pod-bracket__hit:focus-visible) {
   border-color: var(--color-primary);
   background: var(--color-bg-hover);

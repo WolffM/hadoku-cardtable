@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -159,5 +160,14 @@ describe('PodBracket', () => {
   it('names each round’s bye, with no "(you)" beside my name', () => {
     render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-eve', nameOf, avatarOf }));
     expect(screen.getAllByTestId('pod-tables-bye').map((b) => b.querySelector('.pod-bracket__name')?.textContent)).toEqual(['Carol', 'u-eve']);
+  });
+});
+
+describe('PodBracket.css', () => {
+  it('lights a live card only while it is pressed or keyboard-focused, never under a passing pointer', () => {
+    const css = readFileSync('apps/ui/src/screens/pod/PodBracket.css', 'utf8');
+    expect(css).not.toMatch(/pod-bracket__hit:hover/);
+    expect(css).toMatch(/pod-bracket__hit:active/);
+    expect(css).toMatch(/pod-bracket__hit:focus-visible\)/);
   });
 });
