@@ -37,8 +37,8 @@
  * `attachRooms`.
  */
 
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { Caller, Lobby } from './lobby.ts';
@@ -68,10 +68,22 @@ interface TestingRoomSpec {
  * `e2e/play/scenario.ts` read; `scenario.ts` next door is NOT read here
  * instead — it is a vitest-only test helper (a module-level `afterEach`),
  * never safe to import from code the production server boots).
+ *
+ * Two candidates, same trick `play/host.ts`'s `defaultBridgeSource` uses for
+ * `PlayBridge.java`: under `tsx`/vitest this file runs from
+ * `src/room/testing-rooms.ts`, one level above `src/play/scenarios/`; in the
+ * esbuild bundle it is ONE file at `dist/index.js`, which collapses that
+ * depth — `../play/scenarios` from there resolves to a `play/scenarios` that
+ * does not exist (an e2e run on the real built server, proof run 40008992625,
+ * is what caught this: `ENOENT …/apps/server/play/scenarios/…`). The second
+ * candidate goes back up to the package's own `src/`, which still exists on
+ * disk next to a built `dist/` — nothing deletes it.
  */
 function scenarioText(name: string): string {
 	const here = dirname(fileURLToPath(import.meta.url));
-	return readFileSync(join(here, '..', 'play', 'scenarios', `${name}.state`), 'utf8');
+	const candidates = [join(here, '..', 'play', 'scenarios', `${name}.state`), resolve(here, '..', 'src', 'play', 'scenarios', `${name}.state`)];
+	const path = candidates.find((p) => existsSync(p)) ?? candidates[0]!;
+	return readFileSync(path, 'utf8');
 }
 
 /** A board-state room's own gameType/mode: Classic Constructed, no tournament — one admin starts it against the AI from its own table. */
