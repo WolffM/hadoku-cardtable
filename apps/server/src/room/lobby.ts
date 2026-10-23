@@ -2702,6 +2702,9 @@ class FileLobby implements Lobby {
 		if (secret !== undefined && !passwordMatches(secret, password ?? '')) {
 			return { ok: false, reason: 'no-match' };
 		}
+		// An emptied room's leader left with everyone else: whoever comes in
+		// first leads it (a seeded testing room is empty from the start).
+		if (room.members.length === 0) room.leader = caller.id;
 		room.members.push(newMember(room.members, caller, this.#now()));
 		this.#persist(room);
 		this.#log({ event: 'room-joined', roomId, members: room.members.length });
@@ -3000,10 +3003,8 @@ class FileLobby implements Lobby {
 	close(roomId: string, callerId: string): CloseRoomResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		// A testing room's leader is its synthetic system creator, which no real
-		// caller ever is — so for a testing room this check is bypassed, and any
-		// member (already admin-gated and already a member, both checked at the
-		// HTTP layer before this is ever called) may close it.
+		// Any admin in a testing room may close (reset) it, leader or not: the
+		// HTTP layer has already checked admin and membership.
 		if (room.leader !== callerId && !room.testing) return { ok: false, reason: 'not-leader' };
 		this.#archive(room);
 		const matches = room.tables.flatMap((t) => (t.matchId === null ? [] : [t.matchId]));

@@ -16,13 +16,12 @@
  * ## Who "creates" them
  *
  * `Lobby.create` requires a durable caller (`isDurableParticipantId`), so
- * every seeded room is created and led by `TESTING_SEED_CALLER`, a
- * synthetic `dev:` identity nobody's browser can ever present. That also
- * means every seeded room keeps exactly one member for its whole life
- * (`offered()`'s "an empty room is hidden at once" rule never applies to it —
- * `room/lobby.ts`'s `testing` bypass) and that `close()` bypasses the
- * leader check for a testing room specifically, since no real admin IS
- * `TESTING_SEED_CALLER` (`room/lobby.ts`'s own doc on `close`).
+ * every seeded room is created by `TESTING_SEED_CALLER`, a synthetic `dev:`
+ * identity nobody's browser can ever present, which leaves once the room is
+ * set up. The room starts empty (`offered()`'s "an empty room is hidden"
+ * rule never applies to it — `room/lobby.ts`'s `testing` bypass), the first
+ * admin to join leads it (`join`), and any admin in it may close it
+ * (`close`'s `testing` bypass).
  *
  * ## The set-draft room needs a catalog
  *
@@ -107,6 +106,7 @@ function seedOne(lobby: Lobby, spec: TestingRoomSpec, log: (entry: Record<string
 		const settled = lobby.setSettings(result.room.id, TESTING_SEED_CALLER.id, spec.settings);
 		if (!settled.ok) log({ event: 'testing-room-settings-failed', name: spec.name, reason: settled.reason });
 	}
+	lobby.leave(result.room.id, TESTING_SEED_CALLER.id);
 	log({ event: 'testing-room-seeded', name: spec.name, roomId: result.room.id });
 }
 
@@ -138,6 +138,7 @@ async function seedSetDraft(deps: TestingRoomsDeps, log: (entry: Record<string, 
 		return;
 	}
 	const set = deps.lobby.setPodPlan(created.room.id, TESTING_SEED_CALLER.id, plan, verdict);
+	deps.lobby.leave(created.room.id, TESTING_SEED_CALLER.id);
 	if (!set.ok) log({ event: 'testing-room-plan-failed', name: TESTING_SET_DRAFT_NAME, reason: set.reason });
 	else log({ event: 'testing-room-seeded', name: TESTING_SET_DRAFT_NAME, roomId: created.room.id, code });
 }

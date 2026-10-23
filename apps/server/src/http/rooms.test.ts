@@ -2620,6 +2620,21 @@ describe('testing rooms (admin only, seeded)', () => {
 		expect((adminGet.json() as { testing: boolean }).testing).toBe(true);
 	});
 
+	it('is the admin’s to run: the seeding account is not a member, and the first to join leads it', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby, log: () => {} });
+		const admin = { headers: { 'x-hadoku-tier': 'admin' } };
+		const listed = (await call(h, 'GET', '/api/rooms', admin)).json() as { rooms: { id: string; name: string; testing: boolean }[] };
+		const room = listed.rooms.find((r) => r.name === 'Testing: Constructed 1v1 (Classic)')!;
+		expect(h.lobby.get(room.id)?.members, 'nobody is in a seeded room').toEqual([]);
+
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/join`, admin)).status).toBe(200);
+		const joined = h.lobby.get(room.id)!;
+		expect(joined.members.map((m) => m.id)).toEqual([joined.leader]);
+		const patched = await call(h, 'PATCH', `/api/rooms/${room.id}`, { ...admin, body: { settings: { tournament: true } } });
+		expect(patched.status, patched.text).toBe(200);
+	});
+
 	it('boots idempotently: seeding twice on the same store never duplicates a room', async () => {
 		const dir = await tempDir();
 		const first = await openFullApp(dir);
