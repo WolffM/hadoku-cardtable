@@ -83,7 +83,7 @@ describe('/api/trim', () => {
 	it('nobody below admin writes it', async () => {
 		const file = await trimFile();
 		const base = await openApp(file);
-		for (const tier of ['friend', 'service', 'wife']) expect((await call(base, 'PUT', tier, { trim: { frame: 'hud' } })).status).toBe(403);
+		for (const tier of edgeMod.TIER_ORDER.slice(1, edgeMod.TIER_ORDER.indexOf('admin'))) expect((await call(base, 'PUT', tier, { trim: { frame: 'hud' } })).status).toBe(403);
 		expect((await call(base, 'GET', 'friend')).json.trim).toBeNull();
 	});
 
