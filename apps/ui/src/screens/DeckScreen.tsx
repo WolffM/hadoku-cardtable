@@ -182,7 +182,9 @@ export function DeckScreen({
       if (mine.matchId !== null) return followMatchOnce(mine.matchId, false);
       const started = await startMyTable(draftId, mine);
       if (started.ok && started.matchId !== null) openNewMatch(started.matchId);
-      else toRoom();
+      // The other player's table page started it in the same moment, or it is still to start: my table's
+      // page follows its game in. The hub would not carry me there, since the table counts as visited.
+      else navigate({ kind: 'room', roomId: draftId, tableId: mine.id });
     })().catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));
   };
 
