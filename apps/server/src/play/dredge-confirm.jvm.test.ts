@@ -13,6 +13,9 @@
  *   pnpm exec vitest run apps/server/src/play/dredge-confirm.jvm.test.ts --pool=forks --poolOptions.forks.singleFork=true
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_STOP_POLICY } from './auto.js';
@@ -67,6 +70,14 @@ describe.skipIf(!available.ok)(title, () => {
           .slice(-6);
         console.log(`[dredge] bridge's own last window frames: ${JSON.stringify(raw)}`);
         console.log(`[dredge] server log tail: ${JSON.stringify(s.logs.slice(-12))}`);
+        const stderr = (() => {
+          try {
+            return readFileSync(join(s.workDir, s.match.id, 'bridge.stderr.txt'), 'utf8');
+          } catch (err) {
+            return `unreadable: ${String(err)}`;
+          }
+        })();
+        console.log(`[dredge] bridge stderr tail:\n${stderr.split('\n').slice(-40).join('\n')}`);
         const imp = s.zone(0, 'Graveyard').find((c) => c.name === 'Stinkweed Imp');
         expect(imp, 'the Imp is in her graveyard').toBeDefined();
         expect(s.prompt(0), 'the question is the dredge’s own').toMatch(/Stinkweed Imp/);
