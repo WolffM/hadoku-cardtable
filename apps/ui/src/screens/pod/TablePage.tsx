@@ -17,7 +17,7 @@
  * Per-type differences are inputs only: the slot, `canStart` and `ready`.
  */
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import type { RoomTable } from '@hadoku/shared';
 
 import { Avatar } from '../../components/Avatar.tsx';
@@ -28,7 +28,9 @@ import { TableSideboard } from '../TableSideboard.tsx';
 import type { TablesClient } from '../tables.ts';
 import { useTableStart } from './client.ts';
 import { ReadyToggle } from './ReadyToggle.tsx';
+import { REVEAL_ME_AT_MS, REVEAL_SEAT_MS, REVEAL_THEM_AT_MS, REVEAL_TITLE_MS, useOpponentReveal } from './opponentReveal.ts';
 import { isPodAi, type PodView } from './wire.ts';
+import '../gauntlet/gauntlet.css';
 import './PodSeats.css';
 
 /** A table's start that waits on its seats' Ready, by table seat. */
@@ -68,11 +70,13 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
   const mine = table !== undefined && table.players.some((p) => p.memberId === myMemberId);
   const current = table !== undefined && (pod === null || (pod.phase === 'rounds' && pod.pairings.some((p) => p.tableId === table.id)));
   const { error, retry } = useTableStart(roomId, mine && current ? table : undefined, canStart);
+  // A round's opponent is revealed to its players; a plain room's one table has no round to reveal.
+  const revealing = useOpponentReveal(pod !== null && mine && current ? (table?.id ?? null) : null);
 
   const matchId = table?.matchId ?? null;
   useEffect(() => {
-    if (matchId !== null) followMatchOnce(matchId, false);
-  }, [matchId]);
+    if (matchId !== null && !revealing) followMatchOnce(matchId, false);
+  }, [matchId, revealing]);
 
   if (table === undefined) return null;
   const sideboarding = mine && matchId === null && table.series.phase === 'sideboarding';
@@ -84,11 +88,19 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
   const heading = pod === null ? null : pod.phase === 'done' ? 'Standings' : `Round ${pod.round} of ${pod.rounds}`;
   return (
     <div className="pod__room">
-      <div className="pod__rounds" data-testid="table-page" data-table-id={table.id} data-phase={table.series.phase}>
+      <div
+        className="pod__rounds"
+        data-testid="table-page"
+        data-table-id={table.id}
+        data-phase={table.series.phase}
+        data-revealing={revealing || undefined}
+        style={{ '--title-ms': `${REVEAL_TITLE_MS}ms`, '--reveal-me-at': `${REVEAL_ME_AT_MS}ms`, '--reveal-them-at': `${REVEAL_THEM_AT_MS}ms`, '--reveal-seat-ms': `${REVEAL_SEAT_MS}ms` } as CSSProperties}
+      >
         <div className="lobby__deckhead">
           <span className="table-page__title">
+            {heading !== null && <h2 data-testid="table-round">{heading}</h2>}
             <a
-              className="button"
+              className="shell__link"
               data-testid="table-hub"
               href={routeHash({ kind: 'room', roomId })}
               onClick={(e) => {
@@ -96,9 +108,8 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
                 navigate({ kind: 'room', roomId });
               }}
             >
-              Back to lobby
+              ← Lobby
             </a>
-            {heading !== null && <h2 data-testid="table-round">{heading}</h2>}
           </span>
           {matchId !== null && (
             <a className="lobby__go" data-testid="table-match-link" href={routeHash({ kind: 'match', matchId })}>
@@ -126,7 +137,7 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
               );
             })}
           </ul>
-          {ready !== undefined && mine && current && mySeat >= 0 && (
+          {!revealing && ready !== undefined && mine && current && mySeat >= 0 && (
             <ReadyToggle ready={ready.seats[mySeat] === true} disabled={ready.disabled} onReady={ready.onReady} />
           )}
         </div>
@@ -138,7 +149,7 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
             </button>
           </div>
         )}
-        {sideboarding ? (
+        {revealing ? null : sideboarding ? (
           <TableSideboard key={`${table.id}:${table.series.games.length}`} roomId={roomId} tableId={table.id} refresh={refresh} tables={tables} />
         ) : (
           mine && current && matchId === null && children

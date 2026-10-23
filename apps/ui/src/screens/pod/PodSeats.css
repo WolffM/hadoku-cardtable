@@ -193,3 +193,50 @@
   margin: 0;
   font-size: 18px;
 }
+
+/*
+ * A round's opponent, revealed (`opponentReveal.ts`): the round's title lands as a Gauntlet's era does
+ * (`gauntlet.css`'s `gauntlet-title`), my seat comes in from its side, then the other seat lands from
+ * its own with a pop. The beats are `opponentReveal.ts`'s, set on the page as custom properties.
+ */
+.pod__rounds[data-revealing] [data-testid='table-round'] {
+  animation: gauntlet-title var(--title-ms) cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+
+.pod__rounds[data-revealing] .pod-seats--table .pod-seats__seat {
+  animation: table-reveal-seat var(--reveal-seat-ms) cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+
+.pod__rounds[data-revealing] .pod-seats--table .pod-seats__seat[data-mine] {
+  animation-delay: var(--reveal-me-at);
+}
+
+.pod__rounds[data-revealing] .pod-seats--table .pod-seats__seat:not([data-mine]) {
+  animation-delay: var(--reveal-them-at);
+}
+
+.pod__rounds[data-revealing] .pod-seats--table .pod-seats__seat:first-child {
+  --reveal-from: -48px;
+}
+
+.pod__rounds[data-revealing] .pod-seats--table .pod-seats__seat:last-child {
+  --reveal-from: 48px;
+}
+
+@keyframes table-reveal-seat {
+  from {
+    opacity: 0;
+    transform: translateX(var(--reveal-from, 0)) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pod__rounds[data-revealing] [data-testid='table-round'],
+  .pod__rounds[data-revealing] .pod-seats--table .pod-seats__seat {
+    animation: none;
+  }
+}

@@ -3,7 +3,8 @@
  * A room's rounds: the hub (the round, the bracket, the standings) and one
  * table's page (its seats, my step before the game, the start, the match).
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { RoomTable } from '@hadoku/shared';
@@ -11,6 +12,7 @@ import type { RoomTable } from '@hadoku/shared';
 import { forgetMatchesFollowed } from '../../play/live/matchStart.ts';
 import { navigate, parseRoute } from '../route.ts';
 import { RoomHub } from './RoomHub.tsx';
+import { forgetOpponentsRevealed, REVEAL_MS } from './opponentReveal.ts';
 import { TablePage, type TableReady } from './TablePage.tsx';
 import { POD_SEATS, type PodView } from './wire.ts';
 
@@ -84,7 +86,17 @@ describe('RoomHub', () => {
   });
 });
 
+/** The viewer's motion preference, as `prefersReducedMotion` reads it. */
+const motion = (reduced: boolean) => vi.stubGlobal('matchMedia', (q: string) => ({ matches: reduced && q.includes('reduce') }));
+
 describe('TablePage', () => {
+  // The round's opponent reveal draws its end state, so each case below reads the page it settles on.
+  beforeEach(() => motion(true));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    forgetOpponentsRevealed();
+  });
   const page = (over: { pod?: PodView; table?: RoomTable | undefined; me?: string; canStart?: boolean; slot?: boolean; ready?: TableReady } = {}) =>
     render(
       createElement(
@@ -122,12 +134,13 @@ describe('TablePage', () => {
     expect(screen.getByTestId('table-hub').getAttribute('href')).toBe(`#/room/${ROOM}`);
   });
 
-  it('heads the page with its round, and the way back to the lobby is a button of its own beside it', () => {
+  it('heads the page with its round, and the way back to the lobby is the plain ← Lobby link on its right', () => {
     posts();
     page();
     expect(screen.getByTestId('table-round').textContent).toBe('Round 1 of 2');
-    expect(screen.getByTestId('table-hub').textContent).toBe('Back to lobby');
-    expect(screen.getByTestId('table-hub').contains(screen.getByTestId('table-round'))).toBe(false);
+    expect(screen.getByTestId('table-hub').textContent).toBe('← Lobby');
+    expect(screen.getByTestId('table-hub').className).toBe('shell__link');
+    expect(screen.getByTestId('table-round').nextElementSibling).toBe(screen.getByTestId('table-hub'));
   });
 
   it('draws an AI entrant in its table seat, the last, by its own name, whichever side the pairing names it', () => {
@@ -198,5 +211,58 @@ describe('TablePage', () => {
     navigate({ kind: 'room', roomId: ROOM, tableId: 't-9' });
     page({ table: undefined });
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
+  });
+
+  it('reveals a round’s opponent before the step before the game: title and seats animate, then the Ready and the step', () => {
+    motion(false);
+    posts();
+    vi.useFakeTimers();
+    const onReady = vi.fn();
+    page({ ready: { seats: [false, false], disabled: false, onReady } });
+    expect(screen.getByTestId('table-page').hasAttribute('data-revealing')).toBe(true);
+    expect(screen.getAllByTestId(/^table-seat-\d$/)).toHaveLength(2);
+    expect(screen.queryByTestId('ready-toggle')).toBeNull();
+    expect(screen.queryByTestId('stand-in-step')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(REVEAL_MS);
+    });
+    expect(screen.getByTestId('table-page').hasAttribute('data-revealing')).toBe(false);
+    expect(screen.getByTestId('ready-toggle')).not.toBeNull();
+    expect(screen.getByTestId('stand-in-step')).not.toBeNull();
+  });
+
+  it('reveals a table once per page: back on it, the end state', () => {
+    motion(false);
+    posts();
+    vi.useFakeTimers();
+    page();
+    act(() => {
+      vi.advanceTimersByTime(REVEAL_MS);
+    });
+    cleanup();
+    page();
+    expect(screen.getByTestId('table-page').hasAttribute('data-revealing')).toBe(false);
+  });
+
+  it('reveals nothing to a watcher, nor on a plain room’s one table', () => {
+    motion(false);
+    posts();
+    page({ me: 'u-carol' });
+    expect(screen.getByTestId('table-page').hasAttribute('data-revealing')).toBe(false);
+    cleanup();
+    render(createElement(TablePage, { roomId: ROOM, pod: null, table: table(), myMemberId: 'u-alice', nameOf, avatarOf, refresh: null }));
+    expect(screen.getByTestId('table-page').hasAttribute('data-revealing')).toBe(false);
+  });
+
+  it('follows into the table’s game only once the reveal is over', () => {
+    motion(false);
+    posts();
+    vi.useFakeTimers();
+    page({ table: table({ matchId: 'm-0000000000aa' }) });
+    expect(parseRoute(location.hash).kind).not.toBe('match');
+    act(() => {
+      vi.advanceTimersByTime(REVEAL_MS);
+    });
+    expect(parseRoute(location.hash)).toEqual({ kind: 'match', matchId: 'm-0000000000aa' });
   });
 });
