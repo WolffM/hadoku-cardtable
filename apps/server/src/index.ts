@@ -75,7 +75,8 @@ import { podPickNumber } from '@hadoku/draft';
 import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
-import { createDraftRooms, DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
+import { restoreRooms, sweepRooms } from './boot.js';
+import { DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
 import { checkCards, checkPlan } from './room/plan.js';
 import type { DraftPlan, PoolVerdict } from '@hadoku/shared';
 import { busyHandler } from './busy.js';
@@ -101,7 +102,7 @@ import { createCatalogRefresh } from './pools/refresh.js';
 import { loadCardCatalog } from './pools/catalog.js';
 import { createForgePools, type ForgePools } from './pools/forge.js';
 import { serveCover } from './cover.js';
-import { newestFormat, openLobby } from './room/lobby.js';
+import { newestFormat } from './room/lobby.js';
 import { openTournaments } from './room/tournaments.js';
 import { jsonLogger } from './log.js';
 import { createKeyBook, createMatchStats, createStatsReporter } from './stats/index.js';
@@ -461,17 +462,48 @@ const defaultCubeCards = cubeStore.cards(DEFAULT_CUBE_ID) ?? null;
 const checkDraftPlan = (plan: DraftPlan): Promise<PoolVerdict> =>
 	checkPlan(plan, { cubes: cubeStore, sets: setsStore, forge: forgePools, uncheckedWithoutJar: CONFIG.testUncheckedPools });
 
-const lobby = await openLobby({
-	dir: CONFIG.roomsDir,
-	formats: library.formats,
-	...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat(library.formats) } : {}),
+// A disconnected drafter keeps their seat for DISCONNECT_GRACE_MS before it is
+// vacated and held, so a browser refresh — whose old socket closes BEFORE the
+// new one joins — is invisible to the rest of the pod instead of a seat that
+// blinks `held` and back. Wave 10 measured that close-to-join gap at ~36 ms on
+// loopback; five seconds covers a reload through the edge and a slow bundle
+// fetch with room to spare, and delays announcing a genuine drop by an amount
+// nobody waiting on a pick will notice. See draftRooms.ts's header.
+const DISCONNECT_GRACE_MS = 5_000;
+const draftPolicy = draftEmitPolicy(jsonLogger('cardtable-draft'));
+// The rooms and drafts an earlier process left, read back and settled (`boot.ts`): a deploy
+// mid-pod resumes it, a draft room whose draft did not come back goes back to its lobby, and the
+// idle rooms are swept.
+const { lobby, draftRooms } = await restoreRooms({
+	lobby: {
+		dir: CONFIG.roomsDir,
+		formats: library.formats,
+		...(newRoomFormat === 'newest' ? { defaultFormat: newestFormat(library.formats) } : {}),
+		log: roomsLog,
+		onTournament: (t) => tournaments.record(t),
+		onSeriesEnd: (end) => matchStats.seriesEnd(end),
+		// A room's plan checks itself in the background (new; restored with a null
+		// verdict) — the same function PUT …/pod/plan runs. See lobby.ts's
+		// OpenLobbyOptions.checkPlan and #ensurePlanChecked.
+		checkPlan: checkDraftPlan,
+	},
+	drafts:
+		cubeStore.list().length > 0
+			? {
+					resolver: poolResolver,
+					defaultPlan: DEFAULT_PLAN,
+					params: { disconnectGraceMs: DISCONNECT_GRACE_MS },
+					// The grace ran out: the seat was vacated on a timer, with no socket
+					// event to answer, so the broadcast is made here.
+					onDeferredChange: (room) => emitDraftUpdate(io, room, draftPolicy),
+					// Same convention as CARDTABLE_ROOMS_DIR/CARDTABLE_SOUNDS_DIR below: a
+					// 45-minute draft must survive this process restarting on every push
+					// to main. `storeDir`'s own doc on why the default is OFF rather than
+					// computing this inline.
+					storeDir: CONFIG.draftsDir,
+				}
+			: null,
 	log: roomsLog,
-	onTournament: (t) => tournaments.record(t),
-	onSeriesEnd: (end) => matchStats.seriesEnd(end),
-	// A room's plan checks itself in the background (new; restored with a null
-	// verdict) — the same function PUT …/pod/plan runs. See lobby.ts's
-	// OpenLobbyOptions.checkPlan and #ensurePlanChecked.
-	checkPlan: checkDraftPlan,
 });
 // A plan name read before the set names warmed showed the bare code; every
 // draft room is read again once they arrive. Wired before `listen`, so no
@@ -518,9 +550,7 @@ attachRooms(api, {
 	// Wave 74 §E step 2: `POST …/start` fetches a realistic round's boosters
 	// and caches them on `draftRooms` BEFORE `lobby.startDraft` ever runs, so
 	// `draftRooms.open()` (the first socket `join`'s own call) stays
-	// synchronous. `draftRooms` is built below, after `poolResolver` — this
-	// object is a closure, read lazily the first time `/start` actually needs
-	// it, so the forward reference resolves once `draftRooms` is assigned.
+	// synchronous.
 	realistic: {
 		forge: forgePools,
 		catalog,
@@ -550,34 +580,6 @@ const io = new SocketIOServer(httpServer, {
 	serveClient: false,
 });
 
-// A disconnected drafter keeps their seat for DISCONNECT_GRACE_MS before it is
-// vacated and held, so a browser refresh — whose old socket closes BEFORE the
-// new one joins — is invisible to the rest of the pod instead of a seat that
-// blinks `held` and back. Wave 10 measured that close-to-join gap at ~36 ms on
-// loopback; five seconds covers a reload through the edge and a slow bundle
-// fetch with room to spare, and delays announcing a genuine drop by an amount
-// nobody waiting on a pick will notice. See draftRooms.ts's header.
-const DISCONNECT_GRACE_MS = 5_000;
-const draftPolicy = draftEmitPolicy(jsonLogger('cardtable-draft'));
-const draftRooms = cubeStore.list().length > 0
-	? createDraftRooms({
-			resolver: poolResolver,
-			defaultPlan: DEFAULT_PLAN,
-			params: { disconnectGraceMs: DISCONNECT_GRACE_MS },
-			// The grace ran out: the seat was vacated on a timer, with no socket
-			// event to answer, so the broadcast is made here.
-			onDeferredChange: (room) => emitDraftUpdate(io, room, draftPolicy),
-			// Same convention as CARDTABLE_ROOMS_DIR/CARDTABLE_SOUNDS_DIR below: a
-			// 45-minute draft must survive this process restarting on every push
-			// to main. `storeDir`'s own doc on why the default is OFF rather than
-			// computing this inline.
-			storeDir: CONFIG.draftsDir,
-		})
-	: null;
-// A deploy mid-pod resumes it: the lobby restored the room's pod, the registry
-// its draft. A room whose draft did not come back goes back to its lobby.
-const lostDrafts = lobby.releaseLostDrafts((roomId) => draftRooms?.find(roomId) !== undefined);
-if (lostDrafts.length > 0) roomsLog({ event: 'drafts-lost', rooms: lostDrafts });
 attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier, botPickMs: CONFIG.draftBotPickMs });
 // Every room write, pushed to the screens that have the room (or the list) open,
 // so none of them reads it on a timer. Behind the gate attachDraftSocket installed.
@@ -590,12 +592,7 @@ attachRoomFeed(io, { lobby });
 // this process restarts on every deploy and again at 08:00 UTC, and hourly so
 // a long-running process is not the exception.
 const ROOM_SWEEP_MS = 60 * 60_000;
-const sweepRooms = (): void => {
-	const dropped = lobby.sweep();
-	if (dropped.length > 0) roomsLog({ event: 'rooms-swept', rooms: dropped.length });
-};
-sweepRooms();
-setInterval(sweepRooms, ROOM_SWEEP_MS).unref();
+setInterval(() => sweepRooms(lobby, roomsLog), ROOM_SWEEP_MS).unref();
 
 // ── Constructed ──────────────────────────────────────────────────────────────
 // Formats, the deck library, and the deck gate on POST /api/play/matches. MUST
