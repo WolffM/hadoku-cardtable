@@ -6,7 +6,7 @@
 | env var | value | set by |
 | --- | --- | --- |
 | `CARDTABLE_FORGE_RES` | `<repos>/hadoku-cardtable/forge/forge-gui/res` | hadoku_site's wrapper, from `scripts/child-apps.json` `tunnel.pathEnv` |
-| `CARDTABLE_FORGE_JAR` | `~/.local/share/cardtable/forge.jar` | same |
+| `CARDTABLE_FORGE_JAR` | `~/.local/share/cardtable/jars/<the tree's forge pin>.jar`, falling back to `forge.jar` with a warning | same (`pinnedArtifacts`), resolved per environment at boot |
 
 Neither is a secret and neither goes through the vault broker. If the jar is
 missing the server still boots, logs one warning to stderr, and answers 503 from
@@ -53,12 +53,12 @@ The `::notice::`/`::error::` behaviour (proving which jar a run used, and
 reddening loudly on a pin nobody has built) is unchanged; only where the jar
 and `res/` come from is new.
 
-**Production's `~/.local/share/cardtable/forge.jar` becomes a symlink** to
-whichever pin's jar is current, because hadoku_site's wrapper hardcodes that
-one path (`jvmHostConfig` above) and does not know about pins. Switching that
-symlink and restarting production is a **deploy** — see "Switching production
-to a new pin" below; `build-jar.sh --switch` does it, not a routine jar
-rebuild.
+**Each environment loads its own pin's jar** (hadoku_site `0648fc05`, 2026-10-23). Both
+wrappers resolve `jars/<git rev-parse HEAD:forge>.jar` from their own deploy tree,
+so prod and PPE (`docs/RELEASE.md`) can run different pins side by side. The old
+`forge.jar` symlink is only the fallback when that file is missing: the wrapper
+logs a warning and loads it, and refuses to start if neither exists. A fallback
+is a bug to fix (install the pin's jar), never a state to leave.
 
 ## CI on the CI runners (wave `forge-runners`)
 
@@ -156,7 +156,7 @@ gate once and prints every step without running one.
 5. **Installs it under its own pin**, `jars/<pin>.jar` — never over `forge.jar`
    directly — and prints its sha256 for the install record.
 
-Installing under `jars/$PIN.jar` leaves production untouched. CI does not read it:
+Installing under `jars/$PIN.jar` changes no running server. CI does not read it:
 every `forge.yml` job resolves its bundle through `scripts/forge-bundle.sh`
 ("CI on the CI runners" above), and the claws build a pin they lack themselves.
 hokon cannot: its runner (which takes `forge.yml` jobs when the claws are full)
@@ -171,23 +171,22 @@ cd /home/hadoku/srv/hadoku-cardtable && \
   bash scripts/forge-bundle.sh
 ```
 
-## Switching production to a new pin
+## How a new pin reaches PPE and prod
 
-`scripts/lanes/build-jar.sh <pin> --switch` builds and installs as above, then
-switches production. **The wave manager does this itself** — the operator
-approved it on 2026-10-20 — once the pin's lane has landed and CI is green. It
-does not wait for a quiet table: a live match never holds a switch (the
-operator; memory `never-hold-devops-for-a-live-game`).
+There is no switch step. Since the PPE/prod split (`docs/planning/release-process.md`)
+a pin travels with the commits that carry it:
 
-1. **Atomic symlink switch**: `ln -sfn jars/<pin>.jar forge.jar` — never `rm`
-   then `ln`, which leaves a gap with no `forge.jar` on disk at all.
-2. **Restart through mgmt-api**, never raw pm2 (`services/mgmt-api/CLAUDE.md`):
-   `POST http://127.0.0.1:4000/api/cardtable/restart`.
-3. **Confirms** `curl -s localhost:9008/health` says `"status":"healthy"` within
-   two minutes, and fails loudly naming the symlink's target if it does not.
+1. **Install the jar first**: `scripts/lanes/build-jar.sh <pin>`, before the pin's
+   commit lands on main. A wrapper whose pin has no jar falls back to `forge.jar`,
+   an older engine against the new `res/`.
+2. **Land the pin.** main's green `check` redeploys **PPE**, whose wrapper now
+   resolves `jars/<pin>.jar`. Confirm `curl -s localhost:9011/health` says
+   `"status":"healthy"` and PPE's error log has no fallback warning.
+3. **Prod takes it at the release** that includes the pin (`docs/RELEASE.md`). The
+   same check runs against 9008.
 
-Rolling back is the same command with the previous pin (`ls -t
-~/.local/share/cardtable/jars/`): its jar is still installed.
+Rolling back a pin is a release of an earlier sha. Its jar is still installed
+(`ls -t ~/.local/share/cardtable/jars/`).
 
 ### What a good restart looks like
 

@@ -21,7 +21,10 @@
    that's built but whose feature isn't reachable yet stays out.
 4. **The operator reads and edits them.** Then land the file on `main` like any doc. A docs-only
    change doesn't redeploy PPE.
-5. **Check PPE.** The sha being released is (normally) what PPE already runs. Play it there.
+5. **Check PPE.** The sha being released is (normally) what PPE already runs (`hadoku.me/cardtable-ppe/`,
+   `curl -s localhost:9011/health`). Play it there. Its Forge pin's jar must be installed
+   (`ls ~/.local/share/cardtable/jars/$(git rev-parse <sha>:forge).jar`): prod loads it on boot
+   (`docs/FORGE_JAR.md`).
 6. **Run the release:**
    ```sh
    gh workflow run release.yml -f version=vX.Y.Z            # main's head
@@ -30,8 +33,8 @@
    It refuses unless `check` is green on that sha, the notes file is on it, and the tag is
    new. Then it dispatches the prod redeploy for that exact sha and tags `release/vX.Y.Z`.
 7. **Confirm prod.** `/health` on 9008 reports the deployed bundle (see the memory note
-   "Confirm a deploy from /health"). Prod announces the notes in Discord's `#announcements` when it
-   boots on the release.
+   "Confirm a deploy from /health"). Once announce-on-boot lands (it waits on ArchiveBot), prod
+   posts the notes to Discord's `#announcements` when it boots on the release. Until then, post them by hand.
 
 ## Notes file shape
 

@@ -58,7 +58,7 @@ operator: "cut a release" ──► scripts/release/collect.ts ──► agent d
 | Thing | prod (`cardtable`) | PPE (`cardtable-ppe`) | How |
 | --- | --- | --- | --- |
 | Deploy tree | `~/srv/hadoku-cardtable` | `~/srv/hadoku-cardtable-ppe` | deploy-config entry |
-| Port | 9008 | 9009 | wrapper `CARDTABLE_PORT` |
+| Port | 9008 | 9011 (9009 is housemodel's, 9010 bomberman's) | wrapper `CARDTABLE_PORT` |
 | URL | `/cardtable/` | `/cardtable-ppe/` | edge route; `CARDTABLE_BASE_PREFIX` at build (Vite `base`) and at run (server) |
 | rooms / drafts / tournaments / sounds / logs | tree's `apps/server/{data,logs}` | same, in its own tree | automatic: `config.ts` resolves them under the package root |
 | Forge run dirs | `/tmp/cardtable-play` (today) | `~/.cache/cardtable-ppe/play` | wrapper `CARDTABLE_PLAY_WORK_DIR`. **Must differ:** the pool boot-sweeps its work dir, so sharing it kills the other instance's matches |
@@ -77,16 +77,16 @@ install step writes the per-pin file instead of flipping a shared link.
 
 | Where | Change | State |
 | --- | --- | --- |
-| hadoku_site | `cardtable-ppe` deploy-config entry, PM2 wrapper, edge route `/cardtable-ppe/*` (friend), tunnel host; per-pin jar resolution in both wrappers | request: `docs/requests/HADOKU_SITE_CARDTABLE_PPE.md` |
-| cardtable | Vite `base` from `CARDTABLE_BASE_PREFIX` (app and embed builds) | this change |
-| cardtable | `scripts/release/collect.ts`, `.github/workflows/release.yml`, `docs/RELEASE.md` | this change |
-| cardtable | `redeploy.yml` dispatches `cardtable-ppe` instead of `cardtable` | **after** hadoku_site has PPE live. Flipping first would leave nothing auto-deploying |
+| hadoku_site | `cardtable-ppe` deploy-config entry, PM2 wrapper, edge route `/cardtable-ppe/*` (friend), tunnel host; per-pin jar resolution in both wrappers | **done** 2026-10-23, hadoku_site `0648fc05` (`docs/requests/HADOKU_SITE_CARDTABLE_PPE_REPLY.md`) |
+| cardtable | Vite `base` from `CARDTABLE_BASE_PREFIX` (app and embed builds) | **done** `a90b319a` |
+| cardtable | `scripts/release/collect.ts`, `.github/workflows/release.yml`, `docs/RELEASE.md` | **done** `a90b319a` |
+| cardtable | `redeploy.yml` dispatches `cardtable-ppe` instead of `cardtable` | **done** with v0.33.0's notes; `build-jar.sh` lost `--switch` (each wrapper loads its own pin's jar) |
 | cardtable | announce-on-boot through ArchiveBot | after ArchiveBot Asks 1–2 |
 
 ## Cutover
 
 1. hadoku_site brings up `cardtable-ppe`, deployed by hand from current main. Confirm
-   `hadoku.me/cardtable-ppe/` serves and `/health` answers on 9009.
+   `hadoku.me/cardtable-ppe/` serves and `/health` answers on 9011. **Done 2026-10-23** (hadoku_site `0648fc05`, reply `docs/requests/HADOKU_SITE_CARDTABLE_PPE_REPLY.md`).
 2. One commit lands the `redeploy.yml` flip together with `docs/releases/v0.33.0.md` ("first
    versioned release"). From then on main only reaches PPE.
 3. Run `release.yml` for **v0.33.0** at that commit. The notes have to be on the sha being

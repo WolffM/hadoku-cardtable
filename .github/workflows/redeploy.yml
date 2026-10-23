@@ -1,10 +1,19 @@
-# Ask hadoku_site to redeploy the `cardtable` PM2 service.
+# Ask hadoku_site to redeploy the `cardtable-ppe` PM2 service: main → PPE.
 #
 # Lives here, runs when CI finishes green on main (below). hadoku_site's redeploy-service.yml listens
 # for `repository_dispatch: redeploy_service` and delegates to mgmt-api, which
-# per its deploy-config.json does: git pull -> pnpm install && pnpm build ->
-# pm2 restart cardtable (serving 127.0.0.1:9008 behind the cloudflared tunnel,
+# per its deploy-config.json does: git checkout <sha> -> pnpm install &&
+# CARDTABLE_BASE_PREFIX=/cardtable-ppe pnpm build -> pm2 restart cardtable-ppe
+# (serving 127.0.0.1:9011 behind the cloudflared tunnel, hadoku.me/cardtable-ppe/,
 # gated at the edge to friend tier).
+#
+# ## Main deploys PPE, never prod (operator, 2026-10-23)
+#
+# *"by default all our dev work should go to main and auto-deploy to ppe. the main
+# production environment in cardtable should only get updated by manual release
+# deployments."* Prod (`cardtable`, 9008) moves only through release.yml, which
+# takes a version and its patch notes (docs/RELEASE.md). Nothing here may dispatch
+# `service: "cardtable"`.
 #
 # ## Why this file exists at all
 #
@@ -55,8 +64,8 @@ name: Redeploy on hadoku_site
 # sha against the sha this workflow last dispatched, and deploys when anything
 # outside docs/**, **/*.md and .claude/** changed in between.
 #
-# `workflow_dispatch` is the operator's override: it deploys main's head with
-# no gate.
+# `workflow_dispatch` is the operator's override: it deploys main's head to PPE
+# with no gate.
 
 # `CI` is `check` alone since 2026-10-07 (about four minutes): typecheck, lint,
 # unit suites. The Forge jobs run in `forge.yml` and do not gate a deploy.
@@ -176,8 +185,8 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/WolffM/hadoku_site/dispatches \
             -d "$(jq -n --arg sha "${SHA}" \
-                  '{event_type:"redeploy_service", client_payload:{service:"cardtable", sha:$sha}}')"
-          echo "Dispatched redeploy_service for 'cardtable' (sha ${SHA})"
+                  '{event_type:"redeploy_service", client_payload:{service:"cardtable-ppe", sha:$sha}}')"
+          echo "Dispatched redeploy_service for 'cardtable-ppe' (sha ${SHA})"
           echo "${SHA}" > dispatched.txt
 
       # What this run dispatched, readable by the next run's `decide` without a log download.
