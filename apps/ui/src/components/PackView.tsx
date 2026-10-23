@@ -33,11 +33,12 @@
  * is what mounts the inspector.
  */
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import type { DraftCard } from '../draft/types.ts';
 import { playRole } from '../sound/index.ts';
 import { relatedCards } from '../draft/related.ts';
+import { useArtLoaded } from '../draft/useArtLoaded.ts';
 import { uiPx } from '../settings/ui-scale.ts';
 import { CARD_RATIO, cssPx, fitGrid, useBox } from './cardFit.ts';
 import { CardTile } from './CardTile.tsx';
@@ -143,8 +144,11 @@ function typing(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 }
 
-export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackViewProps) {
+export function PackView({ cards, layout, onPick, disabled: held, emptyNote }: PackViewProps) {
   const [measure, box, root] = useBox<HTMLDivElement>();
+  // A new pack is drawn blank, and picks nothing, until all of its art can be drawn at once.
+  const artLoaded = useArtLoaded(useMemo(() => cards.map((c) => c.scryfallId), [cards]));
+  const disabled = held || !artLoaded;
   /** The open card, or the grid's cursor. `null` is the first in the fan: where a pack opens (the operator, 2026-10-19); in the grid, no cursor yet. */
   const [focus, setFocus] = useState<number | null>(null);
   // Unmeasured (the first frame, or a test environment) draws the plain grid: a
@@ -289,6 +293,7 @@ export function PackView({ cards, layout, onPick, disabled, emptyNote }: PackVie
       data-testid="pack"
       data-layout={layout}
       data-card-count={cards.length}
+      data-art-pending={artLoaded ? undefined : ''}
       ref={measure}
       style={style}
       onPointerLeave={() => {

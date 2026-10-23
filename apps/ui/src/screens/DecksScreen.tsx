@@ -24,7 +24,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
-import { cardImageUrl, artReady } from '../draft/cardImage.ts';
+import { useArtLoaded } from '../draft/useArtLoaded.ts';
 import { useArtistLookup } from '../draft/artists.ts';
 import { DeckChooser, draftedDeckOption, openDraftedDeck } from './ConstructedScreen.tsx';
 import { assignDeckArt } from './deckArt.ts';
@@ -46,38 +46,16 @@ export interface DecksScreenProps {
 /** The stats id a drafted deck's games are reported under (`apps/server/src/http/routes.ts`'s `draftedDeckId`). */
 const draftedDeckStatsId = (podId: string): string => `draft:${podId}`;
 
-/** How long the tiles wait on art that has not come: a stalled image must not hold the page empty for good. */
-const ART_WAIT_MS = 5000;
-
 /**
  * Whether every one of these pieces of art can be drawn with its credit on
- * the first frame: each image fetched and decoded (`artReady` — a failed one
- * counts, its tile then draws the plain band), and the artist table loaded,
+ * the first frame: the art itself (`useArtLoaded`), and the artist table,
  * since `DeckArt` shows art only once it can credit it. `null` is "not known
  * yet", never ready.
  */
 function useArtDrawable(artIds: readonly (string | undefined)[] | null): boolean {
-  const key = artIds === null ? null : artIds.filter((id) => id !== undefined).join(',');
-  const credits = useArtistLookup(key !== null && key !== '');
-  const [loaded, setLoaded] = useState<string | null>(null);
-  useEffect(() => {
-    if (key === null) return;
-    let live = true;
-    const ids = key === '' ? [] : key.split(',');
-    let left = 0;
-    const one = (): void => {
-      left -= 1;
-      if (left === 0 && live) setLoaded(key);
-    };
-    for (const id of ids) if (!artReady(cardImageUrl(id), one)) left += 1;
-    if (left === 0) setLoaded(key);
-    const cap = setTimeout(() => live && setLoaded(key), ART_WAIT_MS);
-    return () => {
-      live = false;
-      clearTimeout(cap);
-    };
-  }, [key]);
-  return key !== null && loaded === key && (key === '' || credits !== undefined);
+  const loaded = useArtLoaded(artIds);
+  const credits = useArtistLookup(artIds !== null && artIds.some((id) => id !== undefined));
+  return loaded && (artIds === null || artIds.every((id) => id === undefined) || credits !== undefined);
 }
 
 export function DecksScreen({ decks: givenDecks, deckRecords = fetchDeckRecords }: DecksScreenProps) {

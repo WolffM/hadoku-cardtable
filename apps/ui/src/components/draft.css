@@ -168,6 +168,11 @@
   margin-bottom: 20px;
 }
 
+/* A new pack whose art is still loading: every slot keeps its place, and nothing in it is drawn yet. */
+.pack[data-art-pending] .pack__slot {
+  visibility: hidden;
+}
+
 .pack--grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
