@@ -190,7 +190,8 @@ test(titled('a scry 1 shows its card in the decision window, never on the board,
       const labels = (await confirm.locator('.confirm__button').allTextContents()).map((s) => s.trim());
       const shown = (await confirm.getByTestId('confirm-card').locator('.card__name').allTextContents()).map((s) => s.trim());
       console.log(`[w70-scry-one] decision: "${message}" buttons [${labels.join(', ')}] card [${shown.join(', ')}]`);
-      expect.soft(labels, 'Forge’s own Top and Bottom').toEqual(['Top', 'Bottom']);
+      // Top is Forge's yes (`willPutCardOnTop`), and the yes is always bottom right (`AnswerRow`).
+      expect.soft(labels, 'Bottom, then Top: the yes last').toEqual(['Bottom', 'Top']);
       expect.soft(shown, 'the decision window draws the scried card').toEqual([scried]);
       expect.soft(await libraryOnBoard(alice.page), 'alice’s board draws no library card during the scry').toEqual([]);
       expect.soft(await libraryOnBoard(bob.page), 'bob’s board draws no library card during the scry').toEqual([]);
