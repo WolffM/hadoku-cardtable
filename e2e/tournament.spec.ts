@@ -312,13 +312,30 @@ test(
       await ready(alice);
       await expect(alice.page.getByTestId('pod-tables'), 'round 1 is up').toBeVisible({ timeout: UI_TIMEOUT });
 
-      /** Round N's own table: picks THAT round's deck, waits for the match, concedes to a result, then back to the room for the next round. */
+      /**
+       * Round N's own table, vs the AI: picks THAT round's deck, waits for
+       * the match, concedes — Bo3 with sideboarding (ruling 4), so ONE
+       * concede is a Bo1 and the series is not yet decided (`#settleSeries`'s
+       * own doc); a second, after the sideboard step, is what decides it
+       * 0–2. The AI's own "ready" for sideboarding is the server's, with
+       * nothing for a browser to press.
+       */
       const playRound = async (round: number): Promise<void> => {
         await expect(alice!.page.getByTestId('pod-round'), `round ${round} is current`).toHaveText(`Round ${round} of 2`, { timeout: UI_TIMEOUT });
         await expect(alice!.page.getByTestId('deck-mine'), `round ${round}: the round’s OWN deck chooser — never tables[0]’s`).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('deck-mine').getByTestId('deck-option').first().click();
         await alice!.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
         await expect(alice!.page.locator('[aria-label="Game board"]'), `round ${round}: carried to the round’s own table`).toBeVisible({ timeout: UI_TIMEOUT });
+        await alice!.page.getByTestId('live-concede').click();
+        await alice!.page.getByTestId('live-concede-yes').click();
+        await expect(alice!.page.getByTestId('game-result')).toBeVisible({ timeout: UI_TIMEOUT });
+        await alice!.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
+        await expect(alice!.page.getByTestId('sideboard-step'), `round ${round}: game 1 alone is a Bo1 — Next opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
+        await alice!.page.goto(roomUrl);
+        await expect(alice!.page.getByTestId('table-sideboard'), `round ${round}: the room opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
+        await alice!.page.getByTestId('sideboard-ready').click();
+        await alice!.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
+        await expect(alice!.page.locator('[aria-label="Game board"]'), `round ${round}: game 2`).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('live-concede').click();
         await alice!.page.getByTestId('live-concede-yes').click();
         await expect(alice!.page.getByTestId('game-result')).toBeVisible({ timeout: UI_TIMEOUT });
