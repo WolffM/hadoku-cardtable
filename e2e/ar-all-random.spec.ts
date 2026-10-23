@@ -137,6 +137,7 @@ test(titled('All Random against the AI: a Rematch sideboards and game 2 plays th
     // Alice's game 2 is her sideboard step's re-submission of the same 75 (a hold the server takes in
     // sideboarding only when it is the series' own cards, `sideboardIssue`), so its text is hers, not the deal's.
     expect(second!.botDeck, 'the AI plays the same deck').toBe(first!.botDeck);
+    expect(second!.decks, 'her sideboarded 75 keeps its name').toEqual(first!.decks);
   } finally {
     await stack.stop();
   }

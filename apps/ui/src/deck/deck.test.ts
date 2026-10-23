@@ -288,8 +288,9 @@ describe('build.ts', () => {
     });
 
     it('round-trips through the SAME .dck load path DeckEditor already uses for a saved build', () => {
-      const text = libraryDeckText(MAIN, SIDE);
+      const text = libraryDeckText('Gruul Control (Itou Manabu)', MAIN, SIDE);
       const back = deckFromDeckFile(parseDck(text));
+      expect(back.name, 'a sideboarded library deck keeps its name').toBe('Gruul Control (Itou Manabu)');
       expect(back.main.find((e) => e.card.name === 'Lightning Bolt')?.count).toBe(4);
       expect(back.main.find((e) => e.card.name === 'Forest')?.count).toBe(17);
       expect(back.sideboard.find((e) => e.card.name === 'Abrade')?.count).toBe(2);

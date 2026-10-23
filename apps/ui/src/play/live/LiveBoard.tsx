@@ -1947,7 +1947,7 @@ async function my75Text(choice: SeatChoice, tables: TablesClient): Promise<strin
   if ('dck' in ref) return ref.dck;
   const decks = await tables.decks();
   const found = decks.find((d) => d.id === ref.library);
-  return found === undefined ? null : libraryDeckText(found.main, found.sideboard);
+  return found === undefined ? null : libraryDeckText(found.name, found.main, found.sideboard);
 }
 
 /**
@@ -2314,7 +2314,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
     // moment `phase` says so — no second press. Against the AI the one press
     // is the agreement: a series that did not convert starts the next bot game.
     const ready = alone === true || !rematch.mine;
-    (tableId === undefined ? tables.ready(roomId, ready) : tables.ready(roomId, ready, tableId)).then((answer) => {
+    tables.ready(roomId, ready, tableId, ready ? { rematch: true } : undefined).then((answer) => {
       if (!answer.ok) {
         setBusy(false);
         setRefusal(answer.error);

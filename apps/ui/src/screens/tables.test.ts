@@ -41,6 +41,7 @@ describe('TablesClient — the table id every call takes', () => {
   it.each([
     ['loadDeck', (c: ReturnType<typeof tablesClient>, id?: string) => c.loadDeck('r-1', { library: 'd-1' }, id), { deck: { library: 'd-1' } }],
     ['ready', (c: ReturnType<typeof tablesClient>, id?: string) => c.ready('r-1', true, id), { ready: true }],
+    ['ready, pressed as a Rematch', (c: ReturnType<typeof tablesClient>, id?: string) => c.ready('r-1', true, id, { rematch: true }), { ready: true, rematch: true }],
     ['sit', (c: ReturnType<typeof tablesClient>, id?: string) => c.sit('r-1', id), {}],
     ['stand', (c: ReturnType<typeof tablesClient>, id?: string) => c.stand('r-1', id), {}],
   ] as const)('%s: a given id is a `table` body field; omitted sends no such key at all', async (_name, call, baseBody) => {

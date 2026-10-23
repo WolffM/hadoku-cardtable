@@ -1321,9 +1321,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * included) the seats play the decks they hold (the operator, 2026-10-23:
 	 * "if rematch is clicked we go to sideboarding then the next game with the
 	 * same deck. re-randomize should only be considered when back in the lobby
-	 * and a game is not inprogres anymore"). Each new series deals fresh, unless
-	 * the room locks its decks: then a table whose seats already hold theirs
-	 * plays the same two. A tournament's table always keeps what it holds: a
+	 * and a game is not inprogres anymore"). So does a Rematch (`rematch`, the
+	 * result screen's own press) of a decided series. Each new series started
+	 * from the room deals fresh, unless the room locks its decks: then a table
+	 * whose seats already hold theirs plays the same two. A tournament's table always keeps what it holds: a
 	 * locked tournament seats each entrant's locked deck there, and a per-round
 	 * one seats none, so its first game deals (the operator: "Bo3 for
 	 * classic/all-random means same deck", `tournament-mode-plan.md`).
@@ -1335,13 +1336,14 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		tableId: string,
 		players: TablePlayer[],
 		vsBot: boolean,
+		rematch: boolean,
 	): { ok: true; players: TablePlayer[] } | { ok: false; error: string } {
 		const pool = randomPoolOf(room);
 		if (pool === null || rooms === null) return { ok: true, players };
 		const held = players.every((p) => p.state.deck !== null) && (!vsBot || players[0]?.state.aiDeck !== undefined);
 		const phase = rooms.get(room.id)?.tables.find((t) => t.id === tableId)?.series.phase;
 		const midSeries = phase === 'sideboarding' || phase === 'between';
-		if (held && (midSeries || randomLocked(room) || room.settings.tournament === true)) return { ok: true, players };
+		if (held && (midSeries || rematch || randomLocked(room) || room.settings.tournament === true)) return { ok: true, players };
 		const draw = drawRandomDecks(random, pool, library);
 		if (draw === null) return { ok: false, error: `no ${pool} era holds two decks` };
 		const dealt = dealDecks(room, tableId, players, draw.decks, draw.era, { vsBot });
@@ -1535,10 +1537,12 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		if (wrongGameType(room, res)) return;
 		const body = (req.body ?? {}) as Record<string, unknown>;
 		const keys = Object.keys(body);
-		if (typeof body.ready !== 'boolean' || keys.some((k) => k !== 'ready' && k !== 'table')) {
-			res.status(400).json({ error: 'body is { ready: boolean, table? }' });
+		if (typeof body.ready !== 'boolean' || keys.some((k) => k !== 'ready' && k !== 'table' && k !== 'rematch') || (body.rematch !== undefined && body.rematch !== true)) {
+			res.status(400).json({ error: 'body is { ready: boolean, table?, rematch?: true }' });
 			return;
 		}
+		// Pressed on a finished game's Rematch, not the room's Ready: the decks are kept, even into a new series.
+		const rematch = body.rematch === true;
 		const table = resolveTable(res, room, body.table);
 		if (table === null) return;
 		if (liveMatchId(room, table) !== null) {
@@ -1585,7 +1589,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				if (rooms.beginSideboarding(room.id, table.id)) {
 					for (const p of nowPlayers) rooms.setSeatReady(room.id, table.id, p.member.id, false);
 				} else if (nowPlayers.length === TABLE_SEATS) {
-					const deal = dealRandom(room, table.id, nowPlayers, false);
+					const deal = dealRandom(room, table.id, nowPlayers, false, rematch);
 					if (!deal.ok) {
 						rooms.setSeatReady(room.id, table.id, me, false);
 						res.status(409).json({ error: deal.error });
@@ -1854,7 +1858,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				res.status(409).json({ error: 'a bot game is for a table with one seated player' });
 				return;
 			}
-			const deal = dealRandom(room, table.id, players, true);
+			const deal = dealRandom(room, table.id, players, true, rematch);
 			if (!deal.ok) {
 				res.status(409).json({ error: deal.error });
 				return;

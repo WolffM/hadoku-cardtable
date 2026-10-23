@@ -276,7 +276,8 @@ export interface TablesClient {
    * body carrying `rules` is refused with 400.
    */
   loadDeck(roomId: string, deck: DeckRef, tableId?: string): Promise<TableOutcome>;
-  ready(roomId: string, ready: boolean, tableId?: string): Promise<TableOutcome>;
+  /** `rematch`: readied by a finished game's Rematch, not the room's Ready — an All Random table keeps its decks. */
+  ready(roomId: string, ready: boolean, tableId?: string, opts?: { rematch?: boolean }): Promise<TableOutcome>;
   /** `POST …/sit`: take a free seat, before choosing a deck. 409 when the table is full or locked. */
   sit(roomId: string, tableId?: string): Promise<TableOutcome>;
   /** `POST …/stand`: give the seat back. 409 once both are ready or the match is live. */
@@ -389,8 +390,8 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
     },
     loadDeck: async (roomId, deck, tableId) =>
       table(await send('PUT', `tables/rooms/${encodeURIComponent(roomId)}/deck`, withTable({ deck }, tableId))),
-    ready: async (roomId, ready, tableId) =>
-      table(await post(`tables/rooms/${encodeURIComponent(roomId)}/ready`, withTable({ ready }, tableId))),
+    ready: async (roomId, ready, tableId, opts) =>
+      table(await post(`tables/rooms/${encodeURIComponent(roomId)}/ready`, withTable({ ready, ...(opts?.rematch === true ? { rematch: true } : {}) }, tableId))),
     sit: async (roomId, tableId) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/sit`, withTable({}, tableId))),
     stand: async (roomId, tableId) => table(await post(`tables/rooms/${encodeURIComponent(roomId)}/stand`, withTable({}, tableId))),
     startRoom: async (roomId, tableId) => {

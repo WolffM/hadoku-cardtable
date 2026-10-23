@@ -69,11 +69,12 @@ export function libraryDeckPool(main: readonly DeckLine[], sideboard: readonly D
  * loader that could read the format differently. `parseCardRequest` is the
  * exact function `parseDck` itself calls per line, so a bare name round-trips
  * through this the same way a line with no set or collector number already
- * does.
+ * does. The deck's own name rides along: a sideboarded 75 is the same deck, and the server names a
+ * held deck from its text (an unnamed one read "Unnamed deck").
  */
-export function libraryDeckText(main: readonly DeckLine[], sideboard: readonly DeckLine[]): string {
+export function libraryDeckText(name: string, main: readonly DeckLine[], sideboard: readonly DeckLine[]): string {
   const entryOf = (line: DeckLine): DeckEntry => ({ count: line.count, card: parseCardRequest(line.name) });
-  const deck: Deck = { name: '', main: main.map(entryOf), sideboard: sideboard.map(entryOf), basics: [] };
+  const deck: Deck = { name, main: main.map(entryOf), sideboard: sideboard.map(entryOf), basics: [] };
   return dckTextOf(deck);
 }
 

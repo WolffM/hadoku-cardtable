@@ -167,7 +167,7 @@ const tableState = vi.hoisted(() => ({
   phase: 'done' as string,
   startRoom: vi.fn(async (_roomId: string) => ({ ok: true as const, matchId: 'm-next00000000' })),
   startVsBot: vi.fn(async (_roomId: string) => ({ ok: true as const, matchId: 'm-bot000000000' })),
-  ready: vi.fn((_roomId: string, _ready: boolean, _tableId?: string) => undefined),
+  ready: vi.fn((_roomId: string, _ready: boolean, _tableId?: string, _opts?: { rematch?: boolean }) => undefined),
   loadDeck: vi.fn((_roomId: string, _deck: unknown, _tableId?: string) => undefined),
   decks: vi.fn(() => [] as { id: string; main: { name: string; count: number }[]; sideboard: { name: string; count: number }[] }[]),
   /** The server's 409 from `PUT …/deck`'s sideboard check — null answers `{ok: true}` as usual. */
@@ -210,11 +210,12 @@ vi.mock('../../screens/tables.ts', async (importOriginal) => {
         if (tableState.loadDeckRefusal !== null) return { ok: false as const, error: tableState.loadDeckRefusal, status: 409 };
         return { ok: true as const, table: table() };
       },
-      ready: async (roomId: string, ready: boolean, tableId?: string) => {
+      ready: async (roomId: string, ready: boolean, tableId?: string, opts?: { rematch?: boolean }) => {
         // The row first, then the spy: a test's own implementation runs after
         // the write, the way the server's own side effects follow it.
         tableState.me.ready = ready;
-        if (tableId === undefined) tableState.ready(roomId, ready);
+        if (opts !== undefined) tableState.ready(roomId, ready, tableId, opts);
+        else if (tableId === undefined) tableState.ready(roomId, ready);
         else tableState.ready(roomId, ready, tableId);
         return { ok: true as const, table: table() };
       },
@@ -3688,7 +3689,7 @@ describe('R16 — the result screen, drawn over the board', () => {
 
     fireEvent.click(rematch());
     await waitFor(() => expect(check(true), 'my check').not.toBeNull());
-    expect(tableState.ready).toHaveBeenCalledWith('r-1', true);
+    expect(tableState.ready, 'the press says it is a Rematch').toHaveBeenCalledWith('r-1', true, undefined, { rematch: true });
     expect(rematch().getAttribute('aria-pressed')).toBe('true');
     expect(rematch().hasAttribute('data-highlight'), 'my own press is not a highlight').toBe(false);
     expect(check(false), 'they have not pressed').toBeNull();
@@ -3811,7 +3812,7 @@ describe('R16 — the result screen, drawn over the board', () => {
     await waitFor(() => expect(rematch().disabled).toBe(false));
     fireEvent.click(rematch());
     await waitFor(() => expect(globalThis.location.hash).toBe('#/match/m-bot000000000'));
-    expect(tableState.ready).toHaveBeenCalledWith('r-1', true);
+    expect(tableState.ready, 'the press says it is a Rematch').toHaveBeenCalledWith('r-1', true, undefined, { rematch: true });
     expect(tableState.startVsBot, 'the start says it is a Rematch, so the bot keeps its deck').toHaveBeenCalledWith('r-1', undefined, { rematch: true });
   });
 
@@ -3947,7 +3948,7 @@ describe('R16 — the result screen, drawn over the board', () => {
       const { getByTestId, rematch } = await victoryInRoom();
       await waitFor(() => expect(rematch().disabled).toBe(false));
       fireEvent.click(rematch());
-      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', true, 't-1'));
+      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', true, 't-1', { rematch: true }));
       roomPing();
       await toSideboard(getByTestId);
       const ready = await waitFor(() => getByTestId('sideboard-ready'));
@@ -3986,7 +3987,7 @@ describe('R16 — the result screen, drawn over the board', () => {
       const { getByTestId, rematch } = await victoryInRoom();
       await waitFor(() => expect(rematch().disabled).toBe(false));
       fireEvent.click(rematch());
-      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', true, 't-1'));
+      await waitFor(() => expect(tableState.ready).toHaveBeenCalledWith('r-1', true, 't-1', { rematch: true }));
       roomPing();
       await toSideboard(getByTestId);
       await waitFor(() => expect(getByTestId('sideboard-step')).toBeTruthy());

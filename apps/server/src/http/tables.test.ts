@@ -2295,7 +2295,7 @@ describe('a room table', () => {
 		expect(await call(h, 'POST', '/api/play/matches', { room: 42 }, edgeHeaders('alice'))).toMatchObject({ status: 400 });
 		expect(await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, {}, edgeHeaders('alice'))).toMatchObject({
 			status: 400,
-			body: { error: 'body is { ready: boolean, table? }' },
+			body: { error: 'body is { ready: boolean, table?, rematch?: true }' },
 		});
 		expect(await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: 'yes' }, edgeHeaders('alice'))).toMatchObject({
 			status: 400,
@@ -3453,6 +3453,55 @@ describe('an All Random table', () => {
 		await bothReady();
 		const next = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
 		expect(myDeck(next.body as Record<string, unknown>), 'a new deal, unnamed until it is played').toBeNull();
+	});
+
+	// The operator, 2026-10-23: "if rematch is clicked we go to sideboarding then the next game with the same deck".
+	it('a Rematch of a decided Bo3 keeps both decks into the next series: the press says it is a Rematch', async () => {
+		const h = await boot();
+		room(h, [
+			{ id: ALICE, name: 'user-alice' },
+			{ id: BOB, name: 'user-bob' },
+		]);
+		await sit(h, 'alice');
+		await sit(h, 'bob');
+		const bothReady = async (body: Record<string, unknown> = {}) => {
+			for (const user of ['alice', 'bob']) await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: true, ...body }, edgeHeaders(user));
+		};
+		const game = async (winner: string) => {
+			expect((await startNext(h, { room: ROOM })).status).toBe(201);
+			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner });
+			await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		};
+		await bothReady();
+		await game('user-bob');
+		const game1 = dealt(h.specs[0]).ids;
+		await bothReady({ rematch: true });
+		await bothReady();
+		await game('user-bob');
+		expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ wins: [0, 2], phase: 'done' });
+		await bothReady({ rematch: true });
+		expect((await startNext(h, { room: ROOM })).status).toBe(201);
+		expect(dealt(h.specs[2]).ids, 'the Rematch plays the same two decks').toEqual(game1);
+	});
+
+	it('against the AI, a Rematch of a decided Bo3 keeps both decks', async () => {
+		const h = await boot();
+		room(h, [{ id: ALICE, name: 'user-alice' }], 'legacy');
+		expect((await sit(h, 'alice')).status).toBe(200);
+		const lose = async (body: Record<string, unknown>) => {
+			expect((await startNext(h, { room: ROOM, bot: true, ...body })).status).toBe(201);
+			(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: h.specs.at(-1)!.seats[1]!.name });
+			await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		};
+		await lose({});
+		const game1 = dealt(h.specs[0]).ids;
+		await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: true, rematch: true }, edgeHeaders('alice'));
+		await setReady(h, 'alice');
+		await lose({});
+		expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 3, phase: 'done' });
+		await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: true, rematch: true }, edgeHeaders('alice'));
+		await lose({ rematch: true });
+		expect(dealt(h.specs[2]).ids, 'the Rematch plays the same two decks').toEqual(game1);
 	});
 
 	it('against the AI with the decks locked: two different decks of one era, and a Rematch plays the same two', async () => {
