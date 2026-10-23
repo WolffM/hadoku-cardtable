@@ -309,7 +309,10 @@ function selectorLines(window: string, name: string, main: TraceEvent[]): void {
     const stats = (args?.selector_stats ?? (args?.data as Record<string, unknown> | undefined)?.selector_stats) as { selector_timings?: Timing[] } | undefined;
     if (stats?.selector_timings === undefined) continue;
     statEvents += 1;
+    if (statEvents === 1 && stats.selector_timings[0] !== undefined) log(`${window} ${name} selector timing shape: ${JSON.stringify(stats.selector_timings[0]).slice(0, 300)}`);
     for (const t of stats.selector_timings) {
+      const raw = t as unknown as Record<string, number>;
+      t.elapsed = t.elapsed ?? raw['elapsed (us)'] ?? raw.elapsed_us ?? raw.elapsedUs ?? 0;
       const was = bySelector.get(t.selector) ?? { us: 0, attempts: 0, matches: 0, rejects: 0 };
       was.us += t.elapsed;
       was.attempts += t.match_attempts;
