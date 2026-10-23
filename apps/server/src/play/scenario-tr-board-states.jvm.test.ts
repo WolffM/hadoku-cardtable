@@ -21,13 +21,18 @@ const title = available.ok ? 'the board-state testing rooms, against real Forge'
 
 const DECKS: [string, string] = [deck('Any A', ['40 Mountain']), deck('Any B', ['40 Mountain'])];
 
-/** Every seat has a live priority window — the mulligan is done and the state applied. */
+/**
+ * Seat 0 — the admin, who every `tr-*` board hands priority — has its own live priority window: the
+ * mulligan is done and the state applied. Seat 0's own, not either seat's: a live bar on seat 1 came
+ * while seat 0 was still on its keep-or-mulligan prompt, and `turn(0)`, read off that prompt, was null
+ * (`tr-combat`, run 40016234195).
+ */
 async function toPriority(s: Scenario): Promise<void> {
 	await waitUntil(
 		() => {
 			s.keepHands();
 			s.answerAsks();
-			return s.buttons(0)?.enable1 === true || s.buttons(1)?.enable1 === true;
+			return s.prompt(0).startsWith('Priority:') && s.buttons(0)?.enable1 === true;
 		},
 		'a live priority window',
 		60_000,
