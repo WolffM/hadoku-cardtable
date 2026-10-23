@@ -566,8 +566,10 @@
  * its words wrap rather than choose the width.
  */
 .live__prompt:has(.prompt__cards) {
-  top: 12%;
-  height: 60%;
+  /* Its foot is every question's (72%, above this seat's hand); it takes the height up over the other
+     seat's battlefield, where a hand of seven at 1280×720 is two rows whole. */
+  top: 4%;
+  height: 68%;
   left: 8.5rem;
   width: auto;
   right: calc(100% - var(--live-col-x) - var(--live-col-w));
