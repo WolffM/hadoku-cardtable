@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { RoomTablesSchema, type RoomTable } from '@hadoku/shared';
+import { RoomTablesSchema, type RoomTable, type SeriesPhase } from '@hadoku/shared';
 
 import { roomFeed } from '../../rooms/feed.ts';
 import { latestReads } from '../../rooms/latest.ts';
@@ -215,6 +215,16 @@ export async function startTableMatch(roomId: string, tableId: string): Promise<
   // table-watching effect carries both to the match once it exists).
   if (/not ready/i.test(started.error)) return { ok: true, matchId: null };
   return { ok: false, message: started.error };
+}
+
+/**
+ * Whether my table, with no match on it, starts its next game by itself: a new
+ * series (`seating`), a game that died (`playing`, `releaseTableMatch`), or the
+ * next game of a series with no sideboarding (`between`, Gauntlet's Bo3).
+ * `sideboarding` waits for both seats; `done` is over.
+ */
+export function nextGameStarts(phase: SeriesPhase): boolean {
+  return phase === 'seating' || phase === 'playing' || phase === 'between';
 }
 
 /**

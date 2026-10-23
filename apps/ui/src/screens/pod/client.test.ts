@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchPodContext, playPod, sitPod, standPod, startTableMatch } from './client.ts';
+import { fetchPodContext, nextGameStarts, playPod, sitPod, standPod, startTableMatch } from './client.ts';
 import { POD_SEATS, type PodView } from './wire.ts';
 
 afterEach(() => {
@@ -172,5 +172,19 @@ describe('startTableMatch', () => {
     });
     const outcome = await startTableMatch('r-cube', 't-aaaaaaaa');
     expect(outcome).toEqual({ ok: false, message: 'a deck is illegal' });
+  });
+});
+
+describe('nextGameStarts', () => {
+  it('starts a fresh series, a game that died, and the next game of a series with no sideboarding', () => {
+    expect(nextGameStarts('seating')).toBe(true);
+    expect(nextGameStarts('playing')).toBe(true);
+    // Gauntlet's Bo3 has no sideboarding: game 1 settles to `between` (`room/series.ts`).
+    expect(nextGameStarts('between')).toBe(true);
+  });
+
+  it('waits for sideboarding, and never restarts a finished series', () => {
+    expect(nextGameStarts('sideboarding')).toBe(false);
+    expect(nextGameStarts('done')).toBe(false);
   });
 });
