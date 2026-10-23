@@ -537,7 +537,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		// scripted position applied would otherwise watch an ordinary shuffled game
 		// and misread everything that followed.
 		//
-		// Lane testing-states' exception: a board-state testing room's OWN
+		// The one exception: a board-state testing room's OWN
 		// scenario, carried here by `http/routes.ts`'s `startFromRoom` — never from
 		// the request body (that field is stripped before `next()`; `res.locals`
 		// is this process's own scratch space, not JSON, so nothing a client sends
