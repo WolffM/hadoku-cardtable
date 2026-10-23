@@ -12,7 +12,7 @@ import type { RoomTable } from '@hadoku/shared';
 import { forgetMatchesFollowed } from '../../play/live/matchStart.ts';
 import { navigate, parseRoute } from '../route.ts';
 import { RoomHub } from './RoomHub.tsx';
-import { forgetOpponentsRevealed, REVEAL_MS } from './opponentReveal.ts';
+import { forgetOpponentsRevealed, REVEAL_MS } from './OpponentReveal.tsx';
 import { TablePage, type TableReady } from './TablePage.tsx';
 import { POD_SEATS, type PodView } from './wire.ts';
 
@@ -213,20 +213,25 @@ describe('TablePage', () => {
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
   });
 
-  it('reveals a round’s opponent before the step before the game: title and seats animate, then the Ready and the step', () => {
+  it('reveals a round’s opponent before the step before the game: "me vs them", the two avatars, then the seats, the Ready and the step', () => {
     motion(false);
     posts();
     vi.useFakeTimers();
     const onReady = vi.fn();
-    page({ ready: { seats: [false, false], disabled: false, onReady } });
+    page({ me: 'u-bob', ready: { seats: [false, false], disabled: false, onReady } });
     expect(screen.getByTestId('table-page').hasAttribute('data-revealing')).toBe(true);
-    expect(screen.getAllByTestId(/^table-seat-\d$/)).toHaveLength(2);
+    expect(screen.getByTestId('opponent-reveal-title').textContent).toBe('BobvsAlice');
+    expect(screen.getByTestId('opponent-reveal-me')).not.toBeNull();
+    expect(screen.getByTestId('opponent-reveal-them')).not.toBeNull();
+    expect(screen.queryByTestId('table-seats')).toBeNull();
     expect(screen.queryByTestId('ready-toggle')).toBeNull();
     expect(screen.queryByTestId('stand-in-step')).toBeNull();
     act(() => {
       vi.advanceTimersByTime(REVEAL_MS);
     });
     expect(screen.getByTestId('table-page').hasAttribute('data-revealing')).toBe(false);
+    expect(screen.queryByTestId('opponent-reveal')).toBeNull();
+    expect(screen.getAllByTestId(/^table-seat-\d$/)).toHaveLength(2);
     expect(screen.getByTestId('ready-toggle')).not.toBeNull();
     expect(screen.getByTestId('stand-in-step')).not.toBeNull();
   });

@@ -17,7 +17,7 @@
  * Per-type differences are inputs only: the slot, `canStart` and `ready`.
  */
 
-import { useEffect, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import type { RoomTable } from '@hadoku/shared';
 
 import { Avatar } from '../../components/Avatar.tsx';
@@ -28,9 +28,8 @@ import { TableSideboard } from '../TableSideboard.tsx';
 import type { TablesClient } from '../tables.ts';
 import { useTableStart } from './client.ts';
 import { ReadyToggle } from './ReadyToggle.tsx';
-import { REVEAL_ME_AT_MS, REVEAL_SEAT_MS, REVEAL_THEM_AT_MS, REVEAL_TITLE_MS, useOpponentReveal } from './opponentReveal.ts';
+import { OpponentReveal, useOpponentReveal } from './OpponentReveal.tsx';
 import { isPodAi, type PodView } from './wire.ts';
-import '../gauntlet/gauntlet.css';
 import './PodSeats.css';
 
 /** A table's start that waits on its seats' Ready, by table seat. */
@@ -94,7 +93,6 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
         data-table-id={table.id}
         data-phase={table.series.phase}
         data-revealing={revealing || undefined}
-        style={{ '--title-ms': `${REVEAL_TITLE_MS}ms`, '--reveal-me-at': `${REVEAL_ME_AT_MS}ms`, '--reveal-them-at': `${REVEAL_THEM_AT_MS}ms`, '--reveal-seat-ms': `${REVEAL_SEAT_MS}ms` } as CSSProperties}
       >
         <div className="lobby__deckhead">
           <span className="table-page__title">
@@ -117,30 +115,37 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
             </a>
           )}
         </div>
-        <div className="pod-strip">
-          <ul className="pod-seats pod-seats--table" data-testid="table-seats">
-            {seats.map((id, seat) => {
-              const isReady = ready?.seats[seat] === true;
-              return (
-                <li key={seat} className="pod-seats__seat" data-testid={`table-seat-${seat}`} data-mine={id === myMemberId ? '' : undefined}>
-                  <span className="pod-seats__avatar" data-ready={ready === undefined ? undefined : isReady ? 'true' : 'false'}>
-                    <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
-                  </span>
-                  <span className="pod-seats__label">{nameOf(id)}</span>
-                  <span className="pod-seats__wins" data-testid={`table-seat-${seat}-wins`}>
-                    {table.series.wins[seat] ?? 0}
-                  </span>
-                  {ready !== undefined && (
-                    <StatusPill testId={`table-seat-${seat}-ready`} state={isReady ? 'yes' : 'no'} mark={isReady ? 'tick' : 'ring'} label={isReady ? 'ready' : 'not ready'} />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-          {!revealing && ready !== undefined && mine && current && mySeat >= 0 && (
-            <ReadyToggle ready={ready.seats[mySeat] === true} disabled={ready.disabled} onReady={ready.onReady} />
-          )}
-        </div>
+        {revealing ? (
+          <OpponentReveal
+            me={{ name: nameOf(myMemberId ?? ''), avatarId: avatarOf(myMemberId ?? '') }}
+            them={{ name: nameOf(seats[1 - mySeat] ?? ''), avatarId: avatarOf(seats[1 - mySeat] ?? '') }}
+          />
+        ) : (
+          <div className="pod-strip">
+            <ul className="pod-seats pod-seats--table" data-testid="table-seats">
+              {seats.map((id, seat) => {
+                const isReady = ready?.seats[seat] === true;
+                return (
+                  <li key={seat} className="pod-seats__seat" data-testid={`table-seat-${seat}`} data-mine={id === myMemberId ? '' : undefined}>
+                    <span className="pod-seats__avatar" data-ready={ready === undefined ? undefined : isReady ? 'true' : 'false'}>
+                      <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
+                    </span>
+                    <span className="pod-seats__label">{nameOf(id)}</span>
+                    <span className="pod-seats__wins" data-testid={`table-seat-${seat}-wins`}>
+                      {table.series.wins[seat] ?? 0}
+                    </span>
+                    {ready !== undefined && (
+                      <StatusPill testId={`table-seat-${seat}-ready`} state={isReady ? 'yes' : 'no'} mark={isReady ? 'tick' : 'ring'} label={isReady ? 'ready' : 'not ready'} />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {ready !== undefined && mine && current && mySeat >= 0 && (
+              <ReadyToggle ready={ready.seats[mySeat] === true} disabled={ready.disabled} onReady={ready.onReady} />
+            )}
+          </div>
+        )}
         {error !== null && (
           <div className="ct-error" role="alert" data-testid="pod-table-start-error">
             <p>{error}</p>

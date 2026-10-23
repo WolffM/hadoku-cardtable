@@ -53,6 +53,9 @@ test(titled('a tournament table page names its AI, heads with its round, ← Lob
     // My Ready locks the field: carried to my round's table page.
     await alice.page.getByTestId('ready-toggle').click();
     await expect(alice.page.getByTestId('table-page'), 'paired: carried to my table').toBeVisible({ timeout: UI_TIMEOUT });
+    // The round's opponent is revealed first: "<me> vs <them>", then the page's own seats.
+    await expect(alice.page.getByTestId('opponent-reveal-title'), 'the opponent is revealed by name').toContainText(`vs${aiName}`);
+    await expect(alice.page.getByTestId('opponent-reveal'), 'the reveal gives way to the page').toHaveCount(0, { timeout: UI_TIMEOUT });
 
     const labels = await alice.page.getByTestId('table-seats').locator('.pod-seats__label').allTextContents();
     console.log(`[tournament-table-page] table seats: ${JSON.stringify(labels)}`);

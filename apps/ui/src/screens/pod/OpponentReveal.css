@@ -1,0 +1,197 @@
+/*
+ * A round's opponent, revealed (`OpponentReveal.tsx`, whose beats arrive as custom properties): the
+ * title lands as a Gauntlet's era does (`gauntlet.css`'s `gauntlet-title`, the same keyframes here so
+ * neither tree reads the other's sheet), the avatars rush in from either side, clash in the middle (a
+ * flash and a shake), and spring back to rest apart.
+ */
+.opponent-reveal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 16px;
+  animation: opponent-reveal-fade var(--fade-ms) ease-in var(--fade-at) both;
+}
+
+.opponent-reveal__title {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.5em;
+  margin: 0;
+  font-size: 26px;
+  animation: opponent-reveal-title var(--title-ms) cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+
+.opponent-reveal__vs {
+  color: var(--accent);
+  font-size: 0.7em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.opponent-reveal__arena {
+  --avatar: 112px;
+
+  position: relative;
+  width: 100%;
+  height: calc(var(--avatar) + 24px);
+  overflow: hidden;
+  container-type: inline-size;
+  animation: opponent-reveal-shake 300ms linear var(--clash-at) both;
+}
+
+.opponent-reveal__fighter {
+  --dir: -1;
+  /* Where each rests: apart, by the same amount either side of the middle. */
+  --rest: min(150px, 34cqw);
+
+  position: absolute;
+  top: 12px;
+  left: calc(50% - var(--avatar) / 2);
+  width: var(--avatar);
+  height: var(--avatar);
+  animation: opponent-reveal-fly var(--fly-ms) var(--rush-at) both;
+}
+
+.opponent-reveal__fighter[data-side='right'] {
+  --dir: 1;
+}
+
+.opponent-reveal__avatar {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-card);
+  border: 3px solid var(--line);
+  box-shadow: 0 6px 18px var(--shadow);
+}
+
+.opponent-reveal__avatar--none {
+  font-size: 44px;
+  font-weight: 700;
+}
+
+.opponent-reveal__fighter[data-side='left'] .opponent-reveal__avatar {
+  border-color: var(--accent);
+}
+
+/* The clash: a flash where the two meet. */
+.opponent-reveal__clash {
+  position: absolute;
+  top: calc(12px + var(--avatar) / 2 - 12px);
+  left: calc(50% - 12px);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 24px 8px var(--accent);
+  opacity: 0;
+  animation: opponent-reveal-clash 450ms ease-out var(--clash-at) forwards;
+}
+
+/*
+ * One flight: in from off the arena's edge, faster as it comes, until the two avatars touch at the
+ * middle (50%: `REVEAL_RUSH_MS` of `--fly-ms`), squashed by the impact, then sprung back to rest.
+ */
+@keyframes opponent-reveal-fly {
+  0% {
+    opacity: 0;
+    transform: translateX(calc(var(--dir) * 60cqw)) scale(0.85);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.9, 0.5);
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(calc(var(--dir) * var(--avatar) / 2)) scale(1);
+    animation-timing-function: ease-out;
+  }
+
+  58% {
+    transform: translateX(calc(var(--dir) * (var(--avatar) / 2 - 8px))) scale(0.86, 1.12);
+    animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.25);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(calc(var(--dir) * var(--rest))) scale(1);
+  }
+}
+
+@keyframes opponent-reveal-title {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(1.25);
+    letter-spacing: 0.3em;
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+    letter-spacing: 0.02em;
+  }
+}
+
+@keyframes opponent-reveal-clash {
+  from {
+    opacity: 1;
+    transform: scale(0.4);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(7);
+  }
+}
+
+@keyframes opponent-reveal-shake {
+  0%,
+  100% {
+    transform: none;
+  }
+
+  20% {
+    transform: translateX(-6px);
+  }
+
+  40% {
+    transform: translateX(5px);
+  }
+
+  60% {
+    transform: translateX(-3px);
+  }
+
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes opponent-reveal-fade {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opponent-reveal,
+  .opponent-reveal__title,
+  .opponent-reveal__arena,
+  .opponent-reveal__fighter,
+  .opponent-reveal__clash {
+    animation: none;
+  }
+}
