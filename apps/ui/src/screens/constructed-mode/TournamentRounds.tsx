@@ -11,10 +11,11 @@
  * component has no business holding; `PodScreen.tsx`'s `PodRoom` draws the
  * same shape for a draft pod's rounds and is the layout this mirrors.
  *
- * No Gauntlet slot: tournaments with `mode: 'gauntlet'` are refused
- * server-side (`tournament-mode-unsupported`, a per-table Gauntlet-state
- * follow-up lane's own gap) — `ConstructedScreen.tsx` never lets the two
- * combine, so this never has a Gauntlet entrant's own choose step to draw.
+ * `gauntlet` is the ONE mode-specific slot: a Gauntlet tournament table has
+ * no deck to pick or sideboard, but it does have its own ready/reveal/
+ * banpick/choose/playing flow (`screens/gauntlet/GauntletScreen.tsx`,
+ * scoped to the player's own table — never `tables[0]`), drawn in the same
+ * place `deckPicker`/`sideboard` are for the other two modes.
  */
 
 import type { ReactNode } from 'react';
@@ -33,6 +34,7 @@ export function TournamentRounds({
   startTableError,
   deckPicker,
   sideboard,
+  gauntlet,
 }: Pick<PodBracketProps, 'tables' | 'myMemberId' | 'nameOf' | 'avatarOf' | 'onPlay'> & {
   pod: PodView;
   startTableError: string | null;
@@ -40,6 +42,8 @@ export function TournamentRounds({
   deckPicker?: ReactNode;
   /** Between games of my series: the room's own sideboard step (`TableSideboard`). */
   sideboard?: ReactNode;
+  /** Gauntlet only: my own table's ready/reveal/banpick/choose/playing board. */
+  gauntlet?: ReactNode;
 }) {
   return (
     <div className="pod__room">
@@ -52,6 +56,7 @@ export function TournamentRounds({
         )}
         {deckPicker}
         {sideboard}
+        {gauntlet}
         <div className="pod__board">
           <PodBracket pod={pod} tables={tables} myMemberId={myMemberId} nameOf={nameOf} avatarOf={avatarOf} onPlay={onPlay} />
           <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} myMemberId={myMemberId} />

@@ -95,4 +95,19 @@ describe('TournamentRounds', () => {
     expect(screen.getByTestId('stand-in-deck-picker')).not.toBeNull();
     expect(screen.getByTestId('stand-in-sideboard')).not.toBeNull();
   });
+
+  it('draws the caller’s Gauntlet slot when given — a Gauntlet tournament table’s own board', () => {
+    render(
+      createElement(TournamentRounds, {
+        pod: pod(),
+        tables: [],
+        myMemberId: 'u-alice',
+        nameOf,
+        avatarOf,
+        startTableError: null,
+        gauntlet: createElement('div', { 'data-testid': 'stand-in-gauntlet' }),
+      }),
+    );
+    expect(screen.getByTestId('stand-in-gauntlet')).not.toBeNull();
+  });
 });
