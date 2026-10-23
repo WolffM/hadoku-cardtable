@@ -31,6 +31,9 @@ test(titled('a dredge’s yes/no says what it is and draws the card it would ret
       .poll(
         async () => {
           if (await confirmOpen(page)) return true;
+          // Bob ends his turn; alice's upkeep passes on to her draw.
+          const endTurn = bob.locator('[data-testid="live-button-end-turn"]:enabled');
+          if ((await endTurn.count()) > 0) await endTurn.click({ timeout: 1_000 }).catch(() => undefined);
           for (const p of [bob, page]) await passOverStack(p);
           return false;
         },
