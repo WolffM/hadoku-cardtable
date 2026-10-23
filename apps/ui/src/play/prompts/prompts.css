@@ -77,6 +77,17 @@
   overflow-y: auto;
 }
 
+/*
+ * The body scrolls; what it holds never shrinks to make room. A child with a
+ * min-height of its own (a card grid, a list, a drop zone) gives up the flex
+ * item's automatic minimum, so it was squeezed below its rows, which spilled out
+ * of it, and `fit-cards.ts` measured the squeezed box: a library search of 18
+ * Goblins came out one column of slivers (the operator, 2026-10-23).
+ */
+.prompt__body > * {
+  flex-shrink: 0;
+}
+
 .prompt__title {
   margin: 0;
   font-size: 16px;

@@ -49,7 +49,11 @@ export function fitCardGrid(room: GridRoom): GridFit {
     const card = Math.min(byWidth, byHeight, maxCard);
     if (card > best.card) best = { cols, tileW: Math.floor(card + extraW), card };
   }
-  return { cols: best.cols, tileW: Math.max(best.tileW, Math.ceil(extraW + 1)) };
+  if (best.card > 0) return { cols: best.cols, tileW: best.tileW };
+  // No room at all (the sheet's other content fills the column): the grid's own size, and the body scrolls.
+  // Never a column of slivers, which is what this answered once (the operator, 2026-10-23, Goblin Matron).
+  const cols = Math.max(1, Math.min(count, Math.floor((width + gap) / (maxCard + extraW + gap))));
+  return { cols, tileW: Math.floor(Math.min(maxCard, (width - (cols - 1) * gap) / cols - extraW) + extraW) };
 }
 
 /**
@@ -75,6 +79,7 @@ export function fitSheetGrid(sheet: HTMLElement): void {
   // other content. The body's own height is what it SHOWS (it may be clipped); its scroll height
   // less the grid is what else it holds.
   const others = sheet.offsetHeight - body.clientHeight + (body.scrollHeight - grid.offsetHeight);
+  const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   const fit = fitCardGrid({
     width: grid.clientWidth,
     height: column.clientHeight - others,
@@ -82,7 +87,7 @@ export function fitSheetGrid(sheet: HTMLElement): void {
     gap: Number.parseFloat(style.rowGap) || 0,
     extraW: tileBox.width - cardW,
     extraH: tileBox.height - cardW * CARD_ASPECT,
-    maxCard: MAX_CARD_REM * (Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16),
+    maxCard: MAX_CARD_REM * rem,
   });
   const cols = String(fit.cols);
   const tileW = `${fit.tileW}px`;

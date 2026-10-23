@@ -34,4 +34,19 @@ describe('fitCardGrid', () => {
     expect(f.h).toBeLessThanOrEqual(120);
     expect(f.cols).toBe(1);
   });
+
+  // The operator, 2026-10-23: a Goblin Matron search drew "super tiny cards" in one column.
+  it('with no room at all draws the grid’s own size in as many columns as fit, never a column of slivers', () => {
+    for (const height of [-200, 0]) {
+      const f = fitCardGrid({ ...room, width: 440, height, count: 18 });
+      expect(f, `height ${height}`).toEqual({ cols: 3, tileW: 122 });
+    }
+  });
+
+  it('eighteen cards in a 440 × 300 room: a grid, every tile inside it', () => {
+    const f = fits(440, 300, 18);
+    expect(f.cols).toBeGreaterThan(1);
+    expect(f.w).toBeLessThanOrEqual(440);
+    expect(f.h).toBeLessThanOrEqual(300);
+  });
 });
