@@ -417,6 +417,12 @@ export interface TablesHandle {
 	 * neither finds a table still pointing at this match to record again.
 	 */
 	gameOver(match: GameOverMatch): void;
+	/**
+	 * A table's series ended off the board (the table card's Abandon or Drop match,
+	 * `http/table-actions.ts`): its seats go back to their registered decks, as a series that
+	 * finished by its games does (`recordGame`).
+	 */
+	seriesEnded(roomId: string, tableId: string): void;
 }
 
 /** The part of play's `Match` that recording its outcome needs. */
@@ -1003,11 +1009,18 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const after = rooms.get(room.id);
 		gauntlets?.afterGame(room.id, { seriesOver: after?.tables.find((t) => t.id === table.id)?.series.phase === 'done', winner }, table.id);
 		if (after?.tables.find((t) => t.id === table.id)?.series.phase !== 'done') return;
-		for (const p of playersOf(rooms, after, table.id)) {
+		restoreSeriesDecks(room.id, table.id);
+	}
+
+	/** The table's series is over: every seat goes back to its registered deck (see `recordGame`). */
+	function restoreSeriesDecks(roomId: string, tableId: string): void {
+		const after = rooms?.get(roomId);
+		if (rooms === null || after === undefined) return;
+		for (const p of playersOf(rooms, after, tableId)) {
 			const registered = p.state.seriesDeck;
 			if (registered === null || typeof registered === 'string') continue;
-			rooms.setPlayerState(room.id, p.member.id, { ...p.state, deck: registered });
-			log({ evt: 'room-deck-restored', room: room.id, table: table.id, deck: registered.verdict.deckName });
+			rooms.setPlayerState(roomId, p.member.id, { ...p.state, deck: registered });
+			log({ evt: 'room-deck-restored', room: roomId, table: tableId, deck: registered.verdict.deckName });
 		}
 	}
 
@@ -2179,6 +2192,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 
 	return {
 		library,
+		seriesEnded: restoreSeriesDecks,
 		seatAvatar(matchId, memberId) {
 			const room = rooms?.roomOfMatch(matchId);
 			if (memberId === AI_SEAT_OWNER) {

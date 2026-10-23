@@ -500,6 +500,8 @@ interface Harness {
 	reports: MatchReport[];
 	statsLogs: Record<string, unknown>[];
 	playLogs: Record<string, unknown>[];
+	/** The handle `index.ts` holds. */
+	tables: ReturnType<typeof routesMod.attachTables>;
 	close: () => Promise<void>;
 }
 
@@ -591,6 +593,7 @@ async function boot(opts: { lobby?: FakeLobby; host?: MatchHostFactory } = {}): 
 		reports,
 		statsLogs,
 		playLogs,
+		tables,
 		close: async () => {
 			play.close();
 			io.close();
@@ -2822,6 +2825,24 @@ describe('a room table', () => {
 				const rows = players((await view(h, 'alice')).body);
 				expect(rows[0]).toMatchObject({ deck: { name: registeredName, legal: true }, ready: false });
 				expect(rows[1]).toMatchObject({ ready: false });
+			});
+
+			it('a series ended off the board (the table card’s Abandon or Drop match) puts a sideboarded seat back on its registered deck too', async () => {
+				const h = await boot();
+				openRoom(h);
+				await bothLoaded(h);
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				expect((await startRoom(h, 'alice')).status).toBe(201);
+				await finish(h, 'alice');
+				await setReady(h, 'alice');
+				await setReady(h, 'bob');
+				expect(h.lobby.room(ROOM)?.tables[0]?.series.phase).toBe('sideboarding');
+				expect((await putDeck(h, 'alice', sideboarded())).status).toBe(200);
+				expect(aliceDeck(h), 'the sideboarded load').toEqual({ dck: expect.any(String) });
+
+				h.tables.seriesEnded(ROOM, h.lobby.room(ROOM)!.tables[0]!.id);
+				expect(aliceDeck(h)).toEqual({ library: UG_POLYMORPH });
 			});
 
 			it('a row persisted with the registered deck as text alone: the series still finishes, and the seat keeps what it holds', async () => {

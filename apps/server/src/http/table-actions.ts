@@ -26,6 +26,8 @@ export interface TableActionsDeps {
 	lobby: Pick<Lobby, 'get' | 'isMember' | 'abandonTable' | 'dropTableMatch'>;
 	/** A live match by id, or undefined. */
 	match(matchId: string): Pick<Match, 'seatOf' | 'fromClient' | 'stop'> | undefined;
+	/** The series ended here: its seats go back to their registered decks (`TablesHandle.seriesEnded`). */
+	seriesEnded(roomId: string, tableId: string): void;
 	callerOf?: (req: Request) => ParticipantId;
 	log?: (entry: Record<string, unknown>) => void;
 }
@@ -79,6 +81,7 @@ export function attachTableActions(api: Router, deps: TableActionsDeps): void {
 				return res.status(status).json({ error });
 			}
 			if (done.matchId !== null) deps.match(done.matchId)?.stop();
+			deps.seriesEnded(roomId, tableId);
 			res.json({ ok: true });
 		});
 	}

@@ -29,6 +29,7 @@ interface Harness {
 	tableId: string;
 	acts: { seat: number; frame: unknown }[];
 	stopped: string[];
+	ended: string[];
 }
 
 /** A room alice leads and bob is in, its table playing `MATCH` with alice at seat 0 and bob at seat 1 — mounted after the rooms router, as `index.ts` mounts it. */
@@ -45,6 +46,7 @@ async function open(opts: { refuse?: string } = {}): Promise<Harness> {
 	expect(lobby.setTableMatch(roomId, tableId, MATCH)).toBe(true);
 	const acts: Harness['acts'] = [];
 	const stopped: string[] = [];
+	const ended: string[] = [];
 	const seats = new Map<string, number>([
 		[ALICE, 0],
 		[BOB, 1],
@@ -56,6 +58,7 @@ async function open(opts: { refuse?: string } = {}): Promise<Harness> {
 	attachTableActions(api, {
 		lobby,
 		log: () => undefined,
+		seriesEnded: (_room, table) => void ended.push(table),
 		callerOf: (req) => String(req.headers['x-test-user']) as ParticipantId,
 		match: (id) =>
 			id !== MATCH
@@ -76,7 +79,7 @@ async function open(opts: { refuse?: string } = {}): Promise<Harness> {
 		await new Promise<void>((done) => server.close(() => done()));
 		await rm(dir, { recursive: true, force: true });
 	});
-	return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, lobby, roomId, tableId, acts, stopped };
+	return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, lobby, roomId, tableId, acts, stopped, ended };
 }
 
 const concede = (h: Harness, as: string, tableId = h.tableId) =>
@@ -121,6 +124,7 @@ describe('POST /api/rooms/:roomId/tables/:tableId/abandon', () => {
 		const res = await act(h, 'abandon', BOB);
 		expect(res.status).toBe(200);
 		expect(h.stopped).toEqual([MATCH]);
+		expect(h.ended, 'its seats go back to their registered decks').toEqual([h.tableId]);
 		expect(h.lobby.get(h.roomId)!.tables[0]).toMatchObject({ matchId: null, series: { phase: 'seating', games: [] } });
 	});
 
@@ -130,6 +134,7 @@ describe('POST /api/rooms/:roomId/tables/:tableId/abandon', () => {
 		expect((await act(h, 'abandon', 'fk:dddddddddddddddd')).status).toBe(404);
 		expect((await act(h, 'abandon', ALICE, 't-00000000')).status).toBe(404);
 		expect(h.stopped).toEqual([]);
+		expect(h.ended).toEqual([]);
 	});
 
 	it('says there is nothing to abandon at a table with no series under way, and Drop is a pod’s', async () => {
