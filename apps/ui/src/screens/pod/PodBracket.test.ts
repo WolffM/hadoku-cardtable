@@ -36,6 +36,7 @@ function pod(over: Partial<PodView>): PodView {
     bye: null,
     drafters: [],
     built: [],
+    personas: {},
     // wave 73 §A: PodView gains these three; this file (the bracket) is not a reader of any of them.
     plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
     planName: 'Test Cube',

@@ -587,6 +587,18 @@ export function roomAi(room: RoomRecord): AiPersona {
 	return personaOf(AVATAR_POOL.find((a) => !worn.has(a)) ?? AVATAR_POOL[0]);
 }
 
+/** An AI entrant's character: a tournament pod's own (its seat's, kept through the pod's life), or a draft pod's shared bot (`roomAi`). */
+function entrantPersona(room: RoomRecord, id: string): AiPersona {
+	return isAiEntrant(id) ? personaOf(room.podAi[aiEntrantSeat(id)] ?? AVATAR_POOL[0]) : roomAi(room);
+}
+
+/** `PodView.personas`: every AI entrant the pod's players, pairings and results name. */
+function podPersonas(room: RoomRecord, humans: readonly string[]): PodView['personas'] {
+	const pod = room.pod;
+	const ids = [...humans, ...(pod?.pairings.flatMap((p) => p.players) ?? []), ...(pod?.results.flatMap((r) => [r.playerA, r.playerB ?? r.playerA]) ?? [])];
+	return Object.fromEntries([...new Set(ids)].filter((id) => id === POD_AI || isAiEntrant(id)).map((id) => [id, entrantPersona(room, id)]));
+}
+
 /** The AI a pod of one plays: the bot that drafted across the table from its human (`draftRooms.ts`'s `botPoolAcross`, by the same rule). */
 function aiOpponent(room: RoomRecord): AiPersona | null {
 	const table = podTable(room);
@@ -853,7 +865,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// answer from — this field is not a second source for either.
 	const seats = phase === 'lobby' ? podSeatsView(room) : EMPTY_POD_SEATS;
 	if (phase === 'lobby') {
-		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [], ...planFields };
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: [], built: [], personas: {}, ...planFields };
 	}
 	// Seated at `draftStartedAt` and fixed from there (`#dealPodRounds`'s own
 	// `humans`), falling back to the CURRENT seats for a pod whose rounds have
@@ -861,12 +873,12 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	// back to before `#dealPodRounds` has run.
 	const humans = room.pod?.humans ?? seatedHumans(room);
 	if (phase === 'drafting') {
-		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: humans, built: [], ...planFields };
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, drafters: humans, built: [], personas: podPersonas(room, humans), ...planFields };
 	}
 	// Done building: pressed Play (`playPod`) with a deck that is still legal.
 	const built = humans.filter((id) => room.podPlaying.includes(id) && checks.built(room.id, id));
 	if (phase === 'building') {
-		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, drafters: humans, built, ...planFields };
+		return { phase, seats, round: 0, rounds: roundsFor(humans.length), results: [], standings: [], pairings: [], bye: null, drafters: humans, built, personas: podPersonas(room, humans), ...planFields };
 	}
 	// `podPhaseOf` already answers `rounds`/`done` only when `room.pod !== null`
 	// (it throws otherwise, above) — but this cast is the one place that
@@ -889,6 +901,7 @@ function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 		// A tournament pod never builds a deck: every entrant who locked in
 		// counts as "built" at once, rather than reading as permanently empty.
 		built: tournament ? humans : built,
+		personas: podPersonas(room, humans),
 		...planFields,
 	};
 }
@@ -3035,7 +3048,7 @@ class FileLobby implements Lobby {
 		// pod's own AI entrants (one per AI seat, `aiEntrantId`) are each
 		// named from the character its seat was given (`room.podAi`, kept
 		// through the pod's life — see the field's own doc).
-		const aiNames = Object.fromEntries(pod.humans.filter(isAiEntrant).map((id) => [id, personaOf(room.podAi[aiEntrantSeat(id)] ?? AVATAR_POOL[0]).name]));
+		const aiNames = Object.fromEntries(pod.humans.filter(isAiEntrant).map((id) => [id, entrantPersona(room, id).name]));
 		this.#onTournament({
 			id: `${room.id}-${room.draftStartedAt}`,
 			name: room.name,

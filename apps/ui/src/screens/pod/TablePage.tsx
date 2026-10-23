@@ -11,7 +11,10 @@
  * has a game, the page follows into it, for its players and anyone watching
  * (`followMatchOnce`); back here by choice, the card is the way in again.
  *
- * Per-type differences are inputs only: the slot, and `canStart`.
+ * A table whose start waits on both seats' Ready (a Gauntlet's draw) passes `ready`: each seat shows
+ * whether it is, and mine is the lobby's own Ready (`ReadyToggle`) beside the seats.
+ *
+ * Per-type differences are inputs only: the slot, `canStart` and `ready`.
  */
 
 import { useEffect, type ReactNode } from 'react';
@@ -20,10 +23,20 @@ import type { RoomTable } from '@hadoku/shared';
 import { Avatar } from '../../components/Avatar.tsx';
 import { followMatchOnce } from '../../play/live/matchStart.ts';
 import { navigate, routeHash } from '../route.ts';
+import { StatusPill } from '../ConstructedScreen.tsx';
 import { TableSideboard } from '../TableSideboard.tsx';
 import type { TablesClient } from '../tables.ts';
 import { useTableStart } from './client.ts';
-import type { PodView } from './wire.ts';
+import { ReadyToggle } from './ReadyToggle.tsx';
+import { isPodAi, type PodView } from './wire.ts';
+import './PodSeats.css';
+
+/** A table's start that waits on its seats' Ready, by table seat. */
+export interface TableReady {
+  seats: readonly [boolean, boolean];
+  disabled: boolean;
+  onReady: (ready: boolean) => void;
+}
 
 export interface TablePageProps {
   roomId: string;
@@ -40,11 +53,13 @@ export interface TablePageProps {
   refresh: unknown;
   /** Tests pass a client over a stub fetch. */
   tables?: TablesClient;
+  /** The seats' Ready, while the table's start waits on it; mine is drawn for a player of this table only. */
+  ready?: TableReady;
   /** My own step before the game, for a player of this table only. */
   children?: ReactNode;
 }
 
-export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, canStart = true, refresh, tables, children }: TablePageProps) {
+export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, canStart = true, refresh, tables, ready, children }: TablePageProps) {
   const missing = table === undefined;
   useEffect(() => {
     if (missing) navigate({ kind: 'room', roomId }, { replace: true });
@@ -62,42 +77,59 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
   if (table === undefined) return null;
   const sideboarding = mine && matchId === null && table.series.phase === 'sideboarding';
   const pairing = pod?.pairings.find((p) => p.tableId === table.id)?.players;
-  // A pairing names the AI too; a table seats only its humans.
-  const seats = pairing ?? table.players.map((p) => p.memberId);
+  // A pairing names the AI too; a table seats only its humans, and its AI's place is always the last
+  // seat (`room/lobby.ts`'s `#newPodTable`), which the series' wins and the seats' Ready are counted by.
+  const seats = pairing === undefined ? table.players.map((p) => p.memberId) : isPodAi(pairing[0]) ? [pairing[1], pairing[0]] : pairing;
+  const mySeat = seats.indexOf(myMemberId ?? '');
+  const heading = pod === null ? null : pod.phase === 'done' ? 'Standings' : `Round ${pod.round} of ${pod.rounds}`;
   return (
     <div className="pod__room">
       <div className="pod__rounds" data-testid="table-page" data-table-id={table.id} data-phase={table.series.phase}>
         <div className="lobby__deckhead">
-          <a
-            className="shell__link"
-            data-testid="table-hub"
-            href={routeHash({ kind: 'room', roomId })}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate({ kind: 'room', roomId });
-            }}
-          >
-            {pod === null ? 'Room' : pod.phase === 'done' ? 'Standings' : `Round ${pod.round} of ${pod.rounds}`}
-          </a>
+          <span className="table-page__title">
+            <a
+              className="button"
+              data-testid="table-hub"
+              href={routeHash({ kind: 'room', roomId })}
+              onClick={(e) => {
+                e.preventDefault();
+                navigate({ kind: 'room', roomId });
+              }}
+            >
+              Back to lobby
+            </a>
+            {heading !== null && <h2 data-testid="table-round">{heading}</h2>}
+          </span>
           {matchId !== null && (
             <a className="lobby__go" data-testid="table-match-link" href={routeHash({ kind: 'match', matchId })}>
               {mine ? 'Play' : 'Watch'}
             </a>
           )}
         </div>
-        <ul className="pod-seats pod-seats--table" data-testid="table-seats">
-          {seats.map((id, seat) => (
-            <li key={seat} className="pod-seats__seat" data-testid={`table-seat-${seat}`} data-mine={id === myMemberId ? '' : undefined}>
-              <span className="pod-seats__avatar">
-                <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
-              </span>
-              <span className="pod-seats__label">{nameOf(id)}</span>
-              <span className="pod-seats__wins" data-testid={`table-seat-${seat}-wins`}>
-                {table.series.wins[seat] ?? 0}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="pod-strip">
+          <ul className="pod-seats pod-seats--table" data-testid="table-seats">
+            {seats.map((id, seat) => {
+              const isReady = ready?.seats[seat] === true;
+              return (
+                <li key={seat} className="pod-seats__seat" data-testid={`table-seat-${seat}`} data-mine={id === myMemberId ? '' : undefined}>
+                  <span className="pod-seats__avatar" data-ready={ready === undefined ? undefined : isReady ? 'true' : 'false'}>
+                    <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
+                  </span>
+                  <span className="pod-seats__label">{nameOf(id)}</span>
+                  <span className="pod-seats__wins" data-testid={`table-seat-${seat}-wins`}>
+                    {table.series.wins[seat] ?? 0}
+                  </span>
+                  {ready !== undefined && (
+                    <StatusPill testId={`table-seat-${seat}-ready`} state={isReady ? 'yes' : 'no'} mark={isReady ? 'tick' : 'ring'} label={isReady ? 'ready' : 'not ready'} />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {ready !== undefined && mine && current && mySeat >= 0 && (
+            <ReadyToggle ready={ready.seats[mySeat] === true} disabled={ready.disabled} onReady={ready.onReady} />
+          )}
+        </div>
         {error !== null && (
           <div className="ct-error" role="alert" data-testid="pod-table-start-error">
             <p>{error}</p>

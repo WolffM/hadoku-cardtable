@@ -532,6 +532,7 @@ describe('RoomView.tables and RoomView.pod', () => {
       bye: null,
       drafters: [],
       built: [],
+      personas: {},
       // wave 73 §A: PodView gains these three.
       plan: { rounds: [{ kind: 'cube' as const, cubeId: 'default' }, { kind: 'cube' as const, cubeId: 'default' }, { kind: 'cube' as const, cubeId: 'default' }] },
       planName: 'Test Cube',

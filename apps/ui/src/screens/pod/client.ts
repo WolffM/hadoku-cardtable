@@ -26,7 +26,7 @@ import { roomFeed } from '../../rooms/feed.ts';
 import { latestReads } from '../../rooms/latest.ts';
 import { apiUrl, bodyOf, getJson, isRecord, sendJson } from '../../http.ts';
 import { tablesClient } from '../tables.ts';
-import { parsePodView, POD_AI, type PodView } from './wire.ts';
+import { parsePodView, type PodView } from './wire.ts';
 
 /** The room's raw body — `fetchRoomTables`'s sibling for `pod`. `'gone'` on the server's 404, `null` on any other failure. */
 async function fetchRoomRaw(roomId: string): Promise<Record<string, unknown> | 'gone' | null> {
@@ -40,14 +40,19 @@ async function fetchRoomRaw(roomId: string): Promise<Record<string, unknown> | '
   }
 }
 
-/** The room's AI, by its character's name (`room/lobby.ts`'s `roomAi`); a server without one says AI. */
-function aiNameOf(v: unknown): string {
-  return typeof v === 'object' && v !== null && typeof (v as { name?: unknown }).name === 'string' ? (v as { name: string }).name : 'AI';
-}
-
-/** The room's AI's character (`room/lobby.ts`'s `roomAi`), or null. */
-function aiAvatarOf(v: unknown): string | null {
-  return typeof v === 'object' && v !== null && typeof (v as { avatarId?: unknown }).avatarId === 'string' ? (v as { avatarId: string }).avatarId : null;
+/**
+ * Every entrant's display name and avatar, by entrant id: the room's members, and each AI entrant's own
+ * character (`PodView.personas`). The one lookup every pod and tournament screen draws a player with.
+ */
+export function entrantLookup(pod: PodView | null, members: readonly { id: string; name: string; avatarId?: unknown }[]): Pick<PodContext, 'names' | 'avatars'> {
+  const personas = Object.entries(pod?.personas ?? {});
+  return {
+    names: { ...Object.fromEntries(personas.map(([id, p]) => [id, p.name])), ...Object.fromEntries(members.map((m) => [m.id, m.name])) },
+    avatars: {
+      ...Object.fromEntries(personas.map(([id, p]) => [id, p.avatarId])),
+      ...Object.fromEntries(members.flatMap((m) => (typeof m.avatarId === 'string' ? [[m.id, m.avatarId]] : []))),
+    },
+  };
 }
 
 function isNamed(v: unknown): v is { id: string; name: string; avatarId?: unknown } {
@@ -58,13 +63,13 @@ export interface PodContext {
   pod: PodView | null;
   /** This round's tables — `@hadoku/shared`'s own schema, safe to import (landed wave 71). */
   tables: RoomTable[];
-  /** Every member's display name, by id — for resolving `pod.built`/`pod.bye`/`pod.standings[].id`. */
+  /** Every entrant's display name, by id (`entrantLookup`) — for resolving `pod.built`/`pod.bye`/`pod.standings[].id`. */
   names: Record<string, string>;
   /** The room's members, in the room's order. */
   members: { id: string; name: string }[];
   /** The room owner's member id (`RoomView.leader`); `''` while unknown. */
   leaderId: string;
-  /** Every member's watchparty character, by id, the room's AI's under `POD_AI`. Absent for one without. */
+  /** Every entrant's watchparty character, by id, each AI entrant's its own (`entrantLookup`). Absent for one without. */
   avatars: Record<string, string>;
   /**
    * My member id in this room, from the server's own `you` — what the tables
@@ -92,14 +97,13 @@ export async function fetchPodContext(roomId: string): Promise<PodContext> {
   if (body === null || body === 'gone') return { pod: null, tables: [], names: {}, members: [], leaderId: '', avatars: {}, me: null, name: '', leader: false, gone: body === 'gone' };
   const tables = RoomTablesSchema.safeParse(body.tables);
   const members = Array.isArray(body.members) ? body.members.filter(isNamed) : [];
-  const ai = aiAvatarOf(body.ai);
+  const pod = parsePodView(body.pod);
   return {
-    pod: parsePodView(body.pod),
+    pod,
     tables: tables.success ? tables.data : [],
-    names: { ...Object.fromEntries(members.map((m) => [m.id, m.name])), [POD_AI]: aiNameOf(body.ai) },
+    ...entrantLookup(pod, members),
     members: members.map((m) => ({ id: m.id, name: m.name })),
     leaderId: typeof body.leader === 'string' ? body.leader : '',
-    avatars: { ...Object.fromEntries(members.flatMap((m) => (typeof m.avatarId === 'string' ? [[m.id, m.avatarId]] : []))), ...(ai === null ? {} : { [POD_AI]: ai }) },
     name: typeof body.name === 'string' ? body.name : '',
     me: typeof body.you === 'object' && body.you !== null && typeof (body.you as { id?: unknown }).id === 'string' ? (body.you as { id: string }).id : null,
     leader: typeof body.you === 'object' && body.you !== null && (body.you as { leader?: unknown }).leader === true,

@@ -13,11 +13,11 @@
 
 import { useRef, useState, type ReactNode } from 'react';
 
-import { ActionButton } from '../../components/ActionButton.tsx';
 import type { RoomMember } from '../../rooms/api.ts';
 import { aiPod, closePod, sitPod, standPod, type PodActionOutcome } from './client.ts';
 import { PodSeats } from './PodSeats.tsx';
 import { PodSpectators } from './PodSpectators.tsx';
+import { ReadyToggle } from './ReadyToggle.tsx';
 import type { PodView } from './wire.ts';
 
 export interface PodLobbyProps {
@@ -58,21 +58,7 @@ export function PodLobby({ testId, roomId, pod, members, leaderId, myMemberId, i
       });
   };
 
-  const side = (
-    <div className="pod-strip__side">
-      {note}
-      <ActionButton
-        action={iAmReady ? 'unready' : 'ready'}
-        className="lobby__go"
-        data-testid="ready-toggle"
-        aria-pressed={iAmReady}
-        disabled={readyDisabled}
-        onPress={() => onReady(!iAmReady)}
-      >
-        {iAmReady ? 'Stand down' : 'Ready'}
-      </ActionButton>
-    </div>
-  );
+  const side = <ReadyToggle ready={iAmReady} disabled={readyDisabled} onReady={onReady} note={note} />;
 
   return (
     <section className="lobby__card" data-testid={testId}>

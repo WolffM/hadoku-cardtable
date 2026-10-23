@@ -331,7 +331,7 @@ test(
       const playRound = async (round: number): Promise<void> => {
         // Paired: carried to the round's own table page, where its deck is picked.
         await alice!.page.waitForURL(tablePage, { timeout: UI_TIMEOUT });
-        await expect(alice!.page.getByTestId('table-hub'), `round ${round} is current`).toHaveText(`Round ${round} of 2`, { timeout: UI_TIMEOUT });
+        await expect(alice!.page.getByTestId('table-round'), `round ${round} is current`).toHaveText(`Round ${round} of 2`, { timeout: UI_TIMEOUT });
         await expect(alice!.page.getByTestId('deck-mine'), `round ${round}: the round’s OWN deck chooser — never tables[0]’s`).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('deck-mine').getByTestId('deck-option').first().click();
         await alice!.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });

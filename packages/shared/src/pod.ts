@@ -169,6 +169,11 @@ export const PodViewSchema = z.strictObject({
   /** Drafters whose deck is saved and legal — `building`'s own gate for starting `rounds`. */
   built: z.array(z.string().min(1)),
   /**
+   * Every AI entrant's character past the lobby, by entrant id (`'ai'` or `` `ai:<seat>` ``): who the
+   * bracket, the standings and a table draw for it. Empty in `lobby`, where `seats` carry their own.
+   */
+  personas: z.record(z.string(), z.strictObject({ name: z.string(), avatarId: z.string().min(1) })),
+  /**
    * The room's pool choice (wave 73 §A) — the Settled default (Vintage Cube
    * 2025-12 × 3) until the leader picks otherwise, frozen once drafting
    * starts (`PUT /api/rooms/:id/pod/plan` is `lobby`-phase only). `null` for

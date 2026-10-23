@@ -3285,6 +3285,20 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 	});
 
 	describe('AI entrants (operator, 2026-10-22: reversing the plan’s "no AI seats")', () => {
+		it('names each AI entrant past the lobby: the character its seat was given, on the pod view (the bracket read "AI" with no avatar, 2026-10-23)', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
+			const seat = lobby.get(id)!.pod?.seats[1];
+			expect(seat?.avatarId).toBeTruthy();
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+			expect(started.room.pod?.personas).toEqual({ 'ai:1': { name: seat!.name, avatarId: seat!.avatarId } });
+		});
+
 		it('an AI entrant seated before the lock plays round 1 against its human, settled by a reported result', async () => {
 			const lobby = await openLobby({ dir: await tempDir() });
 			const id = await tournamentRoom(lobby, ALICE, 'classic');

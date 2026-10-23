@@ -22,6 +22,7 @@ const fixture = (over: Partial<PodView> = {}): PodView => ({
   bye: null,
   drafters: [],
   built: [],
+  personas: {},
   // wave 73 §A: PodView gains these three; this file's own parse test (below)
   // covers them directly, so the shared fixture just needs a valid default.
   plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
@@ -44,6 +45,7 @@ describe('parsePodView', () => {
       bye: 'u-carol',
       drafters: ['u-alice', 'u-bob', 'u-carol'],
       built: ['u-alice', 'u-bob', 'u-carol'],
+      personas: {},
       standings: [
         { id: 'u-alice', matchPoints: 3, opponentMatchWinPct: 0.5, gameWinPct: 1, opponentGameWinPct: 0.5, rank: 1 },
         { id: 'u-bob', matchPoints: 0, opponentMatchWinPct: 1, gameWinPct: 0, opponentGameWinPct: 1, rank: 2 },

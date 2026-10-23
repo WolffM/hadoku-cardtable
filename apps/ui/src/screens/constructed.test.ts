@@ -2175,6 +2175,7 @@ describe('a draft room', () => {
     bye: null,
     drafters: [],
     built: [],
+    personas: {},
     // wave 73 §A: PodView gains these three (PodViewSchema is a strictObject,
     // so a pod literal missing them fails parsePodView and nothing renders).
     plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
@@ -2406,6 +2407,7 @@ describe('tournament mode', () => {
     bye: null,
     drafters: [],
     built: [],
+    personas: {},
     plan: null,
     planName: '',
     verdict: null,

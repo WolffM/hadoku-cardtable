@@ -5,13 +5,13 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { RoomTable } from '@hadoku/shared';
 
 import { forgetMatchesFollowed } from '../../play/live/matchStart.ts';
 import { navigate, parseRoute } from '../route.ts';
 import { RoomHub } from './RoomHub.tsx';
-import { TablePage } from './TablePage.tsx';
+import { TablePage, type TableReady } from './TablePage.tsx';
 import { POD_SEATS, type PodView } from './wire.ts';
 
 afterEach(() => {
@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 const ROOM = 'r-hub';
-const nameOf = (id: string) => ({ 'u-alice': 'Alice', 'u-bob': 'Bob' })[id] ?? id;
+const nameOf = (id: string) => ({ 'u-alice': 'Alice', 'u-bob': 'Bob', 'ai:3': 'Rogue' })[id] ?? id;
 const avatarOf = () => null;
 const route = () => parseRoute(globalThis.location.hash);
 
@@ -38,6 +38,7 @@ function pod(over: Partial<PodView> = {}): PodView {
     bye: null,
     drafters: ['u-alice', 'u-bob'],
     built: ['u-alice', 'u-bob'],
+    personas: {},
     plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
     planName: 'Test Cube',
     verdict: null,
@@ -84,7 +85,7 @@ describe('RoomHub', () => {
 });
 
 describe('TablePage', () => {
-  const page = (over: { pod?: PodView; table?: RoomTable | undefined; me?: string; canStart?: boolean; slot?: boolean } = {}) =>
+  const page = (over: { pod?: PodView; table?: RoomTable | undefined; me?: string; canStart?: boolean; slot?: boolean; ready?: TableReady } = {}) =>
     render(
       createElement(
         TablePage,
@@ -97,6 +98,7 @@ describe('TablePage', () => {
           avatarOf,
           canStart: over.canStart,
           refresh: null,
+          ready: over.ready,
         },
         over.slot === false ? undefined : createElement('div', { 'data-testid': 'stand-in-step' }),
       ),
@@ -118,6 +120,33 @@ describe('TablePage', () => {
       ['Bob', '0'],
     ]);
     expect(screen.getByTestId('table-hub').getAttribute('href')).toBe(`#/room/${ROOM}`);
+  });
+
+  it('heads the page with its round, and the way back to the lobby is a button of its own beside it', () => {
+    posts();
+    page();
+    expect(screen.getByTestId('table-round').textContent).toBe('Round 1 of 2');
+    expect(screen.getByTestId('table-hub').textContent).toBe('Back to lobby');
+    expect(screen.getByTestId('table-hub').contains(screen.getByTestId('table-round'))).toBe(false);
+  });
+
+  it('draws an AI entrant in its table seat, the last, by its own name, whichever side the pairing names it', () => {
+    posts();
+    page({ pod: pod({ pairings: [{ tableId: 't-1', players: ['ai:3', 'u-alice'] }] }), table: table({ players: [{ memberId: 'u-alice', name: 'Alice' }] }) });
+    expect(screen.getAllByTestId(/^table-seat-\d$/).map((s) => [s.querySelector('.pod-seats__label')?.textContent, s.querySelector('.pod-seats__wins')?.textContent])).toEqual([
+      ['Alice', '1'],
+      ['Rogue', '0'],
+    ]);
+  });
+
+  it('a start that waits on both seats’ Ready: each seat says whether it is, and mine is the lobby’s Ready', () => {
+    posts();
+    const onReady = vi.fn();
+    page({ ready: { seats: [false, true], disabled: false, onReady } });
+    expect(screen.getByTestId('table-seat-0-ready').textContent).toContain('not ready');
+    expect(screen.getByTestId('table-seat-1-ready').textContent).not.toContain('not');
+    fireEvent.click(screen.getByTestId('ready-toggle'));
+    expect(onReady).toHaveBeenCalledWith(true);
   });
 
   it('draws my step before the game, and starts my table by itself', () => {

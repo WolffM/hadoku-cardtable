@@ -201,11 +201,10 @@ import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
 import { seatAvatars } from './gauntlet/seats.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
-import { myCurrentTable, useFollowMyTable } from './pod/client.ts';
+import { entrantLookup, myCurrentTable, useFollowMyTable } from './pod/client.ts';
+import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { PodLobby } from './pod/PodLobby.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
-import { TablePage } from './pod/TablePage.tsx';
-import { isPodAi } from './pod/wire.ts';
 import {
   RANDOM_DECK,
   isEra,
@@ -2033,29 +2032,9 @@ function RoomTableScreen({
       .finally(() => setBusy(false));
   };
 
-  /**
-   * Every entrant's display name and avatar — human members, plus whatever
-   * `pod.seats` named for an AI entrant (`ai:<seat>` or the draft pod's
-   * shared `ai`) while the pod was still in `lobby` (seats clear once rounds
-   * start, so this is captured once and kept for the rest of the pod's life).
-   */
-  const [podEntrantNames, setPodEntrantNames] = useState<Record<string, string>>({});
-  useEffect(() => {
-    if (pod === null || pod.phase !== 'lobby') return;
-    setPodEntrantNames((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const s of pod.seats) {
-        if (s !== null && next[s.memberId] !== s.name) {
-          next[s.memberId] = s.name;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [pod]);
-  const tNameOf = (id: string): string => podEntrantNames[id] ?? members.find((m) => m.id === id)?.name ?? (isPodAi(id) ? 'AI' : id);
-  const tAvatarOf = (id: string): string | null => members.find((m) => m.id === id)?.avatarId ?? null;
+  const entrants = entrantLookup(pod, members);
+  const tNameOf = (id: string): string => entrants.names[id] ?? id;
+  const tAvatarOf = (id: string): string | null => entrants.avatars[id] ?? null;
 
   useFollowMyTable(roomId, tournament ? pod : null, view?.tables ?? [], view?.you.id ?? null, tableId);
 
@@ -2129,40 +2108,24 @@ function RoomTableScreen({
 
   /**
    * A Gauntlet tournament table's own board — its table page's slot. Nobody sits or stands here (the pod's pairing already
-   * fixed the two seats, ruling 5): before the draw, just the two entrants'
-   * names and MY OWN Ready; from the reveal on, `GauntletScreen`, exactly as
-   * a non-tournament Gauntlet table already draws it, just scoped to
+   * fixed the two seats, ruling 5): before the draw, the table page's own seats and my Ready (`tGauntletReady`); from the
+   * reveal on, `GauntletScreen`, exactly as a non-tournament Gauntlet table already draws it, just scoped to
    * `gauntletTableId`.
    */
+  const tGauntletReady: TableReady | undefined =
+    mode === 'gauntlet' && myTournamentTable !== undefined && gauntlet !== null && gauntlet.phase === 'options'
+      ? { seats: gauntlet.ready, disabled: false, onReady: (ready) => gauntletMove(() => client.gauntletReady(roomId, ready, undefined, gauntletTableId)) }
+      : undefined;
   const tGauntletBoard =
-    mode === 'gauntlet' && myTournamentTable !== undefined && gauntlet !== null ? (
+    mode === 'gauntlet' && myTournamentTable !== undefined && gauntlet !== null && gauntlet.phase !== 'options' ? (
       <section className="lobby__card" data-testid="tournament-gauntlet">
-        {gauntlet.phase === 'options' ? (
-          <ul className="pod-seats pod-seats--table" data-testid="tournament-gauntlet-seats">
-            {[0, 1].map((seat) => (
-              <li key={seat} className="pod-seats__seat">
-                <span className="pod-seats__label">{myTournamentTable.players[seat]?.name ?? 'AI'}</span>
-                {gauntlet.you === seat && (
-                  <ActionButton
-                    action="ready"
-                    data-testid="tournament-gauntlet-ready"
-                    onPress={() => gauntletMove(() => client.gauntletReady(roomId, !gauntlet.ready[seat], undefined, gauntletTableId))}
-                  >
-                    {gauntlet.ready[seat] ? 'Waiting…' : 'Ready'}
-                  </ActionButton>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <GauntletScreen
-            view={gauntlet}
-            avatars={seatAvatars(gauntlet, members)}
-            onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck, gauntletTableId))}
-            onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck, gauntletTableId))}
-            onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck, gauntletTableId))}
-          />
-        )}
+        <GauntletScreen
+          view={gauntlet}
+          avatars={seatAvatars(gauntlet, members)}
+          onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck, gauntletTableId))}
+          onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck, gauntletTableId))}
+          onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck, gauntletTableId))}
+        />
       </section>
     ) : undefined;
 
@@ -2394,6 +2357,7 @@ function RoomTableScreen({
                   canStart={tCanStart}
                   refresh={view}
                   tables={client}
+                  ready={tGauntletReady}
                 >
                   {tDeckPicking && loaded !== null && (
                     <DeckChooser

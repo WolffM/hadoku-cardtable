@@ -181,3 +181,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+
+/* A table page's way back to the room's lobby, and beside it the round it is in: a heading, not a link. */
+.table-page__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.table-page__title h2 {
+  margin: 0;
+  font-size: 18px;
+}

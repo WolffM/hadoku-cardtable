@@ -24,6 +24,7 @@ const podFixture = (): PodView => ({
   bye: null,
   drafters: [],
   built: [],
+  personas: {},
   // wave 73 §A: PodView gains these three; this file is not a reader of any
   // of them, so a minimal fixture is all this needs.
   plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
@@ -32,14 +33,13 @@ const podFixture = (): PodView => ({
 });
 
 describe('fetchPodContext', () => {
-  it('reads pod, tables and a name map in one call', async () => {
-    const pod = podFixture();
+  it('reads pod, tables and a name map in one call — every AI entrant by its own character', async () => {
+    const pod = { ...podFixture(), personas: { ai: { name: 'Knight', avatarId: 'knight' }, 'ai:3': { name: 'Rogue', avatarId: 'rogue' } } };
     const body = {
       id: 'r-cube',
       pod,
       tables: [{ id: 't-aaaaaaaa', players: [], matchId: null, series: { length: 3, wins: [0, 0], games: [], phase: 'seating' } }],
       members: [{ id: 'u-alice', name: 'Alice', avatarId: 'sage' }, { id: 'u-bob', name: 'Bob' }],
-      ai: { name: 'Knight', avatarId: 'knight' },
       leader: 'u-bob',
     };
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
@@ -47,9 +47,9 @@ describe('fetchPodContext', () => {
     const ctx = await fetchPodContext('r-cube');
     expect(ctx.pod).toEqual(pod);
     expect(ctx.tables).toHaveLength(1);
-    expect(ctx.names).toEqual({ 'u-alice': 'Alice', 'u-bob': 'Bob', ai: 'Knight' });
+    expect(ctx.names).toEqual({ 'u-alice': 'Alice', 'u-bob': 'Bob', ai: 'Knight', 'ai:3': 'Rogue' });
     // Bob has no character: no entry, and the face falls back to his initial.
-    expect(ctx.avatars).toEqual({ 'u-alice': 'sage', ai: 'knight' });
+    expect(ctx.avatars).toEqual({ 'u-alice': 'sage', ai: 'knight', 'ai:3': 'rogue' });
     // The member list and its owner, for the pod's spectators.
     expect([ctx.members, ctx.leaderId]).toEqual([[{ id: 'u-alice', name: 'Alice' }, { id: 'u-bob', name: 'Bob' }], 'u-bob']);
   });
