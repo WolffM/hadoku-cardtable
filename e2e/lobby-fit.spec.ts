@@ -173,8 +173,10 @@ test(titled('the page and the chat stay the window’s height on the front page 
       await f.page.getByTestId('deck-mine').locator('[data-deck-id]').nth(n).click();
       await expect(f.page.getByTestId('ready-toggle')).toBeEnabled();
     }
+    await alice.page.getByTestId('match-rules').click();
     await alice.page.getByTestId('free-pick').click();
     await expect(alice.page.getByTestId('free-pick')).toHaveAttribute('aria-pressed', 'true');
+    await alice.page.getByTestId('match-rules-popover-close').click();
     await expect(bob.page.getByTestId('format-fixed')).toHaveText('Free pick');
     for (const f of [alice, bob]) {
       await expect.poll(() => f.page.getByTestId('deck-mine').locator('[data-deck-id]').count(), { timeout: 30_000 }).toBeGreaterThan(100);

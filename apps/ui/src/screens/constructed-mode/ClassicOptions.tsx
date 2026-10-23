@@ -1,7 +1,8 @@
 /*
  * Classic's options: the room's format (the leader's tabs and era, or the
- * pool as text for everyone else), Free pick's browse, and the leader's
- * switches — one line beside the mode row.
+ * pool as text for everyone else) and Free pick's browse — one line beside the
+ * mode row. The switches that were at its far end, Free pick and Hand
+ * smoothing, are in the room's Match rules (`MatchRules.tsx`).
  *
  * The format tab selector is wave 48 §U's; the row used to open the deck card
  * ("Your deck"), and moved here with the mode row (the operator, 2026-10-21).
@@ -10,7 +11,6 @@
 import { useEffect, useState } from 'react';
 
 import { FREE_PICK } from '@hadoku/shared';
-import { ActionButton } from '../../components/ActionButton.tsx';
 import { erasOf, FORMAT_TABS, newestFormat, poolIsOnTab, type FormatFamily, type TableFormat } from '../tables.ts';
 
 /** Free pick's browse: a format's library, or the decks you drafted (`#/decks`). */
@@ -20,6 +20,18 @@ const BROWSE_TABS: ReadonlyArray<{ id: BrowseTab; label: string }> = [...FORMAT_
 export interface Browse {
   family: BrowseTab;
   era: string;
+}
+
+/**
+ * The room's pool after the Free pick switch is pressed, and the browse to show with it. On, the whole
+ * library is the pool and everyone browses it from the format the table was on; off lands on the era
+ * being browsed, else that format's newest.
+ */
+export function toggledFreePick(formats: readonly TableFormat[], poolId: string, browse: Browse): { pool: string; browse?: Browse } {
+  if (poolId !== FREE_PICK) return { pool: FREE_PICK, browse: { family: formats.find((f) => f.id === poolId)?.family ?? 'standard', era: '' } };
+  const family = browse.family === 'mine' ? 'standard' : browse.family;
+  const era = browse.era || erasOf(formats, family)[0]?.id;
+  return { pool: era ?? newestFormat(formats) };
 }
 
 function poolLabel(formats: readonly TableFormat[], id: string): string {
@@ -36,8 +48,6 @@ export function ClassicOptions({
   onPool,
   browse,
   onBrowse,
-  handSmoothing,
-  onHandSmoothing,
 }: {
   formats: readonly TableFormat[];
   /** The room's pool: an era's id, or `FREE_PICK`. */
@@ -49,8 +59,6 @@ export function ClassicOptions({
   onPool: (poolId: string) => void;
   browse: Browse;
   onBrowse: (browse: Browse) => void;
-  handSmoothing: boolean;
-  onHandSmoothing: () => void;
 }) {
   /** Free pick: every library deck, whatever its era. No tab is the table's while it is on. */
   const freePick = poolId === FREE_PICK;
@@ -207,46 +215,6 @@ export function ClassicOptions({
                 </select>
               )}
             </>
-          )}
-          {/* The leader's switches, together at the row's far end. */}
-          {leader && (
-            <span className="lobby__switches">
-              {/* Free pick is a switch of its own, not a fourth tab: on, the
-                  whole library is the pool and everyone browses it by format
-                  on this row; off, the leader's tabs pick the room's era again. Off
-                  lands on the era being browsed, else that format's newest. */}
-              <ActionButton
-                action={freePick ? 'free-pick-off' : 'free-pick-on'}
-                className="lobby__free-pick ct-toggle"
-                aria-pressed={freePick}
-                data-testid="free-pick"
-                disabled={disabled}
-                onPress={() => {
-                  if (!freePick) {
-                    onBrowse({ family: formatTab, era: '' });
-                    onPool(FREE_PICK);
-                    return;
-                  }
-                  const family = browse.family === 'mine' ? 'standard' : browse.family;
-                  const era = browse.era || erasOf(formats, family)[0]?.id;
-                  onPool(era ?? newestFormat(formats));
-                }}
-              >
-                Free pick
-              </ActionButton>
-              {/* The room's first match setting: the opening hand nearer the
-                  deck's land ratio, each mulligan weighted toward it. */}
-              <ActionButton
-                action={handSmoothing ? 'hand-smoothing-off' : 'hand-smoothing-on'}
-                className="lobby__free-pick ct-toggle"
-                aria-pressed={handSmoothing}
-                data-testid="hand-smoothing"
-                disabled={disabled}
-                onPress={onHandSmoothing}
-              >
-                Hand smoothing
-              </ActionButton>
-            </span>
           )}
     </>
   );

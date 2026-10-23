@@ -763,6 +763,10 @@ const myRow = (): HTMLElement => {
   if (row === undefined) throw new Error('no row of yours at the table');
   return row;
 };
+/** Open the room's Match rules, where its switches and a tournament's Decks live. */
+const openRules = (button: HTMLElement = screen.getByTestId('match-rules')): void => {
+  fireEvent.click(button);
+};
 /** Whether my Ready can be pressed: in a classic room, what the server's verdict on my deck decides. */
 const myReadyOpen = (): boolean => !(within(myRow()).getByTestId('ready-toggle') as HTMLButtonElement).disabled;
 
@@ -1825,6 +1829,7 @@ describe('the table’s pool', () => {
   it('Free pick: the leader’s toggle puts the room on every deck, and off again on an era', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null, format: '2011-07-15' });
     await waitFor(() => expect(offered()).toEqual([SECOND_DECK]));
+    openRules();
     // Each state is its own element (`ActionButton`): read the toggle afresh after every press.
     const toggle = (): HTMLElement => screen.getByTestId('free-pick');
     expect(toggle().getAttribute('aria-pressed')).toBe('false');
@@ -1960,6 +1965,7 @@ describe('the table’s pool', () => {
     expect(server.calls.filter((c) => c.url.endsWith('/api/decks'))).toHaveLength(0);
 
     // On Free pick, the same build is one of My decks.
+    openRules();
     await act(async () => {
       fireEvent.click(screen.getByTestId('free-pick'));
     });
@@ -1991,7 +1997,7 @@ describe('the table’s pool', () => {
 
   it('Hand smoothing: on by default, and the leader’s toggle turns it off on the room', async () => {
     const server = await mountRoom({ players: [opponent()], matchId: null });
-    await screen.findByTestId('hand-smoothing');
+    openRules(await screen.findByTestId('match-rules'));
     // Each state is its own element (`ActionButton`): read the toggle afresh after every press.
     const toggle = (): HTMLElement => screen.getByTestId('hand-smoothing');
     expect(toggle().getAttribute('aria-pressed')).toBe('true');
@@ -2002,15 +2008,16 @@ describe('the table’s pool', () => {
     expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ settings: { handSmoothing: false } }]);
   });
 
-  it('Hand smoothing is the leader’s: a non-leader gets no toggle', async () => {
+  it('Hand smoothing is the leader’s: a non-leader reads it, disabled', async () => {
     await mountRoom({ players: [opponent()], matchId: null, leader: false });
-    await waitFor(() => expect(screen.getByTestId('format-fixed')).toBeTruthy());
-    expect(screen.queryByTestId('hand-smoothing')).toBeNull();
+    openRules(await screen.findByTestId('match-rules'));
+    expect(screen.getByTestId('hand-smoothing').getAttribute('aria-pressed')).toBe('true');
+    expect((screen.getByTestId('hand-smoothing') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('has no Best-of or Sideboarding toggle: a series starts as Bo1 and a Rematch makes it Bo3', async () => {
     await mountRoom({ players: [opponent()], matchId: null });
-    await screen.findByTestId('hand-smoothing');
+    openRules(await screen.findByTestId('match-rules'));
     expect(screen.queryByTestId('match-length')).toBeNull();
     expect(screen.queryByTestId('sideboarding')).toBeNull();
   });
@@ -2042,10 +2049,11 @@ describe('the table’s pool', () => {
     expect(screen.queryByTestId('deck-mine')).toBeNull();
   });
 
-  it('Free pick reads as its name to a non-leader, who gets no toggle', async () => {
+  it('Free pick reads as its name to a non-leader, whose toggle is disabled', async () => {
     await mountRoom({ players: [opponent()], matchId: null, leader: false, format: 'free' });
     expect(screen.getByTestId('format-fixed').textContent).toBe('Free pick');
-    expect(screen.queryByTestId('free-pick')).toBeNull();
+    openRules();
+    expect((screen.getByTestId('free-pick') as HTMLButtonElement).disabled).toBe(true);
     await waitFor(() => expect(offered()).toEqual([UG_POLYMORPH, SECOND_DECK]));
   });
 
@@ -2401,13 +2409,14 @@ describe('tournament mode', () => {
     return server;
   }
 
-  it('shows Tournament in the options row; turning it on shows Decks, defaulted to Locked', async () => {
+  it('shows Single match or Tournament in the header; turning Tournament on puts Decks in the Match rules, defaulted to Locked', async () => {
     await mountTournament({ settings: { tournament: false, tournamentDecks: 'locked' }, pod: null });
-    expect(screen.getByTestId('tournament-toggle').getAttribute('aria-pressed')).toBe('false');
+    expect((screen.getByTestId('room-event-single') as HTMLInputElement).checked).toBe(true);
+    openRules();
     expect(screen.queryByTestId('tournament-decks')).toBeNull();
 
-    screen.getByTestId('tournament-toggle').click();
-    await waitFor(() => expect(screen.getByTestId('tournament-toggle').getAttribute('aria-pressed')).toBe('true'));
+    screen.getByTestId('room-event-tournament').click();
+    await waitFor(() => expect((screen.getByTestId('room-event-tournament') as HTMLInputElement).checked).toBe(true));
     expect((screen.getByTestId('tournament-decks-locked') as HTMLInputElement).checked).toBe(true);
   });
 
@@ -2419,12 +2428,13 @@ describe('tournament mode', () => {
 
     screen.getByTestId('constructed-mode-gauntlet').click();
     await waitFor(() => expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).checked).toBe(true));
-    expect((screen.getByTestId('tournament-toggle') as HTMLButtonElement).disabled, 'mode is Gauntlet: Tournament stays a live toggle').toBe(false);
+    expect((screen.getByTestId('room-event-tournament') as HTMLInputElement).disabled, 'mode is Gauntlet: Tournament stays a live choice').toBe(false);
   });
 
   it('a non-leader reads Tournament and Decks disabled, never able to move them', async () => {
     await mountTournament({ leader: false, settings: { tournament: true, tournamentDecks: 'per-round' } });
-    expect((screen.getByTestId('tournament-toggle') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('room-event-tournament') as HTMLInputElement).disabled).toBe(true);
+    openRules();
     expect((screen.getByTestId('tournament-decks-per-round') as HTMLInputElement).disabled).toBe(true);
     expect((screen.getByTestId('tournament-decks-per-round') as HTMLInputElement).checked).toBe(true);
   });
@@ -2670,6 +2680,20 @@ describe('the room’s mode', () => {
     expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body).at(-1)).toEqual({ mode: 'random', modeOptions: { pool: 'modern' } });
     server.table.players = [{ ...mySeat(), deck: null }];
     expect(await screen.findByTestId('ready-toggle')).toHaveProperty('disabled', false);
+  });
+
+  // The operator, 2026-10-22: "yes, put all random lock decks in match rules too".
+  it('All Random’s Lock decks is a Match rule: the leader’s press keeps the pool, and the rule locks once somebody is ready', async () => {
+    const server = await mountModeRoom({ players: [], matchId: null, mode: { mode: 'random', modeOptions: { pool: 'modern' } } });
+    openRules(await screen.findByTestId('match-rules'));
+    expect(screen.queryByTestId('hand-smoothing')).toBeNull();
+    expect(screen.getByTestId('random-lock').getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(screen.getByTestId('random-lock'));
+    await waitFor(() => expect(screen.getByTestId('random-lock').getAttribute('aria-pressed')).toBe('true'));
+    expect(server.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([{ mode: 'random', modeOptions: { pool: 'modern', lock: true } }]);
+    expect(screen.getByTestId('match-rules').textContent).toContain('Decks locked');
+    server.table.players = [opponent({ ready: true })];
+    await waitFor(() => expect((screen.getByTestId('random-lock') as HTMLButtonElement).disabled).toBe(true));
   });
 
   it('changing the mode is picking another card, until somebody is ready', async () => {

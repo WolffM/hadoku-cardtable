@@ -1,0 +1,58 @@
+/*
+ * A popover (`Popover.tsx`): the settings gear's and a room's Match rules.
+ *
+ * Painted only from `@wolffm/themes` tokens — no literal colour anywhere,
+ * native controls included (`accent-color`): inside a match it sits in the
+ * `.live` island, outside it on the themed screens, and either way it reads as
+ * a card over the page.
+ */
+
+.ct-popover {
+  position: fixed;
+  z-index: var(--z-modal, 50);
+  width: min(18rem, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  padding: 10px 14px 14px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.ct-popover:focus {
+  outline: none;
+}
+
+/* Checkboxes, radios and sliders take the theme's primary, not the browser's blue. */
+.ct-popover input {
+  accent-color: var(--color-primary);
+}
+
+.ct-popover__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.ct-popover__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ct-popover__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--hdk-radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ct-popover__close:hover,
+.ct-popover__close:focus-visible {
+  border-color: var(--color-border);
+}

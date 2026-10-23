@@ -1,44 +1,11 @@
 /*
- * Cardtable's own settings popover and its gear (`Settings.tsx`).
+ * Cardtable's own settings and its gear (`Settings.tsx`), drawn in a `components/Popover.tsx`.
  *
  * Painted only from `@wolffm/themes` tokens — no literal colour anywhere,
  * native controls included (`accent-color`): inside a match it sits in the
  * `.live` island, outside it on the themed screens, and either way it reads as
  * a card over the page.
  */
-
-.ct-settings {
-  position: fixed;
-  z-index: var(--z-modal, 50);
-  width: min(18rem, calc(100vw - 16px));
-  max-height: calc(100dvh - 16px);
-  overflow-y: auto;
-  padding: 10px 14px 14px;
-  font-size: 13px;
-  text-align: left;
-}
-
-.ct-settings:focus {
-  outline: none;
-}
-
-/* Checkboxes, radios and sliders take the theme's primary, not the browser's blue. */
-.ct-settings input {
-  accent-color: var(--color-primary);
-}
-
-.ct-settings__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.ct-settings__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
 
 .ct-settings__close {
   display: inline-flex;

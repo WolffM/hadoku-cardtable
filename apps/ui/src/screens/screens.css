@@ -337,13 +337,40 @@
   cursor: pointer;
 }
 
-/* Free pick and the room's settings are switches, not formats: together at
-   the row's far end, and they wrap together. */
-.lobby__switches {
+/* A room's first row (`rooms/RoomHeader.tsx`): its type, its event, and its Match rules at the far end. */
+.lobby__header {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+/* The room's rules (`rooms/MatchRules.tsx`): one button at the first row's far end, naming
+   the rules that are on, and the switches and the tournament's deck policy in its popover. */
+.lobby__rules {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
   margin-left: auto;
+  padding: 0.35rem 0.75rem;
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lobby__rules-on {
+  color: var(--color-text-secondary);
+}
+
+.lobby__rules-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .lobby__format-tabs button:disabled,

@@ -23,7 +23,7 @@
  * Escape, the close button and a press anywhere outside it close it.
  */
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@wolffm/themes';
 
 import { usePrefs } from '@wolffm/prefs-client/react';
@@ -32,12 +32,9 @@ import { forgetCardWidths } from '../play/card-size.ts';
 import { SettingsPanel } from '../play/live/SettingsPanel.tsx';
 import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import { SoundSettings } from './SoundSettings.tsx';
-import { useDismiss } from '../popover.ts';
+import { Popover, usePopover } from '../components/Popover.tsx';
 import { applyUiScale, clampUiScale, UI_SCALE, uiLength } from './ui-scale.ts';
 import './settings.css';
-
-/** The gap between the popover and what opened it, and its distance from the viewport's edges. */
-const GAP = 8;
 
 export interface SettingsPopoverProps {
   /** What opened it: the popover is placed beside it, and a press on it is the trigger's to handle. */
@@ -47,53 +44,13 @@ export interface SettingsPopoverProps {
   children?: ReactNode;
 }
 
-interface Placement {
-  top?: number;
-  bottom?: number;
-  left?: number;
-  right?: number;
-}
-
-/** Above an anchor in the lower half, below one in the upper; aligned to the anchor's nearer side. */
-function place(anchor: DOMRect): Placement {
-  const vw = globalThis.innerWidth;
-  const vh = globalThis.innerHeight;
-  const vertical = anchor.top + anchor.height / 2 > vh / 2 ? { bottom: Math.max(GAP, vh - anchor.top + GAP) } : { top: anchor.bottom + GAP };
-  const horizontal = anchor.left + anchor.width / 2 > vw / 2 ? { right: Math.max(GAP, vw - anchor.right) } : { left: Math.max(GAP, anchor.left) };
-  return { ...vertical, ...horizontal };
-}
-
 export function SettingsPopover({ trigger, onClose, children }: SettingsPopoverProps) {
-  const titleId = useId();
-  const ref = useRef<HTMLDivElement>(null);
-  const [placement, setPlacement] = useState<Placement>(() => place(trigger.getBoundingClientRect()));
-  useLayoutEffect(() => setPlacement(place(trigger.getBoundingClientRect())), [trigger]);
-
-  useDismiss(onClose, useCallback((target: Node) => ref.current?.contains(target) !== false || trigger.contains(target), [trigger]));
-  useEffect(() => ref.current?.focus(), []);
-
   return (
-    <div
-      ref={ref}
-      className="ct-settings ct-surface ct-panel"
-      role="dialog"
-      aria-labelledby={titleId}
-      data-testid="settings"
-      tabIndex={-1}
-      style={placement}
-    >
-      <div className="ct-settings__head">
-        <h2 id={titleId} className="ct-settings__title ct-panel__title">
-          Settings
-        </h2>
-        <button type="button" className="ct-settings__close" aria-label="Close settings" data-testid="settings-close" onClick={onClose}>
-          <Icon name="close" size={uiLength('1rem')} />
-        </button>
-      </div>
+    <Popover trigger={trigger} onClose={onClose} title="Settings" testId="settings">
       <DisplaySettings />
       <SoundSettings />
       {children}
-    </div>
+    </Popover>
   );
 }
 
@@ -165,14 +122,6 @@ export function useUiScale(root: () => HTMLElement | null): void {
   }, [root, scale]);
 }
 
-/** Which trigger has the popover open, if any. Pressing that trigger again closes it. */
-export function useSettingsPopover(): { trigger: Element | null; toggle: (el: Element) => void; close: () => void } {
-  const [trigger, setTrigger] = useState<Element | null>(null);
-  const close = useCallback(() => setTrigger(null), []);
-  const toggle = useCallback((el: Element) => setTrigger((open) => (open === null ? el : null)), []);
-  return { trigger, toggle, close };
-}
-
 /**
  * The game section outside a match: the same controls, on the saved preferences
  * alone. Mounted only while the popover is open, so a screen that never opens
@@ -195,7 +144,7 @@ function SavedGameSettings() {
 
 /** The way in outside a match: a gear in the screen's head row. */
 export function SettingsGear() {
-  const { trigger, toggle, close } = useSettingsPopover();
+  const { trigger, toggle, close } = usePopover();
   return (
     <>
       <button

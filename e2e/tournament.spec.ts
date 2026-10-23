@@ -72,11 +72,16 @@ async function openRoomWithLeader(browser: Browser, origin: string, roomName: st
 
 /** Turns Tournament on and sets Decks — the leader's own two controls, both read live on every browser. */
 async function enableTournament(alice: Player, bob: Player, decks: 'locked' | 'per-round'): Promise<void> {
-  await alice.page.getByTestId('tournament-toggle').click();
+  // A controlled radio: click, then wait for the room to say so (`toBeChecked`).
+  await alice.page.getByTestId('room-event-tournament').click();
+  await expect(alice.page.getByTestId('room-event-tournament')).toBeChecked();
   for (const p of [alice, bob]) await expect(p.page.getByTestId('tournament-lobby'), `${p.name}: the pod lobby replaces the 1v1 seats`).toBeVisible({ timeout: UI_TIMEOUT });
   if (decks === 'per-round') {
+    // Decks is a Match rule: open them, choose, close.
+    await alice.page.getByTestId('match-rules').click();
     await alice.page.getByTestId('tournament-decks-per-round').click();
     await expect(alice.page.getByTestId('tournament-decks-per-round')).toBeChecked();
+    await alice.page.getByTestId('match-rules-popover-close').click();
   }
 }
 
@@ -190,11 +195,10 @@ test(
       await expect(winner.page.getByTestId('pod-standings'), 'standings after round 1').toBeVisible({ timeout: UI_TIMEOUT });
       await expect(winner.page.getByTestId(/^pod-standings-row-\d+$/)).toHaveCount(2);
       // The seat strip is gone (replaced by the bracket/standings), but the
-      // options row's own Tournament/Decks controls stay visible, reading the
-      // room's actual state — just frozen (the plan's own "locked once seats
-      // lock", not hidden).
+      // header's Tournament choice stays visible, reading the room's actual
+      // state — just frozen (the plan's own "locked once seats lock", not hidden).
       await expect(winner.page.getByTestId('pod-lock-seats')).toHaveCount(0);
-      await expect(winner.page.getByTestId('tournament-toggle')).toBeDisabled();
+      await expect(winner.page.getByTestId('room-event-tournament')).toBeDisabled();
     } finally {
       await stack.stop();
     }

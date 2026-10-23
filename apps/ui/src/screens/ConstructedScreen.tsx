@@ -193,15 +193,15 @@ import {
   type RoomView,
   type RoomsClient,
 } from '../rooms/api.ts';
-import { GameTypeRow } from '../rooms/GameTypeRow.tsx';
-import { ClassicOptions, type Browse } from './constructed-mode/ClassicOptions.tsx';
+import { MatchRules } from '../rooms/MatchRules.tsx';
+import { RoomHeader } from '../rooms/RoomHeader.tsx';
+import { ClassicOptions, toggledFreePick, type Browse } from './constructed-mode/ClassicOptions.tsx';
 import { GauntletOptions } from './constructed-mode/GauntletOptions.tsx';
 import { AllRandomOptions } from './random/AllRandomOptions.tsx';
 import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
 import { seatAvatars } from './gauntlet/seats.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
-import { TournamentOptions } from './constructed-mode/TournamentOptions.tsx';
 import { TournamentPodLobby } from './constructed-mode/TournamentPodLobby.tsx';
 import { TournamentRounds } from './constructed-mode/TournamentRounds.tsx';
 import { sitPod, aiPod, closePod, standPod, startMyTable, nextGameStarts } from './pod/client.ts';
@@ -1104,6 +1104,8 @@ function RoomTableScreen({
   /** Free pick: every library deck, whatever its era. No tab is the table's while it is on. */
   const freePick = poolId === FREE_PICK;
   const handSmoothing = view?.settings.handSmoothing ?? true;
+  /** All Random's options once its pool is chosen (`parseRoomView` parses mode and options together). */
+  const randomOptions = view?.mode === 'random' ? ((view.modeOptions as RandomOptions | null) ?? null) : null;
   /**
    * Tournament mode (`docs/planning/tournament-mode-plan.md`): a Constructed
    * room plays a Swiss pod of its own mode, the same `RoomView.pod` a draft
@@ -1840,6 +1842,18 @@ function RoomTableScreen({
   /** The LEADER flipped hand smoothing. */
   const toggleHandSmoothing = (): void => writeRoom(() => rooms.setSettings(roomId, { handSmoothing: !handSmoothing }));
 
+  /** The LEADER flipped Free pick: the pool moves, and the browse with it. */
+  const toggleFreePick = (formats: readonly TableFormat[]): void => {
+    const next = toggledFreePick(formats, poolId, browse);
+    if (next.browse !== undefined) setBrowse(next.browse);
+    choosePool(next.pool);
+  };
+
+  /** The LEADER flipped All Random's Lock decks; the pool rides along, the room's mode options being one write. */
+  const toggleRandomLock = (): void => {
+    if (randomOptions !== null) writeRoom(() => rooms.setRoomMode(roomId, { mode: 'random', modeOptions: { ...randomOptions, lock: !randomOptions.lock } }));
+  };
+
   /**
    * The LEADER flipped Tournament, or moved Decks between Locked and Each
    * round — both `PATCH /api/rooms/:id` with `{ settings }`, same as hand
@@ -2311,7 +2325,7 @@ function RoomTableScreen({
         {locked === null && draftRoom && (
           <>
           <section className="lobby__card">
-            <GameTypeRow testId="room-game-type" value={gameType} disabled={!iAmLeader || typeLocked} onChange={chooseGameType} />
+            <RoomHeader gameType={gameType} typeDisabled={!iAmLeader || typeLocked} onGameType={chooseGameType} />
             {actionError !== null && (
               <p className="ct-error" role="alert" data-testid="table-error">
                 {actionError}
@@ -2349,9 +2363,27 @@ function RoomTableScreen({
             {/* The mode, and the chosen mode's options beside it. With no mode
                 chosen this row is the whole room (the operator, 2026-10-21). */}
             <section className="lobby__card">
-              {/* The room's type above its mode (the operator, 2026-10-21), so the
-                  mode and its options keep their one line. */}
-              <GameTypeRow testId="room-game-type" value={gameType} disabled={!iAmLeader || typeLocked} onChange={chooseGameType} />
+              {/* The room's type, its event and its Match rules above its mode (the
+                  operator, 2026-10-21 and 2026-10-22), so the mode and its options keep
+                  their one line. Tournament applies across every mode (ruling 2), and like
+                  the rules it is offered once a mode is chosen. */}
+              <RoomHeader
+                gameType={gameType}
+                typeDisabled={!iAmLeader || typeLocked}
+                onGameType={chooseGameType}
+                event={mode === null ? undefined : { tournament, disabled: !iAmLeader || modeLocked, onChange: toggleTournament }}
+              >
+                {mode !== null && (
+                  <MatchRules
+                    leader={iAmLeader}
+                    disabled={underway}
+                    handSmoothing={mode === 'classic' ? { on: handSmoothing, onToggle: toggleHandSmoothing } : undefined}
+                    freePick={mode === 'classic' && loaded !== null ? { on: freePick, onToggle: () => toggleFreePick(loaded.formats) } : undefined}
+                    lockDecks={mode === 'random' && randomOptions !== null ? { on: randomOptions.lock === true, locked: modeLocked, onToggle: toggleRandomLock } : undefined}
+                    tournamentDecks={tournament ? { value: tournamentDecks, locked: modeLocked, onChange: chooseTournamentDecks } : undefined}
+                  />
+                )}
+              </RoomHeader>
               <div className="lobby__modeline">
                 <ModeRow mode={mode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
                 {mode === 'classic' && loaded !== null && (
@@ -2363,8 +2395,6 @@ function RoomTableScreen({
                     onPool={choosePool}
                     browse={browse}
                     onBrowse={setBrowse}
-                    handSmoothing={handSmoothing}
-                    onHandSmoothing={toggleHandSmoothing}
                   />
                 )}
                 {mode === 'gauntlet' && gauntletEras !== null && (
@@ -2380,22 +2410,9 @@ function RoomTableScreen({
                 {mode === 'random' && (
                   <AllRandomOptions
                     // The pair parsed together (`parseRoomView`), so an All Random room's options carry its pool.
-                    value={(view?.modeOptions as RandomOptions | null)?.pool ?? null}
+                    value={randomOptions?.pool ?? null}
                     disabled={!iAmLeader || modeLocked}
-                    onChange={(pool) => writeRoom(() => rooms.setRoomMode(roomId, { mode: 'random', modeOptions: { pool } }))}
-                  />
-                )}
-                {/* Tournament applies across every mode (ruling 2), so it sits
-                    beside the mode row rather than inside any one mode's own
-                    options — shown once a mode is chosen, same as the others. */}
-                {mode !== null && (
-                  <TournamentOptions
-                    tournament={tournament}
-                    tournamentDecks={tournamentDecks}
-                    leader={iAmLeader}
-                    disabled={modeLocked}
-                    onTournament={toggleTournament}
-                    onDecks={chooseTournamentDecks}
+                    onChange={(pool) => writeRoom(() => rooms.setRoomMode(roomId, { mode: 'random', modeOptions: { ...randomOptions, pool } }))}
                   />
                 )}
               </div>

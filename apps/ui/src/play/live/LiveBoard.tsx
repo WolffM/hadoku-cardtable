@@ -355,7 +355,8 @@ import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS, type PlayPrefs } from './prefs
 import { StopPhaseSchema, stopStep, type StopPhase } from './transport.ts';
 import { SettingsPanel } from './SettingsPanel.tsx';
 import { fetchOwnDeck, OwnDeckPeek, type OwnDeck } from './own-deck.tsx';
-import { SettingsPopover, useSettingsPopover } from '../../settings/Settings.tsx';
+import { usePopover } from '../../components/Popover.tsx';
+import { SettingsPopover } from '../../settings/Settings.tsx';
 import { eventTarget } from '../../dom.ts';
 import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
 import './live.css';
@@ -3146,7 +3147,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     match.barHold,
   ]);
   const [boardLayout, setBoardLayout] = useState<BoardLayout>(PLAY_PREFS_DEFAULTS.boardLayout);
-  const settings = useSettingsPopover();
+  const settings = usePopover();
   const [ownDeck, setOwnDeck] = useState<{ deck: OwnDeck; from: Element } | null>(null);
   const closeOwnDeck = useMemo(() => () => setOwnDeck(null), []);
   const toggleOwnDeck = (from: Element): void => {
