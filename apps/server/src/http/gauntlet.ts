@@ -2,10 +2,10 @@
  * A Gauntlet room's routes, under the tables router (`/api/tables`):
  *
  *   GET  /gauntlet/eras                 the eras a Gauntlet can be played in (≥ ten decks)
- *   GET  /rooms/:roomId/gauntlet        the caller's view (`GauntletView`)
- *   POST /rooms/:roomId/gauntlet/ready  { ready, ai? }  a seat readies; `ai` plays the AI from the other seat
- *   POST /rooms/:roomId/gauntlet/act    { act, deck }   a ban or a pick
- *   POST /rooms/:roomId/gauntlet/choose { deck }        the hidden choice before a game
+ *   GET  /rooms/:roomId/gauntlet?table=       the caller's view (`GauntletView`)
+ *   POST /rooms/:roomId/gauntlet/ready  { ready, ai?, table? }  a seat readies; `ai` plays the AI from the other seat
+ *   POST /rooms/:roomId/gauntlet/act    { act, deck, table? }   a ban or a pick
+ *   POST /rooms/:roomId/gauntlet/choose { deck, table? }        the hidden choice before a game
  *
  * Every move is `room/gauntlet.ts`'s; this file stores what it answers in the
  * room (so the feed pings every screen) and runs the timers: the reveal's end,
@@ -13,11 +13,33 @@
  * one that outlives its Gauntlet does nothing, and `resume` restarts them all
  * at boot from what the rooms stored.
  *
- * The draw happens once both seats of the room's first table are ready (or
- * one, with the AI): era, ten decks and the coin flip, all from the server's
- * `random`, stored before anyone is answered. When both hidden choices are in,
- * `dealGame` hands each seat its deck; the match itself starts the way every
- * room match does (`POST /api/play/matches`).
+ * `table` is a table id of the room, defaulting to its first (`tables[0]`) —
+ * a plain Gauntlet room (one table) never has to name it. A Constructed
+ * tournament's round pairs several Gauntlet tables at once
+ * (`docs/planning/tournament-mode-plan.md`), each with its OWN Gauntlet:
+ * every move here is scoped by `(roomId, table)`, never `roomId` alone.
+ *
+ * The draw happens once both seats of the NAMED table are ready (or one,
+ * with the AI): era, ten decks and the coin flip, all from the server's
+ * `random`, stored before anyone is answered. When both hidden choices are
+ * in, `dealGame` hands each seat its deck; the match itself starts the way
+ * every room match does (`POST /api/play/matches`).
+ *
+ * **A tournament's `locked` deck policy (ruling 6).** When the table's
+ * pairing (`rooms.tournamentPairingOf`) says the deck policy is `locked` and
+ * BOTH entrants already hold a stored pick set (`rooms.lockedPicksOf`), the
+ * draw is skipped: `resumeLockedGauntlet` starts the table straight in
+ * `choose`, from each entrant's own first-match picks. Otherwise (a
+ * non-tournament table, a `per-round` one, or a `locked` one where at least
+ * one entrant has not yet had a first match) the table draws fresh, same as
+ * always. Either way, the instant THIS match's banpick ends, every entrant
+ * who did not already hold a pick set gets one now (`commit`) — never
+ * overwritten once stored, so an entrant's deck is always their very FIRST
+ * match's draft. (An entrant already locked, paired against one who is not,
+ * plays this one match on a fresh draft too — a Gauntlet's ban/pick snake is
+ * necessarily a match between the TWO SEATS of one freshly drawn pool, so a
+ * resume for one seat alone has no well-formed meaning; this is the
+ * simplest faithful rule, and the one this lane's brief asked for.)
  */
 
 import express, { type Request, type Response, type Router } from 'express';
@@ -35,7 +57,10 @@ import {
 	gauntletEras,
 	gauntletHoldsTable,
 	newGauntlet,
+	pickEra,
+	pickedDecks,
 	readyFor,
+	resumeLockedGauntlet,
 	seatOfMember,
 	startBanpick,
 	viewOfGauntlet,
@@ -43,6 +68,7 @@ import {
 	type GauntletResult,
 	type GauntletState,
 } from '../room/gauntlet.js';
+import { isAiEntrant } from '../room/lobby.js';
 import { roomDeckCosts } from '../play/deck-colors.js';
 import { deckLines, type TablesLibrary } from './library.js';
 
@@ -64,16 +90,30 @@ export interface GauntletDeps {
 	rooms: {
 		get(roomId: string): GauntletRoom | undefined;
 		list(): GauntletRoom[];
-		gauntlet(roomId: string): GauntletState | null;
-		setGauntlet(roomId: string, gauntlet: GauntletState | null): boolean;
+		/** `tableId` defaults to `tables[0]`'s — `room/lobby.ts`'s `Lobby.gauntlet`'s own doc on why. */
+		gauntlet(roomId: string, tableId?: string): GauntletState | null;
+		setGauntlet(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean;
+		/**
+		 * `room/lobby.ts`'s `Lobby.tournamentPairingOf` — this table's entrants
+		 * and deck policy, or `null` outside a tournament. Optional (and
+		 * `undefined` read as "no tournament") ONLY so an adapter that has not
+		 * yet been given it — `http/routes.ts`'s today, this lane's report
+		 * names its exact patch — still satisfies this type: a plain Gauntlet
+		 * room, which never had a pairing anyway, is unaffected either way.
+		 */
+		tournamentPairingOf?(roomId: string, tableId: string): { entrants: [string, string]; locked: boolean } | null;
+		/** `entrant`'s stored Gauntlet pick set (`Lobby.lockedDeckOf`, read back as a deck-id array), or `null`/`undefined` if never stored. Optional for the same reason as `tournamentPairingOf`. */
+		lockedPicksOf?(roomId: string, entrant: string): string[] | null;
+		/** `entrant`'s FIRST match's full pick set (`Lobby.setLockedDeck`) — called once per entrant (`commit`'s own doc). Optional for the same reason as `tournamentPairingOf`; never called when it is absent, since `tournamentPairingOf` absent too means "never a locked tournament table." */
+		storeLockedPicks?(roomId: string, entrant: string, picks: string[]): void;
 	};
 	library: TablesLibrary;
-	/** Who sits at the room's first table, in seat order, with each seat's Ready. */
-	seated(room: GauntletRoom): { memberId: string; name: string; ready: boolean }[];
-	/** A seat's Ready at the room's first table. */
-	setReady(room: GauntletRoom, memberId: string, ready: boolean): void;
-	/** Deal the game's two decks, by seat, at the room's first table in the Gauntlet's era (`http/routes.ts`'s `dealDecks`). */
-	dealGame(room: GauntletRoom, decks: [string, string], players: [GauntletPlayer, GauntletPlayer], era: string): void;
+	/** Who sits at `tableId`, in Gauntlet seat order, with each seat's Ready. `tableId` defaults to `room.tables[0]`'s. */
+	seated(room: GauntletRoom, tableId?: string): { memberId: string; name: string; ready: boolean }[];
+	/** A seat's Ready at `tableId` — LAST and optional, defaulting to `room.tables[0]`'s, so an existing 3-argument call keeps its original meaning (`Lobby.setGauntlet`'s own doc on why). */
+	setReady(room: GauntletRoom, memberId: string, ready: boolean, tableId?: string): void;
+	/** Deal the game's two decks, by seat, at `tableId` (defaulting to `room.tables[0]`'s, LAST for the same reason as `setReady`'s) in the Gauntlet's era (`http/routes.ts`'s `dealDecks`). */
+	dealGame(room: GauntletRoom, decks: [string, string], players: [GauntletPlayer, GauntletPlayer], era: string, tableId?: string): void;
 	/** The caller's participant id. */
 	callerOf(req: Request): string;
 	random: () => number;
@@ -87,13 +127,20 @@ export interface GauntletDeps {
 export interface GauntletHandle {
 	/** A Constructed room in Gauntlet mode: its decks are dealt, never loaded. */
 	isGauntlet(room: GauntletRoom): boolean;
-	/** True from a Gauntlet room's draw until it is decided: its seats are fixed and its decks are dealt, never loaded. */
-	holdsTable(room: GauntletRoom): boolean;
-	/** Why a match may not start in this room now, or null. Null for any room that is not a Gauntlet. */
-	startRefusal(room: GauntletRoom): string | null;
-	/** A table game of this room has ended; `seriesOver` is the room series' own verdict. */
-	afterGame(roomId: string, result: { seriesOver: boolean; winner: 0 | 1 | null }): void;
-	/** At boot: restart every timer the stored Gauntlets are waiting on. */
+	/**
+	 * True from `tableId`'s draw until it is decided: that table's seats are
+	 * fixed and its decks are dealt, never loaded. `tableId` defaults to
+	 * `room.tables[0]`'s — `GauntletDeps.rooms.gauntlet`'s own doc on why;
+	 * `http/routes.ts` needs to pass the real one per table for a tournament
+	 * round's several Gauntlet tables to hold independently (this lane's
+	 * report names the exact patch).
+	 */
+	holdsTable(room: GauntletRoom, tableId?: string): boolean;
+	/** Why a match may not start at `tableId` now, or null. Null for any room that is not a Gauntlet. */
+	startRefusal(room: GauntletRoom, tableId?: string): string | null;
+	/** `tableId`'s game has ended; `seriesOver` is the room series' own verdict. */
+	afterGame(roomId: string, result: { seriesOver: boolean; winner: 0 | 1 | null }, tableId?: string): void;
+	/** At boot: restart every timer every table's stored Gauntlet is waiting on. */
 	resume(): void;
 }
 
@@ -141,51 +188,77 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 		};
 	}
 
-	const stateOf = (room: GauntletRoom): GauntletState => rooms.gauntlet(room.id) ?? newGauntlet();
+	const stateOf = (room: GauntletRoom, tableId: string): GauntletState => rooms.gauntlet(room.id, tableId) ?? newGauntlet();
 
-	/** Store a move, and whatever follows from it: a dealt game, the reveal's end, the AI's next move. */
-	function commit(room: GauntletRoom, before: GauntletState, after: GauntletState): void {
-		rooms.setGauntlet(room.id, after);
+	/**
+	 * Store a move, and whatever follows from it: a dealt game, the reveal's
+	 * end, the AI's next move, and — a locked tournament table's banpick
+	 * ending — each entrant who had no stored pick set yet gets one now
+	 * (this file's own doc on why "unset" alone, never the draw path, is
+	 * the storage rule).
+	 */
+	function commit(room: GauntletRoom, tableId: string, before: GauntletState, after: GauntletState): void {
+		rooms.setGauntlet(room.id, after, tableId);
 		if (after.phase === 'playing' && after.games.length !== before.games.length) {
 			const decks = gameDecks(after)!;
-			deps.dealGame(room, decks, after.players!, after.era!.id);
-			log({ evt: 'gauntlet-game-dealt', room: room.id, game: after.games.length, decks });
+			deps.dealGame(room, decks, after.players!, after.era!.id, tableId);
+			log({ evt: 'gauntlet-game-dealt', room: room.id, table: tableId, game: after.games.length, decks });
 		}
-		if (after.phase !== before.phase) log({ evt: 'gauntlet-phase', room: room.id, phase: after.phase });
-		wake(room.id, after);
+		if (before.phase === 'banpick' && after.phase !== 'banpick') {
+			const pairing = rooms.tournamentPairingOf?.(room.id, tableId) ?? null;
+			if (pairing !== null && pairing.locked) {
+				for (const seat of [0, 1] as const) {
+					const entrant = pairing.entrants[seat];
+					if ((rooms.lockedPicksOf?.(room.id, entrant) ?? null) === null) {
+						const picks = pickedDecks(after, seat);
+						rooms.storeLockedPicks?.(room.id, entrant, picks);
+						log({ evt: 'gauntlet-locked', room: room.id, table: tableId, entrant, picks: picks.length });
+					}
+				}
+			}
+		}
+		if (after.phase !== before.phase) log({ evt: 'gauntlet-phase', room: room.id, table: tableId, phase: after.phase });
+		wake(room.id, tableId, after);
 	}
 
 	/** Start whatever timer `state` waits on. */
-	function wake(roomId: string, state: GauntletState): void {
+	function wake(roomId: string, tableId: string, state: GauntletState): void {
 		if (state.phase === 'reveal') {
 			schedule(() => {
 				const room = rooms.get(roomId);
-				const current = room === undefined ? null : rooms.gauntlet(roomId);
+				const current = room === undefined ? null : rooms.gauntlet(roomId, tableId);
 				if (room === undefined || current === null || current.phase !== 'reveal' || current.decks.join() !== state.decks.join()) return;
-				commit(room, current, startBanpick(current));
+				commit(room, tableId, current, startBanpick(current));
 			}, Math.max(0, (state.revealAt ?? 0) + GAUNTLET_REVEAL_MS - now()));
 			return;
 		}
 		if (aiMove(state, deps.random) === null) return;
 		schedule(() => {
 			const room = rooms.get(roomId);
-			const current = room === undefined ? null : rooms.gauntlet(roomId);
+			const current = room === undefined ? null : rooms.gauntlet(roomId, tableId);
 			if (room === undefined || current === null || !isGauntlet(room)) return;
 			const move = aiMove(current, deps.random);
 			if (move === null) return;
 			const seat = aiSeat(current)!;
 			const out = move.kind === 'act' ? act(current, seat, move.act, move.deck) : choose(current, seat, move.deck);
 			if (!out.ok) {
-				log({ evt: 'gauntlet-ai-refused', room: roomId, reason: out.reason });
+				log({ evt: 'gauntlet-ai-refused', room: roomId, table: tableId, reason: out.reason });
 				return;
 			}
-			log({ evt: 'gauntlet-ai', room: roomId, move: move.kind === 'act' ? move.act : 'choose' });
-			commit(room, current, out.state);
+			log({ evt: 'gauntlet-ai', room: roomId, table: tableId, move: move.kind === 'act' ? move.act : 'choose' });
+			commit(room, tableId, current, out.state);
 		}, GAUNTLET_AI_BEAT_MS);
 	}
 
-	/** The room and the caller's Gauntlet seat, or an answer already sent. */
-	function found(req: Request, res: Response): { room: GauntletRoom; me: string; state: GauntletState } | null {
+	/** `raw` (a GET's `?table=`, or a POST body's `table`) resolved to a table id of `room`, defaulting to its first. `null` for one that names no table of this room. */
+	function tableIdOf(room: GauntletRoom, raw: unknown): string | null {
+		if (raw === undefined) return room.tables[0]?.id ?? null;
+		if (typeof raw !== 'string' || raw.trim() === '') return null;
+		return room.tables.some((t) => t.id === raw) ? raw : null;
+	}
+
+	/** The room, the NAMED table and the caller's Gauntlet seat, or an answer already sent. */
+	function found(req: Request, res: Response, rawTable: unknown): { room: GauntletRoom; me: string; tableId: string; state: GauntletState } | null {
 		const room = rooms.get(String(req.params.roomId));
 		const me = deps.callerOf(req);
 		if (room === undefined || !room.members.some((m) => m.id === me)) {
@@ -196,19 +269,24 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 			res.status(409).json({ error: 'this room is not playing a Gauntlet' });
 			return null;
 		}
-		return { room, me, state: stateOf(room) };
+		const tableId = tableIdOf(room, rawTable);
+		if (tableId === null) {
+			res.status(404).json({ error: 'no such table' });
+			return null;
+		}
+		return { room, me, tableId, state: stateOf(room, tableId) };
 	}
 
-	function viewer(room: GauntletRoom, state: GauntletState, me: string): GauntletSeatIndex | null {
+	function viewer(room: GauntletRoom, tableId: string, state: GauntletState, me: string): GauntletSeatIndex | null {
 		if (state.players !== null) return seatOfMember(state, me);
-		const at = deps.seated(room).findIndex((p) => p.memberId === me);
+		const at = deps.seated(room, tableId).findIndex((p) => p.memberId === me);
 		return at === 0 || at === 1 ? at : null;
 	}
 
-	function answer(res: Response, room: GauntletRoom, me: string): void {
-		const state = stateOf(room);
-		const seated = deps.seated(room);
-		res.json(viewOfGauntlet(state, viewer(room, state, me), [seated[0]?.ready === true, seated[1]?.ready === true], deckInfo(state.era?.id)));
+	function answer(res: Response, room: GauntletRoom, tableId: string, me: string): void {
+		const state = stateOf(room, tableId);
+		const seated = deps.seated(room, tableId);
+		res.json(viewOfGauntlet(state, viewer(room, tableId, state, me), [seated[0]?.ready === true, seated[1]?.ready === true], deckInfo(state.era?.id)));
 	}
 
 	function refuse(res: Response, out: Extract<GauntletResult, { ok: false }>): void {
@@ -223,26 +301,38 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 	});
 
 	tables.get('/rooms/:roomId/gauntlet', (req: Request, res: Response) => {
-		const f = found(req, res);
-		if (f !== null) answer(res, f.room, f.me);
+		const f = found(req, res, typeof req.query.table === 'string' ? req.query.table : undefined);
+		if (f !== null) answer(res, f.room, f.tableId, f.me);
 	});
 
 	tables.post('/rooms/:roomId/gauntlet/ready', json, (req: Request, res: Response) => {
-		const f = found(req, res);
-		if (f === null) return;
 		const body = (req.body ?? {}) as Record<string, unknown>;
-		if (typeof body.ready !== 'boolean' || (body.ai !== undefined && body.ai !== true) || Object.keys(body).some((k) => k !== 'ready' && k !== 'ai')) {
-			res.status(400).json({ error: 'body is { ready: boolean, ai?: true }' });
+		if (
+			typeof body.ready !== 'boolean' ||
+			(body.ai !== undefined && body.ai !== true) ||
+			(body.table !== undefined && typeof body.table !== 'string') ||
+			Object.keys(body).some((k) => k !== 'ready' && k !== 'ai' && k !== 'table')
+		) {
+			res.status(400).json({ error: 'body is { ready: boolean, ai?: true, table?: string }' });
 			return;
 		}
-		const { room, me, state } = f;
-		const seated = deps.seated(room);
+		const f = found(req, res, body.table);
+		if (f === null) return;
+		const { room, me, tableId, state } = f;
+		const seated = deps.seated(room, tableId);
 		const seat = seated.findIndex((p) => p.memberId === me);
 		if (seat !== 0 && seat !== 1) {
 			res.status(409).json({ error: 'sit at the table before you ready up' });
 			return;
 		}
-		if (body.ai === true && seated.length !== 1) {
+		// A tournament's vs-AI table (`tournamentPairingOf`'s entrants, the AI
+		// always last — its own doc): the AI has no HTTP caller of its own and
+		// "AI entrants are always ready" (ruling 5), so a human's plain Ready
+		// here plays it exactly as `ai: true` already does for a non-tournament
+		// table — no extra flag the tournament UI has to know to send.
+		const pairing = rooms.tournamentPairingOf?.(room.id, tableId) ?? null;
+		const tournamentAi = pairing !== null && isAiEntrant(pairing.entrants[1]);
+		if ((body.ai === true || tournamentAi) && seated.length !== 1) {
 			res.status(409).json({ error: 'the AI plays a table with one seated player' });
 			return;
 		}
@@ -252,43 +342,74 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 			return;
 		}
 		const players: GauntletPlayer[] = seated.map((p) => ({ memberId: p.memberId, name: p.name }));
-		const vsAi = body.ai === true && body.ready;
+		const vsAi = (body.ai === true || tournamentAi) && body.ready;
 		if (vsAi) players.push({ memberId: null, name: room.ai?.name ?? 'AI' });
 		const everyone = vsAi || (seated.length === 2 && body.ready && seated.every((p) => p.memberId === me || p.ready));
 		if (!everyone) {
-			deps.setReady(room, me, body.ready);
-			commit(room, state, readied.state);
-			log({ evt: 'gauntlet-ready', room: room.id, seat, ready: body.ready });
-			answer(res, room, me);
+			deps.setReady(room, me, body.ready, tableId);
+			commit(room, tableId, state, readied.state);
+			log({ evt: 'gauntlet-ready', room: room.id, table: tableId, seat, ready: body.ready });
+			answer(res, room, tableId, me);
 			return;
 		}
 		const options = GauntletOptionsSchema.safeParse(room.modeOptions ?? {});
-		const drawn = drawGauntlet(readied.state, {
-			players: players as [GauntletPlayer, GauntletPlayer],
-			eras,
-			options: options.success ? options.data : {},
-			random: deps.random,
-			now: now(),
-		});
+		const opts = options.success ? options.data : {};
+		// Ruling 6: a `locked` tournament table whose BOTH entrants already hold
+		// a first-match pick set resumes straight into `choose` — no draw, no
+		// banpick. Any other case (no tournament, `per-round`, or at least one
+		// entrant's first match) draws fresh, same as always.
+		const stored = pairing !== null && pairing.locked ? pairing.entrants.map((e) => rooms.lockedPicksOf?.(room.id, e) ?? null) : null;
+		const bothLocked = stored !== null && stored[0] !== null && stored[1] !== null ? (stored as [string[], string[]]) : null;
+		let drawn: GauntletResult;
+		if (bothLocked !== null) {
+			const era = pickEra(eras, opts, deps.random);
+			drawn =
+				era === null
+					? { ok: false, reason: 'no-era' }
+					: {
+							ok: true,
+							state: resumeLockedGauntlet({
+								players: players as [GauntletPlayer, GauntletPlayer],
+								era: { id: era.id, family: era.family, title: era.title },
+								picks: bothLocked,
+								now: now(),
+							}),
+						};
+		} else {
+			drawn = drawGauntlet(readied.state, { players: players as [GauntletPlayer, GauntletPlayer], eras, options: opts, random: deps.random, now: now() });
+		}
 		if (!drawn.ok) {
 			refuse(res, drawn);
 			return;
 		}
-		deps.setReady(room, me, true);
-		commit(room, state, drawn.state);
-		log({ evt: 'gauntlet-drawn', room: room.id, era: drawn.state.era!.id, first: drawn.state.first, decks: drawn.state.decks, ai: vsAi });
-		answer(res, room, me);
+		deps.setReady(room, me, true, tableId);
+		commit(room, tableId, state, drawn.state);
+		log({
+			evt: bothLocked !== null ? 'gauntlet-resumed' : 'gauntlet-drawn',
+			room: room.id,
+			table: tableId,
+			era: drawn.state.era!.id,
+			first: drawn.state.first,
+			...(bothLocked === null ? { decks: drawn.state.decks } : {}),
+			ai: vsAi,
+		});
+		answer(res, room, tableId, me);
 	});
 
 	tables.post('/rooms/:roomId/gauntlet/act', json, (req: Request, res: Response) => {
-		const f = found(req, res);
-		if (f === null) return;
 		const body = (req.body ?? {}) as Record<string, unknown>;
 		const kind = GauntletActSchema.safeParse(body.act);
-		if (!kind.success || typeof body.deck !== 'string' || Object.keys(body).some((k) => k !== 'act' && k !== 'deck')) {
-			res.status(400).json({ error: "body is { act: 'ban' | 'pick', deck }" });
+		if (
+			!kind.success ||
+			typeof body.deck !== 'string' ||
+			(body.table !== undefined && typeof body.table !== 'string') ||
+			Object.keys(body).some((k) => k !== 'act' && k !== 'deck' && k !== 'table')
+		) {
+			res.status(400).json({ error: "body is { act: 'ban' | 'pick', deck, table?: string }" });
 			return;
 		}
+		const f = found(req, res, body.table);
+		if (f === null) return;
 		const seat = seatOfMember(f.state, f.me);
 		if (seat === null) {
 			res.status(409).json({ error: 'you are not playing this Gauntlet' });
@@ -299,19 +420,19 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 			refuse(res, out);
 			return;
 		}
-		commit(f.room, f.state, out.state);
-		log({ evt: 'gauntlet-act', room: f.room.id, seat, act: kind.data, deck: body.deck });
-		answer(res, f.room, f.me);
+		commit(f.room, f.tableId, f.state, out.state);
+		log({ evt: 'gauntlet-act', room: f.room.id, table: f.tableId, seat, act: kind.data, deck: body.deck });
+		answer(res, f.room, f.tableId, f.me);
 	});
 
 	tables.post('/rooms/:roomId/gauntlet/choose', json, (req: Request, res: Response) => {
-		const f = found(req, res);
-		if (f === null) return;
 		const body = (req.body ?? {}) as Record<string, unknown>;
-		if (typeof body.deck !== 'string' || Object.keys(body).some((k) => k !== 'deck')) {
-			res.status(400).json({ error: 'body is { deck }' });
+		if (typeof body.deck !== 'string' || (body.table !== undefined && typeof body.table !== 'string') || Object.keys(body).some((k) => k !== 'deck' && k !== 'table')) {
+			res.status(400).json({ error: 'body is { deck, table?: string }' });
 			return;
 		}
+		const f = found(req, res, body.table);
+		if (f === null) return;
 		const seat = seatOfMember(f.state, f.me);
 		if (seat === null) {
 			res.status(409).json({ error: 'you are not playing this Gauntlet' });
@@ -322,31 +443,35 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 			refuse(res, out);
 			return;
 		}
-		commit(f.room, f.state, out.state);
+		commit(f.room, f.tableId, f.state, out.state);
 		// The deck itself is never logged before both are revealed: the log is not a side channel.
-		log({ evt: 'gauntlet-chose', room: f.room.id, seat });
-		answer(res, f.room, f.me);
+		log({ evt: 'gauntlet-chose', room: f.room.id, table: f.tableId, seat });
+		answer(res, f.room, f.tableId, f.me);
 	});
 
 	return {
 		isGauntlet,
-		holdsTable: (room) => isGauntlet(room) && gauntletHoldsTable(stateOf(room)),
-		startRefusal(room) {
-			if (!isGauntlet(room)) return null;
-			return stateOf(room).phase === 'playing' ? null : 'a Gauntlet game starts once both decks are chosen';
+		holdsTable: (room, tableId = room.tables[0]?.id) => tableId !== undefined && isGauntlet(room) && gauntletHoldsTable(stateOf(room, tableId)),
+		startRefusal(room, tableId = room.tables[0]?.id) {
+			if (!isGauntlet(room) || tableId === undefined) return null;
+			return stateOf(room, tableId).phase === 'playing' ? null : 'a Gauntlet game starts once both decks are chosen';
 		},
-		afterGame(roomId, result) {
+		afterGame(roomId, result, tableId) {
 			const room = rooms.get(roomId);
-			if (room === undefined || !isGauntlet(room)) return;
-			const state = stateOf(room);
+			const table = tableId ?? room?.tables[0]?.id;
+			if (room === undefined || table === undefined || !isGauntlet(room)) return;
+			const state = stateOf(room, table);
 			const out = gameOver(state, result);
 			if (!out.ok) return;
-			commit(room, state, out.state);
+			commit(room, table, state, out.state);
 		},
 		resume() {
 			for (const room of rooms.list()) {
-				const state = rooms.gauntlet(room.id);
-				if (state !== null && isGauntlet(room)) wake(room.id, state);
+				if (!isGauntlet(room)) continue;
+				for (const table of room.tables) {
+					const state = rooms.gauntlet(room.id, table.id);
+					if (state !== null) wake(room.id, table.id, state);
+				}
 			}
 		},
 	};
