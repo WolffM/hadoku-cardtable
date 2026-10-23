@@ -9,6 +9,10 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  /* The title's entrance scales its full-width box and a dealt tile turns as it falls: neither may
+     widen the page for the moment it moves. `clip`, not `hidden`: no scroll box, and the deal's
+     fall from above stays visible. */
+  overflow-x: clip;
 }
 
 .gauntlet__title {
