@@ -24,7 +24,7 @@ import type { RoomTable, TableGame } from '@hadoku/shared';
 import { followMatchOnce } from '../../play/live/matchStart.ts';
 import { navigate, routeHash } from '../route.ts';
 import { TableCard } from '../TableCard.tsx';
-import { concedeGame } from '../tableActions.ts';
+import { resolveTable } from '../tableActions.ts';
 import { TableSideboard } from '../TableSideboard.tsx';
 import type { TablesClient } from '../tables.ts';
 import { useTableStart } from './client.ts';
@@ -139,7 +139,9 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
             matchId={matchId}
             game={game}
             go={{ label: mine ? 'Return to game' : 'Watch', href: routeHash({ kind: 'match', matchId }), testId: 'table-match-link' }}
-            onConcede={mine ? () => concedeGame(roomId, table.id) : undefined}
+            onConcede={mine ? () => resolveTable('concede', roomId, table.id) : undefined}
+            onAbandon={mine && pod === null ? () => resolveTable('abandon', roomId, table.id) : undefined}
+            onDrop={mine && pod !== null ? () => resolveTable('drop', roomId, table.id) : undefined}
           />
         )}
         {error !== null && (

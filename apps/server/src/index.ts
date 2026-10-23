@@ -596,7 +596,7 @@ attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier, botPi
 // Every room write, pushed to the screens that have the room (or the list) open,
 // so none of them reads it on a timer. Behind the gate attachDraftSocket installed.
 const roomFeed = attachRoomFeed(io, { lobby });
-// A table's game resolved from its card: concede (`http/table-actions.ts`).
+// A table's game resolved from its card: concede, abandon, drop match (`http/table-actions.ts`).
 attachTableActions(api, { lobby, match: (id) => play?.matches.get(id) });
 
 // ── Rooms are not immortal ───────────────────────────────────────────────────

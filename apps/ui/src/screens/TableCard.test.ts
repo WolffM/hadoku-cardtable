@@ -134,4 +134,39 @@ describe('TableCard', () => {
     card({ onConcede: async () => null, series: { length: 3, wins: [1, 1], played: 2, phase: 'sideboarding' }, matchId: null });
     expect(screen.queryByTestId('card-concede')).toBeNull();
   });
+
+  it('offers Abandon on a constructed series of mine, between games too: the confirm leaves no result, Abandon asks the server', async () => {
+    const onAbandon = vi.fn(async () => null as string | null);
+    card({ onAbandon, series: { length: 3, wins: [1, 0], played: 1, phase: 'sideboarding' }, matchId: null });
+    fireEvent.click(screen.getByTestId('card-abandon'));
+    expect(screen.getByTestId('card-abandon-confirm').querySelector('.table-card__change')?.textContent).toBe('1–0→No result');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('card-abandon-yes'));
+    });
+    expect(onAbandon).toHaveBeenCalledTimes(1);
+    cleanup();
+    card({ onAbandon, series: { length: 1, wins: [1, 0], played: 1, phase: 'done' }, matchId: null });
+    expect(screen.queryByTestId('card-abandon'), 'a finished series is a result, not one to abandon').toBeNull();
+    cleanup();
+    card({ onAbandon, myMemberId: 'u-carol' });
+    expect(screen.queryByTestId('card-abandon'), 'only a player of it').toBeNull();
+  });
+
+  it('offers Drop match on a pod match of mine: the confirm shows the forfeit — theirs by the majority, my won games standing', async () => {
+    const onDrop = vi.fn(async () => null as string | null);
+    card({ onDrop });
+    fireEvent.click(screen.getByTestId('card-drop'));
+    expect(screen.getByTestId('card-drop-confirm').querySelector('.table-card__change')?.textContent).toBe('1–0→1–2');
+    fireEvent.click(screen.getByTestId('card-drop-keep'));
+    expect(screen.queryByTestId('card-drop-confirm')).toBeNull();
+    cleanup();
+    card({ onDrop, myMemberId: 'u-bob', series: { length: 3, wins: [0, 0], played: 0, phase: 'seating' }, matchId: null });
+    fireEvent.click(screen.getByTestId('card-drop'));
+    expect(screen.getByTestId('card-drop-confirm').querySelector('.table-card__change')?.textContent).toBe('0–0→2–0');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('card-drop-yes'));
+    });
+    expect(onDrop).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('card-drop').closest('a'), 'never inside the way in').toBeNull();
+  });
 });

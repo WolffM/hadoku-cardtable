@@ -28,6 +28,7 @@ interface Harness {
 	roomId: string;
 	tableId: string;
 	acts: { seat: number; frame: unknown }[];
+	stopped: string[];
 }
 
 /** A room alice leads and bob is in, its table playing `MATCH` with alice at seat 0 and bob at seat 1 — mounted after the rooms router, as `index.ts` mounts it. */
@@ -40,8 +41,10 @@ async function open(opts: { refuse?: string } = {}): Promise<Harness> {
 	expect(lobby.join(roomId, { id: BOB, name: 'bob' }).ok).toBe(true);
 	expect(lobby.join(roomId, { id: CAROL, name: 'carol' }).ok).toBe(true);
 	const tableId = lobby.get(roomId)!.tables[0]!.id;
+	expect(lobby.sit(roomId, tableId, ALICE) && lobby.sit(roomId, tableId, BOB)).toBe(true);
 	expect(lobby.setTableMatch(roomId, tableId, MATCH)).toBe(true);
 	const acts: Harness['acts'] = [];
+	const stopped: string[] = [];
 	const seats = new Map<string, number>([
 		[ALICE, 0],
 		[BOB, 1],
@@ -63,6 +66,7 @@ async function open(opts: { refuse?: string } = {}): Promise<Harness> {
 							acts.push({ seat, frame });
 							return opts.refuse === undefined ? { ok: true } : { ok: false, error: opts.refuse };
 						},
+						stop: () => void stopped.push(MATCH),
 					},
 	});
 	app.use('/api', api);
@@ -72,7 +76,7 @@ async function open(opts: { refuse?: string } = {}): Promise<Harness> {
 		await new Promise<void>((done) => server.close(() => done()));
 		await rm(dir, { recursive: true, force: true });
 	});
-	return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, lobby, roomId, tableId, acts };
+	return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, lobby, roomId, tableId, acts, stopped };
 }
 
 const concede = (h: Harness, as: string, tableId = h.tableId) =>
@@ -105,5 +109,34 @@ describe('POST /api/rooms/:roomId/tables/:tableId/concede', () => {
 		const res = await concede(h, ALICE);
 		expect(res.status).toBe(409);
 		expect(((await res.json()) as { error: string }).error).toContain('concede-after-game-over');
+	});
+});
+
+const act = (h: Harness, what: 'abandon' | 'drop', as: string, tableId = h.tableId) =>
+	fetch(`${h.base}/api/rooms/${h.roomId}/tables/${tableId}/${what}`, { method: 'POST', headers: { 'x-test-user': as } });
+
+describe('POST /api/rooms/:roomId/tables/:tableId/abandon', () => {
+	it('ends the series with no result and stops its game in play, for a player seated at it', async () => {
+		const h = await open();
+		const res = await act(h, 'abandon', BOB);
+		expect(res.status).toBe(200);
+		expect(h.stopped).toEqual([MATCH]);
+		expect(h.lobby.get(h.roomId)!.tables[0]).toMatchObject({ matchId: null, series: { phase: 'seating', games: [] } });
+	});
+
+	it('refuses a member with no seat at it, a non-member, and a table that is not there', async () => {
+		const h = await open();
+		expect((await act(h, 'abandon', CAROL)).status).toBe(403);
+		expect((await act(h, 'abandon', 'fk:dddddddddddddddd')).status).toBe(404);
+		expect((await act(h, 'abandon', ALICE, 't-00000000')).status).toBe(404);
+		expect(h.stopped).toEqual([]);
+	});
+
+	it('says there is nothing to abandon at a table with no series under way, and Drop is a pod’s', async () => {
+		const h = await open();
+		expect((await act(h, 'drop', ALICE)).status).toBe(409);
+		h.lobby.releaseTableMatch(h.roomId, h.tableId);
+		expect((await act(h, 'abandon', ALICE)).status).toBe(409);
+		expect(h.stopped).toEqual([]);
 	});
 });

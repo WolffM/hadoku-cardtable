@@ -25,7 +25,7 @@ import type { RoomTable, SeriesPhase, TableGame } from '@hadoku/shared';
 import { Avatar } from '../../components/Avatar.tsx';
 import { routeHash } from '../route.ts';
 import { TableCard } from '../TableCard.tsx';
-import { concedeGame } from '../tableActions.ts';
+import { resolveTable } from '../tableActions.ts';
 import { isPodAi, type PodView } from './wire.ts';
 import './PodBracket.css';
 
@@ -141,7 +141,8 @@ export function PodBracket({ roomId, pod, tables, myMemberId, nameOf, avatarOf, 
                     matchId={r.state === 'now' ? matchId : null}
                     game={m.table === null ? undefined : games?.[m.table.id]}
                     go={go}
-                    onConcede={go !== null && mine && matchId !== null && m.table !== null ? () => concedeGame(roomId, m.table!.id) : undefined}
+                    onConcede={go !== null && mine && matchId !== null && m.table !== null ? () => resolveTable('concede', roomId, m.table!.id) : undefined}
+                    onDrop={mine && r.state === 'now' && m.table !== null ? () => resolveTable('drop', roomId, m.table!.id) : undefined}
                   />
                 );
               })}

@@ -370,6 +370,11 @@ type RemoveTableResult =
 	| { ok: true; room: RoomView }
 	| { ok: false; reason: 'no-room' | 'not-leader' | 'no-such-table' | 'first-table' | 'not-idle' };
 
+/** A table's series resolved from its card: the game it let go of, if one was in play, for the caller to stop. */
+type ResolveTableResult =
+	| { ok: true; matchId: string | null }
+	| { ok: false; reason: 'no-room' | 'no-such-table' | 'not-seated' | 'pod-table' | 'not-pod-table' | 'nothing-to-abandon' | 'nothing-to-drop' };
+
 type RecordGameResultResult =
 	| { ok: true; room: RoomView; phase: SeriesPhase }
 	| { ok: false; reason: 'no-room' | 'no-such-table' };
@@ -1101,6 +1106,21 @@ export interface Lobby {
 	 * un-readied (R16, scoped). `false` only when there is no such room or table.
 	 */
 	recordGameResult(roomId: string, tableId: string, result: { matchId: string; winner: 0 | 1 | null }): RecordGameResultResult;
+	/**
+	 * Abandon (the table card, `docs/planning/table-card-plan.md`): a seated player of a constructed
+	 * table ends its series with NO result — nothing reaches `onSeriesEnd`, so no stats — and the table
+	 * starts a fresh series, its players still seated (AF344). A game in play is let go of (`matchId`
+	 * cleared, returned for the caller to stop), so its end finds no table to record into. A pod's table
+	 * is refused: a bracket needs a result (`dropTableMatch`).
+	 */
+	abandonTable(roomId: string, callerId: string, tableId: string): ResolveTableResult;
+	/**
+	 * Drop match: a player of a pod's (draft or tournament) current pairing forfeits it. The other side
+	 * wins the series — its wins raised to the majority, the dropper's won games standing below it — and
+	 * the result is recorded as any finished series is (`onSeriesEnd`, the pod's results), so the round
+	 * advances once its last table is done. A game in play is let go of, as by `abandonTable`.
+	 */
+	dropTableMatch(roomId: string, callerId: string, tableId: string): ResolveTableResult;
 	/**
 	 * Rematch: `http/routes.ts`'s `POST …/ready` calls this UNCONDITIONALLY
 	 * every time a `ready: true` leaves every seat of a table ready, and the
@@ -2365,6 +2385,58 @@ class FileLobby implements Lobby {
 		return { ok: true, room: this.#view(room), phase: table.series.phase };
 	}
 
+	abandonTable(roomId: string, callerId: string, tableId: string): ResolveTableResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		const table = room.tables.find((t) => t.id === tableId);
+		if (table === undefined) return { ok: false, reason: 'no-such-table' };
+		if (room.pod !== null) return { ok: false, reason: 'pod-table' };
+		if (!table.seats.includes(callerId)) return { ok: false, reason: 'not-seated' };
+		const { matchId } = table;
+		// A finished series is a result still to be recorded (a Bo1 open to its Rematch), never abandoned.
+		if (matchId === null && (table.series.games.length === 0 || table.series.phase === 'done')) return { ok: false, reason: 'nothing-to-abandon' };
+		table.matchId = null;
+		table.ready = [false, false];
+		// Replaced, not settled: `#settleSeries` never sees it, so nothing is recorded.
+		table.series = newSeries(seriesRoomOf(room), table.seats, 'seating');
+		const next = { ...room.gauntlets };
+		delete next[table.id];
+		room.gauntlets = next;
+		this.#persist(room);
+		this.#log({ event: 'table-abandoned', roomId, tableId, by: callerId, matchId });
+		return { ok: true, matchId };
+	}
+
+	dropTableMatch(roomId: string, callerId: string, tableId: string): ResolveTableResult {
+		const room = this.#rooms.get(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		const table = room.tables.find((t) => t.id === tableId);
+		if (table === undefined) return { ok: false, reason: 'no-such-table' };
+		const pairing = room.pod?.pairings.find((p) => p.tableId === tableId);
+		if (room.pod === null || pairing === undefined) return { ok: false, reason: 'not-pod-table' };
+		const dropper = table.seats.indexOf(callerId);
+		if (dropper === -1 || !pairing.players.includes(callerId)) return { ok: false, reason: 'not-seated' };
+		if (table.series.phase === 'done') return { ok: false, reason: 'nothing-to-drop' };
+		const { matchId } = table;
+		const { series } = table;
+		const needed = Math.floor(series.length / 2) + 1;
+		const other = dropper === 0 ? 1 : 0;
+		const wins: [number, number] = [0, 0];
+		wins[other] = Math.max(series.wins[other] ?? 0, needed);
+		wins[dropper] = Math.min(series.wins[dropper] ?? 0, needed - 1);
+		table.matchId = null;
+		table.ready = [false, false];
+		// Before a first game the series names nobody; the seats are who played it.
+		const played: [string | null, string | null] = series.games.length === 0 ? [table.seats[0] ?? null, table.seats[1] ?? null] : series.played;
+		table.series = { ...series, played, wins, phase: 'done', gameStartedAt: null };
+		this.#settleSeries(room, table, true);
+		table.series = { ...table.series, settled: true };
+		this.#finishPodTable(room, table);
+		this.#persist(room);
+		this.#log({ event: 'table-dropped', roomId, tableId, by: callerId, matchId, wins });
+		return { ok: true, matchId };
+	}
+
 	/**
 	 * This table's series just went `done`, and the room HAS a pod — record
 	 * its pairing's `MatchResult` and, once every one of the CURRENT round's
@@ -2380,6 +2452,8 @@ class FileLobby implements Lobby {
 		const pairing = pod.pairings.find((p) => p.tableId === table.id);
 		if (pairing === undefined) return;
 		const [a, b] = pairing.players;
+		// Recorded once: a game of a dropped series that ends afterwards finds the result already there.
+		if (pod.results.some((r) => r.round === pod.round && r.playerA === a && r.playerB === b)) return;
 		// The series counts by the seat each played from (`played`, Forge's AI `null`), and a pairing that
 		// names its AI first seats the human at 0 (`#newPodTable`): each entrant's games are its own seat's.
 		const played = table.series.played;

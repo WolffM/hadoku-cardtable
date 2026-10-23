@@ -3620,3 +3620,125 @@ describe("a room's plan checks itself — created or restored, not only PUT", ()
 		expect(lobby.get(made.room.id)?.pod?.verdict).toBeNull();
 	});
 });
+
+describe('a table resolved from its card: Abandon and Drop match (docs/planning/table-card-plan.md)', () => {
+	async function constructedTable() {
+		const ended: SeriesEnd[] = [];
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir, onSeriesEnd: (end) => ended.push(end) });
+		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.join(id, CAROL).ok).toBe(true);
+		expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
+		return { lobby, dir, id, tableId, ended };
+	}
+
+	async function twoPlayerTournament() {
+		const ended: SeriesEnd[] = [];
+		const dir = await tempDir();
+		const lobby = await openLobby({ dir, onSeriesEnd: (end) => ended.push(end) });
+		const made = lobby.create(ALICE, { name: 'Tournament night', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} } });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.join(id, CAROL).ok).toBe(true);
+		expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
+		expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+		expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+		lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+		const started = lobby.startDraft(id, ALICE.id);
+		if (!started.ok) throw new Error('rounds did not start');
+		const tableId = started.room.pod!.pairings[0]!.tableId;
+		return { lobby, dir, id, tableId, ended };
+	}
+
+	it('Abandon ends a constructed series with no result: its live game is let go, the table is back to seating, its players still seated', async () => {
+		const { lobby, dir, id, tableId, ended } = await constructedTable();
+		expect(lobby.setTableMatch(id, tableId, 'm-g1')).toBe(true);
+		lobby.recordGameResult(id, tableId, { matchId: 'm-g1', winner: 0 });
+		expect(lobby.beginSideboarding(id, tableId)).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-g2')).toBe(true);
+
+		expect(lobby.abandonTable(id, BOB.id, tableId)).toEqual({ ok: true, matchId: 'm-g2' });
+		const table = lobby.get(id)!.tables.find((t) => t.id === tableId)!;
+		expect(table).toMatchObject({ matchId: null, series: { wins: [0, 0], games: [], phase: 'seating' } });
+		expect(table.players.map((p) => p.memberId)).toEqual([ALICE.id, BOB.id]);
+		expect(ended, 'an abandoned series records no result').toEqual([]);
+
+		// Nothing comes back after a restart: the old series is gone, not merely hidden.
+		const reopened = await openLobby({ dir, onSeriesEnd: (end) => ended.push(end) });
+		expect(reopened.get(id)!.tables.find((t) => t.id === tableId)!.series).toMatchObject({ games: [], phase: 'seating' });
+		expect(ended).toEqual([]);
+	});
+
+	it('Abandon is a seated player’s, at a constructed table, with something to abandon', async () => {
+		const { lobby, id, tableId } = await constructedTable();
+		expect(lobby.abandonTable(id, ALICE.id, tableId)).toEqual({ ok: false, reason: 'nothing-to-abandon' });
+		expect(lobby.setTableMatch(id, tableId, 'm-g1')).toBe(true);
+		expect(lobby.abandonTable(id, CAROL.id, tableId)).toEqual({ ok: false, reason: 'not-seated' });
+		expect(lobby.abandonTable(id, ALICE.id, 't-00000000')).toEqual({ ok: false, reason: 'no-such-table' });
+		lobby.recordGameResult(id, tableId, { matchId: 'm-g1', winner: 0 });
+		expect(lobby.abandonTable(id, ALICE.id, tableId), 'a finished Bo1 is a result, not a series to abandon').toEqual({ ok: false, reason: 'nothing-to-abandon' });
+		const pod = await twoPlayerTournament();
+		expect(pod.lobby.setTableMatch(pod.id, pod.tableId, 'm-p1')).toBe(true);
+		expect(pod.lobby.abandonTable(pod.id, ALICE.id, pod.tableId)).toEqual({ ok: false, reason: 'pod-table' });
+	});
+
+	it('Drop match forfeits a tournament series: the other seat wins it, the dropper’s won games stand, and the pod moves on', async () => {
+		const { lobby, dir, id, tableId, ended } = await twoPlayerTournament();
+		expect(lobby.setTableMatch(id, tableId, 'm-p1')).toBe(true);
+		// Alice took game 1, then drops in game 2.
+		lobby.recordGameResult(id, tableId, { matchId: 'm-p1', winner: 0 });
+		expect(lobby.setTableMatch(id, tableId, 'm-p2')).toBe(true);
+
+		expect(lobby.dropTableMatch(id, ALICE.id, tableId)).toEqual({ ok: true, matchId: 'm-p2' });
+		const view = lobby.get(id)!;
+		expect(view.pod?.results).toMatchObject([{ round: 1, playerA: ALICE.id, playerB: BOB.id, gamesA: 1, gamesB: 2 }]);
+		expect(view.pod?.phase, 'a one-round pod is over once its one match is').toBe('done');
+		expect(view.pod?.standings[0]).toMatchObject({ id: BOB.id, matchPoints: 3, rank: 1 });
+		expect(view.tables.find((t) => t.id === tableId)).toMatchObject({ matchId: null, series: { phase: 'done', wins: [1, 2] } });
+		expect(ended.map((e) => e.winner)).toEqual([1]);
+
+		// A game of the dropped series that ends afterwards adds nothing, and a restart keeps the result.
+		lobby.recordGameResult(id, tableId, { matchId: 'm-p2', winner: 0 });
+		const reopened = await openLobby({ dir });
+		expect(reopened.get(id)!.pod?.results).toMatchObject([{ round: 1, playerA: ALICE.id, playerB: BOB.id, gamesA: 1, gamesB: 2 }]);
+		expect(reopened.get(id)!.pod?.results).toHaveLength(1);
+	});
+
+	it('Drop match before a game is played is a 0-2 loss; it is a player’s of that pairing only, and a pod table’s only', async () => {
+		const { lobby, id, tableId } = await twoPlayerTournament();
+		expect(lobby.dropTableMatch(id, CAROL.id, tableId)).toEqual({ ok: false, reason: 'not-seated' });
+		expect(lobby.dropTableMatch(id, BOB.id, tableId)).toEqual({ ok: true, matchId: null });
+		expect(lobby.get(id)!.pod?.results).toEqual([{ round: 1, playerA: ALICE.id, playerB: BOB.id, gamesA: 2, gamesB: 0 }]);
+		expect(lobby.dropTableMatch(id, BOB.id, tableId), 'the series is over: nothing left to drop').toMatchObject({ ok: false });
+		const plain = await constructedTable();
+		expect(plain.lobby.dropTableMatch(plain.id, ALICE.id, plain.tableId)).toEqual({ ok: false, reason: 'not-pod-table' });
+	});
+
+	it('a dropped table’s late game end records nothing more while another table of the round still plays', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const made = lobby.create(ALICE, { name: 'Four', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} } });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const DAVE = { id: 'fk:4444444444444444', name: 'user-dave' };
+		for (const m of [BOB, CAROL, DAVE]) expect(lobby.join(id, m).ok).toBe(true);
+		expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
+		[ALICE, BOB, CAROL, DAVE].forEach((m, seat) => expect(lobby.sitPod(id, m.id, seat).ok).toBe(true));
+		lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id, CAROL.id, DAVE.id]) }));
+		const started = lobby.startDraft(id, ALICE.id);
+		if (!started.ok) throw new Error('rounds did not start');
+		const [first, second] = started.room.pod!.pairings;
+		const dropper = first!.players[0]!;
+		expect(lobby.setTableMatch(id, first!.tableId, 'm-a')).toBe(true);
+		expect(lobby.dropTableMatch(id, dropper, first!.tableId)).toEqual({ ok: true, matchId: 'm-a' });
+		lobby.recordGameResult(id, first!.tableId, { matchId: 'm-a', winner: 0 });
+		const pod = lobby.get(id)!.pod!;
+		expect(pod.round, 'the other table is still playing').toBe(1);
+		expect(pod.results.filter((r) => r.round === 1 && r.playerB !== null)).toHaveLength(1);
+		expect(pod.pairings.map((p) => p.tableId)).toContain(second!.tableId);
+	});
+});

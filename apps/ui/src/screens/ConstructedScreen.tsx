@@ -209,6 +209,7 @@ import { PodLobby } from './pod/PodLobby.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
 import { POD_AI } from './pod/wire.ts';
 import { TableCard } from './TableCard.tsx';
+import { resolveTable } from './tableActions.ts';
 import {
   RANDOM_DECK,
   isEra,
@@ -2512,6 +2513,7 @@ function RoomTableScreen({
                 matchId={myTable.matchId}
                 game={view?.tableGames?.[myTable.id]}
                 go={{ label: 'Sideboard', href: routeHash({ kind: 'room', roomId, tableId: myTable.id }), testId: 'room-table-link' }}
+                onAbandon={() => resolveTable('abandon', roomId, myTable.id)}
               />
             ) : mode !== 'classic' ? null : loaded === null ? (
               loadError === null && <DeckCardSkeleton />
