@@ -2417,12 +2417,11 @@ describe('a tournament locks over HTTP, with the real PodChecks (regression: the
 /**
  * Gauntlet tournaments, through the REAL `http/routes.ts` adapter
  * (`docs/planning/tournament-mode-plan.md`'s "Open" section, now landed):
- * `GauntletDeps`/`GauntletHandle`'s table ids, `tournamentPairingOf` and the
- * locked-deck slot all thread through `attachTables`'s own closures rather
- * than a test double's. A fixed `random` and a captured `schedule` make the
+ * `GauntletDeps`/`GauntletHandle`'s table ids and `tournamentPairingOf` thread
+ * through `attachTables`'s own closures rather than a test double's. A fixed `random` and a captured `schedule` make the
  * AI's own moves (and the reveal's end) deterministic without real timers.
  */
-describe('Gauntlet tournaments lock over HTTP, with the real routes.ts adapter', () => {
+describe('Gauntlet tournaments over HTTP, with the real routes.ts adapter', () => {
 	/** A fixed walk through [0, 1), so a run is the same every time. */
 	function seededRandom(): () => number {
 		let n = 0;
@@ -2440,7 +2439,7 @@ describe('Gauntlet tournaments lock over HTTP, with the real routes.ts adapter',
 		};
 	}
 
-	it('two simultaneous Gauntlet tables of one round each ban/pick/choose independently, and a locked entrant’s round 2 resumes with no banpick', async () => {
+	it('two simultaneous Gauntlet tables of one round each ban/pick/choose independently, and round 2 draws fresh though Decks locked was set', async () => {
 		const { schedule, flush } = flusher();
 		const h = await openFullApp(await tempDir(), { random: seededRandom(), schedule });
 		const created = (
@@ -2448,7 +2447,10 @@ describe('Gauntlet tournaments lock over HTTP, with the real routes.ts adapter',
 		).json() as { id: string };
 		const id = created.id;
 		expect((await call(h, 'POST', `/api/rooms/${id}/join`, { as: 'bob' })).status).toBe(200);
-		expect((await call(h, 'PATCH', `/api/rooms/${id}`, { as: 'alice', body: { settings: { tournament: true, tournamentDecks: 'locked' } } })).status).toBe(200);
+		// The operator's room r-c1eb7fcaa5d7 (2026-10-23): Gauntlet with Decks locked set. A Gauntlet locks none.
+		const patched = await call(h, 'PATCH', `/api/rooms/${id}`, { as: 'alice', body: { settings: { tournament: true, tournamentDecks: 'locked' } } });
+		expect(patched.status).toBe(200);
+		expect((patched.json() as { settings: { tournamentDecks: string } }).settings.tournamentDecks, 'a Gauntlet tournament reads per-round').toBe('per-round');
 
 		// alice, bob, 2 AI — round 1's "across the table" pairing gives two REAL
 		// tables, each a human vs an AI (never alice-vs-bob in round 1).
@@ -2553,23 +2555,20 @@ describe('Gauntlet tournaments lock over HTTP, with the real routes.ts adapter',
 		expect(pod2.pod?.round, 'round 2 begins').toBe(2);
 
 		// Round 2 (by score) pairs the two winners together — alice vs bob
-		// directly, both already locked from round 1 — so this is ONE table,
-		// not two: alice's own Ready alone resumes it (bob's own Ready would
-		// just be the OTHER seat's, not a second table).
+		// directly — so this is ONE table, not two.
 		const aliceRoom2 = (await call(h, 'GET', `/api/rooms/${id}`, { as: 'alice' })).json() as RoomView;
 		const bobRoom2 = (await call(h, 'GET', `/api/rooms/${id}`, { as: 'bob' })).json() as RoomView;
 		const t2Alice = tableOf(aliceRoom2, aliceId);
 		const t2Bob = tableOf(bobRoom2, bobId);
 		expect(t2Alice, 'round 2: the field’s two winners, paired together').toBe(t2Bob);
 
-		// Locked: round 2 resumes straight into `choose` on the Ready alone —
-		// no draw, no banpick — the instant BOTH entrants' stored picks are
-		// found (ready up both seats; either ready could be the one that
-		// resumes it, so this does not assume which).
+		// Round 2 draws its own decks and bans/picks them, like round 1.
 		expect((await call(h, 'POST', `/api/tables/rooms/${id}/gauntlet/ready`, { as: 'alice', body: { ready: true, table: t2Alice } })).status).toBe(200);
-		const resumed = await call(h, 'POST', `/api/tables/rooms/${id}/gauntlet/ready`, { as: 'bob', body: { ready: true, table: t2Bob } });
-		expect(resumed.status, resumed.text).toBe(200);
-		expect((resumed.json() as GauntletViewLike).phase, 'round 2 skips the draw and banpick entirely').toBe('choose');
+		const round2 = await call(h, 'POST', `/api/tables/rooms/${id}/gauntlet/ready`, { as: 'bob', body: { ready: true, table: t2Bob } });
+		expect(round2.status, round2.text).toBe(200);
+		expect((round2.json() as GauntletViewLike).phase, 'round 2 draws fresh').toBe('reveal');
+		flush();
+		expect((await view('alice', t2Alice)).phase, 'and bans and picks').toBe('banpick');
 	});
 });
 
@@ -2601,7 +2600,7 @@ describe('testing rooms (admin only, seeded)', () => {
 				'Testing: Constructed 1v1 (Classic)',
 				'Testing: Constructed tournament (Classic, per-round decks)',
 				'Testing: Cube draft (MTGO Vintage Cube 2025-04)',
-				'Testing: Gauntlet tournament (locked)',
+				'Testing: Gauntlet tournament',
 			].sort(),
 		);
 		expect(logged).toContainEqual(expect.objectContaining({ event: 'testing-room-seed-skipped', name: 'Testing: Set draft' }));

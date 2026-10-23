@@ -766,10 +766,10 @@ function isStoredPodSeats(v: unknown): v is (string | null)[] {
 	return Array.isArray(v) && v.length === POD_SEATS && v.every((s) => s === null || typeof s === 'string');
 }
 
-/** Each entrant's locked deck is either an object (Classic/Random's opaque deck choice) or a string array (Gauntlet's pick set) — never a bare primitive. */
+/** Each entrant's locked deck is an object (Classic/Random's opaque deck choice; an older record's Gauntlet deck-id array) — never a bare primitive. */
 function isStoredLockedDecks(v: unknown): v is Record<string, unknown> {
 	if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
-	return Object.values(v).every((x) => (typeof x === 'object' && x !== null) || (Array.isArray(x) && x.every((d) => typeof d === 'string')));
+	return Object.values(v).every((x) => typeof x === 'object' && x !== null);
 }
 
 /** A room's Gauntlets by table id (`RoomRecord.gauntlets`'s own doc): a plain object, every value a Gauntlet this build understands. */
@@ -1238,25 +1238,13 @@ export interface Lobby {
 	 */
 	setGauntlet(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean;
 	/**
-	 * A tournament's locked deck(s) by entrant id (`RoomRecord.lockedDecks`'s
-	 * own doc). `room/lobby.ts` itself fills Classic/All Random's at the lock
-	 * (`#lockTournament`); `http/gauntlet.ts` is the only OTHER writer, for
-	 * Gauntlet's own slot, filled after an entrant's first tournament match's
-	 * draft rather than at the lock. False when there is no such room.
-	 */
-	setLockedDeck(roomId: string, entrant: string, deck: unknown): boolean;
-	/**
 	 * The tournament pairing at `tableId` — the two entrant ids (a member id,
 	 * or a pod AI entrant's `` `ai:<seat>` ``), the AI's slot (if any) always
 	 * last so `http/gauntlet.ts`'s own seat convention (the human is Gauntlet
-	 * seat 0, a vs-AI table's synthetic AI player seat 1) lines up with
-	 * whichever of the two this returns a locked pick set for — and whether
-	 * this tournament's deck policy is `locked` at all. `null` for a
+	 * seat 0, a vs-AI table's synthetic AI player seat 1) lines up. `null` for a
 	 * non-tournament room, or a table with no current pairing.
 	 */
-	tournamentPairingOf(roomId: string, tableId: string): { entrants: [string, string]; locked: boolean } | null;
-	/** This entrant's locked deck, or `undefined` when none is stored (or there is no such room/entrant). */
-	lockedDeckOf(roomId: string, entrant: string): unknown;
+	tournamentPairingOf(roomId: string, tableId: string): { entrants: [string, string] } | null;
 	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[];
 	/**
@@ -1425,10 +1413,9 @@ interface RoomRecord {
 	 * otherwise. Classic / All Random: each entrant's one deck choice,
 	 * opaque to this file (the same discipline `MemberRecord.state` already
 	 * keeps), snapshotted at the lock (`#lockTournament`) and read back by
-	 * `#seatTournamentDeck` every round. Gauntlet: each entrant's fixed
-	 * library deck-id set, captured by `http/gauntlet.ts` after their FIRST
-	 * tournament match's own draft rather than at the lock
-	 * (`docs/planning/tournament-mode-plan.md`'s Design).
+	 * `#seatTournamentDeck` every round. A Gauntlet tournament locks none
+	 * (`tournamentDecksOf`); a record stored before that may still hold a
+	 * Gauntlet entrant's deck-id array here, which nothing reads.
 	 */
 	lockedDecks: Record<string, unknown>;
 	/**
@@ -1683,7 +1670,7 @@ const appCodec: AppCodec<StoredApp> = {
 			throw new Error('app.podPlaying is not a list of member ids');
 		}
 		// Absent is a room written before tournament mode. Each value's own shape
-		// (a Classic/Random deck, or a Gauntlet entrant's deck-id array) is opaque
+		// (a Classic/Random deck) is opaque
 		// here, the same discipline `MemberRecord.state` already keeps.
 		if (a.lockedDecks !== undefined && !isStoredLockedDecks(a.lockedDecks)) throw new Error('app.lockedDecks is invalid');
 		// `gauntlets` (per-table) is the current shape; `gauntlet` (per-room) is
@@ -1781,6 +1768,17 @@ function tableView(table: TableRecord, members: readonly MemberRecord[], room: R
 	};
 }
 
+/**
+ * The tournament's deck policy as it plays. A Gauntlet has none to lock: every table's decks are its
+ * own draw and ban/pick between the two seats at it, so a Gauntlet tournament is `per-round`
+ * whatever the setting says (the operator, 2026-10-23: *"let's just disable 'decks locked' for
+ * guantlet mode since it seems pointless"*). The stored setting is kept, so a room switched back
+ * to Classic or All Random keeps the leader's choice.
+ */
+function tournamentDecksOf(room: RoomRecord): RoomSettings['tournamentDecks'] {
+	return room.mode === 'gauntlet' ? 'per-round' : room.settings.tournamentDecks;
+}
+
 function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView {
 	return {
 		id: room.id,
@@ -1789,7 +1787,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		leader: room.leader,
 		gameType: room.gameType,
 		format: room.format,
-		settings: { ...room.settings },
+		settings: { ...room.settings, tournamentDecks: tournamentDecksOf(room) },
 		mode: room.mode,
 		modeOptions: room.modeOptions === null ? null : { ...room.modeOptions },
 		clientMode: room.clientMode,
@@ -2467,7 +2465,7 @@ class FileLobby implements Lobby {
 	 * do about it, is `PodChecks`'s own business, never this file's.
 	 */
 	#seatTournamentDeck(room: RoomRecord, tableId: string, entrant: string): void {
-		const locked = room.settings.tournamentDecks === 'locked' ? room.lockedDecks[entrant] ?? null : null;
+		const locked = tournamentDecksOf(room) === 'locked' ? room.lockedDecks[entrant] ?? null : null;
 		this.#podChecks.seatTournamentDeck(room.id, tableId, entrant, locked);
 	}
 
@@ -2863,9 +2861,8 @@ class FileLobby implements Lobby {
 	 * `ready` flag). An AI entrant is always ready and never checked.
 	 *
 	 * `tournamentDecks === 'locked'` snapshots every entrant's CURRENT deck
-	 * here for Classic/All Random (`PodChecks.currentTournamentDeck`) —
-	 * Gauntlet's own locked slot fills later, after an entrant's first
-	 * match's own draft (`http/gauntlet.ts`), never at the lock.
+	 * here for Classic/All Random (`PodChecks.currentTournamentDeck`); a
+	 * Gauntlet has no locked decks (`tournamentDecksOf`).
 	 *
 	 * The field is fixed from here: `sitPod`/`standPod`/`aiPod`/`closePod`
 	 * all refuse once `draftStartedAt !== null`, same as a draft pod's does.
@@ -2876,7 +2873,7 @@ class FileLobby implements Lobby {
 		const humanReady = (id: string): boolean =>
 			room.mode === 'classic' ? this.#podChecks.hasLegalSeatDeck(room.id, id) : room.members.find((m) => m.id === id)?.ready === true;
 		if (entrants.some((id) => !isAiEntrant(id) && !humanReady(id))) return { ok: false, reason: 'not-ready' };
-		if (room.settings.tournamentDecks === 'locked' && room.mode !== 'gauntlet') {
+		if (tournamentDecksOf(room) === 'locked') {
 			// `currentTournamentDeck` may itself re-enter `rooms.get()` (its real
 			// `routes.ts` implementation reads the room to find a pool/format).
 			// Safe here: `draftStartedAt` is still null, so any such read answers
@@ -3106,7 +3103,7 @@ class FileLobby implements Lobby {
 		return true;
 	}
 
-	tournamentPairingOf(roomId: string, tableId: string): { entrants: [string, string]; locked: boolean } | null {
+	tournamentPairingOf(roomId: string, tableId: string): { entrants: [string, string] } | null {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined || !isTournamentRoom(room)) return null;
 		const pairing = room.pod?.pairings.find((p) => p.tableId === tableId);
@@ -3117,19 +3114,7 @@ class FileLobby implements Lobby {
 		// Gauntlet seat 0, the synthesized AI player seat 1) — never both: an
 		// AI-vs-AI pairing settles without a table (`#pairRound`'s own doc).
 		const entrants: [string, string] = isAiEntrant(a) ? [b, a] : [a, b];
-		return { entrants, locked: room.settings.tournamentDecks === 'locked' };
-	}
-
-	setLockedDeck(roomId: string, entrant: string, deck: unknown): boolean {
-		const room = this.#rooms.get(roomId);
-		if (room === undefined) return false;
-		room.lockedDecks = { ...room.lockedDecks, [entrant]: deck };
-		this.#persist(room);
-		return true;
-	}
-
-	lockedDeckOf(roomId: string, entrant: string): unknown {
-		return this.#rooms.get(roomId)?.lockedDecks[entrant];
+		return { entrants };
 	}
 
 	podDraft(roomId: string): PodDeal | null {

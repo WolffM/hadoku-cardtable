@@ -28,9 +28,7 @@ interface Harness {
 	handle: GauntletHandle;
 	server: Server;
 	/** Stands in for `room/lobby.ts`'s `Lobby.tournamentPairingOf`, by table id. Empty for a plain (non-tournament) harness. */
-	pairings: Record<string, { entrants: [string, string]; locked: boolean } | null>;
-	/** Stands in for `Lobby.lockedDeckOf`/`setLockedDeck`, by entrant id. */
-	locked: Record<string, string[]>;
+	pairings: Record<string, { entrants: [string, string] } | null>;
 }
 
 let open: Harness | null = null;
@@ -56,9 +54,9 @@ async function boot(seated: string[], modeOptions: GauntletRoom['modeOptions'] =
  * own seated lists) of ONE room — a tournament round's several Gauntlet
  * tables, proved against the real `attachGauntlet` router exactly as a
  * single table already is, just not through `http/routes.ts`'s own adapter
- * (which this lane could not touch — see the lane's report). `pairings` and
- * `locked`, on the returned harness, stand in for `room/lobby.ts`'s
- * `tournamentPairingOf` / `lockedDeckOf`+`setLockedDeck`, mutable per test.
+ * (which this lane could not touch — see the lane's report). `pairings`, on
+ * the returned harness, stands in for `room/lobby.ts`'s `tournamentPairingOf`,
+ * mutable per test.
  */
 async function bootRoom(input: {
 	members: { id: string; name: string }[];
@@ -69,8 +67,7 @@ async function bootRoom(input: {
 	const readyBy = new Map<string, Set<string>>();
 	for (const t of input.tables) readyBy.set(t.id, new Set());
 	const seatedBy = new Map(input.tables.map((t) => [t.id, t.seated]));
-	const pairings: Record<string, { entrants: [string, string]; locked: boolean } | null> = {};
-	const locked: Record<string, string[]> = {};
+	const pairings: Record<string, { entrants: [string, string] } | null> = {};
 	const room: GauntletRoom & { format: string } = {
 		id: 'r-1',
 		gameType: 'constructed-1v1',
@@ -98,8 +95,6 @@ async function bootRoom(input: {
 				return true;
 			},
 			tournamentPairingOf: (_id, tableId) => pairings[tableId] ?? null,
-			lockedPicksOf: (_id, entrant) => locked[entrant] ?? null,
-			storeLockedPicks: (_id, entrant, picks) => void (locked[entrant] = picks),
 		},
 		library,
 		seated: (_room, tableId = room.tables[0]!.id) =>
@@ -132,7 +127,6 @@ async function bootRoom(input: {
 		handle,
 		server,
 		pairings,
-		locked,
 	};
 	return open;
 }
@@ -323,11 +317,9 @@ describe('the Gauntlet routes', () => {
  * Gauntlet tournaments (`docs/planning/tournament-mode-plan.md`, ruling 6):
  * a tournament round pairs several Gauntlet tables of the SAME room at
  * once, each keyed by its own table id (`room/lobby.ts`'s `gauntlets`), and
- * a `locked` deck policy's entrant plays their FIRST match's draft at
- * every later one (`tournamentPairingOf` + `lockedPicksOf`/
- * `storeLockedPicks`, stood in here by `h.pairings`/`h.locked`).
+ * every table draws fresh: a Gauntlet tournament locks no decks.
  */
-describe('Gauntlet tournaments: per-table state and the locked deck policy', () => {
+describe('Gauntlet tournaments: per-table state, every round drawn fresh', () => {
 	it('two simultaneous tables of one round draw, bank and play independently — acting on one never touches the other', async () => {
 		const h = await bootRoom({
 			members: [
@@ -396,7 +388,7 @@ describe('Gauntlet tournaments: per-table state and the locked deck policy', () 
 		expect((await view(h, 'carol', 't-2')).phase).toBe('banpick');
 	});
 
-	it('locked: round 2 resumes straight into choose from round 1’s stored picks, no draw and no banpick', async () => {
+	it('every round draws and banpicks fresh', async () => {
 		const h = await bootRoom({
 			members: [
 				{ id: 'alice', name: 'Alice' },
@@ -407,58 +399,22 @@ describe('Gauntlet tournaments: per-table state and the locked deck policy', () 
 				{ id: 't-2', seated: ['alice', 'bob'] },
 			],
 		});
-		h.pairings['t-1'] = { entrants: ['alice', 'bob'], locked: true };
-		h.pairings['t-2'] = { entrants: ['alice', 'bob'], locked: true };
-
-		// Round 1: neither has a stored pick set yet, so this is a fresh draw.
-		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
-		await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
-		h.flush();
-		const round1 = await runBanpick(h, 't-1', ['alice', 'bob']);
-		expect(round1.phase).toBe('choose');
-		expect(h.locked.alice).toHaveLength(3);
-		expect(h.locked.bob).toHaveLength(3);
-
-		// Round 2: both already locked — the ready alone resumes straight into
-		// `choose`, with no reveal timer and no banpick act at all.
-		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
-		const resumed = await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
-		expect(resumed.body.phase).toBe('choose');
-		expect(new Set((resumed.body.decks as { id: string }[]).map((d) => d.id))).toEqual(new Set([...h.locked.alice!, ...h.locked.bob!]));
-		expect(h.logs.filter((l) => l.evt === 'gauntlet-resumed')).toHaveLength(1);
-		// Never overwritten: round 2's own (fresh, were it one) picks are not restored again.
-		expect(h.locked.alice).toHaveLength(3);
-	});
-
-	it('per-round: every round draws and banpicks fresh — nothing is ever stored', async () => {
-		const h = await bootRoom({
-			members: [
-				{ id: 'alice', name: 'Alice' },
-				{ id: 'bob', name: 'Bob' },
-			],
-			tables: [
-				{ id: 't-1', seated: ['alice', 'bob'] },
-				{ id: 't-2', seated: ['alice', 'bob'] },
-			],
-		});
-		h.pairings['t-1'] = { entrants: ['alice', 'bob'], locked: false };
-		h.pairings['t-2'] = { entrants: ['alice', 'bob'], locked: false };
+		h.pairings['t-1'] = { entrants: ['alice', 'bob'] };
+		h.pairings['t-2'] = { entrants: ['alice', 'bob'] };
 
 		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
 		await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
 		h.flush();
 		await runBanpick(h, 't-1', ['alice', 'bob']);
-		expect(h.locked).toEqual({});
 
 		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
 		const drawn2 = await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
 		expect(drawn2.body.phase).toBe('reveal');
 		h.flush();
 		expect((await view(h, 'alice', 't-2')).phase).toBe('banpick');
-		expect(h.locked).toEqual({});
 	});
 
-	it('an AI entrant in a locked tournament: its picks are stored the same way, and round 2 resumes it too', async () => {
+	it('an AI entrant: a plain Ready plays it, and its round 2 draws fresh too', async () => {
 		const h = await bootRoom({
 			members: [{ id: 'alice', name: 'Alice' }],
 			tables: [
@@ -466,8 +422,8 @@ describe('Gauntlet tournaments: per-table state and the locked deck policy', () 
 				{ id: 't-2', seated: ['alice'] },
 			],
 		});
-		h.pairings['t-1'] = { entrants: ['alice', 'ai:0'], locked: true };
-		h.pairings['t-2'] = { entrants: ['alice', 'ai:0'], locked: true };
+		h.pairings['t-1'] = { entrants: ['alice', 'ai:0'] };
+		h.pairings['t-2'] = { entrants: ['alice', 'ai:0'] };
 
 		// A plain Ready (no `ai: true`) is enough: the pairing alone says the
 		// other seat is the tournament's AI entrant, always ready.
@@ -485,11 +441,9 @@ describe('Gauntlet tournaments: per-table state and the locked deck policy', () 
 			v = await view(h, 'alice', 't-1');
 		}
 		expect(v.phase).toBe('choose');
-		expect(h.locked.alice).toHaveLength(3);
-		expect(h.locked['ai:0']).toHaveLength(3);
 
-		const resumed = await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
-		expect(resumed.body.phase).toBe('choose');
-		expect(h.logs.filter((l) => l.evt === 'gauntlet-resumed' && l.table === 't-2')).toHaveLength(1);
+		const round2 = await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
+		expect(round2.body.phase).toBe('reveal');
+		expect(h.logs.filter((l) => l.evt === 'gauntlet-drawn' && l.table === 't-2')).toHaveLength(1);
 	});
 });

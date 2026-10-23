@@ -2279,7 +2279,8 @@ function RoomTableScreen({
                     handSmoothing={mode === 'classic' ? { on: handSmoothing, onToggle: toggleHandSmoothing } : undefined}
                     freePick={mode === 'classic' && loaded !== null ? { on: freePick, onToggle: () => toggleFreePick(loaded.formats) } : undefined}
                     lockDecks={mode === 'random' && randomOptions !== null ? { on: randomOptions.lock === true, locked: modeLocked, onToggle: toggleRandomLock } : undefined}
-                    tournamentDecks={tournament ? { value: tournamentDecks, locked: modeLocked, onChange: chooseTournamentDecks } : undefined}
+                    // A Gauntlet's decks are each table's own draw: it has none to lock (the server reads it per-round).
+                    tournamentDecks={tournament && mode !== 'gauntlet' ? { value: tournamentDecks, locked: modeLocked, onChange: chooseTournamentDecks } : undefined}
                   />
                 )}
               </RoomHeader>

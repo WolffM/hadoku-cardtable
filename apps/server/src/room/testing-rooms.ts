@@ -65,10 +65,10 @@ const SPECS: readonly TestingRoomSpec[] = [
 		settings: { tournament: true, tournamentDecks: 'per-round' },
 	},
 	{
-		name: 'Testing: Gauntlet tournament (locked)',
+		name: 'Testing: Gauntlet tournament',
 		gameType: 'constructed-1v1',
 		mode: { mode: 'gauntlet', modeOptions: {} },
-		settings: { tournament: true, tournamentDecks: 'locked' },
+		settings: { tournament: true },
 	},
 	// The default plan every fresh draft room opens on is already "MTGO
 	// Vintage Cube 2025-04 × 3" (`draftRooms.ts`'s `DEFAULT_PLAN`) — nothing

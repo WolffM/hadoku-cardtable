@@ -206,12 +206,6 @@ export function gauntletHoldsTable(state: GauntletState): boolean {
  * it, as a new room's random era is (`lobby.ts`'s `randomFormat`), so a
  * family with many eras does not crowd the others out. `null` when nothing
  * eligible matches `options`.
- *
- * Also what a tournament's `locked` resume shows (`resumeLockedGauntlet`'s
- * `era`, `http/gauntlet.ts`'s caller): a resumed Gauntlet draws no decks, so
- * it has no era of its own to carry forward — this picks one to DISPLAY,
- * the same way a fresh draw would, so the screen still reads "an era" rather
- * than nothing.
  */
 export function pickEra(eras: readonly GauntletEraPool[], options: GauntletOptions, random: () => number): GauntletEraPool | null {
 	const eligible = eras.filter(
@@ -263,35 +257,6 @@ export function startBanpick(state: GauntletState): GauntletState {
 	return state.phase === 'reveal' ? { ...state, phase: 'banpick' } : state;
 }
 
-/**
- * A tournament's `locked` entrant, past their first match: no draw, no
- * banpick — both seats' decks are `picks`, exactly what their first match's
- * own banpick gave them (`pickedDecks`), and the Gauntlet starts straight in
- * `choose`. `era` is carried along only to show (`GauntletView.era`); it
- * plays no further part, since nothing here draws from it again.
- */
-export function resumeLockedGauntlet(input: { players: [GauntletPlayer, GauntletPlayer]; era: GauntletEra; picks: [string[], string[]]; now: number }): GauntletState {
-	const decks = [...input.picks[0], ...input.picks[1]];
-	const marks: GauntletMark[] = [
-		...input.picks[0].map((): GauntletMark => ({ act: 'pick', by: 0 })),
-		...input.picks[1].map((): GauntletMark => ({ act: 'pick', by: 1 })),
-	];
-	return enterChoose({
-		phase: 'banpick',
-		players: input.players,
-		era: input.era,
-		revealAt: input.now,
-		first: 0,
-		decks,
-		marks,
-		stepIndex: GAUNTLET_SNAKE.length,
-		taken: 0,
-		games: [],
-		choices: [null, null],
-		winner: null,
-	});
-}
-
 function stepSeat(state: GauntletState, player: 'p1' | 'p2'): GauntletSeatIndex {
 	const first = state.first ?? 0;
 	return player === 'p1' ? first : first === 0 ? 1 : 0;
@@ -300,18 +265,6 @@ function stepSeat(state: GauntletState, player: 'p1' | 'p2'): GauntletSeatIndex 
 function unplayedPicks(state: GauntletState, seat: GauntletSeatIndex): string[] {
 	const played = new Set(state.games.flatMap((g) => g.decks));
 	return state.decks.filter((d, i) => state.marks[i]?.act === 'pick' && state.marks[i]?.by === seat && !played.has(d));
-}
-
-/**
- * `seat`'s full pick set — fixed the instant banpick ends and unchanged by
- * anything that happens after, UNLIKE `unplayedPicks` (which shrinks as games
- * are played). This is what a tournament's `locked` deck policy captures
- * after an entrant's FIRST match (`docs/planning/tournament-mode-plan.md`'s
- * Design, refined by the operator 2026-10-22) and replays with
- * `resumeLockedGauntlet` for every later one.
- */
-export function pickedDecks(state: GauntletState, seat: GauntletSeatIndex): string[] {
-	return state.decks.filter((d, i) => state.marks[i]?.act === 'pick' && state.marks[i]?.by === seat);
 }
 
 /**

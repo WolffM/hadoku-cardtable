@@ -25,21 +25,9 @@
  * in, `dealGame` hands each seat its deck; the match itself starts the way
  * every room match does (`POST /api/play/matches`).
  *
- * **A tournament's `locked` deck policy (ruling 6).** When the table's
- * pairing (`rooms.tournamentPairingOf`) says the deck policy is `locked` and
- * BOTH entrants already hold a stored pick set (`rooms.lockedPicksOf`), the
- * draw is skipped: `resumeLockedGauntlet` starts the table straight in
- * `choose`, from each entrant's own first-match picks. Otherwise (a
- * non-tournament table, a `per-round` one, or a `locked` one where at least
- * one entrant has not yet had a first match) the table draws fresh, same as
- * always. Either way, the instant THIS match's banpick ends, every entrant
- * who did not already hold a pick set gets one now (`commit`) — never
- * overwritten once stored, so an entrant's deck is always their very FIRST
- * match's draft. (An entrant already locked, paired against one who is not,
- * plays this one match on a fresh draft too — a Gauntlet's ban/pick snake is
- * necessarily a match between the TWO SEATS of one freshly drawn pool, so a
- * resume for one seat alone has no well-formed meaning; this is the
- * simplest faithful rule, and the one this lane's brief asked for.)
+ * **A tournament has no locked Gauntlet decks.** Every table draws fresh and
+ * bans/picks between its own two seats, whatever the room's deck policy says
+ * (`room/lobby.ts`'s `tournamentDecksOf`).
  */
 
 import express, { type Request, type Response, type Router } from 'express';
@@ -57,10 +45,7 @@ import {
 	gauntletEras,
 	gauntletHoldsTable,
 	newGauntlet,
-	pickEra,
-	pickedDecks,
 	readyFor,
-	resumeLockedGauntlet,
 	seatOfMember,
 	startBanpick,
 	viewOfGauntlet,
@@ -94,18 +79,14 @@ export interface GauntletDeps {
 		gauntlet(roomId: string, tableId?: string): GauntletState | null;
 		setGauntlet(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean;
 		/**
-		 * `room/lobby.ts`'s `Lobby.tournamentPairingOf` — this table's entrants
-		 * and deck policy, or `null` outside a tournament. Optional (and
+		 * `room/lobby.ts`'s `Lobby.tournamentPairingOf` — this table's entrants,
+		 * or `null` outside a tournament. Optional (and
 		 * `undefined` read as "no tournament") ONLY so an adapter that has not
 		 * yet been given it — `http/routes.ts`'s today, this lane's report
 		 * names its exact patch — still satisfies this type: a plain Gauntlet
 		 * room, which never had a pairing anyway, is unaffected either way.
 		 */
-		tournamentPairingOf?(roomId: string, tableId: string): { entrants: [string, string]; locked: boolean } | null;
-		/** `entrant`'s stored Gauntlet pick set (`Lobby.lockedDeckOf`, read back as a deck-id array), or `null`/`undefined` if never stored. Optional for the same reason as `tournamentPairingOf`. */
-		lockedPicksOf?(roomId: string, entrant: string): string[] | null;
-		/** `entrant`'s FIRST match's full pick set (`Lobby.setLockedDeck`) — called once per entrant (`commit`'s own doc). Optional for the same reason as `tournamentPairingOf`; never called when it is absent, since `tournamentPairingOf` absent too means "never a locked tournament table." */
-		storeLockedPicks?(roomId: string, entrant: string, picks: string[]): void;
+		tournamentPairingOf?(roomId: string, tableId: string): { entrants: [string, string] } | null;
 	};
 	library: TablesLibrary;
 	/** Who sits at `tableId`, in Gauntlet seat order, with each seat's Ready. `tableId` defaults to `room.tables[0]`'s. */
@@ -190,32 +171,13 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 
 	const stateOf = (room: GauntletRoom, tableId: string): GauntletState => rooms.gauntlet(room.id, tableId) ?? newGauntlet();
 
-	/**
-	 * Store a move, and whatever follows from it: a dealt game, the reveal's
-	 * end, the AI's next move, and — a locked tournament table's banpick
-	 * ending — each entrant who had no stored pick set yet gets one now
-	 * (this file's own doc on why "unset" alone, never the draw path, is
-	 * the storage rule).
-	 */
+	/** Store a move, and whatever follows from it: a dealt game, the reveal's end, the AI's next move. */
 	function commit(room: GauntletRoom, tableId: string, before: GauntletState, after: GauntletState): void {
 		rooms.setGauntlet(room.id, after, tableId);
 		if (after.phase === 'playing' && after.games.length !== before.games.length) {
 			const decks = gameDecks(after)!;
 			deps.dealGame(room, decks, after.players!, after.era!.id, tableId);
 			log({ evt: 'gauntlet-game-dealt', room: room.id, table: tableId, game: after.games.length, decks });
-		}
-		if (before.phase === 'banpick' && after.phase !== 'banpick') {
-			const pairing = rooms.tournamentPairingOf?.(room.id, tableId) ?? null;
-			if (pairing !== null && pairing.locked) {
-				for (const seat of [0, 1] as const) {
-					const entrant = pairing.entrants[seat];
-					if ((rooms.lockedPicksOf?.(room.id, entrant) ?? null) === null) {
-						const picks = pickedDecks(after, seat);
-						rooms.storeLockedPicks?.(room.id, entrant, picks);
-						log({ evt: 'gauntlet-locked', room: room.id, table: tableId, entrant, picks: picks.length });
-					}
-				}
-			}
 		}
 		if (after.phase !== before.phase) log({ evt: 'gauntlet-phase', room: room.id, table: tableId, phase: after.phase });
 		wake(room.id, tableId, after);
@@ -354,30 +316,7 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 		}
 		const options = GauntletOptionsSchema.safeParse(room.modeOptions ?? {});
 		const opts = options.success ? options.data : {};
-		// Ruling 6: a `locked` tournament table whose BOTH entrants already hold
-		// a first-match pick set resumes straight into `choose` — no draw, no
-		// banpick. Any other case (no tournament, `per-round`, or at least one
-		// entrant's first match) draws fresh, same as always.
-		const stored = pairing !== null && pairing.locked ? pairing.entrants.map((e) => rooms.lockedPicksOf?.(room.id, e) ?? null) : null;
-		const bothLocked = stored !== null && stored[0] !== null && stored[1] !== null ? (stored as [string[], string[]]) : null;
-		let drawn: GauntletResult;
-		if (bothLocked !== null) {
-			const era = pickEra(eras, opts, deps.random);
-			drawn =
-				era === null
-					? { ok: false, reason: 'no-era' }
-					: {
-							ok: true,
-							state: resumeLockedGauntlet({
-								players: players as [GauntletPlayer, GauntletPlayer],
-								era: { id: era.id, family: era.family, title: era.title },
-								picks: bothLocked,
-								now: now(),
-							}),
-						};
-		} else {
-			drawn = drawGauntlet(readied.state, { players: players as [GauntletPlayer, GauntletPlayer], eras, options: opts, random: deps.random, now: now() });
-		}
+		const drawn = drawGauntlet(readied.state, { players: players as [GauntletPlayer, GauntletPlayer], eras, options: opts, random: deps.random, now: now() });
 		if (!drawn.ok) {
 			refuse(res, drawn);
 			return;
@@ -385,12 +324,12 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 		deps.setReady(room, me, true, tableId);
 		commit(room, tableId, state, drawn.state);
 		log({
-			evt: bothLocked !== null ? 'gauntlet-resumed' : 'gauntlet-drawn',
+			evt: 'gauntlet-drawn',
 			room: room.id,
 			table: tableId,
 			era: drawn.state.era!.id,
 			first: drawn.state.first,
-			...(bothLocked === null ? { decks: drawn.state.decks } : {}),
+			decks: drawn.state.decks,
 			ai: vsAi,
 		});
 		answer(res, room, tableId, me);

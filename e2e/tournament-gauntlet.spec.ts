@@ -2,27 +2,18 @@
  * Gauntlet in tournament mode, end to end, against the REAL built server and real Forge —
  * `docs/planning/tournament-mode-plan.md`'s ruling 6 and this lane's own Design.
  *
- * Alice, Bob and two AI entrants lock a Gauntlet tournament, Decks Locked. Round 1
+ * Alice, Bob and two AI entrants lock a Gauntlet tournament with Decks locked set, which a Gauntlet
+ * ignores (the operator, 2026-10-23: *"let's just disable 'decks locked' for guantlet mode"*). Round 1
  * (`roundsFor(4) === 2`) pairs "across the table" by seat — alice-vs-ai and bob-vs-ai, two
  * SIMULTANEOUS Gauntlet tables, each keyed by its own table id (`room/lobby.ts`'s `gauntlets`,
  * `http/gauntlet.ts`'s `?table=`/body `table`). Both humans draw, bank and choose independently;
- * acting on one table is proved to leave the other alone. Round 1 ends, each entrant's picks are
- * stored the instant their table's banpick ends. Round 2 re-pairs the field by score; whichever
- * human reaches it (both do, since both finished round 1) resumes straight into `choose` — no
- * draw, no banpick — from their own stored picks.
+ * acting on one table is proved to leave the other alone. Round 2 re-pairs the field by score and
+ * draws its own decks and bans/picks them, as round 1 did.
  *
  * API-driven through alice's and bob's own identities, the same way `e2e/cm-gauntlet.spec.ts`
  * drives a single Gauntlet: the Gauntlet screens are their own lane's, this proves the server
  * contract (`room/lobby.ts`, `room/gauntlet.ts`, `http/gauntlet.ts`) end to end against real
  * Forge matches.
- *
- * KNOWN RED until `http/routes.ts`'s own adapter is patched for per-table Gauntlets (see
- * `docs/planning/tournament-mode-plan.md`'s "Open" section — that file is claimed by another
- * session throughout this lane): `seated`/`setReady`/`dealGame` and `holdsTable`/`startRefusal`/
- * `afterGame` all still call with no table id there, which defaults to `tables[0]` — so round 1's
- * two tables collapse onto one shared Gauntlet state until that patch lands. Everything below is
- * written against the contract this lane DID land (`room/lobby.ts`, `http/gauntlet.ts`), and is
- * the proof that patch needs once it is in.
  *
  * `[tournament-gauntlet]` lines are the evidence. Needs a Forge build; without one the test SKIPS
  * and its title says why.
@@ -46,7 +37,7 @@ async function send<T>(request: APIRequestContext, origin: string, method: 'GET'
 
 test(
   titled(
-    'two simultaneous Gauntlet tables of one round, each ban/pick/choose independently; a locked entrant’s round 2 resumes with no banpick',
+    'two simultaneous Gauntlet tables of one round, each ban/pick/choose independently; round 2 draws fresh though Decks locked was set',
   ),
   async ({ browser }) => {
     test.skip(!forge.ok, forge.ok ? '' : forge.reason);
@@ -81,6 +72,10 @@ test(
 
       const patched = await alice.context.request.patch(`${stack.origin}${PREFIX}/api/rooms/${roomId}`, { data: { settings: { tournament: true, tournamentDecks: 'locked' } } });
       expect(patched.status(), await patched.text()).toBe(200);
+      expect(((await patched.json()) as { settings: { tournamentDecks: string } }).settings.tournamentDecks, 'a Gauntlet tournament reads per-round').toBe('per-round');
+      // Nor does its room offer the choice: a Gauntlet's rules have nothing else, so it draws no Rules button.
+      await expect(bob.page.getByTestId('tournament-lobby')).toBeVisible({ timeout: 15_000 });
+      await expect(bob.page.getByTestId('match-rules'), 'a Gauntlet tournament offers no Decks locked').toHaveCount(0);
 
       // Alice seat 0, Bob seat 1, two AI seats 2 and 3 — round 1's "across the table" pairing
       // (`@hadoku/draft`'s `round1`) splits [alice, bob, ai:2, ai:3] in half and pairs each top
@@ -185,7 +180,7 @@ test(
       await finishMatch(aliceApi, alice.page, t1Alice);
       await finishMatch(bobApi, bob.page, t1Bob);
 
-      // Round 1 settles for both; each entrant's first-match picks are on record.
+      // Round 1 settles for both.
       await expect.poll(async () => (await aliceApi<{ pod: PodView }>('GET', `/rooms/${roomId}`)).body.pod.round, { timeout: 60_000, message: 'round 2 begins' }).toBe(2);
       const pod2 = (await aliceApi<{ pod: PodView }>('GET', `/rooms/${roomId}`)).body.pod;
       console.log(`[tournament-gauntlet] round 2 pairings: ${JSON.stringify(pod2.pairings)}`);
@@ -198,22 +193,13 @@ test(
       // Both lost to the AI in round 1, so Swiss pairs them together: one table for both.
       expect(t2Alice, 'round 2 seats the two 0-point humans at one table').toBe(t2Bob);
 
-      // Locked: round 2 resumes straight into `choose` on the two Readies alone — no draw, no banpick.
-      for (const [api, who] of [
-        [aliceApi, 'alice'],
-        [bobApi, 'bob'],
-      ] as const) {
-        const resumed = await api<GauntletView>('POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, table: t2Alice });
-        expect(resumed.status, JSON.stringify(resumed.body)).toBe(200);
-        console.log(`[tournament-gauntlet] round 2, ${who} ready@${t2Alice}: phase=${resumed.body.phase}`);
-        expect(resumed.body.phase, `${who}: round 2 never draws or bans`).not.toMatch(/^(reveal|banpick)$/);
-      }
-      for (const [api, who] of [
-        [aliceApi, 'alice'],
-        [bobApi, 'bob'],
-      ] as const) {
-        expect((await view(api, t2Alice)).phase, `${who}: round 2 skips the draw and banpick entirely`).toBe('choose');
-      }
+      // Round 2 draws its own decks, then bans and picks them.
+      expect((await aliceApi('POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, table: t2Alice })).status).toBe(200);
+      const round2 = await bobApi<GauntletView>('POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, table: t2Alice });
+      expect(round2.status, JSON.stringify(round2.body)).toBe(200);
+      console.log(`[tournament-gauntlet] round 2 ready@${t2Alice}: phase=${round2.body.phase} era=${round2.body.era?.title}`);
+      expect(round2.body.phase, 'round 2 draws fresh').toBe('reveal');
+      await expect.poll(async () => (await view(aliceApi, t2Alice)).phase, { timeout: 30_000, message: 'round 2 bans and picks' }).toBe('banpick');
     } finally {
       await alice.context.close();
       await bob.context.close();

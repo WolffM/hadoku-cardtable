@@ -3029,7 +3029,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.gauntlet(id, t2.table.id)?.phase).toBe('banpick');
 		});
 
-		it('tournamentPairingOf: null outside a tournament, the pairing once locked, AI always last, and the deck policy', async () => {
+		it('tournamentPairingOf: null outside a tournament, the pairing once locked, AI always last', async () => {
 			const lobby = await openLobby({ dir: await tempDir() });
 			const made = lobby.create(ALICE, { name: 'Pairing', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'gauntlet', modeOptions: {} } });
 			if (!made.ok) throw new Error('create failed');
@@ -3045,7 +3045,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.setReady(id, BOB.id, true)).toBe(true);
 			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
 			const dealtTable = lobby.get(id)!.pod!.pairings[0]!.tableId;
-			expect(lobby.tournamentPairingOf(id, dealtTable)).toEqual({ entrants: [ALICE.id, BOB.id], locked: true });
+			expect(lobby.tournamentPairingOf(id, dealtTable)).toEqual({ entrants: [ALICE.id, BOB.id] });
 
 			// A human vs. an AI entrant: the AI's id is always LAST, whichever
 			// order the Swiss pairing itself produced.
@@ -3060,7 +3060,19 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			const pairing = lobby.tournamentPairingOf(vsAi.room.id, aiTable);
 			expect(pairing?.entrants[0]).toBe(CAROL.id);
 			expect(pairing?.entrants[1]).toMatch(/^ai:/);
-			expect(pairing?.locked).toBe(false);
+		});
+
+		it('a Gauntlet tournament locks no decks: it reads per-round whatever the setting, and a switch back to Classic keeps the leader’s locked', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const made = lobby.create(ALICE, { name: 'Gauntlet event', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'gauntlet', modeOptions: {} } });
+			if (!made.ok) throw new Error('create failed');
+			const id = made.room.id;
+			expect(lobby.setSettings(id, ALICE.id, { tournament: true, tournamentDecks: 'locked' }).ok).toBe(true);
+			expect(lobby.get(id)!.settings.tournamentDecks).toBe('per-round');
+			expect(lobby.setMode(id, ALICE.id, { mode: 'classic', modeOptions: {} }).ok).toBe(true);
+			expect(lobby.get(id)!.settings.tournamentDecks).toBe('locked');
+			expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
+			expect(lobby.get(id)!.settings.tournamentDecks).toBe('per-round');
 		});
 
 		it('leaves Classic and All Random unaffected, in either order', async () => {

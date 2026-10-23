@@ -300,12 +300,8 @@ export interface TablesRooms {
 	/** A Gauntlet room's stored Gauntlet (`room/lobby.ts`), one per table. Both optional: a registry without them serves no Gauntlet routes. */
 	gauntlet?(roomId: string, tableId?: string): GauntletState | null;
 	setGauntlet?(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean;
-	/** A Gauntlet tournament table's entrants and deck policy (`room/lobby.ts`'s `Lobby.tournamentPairingOf`), or `null` outside a tournament. Optional like `gauntlet`/`setGauntlet`. */
-	tournamentPairingOf?(roomId: string, tableId: string): { entrants: [string, string]; locked: boolean } | null;
-	/** This entrant's stored Gauntlet pick set (`Lobby.lockedDeckOf`), read back opaquely here — `http/gauntlet.ts` is what knows its shape. Optional like `gauntlet`/`setGauntlet`. */
-	lockedDeckOf?: Lobby['lockedDeckOf'];
-	/** Stores this entrant's FIRST match's full pick set (`Lobby.setLockedDeck`). Optional like `gauntlet`/`setGauntlet`. */
-	setLockedDeck?: Lobby['setLockedDeck'];
+	/** A Gauntlet tournament table's entrants (`room/lobby.ts`'s `Lobby.tournamentPairingOf`), or `null` outside a tournament. Optional like `gauntlet`/`setGauntlet`. */
+	tournamentPairingOf?(roomId: string, tableId: string): { entrants: [string, string] } | null;
 }
 
 /** The subset of `play`'s `MatchRegistry` a table uses, for the same reason. */
@@ -811,11 +807,6 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 						gauntlet: (id, tableId) => gauntletRooms.gauntlet!(id, tableId),
 						setGauntlet: (id, g, tableId) => gauntletRooms.setGauntlet!(id, g, tableId),
 						tournamentPairingOf: (id, tableId) => gauntletRooms.tournamentPairingOf?.(id, tableId) ?? null,
-						lockedPicksOf: (id, entrant) => {
-							const v = gauntletRooms.lockedDeckOf?.(id, entrant);
-							return Array.isArray(v) && v.every((d) => typeof d === 'string') ? (v as string[]) : null;
-						},
-						storeLockedPicks: (id, entrant, picks) => void gauntletRooms.setLockedDeck?.(id, entrant, picks),
 					},
 					library,
 					// `tableId` defaults to `tables[0]`'s — a plain (non-tournament)
