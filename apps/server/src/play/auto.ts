@@ -360,6 +360,19 @@ export interface StopPolicy {
 	 */
 	readonly stopForPhaseAbility: boolean;
 	/**
+	 * The seat's own Beginning of Combat is NOT skipped when it controls a
+	 * permanent that can make itself a creature now and attack ({@link PromptFacts.animates}).
+	 *
+	 * The operator, 2026-10-23: *"is it possible to try and detect when a player
+	 * has a man-land or a man-artifact they need to activate in the beginning of
+	 * combat step? at the moment the game auto-progresses through this and
+	 * doesn't give the player a chance to activate their lands"*. A man-land
+	 * animated in Main 1 meets the opponent's sorcery-speed answers; Beginning of
+	 * Combat is where it is animated. Like {@link StopPolicy.stopForPhaseAbility}, the fact
+	 * names battlefield permanents only, and a held instant still stops nothing.
+	 */
+	readonly stopToAnimate: boolean;
+	/**
 	 * The Declare Attackers stop IS the declaration (T3).
 	 *
 	 * The operator, 2026-10-03: *"theres an extra ok after declare attackers which
@@ -520,6 +533,7 @@ export const DEFAULT_STOP_POLICY: StopPolicy = {
 	skipEmptyBlockStop: true,
 	// Wave 52 §S A. *"i would expect the shortcutter not to skip past my upkeep."*
 	stopForPhaseAbility: true,
+	stopToAnimate: true,
 	attackStopIsTheDeclaration: true,
 	// Wave 46 §C. *"had to click twice for declaring blockers?"*
 	blockStopIsTheDeclaration: true,
@@ -592,6 +606,7 @@ export const FULL_CONTROL_POLICY: StopPolicy = {
 	unpayableCost: 'ask',
 	skipEmptyBlockStop: false,
 	stopForPhaseAbility: true,
+	stopToAnimate: true,
 	attackStopIsTheDeclaration: false,
 	blockStopIsTheDeclaration: false,
 	passOwnSpell: false,
@@ -868,6 +883,8 @@ export interface SeatNotes {
 	 * seat's offered permanents with an ability restricted to the current phase.
 	 */
 	phaseRestrictedIds?: readonly number[];
+	/** The bridge's `setWeaklySelectable.animates`: this seat's offered permanents that can make themselves a creature that could attack. */
+	animatesIds?: readonly number[];
 	/** The bridge's `setWeaklySelectable.attackers`: creatures attacking in the current combat, 0 outside one. */
 	attackers?: number;
 }
@@ -963,6 +980,12 @@ export interface PromptFacts {
 	 * Read only by {@link StopPolicy.stopForPhaseAbility}.
 	 */
 	readonly phaseRestricted: readonly number[];
+	/**
+	 * This seat's permanents that are not a creature now and can make themselves
+	 * one that could attack — a man-land, a Vehicle's Crew (`SeatNotes.animatesIds`);
+	 * empty when none or unknown. Read only by {@link StopPolicy.stopToAnimate}.
+	 */
+	readonly animates: readonly number[];
 	/**
 	 * The subset Forge's OWN auto-tap plan names.
 	 *
@@ -1087,6 +1110,7 @@ const UNKNOWN_WINDOW: PromptFacts = {
 	sources: null,
 	nonManaSources: null,
 	phaseRestricted: [],
+	animates: [],
 	plannedSources: [],
 	openAsks: 0,
 	creatures: null,
@@ -1151,6 +1175,7 @@ export function readPromptFacts(notes: SeatNotes): PromptFacts {
 		sources: all === null ? null : [...new Set(all)],
 		nonManaSources: all === null ? null : [...new Set(all)].filter((id) => !(manaOnly?.has(id) ?? false)),
 		phaseRestricted: notes.phaseRestrictedIds ?? [],
+		animates: notes.animatesIds ?? [],
 		plannedSources: all === null ? [] : repeated(all),
 		openAsks: notes.openAsks,
 		creatures: notes.creatures ?? null,
@@ -1240,6 +1265,11 @@ function playStopPhase(policy: StopPolicy, facts: PromptFacts): boolean {
 	return !(COMBAT_STEPS.has(facts.phase) && facts.attackers === 0);
 }
 
+/** The seat's own Beginning of Combat, with a permanent it can make into an attacker ({@link StopPolicy.stopToAnimate}). */
+function animateNow(policy: StopPolicy, facts: PromptFacts): boolean {
+	return policy.stopToAnimate && facts.myTurn && facts.phase === 'COMBAT_BEGIN' && facts.animates.length > 0;
+}
+
 /** A permanent the seat controls can be used now and only in this phase ({@link StopPolicy.stopForPhaseAbility}). */
 function phaseAbilityNow(policy: StopPolicy, facts: PromptFacts): boolean {
 	return policy.stopForPhaseAbility && facts.phaseRestricted.length > 0;
@@ -1327,7 +1357,7 @@ export function judgeStop(facts: PromptFacts, policy: StopPolicy): StopJudgement
 			// seat could have done there (#20) — unless a permanent on the table can be
 			// used in this phase and no other (w52 §S A), or the phase stops for a play
 			// (AF28), each of which falls through to the nothing-to-do rule.
-			if (skipsThisTurn(policy, facts) && !phaseAbilityNow(policy, facts) && !playStopPhase(policy, facts)) return pass(facts, 'skip-phase');
+			if (skipsThisTurn(policy, facts) && !phaseAbilityNow(policy, facts) && !animateNow(policy, facts) && !playStopPhase(policy, facts)) return pass(facts, 'skip-phase');
 		}
 	} else if (!policy.passStackWindows) {
 		return keep('stack-held');

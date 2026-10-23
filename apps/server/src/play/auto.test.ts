@@ -1777,6 +1777,7 @@ function facts(over: Partial<ReturnType<typeof readPromptFacts>> = {}): ReturnTy
 		sources,
 		nonManaSources: sources,
 		phaseRestricted: [],
+		animates: [],
 		plannedSources: [],
 		openAsks: 0,
 		creatures: null,
@@ -1909,6 +1910,7 @@ describe('a stop preference is a VALUE — the next request is not a branch', ()
 			unpayableCost: 'cancel',
 			skipEmptyBlockStop: true,
 			stopForPhaseAbility: true,
+			stopToAnimate: true,
 			passOwnSpell: true,
 			holdForSpellCopy: true,
 			orderSimultaneous: 'forge',
@@ -2645,6 +2647,18 @@ describe('wave 52 §S — mana sources, the phase-restricted stop, the chosen co
 
 	it('(A) the stop is the policy’s: stopForPhaseAbility off passes the upkeep again', () => {
 		expect(passed(upkeep([70], { ...DEFAULT_STOP_POLICY, stopForPhaseAbility: false }))).toBe(1);
+	});
+
+	it('the operator, 2026-10-23: the seat’s own Beginning of Combat stops for a man-land it can animate — and for nothing else', () => {
+		const combat = facts({ phase: 'COMBAT_BEGIN', phaseLabel: 'Beginning of Combat Step', myTurn: true, sources: [70], nonManaSources: [70] });
+		// A playable card alone (an instant in hand) never stops it: the phase is skipped.
+		expect(judgeStop(combat, DEFAULT_STOP_POLICY)).toEqual({ pass: 'Beginning of Combat Step', rule: 'skip-phase' });
+		// A permanent that can make itself an attacker keeps it.
+		expect(judgeStop({ ...combat, animates: [70] }, DEFAULT_STOP_POLICY)).toMatchObject({ pass: null, rule: 'has-play', plays: [70] });
+		// Only there, and only on the seat's own turn.
+		expect(decideStop({ ...combat, animates: [70], phase: 'COMBAT_END', phaseLabel: 'End of Combat Step' }, DEFAULT_STOP_POLICY)).toBe('End of Combat Step');
+		expect(decideStop({ ...combat, animates: [70], myTurn: false }, DEFAULT_STOP_POLICY)).toBe('Beginning of Combat Step');
+		expect(decideStop({ ...combat, animates: [70] }, { ...DEFAULT_STOP_POLICY, stopToAnimate: false })).toBe('Beginning of Combat Step');
 	});
 
 	it('(A) decideStop over facts: phaseRestricted keeps a non-stop phase only while the rule is on', () => {

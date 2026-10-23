@@ -1,0 +1,15 @@
+# The control for combat-animate: the same Mutavault, played this turn, so animated it could not
+# attack, and a castable Lightning Bolt in hand. Beginning of Combat is passed, as it always was.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt
+humanbattlefield=Mutavault|SummonSick;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

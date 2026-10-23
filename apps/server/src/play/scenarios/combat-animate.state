@@ -1,0 +1,17 @@
+# The operator, 2026-10-23: "is it possible to try and detect when a player has a man-land or a
+# man-artifact they need to activate in the beginning of combat step? at the moment the game
+# auto-progresses through this". Mutavault ({1}: becomes a 2/2 creature) with a Mountain to pay for
+# it, in seat 0's own Main 1: passing Main 1 must stop at Beginning of Combat, where it is animated.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Mutavault;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=

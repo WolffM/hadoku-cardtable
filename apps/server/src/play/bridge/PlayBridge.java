@@ -3568,6 +3568,12 @@ public final class PlayBridge {
          * restriction ({@code SpellAbilityRestriction}, {@code SpellAbilityVariables.getPhases})
          * is met now — Augur of Skulls in its controller's upkeep. Battlefield only, never the
          * hand: the card and its text are on the table for everyone.</li>
+         * <li>{@code animates}: the offered permanents this seat controls that are a play, are
+         * not a creature now, and have a non-mana ability that makes this permanent itself a
+         * creature ({@code ApiType.Animate}, {@code Defined$ Self} or none, {@code Types$}
+         * naming Creature) — a Mutavault, a Celestial Colonnade, a Vehicle's Crew. Not one that
+         * came under the seat's control this turn: animated, it could not attack. Battlefield
+         * only, like {@code phaseRestricted}.</li>
          * <li>{@code attackers}: how many creatures attack in the game's current combat, 0
          * outside one — whether a combat step is one anybody attacked in. Read off the live
          * game in the same window, so it never trails the prompt the way a state delta can.</li>
@@ -3599,6 +3605,7 @@ public final class PlayBridge {
             try {
                 final JsonArray manaOnly = new JsonArray();
                 final JsonArray phaseRestricted = new JsonArray();
+                final JsonArray animates = new JsonArray();
                 final java.util.Set<Integer> seen = new java.util.HashSet<>();
                 for (final CardView cv : cards) {
                     if (cv == null || !seen.add(cv.getId())) { continue; }
@@ -3611,15 +3618,27 @@ public final class PlayBridge {
                         continue;
                     }
                     if (!c.isInPlay() || c.getController() != mine) { continue; }
-                    for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
+                    final java.util.List<SpellAbility> abilities = c.getAllPossibleAbilities(mine, true);
+                    for (final SpellAbility sa : abilities) {
                         if (!sa.isManaAbility() && sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) {
                             phaseRestricted.add(ref("card", cv.getId()));
                             break;
                         }
                     }
+                    if (!c.isCreature() && !c.hasSickness()) {
+                        for (final SpellAbility sa : abilities) {
+                            if (!sa.isManaAbility() && sa.getApi() == forge.game.ability.ApiType.Animate
+                                    && (!sa.hasParam("Defined") || "Self".equals(sa.getParam("Defined")))
+                                    && sa.hasParam("Types") && java.util.Arrays.asList(sa.getParam("Types").split(",")).contains("Creature")) {
+                                animates.add(ref("card", cv.getId()));
+                                break;
+                            }
+                        }
+                    }
                 }
                 f.add("manaOnly", manaOnly);
                 f.add("phaseRestricted", phaseRestricted);
+                f.add("animates", animates);
                 final forge.game.combat.Combat combat = game.getCombat();
                 f.addProperty("attackers", combat == null ? 0 : combat.getAttackers().size());
             } catch (final RuntimeException e) {

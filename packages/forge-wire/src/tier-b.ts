@@ -449,6 +449,11 @@ export const SetWeaklySelectableSchema = z.strictObject({
    */
   phaseRestricted: z.array(CardRefSchema).optional(),
   /**
+   * Ours: the offered permanents this seat controls that are not a creature now and can make
+   * themselves one — a man-land, a Vehicle's Crew — and could attack once they have. Battlefield only.
+   */
+  animates: z.array(CardRefSchema).optional(),
+  /**
    * Ours: how many creatures attack in the game's current combat, 0 outside one — read by the
    * bridge off the live game in the same window as the two facts above.
    */
