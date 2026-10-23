@@ -2673,25 +2673,57 @@ public final class PlayBridge {
             final JsonObject f = notify("showPromptMessage");
             f.add("player", ref("player", playerView.getId()));
             f.addProperty("message", str(message));
-            f.add("card", refOrNull(card));
-            final JsonObject confirm = confirmAbility();
+            f.add("card", refOrNull(card != null ? card : decoration("confirmCard", this::confirmCard)));
+            // What the bridge adds to Forge's prompt is reads of Forge's own objects, and one that throws
+            // is left off: the prompt itself always goes out. An optional replacement's confirm (a dredge)
+            // threw from `promptParts`, whose ability has no activating player yet, and the seat was never
+            // sent its question (the operator, 2026-10-23: "why isn't it showing the dredge card and
+            // telling me the effect?").
+            final JsonObject confirm = decoration("confirmAbility", this::confirmAbility);
             if (confirm != null) { f.add("confirmAbility", confirm); }
-            final JsonObject target = targetAbility();
+            final JsonObject target = decoration("targetAbility", this::targetAbility);
             if (target != null) { f.add("targetAbility", target); }
-            final JsonObject selection = openSelection();
+            final JsonObject selection = decoration("selection", this::openSelection);
             if (selection != null) { f.add("selection", selection); }
-            final JsonObject parts = promptParts(message);
+            final JsonObject parts = decoration("parts", () -> promptParts(message));
             if (parts != null) { f.add("parts", parts); }
-            final JsonArray pays = poolPays();
+            final JsonArray pays = decoration("poolPays", this::poolPays);
             if (pays != null) {
                 f.add("poolPays", pays);
-                if (poolHasChoice()) { f.add("poolChoice", pays); }
+                if (Boolean.TRUE.equals(decoration("poolChoice", this::poolHasChoice))) { f.add("poolChoice", pays); }
             }
             frame(f);
             broadcastIfWaiting();
             // A press of a payment's life button re-shows its prompt and changes nothing else, and
             // a cancelled payment may move nothing either: every seat hears it from here.
             for (final SeatGui g : SEATS.values()) { g.tellLifePaying(); }
+        }
+
+        /** One of {@link #showPromptMessage}'s reads of Forge, or null when it throws: the prompt goes without it. */
+        private static <T> T decoration(final String name, final java.util.function.Supplier<T> read) {
+            try {
+                return read.get();
+            } catch (final RuntimeException e) {
+                System.err.println("[bridge] showPromptMessage: " + name + " could not be read (" + e + "); the prompt goes without it");
+                return null;
+            }
+        }
+
+        /**
+         * The card an open confirm that names none is about: its ability's host. Forge's own libgdx
+         * path shows it for an optional replacement ({@code PlayerControllerHuman.confirmReplacementEffect},
+         * the ability's host card); the desktop path's {@code InputConfirm} is handed only the ability.
+         */
+        private CardView confirmCard() {
+            final Object input = myInput();
+            if (!(input instanceof forge.gamemodes.match.input.InputConfirm)) { return null; }
+            try {
+                final var sa = (SpellAbility) field(input, forge.gamemodes.match.input.InputConfirm.class, "sa");
+                return sa == null || sa.getHostCard() == null ? null : sa.getHostCard().getView();
+            } catch (final ReflectiveOperationException e) {
+                System.err.println("[bridge] confirmCard: could not read the open confirm (" + e + ")");
+                return null;
+            }
         }
 
         /**
@@ -2937,10 +2969,13 @@ public final class PlayBridge {
         /** Every text an input writes for its ability, as {@link #promptParts} looks for it. */
         private static java.util.List<String> abilityTexts(final SpellAbility sa) {
             final java.util.List<String> raw = new java.util.ArrayList<>();
-            raw.add(sa.toString());
-            raw.add(sa.getRootAbility().toString());
-            raw.add(sa.getStackDescription());
-            if (sa.getPayCosts() != null) { raw.add(sa.getPayCosts().toString()); }
+            // Each read alone: an ability Forge cannot describe yet (an optional replacement's, no
+            // activating player) throws from `getStackDescription`, and the others still match.
+            for (final java.util.function.Supplier<String> read : java.util.List.<java.util.function.Supplier<String>>of(
+                    sa::toString, () -> sa.getRootAbility().toString(), sa::getStackDescription,
+                    () -> sa.getPayCosts() == null ? null : sa.getPayCosts().toString())) {
+                raw.add(decoration("abilityTexts", read));
+            }
             final java.util.List<String> texts = new java.util.ArrayList<>();
             for (final String r : raw) {
                 if (r == null) { continue; }
