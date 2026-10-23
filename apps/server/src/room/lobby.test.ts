@@ -3060,6 +3060,10 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			const pairing = lobby.tournamentPairingOf(vsAi.room.id, aiTable);
 			expect(pairing?.entrants[0]).toBe(CAROL.id);
 			expect(pairing?.entrants[1]).toMatch(/^ai:/);
+			// …and plays as its own character, the one the pod's standings and pairings name it by.
+			expect(pairing?.ai).toEqual(lobby.get(vsAi.room.id)!.pod!.personas[pairing!.entrants[1]]);
+			expect(pairing?.ai?.avatarId).toBeDefined();
+			expect(lobby.tournamentPairingOf(id, dealtTable)?.ai).toBeUndefined();
 		});
 
 		it('a Gauntlet tournament locks no decks: it reads per-round whatever the setting, and a switch back to Classic keeps the leader’s locked', async () => {

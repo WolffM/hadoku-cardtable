@@ -486,6 +486,12 @@ interface AiPersona {
 	avatarId: string;
 }
 
+/** A tournament table's two entrants, the AI's last, and — at a vs-AI table — the character this round's AI plays as, not the room's own `ai`. */
+export interface TournamentPairing {
+	entrants: [string, string];
+	ai?: AiPersona;
+}
+
 /** `knight` → Knight. */
 function personaOf(avatarId: string): AiPersona {
 	return { name: avatarId.charAt(0).toUpperCase() + avatarId.slice(1), avatarId };
@@ -1244,7 +1250,7 @@ export interface Lobby {
 	 * seat 0, a vs-AI table's synthetic AI player seat 1) lines up. `null` for a
 	 * non-tournament room, or a table with no current pairing.
 	 */
-	tournamentPairingOf(roomId: string, tableId: string): { entrants: [string, string] } | null;
+	tournamentPairingOf(roomId: string, tableId: string): TournamentPairing | null;
 	/** At boot: rooms mid-draft whose draft the registry did not restore go back to their lobby. */
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[];
 	/**
@@ -3103,7 +3109,7 @@ class FileLobby implements Lobby {
 		return true;
 	}
 
-	tournamentPairingOf(roomId: string, tableId: string): { entrants: [string, string] } | null {
+	tournamentPairingOf(roomId: string, tableId: string): TournamentPairing | null {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined || !isTournamentRoom(room)) return null;
 		const pairing = room.pod?.pairings.find((p) => p.tableId === tableId);
@@ -3114,7 +3120,7 @@ class FileLobby implements Lobby {
 		// Gauntlet seat 0, the synthesized AI player seat 1) — never both: an
 		// AI-vs-AI pairing settles without a table (`#pairRound`'s own doc).
 		const entrants: [string, string] = isAiEntrant(a) ? [b, a] : [a, b];
-		return { entrants };
+		return isAiEntrant(entrants[1]) ? { entrants, ai: entrantPersona(room, entrants[1]) } : { entrants };
 	}
 
 	podDraft(roomId: string): PodDeal | null {

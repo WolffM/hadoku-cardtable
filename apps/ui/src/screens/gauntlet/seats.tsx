@@ -8,11 +8,12 @@ export function seatOrder(view: GauntletView): readonly [GauntletSeatIndex, Gaun
   return view.first === 1 ? [1, 0] : [0, 1];
 }
 
-/** Each table seat's avatar, from the room member who holds it; the AI's seat, and a member with none, draw the silhouette. */
+/** Each table seat's avatar: the AI's own character, else the room member who holds the seat; a member with none draws the silhouette. */
 export function seatAvatars(view: GauntletView, members: readonly RoomMember[]): readonly [string | undefined, string | undefined] {
   const of = (seat: GauntletSeatIndex): string | undefined => {
-    const id = view.players?.[seat].memberId;
-    return id == null ? undefined : members.find((m) => m.id === id)?.avatarId;
+    const player = view.players?.[seat];
+    if (player?.avatarId !== undefined) return player.avatarId;
+    return player?.memberId == null ? undefined : members.find((m) => m.id === player.memberId)?.avatarId;
   };
   return [of(0), of(1)];
 }

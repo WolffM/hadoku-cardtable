@@ -103,6 +103,8 @@ export type GauntletEra = z.infer<typeof GauntletEraSchema>;
 export const GauntletPlayerSchema = z.strictObject({
   memberId: z.string().min(1).nullable(),
   name: z.string(),
+  /** The AI's character (`memberId` null): its portrait on the coin. A member's comes from the room. */
+  avatarId: z.string().min(1).optional(),
 });
 export type GauntletPlayer = z.infer<typeof GauntletPlayerSchema>;
 

@@ -67,7 +67,7 @@ export interface GauntletRoom {
 	mode?: RoomModeState['mode'];
 	modeOptions?: RoomModeState['modeOptions'];
 	members: { id: string; name: string }[];
-	ai?: { name: string };
+	ai?: { name: string; avatarId?: string };
 	tables: { id: string; matchId: string | null }[];
 }
 
@@ -86,7 +86,7 @@ export interface GauntletDeps {
 		 * names its exact patch — still satisfies this type: a plain Gauntlet
 		 * room, which never had a pairing anyway, is unaffected either way.
 		 */
-		tournamentPairingOf?(roomId: string, tableId: string): { entrants: [string, string] } | null;
+		tournamentPairingOf?(roomId: string, tableId: string): { entrants: [string, string]; ai?: { name: string; avatarId: string } } | null;
 	};
 	library: TablesLibrary;
 	/** Who sits at `tableId`, in Gauntlet seat order, with each seat's Ready. `tableId` defaults to `room.tables[0]`'s. */
@@ -305,7 +305,9 @@ export function attachGauntlet(tables: Router, deps: GauntletDeps): GauntletHand
 		}
 		const players: GauntletPlayer[] = seated.map((p) => ({ memberId: p.memberId, name: p.name }));
 		const vsAi = (body.ai === true || tournamentAi) && body.ready;
-		if (vsAi) players.push({ memberId: null, name: room.ai?.name ?? 'AI' });
+		// A tournament table's AI is this round's entrant, by its own character — not the room's.
+		const ai = pairing?.ai ?? room.ai;
+		if (vsAi) players.push({ memberId: null, name: ai?.name ?? 'AI', ...(ai?.avatarId === undefined ? {} : { avatarId: ai.avatarId }) });
 		const everyone = vsAi || (seated.length === 2 && body.ready && seated.every((p) => p.memberId === me || p.ready));
 		if (!everyone) {
 			deps.setReady(room, me, body.ready, tableId);

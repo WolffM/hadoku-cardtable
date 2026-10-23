@@ -28,7 +28,7 @@ interface Harness {
 	handle: GauntletHandle;
 	server: Server;
 	/** Stands in for `room/lobby.ts`'s `Lobby.tournamentPairingOf`, by table id. Empty for a plain (non-tournament) harness. */
-	pairings: Record<string, { entrants: [string, string] } | null>;
+	pairings: Record<string, { entrants: [string, string]; ai?: { name: string; avatarId: string } } | null>;
 }
 
 let open: Harness | null = null;
@@ -67,7 +67,7 @@ async function bootRoom(input: {
 	const readyBy = new Map<string, Set<string>>();
 	for (const t of input.tables) readyBy.set(t.id, new Set());
 	const seatedBy = new Map(input.tables.map((t) => [t.id, t.seated]));
-	const pairings: Record<string, { entrants: [string, string] } | null> = {};
+	const pairings: Harness['pairings'] = {};
 	const room: GauntletRoom & { format: string } = {
 		id: 'r-1',
 		gameType: 'constructed-1v1',
@@ -445,5 +445,16 @@ describe('Gauntlet tournaments: per-table state, every round drawn fresh', () =>
 		const round2 = await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
 		expect(round2.body.phase).toBe('reveal');
 		expect(h.logs.filter((l) => l.evt === 'gauntlet-drawn' && l.table === 't-2')).toHaveLength(1);
+	});
+
+	it('a real run, 2026-10-23: the AI is this round’s entrant, by its own name and face — not the room’s character', async () => {
+		const h = await bootRoom({ members: [{ id: 'alice', name: 'Alice' }], tables: [{ id: 't-3', seated: ['alice'] }] });
+		h.pairings['t-3'] = { entrants: ['alice', 'ai:2'], ai: { name: 'Cleric', avatarId: 'cleric' } };
+
+		const readied = await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-3' });
+		expect(readied.body.players).toEqual([
+			{ memberId: 'alice', name: 'Alice' },
+			{ memberId: null, name: 'Cleric', avatarId: 'cleric' },
+		]);
 	});
 });

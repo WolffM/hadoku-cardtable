@@ -301,7 +301,12 @@ export interface TablesRooms {
 	gauntlet?(roomId: string, tableId?: string): GauntletState | null;
 	setGauntlet?(roomId: string, gauntlet: GauntletState | null, tableId?: string): boolean;
 	/** A Gauntlet tournament table's entrants (`room/lobby.ts`'s `Lobby.tournamentPairingOf`), or `null` outside a tournament. Optional like `gauntlet`/`setGauntlet`. */
-	tournamentPairingOf?(roomId: string, tableId: string): { entrants: [string, string] } | null;
+	tournamentPairingOf?(roomId: string, tableId: string): { entrants: [string, string]; ai?: { name: string; avatarId: string } } | null;
+}
+
+/** The AI a table plays as: a tournament round's own AI entrant at its table, else the room's character. */
+function tableAi(rooms: TablesRooms | null | undefined, room: RoomViewLike, tableId: string | undefined): { name: string; avatarId: string } | undefined {
+	return (tableId === undefined ? undefined : rooms?.tournamentPairingOf?.(room.id, tableId)?.ai) ?? room.ai;
 }
 
 /** The subset of `play`'s `MatchRegistry` a table uses, for the same reason. */
@@ -2045,13 +2050,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		// avatars: a seat's face is read from this room for as long as the match
 		// runs (`seatAvatar`), so the match never holds a copy that could go stale.
 		if (vsBot) {
-			// Seat 1 is Forge's AI, playing as the room's character (`room.ai`, the
+			// Seat 1 is Forge's AI, playing as this table's character (`tableAi`: a tournament round's own AI entrant, else `room.ai`, the
 			// operator, 2026-10-19: "instead of having 'Forge AI' … fake players from
 			// the avatar list"). `names` stays a pair (play refuses anything else).
 			req.body = {
 				opponent: 'ai',
 				decks: [loaded[0]!.deck.text, botDeck!],
-				names: [loaded[0]!.member.name, room.ai?.name],
+				names: [loaded[0]!.member.name, tableAi(rooms, room, table.id)?.name],
 				format: pool,
 				handSmoothing: room.settings.handSmoothing,
 				...(chooser === undefined ? {} : { chooser }),
@@ -2158,7 +2163,10 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		library,
 		seatAvatar(matchId, memberId) {
 			const room = rooms?.roomOfMatch(matchId);
-			if (memberId === AI_SEAT_OWNER) return room?.ai?.avatarId;
+			if (memberId === AI_SEAT_OWNER) {
+				const table = room?.tables.find((t) => t.matchId === matchId);
+				return room === undefined ? undefined : tableAi(rooms, room, table?.id)?.avatarId;
+			}
 			return room?.members.find((m) => m.id === memberId)?.avatarId;
 		},
 		matchStart(match) {
