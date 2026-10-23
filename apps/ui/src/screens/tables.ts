@@ -248,14 +248,19 @@ export interface TablesClient {
   legal(formatId: string): Promise<string[]>;
   /** The eras a Gauntlet can be played in: the server's own list, each with ten decks or more. */
   gauntletEras(): Promise<GauntletEraOption[]>;
-  /** A Gauntlet room's state as this caller may see it. Throws with the server's sentence. */
-  gauntlet(roomId: string): Promise<GauntletView>;
+  /**
+   * A Gauntlet room's state as this caller may see it, at `tableId` (a
+   * tournament's own table; absent for the room's first, same as every
+   * other table-scoped call — `withTable`'s own doc). Throws with the
+   * server's sentence.
+   */
+  gauntlet(roomId: string, tableId?: string): Promise<GauntletView>;
   /** Ready (or not) at a Gauntlet table; `ai` plays Forge's AI from the other seat. */
-  gauntletReady(roomId: string, ready: boolean, ai?: boolean): Promise<GauntletOutcome>;
+  gauntletReady(roomId: string, ready: boolean, ai?: boolean, tableId?: string): Promise<GauntletOutcome>;
   /** A ban or a pick, on this seat's turn. */
-  gauntletAct(roomId: string, act: GauntletAct, deck: string): Promise<GauntletOutcome>;
+  gauntletAct(roomId: string, act: GauntletAct, deck: string, tableId?: string): Promise<GauntletOutcome>;
   /** This seat's hidden choice of its deck for the next game. */
-  gauntletChoose(roomId: string, deck: string): Promise<GauntletOutcome>;
+  gauntletChoose(roomId: string, deck: string, tableId?: string): Promise<GauntletOutcome>;
   /** Against Forge's AI only. A match against a person starts from a room. */
   start(opponent: 'human' | 'ai', seats: [SeatChoice, SeatChoice]): Promise<StartOutcome>;
   /**
@@ -366,10 +371,11 @@ export function tablesClient(fetchImpl: Fetch = (input, init) => fetch(input, in
       const eras = (await get('tables/gauntlet/eras')).eras;
       return Array.isArray(eras) ? (eras as GauntletEraOption[]) : [];
     },
-    gauntlet: async (roomId) => GauntletViewSchema.parse(await get(`tables/rooms/${encodeURIComponent(roomId)}/gauntlet`)),
-    gauntletReady: (roomId, ready, ai) => gauntletWrite(roomId, 'ready', ai === true ? { ready, ai } : { ready }),
-    gauntletAct: (roomId, act, deck) => gauntletWrite(roomId, 'act', { act, deck }),
-    gauntletChoose: (roomId, deck) => gauntletWrite(roomId, 'choose', { deck }),
+    gauntlet: async (roomId, tableId) =>
+      GauntletViewSchema.parse(await get(`tables/rooms/${encodeURIComponent(roomId)}/gauntlet${tableId === undefined ? '' : `?table=${encodeURIComponent(tableId)}`}`)),
+    gauntletReady: (roomId, ready, ai, tableId) => gauntletWrite(roomId, 'ready', withTable(ai === true ? { ready, ai } : { ready }, tableId)),
+    gauntletAct: (roomId, act, deck, tableId) => gauntletWrite(roomId, 'act', withTable({ act, deck }, tableId)),
+    gauntletChoose: (roomId, deck, tableId) => gauntletWrite(roomId, 'choose', withTable({ deck }, tableId)),
     start: async (opponent, seats) => {
       const { status, body } = await post('play/matches', { opponent, seats });
       if (status === 201 && typeof body.matchId === 'string') return { ok: true, matchId: body.matchId };
