@@ -140,6 +140,7 @@ import {
 	type DraftState,
 	type HumanSeat,
 	type LockstepState,
+	planPool,
 	type RealisticPacks,
 } from '@hadoku/draft';
 import { cursorOf, type CubeMeta, type DraftCard, type DraftPlan, type DraftView, type PoolSource, type WireCursor } from '@hadoku/shared';
@@ -716,7 +717,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 		},
 		cubeMetaOf(room) {
 			const src = planFor(room.roomId).rounds[0] as PoolSource;
-			const size = options.resolver.cards(src).length;
+			const size = planPool(planFor(room.roomId), options.resolver.cards, src).length;
 			// `CubeMeta.size` (`@hadoku/shared`'s `CubeMetaSchema`) is
 			// `z.number().int().positive()` — a 0 here fails the WHOLE
 			// `state` message's schema parse on the browser, which never

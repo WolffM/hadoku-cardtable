@@ -8,6 +8,9 @@ export type PoolSource = z.infer<typeof PoolSourceSchema>;
 
 export const DraftPlanSchema = z.strictObject({
   rounds: z.tuple([PoolSourceSchema, PoolSourceSchema, PoolSourceSchema]),
+  // Card names the deal leaves out of every round: a refused pool's cards, when the leader chose to
+  // draft without them (the operator, 2026-10-22: "Draft without them" and "Cancel").
+  without: z.array(z.string().min(1).max(200)).max(2000).optional(),
 });
 export type DraftPlan = z.infer<typeof DraftPlanSchema>;
 

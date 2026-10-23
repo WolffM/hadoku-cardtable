@@ -87,6 +87,7 @@ async function packCardNames(page: Page): Promise<string[]> {
 
 const UNPLAYABLE_ID = 'e2e-unplayable';
 const UNPLAYABLE_NAME = 'Zzyzzyva, Card Forge Does Not Know';
+const LEGACY_CUBE = 'MTGO Legacy Cube 2021-08';
 
 /**
  * `PLAY_CUBES_DIR/<id>.json` — `importDir`'s own on-disk shape, per
@@ -114,7 +115,13 @@ function seedUnplayableCube(): void {
       importedAt: new Date().toISOString(),
       refreshedAt: null,
       verdict: null,
-      cards: [{ name: UNPLAYABLE_NAME, scryfallId: null }],
+      // Two cards Forge plays, so "Draft without them" has something left to deal — from Innistrad, which
+      // the stack's catalog fixture (`PLAY_CATALOG`) has text for; a claw has no other catalog.
+      cards: [
+        { name: UNPLAYABLE_NAME, scryfallId: null },
+        { name: 'Abattoir Ghoul', scryfallId: null },
+        { name: "Avacyn's Pilgrim", scryfallId: null },
+      ],
     }),
   );
 }
@@ -162,7 +169,6 @@ test(
 
       /* ── alice (the leader) picks a shortlisted cube; bob sees it live ── */
       for (const p of players) await expect(p.page.getByTestId('pool-picker-cubes'), `${p.name}: the pool picker is up`).toBeVisible({ timeout: UI_TIMEOUT });
-      const LEGACY_CUBE = 'MTGO Legacy Cube 2021-08';
       await cubeRadio(alice.page, LEGACY_CUBE).click();
       await expect(alice.page.getByTestId('pool-picker-verdict'), "alice's pick checks out").toHaveAttribute('data-state', 'ready', { timeout: UI_TIMEOUT });
       await expect(cubeRadio(alice.page, LEGACY_CUBE), 'the picker shows it chosen').toBeChecked();
@@ -183,17 +189,24 @@ test(
       await expect(alice.page.getByTestId('pool-picker-verdict'), 'refused, naming the card Forge does not know').toHaveAttribute('data-state', 'refused', {
         timeout: UI_TIMEOUT,
       });
-      // Named in a modal over the page (the operator, 2026-10-22: "this error should appear as a popout modal"), closed before the picker is used again.
+      // Named in a modal over the page (the operator, 2026-10-22: "this error should appear as a popout modal"),
+      // answered "Draft without them" or "Cancel"; Cancel first, so the refused attempt can be checked below.
       await expect(alice.page.getByTestId('pool-picker-refusal')).toContainText(UNPLAYABLE_NAME);
-      await alice.page.getByTestId('pool-picker-refusal-close').click();
+      await alice.page.getByTestId('pool-picker-refusal-cancel').click();
       await expect(alice.page.getByTestId('pool-picker-refusal')).toHaveCount(0);
       await expect(cubeRadio(alice.page, UNPLAYABLE_NAME), 'the picker shows the attempted name').toBeChecked();
       await expect(alice.page.getByTestId('ready-toggle'), 'Start is disabled').toBeDisabled();
       await expect(cubeRadio(bob.page, LEGACY_CUBE), 'the room’s own plan is untouched by alice’s refused attempt').toBeChecked();
 
-      // Alice picks the good cube again — the one real way the picker ever
-      // leaves a refused attempt, short of a reload (the server stores no
-      // refused plan to recover from).
+      // Draft without them: the same cube, less the card Forge refused, becomes the room's plan.
+      await alice.page.getByTestId('pool-picker-refusal-show').click();
+      await alice.page.getByTestId('pool-picker-refusal-without').click();
+      await expect(alice.page.getByTestId('pool-picker-verdict'), 'the cube less its refused card checks out').toHaveAttribute('data-state', 'ready', { timeout: UI_TIMEOUT });
+      await expect(alice.page.getByTestId('pool-picker-verdict')).toHaveText('2 cards');
+      await expect(alice.page.getByTestId('pool-picker-refusal')).toHaveCount(0);
+      await expect(cubeRadio(bob.page, UNPLAYABLE_NAME), 'bob sees the room move to it').toBeChecked({ timeout: UI_TIMEOUT });
+
+      // Alice picks the Legacy cube again, whole, for the deal below.
       await cubeRadio(alice.page, LEGACY_CUBE).click();
       await expect(alice.page.getByTestId('pool-picker-verdict'), 'ready again').toHaveAttribute('data-state', 'ready', { timeout: UI_TIMEOUT });
 

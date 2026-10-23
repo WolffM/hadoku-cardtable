@@ -136,14 +136,14 @@ export async function checkCards(
  */
 async function checkSetSource(code: string, deps: PlanCheckDeps): Promise<PoolVerdict> {
 	if (deps.sets === undefined) {
-		return { ok: false, unplayable: ['the pool service is not available to check sets — try again once it is up'], missingText: [] };
+		return { ok: false, unplayable: [], missingText: [], message: 'the pool service is not available to check sets — try again once it is up' };
 	}
 	const cached = deps.sets.cachedVerdict(code);
 	if (cached !== null) return cached;
 
 	const cards = await deps.sets.cardsFor(code);
 	if (cards === null) {
-		return { ok: false, unplayable: [`unknown set, or Forge cannot answer for it: ${code}`], missingText: [] };
+		return { ok: false, unplayable: [], missingText: [], message: `unknown set, or Forge cannot answer for it: ${code}` };
 	}
 	const verdict = await checkCards(cards, deps.forge, { uncheckedWithoutJar: deps.uncheckedWithoutJar });
 	deps.sets.setVerdict(code, verdict);
@@ -167,7 +167,7 @@ export async function checkSource(src: PoolSource, deps: PlanCheckDeps): Promise
 	}
 
 	const cards = deps.cubes.cards(src.cubeId);
-	if (cards === null) return { ok: false, unplayable: [`unknown cube: ${src.cubeId}`], missingText: [] };
+	if (cards === null) return { ok: false, unplayable: [], missingText: [], message: `unknown cube: ${src.cubeId}` };
 
 	if (deps.forge === null && !cards.some((c) => c.typeLine === '')) {
 		const cached = deps.cubes.list().find((c) => c.id === src.cubeId)?.verdict ?? null;
@@ -191,6 +191,8 @@ export async function checkPlan(plan: DraftPlan, deps: PlanCheckDeps): Promise<P
 	const seen = new Set<string>();
 	const unplayable: string[] = [];
 	const missingText: string[] = [];
+	const without = new Set(plan.without);
+	let message: string | undefined;
 	let cards = 0;
 	let ok = true;
 
@@ -204,12 +206,34 @@ export async function checkPlan(plan: DraftPlan, deps: PlanCheckDeps): Promise<P
 			cards += verdict.cards;
 			continue;
 		}
+		const left = await draftedWithout(src, verdict, without, deps);
+		if (left !== null && left > 0) {
+			cards += left;
+			continue;
+		}
 		ok = false;
+		if (left === 0) message ??= 'Every card in it is one Forge can’t play — there is nothing left to draft';
+		if (verdict.message !== undefined) message ??= verdict.message;
 		for (const name of verdict.unplayable) if (!unplayable.includes(name)) unplayable.push(name);
 		for (const name of verdict.missingText) if (!missingText.includes(name)) missingText.push(name);
 	}
 
-	return ok ? { ok: true, cards } : { ok: false, unplayable, missingText };
+	if (ok) return { ok: true, cards };
+	return message === undefined ? { ok: false, unplayable, missingText } : { ok: false, unplayable, missingText, message };
+}
+
+/**
+ * A refused source's card count once the plan's `without` takes out every card it was refused for —
+ * the leader's "Draft without them" — 0 when that leaves none, or null when leaving cards out cannot
+ * answer the refusal: one with no card list (`message`), a card refused that `without` does not name,
+ * or a realistic round, whose packs are Forge's own boosters and never drawn from a list it could filter.
+ */
+async function draftedWithout(src: PoolSource, verdict: Extract<PoolVerdict, { ok: false }>, without: ReadonlySet<string>, deps: PlanCheckDeps): Promise<number | null> {
+	if (without.size === 0 || verdict.message !== undefined) return null;
+	if (src.kind === 'set' && src.style === 'realistic') return null;
+	if (![...verdict.unplayable, ...verdict.missingText].every((name) => without.has(name))) return null;
+	const all = src.kind === 'cube' ? deps.cubes.cards(src.cubeId) : ((await deps.sets?.cardsFor(src.code)) ?? null);
+	return all?.filter((card) => !without.has(card.name)).length ?? 0;
 }
 
 /** Two sources are the SAME round, for display: an exact match, not merely the same `sourceKey` grouping `deal()`/`checkPlan` use (those dedupe realistic/set-cube of one code onto one verdict; a display name must not conflate the two styles). */

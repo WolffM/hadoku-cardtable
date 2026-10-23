@@ -1,6 +1,7 @@
 /*
  * A titled panel over a dimmed page, drawn the way the room list's create form is (`../rooms/RoomList.tsx`):
- * Escape, its close button and a press on the backdrop close it.
+ * Escape, its close button and a press on the backdrop close it. Its `actions`, when it has any, sit
+ * along its foot, the affirmative last (bottom right).
  */
 
 import { useEffect, useId, type ReactNode } from 'react';
@@ -9,7 +10,7 @@ import { Icon } from '@wolffm/themes';
 import { uiLength } from '../settings/ui-scale.ts';
 import './Modal.css';
 
-export function Modal({ title, testId, onClose, children }: { title: string; testId: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, testId, onClose, children, actions }: { title: string; testId: string; onClose: () => void; children: ReactNode; actions?: ReactNode }) {
   const titleId = useId();
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -35,6 +36,7 @@ export function Modal({ title, testId, onClose, children }: { title: string; tes
           </button>
         </div>
         {children}
+        {actions !== undefined && <div className="ct-modal__actions">{actions}</div>}
       </div>
     </div>
   );

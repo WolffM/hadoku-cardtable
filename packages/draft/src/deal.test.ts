@@ -157,6 +157,22 @@ describe('deal — a cube too small for the pod', () => {
   });
 });
 
+// The operator, 2026-10-22: a refused pool drafts "without them".
+describe('deal — the plan\'s without: cards no round deals', () => {
+  const without = VINTAGE.slice(0, 200).map((c) => c.name);
+  const plan: DraftPlan = { ...VINTAGE_X3, without };
+
+  it('never deals a card the plan leaves out, in any round', () => {
+    const left = new Set(without);
+    const dealt = deal(plan, sources, 'without', 8, 15).flat(2);
+    expect(dealt.filter((c) => left.has(c.name))).toEqual([]);
+  });
+
+  it('counts the shortfall against what is left: 340 cards for 360', () => {
+    expect(poolShortfall(plan, sources, 8, 15)).toBe(20);
+  });
+});
+
 /*
  * Acceptance 2 (`docs/planning/wave74-2026-10-21.md`): "Set-cube ARB for 8
  * seats deals 360 cards from 145 non-basic singletons. No name appears more

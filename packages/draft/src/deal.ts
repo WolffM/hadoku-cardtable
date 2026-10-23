@@ -56,6 +56,14 @@ import { derive, shuffle } from './rng.ts';
 /** Every card a source could deal from — the plan's own say in where cards come from. Never called for a `realistic` round (see `RealisticPacks`). */
 export type SourceCards = (src: PoolSource) => readonly DraftCard[];
 
+/** A source's cards less the plan's `without`: what `deal` shuffles and `poolShortfall` counts. */
+export function planPool(plan: DraftPlan, sources: SourceCards, src: PoolSource): readonly DraftCard[] {
+  const pool = sources(src);
+  if (plan.without === undefined || plan.without.length === 0) return pool;
+  const without = new Set(plan.without);
+  return pool.filter((card) => !without.has(card.name));
+}
+
 /**
  * Pre-fetched, catalog-mapped packs for one realistic round, `[seat][card]`
  * — the caller's own say in "what Forge dealt this round". `undefined` for a
@@ -150,7 +158,7 @@ export function deal(
     const key = sourceKey(src);
     let cursor = cursors.get(key);
     if (cursor === undefined) {
-      const pool = sources(src);
+      const pool = planPool(plan, sources, src);
       if (pool.length === 0) throw new Error(`deal: source ${key} has no cards`);
       cursor = { shuffled: shuffle(pool, derive(seed, 'deal', key)), pos: 0 };
       cursors.set(key, cursor);
@@ -187,7 +195,7 @@ export function poolShortfall(plan: DraftPlan, sources: SourceCards, seatCount: 
     if (isRealistic(src)) continue; // Forge always hands back exactly seatCount boosters — never short.
     const key = sourceKey(src);
     demand.set(key, (demand.get(key) ?? 0) + seatCount * packSize);
-    if (!size.has(key)) size.set(key, sources(src).length);
+    if (!size.has(key)) size.set(key, planPool(plan, sources, src).length);
   }
   let total = 0;
   for (const [key, needed] of demand) {

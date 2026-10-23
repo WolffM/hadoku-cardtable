@@ -375,6 +375,32 @@ export function DraftLobby({
   const backgroundRefusal = verdict !== null && !verdict.ok ? verdict : null;
   const refusal = (tab === 'custom' ? customAttempt : attempt?.refusal) ?? backgroundRefusal;
 
+  /**
+   * The plan that refusal is about: the attempt that was refused, else the room's own. "Draft without
+   * them" (the operator, 2026-10-22) sends it again, less the cards it was refused for.
+   */
+  const [c0, c1, c2] = customRounds;
+  const refusedPlan: DraftPlan | null =
+    tab === 'custom'
+      ? c0 !== null && c1 !== null && c2 !== null
+        ? { rounds: [c0, c1, c2], without: pod?.plan?.without }
+        : null
+      : attempt !== null
+        ? { rounds: [attempt.source, attempt.source, attempt.source] }
+        : (pod?.plan ?? null);
+  const draftWithout = (): void => {
+    if (refusal === null || refusedPlan === null) return;
+    const without = [...new Set([...(refusedPlan.without ?? []), ...refusal.unplayable, ...refusal.missingText])];
+    setPlanBusy(true);
+    rooms.setPlan(roomId, { rounds: refusedPlan.rounds, without }).then((r) => {
+      setPlanBusy(false);
+      const next = r.ok ? null : refusalOf(r.verdict, r.message);
+      if (tab === 'custom') setCustomAttempt(next);
+      else setAttempt(next === null ? null : { source: refusedPlan.rounds[0], refusal: next });
+    });
+  };
+  const canDraftWithout = amLeader && refusedPlan !== null && !refusedPlan.rounds.some((src) => src.kind === 'set' && src.style === 'realistic');
+
   return (
     <PodLobby
       testId="draft-lobby"
@@ -412,6 +438,7 @@ export function DraftLobby({
             busy={planBusy}
             checking={checking}
             refusal={refusal}
+            onDraftWithout={canDraftWithout ? draftWithout : undefined}
             readyCards={readyCards}
             myId={myMemberId ?? ''}
             onPickCube={pickCube}

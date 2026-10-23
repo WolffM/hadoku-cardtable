@@ -338,6 +338,39 @@ describe('the pool picker (wave 73 §B)', () => {
     expect(pod.plan).toEqual(cubePlan(good.id));
   });
 
+  // The operator, 2026-10-22: the refusal's modal answers "Draft without them" or "Cancel".
+  it('a refused pick is answered Cancel, which only closes it, or Draft without them, which sends the same pool less its refused cards', async () => {
+    const bad = cubeFixture({ id: 'cc-jenny', name: 'Jenny’s Cube' });
+    vi.mocked(pools.listCubes).mockResolvedValue([bad]);
+    vi.mocked(rooms.setPlan).mockResolvedValueOnce({ ok: false, message: 'refused', verdict: { ok: false, unplayable: ['Ademi'], missingText: ['GO TO JAIL'] } });
+    const pod = plannedPod(cubePlan('vintage-cube-2025-12'), 'MTGO Vintage Cube', { ok: true, cards: 540 });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    fireEvent.click(await screen.findByTestId(`pool-picker-cubes-${bad.id}`));
+    await screen.findByTestId('pool-picker-refusal-without');
+
+    fireEvent.click(screen.getByTestId('pool-picker-refusal-cancel'));
+    expect(screen.queryByTestId('pool-picker-refusal')).toBeNull();
+    expect(rooms.setPlan).toHaveBeenCalledTimes(1);
+
+    vi.mocked(rooms.setPlan).mockResolvedValueOnce({ ok: true, room: {} as never });
+    fireEvent.click(screen.getByTestId('pool-picker-refusal-show'));
+    fireEvent.click(screen.getByTestId('pool-picker-refusal-without'));
+    expect(rooms.setPlan).toHaveBeenLastCalledWith('r-cube', { ...cubePlan(bad.id), without: ['Ademi', 'GO TO JAIL'] });
+    await waitFor(() => expect(screen.queryByTestId('pool-picker-refusal')).toBeNull());
+  });
+
+  it('offers no Draft without them where leaving cards out cannot help: a refusal with no card list', async () => {
+    const cube = cubeFixture();
+    vi.mocked(pools.listCubes).mockResolvedValue([cube]);
+    const pod = plannedPod(cubePlan(cube.id), cube.name, { ok: false, unplayable: [], missingText: [], message: 'Forge is not available to check playability' });
+
+    render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
+    await screen.findByTestId('pool-picker-refusal');
+    expect(screen.queryByTestId('pool-picker-refusal-without')).toBeNull();
+    expect(screen.queryByTestId('pool-picker-refusal-cancel')).toBeNull();
+  });
+
   // Refresh/delete/the importer badge moved to `#/inventory` (AF305 §B —
   // the operator: "when i'm in a room i wouldn't want to mess with the
   // refresh state of the cube… i dont need a cube cobra pill"); that

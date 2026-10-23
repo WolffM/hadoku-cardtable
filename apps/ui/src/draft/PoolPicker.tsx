@@ -151,6 +151,11 @@ export interface PoolPickerProps {
   onSavePreset: (name: string) => void;
   onLoadPreset: (preset: DraftPreset) => void;
   onDeletePreset: (id: string) => void;
+  /**
+   * The leader's answer to a refusal that names its cards: deal the same pool less them. Absent for
+   * everybody else, and where leaving cards out cannot help (a realistic round is Forge's boosters).
+   */
+  onDraftWithout?: () => void;
 }
 
 /** A source's own cached verdict, read off whichever list carries it — never a round trip (see the file header). */
@@ -467,6 +472,7 @@ export function PoolPicker({
   onSavePreset,
   onLoadPreset,
   onDeletePreset,
+  onDraftWithout,
 }: PoolPickerProps) {
   const [presetName, setPresetName] = useState('');
   const disabled = !leader || busy;
@@ -674,7 +680,23 @@ export function PoolPicker({
         )}
       </p>
       {refusalOpen && refusal !== null && (
-        <Modal title="This pool can’t be drafted" testId="pool-picker-refusal" onClose={() => setDismissed(refusalKey)}>
+        <Modal
+          title="This pool can’t be drafted"
+          testId="pool-picker-refusal"
+          onClose={() => setDismissed(refusalKey)}
+          actions={
+            onDraftWithout === undefined || refusal.message !== undefined ? undefined : (
+              <>
+                <button type="button" className="button" data-testid="pool-picker-refusal-cancel" onClick={() => setDismissed(refusalKey)}>
+                  Cancel
+                </button>
+                <button type="button" className="button ct-modal__primary" data-testid="pool-picker-refusal-without" disabled={busy} onClick={onDraftWithout}>
+                  Draft without them
+                </button>
+              </>
+            )
+          }
+        >
           {refusal.message !== undefined ? (
             <p className="pool-picker__refusal-lead">{refusal.message}</p>
           ) : (

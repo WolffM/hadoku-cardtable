@@ -83,7 +83,7 @@ describe('checkSource — one source', () => {
     const verdict = await checkSource(CUBE_SRC, { cubes, forge: null });
     expect(verdict.ok).toBe(false);
     if (verdict.ok) return;
-    expect(verdict.unplayable.some((s) => s.includes('vintage'))).toBe(true);
+    expect(verdict.message).toContain('vintage');
   });
 
   it('without a jar, refuses a never-checked cube rather than passing by default', async () => {
@@ -159,7 +159,7 @@ describe('checkSource — a kind: \'set\' source, by CODE (realistic and set-cub
     const verdict = await checkSource(ISD_REALISTIC, { cubes, sets, forge });
     expect(verdict.ok).toBe(false);
     if (verdict.ok) return;
-    expect(verdict.unplayable.some((s) => s.includes('ISD'))).toBe(true);
+    expect(verdict.message).toContain('ISD');
     expect(forge.check).not.toHaveBeenCalled();
   });
 
@@ -244,6 +244,48 @@ describe('checkPlan — a whole plan, deduped by source', () => {
     };
     const verdict = await checkPlan(plan, { cubes, forge });
     expect(verdict).toEqual({ ok: false, unplayable: ['Not A Real Card'], missingText: [] });
+  });
+
+  // The operator, 2026-10-22: a refused pool's modal offers "Draft without them" and "Cancel".
+  describe('Draft without them: the plan names the refused cards in `without`', () => {
+    const cubes = () => fakeCubes({ vintage: [card('A'), card('B'), card('Not Real'), { ...card('Mystery'), typeLine: '' }] });
+    const forge: ForgeChecker = { check: vi.fn(async (names: readonly string[]) => names.filter((n) => n === 'Not Real')) };
+
+    it('accepts once every refused card is left out, counting what is left', async () => {
+      const verdict = await checkPlan({ rounds: [CUBE_SRC, CUBE_SRC, CUBE_SRC], without: ['Not Real', 'Mystery'] }, { cubes: cubes(), forge });
+      expect(verdict).toEqual({ ok: true, cards: 2 });
+    });
+
+    it('still refuses while one refused card is not left out', async () => {
+      const verdict = await checkPlan({ rounds: [CUBE_SRC, CUBE_SRC, CUBE_SRC], without: ['Not Real'] }, { cubes: cubes(), forge });
+      expect(verdict).toEqual({ ok: false, unplayable: ['Not Real'], missingText: ['Mystery'] });
+    });
+
+    it('still refuses a refusal with no card list, keeping its message', async () => {
+      const verdict = await checkPlan({ rounds: [CUBE_SRC, CUBE_SRC, CUBE_SRC], without: ['Not Real'] }, { cubes: fakeCubes({ vintage: [card('A'), card('Not Real')] }), forge: null });
+      expect(verdict.ok).toBe(false);
+      if (verdict.ok) return;
+      expect(verdict.message).toContain('Forge is not available');
+    });
+
+    it('still refuses a realistic round: its packs are Forge boosters, not a list to filter', async () => {
+      const sets = fakeSets({ ISD: [card('A'), card('Not Real')] });
+      const verdict = await checkPlan({ rounds: [ISD_REALISTIC, ISD_REALISTIC, ISD_REALISTIC], without: ['Not Real'] }, { cubes: cubes(), sets, forge });
+      expect(verdict).toEqual({ ok: false, unplayable: ['Not Real'], missingText: [] });
+    });
+
+    it('refuses, saying so, when leaving them out leaves nothing', async () => {
+      const verdict = await checkPlan({ rounds: [CUBE_SRC, CUBE_SRC, CUBE_SRC], without: ['Not Real'] }, { cubes: fakeCubes({ vintage: [card('Not Real')] }), forge });
+      expect(verdict.ok).toBe(false);
+      if (verdict.ok) return;
+      expect(verdict.message).toContain('nothing left to draft');
+    });
+
+    it('accepts a set-cube round the same way as a cube', async () => {
+      const sets = fakeSets({ ISD: [card('A'), card('Not Real')] });
+      const verdict = await checkPlan({ rounds: [ISD_SET_CUBE, ISD_SET_CUBE, ISD_SET_CUBE], without: ['Not Real'] }, { cubes: cubes(), sets, forge });
+      expect(verdict).toEqual({ ok: true, cards: 1 });
+    });
   });
 });
 

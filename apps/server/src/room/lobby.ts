@@ -2089,9 +2089,10 @@ class FileLobby implements Lobby {
 		}
 	}
 
-	/** Two plans are the same deal — same grouping `@hadoku/draft`'s `deal()` and `room/plan.ts`'s `checkPlan` use. */
+	/** Two plans are the same deal — same grouping `@hadoku/draft`'s `deal()` and `room/plan.ts`'s `checkPlan` use, and the same cards left out. */
 	#planKey(plan: DraftPlan): string {
-		return plan.rounds.map((src: PoolSource) => (src.kind === 'cube' ? `cube:${src.cubeId}` : `set:${src.code}:${src.style}`)).join('|');
+		const rounds = plan.rounds.map((src: PoolSource) => (src.kind === 'cube' ? `cube:${src.cubeId}` : `set:${src.code}:${src.style}`)).join('|');
+		return plan.without === undefined || plan.without.length === 0 ? rounds : `${rounds}|without:${[...plan.without].sort().join('\u0000')}`;
 	}
 
 	/**

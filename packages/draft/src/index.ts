@@ -45,7 +45,7 @@ export {
   type LockstepState,
 } from './engine.ts';
 
-export { deal, poolShortfall, type RealisticPacks, type SourceCards } from './deal.ts';
+export { deal, planPool, poolShortfall, type RealisticPacks, type SourceCards } from './deal.ts';
 
 export {
   runBots,
