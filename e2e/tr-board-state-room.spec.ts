@@ -13,7 +13,6 @@ import { expect, test } from '@playwright/test';
 import { PREFIX } from './identities.ts';
 import { ownNamed } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
-import { twoLegalDecks } from './play/enter.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
 const forge = forgeAvailability();
@@ -27,7 +26,6 @@ test(forge.ok ? 'an admin starts a board-state testing room vs the AI and lands 
   const stack = await startPlayStack(forge);
   try {
     const admin = await openFriend(browser, 'admin');
-    const choice = await twoLegalDecks(admin.context.request, stack.origin);
 
     await admin.page.goto(`${stack.origin}${PREFIX}/`);
     const row = admin.page.getByTestId('room-row').filter({ has: admin.page.getByTestId('room-name').getByText(ROOM_NAME, { exact: true }) });
@@ -35,8 +33,13 @@ test(forge.ok ? 'an admin starts a board-state testing room vs the AI and lands 
     await row.getByTestId('room-enter').click();
     await admin.page.waitForURL(/#\/room\/r-[0-9a-f]{12}$/, { timeout: 15_000 });
 
+    // ANY legal deck: the picker already narrows to the room's own (randomly
+    // assigned at boot, `Lobby.create`'s `#newRoomFormat`) era — unlike a room
+    // this spec created itself, there is no fixed `E2E_ERA` to rely on, and the
+    // scripted board below replaces whatever hand/battlefield this deck would
+    // have dealt regardless.
     await expect(admin.page.getByTestId('deck-mine')).toBeEnabled({ timeout: 15_000 });
-    await admin.page.getByTestId('deck-mine').locator(`[data-deck-id="${choice.decks[0]}"]`).click();
+    await admin.page.getByTestId('deck-mine').getByTestId('deck-option').first().click();
     await expect(admin.page.getByTestId('play-vs-bot'), 'a legal deck enables Play vs AI').toBeEnabled({ timeout: 15_000 });
     await admin.page.getByTestId('play-vs-bot').click();
 
