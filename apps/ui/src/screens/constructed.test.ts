@@ -749,7 +749,6 @@ const myRow = (): HTMLElement => {
   if (row === undefined) throw new Error('no row of yours at the table');
   return row;
 };
-const myRules = (): string => myRow().querySelector('[data-testid$="-rules"]')?.textContent ?? '';
 /** Whether my Ready can be pressed: in a classic room, what the server's verdict on my deck decides. */
 const myReadyOpen = (): boolean => !(within(myRow()).getByTestId('ready-toggle') as HTMLButtonElement).disabled;
 
@@ -926,7 +925,6 @@ describe('a room’s table', () => {
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/sit`)?.method).toBe('POST');
     expect(screen.getByTestId('room-seat-0').hasAttribute('data-mine')).toBe(true);
     expect(screen.getByTestId('room-seat-0').querySelector('.pod-seats__label')?.textContent, 'my name, and no (you) beside it').toBe('user-alice');
-    expect(screen.getByTestId('room-seat-0-deck').textContent, 'no deck yet').toBe('—');
     // My own seat's ready state is the button that sets it.
     const ready = within(screen.getByTestId('room-seat-0')).getByTestId('ready-toggle');
     expect(ready.dataset.state).toBe('no');
@@ -987,7 +985,8 @@ describe('a room’s table', () => {
    * middots for separators and `ready` as raw text: *"looks very cheap"*.
    */
   // The operator, 2026-10-22: "can we also show seats the same way we show seats then in draft?"
-  it('draws each seat as a draft seat: avatar, name, my deck lines, the ready state, Stand — no middots, every state a shape AND a colour', async () => {
+  // The operator, 2026-10-22: "remove the two lines below the character portrait at table … just Ready and stand are good enough".
+  it('draws each seat as a draft seat: avatar, name, the ready state, Stand — no deck lines, no middots, every state a shape AND a colour', async () => {
     await mountRoom({ players: [mySeat(), opponent({ seat: 1, ready: true })], matchId: null });
     const row = screen.getByTestId('room-seat-0');
     // No separator characters anywhere in the seat: the lines are the separation.
@@ -996,14 +995,11 @@ describe('a room’s table', () => {
     expect([...row.children].map((c) => c.className.split(' ')[0])).toEqual([
       'pod-seats__avatar-wrap',
       'pod-seats__label',
-      'pod-seats__deck',
-      'pod-seats__rules',
       'pill',
       'pod-seats__actions',
     ]);
+    for (const line of ['deck', 'rules']) expect(screen.queryByTestId(`room-seat-0-${line}`), `no ${line} line`).toBeNull();
     expect(screen.getByTestId('room-seat-1').querySelector('.pod-seats__avatar')?.getAttribute('data-ready'), 'a ready seat is ringed').toBe('true');
-    // The format is a cell, not a clause: "legal in Standard (M11)" is gone.
-    expect(screen.getByTestId('room-seat-0-rules').textContent).toBe('Standard (M11)');
 
     // Each state carries a drawn mark of its own, so colour is never the only
     // difference. Ready is a tick; not ready is an open ring.
@@ -1047,7 +1043,7 @@ describe('a room’s table', () => {
       // body that named one would be a 400 (see the stub).
       body: { deck: { library: SECOND_DECK } },
     });
-    expect(myRules()).toBe('Standard (M11)');
+    expect(chosen()).toBe(SECOND_DECK);
     expect(myReadyOpen()).toBe(true);
     expect(screen.getByTestId('room-seat-1').hasAttribute('data-mine')).toBe(true);
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled).toBe(false);
@@ -1702,7 +1698,7 @@ describe('the deck picker', () => {
     // is what the server checks it against, and the room's pool has moved.
     await waitFor(() => expect(server.calls.filter((c) => c.url.endsWith('/deck')).length).toBe(loadsBefore + 1));
     expect(lastCall(server.calls, `/tables/rooms/${ROOM}/deck`)?.body).toEqual({ deck: { library: SECOND_DECK } });
-    await waitFor(() => expect(myRules()).toBe('Standard (M12)'));
+    expect(chosen(), 'the same deck, checked in the new pool').toBe(SECOND_DECK);
   });
 
   /*
@@ -1806,7 +1802,7 @@ describe('the table’s pool', () => {
 
     // Their one input still works, and the pool is never written by them.
     await pick(SECOND_DECK);
-    expect(myRules()).toBe('Standard (M11)');
+    expect(chosen()).toBe(SECOND_DECK);
     expect(server.calls.filter((c) => c.method === 'PATCH')).toHaveLength(0);
   });
 

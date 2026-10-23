@@ -217,7 +217,6 @@ import {
   type DeckRef,
   type LegalSweep,
   type RoomPlayer,
-  type SeatDeck,
   type RoomTable,
   type DeckLine,
   type TableDeck,
@@ -2748,9 +2747,9 @@ export function StatusPill({ testId, state, mark, label }: { testId: string; sta
  * My own seat says so by `data-mine`, never in words beside my name (the operator, 2026-10-22:
  * "remove the (you) from the constructed table too").
  *
- * Only your own seat has deck lines, because only your own seat has a deck: the server sends
- * another seat as its name and its ready state (the operator, 2026-10-21: "don't reveal the deck
- * that someone has picked").
+ * No deck lines under the name, mine included (the operator, 2026-10-22: "remove the two lines
+ * below the character portrait at table … just Ready and stand are good enough"): the deck card
+ * shows the deck I chose, and Ready is what an unplayable one holds back.
  */
 function PlayerRow({
   seat,
@@ -2789,7 +2788,6 @@ function PlayerRow({
         )}
       </span>
       <span className="pod-seats__label">{player.name}</span>
-      {player.deck !== undefined && <OwnDeckCells seat={seat} deck={player.deck} />}
       {onReady === undefined ? (
         <StatusPill
           testId={`room-seat-${seat}-ready`}
@@ -2822,25 +2820,6 @@ function PlayerRow({
         </span>
       )}
     </li>
-  );
-}
-
-/**
- * Your own seat's deck: its name and the pool's words for it. Not whether it is
- * legal: the picker offers only decks legal in the room's pool, and Ready is
- * what an unplayable deck holds back (the operator, 2026-10-21, of the pill that
- * said it: "ugly and unecessary").
- */
-function OwnDeckCells({ seat, deck }: { seat: number; deck: SeatDeck | null }) {
-  return (
-    <>
-      <span className="pod-seats__deck" data-testid={`room-seat-${seat}-deck`}>
-        {deck?.name ?? '—'}
-      </span>
-      <span className="pod-seats__rules" data-testid={`room-seat-${seat}-rules`}>
-        {deck?.rulesName ?? '—'}
-      </span>
-    </>
   );
 }
 
