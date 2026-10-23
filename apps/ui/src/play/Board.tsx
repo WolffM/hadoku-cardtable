@@ -2510,8 +2510,9 @@ function CardOnBoard({
   const pileFan = pileSize === undefined || pileSize <= 1 ? 0 : Math.min(pileSize - 1, MAX_FAN_DEPTH) * STACK_STEP;
   const copies = pile === undefined ? null : copiesIn(pile);
   const flying = onBattlefield && hasKeyword(entry.keywords, 'flying');
-  /** Where in its loop a flyer is (`card.css`'s `--fly-phase`, 0–1): from its id, so two never move in step, and the same on both screens. */
-  const flyPhase = flying ? (((entry.id * 0.618034) % 1) + 1) % 1 : undefined;
+  /** Where in its loop a flyer is (`card.css`'s `--fly-phase`). */
+  const flyPhase = flying ? loopPhase(entry.id) : undefined;
+  const protection = onBattlefield && entry.hidden !== true ? protectionOf(entry.keywords) : undefined;
   /** An effect forbids casting this held card (`BoardInteraction.castForbidden`): drawn greyed, and its tip says why. */
   const forbidden = onBattlefield ? undefined : interaction?.castForbidden?.get(entry.id);
   /** A Room on the battlefield is drawn as its doors — see `RoomDoors`. */
@@ -2521,10 +2522,11 @@ function CardOnBoard({
     <li
       className="board-card"
       style={
-        pileFan > 0 || flyPhase !== undefined
+        pileFan > 0 || flyPhase !== undefined || protection !== undefined
           ? ({
               ...(pileFan > 0 && { '--pile-fan': `${pileFan}px` }),
               ...(flyPhase !== undefined && { '--fly-phase': flyPhase.toFixed(4) }),
+              ...(protection !== undefined && { '--protection-phase': loopPhase(entry.id).toFixed(4) }),
             } as CSSProperties)
           : undefined
       }
@@ -2542,6 +2544,7 @@ function CardOnBoard({
       data-vigilant={hasKeyword(entry.keywords, 'vigilance') || undefined}
       /* Loops on the wing (`card.css`): a flyer, by Forge's current keywords. */
       data-flying={flying || undefined}
+      data-protection={protection}
       data-blocking={entry.blocking || undefined}
       data-board-card={entry.id}
       data-card-id={entry.id}
@@ -2625,6 +2628,8 @@ function CardOnBoard({
         ) : (
           <CardTile card={entry.card} liveText={entry.abilityText} conditionMet={entry.conditionMet === true} />
         )}
+        {/* Over the art, inside the face so it turns with a tapped card (`card.css`). */}
+        {protection !== undefined && <span className="board-card__protection" aria-hidden="true" />}
       </button>
       {picked && (
         <span className="board-card__picked" aria-hidden="true" data-tip="Picked">
@@ -2679,6 +2684,19 @@ function CardOnBoard({
       )}
     </li>
   );
+}
+
+/** Where in a loop a card's own motion starts (0–1): from its id, so two never move in step, and the same on both screens. */
+function loopPhase(id: number): number {
+  return (((id * 0.618034) % 1) + 1) % 1;
+}
+
+/**
+ * The protection effect a permanent wears (`card.css`'s `[data-protection]`), by Forge's current
+ * keywords: one a card, the widest it has — shroud covers hexproof, hexproof covers ward.
+ */
+function protectionOf(keywords: readonly string[] | undefined): 'shroud' | 'hexproof' | 'ward' | undefined {
+  return (['shroud', 'hexproof', 'ward'] as const).find((k) => hasKeyword(keywords, k));
 }
 
 /**

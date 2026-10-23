@@ -814,6 +814,141 @@
 }
 
 /*
+ * Ward, shroud and hexproof, each drawn over the art by Forge's current keywords (`Board.tsx`'s
+ * `protectionOf`), the widest one only. The effect is `::before`; `::after` is the glint all three
+ * share — now and then a band of light slides diagonally down the card's edge, in the keyword's
+ * colour, so the three read as one family. The operator chose them from samples on 2026-10-23:
+ * shroud's mist, hexproof's sweep, ward's steady edge glow, quieter than hexproof's.
+ *
+ * Inside the face, so a tapped card's overlay is its turned box; the sway carries it with the art.
+ */
+.board-card__protection {
+  --protection-loop: 12s;
+  --protection-start: calc(-1 * var(--protection-loop) * var(--protection-phase, 0));
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.board-card[data-flying] > .board-card__face > .board-card__protection {
+  translate: calc(var(--fly-x) * 1px) calc(-3px + var(--fly-y) * 1px);
+}
+
+.board-card__protection::before,
+.board-card__protection::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+/* Ward: a steady glow along the four edges of the art; the middle stays clear. */
+[data-protection='ward'] > .board-card__face > .board-card__protection {
+  --glint: var(--ward);
+  --glint-peak: 0.7;
+}
+
+[data-protection='ward'] > .board-card__face > .board-card__protection::before {
+  box-shadow:
+    inset 0 0 7px 1.5px color-mix(in srgb, var(--ward) 55%, transparent),
+    inset 0 0 2px 0 color-mix(in srgb, var(--ward) 55%, transparent);
+}
+
+/* Shroud: fog drifting across the art, clipped to the card's own corners. */
+[data-protection='shroud'] > .board-card__face > .board-card__protection {
+  --glint: var(--shroud);
+  --glint-peak: 0.85;
+}
+
+[data-protection='shroud'] > .board-card__face > .board-card__protection::before {
+  background:
+    radial-gradient(40% 30% at 30% 45%, var(--shroud), transparent),
+    radial-gradient(35% 28% at 70% 65%, var(--shroud), transparent);
+  background-size: 160% 100%;
+  opacity: 0.55;
+  clip-path: inset(0 round var(--radius));
+  animation: protection-mist 9s ease-in-out var(--protection-start) infinite alternate;
+}
+
+@keyframes protection-mist {
+  from { background-position: 0% 0%; }
+  to { background-position: 100% 20%; }
+}
+
+/* Hexproof: a band of hex lattice crosses the art diagonally. */
+[data-protection='hexproof'] > .board-card__face > .board-card__protection {
+  --glint: var(--hexproof);
+  --glint-peak: 1;
+}
+
+[data-protection='hexproof'] > .board-card__face > .board-card__protection::before {
+  background: var(--hexproof);
+  mask-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='24' viewBox='0 0 14 24'%3E%3Cpath d='M7 0 L14 4 L14 12 L7 16 L0 12 L0 4 Z M7 16 L7 24' fill='none' stroke='currentColor' stroke-width='1'/%3E%3C/svg%3E"),
+    linear-gradient(115deg, transparent 35%, var(--ink) 48%, var(--ink) 52%, transparent 65%);
+  mask-size: 7px 12px, 300% 100%;
+  mask-repeat: repeat, no-repeat;
+  mask-composite: intersect;
+  opacity: 0.9;
+  animation: protection-sweep 5s cubic-bezier(0.45, 0, 0.55, 1) var(--protection-start) infinite;
+}
+
+@keyframes protection-sweep {
+  0% { mask-position: 0 0, 100% 0; }
+  55%, 100% { mask-position: 0 0, 0% 0; }
+}
+
+/*
+ * The shared glint: a ring on the card's own edge, lit only where the band crosses it. Its glow
+ * spills onto the table as a shadow, which never counts toward a row's overflow; a box past the
+ * card's edge would (`board.css`'s table-fit).
+ */
+.board-card__protection::after {
+  padding: 2px;
+  background: linear-gradient(
+    120deg,
+    transparent 42%,
+    var(--glint) 50%,
+    transparent 58%
+  );
+  background-size: 300% 300%;
+  background-repeat: no-repeat;
+  mask:
+    linear-gradient(var(--ink) 0 0) content-box exclude,
+    linear-gradient(var(--ink) 0 0);
+  filter: drop-shadow(0 0 2.5px var(--glint));
+  opacity: 0;
+  animation: protection-glint var(--protection-loop) cubic-bezier(0.45, 0, 0.4, 1) var(--protection-start) infinite;
+}
+
+@keyframes protection-glint {
+  0% {
+    background-position: 100% 100%;
+    opacity: var(--glint-peak);
+  }
+
+  20% {
+    background-position: 0% 0%;
+    opacity: var(--glint-peak);
+  }
+
+  21%,
+  100% {
+    background-position: 0% 0%;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-card__protection::before,
+  .board-card__protection::after {
+    animation: none;
+  }
+}
+
+/*
  * R15 (wave 53 T), the operator, Playtest 9: *"put one of our overlay pills
  * over the type bar."* Over the type bar means a new BAND, not a corner — the
  * four existing corners (marks top-left, tag column top-right, counters

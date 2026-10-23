@@ -127,6 +127,14 @@
   --condition: color-mix(in srgb, var(--warn) 75%, var(--danger));
   --condition-ink: color-mix(in srgb, var(--condition) 40%, var(--ink));
   /*
+   * A permanent's protection (`play/card.css`'s `[data-protection]`): ward in the theme's own
+   * accent, shroud in its neutral, hexproof in its warning's gold. Each is a pattern over the art,
+   * never a ring, so none reads as an offer or a can-act glow.
+   */
+  --ward: var(--accent);
+  --shroud: color-mix(in srgb, var(--neutral) 70%, var(--ink));
+  --hexproof: var(--warn);
+  /*
    * The three the play surfaces used to write as literals (the operator,
    * 2026-10-08: "hardcoded colors look bad"): a neutral fill (a card back), a
    * scrim over the board, and the one shadow colour every lifted thing casts —

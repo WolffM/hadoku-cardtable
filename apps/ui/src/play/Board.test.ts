@@ -3204,6 +3204,34 @@ describe('keyword tags and the flyer’s float', () => {
     // jsdom evaluates no media query, so this one reads the rule.
     expect(withoutComments(CARD_CSS)).toMatch(/prefers-reduced-motion: reduce\) \{[^@]*\[data-flying\][^}]*\{\s*animation: none;/);
   });
+
+  const protectionOf = (container: HTMLElement) => {
+    const li = container.querySelector<HTMLElement>('[data-card-id="99"]')!;
+    return { kind: li.dataset.protection, overlays: li.querySelectorAll('.board-card__face > .board-card__protection').length };
+  };
+
+  it.each([
+    [['Ward:1'], 'ward'],
+    [['Ward:PayLife<3>'], 'ward'],
+    [['Hexproof'], 'hexproof'],
+    [['Hexproof:Card.Black:black'], 'hexproof'],
+    [['Shroud'], 'shroud'],
+    // One effect a card: the widest protection it has.
+    [['Ward:2', 'Hexproof'], 'hexproof'],
+    [['Hexproof', 'Shroud'], 'shroud'],
+  ])('wears one protection effect for %j, by Forge’s current keywords', (keywords, kind) => {
+    const { container } = renderBoard(withKeywords(keywords));
+    expect(protectionOf(container)).toEqual({ kind, overlays: 1 });
+  });
+
+  it('wears none when the keyword goes', () => {
+    const { container } = renderBoard(withKeywords(['Flying']));
+    expect(protectionOf(container)).toEqual({ kind: undefined, overlays: 0 });
+  });
+
+  it('the protection effects stand still for reduced motion', () => {
+    expect(withoutComments(CARD_CSS)).toMatch(/prefers-reduced-motion: reduce\) \{[^@]*\.board-card__protection[^}]*\{\s*animation: none;/);
+  });
 });
 
 describe('combat-ready: the creatures that can attack or block right now', () => {
