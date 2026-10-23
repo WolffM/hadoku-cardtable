@@ -13,7 +13,7 @@
  *
  *   loading  — says so; Create room already works
  *   failed   — says why, and offers Retry
- *   empty    — says so, with Create room right under it
+ *   empty    — says so, with Create room above it
  *   rooms    — the list
  *
  * ## Just the rooms (2026-10-10)
@@ -21,7 +21,10 @@
  * The operator: *"let's have it just show the rooms. the entire 'Create a room'
  * ui can be shown in a popout modal instead behind a button … at the bottom
  * right of the rooms list. also the 'Which Client' question should not exist
- * for now"*. So the form is `CreateRoomDialog`, behind `room-create-open`, and
+ * for now"*. So the form is `CreateRoomDialog`, behind `room-create-open` — at
+ * the top of the list, beside its title, since 2026-10-23 (the operator: *"lets
+ * move the 'Create room' button to the top of the room list rather than the
+ * bottom"*) — and
  * every room it makes is our table. The streamed mode is not gone: the server
  * still takes `clientMode: 'streamed'`, a streamed room still lists and plays,
  * and `e2e/room-mode.spec.ts` makes one through the API. Offering it again is
@@ -129,6 +132,18 @@ export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
         <h2 id="rooms-title" className="rooms__title ct-panel__title">
           Rooms
         </h2>
+        <button
+          type="button"
+          className="lobby__go"
+          data-testid="room-create-open"
+          aria-haspopup="dialog"
+          onClick={() => {
+            playRole('ui.select');
+            setCreating(true);
+          }}
+        >
+          Create room
+        </button>
       </div>
 
       {state.kind === 'loading' && (
@@ -184,21 +199,6 @@ export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
           List may be out of date.
         </p>
       )}
-
-      <div className="rooms__foot">
-        <button
-          type="button"
-          className="lobby__go"
-          data-testid="room-create-open"
-          aria-haspopup="dialog"
-          onClick={() => {
-            playRole('ui.select');
-            setCreating(true);
-          }}
-        >
-          Create room
-        </button>
-      </div>
 
       {creating && <CreateRoomDialog client={client} onClose={closeCreate} />}
     </section>

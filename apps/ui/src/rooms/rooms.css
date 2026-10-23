@@ -176,11 +176,6 @@
 }
 
 /* Create room, at the bottom right of the list (2026-10-10). */
-.rooms__foot {
-  display: flex;
-  justify-content: flex-end;
-}
-
 /*
  * The create form is a modal over the page. Theme tokens only, no fallbacks:
  * a fallback is a literal colour the moment a token is missing.

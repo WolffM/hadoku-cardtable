@@ -154,7 +154,7 @@ function manualFeed(): RoomFeed & { ping(): void; targets(): FeedTarget[] } {
 
 const mount = (client: ReturnType<typeof roomsClient>) => render(createElement(LobbyScreen, { rooms: client }));
 
-/** Open the create dialog from its button at the foot of the list. */
+/** Open the create dialog from its button at the top of the list. */
 const openCreate = (): void => {
   fireEvent.click(screen.getByTestId('room-create-open'));
 };
@@ -782,14 +782,15 @@ describe('creating a room', () => {
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ name: 'Cube night', gameType: 'draft', clientMode: 'builtin' });
   });
 
-  it('is a dialog behind Create room at the foot of the list, and asks no client question', async () => {
-    // The operator, 2026-10-10: "let's have it just show the rooms … the 'Which Client' question should not exist for now".
+  it('is a dialog behind Create room at the top of the list, and asks no client question', async () => {
+    // The operator, 2026-10-10: "let's have it just show the rooms … the 'Which Client' question should not exist for now";
+    // 2026-10-23: "lets move the 'Create room' button to the top of the room list rather than the bottom".
     const { client, calls } = server([OPEN]);
     mount(client);
     await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(1));
     expect(screen.queryByTestId('room-create')).toBeNull();
     const button = screen.getByTestId('room-create-open');
-    expect(button.compareDocumentPosition(screen.getByTestId('room-list')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(button.compareDocumentPosition(screen.getByTestId('room-list')) & Node.DOCUMENT_POSITION_FOLLOWING, 'the list comes after it').toBeTruthy();
 
     fireEvent.click(button);
     const dialog = screen.getByRole('dialog', { name: 'Create a room' });
