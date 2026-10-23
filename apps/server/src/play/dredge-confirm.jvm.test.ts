@@ -60,6 +60,13 @@ describe.skipIf(!available.ok)(title, () => {
         const frames = sentFrom(s, mark);
         console.log(`[dredge] frames since the last pass: ${JSON.stringify(frames)}`);
         console.log(`[dredge] prompt now: ${JSON.stringify(s.prompt(0))}`);
+        const raw = s.lines
+          .filter((l) => l.t === 'frame' && l.seat === 0)
+          .map((l) => (l as { frame: { method?: string; message?: string; label1?: string } }).frame)
+          .filter((f) => f.method === 'showPromptMessage' || f.method === 'updateButtons')
+          .slice(-6);
+        console.log(`[dredge] bridge's own last window frames: ${JSON.stringify(raw)}`);
+        console.log(`[dredge] server log tail: ${JSON.stringify(s.logs.slice(-12))}`);
         const imp = s.zone(0, 'Graveyard').find((c) => c.name === 'Stinkweed Imp');
         expect(imp, 'the Imp is in her graveyard').toBeDefined();
         expect(s.prompt(0), 'the question is the dredge’s own').toMatch(/Stinkweed Imp/);
