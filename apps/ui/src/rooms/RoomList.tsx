@@ -120,6 +120,9 @@ export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
     void refresh();
   };
 
+  const normal = state.kind === 'ready' ? normalRooms(state.rooms) : [];
+  const testing = state.kind === 'ready' ? testingRooms(state.rooms) : [];
+
   return (
     <section className="rooms ct-panel" data-testid="rooms" aria-labelledby="rooms-title">
       <div className="rooms__head">
@@ -143,19 +146,37 @@ export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
         </div>
       )}
 
-      {state.kind === 'ready' && state.rooms.length === 0 && (
+      {state.kind === 'ready' && normal.length === 0 && testing.length === 0 && (
         <p className="rooms__status" data-testid="rooms-empty">
           No rooms yet.
         </p>
       )}
 
-      {state.kind === 'ready' && state.rooms.length > 0 && (
+      {state.kind === 'ready' && normal.length > 0 && (
         <ul className="rooms__list" data-testid="room-list">
           {/* Your own rooms first: the one you closed the tab on is the one you are looking for. */}
-          {[...state.rooms.filter(isMine), ...state.rooms.filter((r) => !isMine(r))].map((room) => (
+          {[...normal.filter(isMine), ...normal.filter((r) => !isMine(r))].map((room) => (
             <RoomRow key={room.id} room={room} client={client} onGone={() => void refresh()} />
           ))}
         </ul>
+      )}
+
+      {/*
+       * Admin only, visible by construction: `GET /rooms` omits every testing
+       * room from a non-admin's list entirely (`http/rooms.ts`), so this
+       * section is present exactly when the list it was handed carries one —
+       * never a client-side tier check. Same row component as the normal
+       * list, a separate `<ul>` under its own heading.
+       */}
+      {state.kind === 'ready' && testing.length > 0 && (
+        <div className="rooms__testing" data-testid="rooms-testing">
+          <h3 className="rooms__title ct-panel__title">Testing</h3>
+          <ul className="rooms__list" data-testid="room-list-testing">
+            {testing.map((room) => (
+              <RoomRow key={room.id} room={room} client={client} onGone={() => void refresh()} />
+            ))}
+          </ul>
+        </div>
       )}
 
       {state.kind === 'ready' && state.stale !== null && (
@@ -188,6 +209,12 @@ export function RoomList({ client: given, feed = roomFeed() }: RoomListProps) {
 
 /** Whether I am a member: closing the tab never leaves a room, so this is where I come back to. */
 const isMine = (room: RoomView): boolean => room.members.some((m) => m.id === room.you.id);
+
+/** Every room this list carries that is NOT a seeded testing room — the list the front page's normal section draws. */
+const normalRooms = (rooms: RoomView[]): RoomView[] => rooms.filter((r) => !r.testing);
+
+/** A seeded testing room, its own section, in the list's own order. Empty for every non-admin: the server never sends one. */
+const testingRooms = (rooms: RoomView[]): RoomView[] => rooms.filter((r) => r.testing);
 
 function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient; onGone: () => void }) {
   const [asking, setAsking] = useState(false);

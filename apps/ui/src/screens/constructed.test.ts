@@ -1230,6 +1230,7 @@ describe('a room’s table', () => {
                   createdAt: '2026-09-19T00:00:00.000Z',
                   tables: [],
                   pod: null,
+                  testing: false,
                 },
               }
             : { ok: false as const, reason: outcome };

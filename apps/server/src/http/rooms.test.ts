@@ -31,6 +31,7 @@ import { RoomBodySchema, type DraftCard, type DraftPlan, type PoolSource, type P
 import { loadTablesLibrary } from './library.ts';
 import { createDraftRooms, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from '../room/draftRooms.ts';
 import { checkPlan as realCheckPlan, type CubeLookup, type ForgeChecker, type SetLookup } from '../room/plan.ts';
+import { seedTestingRooms } from '../room/testing-rooms.ts';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /**
@@ -346,6 +347,7 @@ describe('POST /api/rooms', () => {
 			'pod',
 			'settings',
 			'tables',
+			'testing',
 			'you',
 		]);
 		expect(Object.keys(room.members[0]).sort()).toEqual(['avatarId', 'id', 'joinedAt', 'name', 'ready']);
@@ -2568,5 +2570,85 @@ describe('Gauntlet tournaments lock over HTTP, with the real routes.ts adapter',
 		const resumed = await call(h, 'POST', `/api/tables/rooms/${id}/gauntlet/ready`, { as: 'bob', body: { ready: true, table: t2Bob } });
 		expect(resumed.status, resumed.text).toBe(200);
 		expect((resumed.json() as GauntletViewLike).phase, 'round 2 skips the draw and banpick entirely').toBe('choose');
+	});
+});
+
+/* ── testing rooms (admin only, seeded at boot) ─────────────────────────── */
+
+/**
+ * `room/testing-rooms.ts`'s seeded set, proved through the real routes
+ * (`openFullApp`), never a parallel construction path — `seedTestingRooms` is
+ * the same call `index.ts` makes at boot, given this test's own `Lobby`.
+ */
+describe('testing rooms (admin only, seeded)', () => {
+	it('lists and opens for an admin; a friend never sees them on the list, and every room/table route 404s as if they do not exist', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby, log: (entry) => logged.push(entry) });
+
+		const friendList = await call(h, 'GET', '/api/rooms');
+		const friendRooms = (friendList.json() as { rooms: { name: string; testing: boolean }[] }).rooms;
+		expect(friendRooms.some((r) => r.testing)).toBe(false);
+		expect(friendRooms.some((r) => r.name.startsWith('Testing:'))).toBe(false);
+
+		const adminList = await call(h, 'GET', '/api/rooms', { headers: { 'x-hadoku-tier': 'admin' } });
+		const adminRooms = (adminList.json() as { rooms: { id: string; name: string; testing: boolean }[] }).rooms;
+		const testingRooms = adminRooms.filter((r) => r.testing);
+		// Four rooms need nothing beyond `Lobby.create`/`setSettings`; the
+		// fifth (the set draft) is skipped and logged with no catalog wired —
+		// this harness's own `checkPlan`/`newestSetCode` are both omitted.
+		expect(testingRooms.map((r) => r.name).sort()).toEqual(
+			[
+				'Testing: Constructed 1v1 (Classic)',
+				'Testing: Constructed tournament (Classic, per-round decks)',
+				'Testing: Cube draft (MTGO Vintage Cube 2025-04)',
+				'Testing: Gauntlet tournament (locked)',
+			].sort(),
+		);
+		expect(logged).toContainEqual(expect.objectContaining({ event: 'testing-room-seed-skipped', name: 'Testing: Set draft' }));
+
+		const target = testingRooms[0]!;
+
+		// A non-admin: 404 on the room itself, on joining it, and on its table —
+		// one guard, every `/:id…` and `/rooms/:roomId…` route, as if it never existed.
+		expect((await call(h, 'GET', `/api/rooms/${target.id}`)).status).toBe(404);
+		expect((await call(h, 'POST', `/api/rooms/${target.id}/join`)).status).toBe(404);
+		expect((await call(h, 'GET', `/api/tables/rooms/${target.id}`)).status).toBe(404);
+
+		// An admin: sees it, and can open it.
+		const adminGet = await call(h, 'GET', `/api/rooms/${target.id}`, { headers: { 'x-hadoku-tier': 'admin' } });
+		expect(adminGet.status).toBe(200);
+		expect((adminGet.json() as { testing: boolean }).testing).toBe(true);
+	});
+
+	it('boots idempotently: seeding twice on the same store never duplicates a room', async () => {
+		const dir = await tempDir();
+		const first = await openFullApp(dir);
+		await seedTestingRooms({ lobby: first.lobby });
+		const countAfterFirstBoot = first.lobby.list().filter((r) => r.testing).length;
+		expect(countAfterFirstBoot).toBeGreaterThan(0);
+
+		// A second boot against the SAME store (`openLobby` restores every room
+		// `first` just wrote) — the same idempotent call finds every name
+		// already taken and creates nothing.
+		const second = await openFullApp(dir);
+		await seedTestingRooms({ lobby: second.lobby });
+		const countAfterSecondBoot = second.lobby.list().filter((r) => r.testing).length;
+		expect(countAfterSecondBoot).toBe(countAfterFirstBoot);
+	});
+
+	it('is never swept: `sweep` forgets every idle room except a testing one', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby });
+		const testingIds = h.lobby.list().filter((r) => r.testing).map((r) => r.id);
+		expect(testingIds.length).toBeGreaterThan(0);
+
+		// `idleMs: 0` sweeps every room whose `updatedAt` is not AFTER right
+		// now — every ordinary room ever created in this test, including the
+		// one `openFullApp`'s own harness never makes but a sibling test might
+		// have. A testing room is skipped before that clock comparison even runs.
+		const dropped = h.lobby.sweep(0);
+		for (const id of testingIds) expect(dropped).not.toContain(id);
+		const stillTesting = h.lobby.list().filter((r) => r.testing).map((r) => r.id);
+		expect(stillTesting.sort()).toEqual(testingIds.sort());
 	});
 });

@@ -101,6 +101,17 @@ export function userNameOf(req: Request): string | null {
 	return typeof n === 'string' && n !== '' ? n : null;
 }
 
+/**
+ * The one admin check: `rankOf(tierOf(req)) >= rankOf('admin')`. Used by
+ * `http/sounds.ts`'s write gate and by the testing-room guard
+ * (`http/rooms.ts`, `http/routes.ts`) — both read this rather than
+ * re-deriving the comparison, so the ladder has exactly one place that knows
+ * what "admin" means.
+ */
+export function isAdmin(req: Request): boolean {
+	return rankOf(tierOf(req)) >= rankOf('admin');
+}
+
 /** Express middleware: sanitize provenance on every inbound request. */
 export function edgeProvenance(req: Request, _res: Response, next: NextFunction): void {
 	sanitizeHeaders(req.headers as Record<string, unknown>);

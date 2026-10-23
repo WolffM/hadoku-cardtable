@@ -308,6 +308,13 @@ interface CreateRoomInput {
 	password?: string;
 	/** A constructed room's mode, chosen at create. Absent: the leader chooses it in the room. */
 	mode?: RoomMode;
+	/**
+	 * A seeded, admin-only room (`room/testing-rooms.ts`), never set by
+	 * `CreateRoomBodySchema` — there is no HTTP field for it, on purpose, same
+	 * as `clientMode`'s own "the one place this is ever set" rule. Absent or
+	 * `false` is every room a friend ever creates.
+	 */
+	testing?: boolean;
 }
 
 type CreateResult =
@@ -1420,6 +1427,8 @@ interface RoomRecord {
 	 * table that has never moved.
 	 */
 	gauntlets: Record<string, GauntletState>;
+	/** A seeded, admin-only room (`room/testing-rooms.ts`). Never swept, never stale (`sweep`, `offered`), and `close()` bypasses the leader check for it. */
+	testing: boolean;
 	createdAt: number;
 	/** Last mutation, in ms. What `sweep` ages a room out on. */
 	updatedAt: number;
@@ -1485,6 +1494,8 @@ interface StoredApp {
 	gauntlet?: GauntletState | null;
 	/** Absent for a room written before Gauntlet tournaments: one per table, keyed by table id (`RoomRecord.gauntlets`'s own doc). */
 	gauntlets?: Record<string, GauntletState>;
+	/** Absent for a room written before testing rooms existed, which reads back `false` — every such room is an ordinary one. */
+	testing?: boolean;
 	secret: Secret | null;
 }
 
@@ -1669,6 +1680,7 @@ const appCodec: AppCodec<StoredApp> = {
 		if (a.gauntlets === undefined && a.gauntlet !== undefined && a.gauntlet !== null && !isGauntletState(a.gauntlet)) {
 			throw new Error('app.gauntlet is invalid');
 		}
+		if (a.testing !== undefined && typeof a.testing !== 'boolean') throw new Error('app.testing is invalid');
 		if (a.secret !== null && !isSecret(a.secret)) throw new Error('app.secret is invalid');
 		const mode = storedMode(a);
 		const settings = storedSettings(a.settings as Partial<RoomSettings> | undefined);
@@ -1723,6 +1735,8 @@ const appCodec: AppCodec<StoredApp> = {
 					: a.gauntlet !== undefined && a.gauntlet !== null && tables.length > 0
 						? { [tables[0]!.id]: a.gauntlet as GauntletState }
 						: {},
+			// Absent is a room written before testing rooms existed: every such room is an ordinary one.
+			testing: a.testing === true,
 			secret: a.secret === null ? null : { salt: (a.secret as Secret).salt, hash: (a.secret as Secret).hash },
 		};
 	},
@@ -1787,6 +1801,7 @@ function viewOf(room: RoomRecord, locked: boolean, checks: PodChecks): RoomView 
 		pod: usesPod(room) ? podViewOf(room, checks) : null,
 		ai: roomAi(room),
 		createdAt: new Date(room.createdAt).toISOString(),
+		testing: room.testing,
 	};
 }
 
@@ -2037,6 +2052,7 @@ class FileLobby implements Lobby {
 			podPlaying: [...room.podPlaying],
 			lockedDecks: { ...room.lockedDecks },
 			gauntlets: { ...room.gauntlets },
+			testing: room.testing,
 			pod:
 				room.pod === null
 					? null
@@ -2161,13 +2177,17 @@ class FileLobby implements Lobby {
 		return [...this.#rooms.values()]
 			.filter(
 				(r) =>
+					// A seeded testing room is never empty-hidden and never stale: it is
+					// seeded with its system creator as its only member and nobody else
+					// ever has to touch it for an admin to keep seeing it offered.
+					r.testing ||
 					// An empty room is hidden AT ONCE (R16) — there is nobody left to read
 					// it, so waiting out `staleMs` would advertise it, untouched, for up to
 					// thirty more minutes after its last member walked out.
-					r.members.length > 0 &&
-					(r.tables.some((t) => t.matchId !== null) ||
-						r.draftStartedAt !== null ||
-						Math.max(r.updatedAt, this.#touchedAt.get(r.id) ?? 0) > cutoff),
+					(r.members.length > 0 &&
+						(r.tables.some((t) => t.matchId !== null) ||
+							r.draftStartedAt !== null ||
+							Math.max(r.updatedAt, this.#touchedAt.get(r.id) ?? 0) > cutoff)),
 			)
 			.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
 			.map((r) => this.#view(r));
@@ -2648,6 +2668,7 @@ class FileLobby implements Lobby {
 			podPlaying: [],
 			lockedDecks: {},
 			gauntlets: {},
+			testing: input.testing === true,
 			createdAt: now,
 			updatedAt: now,
 			members: [newMember([], caller, now)],
@@ -2958,6 +2979,10 @@ class FileLobby implements Lobby {
 		const cutoff = this.#now() - idleMs;
 		const dropped: string[] = [];
 		for (const [id, room] of this.#rooms) {
+			// A seeded testing room is never idle-reaped — it is seeded with its
+			// system creator as its only member for its whole life, so "nobody has
+			// touched it" would otherwise be true of it the instant it is created.
+			if (room.testing) continue;
 			if (room.updatedAt > cutoff) continue;
 			// A pod in progress. Nobody touches the lobby for the forty minutes a
 			// draft takes, and the room is the pod's container — reaping it would
@@ -2975,7 +3000,11 @@ class FileLobby implements Lobby {
 	close(roomId: string, callerId: string): CloseRoomResult {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (room.leader !== callerId) return { ok: false, reason: 'not-leader' };
+		// A testing room's leader is its synthetic system creator, which no real
+		// caller ever is — so for a testing room this check is bypassed, and any
+		// member (already admin-gated and already a member, both checked at the
+		// HTTP layer before this is ever called) may close it.
+		if (room.leader !== callerId && !room.testing) return { ok: false, reason: 'not-leader' };
 		this.#archive(room);
 		const matches = room.tables.flatMap((t) => (t.matchId === null ? [] : [t.matchId]));
 		this.#forget(roomId);
@@ -3376,6 +3405,9 @@ export async function openLobby(opts: OpenLobbyOptions): Promise<Lobby> {
 					// Restored, like `podPlaying`: a tournament's locked deck(s) survive a restart with it.
 					lockedDecks: app.lockedDecks ?? {},
 					gauntlets: app.gauntlets ?? {},
+					// Restored, like every other room-level flag: a restart never turns
+					// a testing room into an ordinary one or back.
+					testing: app.testing === true,
 					createdAt: decoded.createdAt,
 					// The raw snapshot's clock: when this room was last touched
 					// by the process that wrote it. `decoded` does not carry it.

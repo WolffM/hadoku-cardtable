@@ -103,6 +103,15 @@ const roomFields = {
   /** The pod, present when `gameType` is `draft`, or `constructed-1v1` with `settings.tournament` on. */
   pod: RoomPodSchema.catch(null),
   createdAt: z.string().catch(''),
+  /**
+   * A seeded testing room (admin-only, never swept, never stale — `room/lobby.ts`'s
+   * `RoomRecord.testing`). Absent on disk for a room written before the flag
+   * existed, which reads back `false` — the only correct default, since every
+   * such room is an ordinary one. `GET /api/rooms` omits these entirely for a
+   * non-admin, so the front page's Testing section is just "any room this list
+   * carries with `testing: true`", never a client-side tier check.
+   */
+  testing: z.boolean().catch(false),
 };
 
 /**

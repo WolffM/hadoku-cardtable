@@ -61,6 +61,7 @@ const room = (over: Partial<RoomView> & { id: string; name: string }): RoomView 
   createdAt: '2026-09-19T00:00:00.000Z',
   tables: [],
   pod: null,
+  testing: false,
   ...over,
 });
 

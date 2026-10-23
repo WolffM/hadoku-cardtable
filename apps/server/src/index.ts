@@ -90,6 +90,7 @@ import { attachTables, loadTablesLibrary } from './http/index.js';
 import { attachDecks } from './http/decks.js';
 import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
+import { seedTestingRooms } from './room/testing-rooms.js';
 import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
 import { attachTrim } from './http/trim.js';
@@ -476,6 +477,23 @@ const lobby = await openLobby({
 // draft room is read again once they arrive. Wired before `listen`, so no
 // view can have been served without this listener in place.
 setsStore.onNamed(() => lobby.poolNamesChanged());
+// The seeded, admin-only testing rooms (the operator: "set up some testing
+// rooms for me … in a separate room section … admin only visible"). Idempotent
+// by name (`seedTestingRooms`'s own doc), so calling it again — at boot, and
+// after an admin closes one (`reseedTesting` below) — recreates only what is
+// now missing. `newestSetCode` and `checkPlan` need the same `setsStore`/
+// `checkDraftPlan` this file already built for `attachRooms` and
+// `attachSetRoutes`; without a jar `setsStore.list()` answers `[]` and the
+// set-draft room is skipped and logged, never created with no pool.
+const runTestingRoomSeed = (): Promise<void> =>
+	seedTestingRooms({
+		lobby,
+		log: roomsLog,
+		newestSetCode: async () => (await setsStore.list())[0]?.code ?? null,
+		checkPlan: checkDraftPlan,
+	});
+await runTestingRoomSeed();
+
 attachRooms(api, {
 	lobby,
 	checkPlan: checkDraftPlan,
@@ -485,6 +503,10 @@ attachRooms(api, {
 		const draft = draftRooms?.find(roomId);
 		if (draft !== undefined && stateOf(draft).status !== 'complete') draftRooms?.delete(roomId);
 	},
+	// "Reset = Close": the testing room `/:id/close` just forgot is recreated
+	// fresh under the same name, the moment the close answers — not a
+	// separate reset feature.
+	reseedTesting: () => void runTestingRoomSeed(),
 	// Wave 74 §E step 2: `POST …/start` fetches a realistic round's boosters
 	// and caches them on `draftRooms` BEFORE `lobby.startDraft` ever runs, so
 	// `draftRooms.open()` (the first socket `join`'s own call) stays

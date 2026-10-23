@@ -55,6 +55,7 @@
       "avatarId": "cleric"
     },
     "createdAt": "2026-10-22T05:15:19.473Z",
+    "testing": false,
     "you": {
       "id": "fk:a9d95a027ac540c0",
       "leader": true,
@@ -148,6 +149,7 @@
       "avatarId": "herald"
     },
     "createdAt": "2026-10-22T05:15:19.502Z",
+    "testing": false,
     "you": {
       "id": "fk:a9d95a027ac540c0",
       "leader": true,

@@ -72,7 +72,7 @@ import {
 	type MusicReviewRecord,
 	type SoundTake,
 } from '@hadoku/shared';
-import { rankOf, tierOf, userIdOf, userNameOf } from '../edge-auth.js';
+import { isAdmin, userIdOf, userNameOf } from '../edge-auth.js';
 import { jsonLogger, type JsonLog } from '../log.js';
 import { bodyErrors } from './request.js';
 
@@ -81,10 +81,6 @@ export interface SoundsDeps {
 	dir: string;
 	/** Structured log lines. */
 	log?: JsonLog;
-}
-
-function isAdmin(req: Request): boolean {
-	return rankOf(tierOf(req)) >= rankOf('admin');
 }
 
 function isEnoent(err: unknown): boolean {

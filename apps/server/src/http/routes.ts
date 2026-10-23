@@ -180,6 +180,7 @@ import type { DraftRooms, PodDeal } from '../room/draftRooms.js';
 import { botPoolAcross, builtDeckOf, stateOf, viewForParticipant } from '../room/draftRooms.js';
 import { botDeckText } from '../room/botDeck.js';
 import { httpCaller } from './request.js';
+import { isAdmin } from '../edge-auth.js';
 import { draftIdOfPool, draftPoolId, isAiEntrant, type Lobby, type PodChecks } from '../room/lobby.js';
 import { planDisplayName } from '../room/plan.js';
 import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
@@ -255,6 +256,8 @@ export interface RoomViewLike {
 	 * concern, not a table route's.
 	 */
 	pod: { phase: string; results?: readonly { playerA: string; playerB: string | null }[] } | null;
+	/** A seeded, admin-only testing room (`room/lobby.ts`'s `RoomRecord.testing`). Absent on a registry that predates testing rooms, same as every other flag here — reads as `false`. */
+	testing?: boolean;
 }
 
 /** The subset of `room/lobby.ts`'s `Lobby` a table uses. */
@@ -773,6 +776,19 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	/* ── a room's table: one slot per player, each their own ────────── */
 
 	const rooms = deps.rooms ?? null;
+
+	/**
+	 * A testing room, to a non-admin, is as if it did not exist — one guard
+	 * for every `/rooms/:roomId…` route on this router, same discipline as
+	 * `http/rooms.ts`'s own `rooms.param('id', …)`. Checked here rather than
+	 * per route because every route below reaches a room through this one
+	 * param name.
+	 */
+	tables.param('roomId', (req: Request, res: Response, next: NextFunction, roomId: string) => {
+		const room = rooms?.get(roomId);
+		if (room !== undefined && room.testing === true && !isAdmin(req)) return notFound(res);
+		next();
+	});
 
 	// Q6: a seat's avatar is its holder's, read from the room. A member who changes
 	// theirs mid-match is heard by the room alone, so the match is told to re-send

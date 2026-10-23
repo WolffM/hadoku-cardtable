@@ -92,10 +92,10 @@
  * input, and Express's default error handler would print it to stderr.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { MultiRateLimiter, type RateLimitConfig } from '@wolffm/rooms-server';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
-import { userNameOf } from '../edge-auth.js';
+import { isAdmin, userNameOf } from '../edge-auth.js';
 import { bodyErrors, httpCaller, parseBody } from './request.js';
 import {
 	CreateRoomBodySchema,
@@ -149,6 +149,14 @@ export interface RoomsDeps {
 	log?: (entry: Record<string, unknown>) => void;
 	/** A room its owner closed: stop the matches it was playing and drop its draft if unfinished. */
 	closed?: (roomId: string, matches: readonly string[]) => void;
+	/**
+	 * "Reset = Close" (the operator's testing-room spec): when the room
+	 * `/:id/close` just forgot was a testing room, this runs AFTER `closed`
+	 * — the same `seedTestingRooms` call `index.ts` makes at boot, which is
+	 * idempotent by name, so it recreates exactly the one room that is now
+	 * missing and nothing else. No separate reset path.
+	 */
+	reseedTesting?: () => void;
 	/** Overrides `JOIN_RATE_LIMIT`. */
 	joinRateLimit?: RateLimitConfig;
 	/** Injected for tests; the limiter's clock. */
@@ -276,13 +284,30 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 
 	const rooms = Router();
 
+	/**
+	 * A testing room, to a non-admin, is as if it did not exist: one guard for
+	 * every `/:id…` route on this router, rather than a repeated check in each
+	 * handler. `ROOM_ID_RE` is NOT re-checked here — a malformed id finds no
+	 * room either way, so the existing `undefined` branch already answers it
+	 * (and the specific handler still runs its own `ROOM_ID_RE` test for the
+	 * sentence it gives a caller who IS allowed to see this room).
+	 */
+	rooms.param('id', (req: Request, res: Response, next: NextFunction, id: string) => {
+		const room = lobby.get(id);
+		if (room !== undefined && room.testing && !isAdmin(req)) return noMatch(res);
+		next();
+	});
+
 	rooms.get('/', (req: Request, res: Response) => {
 		// One `you` per room: the front page says which rooms you lead and which
 		// you have already readied in, without a second request per room.
 		const me = callerOf(req).id;
+		const admin = isAdmin(req);
 		// `offered`, not `list`: a room nobody has touched for
-		// `ROOM_STALE_MS` is a dead table and is not advertised (wave 31).
-		res.json({ rooms: lobby.offered().map((room) => roomBody(room, me)) });
+		// `ROOM_STALE_MS` is a dead table and is not advertised (wave 31). A
+		// testing room is never offered to a non-admin at all — not hidden in
+		// the UI, never on the wire for them to begin with.
+		res.json({ rooms: lobby.offered().filter((room) => admin || !room.testing).map((room) => roomBody(room, me)) });
 	});
 
 	rooms.post('/', (req: Request, res: Response) => {
@@ -412,12 +437,15 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'close');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id) || !lobby.isMember(id, caller.id)) return noMatch(res);
+		// Read before `close` forgets the room — there is nothing left to ask afterwards.
+		const wasTesting = lobby.get(id)?.testing === true;
 		const result = lobby.close(id, caller.id);
 		if (!result.ok) {
 			if (result.reason === 'no-room') return noMatch(res);
 			return res.status(403).json({ error: 'only the room owner can close it' });
 		}
 		deps.closed?.(id, result.matches);
+		if (wasTesting) deps.reseedTesting?.();
 		res.json({ ok: true });
 	});
 
