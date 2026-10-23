@@ -19,10 +19,11 @@
  */
 
 import { useEffect, type ReactNode } from 'react';
-import type { RoomTable } from '@hadoku/shared';
+import type { RoomTable, TableGame } from '@hadoku/shared';
 
 import { followMatchOnce } from '../../play/live/matchStart.ts';
 import { navigate, routeHash } from '../route.ts';
+import { TableCard } from '../TableCard.tsx';
 import { TableSideboard } from '../TableSideboard.tsx';
 import type { TablesClient } from '../tables.ts';
 import { useTableStart } from './client.ts';
@@ -55,11 +56,13 @@ export interface TablePageProps {
   tables?: TablesClient;
   /** The seats' Ready, while the table's start waits on it; mine is drawn for a player of this table only. */
   ready?: TableReady;
+  /** The table's game (the room body's `tableGames`), for its card while one runs. */
+  game?: TableGame | undefined;
   /** My own step before the game, for a player of this table only. */
   children?: ReactNode;
 }
 
-export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, canStart = true, refresh, tables, ready, children }: TablePageProps) {
+export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, canStart = true, refresh, tables, ready, game, children }: TablePageProps) {
   const missing = table === undefined;
   useEffect(() => {
     if (missing) navigate({ kind: 'room', roomId }, { replace: true });
@@ -114,11 +117,6 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
               ← Lobby
             </a>
           </span>
-          {matchId !== null && (
-            <a className="lobby__go" data-testid="table-match-link" href={routeHash({ kind: 'match', matchId })}>
-              {mine ? 'Play' : 'Watch'}
-            </a>
-          )}
         </div>
         <div className="table-page__seats">
           <FaceOff left={faceOff(left)} right={faceOff(1 - left)} scored={table.series.length > 1} revealing={revealing} />
@@ -126,6 +124,22 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
             <ReadyToggle ready={ready.seats[mySeat] === true} disabled={ready.disabled} onReady={ready.onReady} />
           )}
         </div>
+        {/* A game under way: its card (`TableCard.tsx`), with the face-off — where it stands, and the way in. */}
+        {!revealing && matchId !== null && (
+          <TableCard
+            size="full"
+            testId="table-game-card"
+            tableId={table.id}
+            players={[seats[0] ?? '', seats[1] ?? '']}
+            nameOf={nameOf}
+            avatarOf={avatarOf}
+            myMemberId={myMemberId}
+            series={{ length: table.series.length, wins: table.series.wins, played: table.series.games.length, phase: table.series.phase }}
+            matchId={matchId}
+            game={game}
+            go={{ label: mine ? 'Return to game' : 'Watch', href: routeHash({ kind: 'match', matchId }), testId: 'table-match-link' }}
+          />
+        )}
         {error !== null && (
           <div className="ct-error" role="alert" data-testid="pod-table-start-error">
             <p>{error}</p>

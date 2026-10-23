@@ -2354,6 +2354,7 @@ function RoomTableScreen({
                   canStart={tCanStart}
                   refresh={view}
                   tables={client}
+                  game={tableId === undefined ? undefined : view?.tableGames?.[tableId]}
                   ready={tGauntletReady}
                 >
                   {tDeckPicking && loaded !== null && (
@@ -2393,6 +2394,7 @@ function RoomTableScreen({
                 canStart={false}
                 refresh={view}
                 tables={client}
+                  game={tableId === undefined ? undefined : view?.tableGames?.[tableId]}
               />
             ) : (
               mode !== null && (
