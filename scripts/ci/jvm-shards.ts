@@ -35,9 +35,12 @@ import { join } from 'node:path';
  * A shard's budget in claw-8 seconds. claw-9 alone runs these suites ~1.8×
  * slower and a co-located forge-e2e shard adds to that, so 600 s here is
  * about 18–25 min there: inside the job's timeout with room, which one
- * serial job holding all 1774 s never was.
+ * serial job holding all 1774 s never was. 620 since 2026-10-22: the measured
+ * suites had grown to 1796 s, so no further suite of more than ~4 s fit three
+ * shards of 600; 620 × 2.4 (the worst slowdown measured) is ~25 min, plus a
+ * cold bundle build, still inside forge-jvm's 35-minute timeout.
  */
-export const SHARD_SECONDS = 600;
+export const SHARD_SECONDS = 620;
 
 /** Three jdk21 claws: a fourth shard would only queue behind the other three. */
 export const MAX_SHARDS = 3;

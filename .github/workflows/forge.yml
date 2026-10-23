@@ -596,9 +596,9 @@ jobs:
       fail-fast: false
       matrix:
         shard: ${{ fromJSON(needs.changes.outputs.jvm_shards) }}
-    # A shard is ~600 s of suites on claw-8 (`SHARD_SECONDS`). The worst
+    # A shard is ~620 s of suites on claw-8 (`SHARD_SECONDS`). The worst
     # per-suite slowdown measured is 2.4× (claw-9 beside a forge-e2e shard, run
-    # 39010330727), so ~24 min, plus install and a cold bundle BUILD (68–100 s,
+    # 39010330727), so ~25 min, plus install and a cold bundle BUILD (68–100 s,
     # see `forge-e2e`).
     timeout-minutes: 35
     steps:
