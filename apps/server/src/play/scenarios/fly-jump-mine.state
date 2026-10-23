@@ -1,0 +1,16 @@
+# e2e/fly-jump.spec.ts — a flyer keeps its loop through its own player's turn: priority with offers,
+# the pointer over it and over the board, and the attack window. Alice (seat 0) is at her Main Phase 1
+# with three Narcomoeba and a Serra Angel untapped, lands to cast Divination, and a Plains to play.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Plains;Divination
+humanbattlefield=Narcomoeba;Narcomoeba;Narcomoeba;Serra Angel;Island;Island;Island;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Mountain;Hill Giant
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

@@ -18,12 +18,14 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { makeTitled } from './play/board.ts';
+import { passToDeclareAttackers } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioVsAi } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 const SCENARIO = 'fly-jump';
+const MINE = 'fly-jump-mine';
 const log = (step: string, data: unknown): void => console.log(`[flyjump] ${JSON.stringify({ step, data })}`);
 
 interface Event {
@@ -50,8 +52,10 @@ async function watch(page: Page): Promise<void> {
     new MutationObserver((records) => {
       for (const r of records) {
         if (r.type === 'attributes') {
-          const id = idOf(r.target);
-          if (id !== null) w.events.push({ t: now(), what: `attr ${r.attributeName}`, id, detail: `${r.oldValue} -> ${(r.target as HTMLElement).getAttribute(r.attributeName!)}` });
+          const el = r.target instanceof HTMLElement ? r.target : null;
+          const li = el?.closest<HTMLElement>('[data-board-card]') ?? null;
+          const id = li === null || (el !== li && el!.parentElement !== li) ? null : li.getAttribute('data-board-card');
+          if (id !== null) w.events.push({ t: now(), what: `attr ${el === li ? '' : 'face '}${r.attributeName}`, id, detail: `${r.oldValue} -> ${el!.getAttribute(r.attributeName!)}` });
           continue;
         }
         for (const n of r.removedNodes) {
@@ -63,7 +67,7 @@ async function watch(page: Page): Promise<void> {
           if (id !== null) w.events.push({ t: now(), what: 'li added', id });
         }
       }
-    }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeOldValue: true, attributeFilter: ['data-flying', 'style', 'data-board-card'] });
+    }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeOldValue: true });
     const frame = (): void => {
       for (const li of document.querySelectorAll<HTMLElement>('[data-board-card][data-flying]')) {
         const id = li.getAttribute('data-board-card')!;
@@ -85,6 +89,36 @@ async function watch(page: Page): Promise<void> {
   });
 }
 
+/** Prints what was recorded on `page` and fails on any frame a flyer stepped more than 1 px. */
+async function judge(page: Page, when: string): Promise<void> {
+  // Taken and emptied in one go, so each call judges only what happened since the last.
+  const w = await page.evaluate(() => {
+    const held = (window as unknown as { __flyjump: Watch }).__flyjump;
+    const out = { events: held.events.splice(0), path: { ...held.path } };
+    for (const id of Object.keys(held.path)) held.path[id] = held.path[id]!.slice(-1);
+    return out;
+  });
+  const names = await page.evaluate(() =>
+    Object.fromEntries([...document.querySelectorAll('[data-board-card]')].map((e) => [e.getAttribute('data-board-card'), e.querySelector('.card__name')?.textContent?.trim() ?? ''])),
+  );
+  const jumps: { id: string; name: string; t: number; step: number }[] = [];
+  for (const [id, path] of Object.entries(w.path)) {
+    for (let i = 1; i < path.length; i++) {
+      const [t, x, y] = path[i]!;
+      const [, px, py] = path[i - 1]!;
+      const step = Math.hypot(x - px, y - py);
+      if (step > 1) jumps.push({ id, name: names[id] ?? '?', t, step: Math.round(step * 10) / 10 });
+    }
+  }
+  log(`${when}: frames`, Object.fromEntries(Object.entries(w.path).map(([id, p]) => [`${names[id] ?? '?'} ${id}`, p.length])));
+  log(`${when}: jumps`, jumps);
+  // What happened to a card in the 100 ms before each of its jumps.
+  for (const j of jumps) log(`${when}: before jump`, { ...j, events: w.events.filter((e) => e.id === j.id && e.t <= j.t && e.t > j.t - 100) });
+  log(`${when}: events`, w.events);
+  expect(Object.keys(w.path).length, `${when}: flyers were sampled`).toBeGreaterThan(0);
+  expect.soft(jumps, `${when}: no flyer steps more than 1 px in a frame`).toEqual([]);
+}
+
 test(titled("a flyer keeps its loop through the other seat's turn: no jump, no remount, no restart"), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
@@ -99,28 +133,41 @@ test(titled("a flyer keeps its loop through the other seat's turn: no jump, no r
     // The AI's whole turn and into alice's: a creature cast, a death, an attack.
     await page.waitForTimeout(25_000);
 
-    const w = await page.evaluate(() => (window as unknown as { __flyjump: Watch }).__flyjump);
-    const names = await page.evaluate(() =>
-      Object.fromEntries([...document.querySelectorAll('[data-board-card]')].map((e) => [e.getAttribute('data-board-card'), e.querySelector('.card__name')?.textContent?.trim() ?? ''])),
-    );
-    const jumps: { id: string; name: string; t: number; step: number }[] = [];
-    for (const [id, path] of Object.entries(w.path)) {
-      for (let i = 1; i < path.length; i++) {
-        const [t, x, y] = path[i]!;
-        const [, px, py] = path[i - 1]!;
-        const step = Math.hypot(x - px, y - py);
-        if (step > 1) jumps.push({ id, name: names[id] ?? '?', t, step: Math.round(step * 10) / 10 });
-      }
-    }
-    log('frames', Object.fromEntries(Object.entries(w.path).map(([id, p]) => [`${names[id] ?? '?'} ${id}`, p.length])));
-    log('jumps', jumps);
-    // What happened to a card in the 100 ms before each of its jumps.
-    for (const j of jumps) log('before jump', { ...j, events: w.events.filter((e) => e.id === j.id && e.t <= j.t && e.t > j.t - 100) });
-    log('events', w.events.filter((e) => e.what !== 'attr style'));
-    log('style changes', w.events.filter((e) => e.what === 'attr style').length);
+    await judge(page, 'their turn');
+  } finally {
+    await alice?.context.close();
+    await stack.stop();
+  }
+});
 
-    expect(Object.keys(w.path).length, 'flyers were sampled').toBeGreaterThan(0);
-    expect(jumps, 'no flyer steps more than 1 px in a frame').toEqual([]);
+test(titled('a flyer keeps its loop through its own turn: priority, the pointer over it and the board, the attack window'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(3 * 60_000);
+
+  const stack = await startPlayStack(forge);
+  let alice: Awaited<ReturnType<typeof startScenarioVsAi>>['alice'] | null = null;
+  try {
+    ({ alice } = await startScenarioVsAi(browser, stack, MINE, { fastMode: false, beforeKeep: (f) => watch(f.page) }));
+    const page = alice.page;
+    const flyers = page.locator('[data-zone="battlefield"][data-owner="you"] [data-flying]');
+    await expect.poll(() => flyers.count(), { timeout: 30_000, message: 'alice’s flyers are drawn' }).toBe(4);
+    // Her priority, with plays on offer.
+    await page.waitForTimeout(6_000);
+    await judge(page, 'priority');
+    // The pointer resting on a flyer, then sweeping the board.
+    await flyers.first().hover();
+    await page.waitForTimeout(5_000);
+    await judge(page, 'hover');
+    const board = await page.locator('[data-zone="battlefield"][data-owner="you"]').boundingBox();
+    for (let i = 0; i <= 40 && board !== null; i++) {
+      await page.mouse.move(board.x + (board.width * i) / 40, board.y + board.height / 2, { steps: 4 });
+      await page.waitForTimeout(100);
+    }
+    await judge(page, 'sweep');
+    await passToDeclareAttackers(page);
+    await page.waitForTimeout(6_000);
+    await judge(page, 'attack window');
   } finally {
     await alice?.context.close();
     await stack.stop();
