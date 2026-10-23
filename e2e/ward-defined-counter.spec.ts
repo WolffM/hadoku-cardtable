@@ -52,7 +52,7 @@ async function watchDoomBladeMarks(page: Page): Promise<void> {
           if (n instanceof Element && tracked.has(n)) seen.push({ t, mark: 'gone' });
         }
       }
-    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: MARKS });
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: marks });
   }, MARKS);
 }
 
