@@ -232,7 +232,7 @@ test('a room with two live tables: a watcher is carried in once, stays in the ro
     await alice.page.evaluate((hash) => (window.location.hash = hash), `#/match/${matchId1}`);
     await expect(alice.page.locator('[aria-label="Game board"]'), 'alice is back at table 1').toBeVisible({ timeout: 30_000 });
     await expect(alice.page.locator('.live[data-role="watcher"]'), 'her own seat, not a watcher’s').toHaveCount(0);
-    await expect(alice.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').first(), 'her own hand, face up').toBeVisible({ timeout: 30_000 });
+    await expect(alice.page.getByTestId('live-concede'), 'her seat’s own controls are back').toBeVisible({ timeout: 30_000 });
 
     // ── the game's chat is apart from the lobby's: one per table ────────
     // The operator, 2026-10-19: "can we make sure the game-chat is seperate from the lobby chat?"
