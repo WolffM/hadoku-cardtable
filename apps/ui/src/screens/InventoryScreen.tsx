@@ -26,6 +26,7 @@ import { poolsClient, type PoolsClient } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
 import { useWhoami } from '../room/whoami.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
+import { useChromeShell } from '../chrome/shell.ts';
 import './InventoryScreen.css';
 
 const defaultPools = poolsClient();
@@ -81,6 +82,7 @@ function InventoryCard({
 }
 
 export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsClient; myId?: string }) {
+  const shellRef = useChromeShell('fit');
   // Tests inject a fixed `myId`; production reads the fleet's own identity —
   // the same `X-User-Id` the server's `importLink` stamped `importedBy` with
   // (`apps/server/src/http/request.ts`'s `httpCaller`), never a room-scoped
@@ -121,7 +123,7 @@ export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsC
   const deleteCube = (id: string): void => withWrite(() => pools.deleteCube(id));
 
   return (
-    <div className="shell shell--fit" data-testid="inventory">
+    <div ref={shellRef} className="shell shell--fit" data-testid="inventory">
       <nav className="shell__head">
         <div className="shell__tools">
           <SettingsGear />

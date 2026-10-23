@@ -240,6 +240,7 @@ import { takeWarmRoom } from '../rooms/warm.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { roomFeed, type RoomFeed } from '../rooms/feed.ts';
 import { latestReads } from '../rooms/latest.ts';
+import { useChromeShell } from '../chrome/shell.ts';
 
 export interface ConstructedScreenProps {
   /** Tests pass a client over a stub fetch. Production passes nothing. */
@@ -980,6 +981,7 @@ function RoomTableScreen({
   deckRecords: () => Promise<DeckRecords>;
   myDecks?: MyDecksClient;
 }) {
+  const shellRef = useChromeShell('fit');
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   const myDecksStore = useMemo(() => givenMyDecks ?? myDecksClient(), [givenMyDecks]);
   // What the room list read before navigating here (`rooms/warm.ts`): the first
@@ -2140,7 +2142,7 @@ function RoomTableScreen({
   }
 
   return (
-    <div className="shell shell--fit" data-testid="constructed" data-members={view?.members.length ?? undefined}>
+    <div ref={shellRef} className="shell shell--fit" data-testid="constructed" data-members={view?.members.length ?? undefined}>
       <header className="shell__head">
         {/* The room's own name, never its id: until the room has answered, a
             skeleton line where the name will be. */}

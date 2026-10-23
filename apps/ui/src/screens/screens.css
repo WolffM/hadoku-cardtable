@@ -853,8 +853,17 @@
   --lobby-control-h: calc(0.7rem + 2px + 12px * 1.4);
 }
 
-:is(.lobby__header, .lobby__modeline)
-  :is(.radio-cards:not(.radio-cards--large) .radio-cards__card, .lobby__format-tabs button, .lobby__rules, select, .lobby__pool) {
+/* Each control spelled out, never an `:is()` list on the right, which the browser tries on every element of every page (`chrome.css`'s themed roots, the same). */
+.lobby__header .radio-cards:not(.radio-cards--large) .radio-cards__card,
+.lobby__modeline .radio-cards:not(.radio-cards--large) .radio-cards__card,
+.lobby__header .lobby__format-tabs button,
+.lobby__modeline .lobby__format-tabs button,
+.lobby__header .lobby__rules,
+.lobby__modeline .lobby__rules,
+.lobby__header select,
+.lobby__modeline select,
+.lobby__header .lobby__pool,
+.lobby__modeline .lobby__pool {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
