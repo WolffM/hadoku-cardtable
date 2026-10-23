@@ -1020,7 +1020,14 @@
 
 .deckpick__option .deckcolors {
   grid-area: colors;
+  align-items: center;
   padding: 0 8px 0 6px;
+}
+
+/* Each pip a flex box, so its glyph is centred in the row rather than set on a line box's
+   baseline, where Firefox drew it about a pixel below the mark and the name. */
+.deckpick__option .deckcolors__pip {
+  display: flex;
 }
 
 /*

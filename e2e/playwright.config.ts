@@ -18,9 +18,10 @@ import { EDGE_ORIGIN, PREFIX } from './identities.ts';
 /**
  * Firefox, because it is the browser a report came from: it sends pointer events Chromium does not
  * (`bl-ui-scale-click`), and a flyer jumped there every 1.4 s while it looped smoothly in Chromium
- * (`fly-jump`, the operator, 2026-10-23).
+ * (`fly-jump`, the operator, 2026-10-23), and a deck tile's pips sat below its name there
+ * (`deck-tile-row`).
  */
-const FIREFOX_SPECS = ['bl-ui-scale-click.spec.ts', 'fly-jump.spec.ts'];
+const FIREFOX_SPECS = ['bl-ui-scale-click.spec.ts', 'deck-tile-row.spec.ts', 'fly-jump.spec.ts'];
 
 export default defineConfig({
   testDir: '.',
