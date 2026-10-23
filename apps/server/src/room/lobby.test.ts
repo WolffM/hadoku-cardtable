@@ -3111,6 +3111,32 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.get(aiId)?.draftStartedAt).not.toBeNull();
 		});
 
+		it('a real run, 2026-10-22 (room r-228e5e39987e): the leader sat at the room’s own 1v1 table before turning Tournament on — the lock unseats it, so nothing stale is left to draw', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} } });
+			if (!made.ok) throw new Error('create failed');
+			const id = made.room.id;
+			const staleTableId = made.room.tables[0]!.id;
+			// Alice sits at the room's ordinary 1v1 table — exactly as she could
+			// before ever touching Tournament — and is never asked to stand.
+			expect(lobby.sit(id, staleTableId, ALICE.id)).toBe(true);
+			expect(lobby.setSettings(id, ALICE.id, { tournament: true, tournamentDecks: 'per-round' }).ok).toBe(true);
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+
+			const locked = lobby.get(id)!;
+			const stale = locked.tables.find((t) => t.id === staleTableId);
+			expect(stale, 'the stale table is still THERE (tables are never removed), but unseated').toBeDefined();
+			expect(stale!.players).toEqual([]);
+			expect(stale!.matchId).toBeNull();
+			// Round 1's own, freshly-made table is a DIFFERENT one, and holds Alice.
+			const round1 = locked.pod!.pairings[0]!.tableId;
+			expect(round1).not.toBe(staleTableId);
+			expect(locked.tables.find((t) => t.id === round1)?.players.some((p) => p.memberId === ALICE.id)).toBe(true);
+		});
+
 		it('Classic: refuses a human with no legal deck chosen; All Random: refuses a human who has not readied', async () => {
 			const lobby = await openLobby({ dir: await tempDir() });
 			const classicId = await tournamentRoom(lobby, ALICE, 'classic');
