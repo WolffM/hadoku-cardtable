@@ -1,0 +1,19 @@
+# "Testing: Board — Big board" (room/testing-rooms.ts): 15 permanents a side
+# — five lands, seven real creatures (or a planeswalker on the AI's side) and
+# three tokens each — to stress the battlefield's row-fit and layout at a
+# size no ordinary game reaches this early. Tokens never need an art-id row
+# (`scripts/art/build-art-ids.ts --no-tokens`), so most of the padding here is
+# tokens rather than new card names.
+turn=8
+activeplayer=human
+activephase=MAIN1
+humanlife=16
+ailife=13
+humanhand=
+humanbattlefield=Forest;Island;Mountain;Swamp|Tapped;Plains;Grizzly Bears;Hill Giant|Tapped;Llanowar Elves;Boggart Brute;Colossal Dreadmaw;Anaba Bodyguard;Ankle Biter;T:w_1_1_soldier;T:w_1_1_soldier;T:r_1_1_goblin
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain;Swamp;Forest|Tapped;Island;Plains;Serra Angel;Owlin Shieldmage;Waterfall Aerialist;Gladecover Scout;Kalonian Behemoth;Rimeshield Frost Giant;Elspeth, Sun's Champion|Counters:LOYALTY=6;T:r_1_1_goblin;T:w_1_1_soldier;T:g_1_1_elf_warrior
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=

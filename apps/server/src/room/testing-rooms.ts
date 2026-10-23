@@ -37,6 +37,10 @@
  * `attachRooms`.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import type { Caller, Lobby } from './lobby.ts';
 import type { DraftPlan, PoolVerdict, RoomMode } from '@hadoku/shared';
 
@@ -53,7 +57,25 @@ interface TestingRoomSpec {
 	gameType: 'constructed-1v1' | 'draft';
 	mode?: RoomMode;
 	settings?: { tournament?: boolean; tournamentDecks?: 'locked' | 'per-round' };
+	/** This room's own board, carried onto every match it starts (`CreateRoomInput.scenario`'s doc). */
+	scenario?: string;
 }
+
+/**
+ * The operator, 2026-10-23: "construct some more complex board states … that
+ * i can jump into" — the text of `play/scenarios/<name>.state` (the same
+ * Forge puzzle `[state]` format and directory `scenario-*.jvm.test.ts` and
+ * `e2e/play/scenario.ts` read; `scenario.ts` next door is NOT read here
+ * instead — it is a vitest-only test helper (a module-level `afterEach`),
+ * never safe to import from code the production server boots).
+ */
+function scenarioText(name: string): string {
+	const here = dirname(fileURLToPath(import.meta.url));
+	return readFileSync(join(here, '..', 'play', 'scenarios', `${name}.state`), 'utf8');
+}
+
+/** A board-state room's own gameType/mode: Classic Constructed, no tournament — one admin starts it against the AI from its own table. */
+const BOARD_STATE_MODE: RoomMode = { mode: 'classic', modeOptions: {} };
 
 /** Every testing room but the set draft, which needs an async catalog lookup (`seedSetDraft`, below). */
 const SPECS: readonly TestingRoomSpec[] = [
@@ -74,6 +96,18 @@ const SPECS: readonly TestingRoomSpec[] = [
 	// Vintage Cube 2025-04 × 3" (`draftRooms.ts`'s `DEFAULT_PLAN`) — nothing
 	// here has to set it.
 	{ name: 'Testing: Cube draft (MTGO Vintage Cube 2025-04)', gameType: 'draft' },
+	// Five complex boards (operator, 2026-10-23), each a Classic 1v1 the admin
+	// starts vs the AI from its own table — the normal "add a bot" path
+	// (`http/routes.ts`'s `startFromRoom`) carries the scenario through once
+	// `scripts/art/build-art-ids.ts` has an art row for every real card named
+	// in its `.state` file (`docs/planning/playtest-ledger.md`'s AF row has
+	// the exact run). `scenario-tr-board-states.jvm.test.ts` is each file's
+	// own proof against real Forge.
+	{ name: 'Testing: Board — Midgame', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-midgame') },
+	{ name: 'Testing: Board — Protection & evasion', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-protection') },
+	{ name: 'Testing: Board — Combat', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-combat') },
+	{ name: 'Testing: Board — Stack', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-stack') },
+	{ name: 'Testing: Board — Big board', gameType: 'constructed-1v1', mode: BOARD_STATE_MODE, scenario: scenarioText('tr-bigboard') },
 ];
 
 /** The set-draft room's own stable name — never the set's name, so a new set releasing never orphans this one and spawns a second. */
@@ -97,6 +131,7 @@ function seedOne(lobby: Lobby, spec: TestingRoomSpec, log: (entry: Record<string
 		clientMode: 'builtin',
 		mode: spec.mode,
 		testing: true,
+		...(spec.scenario === undefined ? {} : { scenario: spec.scenario }),
 	});
 	if (!result.ok) {
 		log({ event: 'testing-room-seed-failed', name: spec.name, reason: result.reason });

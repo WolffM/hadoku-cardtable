@@ -536,7 +536,16 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		// without the flag is refused, not silently ignored: a test that thinks its
 		// scripted position applied would otherwise watch an ordinary shuffled game
 		// and misread everything that followed.
-		if (parsed.spec.scenario !== undefined && deps.probe !== true) {
+		//
+		// Lane testing-states' exception: a board-state testing room's OWN
+		// scenario, carried here by `http/routes.ts`'s `startFromRoom` — never from
+		// the request body (that field is stripped before `next()`; `res.locals`
+		// is this process's own scratch space, not JSON, so nothing a client sends
+		// can set it). The room that scenario came from is already admin-only and
+		// the field is already unreachable from any client body
+		// (`CreateRoomInput.scenario`'s doc), so this is the one legitimate
+		// production path for it, not a second probe hatch.
+		if (parsed.spec.scenario !== undefined && deps.probe !== true && res.locals.trustedScenario !== true) {
 			res.status(400).json({ error: 'scenario-needs-probe' });
 			return;
 		}

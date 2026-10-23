@@ -1,0 +1,24 @@
+# "Testing: Board — Protection & evasion" (room/testing-rooms.ts): the
+# operator just shipped visual effects for ward/hexproof/shroud/menace/trample
+# and flying, and wants a board carrying all of them at once, including a
+# flyer with ward, to check the overlays. Seat 0 (human)'s own Main Phase 1,
+# nothing attacking: Owlin Shieldmage (flying + Ward—Pay 3 life) and Waterfall
+# Aerialist (flying + Ward 2) cover the flyer-with-ward ask twice, two ways;
+# Gladecover Scout is hexproof, Kalonian Behemoth is shroud, Boggart Brute is
+# menace, Colossal Dreadmaw is trample. Seat 1 (ai) carries its own Ward
+# creature (Rimeshield Frost Giant) so the admin's Lightning Bolt in hand can
+# target an opponent's warded permanent and watch the pay-or-lose-it ask land
+# on the caster, plus a plain flyer (Serra Angel) for contrast with no ward.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Lightning Bolt
+humanbattlefield=Island;Forest;Owlin Shieldmage;Waterfall Aerialist;Gladecover Scout;Kalonian Behemoth;Boggart Brute;Colossal Dreadmaw
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain;Swamp;Rimeshield Frost Giant;Serra Angel;Grizzly Bears
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

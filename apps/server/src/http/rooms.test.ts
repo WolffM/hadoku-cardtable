@@ -2612,15 +2612,22 @@ describe('testing rooms (admin only, seeded)', () => {
 		const adminList = await call(h, 'GET', '/api/rooms', { headers: { 'x-hadoku-tier': 'admin' } });
 		const adminRooms = (adminList.json() as { rooms: { id: string; name: string; testing: boolean }[] }).rooms;
 		const testingRooms = adminRooms.filter((r) => r.testing);
-		// Four rooms need nothing beyond `Lobby.create`/`setSettings`; the
-		// fifth (the set draft) is skipped and logged with no catalog wired —
-		// this harness's own `checkPlan`/`newestSetCode` are both omitted.
+		// Nine rooms need nothing beyond `Lobby.create`/`setSettings` (the four
+		// original testing rooms, plus five board-state rooms — lane
+		// testing-states, 2026-10-23); the tenth (the set draft) is skipped and
+		// logged with no catalog wired — this harness's own
+		// `checkPlan`/`newestSetCode` are both omitted.
 		expect(testingRooms.map((r) => r.name).sort()).toEqual(
 			[
 				'Testing: Constructed 1v1 (Classic)',
 				'Testing: Constructed tournament (Classic, per-round decks)',
 				'Testing: Cube draft (MTGO Vintage Cube 2025-04)',
 				'Testing: Gauntlet tournament',
+				'Testing: Board — Midgame',
+				'Testing: Board — Protection & evasion',
+				'Testing: Board — Combat',
+				'Testing: Board — Stack',
+				'Testing: Board — Big board',
 			].sort(),
 		);
 		expect(logged).toContainEqual(expect.objectContaining({ event: 'testing-room-seed-skipped', name: 'Testing: Set draft' }));
@@ -2633,10 +2640,58 @@ describe('testing rooms (admin only, seeded)', () => {
 		expect((await call(h, 'POST', `/api/rooms/${target.id}/join`)).status).toBe(404);
 		expect((await call(h, 'GET', `/api/tables/rooms/${target.id}`)).status).toBe(404);
 
-		// An admin: sees it, and can open it.
+		// An admin: sees it, and can open it. An ORDINARY testing room carries no
+		// `scenario` at all (`room/lobby.ts`'s `viewOf` only ever spreads it in
+		// when `RoomRecord.scenario` is set).
 		const adminGet = await call(h, 'GET', `/api/rooms/${target.id}`, { headers: { 'x-hadoku-tier': 'admin' } });
 		expect(adminGet.status).toBe(200);
 		expect((adminGet.json() as { testing: boolean }).testing).toBe(true);
+		expect(Object.keys(adminGet.json() as object)).not.toContain('scenario');
+
+		// A board-state room's DOES carry its scenario — to an admin, which is
+		// never a problem: a non-admin cannot reach this room at all (the 404s
+		// just above), so there is no body for the field to leak into.
+		const board = adminRooms.find((r) => r.name === 'Testing: Board — Midgame')!;
+		const boardGet = await call(h, 'GET', `/api/rooms/${board.id}`, { headers: { 'x-hadoku-tier': 'admin' } });
+		expect(boardGet.status).toBe(200);
+		expect((boardGet.json() as { scenario: string }).scenario).toContain('Elspeth');
+	});
+
+	// Lane testing-states, 2026-10-23: `scenario` rides the same "no field for
+	// it" rule `testing` already does (`CreateRoomInput.scenario`'s doc) — not
+	// a second gate on top of admin-only, because there is no body a client
+	// (admin or not) can ever send it in at all.
+	it('a board-state room’s scenario is set only by `room/testing-rooms.ts`: no create body, admin or not, can set or read one back', async () => {
+		const h = await openFullApp(await tempDir());
+		const admin = { headers: { 'x-hadoku-tier': 'admin' } };
+		for (const headers of [{}, admin]) {
+			const res = await call(h, 'POST', '/api/rooms', { headers, body: { name: 'Smuggled', scenario: 'turn=1\n' } });
+			expect(res.status, res.text).toBe(400);
+			expect((res.json() as { error: string }).error).toMatch(/unknown field/);
+		}
+	});
+
+	it('resets a board-state room into the SAME scenario it was seeded with', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby, log: () => {} });
+		const admin = { headers: { 'x-hadoku-tier': 'admin' } };
+		const before = (await call(h, 'GET', '/api/rooms', admin)).json() as { rooms: { id: string; name: string }[] };
+		const room = before.rooms.find((r) => r.name === 'Testing: Board — Stack')!;
+		const originalScenario = h.lobby.get(room.id)?.scenario;
+		expect(originalScenario).toBeDefined();
+
+		// `/:id/reset` fires `deps.reseedTesting` without awaiting it (`http/rooms.ts`'s
+		// own fire-and-forget, same as a real close) — this harness (unlike
+		// `index.ts`) wires no such hook at all, so the test runs the SAME
+		// `seedTestingRooms` call `reseedTesting` would have, directly and awaited.
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/reset`, admin)).status).toBe(200);
+		expect(h.lobby.get(room.id), 'the old id is gone; reseeding mints a fresh one').toBeUndefined();
+		await seedTestingRooms({ lobby: h.lobby, log: () => {} });
+
+		const after = (await call(h, 'GET', '/api/rooms', admin)).json() as { rooms: { id: string; name: string }[] };
+		const recreated = after.rooms.find((r) => r.name === 'Testing: Board — Stack')!;
+		expect(recreated.id).not.toBe(room.id);
+		expect(h.lobby.get(recreated.id)?.scenario).toBe(originalScenario);
 	});
 
 	it('is the admin’s to run: the seeding account is not a member, and the first to join leads it', async () => {

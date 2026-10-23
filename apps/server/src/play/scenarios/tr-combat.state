@@ -1,0 +1,20 @@
+# "Testing: Board — Combat" (room/testing-rooms.ts): seat 0 (human) lands at
+# its own Main Phase 1 with several untapped, non-sick attackers and a board
+# of blockers across the table including first strike and deathtouch — the
+# same shape `attackers-declared.state` uses (see its header): setting
+# `activephase` straight to a combat step skips Forge's own live declare
+# window entirely, so this sits in MAIN1 and lets the admin pass priority
+# forward into a REAL Declare Attackers Step.
+turn=4
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Giant Growth
+humanbattlefield=Forest;Forest;Mountain;Colossal Dreadmaw;Boggart Brute;Grizzly Bears
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain;Swamp;Anaba Bodyguard;Ankle Biter;Hill Giant
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
