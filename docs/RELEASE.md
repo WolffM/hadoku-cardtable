@@ -55,8 +55,8 @@
 - ...
 ```
 
-Keep it short. It's posted as a Discord embed (description up to 4096 characters), and anything
-longer is cut there.
+Keep it short. It's posted as a Discord embed. A body over 4096 characters is split at its `##`
+headings into more embeds, but Discord caps a message at 6000 characters in all.
 
 ## Fixing prod
 
