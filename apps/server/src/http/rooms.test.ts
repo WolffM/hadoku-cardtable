@@ -2327,6 +2327,32 @@ describe('a tournament locks over HTTP, with the real PodChecks (regression: the
 		expect(bobTable.players.find((p) => p.you)?.deck?.choice.deck).toEqual({ library: bobDeck });
 	});
 
+	// hadoku-cardtable-01, 2026-10-22: All Random deals every game fresh unless the room locks its decks, but a
+	// tournament's table holds each entrant's locked deck — readying at it must not deal over that.
+	it('All Random, locked, two entrants: readying at the round’s table keeps each entrant’s locked deck', async () => {
+		const h = await openFullApp(await tempDir());
+		const created = (
+			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Random tournament', mode: 'random', modeOptions: { pool: 'full' } } })
+		).json() as { id: string };
+		const id = created.id;
+		expect((await call(h, 'POST', `/api/rooms/${id}/join`, { as: 'bob' })).status).toBe(200);
+		expect((await call(h, 'PATCH', `/api/rooms/${id}`, { as: 'alice', body: { settings: { tournament: true } } })).status).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${id}/pod/sit`, { as: 'alice', body: { seat: 0 } })).status).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${id}/pod/sit`, { as: 'bob', body: { seat: 1 } })).status).toBe(200);
+		for (const who of ['alice', 'bob']) expect((await call(h, 'POST', `/api/rooms/${id}/ready`, { as: who, body: { ready: true } })).status).toBe(200);
+		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
+		expect(started.status, started.text).toBe(200);
+		const tableId = (started.json() as import('../room/lobby.ts').RoomView).pod!.pairings[0]!.tableId;
+
+		// What each seat HOLDS: the view hides an All Random deck until it is played.
+		const held = () => h.lobby.get(id)!.members.map((m) => (h.lobby.playerState(id, m.id) as { deck: { text: string } | null } | null)?.deck?.text ?? null);
+		const before = held();
+		expect(before.every((text) => text !== null), 'the lock seats both entrants a deck').toBe(true);
+		for (const who of ['alice', 'bob']) expect((await call(h, 'POST', `/api/tables/rooms/${id}/ready`, { as: who, body: { ready: true, table: tableId } })).status).toBe(200);
+		const after = held();
+		expect(after, 'the same locked decks after both ready').toEqual(before);
+	});
+
 	it('All Random, locked, with one AI entrant: 200, round 1 paired against the AI, and the room still answers afterwards', async () => {
 		const h = await openFullApp(await tempDir());
 		const created = (

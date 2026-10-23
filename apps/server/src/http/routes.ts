@@ -228,7 +228,7 @@ export interface RoomViewLike {
 	mode?: RoomModeState['mode'];
 	modeOptions?: RoomModeState['modeOptions'];
 	/** How the room's matches are dealt (`room/lobby.ts`'s `RoomSettings`). */
-	settings: { handSmoothing: boolean };
+	settings: { handSmoothing: boolean; tournament?: boolean };
 	/** The one member who may change the room's settings. `you.leader` is this, per caller. */
 	leader: string;
 	/**
@@ -1281,7 +1281,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * Deal an All Random table (rulings 3 and 4): one random era of the room's
 	 * pool, and a different deck from it for each seat, the AI's included.
 	 * Every game deals fresh, unless the room locks its decks: then a table
-	 * whose seats already hold theirs plays the same two.
+	 * whose seats already hold theirs plays the same two. A tournament's table
+	 * always keeps what it holds: a locked tournament seats each entrant's
+	 * locked deck there, and a per-round one seats none, so its first game
+	 * deals and the rest of its Bo3 keep that deal (the operator: "Bo3 for
+	 * classic/all-random means same deck", `tournament-mode-plan.md`).
 	 *
 	 * A no-op for any other room.
 	 */
@@ -1294,7 +1298,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const pool = randomPoolOf(room);
 		if (pool === null || rooms === null) return { ok: true, players };
 		const held = players.every((p) => p.state.deck !== null) && (!vsBot || players[0]?.state.aiDeck !== undefined);
-		if (held && randomLocked(room)) return { ok: true, players };
+		if (held && (randomLocked(room) || room.settings.tournament === true)) return { ok: true, players };
 		const draw = drawRandomDecks(random, pool, library);
 		if (draw === null) return { ok: false, error: `no ${pool} era holds two decks` };
 		const dealt = dealDecks(room, tableId, players, draw.decks, draw.era, { vsBot });
