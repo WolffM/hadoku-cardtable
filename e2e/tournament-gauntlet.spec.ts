@@ -69,7 +69,10 @@ test(
       });
       expect(created.status, JSON.stringify(created.body)).toBe(201);
       const roomId = created.body.id;
-      expect((await bob.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`))?.ok()).toBe(true);
+      // A same-document hash navigation answers no Response of its own
+      // (`tournament.spec.ts`'s own `openRoomWithLeader` never checks one
+      // either) — the room's own screen coming up is the real proof.
+      await bob.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
       await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: 15_000 });
 
       const patched = await alice.context.request.patch(`${stack.origin}${PREFIX}/api/rooms/${roomId}`, { data: { settings: { tournament: true, tournamentDecks: 'locked' } } });

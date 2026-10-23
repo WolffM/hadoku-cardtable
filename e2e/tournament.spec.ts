@@ -80,22 +80,52 @@ async function enableTournament(alice: Player, bob: Player, decks: 'locked' | 'p
   }
 }
 
-/** Sits the given seat and picks the first legal deck on offer — Classic's own readiness condition, short of pressing Ready itself. */
-async function sitPick(p: Player, seat: number): Promise<void> {
-  // By its own seat number — `e2e/w72-pod.spec.ts`'s own way of sitting
-  // several players down without a race over which "open seat" is whose.
+/**
+ * Sits the given seat — by its own seat number (`e2e/w72-pod.spec.ts`'s own
+ * way of sitting several players down without a race over which "open seat"
+ * is whose), nothing else. `sitPod` is one of ruling 7's own trigger points
+ * (`#maybeLockTournament`), but seating alone never completes the field —
+ * only a human's OWN readiness (Classic: a deck; Random/Gauntlet: Ready) can.
+ */
+async function sit(p: Player, seat: number): Promise<void> {
   await p.page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).click();
   await expect(p.page.getByTestId('pod-seat-stand'), `${p.name}: holds a pod seat`).toBeVisible({ timeout: UI_TIMEOUT });
+}
+
+/**
+ * Picks the first legal deck on offer — Classic's OWN readiness condition
+ * for the lock (`room/lobby.ts`'s `#lockTournament`: `hasLegalSeatDeck`,
+ * never the Ready button). Ruling 7's own lock is not instrumented on the
+ * deck PUT itself (`http/routes.ts`, outside this lane's claim), so picking
+ * a deck alone never fires it — but it means this player now COUNTS as
+ * ready for it, whether or not they ever press Ready, the next time
+ * anything else does (another sit, an AI seated, anyone's own Ready).
+ */
+async function pickDeck(p: Player): Promise<void> {
   await expect(p.page.getByTestId('deck-mine'), `${p.name}: the tournament lobby’s own deck chooser`).toBeVisible({ timeout: UI_TIMEOUT });
   const tile = p.page.getByTestId('deck-mine').getByTestId('deck-option').first();
   await tile.click();
   await expect(p.page.getByTestId('ready-toggle'), `${p.name}: a legal deck enables Ready`).toBeEnabled({ timeout: UI_TIMEOUT });
 }
 
-/** Presses Ready — ruling 7's own lock may fire the instant this is the last thing the field needed, with nothing else for anyone to press. */
+/** Sits, then picks a deck. */
+async function sitPick(p: Player, seat: number): Promise<void> {
+  await sit(p, seat);
+  await pickDeck(p);
+}
+
+/**
+ * Presses Ready — one of ruling 7's own trigger points. For Classic this is
+ * NOT what the lock itself waits on (the deck already is, `pickDeck`'s own
+ * doc), so by the time this player already holds one, EITHER seat's own
+ * Ready can be the one that completes the field; the lock may fire inside
+ * THIS very click, racing the UI past ever painting "pressed" before the
+ * screen moves on to the round — so this does not assert the pressed state,
+ * only that the click landed. Callers prove the lock's own effect downstream
+ * (the round starting, the lobby seats gone, standings), not this button.
+ */
 async function ready(p: Player): Promise<void> {
   await p.page.getByTestId('ready-toggle').click();
-  await expect(p.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
 }
 
 /** `sitPick` then `ready`, in one call — most callers want both. */
@@ -187,14 +217,15 @@ test(
       bob = opened.bob;
 
       await enableTournament(alice, bob, 'locked');
-      // Alice readies; Bob only sits and picks — not ready yet, so the field
-      // (2 entrants, Bob not ready) does not lock itself.
-      await sitPickReady(alice, 0);
-      await sitPick(bob, 1);
+      // Alice sits, with no deck yet: Classic's own readiness for the lock
+      // is the deck (`pickDeck`'s own doc), not the seat, so the field is
+      // nowhere near complete.
+      await sit(alice, 0);
 
       /*
-       * ── the leader seats an AI on a third, still-open seat — it changes
-       * nothing about the lock, which is still waiting on Bob alone ────────
+       * ── the leader seats an AI on a second, still-open seat — ≥ 2
+       * entrants now, but it changes NOTHING about the lock: Alice herself
+       * has no deck yet ──────────────────────────────────────────────────
        *
        * `isPodAi` (tour-s's fix) is true for a tournament pod's own `ai:<seat>`
        * entrant too, so `PodSeats.tsx` now draws the AI look and the Remove
@@ -205,7 +236,14 @@ test(
       await alice.page.getByTestId('pod-seat-ai').first().click();
       await expect(openSeats, 'one fewer open seat: the AI took it').toHaveCount(before - 1, { timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('pod-seat-ai-remove'), 'the seat now offers Remove, not AI').toHaveCount(1, { timeout: UI_TIMEOUT });
-      await expect(alice.page.getByTestId('pod-tables'), 'the AI entrant alone never locks the field — Bob is still not ready').toHaveCount(0);
+      await expect(alice.page.getByTestId('pod-tables'), 'the AI entrant alone never locks the field — Alice has no deck yet').toHaveCount(0);
+
+      // Bob sits and both humans pick their decks — Classic's own readiness,
+      // still short of anything instrumented re-checking the lock.
+      await sit(bob, 2);
+      await pickDeck(alice);
+      await pickDeck(bob);
+      await expect(alice.page.getByTestId('pod-tables'), 'both decks held, but nothing has re-checked the lock yet').toHaveCount(0);
 
       // Bob's own Ready is the last thing the field needed: it locks by
       // itself, with the AI entrant counted but never asked for its own.
@@ -261,10 +299,14 @@ test(
 
       await enableTournament(alice, bob, 'per-round');
       // Bob never sits: one human, three AI — entrants enough for two rounds
-      // (`roundsFor(4) === 2`), none of Bob's own doing.
-      await sitPick(alice, 0);
+      // (`roundsFor(4) === 2`), none of Bob's own doing. Alice sits with NO
+      // deck yet (Classic's own readiness for the lock, `pickDeck`'s own
+      // doc) — otherwise the very first AI seated would already complete a
+      // 2-entrant field and lock before the loop seats the other two.
+      await sit(alice, 0);
       for (let seat = 0; seat < 3; seat++) await alice.page.getByTestId('pod-seat-ai').first().click();
       await expect(alice.page.getByTestId('pod-seat-ai-remove')).toHaveCount(3, { timeout: UI_TIMEOUT });
+      await pickDeck(alice);
 
       // Alice's own Ready is the last thing the field needed: it locks by itself.
       await ready(alice);
