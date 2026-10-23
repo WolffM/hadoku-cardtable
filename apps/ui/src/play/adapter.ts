@@ -563,8 +563,8 @@ export interface BoardPlayer {
   emblems?: readonly BoardEmblem[];
   /**
    * The rest of the player's `Command` zone, as cards: the initiative, the monarch, a dungeon, a
-   * commander, any effect Forge keeps there (an emblem is not one: it is a medallion,
-   * {@link emblems}). The operator, 2026-10-22: *"i don't see 'initiative' anywhere … same with other
+   * commander (an emblem is not one: it is a medallion, {@link emblems}; nor is an ability's
+   * lasting effect, `drawnInCommand`). The operator, 2026-10-22: *"i don't see 'initiative' anywhere … same with other
    * stuff like monarch"*, and *"for command zone i guess we need a place for that. maybe by default
    * we use the bottom right of the board?"* A public zone, sent both seats in full. Absent for a
    * player with nothing there.
@@ -606,6 +606,28 @@ export interface BoardEmblem {
   scryfallId?: string;
   /** The emblem's own face — what its trigger's chip draws (`StackEntry.sourceCard`): its own name, and no art of its own. */
   card: DraftCard;
+}
+
+/**
+ * The player designations Forge keeps as `EFFECT` cards in a Command zone (`Player.java`'s
+ * `createMonarchEffect`, `createInitiativeEffect`, `createTheRing`, …), by the `[other]` piece each
+ * one's face is drawn as (`ImageKeys.java`): `t:monarch|CMM|50`, `t:initiative|CLB|20☇`.
+ */
+const DESIGNATIONS = new Set(['monarch', 'initiative', 'the_ring', 'radiation', 'speed', 'max_speed', 'blessing', 'enduring_story']);
+
+/**
+ * Whether a card in a Command zone is drawn there: a commander, a dungeon, a plane, a scheme, and a
+ * designation the player has. Not an emblem (a medallion, {@link readEmblems}), and not any other
+ * `EFFECT` card: Forge keeps one for each resolved ability with a lasting effect
+ * (`SpellAbilityEffect.createEffect`) — Nomads en-Kor's {0} made one per activation, and the operator,
+ * 2026-10-23: *"i wouldn't want them to show in the command zone anyway"*.
+ */
+function drawnInCommand(state: WireState, id: number): boolean {
+  const card = state.get(deltaKey(DELTA_TYPE.card, id));
+  if (boolOf(card, 'IsEmblem')) return false;
+  if (enumOf(card, 'GamePieceType') !== 'EFFECT') return true;
+  const piece = /^t:([^|]+)/.exec(strOf(currentFace(state, id), 'ImageKey') ?? '')?.[1];
+  return piece !== undefined && DESIGNATIONS.has(piece);
 }
 
 /** Forge's emblem name, `Emblem — Sorin, Lord of Innistrad`, to the card that made it. */
@@ -1895,7 +1917,7 @@ export function toBoardView(
     const unheld = unclaimed !== undefined && !isViewer && !unclaimed.seated.has(pid);
     const avatarId = avatarByPlayerId?.get(pid) ?? (unheld ? unclaimed.avatarId : undefined);
     const emblems = readEmblems(state, p, artIds, printedPT);
-    const command = cardsIn(idsOf(p, 'Command').filter((id) => !boolOf(state.get(deltaKey(DELTA_TYPE.card, id)), 'IsEmblem')));
+    const command = cardsIn(idsOf(p, 'Command').filter((id) => drawnInCommand(state, id)));
     const hand = isViewer ? cardsIn(handIds).map((c) => seenByOthers(state, c, viewerPlayerId)) : null;
     const holdsStorm = hand?.some((c) => hasKeyword(c.keywords, 'storm')) === true;
     const isActive = pid === activePlayerId;

@@ -1462,6 +1462,16 @@ describe('the Command zone — every card there but an emblem, as cards with the
     expect(theirs.command?.[0]?.card.scryfallId, 'the monarch has its art').toBeDefined();
   });
 
+  it('draws no ability’s lasting effect: Nomads en-Kor’s redirections stay off the board, the monarch beside them stays', () => {
+    const state = baseState();
+    putPieces(state, 0, [
+      { id: 9104, name: 'en-Kor Redirection', imageKey: '', set: 'TMP' },
+      { id: 9105, name: 'The Monarch', imageKey: 't:monarch|CMM|50', set: 'CMM' },
+      { id: 9106, name: 'en-Kor Redirection', imageKey: '', set: 'TMP' },
+    ]);
+    expect(adapt(state).players.find((p) => p.id === 0)!.command?.map((c) => c.card.name)).toEqual(['The Monarch']);
+  });
+
   it('a player with nothing there carries no key', () => {
     for (const p of adapt(baseState()).players) expect(p).not.toHaveProperty('command');
   });
