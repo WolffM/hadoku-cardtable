@@ -18,9 +18,10 @@
  * of a second, hand-rolled copy of them.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RoomTablesSchema, type RoomTable, type SeriesPhase } from '@hadoku/shared';
 
+import { followTableOnce } from '../../play/live/matchStart.ts';
 import { roomFeed } from '../../rooms/feed.ts';
 import { latestReads } from '../../rooms/latest.ts';
 import { apiUrl, bodyOf, getJson, isRecord, sendJson } from '../../http.ts';
@@ -236,4 +237,56 @@ export async function startMyTable(roomId: string, table: RoomTable): Promise<St
   if (table.players.length !== 1) return startTableMatch(roomId, table.id);
   const started = await tableClient.startVsBot(roomId, table.id);
   return started.ok ? { ok: true, matchId: started.matchId } : { ok: false, message: started.error };
+}
+
+/**
+ * My table in the CURRENT round: among the pod's live pairings, never by
+ * membership alone, since an earlier round's table is still mine, and finished.
+ */
+export function myCurrentTable(pod: PodView | null, tables: readonly RoomTable[], memberId: string | null): RoomTable | undefined {
+  if (pod === null || memberId === null) return undefined;
+  const current = new Set(pod.pairings.map((p) => p.tableId));
+  return tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === memberId));
+}
+
+/**
+ * My table's next game starts with nobody pressing anything (the operator,
+ * 2026-10-18: *"it should just go immediately into a game"*): being on my
+ * table page with no game on it is the signal, and the second of its two
+ * players to arrive starts it (`startMyTable`). `canStart` is the mode's own
+ * gate (a re-picked deck, Gauntlet's banpick). Asked once per game; a refusal
+ * is returned with `retry`.
+ */
+export function useTableStart(roomId: string, table: RoomTable | undefined, canStart: boolean): { error: string | null; retry: () => void } {
+  const [error, setError] = useState<string | null>(null);
+  const asked = useRef<string | null>(null);
+  const start = (t: RoomTable, ask: string): void => {
+    asked.current = ask;
+    setError(null);
+    startMyTable(roomId, t).then((r) => {
+      if (!r.ok) setError(r.message);
+    });
+  };
+  const ask = table === undefined ? null : `${table.id}:${table.series.games.length}:${table.series.phase}`;
+  useEffect(() => {
+    if (table === undefined || ask === null || !canStart || table.matchId !== null || !nextGameStarts(table.series.phase)) return;
+    if (asked.current === ask) return;
+    start(table, ask);
+  });
+  const retry = (): void => {
+    if (table !== undefined) start(table, `${table.id}:retry`);
+  };
+  return { error, retry };
+}
+
+/**
+ * Carries a paired player to their own table page, once per pairing
+ * (`followTableOnce`), from the hub or from last round's table. `atTable` is
+ * the route's table.
+ */
+export function useFollowMyTable(roomId: string, pod: PodView | null, tables: readonly RoomTable[], memberId: string | null, atTable: string | undefined): void {
+  const mine = pod?.phase === 'rounds' ? myCurrentTable(pod, tables, memberId)?.id : undefined;
+  useEffect(() => {
+    if (mine !== undefined) followTableOnce(roomId, mine, atTable);
+  }, [roomId, mine, atTable]);
 }

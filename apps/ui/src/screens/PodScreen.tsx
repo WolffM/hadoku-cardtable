@@ -45,8 +45,11 @@
  *
  * A drafter who has pressed Play is done building: they wait here, on the pod —
  * who is ready, and the rounds to come — until the last drafter's Play deals
- * round 1 and their table starts (the operator, 2026-10-20: *"ideally it brings
- * me to the game lobby until my opponent is ready"*), not back in the builder.
+ * round 1 (the operator, 2026-10-20: *"ideally it brings me to the game lobby
+ * until my opponent is ready"*), not back in the builder.
+ *
+ * The rounds are the room's hub (`pod/RoomHub.tsx`) and one page per table
+ * (`pod/TablePage.tsx`, `tableId`), which a paired player is carried to once.
  *
  * `mountInspector` is mounted ONCE here, over this screen's whole root, rather
  * than inside `DraftScreen` — this is the one component the pick screen and
@@ -73,14 +76,11 @@ import { mountInspector } from '../play/inspect/index.ts';
 import { navigate, routeHash } from './route.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { SettingsGear } from '../settings/Settings.tsx';
-import type { RoomTable } from '@hadoku/shared';
-import { livePodSource, nextGameStarts, startMyTable, usePodContext, type PodContext, type PodSource } from './pod/client.ts';
-import { PodStandings } from './pod/PodStandings.tsx';
-import { TableSideboard } from './TableSideboard.tsx';
-import { PodBracket } from './pod/PodBracket.tsx';
+import { livePodSource, useFollowMyTable, usePodContext, type PodSource } from './pod/client.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { PodSpectators } from './pod/PodSpectators.tsx';
-import { followMatchOnce } from '../play/live/matchStart.ts';
+import { RoomHub } from './pod/RoomHub.tsx';
+import { TablePage } from './pod/TablePage.tsx';
 import { preloadCubeArt, viewerCards } from '../play/live/art-preload.ts';
 import { CloseRoom } from '../rooms/CloseRoom.tsx';
 import { cubeIdsOf } from './DraftLobby.tsx';
@@ -91,13 +91,15 @@ import './PodScreen.css';
 export interface PodScreenProps {
   /** The ROOM's id. The draft runs against it. */
   draftId: string;
+  /** The route's table of the rounds (`TablePage`); absent is the hub. */
+  tableId?: string;
   /** Tests pass a stub. Production leaves it undefined and gets socket.io. */
   makeTransport?: () => DraftTransport;
   /** Tests pass a stub. Production leaves it undefined and reads the room over the feed. */
   podSource?: PodSource;
 }
 
-export function PodScreen({ draftId, makeTransport, podSource = livePodSource }: PodScreenProps) {
+export function PodScreen({ draftId, tableId, makeTransport, podSource = livePodSource }: PodScreenProps) {
   const [draft, setDraft] = useState<SocketDraft | null>(null);
   const [table, setTable] = useState<TableState | null>(null);
   const [layout, setLayout] = useState<PackLayout>('fan');
@@ -191,6 +193,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
 
   const myMemberId = ctx?.me ?? null;
   const nameOf = (id: string): string => ctx?.names[id] ?? id;
+  const avatarOf = (id: string): string | null => ctx?.avatars[id] ?? null;
 
   /** Pressed Play, and the rest of the pod is still building. */
   const ready = phase === 'building' && myMemberId !== null && ctx?.pod?.built.includes(myMemberId) === true;
@@ -200,47 +203,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
     if (toBuilder) navigate({ kind: 'deck', draftId }, { replace: true });
   }, [toBuilder, draftId]);
 
-  /**
-   * "A player whose table starts a game is taken to it. Everyone else
-   * stays on the pod." Only live during `rounds`: `building`'s tables do
-   * not exist yet, and `done`'s games are all over.
-   */
-  useEffect(() => {
-    if (myMemberId === null || ctx === null || phase !== 'rounds') return;
-    const mine = myCurrentTable(ctx, myMemberId);
-    if (mine?.matchId != null) followMatchOnce(mine.matchId, false);
-  }, [phase, ctx, myMemberId]);
-
-  /**
-   * My table's next series starts with nobody pressing anything: draft →
-   * build → Play → the game (the operator, 2026-10-18: *"it should just go
-   * immediately into a game"*). Being on this screen in `rounds` with a table
-   * that has no game is the whole signal — I readied my table by being here,
-   * the other player by being on theirs, and the second of us starts it
-   * (`startMyTable`; against the AI there is no second). Asked once per table;
-   * a refusal shows Play at the table to ask again.
-   */
-  const [startTableError, setStartTableError] = useState<string | null>(null);
-  const asked = useRef<string | null>(null);
-  const startTable = (table: RoomTable, ask: string = table.id): void => {
-    asked.current = ask;
-    setStartTableError(null);
-    startMyTable(draftId, table).then((r) => {
-      if (!r.ok) setStartTableError(r.message);
-    });
-  };
-  const retryTable = (tableId: string): void => {
-    const table = ctx?.tables.find((t) => t.id === tableId);
-    if (table !== undefined) startTable(table);
-  };
-  useEffect(() => {
-    if (myMemberId === null || ctx === null || phase !== 'rounds') return;
-    const mine = myCurrentTable(ctx, myMemberId);
-    if (mine === undefined || mine.matchId !== null || !nextGameStarts(mine.series.phase)) return;
-    const ask = `${mine.id}:${mine.series.games.length}:${mine.series.phase}`;
-    if (asked.current === ask) return;
-    startTable(mine, ask);
-  }, [phase, ctx, myMemberId]);
+  useFollowMyTable(draftId, ctx?.pod ?? null, ctx?.tables ?? [], myMemberId, tableId);
 
   /** The room's bar: on top of the pod, or at the top of the draft's side column while drafting. */
   const bar = (
@@ -289,8 +252,44 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
         </p>
       )}
 
-      {rounds || (done && ready) ? (
-        <PodRoom ctx={ctx!} draftId={draftId} myMemberId={myMemberId} nameOf={nameOf} startTableError={startTableError} retryTable={retryTable} />
+      {(rounds || (done && ready)) && tableId !== undefined && ctx!.pod!.phase !== 'building' ? (
+        <TablePage
+          roomId={draftId}
+          pod={ctx!.pod!}
+          table={ctx!.tables.find((t) => t.id === tableId)}
+          myMemberId={myMemberId}
+          nameOf={nameOf}
+          avatarOf={avatarOf}
+          refresh={ctx}
+        />
+      ) : rounds || (done && ready) ? (
+        <RoomHub
+          roomId={draftId}
+          pod={ctx!.pod!}
+          tables={ctx!.tables}
+          myMemberId={myMemberId}
+          nameOf={nameOf}
+          avatarOf={avatarOf}
+          members={ctx!.members}
+          leaderId={ctx!.leaderId}
+        >
+          {ctx!.pod!.phase === 'building' && (
+            <>
+              <PodBuilding pod={ctx!.pod!} nameOf={nameOf} />
+              <a
+                className="shell__link"
+                href={routeHash({ kind: 'deck', draftId })}
+                data-testid="pod-edit-deck"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate({ kind: 'deck', draftId });
+                }}
+              >
+                Edit deck
+              </a>
+            </>
+          )}
+        </RoomHub>
       ) : done || inRounds ? null : table === null ? (
         <DraftSkeleton side={side} />
       ) : (
@@ -338,84 +337,6 @@ function DraftSkeleton({ side }: { side: ReactNode }) {
   );
 }
 
-
-/* ── the rounds: the round, my sideboard step or the standings, and the tables ── */
-
-/** My table in the CURRENT round — an earlier round's table is still mine, and finished. */
-function myCurrentTable(ctx: PodContext, myMemberId: string): RoomTable | undefined {
-  const current = new Set(ctx.pod?.pairings.map((p) => p.tableId) ?? []);
-  return ctx.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === myMemberId));
-}
-
-/** The pod after the draft: building (who is ready, and Edit deck), the rounds (my sideboard step, the standings) or the final standings, over the bracket. */
-function PodRoom({
-  ctx,
-  draftId,
-  myMemberId,
-  nameOf,
-  startTableError,
-  retryTable,
-}: {
-  ctx: PodContext;
-  draftId: string;
-  myMemberId: string | null;
-  nameOf: (id: string) => string;
-  startTableError: string | null;
-  retryTable: (tableId: string) => void;
-}) {
-  const pod = ctx.pod!;
-  const building = pod.phase === 'building';
-  const mine = myMemberId === null ? undefined : myCurrentTable(ctx, myMemberId);
-  // Between games of my series, the room is where the sideboard step is, whichever page I came back by.
-  const sideboarding = pod.phase === 'rounds' && mine !== undefined && mine.matchId === null && mine.series.phase === 'sideboarding';
-  return (
-    <div className="pod__room">
-      <div className="pod__rounds" data-testid={building ? 'pod-ready' : pod.phase === 'rounds' ? 'pod-rounds' : 'pod-final'}>
-        {pod.phase === 'done' ? (
-          <h1>Standings</h1>
-        ) : (
-          <h2 data-testid="pod-round">
-            Round {building ? 1 : pod.round} of {pod.rounds}
-          </h2>
-        )}
-        {building && (
-          <>
-            <PodBuilding pod={pod} nameOf={nameOf} />
-            <a
-              className="shell__link"
-              href={routeHash({ kind: 'deck', draftId })}
-              data-testid="pod-edit-deck"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate({ kind: 'deck', draftId });
-              }}
-            >
-              Edit deck
-            </a>
-          </>
-        )}
-        {startTableError !== null && (
-          <p className="ct-error" role="alert" data-testid="pod-table-start-error">
-            {startTableError}
-          </p>
-        )}
-        {sideboarding && <TableSideboard key={`${mine.id}:${mine.series.games.length}`} roomId={draftId} tableId={mine.id} refresh={ctx} />}
-        <div className="pod__board">
-          <PodBracket
-            pod={pod}
-            tables={ctx.tables}
-            myMemberId={myMemberId}
-            nameOf={nameOf}
-            avatarOf={(id) => ctx.avatars[id] ?? null}
-            onPlay={startTableError === null ? undefined : retryTable}
-          />
-          {!sideboarding && !building && <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} myMemberId={myMemberId} />}
-        </div>
-        <PodSpectators pod={pod} members={ctx.members} myId={myMemberId} leaderId={ctx.leaderId} />
-      </div>
-    </div>
-  );
-}
 
 /* ── who is at the table ─────────────────────────────────────────────── */
 

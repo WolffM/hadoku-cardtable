@@ -168,7 +168,8 @@ test(
         const mine = (await view(api, tableId)).decks.find((d) => d.status === 'picked' && d.by === 0 && !d.played)!.id;
         expect((await api('POST', `/tables/rooms/${roomId}/gauntlet/choose`, { deck: mine, table: tableId })).status).toBe(200);
         await expect.poll(async () => (await view(api, tableId)).phase, { timeout: 30_000, message: `${tableId}: the AI’s own choice deals the game` }).toBe('playing');
-        await page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
+        // The table's own page follows its game.
+        await page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}/table/${tableId}`);
         await page.getByTestId('live-concede').click({ timeout: 30_000 });
         await page.getByTestId('live-concede-yes').click();
         await expect(page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });

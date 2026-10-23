@@ -57,8 +57,8 @@ import { deckStoreClient, type DeckStoreClient, type Mine } from '../deck/deckSt
 import { navigate, routeHash } from './route.ts';
 import { DeckManage } from './DeckManage.tsx';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
-import { livePodSource, playPod, startMyTable, usePodContext, type PodSource } from './pod/client.ts';
-import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
+import { livePodSource, myCurrentTable, playPod, startMyTable, usePodContext, type PodSource } from './pod/client.ts';
+import { followMatchOnce, followTableOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { roomsClient, type RoomsClient } from '../rooms/api.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
@@ -175,10 +175,10 @@ export function DeckScreen({
       const marked = await playPod(draftId);
       if (!marked.ok) return fail(marked.message ?? 'The pod refused that.');
       const room = await rooms.get(draftId).catch(() => null);
-      const me = room?.you.id;
-      const current = new Set(room?.pod?.phase === 'rounds' ? room.pod.pairings.map((p) => p.tableId) : []);
-      const mine = room?.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === me));
+      const mine = room?.pod?.phase === 'rounds' ? myCurrentTable(room.pod, room.tables, room.you.id) : undefined;
       if (mine === undefined) return toRoom();
+      // Straight past my table's page, which this stands in for: the hub has carried me there already.
+      followTableOnce(draftId, mine.id, mine.id);
       if (mine.matchId !== null) return followMatchOnce(mine.matchId, false);
       const started = await startMyTable(draftId, mine);
       if (started.ok && started.matchId !== null) openNewMatch(started.matchId);

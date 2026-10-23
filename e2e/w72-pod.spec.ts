@@ -26,7 +26,7 @@ import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { submitCreateRoom } from './play/rooms.ts';
+import { openHub, openMyTable, submitCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
@@ -200,11 +200,11 @@ test(
             await p.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
             await expect(p.page.getByTestId('sideboard-step'), `${p.name}: Next opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
           }
-          // The loser closes the tab and comes back through the room link: the
-          // room itself opens their sideboard step (the rejoin audit, 2026-10-19,
-          // stranded them on the round screen while the winner waited).
-          await loser.page.goto(roomUrl);
-          await expect(loser.page.getByTestId('table-sideboard'), 'the room opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
+          // The loser leaves and comes back to their table page: it opens their
+          // sideboard step (the rejoin audit, 2026-10-19, stranded them on the
+          // round screen while the winner waited).
+          await openMyTable(loser.page, roomUrl);
+          await expect(loser.page.getByTestId('table-sideboard'), 'the table page opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
           // Q's sideboard layout fix (`8fc0f75f`) put the Ready button back
           // in the viewport — a real click again, not `dispatchEvent`.
           for (const p of seated) await p.page.getByTestId('sideboard-ready').click();
@@ -220,7 +220,7 @@ test(
       }
 
       /* ── standings show, and round 2 pairs by score ────────────────── */
-      await bye!.page.goto(roomUrl);
+      await openHub(bye!.page, roomUrl);
       await expect(bye!.page.getByTestId('pod-standings'), 'standings after round 1').toBeVisible({ timeout: UI_TIMEOUT });
       const rows = bye!.page.getByTestId(/^pod-standings-row-\d+$/);
       await expect(rows).toHaveCount(3);

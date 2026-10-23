@@ -67,7 +67,7 @@ export function Screen({ transport }: ScreenProps) {
     case 'match':
       return <MatchScreen matchId={route.matchId} />;
     case 'room':
-      return <ConstructedScreen roomId={route.roomId} makeTransport={transport} />;
+      return <ConstructedScreen roomId={route.roomId} tableId={route.tableId} makeTransport={transport} />;
     case 'lobby':
       return <LobbyScreen />;
     case 'stats':

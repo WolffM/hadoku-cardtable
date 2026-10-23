@@ -52,6 +52,8 @@ describe('parseRoute', () => {
     expect(parseRoute('/room/x')).toEqual({ kind: 'room', roomId: 'x' });
     expect(parseRoute('room/x')).toEqual({ kind: 'room', roomId: 'x' });
     expect(parseRoute('#/room/x/')).toEqual({ kind: 'room', roomId: 'x' });
+    expect(parseRoute('#/room/x/table/t-1')).toEqual({ kind: 'room', roomId: 'x', tableId: 't-1' });
+    expect(parseRoute('#/room//table/t-1')).toEqual({ kind: 'lobby' });
     expect(parseRoute('#/deck/friday%20cube')).toEqual({
       kind: 'deck',
       draftId: 'friday cube',
@@ -78,6 +80,7 @@ describe('parseRoute', () => {
       { kind: 'room', roomId: 'r-friday-k7q4' },
       // The id that needs encoding on the way out and decoding on the way back.
       { kind: 'room', roomId: 'friday room/2' },
+      { kind: 'room', roomId: 'r-friday-k7q4', tableId: 't-13a1e8f3' },
       { kind: 'stats' },
       { kind: 'stats', player: 'Bella Two' },
       { kind: 'stats', tournaments: true },

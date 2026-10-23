@@ -68,3 +68,30 @@ export async function createRoomByApi(
 export async function createStreamedRoomByApi(page: Page, name: string): Promise<void> {
   await createRoomByApi(page, { name, gameType: 'constructed-1v1', clientMode: 'streamed' });
 }
+
+/** My table in the room's current round, from the room itself. */
+async function myTableId(page: Page, roomId: string): Promise<string> {
+  const room = (await page.evaluate(
+    (id) => fetch(`${window.location.pathname.replace(/\/?$/, '/')}api/rooms/${id}`).then((r) => r.json()),
+    roomId,
+  )) as { you: { id: string }; pod: { pairings: { tableId: string; players: string[] }[] } | null };
+  const mine = room.pod?.pairings.find((p) => p.players.includes(room.you.id));
+  if (mine === undefined) throw new Error(`no table of mine in ${roomId}'s current round`);
+  return mine.tableId;
+}
+
+/** Back to my table's page by its own link, as from the hub's card: what a player who left it does. */
+export async function openMyTable(page: Page, roomUrl: string): Promise<void> {
+  const roomId = new URL(roomUrl).hash.replace(/^#\/room\//, '');
+  await page.goto(`${roomUrl}/table/${await myTableId(page, roomId)}`);
+  await expect(page.getByTestId('table-page')).toBeVisible();
+}
+
+/**
+ * The room's hub, by choice, on a page that has already been carried to its
+ * table this round (`followTableOnce`) or has none: the hub keeps it.
+ */
+export async function openHub(page: Page, roomUrl: string): Promise<void> {
+  await page.goto(roomUrl);
+  await expect(page.getByTestId('pod-tables')).toBeVisible();
+}

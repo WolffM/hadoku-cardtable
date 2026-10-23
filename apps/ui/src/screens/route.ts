@@ -13,7 +13,8 @@
  * ## The routes
  *
  *   `#/`                 the lobby — the list of rooms, and the only front door
- *   `#/room/<roomId>`    a room: who is here, readiness, and the game it is for
+ *   `#/room/<roomId>`    a room: who is here, readiness, and the game it is for; once rounds start, the hub
+ *   `#/room/<roomId>/table/<tableId>`  one match of a room's rounds: its deck pick, Ready, sideboard and game
  *   `#/draft/<draftId>`  LEGACY — redirects to `#/room/<draftId>`. See below.
  *   `#/deck/<draftId>`   the deck built out of that draft's pool
  *   `#/play`             constructed: pick a format and a deck, start a match
@@ -68,7 +69,8 @@ export type Route =
   | { kind: 'deck'; draftId: string }
   | { kind: 'play' }
   | { kind: 'match'; matchId: string }
-  | { kind: 'room'; roomId: string }
+  /** `tableId` is one table of the room's rounds (`screens/room/TablePage.tsx`); absent is the room itself. */
+  | { kind: 'room'; roomId: string; tableId?: string }
   /** Friend tier and above: each screen renders nothing until the server's `/api/sounds` answers (`canView`). */
   | { kind: 'sounds' }
   | { kind: 'sounds-sandbox' }
@@ -102,6 +104,10 @@ export function parseRoute(hash: string): Route {
   if (path === 'inventory') return { kind: 'inventory' };
 
   const parts = path.split('/');
+  if (parts.length === 4 && parts[0] === 'room' && parts[2] === 'table') {
+    const [roomId, tableId] = [decodeSegment(parts[1]!), decodeSegment(parts[3]!)];
+    return roomId === '' ? { kind: 'lobby' } : tableId === '' ? { kind: 'room', roomId } : { kind: 'room', roomId, tableId };
+  }
   if (parts.length !== 2) return { kind: 'lobby' };
   const [head, raw] = parts;
   const id = decodeSegment(raw);
@@ -159,7 +165,7 @@ export function routeHash(route: Route): string {
     case 'match':
       return `#/match/${encodeURIComponent(route.matchId)}`;
     case 'room':
-      return `#/room/${encodeURIComponent(route.roomId)}`;
+      return `#/room/${encodeURIComponent(route.roomId)}${route.tableId === undefined ? '' : `/table/${encodeURIComponent(route.tableId)}`}`;
     case 'stats':
       if (route.tournaments === true) return '#/tournaments';
       return route.player === undefined ? '#/stats' : `#/stats/${encodeURIComponent(route.player)}`;

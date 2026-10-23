@@ -15,6 +15,8 @@ import { playRole } from '../../sound/index.ts';
 const sounded = new Set<string>();
 /** Every match this page has been carried into, by a room or a start. */
 const followed = new Set<string>();
+/** Every table of a room's rounds this page has been carried to. */
+const tablesFollowed = new Set<string>();
 
 /**
  * A room carries its players into a match ONCE (the operator, 2026-10-19: *"the
@@ -31,6 +33,18 @@ export function followMatchOnce(matchId: string, isNew: boolean): void {
   }
 }
 
+/**
+ * A paired player is carried to their own table page ONCE per pairing, as a
+ * match is (the tracker's reconciliation of the two rulings above with ruling 8,
+ * `docs/planning/tournament-mode-plan.md`): back on the hub by choice, they stay.
+ */
+export function followTableOnce(roomId: string, tableId: string, atTable: string | undefined): void {
+  if (tablesFollowed.has(tableId)) return;
+  tablesFollowed.add(tableId);
+  // Already there counts: leaving it for the hub is by choice.
+  if (atTable !== tableId) navigate({ kind: 'room', roomId, tableId });
+}
+
 export function openNewMatch(matchId: string): void {
   followed.add(matchId);
   if (!sounded.has(matchId)) {
@@ -43,6 +57,7 @@ export function openNewMatch(matchId: string): void {
 /** A fresh page's memory — what each test stands for. */
 export function forgetMatchesFollowed(): void {
   followed.clear();
+  tablesFollowed.clear();
 }
 
 /** Whether this page sounded the match's start, for the match's own sound telemetry. */

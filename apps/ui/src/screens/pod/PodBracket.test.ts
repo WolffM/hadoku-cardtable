@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 
 import type { RoomTable } from '@hadoku/shared';
 
@@ -119,7 +119,7 @@ describe('bracketRounds', () => {
 
 describe('PodBracket', () => {
   it('draws past rounds greyed, the round in play live, and an unpaired one empty', () => {
-    render(createElement(PodBracket, { pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
+    render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
     expect(screen.getAllByTestId('pod-bracket-round').map((r) => r.dataset.state)).toEqual(['past', 'now', 'next']);
     expect(screen.queryAllByRole('heading'), 'the room keeps its one heading').toHaveLength(0);
     expect(screen.getAllByTestId('pod-tables-row').map((r) => [r.dataset.tableId, r.dataset.phase])).toEqual([
@@ -130,42 +130,33 @@ describe('PodBracket', () => {
     ]);
   });
 
-  it('makes my live table the way in, Play, and somebody else’s Watch; a finished one goes nowhere', () => {
-    const { rerender } = render(createElement(PodBracket, { pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
-    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe('#/match/m-000000000003');
+  it('makes every live table a link to its table page, Play on mine and Watch on somebody else’s; a finished one goes nowhere', () => {
+    const { rerender } = render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
+    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe('#/room/r-1/table/t-3');
     expect(screen.queryByTestId('pod-tables-watch')).toBeNull();
     const mine = screen.getAllByTestId('pod-tables-row').find((r) => r.dataset.tableId === 't-3')!;
     expect(mine.dataset.mine).toBe('');
-    rerender(createElement(PodBracket, { pod: midPod, tables: midTables, myMemberId: 'u-bob', nameOf, avatarOf }));
-    expect(screen.getByTestId('pod-tables-watch').getAttribute('href')).toBe('#/match/m-000000000003');
+    rerender(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-bob', nameOf, avatarOf }));
+    expect(screen.getByTestId('pod-tables-watch').getAttribute('href')).toBe('#/room/r-1/table/t-3');
     expect(screen.queryByTestId('pod-tables-play')).toBeNull();
     expect(screen.getAllByRole('link')).toHaveLength(1);
   });
 
-  it('offers my own unstarted table a Play button only as the retry after a refused start', () => {
+  it('links a table with no game yet too: its page is where the game starts', () => {
     const waiting = pod({ pairings: [{ tableId: 't-1', players: ['u-alice', 'u-bob'] }] });
-    const tables = [table('t-1', ['u-alice', 'u-bob'])];
-    const { rerender } = render(createElement(PodBracket, { pod: waiting, tables, myMemberId: 'u-alice', nameOf, avatarOf }));
-    expect(screen.queryByTestId('pod-tables-play')).toBeNull();
-    const onPlay = vi.fn();
-    rerender(createElement(PodBracket, { pod: waiting, tables, myMemberId: 'u-alice', nameOf, avatarOf, onPlay }));
-    const play = screen.getByTestId('pod-tables-play');
-    expect(play.tagName).toBe('BUTTON');
-    fireEvent.click(play);
-    expect(onPlay).toHaveBeenCalledWith('t-1');
-    rerender(createElement(PodBracket, { pod: waiting, tables, myMemberId: 'u-carol', nameOf, avatarOf, onPlay }));
-    expect(screen.queryByTestId('pod-tables-play')).toBeNull();
+    render(createElement(PodBracket, { roomId: 'r-1', pod: waiting, tables: [table('t-1', ['u-alice', 'u-bob'])], myMemberId: 'u-alice', nameOf, avatarOf }));
+    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe('#/room/r-1/table/t-1');
   });
 
   it('draws each player’s character, or their initial without one', () => {
-    render(createElement(PodBracket, { pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
+    render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
     const live = screen.getAllByTestId('pod-tables-row').find((r) => r.dataset.tableId === 't-3')!;
     expect(live.querySelector('img')?.getAttribute('src')).toMatch(/square_sage\.png$/);
     expect(live.querySelector('.pod-bracket__face--none')?.textContent).toBe('C');
   });
 
   it('names each round’s bye, with no "(you)" beside my name', () => {
-    render(createElement(PodBracket, { pod: midPod, tables: midTables, myMemberId: 'u-eve', nameOf, avatarOf }));
+    render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-eve', nameOf, avatarOf }));
     expect(screen.getAllByTestId('pod-tables-bye').map((b) => b.querySelector('.pod-bracket__name')?.textContent)).toEqual(['Carol', 'u-eve']);
   });
 });

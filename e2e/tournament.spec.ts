@@ -36,12 +36,13 @@ import { PREFIX } from './identities.ts';
 import { makeTitled, resizeWindow, roomIdFromHash } from './play/board.ts';
 import { openFriend, type Friend as Player } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
-import { submitCreateRoom } from './play/rooms.ts';
+import { openMyTable, submitCreateRoom } from './play/rooms.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 const UI_TIMEOUT = 30_000;
 const matchUrl = /#\/match\/(m-[0-9a-f]{12})$/;
+const tablePage = /#\/room\/[^/]+\/table\/t-[0-9a-f]+$/;
 
 /** Routes `/session/whoami` to this member's own real id, and reloads so `useWhoami()` re-resolves it — `e2e/w72-pod.spec.ts`'s own fix for "which seat is mine" (`PodSeats`). */
 async function routeRealIdentity(p: Player, roomId: string): Promise<void> {
@@ -183,8 +184,8 @@ test(
         await p.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
         await expect(p.page.getByTestId('sideboard-step'), `${p.name}: Next opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
       }
-      await loser.page.goto(roomUrl);
-      await expect(loser.page.getByTestId('table-sideboard'), 'the room opens the loser’s sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
+      await openMyTable(loser.page, roomUrl);
+      await expect(loser.page.getByTestId('table-sideboard'), 'the loser’s table page opens the sideboard step').toBeVisible({ timeout: UI_TIMEOUT });
       for (const p of [winner, loser]) await p.page.getByTestId('sideboard-ready').click();
       await loser.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
       await expect(loser.page.locator('[aria-label="Game board"]'), 'game 2, back at the table').toBeVisible({ timeout: UI_TIMEOUT });
@@ -262,7 +263,8 @@ test(
       for (const p of [alice, bob]) {
         await expect(p.page.getByTestId('pod-seats'), `${p.name}: the seat strip is gone once seats lock`).toHaveCount(0, { timeout: UI_TIMEOUT });
         await expect(p.page.getByTestId('pod-seat-ai'), `${p.name}: no AI action exists after lock`).toHaveCount(0);
-        await expect(p.page.getByTestId('pod-tables'), `${p.name}: the bracket is up`).toBeVisible({ timeout: UI_TIMEOUT });
+        // The two paired are carried to their table page; the bye stays on the hub.
+        await expect(p.page.getByTestId('pod-tables').or(p.page.getByTestId('table-page')), `${p.name}: the round is up`).toBeVisible({ timeout: UI_TIMEOUT });
       }
     } finally {
       await stack.stop();
@@ -317,7 +319,6 @@ test(
 
       // Alice's own Ready is the last thing the field needed: it locks by itself.
       await ready(alice);
-      await expect(alice.page.getByTestId('pod-tables'), 'round 1 is up').toBeVisible({ timeout: UI_TIMEOUT });
 
       /**
        * Round N's own table, vs the AI: picks THAT round's deck, waits for
@@ -328,7 +329,9 @@ test(
        * nothing for a browser to press.
        */
       const playRound = async (round: number): Promise<void> => {
-        await expect(alice!.page.getByTestId('pod-round'), `round ${round} is current`).toHaveText(`Round ${round} of 2`, { timeout: UI_TIMEOUT });
+        // Paired: carried to the round's own table page, where its deck is picked.
+        await alice!.page.waitForURL(tablePage, { timeout: UI_TIMEOUT });
+        await expect(alice!.page.getByTestId('table-hub'), `round ${round} is current`).toHaveText(`Round ${round} of 2`, { timeout: UI_TIMEOUT });
         await expect(alice!.page.getByTestId('deck-mine'), `round ${round}: the round’s OWN deck chooser — never tables[0]’s`).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('deck-mine').getByTestId('deck-option').first().click();
         await alice!.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
@@ -338,8 +341,8 @@ test(
         await expect(alice!.page.getByTestId('game-result')).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
         await expect(alice!.page.getByTestId('sideboard-step'), `round ${round}: game 1 alone is a Bo1 — Next opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
-        await alice!.page.goto(roomUrl);
-        await expect(alice!.page.getByTestId('table-sideboard'), `round ${round}: the room opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
+        await openMyTable(alice!.page, roomUrl);
+        await expect(alice!.page.getByTestId('table-sideboard'), `round ${round}: the table page opens the sideboard step`).toBeVisible({ timeout: UI_TIMEOUT });
         await alice!.page.getByTestId('sideboard-ready').click();
         await alice!.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
         await expect(alice!.page.locator('[aria-label="Game board"]'), `round ${round}: game 2`).toBeVisible({ timeout: UI_TIMEOUT });

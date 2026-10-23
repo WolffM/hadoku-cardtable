@@ -9,18 +9,14 @@
  * score, so there is no tree to draw. One column per round, left to right:
  * finished rounds small and greyed, the round in play full size, rounds not
  * yet paired as a dashed box. Each match is a card with both players' faces,
- * names and games won; a live one is the way in — Play on my own table, Watch
- * on anybody else's.
+ * names and games won; a live one is the way to its table page
+ * (`TablePage.tsx`) — Play on my own table, Watch on anybody else's.
  *
  * A finished round comes from `PodView.results` (one per table, recorded as
  * its series ends, `room/lobby.ts`'s `#finishPodTable`), the round in play
  * from `PodView.pairings` and the tables they name. Each result is matched to
  * the table its two players sat at, oldest first, so a finished card still
  * carries its table's id.
- *
- * **"Play" starts the game only when a start failed.** The pod screen starts a
- * seated player's table on its own (`PodScreen.tsx`) and carries them to it;
- * the button is the retry after a refusal, and nothing here navigates on its own.
  */
 
 import type { RoomTable, SeriesPhase } from '@hadoku/shared';
@@ -85,14 +81,13 @@ export function bracketRounds(pod: PodView, tables: readonly RoomTable[]): Brack
 }
 
 export interface PodBracketProps {
+  roomId: string;
   pod: PodView;
   tables: readonly RoomTable[];
   myMemberId: string | null;
   nameOf: (memberId: string) => string;
   /** A player's watchparty character, or `null` for none. */
   avatarOf: (memberId: string) => string | null;
-  /** Starts the game at my table with no live match yet — the retry after a refused start. */
-  onPlay?: (tableId: string) => void;
 }
 
 /** The player's watchparty character, or their initial without one — or when it will not load. */
@@ -100,7 +95,7 @@ function Face({ id, nameOf, avatarOf }: { id: string; nameOf: (id: string) => st
   return <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="pod-bracket__face" fallbackClassName="pod-bracket__face pod-bracket__face--none" width={32} height={32} />;
 }
 
-function Card({ match, live, myMemberId, nameOf, avatarOf, onPlay }: { match: BracketMatch; live: boolean } & Omit<PodBracketProps, 'pod' | 'tables'>) {
+function Card({ roomId, match, live, myMemberId, nameOf, avatarOf }: { match: BracketMatch; live: boolean } & Omit<PodBracketProps, 'pod' | 'tables'>) {
   const mine = myMemberId !== null && match.players.includes(myMemberId);
   const finished = match.phase === 'done';
   const matchId = match.table?.matchId ?? null;
@@ -127,24 +122,16 @@ function Card({ match, live, myMemberId, nameOf, avatarOf, onPlay }: { match: Br
       <span className="pod-bracket__go">{label}</span>
     </span>
   );
-  let inner = body;
-  if (live && matchId !== null) {
-    // The whole card is the way in.
-    inner = (
-      <a className="pod-bracket__hit" data-testid={mine ? 'pod-tables-play' : 'pod-tables-watch'} href={routeHash({ kind: 'match', matchId })}>
+  // A live card is the way to its table page, whose match it names.
+  const inner =
+    live && !finished && match.table !== null ? (
+      <a className="pod-bracket__hit" data-testid={mine ? 'pod-tables-play' : 'pod-tables-watch'} href={routeHash({ kind: 'room', roomId, tableId: match.table.id })}>
         {body}
-        {foot(mine ? 'Play' : 'Watch', `Game ${match.wins[0] + match.wins[1] + 1}`)}
+        {foot(mine ? 'Play' : 'Watch', matchId === null ? undefined : `Game ${match.wins[0] + match.wins[1] + 1}`)}
       </a>
+    ) : (
+      body
     );
-  } else if (live && mine && !finished && onPlay !== undefined && match.table !== null) {
-    const tableId = match.table.id;
-    inner = (
-      <button type="button" className="pod-bracket__hit" data-testid="pod-tables-play" onClick={() => onPlay(tableId)}>
-        {body}
-        {foot('Play')}
-      </button>
-    );
-  }
   return (
     <div className="pod-bracket__match ct-panel" data-testid="pod-tables-row" data-table-id={match.table?.id} data-phase={match.phase} data-mine={mine ? '' : undefined}>
       {inner}
@@ -152,7 +139,7 @@ function Card({ match, live, myMemberId, nameOf, avatarOf, onPlay }: { match: Br
   );
 }
 
-export function PodBracket({ pod, tables, myMemberId, nameOf, avatarOf, onPlay }: PodBracketProps) {
+export function PodBracket({ roomId, pod, tables, myMemberId, nameOf, avatarOf }: PodBracketProps) {
   const rounds = bracketRounds(pod, tables);
   return (
     <div className="pod-bracket" data-testid="pod-tables">
@@ -165,7 +152,7 @@ export function PodBracket({ pod, tables, myMemberId, nameOf, avatarOf, onPlay }
           ) : (
             <div className="pod-bracket__list">
               {r.matches.map((m, i) => (
-                <Card key={m.table?.id ?? i} match={m} live={r.state === 'now'} myMemberId={myMemberId} nameOf={nameOf} avatarOf={avatarOf} onPlay={onPlay} />
+                <Card key={m.table?.id ?? i} roomId={roomId} match={m} live={r.state === 'now'} myMemberId={myMemberId} nameOf={nameOf} avatarOf={avatarOf} />
               ))}
               {r.bye !== null && (
                 <div className="pod-bracket__bye" data-testid="pod-tables-bye">

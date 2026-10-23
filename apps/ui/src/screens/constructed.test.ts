@@ -2498,7 +2498,7 @@ describe('tournament mode', () => {
     expect(screen.queryByTestId('pod-lock-seats')).toBeNull();
   });
 
-  it('a real run, 2026-10-22 (room r-228e5e39987e): never follows a match on the room’s stale tables[0] — my own CURRENT round table is what surfaces', async () => {
+  it('a real run, 2026-10-22 (room r-228e5e39987e): never follows a match on the room’s stale tables[0] — I am carried to my own CURRENT round table’s page', async () => {
     await mountTournament({
       // The stale table (`t-stub0001`, what every OTHER field here feeds) — as
       // if Alice had sat here before ever turning Tournament on, and a match
@@ -2515,9 +2515,8 @@ describe('tournament mode', () => {
       extraTables: [{ id: 't-round1', players: [{ memberId: 'p-alice', name: 'user-alice' }], matchId: null }],
     });
     await screen.findByTestId('pod-tables');
-    // Never navigated into the stale match.
-    expect(globalThis.location.hash).toBe('');
-    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+    // Never into the stale match: to round 1's table page.
+    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: ROOM, tableId: 't-round1' });
   });
 
   it('once the pod is done, heads with Standings rather than a round number', async () => {

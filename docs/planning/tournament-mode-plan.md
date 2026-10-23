@@ -56,6 +56,15 @@ The operator's words are quoted verbatim. **Design** is ours and may change. The
    So once rounds start, the room page is a hub: standings, the bracket, and a link per live match.
    Everything a match does (deck pick, Ready, sideboard, the game itself) happens on its table page.
 
+   **Clarification (2026-10-23, the tracker hadoku-cardtable-01, reconciling two operator statements
+   with this ruling; flagged to the operator):** the operator has said both *"it should just go
+   immediately into a game"* (drafts, 2026-10-18) and *"the initial force into the game should only
+   happen once when the game starts"* (2026-10-19). So a paired player is carried **once per pairing**
+   to their own table page (`followTableOnce`, `play/live/matchStart.ts`). The table page starts the
+   game by itself for a locked or drafted deck (Classic per-round picks there first, Gauntlet readies
+   there) and follows into the match, as `followMatchOnce` always has. Anyone who goes back to the hub
+   by choice stays there, and their card is the way back in. Nothing on the hub starts a game.
+
 ## What exists (2026-10-22, from code)
 
 - **Pods** (`apps/server/src/room/lobby.ts`) have everything Swiss needs:

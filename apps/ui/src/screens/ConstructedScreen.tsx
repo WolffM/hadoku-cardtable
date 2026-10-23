@@ -202,9 +202,10 @@ import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
 import { seatAvatars } from './gauntlet/seats.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
-import { TournamentPodLobby } from './constructed-mode/TournamentPodLobby.tsx';
-import { TournamentRounds } from './constructed-mode/TournamentRounds.tsx';
-import { sitPod, aiPod, closePod, standPod, startMyTable, nextGameStarts } from './pod/client.ts';
+import { myCurrentTable, useFollowMyTable } from './pod/client.ts';
+import { PodLobby } from './pod/PodLobby.tsx';
+import { RoomHub } from './pod/RoomHub.tsx';
+import { TablePage } from './pod/TablePage.tsx';
 import { isPodAi } from './pod/wire.ts';
 import {
   RANDOM_DECK,
@@ -242,6 +243,8 @@ export interface ConstructedScreenProps {
   client?: TablesClient;
   /** The room whose table this is. `App` threads it from `#/room/<id>`. */
   roomId?: string;
+  /** One table of the room's rounds, from `#/room/<id>/table/<table>` (`pod/TablePage.tsx`); absent is the hub. */
+  tableId?: string;
   /** What says the room changed. Tests pass their own; production passes nothing. */
   feed?: RoomFeed;
   /** Tests pass a rooms client so the join-on-entry can be driven. Production passes nothing. */
@@ -931,6 +934,7 @@ export function DeckChooser({
 export function ConstructedScreen({
   client: given,
   roomId,
+  tableId,
   feed = roomFeed(),
   rooms,
   streamFetch,
@@ -946,6 +950,7 @@ export function ConstructedScreen({
     <RoomTableScreen
       client={client}
       roomId={roomId}
+      tableId={tableId}
       feed={feed}
       rooms={rooms}
       streamFetch={streamFetch}
@@ -960,6 +965,7 @@ export function ConstructedScreen({
 function RoomTableScreen({
   client,
   roomId,
+  tableId,
   feed,
   rooms: givenRooms,
   streamFetch,
@@ -970,6 +976,7 @@ function RoomTableScreen({
 }: {
   client: TablesClient;
   roomId: string;
+  tableId: string | undefined;
   feed: RoomFeed;
   rooms?: RoomsClient;
   streamFetch?: Fetch;
@@ -1119,20 +1126,11 @@ function RoomTableScreen({
   /** Seats are locked: the bracket, standings and "your table" replace the lobby's seats entirely. */
   const tournamentRounds = tournament && pod !== null && (pod.phase === 'rounds' || pod.phase === 'done');
   /*
-   * The tournament's rounds: my own table (if any) among `view.tables` —
-   * possibly several at once, unlike the 1v1 room's single `myTable` —
-   * found the same way `PodScreen.tsx`'s own `myCurrentTable` does, from
-   * the CURRENT round's pairings, since an earlier round's table is still
-   * mine and finished. Computed here (ahead of the deck/table reads below)
-   * so a Gauntlet tournament's own state effect, further down, can scope
-   * its reads to it.
+   * The tournament's rounds: my own table (if any) in the CURRENT round.
+   * Computed here (ahead of the deck/table reads below) so a Gauntlet
+   * tournament's own state effect, further down, can scope its reads to it.
    */
-  const myTournamentTable: SharedRoomTable | undefined = (() => {
-    if (pod === null || view === null) return undefined;
-    const current = new Set(pod.pairings.map((p) => p.tableId));
-    return view.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === view.you.id));
-  })();
-  const tSideboarding = myTournamentTable !== undefined && myTournamentTable.matchId === null && myTournamentTable.series.phase === 'sideboarding';
+  const myTournamentTable: SharedRoomTable | undefined = myCurrentTable(pod, view?.tables ?? [], view?.you.id ?? null);
   /** A tournament Gauntlet table is scoped by this id; a non-tournament one reads `undefined` (the room's first table), same as before. */
   const gauntletTableId = tournament ? myTournamentTable?.id : undefined;
 
@@ -1863,29 +1861,6 @@ function RoomTableScreen({
   const toggleTournament = (on: boolean): void => writeRoom(() => rooms.setSettings(roomId, { tournament: on }));
   const chooseTournamentDecks = (decks: TournamentDecks): void => writeRoom(() => rooms.setSettings(roomId, { tournamentDecks: decks }));
 
-  /*
-   * The tournament pod's own seat actions — `screens/pod/client.ts`'s
-   * sit/ai/close/stand, the same calls `DraftLobby.tsx` already drives for a
-   * draft pod's lobby — queued the same way every OTHER write on this screen
-   * is (`queued`/`setBusy`, above) rather than `DraftLobby`'s own separate
-   * in-flight ref, since this screen already has one.
-   */
-  const [podSeatError, setPodSeatError] = useState<string | null>(null);
-  const podAct = (call: () => Promise<{ ok: boolean; message: string | null }>): void => {
-    if (queued(() => podAct(call))) return;
-    setBusy(true);
-    setPodSeatError(null);
-    call()
-      .then((r) => {
-        if (!r.ok) setPodSeatError(r.message);
-      })
-      .finally(() => setBusy(false));
-  };
-  const doSitPod = (seat: number): void => podAct(() => sitPod(roomId, seat));
-  const doAiPod = (seat: number, on: boolean): void => podAct(() => aiPod(roomId, seat, on));
-  const doClosePod = (seat: number, closed: boolean): void => podAct(() => closePod(roomId, seat, closed));
-  const doStandPod = (): void => podAct(() => standPod(roomId));
-
   /** The eras a Gauntlet is offered in, read once the room is on Gauntlet. */
   const [gauntletEras, setGauntletEras] = useState<GauntletEraOption[] | null>(null);
   const wantsGauntletEras = mode === 'gauntlet' && gauntletEras === null;
@@ -2083,16 +2058,7 @@ function RoomTableScreen({
   const tNameOf = (id: string): string => podEntrantNames[id] ?? members.find((m) => m.id === id)?.name ?? (isPodAi(id) ? 'AI' : id);
   const tAvatarOf = (id: string): string | null => members.find((m) => m.id === id)?.avatarId ?? null;
 
-  /**
-   * A player whose table starts a game is taken to it; everyone else stays
-   * on the pod — `PodScreen.tsx`'s own effect for a draft pod's rounds,
-   * mirrored here because a tournament pod lives inside `ConstructedScreen`
-   * rather than `PodScreen`.
-   */
-  useEffect(() => {
-    if (!tournamentRounds || myTournamentTable?.matchId == null) return;
-    followMatchOnce(myTournamentTable.matchId, false);
-  }, [tournamentRounds, myTournamentTable]);
+  useFollowMyTable(roomId, tournament ? pod : null, view?.tables ?? [], view?.you.id ?? null, tableId);
 
   /**
    * Classic's "Each round": my CURRENT round's own table, read fresh
@@ -2136,37 +2102,8 @@ function RoomTableScreen({
     });
   };
 
-  /**
-   * My table's next game starts with nobody pressing anything — same gate as
-   * `PodScreen.tsx`'s, plus Classic's "Each round": a fresh round withholds
-   * the start until THIS entrant's own re-pick is legal (`tNeedsDeck`); the
-   * OTHER seat's own table-read answers the same way once they pick theirs,
-   * so the first of the two to finish never starts the game alone.
-   */
-  const [tStartError, setTStartError] = useState<string | null>(null);
-  const tAsked = useRef<string | null>(null);
-  const startTournamentTable = (t: SharedRoomTable, ask: string = t.id): void => {
-    tAsked.current = ask;
-    setTStartError(null);
-    startMyTable(roomId, t).then((r) => {
-      if (!r.ok) setTStartError(r.message);
-    });
-  };
-  const retryTournamentTable = (tableId: string): void => {
-    const t = view?.tables.find((x) => x.id === tableId);
-    if (t !== undefined) startTournamentTable(t);
-  };
-  useEffect(() => {
-    if (!tournamentRounds || myTournamentTable === undefined || tNeedsDeck) return;
-    // Gauntlet's own flow decides when a game may start (its `playing` phase,
-    // once both decks are dealt) — the table's bare `seating` is true from the
-    // pairing itself, long before anyone has readied, banned or picked.
-    if (mode === 'gauntlet' && gauntlet?.phase !== 'playing') return;
-    if (myTournamentTable.matchId !== null || !nextGameStarts(myTournamentTable.series.phase)) return;
-    const ask = `${myTournamentTable.id}:${myTournamentTable.series.games.length}:${myTournamentTable.series.phase}`;
-    if (tAsked.current === ask) return;
-    startTournamentTable(myTournamentTable, ask);
-  }, [tournamentRounds, myTournamentTable, tNeedsDeck, mode, gauntlet]);
+  /** What holds my tournament table's next game: this round's own deck pick, or Gauntlet's flow until its `playing`. */
+  const tCanStart = !tNeedsDeck && (mode !== 'gauntlet' || gauntlet?.phase === 'playing');
 
   const startState = startStateText(starting, matchId);
   /** Back in the room by choice while the game goes on: the way into it again. */
@@ -2192,8 +2129,7 @@ function RoomTableScreen({
   );
 
   /**
-   * A Gauntlet tournament table's own board — `TournamentRounds`'s
-   * `gauntlet` slot. Nobody sits or stands here (the pod's pairing already
+   * A Gauntlet tournament table's own board — its table page's slot. Nobody sits or stands here (the pod's pairing already
    * fixed the two seats, ruling 5): before the draw, just the two entrants'
    * names and MY OWN Ready; from the reveal on, `GauntletScreen`, exactly as
    * a non-tournament Gauntlet table already draws it, just scoped to
@@ -2241,7 +2177,7 @@ function RoomTableScreen({
    * first: the form for that is in the body below.
    */
   if (!streamed && draftRoom && draftStartedAt !== null && locked === null) {
-    return <PodScreen draftId={roomId} makeTransport={makeTransport} />;
+    return <PodScreen draftId={roomId} tableId={tableId} makeTransport={makeTransport} />;
   }
 
   return (
@@ -2424,19 +2360,16 @@ function RoomTableScreen({
             </section>
 
             {mode !== null && tournamentLobby ? (
-              <TournamentPodLobby
-                pod={pod!}
+              <PodLobby
+                testId="tournament-lobby"
+                roomId={roomId}
+                pod={pod}
                 members={members}
                 leaderId={view?.leader ?? ''}
-                myMemberId={view?.you.id ?? ''}
+                myMemberId={view?.you.id ?? null}
                 iAmReady={iAmReady}
-                canReady={canReady}
-                onSit={doSitPod}
-                onStand={doStandPod}
-                onAi={doAiPod}
-                onClose={doClosePod}
+                readyDisabled={!canReady}
                 onReady={setDraftReady}
-                seatError={podSeatError}
               >
                 {mode === 'classic' && loaded !== null && (
                   <DeckChooser
@@ -2449,18 +2382,21 @@ function RoomTableScreen({
                     onChoose={chooseDeck}
                   />
                 )}
-              </TournamentPodLobby>
+              </PodLobby>
             ) : mode !== null && tournamentRounds ? (
-              <TournamentRounds
-                pod={pod!}
-                tables={view?.tables ?? []}
-                myMemberId={view?.you.id ?? null}
-                nameOf={tNameOf}
-                avatarOf={tAvatarOf}
-                onPlay={tStartError === null ? undefined : retryTournamentTable}
-                startTableError={tStartError}
-                deckPicker={
-                  tDeckPicking && loaded !== null ? (
+              tableId !== undefined ? (
+                <TablePage
+                  roomId={roomId}
+                  pod={pod!}
+                  table={view?.tables.find((t) => t.id === tableId)}
+                  myMemberId={view?.you.id ?? null}
+                  nameOf={tNameOf}
+                  avatarOf={tAvatarOf}
+                  canStart={tCanStart}
+                  refresh={view}
+                  tables={client}
+                >
+                  {tDeckPicking && loaded !== null && (
                     <DeckChooser
                       options={visibleOptions ?? []}
                       empty={shownOptions !== null && shownOptions.length > 0 ? 'No decks' : undefined}
@@ -2470,15 +2406,21 @@ function RoomTableScreen({
                       pendingTiles={ROOM_SKELETON_TILES}
                       onChoose={chooseTournamentTableDeck}
                     />
-                  ) : undefined
-                }
-                sideboard={
-                  tSideboarding && myTournamentTable !== undefined ? (
-                    <TableSideboard key={`${myTournamentTable.id}:${myTournamentTable.series.games.length}`} roomId={roomId} tableId={myTournamentTable.id} refresh={view} tables={client} />
-                  ) : undefined
-                }
-                gauntlet={tGauntletBoard}
-              />
+                  )}
+                  {tGauntletBoard}
+                </TablePage>
+              ) : (
+                <RoomHub
+                  roomId={roomId}
+                  pod={pod!}
+                  tables={view?.tables ?? []}
+                  myMemberId={view?.you.id ?? null}
+                  nameOf={tNameOf}
+                  avatarOf={tAvatarOf}
+                  members={members}
+                  leaderId={view?.leader ?? ''}
+                />
+              )
             ) : (
               mode !== null && (
               <>

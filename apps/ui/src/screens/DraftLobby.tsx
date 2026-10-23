@@ -78,18 +78,15 @@
  * never passes back through here.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { CubeSummary, DraftPlan, DraftPreset, PoolSource, SetSummary } from '@hadoku/shared';
 
-import { ActionButton } from '../components/ActionButton.tsx';
 import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
 import { PoolPicker, refusalOf, type PoolTab, type Refusal, type SourceStyle } from '../draft/PoolPicker.tsx';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
-import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
-import { PodSeats } from './pod/PodSeats.tsx';
-import { PodSpectators } from './pod/PodSpectators.tsx';
+import { PodLobby } from './pod/PodLobby.tsx';
 import { podDealable, type PodView } from './pod/wire.ts';
 
 export { podDealable };
@@ -167,38 +164,6 @@ export function DraftLobby({
 }) {
   const myMemberId = myId === '' ? null : myId;
   const amLeader = myId !== '' && myId === leaderId;
-
-  const [seatError, setSeatError] = useState<string | null>(null);
-  /**
-   * One seat change at a time, held here and not drawn: disabling every seat's
-   * buttons for the round trip made the whole list blink on each press (the
-   * operator, 2026-10-19: *"whenever i click sit here or ai, i notice all the
-   * buttons flash"*). A press while one is in flight goes out once it has answered.
-   */
-  const inFlight = useRef(false);
-  const later = useRef<(() => Promise<{ ok: boolean; message: string | null }>)[]>([]);
-
-  const act = (call: () => Promise<{ ok: boolean; message: string | null }>): void => {
-    if (inFlight.current) {
-      later.current.push(call);
-      return;
-    }
-    inFlight.current = true;
-    setSeatError(null);
-    call()
-      .then((r) => {
-        if (!r.ok) setSeatError(r.message);
-      })
-      .finally(() => {
-        inFlight.current = false;
-        const next = later.current.shift();
-        if (next !== undefined) act(next);
-      });
-  };
-  const doSit = (seat: number): void => act(() => sitPod(roomId, seat));
-  const doAi = (seat: number, on: boolean): void => act(() => aiPod(roomId, seat, on));
-  const doClose = (seat: number, closed: boolean): void => act(() => closePod(roomId, seat, closed));
-  const doStand = (): void => act(() => standPod(roomId));
 
   /* ── the pool picker: the room's cube/set lists, and the plan write ──── */
   const verdict = pod?.verdict ?? null;
@@ -410,57 +375,27 @@ export function DraftLobby({
   const backgroundRefusal = verdict !== null && !verdict.ok ? verdict : null;
   const refusal = (tab === 'custom' ? customAttempt : attempt?.refusal) ?? backgroundRefusal;
 
-  /**
-   * The draft-state line and the Ready button: always drawn (`pod` may
-   * still be null for the one frame before the room's own read lands), and
-   * one shared element — never two copies — so it sits inside the pod strip
-   * once seats exist, and stands alone before they do.
-   */
-  const side = (
-    <div className="pod-strip__side">
-      {dealing && (
-        <p className="lobby__note" data-testid="draft-state">
-          Dealing the draft…
-        </p>
-      )}
-      <ActionButton
-        action={iAmReady ? 'unready' : 'ready'}
-        className="lobby__go"
-        data-testid="ready-toggle"
-        aria-pressed={iAmReady}
-        disabled={dealing || members.length === 0 || (pod !== null && (planBusy || pendingLocalAttempt || !planOk))}
-        onPress={() => onReady(!iAmReady)}
-      >
-        {iAmReady ? 'Stand down' : 'Ready'}
-      </ActionButton>
-    </div>
-  );
-
   return (
-    <section className="lobby__card" data-testid="draft-lobby">
-      {pod !== null ? (
+    <PodLobby
+      testId="draft-lobby"
+      roomId={roomId}
+      pod={pod}
+      members={members}
+      leaderId={leaderId}
+      myMemberId={myMemberId}
+      iAmReady={iAmReady}
+      readyDisabled={dealing || members.length === 0 || (pod !== null && (planBusy || pendingLocalAttempt || !planOk))}
+      onReady={onReady}
+      note={
+        dealing && (
+          <p className="lobby__note" data-testid="draft-state">
+            Dealing the draft…
+          </p>
+        )
+      }
+    >
+      {pod !== null && (
         <>
-          <div className="pod-strip">
-            <PodSeats
-              seats={pod.seats}
-              myMemberId={myMemberId}
-              leaderId={leaderId}
-              readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
-              avatarIdOf={(id) => members.find((m) => m.id === id)?.avatarId}
-              onSit={doSit}
-              onStand={doStand}
-              onAi={doAi}
-              onClose={doClose}
-            />
-            {side}
-          </div>
-          {seatError !== null && (
-            <p className="ct-error" role="alert" data-testid="pod-seat-error">
-              {seatError}
-            </p>
-          )}
-          <PodSpectators pod={pod} members={members} myId={myMemberId} leaderId={leaderId} />
-
           <h2>Pool</h2>
           <PoolPicker
             tab={tab}
@@ -488,8 +423,6 @@ export function DraftLobby({
             onDeletePreset={deletePreset}
           />
         </>
-      ) : (
-        side
       )}
 
       {error !== null && (
@@ -505,8 +438,7 @@ export function DraftLobby({
           )}
         </div>
       )}
-
-    </section>
+    </PodLobby>
   );
 }
 
