@@ -60,6 +60,7 @@ import {
   type MatchTrouble,
 } from '../play/live/match.ts';
 import { apiUrl, sendJson } from '../http.ts';
+import { useChromeShell } from '../chrome/shell.ts';
 
 /** A board's trouble, to the server over HTTP: the socket is what is in trouble. */
 function reportTrouble(matchId: string, what: MatchTrouble, detail: Record<string, unknown>): void {
@@ -74,6 +75,7 @@ export interface MatchScreenProps {
 }
 
 export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
+  const shellRef = useChromeShell('match');
   const [match, setMatch] = useState<LiveMatch | null>(null);
 
   useEffect(() => {
@@ -109,7 +111,7 @@ export function MatchScreen({ matchId, makeTransport }: MatchScreenProps) {
   }, [matchId]);
 
   return (
-    <div className="shell shell--match" data-testid="match" style={{ position: 'relative' }}>
+    <div ref={shellRef} className="shell shell--match" data-testid="match" style={{ position: 'relative' }}>
       {match !== null && <LiveBoard match={match} roomId={roomId} />}
     </div>
   );

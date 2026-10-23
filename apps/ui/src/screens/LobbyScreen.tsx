@@ -35,6 +35,7 @@ import { SettingsGear } from '../settings/Settings.tsx';
 import { StatsButton, StatsPopout, type StatsSource } from '../stats/StatsPopout.tsx';
 import { DecksButton } from './DecksButton.tsx';
 import { InventoryButton } from './InventoryButton.tsx';
+import { useChromeShell } from '../chrome/shell.ts';
 
 export interface LobbyScreenProps {
   /** Tests pass a rooms client over a stubbed fetch. Production passes nothing. */
@@ -48,8 +49,9 @@ export interface LobbyScreenProps {
 }
 
 export function LobbyScreen({ rooms, feed, stats, statsSource }: LobbyScreenProps) {
+  const shellRef = useChromeShell('fit');
   return (
-    <div className="shell shell--fit" data-testid="lobby">
+    <div ref={shellRef} className="shell shell--fit" data-testid="lobby">
       {/* No title here. The fleet's AppHeader already says "Card Table" at the
           top of every route, from the catalogue (`app-name.ts`), and a second
           one in the page said it twice — operator, 2026-09-27. The other

@@ -55,6 +55,7 @@ import { watchpartyOrigin } from './avatar.ts';
 import { useAvatarAssert } from './avatarAssert.ts';
 import { useWhoami } from './whoami.ts';
 import { roomsClient } from '../rooms/api.ts';
+import { useRoomFrame } from '../chrome/shell.ts';
 
 /**
  * The page's resolved theme, handed to the chrome as-is.
@@ -182,6 +183,7 @@ export function RoomShell({
   // game's table chat names no room the server knows, and an avatar asserted
   // to it is refused.
   useAvatarAssert(key === null ? null : roomId, who === 'pending' || who === null ? null : who.userId, rooms);
+  const roomFrameRef = useRoomFrame();
 
   if (key !== null && who === 'pending') return null;
   if (key === null || who === 'pending' || who === null) return <>{children}</>;
@@ -196,6 +198,8 @@ export function RoomShell({
       collapsible={collapsible}
     >
       {children}
+      {/* The frame says it is drawn, to the page around it (`chrome/shell.ts`): RoomChrome takes no ref of ours. */}
+      <span hidden ref={roomFrameRef} />
     </RoomChrome>
   );
 }

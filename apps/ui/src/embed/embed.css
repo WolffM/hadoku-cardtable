@@ -16,7 +16,7 @@
 }
 
 .cardtable-chrome.cardtable-chrome--embed,
-.cardtable-chrome.cardtable-chrome--embed:has(.shell--fit, .shell--match) {
+.cardtable-chrome.cardtable-chrome--embed[data-shell] {
   height: 100%;
   min-height: 0;
   position: relative;

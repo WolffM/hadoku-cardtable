@@ -71,10 +71,12 @@
  * the chrome is the window's height, so the document cannot scroll and
  * watchparty's room frame — its chat aside with it — is never stretched by a
  * long deck list (the operator, 2026-10-10: *"the watchparty interface should
- * not be affected by page length"*). A screen opts in by its shell's class.
- * The sound picker too, so its bin and its grid scroll independently (same day).
+ * not be affected by page length"*). A screen opts in by its shell, which marks
+ * the frame as it is drawn (`chrome/shell.ts`'s `data-shell`, never a `:has()`
+ * the page answers again on every change under it). The sound picker too, so its
+ * bin and its grid scroll independently (same day).
  */
-.cardtable-chrome:has(.shell--fit, .shell--match, .sound-builder) {
+.cardtable-chrome[data-shell] {
   height: 100dvh;
   min-height: 0;
 }
@@ -171,16 +173,16 @@
  * and the whole height. The header itself does not move — see the next rule —
  * only the gap BELOW it closes.
  */
-.cardtable-chrome:has(.shell--match) > .app-header {
+.cardtable-chrome[data-shell='match'] > .app-header {
   margin-bottom: 0;
 }
 
-.cardtable-chrome__content:has(.shell--match, .wp-room-chrome-frame) {
+:is(.cardtable-chrome[data-shell='match'], .cardtable-chrome[data-room-frame]) > .cardtable-chrome__content {
   padding-left: 2rem;
 }
 
 /* A match whose chat did not mount keeps a right edge of its own. */
-.cardtable-chrome__content:has(.shell--match):not(:has(.wp-room-chrome-frame)) {
+.cardtable-chrome[data-shell='match']:not([data-room-frame]) > .cardtable-chrome__content {
   padding-right: 2rem;
 }
 
@@ -200,11 +202,11 @@
     padding-inline: 16px;
   }
 
-  .cardtable-chrome__content:has(.shell--match, .wp-room-chrome-frame) {
+  :is(.cardtable-chrome[data-shell='match'], .cardtable-chrome[data-room-frame]) > .cardtable-chrome__content {
     padding-left: 16px;
   }
 
-  .cardtable-chrome__content:has(.shell--match):not(:has(.wp-room-chrome-frame)) {
+  .cardtable-chrome[data-shell='match']:not([data-room-frame]) > .cardtable-chrome__content {
     padding-right: 16px;
   }
 
@@ -279,12 +281,28 @@
  * — is themed. This list is the seam between the themed frame and the table,
  * and it is the thing to extend when a new dark surface appears (or to delete,
  * when those sheets move onto semantic tokens too).
+ *
+ * Each root spelled out, never one `:is()` list on the right: the browser files a rule under its
+ * rightmost class and tries it only on elements that carry it, and an `:is()` there is filed under
+ * nothing — tried on every element of the page at every restyle, 20,000 times in two seconds of a
+ * six-creature attack (`e2e/combat-perf.spec.ts`'s selector stats, 2026-10-23).
  */
-.cardtable-chrome :is(.draft, .board, .deck, .rooms, .spectate) {
+.cardtable-chrome .draft,
+.cardtable-chrome .board,
+.cardtable-chrome .deck,
+.cardtable-chrome .rooms,
+.cardtable-chrome .spectate {
   background-color: var(--bg);
 }
 
-.cardtable-chrome
-  :is(.draft, .board, .deck, .deckrow, .rooms, .spectate, .conn, .prompt, .confirm) {
+.cardtable-chrome .draft,
+.cardtable-chrome .board,
+.cardtable-chrome .deck,
+.cardtable-chrome .deckrow,
+.cardtable-chrome .rooms,
+.cardtable-chrome .spectate,
+.cardtable-chrome .conn,
+.cardtable-chrome .prompt,
+.cardtable-chrome .confirm {
   color: var(--ink);
 }

@@ -62,6 +62,7 @@ import { followMatchOnce, followTableOnce, openNewMatch } from '../play/live/mat
 import { roomsClient, type RoomsClient } from '../rooms/api.ts';
 import { PodBuilding } from './pod/PodBuilding.tsx';
 import { tablesClient, type TablesClient } from './tables.ts';
+import { useChromeShell } from '../chrome/shell.ts';
 
 export interface DeckScreenProps {
   draftId: string;
@@ -99,6 +100,7 @@ export function DeckScreen({
   decks: givenDecks,
   rooms: givenRooms,
 }: DeckScreenProps) {
+  const shellRef = useChromeShell('fit');
   const rooms = useMemo(() => givenRooms ?? roomsClient(), [givenRooms]);
   const store = useMemo(() => givenStore ?? deckStoreClient(), [givenStore]);
   const client = useMemo(() => givenClient ?? tablesClient(), [givenClient]);
@@ -189,7 +191,7 @@ export function DeckScreen({
   };
 
   return (
-    <div className="shell shell--fit deck-screen" data-testid="deck">
+    <div ref={shellRef} className="shell shell--fit deck-screen" data-testid="deck">
       {standalone && (
         <nav className="shell__head">
           <a

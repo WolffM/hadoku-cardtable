@@ -70,6 +70,7 @@ import { useSoundAssignments } from '../sound/useSoundAssignments.ts';
 import { GainSlider } from '../sound/GainSlider.tsx';
 import { createMixer, type Mixer } from '../sound/mixer.ts';
 import { SoundQueue } from './SoundQueue.tsx';
+import { useChromeShell } from '../chrome/shell.ts';
 import './SoundBuilder.css';
 
 export interface SoundBuilderProps {
@@ -116,6 +117,7 @@ function parseDragPayload(raw: string): DragPayload | null {
 }
 
 export function SoundBuilder({ client: givenClient, player: givenPlayer }: SoundBuilderProps) {
+  const shellRef = useChromeShell('sound');
   const client = useMemo(() => givenClient ?? soundsClient(), [givenClient]);
   const player = useMemo(() => givenPlayer ?? createMixer((f) => client.takeUrl(f)), [givenPlayer, client]);
 
@@ -313,7 +315,7 @@ export function SoundBuilder({ client: givenClient, player: givenPlayer }: Sound
   let grp: string | null = null;
 
   return (
-    <div className="sound-builder">
+    <div ref={shellRef} className="sound-builder">
       <header className="sound-builder__top">
         <h1>Sound Builder</h1>
         <div className="sound-builder__counts">

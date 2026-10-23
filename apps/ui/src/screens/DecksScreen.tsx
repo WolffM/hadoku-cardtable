@@ -35,6 +35,7 @@ import { navigate } from './route.ts';
 import { SettingsGear } from '../settings/Settings.tsx';
 import type { DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
+import { useChromeShell } from '../chrome/shell.ts';
 import './DecksScreen.css';
 
 export interface DecksScreenProps {
@@ -59,6 +60,7 @@ function useArtDrawable(artIds: readonly (string | undefined)[] | null): boolean
 }
 
 export function DecksScreen({ decks: givenDecks, deckRecords = fetchDeckRecords }: DecksScreenProps) {
+  const shellRef = useChromeShell('fit');
   const client = useMemo(() => givenDecks ?? myDecksClient(), [givenDecks]);
   const [decks, setDecks] = useState<MyDeck[] | null>(null);
   const [records, setRecords] = useState<DeckRecords | null>(null);
@@ -99,7 +101,7 @@ export function DecksScreen({ decks: givenDecks, deckRecords = fetchDeckRecords 
   const visible = useMemo(() => (ready ? options.filter((o) => deckPasses(o, filter)) : []), [ready, options, filter]);
 
   return (
-    <div className="shell shell--fit" data-testid="decks">
+    <div ref={shellRef} className="shell shell--fit" data-testid="decks">
       <nav className="shell__head">
         <div className="shell__tools">
           <SettingsGear />
