@@ -37,7 +37,7 @@
  * On the stack, a card is OFF the table: it hovers, where every permanent lies flat (the operator,
  * 2026-10-13: "needs to be more clear when a card is still on the stack or whether it has
  * resolved"; 2026-10-14: "float+drift simultaneously"). Two motions on their own properties, so
- * they never fight: a slow bob (`translate`, with its shadow breathing in `filter`) and a drift
+ * they never fight: a slow bob (`translate`) and a drift
  * (`transform`'s sideways sway, and a small `rotate`) on periods that share no beat, so its path
  * never visibly repeats. `--stack-phase` (`placed.ts`, from the item's id) sets where each card
  * starts, so two never move in step.
@@ -58,6 +58,13 @@
 
   /* A ring drawn on it (below) follows the card's corners, or the chip's. */
   border-radius: var(--radius);
+  /*
+   * Its lift, held still. The shadow breathed with the bob until 2026-10-23: a `filter` keyframe cannot be
+   * composited, so every card on the stack was drawn again on every frame — 22 triggers off one Pyroclasm
+   * ran the operator's game at 7 fps for fifteen seconds (match m-14703a9e2126). The bob and the drift
+   * are `translate`, `transform` and `rotate`: they move the card's drawn pixels, shadow and all.
+   */
+  filter: var(--stack-lift);
   animation: var(--stack-hover);
 }
 
@@ -90,12 +97,10 @@
   0%,
   100% {
     translate: 0 0;
-    filter: drop-shadow(0 5px 5px var(--shadow)) drop-shadow(0 2px 6px var(--stack-glow));
   }
 
   50% {
     translate: 0 -5px;
-    filter: drop-shadow(0 12px 14px color-mix(in srgb, var(--shadow) 65%, transparent)) drop-shadow(0 7px 14px color-mix(in srgb, var(--stack-glow) 70%, transparent));
   }
 }
 
@@ -122,8 +127,6 @@
 @media (prefers-reduced-motion: reduce) {
   .placed__hover {
     --stack-hover: none;
-
-    filter: var(--stack-lift);
   }
 }
 

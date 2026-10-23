@@ -23,6 +23,12 @@ describe('rocks', () => {
     expect(Math.max(...heavy.map((r) => r.size))).toBeGreaterThan(Math.max(...light.map((r) => r.size)));
     expect(rocks('k', 0.5), 'the same blow throws the same rocks').toEqual(rocks('k', 0.5));
   });
+
+  it('a share of a beat’s budget throws fewer, never none (`effect-budget.ts`)', () => {
+    const full = rocks('k', 1).length;
+    expect(rocks('k', 1, 0.5).length).toBe(Math.floor(full / 2));
+    expect(rocks('k', 1, 0.01).length).toBeGreaterThan(0);
+  });
 });
 
 describe('shakeOf', () => {

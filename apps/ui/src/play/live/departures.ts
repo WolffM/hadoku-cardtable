@@ -51,6 +51,7 @@ import './departures.css';
 import { seedOf } from './projectile.ts';
 import { prefersReducedMotion } from '../motion.ts';
 import { overlayOf } from './board-dom.ts';
+import { particleShare, shared } from './effect-budget.ts';
 
 /**
  * Why a permanent died. Forge's `GameEventCardDied` says it (`DeathCause`, folded here); before a Forge
@@ -337,6 +338,11 @@ function handLanding(canvas: HTMLElement, departure: Departure, taken: ReadonlyS
   return backs.at(-1) ?? hand;
 }
 
+/** Shards one beat's shatters draw in all: two shatters' worth. Each is a whole copy of its card. */
+const SHARD_BUDGET = 14;
+/** A shatter never breaks into fewer than this: below it the motion stops reading as one. */
+const MIN_SHARDS = 3;
+
 /** Ids, test ids and every hook another lane finds a card by: a stand-in is no card of the board's. */
 const STRIPPED = ['id', 'data-board-card', 'data-card-id', 'data-testid', 'data-arrange-card', 'data-selectable', 'tabindex'];
 
@@ -391,7 +397,8 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
   }
 
   /** The stand-in, built and placed, with no box read: `box` is the overlay's, read with every other box of the batch. */
-  function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, box: DOMRect, motion: ExitMotion): HTMLElement {
+  /** `count`: its pieces and specks, as the batch's share of the beat's particles (`effect-budget.ts`) left them. */
+  function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, box: DOMRect, motion: ExitMotion, count: { pieces: number; specks: number }): HTMLElement {
     const wrap = document.createElement('div');
     wrap.className = 'board-departure';
     wrap.setAttribute('data-exit', motion);
@@ -401,7 +408,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     wrap.style.width = `${at.width}px`;
     // The copy is sized by the zone's own `--card-w`, which the overlay is outside of.
     wrap.style.setProperty('--card-w', `${at.width}px`);
-    const pieces = EXIT_MOTIONS[motion].pieces;
+    const pieces = count.pieces;
     wrap.style.setProperty('--exit-ms', `${EXIT_MOTIONS[motion].ms}ms`);
     if (departure.hue !== undefined) wrap.setAttribute('data-colour', departure.hue);
     const broken = shattered(motion) ? shards(departure.cardId, pieces) : null;
@@ -434,7 +441,7 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       }
       wrap.append(svg);
     }
-    for (const speck of specks(departure.cardId, specksOf(motion), motion)) {
+    for (const speck of specks(departure.cardId, count.specks, motion)) {
       const el = document.createElement('i');
       el.className = 'board-departure__speck';
       el.style.setProperty('--x', `${(speck.x * 100).toFixed(1)}%`);
@@ -530,8 +537,15 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
         plans.push({ departure, delayMs, from, at, motion, landing, to: landing?.getBoundingClientRect() ?? null });
       }
       if (root === null || box === null || plans.length === 0) return;
+      // The batch's specks share one budget, and so do its shatters' shards — each shard a whole copy of
+      // its card — so a board wipe is as busy as a death or two, not as all of them (`effect-budget.ts`).
+      const speckShare = particleShare(plans.reduce((n, p) => n + specksOf(p.motion), 0));
+      const shatters = plans.filter((p) => shattered(p.motion)).length;
+      const shardShare = particleShare(shatters * EXIT_MOTIONS.shatter.pieces, SHARD_BUDGET);
       const built = plans.map((p) => {
-        const wrap = standIn(p.departure, p.from, p.at, root, box, p.motion);
+        const full = EXIT_MOTIONS[p.motion].pieces;
+        const count = { pieces: shattered(p.motion) ? shared(full, shardShare, MIN_SHARDS) : full, specks: shared(specksOf(p.motion), speckShare, 6) };
+        const wrap = standIn(p.departure, p.from, p.at, root, box, p.motion, count);
         wrap.setAttribute(DEPARTURE_ATTR, String(p.departure.cardId));
         standIns.add(wrap);
         if (p.to !== null) aim(wrap, p.at, p.to);

@@ -11,6 +11,7 @@
 
 import { BEAT_ANIMATION_ID, powerSize } from '../motion.ts';
 import { seedOf } from './projectile.ts';
+import { shared } from './effect-budget.ts';
 import './crash.css';
 
 export interface Point {
@@ -32,9 +33,18 @@ export interface Rock {
   readonly spin: number;
 }
 
-/** The rocks a crash of `power` throws: more, bigger and further the heavier. Seeded by `key`. */
-export function rocks(key: string, power: number): Rock[] {
-  const count = 6 + Math.round(14 * power);
+/** A crash's full count of rocks and of dust puffs, at `power`. */
+const rockCount = (power: number): number => 6 + Math.round(14 * power);
+const puffCount = (power: number): number => 3 + Math.round(4 * power);
+
+/** Every particle a crash of `power` throws at its full count: what a beat's budget (`effect-budget.ts`) is shared against. */
+export function crashParticles(power: number): number {
+  return rockCount(power) + puffCount(power);
+}
+
+/** The rocks a crash of `power` throws: more, bigger and further the heavier, at `share` of the full count. Seeded by `key`. */
+export function rocks(key: string, power: number, share = 1): Rock[] {
+  const count = shared(rockCount(power), share, 4);
   const reach = 34 + 70 * power;
   return Array.from({ length: count }, (_, i) => {
     const r = (k: string): number => seedOf(`${key}:${i}:${k}`);
@@ -51,8 +61,8 @@ export function rocks(key: string, power: number): Rock[] {
   });
 }
 
-/** Draw a crash at `at` (overlay coordinates) inside `root`; it removes itself. */
-export function crash(root: HTMLElement, at: Point, power: number, key: string): HTMLElement {
+/** Draw a crash at `at` (overlay coordinates) inside `root`, at `share` of its particles; it removes itself. */
+export function crash(root: HTMLElement, at: Point, power: number, key: string, share = 1): HTMLElement {
   const el = document.createElement('div');
   el.className = 'effect-crash';
   el.setAttribute('aria-hidden', 'true');
@@ -64,7 +74,7 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string):
   const ring = document.createElement('span');
   ring.className = 'effect-crash__ring';
   el.append(ring);
-  for (let i = 0; i < 3 + Math.round(4 * power); i++) {
+  for (let i = 0; i < shared(puffCount(power), share, 2); i++) {
     const puff = document.createElement('span');
     puff.className = 'effect-crash__dust';
     const a = (i / 7) * Math.PI * 2 + seedOf(`${key}:p${i}`) * 1.2;
@@ -72,7 +82,7 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string):
     puff.style.setProperty('--dy', `${(Math.sin(a) * (10 + 14 * power) - 6).toFixed(1)}px`);
     el.append(puff);
   }
-  for (const rock of rocks(key, power)) {
+  for (const rock of rocks(key, power, share)) {
     const chip = document.createElement('span');
     chip.className = 'effect-crash__rock';
     chip.style.width = chip.style.height = `${rock.size.toFixed(1)}px`;

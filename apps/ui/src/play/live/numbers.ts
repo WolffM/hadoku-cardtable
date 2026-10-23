@@ -121,7 +121,8 @@ import {
 import { battlefieldCard, faceBox, overlayOf } from './board-dom.ts';
 import { DEPARTURE_ATTR, departureCause, departuresOf, exitMotionFor, exitMs, LEAVING_GAP_ATTR, type Departure } from './departures.ts';
 import { ALIGN_MS, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS, ramMs, strikeOffset, type Point, type RamEnd, type RamKind } from './ram.ts';
-import { crash, shake } from './crash.ts';
+import { crash, crashParticles, shake } from './crash.ts';
+import { particleShare } from './effect-budget.ts';
 import { fly, impact } from './projectile.ts';
 import { cardColours } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
@@ -660,10 +661,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
    * the table shaking, both as heavy as the damage (`crash.ts`). At `at` when given (where two cards
    * meet), else on `to`.
    */
-  function bang(to: Element, key: string, amount: number, at: Point | null = null): void {
+  function bang(to: Element, key: string, amount: number, at: Point | null = null, share = 1): void {
     const root = overlay();
     if (root === null || reduced()) return;
-    crash(root, at ?? centreIn(to, root.getBoundingClientRect()), damagePower(amount), key);
+    crash(root, at ?? centreIn(to, root.getBoundingClientRect()), damagePower(amount), key, share);
     shakes.add(shake(canvas, amount, key));
   }
 
@@ -881,6 +882,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       if (root === null || source === null || target === null) return [];
       return [{ plan, source, target, from: boxIn(source, root), to: boxIn(target, root) }];
     });
+    // One crash per blow: a pair that meets is one blow, drawn by whichever of the two rams first.
+    const planned = combat?.rams ?? [];
+    const partnerFirstOf = (plan: RamPlan): boolean =>
+      plan.kind === 'meet' && planned.indexOf(plan) > planned.findIndex((r) => 'cardId' in plan.target && r.sourceId === plan.target.cardId);
+    // The combat's crashes share one budget of rocks and dust (`effect-budget.ts`).
+    const crashShare = particleShare(measured.filter((m) => !partnerFirstOf(m.plan)).reduce((n, m) => n + crashParticles(damagePower(m.plan.amount)), 0));
     for (const { plan, source, target, from, to } of measured) {
       const struck = 'cardId' in plan.target ? plan.target.cardId : null;
       if (root === null) continue;
@@ -889,12 +896,12 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       attackLeadMs = attackLeadMs === -1 ? lead : Math.min(attackLeadMs, lead);
       const end = ramEnd(plan.kind, leaving.has(plan.sourceId), struck !== null && leaving.has(struck));
       // The blow: one crash per ram (a pair that meets is one blow), where the cards meet, or on the avatar.
-      const partnerFirst = plan.kind === 'meet' && (combat?.rams ?? []).indexOf(plan) > (combat?.rams ?? []).findIndex((r) => r.sourceId === struck);
+      const partnerFirst = partnerFirstOf(plan);
       if (!partnerFirst) {
         const strike = strikeOffset(from, to, plan.kind);
         const hitPoint = plan.kind === 'charge' ? to : { x: (from.x + strike.x + to.x) / 2, y: (from.y + strike.y + to.y) / 2 };
         const at = plan.kind === 'meet' ? { x: from.x + strike.x, y: from.y + strike.y } : hitPoint;
-        atBeat(() => bang(target, `crash:${plan.sourceId}`, plan.amount, at), plan.delayMs + contactMs(plan.kind));
+        atBeat(() => bang(target, `crash:${plan.sourceId}`, plan.amount, at, crashShare), plan.delayMs + contactMs(plan.kind));
         const contact = plan.delayMs + contactMs(plan.kind);
         const mine = viewers(plan.sourceId);
         // On a player the blow is as big as its damage, and a crowd cheers from 5 (`impactRole`, `cheerRole`).

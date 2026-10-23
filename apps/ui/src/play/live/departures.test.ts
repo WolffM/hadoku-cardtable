@@ -332,6 +332,30 @@ describe('installDepartures', () => {
     handle.dispose();
   });
 
+  it('a board wipe shares one budget of shards and specks: four shattering at once draw about two shatters’ worth, each still a shatter', () => {
+    const canvas = document.createElement('div');
+    canvas.innerHTML = `<div data-zone="battlefield"><ul>${[7, 8, 9, 10].map((id) => `<li class="board-card" data-board-card="${id}"><span class="name">C${id}</span></li>`).join('')}</ul></div><div data-board-overlay=""></div>`;
+    canvas.querySelector<HTMLElement>('[data-board-overlay]')!.getBoundingClientRect = () => rect(0, 0, 1000, 800);
+    document.body.append(canvas);
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    for (const id of [7, 8, 9, 10]) {
+      const gap = document.createElement('li');
+      gap.setAttribute(LEAVING_GAP_ATTR, String(id));
+      gap.getBoundingClientRect = () => rect(id * 70, 400, 60, 84);
+      canvas.querySelector(`[data-board-card="${id}"]`)!.replaceWith(gap);
+    }
+    handle.leave([7, 8, 9, 10].map((id) => ({ departure: { ...departure('graveyard', 'damage'), cardId: id, card: { id } as BoardCard }, delayMs: 0 })));
+    const standIns = [...canvas.querySelectorAll<HTMLElement>('.board-departure')];
+    expect(standIns.map((w) => w.getAttribute('data-exit'))).toEqual(['shatter', 'shatter', 'shatter', 'shatter']);
+    const pieces = standIns.map((w) => w.querySelectorAll('.board-departure__piece').length);
+    expect(Math.min(...pieces), 'each still breaks').toBeGreaterThanOrEqual(3);
+    expect(pieces.reduce((a, b) => a + b, 0), 'every shard is a whole copy of its card: about two shatters’ worth in all').toBeLessThanOrEqual(2 * EXIT_MOTIONS.shatter.pieces);
+    const specks = canvas.querySelectorAll('.board-departure__speck').length;
+    expect(specks, 'about one budget of dust, not four shatters’').toBeLessThan(2 * EXIT_MOTIONS.shatter.specks);
+    handle.dispose();
+  });
+
   it('dispose takes every copy down', () => {
     const canvas = board();
     const handle = installDepartures(canvas, { onDone: () => undefined });
