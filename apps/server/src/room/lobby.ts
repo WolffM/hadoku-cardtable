@@ -2846,6 +2846,18 @@ class FileLobby implements Lobby {
 			for (const id of entrants) lockedDecks[id] = this.#podChecks.currentTournamentDeck(room.id, id);
 			room.lockedDecks = lockedDecks;
 		}
+		// A tournament room has no 1v1 table once it locks (a real run,
+		// 2026-10-22: the leader had sat at the room's own default table
+		// BEFORE turning Tournament on, and nothing ever unseated it — the
+		// screen kept drawing that stale, un-ready table forever after,
+		// because `tables[0]` is exactly what it reads for "my table"). Every
+		// table this room holds right now PREDATES the pod — `#dealPodRounds`,
+		// below, is what makes its real ones — so unseating them all here,
+		// before that call, retires the lot: `#interruptSeries` ends
+		// whatever series they were mid-via `#settleSeries`, and clears every
+		// seat, ready flag and deck hold (`dropHolds`) the same way a mode or
+		// format change already does.
+		this.#interruptSeries(room);
 		// `draftStartedAt` and `pod` change together, as ONE atomic mutation —
 		// gather every deck above, BEFORE this point, then mutate, then read.
 		// `#dealPodRounds`, below, pairs the round and makes its tables
