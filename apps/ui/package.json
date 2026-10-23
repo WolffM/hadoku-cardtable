@@ -18,10 +18,10 @@
     "@hadoku/shared": "workspace:*",
     "@wolffm/game-stats-ui": "0.1.5",
     "@wolffm/prefs-client": "1.0.19",
-    "@wolffm/rooms-protocol": "0.42.15",
+    "@wolffm/rooms-protocol": "0.42.16",
     "@wolffm/task-ui-components": "4.14.0",
     "@wolffm/themes": "5.12.0",
-    "@wolffm/watchparty-ui": "0.42.15",
+    "@wolffm/watchparty-ui": "0.42.16",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "socket.io-client": "^4.8.3"
@@ -32,7 +32,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.1",
-    "@wolffm/catalogue": "^1.0.4",
+    "@wolffm/catalogue": "^1.0.5",
     "vite": "8.2.2"
   }
 }
