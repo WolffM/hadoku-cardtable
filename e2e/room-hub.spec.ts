@@ -141,11 +141,17 @@ test(
       await expect(alice.page.locator('.live[data-role="watcher"]'), 'alice is back in her seat, not watching').toHaveCount(0);
       await expect(alice.page.locator('[aria-label="Game board"]'), 'alice: back in her game').toBeVisible({ timeout: UI_TIMEOUT });
 
-      /* ── game 1 to Alice; the sideboard step is on the table page ── */
-      await concedeToResult(bob, alice);
-      // Back to room is the hub; his card is the way to the table.
-      await bob.page.getByTestId('game-result-room').click();
-      await bob.page.waitForURL(new RegExp(`#/room/${roomId}$`), { timeout: UI_TIMEOUT });
+      /* ── game 1 to Alice, conceded from Bob's card on the hub; the sideboard step is on the table page ── */
+      // The operator: "it would be nice if the 'Return to game' button had options for concede … that would
+      // allow us to resolve games without having to close rooms". The confirm shows the score it leaves.
+      await bob.page.evaluate((hash) => (window.location.hash = hash), `#/room/${roomId}`);
+      await expect(bob.page.getByTestId('pod-rounds'), 'bob: the hub').toBeVisible({ timeout: UI_TIMEOUT });
+      await bob.page.getByTestId('pod-tables-row-concede').click();
+      await expect(bob.page.getByTestId('pod-tables-row-concede-confirm')).toContainText('0–0→1–0');
+      await bob.page.getByTestId('pod-tables-row-concede-yes').click();
+      await expect(alice.page.getByTestId('game-result'), 'alice wins game 1 by bob’s concede').toBeVisible({ timeout: UI_TIMEOUT });
+      // His card is now the way to the table's sideboard.
+      await expect(bob.page.getByTestId('pod-tables-play')).toHaveText('Play', { timeout: UI_TIMEOUT });
       await bob.page.getByTestId('pod-tables-play').click();
       await bob.page.waitForURL(new RegExp(`#/room/${roomId}/table/${tableId}$`), { timeout: UI_TIMEOUT });
       await expect(bob.page.getByTestId('table-sideboard'), 'bob: the sideboard step, on the table page').toBeVisible({ timeout: UI_TIMEOUT });

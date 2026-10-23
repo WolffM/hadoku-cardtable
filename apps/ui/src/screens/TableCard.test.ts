@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { TableGame } from '@hadoku/shared';
 
 import { TableCard, tablePhase, type TableCardProps } from './TableCard.tsx';
@@ -102,5 +102,36 @@ describe('TableCard', () => {
     card({ size: 'compact' });
     expect(screen.getByTestId('card').className).toContain('table-card--compact');
     expect([...document.querySelectorAll('.table-card__phase')].map((p) => p.textContent)).toEqual(['Mid']);
+  });
+
+  it('offers my own game in play to concede: the confirm shows the score it leaves, Keep playing backs out, Concede asks the server', async () => {
+    const onConcede = vi.fn(async () => null as string | null);
+    card({ onConcede });
+    expect(screen.getByTestId('card-concede').closest('a'), 'never inside the way in').toBeNull();
+    fireEvent.click(screen.getByTestId('card-concede'));
+    expect(screen.getByTestId('card-concede-confirm').querySelector('.table-card__change')?.textContent).toBe('1–0→1–1');
+    fireEvent.click(screen.getByTestId('card-concede-keep'));
+    expect(screen.queryByTestId('card-concede-confirm')).toBeNull();
+    fireEvent.click(screen.getByTestId('card-concede'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('card-concede-yes'));
+    });
+    expect(onConcede).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('card-concede-confirm')).toBeNull();
+  });
+
+  it('says the server’s refusal, and offers no concede on a game that is not mine or not in play', async () => {
+    card({ onConcede: async () => 'the game has already ended' });
+    fireEvent.click(screen.getByTestId('card-concede'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('card-concede-yes'));
+    });
+    expect(screen.getByRole('alert').textContent).toBe('the game has already ended');
+    cleanup();
+    card({ onConcede: async () => null, myMemberId: 'u-carol' });
+    expect(screen.queryByTestId('card-concede')).toBeNull();
+    cleanup();
+    card({ onConcede: async () => null, series: { length: 3, wins: [1, 1], played: 2, phase: 'sideboarding' }, matchId: null });
+    expect(screen.queryByTestId('card-concede')).toBeNull();
   });
 });
