@@ -1,10 +1,11 @@
 # dredge-confirm.jvm.test.ts — an optional replacement's yes/no shows its own question and its card.
-# Alice (seat 0), her turn-3 upkeep: Stinkweed Imp (Dredge 5) in her graveyard, ten Swamps in her
-# library. Her draw is replaced if she says so: Forge asks "Apply replacement effect of Stinkweed
-# Imp?" (ReplacementHandler, an Optional replacement) through InputConfirm, with no card of its own.
-turn=3
-activeplayer=human
-activephase=UPKEEP
+# Bob's turn-2 second main, so both hands settle first; then alice (seat 0)'s turn 3: Stinkweed Imp
+# (Dredge 5) in her graveyard, ten Swamps in her library. Her draw is replaced if she says so: Forge
+# asks "Apply replacement effect of Stinkweed Imp?" (ReplacementHandler, an Optional replacement)
+# through InputConfirm, with no card of its own.
+turn=2
+activeplayer=ai
+activephase=MAIN2
 humanlife=20
 ailife=20
 humanhand=

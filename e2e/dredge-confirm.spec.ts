@@ -3,7 +3,7 @@
  * Yes/No at their draw whose only words were the turn's status lines: *"is this a dredge trigger? that
  * looks like a bug"*, *"why isn't it showing the dredge card and telling me the effect?"*.
  *
- * `dredge-confirm.state`: alice's turn-3 upkeep, Stinkweed Imp (Dredge 5) in her graveyard. Her draw
+ * `dredge-confirm.state`: bob's turn 2 passes into alice's, Stinkweed Imp (Dredge 5) in her graveyard. Her draw
  * asks whether to dredge it instead; the window says so and draws the Imp (`confirm-card`), and Yes
  * returns it to her hand. `[dc]` lines are the evidence.
  */
@@ -26,11 +26,12 @@ test(titled('a dredge’s yes/no says what it is and draws the card it would ret
   try {
     seated = await startScenarioMatch(browser, stack, 'dredge-confirm');
     const page = seated.alice.page;
+    const bob = seated.bob.page;
     await expect
       .poll(
         async () => {
           if (await confirmOpen(page)) return true;
-          await passOverStack(page);
+          for (const p of [bob, page]) await passOverStack(p);
           return false;
         },
         { timeout: 60_000, intervals: [250], message: `the dredge is asked — says: "${await says(page)}"` },
