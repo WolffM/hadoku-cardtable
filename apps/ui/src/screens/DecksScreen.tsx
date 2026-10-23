@@ -32,9 +32,9 @@ import { DeckFilterBar } from './DeckFilterBar.tsx';
 import { DeleteConfirm } from './DeckManage.tsx';
 import { NO_DECK_FILTER, deckPasses, type DeckFilter } from './deckFilter.ts';
 import { navigate } from './route.ts';
-import { SettingsGear } from '../settings/Settings.tsx';
 import type { DeckRecords } from '../stats/deckOrder.ts';
 import { fetchDeckRecords } from '../stats/StatsPopout.tsx';
+import { HomeHead } from './HomeHead.tsx';
 import { useChromeShell } from '../chrome/shell.ts';
 import './DecksScreen.css';
 
@@ -102,11 +102,7 @@ export function DecksScreen({ decks: givenDecks, deckRecords = fetchDeckRecords 
 
   return (
     <div ref={shellRef} className="shell shell--fit" data-testid="decks">
-      <nav className="shell__head">
-        <div className="shell__tools">
-          <SettingsGear />
-        </div>
-      </nav>
+      <HomeHead title="Decks" />
       <main className="lobby lobby--room">
         {error !== null && (
           <p className="ct-error" role="alert" data-testid="decks-error">

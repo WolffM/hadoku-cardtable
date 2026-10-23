@@ -77,6 +77,15 @@ describe('DecksScreen', () => {
     expect(screen.getByTestId('deck-mine').querySelectorAll('.skeleton--tile')).toHaveLength(0);
   });
 
+  it('is titled Decks, and its arrow goes home', () => {
+    const { client } = stub([]);
+    globalThis.location.hash = '#/decks';
+    render(createElement(DecksScreen, { decks: client, deckRecords: records([]) }));
+    expect(screen.getByRole('heading', { level: 1, name: 'Decks' })).not.toBeNull();
+    fireEvent.click(screen.getByTestId('back-to-lobby'));
+    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
+  });
+
   it('opens a deck in the editor on a click', async () => {
     const { client } = stub([deck('a')]);
     render(createElement(DecksScreen, { decks: client, deckRecords: records([]) }));

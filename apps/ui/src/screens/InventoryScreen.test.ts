@@ -12,6 +12,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import type { CubeSummary } from '@hadoku/shared';
 
 import { InventoryScreen } from './InventoryScreen.tsx';
+import { parseRoute } from './route.ts';
 import type { PoolsClient } from '../rooms/api.ts';
 
 afterEach(() => {
@@ -65,7 +66,14 @@ function stubPools(over: Partial<PoolsClient> = {}): PoolsClient {
 describe('InventoryScreen', () => {
   it('has a page heading — a label, not explanatory text', () => {
     render(createElement(InventoryScreen, { pools: stubPools(), myId: 'u-me' }));
-    expect(screen.getByRole('heading', { name: 'Inventory' })).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Inventory' })).not.toBeNull();
+  });
+
+  it('its arrow goes home', () => {
+    globalThis.location.hash = '#/inventory';
+    render(createElement(InventoryScreen, { pools: stubPools(), myId: 'u-me' }));
+    fireEvent.click(screen.getByTestId('back-to-lobby'));
+    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
   });
 
   it('lists imported cubes only — a shortlist cube is build-pool’s own output, never managed here', async () => {

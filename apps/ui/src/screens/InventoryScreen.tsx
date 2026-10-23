@@ -25,7 +25,7 @@ import { ImportCube } from '../draft/ImportCube.tsx';
 import { poolsClient, type PoolsClient } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
 import { useWhoami } from '../room/whoami.ts';
-import { SettingsGear } from '../settings/Settings.tsx';
+import { HomeHead } from './HomeHead.tsx';
 import { useChromeShell } from '../chrome/shell.ts';
 import './InventoryScreen.css';
 
@@ -124,11 +124,7 @@ export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsC
 
   return (
     <div ref={shellRef} className="shell shell--fit" data-testid="inventory">
-      <nav className="shell__head">
-        <div className="shell__tools">
-          <SettingsGear />
-        </div>
-      </nav>
+      <HomeHead title="Inventory" />
       <main className="lobby lobby--room">
         {error !== null && (
           <p className="ct-error" role="alert" data-testid="inventory-error">
@@ -136,7 +132,6 @@ export function InventoryScreen({ pools = defaultPools, myId }: { pools?: PoolsC
           </p>
         )}
         <section className="lobby__card">
-          <h2>Inventory</h2>
           <div className="inventory__gallery">
             {cubes?.map((cube) => (
               <InventoryCard key={cube.id} cube={cube} myId={resolvedMyId} busy={busy} onRefresh={refreshCube} onDelete={deleteCube} />

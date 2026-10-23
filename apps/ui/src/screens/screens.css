@@ -101,6 +101,12 @@
   text-decoration: underline;
 }
 
+/* The way home is the arrow alone, at the title's size. */
+.shell__back {
+  font-size: 28px;
+  line-height: 1;
+}
+
 /* The match (`MatchScreen`): one viewport tall, the table edge to edge. The
    bar's bottom margin and the page's side inset on this route are
    `chrome/chrome.css`'s "One page boundary" rules, shared with every route
