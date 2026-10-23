@@ -1,0 +1,18 @@
+# e2e/fly-jump.spec.ts — a flyer keeps its loop through the other seat's turn (the operator, 2026-10-23:
+# "the normal flying animation and then roughly every ~1.5s the creature repositions in a random direction").
+# Seat 1 (the AI) is at its Main Phase 1 with a Serra Angel and a Hill Giant to attack with, four Swamps and
+# Ravenous Chupacabra in hand. Alice's Narcomoeba, Serra Angel and Grizzly Bears are tapped, so nothing of hers
+# blocks and every stop of hers is passed for her: the turn plays itself while her flyers are drawn.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Narcomoeba|Tapped;Serra Angel|Tapped;Grizzly Bears|Tapped
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Ravenous Chupacabra
+aibattlefield=Serra Angel;Hill Giant;Swamp;Swamp;Swamp;Swamp
+ailibrary=Swamp;Swamp;Swamp;Swamp
+aigraveyard=
