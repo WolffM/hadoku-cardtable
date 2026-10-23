@@ -155,8 +155,13 @@ test(
       console.log('[tournament-gauntlet] both tables’ round-1 banpick done independently');
 
       // Each chooses, the game is dealt and conceded — fast, same move `e2e/w72-pod.spec.ts` uses.
-      const finishGame = async (api: typeof aliceApi, page: Player['page'], tableId: string): Promise<void> => {
-        const mine = (await view(api, tableId)).decks.find((d) => d.status === 'picked' && d.by === 0)!.id;
+      // Gauntlet is Bo3 with NO sideboarding (`room/series.ts`'s `GAUNTLET` format): conceding every
+      // game loses it 0-2, so this plays exactly two, and `game-result-room` is the only button a POD
+      // Gauntlet's result screen ever offers (its own "Next game" is hidden in a pod — `LiveBoard.tsx`'s
+      // `nextInRoom ? !inPod : rematchable`) — back in the room, `gameOver`'s own `enterChoose` has
+      // already put the table straight into `choose` for the next game, same as a non-pod Gauntlet.
+      const playOneGame = async (api: typeof aliceApi, page: Player['page'], tableId: string): Promise<void> => {
+        const mine = (await view(api, tableId)).decks.find((d) => d.status === 'picked' && d.by === 0 && !d.played)!.id;
         expect((await api('POST', `/tables/rooms/${roomId}/gauntlet/choose`, { deck: mine, table: tableId })).status).toBe(200);
         await expect.poll(async () => (await view(api, tableId)).phase, { timeout: 30_000, message: `${tableId}: the AI’s own choice deals the game` }).toBe('playing');
         await page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
@@ -165,8 +170,15 @@ test(
         await expect(page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });
         await page.getByTestId('game-result-room').click();
       };
-      await finishGame(aliceApi, alice.page, t1Alice);
-      await finishGame(bobApi, bob.page, t1Bob);
+      const finishMatch = async (api: typeof aliceApi, page: Player['page'], tableId: string): Promise<void> => {
+        for (let game = 0; game < 3; game++) {
+          await playOneGame(api, page, tableId);
+          if ((await view(api, tableId)).phase === 'done') return;
+        }
+        throw new Error(`${tableId}: still not done after 3 games`);
+      };
+      await finishMatch(aliceApi, alice.page, t1Alice);
+      await finishMatch(bobApi, bob.page, t1Bob);
 
       // Round 1 settles for both; each entrant's first-match picks are on record.
       await expect.poll(async () => (await aliceApi<{ pod: PodView }>('GET', `/rooms/${roomId}`)).body.pod.round, { timeout: 60_000, message: 'round 2 begins' }).toBe(2);
