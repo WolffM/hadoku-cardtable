@@ -41,7 +41,7 @@ const titled = makeTitled(forge);
 const log = (line: string): void => console.log(`[combat-perf] ${line}`);
 
 /** Compositor, raster and GPU on top of the main-thread categories: the main thread may be idle while raster is not. */
-const TRACE = [...CATEGORIES, 'viz', 'benchmark', 'disabled-by-default-devtools.timeline.frame', 'disabled-by-default-gpu.service', 'disabled-by-default-viz.gpu_composite_time'];
+const TRACE = [...CATEGORIES, 'disabled-by-default-blink.debug', 'disabled-by-default-devtools.timeline.invalidationTracking', 'viz', 'benchmark', 'disabled-by-default-devtools.timeline.frame', 'disabled-by-default-gpu.service', 'disabled-by-default-viz.gpu_composite_time'];
 
 type Variant = 'as-is' | 'no-shake';
 
@@ -292,9 +292,48 @@ async function measure(browserCdp: CDPSession, screens: Screen[], window: string
         log(`${name} ${s.name} slow frame +${f1((a - from) / 1000)}ms ${f1(d)}ms: ${per.join(' ')}`);
       }
     }
+    selectorLines(window, s.name, main.filter((e) => e.ts >= start.ts && e.ts <= end.ts));
     log(`${window} ${s.name} top: ${topSelf(profiles[i]!, 12)}`);
     log(`${window} ${s.name} app: ${topSelf(profiles[i]!, 12, true)}`);
   });
+}
+
+/** Diagnostic: the selectors style recalculation spent its time in, and what invalidated style, in a window. */
+function selectorLines(window: string, name: string, main: TraceEvent[]): void {
+  type Timing = { selector: string; elapsed: number; match_attempts: number; match_count: number; fast_reject_count?: number };
+  const bySelector = new Map<string, { us: number; attempts: number; matches: number; rejects: number }>();
+  let statEvents = 0;
+  const shapes = new Set<string>();
+  for (const e of main) {
+    const args = e.args as Record<string, unknown> | undefined;
+    const stats = (args?.selector_stats ?? (args?.data as Record<string, unknown> | undefined)?.selector_stats) as { selector_timings?: Timing[] } | undefined;
+    if (stats?.selector_timings === undefined) continue;
+    statEvents += 1;
+    for (const t of stats.selector_timings) {
+      const was = bySelector.get(t.selector) ?? { us: 0, attempts: 0, matches: 0, rejects: 0 };
+      was.us += t.elapsed;
+      was.attempts += t.match_attempts;
+      was.matches += t.match_count;
+      was.rejects += t.fast_reject_count ?? 0;
+      bySelector.set(t.selector, was);
+    }
+  }
+  for (const e of main) if (/SelectorStats|UpdateLayoutTree/.test(e.name) && e.args !== undefined) shapes.add(`${e.name}{${Object.keys(e.args).join(',')}}`);
+  const totalUs = [...bySelector.values()].reduce((n, v) => n + v.us, 0);
+  log(`${window} ${name} selectors: ${statEvents} stat events, ${(totalUs / 1000).toFixed(1)}ms matching; shapes ${[...shapes].slice(0, 4).join(' ')}`);
+  [...bySelector]
+    .sort((a, b) => b[1].us - a[1].us)
+    .slice(0, 25)
+    .forEach(([selector, v], i) => log(`${window} ${name} selector #${i + 1} ${(v.us / 1000).toFixed(2)}ms attempts=${v.attempts} matches=${v.matches} rejects=${v.rejects} :: ${selector.slice(0, 220)}`));
+  const reasons = new Map<string, number>();
+  for (const e of main) {
+    if (!/InvalidationTracking/.test(e.name) || /Layout/.test(e.name)) continue;
+    const d = (e.args?.data ?? {}) as Record<string, unknown>;
+    const what = d.changedAttribute ?? d.changedClass ?? d.changedId ?? d.changedPseudo ?? d.extraData ?? '';
+    const key = `${e.name.replace('InvalidationTracking', '')}:${String(d.reason ?? '')}:${String(what)}:${String(d.nodeName ?? '').slice(0, 40)}`;
+    reasons.set(key, (reasons.get(key) ?? 0) + 1);
+  }
+  log(`${window} ${name} invalidations: ${[...reasons].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([k, n]) => `${n}× ${k}`).join(' | ')}`);
 }
 
 /** Take the shake out on `page`, so its share of the cost shows against `as-is`. */
