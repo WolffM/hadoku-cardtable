@@ -267,8 +267,11 @@ describe.skipIf(!available.ok)(title, () => {
 		if (!available.ok) return;
 		stderr.length = 0;
 		await service().boosters('ISD', 3, 'quiet-log');
-		const lines = stderr.flatMap((t) => t.split('\n')).filter((l) => l.trim() !== '');
-		expect(lines.filter((l) => /^\d+ of type |^Attempting to lookup: |^Parsing from main code: |^Replaced a base slot! /.test(l)), 'Forge’s per-slot chatter').toEqual([]);
-		expect(lines.some((l) => /^\[PoolService\] boosters: \d+ lines of Forge output in \d+ ms$/.test(l)), `one summary for the draw: ${JSON.stringify(lines)}`).toBe(true);
+		const lines = () => stderr.flatMap((t) => t.split('\n')).filter((l) => l.trim() !== '');
+		// The summary goes out on stderr ahead of the reply on stdout, but two pipes keep no order between them.
+		await expect
+			.poll(() => lines().some((l) => /^\[PoolService\] boosters: \d+ lines of Forge output in \d+ ms$/.test(l)), { timeout: 5_000, message: 'one summary line for the draw' })
+			.toBe(true);
+		expect(lines().filter((l) => /^\d+ of type |^Attempting to lookup: |^Parsing from main code: |^Replaced a base slot! /.test(l)), 'Forge’s per-slot chatter').toEqual([]);
 	});
 });
