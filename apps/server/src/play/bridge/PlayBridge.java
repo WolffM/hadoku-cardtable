@@ -43,6 +43,8 @@ import forge.game.GameRules;
 import forge.game.GameState;
 import forge.game.GameType;
 import forge.game.GameView;
+import forge.game.ability.AbilityUtils;
+import forge.game.ability.ApiType;
 import forge.game.event.GameEventCombatUpdate;
 import forge.game.card.CardFaceView;
 import forge.game.card.CardView;
@@ -808,15 +810,46 @@ public final class PlayBridge {
      * sub-instance chain: a charm's or a Command's chosen mode is a
      * sub-ability ({@code CharmEffect.chainAbilities}), so its targets sit on
      * {@code si.getSubInstance()}, never on {@code si} itself.
+     *
+     * <p>Two disjoint ways a stack item names another: {@code TargetChoices}
+     * (an actual target, chosen by whoever cast or activated it — a
+     * counterspell) or a Counter effect's own {@code Defined$} victim (named
+     * by Forge's own triggering/remembered-object machinery, never chosen —
+     * ward's generated trigger: {@code CardFactoryUtil.java}, "{@code DB$
+     * Counter | Defined$ TriggeredSourceSA | ...}"). Both are read here so
+     * the wire carries the pairing either way; {@link #counterDefinedTargetOf}
+     * is the second arm.
      */
     private static Integer stackTargetOf(final SpellAbilityStackInstance si, final Map<SpellAbility, Integer> owner) {
         for (SpellAbilityStackInstance at = si; at != null; at = at.getSubInstance()) {
             final TargetChoices tc = at.getTargetChoices();
-            if (tc == null) { continue; }
-            for (final SpellAbility targetSa : tc.getTargetSpells()) {
-                final Integer toId = owner.get(targetSa);
-                if (toId != null) { return toId; }
+            if (tc != null) {
+                for (final SpellAbility targetSa : tc.getTargetSpells()) {
+                    final Integer toId = owner.get(targetSa);
+                    if (toId != null) { return toId; }
+                }
             }
+            final Integer definedToId = counterDefinedTargetOf(at.getSpellAbility(), owner);
+            if (definedToId != null) { return definedToId; }
+        }
+        return null;
+    }
+
+    /**
+     * A {@code ApiType.Counter} ability's own {@code Defined$} victim, when
+     * that victim is itself a spell/ability still on the stack — the shape
+     * ward's trigger uses (and any other Counter-on-Defined effect: a
+     * triggered ability's {@code Remembered}/{@code Triggered*} reference),
+     * never a target a player chose. Resolved with Forge's own
+     * {@code AbilityUtils.getDefinedSpellAbilities} — the same call
+     * {@code CounterEffect.resolve} itself makes — never by matching the
+     * card's name or its keyword text.
+     */
+    private static Integer counterDefinedTargetOf(final SpellAbility ability, final Map<SpellAbility, Integer> owner) {
+        if (ability == null || ability.getApi() != ApiType.Counter || !ability.hasParam("Defined")) { return null; }
+        for (final SpellAbility victim : AbilityUtils.getDefinedSpellAbilities(ability.getHostCard(), ability.getParam("Defined"), ability)) {
+            final Integer toId = owner.get(victim);
+            if (toId != null) { return toId; }
         }
         return null;
     }
