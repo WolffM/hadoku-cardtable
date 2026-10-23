@@ -2190,6 +2190,11 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		matchStart(match) {
 			const room = rooms?.roomOfMatch(match.id);
 			if (room === undefined) return null;
+			// A testing room's own game never reaches the real match-stats store —
+			// same reason `matchStart` already answers `null` for a match no room
+			// started: `matchStats.gameOver`'s `stats-skipped` log is the one place
+			// this is noticed, never a silent special case elsewhere.
+			if (room.testing === true) return null;
 			// The pool the match was dealt in, from its own spec: the room's can move on after it.
 			const pool = match.spec.format ?? 'unknown';
 			// The series this game was played in, as it stood when the game ended.

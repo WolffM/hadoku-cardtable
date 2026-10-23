@@ -2674,11 +2674,22 @@ class FileLobby implements Lobby {
 		};
 		const undecided = decided ? {} : { undecided: over === 'interrupted' ? 'interrupted' : 'left', recordedAs: bestOf };
 		this.#log({ event: 'table-series-ended', roomId: room.id, tableId: table.id, bestOf: series.length, wins: series.wins, ...undecided });
-		try {
-			this.#onSeriesEnd(end);
-		} catch (err) {
-			// A broken subscriber must not undo the write that ended the series.
-			this.#log({ event: 'series-end-listener-failed', roomId: room.id, error: (err as Error).message });
+		// A testing room's series never reaches the real match-stats store — not
+		// even one a seeded tournament actually "played" (`recordGameResult`
+		// calls fed with fabricated matchIds to stand up round 1 before an admin
+		// ever sits down). The ledger write above still happens: a testing room's
+		// own history is real and worth logging, only the EXTERNAL report is
+		// skipped. Without this, a seed identity's later `leave()` (freeing its
+		// seat for a real admin — `room/testing-rooms.ts`'s tournament rooms)
+		// re-settles a decided-but-unsettled round here and would otherwise write
+		// that fabricated series into production stats.
+		if (!room.testing) {
+			try {
+				this.#onSeriesEnd(end);
+			} catch (err) {
+				// A broken subscriber must not undo the write that ended the series.
+				this.#log({ event: 'series-end-listener-failed', roomId: room.id, error: (err as Error).message });
+			}
 		}
 	}
 

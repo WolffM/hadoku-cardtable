@@ -26,12 +26,12 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { RoomBodySchema, type DraftCard, type DraftPlan, type PoolSource, type PoolVerdict } from '@hadoku/shared';
+import { isPodAi, RoomBodySchema, type DraftCard, type DraftPlan, type PoolSource, type PoolVerdict } from '@hadoku/shared';
 
 import { loadTablesLibrary } from './library.ts';
 import { createDraftRooms, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from '../room/draftRooms.ts';
 import { checkPlan as realCheckPlan, type CubeLookup, type ForgeChecker, type SetLookup } from '../room/plan.ts';
-import { seedTestingRooms } from '../room/testing-rooms.ts';
+import { seedTestingRooms, TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME } from '../room/testing-rooms.ts';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 /**
@@ -2602,7 +2602,7 @@ describe('Gauntlet tournaments over HTTP, with the real routes.ts adapter', () =
 describe('testing rooms (admin only, seeded)', () => {
 	it('lists and opens for an admin; a friend never sees them on the list, and every room/table route 404s as if they do not exist', async () => {
 		const h = await openFullApp(await tempDir());
-		await seedTestingRooms({ lobby: h.lobby, log: (entry) => logged.push(entry) });
+		await seedTestingRooms({ lobby: h.lobby, log: (entry) => logged.push(entry), library: TABLES_LIBRARY });
 
 		const friendList = await call(h, 'GET', '/api/rooms');
 		const friendRooms = (friendList.json() as { rooms: { name: string; testing: boolean }[] }).rooms;
@@ -2612,10 +2612,12 @@ describe('testing rooms (admin only, seeded)', () => {
 		const adminList = await call(h, 'GET', '/api/rooms', { headers: { 'x-hadoku-tier': 'admin' } });
 		const adminRooms = (adminList.json() as { rooms: { id: string; name: string; testing: boolean }[] }).rooms;
 		const testingRooms = adminRooms.filter((r) => r.testing);
-		// Ten rooms need nothing beyond `Lobby.create`/`setSettings` (the four
-		// original testing rooms, plus six board-state rooms — lane
-		// testing-states, 2026-10-23, and the trigger storm); the eleventh (the set draft) is skipped and
-		// logged with no catalog wired — this harness's own
+		// Twelve rooms need nothing beyond `Lobby.create`/`setSettings`/
+		// `sitPod`/`aiPod`/`recordGameResult` (the four original testing rooms,
+		// six board-state rooms — lane testing-states, 2026-10-23, trigger storm
+		// included — and the two "round 2" tournament rooms — lane
+		// testing-tourney, 2026-10-23); the thirteenth (the set draft) is
+		// skipped and logged with no catalog wired — this harness's own
 		// `checkPlan`/`newestSetCode` are both omitted.
 		expect(testingRooms.map((r) => r.name).sort()).toEqual(
 			[
@@ -2629,6 +2631,8 @@ describe('testing rooms (admin only, seeded)', () => {
 				'Testing: Board — Stack',
 				'Testing: Board — Big board',
 				'Testing: Board — Trigger storm',
+				'Testing: Constructed tournament — round 2',
+				'Testing: Gauntlet tournament — round 2',
 			].sort(),
 		);
 		expect(logged).toContainEqual(expect.objectContaining({ event: 'testing-room-seed-skipped', name: 'Testing: Set draft' }));
@@ -2760,5 +2764,109 @@ describe('testing rooms (admin only, seeded)', () => {
 		for (const id of testingIds) expect(dropped).not.toContain(id);
 		const stillTesting = h.lobby.list().filter((r) => r.testing).map((r) => r.id);
 		expect(stillTesting.sort()).toEqual(testingIds.sort());
+	});
+});
+
+/**
+ * Lane testing-tourney, 2026-10-23 (the operator: "some rooms that have
+ * tournaments and games in progress so i can validate the ui and game
+ * actions better") — `testing-rooms.ts`'s two "round 2" rooms, seeded through
+ * the real lobby/table routes (`openFullApp`), never a parallel pod
+ * construction path: round 1 is "played" with real `recordGameResult` calls
+ * (the same call a real table's own match end makes), the seed identity
+ * leaves, and an admin picks up its freed seat exactly as a real entrant
+ * would mid-tournament.
+ */
+describe('the "round 2" tournament rooms (admin only, seeded in progress)', () => {
+	const admin = { headers: { 'x-hadoku-tier': 'admin' } };
+
+	/** Round 2's own table id, standings and an admin reads: both rooms share this shape. */
+	async function round2Of(h: Harness, name: string): Promise<{ id: string; pod: { round: number; results: unknown[]; standings: unknown[]; pairings: { tableId: string; players: [string, string] }[] } }> {
+		const listed = (await call(h, 'GET', '/api/rooms', admin)).json() as { rooms: { id: string; name: string }[] };
+		const room = listed.rooms.find((r) => r.name === name);
+		expect(room, `${name} is seeded`).toBeDefined();
+		const got = (await call(h, 'GET', `/api/rooms/${room!.id}`, admin)).json() as {
+			pod: { round: number; results: unknown[]; standings: unknown[]; pairings: { tableId: string; players: [string, string] }[] } | null;
+		};
+		expect(got.pod, `${name} uses a pod`).not.toBeNull();
+		return { id: room!.id, pod: got.pod! };
+	}
+
+	it('both rooms seed with round 1 decided (a result per entrant) and standings for all three, paired into round 2 with one live table', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby, log: () => {}, library: TABLES_LIBRARY });
+
+		for (const name of [TESTING_CLASSIC_ROUND2_NAME, TESTING_GAUNTLET_ROUND2_NAME]) {
+			const { pod } = await round2Of(h, name);
+			expect(pod.round, `${name}: round 2 is open`).toBe(2);
+			// Round 1: the seed's live win over one AI, and the other AI's bye — PLUS
+			// round 2's own bye, awarded the instant it pairs (`#advancePodRound`'s
+			// own doc), before its one live game is ever played.
+			expect(pod.results, `${name}: round 1 decided, plus round 2's own bye`).toHaveLength(3);
+			// The seed plus two AI entrants: three standings rows.
+			expect(pod.standings, `${name}: standings for all three`).toHaveLength(3);
+			// Round 2: one live pairing, the seed's seat against the other AI (never the one it already played).
+			expect(pod.pairings, `${name}: round 2 paired`).toHaveLength(1);
+			const [a, b] = pod.pairings[0]!.players;
+			expect([isPodAi(a), isPodAi(b)].filter(Boolean), `${name}: one human, one AI`).toHaveLength(1);
+		}
+	});
+
+	it('the admin can join an emptied room, sit in round 2’s freed seat, and (Classic) load a legal deck — refused only by this harness’s own "no match registry", never a game-state refusal', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby, log: () => {}, library: TABLES_LIBRARY });
+		const { id, pod } = await round2Of(h, TESTING_CLASSIC_ROUND2_NAME);
+		const tableId = pod.pairings[0]!.tableId;
+
+		expect(h.lobby.get(id)?.members, 'the seed has left; the room is empty').toEqual([]);
+		expect((await call(h, 'POST', `/api/rooms/${id}/join`, admin)).status).toBe(200);
+		expect(h.lobby.get(id)?.leader, 'the first admin in leads it').toBe(h.lobby.get(id)?.members[0]?.id);
+
+		expect((await call(h, 'POST', `/api/tables/rooms/${id}/sit`, { ...admin, body: { table: tableId } })).status).toBe(200);
+		const legalDeck = (await call(h, 'GET', `/api/rooms/${id}`, admin)).json() as { format: string };
+		const anyLegalDeck = TABLES_LIBRARY.decks.find((d) => d.era === legalDeck.format)?.id ?? TABLES_LIBRARY.decks[0]!.id;
+		const deckRes = await call(h, 'PUT', `/api/tables/rooms/${id}/deck`, { ...admin, body: { deck: { library: anyLegalDeck }, table: tableId } });
+		expect(deckRes.status, deckRes.text).toBe(200);
+
+		const started = await call(h, 'POST', '/api/play/matches', { ...admin, body: { room: id, bot: true, table: tableId } });
+		expect(started.status, started.text).toBe(503);
+		expect((started.json() as { error: string }).error).toMatch(/match registry/);
+	});
+
+	it('the admin can join and sit in the Gauntlet room’s round 2, and readying deals a fresh board against the tournament AI', async () => {
+		const timers: (() => void)[] = [];
+		const schedule = (fn: () => void): void => void timers.push(fn);
+		const flush = (): void => {
+			while (timers.length > 0) timers.shift()!();
+		};
+		const h = await openFullApp(await tempDir(), { schedule });
+		await seedTestingRooms({ lobby: h.lobby, log: () => {} });
+		const { id, pod } = await round2Of(h, TESTING_GAUNTLET_ROUND2_NAME);
+		const tableId = pod.pairings[0]!.tableId;
+
+		expect((await call(h, 'POST', `/api/rooms/${id}/join`, admin)).status).toBe(200);
+		expect((await call(h, 'POST', `/api/tables/rooms/${id}/sit`, { ...admin, body: { table: tableId } })).status).toBe(200);
+
+		const readied = await call(h, 'POST', `/api/tables/rooms/${id}/gauntlet/ready`, { ...admin, body: { ready: true, table: tableId } });
+		expect(readied.status, readied.text).toBe(200);
+		flush(); // the reveal's own end timer
+		const view = (await call(h, 'GET', `/api/tables/rooms/${id}/gauntlet?table=${tableId}`, admin)).json() as { phase: string };
+		expect(view.phase, 'a fresh draw, banned/picked against the tournament AI').toBe('banpick');
+	});
+
+	it('Reset recreates a round-2 room fresh, in the same round-2 starting state', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby, log: () => {}, library: TABLES_LIBRARY });
+		const before = await round2Of(h, TESTING_CLASSIC_ROUND2_NAME);
+
+		expect((await call(h, 'POST', `/api/rooms/${before.id}/reset`, admin)).status).toBe(200);
+		expect(h.lobby.get(before.id)).toBeUndefined();
+		await seedTestingRooms({ lobby: h.lobby, log: () => {}, library: TABLES_LIBRARY });
+
+		const after = await round2Of(h, TESTING_CLASSIC_ROUND2_NAME);
+		expect(after.id).not.toBe(before.id);
+		expect(after.pod.round).toBe(2);
+		expect(after.pod.results).toHaveLength(3);
+		expect(after.pod.standings).toHaveLength(3);
 	});
 });
