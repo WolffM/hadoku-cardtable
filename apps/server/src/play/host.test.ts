@@ -6,7 +6,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -14,6 +14,7 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
 import {
 	CRASH_RECORDS_KEPT,
+	bridgeDiagnostics,
 	CRASH_RECORD_FILES,
 	CRASH_RECORD_MAX_AGE_MS,
 	JVM_RECORD_FILE,
@@ -366,9 +367,15 @@ describe('the run directory', () => {
 		await waitUntil(() => events.lines.some((l) => l.t === 'ready'), 'ready');
 		const run = runOf(events.logs);
 		expect(existsSync(join(run, 'bridge.stderr.txt'))).toBe(true);
+		// What the bridge says about itself on stderr outlives the directory: a read of Forge that failed.
+		appendFileSync(join(run, 'bridge.stderr.txt'), '[bridge] showPromptMessage: parts could not be read (java.lang.NullPointerException); the prompt goes without it\n');
 
 		host.stop();
 		await waitUntil(() => events.logs.some((l) => l.evt === 'run-dir-removed'), 'the run dir to be settled');
+		expect(events.logs.find((l) => l.evt === 'bridge-diagnostics')).toMatchObject({
+			id: 'm-000000000007',
+			lines: [{ line: '[bridge] showPromptMessage: parts could not be read (java.lang.NullPointerException); the prompt goes without it', count: 1 }],
+		});
 		expect(events.exits).toEqual(['stopped']);
 		expect(existsSync(run)).toBe(false);
 		expect(existsSync(RES_MARKER)).toBe(true);
@@ -403,6 +410,34 @@ describe('the run directory', () => {
 		expect(JSON.parse(readFileSync(join(run, 'config.json'), 'utf8'))).toMatchObject({ matchId: 'm-000000000008' });
 		expect(JSON.parse(readFileSync(join(run, 'crash.json'), 'utf8'))).toMatchObject({ id: 'm-000000000008', code: null, signal: 'SIGKILL' });
 		expect(existsSync(RES_MARKER)).toBe(true);
+	});
+});
+
+describe('bridgeDiagnostics', () => {
+	it('keeps every [bridge] line and each throwable with its first frame, once each with a count, in first-seen order', () => {
+		const stderr = [
+			'Read cards: 33752 files',
+			'[bridge] askSource: could not read the running replacements (java.util.ConcurrentModificationException)',
+			'java.util.ConcurrentModificationException',
+			'\tat java.base/java.util.ArrayList$Itr.next(ArrayList.java:1095)',
+			'\tat forge.game.zone.MagicStack.iterator(MagicStack.java:1)',
+			'[bridge] askSource: could not read the running replacements (java.util.ConcurrentModificationException)',
+			'Exception in thread "seat-0-ui" java.lang.NullPointerException: Cannot invoke "x"',
+			'\tat forge.player.PlayerControllerHuman.confirm(PlayerControllerHuman.java:12)',
+			'an ordinary line',
+		].join('\n');
+		expect(bridgeDiagnostics(stderr)).toEqual([
+			{ line: '[bridge] askSource: could not read the running replacements (java.util.ConcurrentModificationException)', count: 2 },
+			{ line: 'java.util.ConcurrentModificationException at java.base/java.util.ArrayList$Itr.next(ArrayList.java:1095)', count: 1 },
+			{ line: 'Exception in thread "seat-0-ui" java.lang.NullPointerException: Cannot invoke "x" at forge.player.PlayerControllerHuman.confirm(PlayerControllerHuman.java:12)', count: 1 },
+		]);
+	});
+
+	it('keeps a bounded number of distinct lines, still counting the ones it kept', () => {
+		const stderr = Array.from({ length: 100 }, (_, i) => `[bridge] read ${i % 60} failed`).join('\n');
+		const kept = bridgeDiagnostics(stderr);
+		expect(kept).toHaveLength(40);
+		expect(kept[0]).toEqual({ line: '[bridge] read 0 failed', count: 2 });
 	});
 });
 

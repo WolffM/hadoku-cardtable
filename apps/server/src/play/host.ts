@@ -248,6 +248,7 @@ import {
 	mkdirSync,
 	openSync,
 	readdirSync,
+	readSync,
 	readFileSync,
 	readlinkSync,
 	realpathSync,
@@ -987,6 +988,53 @@ export const CRASH_RECORD_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export const RUN_DIR_FRESH_MS = 60_000;
 /** What a crashed JVM's directory is pruned to. `crash.json` marks it as a record. */
 export const CRASH_RECORD_FILES = ['bridge.stderr.txt', 'config.json', 'crash.json'] as const;
+
+/** At most this many distinct diagnostic lines, each cut to {@link DIAGNOSTIC_CHARS}, logged for one JVM. */
+export const DIAGNOSTICS_KEPT = 40;
+const DIAGNOSTIC_CHARS = 400;
+/** The tail of `bridge.stderr.txt` read for them: the end of a long match is what a report is about. */
+const DIAGNOSTICS_READ_BYTES = 4 * 1024 * 1024;
+/** A line the bridge tagged as its own, or the headline of a Java throwable (`Exception in thread …`, `java.lang.X: …`). */
+const DIAGNOSTIC_LINE = /^(\[bridge\]|Exception in thread |(?:[\w$]+\.)+[\w$]*(?:Exception|Error)(?::|$))/;
+
+/**
+ * What the bridge said about itself on stderr: every line it tagged `[bridge]` and the headline of every
+ * Java throwable with its first frame, each kept once with how many times it came, in first-seen order.
+ *
+ * A clean end removes the run directory, and with it `bridge.stderr.txt`, which is where the bridge says a
+ * read of Forge failed (`PlayBridge.java`'s `decoration`, `[bridge] … could not read …`). So the operator's
+ * dredge window, 2026-10-23 — a prompt whose read threw and never went out — left nothing in the logs to
+ * find it by. This is what is kept of it.
+ */
+export function bridgeDiagnostics(stderr: string): { line: string; count: number }[] {
+	const seen = new Map<string, number>();
+	const lines = stderr.split('\n');
+	for (let i = 0; i < lines.length; i++) {
+		const raw = (lines[i] ?? '').trimEnd();
+		if (!DIAGNOSTIC_LINE.test(raw)) continue;
+		const frame = raw.startsWith('[bridge]') ? undefined : lines[i + 1]?.trim();
+		const line = (frame?.startsWith('at ') ? `${raw} ${frame}` : raw).slice(0, DIAGNOSTIC_CHARS);
+		if (!seen.has(line) && seen.size >= DIAGNOSTICS_KEPT) continue;
+		seen.set(line, (seen.get(line) ?? 0) + 1);
+	}
+	return [...seen].map(([line, count]) => ({ line, count }));
+}
+
+/** {@link bridgeDiagnostics} of a run directory's `bridge.stderr.txt`; none for a JVM that never wrote one. */
+function runDirDiagnostics(run: string): { line: string; count: number }[] {
+	const path = join(run, 'bridge.stderr.txt');
+	if (!existsSync(path)) return [];
+	const size = statSync(path).size;
+	const fd = openSync(path, 'r');
+	try {
+		const length = Math.min(size, DIAGNOSTICS_READ_BYTES);
+		const buf = Buffer.alloc(length);
+		readSync(fd, buf, 0, length, size - length);
+		return bridgeDiagnostics(buf.toString('utf8'));
+	} finally {
+		closeSync(fd);
+	}
+}
 const CRASH_MARKER = 'crash.json';
 
 /** Match (`newMatchId`) and spare ids. Nothing else under `workDir` is ours to remove. */
@@ -1400,6 +1448,7 @@ class BridgeJvm {
 		this.ending = null;
 		try {
 			if (ending === 'clean') {
+				this.logDiagnostics();
 				rmSync(this.run, { recursive: true, force: true });
 				this.log({ evt: 'run-dir-removed', id: this.id, run: this.run });
 				return;
@@ -1597,6 +1646,16 @@ class BridgeJvm {
 	 * `writeSync` into a fifo whose reader is wedged is the one thing here that
 	 * could hang a deploy.
 	 */
+	/** What the bridge said about itself, logged before a removal takes its stderr: see {@link bridgeDiagnostics}. */
+	private logDiagnostics(): void {
+		try {
+			const lines = runDirDiagnostics(this.run);
+			if (lines.length > 0) this.log({ evt: 'bridge-diagnostics', id: this.id, lines });
+		} catch (err) {
+			this.log({ evt: 'bridge-diagnostics-failed', id: this.id, run: this.run, error: (err as Error).message });
+		}
+	}
+
 	reapNow(): 'gone' | 'kept' | 'left' {
 		if (this.handedOver) return 'kept';
 		if (this.exited) return 'kept';
@@ -1629,6 +1688,7 @@ class BridgeJvm {
 			// to a match that is not being handed over. Remove it whole, as a clean stop
 			// would: left behind it is `RUN_DIR_FRESH_MS`-fresh at the next boot, so that
 			// sweep spares it and it survives to the one after.
+			this.logDiagnostics();
 			rmSync(this.run, { recursive: true, force: true });
 			this.log({ evt: 'run-dir-removed', id: this.id, run: this.run });
 		} catch (err) {
