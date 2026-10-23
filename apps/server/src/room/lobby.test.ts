@@ -2425,10 +2425,10 @@ describe('a 3-human pod with a bye, through two rounds — wave 72 §P', () => {
 		expect(done.pod?.results).toHaveLength(4);
 
 		// ALICE won both her rounds (6 match points) and ranks first; BOB and
-		// CAROL each won one bye and lost one game (3 points each) — the exact
-		// order between them is the tiebreak's answer, not asserted here.
+		// CAROL each took a bye and lost 0-2 to her, in games nobody timed: level
+		// on all five keys, so they share second place.
 		expect(done.pod?.standings).toHaveLength(3);
-		expect(done.pod?.standings.map((r) => r.rank)).toEqual([1, 2, 3]);
+		expect(done.pod?.standings.map((r) => r.rank)).toEqual([1, 2, 2]);
 		expect(done.pod?.standings[0]).toMatchObject({ id: ALICE.id, matchPoints: 6, rank: 1 });
 		expect(new Set(done.pod?.standings.slice(1).map((r) => r.id))).toEqual(new Set([BOB.id, CAROL.id]));
 		expect(done.pod?.standings.slice(1).every((r) => r.matchPoints === 3)).toBe(true);
@@ -3297,6 +3297,51 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(done.pod?.phase).toBe('done');
 			expect(done.pod?.standings[0]).toMatchObject({ id: ALICE.id, matchPoints: 6, rank: 1 });
 			void archived; // onTournament is proven by the 2-player test above; this one proves the round math.
+		});
+	});
+
+	describe('the fifth tiebreak: each game timed from its match’s start to its result (the operator, 2026-10-23)', () => {
+		it('carries each game’s length into the pod’s result, by the seat each entrant played from, and the standings rank by its median — through a restart', async () => {
+			const dir = await tempDir();
+			let clock = 1_000_000;
+			const lobby = await openLobby({ dir, now: () => clock });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			// The AI in seat 0 and Alice in seat 1: the pairing names the AI first, and its table seats Alice at 0.
+			expect(lobby.aiPod(id, ALICE.id, 0, true).ok).toBe(true);
+			expect(lobby.sitPod(id, ALICE.id, 1).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			const started = lobby.startDraft(id, ALICE.id);
+			expect(started.ok).toBe(true);
+			if (!started.ok) return;
+			const pairing = started.room.pod!.pairings[0]!;
+			expect(pairing.players).toEqual(['ai:0', ALICE.id]);
+			const tableId = pairing.tableId;
+			expect(started.room.tables.find((t) => t.id === tableId)!.players.map((p) => p.memberId)).toEqual([ALICE.id]);
+
+			// Game 1: ten minutes, Alice (table seat 0) wins. A restart mid-game keeps its clock.
+			expect(lobby.setTableMatch(id, tableId, 'm-g1')).toBe(true);
+			const reopened = await openLobby({ dir, now: () => clock });
+			clock += 600_000;
+			expect(reopened.recordGameResult(id, tableId, { matchId: 'm-g1', winner: 0 }).ok).toBe(true);
+			// Game 2: four minutes, Alice again.
+			expect(reopened.setTableMatch(id, tableId, 'm-g2')).toBe(true);
+			clock += 240_000;
+			expect(reopened.recordGameResult(id, tableId, { matchId: 'm-g2', winner: 0 }).ok).toBe(true);
+
+			const after = await openLobby({ dir, now: () => clock });
+			const pod = after.get(id)!.pod!;
+			expect(pod.phase).toBe('done');
+			// Each entrant's games are its own seat's: the AI took none of Alice's two.
+			expect(pod.results).toEqual([{ round: 1, playerA: 'ai:0', playerB: ALICE.id, gamesA: 0, gamesB: 2, gameMs: [600_000, 240_000] }]);
+			expect(pod.standings.map((r) => [r.id, r.rank, r.medianGameMs, r.decidedBy])).toEqual([
+				[ALICE.id, 1, 420_000, null],
+				['ai:0', 2, 420_000, 'matchPoints'],
+			]);
+			// The wire's table carries no timing of its own.
+			expect(after.get(id)!.tables.find((t) => t.id === tableId)!.series.games).toEqual([
+				{ matchId: 'm-g1', winner: 0 },
+				{ matchId: 'm-g2', winner: 0 },
+			]);
 		});
 	});
 

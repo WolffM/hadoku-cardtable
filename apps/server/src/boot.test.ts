@@ -205,6 +205,14 @@ describe('a restart gives every room in flight back the way it was left', () => 
 		rooms.gauntletTournament = tournament(lobby, 'gauntlet-tournament', 'gauntlet', 'humans');
 		rooms.randomTournament = tournament(lobby, 'random-tournament', 'random', 'humans');
 		rooms.vsAiTournament = tournament(lobby, 'vs-ai-tournament', 'classic', 'vs-ai');
+		// A finished tournament: its result carries its games' lengths, and the standings their median.
+		rooms.timedTournament = tournament(lobby, 'timed-tournament', 'classic', 'humans');
+		const timedTable = lobby.get(rooms.timedTournament)!.pod!.pairings[0]!.tableId;
+		expect(lobby.recordGameResult(rooms.timedTournament, timedTable, { matchId: 'm-timed-tournament', winner: 0 }).ok).toBe(true);
+		expect(lobby.setTableMatch(rooms.timedTournament, timedTable, 'm-timed-2')).toBe(true);
+		expect(lobby.recordGameResult(rooms.timedTournament, timedTable, { matchId: 'm-timed-2', winner: 0 }).ok).toBe(true);
+		expect(lobby.get(rooms.timedTournament)!.pod!.results[0]!.gameMs).toHaveLength(2);
+		expect(lobby.get(rooms.timedTournament)!.pod!.standings[0]!.medianGameMs).not.toBeNull();
 
 		// Gauntlet tables in banpick and in choose.
 		for (const [key, state] of [

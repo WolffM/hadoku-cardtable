@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import { rngFromSeed, type Rng } from './rng.ts';
 import {
   pairRound,
+  rankStandings,
   roundsFor,
   standings,
   type MatchResult,
@@ -240,5 +241,73 @@ describe('standings', () => {
     const rows = standings(ps, [bye(1, 'p1')]);
     expect(rows[0]?.gameWinPct).toBe(1);
     expect(rows[0]?.matchPoints).toBe(3);
+  });
+});
+
+/** `a` beats `b` 2-1, its three games lasting `ms` each. */
+function timed(round: number, a: string, b: string, ms: number[], games: [number, number] = [2, 1]): MatchResult {
+  return { round, playerA: a, playerB: b, gamesA: games[0], gamesB: games[1], gameMs: ms };
+}
+
+describe('standings: five tiebreakers, the fifth the fastest median game (the operator, 2026-10-23)', () => {
+  it('ranks by median game length after the four Swiss tiebreakers, faster first', () => {
+    // A round robin of three at 1-1 each: equal points, and every opponent percentage equal by symmetry;
+    // each won 2-1 and lost 1-2, so equal game-win %. Only the speed of their games separates them.
+    const ps = [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }];
+    const results = [timed(1, 'p1', 'p2', [600_000, 600_000, 600_000]), timed(2, 'p2', 'p3', [300_000, 300_000, 300_000]), timed(3, 'p3', 'p1', [900_000, 900_000, 900_000])];
+    const rows = standings(ps, results);
+    expect(new Set(rows.map((r) => r.matchPoints)).size).toBe(1);
+    expect(new Set(rows.map((r) => r.opponentMatchWinPct)).size).toBe(1);
+    expect(new Set(rows.map((r) => r.gameWinPct)).size).toBe(1);
+    expect(new Set(rows.map((r) => r.opponentGameWinPct)).size).toBe(1);
+    // p2's games: 600,600,600,300,300,300 → median 450 s; p3's: 300×3, 900×3 → 600 s; p1's: 600×3, 900×3 → 750 s.
+    expect(rows.map((r) => [r.id, r.medianGameMs])).toEqual([
+      ['p2', 450_000],
+      ['p3', 600_000],
+      ['p1', 750_000],
+    ]);
+  });
+
+  it('puts a player with no timed game after any player with one, and a bye times nothing', () => {
+    const ps = [{ id: 'p1' }, { id: 'p2' }];
+    const results = [bye(1, 'p1'), bye(1, 'p2'), timed(2, 'p2', 'x', [60_000, 60_000, 60_000]), { round: 2, playerA: 'p1', playerB: 'y', gamesA: 2, gamesB: 1 }];
+    const rows = standings(ps, results);
+    expect(rows.find((r) => r.id === 'p1')?.medianGameMs).toBeNull();
+    expect(rows.find((r) => r.id === 'p2')?.medianGameMs).toBe(60_000);
+  });
+
+  it('separates three players at 2-1 by each tiebreaker in turn, and says which one decided each pair', () => {
+    const ranked = rankStandings([
+      { id: 'a', matchPoints: 6, opponentMatchWinPct: 0.6, gameWinPct: 0.6, opponentGameWinPct: 0.5, medianGameMs: 500 },
+      { id: 'b', matchPoints: 6, opponentMatchWinPct: 0.5, gameWinPct: 0.7, opponentGameWinPct: 0.5, medianGameMs: 500 },
+      { id: 'c', matchPoints: 6, opponentMatchWinPct: 0.5, gameWinPct: 0.6, opponentGameWinPct: 0.6, medianGameMs: 500 },
+      { id: 'd', matchPoints: 6, opponentMatchWinPct: 0.5, gameWinPct: 0.6, opponentGameWinPct: 0.5, medianGameMs: 400 },
+      { id: 'e', matchPoints: 6, opponentMatchWinPct: 0.5, gameWinPct: 0.6, opponentGameWinPct: 0.5, medianGameMs: 500 },
+      { id: 'f', matchPoints: 6, opponentMatchWinPct: 0.5, gameWinPct: 0.6, opponentGameWinPct: 0.5, medianGameMs: null },
+      { id: 'g', matchPoints: 3, opponentMatchWinPct: 0.9, gameWinPct: 0.9, opponentGameWinPct: 0.9, medianGameMs: 100 },
+    ]);
+    expect(ranked.map((r) => [r.id, r.rank, r.decidedBy])).toEqual([
+      ['a', 1, null],
+      ['b', 2, 'opponentMatchWinPct'],
+      ['c', 3, 'gameWinPct'],
+      ['d', 4, 'opponentGameWinPct'],
+      ['e', 5, 'medianGameMs'],
+      ['f', 6, 'medianGameMs'],
+      ['g', 7, 'matchPoints'],
+    ]);
+  });
+
+  it('a tie on all five shares a rank, and the next row takes its own place', () => {
+    const row = { matchPoints: 6, opponentMatchWinPct: 0.5, gameWinPct: 0.6, opponentGameWinPct: 0.5, medianGameMs: 500 };
+    const ranked = rankStandings([
+      { id: 'a', ...row },
+      { id: 'b', ...row },
+      { id: 'c', ...row, matchPoints: 3 },
+    ]);
+    expect(ranked.map((r) => [r.id, r.rank, r.decidedBy])).toEqual([
+      ['a', 1, null],
+      ['b', 1, null],
+      ['c', 3, 'matchPoints'],
+    ]);
   });
 });

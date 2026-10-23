@@ -36,7 +36,7 @@ function pod(over: Partial<PodView> = {}): PodView {
     rounds: 2,
     results: [],
     pairings: [{ tableId: 't-1', players: ['u-alice', 'u-bob'] }],
-    standings: [{ id: 'u-alice', matchPoints: 3, opponentMatchWinPct: 0.5, gameWinPct: 1, opponentGameWinPct: 0.5, rank: 1 }],
+    standings: [{ id: 'u-alice', matchPoints: 3, opponentMatchWinPct: 0.5, gameWinPct: 1, opponentGameWinPct: 0.5, medianGameMs: null, rank: 1, decidedBy: null }],
     bye: null,
     drafters: ['u-alice', 'u-bob'],
     built: ['u-alice', 'u-bob'],

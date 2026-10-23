@@ -61,11 +61,15 @@ export { viewFor, spectatorView, watcherView, viewsForAllSeats } from './view.ts
 
 export {
   pairRound,
+  rankStandings,
   roundsFor,
   standings,
+  TIEBREAKS,
   type PodPlayer,
   type MatchResult,
   type PairRoundInput,
   type PairRoundResult,
+  type RankedStandingsRow,
   type StandingsRow,
+  type Tiebreak,
 } from './pairing.ts';

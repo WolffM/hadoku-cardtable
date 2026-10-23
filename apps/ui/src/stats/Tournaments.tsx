@@ -63,7 +63,7 @@ export function Tournaments({ load = fetchTournaments }: { load?: () => Promise<
             </time>
             {t.closed && <span className="ct-tournament__closed">Closed early</span>}
           </h2>
-          <PodStandings rows={t.standings} results={t.results} nameOf={(id) => t.names[id] ?? id} myMemberId={null} />
+          <PodStandings rows={t.standings} nameOf={(id) => t.names[id] ?? id} myMemberId={null} />
         </section>
       ))}
     </div>

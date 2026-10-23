@@ -13,8 +13,13 @@
  * opponents' game-win percentage (33% floor) — is the standard Swiss
  * tiebreak order used by organized Magic tournaments (Wizards' Magic
  * Tournament Rules, Appendix C, "Breaking Ties"). Cited from knowledge, not
- * fetched; nothing here was looked up on the web.
+ * fetched; nothing here was looked up on the web. A fifth is our own: the
+ * faster median game ranks higher (the operator, 2026-10-23: *"it is still
+ * possible to reach a tie this way. lets also add a 5th tie breaker for
+ * game-speed. the player that had fastest median game wins"*).
  */
+
+import { POD_TIEBREAKS, type PodTiebreak } from '@hadoku/shared';
 
 /** One pod seat, in the order the pod filled (1-based is fine; only order matters). */
 export interface PodPlayer {
@@ -29,7 +34,9 @@ export interface PodPlayer {
  * ruling, it counts as a 2–0 win for `playerA`, so `gamesA`/`gamesB` are not
  * read for a bye; `pairRound` and `standings` treat it as 2 games won, 0 lost.
  * A real match's `gamesA`/`gamesB` are the games each side won; equal counts
- * are a draw (1 match point each).
+ * are a draw (1 match point each). `gameMs` is how long each of its games
+ * lasted, when the server timed them; a bye, an AI-vs-AI pairing settled
+ * without a game, or a result recorded before games were timed has none.
  */
 export interface MatchResult {
   round: number;
@@ -37,6 +44,7 @@ export interface MatchResult {
   playerB: string | null;
   gamesA: number;
   gamesB: number;
+  gameMs?: number[];
 }
 
 export interface PairRoundInput {
@@ -200,6 +208,19 @@ export interface StandingsRow {
   opponentMatchWinPct: number;
   gameWinPct: number;
   opponentGameWinPct: number;
+  /** The median length of every timed game this player played, in ms; `null` with none timed. */
+  medianGameMs: number | null;
+}
+
+/** The ranking keys, in order (`@hadoku/shared`'s `POD_TIEBREAKS`, the wire's): what `RankedStandingsRow.decidedBy` names. */
+export const TIEBREAKS = POD_TIEBREAKS;
+export type Tiebreak = PodTiebreak;
+
+export interface RankedStandingsRow extends StandingsRow {
+  /** 1-based; rows equal on every tiebreak share one, and the next row takes its own place (1, 1, 3). */
+  rank: number;
+  /** The first key on which this row ranks below the one above it; `null` for the first row and for a full tie. */
+  decidedBy: Tiebreak | null;
 }
 
 /** 33% floor applied to a player's own percentage before it counts toward an opponent's average (MTR Appendix C). */
@@ -255,10 +276,54 @@ function average(xs: number[]): number {
   return xs.length === 0 ? 0 : xs.reduce((sum, x) => sum + x, 0) / xs.length;
 }
 
+/** Every timed game a player played, a bye none. */
+function gameLengths(id: string, results: MatchResult[]): number[] {
+  return results.flatMap((r) => (r.playerB !== null && (r.playerA === id || r.playerB === id) ? (r.gameMs ?? []) : []));
+}
+
+function median(xs: number[]): number | null {
+  if (xs.length === 0) return null;
+  const sorted = [...xs].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
+/** How `b` compares to `a` on one key: negative ranks `b` higher. Faster is higher, and untimed last. */
+function compareOn(key: Tiebreak, a: StandingsRow, b: StandingsRow): number {
+  if (key !== 'medianGameMs') return b[key] - a[key];
+  if (a.medianGameMs === b.medianGameMs) return 0;
+  if (a.medianGameMs === null) return 1;
+  if (b.medianGameMs === null) return -1;
+  return a.medianGameMs - b.medianGameMs;
+}
+
+function compareRows(a: StandingsRow, b: StandingsRow): number {
+  for (const key of TIEBREAKS) {
+    const c = compareOn(key, a, b);
+    if (c !== 0) return c;
+  }
+  return 0;
+}
+
+/**
+ * Ranked standings' places: rows equal on all five keys share a rank, and each other row names the key it
+ * fell below the row above on. `rows` must already be in `standings`' order.
+ */
+export function rankStandings(rows: readonly StandingsRow[]): RankedStandingsRow[] {
+  const out: RankedStandingsRow[] = [];
+  rows.forEach((row, i) => {
+    const above = out[i - 1];
+    const decidedBy = above === undefined ? null : (TIEBREAKS.find((key) => compareOn(key, above, row) !== 0) ?? null);
+    const rank = above !== undefined && decidedBy === null ? above.rank : i + 1;
+    out.push({ ...row, rank, decidedBy });
+  });
+  return out;
+}
+
 /**
  * Standings, ranked by match points, then opponents' match-win %, then
- * game-win %, then opponents' game-win % — see the file header for the
- * citation. A player who has faced no opponents yet (round 0, or an
+ * game-win %, then opponents' game-win %, then the faster median game — see
+ * the file header for the citation. A player who has faced no opponents yet (round 0, or an
  * all-byes run) gets 0 for both opponent percentages; there is no opponent
  * data to average.
  */
@@ -273,13 +338,8 @@ export function standings(players: readonly { id: string }[], results: MatchResu
       opponentMatchWinPct: average(opponentMatchPcts),
       gameWinPct: ownGameWinPct(p.id, results),
       opponentGameWinPct: average(opponentGamePcts),
+      medianGameMs: median(gameLengths(p.id, results)),
     };
   });
-  return rows.sort(
-    (a, b) =>
-      b.matchPoints - a.matchPoints ||
-      b.opponentMatchWinPct - a.opponentMatchWinPct ||
-      b.gameWinPct - a.gameWinPct ||
-      b.opponentGameWinPct - a.opponentGameWinPct,
-  );
+  return rows.sort(compareRows);
 }

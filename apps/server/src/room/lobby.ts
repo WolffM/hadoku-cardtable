@@ -78,6 +78,7 @@ import {
 	DRAFT_POOL_PREFIX,
 	DraftPlanSchema,
 	GameTypeSchema,
+	isPodAi,
 	newestStandardEra,
 	POD_SEATS,
 	PoolVerdictSchema,
@@ -105,7 +106,7 @@ import {
 // `@hadoku/draft` depends on `@hadoku/shared`, never the reverse, so `pod.ts`
 // (which `@hadoku/shared` holds) cannot import these — this file is the one
 // place both sides meet (wave 72 §P).
-import { botSeatAcross, pairRound, roundsFor, standings, type MatchResult, type PodPlayer, type StandingsRow } from '@hadoku/draft';
+import { botSeatAcross, pairRound, rankStandings, roundsFor, standings, type MatchResult, type PodPlayer, type RankedStandingsRow } from '@hadoku/draft';
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { isGauntletState, type GauntletState } from './gauntlet.ts';
 import { planDisplayName } from './plan.ts';
@@ -743,7 +744,8 @@ function isStoredMatchResult(v: unknown): v is MatchResult {
 		typeof r.playerA === 'string' &&
 		(r.playerB === null || typeof r.playerB === 'string') &&
 		typeof r.gamesA === 'number' &&
-		typeof r.gamesB === 'number'
+		typeof r.gamesB === 'number' &&
+		(r.gameMs === undefined || (Array.isArray(r.gameMs) && r.gameMs.every((ms) => typeof ms === 'number')))
 	);
 }
 
@@ -846,9 +848,9 @@ function players(humans: string[], results: MatchResult[]): { id: string }[] {
 	return [...humans, ...(ai ? [POD_AI] : [])].map((id) => ({ id }));
 }
 
-/** The pod's standings, ranked 1-based. */
-function rankedStandings(humans: string[], results: MatchResult[]): (StandingsRow & { rank: number })[] {
-	return standings(players(humans, results), results).map((row, i) => ({ ...row, rank: i + 1 }));
+/** The pod's standings, ranked 1-based, each row naming the tiebreak that put it below the one above. */
+function rankedStandings(humans: string[], results: MatchResult[]): RankedStandingsRow[] {
+	return rankStandings(standings(players(humans, results), results));
 }
 
 /**
@@ -1564,7 +1566,7 @@ function isSecret(v: unknown): v is Secret {
 function isStoredGame(v: unknown): v is SeriesGame {
 	if (typeof v !== 'object' || v === null) return false;
 	const g = v as Record<string, unknown>;
-	return typeof g.matchId === 'string' && (g.winner === 0 || g.winner === 1 || g.winner === null);
+	return typeof g.matchId === 'string' && (g.winner === 0 || g.winner === 1 || g.winner === null) && (g.ms === undefined || typeof g.ms === 'number');
 }
 
 const isSeat = (s: unknown): s is string | null => s === null || typeof s === 'string';
@@ -1583,6 +1585,7 @@ function isStoredSeries(v: unknown): v is StoredSeries {
 	if (s.played !== undefined && !(Array.isArray(s.played) && s.played.length === 2 && s.played.every(isSeat))) return false;
 	if (s.settled !== undefined && typeof s.settled !== 'boolean') return false;
 	if (s.mode !== undefined && typeof s.mode !== 'string') return false;
+	if (s.gameStartedAt !== undefined && s.gameStartedAt !== null && typeof s.gameStartedAt !== 'number') return false;
 	return SeriesPhaseSchema.safeParse(s.phase).success;
 }
 
@@ -1604,13 +1607,22 @@ function isStoredTable(v: unknown): v is Omit<StoredTable, 'series'> & { series:
  * now. A retired field (`rematchOf`) is dropped.
  */
 function storedTable(t: Omit<StoredTable, 'series'> & { series: StoredSeries }, room: SeriesRoom): StoredTable {
-	const { length, wins, games, phase, played, mode, settled } = t.series;
+	const { length, wins, games, phase, played, mode, settled, gameStartedAt } = t.series;
 	return {
 		id: t.id,
 		seats: [...t.seats],
 		...(t.ready === undefined ? {} : { ready: [...t.ready] }),
 		matchId: t.matchId,
-		series: { length, wins: [...wins], games: games.map((g) => ({ ...g })), phase, played: played ?? [...t.seats], mode: mode ?? statsModeOf(room), settled: settled ?? phase === 'done' },
+		series: {
+			length,
+			wins: [...wins],
+			games: games.map((g) => ({ ...g })),
+			phase,
+			played: played ?? [...t.seats],
+			mode: mode ?? statsModeOf(room),
+			settled: settled ?? phase === 'done',
+			gameStartedAt: gameStartedAt ?? null,
+		},
 	};
 }
 
@@ -1768,7 +1780,7 @@ function tableView(table: TableRecord, members: readonly MemberRecord[], room: R
 		series: {
 			length: table.series.phase === 'seating' ? seriesFormatOf(seriesRoomOf(room)).length : table.series.length,
 			wins: [...table.series.wins] as [number, number],
-			games: table.series.games.map((g) => ({ ...g })),
+			games: table.series.games.map((g) => ({ matchId: g.matchId, winner: g.winner })),
 			phase: table.series.phase,
 		},
 	};
@@ -2294,6 +2306,7 @@ class FileLobby implements Lobby {
 		// one simply vanished, `releaseTableMatch`): nothing about the series changes.
 		table.matchId = matchId;
 		table.ready = [false, false];
+		table.series = { ...table.series, gameStartedAt: this.#now() };
 		this.#recordMatch(room, matchId);
 		this.#persist(room);
 		this.#log({ event: 'table-match-started', roomId, tableId, matchId });
@@ -2321,7 +2334,10 @@ class FileLobby implements Lobby {
 		if (table === undefined) return { ok: false, reason: 'no-such-table' };
 		table.matchId = null;
 		// A game that ends after its series was left is discarded: that series is already recorded.
-		if (!table.series.settled) table.series = recordGame(table.series, seriesFormatOf(seriesRoomOf(room)), { matchId: result.matchId, winner: result.winner });
+		const startedAt = table.series.gameStartedAt ?? null;
+		const ms = startedAt === null ? {} : { ms: Math.max(0, this.#now() - startedAt) };
+		if (!table.series.settled) table.series = recordGame(table.series, seriesFormatOf(seriesRoomOf(room)), { matchId: result.matchId, winner: result.winner, ...ms });
+		table.series = { ...table.series, gameStartedAt: null };
 		table.ready = [false, false];
 		// Wave 72 §P: a pod round advances ITSELF the instant every one of its
 		// tables is `done` — see `#finishPodTable`.
@@ -2346,9 +2362,20 @@ class FileLobby implements Lobby {
 		const pairing = pod.pairings.find((p) => p.tableId === table.id);
 		if (pairing === undefined) return;
 		const [a, b] = pairing.players;
+		// The series counts by the seat each played from (`played`, Forge's AI `null`), and a pairing that
+		// names its AI first seats the human at 0 (`#newPodTable`): each entrant's games are its own seat's.
+		const played = table.series.played;
+		const seatOf = (id: string, fallback: 0 | 1): number => {
+			const seat = isPodAi(id) ? played.indexOf(null) : played.indexOf(id);
+			return seat === -1 ? fallback : seat;
+		};
+		const gameMs = table.series.games.flatMap((g) => (g.ms === undefined ? [] : [g.ms]));
 		// A series against the AI counts like any other (the operator: "i lost so it
 		// should show my standings").
-		pod.results = [...pod.results, { round: pod.round, playerA: a, playerB: b, gamesA: table.series.wins[0], gamesB: table.series.wins[1] }];
+		pod.results = [
+			...pod.results,
+			{ round: pod.round, playerA: a, playerB: b, gamesA: table.series.wins[seatOf(a, 0)] ?? 0, gamesB: table.series.wins[seatOf(b, 1)] ?? 0, ...(gameMs.length === 0 ? {} : { gameMs }) },
+		];
 		const stillPlaying = pod.pairings.some((p) => {
 			if (p.tableId === table.id) return false;
 			const t = room.tables.find((x) => x.id === p.tableId);
@@ -2550,7 +2577,7 @@ class FileLobby implements Lobby {
 			bestOf,
 			seats: [seat(series.played[0]), seat(series.played[1])],
 			wins: [...series.wins],
-			games: series.games.map((g) => ({ ...g })),
+			games: series.games.map((g) => ({ matchId: g.matchId, winner: g.winner })),
 			winner: seriesWinner({ length: bestOf, wins: series.wins }),
 		};
 		const undecided = decided ? {} : { undecided: over === 'interrupted' ? 'interrupted' : 'left', recordedAs: bestOf };

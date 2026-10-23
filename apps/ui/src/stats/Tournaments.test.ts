@@ -21,8 +21,8 @@ const cubeNight: Tournament = {
   rounds: 1,
   names: { 'u-alice': 'Alice', ai: 'AI' },
   standings: [
-    { id: 'u-alice', matchPoints: 3, opponentMatchWinPct: 0.33, gameWinPct: 1, opponentGameWinPct: 0, rank: 1 },
-    { id: 'ai', matchPoints: 0, opponentMatchWinPct: 1, gameWinPct: 0, opponentGameWinPct: 1, rank: 2 },
+    { id: 'u-alice', matchPoints: 3, opponentMatchWinPct: 0.33, gameWinPct: 1, opponentGameWinPct: 0, medianGameMs: null, rank: 1, decidedBy: null },
+    { id: 'ai', matchPoints: 0, opponentMatchWinPct: 1, gameWinPct: 0, opponentGameWinPct: 1, medianGameMs: null, rank: 2, decidedBy: null },
   ],
   results: [{ round: 1, playerA: 'u-alice', playerB: 'ai', gamesA: 2, gamesB: 0 }],
 };

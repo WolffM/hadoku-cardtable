@@ -54,10 +54,15 @@ export function statsModeOf(room: SeriesRoom): ConstructedMode | 'draft' {
 	return room.gameType === 'draft' ? 'draft' : (room.mode ?? 'classic');
 }
 
-/** One game of a series — `RoomTableGame` (`@hadoku/shared`), which this mirrors exactly. */
+/**
+ * One game of a series — `RoomTableGame` (`@hadoku/shared`), plus the server's own `ms`: how long it
+ * lasted, from its match's start to its result (absent for a game recorded before games were timed).
+ * A pod's standings rank by the median (`@hadoku/draft`'s fifth tiebreak); the wire carries none of it.
+ */
 export interface SeriesGame {
 	matchId: string;
 	winner: 0 | 1 | null;
+	ms?: number;
 }
 
 /**
@@ -77,6 +82,8 @@ export interface SeriesRecord {
 	played: [string | null, string | null];
 	mode: ConstructedMode | 'draft';
 	settled: boolean;
+	/** When the game under way started (ms since epoch), timing it for `SeriesGame.ms`; null between games. */
+	gameStartedAt?: number | null;
 }
 
 /** A room's next series, sized by its format, played by `played`. */

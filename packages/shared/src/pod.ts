@@ -62,14 +62,26 @@ export const PodMatchResultSchema = z.strictObject({
   playerB: z.string().min(1).nullable(),
   gamesA: z.number().int().min(0),
   gamesB: z.number().int().min(0),
+  /** How long each of its games lasted, in ms, when the server timed them: none for a bye or a result from before. */
+  gameMs: z.array(z.number().min(0)).optional(),
 });
 export type PodMatchResult = z.infer<typeof PodMatchResultSchema>;
 
 /**
+ * The standings' ranking keys, in order (`@hadoku/draft`'s `standings`): match points, the three Swiss
+ * tiebreakers, then the faster median game (the operator, 2026-10-23).
+ */
+export const POD_TIEBREAKS = ['matchPoints', 'opponentMatchWinPct', 'gameWinPct', 'opponentGameWinPct', 'medianGameMs'] as const;
+export const PodTiebreakSchema = z.enum(POD_TIEBREAKS);
+export type PodTiebreak = z.infer<typeof PodTiebreakSchema>;
+
+/**
  * One player's standing — the wire mirror of `@hadoku/draft`'s
- * `StandingsRow`, plus `rank`: this row's 1-based position in the ranked
- * list the engine already produced, so a pod screen draws a leaderboard
- * without re-deriving the tiebreak order itself.
+ * `RankedStandingsRow`: `rank` is this row's 1-based place in the ranked
+ * list the engine already produced (shared by a tie on every key), and
+ * `decidedBy` the key it fell below the row above on, so a pod screen draws
+ * a leaderboard without re-deriving the tiebreak order itself. A record kept
+ * from before the fifth key (a past tournament) reads `null` for both.
  */
 export const PodStandingsRowSchema = z.strictObject({
   id: z.string().min(1),
@@ -77,7 +89,9 @@ export const PodStandingsRowSchema = z.strictObject({
   opponentMatchWinPct: z.number().min(0).max(1),
   gameWinPct: z.number().min(0).max(1),
   opponentGameWinPct: z.number().min(0).max(1),
+  medianGameMs: z.number().min(0).nullable().default(null),
   rank: z.number().int().min(1),
+  decidedBy: PodTiebreakSchema.nullable().default(null),
 });
 export type PodStandingsRow = z.infer<typeof PodStandingsRowSchema>;
 

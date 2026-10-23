@@ -47,8 +47,8 @@ describe('parsePodView', () => {
       built: ['u-alice', 'u-bob', 'u-carol'],
       personas: {},
       standings: [
-        { id: 'u-alice', matchPoints: 3, opponentMatchWinPct: 0.5, gameWinPct: 1, opponentGameWinPct: 0.5, rank: 1 },
-        { id: 'u-bob', matchPoints: 0, opponentMatchWinPct: 1, gameWinPct: 0, opponentGameWinPct: 1, rank: 2 },
+        { id: 'u-alice', matchPoints: 3, opponentMatchWinPct: 0.5, gameWinPct: 1, opponentGameWinPct: 0.5, medianGameMs: null, rank: 1, decidedBy: null },
+        { id: 'u-bob', matchPoints: 0, opponentMatchWinPct: 1, gameWinPct: 0, opponentGameWinPct: 1, medianGameMs: null, rank: 2, decidedBy: null },
       ],
     });
     expect(parsePodView(v)).toEqual(v);
