@@ -60,20 +60,15 @@ jobs:
           echo "releasing ${VERSION} at ${sha}"
           echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
+      # Through mgmt-api with this repo's own service key: it derives the repo
+      # from the key and refuses a service deploy-config.json does not map to
+      # it. A refused or unanswered notify fails here, before the tag.
       - name: Deploy the release to prod
-        env:
-          TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
-          SHA: ${{ steps.gate.outputs.sha }}
-        run: |
-          set -euo pipefail
-          [ -n "${TOKEN}" ] || { echo "::error::HADOKU_SITE_TOKEN is not set on this repository."; exit 1; }
-          curl -fsS -X POST \
-            -H "Authorization: token ${TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/WolffM/hadoku_site/dispatches \
-            -d "$(jq -n --arg sha "${SHA}" \
-                  '{event_type:"redeploy_service", client_payload:{service:"cardtable", sha:$sha}}')"
-          echo "Dispatched redeploy_service for 'cardtable' (sha ${SHA})"
+        uses: WolffM/hadoku-actions/repo-action@v1
+        with:
+          verb: notify
+          body: '{"event_type":"redeploy_service","client_payload":{"service":"cardtable","sha":"${{ steps.gate.outputs.sha }}"}}'
+          service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
 
       - name: Tag release/${{ inputs.version }}
         env:

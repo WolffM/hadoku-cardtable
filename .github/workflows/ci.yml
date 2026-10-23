@@ -97,7 +97,7 @@ jobs:
           vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
 
       # NODE_AUTH_TOKEN must be HADOKU_NPM_READ_TOKEN — never GITHUB_TOKEN and
-      # never HADOKU_SITE_TOKEN:
+      # never the account-wide hadoku_site PAT:
       #
       #   GITHUB_TOKEN is scoped to this repository. `@wolffm/rooms-protocol` is
       #   a PRIVATE package owned by hadoku-watchparty, so it 403s unless this
@@ -105,7 +105,7 @@ jobs:
       #   `packages: read` permission above does NOT substitute for that — it
       #   shapes the minted token, it does not grant package access.
       #
-      #   HADOKU_SITE_TOKEN had its read:packages stripped in the 2026-08-19
+      #   The hadoku_site PAT had its read:packages stripped in the 2026-08-19
       #   rotation, so it authenticates and then 403s on every fetch, which is
       #   harder to diagnose than an empty variable.
       #

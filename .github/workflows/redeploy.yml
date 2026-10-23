@@ -31,8 +31,11 @@
 # only when a header rename never appeared in production. So this workflow
 # failing loudly is the point, and `report-job` below is why a red run is seen.
 #
-# Requires HADOKU_SITE_TOKEN (seeded 2026-09-15 via hadoku_site's
-# `github-secrets child-repos`; cardtable is on the additional_repos list).
+# The dispatch goes through mgmt-api with this repo's own service key
+# (KEY_SERVICE_CARDTABLE, via hadoku-actions/repo-action): mgmt-api derives the
+# repo from the key and only redeploys a service deploy-config.json maps to it.
+# A refused or unanswered notify FAILS the job. `decide` reads this repo's own
+# runs, artifacts and compare API with the run's github.token.
 
 name: Redeploy on hadoku_site
 
@@ -169,25 +172,17 @@ jobs:
       - name: Mark the start, so the reported duration is real
         run: echo "JOB_STARTED_AT=$(date -u +%s)" >> "$GITHUB_ENV"
 
-      - name: Trigger redeploy_service on hadoku_site
+      - name: Ask hadoku_site to redeploy cardtable-ppe
+        uses: WolffM/hadoku-actions/repo-action@v1
+        with:
+          verb: notify
+          body: '{"event_type":"redeploy_service","client_payload":{"service":"cardtable-ppe","sha":"${{ needs.decide.outputs.sha }}"}}'
+          service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+
+      - name: Write the dispatched sha
         env:
-          TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
           SHA: ${{ needs.decide.outputs.sha }}
-        run: |
-          set -euo pipefail
-          if [ -z "${TOKEN}" ]; then
-            echo "::error::HADOKU_SITE_TOKEN is not set on this repository."
-            echo "::error::Seed it from an up-to-date hadoku_site checkout: python3 scripts/administration.py github-secrets child-repos"
-            exit 1
-          fi
-          curl -fsS -X POST \
-            -H "Authorization: token ${TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/WolffM/hadoku_site/dispatches \
-            -d "$(jq -n --arg sha "${SHA}" \
-                  '{event_type:"redeploy_service", client_payload:{service:"cardtable-ppe", sha:$sha}}')"
-          echo "Dispatched redeploy_service for 'cardtable-ppe' (sha ${SHA})"
-          echo "${SHA}" > dispatched.txt
+        run: echo "${SHA}" > dispatched.txt
 
       # What this run dispatched, readable by the next run's `decide` without a log download.
       - name: Record the dispatched sha
