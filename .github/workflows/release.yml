@@ -48,7 +48,7 @@ jobs:
           set -euo pipefail
           api() { curl -fsS -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${REPO}/$1"; }
           [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must look like v0.33.0, got '${VERSION}'"; exit 1; }
-          if curl -fsS -o /dev/null -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/${REPO}/git/ref/tags/release/${VERSION}"; then
+          if curl -fs -o /dev/null -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/${REPO}/git/ref/tags/release/${VERSION}"; then
             echo "::error::release/${VERSION} already exists"; exit 1
           fi
           sha="${SHA_IN:-$(api commits/main | jq -r .sha)}"
