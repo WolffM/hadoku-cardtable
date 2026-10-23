@@ -183,7 +183,10 @@ test(
       await expect(alice.page.getByTestId('pool-picker-verdict'), 'refused, naming the card Forge does not know').toHaveAttribute('data-state', 'refused', {
         timeout: UI_TIMEOUT,
       });
-      await expect(alice.page.getByTestId('pool-picker-verdict')).toContainText(UNPLAYABLE_NAME);
+      // Named in a modal over the page (the operator, 2026-10-22: "this error should appear as a popout modal"), closed before the picker is used again.
+      await expect(alice.page.getByTestId('pool-picker-refusal')).toContainText(UNPLAYABLE_NAME);
+      await alice.page.getByTestId('pool-picker-refusal-close').click();
+      await expect(alice.page.getByTestId('pool-picker-refusal')).toHaveCount(0);
       await expect(cubeRadio(alice.page, UNPLAYABLE_NAME), 'the picker shows the attempted name').toBeChecked();
       await expect(alice.page.getByTestId('ready-toggle'), 'Start is disabled').toBeDisabled();
       await expect(cubeRadio(bob.page, LEGACY_CUBE), 'the room’s own plan is untouched by alice’s refused attempt').toBeChecked();

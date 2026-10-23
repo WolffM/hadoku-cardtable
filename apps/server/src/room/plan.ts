@@ -109,7 +109,7 @@ export async function checkCards(
 	if (forge === null) {
 		if (missingText.length > 0) return { ok: false, unplayable: [], missingText };
 		if (opts?.uncheckedWithoutJar === true) return { ok: true, cards: resolved.length };
-		return { ok: false, unplayable: ['Forge is not available to check playability — try again once the pool service is up'], missingText: [] };
+		return { ok: false, unplayable: [], missingText: [], message: 'Forge is not available to check playability — try again once the pool service is up' };
 	}
 
 	const unplayable = await forge.check(resolved.map((c) => c.name));

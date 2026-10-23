@@ -13,7 +13,8 @@ export type DraftPlan = z.infer<typeof DraftPlanSchema>;
 
 export const PoolVerdictSchema = z.discriminatedUnion('ok', [
   z.strictObject({ ok: z.literal(true), cards: z.number().int().nonnegative() }),
-  z.strictObject({ ok: z.literal(false), unplayable: z.array(z.string()), missingText: z.array(z.string()) }),
+  // `message`: why no card could be checked at all (the pool service down), in place of a card list.
+  z.strictObject({ ok: z.literal(false), unplayable: z.array(z.string()), missingText: z.array(z.string()), message: z.string().optional() }),
 ]);
 export type PoolVerdict = z.infer<typeof PoolVerdictSchema>;
 

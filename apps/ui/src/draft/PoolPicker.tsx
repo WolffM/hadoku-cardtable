@@ -71,6 +71,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { CubeSummary, DraftPreset, PoolSource, PoolVerdict, SetSummary } from '@hadoku/shared';
 
 import { SetSymbol } from '../components/ManaPip.tsx';
+import { Modal } from '../components/Modal.tsx';
 import { RadioCards, type RadioCard } from '../components/RadioCards.tsx';
 import { CubeArt } from './CubeArt.tsx';
 import { ImportCube } from './ImportCube.tsx';
@@ -81,8 +82,16 @@ export function cardsCount(n: number): string {
   return `${n} ${n === 1 ? 'card' : 'cards'}`;
 }
 
-/** A refused verdict only — the arm this picker ever shows the names of. */
+/**
+ * Why the plan cannot be drafted: the cards Forge cannot play and the cards the catalog has no text
+ * for, or a message when none could be checked.
+ */
 export type Refusal = Extract<PoolVerdict, { ok: false }>;
+
+/** The refusal of a plan write: its verdict, or the server's message when it gave none. */
+export function refusalOf(verdict: PoolVerdict | null, message: string): Refusal {
+  return verdict !== null && !verdict.ok ? verdict : { ok: false, unplayable: [], missingText: [], message };
+}
 export type PoolTab = 'cube' | 'set' | 'custom';
 export type SourceStyle = Extract<PoolSource, { kind: 'set' }>['style'];
 /** The shared verdict line's own three states — also used to flip the chosen gallery card's border/fill. */
@@ -408,6 +417,32 @@ function PresetRow({ preset, myId, busy, onLoad, onDelete }: { preset: DraftPres
   );
 }
 
+function countOf(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
+/** The verdict line's word on a refusal: how many cards, or the server's own message. */
+function refusalSummary(refusal: Refusal): string {
+  if (refusal.message !== undefined) return refusal.message;
+  const n = refusal.unplayable.length + refusal.missingText.length;
+  return `${countOf(n, 'card')} can’t be drafted`;
+}
+
+/** One named list in the refusal's modal, or nothing when it is empty. */
+function RefusalList({ lead, names, testId }: { lead: string; names: readonly string[]; testId: string }) {
+  if (names.length === 0) return null;
+  return (
+    <>
+      <p className="pool-picker__refusal-lead">{lead}</p>
+      <ul className="pool-picker__refusal-list" data-testid={testId}>
+        {names.map((name) => (
+          <li key={name}>{name}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 export function PoolPicker({
   tab,
   onTabChange,
@@ -436,6 +471,15 @@ export function PoolPicker({
   const [presetName, setPresetName] = useState('');
   const disabled = !leader || busy;
   const verdictState: VerdictState = checking ? 'checking' : refusal !== null ? 'refused' : 'ready';
+  /**
+   * A refusal opens as a modal, not a line at the page's foot (the operator, 2026-10-22: "this error
+   * should appear as a popout modal, not at the bottom of the page"). Closed, it stays closed until a
+   * DIFFERENT refusal arrives — the room's own verdict is re-read on every poll — and the line keeps a
+   * way back to it, since Ready stays off while it stands.
+   */
+  const refusalKey = refusal === null ? null : JSON.stringify(refusal);
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const refusalOpen = refusalKey !== null && dismissed !== refusalKey;
 
   /** Which pack slot is being edited — a local, view-only choice; never gated on leadership (see the file header). */
   const [activeRound, setActiveRound] = useState<0 | 1 | 2>(0);
@@ -620,8 +664,27 @@ export function PoolPicker({
       <p className="pool-picker__verdict" data-testid="pool-picker-verdict" data-state={verdictState}>
         {verdictState === 'checking' && 'Checking…'}
         {verdictState === 'ready' && readyCards !== null && cardsCount(readyCards)}
-        {verdictState === 'refused' && refusal !== null && [...refusal.unplayable, ...refusal.missingText].join(', ')}
+        {verdictState === 'refused' && refusal !== null && (
+          <>
+            {refusalSummary(refusal)}{' '}
+            <button type="button" className="pool-picker__why" data-testid="pool-picker-refusal-show" onClick={() => setDismissed(null)}>
+              Show
+            </button>
+          </>
+        )}
       </p>
+      {refusalOpen && refusal !== null && (
+        <Modal title="This pool can’t be drafted" testId="pool-picker-refusal" onClose={() => setDismissed(refusalKey)}>
+          {refusal.message !== undefined ? (
+            <p className="pool-picker__refusal-lead">{refusal.message}</p>
+          ) : (
+            <>
+              <RefusalList lead={`Forge can’t play ${countOf(refusal.unplayable.length, 'card')} in it:`} names={refusal.unplayable} testId="pool-picker-refusal-unplayable" />
+              <RefusalList lead={`The card catalog has no text yet for ${countOf(refusal.missingText.length, 'card')}:`} names={refusal.missingText} testId="pool-picker-refusal-missing" />
+            </>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

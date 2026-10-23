@@ -335,6 +335,27 @@
   color: var(--danger);
 }
 
+.pool-picker__why {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pool-picker__refusal-lead {
+  margin: 0;
+}
+
+.pool-picker__refusal-list {
+  margin: 0;
+  padding-left: 1.2em;
+  columns: 2 12rem;
+  column-gap: 16px;
+}
+
 .pool-picker__verdict[data-state='ready'] {
   color: var(--color-text);
 }

@@ -85,7 +85,7 @@ import type { CubeSummary, DraftPlan, DraftPreset, PoolSource, SetSummary } from
 import { ActionButton } from '../components/ActionButton.tsx';
 import { poolsClient, roomsClient, type PoolsClient, type RoomsClient, type RoomMember } from '../rooms/api.ts';
 import { latestReads } from '../rooms/latest.ts';
-import { PoolPicker, type PoolTab, type Refusal, type SourceStyle } from '../draft/PoolPicker.tsx';
+import { PoolPicker, refusalOf, type PoolTab, type Refusal, type SourceStyle } from '../draft/PoolPicker.tsx';
 import { preloadCubeArt } from '../play/live/art-preload.ts';
 import { aiPod, closePod, sitPod, standPod } from './pod/client.ts';
 import { PodSeats } from './pod/PodSeats.tsx';
@@ -306,7 +306,7 @@ export function DraftLobby({
     const plan: DraftPlan = { rounds: [source, source, source] };
     rooms.setPlan(roomId, plan).then((r) => {
       setPlanBusy(false);
-      if (!r.ok) setAttempt({ source, refusal: r.verdict !== null && !r.verdict.ok ? r.verdict : { ok: false, unplayable: [], missingText: [r.message] } });
+      if (!r.ok) setAttempt({ source, refusal: refusalOf(r.verdict, r.message) });
     });
   };
 
@@ -344,7 +344,7 @@ export function DraftLobby({
     setPlanBusy(true);
     rooms.setPlan(roomId, plan).then((r) => {
       setPlanBusy(false);
-      if (!r.ok) setCustomAttempt(r.verdict !== null && !r.verdict.ok ? r.verdict : { ok: false, unplayable: [], missingText: [r.message] });
+      if (!r.ok) setCustomAttempt(refusalOf(r.verdict, r.message));
     });
   };
 
@@ -366,7 +366,7 @@ export function DraftLobby({
     setPlanBusy(true);
     rooms.setPlan(roomId, preset.plan).then((r) => {
       setPlanBusy(false);
-      if (!r.ok) setCustomAttempt(r.verdict !== null && !r.verdict.ok ? r.verdict : { ok: false, unplayable: [], missingText: [r.message] });
+      if (!r.ok) setCustomAttempt(refusalOf(r.verdict, r.message));
     });
   };
 

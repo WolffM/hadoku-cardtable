@@ -272,14 +272,17 @@ describe('the pool picker (wave 73 §B)', () => {
     vi.mocked(pools.listCubes).mockResolvedValue([cube]);
     const pod = plannedPod(cubePlan(cube.id), cube.name, {
       ok: false,
-      unplayable: ['Forge is not available to check playability — try again once the pool service is up'],
+      unplayable: [],
       missingText: [],
+      message: 'Forge is not available to check playability — try again once the pool service is up',
     });
 
     render(createElement(DraftLobby, { ...baseProps, pod, members: [alice, bob] }));
     await waitFor(() => expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('refused'));
 
-    expect(screen.getByTestId('pool-picker-verdict').textContent).toBe('Forge is not available to check playability — try again once the pool service is up');
+    expect(screen.getByTestId('pool-picker-verdict').textContent).toBe('Forge is not available to check playability — try again once the pool service is up Show');
+    // A refusal opens as a modal (the operator, 2026-10-22: "this error should appear as a popout modal").
+    expect(screen.getByTestId('pool-picker-refusal').textContent).toContain('Forge is not available to check playability');
     // `pool-picker-verdict` renders on the first pass from the `pod` prop; the cube
     // radios come from the async `pools.listCubes()` and may not have landed yet —
     // `findByTestId`, not `getByTestId`, so a slow fake (or a busy CI runner)
@@ -319,7 +322,13 @@ describe('the pool picker (wave 73 §B)', () => {
     expect(rooms.setPlan).toHaveBeenCalledWith('r-cube', cubePlan(bad.id));
 
     await waitFor(() => expect(screen.getByTestId('pool-picker-verdict').getAttribute('data-state')).toBe('refused'));
-    expect(screen.getByTestId('pool-picker-verdict').textContent).toBe('Not A Real Card');
+    expect(screen.getByTestId('pool-picker-verdict').textContent).toBe('1 card can’t be drafted Show');
+    expect(screen.getByTestId('pool-picker-refusal-unplayable').textContent).toBe('Not A Real Card');
+    // Closed, it stays closed while the same refusal stands; the line opens it again.
+    fireEvent.click(screen.getByTestId('pool-picker-refusal-close'));
+    expect(screen.queryByTestId('pool-picker-refusal')).toBeNull();
+    fireEvent.click(screen.getByTestId('pool-picker-refusal-show'));
+    expect(screen.getByTestId('pool-picker-refusal')).not.toBeNull();
     expect((screen.getByTestId(`pool-picker-cubes-${bad.id}`) as HTMLInputElement).checked, 'the picker shows the attempted cube').toBe(true);
     expect((screen.getByTestId(`pool-picker-cubes-${good.id}`) as HTMLInputElement).checked, 'not the one it replaced').toBe(false);
     expect((screen.getByTestId('ready-toggle') as HTMLButtonElement).disabled, 'Start is disabled').toBe(true);
