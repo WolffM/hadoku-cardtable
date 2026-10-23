@@ -304,8 +304,11 @@ test(
       // doc) — otherwise the very first AI seated would already complete a
       // 2-entrant field and lock before the loop seats the other two.
       await sit(alice, 0);
-      for (let seat = 0; seat < 3; seat++) await alice.page.getByTestId('pod-seat-ai').first().click();
-      await expect(alice.page.getByTestId('pod-seat-ai-remove')).toHaveCount(3, { timeout: UI_TIMEOUT });
+      // One AI at a time: a second click before the feed redraws lands on the same seat.
+      for (let seat = 1; seat <= 3; seat++) {
+        await alice.page.getByTestId('pod-seat-ai').first().click();
+        await expect(alice.page.getByTestId('pod-seat-ai-remove')).toHaveCount(seat, { timeout: UI_TIMEOUT });
+      }
       await pickDeck(alice);
 
       // Alice's own Ready is the last thing the field needed: it locks by itself.
