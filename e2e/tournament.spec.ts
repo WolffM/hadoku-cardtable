@@ -6,26 +6,29 @@
  * and then split players off to play their games."*
  *
  * Alice leads a Constructed room, turns Tournament on (Classic, Locked), she
- * and Bob sit and pick decks, Alice locks seats, round 1 pairs them, both
- * reach their table, the game is played to a result (concede, twice — the
- * same move `e2e/w72-pod.spec.ts` uses to settle a round fast, since the
- * acceptance text only needs the round to RESOLVE, not a full game), the
- * round settles, and standings show.
+ * and Bob sit and pick decks; the field locks BY ITSELF the instant Bob's own
+ * Ready completes it (ruling 7, 2026-10-22 — "the seats lock when all players
+ * are ready", no Lock seats button). Round 1 pairs them, both reach their
+ * table, the game is played to a result (concede, twice — the same move
+ * `e2e/w72-pod.spec.ts` uses to settle a round fast, since the acceptance
+ * text only needs the round to RESOLVE, not a full game), the round settles,
+ * and standings show.
  *
  * A second, lighter test exercises the operator's 2026-10-22 AI-entrant
  * ruling (*"AI can sit in the tournament, but we can also allow byes…"*): an
- * AI seated before Lock counts toward it without blocking it, and stops
- * after Lock seats pairs round 1 — it does NOT play the AI's own match to a
- * result, because which of the three entrants round 1 gives the bye to is
- * the real server's Swiss engine's own choice (`@hadoku/draft`'s `pairRound`,
- * tour-s's to build), not something this lane can pin down without one to
- * run against.
+ * AI entrant, seated and never readying its own seat, never blocks the lock
+ * — only Bob's final Ready (the last HUMAN) does, with the AI already
+ * seated. It stops after round 1 pairs — it does NOT play the AI's own
+ * match to a result, because which of the three entrants round 1 gives the
+ * bye to is the real server's Swiss engine's own choice (`@hadoku/draft`'s
+ * `pairRound`, tour-s's to build), not something this lane can pin down
+ * without one to run against.
  *
- * Lock seats is `rooms.start` — the SAME route a draft room's own deal
- * already uses (`room/lobby.ts`'s `startDraft` dispatches to the tournament
- * lock whenever the room is one); Classic's deck choice is the SAME
- * `PUT /api/tables/rooms/:roomId/deck` the 1v1 table always used. Both are
- * tour-s's landed contract (`tournament-s`, f828588c), not a guess.
+ * Classic's deck choice is the SAME `PUT /api/tables/rooms/:roomId/deck` the
+ * 1v1 table always used — tour-s's landed contract (`tournament-s`,
+ * f828588c), not a guess. The lock itself is `room/lobby.ts`'s
+ * `#maybeLockTournament`, called from the SAME `setReady`/`sitPod`/`aiPod`
+ * writes these tests already make — ruling 7's own doc.
  */
 import { expect, test, type Browser } from '@playwright/test';
 
@@ -77,8 +80,8 @@ async function enableTournament(alice: Player, bob: Player, decks: 'locked' | 'p
   }
 }
 
-/** Sits the given seat, picks the first legal deck on offer, and presses Ready once it is live — Classic's own readiness condition (a legal deck chosen). */
-async function sitPickReady(p: Player, seat: number): Promise<void> {
+/** Sits the given seat and picks the first legal deck on offer — Classic's own readiness condition, short of pressing Ready itself. */
+async function sitPick(p: Player, seat: number): Promise<void> {
   // By its own seat number — `e2e/w72-pod.spec.ts`'s own way of sitting
   // several players down without a race over which "open seat" is whose.
   await p.page.locator(`[data-testid="pod-seat-sit"][data-seat="${seat}"]`).click();
@@ -87,8 +90,18 @@ async function sitPickReady(p: Player, seat: number): Promise<void> {
   const tile = p.page.getByTestId('deck-mine').getByTestId('deck-option').first();
   await tile.click();
   await expect(p.page.getByTestId('ready-toggle'), `${p.name}: a legal deck enables Ready`).toBeEnabled({ timeout: UI_TIMEOUT });
+}
+
+/** Presses Ready — ruling 7's own lock may fire the instant this is the last thing the field needed, with nothing else for anyone to press. */
+async function ready(p: Player): Promise<void> {
   await p.page.getByTestId('ready-toggle').click();
   await expect(p.page.getByTestId('ready-toggle')).toHaveAttribute('aria-pressed', 'true');
+}
+
+/** `sitPick` then `ready`, in one call — most callers want both. */
+async function sitPickReady(p: Player, seat: number): Promise<void> {
+  await sitPick(p, seat);
+  await ready(p);
 }
 
 /** Concedes a game and waits for the result — `e2e/w72-pod.spec.ts`'s own fast way to settle a series. */
@@ -119,12 +132,9 @@ test(
 
       /* ── both sit and pick a deck; Ready lights once it is legal ──────── */
       await sitPickReady(alice, 0);
+      // Bob's own Ready is the last thing the field needed: it locks by
+      // itself, with nothing for anyone to press (ruling 7).
       await sitPickReady(bob, 1);
-
-      /* ── the leader locks the seats ─────────────────────────────────── */
-      const lock = alice.page.getByTestId('pod-lock-seats');
-      await expect(lock, 'both humans ready: Lock seats is live').toBeEnabled({ timeout: UI_TIMEOUT });
-      await lock.click();
 
       /* ── round 1 pairs the only two entrants: both reach their table ──── */
       for (const p of [alice, bob]) await p.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
@@ -177,11 +187,14 @@ test(
       bob = opened.bob;
 
       await enableTournament(alice, bob, 'locked');
+      // Alice readies; Bob only sits and picks — not ready yet, so the field
+      // (2 entrants, Bob not ready) does not lock itself.
       await sitPickReady(alice, 0);
-      await sitPickReady(bob, 1);
+      await sitPick(bob, 1);
 
       /*
-       * ── the leader seats an AI on a third, still-open seat ──────────────
+       * ── the leader seats an AI on a third, still-open seat — it changes
+       * nothing about the lock, which is still waiting on Bob alone ────────
        *
        * `isPodAi` (tour-s's fix) is true for a tournament pod's own `ai:<seat>`
        * entrant too, so `PodSeats.tsx` now draws the AI look and the Remove
@@ -189,15 +202,14 @@ test(
        */
       const openSeats = alice.page.locator('[data-testid="pod-seat-sit"]');
       const before = await openSeats.count();
-      const lock = alice.page.getByTestId('pod-lock-seats');
-      await expect(lock, 'two humans ready, no AI yet: already enough to lock').toBeEnabled({ timeout: UI_TIMEOUT });
       await alice.page.getByTestId('pod-seat-ai').first().click();
       await expect(openSeats, 'one fewer open seat: the AI took it').toHaveCount(before - 1, { timeout: UI_TIMEOUT });
       await expect(alice.page.getByTestId('pod-seat-ai-remove'), 'the seat now offers Remove, not AI').toHaveCount(1, { timeout: UI_TIMEOUT });
-      // A third, AI, entrant changes nothing about readiness: still enabled.
-      await expect(lock, 'the AI entrant never blocks Lock — only humans must be ready').toBeEnabled();
+      await expect(alice.page.getByTestId('pod-tables'), 'the AI entrant alone never locks the field — Bob is still not ready').toHaveCount(0);
 
-      await lock.click();
+      // Bob's own Ready is the last thing the field needed: it locks by
+      // itself, with the AI entrant counted but never asked for its own.
+      await ready(bob);
 
       /*
        * Round 1 pairs two of the three entrants; which one gets the bye is
@@ -210,6 +222,71 @@ test(
         await expect(p.page.getByTestId('pod-seat-ai'), `${p.name}: no AI action exists after lock`).toHaveCount(0);
         await expect(p.page.getByTestId('pod-tables'), `${p.name}: the bracket is up`).toBeVisible({ timeout: UI_TIMEOUT });
       }
+    } finally {
+      await stack.stop();
+    }
+  },
+);
+
+/**
+ * The regression this lane's priority fix needed (room r-228e5e39987e, a
+ * real run): one human and three AI entrants, Classic, Decks "each round",
+ * auto-locked (ruling 7) the instant Alice's own Ready completes the field
+ * — no Lock seats press. `roundsFor(4) === 2`, so this plays TWO rounds:
+ * round 1 pairs Alice against one AI (the other two AI settle each other
+ * without a table); Alice picks THAT round's own deck, the match starts,
+ * and a concede settles it; round 2 pairs her again (a new AI, the Swiss
+ * engine's own call), and the SAME re-pick → match → result repeats.
+ *
+ * Before the fix, `tables[0]` — the room's own stale, never-played 1v1
+ * table — was what the screen read for "my table": the round's own table,
+ * and its per-round deck chooser, never surfaced, and the match never
+ * started. This is why that bug existed at all.
+ */
+test(
+  titled('a Classic, per-round, mostly-AI tournament: auto-lock, round 1’s own table and deck pick, a result, and round 2 again'),
+  async ({ browser }) => {
+    test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+    if (!forge.ok) return;
+    test.setTimeout(8 * 60_000);
+
+    const stack = await startPlayStack(forge);
+    let alice: Player | undefined;
+    let bob: Player | undefined;
+    try {
+      const opened = await openRoomWithLeader(browser, stack.origin, `e2e tournament per-round ai ${Date.now()}`);
+      alice = opened.alice;
+      bob = opened.bob;
+      const { roomUrl } = opened;
+
+      await enableTournament(alice, bob, 'per-round');
+      // Bob never sits: one human, three AI — entrants enough for two rounds
+      // (`roundsFor(4) === 2`), none of Bob's own doing.
+      await sitPick(alice, 0);
+      for (let seat = 0; seat < 3; seat++) await alice.page.getByTestId('pod-seat-ai').first().click();
+      await expect(alice.page.getByTestId('pod-seat-ai-remove')).toHaveCount(3, { timeout: UI_TIMEOUT });
+
+      // Alice's own Ready is the last thing the field needed: it locks by itself.
+      await ready(alice);
+      await expect(alice.page.getByTestId('pod-tables'), 'round 1 is up').toBeVisible({ timeout: UI_TIMEOUT });
+
+      /** Round N's own table: picks THAT round's deck, waits for the match, concedes to a result, then back to the room for the next round. */
+      const playRound = async (round: number): Promise<void> => {
+        await expect(alice!.page.getByTestId('pod-round'), `round ${round} is current`).toHaveText(`Round ${round} of 2`, { timeout: UI_TIMEOUT });
+        await expect(alice!.page.getByTestId('deck-mine'), `round ${round}: the round’s OWN deck chooser — never tables[0]’s`).toBeVisible({ timeout: UI_TIMEOUT });
+        await alice!.page.getByTestId('deck-mine').getByTestId('deck-option').first().click();
+        await alice!.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
+        await expect(alice!.page.locator('[aria-label="Game board"]'), `round ${round}: carried to the round’s own table`).toBeVisible({ timeout: UI_TIMEOUT });
+        await alice!.page.getByTestId('live-concede').click();
+        await alice!.page.getByTestId('live-concede-yes').click();
+        await expect(alice!.page.getByTestId('game-result')).toBeVisible({ timeout: UI_TIMEOUT });
+        await alice!.page.goto(roomUrl);
+      };
+
+      await playRound(1);
+      await playRound(2);
+
+      await expect(alice.page.getByTestId('pod-standings'), 'standings after round 2').toBeVisible({ timeout: UI_TIMEOUT });
     } finally {
       await stack.stop();
     }
