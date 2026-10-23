@@ -20,16 +20,17 @@ combines the pending files, shows the notes for editing, lands them and runs the
    pending file has a `## New` or `## Changed` bullet, the patch when they are all fixes. The
    per-package versions `land.sh` bumps are build numbers and don't change here.
 2. **Collect what's in it:** every file in `docs/releases/pending/` (except its `README.md`), and
-   for a check that nothing was missed,
+   every commit since the last `release/*` tag, because a land may have shipped without a file:
    ```sh
    node scripts/release/collect.ts > "$SCRATCH/release-content.md"
    ```
-   which lists the playtest-ledger rows added or changed since the last `release/*` tag, then the
-   commit subjects.
+   lists the playtest-ledger rows added or changed since that tag, then every commit subject.
+   Read each commit a player could notice (its body and files, where the subject is not enough).
 3. **Combine the notes** into `docs/releases/vX.Y.Z.md` (shape below): a headline and a sentence
    or two on what the release is about, then every pending bullet under its own heading, merged,
-   with near-duplicates folded into one. A ledger row a player would notice that has no pending
-   file gets a bullet too, in the player's words, using its "check it by" column. Leave out
+   with near-duplicates folded into one. A commit or ledger row a player would notice that no
+   pending file covers gets a bullet too, in the player's words (a row's "check it by" column
+   helps); say which bullets came from commits, so the operator can check them. Leave out
    anything a player can't see (tests, CI, refactors), unless it fixed something they hit.
 4. **The operator reads and edits them.** Then land the notes file and the removal of the pending
    files in one commit on `main`, like any doc. A docs-only change doesn't redeploy PPE.

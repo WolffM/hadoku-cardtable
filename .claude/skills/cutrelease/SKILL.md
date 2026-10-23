@@ -18,11 +18,21 @@ git ls-tree --name-only origin/main docs/releases/pending/ | grep -v README.md
 node scripts/release/collect.ts > "$SCRATCH/release-content.md"    # ledger rows + commits since $LAST
 ```
 
-Read every pending file (`git show origin/main:<path>`) and the collect output. Ledger rows and
-commits are only a cross-check: a player-visible change since `$LAST` with no pending file is a
-gap — write its bullet from the row's "check it by" column, and say so when presenting.
+Read every pending file (`git show origin/main:<path>`), then **every commit since `$LAST`**, not
+only the ones a pending file names — a land may have shipped with no file:
 
-If there are no pending files and nothing player-visible since `$LAST`, say there is nothing to
+```sh
+git log --reverse --format='%h %s' "$LAST"..origin/main
+```
+
+For each commit, decide whether a player would see or feel it. Skip version bumps (`ui 0.32.…`,
+`server …`), dependency updates, CI, tests, docs and admin-only work (testing rooms, the sound
+builder). When a subject does not say enough, read the commit (`git show --stat <sha>`, its body,
+the files it touched) before deciding. Every player-visible commit is either covered by a pending
+file or a ledger row (`collect.ts`'s output), or it is a **gap**: write its bullet yourself, from
+the commit and its ledger row's "check it by" column if it has one, in the players' words.
+
+If there are no pending files and no player-visible commit since `$LAST`, say there is nothing to
 release and stop.
 
 ## 2. Combine
@@ -48,8 +58,9 @@ Write `docs/releases/vX.Y.Z.md` in a worktree off `origin/main`:
 
 ## 3. The operator edits
 
-Show the operator the full notes text in chat, plus what fed it: the pending files and any gap
-you filled from the ledger. Ask them to edit or approve. Apply their edits verbatim. Do not land
+Show the operator the full notes text in chat, plus what fed it: the pending files, and each
+bullet you wrote for a gap with the commit(s) it came from, so they can check it and drop any
+that should not be there. Ask them to edit or approve. Apply their edits verbatim. Do not land
 or release until they say the notes are right.
 
 ## 4. Land the notes
