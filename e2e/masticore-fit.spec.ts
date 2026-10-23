@@ -1,14 +1,17 @@
 /**
- * A question's sheet never scrolls. The operator, 2026-10-22, on Masticore's upkeep trigger:
- *
- *   "i just got the masticore trigger and i see TWO scroll bars, there should be zero. one scroll
- *   bar for the top where it explains the effect. one scroll bar for the bottom where the cards are
- *   for selecting"
+ * A question's card grid is the reveal's (the operator, 2026-10-23: *"lets not reinvent the wheel on
+ * how to display card grids in decision windows"*, choosing the reveal's card size and a scroll over
+ * shrinking cards to fit), in the question's own window, with its answers whole: *"decision windows
+ * are centered differently on the page and need space for answers to questions like selecting cards
+ * and clicking Ok … make sure this is tested properly"*.
  *
  * Two browsers, a real Forge match (`scenarios/masticore-upkeep.state`): alice holds seven cards
- * and Masticore, and her upkeep asks her to discard one or sacrifice it. Every sheet she is shown on
- * the way is measured at the default 1280×720 viewport: no box in the question's column may have
- * more content than it shows, and the card grid draws all seven cards.
+ * and Masticore, and her upkeep asks her to discard one or sacrifice it. At the default 1280×720:
+ * - every card is a choice, drawn at a fail to find's reveal size (measured against a real
+ *   `.reveal-notice__cards` tile on the same page, not a number copied here);
+ * - nothing in the question's column scrolls but its body (2026-10-22: never the words);
+ * - its answers (OK) are wholly inside the column and the window;
+ * - picking a card discards it (a one-pick selection answers on the pick; OK where the sheet has one).
  *
  * Serves the prebuilt dist (`e2e/play/harness.ts`); skips, with a title that says why, when Forge is
  * absent.
@@ -29,9 +32,12 @@ interface Sheet {
   text: string;
   /** Every box in the question's column whose content is taller than the box: a scroll bar. */
   scrollers: string[];
-  /** How many card tiles the sheet draws, and how many of them lie wholly inside the window. */
   tiles: number;
-  tilesInView: number;
+  /** A choice's card width, and a reveal's on the same page. */
+  cardW: number;
+  revealCardW: number;
+  /** The answers' row lies wholly inside the column and the window. */
+  answersWhole: boolean;
 }
 
 /** The open question's column, measured; null when none is open. */
@@ -44,15 +50,30 @@ async function measure(page: Page): Promise<Sheet | null> {
       .filter((el) => el.scrollHeight > el.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(el).overflowY))
       .map((el) => `${name(el)} ${el.scrollHeight}>${el.clientHeight}`);
     const tiles = [...column.querySelectorAll<HTMLElement>('.prompt__cards > li')];
-    const inView = tiles.filter((li) => {
-      const r = li.getBoundingClientRect();
-      return r.top >= 0 && r.bottom <= window.innerHeight && r.width > 0;
-    });
-    return { text: (column.textContent ?? '').trim().slice(0, 120), scrollers, tiles: tiles.length, tilesInView: inView.length };
+    // A reveal's grid, drawn off-screen with the page's own styles, for its card's width.
+    const probe = document.createElement('div');
+    probe.className = 'reveal-notice';
+    probe.style.cssText = 'position:fixed;left:-9999px;top:0;max-width:none';
+    probe.innerHTML = '<ul class="reveal-notice__cards"><li><div class="card"></div></li></ul>';
+    document.body.append(probe);
+    const revealCardW = probe.querySelector('.card')!.getBoundingClientRect().width;
+    probe.remove();
+    const col = column.getBoundingClientRect();
+    const answers = column.querySelector('.prompt__actions')?.getBoundingClientRect();
+    const answersWhole =
+      answers !== undefined && answers.height > 0 && answers.top >= col.top && answers.bottom <= col.bottom && answers.top >= 0 && answers.bottom <= window.innerHeight;
+    return {
+      text: (column.textContent ?? '').trim().slice(0, 120),
+      scrollers,
+      tiles: tiles.length,
+      cardW: tiles[0]?.querySelector('.card')?.getBoundingClientRect().width ?? 0,
+      revealCardW,
+      answersWhole,
+    };
   });
 }
 
-test(titled('Masticore’s upkeep discard: no part of the question scrolls, and all seven cards are on screen'), async ({ browser }) => {
+test(titled('Masticore’s upkeep discard: the reveal’s card grid in the question’s own window, only its body scrolls, OK whole, and a pick discards'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -90,14 +111,28 @@ test(titled('Masticore’s upkeep discard: no part of the question scrolls, and 
         { timeout: 90_000, intervals: [400], message: 'alice is asked which card to discard' },
       )
       .toBe(true);
-    // Settled: the tiles' art and the fit have had a frame to land.
+    // Settled: the tiles' art has had a frame to land.
     await alice.page.waitForTimeout(500);
     grid = (await measure(alice.page)) ?? grid;
     console.log(`[masticore-fit] grid ${JSON.stringify(grid)}`);
-    expect(sheets.flatMap((s) => s.scrollers), 'no sheet on the way scrolled').toEqual([]);
-    expect(grid!.scrollers, 'the discard sheet scrolls nowhere').toEqual([]);
+    const onlyTheBody = (s: Sheet) => s.scrollers.filter((x) => !x.startsWith('div.prompt__body '));
+    expect(sheets.flatMap(onlyTheBody), 'no sheet on the way scrolled anything but its body').toEqual([]);
+    expect(onlyTheBody(grid!), 'the discard sheet scrolls nothing but its body').toEqual([]);
     expect(grid!.tiles, 'every card in her hand is a choice').toBe(7);
-    expect(grid!.tilesInView, 'every card is on screen').toBe(7);
+    expect(grid!.revealCardW, 'the reveal grid draws cards').toBeGreaterThan(40);
+    expect(Math.abs(grid!.cardW - grid!.revealCardW), 'a choice’s card is a reveal’s size').toBeLessThanOrEqual(1);
+    expect(grid!.answersWhole, 'OK is wholly inside the window').toBe(true);
+
+    // The answer works: the first card is discarded. A one-pick selection is answered by the pick itself
+    // (`SelectionPrompt.tsx`); a sheet that still offers its OK after the pick takes it.
+    const first = alice.page.locator('.live__prompt .prompt__cards > li').first();
+    const picked = await first.getAttribute('data-card-id');
+    await first.locator('label').click();
+    const ok = alice.page.locator('.live__prompt').getByTestId(/^(selection-done|prompt-submit)$/);
+    if (await ok.isEnabled({ timeout: 1_000 }).catch(() => false)) await ok.click({ timeout: 2_000 }).catch(() => undefined);
+    await expect(alice.page.locator('.live__prompt .prompt__cards'), 'the question closes').toHaveCount(0, { timeout: 15_000 });
+    // By id, not by count: her draw step follows the upkeep and puts a card back in.
+    await expect(alice.page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${picked}"]`), 'the picked card left her hand').toHaveCount(0, { timeout: 15_000 });
   } finally {
     await stack.stop();
   }

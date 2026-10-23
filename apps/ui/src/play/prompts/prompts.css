@@ -54,12 +54,11 @@
  * (`flex-shrink: 0`): they are always whole, at the foot. Nor do the words:
  * the operator, 2026-10-22, on Masticore's discard, *"i see TWO scroll bars,
  * there should be zero"* — the head scrolled its trigger text and the body its
- * seven cards. So the head and message keep their full height, and a card
- * grid is sized to the room that leaves (`fit-cards.ts`): every tile drawn,
- * none scrolled to. The body still shrinks below its content (`min-height: 0`)
- * and scrolls what does not fit, so a long list that is not cards — or a grid
- * the fit cannot reach — scrolls inside its own box and never draws over the
- * buttons.
+ * seven cards. So the head and message keep their full height, and the body
+ * takes the room that leaves: it shrinks below its content (`min-height: 0`)
+ * and scrolls what does not fit, so a long list or card grid scrolls inside its
+ * own box and never draws over the buttons (the operator, 2026-10-23, chose the
+ * reveal's card size and a scroll over shrinking the cards to fit).
  */
 .prompt__actions,
 .prompt__problems,
@@ -81,8 +80,8 @@
  * The body scrolls; what it holds never shrinks to make room. A child with a
  * min-height of its own (a card grid, a list, a drop zone) gives up the flex
  * item's automatic minimum, so it was squeezed below its rows, which spilled out
- * of it, and `fit-cards.ts` measured the squeezed box: a library search of 18
- * Goblins came out one column of slivers (the operator, 2026-10-23).
+ * of it: a library search of 18 Goblins came out one column of slivers (the
+ * operator, 2026-10-23).
  */
 .prompt__body > * {
   flex-shrink: 0;
@@ -287,29 +286,43 @@
 /* ── card grids: a prompt's cards are tiles, the board's card look ────── */
 
 /*
- * `--card-w` here is the prompt's own size (the board sizes cards per zone in
- * `board.css`; a prompt is not a zone and inherits the draft table's 190px,
- * which is the wrong look for a choice). `auto-fill` + `minmax` is the same
- * wrap `draft.css` gives the pack: N cards is N columns until they stop
- * fitting.
+ * One card grid for a question's cards and a reveal's (`RevealNotice.tsx`, a fail
+ * to find's whole library): cards at one size, wrapping, and a long list scrolls
+ * in its box (the operator, 2026-10-23: *"lets not reinvent the wheel on how to
+ * display card grids in decision windows"*). A question's answers stay whole at
+ * the sheet's foot; only its body scrolls.
  */
-.prompt__cards {
-  --card-w: 7rem;
+.prompt__cards,
+.reveal-notice__cards {
+  --card-w: 6rem;
 
-  /* A minimum height even with no tiles — see `.prompt__list`'s own rule, same reason. */
-  min-height: 2.4rem;
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
-/* Fitted to the live column's room (`fit-cards.ts`): exactly the columns and tile width that fit. */
-.prompt__cards[data-fit] {
-  grid-template-columns: repeat(var(--fit-cols), var(--fit-tile-w));
-  justify-content: center;
+/* The tile's width is its card's: a choice's frame is drawn around it, so its card is the reveal's size. */
+.prompt__cards > li,
+.reveal-notice__cards > li {
+  box-sizing: content-box;
+  width: var(--card-w);
+  min-width: 0;
+}
+
+/* A tile keeps a card's proportion whether or not it has art — the rule
+ * `.board-card .card` applies on the board (`card.css`), same intent. */
+.prompt__cards .card,
+.reveal-notice__cards .card {
+  aspect-ratio: 488 / 680;
+  height: auto;
+}
+
+.prompt__cards {
+  /* A minimum height even with no tiles — see `.prompt__list`'s own rule, same reason. */
+  min-height: 2.4rem;
 }
 
 .prompt__cards > li {
@@ -323,13 +336,6 @@
   background: var(--bg-card);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
-}
-
-/* A tile keeps a card's proportion whether or not it has art — the rule
- * `.board-card .card` applies on the board (`card.css`), same intent. */
-.prompt__cards .card {
-  aspect-ratio: 488 / 680;
-  height: auto;
 }
 
 .prompt__cards > li[data-dragging] {
@@ -632,8 +638,7 @@
  *
  * The head is the column's words, so it keeps its full height as they do (the
  * three-part column above), card and all: a head that shrank scrolled the
- * effect it was there to explain. The answers take what room is left, and a
- * card grid is fitted to it (`fit-cards.ts`).
+ * effect it was there to explain. The answers take what room is left.
  */
 .prompt__head {
   display: flex;
@@ -1149,28 +1154,10 @@
 }
 
 .reveal-notice__cards {
-  --card-w: 6rem;
-
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
   /* Shrinks below its content in the bounded column, and scrolls what does not fit. */
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-}
-
-.reveal-notice__cards > li {
-  width: var(--card-w);
-  min-width: 0;
-}
-
-.reveal-notice__cards .card {
-  aspect-ratio: 488 / 680;
-  height: auto;
 }
 
 /*

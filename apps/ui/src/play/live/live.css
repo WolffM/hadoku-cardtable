@@ -598,28 +598,6 @@
   box-shadow: 0 6px 24px var(--shadow);
 }
 
-/*
- * A card grid inside the column, at the width the column actually has
- * (wave 27 §B.2).
- *
- * `prompts.css` sizes a choice's tiles off its own `--card-w: 7rem` (112px),
- * which was chosen against a sheet that could be 720px wide. The column is
- * 26.5% of the table, and the table is 960 at a 1280 viewport — 254px, 230 of
- * it inside the sheet's own padding. `repeat(auto-fill, minmax(112px, 1fr))`
- * resolves to ONE column there, so a reveal of ten cards is a ten-row scroll
- * through a window 355px tall: it fits, in the sense that nothing breaches, and
- * a player sees two cards of a ten-card reveal at a time.
- *
- * 5rem is the same grid asked the question at the column's real width: 80px
- * floors give TWO columns of ~100px, which is wider than the 7rem tile is
- * drawn at on a board of this size. Nothing else about the prompt changes, and
- * this is scoped to the live column so the draft table's own card grids — the
- * other place `.prompt__cards` is drawn — keep the size they were tuned at.
- */
-.live__prompt .prompt__cards {
-  --card-w: 5rem;
-}
-
 .confirm {
   display: flex;
   flex-direction: column;
