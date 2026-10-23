@@ -60,6 +60,11 @@ interface RoomFeedDeps {
 }
 
 interface RoomFeedHandle {
+	/**
+	 * A room reads differently with nothing in it written: a table's game moved on (the table card,
+	 * `play/table-game.ts`). Its screens read it again, once per turn of the event loop like any change.
+	 */
+	changed(roomId: string): void;
 	close(): void;
 }
 
@@ -95,12 +100,13 @@ export function attachRoomFeed(io: SocketIOServer, deps: RoomFeedDeps): RoomFeed
 		}
 	};
 
-	const stopListening = deps.lobby.onChange((roomId) => {
+	const note = (roomId: string): void => {
 		changed.add(roomId);
 		if (flushing) return;
 		flushing = true;
 		setImmediate(flush);
-	});
+	};
+	const stopListening = deps.lobby.onChange(note);
 
 	const touch = (watcher: Watcher): void => {
 		for (const room of watcher.rooms) deps.lobby.touch(room, watcher.participantId);
@@ -135,6 +141,7 @@ export function attachRoomFeed(io: SocketIOServer, deps: RoomFeedDeps): RoomFeed
 	});
 
 	return {
+		changed: note,
 		close(): void {
 			stopListening();
 			clearInterval(touching);

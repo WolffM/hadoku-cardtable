@@ -552,6 +552,13 @@ export interface SeatProjector {
 	turnNumber(): number | null;
 	/** Forge's own current phase (the Game object's `Phase`), or null when the state does not say. Global, as {@link turnNumber} is. */
 	phase(): string | null;
+	/** The Forge player whose turn it is (the Game object's `PlayerTurn`), or null when the state does not say. Global. */
+	activePlayer(): number | null;
+	/**
+	 * Each player's life total and how many cards are in their hand, by Forge player id. Public by
+	 * construction: a life total is on the table, and a hand's size is, though its cards are not.
+	 */
+	playerCounts(): ReadonlyMap<number, { life: number | null; hand: number }>;
 }
 
 export function createProjector(viewer: number | null = null): SeatProjector {
@@ -1138,6 +1145,16 @@ export function createProjector(viewer: number | null = null): SeatProjector {
 		},
 		phase(): string | null {
 			return enumOf([...raw.values()].find((o) => o._type === DELTA_TYPE.game), 'Phase');
+		},
+		activePlayer(): number | null {
+			return intOf([...raw.values()].find((o) => o._type === DELTA_TYPE.game), 'PlayerTurn');
+		},
+		playerCounts(): ReadonlyMap<number, { life: number | null; hand: number }> {
+			const counts = new Map<number, { life: number | null; hand: number }>();
+			for (const obj of raw.values()) {
+				if (obj._type === DELTA_TYPE.player) counts.set(obj._id, { life: intOf(obj, 'Life'), hand: idsOf(obj, 'Hand').length });
+			}
+			return counts;
 		},
 	};
 }

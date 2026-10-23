@@ -15,7 +15,7 @@
  * checks the text against the CALLER's pool, with the text from `dckTextOf`.
  */
 
-import { basicLand, BASIC_LAND_OF, cardKey, cardRequestOf, DECK_COLORS, isBasicLand, manaTokensOf, setBasicLand, type Deck, type DeckColor } from '@hadoku/deck';
+import { basicLand, BASIC_LAND_OF, cardKey, cardRequestOf, DECK_COLORS, isBasicLand, manaTokensOf, manaValueOf, setBasicLand, type Deck, type DeckColor } from '@hadoku/deck';
 import { LIBRARY_CARD_COSTS } from '@hadoku/deck/library';
 import { parseCardRequest, type DeckEntry } from '@hadoku/carddata/dck';
 import { artIdIndexFromTable, backFaceNames, scryfallIdFor, type ArtIdTableFile } from '@hadoku/carddata/art';
@@ -24,7 +24,6 @@ import { dckTextOf } from '../draft/deckFromPool.ts';
 import type { DraftCard } from '../draft/types.ts';
 import type { SeatChoice, DeckLine } from '../screens/tables.ts';
 import { namedFace } from '../screens/DeckPeek.tsx';
-import { manaValueOf } from '../screens/ConstructedScreen.tsx';
 import artIdsData from '../draft/art-ids.json' with { type: 'json' };
 
 /** The drafted seat, in the gate's shape: this deck's text, checked against your own pool. */

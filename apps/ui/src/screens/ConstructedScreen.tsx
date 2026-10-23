@@ -151,6 +151,7 @@ import {
   LIMITED_MIN_MAIN_DECK_SIZE,
   mainDeckSize,
   manaTokensOf,
+  manaValueOf,
   moveToMain,
   type Deck,
   type DeckColor,
@@ -358,19 +359,6 @@ export function libraryDeckPeek(d: TableDeck): PeekedDeck {
       LIBRARY_CARD_COSTS,
     ),
   };
-}
-
-/** Converted mana cost of one Scryfall cost token — `'3'` → 3, `'2/W'` → 2, `'X'` → 0. */
-function tokenValue(token: string): number {
-  if (/^\d+$/.test(token)) return Number(token);
-  const generic = token.split('/').find((part) => /^\d+$/.test(part));
-  if (generic !== undefined) return Number(generic);
-  return token === 'X' || token === 'Y' || token === 'Z' ? 0 : 1;
-}
-
-/** Converted mana cost of a Scryfall cost string. Scryfall's own `cmc`, recomputed. */
-export function manaValueOf(cost: string): number {
-  return manaTokensOf(cost).reduce((total, token) => total + tokenValue(token), 0);
 }
 
 /**

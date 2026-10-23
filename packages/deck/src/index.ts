@@ -86,6 +86,7 @@ export {
   deckColorsByName,
   foldDeckColors,
   manaTokensOf,
+  manaValueOf,
   type DeckColor,
 } from './colors.ts';
 

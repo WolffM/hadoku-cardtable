@@ -63,7 +63,7 @@ vi.mock('./pod/client.ts', async (importOriginal) => ({
 
 import type { DraftCard, GauntletView, RoomMode } from '@hadoku/shared';
 import { parseDck } from '@hadoku/carddata/dck';
-import { BASIC_LAND_NAMES, deckColorsByName, mainDeckSize } from '@hadoku/deck';
+import { BASIC_LAND_NAMES, deckColorsByName, mainDeckSize, manaValueOf } from '@hadoku/deck';
 import {
   LIBRARY,
   LIBRARY_ARCHETYPE_KEY,
@@ -82,7 +82,6 @@ import {
   draftedDeckOf,
   openDraftedDeck,
   groupSetsByBlock,
-  manaValueOf,
 } from './ConstructedScreen.tsx';
 import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import ART_IDS from '../draft/art-ids.json';

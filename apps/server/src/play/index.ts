@@ -16,4 +16,5 @@ export {
 } from './host.js';
 export { roomFormatNames } from './names.js';
 export { roomDeckCosts } from './deck-colors.js';
+export { tableGame } from './table-game.js';
 export { spellCopierLookup } from './spell-copiers.js';

@@ -115,6 +115,7 @@ import {
 	type DraftPlan,
 	type PoolVerdict,
 	type RoomYou,
+	type TableGame,
 } from '@hadoku/shared';
 import {
 	POD_MIN_OPEN,
@@ -157,6 +158,11 @@ export interface RoomsDeps {
 	 * missing and nothing else. No separate reset path.
 	 */
 	reseedTesting?: () => void;
+	/**
+	 * Each table's game as the table card draws it (`play/table-game.ts`), by table id: the room body
+	 * carries it as `tableGames`. Absent (a unit suite) is none.
+	 */
+	tableGames?(room: RoomView): Record<string, TableGame>;
 	/** Overrides `JOIN_RATE_LIMIT`. */
 	joinRateLimit?: RateLimitConfig;
 	/** Injected for tests; the limiter's clock. */
@@ -251,11 +257,8 @@ function callerOf(req: Request): Caller {
  */
 export interface RoomBody extends RoomView {
 	you: RoomYou;
-}
-
-function roomBody(room: RoomView, callerId: string): RoomBody {
-	const mine = room.members.find((m) => m.id === callerId);
-	return { ...room, you: { id: callerId, leader: room.leader === callerId, ready: mine?.ready === true } };
+	/** Each table's game, by table id (`RoomsDeps.tableGames`). */
+	tableGames?: Record<string, TableGame>;
 }
 
 function badRequest(res: Response, error: string): void {
@@ -281,6 +284,12 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		deps.log ?? jsonLogger('cardtable-rooms');
 	const now = deps.now ?? Date.now;
 	const joinLimiter = new MultiRateLimiter<string>(deps.joinRateLimit ?? JOIN_RATE_LIMIT);
+
+	const roomBody = (room: RoomView, callerId: string): RoomBody => {
+		const mine = room.members.find((m) => m.id === callerId);
+		const games = deps.tableGames?.(room);
+		return { ...room, you: { id: callerId, leader: room.leader === callerId, ready: mine?.ready === true }, ...(games === undefined ? {} : { tableGames: games }) };
+	};
 
 	const rooms = Router();
 

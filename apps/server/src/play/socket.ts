@@ -173,6 +173,8 @@ export interface PlayDeps {
 	keys?: Pick<KeyBook, 'learn'>;
 	/** A match's game ended: Forge's verdict and every seat's history are final. The stats reporter listens. */
 	onGameOver?(match: Match): void;
+	/** See {@link MatchDeps.liveChanged}: the room the match was started from reads differently. */
+	liveChanged?(match: Match): void;
 	/** See {@link MatchDeps.formatNames}. */
 	formatNames?(format: string): ReadonlySet<string> | null;
 	/** See {@link MatchDeps.spellCopiers}. */
@@ -490,6 +492,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		overGraceMs: deps.overGraceMs ?? 10 * 60_000,
 		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
 		...(deps.onGameOver === undefined ? {} : { onGameOver: deps.onGameOver }),
+		...(deps.liveChanged === undefined ? {} : { liveChanged: deps.liveChanged }),
 		...(deps.formatNames === undefined ? {} : { formatNames: deps.formatNames }),
 		...(deps.spellCopiers === undefined ? {} : { spellCopiers: deps.spellCopiers }),
 		...(deps.seatAvatar === undefined ? {} : { seatAvatar: deps.seatAvatar }),

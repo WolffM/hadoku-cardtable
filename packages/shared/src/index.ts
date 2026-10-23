@@ -346,12 +346,19 @@ export {
   RoomTableSeriesSchema,
   RoomTableSchema,
   RoomTablesSchema,
+  TableSeatDeckSchema,
+  TableGameLiveSchema,
+  TableGameSchema,
+  TableGamesSchema,
   type SeriesLength,
   type SeriesPhase,
   type RoomTablePlayer,
   type RoomTableGame,
   type RoomTableSeries,
   type RoomTable,
+  type TableSeatDeck,
+  type TableGameLive,
+  type TableGame,
 } from './room-tables.ts';
 export { FORMAT_ID_MAX, SCENARIO_MAX, StartMatchBodySchema, type StartMatchBody } from './play-requests.ts';
 export {

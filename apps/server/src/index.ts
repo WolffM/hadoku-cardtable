@@ -78,12 +78,12 @@ import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-pat
 import { restoreRooms, sweepRooms } from './boot.js';
 import { DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
 import { checkCards, checkPlan } from './room/plan.js';
-import type { DraftPlan, PoolVerdict } from '@hadoku/shared';
+import type { DraftPlan, PoolVerdict, TableGame } from '@hadoku/shared';
 import { busyHandler } from './busy.js';
 import { draftEmitPolicy, emitDraftUpdate } from './room/emit.js';
 import { attachDraftSocket } from './room/socket.js';
 import { attachRoomFeed } from './room/feed.js';
-import { attachPlay, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, type PlayHandle } from './play/index.js';
+import { attachPlay, jvmHostConfig, jvmHostFactory, roomDeckCosts, roomFormatNames, spellCopierLookup, tableGame, type PlayHandle } from './play/index.js';
 import { attachStream, attachStreamRoutes, streamLayout } from './stream/index.js';
 import { createRoomStreams, findContainerScript, scriptRunner, MAX_ROOM_SEATS } from './stream/alloc.js';
 import { attachBrowserBridge } from './play/browser/index.js';
@@ -547,6 +547,17 @@ attachRooms(api, {
 	// fresh under the same name, the moment the close answers — not a
 	// separate reset feature.
 	reseedTesting: () => void runTestingRoomSeed(),
+	// Each table's game for the table card: the decks its latest match was started with and, while it
+	// runs, where it stands (`play/table-game.ts`). A finished match still answers for its decks.
+	tableGames: (room) => {
+		const games: Record<string, TableGame> = {};
+		for (const table of room.tables) {
+			const matchId = table.matchId ?? table.series.games.at(-1)?.matchId;
+			const match = matchId === undefined ? undefined : play?.matches.get(matchId);
+			if (match !== undefined) games[table.id] = tableGame(match, deckCosts);
+		}
+		return games;
+	},
 	// Wave 74 §E step 2: `POST …/start` fetches a realistic round's boosters
 	// and caches them on `draftRooms` BEFORE `lobby.startDraft` ever runs, so
 	// `draftRooms.open()` (the first socket `join`'s own call) stays
@@ -583,7 +594,7 @@ const io = new SocketIOServer(httpServer, {
 attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier, botPickMs: CONFIG.draftBotPickMs });
 // Every room write, pushed to the screens that have the room (or the list) open,
 // so none of them reads it on a timer. Behind the gate attachDraftSocket installed.
-attachRoomFeed(io, { lobby });
+const roomFeed = attachRoomFeed(io, { lobby });
 
 // ── Rooms are not immortal ───────────────────────────────────────────────────
 // `create` had no opposite for its whole life: no leave, no close, no expiry,
@@ -662,6 +673,7 @@ if (!CONFIG.catalogRefresh) console.log('[cardtable] catalog refresh disabled (C
 // build the route answers 503 and nothing else changes. `forge` itself is
 // read once, up top (see its own header), because the draft pool service
 // needs it before this point.
+const deckCosts = roomDeckCosts(tables.library, defaultCubeCards);
 play = attachPlay(io, api, {
 	minTier: CONFIG.minTier,
 	host: forge.ok ? jvmHostFactory(forge.config) : null,
@@ -689,7 +701,12 @@ play = attachPlay(io, api, {
 	// A seat's face is its holder's avatar in the room that started the match.
 	seatAvatar: tables.seatAvatar,
 	// A seat's deck colours pick the match's music (`play/deck-colors.ts`).
-	deckCosts: roomDeckCosts(tables.library, defaultCubeCards),
+	deckCosts,
+	// A table's game moved on: its room's screens read the room again for the table card.
+	liveChanged: (match) => {
+		const room = lobby.roomOfMatch(match.id);
+		if (room !== undefined) roomFeed.changed(room.id);
+	},
 });
 // `attachPlay` has adopted every match an earlier server left running, so a
 // room still pointing at one that did not come back can let go of it now.

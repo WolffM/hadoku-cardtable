@@ -30,6 +30,19 @@ export function manaTokensOf(cost: string): string[] {
   return [...cost.matchAll(/\{([^}]+)\}/g)].map((m) => m[1] as string);
 }
 
+/** Converted mana cost of one Scryfall cost token — `'3'` → 3, `'2/W'` → 2, `'X'` → 0. */
+function tokenValue(token: string): number {
+  if (/^\d+$/.test(token)) return Number(token);
+  const generic = token.split('/').find((part) => /^\d+$/.test(part));
+  if (generic !== undefined) return Number(generic);
+  return token === 'X' || token === 'Y' || token === 'Z' ? 0 : 1;
+}
+
+/** Converted mana cost of a Scryfall cost string. Scryfall's own `cmc`, recomputed. */
+export function manaValueOf(cost: string): number {
+  return manaTokensOf(cost).reduce((total, token) => total + tokenValue(token), 0);
+}
+
 /**
  * The colours one cost token demands, which is NOT the colours of the card.
  *

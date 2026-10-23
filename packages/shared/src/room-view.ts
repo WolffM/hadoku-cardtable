@@ -22,7 +22,7 @@ import { RoomPodSchema } from './pod.ts';
 import { ROOM_ID_RE } from './room-feed.ts';
 import { GameTypeSchema, RoomModeSchema, type ConstructedMode, type ModeOptions } from './room-modes.ts';
 import { AVATAR_ID_MAX, ClientModeSchema, DEFAULT_CLIENT_MODE, DEFAULT_ROOM_SETTINGS, RoomSettingsSchema, type RoomSettings } from './room-requests.ts';
-import { RoomTablesSchema } from './room-tables.ts';
+import { RoomTablesSchema, TableGamesSchema } from './room-tables.ts';
 
 const memberFields = z.object({
   /** A ParticipantId from `identityFromHeaders`. */
@@ -126,5 +126,12 @@ function withMode<T extends { mode?: unknown; modeOptions?: unknown }>({ mode, m
 export const RoomViewSchema = z.object(roomFields).transform(withMode);
 export type RoomView = z.infer<typeof RoomViewSchema>;
 
-export const RoomBodySchema = z.object({ ...roomFields, you: RoomYouSchema }).transform(withMode);
+export const RoomBodySchema = z
+  .object({
+    ...roomFields,
+    you: RoomYouSchema,
+    /** Each table's game for the table card, by table id; none from a server that does not send it. */
+    tableGames: TableGamesSchema.optional().catch(undefined),
+  })
+  .transform(withMode);
 export type RoomBody = z.infer<typeof RoomBodySchema>;

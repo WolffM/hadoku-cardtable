@@ -124,6 +124,7 @@ import {
 	type MatchSnapshot,
 	type SeatIdentity,
 	type ServerEnvelope,
+	type TableGameLive,
 	type WireCursor,
 } from '@hadoku/shared';
 
@@ -710,6 +711,12 @@ export interface MatchDeps {
 	seatsChanged?(seats: SeatIdentity[]): void;
 	/** A seat's stop ({@link Match.setPhaseStop}) was set, cleared or spent: the socket layer tells that seat's sockets. */
 	phaseStopChanged?(seat: number, phase: StopPhase | null): void;
+	/**
+	 * Where the game stands, as the table card draws it ({@link Match.live}), moved on: a new turn, the
+	 * other seat's turn, a life total. The room's screens read the room again; a hand's size alone,
+	 * which moves with every draw and cast, is read with them rather than told.
+	 */
+	liveChanged?(): void;
 	/**
 	 * Forge said the game is over — `winner` and the seats' histories are final.
 	 * Not called for a game-over replayed into a resumed match: the server that
@@ -2030,6 +2037,42 @@ export class Match {
 		return gameOutcome(this);
 	}
 
+	/**
+	 * The game under way as the table card draws it (`table-game.ts`), by table seat — off the
+	 * watcher's projector, so only what is on the table for everyone. Null before Forge has dealt and
+	 * once the game is over.
+	 */
+	live(): TableGameLive | null {
+		if (this.status !== 'running') return null;
+		const projector = this.watcher.projector;
+		const turn = projector.turnNumber();
+		if (turn === null) return null;
+		const counts = projector.playerCounts();
+		const active = projector.activePlayer();
+		const seat = (i: 0 | 1) => {
+			const id = this.seats[i]?.playerId ?? null;
+			return id === null ? undefined : counts.get(id);
+		};
+		const at = this.seats.findIndex((s) => s.playerId !== null && s.playerId === active);
+		return {
+			turn,
+			active: at === 0 || at === 1 ? at : null,
+			life: [seat(0)?.life ?? null, seat(1)?.life ?? null],
+			hand: [seat(0)?.hand ?? 0, seat(1)?.hand ?? 0],
+		};
+	}
+
+	/** What {@link MatchDeps.liveChanged} is told on: the turn, whose it is, the life totals. */
+	private liveKey = '';
+
+	private noteLive(): void {
+		const live = this.live();
+		const key = live === null ? '' : `${live.turn}|${live.active}|${live.life.join(',')}`;
+		if (key === this.liveKey) return;
+		this.liveKey = key;
+		this.deps.liveChanged?.();
+	}
+
 	/* ── Forge → browser ────────────────────────────────────────────── */
 
 	private send(s: SeatState, frame: ServerFrame, mark: 'displayOnly' | 'pairsWithNext' | null = null): void {
@@ -2084,7 +2127,10 @@ export class Match {
 		s.history.push(projected);
 		this.send(s, projected);
 		this.releaseLog(s, false);
-		if (s === this.watcherSource()) this.sendWatcher(this.watcher.projector.project(raw) as unknown as ServerFrame);
+		if (s === this.watcherSource()) {
+			this.sendWatcher(this.watcher.projector.project(raw) as unknown as ServerFrame);
+			this.noteLive();
+		}
 	}
 
 	/**
@@ -3667,7 +3713,7 @@ export interface MatchRegistry {
 	handOver(): { handed: Match[]; ending: Match[] };
 }
 
-export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'onGameOver'> & {
+export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopChanged' | 'onGameOver' | 'liveChanged'> & {
 	emit(match: Match, seat: number, envelope: ServerEnvelope): void;
 	/** See {@link MatchDeps.seatsChanged}. */
 	seatsChanged?(match: Match, seats: SeatIdentity[]): void;
@@ -3675,6 +3721,7 @@ export type RegistryDeps = Omit<MatchDeps, 'emit' | 'seatsChanged' | 'phaseStopC
 	phaseStopChanged?(match: Match, seat: number, phase: StopPhase | null): void;
 	/** See {@link MatchDeps.onGameOver}. */
 	onGameOver?(match: Match): void;
+	liveChanged?(match: Match): void;
 	/** The re-attach half of the host. Absent on a host whose JVMs die with us. */
 	attach?(record: JvmRecord, events: HostEvents): MatchHost;
 };
@@ -3691,6 +3738,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 				seatsChanged: (seats) => deps.seatsChanged?.(match, seats),
 				phaseStopChanged: (seat, phase) => deps.phaseStopChanged?.(match, seat, phase),
 				onGameOver: () => deps.onGameOver?.(match),
+				liveChanged: () => deps.liveChanged?.(match),
 			});
 			matches.set(id, match);
 			match.start();
@@ -3713,6 +3761,7 @@ export function createMatchRegistry(deps: RegistryDeps): MatchRegistry {
 					seatsChanged: (seats) => deps.seatsChanged?.(match, seats),
 					phaseStopChanged: (seat, phase) => deps.phaseStopChanged?.(match, seat, phase),
 					onGameOver: () => deps.onGameOver?.(match),
+				liveChanged: () => deps.liveChanged?.(match),
 				},
 				{ epoch: record.epoch, owners: record.owners, startedAt: Date.parse(record.startedAt) },
 			);
