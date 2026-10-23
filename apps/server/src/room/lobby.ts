@@ -3058,12 +3058,14 @@ class FileLobby implements Lobby {
 	/**
 	 * Once the draft registry has restored itself at boot: every room mid-draft
 	 * whose draft did not come back goes back to its lobby, rather than
-	 * advertising a pod nobody can join. Returns the rooms released.
+	 * advertising a pod nobody can join. Returns the rooms released. A
+	 * constructed tournament also sets `draftStartedAt` but never has a draft,
+	 * so it is never one of them — its pod is restored whole by itself.
 	 */
 	releaseLostDrafts(draftExists: (roomId: string) => boolean): string[] {
 		const released: string[] = [];
 		for (const room of this.#rooms.values()) {
-			if (room.draftStartedAt === null || draftExists(room.id)) continue;
+			if (room.gameType !== 'draft' || room.draftStartedAt === null || draftExists(room.id)) continue;
 			room.draftStartedAt = null;
 			room.pod = null;
 			room.podPlaying = [];

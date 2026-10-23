@@ -3116,6 +3116,7 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			expect(lobby.get(aiId)?.draftStartedAt).not.toBeNull();
 		});
 
+
 		it('a real run, 2026-10-22 (room r-228e5e39987e): the leader sat at the room’s own 1v1 table before turning Tournament on — the lock unseats it, so nothing stale is left to draw', async () => {
 			const lobby = await openLobby({ dir: await tempDir() });
 			const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} } });
@@ -3416,6 +3417,21 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			second.recordGameResult(id, tableId, { matchId: 'm-1', winner: 0 });
 			const finished = second.recordGameResult(id, tableId, { matchId: 'm-2', winner: 0 });
 			expect(finished.ok).toBe(true);
+		});
+
+		it('a real run, 2026-10-23 (room r-c1eb7fcaa5d7): a restart never releases a tournament as a "lost draft" — it has no draft for the registry to bring back', async () => {
+			const dir = await tempDir();
+			const lobby = await openLobby({ dir });
+			const id = await tournamentRoom(lobby, ALICE, 'classic');
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id, BOB.id]) }));
+			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+
+			const second = await openLobby({ dir });
+			expect(second.releaseLostDrafts(() => false)).toEqual([]);
+			expect(second.get(id)?.draftStartedAt).not.toBeNull();
+			expect(second.get(id)?.pod).toMatchObject({ phase: 'rounds', round: 1 });
 		});
 	});
 });
