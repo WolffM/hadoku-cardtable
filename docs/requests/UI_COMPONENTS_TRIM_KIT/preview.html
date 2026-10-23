@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<!--
+  Trim + effects preview. Written to sit at `themes/dev/trim-preview.html` with `trim.css` and
+  `effects.css` in `themes/src/`; adjust the three <link>s if they land elsewhere. Opens from file://,
+  like editor.html: plain script, no modules. TRIM below mirrors TRIM_FAMILIES in trim.ts.
+-->
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trim Preview</title>
+  <link rel="stylesheet" href="../src/style.css">
+  <link rel="stylesheet" href="../src/trim.css">
+  <link rel="stylesheet" href="../src/effects.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; color: var(--color-text); }
+    .page { min-height: 100vh; padding: 24px; background-color: var(--color-bg); }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 24px; font-size: 0.85rem; }
+    .controls label { display: flex; flex-direction: column; gap: 4px; color: var(--color-text-secondary); }
+    .controls select { min-width: 10rem; padding: 4px 6px; color: var(--color-text); background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--hdk-radius-sm); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; margin-bottom: 32px; }
+    .hdk-panel { padding: 16px 20px 20px; background-color: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--hdk-radius); }
+    .hdk-panel__title { margin: 0 0 10px; font-size: 1.05rem; }
+    .hdk-panel p { margin: 0; color: var(--color-text-secondary); font-size: 0.9rem; line-height: 1.45; }
+    h2.section { margin: 0 0 12px; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-tertiary); }
+    .fx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 28px 20px; }
+    .fx { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--color-text-secondary); }
+    .tile { width: 110px; height: 150px; border-radius: var(--hdk-radius); background: var(--color-bg-alt); border: 1px solid var(--color-border); }
+    .btn { padding: 8px 16px; color: var(--color-text); background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: var(--hdk-radius); font: inherit; cursor: pointer; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--fx-color); }
+    .bar { width: 140px; height: 16px; }
+    code { font-size: 0.75rem; color: var(--color-text-tertiary); }
+  </style>
+</head>
+<body>
+  <div class="page hdk-ground">
+    <div class="controls" id="controls">
+      <label>Theme <select id="theme"></select></label>
+    </div>
+
+    <h2 class="section">Trim</h2>
+    <div class="grid">
+      <section class="hdk-panel"><h3 class="hdk-panel__title">Rooms</h3><p>Every panel that carries <code>.hdk-panel</code> takes the frame, corners, edge and texture.</p></section>
+      <section class="hdk-panel"><h3 class="hdk-panel__title">Settings</h3><p>Headings with <code>.hdk-panel__title</code> take the title family.</p></section>
+      <section class="hdk-panel"><h3 class="hdk-panel__title">Log</h3><p>The page behind them is <code>.hdk-ground</code>: background and background corners.</p></section>
+    </div>
+
+    <h2 class="section">Effects</h2>
+    <div class="fx-grid">
+      <div class="fx"><div class="tile hdk-fx-ward"></div>ward</div>
+      <div class="fx"><div class="tile hdk-fx-mist"></div>mist</div>
+      <div class="fx"><div class="tile hdk-fx-hex"></div>hex</div>
+      <div class="fx"><div class="tile hdk-fx-glint" style="--fx-loop: 3s"></div>glint</div>
+      <div class="fx"><div class="tile hdk-fx-hex hdk-fx-glint" style="--fx-loop: 5s"></div>hex + glint</div>
+      <div class="fx"><div class="tile" id="shimmer"></div>shimmer (click)</div>
+      <div class="fx"><div class="tile hdk-fx-float"></div>float</div>
+      <div class="fx"><div class="bar hdk-fx-sheen"></div>sheen</div>
+      <div class="fx"><button class="btn hdk-fx-pulse" type="button">End turn</button>pulse</div>
+      <div class="fx"><button class="btn hdk-fx-nudge" type="button">End turn</button>nudge</div>
+      <div class="fx"><span class="dot hdk-fx-breathe"></span>breathe</div>
+      <div class="fx"><div class="tile hdk-fx-ward" style="--fx-color: var(--color-success)"></div>ward, <code>--color-success</code></div>
+    </div>
+  </div>
+
+  <script>
+    const THEMES = ['light', 'dark', 'strawberry-light', 'strawberry-dark', 'ocean-light', 'ocean-dark', 'cyberpunk-light', 'cyberpunk-dark', 'coffee-light', 'coffee-dark', 'lavender-light', 'lavender-dark', 'nature-light', 'nature-dark', 'pink-light', 'pink-dark', 'izakaya-light', 'izakaya-dark']
+    const TRIM = {
+      frame: { label: 'Frame', options: { glint: 'Edge glint', chamfer: 'Chamfered corners', hud: 'HUD cut', step: 'Stepped corners', scoop: 'Scooped corners' } },
+      corner: { label: 'Corners', options: { brackets: 'Brackets', triangles: 'Triangles', rivets: 'Rivets', gems: 'Gems' } },
+      title: { label: 'Titles', options: { rail: 'Rail', centred: 'Centred', ribbon: 'Ribbon' } },
+      edge: { label: 'Edge', options: { keystone: 'Keystone gem' } },
+      texture: { label: 'Panel texture', options: { felt: 'Felt', linen: 'Linen', lattice: 'Lattice' } },
+      ground: { label: 'Background', options: { glow: 'Overhead glow', felt: 'Table felt', dots: 'Dot grid', grid: 'HUD grid', triangles: 'Triangle lattice' } },
+      groundCorner: { label: 'Background corners', options: { wedge: 'Wedge glow', gems: 'Gem cluster' } }
+    }
+    const START = { frame: 'scoop', ground: 'triangles', groundCorner: 'gems' }
+    const root = document.documentElement
+    const attr = (family) => 'data-trim-' + family.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())
+
+    function select(label, values, current, onChange) {
+      const wrap = document.createElement('label')
+      wrap.append(label)
+      const el = document.createElement('select')
+      for (const [value, text] of values) el.add(new Option(text, value, false, value === current))
+      el.addEventListener('change', () => onChange(el.value))
+      wrap.append(el)
+      document.getElementById('controls').append(wrap)
+      return el
+    }
+
+    const themeSelect = document.getElementById('theme')
+    for (const t of THEMES) themeSelect.add(new Option(t, t, false, t === root.dataset.theme))
+    themeSelect.addEventListener('change', () => { root.dataset.theme = themeSelect.value })
+
+    for (const [family, { label, options }] of Object.entries(TRIM)) {
+      const set = (value) => (value === '' ? root.removeAttribute(attr(family)) : root.setAttribute(attr(family), value))
+      set(START[family] ?? '')
+      select(label, [['', 'None'], ...Object.entries(options)], START[family] ?? '', set)
+    }
+
+    const shimmer = document.getElementById('shimmer')
+    shimmer.addEventListener('click', () => {
+      shimmer.classList.remove('hdk-fx-shimmer')
+      void shimmer.offsetWidth
+      shimmer.classList.add('hdk-fx-shimmer')
+    })
+    shimmer.addEventListener('animationend', () => shimmer.classList.remove('hdk-fx-shimmer'))
+  </script>
+</body>
+</html>

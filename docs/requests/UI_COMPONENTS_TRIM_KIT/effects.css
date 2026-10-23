@@ -1,0 +1,354 @@
+/*
+ * Effects: the motion half of cardtable's eye candy, lifted off its game-specific selectors.
+ *
+ * Each effect is one class on the element it decorates. All colour comes from `--fx-color`, which
+ * defaults to `--color-primary`; set it to any other theme token (`--color-success`, …) on the
+ * element. Nothing uses a literal colour. Every effect has a `prefers-reduced-motion` fallback that
+ * keeps the meaning and drops the movement.
+ *
+ * Two pseudo-element slots, one effect per slot, so a fill and a ring can stack on one element:
+ *   ::before — fill:  .hdk-fx-ward | .hdk-fx-mist | .hdk-fx-hex
+ *   ::after  — ring:  .hdk-fx-glint | .hdk-fx-shimmer
+ * The element itself:  .hdk-fx-sheen (background) | .hdk-fx-pulse | .hdk-fx-nudge | .hdk-fx-breathe |
+ *                      .hdk-fx-float (each owns `animation`; pick one)
+ * The slot effects need a positioned element; they set `position: relative` only where nothing else
+ * has (`:where`, zero specificity).
+ *
+ * Sources in hadoku-cardtable (`apps/ui/src/`):
+ *   shimmer        play/card.css `.board-card[data-shimmer]`        an ability resolved unanswered
+ *   glint/ward/mist/hex  play/card.css `.board-card__protection`   ward, shroud, hexproof (2026-10-23)
+ *   sheen          screens/screens.css `.skeleton`                 a room before it has answered
+ *   pulse / nudge  play/live/live.css `button[data-highlight]`     End Turn, then End Turn left idle
+ *   breathe        components/spectate.css `.conn__dot`             a connection in flight
+ *   float          play/card.css `.board-card[data-flying]`         a creature with flying
+ */
+
+@property --fx-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/*
+ * Registered as numbers, not lengths, and multiplied by 1px / 1deg where they are used: Firefox
+ * replays a length keyframe on an inherited custom property forwards instead of alternating, which
+ * broke cardtable's flyers in the operator's browser (2aabe521).
+ */
+@property --fx-x {
+  syntax: '<number>';
+  initial-value: 0;
+  inherits: true;
+}
+
+@property --fx-y {
+  syntax: '<number>';
+  initial-value: 0;
+  inherits: true;
+}
+
+@property --fx-lift {
+  syntax: '<number>';
+  initial-value: 0;
+  inherits: true;
+}
+
+@property --fx-tilt-x {
+  syntax: '<number>';
+  initial-value: 0;
+  inherits: true;
+}
+
+@property --fx-tilt-y {
+  syntax: '<number>';
+  initial-value: 0;
+  inherits: true;
+}
+
+:where(.hdk-fx-ward, .hdk-fx-mist, .hdk-fx-hex, .hdk-fx-glint, .hdk-fx-shimmer) {
+  --fx-color: var(--color-primary);
+  --fx-radius: var(--hdk-radius);
+  position: relative;
+}
+
+:where(.hdk-fx-sheen, .hdk-fx-pulse, .hdk-fx-nudge, .hdk-fx-breathe, .hdk-fx-float) {
+  --fx-color: var(--color-primary);
+}
+
+.hdk-fx-ward::before,
+.hdk-fx-mist::before,
+.hdk-fx-hex::before,
+.hdk-fx-glint::after,
+.hdk-fx-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--fx-radius);
+  pointer-events: none;
+}
+
+/* ── fills (::before) ───────────────────────────────────────────────── */
+
+/* Ward: a steady glow along the four inner edges; the middle stays clear. */
+.hdk-fx-ward::before {
+  box-shadow:
+    inset 0 0 7px 1.5px color-mix(in srgb, var(--fx-color) 55%, transparent),
+    inset 0 0 2px 0 color-mix(in srgb, var(--fx-color) 55%, transparent);
+}
+
+/* Mist: fog drifting across the element, clipped to its own corners. */
+.hdk-fx-mist::before {
+  background:
+    radial-gradient(40% 30% at 30% 45%, var(--fx-color), transparent),
+    radial-gradient(35% 28% at 70% 65%, var(--fx-color), transparent);
+  background-size: 160% 100%;
+  opacity: 0.55;
+  clip-path: inset(0 round var(--fx-radius));
+  animation: hdk-fx-mist 9s ease-in-out var(--fx-start, 0s) infinite alternate;
+}
+
+@keyframes hdk-fx-mist {
+  from { background-position: 0% 0%; }
+  to { background-position: 100% 20%; }
+}
+
+/* Hex: a band of hex lattice crosses the element diagonally. */
+.hdk-fx-hex::before {
+  background: var(--fx-color);
+  mask-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='24' viewBox='0 0 14 24'%3E%3Cpath d='M7 0 L14 4 L14 12 L7 16 L0 12 L0 4 Z M7 16 L7 24' fill='none' stroke='currentColor' stroke-width='1'/%3E%3C/svg%3E"),
+    linear-gradient(115deg, transparent 35%, var(--color-text) 48%, var(--color-text) 52%, transparent 65%);
+  mask-size: 7px 12px, 300% 100%;
+  mask-repeat: repeat, no-repeat;
+  mask-composite: intersect;
+  opacity: 0.9;
+  animation: hdk-fx-hex 5s cubic-bezier(0.45, 0, 0.55, 1) var(--fx-start, 0s) infinite;
+}
+
+@keyframes hdk-fx-hex {
+  0% { mask-position: 0 0, 100% 0; }
+  55%, 100% { mask-position: 0 0, 0% 0; }
+}
+
+/* ── rings (::after) ────────────────────────────────────────────────── */
+
+/*
+ * Glint: now and then a band of light slides diagonally down the element's edge. A ring on the
+ * element's own edge, lit only where the band crosses it; its glow is a filter, so it never counts
+ * toward a scroll container's overflow the way a box past the edge would.
+ * `--fx-loop` sets the period, `--fx-phase` (0–1) where in the loop it starts, so a row of glinting
+ * elements never fires in unison; `--fx-peak` its brightness.
+ */
+.hdk-fx-glint {
+  --fx-loop: 12s;
+  --fx-peak: 1;
+}
+
+.hdk-fx-glint::after {
+  padding: 2px;
+  background: linear-gradient(120deg, transparent 42%, var(--fx-color) 50%, transparent 58%);
+  background-size: 300% 300%;
+  background-repeat: no-repeat;
+  mask:
+    linear-gradient(var(--color-text) 0 0) content-box exclude,
+    linear-gradient(var(--color-text) 0 0);
+  filter: drop-shadow(0 0 2.5px var(--fx-color));
+  opacity: 0;
+  animation: hdk-fx-glint var(--fx-loop) cubic-bezier(0.45, 0, 0.4, 1) calc(-1 * var(--fx-loop) * var(--fx-phase, 0)) infinite;
+}
+
+@keyframes hdk-fx-glint {
+  0% {
+    background-position: 100% 100%;
+    opacity: var(--fx-peak);
+  }
+
+  20% {
+    background-position: 0% 0%;
+    opacity: var(--fx-peak);
+  }
+
+  21%,
+  100% {
+    background-position: 0% 0%;
+    opacity: 0;
+  }
+}
+
+/*
+ * Shimmer: one sweep round the element's edge, then gone — "this just happened". One-shot: add the
+ * class, remove it when `animationend` fires (or after 1s) so it can run again.
+ */
+.hdk-fx-shimmer::after {
+  inset: -3px;
+  padding: 3px;
+  border-radius: calc(var(--fx-radius) + 3px);
+  background: conic-gradient(from var(--fx-angle), transparent, var(--fx-color), transparent 40%);
+  mask:
+    linear-gradient(var(--color-text) 0 0) content-box exclude,
+    linear-gradient(var(--color-text) 0 0);
+  animation: hdk-fx-shimmer 1s linear forwards;
+}
+
+@keyframes hdk-fx-shimmer {
+  0% {
+    --fx-angle: 0deg;
+
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 1;
+  }
+
+  100% {
+    --fx-angle: 360deg;
+
+    opacity: 0;
+  }
+}
+
+@keyframes hdk-fx-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ── the element itself ─────────────────────────────────────────────── */
+
+/* Sheen: a loading placeholder that takes the box of what it stands for; a slow sheen says it is coming. */
+.hdk-fx-sheen {
+  border-radius: var(--hdk-radius);
+  background: linear-gradient(90deg, var(--color-bg-alt) 0%, var(--color-bg-hover) 50%, var(--color-bg-alt) 100%);
+  background-size: 200% 100%;
+  animation: hdk-fx-sheen 1.6s ease-in-out infinite;
+}
+
+@keyframes hdk-fx-sheen {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+/* Pulse: a ring breathing out from a control — "this is the thing to press", without reading as "selected". */
+.hdk-fx-pulse {
+  border-color: var(--fx-color);
+  animation: hdk-fx-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes hdk-fx-pulse {
+  0%,
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--fx-color) 55%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--fx-color) 0%, transparent); }
+}
+
+/*
+ * Nudge: the pulse once it has been ignored a while — the control swells and glows, then rests.
+ * Transform, filter and background only, so the box never grows and nothing around it reflows.
+ */
+.hdk-fx-nudge {
+  border-color: var(--fx-color);
+  background: color-mix(in srgb, var(--fx-color) 18%, var(--color-bg-card));
+  animation: hdk-fx-nudge 2.4s ease-in-out infinite;
+}
+
+@keyframes hdk-fx-nudge {
+  0%,
+  45%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 transparent);
+  }
+
+  20% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 6px var(--fx-color));
+  }
+}
+
+/* Breathe: a status dot that pulses only while something is genuinely in flight. */
+.hdk-fx-breathe {
+  opacity: 0.55;
+  animation: hdk-fx-breathe 1.4s ease-in-out infinite;
+}
+
+@keyframes hdk-fx-breathe {
+  50% { opacity: 1; }
+}
+
+/*
+ * Float: the element hovers — a figure-eight sway with a tilt that leans into the motion and a
+ * shadow that shrinks as it rises. x = −A·cos(ωt) across, y = B·sin(2ωt) up and down twice a loop.
+ * `--fx-loop` sets the period, `--fx-phase` (0–1) desyncs neighbours. Moves with `translate` and
+ * `rotate` only, never layout.
+ */
+.hdk-fx-float {
+  --fx-loop: 5.6s;
+  --fx-ease: cubic-bezier(0.37, 0, 0.63, 1);
+  --fx-start: calc(-1 * var(--fx-loop) * (1 + var(--fx-phase, 0)));
+  translate: calc(var(--fx-x) * 1px) calc(-3px + var(--fx-y) * 1px);
+  rotate: var(--fx-tilt-x) var(--fx-tilt-y) 0 calc(hypot(var(--fx-tilt-x), var(--fx-tilt-y)) * 1deg);
+  filter: drop-shadow(
+    calc(var(--fx-x) * -0.4px) calc(4px + var(--fx-lift) * 4px) calc(4px + var(--fx-lift) * 4px)
+    color-mix(in srgb, var(--color-text) calc(30% - var(--fx-lift) * 12%), transparent)
+  );
+  animation:
+    hdk-fx-float-across calc(var(--fx-loop) / 2) var(--fx-ease) var(--fx-start) infinite alternate,
+    hdk-fx-float-rise calc(var(--fx-loop) / 4) var(--fx-ease) calc(var(--fx-start) + var(--fx-loop) / 8) infinite alternate,
+    hdk-fx-float-tilt-across calc(var(--fx-loop) / 2) var(--fx-ease) calc(var(--fx-start) + var(--fx-loop) / 4) infinite alternate,
+    hdk-fx-float-tilt-rise calc(var(--fx-loop) / 4) var(--fx-ease) var(--fx-start) infinite alternate;
+}
+
+@keyframes hdk-fx-float-across {
+  from { --fx-x: -3.5; }
+  to { --fx-x: 3.5; }
+}
+
+@keyframes hdk-fx-float-rise {
+  from {
+    --fx-y: 1.25;
+    --fx-lift: 0;
+  }
+
+  to {
+    --fx-y: -1.25;
+    --fx-lift: 1;
+  }
+}
+
+/* Moving right, the right side comes forward (rotateY < 0): −sin(ωt), against the sway's speed. */
+@keyframes hdk-fx-float-tilt-across {
+  from { --fx-tilt-y: -4; }
+  to { --fx-tilt-y: 4; }
+}
+
+/* Moving down, the bottom comes forward (rotateX > 0): cos(2ωt), the rise's speed. */
+@keyframes hdk-fx-float-tilt-rise {
+  from { --fx-tilt-x: 3; }
+  to { --fx-tilt-x: -3; }
+}
+
+/* ── reduced motion: keep the meaning, drop the movement ────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .hdk-fx-mist::before,
+  .hdk-fx-hex::before,
+  .hdk-fx-glint::after,
+  .hdk-fx-sheen,
+  .hdk-fx-pulse,
+  .hdk-fx-breathe,
+  .hdk-fx-float {
+    animation: none;
+  }
+
+  /* A still glow that fades, never a sweep. */
+  .hdk-fx-shimmer::after {
+    background: none;
+    box-shadow: 0 0 0 2px var(--fx-color), 0 0 14px color-mix(in srgb, var(--fx-color) 60%, transparent);
+    animation: hdk-fx-fade-out 1s ease-out forwards;
+  }
+
+  /* Nothing moves: a stronger fill and a steady glow instead. */
+  .hdk-fx-nudge {
+    background: color-mix(in srgb, var(--fx-color) 32%, var(--color-bg-card));
+    filter: drop-shadow(0 0 4px var(--fx-color));
+    animation: none;
+  }
+}

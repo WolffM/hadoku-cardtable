@@ -1,0 +1,322 @@
+/*
+ * Trim (`./trim.ts`): decoration composed from a catalogue of families, drawn from theme tokens only.
+ * Ported from hadoku-cardtable `apps/ui/src/chrome/trim.css` (2026-10-21 → 2026-10-22) with the class
+ * hooks renamed: `.ct-panel` → `.hdk-panel`, `.ct-panel__title` → `.hdk-panel__title`, `.ct-surface`
+ * → `.hdk-surface`, the chrome root → `.hdk-ground`. The geometry is unchanged.
+ *
+ * Hooks the consumer applies:
+ *   .hdk-panel         a card / panel / section that takes the panel families (frame, corner, edge, texture)
+ *   .hdk-panel__title  its heading (title)
+ *   .hdk-surface       a popover, menu or dialog; a panel that holds one is never cut by a frame shape
+ *   .hdk-ground        the element that paints the page background (ground, groundCorner)
+ * The `data-trim-*` attributes go on any ancestor (normally `<html>`) via `applyTrim`.
+ *
+ * Every family is a list of background layers, handed to the panel as four custom properties
+ * (image, position, size, repeat) so that one rule can stack whichever families are chosen. Layers,
+ * not pseudo-elements: a background stays put while the panel's own content scrolls, adds nothing to
+ * layout or to scroll overflow, and opens no stacking context. The panel's `::before`/`::after` stay
+ * free for the consumer (and for `effects.css`).
+ *
+ * Frame shapes are the one exception: they cut the panel itself with a clip-path or a mask, which
+ * also clips its shadow and everything drawn inside it, a dropdown that overflows the panel included.
+ * So a panel holding a `.hdk-surface` is never cut while it does.
+ *
+ * A frame's polygon cuts the corners only: its straight edges run 1px outside the panel and each
+ * diagonal is the same line extended. A clip edge on the border box itself antialiases at a
+ * fractional position and shaved half the 1px border away (measured in cardtable: 40 of 160 edges
+ * at half strength at 100% scaling, none once the edges sit outside).
+ *
+ * Nothing applies until a family is chosen: each rule hangs off a `data-trim-*` attribute that is
+ * only present then. `.hdk-panel.hdk-panel` out-ranks a panel's own `background` shorthand, which
+ * would otherwise reset the image list; the panel keeps its own fill colour.
+ */
+
+:is([data-trim-frame], [data-trim-corner], [data-trim-edge], [data-trim-texture]) .hdk-panel.hdk-panel {
+  background-image: var(--trim-corner-i, none), var(--trim-frame-i, none), var(--trim-edge-i, none), var(--trim-texture-i, none);
+  background-position: var(--trim-corner-p, 0 0), var(--trim-frame-p, 0 0), var(--trim-edge-p, 0 0), var(--trim-texture-p, 0 0);
+  background-size: var(--trim-corner-s, auto), var(--trim-frame-s, auto), var(--trim-edge-s, auto), var(--trim-texture-s, auto);
+  background-repeat: var(--trim-corner-r, no-repeat), var(--trim-frame-r, no-repeat), var(--trim-edge-r, no-repeat), var(--trim-texture-r, no-repeat);
+  background-origin: border-box;
+}
+
+[data-trim-frame='glint'] .hdk-panel {
+  --trim-frame-i:
+    linear-gradient(90deg, transparent 8%, var(--color-primary) 16% 30%, transparent 40%),
+    linear-gradient(90deg, transparent 60%, var(--color-primary) 70% 84%, transparent 92%);
+  --trim-frame-p: 0 1px, 0 calc(100% - 1px);
+  --trim-frame-s: 100% 1px, 100% 1px;
+  --trim-frame-r: no-repeat, no-repeat;
+  border-color: color-mix(in srgb, var(--color-primary) 25%, var(--color-border));
+}
+[data-trim-frame='chamfer'] .hdk-panel:not(:has(.hdk-surface)) {
+  --trim-frame-i:
+    linear-gradient(135deg, transparent 50%, var(--color-border-light) 50% calc(50% + 1px), transparent 0),
+    linear-gradient(45deg, transparent calc(50% - 1px), var(--color-border-light) calc(50% - 1px) 50%, transparent 0),
+    linear-gradient(135deg, transparent calc(50% - 1px), var(--color-border-light) calc(50% - 1px) 50%, transparent 0),
+    linear-gradient(45deg, transparent 50%, var(--color-border-light) 50% calc(50% + 1px), transparent 0);
+  --trim-frame-p: 0 0, 100% 0, 100% 100%, 0 100%;
+  --trim-frame-s: 12px 12px, 12px 12px, 12px 12px, 12px 12px;
+  --trim-frame-r: no-repeat, no-repeat, no-repeat, no-repeat;
+  border-radius: 0;
+  clip-path: polygon(13px -1px, calc(100% - 13px) -1px, calc(100% + 1px) 13px, calc(100% + 1px) calc(100% - 13px), calc(100% - 13px) calc(100% + 1px), 13px calc(100% + 1px), -1px calc(100% - 13px), -1px 13px);
+}
+[data-trim-frame='hud'] .hdk-panel:not(:has(.hdk-surface)) {
+  --trim-frame-i:
+    linear-gradient(135deg, transparent 50%, var(--color-primary) 50% calc(50% + 1px), transparent 0),
+    linear-gradient(135deg, transparent calc(50% - 1px), var(--color-primary) calc(50% - 1px) 50%, transparent 0);
+  --trim-frame-p: 0 0, 100% 100%;
+  --trim-frame-s: 18px 18px, 18px 18px;
+  --trim-frame-r: no-repeat, no-repeat;
+  border-radius: 0;
+  clip-path: polygon(19px -1px, calc(100% + 1px) -1px, calc(100% + 1px) calc(100% - 19px), calc(100% - 19px) calc(100% + 1px), -1px calc(100% + 1px), -1px 19px);
+}
+[data-trim-frame='step'] .hdk-panel:not(:has(.hdk-surface)) {
+  --trim-frame-i:
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0),
+    linear-gradient(var(--color-border-light) 0 0);
+  --trim-frame-p: left 0 top 12px, left 6px top 6px, left 6px top 6px, left 12px top 0, right 0 top 12px, right 6px top 6px, right 6px top 6px, right 12px top 0, right 0 bottom 12px, right 6px bottom 6px, right 6px bottom 6px, right 12px bottom 0, left 0 bottom 12px, left 6px bottom 6px, left 6px bottom 6px, left 12px bottom 0;
+  --trim-frame-s: 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px;
+  --trim-frame-r: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  border-radius: 0;
+  clip-path: polygon(-1px 12px, 6px 12px, 6px 6px, 12px 6px, 12px -1px, calc(100% - 12px) -1px, calc(100% - 12px) 6px, calc(100% - 6px) 6px, calc(100% - 6px) 12px, calc(100% + 1px) 12px, calc(100% + 1px) calc(100% - 12px), calc(100% - 6px) calc(100% - 12px), calc(100% - 6px) calc(100% - 6px), calc(100% - 12px) calc(100% - 6px), calc(100% - 12px) calc(100% + 1px), 12px calc(100% + 1px), 12px calc(100% - 6px), 6px calc(100% - 6px), 6px calc(100% - 12px), -1px calc(100% - 12px));
+}
+[data-trim-frame='scoop'] .hdk-panel:not(:has(.hdk-surface)) {
+  --trim-frame-i:
+    radial-gradient(circle at 0 0, transparent 11px, var(--color-border-light) 11px 12px, transparent 12.5px),
+    radial-gradient(circle at 100% 0, transparent 11px, var(--color-border-light) 11px 12px, transparent 12.5px),
+    radial-gradient(circle at 100% 100%, transparent 11px, var(--color-border-light) 11px 12px, transparent 12.5px),
+    radial-gradient(circle at 0 100%, transparent 11px, var(--color-border-light) 11px 12px, transparent 12.5px);
+  --trim-frame-p: 0 0, 100% 0, 100% 100%, 0 100%;
+  --trim-frame-s: 13px 13px, 13px 13px, 13px 13px, 13px 13px;
+  --trim-frame-r: no-repeat, no-repeat, no-repeat, no-repeat;
+  border-radius: 0;
+  -webkit-mask: radial-gradient(11px at 0 0, transparent 98%, var(--color-text)) 0 0 / 51% 51% no-repeat, radial-gradient(11px at 100% 0, transparent 98%, var(--color-text)) 100% 0 / 51% 51% no-repeat, radial-gradient(11px at 0 100%, transparent 98%, var(--color-text)) 0 100% / 51% 51% no-repeat, radial-gradient(11px at 100% 100%, transparent 98%, var(--color-text)) 100% 100% / 51% 51% no-repeat;
+  mask: radial-gradient(11px at 0 0, transparent 98%, var(--color-text)) 0 0 / 51% 51% no-repeat, radial-gradient(11px at 100% 0, transparent 98%, var(--color-text)) 100% 0 / 51% 51% no-repeat, radial-gradient(11px at 0 100%, transparent 98%, var(--color-text)) 0 100% / 51% 51% no-repeat, radial-gradient(11px at 100% 100%, transparent 98%, var(--color-text)) 100% 100% / 51% 51% no-repeat;
+}
+[data-trim-corner='brackets'] .hdk-panel {
+  --trim-corner-i:
+    linear-gradient(var(--color-primary) 0 0),
+    linear-gradient(var(--color-primary) 0 0),
+    linear-gradient(var(--color-primary) 0 0),
+    linear-gradient(var(--color-primary) 0 0),
+    linear-gradient(var(--color-primary) 0 0),
+    linear-gradient(var(--color-primary) 0 0),
+    linear-gradient(var(--color-primary) 0 0),
+    linear-gradient(var(--color-primary) 0 0);
+  --trim-corner-p: left 4px top 4px, left 4px top 4px, right 4px top 4px, right 4px top 4px, left 4px bottom 4px, left 4px bottom 4px, right 4px bottom 4px, right 4px bottom 4px;
+  --trim-corner-s: 12px 2px, 2px 12px, 12px 2px, 2px 12px, 12px 2px, 2px 12px, 12px 2px, 2px 12px;
+  --trim-corner-r: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+}
+[data-trim-corner='triangles'] .hdk-panel {
+  --trim-corner-i:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 85%, transparent) 50%, transparent 0),
+    linear-gradient(225deg, color-mix(in srgb, var(--color-primary) 85%, transparent) 50%, transparent 0),
+    linear-gradient(45deg, color-mix(in srgb, var(--color-primary) 85%, transparent) 50%, transparent 0),
+    linear-gradient(315deg, color-mix(in srgb, var(--color-primary) 85%, transparent) 50%, transparent 0);
+  --trim-corner-p: left 4px top 4px, right 4px top 4px, left 4px bottom 4px, right 4px bottom 4px;
+  --trim-corner-s: 11px 11px, 11px 11px, 11px 11px, 11px 11px;
+  --trim-corner-r: no-repeat, no-repeat, no-repeat, no-repeat;
+}
+[data-trim-corner='rivets'] .hdk-panel {
+  --trim-corner-i:
+    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, var(--color-border) 3.4px 4px, transparent 4.5px),
+    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, var(--color-border) 3.4px 4px, transparent 4.5px),
+    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, var(--color-border) 3.4px 4px, transparent 4.5px),
+    radial-gradient(circle at 38% 38%, color-mix(in srgb, var(--color-text) 75%, transparent) 0 1px, var(--color-border-light) 1.6px 3px, var(--color-border) 3.4px 4px, transparent 4.5px);
+  --trim-corner-p: left 6px top 6px, right 6px top 6px, left 6px bottom 6px, right 6px bottom 6px;
+  --trim-corner-s: 9px 9px, 9px 9px, 9px 9px, 9px 9px;
+  --trim-corner-r: no-repeat, no-repeat, no-repeat, no-repeat;
+}
+[data-trim-corner='gems'] .hdk-panel {
+  --trim-corner-i:
+    conic-gradient(from 135deg at 50% 0, var(--color-primary) 0 90deg, transparent 0),
+    conic-gradient(from -45deg at 50% 100%, var(--color-primary) 0 90deg, transparent 0),
+    conic-gradient(from 135deg at 50% 0, var(--color-primary) 0 90deg, transparent 0),
+    conic-gradient(from -45deg at 50% 100%, var(--color-primary) 0 90deg, transparent 0),
+    conic-gradient(from 135deg at 50% 0, var(--color-primary) 0 90deg, transparent 0),
+    conic-gradient(from -45deg at 50% 100%, var(--color-primary) 0 90deg, transparent 0),
+    conic-gradient(from 135deg at 50% 0, var(--color-primary) 0 90deg, transparent 0),
+    conic-gradient(from -45deg at 50% 100%, var(--color-primary) 0 90deg, transparent 0);
+  --trim-corner-p: left 5px top 5px, left 5px top 10px, left 5px bottom 10px, left 5px bottom 5px, right 5px top 5px, right 5px top 10px, right 5px bottom 10px, right 5px bottom 5px;
+  --trim-corner-s: 10px 5px, 10px 5px, 10px 5px, 10px 5px, 10px 5px, 10px 5px, 10px 5px, 10px 5px;
+  --trim-corner-r: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+}
+[data-trim-edge='keystone'] .hdk-panel {
+  --trim-edge-i:
+    conic-gradient(from 135deg at 50% 0, var(--color-primary) 0 90deg, transparent 0),
+    linear-gradient(90deg, transparent, var(--color-primary) 35% 65%, transparent);
+  --trim-edge-p: 50% calc(100% - 1px), 50% calc(100% - 1px);
+  --trim-edge-s: 14px 7px, 30% 1px;
+  --trim-edge-r: no-repeat, no-repeat;
+}
+[data-trim-texture='felt'] .hdk-panel {
+  --trim-texture-i:
+    radial-gradient(color-mix(in srgb, var(--color-text) 9%, transparent) 1px, transparent 1.5px),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 9%, transparent), transparent 45%);
+  --trim-texture-p: 0 0, 0 0;
+  --trim-texture-s: 9px 9px, 100% 100%;
+  --trim-texture-r: repeat, no-repeat;
+}
+[data-trim-texture='linen'] .hdk-panel {
+  --trim-texture-i:
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--color-text) 4%, transparent) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--color-text) 4%, transparent) 0 1px, transparent 1px 3px);
+  --trim-texture-p: 0 0, 0 0;
+  --trim-texture-s: auto, auto;
+  --trim-texture-r: repeat, repeat;
+}
+[data-trim-texture='lattice'] .hdk-panel {
+  --trim-texture-i:
+    repeating-linear-gradient(45deg, color-mix(in srgb, var(--color-text) 6%, transparent) 0 1px, transparent 1px 14px),
+    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--color-text) 6%, transparent) 0 1px, transparent 1px 14px);
+  --trim-texture-p: 0 0, 0 0;
+  --trim-texture-s: auto, auto;
+  --trim-texture-r: repeat, repeat;
+}
+
+/* ── titles ── */
+
+[data-trim-title='rail'] .hdk-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+[data-trim-title='rail'] .hdk-panel__title::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: var(--color-primary);
+}
+
+[data-trim-title='rail'] .hdk-panel__title::after {
+  content: '';
+  flex: 1;
+  min-width: 12px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--color-border-light), transparent);
+}
+
+[data-trim-title='centred'] .hdk-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+[data-trim-title='centred'] .hdk-panel__title::before,
+[data-trim-title='centred'] .hdk-panel__title::after {
+  content: '';
+  flex: 1;
+  min-width: 12px;
+  height: 7px;
+  background:
+    radial-gradient(circle, var(--color-primary) 2.5px, transparent 3px) left / 7px 7px no-repeat,
+    linear-gradient(var(--color-border-light) 0 0) center / 100% 1px no-repeat;
+}
+
+[data-trim-title='centred'] .hdk-panel__title::after {
+  transform: scaleX(-1);
+}
+
+[data-trim-title='ribbon'] .hdk-panel__title {
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 22px;
+  color: var(--color-text);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 32%, var(--color-bg-card)), color-mix(in srgb, var(--color-primary) 12%, var(--color-bg-card)));
+  clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 50%, 100% 100%, 0 100%, 9px 50%);
+}
+
+/* ── the page's ground: `.hdk-ground`, the element that paints the background every screen sits on ── */
+
+.hdk-ground:is([data-trim-ground], [data-trim-ground] *, [data-trim-ground-corner], [data-trim-ground-corner] *) {
+  background-image: var(--trim-ground-corner-i, none), var(--trim-ground-i, none);
+  background-position: var(--trim-ground-corner-p, 0 0), var(--trim-ground-p, 0 0);
+  background-size: var(--trim-ground-corner-s, auto), var(--trim-ground-s, auto);
+  background-repeat: var(--trim-ground-corner-r, no-repeat), var(--trim-ground-r, no-repeat);
+  background-origin: border-box;
+}
+
+.hdk-ground:is([data-trim-ground='glow'], [data-trim-ground='glow'] *) {
+  --trim-ground-i:
+    radial-gradient(ellipse 70% 60% at 50% -10%, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent);
+  --trim-ground-p: 0 0;
+  --trim-ground-s: 100% 700px;
+  --trim-ground-r: no-repeat;
+}
+.hdk-ground:is([data-trim-ground='felt'], [data-trim-ground='felt'] *) {
+  --trim-ground-i:
+    radial-gradient(color-mix(in srgb, var(--color-text) 5%, transparent) 1px, transparent 1.5px),
+    radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--color-bg-hover) 75%, var(--color-bg)), var(--color-bg) 75%);
+  --trim-ground-p: 0 0, 0 0;
+  --trim-ground-s: 7px 7px, 100% 100%;
+  --trim-ground-r: repeat, no-repeat;
+}
+.hdk-ground:is([data-trim-ground='dots'], [data-trim-ground='dots'] *) {
+  --trim-ground-i:
+    radial-gradient(color-mix(in srgb, var(--color-text) 10%, transparent) 1.2px, transparent 1.6px);
+  --trim-ground-p: 0 0;
+  --trim-ground-s: 22px 22px;
+  --trim-ground-r: repeat;
+}
+.hdk-ground:is([data-trim-ground='grid'], [data-trim-ground='grid'] *) {
+  --trim-ground-i:
+    linear-gradient(color-mix(in srgb, var(--color-primary) 11%, transparent) 0 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 11%, transparent) 0 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--color-primary) 5%, transparent) 0 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 5%, transparent) 0 1px, transparent 1px);
+  --trim-ground-p: 0 0, 0 0, 0 0, 0 0;
+  --trim-ground-s: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+  --trim-ground-r: repeat, repeat, repeat, repeat;
+}
+.hdk-ground:is([data-trim-ground='triangles'], [data-trim-ground='triangles'] *) {
+  --trim-ground-i:
+    repeating-linear-gradient(60deg, color-mix(in srgb, var(--color-text) 4%, transparent) 0 1px, transparent 1px 30px),
+    repeating-linear-gradient(-60deg, color-mix(in srgb, var(--color-text) 4%, transparent) 0 1px, transparent 1px 30px);
+  --trim-ground-p: 0 0, 0 0;
+  --trim-ground-s: auto, auto;
+  --trim-ground-r: repeat, repeat;
+}
+.hdk-ground:is([data-trim-ground-corner='wedge'], [data-trim-ground-corner='wedge'] *) {
+  --trim-ground-corner-i:
+    linear-gradient(to top right, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 45%),
+    linear-gradient(to top left, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 45%);
+  --trim-ground-corner-p: left bottom, right bottom;
+  --trim-ground-corner-s: 220px 220px, 220px 220px;
+  --trim-ground-corner-r: no-repeat, no-repeat;
+}
+.hdk-ground:is([data-trim-ground-corner='gems'], [data-trim-ground-corner='gems'] *) {
+  --trim-ground-corner-i:
+    conic-gradient(from 135deg at 50% 0, color-mix(in srgb, var(--color-primary) 55%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from -45deg at 50% 100%, color-mix(in srgb, var(--color-primary) 55%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from 135deg at 50% 0, color-mix(in srgb, var(--color-primary) 40%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from -45deg at 50% 100%, color-mix(in srgb, var(--color-primary) 40%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from 135deg at 50% 0, color-mix(in srgb, var(--color-primary) 28%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from -45deg at 50% 100%, color-mix(in srgb, var(--color-primary) 28%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from 135deg at 50% 0, color-mix(in srgb, var(--color-primary) 55%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from -45deg at 50% 100%, color-mix(in srgb, var(--color-primary) 55%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from 135deg at 50% 0, color-mix(in srgb, var(--color-primary) 40%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from -45deg at 50% 100%, color-mix(in srgb, var(--color-primary) 40%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from 135deg at 50% 0, color-mix(in srgb, var(--color-primary) 28%, transparent) 0 90deg, transparent 0),
+    conic-gradient(from -45deg at 50% 100%, color-mix(in srgb, var(--color-primary) 28%, transparent) 0 90deg, transparent 0);
+  --trim-ground-corner-p: left 22px bottom 39px, left 22px bottom 30px, left 48px bottom 19px, left 48px bottom 14px, left 12px bottom 66px, left 12px bottom 62px, right 22px bottom 39px, right 22px bottom 30px, right 48px bottom 19px, right 48px bottom 14px, right 12px bottom 66px, right 12px bottom 62px;
+  --trim-ground-corner-s: 18px 9px, 18px 9px, 10px 5px, 10px 5px, 8px 4px, 8px 4px, 18px 9px, 18px 9px, 10px 5px, 10px 5px, 8px 4px, 8px 4px;
+  --trim-ground-corner-r: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+}
