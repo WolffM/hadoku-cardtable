@@ -2141,6 +2141,14 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
    */
   const rematchable = !inPod && room?.mode !== 'gauntlet';
   /**
+   * A room change (mode, pool) since this game interrupted its series: the
+   * table is back to a fresh `seating` series without it (ruling 14). Its
+   * players stay seated (AF344), so a Rematch would play the new rules on
+   * decks that were dropped.
+   */
+  const interrupted =
+    myTable !== null && myTable.series.phase === 'seating' && myTable.matchId !== match.matchId && !myTable.series.games.some((g) => g.matchId === match.matchId);
+  /**
    * The table id the reads below address — a ref, not state, because the
    * table-scoped read inside the SAME refresh cycle that learns it has to
    * use what THIS cycle just learned, not last render's.
@@ -2420,7 +2428,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
               data-testid="game-result-rematch"
               aria-pressed={nextInRoom ? undefined : rematch.mine}
               data-highlight={nextInRoom || rematch.highlight ? 'true' : undefined}
-              disabled={nextInRoom ? roomId === null || leaving : !rematch.possible || busy || leaving}
+              disabled={nextInRoom ? roomId === null || leaving : !rematch.possible || interrupted || busy || leaving}
               onPress={nextInRoom ? onBackToRoom : onRematch}
             >
               {nextInRoom ? 'Next game' : 'Rematch'}
