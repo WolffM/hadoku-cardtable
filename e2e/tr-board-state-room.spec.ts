@@ -13,6 +13,7 @@ import { expect, test } from '@playwright/test';
 import { PREFIX } from './identities.ts';
 import { ownNamed } from './play/board.ts';
 import { openFriend } from './play/browser.ts';
+import { confirmYes } from './play/confirm.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 
 const forge = forgeAvailability();
@@ -46,11 +47,25 @@ test(forge.ok ? 'an admin starts a board-state testing room vs the AI and lands 
     await admin.page.waitForURL(/#\/match\/m-[0-9a-f]{12}$/, { timeout: 60_000 });
     await expect(admin.page.locator('[aria-label="Game board"]'), 'the match board is up').toBeVisible({ timeout: 30_000 });
 
-    // tr-midgame.state: the scripted board, not a fresh deal — the admin's
-    // own hand would otherwise be whatever their loaded deck's first seven
-    // were, and a fresh game never has a planeswalker or an equipped creature
-    // on turn 1.
-    for (const name of ["Elspeth, Sun's Champion", 'Llanowar Elves', 'Bonesplitter', 'Hill Giant', 'Rancor']) {
+    // Forge still runs the coin toss and the admin's own mulligan on the
+    // ordinary random opening before the scenario's hand/battlefield replace
+    // it (`scenario-harness.jvm.test.ts`'s own proof) — a solo vs-AI game
+    // still asks the human half of that. Keep clicking through whichever of
+    // the two is open while polling for the scripted board.
+    const playOrDraw = admin.page.getByTestId('live-play-or-draw-play');
+    const keep = confirmYes(admin.page);
+    const settle = async (): Promise<number[]> => {
+      await playOrDraw.click({ timeout: 500 }).catch(() => undefined);
+      await keep.click({ timeout: 500 }).catch(() => undefined);
+      return ownNamed(admin.page, "Elspeth, Sun's Champion");
+    };
+    await expect.poll(settle, 'the admin is through the coin toss and mulligan onto the scripted board').not.toHaveLength(0);
+
+    // tr-midgame.state: the rest of the scripted board, not a fresh deal —
+    // the admin's own hand would otherwise be whatever their loaded deck's
+    // first seven were, and a fresh game never has an equipped creature or a
+    // +1/+1 counter on turn 1.
+    for (const name of ['Llanowar Elves', 'Bonesplitter', 'Hill Giant', 'Rancor']) {
       await expect.poll(() => ownNamed(admin.page, name), `the scripted ${name} is on the board`).not.toHaveLength(0);
     }
   } finally {
