@@ -42,6 +42,7 @@ import forge.util.MyRandom;
 import java.io.BufferedReader;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -91,12 +92,50 @@ public final class PoolService {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
     private static final SimpleDateFormat ISO_DATE = new SimpleDateFormat("yyyy-MM-dd");
 
-    /** The real stdout, captured before Forge's own boot noise is sent to stderr instead. */
+    /** The real stdout, captured before Forge's own output is redirected. */
     private static PrintStream protocol;
+
+    /**
+     * Forge's own {@code System.out}: progress chatter, never a warning or an error, which Forge
+     * writes to {@code System.err} (kept as it is). A booster draw alone prints a line per slot
+     * ({@code BoosterGenerator}, {@code BoosterSlot}), which was two-thirds of the server's whole log;
+     * so it is counted, not printed, and each phase leaves one summary line instead ({@link #quiet}).
+     */
+    private static final class LineCounter extends OutputStream {
+        private long lines;
+
+        @Override
+        public void write(final int b) {
+            if (b == '\n') { lines++; }
+        }
+
+        @Override
+        public void write(final byte[] buf, final int off, final int len) {
+            for (int i = off; i < off + len; i++) {
+                if (buf[i] == '\n') { lines++; }
+            }
+        }
+
+        long take() {
+            final long n = lines;
+            lines = 0;
+            return n;
+        }
+    }
+
+    private static final LineCounter FORGE_OUT = new LineCounter();
+
+    /** One line for a phase's worth of Forge's own output: how much there was, and how long the phase took. */
+    private static void quiet(final String phase, final long startedNanos) {
+        final long n = FORGE_OUT.take();
+        if (n == 0) { return; }
+        System.err.println("[PoolService] " + phase + ": " + n + " lines of Forge output in " + (System.nanoTime() - startedNanos) / 1_000_000 + " ms");
+    }
 
     public static void main(final String[] args) throws Exception {
         protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
-        System.setOut(System.err);
+        System.setOut(new PrintStream(FORGE_OUT, true, StandardCharsets.UTF_8));
+        final long boot = System.nanoTime();
 
         GuiBase.setInterface(new GuiDesktop());
         FModel.initialize(null, prefs -> {
@@ -112,6 +151,7 @@ public final class PoolService {
         // but FModel.initialize touches net preferences regardless. See PlayBridge.bootForge.
         FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.UPnP, "NEVER");
 
+        quiet("boot", boot);
         emit(line("ready"));
 
         final BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
@@ -157,6 +197,7 @@ public final class PoolService {
             return;
         }
         final String op = req.has("op") && !req.get("op").isJsonNull() ? req.get("op").getAsString() : null;
+        final long started = System.nanoTime();
         final JsonObject resp = new JsonObject();
         resp.addProperty("id", id);
         try {
@@ -181,6 +222,7 @@ public final class PoolService {
             resp.addProperty("ok", false);
             resp.addProperty("error", e.toString());
         }
+        quiet(String.valueOf(op), started);
         emit(resp);
     }
 
