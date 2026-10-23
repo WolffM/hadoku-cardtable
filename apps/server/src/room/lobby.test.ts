@@ -3072,17 +3072,43 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 	});
 
 	describe('Lock seats (startDraft’s tournament branch)', () => {
-		it('refuses fewer than 2 entrants, and an all-AI field', async () => {
+		it('refuses fewer than 2 entrants, and an all-AI field — ruling 7’s auto-lock never fires for either', async () => {
 			const lobby = await openLobby({ dir: await tempDir() });
 			const id = await tournamentRoom(lobby, ALICE);
+			// No legal deck yet: Alice alone is not ready, so adding the AI (2
+			// entrants) does not auto-lock — the field is still short a ready human.
 			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
-			lobby.setPodChecks(fakeChecks({ legalSeatDeck: new Set([ALICE.id]) }));
+			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
+			expect(lobby.get(id)?.draftStartedAt).toBeNull();
 			expect(lobby.startDraft(id, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
 
-			expect(lobby.aiPod(id, ALICE.id, 1, true).ok).toBe(true);
-			expect(lobby.standPod(id, ALICE.id).ok).toBe(true); // only the AI seat is left — an all-AI field
+			// Alice stands: only the AI seat is left — an all-AI field, which never locks itself.
+			expect(lobby.standPod(id, ALICE.id).ok).toBe(true);
+			expect(lobby.get(id)?.draftStartedAt).toBeNull();
 			expect(lobby.startDraft(id, ALICE.id)).toEqual({ ok: false, reason: 'not-ready' });
 			expect(lobby.get(id)?.draftStartedAt).toBeNull();
+		});
+
+		it('ruling 7 (operator, 2026-10-22: "the seats lock when all players are ready"): the lock fires by itself, on whichever action completes the field — no explicit press', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const randomId = await tournamentRoom(lobby, ALICE, 'random');
+			expect(lobby.sitPod(randomId, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(randomId, BOB.id, 1).ok).toBe(true);
+			expect(lobby.setReady(randomId, ALICE.id, true)).toBe(true);
+			expect(lobby.get(randomId)?.draftStartedAt).toBeNull();
+			// Bob's own Ready is the LAST thing the field needed — it locks by itself.
+			expect(lobby.setReady(randomId, BOB.id, true)).toBe(true);
+			expect(lobby.get(randomId)?.draftStartedAt).not.toBeNull();
+			expect(lobby.get(randomId)?.pod?.round).toBe(1);
+
+			// Adding the second entrant (an AI, always ready) can itself complete
+			// the field, with no Ready of its own.
+			const aiId = await tournamentRoom(lobby, ALICE, 'random');
+			expect(lobby.sitPod(aiId, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.setReady(aiId, ALICE.id, true)).toBe(true);
+			expect(lobby.get(aiId)?.draftStartedAt).toBeNull();
+			expect(lobby.aiPod(aiId, ALICE.id, 1, true).ok).toBe(true);
+			expect(lobby.get(aiId)?.draftStartedAt).not.toBeNull();
 		});
 
 		it('Classic: refuses a human with no legal deck chosen; All Random: refuses a human who has not readied', async () => {
