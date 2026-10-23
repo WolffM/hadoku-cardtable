@@ -54,6 +54,14 @@ const ROOT_RELATIVE = /(?:src|href)\s*=\s*"(\/(?!\/)[^"]*)"/g;
 const BASE_HREF = /<base\b[^>]*\bhref\s*=\s*"([^"]*)"/i;
 
 /**
+ * Root-relative URLs that are MEANT for the site root: hadoku.me itself serves
+ * them, for every app, so resolving them against the root is the intent rather
+ * than the drift this check exists to catch. Exact paths, never a prefix — a
+ * pattern here would wave through the very assets this guards.
+ */
+const SITE_ROOT_URLS: ReadonlySet<string> = new Set(['/favicon.svg']);
+
+/**
  * @param indexHtmlPath absolute path to the built index.html
  * @param basePrefix e.g. `/cardtable` (no trailing slash)
  */
@@ -80,7 +88,7 @@ export function checkBasePath(indexHtmlPath: string, basePrefix: string): BasePa
 	const offenders: string[] = [];
 	for (const m of html.matchAll(ROOT_RELATIVE)) {
 		const url = m[1];
-		if (url === wanted || url.startsWith(wanted)) continue;
+		if (url === wanted || url.startsWith(wanted) || SITE_ROOT_URLS.has(url)) continue;
 		offenders.push(url);
 	}
 

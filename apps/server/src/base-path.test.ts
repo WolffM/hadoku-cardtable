@@ -90,4 +90,26 @@ describe('checkBundle', () => {
 		expect(verdict.reason).toBe('unprefixed');
 		expect(verdict.offenders).toEqual(['/assets/app.js']);
 	});
+
+	it('accepts the site-root favicon, which hadoku.me serves for every app', async () => {
+		const site = join(root, 'site-favicon');
+		mkdirSync(site, { recursive: true });
+		writeFileSync(
+			join(site, 'index.html'),
+			'<link rel="icon" type="image/svg+xml" href="/favicon.svg" /><script src="/cardtable/assets/app.js"></script>',
+		);
+		expect((await checkBundle(join(site, 'index.html'), PREFIX)).reason).toBe('ok');
+	});
+
+	it('still refuses an unprefixed asset beside the favicon, and anything favicon-shaped', async () => {
+		const site = join(root, 'site-favicon-stragglers');
+		mkdirSync(site, { recursive: true });
+		writeFileSync(
+			join(site, 'index.html'),
+			'<link rel="icon" href="/favicon.svg" /><link rel="icon" href="/favicon.svg.js" /><script src="/assets/index.js"></script>',
+		);
+		const verdict = await checkBundle(join(site, 'index.html'), PREFIX);
+		expect(verdict.reason).toBe('unprefixed');
+		expect(verdict.offenders).toEqual(['/favicon.svg.js', '/assets/index.js']);
+	});
 });
