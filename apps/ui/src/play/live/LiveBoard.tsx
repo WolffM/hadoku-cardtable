@@ -263,7 +263,7 @@ import { usePrefs } from '@wolffm/prefs-client/react';
 import { parseDck } from '@hadoku/carddata/dck';
 import { CONSTRUCTED_LIMITS, LIMITED_MIN_MAIN_DECK_SIZE, deckFromDeckFile, type Deck } from '@hadoku/deck';
 
-import { navigate, routeHash, type Route } from '../../screens/route.ts';
+import { navigate, routeHash } from '../../screens/route.ts';
 import { roomsClient, type RoomView } from '../../rooms/api.ts';
 import { roomFeed } from '../../rooms/feed.ts';
 import { latestReads } from '../../rooms/latest.ts';
@@ -2323,11 +2323,10 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
     }, unreachable);
   };
 
-  // The room has already let the finished match go (`liveMatchId`), so its screen opens on the table:
-  // in a pod's rounds, this series' own table page until the series is over, then the hub.
-  const backTo: Route = roomId === null ? { kind: 'lobby' } : inPod && tableId !== undefined && phase !== 'done' ? { kind: 'room', roomId, tableId } : { kind: 'room', roomId };
+  // The room itself (the operator, 2026-10-23: back in the room mid-series, "a small box that lets me return"
+  // to the table, not the sideboard step there); the table's page is one press from it.
   const onBackToRoom = (): void => {
-    if (roomId !== null) navigate(backTo);
+    if (roomId !== null) navigate({ kind: 'room', roomId });
   };
 
   const onMainMenu = (): void => {

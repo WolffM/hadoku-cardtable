@@ -167,7 +167,6 @@ import { navigate, routeHash } from './route.ts';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { followMatchOnce, openNewMatch } from '../play/live/matchStart.ts';
 import { PodScreen } from './PodScreen.tsx';
-import { TableSideboard } from './TableSideboard.tsx';
 import { DraftLobby, podDealable } from './DraftLobby.tsx';
 import { ActionButton } from '../components/ActionButton.tsx';
 import { Avatar } from '../components/Avatar.tsx';
@@ -1373,7 +1372,7 @@ function RoomTableScreen({
    * CURRENT tournament table (`myTournamentTable`) instead.
    */
   const myTable: SharedRoomTable | null = tournament ? (myTournamentTable ?? null) : (view?.tables[0] ?? null);
-  /** Between games of my series: the room is where the sideboard step is, whichever page I came back by (`TableSideboard`). */
+  /** Between games of my series: the room links to my table's page, where the sideboard step is (`TablePage`). */
   const mySideboarding = myTable !== null && myTable.matchId === null && myTable.series.phase === 'sideboarding';
   const streamed = modeRef.current === 'streamed';
   /** The room's name as soon as either read has it; the id is never a title. */
@@ -2421,6 +2420,18 @@ function RoomTableScreen({
                   leaderId={view?.leader ?? ''}
                 />
               )
+            ) : mode !== null && tableId !== undefined ? (
+              <TablePage
+                roomId={roomId}
+                pod={null}
+                table={view?.tables.find((t) => t.id === tableId)}
+                myMemberId={view?.you.id ?? null}
+                nameOf={tNameOf}
+                avatarOf={tAvatarOf}
+                canStart={false}
+                refresh={view}
+                tables={client}
+              />
             ) : (
               mode !== null && (
               <>
@@ -2525,7 +2536,9 @@ function RoomTableScreen({
               </section>
             ) : mySideboarding && players.some((p) => p.you) ? (
               <section className="lobby__card">
-                <TableSideboard key={`${myTable.id}:${myTable.series.games.length}`} roomId={roomId} tableId={myTable.id} refresh={view} tables={client} />
+                <a className="lobby__go" data-testid="room-table-link" href={routeHash({ kind: 'room', roomId, tableId: myTable.id })}>
+                  Return to game
+                </a>
               </section>
             ) : mode !== 'classic' ? null : loaded === null ? (
               loadError === null && <DeckCardSkeleton />

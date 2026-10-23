@@ -65,9 +65,12 @@ test(titled('the result screen has Rematch, Back to room and Main menu; Back to 
     expect(MATCH_URL.exec(bob.page.url())?.[1], 'bob is still on his result screen').toBe(matchId);
     await expect(bob.page.getByTestId('game-result-rematch'), 'alice is still at the table: bob can rematch her').toBeEnabled({ timeout: 10_000 });
 
-    // Bob asks for a rematch from his result screen; alice readies in the room.
+    // Bob asks for a rematch from his result screen; alice readies in the room, then sideboards at her table.
     await bob.page.getByTestId('game-result-rematch').click();
     await alice.page.getByTestId('ready-toggle').click();
+    // Between games the room offers the way back to her table, whose page holds her sideboard step
+    // (the operator, 2026-10-23: "a small box that lets me return").
+    await alice.page.getByTestId('room-table-link').click();
     for (const f of [alice, bob]) await readyFromSideboard(f.page);
     for (const f of [alice, bob]) {
       await expect.poll(() => MATCH_URL.exec(f.page.url())?.[1], { message: `${f.name} reaches a new match`, timeout: 120_000 }).not.toBe(matchId);

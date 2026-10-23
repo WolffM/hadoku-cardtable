@@ -2038,16 +2038,32 @@ describe('the table’s pool', () => {
 
   // The rejoin audit, 2026-10-19: a player back in the room between games of a
   // series had no sideboard step there, and readying skipped sideboarding.
-  it('between games of a series, the room opens my sideboard step in place of the deck card', async () => {
+  // The operator, 2026-10-23: back in the room mid-series, "i would expect a small box that lets me return".
+  it('between games of a series, the room offers the way back to my table, not the sideboard step, in place of the deck card', async () => {
     const mine = { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } } as SeatChoice;
     await mountRoom({
       players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false, deck: { name: 'Jund (Emanuele Giusti)', rulesName: 'Standard (M11)', legal: true, issueCount: 0, choice: mine } }), opponent({ seat: 1, ready: false })],
       matchId: null,
       series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-0', winner: 0 }], phase: 'sideboarding' },
     });
-    expect(await screen.findByTestId('table-sideboard')).toBeTruthy();
-    expect(screen.getByTestId('sideboard-step')).toBeTruthy();
+    expect((await screen.findByTestId('room-table-link')).getAttribute('href')).toBe(`#/room/${ROOM}/table/t-stub0001`);
+    expect(screen.queryByTestId('table-sideboard')).toBeNull();
     expect(screen.queryByTestId('deck-mine')).toBeNull();
+  });
+
+  it('opens my sideboard step full size on my table’s page', async () => {
+    const mine = { deck: { library: SECOND_DECK }, rules: { kind: 'standard', format: '2010-07-16' } } as SeatChoice;
+    const table: Table = {
+      players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false, deck: { name: 'Jund (Emanuele Giusti)', rulesName: 'Standard (M11)', legal: true, issueCount: 0, choice: mine } }), opponent({ seat: 1, ready: false })],
+      matchId: null,
+      series: { length: 3, wins: [1, 0], games: [{ matchId: 'm-0', winner: 0 }], phase: 'sideboarding' },
+    };
+    const server = stubServer(table);
+    render(createElement(ConstructedScreen, { client: server.client, deckRecords: server.deckRecords, rooms: server.rooms, myDecks: server.myDecks, roomId: ROOM, tableId: 't-stub0001', feed: everyMs(10) }));
+    expect(await screen.findByTestId('table-page')).toBeTruthy();
+    expect(await screen.findByTestId('table-sideboard')).toBeTruthy();
+    expect(screen.getByTestId('table-hub').getAttribute('href')).toBe(`#/room/${ROOM}`);
+    expect(screen.queryByTestId('room-players')).toBeNull();
   });
 
   it('Free pick reads as its name to a non-leader, whose toggle is disabled', async () => {

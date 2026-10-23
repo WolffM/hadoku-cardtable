@@ -228,11 +228,16 @@ test(titled('a mode change during sideboarding interrupts the Bo3: the sideboard
     for (const f of [alice, bob]) await f.page.getByTestId('game-result-rematch').click();
     for (const f of [alice, bob]) await expect(f.page.getByTestId('game-result-next')).toBeVisible({ timeout: 30_000 });
 
-    // Bob is on the sideboard step; alice, the leader, goes back to the room, which shows hers.
+    // Bob is on the sideboard step; alice, the leader, goes back to the room: it offers the way back to
+    // her table, whose page shows her sideboard step (the operator, 2026-10-23: "a small box that lets me return").
     await bob.page.getByTestId('game-result-next').click();
     await expect(bob.page.getByTestId('sideboard-step')).toBeVisible({ timeout: 30_000 });
     await alice.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
-    await expect(alice.page.getByTestId('sideboard-step'), "alice's room shows her sideboard step").toBeVisible({ timeout: 30_000 });
+    await expect(alice.page.getByTestId('sideboard-step'), "alice's room draws no sideboard step").toHaveCount(0);
+    await alice.page.getByTestId('room-table-link').click();
+    await expect(alice.page.getByTestId('sideboard-step'), "alice's table page shows her sideboard step").toBeVisible({ timeout: 30_000 });
+    await alice.page.getByTestId('table-hub').click();
+    await expect(alice.page.getByTestId('room-table-link'), 'back in the room, the way to her table').toBeVisible({ timeout: 30_000 });
 
     const res = await alice.context.request.patch(`${stack.origin}${PREFIX}/api/rooms/${roomId}`, { data: { mode: 'random', modeOptions: { pool: 'full' } } });
     expect(res.status(), 'a mode change between games is not refused').toBe(200);
@@ -242,7 +247,7 @@ test(titled('a mode change during sideboarding interrupts the Bo3: the sideboard
     expect(table.matchId).toBeNull();
     expect(table.series, 'a fresh series, nothing of the interrupted one').toEqual({ length: 1, wins: [0, 0], games: [], phase: 'seating' });
 
-    await expect(alice.page.getByTestId('sideboard-step'), "alice's room leaves the sideboard step").toHaveCount(0, { timeout: 30_000 });
+    await expect(alice.page.getByTestId('room-table-link'), "alice's room no longer offers the interrupted series").toHaveCount(0, { timeout: 30_000 });
     await expect(alice.page.getByTestId('constructed-mode-random')).toBeChecked();
     await expect(bob.page.getByTestId('sideboard-step'), "bob's screen leaves the sideboard step").toHaveCount(0, { timeout: 30_000 });
     await expect(bob.page.getByTestId('game-result-next')).toHaveCount(0);

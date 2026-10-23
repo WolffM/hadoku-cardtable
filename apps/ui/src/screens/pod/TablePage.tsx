@@ -1,7 +1,8 @@
 /*
- * One match of a room's rounds, at `#/room/<id>/table/<table>` — a draft pod's
- * and a Constructed tournament's alike (ruling 8,
- * `docs/planning/tournament-mode-plan.md`).
+ * One table of a room, at `#/room/<id>/table/<table>` — a match of a draft
+ * pod's or a Constructed tournament's rounds (ruling 8,
+ * `docs/planning/tournament-mode-plan.md`), or a plain room's one table, whose
+ * room links here between games instead of drawing the sideboard itself.
  *
  * Its two players, and for a player of it everything before the game: the
  * mode's own step (`children`: Classic's per-round deck pick, Gauntlet's
@@ -26,7 +27,8 @@ import type { PodView } from './wire.ts';
 
 export interface TablePageProps {
   roomId: string;
-  pod: PodView;
+  /** The room's rounds; `null` for a plain room's one table, which is always the current one. */
+  pod: PodView | null;
   /** The route's table, or `undefined` when the room has no such table. */
   table: RoomTable | undefined;
   myMemberId: string | null;
@@ -49,7 +51,7 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
   }, [missing, roomId]);
 
   const mine = table !== undefined && table.players.some((p) => p.memberId === myMemberId);
-  const current = table !== undefined && pod.phase === 'rounds' && pod.pairings.some((p) => p.tableId === table.id);
+  const current = table !== undefined && (pod === null || (pod.phase === 'rounds' && pod.pairings.some((p) => p.tableId === table.id)));
   const { error, retry } = useTableStart(roomId, mine && current ? table : undefined, canStart);
 
   const matchId = table?.matchId ?? null;
@@ -59,7 +61,7 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
 
   if (table === undefined) return null;
   const sideboarding = mine && matchId === null && table.series.phase === 'sideboarding';
-  const pairing = pod.pairings.find((p) => p.tableId === table.id)?.players;
+  const pairing = pod?.pairings.find((p) => p.tableId === table.id)?.players;
   // A pairing names the AI too; a table seats only its humans.
   const seats = pairing ?? table.players.map((p) => p.memberId);
   return (
@@ -75,7 +77,7 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
               navigate({ kind: 'room', roomId });
             }}
           >
-            {pod.phase === 'done' ? 'Standings' : `Round ${pod.round} of ${pod.rounds}`}
+            {pod === null ? 'Room' : pod.phase === 'done' ? 'Standings' : `Round ${pod.round} of ${pod.rounds}`}
           </a>
           {matchId !== null && (
             <a className="lobby__go" data-testid="table-match-link" href={routeHash({ kind: 'match', matchId })}>

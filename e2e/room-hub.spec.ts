@@ -131,7 +131,10 @@ test(
 
       /* ── game 1 to Alice; the sideboard step is on the table page ── */
       await concedeToResult(bob, alice);
+      // Back to room is the hub; his card is the way to the table.
       await bob.page.getByTestId('game-result-room').click();
+      await bob.page.waitForURL(new RegExp(`#/room/${roomId}$`), { timeout: UI_TIMEOUT });
+      await bob.page.getByTestId('pod-tables-play').click();
       await bob.page.waitForURL(new RegExp(`#/room/${roomId}/table/${tableId}$`), { timeout: UI_TIMEOUT });
       await expect(bob.page.getByTestId('table-sideboard'), 'bob: the sideboard step, on the table page').toBeVisible({ timeout: UI_TIMEOUT });
       await alice.page.getByTestId('game-result-next').click({ timeout: UI_TIMEOUT });
