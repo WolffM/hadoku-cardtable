@@ -2442,7 +2442,7 @@ describe('tournament mode', () => {
     expect(screen.getAllByTestId('pod-seat-ai').length).toBeGreaterThan(0);
   });
 
-  // All Random, not Classic, for these three: Lock's own human-ready test is
+  // All Random, not Classic, for this one: Lock's own human-ready test is
   // `member.ready` for Random (`room/lobby.ts`'s `#lockTournament`) — directly
   // observable for every human, unlike Classic's "a legal deck already held",
   // which this screen can only see for its OWN seat (`TournamentPodLobby.tsx`'s
@@ -2450,38 +2450,20 @@ describe('tournament mode', () => {
   // in `e2e/tournament.spec.ts` instead of guessed at here.
   const randomMode = { mode: 'random' as const, modeOptions: { pool: 'full' as const } };
 
-  it('shows Lock seats to the leader only, disabled until every seated human is ready', async () => {
+  // Ruling 7 (operator, 2026-10-22): "why is there a 'lock seats' button? …
+  // the seats lock when all players are ready and the games start." There is
+  // nothing left to press — Ready is the only write, same `/ready` route as
+  // every other room, and the server locks by itself (`room/lobby.ts`'s
+  // `#maybeLockTournament`, proven in `lobby.test.ts`).
+  it('draws no Lock seats button, ready or not: Ready is a plain /ready write', async () => {
     const seats = emptySeats();
     seats[0] = { memberId: 'p-alice', name: 'user-alice' };
     seats[1] = { memberId: 'p-1', name: 'user-1' };
-    await mountTournament({ mode: randomMode, members: members(true, false), pod: tournamentPod({ seats }) });
-    expect((screen.getByTestId('pod-lock-seats') as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it('enables Lock seats once every seated human is ready, and presses it — the SAME route a draft room’s own deal uses', async () => {
-    const seats = emptySeats();
-    seats[0] = { memberId: 'p-alice', name: 'user-alice' };
-    seats[1] = { memberId: 'p-1', name: 'user-1' };
-    const server = await mountTournament({ mode: randomMode, members: members(true, true), pod: tournamentPod({ seats }) });
-    const lock = screen.getByTestId('pod-lock-seats') as HTMLButtonElement;
-    expect(lock.disabled).toBe(false);
-    lock.click();
-    await waitFor(() => expect(server.calls.some((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toBe(true));
-    expect(lastCall(server.calls, `/api/rooms/${ROOM}/start`)?.method).toBe('POST');
-  });
-
-  it('shows Lock seats’ own refusal in the server’s words', async () => {
-    const seats = emptySeats();
-    seats[0] = { memberId: 'p-alice', name: 'user-alice' };
-    seats[1] = { memberId: 'p-1', name: 'user-1' };
-    await mountTournament({
-      mode: randomMode,
-      members: members(true, true),
-      pod: tournamentPod({ seats }),
-      refuseRoomWrite: { status: 409, error: 'the pod is not in its lobby' },
-    });
-    screen.getByTestId('pod-lock-seats').click();
-    await waitFor(() => expect(screen.getByTestId('pod-lock-error').textContent).toBe('Could not start the draft: the pod is not in its lobby.'));
+    const server = await mountTournament({ mode: randomMode, members: members(true, false), pod: tournamentPod({ seats }) });
+    expect(screen.queryByTestId('pod-lock-seats')).toBeNull();
+    screen.getByTestId('ready-toggle').click();
+    await waitFor(() => expect(server.calls.some((c) => c.url.endsWith(`/api/rooms/${ROOM}/ready`))).toBe(true));
+    expect(server.calls.some((c) => c.url.endsWith(`/api/rooms/${ROOM}/start`))).toBe(false);
   });
 
   it('shows the AI action on an open seat, and seating it sends the write', async () => {

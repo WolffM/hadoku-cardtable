@@ -1340,12 +1340,29 @@ function RoomTableScreen({
    */
   const typeLocked = draftRoom ? dealing : modeLocked;
   /**
+   * Tournament: am I seated in the POD (`pod.seats`), never the 1v1 table —
+   * a real run, 2026-10-22 (room r-228e5e39987e), is what finding Random
+   * and Gauntlet's tournament Ready permanently disabled cost: nothing
+   * ever seats a tournament entrant at `table` (that's `seated`, below,
+   * the 1v1 table's own seat), so gating Ready on it left the toggle dead
+   * for either mode — never caught, since the real e2e only ever tried
+   * Classic, whose own deck-PUT happens to auto-seat the 1v1 table as a
+   * side effect of a mechanism that predates tournaments entirely.
+   */
+  const podSeated = tournament && pod !== null && view !== null && pod.seats.some((s) => s?.memberId === view.you.id);
+  /**
    * What stands between my seat and Ready: in Classic, a legal deck of my
    * own; in Gauntlet and All Random the room deals the decks, so only the seat
    * (and a Gauntlet only before its draw, or once it is decided, to begin the next).
    */
   const canReady =
-    mode === 'classic' ? deckId !== '' && myLegal : mode === 'gauntlet' ? seated && ['options', 'done'].includes(gauntlet?.phase ?? 'options') : seated;
+    mode === 'classic'
+      ? deckId !== '' && myLegal
+      : mode === 'gauntlet'
+        ? (tournament ? podSeated : seated) && ['options', 'done'].includes(gauntlet?.phase ?? 'options')
+        : tournament
+          ? podSeated
+          : seated;
   /**
    * The room's own table record (wave 71 §D's wire shape, via `@hadoku/shared`),
    * for the SERIES it carries — `wins`, `games`, `phase` — none of which
@@ -1855,33 +1872,6 @@ function RoomTableScreen({
   const doAiPod = (seat: number, on: boolean): void => podAct(() => aiPod(roomId, seat, on));
   const doClosePod = (seat: number, closed: boolean): void => podAct(() => closePod(roomId, seat, closed));
   const doStandPod = (): void => podAct(() => standPod(roomId));
-
-  /**
-   * Lock seats: the SAME route a draft room's own deal already uses
-   * (`rooms.start`, `POST /api/rooms/:id/start`) — `room/lobby.ts`'s
-   * `startDraft` dispatches to the tournament lock whenever the room is one,
-   * so there is no separate route to call. The leader's "not ready" refusal
-   * (too few entrants, a human without a legal Classic deck) lands here in
-   * the server's own words, same as every other write on this screen.
-   */
-  const [podLockError, setPodLockError] = useState<string | null>(null);
-  const doLockSeats = (): void => {
-    if (queued(() => doLockSeats())) return;
-    setBusy(true);
-    setPodLockError(null);
-    rooms
-      .start(roomId)
-      .then((r) => {
-        if (!r.ok) {
-          setPodLockError(r.message);
-          return;
-        }
-        roomReads.wrote();
-        setView(r.room);
-      })
-      .catch((err: unknown) => setPodLockError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setBusy(false));
-  };
 
   /** The eras a Gauntlet is offered in, read once the room is on Gauntlet. */
   const [gauntletEras, setGauntletEras] = useState<GauntletEraOption[] | null>(null);
@@ -2425,20 +2415,12 @@ function RoomTableScreen({
                 myMemberId={view?.you.id ?? ''}
                 iAmReady={iAmReady}
                 canReady={canReady}
-                // Classic's own lock-readiness (a legal deck) is caller-scoped on
-                // the wire — observable for ME (`canReady`), not for anyone else,
-                // so every OTHER human reads optimistically true and the real
-                // gate is the server's refusal. Random's `ready` flag is NOT
-                // caller-scoped, so every human's own is read straight.
-                lockReadyOf={mode === 'classic' ? (id) => id !== view?.you.id || canReady : (id) => members.find((m) => m.id === id)?.ready === true}
                 onSit={doSitPod}
                 onStand={doStandPod}
                 onAi={doAiPod}
                 onClose={doClosePod}
                 onReady={setDraftReady}
-                onLock={doLockSeats}
                 seatError={podSeatError}
-                lockError={podLockError}
               >
                 {mode === 'classic' && loaded !== null && (
                   <DeckChooser
