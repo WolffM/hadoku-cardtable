@@ -132,6 +132,8 @@ export const RoomBodySchema = z
     you: RoomYouSchema,
     /** Each table's game for the table card, by table id; none from a server that does not send it. */
     tableGames: TableGamesSchema.optional().catch(undefined),
+    /** The room's AI, the character an AI seat plays as (`room/lobby.ts`'s `roomAi`). */
+    ai: z.object({ name: z.string(), avatarId: z.string().max(AVATAR_ID_MAX) }).optional().catch(undefined),
   })
   .transform(withMode);
 export type RoomBody = z.infer<typeof RoomBodySchema>;

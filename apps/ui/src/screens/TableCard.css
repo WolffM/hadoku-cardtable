@@ -1,0 +1,249 @@
+/*
+ * A table's game (`TableCard.tsx`): a header with the game and its phase, two halves with the score
+ * between them, and the way in at the foot. Colour from `@wolffm/themes` only, as the pod screens.
+ */
+
+.table-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+}
+
+.table-card[data-mine] {
+  border-color: var(--color-primary);
+}
+
+.table-card--full {
+  max-width: 640px;
+}
+
+.table-card--compact {
+  width: 320px;
+}
+
+.table-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.table-card__game {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.table-card__detail {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.table-card__phases {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.table-card__phase {
+  padding: 2px 8px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+}
+
+.table-card__phase[data-past] {
+  border-color: transparent;
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.table-card__phase[data-at] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-bg);
+  font-weight: 600;
+}
+
+.table-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.table-card__side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding-bottom: 10px;
+}
+
+.table-card__side[data-side='right'] {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.table-card__art {
+  display: block;
+  width: 100%;
+  height: 72px;
+}
+
+.table-card--compact .table-card__art {
+  height: 40px;
+}
+
+.table-card__art > .deckpick__art {
+  height: 100%;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.table-card__who,
+.table-card__deck,
+.table-card__counts {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.table-card__side[data-side='right'] :is(.table-card__who, .table-card__deck, .table-card__counts) {
+  flex-direction: row-reverse;
+}
+
+.table-card__face {
+  display: grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--color-bg-alt);
+  image-rendering: pixelated;
+}
+
+.table-card__face--none {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.table-card__name,
+.table-card__deck-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-card__name {
+  font-weight: 600;
+}
+
+.table-card__deck {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.table-card__counts {
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.table-card__counts strong {
+  color: var(--color-text);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-card__side[data-lost] .table-card__name {
+  color: var(--color-text-secondary);
+}
+
+.table-card__side[data-won] .table-card__name {
+  color: var(--color-primary);
+}
+
+.table-card__score {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-right: 1px solid var(--color-border-light);
+  border-left: 1px solid var(--color-border-light);
+}
+
+.table-card__wins {
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.table-card--compact .table-card__wins {
+  font-size: 1.2rem;
+}
+
+.table-card__of {
+  color: var(--color-text-secondary);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.table-card__foot {
+  display: flex;
+  justify-content: flex-start;
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.table-card__go {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: var(--radius);
+  background: var(--color-primary);
+  color: var(--color-bg);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* The whole card is the way in: the link's hit area covers it. Anything else a card holds that takes a
+   press sits above it (`position: relative; z-index: 1`), a sibling of the link, never inside it. */
+.table-card__go::after {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  content: '';
+}
+
+/* Lit only while pressed or keyboard-focused, never on hover: scrolling a list of cards lit each one it
+   passed (the operator, 2026-10-23: "can we have that only happen on click?"). */
+.table-card:has(.table-card__go:active),
+.table-card:has(.table-card__go:focus-visible) {
+  border-color: var(--color-primary);
+  background: var(--color-bg-hover);
+}
+
+.table-card__go:focus-visible {
+  outline: none;
+}
+
+.table-card__go:visited {
+  color: var(--color-bg);
+}

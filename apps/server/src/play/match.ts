@@ -672,6 +672,14 @@ export interface MatchDeps {
 	 */
 	rejoinGraceMs?: number;
 	/**
+	 * Whether a seat's holder is still connected to this server — watching another match, or on the
+	 * room's own screens, whose feed is a socket too (the operator,
+	 * 2026-10-23: *"even people who are seated and have an active game to play should be able to
+	 * spectate other people and their games"*). A holder watching another table is still in the room's
+	 * games, so the rejoin grace waits for them rather than stopping their own. Absent: nobody is.
+	 */
+	ownerOnline?(owner: ParticipantId): boolean;
+	/**
 	 * How long a seat with no connection still counts as at the table
 	 * ({@link Match.anyoneHere}). 0 (the default) is gone at once; `attachPlay`
 	 * passes 30 s so a refresh is not a departure. Its asks stay open either way.
@@ -1279,6 +1287,11 @@ export class Match {
 		this.rejoinTimer = setTimeout(() => {
 			this.rejoinTimer = null;
 			if (this.anyoneHere()) return;
+			// A holder watching another match is still about: wait for them another grace.
+			if (this.seats.some((s) => s.owner !== null && this.deps.ownerOnline?.(s.owner) === true)) {
+				this.armRejoinGrace();
+				return;
+			}
 			this.deps.log({ evt: 'match-not-rejoined', matchId: this.id, status: this.status, afterMs: grace });
 			this.stop();
 		}, grace);

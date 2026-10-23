@@ -265,6 +265,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
           roomId={draftId}
           pod={ctx!.pod!}
           tables={ctx!.tables}
+          games={ctx!.games}
           myMemberId={myMemberId}
           nameOf={nameOf}
           avatarOf={avatarOf}

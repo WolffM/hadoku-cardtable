@@ -207,6 +207,8 @@ import { entrantLookup, myCurrentTable, useFollowMyTable } from './pod/client.ts
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { PodLobby } from './pod/PodLobby.tsx';
 import { RoomHub } from './pod/RoomHub.tsx';
+import { POD_AI } from './pod/wire.ts';
+import { TableCard } from './TableCard.tsx';
 import {
   RANDOM_DECK,
   isEra,
@@ -377,6 +379,11 @@ export function libraryDeckPeek(d: TableDeck): PeekedDeck {
  * repointing a card stays a one-line edit in `art-manifest.json`.
  */
 const LIBRARY_ART_IDS: ArtIdIndex = artIdIndexFromTable(artIdsData as ArtIdTableFile);
+
+/** A card's art id, by name, through the same table — what a table card's deck art is (`TableCard.tsx`). */
+export function deckCardArtId(name: string): string | undefined {
+  return scryfallIdFor(LIBRARY_ART_IDS, name, '');
+}
 
 /** Rarity and card type of each library card, for the art rule (`scripts/art/build-deck-art-traits.ts`). */
 const LIBRARY_ART_TRAITS: Readonly<Record<string, string>> = deckArtTraits.traits;
@@ -2367,6 +2374,7 @@ function RoomTableScreen({
                   roomId={roomId}
                   pod={pod!}
                   tables={view?.tables ?? []}
+                  games={view?.tableGames}
                   myMemberId={view?.you.id ?? null}
                   nameOf={tNameOf}
                   avatarOf={tAvatarOf}
@@ -2489,11 +2497,20 @@ function RoomTableScreen({
                 </p>
               </section>
             ) : mySideboarding && players.some((p) => p.you) ? (
-              <section className="lobby__card">
-                <a className="lobby__go" data-testid="room-table-link" href={routeHash({ kind: 'room', roomId, tableId: myTable.id })}>
-                  Return to game
-                </a>
-              </section>
+              // Between games, the room's table is its card (`TableCard.tsx`), the way back to the table page's sideboard.
+              <TableCard
+                size="full"
+                testId="room-table-card"
+                tableId={myTable.id}
+                players={[myTable.players[0]?.memberId ?? '', myTable.players[1]?.memberId ?? POD_AI]}
+                nameOf={(id) => (id === POD_AI ? (view?.ai?.name ?? tNameOf(id)) : tNameOf(id))}
+                avatarOf={(id) => (id === POD_AI ? (view?.ai?.avatarId ?? null) : tAvatarOf(id))}
+                myMemberId={view?.you.id ?? null}
+                series={{ length: myTable.series.length, wins: myTable.series.wins, played: myTable.series.games.length, phase: myTable.series.phase }}
+                matchId={myTable.matchId}
+                game={view?.tableGames?.[myTable.id]}
+                go={{ label: 'Sideboard', href: routeHash({ kind: 'room', roomId, tableId: myTable.id }), testId: 'room-table-link' }}
+              />
             ) : mode !== 'classic' ? null : loaded === null ? (
               loadError === null && <DeckCardSkeleton />
             ) : (

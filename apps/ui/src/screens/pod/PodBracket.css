@@ -37,63 +37,6 @@
   gap: 8px;
 }
 
-.pod-bracket__match {
-  display: flex;
-  flex-direction: column;
-  width: 240px;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius);
-  background: var(--color-bg-card);
-  color: var(--color-text);
-}
-
-/* A live card is one link (or, after a refused start, one button) edge to edge. */
-.pod-bracket__hit {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.pod-bracket__hit:focus-visible {
-  outline: none;
-}
-
-/*
- * Lit while pressed, or reached by keyboard — never on a pointer passing over it: the operator, 2026-10-23,
- * *"its a little painful to scroll through the list and see it activate constantly. can we have that only
- * happen on click?"*. The pointer cursor still says it is a way in.
- */
-.pod-bracket__match:has(> .pod-bracket__hit:active),
-.pod-bracket__match:has(> .pod-bracket__hit:focus-visible) {
-  border-color: var(--color-primary);
-  background: var(--color-bg-hover);
-}
-
-.pod-bracket__match[data-mine] {
-  border-color: var(--color-primary);
-}
-
-.pod-bracket__side {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 7px 10px;
-}
-
-.pod-bracket__side + .pod-bracket__side {
-  border-top: 1px solid var(--color-border-light);
-}
-
 .pod-bracket__face {
   display: grid;
   width: 32px;
@@ -117,52 +60,6 @@
   white-space: nowrap;
 }
 
-.pod-bracket__wins {
-  font-size: 1.15rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-
-.pod-bracket__side[data-won] .pod-bracket__wins {
-  color: var(--color-primary);
-}
-
-.pod-bracket__side[data-lost] .pod-bracket__name,
-.pod-bracket__side[data-lost] .pod-bracket__wins {
-  color: var(--color-text-secondary);
-}
-
-.pod-bracket__foot {
-  display: flex;
-  justify-content: space-between;
-  padding: 4px 10px;
-  border-top: 1px solid var(--color-border-light);
-  color: var(--color-text-secondary);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.pod-bracket__live {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  color: var(--warn);
-}
-
-.pod-bracket__live::before {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  content: '';
-}
-
-.pod-bracket__go {
-  color: var(--color-primary);
-  font-weight: 600;
-}
-
 .pod-bracket__bye {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -181,15 +78,18 @@
   text-transform: uppercase;
 }
 
-/* Finished rounds: smaller and greyed. */
-.pod-bracket__round--past .pod-bracket__match,
+/* Finished rounds: smaller and dimmed. A card holds card art, which no filter may reach. */
+.pod-bracket__round--past .table-card {
+  width: 220px;
+  opacity: 0.55;
+}
+
 .pod-bracket__round--past .pod-bracket__bye {
-  width: 180px;
+  width: 220px;
   opacity: 0.55;
   filter: grayscale(0.85);
 }
 
-.pod-bracket__round--past .pod-bracket__side,
 .pod-bracket__round--past .pod-bracket__bye {
   gap: 8px;
   padding: 4px 8px;
@@ -199,10 +99,6 @@
   width: 22px;
   height: 22px;
   border-radius: 4px;
-}
-
-.pod-bracket__round--past .pod-bracket__wins {
-  font-size: 0.95rem;
 }
 
 /* Not paired until the round before it ends. */

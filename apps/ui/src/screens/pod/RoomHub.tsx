@@ -12,7 +12,7 @@
  */
 
 import type { ReactNode } from 'react';
-import type { RoomTable } from '@hadoku/shared';
+import type { RoomTable, TableGame } from '@hadoku/shared';
 
 import { PodBracket } from './PodBracket.tsx';
 import { PodSpectators } from './PodSpectators.tsx';
@@ -28,10 +28,12 @@ export interface RoomHubProps {
   avatarOf: (memberId: string) => string | null;
   members: readonly { id: string; name: string }[];
   leaderId: string;
+  /** Each table's game (the room body's `tableGames`), for its card. */
+  games?: Readonly<Record<string, TableGame>> | undefined;
   children?: ReactNode;
 }
 
-export function RoomHub({ roomId, pod, tables, myMemberId, nameOf, avatarOf, members, leaderId, children }: RoomHubProps) {
+export function RoomHub({ roomId, pod, tables, myMemberId, nameOf, avatarOf, members, leaderId, games, children }: RoomHubProps) {
   const building = pod.phase === 'building';
   return (
     <div className="pod__room">
@@ -45,7 +47,7 @@ export function RoomHub({ roomId, pod, tables, myMemberId, nameOf, avatarOf, mem
         )}
         {children}
         <div className="pod__board">
-          <PodBracket roomId={roomId} pod={pod} tables={tables} myMemberId={myMemberId} nameOf={nameOf} avatarOf={avatarOf} />
+          <PodBracket roomId={roomId} pod={pod} tables={tables} myMemberId={myMemberId} nameOf={nameOf} avatarOf={avatarOf} games={games} />
           {!building && <PodStandings rows={pod.standings} nameOf={nameOf} myMemberId={myMemberId} />}
         </div>
         <PodSpectators pod={pod} members={members} myId={myMemberId} leaderId={leaderId} />

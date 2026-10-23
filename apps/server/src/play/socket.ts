@@ -488,6 +488,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		...(attach === undefined ? {} : { attach: (record, events) => attach(record, events) }),
 		...(startingStopPolicy === null ? {} : { stopPolicy: startingStopPolicy }),
 		rejoinGraceMs: deps.rejoinGraceMs ?? DEFAULT_REJOIN_GRACE_MS,
+		ownerOnline: (owner) => (online.get(owner) ?? 0) > 0,
 		log,
 		overGraceMs: deps.overGraceMs ?? 10 * 60_000,
 		disconnectGraceMs: deps.disconnectGraceMs ?? 30_000,
@@ -712,6 +713,8 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	 * old one's `disconnect` lands, spectates for that moment, and is promoted.
 	 */
 	const connected = new Map<string, string[]>();
+	/** Each participant's open sockets on this server (a match, any role; the room feed): who {@link MatchDeps.ownerOnline} counts as about. */
+	const online = new Map<string, number>();
 	/**
 	 * The last arrangement each seat sent (`@hadoku/shared`'s `arrangement.ts`),
 	 * by seat key, replayed to a socket as it joins so a reload or a late seat
@@ -743,6 +746,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 	io.on('connection', (socket) => {
 		const participantId = identityOf(socket);
 		deps.keys?.learn(socket.request.headers);
+		online.set(participantId, (online.get(participantId) ?? 0) + 1);
 		/** matchId → seat, for this connection. */
 		const joined = new Map<string, number>();
 
@@ -1166,6 +1170,9 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		});
 
 		socket.on('disconnect', (reason: string) => {
+			const left = (online.get(participantId) ?? 1) - 1;
+			if (left <= 0) online.delete(participantId);
+			else online.set(participantId, left);
 			for (const [matchId, seat] of joined) {
 				// Before the match lookup: a socket must leave the seat's line even
 				// when its match is gone, or a stale id would hold the control.

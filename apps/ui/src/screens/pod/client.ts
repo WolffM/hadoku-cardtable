@@ -19,7 +19,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { RoomTablesSchema, type RoomTable, type SeriesPhase } from '@hadoku/shared';
+import { RoomTablesSchema, TableGamesSchema, type RoomTable, type SeriesPhase, type TableGame } from '@hadoku/shared';
 
 import { followTableOnce } from '../../play/live/matchStart.ts';
 import { roomFeed } from '../../rooms/feed.ts';
@@ -63,6 +63,8 @@ export interface PodContext {
   pod: PodView | null;
   /** This round's tables — `@hadoku/shared`'s own schema, safe to import (landed wave 71). */
   tables: RoomTable[];
+  /** Each table's game (the room body's `tableGames`), for its card. */
+  games: Record<string, TableGame>;
   /** Every entrant's display name, by id (`entrantLookup`) — for resolving `pod.built`/`pod.bye`/`pod.standings[].id`. */
   names: Record<string, string>;
   /** The room's members, in the room's order. */
@@ -94,13 +96,15 @@ export interface PodContext {
  */
 export async function fetchPodContext(roomId: string): Promise<PodContext> {
   const body = await fetchRoomRaw(roomId);
-  if (body === null || body === 'gone') return { pod: null, tables: [], names: {}, members: [], leaderId: '', avatars: {}, me: null, name: '', leader: false, gone: body === 'gone' };
+  if (body === null || body === 'gone') return { pod: null, tables: [], games: {}, names: {}, members: [], leaderId: '', avatars: {}, me: null, name: '', leader: false, gone: body === 'gone' };
   const tables = RoomTablesSchema.safeParse(body.tables);
+  const games = TableGamesSchema.safeParse(body.tableGames);
   const members = Array.isArray(body.members) ? body.members.filter(isNamed) : [];
   const pod = parsePodView(body.pod);
   return {
     pod,
     tables: tables.success ? tables.data : [],
+    games: games.success ? games.data : {},
     ...entrantLookup(pod, members),
     members: members.map((m) => ({ id: m.id, name: m.name })),
     leaderId: typeof body.leader === 'string' ? body.leader : '',
