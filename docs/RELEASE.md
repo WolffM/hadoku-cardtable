@@ -4,23 +4,35 @@
 (`hadoku.me/cardtable/`) moves only when a release is cut. Why and how it was decided:
 `docs/planning/release-process.md`.
 
+## Where the notes come from
+
+Every land a player would notice adds a file to `docs/releases/pending/` in the same commit (its
+`README.md` has the shape: bullets under `## New`, `## Changed`, `## Fixed`, in the player's
+words). They pile up there between releases. The release's notes are those files combined, and
+they're deleted in the commit that lands the notes.
+
 ## Cutting a release
 
-1. **Pick the version.** `vX.Y.Z`, one product version per release. Bump the minor for a
-   normal release and the patch for a fix-only release. The per-package versions `land.sh`
-   bumps are build numbers and don't change here.
-2. **Collect what's in it:**
+**`/cutrelease`** (`.claude/skills/cutrelease/SKILL.md`) does steps 1–7 with the operator: it
+combines the pending files, shows the notes for editing, lands them and runs the release. By hand:
+
+1. **Pick the version.** `vX.Y.Z`, one product version per release. Bump the minor when any
+   pending file has a `## New` or `## Changed` bullet, the patch when they are all fixes. The
+   per-package versions `land.sh` bumps are build numbers and don't change here.
+2. **Collect what's in it:** every file in `docs/releases/pending/` (except its `README.md`), and
+   for a check that nothing was missed,
    ```sh
    node scripts/release/collect.ts > "$SCRATCH/release-content.md"
    ```
-   This lists the playtest-ledger rows added or changed since the last `release/*` tag, then the
+   which lists the playtest-ledger rows added or changed since the last `release/*` tag, then the
    commit subjects.
-3. **Write the notes** in `docs/releases/vX.Y.Z.md` (shape below), from the ledger rows. Write in
-   the player's words, using each row's "check it by" column, never the commit subjects. Leave out
-   anything a player can't see (tests, CI, refactors), unless it fixed something they hit. A row
-   that's built but whose feature isn't reachable yet stays out.
-4. **The operator reads and edits them.** Then land the file on `main` like any doc. A docs-only
-   change doesn't redeploy PPE.
+3. **Combine the notes** into `docs/releases/vX.Y.Z.md` (shape below): a headline and a sentence
+   or two on what the release is about, then every pending bullet under its own heading, merged,
+   with near-duplicates folded into one. A ledger row a player would notice that has no pending
+   file gets a bullet too, in the player's words, using its "check it by" column. Leave out
+   anything a player can't see (tests, CI, refactors), unless it fixed something they hit.
+4. **The operator reads and edits them.** Then land the notes file and the removal of the pending
+   files in one commit on `main`, like any doc. A docs-only change doesn't redeploy PPE.
 5. **Check PPE.** The sha being released is (normally) what PPE already runs (`hadoku.me/cardtable-ppe/`,
    `curl -s localhost:9011/health`). Play it there. Its Forge pin's jar must be installed
    (`ls ~/.local/share/cardtable/jars/$(git rev-parse <sha>:forge).jar`): prod loads it on boot

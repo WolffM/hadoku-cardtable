@@ -162,6 +162,13 @@ scaffolding still to build. Read it before scaffolding or managing a wave.
   `scripts/lanes/prove-and-land.sh <worktree> -f only=… -f specs=…` rebases onto
   origin/main, proves that exact HEAD on the claws, and lands only on green. A new
   ledger row in a landing commit is `| AF??? |`; `scripts/land.sh` numbers it.
+- **Release notes accumulate in `docs/releases/pending/`.** A land that changes
+  something a player can see or feel adds one file there, in the same commit:
+  `<YYYY-MM-DD>-<slug>.md`, bullets under `## New` / `## Changed` / `## Fixed`, in
+  the player's words (`docs/releases/pending/README.md` has the shape). Never edit
+  a `docs/releases/vX.Y.Z.md` directly and never run `release.yml` yourself: the
+  operator cuts a release with `/cutrelease`, which combines the pending files into
+  that release's notes and runs it (`docs/RELEASE.md`).
 
 ## Does NOT
 
