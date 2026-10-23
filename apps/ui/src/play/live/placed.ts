@@ -1042,6 +1042,15 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
   }
 
+  /**
+   * The stack item `item` targets. The wire pairs only items still on the stack, so once a countered
+   * spell has gone to its graveyard the counter still resolving names nothing: it keeps the target
+   * it was drawn with.
+   */
+  function aimOf(item: StackEntry): number | null {
+    return item.targetStackItemId ?? drawn.get(item.id)?.targetStackItemId ?? null;
+  }
+
   function render(): void {
     const root = overlay();
     const view = lastView;
@@ -1078,7 +1087,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     }
     for (const [id, d] of departed) {
       const landed = !d.isAbility && d.sourceCardId !== null && onBattlefieldNow(d.sourceCardId);
-      if (!d.leaving && !landed && view.stack.some((i) => i.targetStackItemId === id)) {
+      if (!d.leaving && !landed && view.stack.some((i) => aimOf(i) === id)) {
         awaitCounter(id, d);
         continue;
       }
@@ -1094,7 +1103,9 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
     // Every item's element and size first, then every box read, then every place written: a layout per pass, never one per chip.
     const shown: Shown[] = [];
     items.forEach((item, index) => {
-      if (item.isAbility && !drawn.has(item.id) && chainHalted === false) {
+      // An ability aimed at a spell on the stack is drawn all the same: its counter is the beat to see (ward's trigger).
+      const aimed = aimOf(item);
+      if (item.isAbility && !drawn.has(item.id) && chainHalted === false && !(aimed !== null && drawn.has(aimed))) {
         // A waiting trigger nobody stopped for shimmers once, as the stack item it becomes.
         if (item.pending !== true) undrawn.set(item.id, item.sourceCardId);
         return;
@@ -1104,7 +1115,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const record = placements.get(item.id);
       const d = ensureElement(item, record);
       sizeAsCard(d.el, d.isAbility ? cardWidth : spellWidth);
-      d.targetStackItemId = item.targetStackItemId ?? null;
+      d.targetStackItemId = aimOf(item);
       const held = item.isAbility ? null : heldUntil(item.sourceCardId);
       // Held: looked at again when the hold runs out (`placeSpell`/`releaseSpell` repaint sooner).
       if (held !== null && d.holdCheckAt !== held) {

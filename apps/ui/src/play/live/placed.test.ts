@@ -976,6 +976,40 @@ describe('installPlaced: a counter (AE27)', () => {
     handle.dispose();
   });
 
+  it('a counter keeps its target once the target has left the stack: the wire pairs only items still on it', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'them');
+    placeSpell(302, { x: 450, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(10, { sourceCardId: 302, targetStackItemId: 9 }), stackItem(9, { sourceCardId: 301 })]));
+    // Ward's own run on the claws: the spell went to its graveyard first, and the next view named no
+    // pairing for the counter still resolving (`PlayBridge.stackTargetSpellsJson` reads the live stack).
+    handle.notify(view([stackItem(10, { sourceCardId: 302 })]));
+    const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    expect(target.hasAttribute('data-placed-leaving'), 'the target waits for what targeted it').toBe(false);
+    handle.notify(view([]));
+    vi.advanceTimersByTime(RESOLVE_BLINK_MS);
+    expect(target.hasAttribute('data-placed-countered'), 'then the target is destroyed').toBe(true);
+    handle.dispose();
+  });
+
+  it('a trigger nobody stopped for is still drawn when it counters a spell on the stack: ward', () => {
+    setChainHalted(false);
+    vi.useFakeTimers();
+    const { canvas } = board();
+    placeSpell(301, { x: 400, y: 300 }, 'you');
+    const handle = installPlaced(canvas, { reducedMotion: () => false });
+    handle.notify(view([stackItem(9, { sourceCardId: 301 })]));
+    handle.notify(view([stackItem(10, { isAbility: true, sourceCardId: 201, targetStackItemId: 9 }), stackItem(9, { sourceCardId: 301 })], [{ id: 201 }]));
+    expect(canvas.querySelector('[data-placed-spell="10"]'), 'the ward trigger is drawn').not.toBeNull();
+    const target = canvas.querySelector<HTMLElement>('[data-placed-spell="9"]')!;
+    handle.notify(view([], [{ id: 201 }]));
+    vi.advanceTimersByTime(RESOLVE_BLINK_MS);
+    expect(target.hasAttribute('data-placed-countered'), 'the countered beat plays').toBe(true);
+    handle.dispose();
+  });
+
   it('a target whose counter stays on the stack goes the ordinary way once the wait is over', () => {
     vi.useFakeTimers();
     const { canvas } = board();
