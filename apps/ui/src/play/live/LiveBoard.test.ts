@@ -2888,9 +2888,11 @@ describe('wave 32 lane L: chrome', () => {
     expect(css(step.querySelector('.live__step-name')!, 'text-align')).toBe('center');
     expect(css(step, 'justify-content')).toBe('center');
     // The replayed phases can land in two renders under 80 ms apart on a loaded worker, which arms
-    // `useCrawlGuard`'s snap for its cooldown; the rule this pins is the rail's at rest.
+    // `useCrawlGuard`'s snap for its cooldown, re-armed by each such pair; the rule this pins is the
+    // rail's at rest. A whole suite's parallel run on a busy host kept it armed past `waitFor`'s own
+    // second (land of 2026-10-23), so the rest is waited for as long as a loaded worker needs.
     const rail = container.querySelector<HTMLElement>('.live__phases')!;
-    await waitFor(() => expect(rail.hasAttribute('data-crawl')).toBe(false));
+    await waitFor(() => expect(rail.hasAttribute('data-crawl')).toBe(false), { timeout: 5_000 });
     expect(css(rail, 'transition'), 'the rail animates its height in CSS').toContain('height');
   });
 
