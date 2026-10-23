@@ -20,8 +20,8 @@
     "@hadoku/room-store": "workspace:*",
     "@hadoku/shared": "workspace:*",
     "@wolffm/prefs-client": "1.0.19",
-    "@wolffm/rooms-protocol": "0.42.16",
-    "@wolffm/rooms-server": "0.42.16",
+    "@wolffm/rooms-protocol": "0.42.17",
+    "@wolffm/rooms-server": "0.42.17",
     "express": "^5.1.0",
     "socket.io": "^4.8.3"
   },
