@@ -2612,9 +2612,9 @@ describe('testing rooms (admin only, seeded)', () => {
 		const adminList = await call(h, 'GET', '/api/rooms', { headers: { 'x-hadoku-tier': 'admin' } });
 		const adminRooms = (adminList.json() as { rooms: { id: string; name: string; testing: boolean }[] }).rooms;
 		const testingRooms = adminRooms.filter((r) => r.testing);
-		// Nine rooms need nothing beyond `Lobby.create`/`setSettings` (the four
-		// original testing rooms, plus five board-state rooms — lane
-		// testing-states, 2026-10-23); the tenth (the set draft) is skipped and
+		// Ten rooms need nothing beyond `Lobby.create`/`setSettings` (the four
+		// original testing rooms, plus six board-state rooms — lane
+		// testing-states, 2026-10-23, and the trigger storm); the eleventh (the set draft) is skipped and
 		// logged with no catalog wired — this harness's own
 		// `checkPlan`/`newestSetCode` are both omitted.
 		expect(testingRooms.map((r) => r.name).sort()).toEqual(
@@ -2628,6 +2628,7 @@ describe('testing rooms (admin only, seeded)', () => {
 				'Testing: Board — Combat',
 				'Testing: Board — Stack',
 				'Testing: Board — Big board',
+				'Testing: Board — Trigger storm',
 			].sort(),
 		);
 		expect(logged).toContainEqual(expect.objectContaining({ event: 'testing-room-seed-skipped', name: 'Testing: Set draft' }));

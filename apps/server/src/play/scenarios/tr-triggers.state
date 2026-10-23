@@ -1,0 +1,21 @@
+# "Testing: Board — Trigger storm" (room/testing-rooms.ts): the operator, 2026-10-23, "a very complex
+# board with tons of creatures and potential triggers". Fifteen creatures a side, and nearly every one
+# on the human's side a trigger: a creature entering (Soul Warden, Impact Tremors, Mentor of the Meek),
+# dying (Blood Artist, Zulaport Cutthroat, and the AI's Doomed Traveler) or a spell cast (Young
+# Pyromancer). Pyroclasm in hand clears every X/2 on both sides at once — the most triggers one card
+# makes — and Goblin Bombardment sacrifices one creature at a time; Siege-Gang Commander enters with
+# three more. Everything starts untapped and ready to attack, at seat 0's own Main Phase 1, with the
+# lands to cast the hand. Life is 40 a side, so a storm of drains does not end the game in one turn.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=40
+ailife=40
+humanhand=Pyroclasm;Lightning Bolt;Raise the Alarm;Siege-Gang Commander
+humanbattlefield=Soul Warden;Blood Artist;Zulaport Cutthroat;Young Pyromancer;Mentor of the Meek;Goblin Guide;Raging Goblin;Mogg Fanatic;Savannah Lions;Grizzly Bears;Grizzly Bears;Llanowar Elves;Elvish Visionary;Serra Angel;Prodigal Pyromancer;Impact Tremors;Glorious Anthem;Goblin Bombardment;Mountain;Mountain;Mountain;Mountain;Mountain;Plains;Plains;Plains;Plains;Forest;Forest;Swamp;Swamp
+humanlibrary=Mountain;Plains;Grizzly Bears;Mountain;Plains;Grizzly Bears;Mountain;Plains;Forest;Swamp
+humangraveyard=
+aihand=Giant Growth;Shock;Doomed Traveler
+aibattlefield=Hill Giant;Hill Giant;Grizzly Bears;Grizzly Bears;Grizzly Bears;Wall of Omens;Vampire Nighthawk;Doomed Traveler;Selfless Spirit;Watchwolf;Kalonian Tusker;Elvish Mystic;Elvish Archdruid;Serra Angel;Forest;Forest;Forest;Forest;Plains;Plains;Plains;Swamp;Swamp;Mountain;Mountain;Island
+ailibrary=Forest;Plains;Grizzly Bears;Forest;Plains;Grizzly Bears;Forest;Plains;Swamp;Mountain
+aigraveyard=

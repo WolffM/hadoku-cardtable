@@ -3,7 +3,7 @@
  * that have tournaments and games in progress so i can validate the ui and
  * game actions better. can you construct some more complex board states …
  * that i can jump into?" This is the "a state Forge rejects is a bug" proof
- * for the five `tr-*.state` files `room/testing-rooms.ts` starts its new
+ * for the six `tr-*.state` files `room/testing-rooms.ts` starts its new
  * board-state testing rooms from, against a REAL Forge match: each board
  * comes up with exactly the permanents, counters, attachments, loyalty and
  * zones the file asks for.
@@ -149,6 +149,35 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(s.zone(0, 'Hand').map((c) => c.name)).toEqual(['Counterspell']);
 				expect(s.zone(0, 'Battlefield').map((c) => c.name).sort()).toEqual(['Grizzly Bears', 'Island', 'Island', 'Waterfall Aerialist'].sort());
 				expect(s.zone(1, 'Battlefield').map((c) => c.name).sort()).toEqual(['Boggart Brute', 'Mountain', 'Mountain'].sort());
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'tr-triggers: fifteen creatures a side, the human\'s nearly all triggers, every one ready to attack, and the hand that sets them off',
+		async () => {
+			if (!available.ok) return;
+			const s = await startScenario(available.config, { seed: 1, decks: DECKS, scenario: scenarioText('tr-triggers') });
+			try {
+				await toPriority(s);
+				expect(s.turn(0)).toEqual({ n: 3, owner: s.names[0] });
+				expect(s.phase(0)).toBe('Main phase, precombat');
+				const creatures = (seat: number) => s.zone(seat, 'Battlefield').filter((c) => !/^(Mountain|Plains|Forest|Swamp|Island|Impact Tremors|Glorious Anthem|Goblin Bombardment)$/.test(c.name));
+				expect(creatures(0)).toHaveLength(15);
+				expect(creatures(1)).toHaveLength(14);
+				for (const card of creatures(0)) {
+					expect(card.tapped, card.name).toBe(false);
+					expect(card.sick, card.name).toBe(false);
+				}
+				for (const name of ['Soul Warden', 'Blood Artist', 'Zulaport Cutthroat', 'Young Pyromancer', 'Impact Tremors', 'Goblin Bombardment']) {
+					expect(s.zone(0, 'Battlefield').some((c) => c.name === name), name).toBe(true);
+				}
+				expect(s.zone(0, 'Hand').map((c) => c.name)).toEqual(['Pyroclasm', 'Lightning Bolt', 'Raise the Alarm', 'Siege-Gang Commander']);
+				expect(life(s, 0)).toBe(40);
+				expect(life(s, 1)).toBe(40);
 			} finally {
 				await s.stop();
 			}
