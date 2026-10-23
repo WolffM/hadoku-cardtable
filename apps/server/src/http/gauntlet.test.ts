@@ -318,3 +318,178 @@ describe('the Gauntlet routes', () => {
 		expect(h.handle.startRefusal(h.room)).toBeNull();
 	});
 });
+
+/**
+ * Gauntlet tournaments (`docs/planning/tournament-mode-plan.md`, ruling 6):
+ * a tournament round pairs several Gauntlet tables of the SAME room at
+ * once, each keyed by its own table id (`room/lobby.ts`'s `gauntlets`), and
+ * a `locked` deck policy's entrant plays their FIRST match's draft at
+ * every later one (`tournamentPairingOf` + `lockedPicksOf`/
+ * `storeLockedPicks`, stood in here by `h.pairings`/`h.locked`).
+ */
+describe('Gauntlet tournaments: per-table state and the locked deck policy', () => {
+	it('two simultaneous tables of one round draw, bank and play independently — acting on one never touches the other', async () => {
+		const h = await bootRoom({
+			members: [
+				{ id: 'alice', name: 'Alice' },
+				{ id: 'bob', name: 'Bob' },
+				{ id: 'carol', name: 'Carol' },
+				{ id: 'dave', name: 'Dave' },
+			],
+			tables: [
+				{ id: 't-1', seated: ['alice', 'bob'] },
+				{ id: 't-2', seated: ['carol', 'dave'] },
+			],
+		});
+		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
+		await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
+		await call(h, 'carol', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
+		await call(h, 'dave', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
+		const [v1, v2] = [await view(h, 'alice', 't-1'), await view(h, 'carol', 't-2')];
+		expect(v1.phase).toBe('reveal');
+		expect(v2.phase).toBe('reveal');
+		// Two independent draws from the server's one `random` walk: different decks.
+		expect(v1.decks.map((d) => d.id)).not.toEqual(v2.decks.map((d) => d.id));
+		h.flush();
+		expect((await view(h, 'alice', 't-1')).phase).toBe('banpick');
+		expect((await view(h, 'carol', 't-2')).phase).toBe('banpick');
+
+		// Act on t-1 alone: t-2's banpick is untouched.
+		const before2 = await view(h, 'carol', 't-2');
+		const t1 = await view(h, 'alice', 't-1');
+		const deck = t1.decks.find((d) => d.status === 'open')!.id;
+		await call(h, ME[t1.first!], '/rooms/r-1/gauntlet/act', { act: t1.step!.act, deck, table: 't-1' });
+		expect(await view(h, 'carol', 't-2')).toEqual(before2);
+		expect((await view(h, 'alice', 't-1')).decks.find((d) => d.id === deck)?.status).not.toBe('open');
+
+		// Each table's own AI-less finish: both banpicks run to `choose` independently.
+		const final1 = await runBanpick(h, 't-1', ['alice', 'bob']);
+		const final2 = await runBanpick(h, 't-2', ['carol', 'dave']);
+		expect(final1.phase).toBe('choose');
+		expect(final2.phase).toBe('choose');
+		expect(h.stored('t-1')).not.toEqual(h.stored('t-2'));
+	});
+
+	it('resume() restarts each table’s own reveal timer, not a shared one', async () => {
+		const h = await bootRoom({
+			members: [
+				{ id: 'alice', name: 'Alice' },
+				{ id: 'bob', name: 'Bob' },
+				{ id: 'carol', name: 'Carol' },
+				{ id: 'dave', name: 'Dave' },
+			],
+			tables: [
+				{ id: 't-1', seated: ['alice', 'bob'] },
+				{ id: 't-2', seated: ['carol', 'dave'] },
+			],
+		});
+		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
+		await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
+		await call(h, 'carol', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
+		await call(h, 'dave', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
+		h.timers.length = 0;
+		h.clock.now += 2000;
+		h.handle.resume();
+		expect(h.timers.map((t) => t.ms)).toEqual([GAUNTLET_REVEAL_MS - 2000, GAUNTLET_REVEAL_MS - 2000]);
+		h.flush();
+		expect((await view(h, 'alice', 't-1')).phase).toBe('banpick');
+		expect((await view(h, 'carol', 't-2')).phase).toBe('banpick');
+	});
+
+	it('locked: round 2 resumes straight into choose from round 1’s stored picks, no draw and no banpick', async () => {
+		const h = await bootRoom({
+			members: [
+				{ id: 'alice', name: 'Alice' },
+				{ id: 'bob', name: 'Bob' },
+			],
+			tables: [
+				{ id: 't-1', seated: ['alice', 'bob'] },
+				{ id: 't-2', seated: ['alice', 'bob'] },
+			],
+		});
+		h.pairings['t-1'] = { entrants: ['alice', 'bob'], locked: true };
+		h.pairings['t-2'] = { entrants: ['alice', 'bob'], locked: true };
+
+		// Round 1: neither has a stored pick set yet, so this is a fresh draw.
+		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
+		await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
+		h.flush();
+		const round1 = await runBanpick(h, 't-1', ['alice', 'bob']);
+		expect(round1.phase).toBe('choose');
+		expect(h.locked.alice).toHaveLength(3);
+		expect(h.locked.bob).toHaveLength(3);
+
+		// Round 2: both already locked — the ready alone resumes straight into
+		// `choose`, with no reveal timer and no banpick act at all.
+		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
+		const resumed = await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
+		expect(resumed.body.phase).toBe('choose');
+		expect(new Set((resumed.body.decks as { id: string }[]).map((d) => d.id))).toEqual(new Set([...h.locked.alice!, ...h.locked.bob!]));
+		expect(h.logs.filter((l) => l.evt === 'gauntlet-resumed')).toHaveLength(1);
+		// Never overwritten: round 2's own (fresh, were it one) picks are not restored again.
+		expect(h.locked.alice).toHaveLength(3);
+	});
+
+	it('per-round: every round draws and banpicks fresh — nothing is ever stored', async () => {
+		const h = await bootRoom({
+			members: [
+				{ id: 'alice', name: 'Alice' },
+				{ id: 'bob', name: 'Bob' },
+			],
+			tables: [
+				{ id: 't-1', seated: ['alice', 'bob'] },
+				{ id: 't-2', seated: ['alice', 'bob'] },
+			],
+		});
+		h.pairings['t-1'] = { entrants: ['alice', 'bob'], locked: false };
+		h.pairings['t-2'] = { entrants: ['alice', 'bob'], locked: false };
+
+		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
+		await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
+		h.flush();
+		await runBanpick(h, 't-1', ['alice', 'bob']);
+		expect(h.locked).toEqual({});
+
+		await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
+		const drawn2 = await call(h, 'bob', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
+		expect(drawn2.body.phase).toBe('reveal');
+		h.flush();
+		expect((await view(h, 'alice', 't-2')).phase).toBe('banpick');
+		expect(h.locked).toEqual({});
+	});
+
+	it('an AI entrant in a locked tournament: its picks are stored the same way, and round 2 resumes it too', async () => {
+		const h = await bootRoom({
+			members: [{ id: 'alice', name: 'Alice' }],
+			tables: [
+				{ id: 't-1', seated: ['alice'] },
+				{ id: 't-2', seated: ['alice'] },
+			],
+		});
+		h.pairings['t-1'] = { entrants: ['alice', 'ai:0'], locked: true };
+		h.pairings['t-2'] = { entrants: ['alice', 'ai:0'], locked: true };
+
+		// A plain Ready (no `ai: true`) is enough: the pairing alone says the
+		// other seat is the tournament's AI entrant, always ready.
+		const readied = await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-1' });
+		expect((readied.body.players as { memberId: string | null }[]).map((p) => p.memberId)).toEqual(['alice', null]);
+		h.flush();
+		let v = await view(h, 'alice', 't-1');
+		while (v.phase === 'banpick') {
+			if (v.step!.seat === 1) {
+				h.flush();
+			} else {
+				const deck = v.decks.find((d) => d.status === 'open')!.id;
+				await call(h, 'alice', '/rooms/r-1/gauntlet/act', { act: v.step!.act, deck, table: 't-1' });
+			}
+			v = await view(h, 'alice', 't-1');
+		}
+		expect(v.phase).toBe('choose');
+		expect(h.locked.alice).toHaveLength(3);
+		expect(h.locked['ai:0']).toHaveLength(3);
+
+		const resumed = await call(h, 'alice', '/rooms/r-1/gauntlet/ready', { ready: true, table: 't-2' });
+		expect(resumed.body.phase).toBe('choose');
+		expect(h.logs.filter((l) => l.evt === 'gauntlet-resumed' && l.table === 't-2')).toHaveLength(1);
+	});
+});
