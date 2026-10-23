@@ -537,16 +537,17 @@ describe('GET /api/rooms', () => {
 		).toBe(200);
 	});
 
-	it('answers a room the browser reads as itself: every body parses through RoomBodySchema to the same room, less its AI', async () => {
+	it('answers a room the browser reads as itself: every body parses through RoomBodySchema to the same room, its AI with it', async () => {
 		const h = await openApp(await tempDir());
 		const constructed = (await call(h, 'POST', '/api/rooms', { body: { name: 'Kitchen table', mode: 'classic' } })).json() as { id: string };
 		await call(h, 'POST', `/api/rooms/${constructed.id}/join`, { as: 'bob', body: {} });
 		const draft = (await call(h, 'POST', '/api/rooms', { body: { name: 'Cube night', gameType: 'draft', password: PASSWORD } })).json() as { id: string };
 		for (const id of [constructed.id, draft.id]) {
 			const body = (await call(h, 'GET', `/api/rooms/${id}`)).json() as Record<string, unknown>;
-			const { ai, ...view } = body;
-			expect(ai).toEqual({ name: expect.any(String), avatarId: expect.any(String) });
-			expect(RoomBodySchema.parse(body), id).toStrictEqual(view);
+			expect(body.ai).toEqual({ name: expect.any(String), avatarId: expect.any(String) });
+			// A table card draws the room's AI (`TableCard.tsx`); a harness with no games sends no `tableGames`.
+			const { tableGames: _none, ...parsed } = RoomBodySchema.parse(body) as Record<string, unknown>;
+			expect(parsed, id).toStrictEqual(body);
 		}
 	});
 });

@@ -166,9 +166,10 @@ describe('PodBracket', () => {
 
 describe('PodBracket.css', () => {
   it('lights a live card only while it is pressed or keyboard-focused, never under a passing pointer', () => {
-    const css = readFileSync('apps/ui/src/screens/pod/PodBracket.css', 'utf8');
-    expect(css).not.toMatch(/pod-bracket__hit:hover/);
-    expect(css).toMatch(/pod-bracket__hit:active/);
-    expect(css).toMatch(/pod-bracket__hit:focus-visible\)/);
+    // A live card is its table's card (`TableCard.tsx`), whose own sheet lights it.
+    const css = readFileSync('apps/ui/src/screens/TableCard.css', 'utf8');
+    expect(css).not.toMatch(/:hover/);
+    expect(css).toMatch(/table-card__go:active/);
+    expect(css).toMatch(/table-card__go:focus-visible\)/);
   });
 });
