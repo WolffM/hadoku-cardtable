@@ -256,7 +256,7 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
   const names = room.members.map((m) => m.name);
 
   return (
-    <li className={isMine(room) ? 'rooms__row rooms__row--mine' : 'rooms__row'} data-testid="room-row" data-room-id={room.id} data-mine={isMine(room) ? '' : undefined}>
+    <li className="rooms__row" data-testid="room-row" data-room-id={room.id} data-mine={isMine(room) ? '' : undefined}>
       <div className="rooms__info">
         <span className="rooms__name" data-testid="room-name">
           {room.name}

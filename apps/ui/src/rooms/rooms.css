@@ -245,8 +245,3 @@
   flex-direction: column;
   gap: 24px;
 }
-
-/* A room you are in: closing the tab never leaves one, so it is where you come back to. */
-.rooms__row--mine {
-  border-color: var(--color-primary);
-}
