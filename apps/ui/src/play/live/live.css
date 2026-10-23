@@ -151,8 +151,10 @@
   --live-controls-h: 110px;
   --live-controls-w: 112px;
   --live-rail-w: max(8.4%, 6.75rem);
-  --live-col-x: 57%;
-  --live-col-w: 26.5%;
+  /* In `.live`'s own width (`cqw`, the container below), not a percentage: a question that grows past the
+     column (`.live__prompt:has(.prompt__cards)`) still knows the column's width from inside a wider box. */
+  --live-col-x: 57cqw;
+  --live-col-w: 26.5cqw;
   /* The gutter the three permanent overlays share, measured from the right edge
      of `.live`. The log button sits in it at full width; the rail and the
      controls sit beside it. */
@@ -168,6 +170,7 @@
 
   height: 100dvh;
   position: relative;
+  container-type: inline-size;
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
@@ -552,6 +555,33 @@
 .live__prompt:has(.prompt__zones) > .prompt {
   width: fit-content;
   max-width: 100%;
+}
+
+/*
+ * A question over a card grid grows to its cards: a row runs across until the column's room runs out,
+ * then the next row starts, and only past that room does its body scroll (the operator, 2026-10-23, on
+ * Masticore's seven cards drawn one row tall in a 152px box: *"first show a row until we've reached the
+ * horizontal limit, then start a new row"*). Its room is the moving question's; the sheet keeps the
+ * column's own right edge and width at the least, so a short grid sits where every question does, and
+ * its words wrap rather than choose the width.
+ */
+.live__prompt:has(.prompt__cards) {
+  top: 12%;
+  height: 60%;
+  left: 8.5rem;
+  width: auto;
+  right: calc(100% - var(--live-col-x) - var(--live-col-w));
+  align-items: flex-end;
+}
+
+.live__prompt:has(.prompt__cards) > .prompt {
+  width: fit-content;
+  min-width: min(100%, var(--live-col-w));
+  max-width: 100%;
+}
+
+.live__prompt:has(.prompt__cards) :is(.prompt__title, .prompt__message, .prompt__hint) {
+  contain: inline-size;
 }
 
 /*

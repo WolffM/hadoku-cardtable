@@ -9,7 +9,10 @@
  * and Masticore, and her upkeep asks her to discard one or sacrifice it. At the default 1280×720:
  * - every card is a choice, drawn at a fail to find's reveal size (measured against a real
  *   `.reveal-notice__cards` tile on the same page, not a number copied here);
- * - nothing in the question's column scrolls but its body (2026-10-22: never the words);
+ * - the window grows to its grid, a row across before the next one starts (2026-10-23: *"first show a
+ *   row until we've reached the horizontal limit, then start a new row"*), so seven cards fit with
+ *   nothing scrolled; on the way, nothing in the question's column scrolls but its body (2026-10-22:
+ *   never the words);
  * - its answers (OK) are wholly inside the column and the window;
  * - picking a card discards it (a one-pick selection answers on the pick; OK where the sheet has one).
  *
@@ -38,6 +41,10 @@ interface Sheet {
   revealCardW: number;
   /** The answers' row lies wholly inside the column and the window. */
   answersWhole: boolean;
+  /** Tiles per row, top to bottom. */
+  rows: number[];
+  /** How many more tiles the first row had room for. */
+  roomLeft: number;
 }
 
 /** The open question's column, measured; null when none is open. */
@@ -62,6 +69,16 @@ async function measure(page: Page): Promise<Sheet | null> {
     const answers = column.querySelector('.prompt__actions')?.getBoundingClientRect();
     const answersWhole =
       answers !== undefined && answers.height > 0 && answers.top >= col.top && answers.bottom <= col.bottom && answers.top >= 0 && answers.bottom <= window.innerHeight;
+    const tops = new Map<number, number>();
+    for (const t of tiles) {
+      const top = Math.round(t.getBoundingClientRect().top);
+      tops.set(top, (tops.get(top) ?? 0) + 1);
+    }
+    const rows = [...tops.entries()].sort((a, b) => a[0] - b[0]).map(([, n]) => n);
+    const grid = column.querySelector<HTMLElement>('.prompt__cards');
+    const lastInRow = tiles[(rows[0] ?? 1) - 1]?.getBoundingClientRect();
+    const tileW = tiles[0]?.getBoundingClientRect().width ?? 1;
+    const roomLeft = grid === null || lastInRow === undefined ? 0 : Math.floor((grid.getBoundingClientRect().right - lastInRow.right) / (tileW + 6));
     return {
       text: (column.textContent ?? '').trim().slice(0, 120),
       scrollers,
@@ -69,11 +86,13 @@ async function measure(page: Page): Promise<Sheet | null> {
       cardW: tiles[0]?.querySelector('.card')?.getBoundingClientRect().width ?? 0,
       revealCardW,
       answersWhole,
+      rows,
+      roomLeft: rows.length > 1 ? roomLeft : 0,
     };
   });
 }
 
-test(titled('Masticore’s upkeep discard: the reveal’s card grid in the question’s own window, only its body scrolls, OK whole, and a pick discards'), async ({ browser }) => {
+test(titled('Masticore’s upkeep discard: the reveal’s card grid in the question’s own window, grown to its rows, OK whole, and a pick discards'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -117,7 +136,9 @@ test(titled('Masticore’s upkeep discard: the reveal’s card grid in the quest
     console.log(`[masticore-fit] grid ${JSON.stringify(grid)}`);
     const onlyTheBody = (s: Sheet) => s.scrollers.filter((x) => !x.startsWith('div.prompt__body '));
     expect(sheets.flatMap(onlyTheBody), 'no sheet on the way scrolled anything but its body').toEqual([]);
-    expect(onlyTheBody(grid!), 'the discard sheet scrolls nothing but its body').toEqual([]);
+    expect(grid!.scrollers, 'the discard sheet grows to its seven cards: nothing scrolls').toEqual([]);
+    expect(grid!.rows[0], 'a row runs across the room before the next starts').toBeGreaterThan(2);
+    expect(grid!.roomLeft, 'the first row is full before the next starts').toBe(0);
     expect(grid!.tiles, 'every card in her hand is a choice').toBe(7);
     expect(grid!.revealCardW, 'the reveal grid draws cards').toBeGreaterThan(40);
     expect(Math.abs(grid!.cardW - grid!.revealCardW), 'a choice’s card is a reveal’s size').toBeLessThanOrEqual(1);
