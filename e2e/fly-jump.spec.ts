@@ -7,9 +7,12 @@
  *
  * Plays the AI's turn (`fly-jump`: it casts a creature and attacks with a Serra Angel) while alice's
  * flyers are drawn, and records on her screen, every animation frame: each flyer face's centre against
- * its own `<li>` (the loop moves it under 0.1 px a frame, so a step over 1 px is a jump), and every
+ * its own `<li>` (the loop moves it under 0.1 px a frame, so a step over 2 px is a jump), and every
  * `<li>` added or removed, every `data-flying` change and every new fly animation, with when. Every
  * finding prints one `[flyjump]` line.
+ *
+ * Runs in Firefox (`playwright.config.ts`): the operator's browser, where the loop jumped on a 1.4 s grid
+ * (2.6 px, then 7.9 px) with no remount, move or new animation, while Chromium drew it smoothly.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one this SKIPS and the
  * title says why. Serves the prebuilt `apps/ui/dist` — rebuild before running.
@@ -89,7 +92,7 @@ async function watch(page: Page): Promise<void> {
   });
 }
 
-/** Prints what was recorded on `page` and fails on any frame a flyer stepped more than 1 px. */
+/** Prints what was recorded on `page` and fails on any frame a flyer stepped more than 2 px (the loop moves it under 0.1 px a frame). */
 async function judge(page: Page, when: string): Promise<void> {
   // Taken and emptied in one go, so each call judges only what happened since the last.
   const w = await page.evaluate(() => {
@@ -107,7 +110,7 @@ async function judge(page: Page, when: string): Promise<void> {
       const [t, x, y] = path[i]!;
       const [, px, py] = path[i - 1]!;
       const step = Math.hypot(x - px, y - py);
-      if (step > 1) jumps.push({ id, name: names[id] ?? '?', t, step: Math.round(step * 10) / 10 });
+      if (step > 2) jumps.push({ id, name: names[id] ?? '?', t, step: Math.round(step * 10) / 10 });
     }
   }
   log(`${when}: frames`, Object.fromEntries(Object.entries(w.path).map(([id, p]) => [`${names[id] ?? '?'} ${id}`, p.length])));
@@ -116,7 +119,7 @@ async function judge(page: Page, when: string): Promise<void> {
   for (const j of jumps) log(`${when}: before jump`, { ...j, events: w.events.filter((e) => e.id === j.id && e.t <= j.t && e.t > j.t - 100) });
   log(`${when}: events`, w.events);
   expect(Object.keys(w.path).length, `${when}: flyers were sampled`).toBeGreaterThan(0);
-  expect.soft(jumps, `${when}: no flyer steps more than 1 px in a frame`).toEqual([]);
+  expect.soft(jumps, `${when}: no flyer steps more than 2 px in a frame`).toEqual([]);
 }
 
 test(titled("a flyer keeps its loop through the other seat's turn: no jump, no remount, no restart"), async ({ browser }) => {

@@ -15,8 +15,12 @@ import { defineConfig } from '@playwright/test';
 
 import { EDGE_ORIGIN, PREFIX } from './identities.ts';
 
-/** Firefox, because it is the browser a report came from: it sends pointer events Chromium does not. */
-const FIREFOX_SPECS = ['bl-ui-scale-click.spec.ts'];
+/**
+ * Firefox, because it is the browser a report came from: it sends pointer events Chromium does not
+ * (`bl-ui-scale-click`), and a flyer jumped there every 1.4 s while it looped smoothly in Chromium
+ * (`fly-jump`, the operator, 2026-10-23).
+ */
+const FIREFOX_SPECS = ['bl-ui-scale-click.spec.ts', 'fly-jump.spec.ts'];
 
 export default defineConfig({
   testDir: '.',
