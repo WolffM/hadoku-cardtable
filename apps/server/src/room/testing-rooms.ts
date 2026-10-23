@@ -41,6 +41,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { checkSeat, legalLibraryDecks, publicVerdict } from '../http/gate.ts';
+import type { TablesLibrary } from '../http/library.ts';
 import type { Caller, Lobby } from './lobby.ts';
 import type { DraftPlan, PoolVerdict, RoomMode } from '@hadoku/shared';
 
@@ -127,6 +129,23 @@ const SPECS: readonly TestingRoomSpec[] = [
 /** The set-draft room's own stable name — never the set's name, so a new set releasing never orphans this one and spawns a second. */
 export const TESTING_SET_DRAFT_NAME = 'Testing: Set draft';
 
+/**
+ * The two "already in progress" tournament rooms (the operator, 2026-10-23:
+ * "some rooms that have tournaments and games in progress so i can validate
+ * the ui and game actions better"). Each is seeded through the SAME lobby
+ * APIs a real field uses — `sitPod`/`aiPod`/`recordGameResult` — never a
+ * parallel pod-construction path, with `TESTING_SEED_CALLER` standing in for
+ * the human entrant through round 1, then leaving: `join`'s "an emptied
+ * room's leader left with everyone else: whoever comes in first leads it"
+ * already covers a seeded room that empties a SECOND time (round 1 starts
+ * with the same empty-room convention the four lobby-phase rooms use), and
+ * `room/lobby.ts`'s `#settleSeries` now skips `onSeriesEnd` for any
+ * `room.testing` table, so that `leave()` re-settling round 1's decided
+ * series never reaches the real match-stats store.
+ */
+export const TESTING_CLASSIC_ROUND2_NAME = 'Testing: Constructed tournament — round 2';
+export const TESTING_GAUNTLET_ROUND2_NAME = 'Testing: Gauntlet tournament — round 2';
+
 export interface TestingRoomsDeps {
 	lobby: Lobby;
 	log?: (entry: Record<string, unknown>) => void;
@@ -134,6 +153,18 @@ export interface TestingRoomsDeps {
 	newestSetCode?: () => Promise<string | null>;
 	/** The same verdict function `attachRooms` is given for `PUT …/pod/plan`. Omitted entirely: the same as `newestSetCode` always answering `null`. */
 	checkPlan?: (plan: DraftPlan) => Promise<PoolVerdict>;
+	/**
+	 * The real deck gate's library (`http/gate.ts`, `http/library.ts`) — the
+	 * SAME one `index.ts` already builds for `attachTables`, needed for one
+	 * legal Classic library deck to seat `TESTING_SEED_CALLER` with before a
+	 * Classic tournament's lock (`#lockTournament`'s own
+	 * `PodChecks.hasLegalSeatDeck` gate, which reads back exactly the shape
+	 * `legalClassicDeckState` below builds). Omitted entirely (every unit test
+	 * that never wires it): `TESTING_CLASSIC_ROUND2_NAME` is skipped and
+	 * logged, same discipline as `newestSetCode`. The Gauntlet room needs none
+	 * of this — `humanReady` there is just the room's own `ready` flag.
+	 */
+	library?: TablesLibrary;
 }
 
 function noopLog(): void {}
@@ -193,6 +224,165 @@ async function seedSetDraft(deps: TestingRoomsDeps, log: (entry: Record<string, 
 }
 
 /**
+ * A `TablePlayerState` holding ONE legal Classic library deck for `format` —
+ * the exact shape `http/routes.ts`'s `PUT …/deck` route builds (`choice` /
+ * `verdict` / `text`), built from a REAL `checkSeat` verdict rather than a
+ * fabricated `{ legal: true }`, so `PodChecks.hasLegalSeatDeck` (which reads
+ * this shape straight back off the member) passes on a deck that genuinely
+ * is legal. "The picker's first legal option" — `legalLibraryDecks`'s own
+ * offered order — rather than a fixed deck id, the same rule
+ * `e2e/tr-board-state-room.spec.ts` already picked for a board-state room
+ * (a fixed id can stop being legal under a library change). `null` when
+ * `format` offers no legal library deck at all (a thin test library).
+ */
+function legalClassicDeckState(library: TablesLibrary, format: string): unknown | null {
+	const ctx = { library, draftPool: null };
+	const offered = legalLibraryDecks(format, ctx);
+	if ('error' in offered || offered.ids.length === 0) return null;
+	const deckId = offered.ids[0]!;
+	const rules = { kind: 'standard' as const, format };
+	const verdict = checkSeat({ deck: { library: deckId }, rules }, ctx);
+	if ('error' in verdict) return null;
+	return { v: 1, deck: { choice: { deck: { library: deckId }, rules }, verdict: publicVerdict(verdict), text: verdict.text }, seriesDeck: null };
+}
+
+/**
+ * Seat `TESTING_SEED_CALLER` at pod seat 0 plus two AI entrants at seats 1
+ * and 2 (`roundsFor(3) === 2` — this field plays exactly two Swiss rounds,
+ * enough for "round 2" to exist and no more), THEN `makeEntrantReady` (never
+ * before: `sitPod`/`aiPod` each retry the lock — `#maybeLockTournament`'s own
+ * doc — and locking at 2 entrants, the instant the seed is ready and one AI
+ * is seated, is exactly the bug this order avoids: `roundsFor(2) === 1`, one
+ * round and done, never a round 2), and record round 1's one live pairing
+ * (seat order puts the seed against the LOWER AI seat; the higher one draws
+ * round 1's bye — `@hadoku/draft`'s `round1`) as a 2-0 win for the seed.
+ * `#finishPodTable` advances the pod to round 2 by itself, in the same
+ * `recordGameResult` call, exactly as a real table's last game would.
+ *
+ * `makeEntrantReady` must itself retrigger the lock (`setReady` does;
+ * `setPlayerState` does not, so a Classic caller's own one has to follow it
+ * with a redundant re-`sitPod`, which does).
+ *
+ * Answers round 2's own table id, or `null` with the room (and its match
+ * stats, since this is always `room.testing`) untouched beyond what already
+ * logged the refusal: the tournament never locked, round 1's result was
+ * refused, or round 2 never opened.
+ */
+function playRound1VsTwoAi(lobby: Lobby, roomId: string, name: string, makeEntrantReady: () => void, log: (entry: Record<string, unknown>) => void): string | null {
+	lobby.sitPod(roomId, TESTING_SEED_CALLER.id, 0);
+	lobby.aiPod(roomId, TESTING_SEED_CALLER.id, 1, true);
+	lobby.aiPod(roomId, TESTING_SEED_CALLER.id, 2, true);
+	makeEntrantReady();
+	const locked = lobby.get(roomId);
+	if (locked === undefined || locked.pod === null || locked.pod.pairings.length === 0) {
+		log({ event: 'testing-room-seed-failed', name, reason: 'tournament-did-not-lock' });
+		return null;
+	}
+	const round1TableId = locked.pod.pairings[0]!.tableId;
+	for (const matchId of [`${roomId}-r1-g1`, `${roomId}-r1-g2`]) {
+		const recorded = lobby.recordGameResult(roomId, round1TableId, { matchId, winner: 0 });
+		if (!recorded.ok) {
+			log({ event: 'testing-room-seed-failed', name, reason: 'record-game-result-refused' });
+			return null;
+		}
+	}
+	const afterRound1 = lobby.get(roomId);
+	if (afterRound1 === undefined || afterRound1.pod === null || afterRound1.pod.round !== 2 || afterRound1.pod.pairings.length === 0) {
+		log({ event: 'testing-room-seed-failed', name, reason: 'round-2-did-not-open' });
+		return null;
+	}
+	return afterRound1.pod.pairings[0]!.tableId;
+}
+
+/**
+ * "Testing: Constructed tournament — round 2": Classic, `per-round` decks
+ * (so round 2's table holds no deck at all once it pairs — `#newPodTable`'s
+ * `#seatTournamentDeck` clears a per-round hold on every round, the seed's
+ * own included), its round-2 table starting from a board scenario once the
+ * admin presses Start — the SAME `startFromRoom` every room's vs-AI start
+ * already carries `room.scenario` through (`http/routes.ts`), so this needed
+ * no new plumbing. Skipped and logged, never half-built, when `deps.library`
+ * is not wired or offers no legal deck for this room's format.
+ */
+async function seedTournamentRound2Classic(deps: TestingRoomsDeps, log: (entry: Record<string, unknown>) => void): Promise<void> {
+	const { lobby } = deps;
+	if (deps.library === undefined) {
+		log({ event: 'testing-room-seed-skipped', name: TESTING_CLASSIC_ROUND2_NAME, reason: 'no library wired' });
+		return;
+	}
+	const created = lobby.create(TESTING_SEED_CALLER, {
+		name: TESTING_CLASSIC_ROUND2_NAME,
+		gameType: 'constructed-1v1',
+		clientMode: 'builtin',
+		mode: { mode: 'classic', modeOptions: {} },
+		testing: true,
+		scenario: scenarioText('tr-combat'),
+	});
+	if (!created.ok) {
+		log({ event: 'testing-room-seed-failed', name: TESTING_CLASSIC_ROUND2_NAME, reason: created.reason });
+		return;
+	}
+	const roomId = created.room.id;
+	const settled = lobby.setSettings(roomId, TESTING_SEED_CALLER.id, { tournament: true, tournamentDecks: 'per-round' });
+	if (!settled.ok) {
+		log({ event: 'testing-room-settings-failed', name: TESTING_CLASSIC_ROUND2_NAME, reason: settled.reason });
+		return;
+	}
+	const deckState = legalClassicDeckState(deps.library, created.room.format);
+	if (deckState === null) {
+		log({ event: 'testing-room-seed-skipped', name: TESTING_CLASSIC_ROUND2_NAME, reason: 'no legal deck for this format', format: created.room.format });
+		return;
+	}
+	const makeEntrantReady = (): void => {
+		lobby.setPlayerState(roomId, TESTING_SEED_CALLER.id, deckState);
+		// `setPlayerState` does not itself retrigger the lock (`playRound1VsTwoAi`'s
+		// own doc) — a redundant re-`sitPod` at the same seat does.
+		lobby.sitPod(roomId, TESTING_SEED_CALLER.id, 0);
+	};
+	if (playRound1VsTwoAi(lobby, roomId, TESTING_CLASSIC_ROUND2_NAME, makeEntrantReady, log) === null) return;
+	lobby.leave(roomId, TESTING_SEED_CALLER.id);
+	log({ event: 'testing-room-seeded', name: TESTING_CLASSIC_ROUND2_NAME, roomId });
+}
+
+/**
+ * "Testing: Gauntlet tournament — round 2": Gauntlet's own `humanReady` is
+ * just the room's `ready` flag (no deck to hold before the lock), and its
+ * round-2 table deals fresh through its own draw/banpick/choose flow — never
+ * a held deck `#newPodTable` could clear. No board scenario: Gauntlet's
+ * `ready` ultimately starts its match through the same `startFromRoom` a
+ * Classic vs-AI table does, but nothing here has traced that interaction
+ * against a real Forge puzzle `.state` file the way the Classic room's
+ * reuses an already-proven path, so this is left a fresh board rather than
+ * guessed at.
+ */
+async function seedTournamentRound2Gauntlet(deps: TestingRoomsDeps, log: (entry: Record<string, unknown>) => void): Promise<void> {
+	const { lobby } = deps;
+	const created = lobby.create(TESTING_SEED_CALLER, {
+		name: TESTING_GAUNTLET_ROUND2_NAME,
+		gameType: 'constructed-1v1',
+		clientMode: 'builtin',
+		mode: { mode: 'gauntlet', modeOptions: {} },
+		testing: true,
+	});
+	if (!created.ok) {
+		log({ event: 'testing-room-seed-failed', name: TESTING_GAUNTLET_ROUND2_NAME, reason: created.reason });
+		return;
+	}
+	const roomId = created.room.id;
+	const settled = lobby.setSettings(roomId, TESTING_SEED_CALLER.id, { tournament: true });
+	if (!settled.ok) {
+		log({ event: 'testing-room-settings-failed', name: TESTING_GAUNTLET_ROUND2_NAME, reason: settled.reason });
+		return;
+	}
+	const makeEntrantReady = (): void => {
+		lobby.setReady(roomId, TESTING_SEED_CALLER.id, true);
+	};
+	if (playRound1VsTwoAi(lobby, roomId, TESTING_GAUNTLET_ROUND2_NAME, makeEntrantReady, log) === null) return;
+	lobby.leave(roomId, TESTING_SEED_CALLER.id);
+	log({ event: 'testing-room-seeded', name: TESTING_GAUNTLET_ROUND2_NAME, roomId });
+}
+
+/**
  * Create every testing room this store does not already hold one of, by
  * name. Safe to call on every boot (idempotent — two boots on the same store
  * seed nothing twice) and again right after an admin closes one (`close` is
@@ -209,4 +399,6 @@ export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 		seedOne(lobby, spec, log);
 	}
 	if (!existing.has(TESTING_SET_DRAFT_NAME)) await seedSetDraft(deps, log);
+	if (!existing.has(TESTING_CLASSIC_ROUND2_NAME)) await seedTournamentRound2Classic(deps, log);
+	if (!existing.has(TESTING_GAUNTLET_ROUND2_NAME)) await seedTournamentRound2Gauntlet(deps, log);
 }

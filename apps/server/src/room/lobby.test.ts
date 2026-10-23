@@ -1687,6 +1687,57 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 	});
 });
 
+/**
+ * Lane testing-tourney, 2026-10-23: a seeded testing room's series (even one
+ * "played" with fabricated `recordGameResult` calls to stand up a
+ * tournament's round 1 — `room/testing-rooms.ts`'s round-2 rooms) must never
+ * write into the REAL match-stats store. The settlement path a leave()
+ * re-triggers (`#settleSeries`) is the one place this is guarded
+ * (`room.testing`), proved here directly rather than through the tournament
+ * seeding, and contrasted with an ordinary room's — unguarded — right next
+ * to it, so the test cannot pass by `onSeriesEnd` simply never firing.
+ */
+describe('a testing room’s series never reaches match stats', () => {
+	it('a decided Bo1 reports through onSeriesEnd for an ordinary room, and not at all for a testing one', async () => {
+		const ended: SeriesEnd[] = [];
+		const lobby = await openLobby({ dir: await tempDir(), onSeriesEnd: (end) => ended.push(end) });
+		const ordinary = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
+		if (!ordinary.ok) throw new Error('create failed');
+		const testing = lobby.create(ALICE, { name: 'Testing: fake', gameType: 'constructed-1v1', clientMode: 'builtin', testing: true });
+		if (!testing.ok) throw new Error('create failed');
+
+		for (const made of [ordinary, testing]) {
+			const id = made.room.id;
+			const tableId = made.room.tables[0]!.id;
+			expect(lobby.join(id, BOB).ok).toBe(true);
+			expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
+			expect(lobby.setTableMatch(id, tableId, `m-${id}`)).toBe(true);
+			expect(lobby.recordGameResult(id, tableId, { matchId: `m-${id}`, winner: 0 })).toMatchObject({ ok: true, phase: 'done' });
+		}
+		// Neither Bo1 is reported yet (open to a Rematch) — leaving the room, like `close`, settles it for good.
+		expect(ended).toEqual([]);
+		expect(lobby.leave(ordinary.room.id, ALICE.id).ok).toBe(true);
+		expect(lobby.leave(testing.room.id, ALICE.id).ok).toBe(true);
+		expect(ended).toEqual([expect.objectContaining({ roomId: ordinary.room.id })]);
+		expect(ended.some((e) => e.roomId === testing.room.id), 'the testing room’s series never shows up').toBe(false);
+	});
+
+	it('a logged series-end still happens for a testing room — only the external report is skipped', async () => {
+		const logged: Record<string, unknown>[] = [];
+		const lobby = await openLobby({ dir: await tempDir(), log: (e) => void logged.push(e) });
+		const testing = lobby.create(ALICE, { name: 'Testing: fake', gameType: 'constructed-1v1', clientMode: 'builtin', testing: true });
+		if (!testing.ok) throw new Error('create failed');
+		const id = testing.room.id;
+		const tableId = testing.room.tables[0]!.id;
+		expect(lobby.join(id, BOB).ok).toBe(true);
+		expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-1')).toBe(true);
+		lobby.recordGameResult(id, tableId, { matchId: 'm-1', winner: 0 });
+		expect(lobby.leave(id, ALICE.id).ok).toBe(true);
+		expect(logged).toContainEqual(expect.objectContaining({ event: 'table-series-ended', roomId: id }));
+	});
+});
+
 describe('a room stored with the old match-length settings', () => {
 	it('still parses, and its settings read as hand smoothing alone', async () => {
 		const dir = await tempDir();

@@ -526,14 +526,21 @@ setsStore.onNamed(() => lobby.poolNamesChanged());
 // unresponsive). The four rooms that need no catalog are created within a
 // tick either way — `Lobby.create` is synchronous — so the gap a request
 // could race is only ever the fifth room.
+//
+// `library` (below) is what the two "round 2" tournament rooms need to seat
+// a legal Classic deck before their lock — the call itself moves to AFTER
+// `attachTables`, which is where `rooms.setPodChecks` actually wires the
+// REAL `PodChecks.hasLegalSeatDeck` onto this same `lobby`; calling it here,
+// at this line, would lock against `NO_POD_CHECKS`'s own always-`false`
+// stub and never seat anyone.
 const runTestingRoomSeed = (): Promise<void> =>
 	seedTestingRooms({
 		lobby,
 		log: roomsLog,
 		newestSetCode: async () => (await setsStore.list())[0]?.code ?? null,
 		checkPlan: checkDraftPlan,
+		library,
 	});
-void runTestingRoomSeed();
 
 attachRooms(api, {
 	lobby,
@@ -622,6 +629,12 @@ const tables = attachTables(api, {
 	rooms: lobby,
 	matches: () => play?.matches ?? null,
 });
+// Now that `rooms.setPodChecks` above has wired the REAL `PodChecks` onto
+// `lobby`, the seeded testing rooms can run: two of them (`testing-rooms.ts`'s
+// `TESTING_CLASSIC_ROUND2_NAME`/`TESTING_GAUNTLET_ROUND2_NAME`) lock a
+// tournament, which needs that wiring in place first (`runTestingRoomSeed`'s
+// own doc, above). Never awaited, same discipline as `warmSetsStore`.
+void runTestingRoomSeed();
 
 // GET/PUT /api/drafts/:podId/{mine,deck} — a drafter's own pool and the
 // build saved against it. Friend-gated like every other `/api` route, by

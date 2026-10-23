@@ -314,6 +314,8 @@ interface FakeRoom {
 	gauntlet?: GauntletState | null;
 	/** `room/lobby.ts`'s `RoomRecord.scenario` — absent is every room a friend ever opens. Mutable directly, same as `settings` above: no fake setter exists for a field only `room/testing-rooms.ts` ever sets on the real lobby. */
 	scenario?: string;
+	/** `room/lobby.ts`'s `RoomRecord.testing` — absent is every room a friend ever opens. Mutable directly, same reasoning as `scenario` above. */
+	testing?: boolean;
 }
 
 interface FakeLobby extends TablesRooms {
@@ -1276,6 +1278,38 @@ describe('a room table', () => {
 		await setReady(h, 'bob');
 		expect((await startRoom(h, 'alice')).status).toBe(201);
 		expect(h.specs[0]?.scenario).toBeUndefined();
+	});
+
+	// Lane testing-tourney, 2026-10-23: a testing room's own game never reaches
+	// the real match-stats store — `tables.matchStart` (`stats.startOf`) is
+	// where this is guarded, the SAME `null` answer it already gives for a
+	// match no room started, so `matchStats.gameOver`'s own `stats-skipped` log
+	// is the one place this is noticed. The room's OWN table/series ledger
+	// (`tables.gameOver`, composed beside the stats report on `onGameOver` —
+	// `index.ts`'s own doc) is a SEPARATE path and still runs: a testing room's
+	// games still clear their table and advance their series normally, only the
+	// EXTERNAL report is skipped.
+	it("a testing room's game is skipped by matchStats, but the table's own matchId still clears", async () => {
+		const h = await boot();
+		const room = openRoom(h);
+		room.testing = true;
+		// A testing room is admin-only (`rooms.test.ts`'s "every room/table route
+		// 404s as if they do not exist" for a friend) — every call here is an
+		// admin's.
+		const aliceDeck = await call(h, 'PUT', `/api/tables/rooms/${ROOM}/deck`, deckBody(UG_POLYMORPH), edgeHeaders('alice', 'admin'));
+		expect(aliceDeck.status).toBe(200);
+		const bobDeck = await call(h, 'PUT', `/api/tables/rooms/${ROOM}/deck`, deckBody(SECOND_DECK), edgeHeaders('bob', 'admin'));
+		expect(bobDeck.status).toBe(200);
+		await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: true }, edgeHeaders('alice', 'admin'));
+		await call(h, 'POST', `/api/tables/rooms/${ROOM}/ready`, { ready: true }, edgeHeaders('bob', 'admin'));
+		const started = await start(h, { room: ROOM }, '/api/play/matches', 'application/json', edgeHeaders('alice', 'admin'));
+		expect(started.status).toBe(201);
+		const matchId = started.body.matchId as string;
+
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'Seat 1' });
+		await vi.waitFor(() => expect(h.lobby.room(ROOM)?.tables[0]?.matchId).toBeNull());
+		expect(h.reports).toEqual([]);
+		expect(h.statsLogs).toContainEqual(expect.objectContaining({ evt: 'stats-skipped', matchId, reason: 'no room started this match' }));
 	});
 
 	// The operator, 2026-10-11: "let's make it 5 max per person".
