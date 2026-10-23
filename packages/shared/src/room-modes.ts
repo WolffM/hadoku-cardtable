@@ -89,9 +89,9 @@ export const GauntletOptionsSchema = z
 export type GauntletOptions = z.infer<typeof GauntletOptionsSchema>;
 
 /**
- * `lock` (off by default): every game of an All Random table plays the decks its first deal gave
- * it. Off, each game deals fresh (the operator, 2026-10-22: "i would not expect it to lock the deck
- * by default … that should be a toggle").
+ * `lock` (off by default): every series of an All Random table plays the decks its first deal gave
+ * it. Off, each new series deals fresh (the operator, 2026-10-22: "i would not expect it to lock the
+ * deck by default … that should be a toggle"); the games of one series always keep their deal.
  */
 export const RandomOptionsSchema = z.object({ pool: RandomPoolSchema, lock: z.boolean().optional() }).strict();
 export type RandomOptions = z.infer<typeof RandomOptionsSchema>;

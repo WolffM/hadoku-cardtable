@@ -94,3 +94,49 @@ test(titled('All Random Modern against the AI deals two different decks of one M
     await stack.stop();
   }
 });
+
+/**
+ * The operator, 2026-10-23: *"if rematch is clicked we go to sideboarding then the next game with the same
+ * deck. re-randomize should only be considered when back in the lobby and a game is not inprogres anymore"*.
+ * Alice, against the AI in an unlocked All Random room, concedes game 1 and presses Rematch: the sideboard
+ * step, and game 2 of the series plays the same two decks (the server's own start rows, by deck hash).
+ */
+test(titled('All Random against the AI: a Rematch sideboards and game 2 plays the same two decks'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(5 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const alice = await openFriend(browser, 'alice');
+    await alice.page.goto(`${stack.origin}${PREFIX}/`);
+    const api = `${stack.origin}${PREFIX}/api`;
+    const made = await sendJson(alice.page, 'POST', `${api}/rooms`, { name: `e2e all random rematch ${Date.now()}`, mode: 'random', modeOptions: { pool: 'modern' } });
+    expect(made.status, `creating the room: ${JSON.stringify(made.body)}`).toBe(201);
+    const roomId = made.body.id as string;
+    expect((await sendJson(alice.page, 'POST', `${api}/tables/rooms/${roomId}/sit`, {})).status).toBe(200);
+    const started = await sendJson(alice.page, 'POST', `${api}/play/matches`, { room: roomId, bot: true });
+    expect(started.status, JSON.stringify(started.body)).toBe(201);
+    const game1 = started.body.matchId as string;
+    await alice.page.goto(`${stack.origin}${PREFIX}/#/match/${game1}`);
+    await expect(alice.page.locator('[aria-label="Game board"]'), 'game 1').toBeVisible({ timeout: 60_000 });
+
+    await alice.page.getByTestId('live-concede').click();
+    await alice.page.getByTestId('live-concede-yes').click();
+    await expect(alice.page.getByTestId('game-result')).toBeVisible({ timeout: 45_000 });
+    await alice.page.getByTestId('game-result-rematch').click();
+    await alice.page.getByTestId('game-result-next').click({ timeout: 30_000 });
+    await alice.page.getByTestId('sideboard-ready').click({ timeout: 30_000 });
+    await expect
+      .poll(() => rows(stack, 'room-match-started').filter((r) => r.room === roomId).length, { timeout: 60_000, message: 'game 2 starts' })
+      .toBe(2);
+    const [first, second] = rows(stack, 'room-match-started').filter((r) => r.room === roomId);
+    console.log(`[ar] rematch starts ${JSON.stringify([first, second])}`);
+    console.log(`[ar] deals ${JSON.stringify(rows(stack, 'room-random-dealt').filter((r) => r.room === roomId))}`);
+    expect(second!.matchId).not.toBe(game1);
+    expect(rows(stack, 'room-random-dealt').filter((r) => r.room === roomId), 'one deal for the series').toHaveLength(1);
+    expect(second!.deckTexts, 'alice plays the same deck').toEqual(first!.deckTexts);
+    expect(second!.botDeck, 'the AI plays the same deck').toBe(first!.botDeck);
+  } finally {
+    await stack.stop();
+  }
+});

@@ -3385,7 +3385,7 @@ describe('an All Random table', () => {
 	});
 
 	// The operator, 2026-10-22: "i notice it doesn't pick a new deck when a new game starts. i would not expect it to lock the deck by default".
-	it('deals every game fresh unless the room locks its decks: a Rematch against the AI deals again, and the new deal is unnamed', async () => {
+	it('deals a new series fresh unless the room locks its decks: a start from the room after a finished game deals again, and the new deal is unnamed', async () => {
 		const h = await boot();
 		room(h, [{ id: ALICE, name: 'user-alice' }], 'legacy');
 		expect((await sit(h, 'alice')).status).toBe(200);
@@ -3398,6 +3398,61 @@ describe('an All Random table', () => {
 		expect(h.specs).toHaveLength(2);
 		const during = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
 		expect(myDeck(during.body as Record<string, unknown>), 'game 2 was dealt again: unnamed until it is over').toBeNull();
+	});
+
+	// The operator, 2026-10-23: "if rematch is clicked we go to sideboarding then the next game with the same deck.
+	// re-randomize should only be considered when back in the lobby and a game is not inprogres anymore".
+	it('against the AI, a Rematch sideboards and plays the same two decks, with the decks not locked', async () => {
+		const h = await boot();
+		room(h, [{ id: ALICE, name: 'user-alice' }], 'legacy');
+		expect((await sit(h, 'alice')).status).toBe(200);
+		expect((await startNext(h, { room: ROOM, bot: true })).status).toBe(201);
+		const game1 = dealt(h.specs[0]).ids;
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-alice' });
+		await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		// The result screen's Rematch: a Ready converts the Bo1, then the sideboard step's Ready starts the next game.
+		await setReady(h, 'alice');
+		expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 3, phase: 'sideboarding' });
+		await setReady(h, 'alice');
+		expect((await startNext(h, { room: ROOM, bot: true })).status).toBe(201);
+		expect(dealt(h.specs[1]).ids, 'game 2 of the series keeps both decks').toEqual(game1);
+	});
+
+	it('between two players, a Rematch keeps both decks through the Bo3, and the room deals again once it is over', async () => {
+		const h = await boot();
+		room(h, [
+			{ id: ALICE, name: 'user-alice' },
+			{ id: BOB, name: 'user-bob' },
+		]);
+		await sit(h, 'alice');
+		await sit(h, 'bob');
+		const bothReady = async () => {
+			await setReady(h, 'alice');
+			await setReady(h, 'bob');
+		};
+		await bothReady();
+		expect((await startNext(h, { room: ROOM })).status).toBe(201);
+		const game1 = dealt(h.specs[0]).ids;
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-bob' });
+		await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		await bothReady();
+		expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ length: 3, wins: [0, 1], phase: 'sideboarding' });
+		await bothReady();
+		expect((await startNext(h, { room: ROOM })).status).toBe(201);
+		expect(dealt(h.specs[1]).ids, 'game 2 keeps both decks').toEqual(game1);
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-alice' });
+		await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ wins: [1, 1], phase: 'sideboarding' });
+		await bothReady();
+		expect((await startNext(h, { room: ROOM })).status).toBe(201);
+		expect(dealt(h.specs[2]).ids, 'game 3 keeps both decks').toEqual(game1);
+		(h.hosts.at(-1) as ReplayHost).push({ t: 'gameover', winner: 'user-bob' });
+		await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		expect(h.lobby.room(ROOM)?.tables[0]?.series).toMatchObject({ wins: [1, 2], phase: 'done' });
+		// The series is over: the next Ready in the room starts a new one, and deals it.
+		await bothReady();
+		const next = await call(h, 'GET', `/api/tables/rooms/${ROOM}`, undefined, edgeHeaders('alice'));
+		expect(myDeck(next.body as Record<string, unknown>), 'a new deal, unnamed until it is played').toBeNull();
 	});
 
 	it('against the AI with the decks locked: two different decks of one era, and a Rematch plays the same two', async () => {

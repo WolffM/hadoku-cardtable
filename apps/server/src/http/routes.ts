@@ -1292,7 +1292,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 			decks.push({ choice: { deck: { library: id }, rules }, verdict: publicVerdict(verdict), text: verdict.text });
 		}
 		for (const [seat, p] of players.entries()) {
-			const state: TablePlayerState = { ...p.state, deck: decks[seat]! };
+			// A deal registers no series deck: its first game does (`startFromRoom`), so the last series'
+			// deck neither names this one before it is played (`dealtUnseen`) nor is what the seat goes back to.
+			const state: TablePlayerState = { ...p.state, deck: decks[seat]!, seriesDeck: null };
 			if (opts.vsBot) state.aiDeck = decks[1]!.text;
 			else delete state.aiDeck;
 			rooms.setPlayerState(room.id, p.member.id, state);
@@ -1310,11 +1312,15 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	/**
 	 * Deal an All Random table (rulings 3 and 4): one random era of the room's
 	 * pool, and a different deck from it for each seat, the AI's included.
-	 * Every game deals fresh, unless the room locks its decks: then a table
-	 * whose seats already hold theirs plays the same two. A tournament's table
-	 * always keeps what it holds: a locked tournament seats each entrant's
-	 * locked deck there, and a per-round one seats none, so its first game
-	 * deals and the rest of its Bo3 keep that deal (the operator: "Bo3 for
+	 * A series keeps its deal: between its games (a Rematch's sideboarding
+	 * included) the seats play the decks they hold (the operator, 2026-10-23:
+	 * "if rematch is clicked we go to sideboarding then the next game with the
+	 * same deck. re-randomize should only be considered when back in the lobby
+	 * and a game is not inprogres anymore"). Each new series deals fresh, unless
+	 * the room locks its decks: then a table whose seats already hold theirs
+	 * plays the same two. A tournament's table always keeps what it holds: a
+	 * locked tournament seats each entrant's locked deck there, and a per-round
+	 * one seats none, so its first game deals (the operator: "Bo3 for
 	 * classic/all-random means same deck", `tournament-mode-plan.md`).
 	 *
 	 * A no-op for any other room.
@@ -1328,7 +1334,9 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		const pool = randomPoolOf(room);
 		if (pool === null || rooms === null) return { ok: true, players };
 		const held = players.every((p) => p.state.deck !== null) && (!vsBot || players[0]?.state.aiDeck !== undefined);
-		if (held && (randomLocked(room) || room.settings.tournament === true)) return { ok: true, players };
+		const phase = rooms.get(room.id)?.tables.find((t) => t.id === tableId)?.series.phase;
+		const midSeries = phase === 'sideboarding' || phase === 'between';
+		if (held && (midSeries || randomLocked(room) || room.settings.tournament === true)) return { ok: true, players };
 		const draw = drawRandomDecks(random, pool, library);
 		if (draw === null) return { ok: false, error: `no ${pool} era holds two decks` };
 		const dealt = dealDecks(room, tableId, players, draw.decks, draw.era, { vsBot });
@@ -1564,20 +1572,20 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 		//
 		// At an All Random table with both seats taken the same moment deals the
 		// decks (`dealRandom`), so both hold theirs before either browser asks to
-		// start; against the AI the start deals them.
+		// start; against the AI the start deals them. A Rematch converts first, so
+		// the deal sees the series it continues and keeps its decks.
 		if (body.ready) {
 			const nowPlayers = playersOf(rooms, room, table.id);
 			if (nowPlayers.every((p) => p.ready)) {
-				if (nowPlayers.length === TABLE_SEATS) {
+				if (rooms.beginSideboarding(room.id, table.id)) {
+					for (const p of nowPlayers) rooms.setSeatReady(room.id, table.id, p.member.id, false);
+				} else if (nowPlayers.length === TABLE_SEATS) {
 					const deal = dealRandom(room, table.id, nowPlayers, false);
 					if (!deal.ok) {
 						rooms.setSeatReady(room.id, table.id, me, false);
 						res.status(409).json({ error: deal.error });
 						return;
 					}
-				}
-				if (rooms.beginSideboarding(room.id, table.id)) {
-					for (const p of nowPlayers) rooms.setSeatReady(room.id, table.id, p.member.id, false);
 				}
 			}
 		}

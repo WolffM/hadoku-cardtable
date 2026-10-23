@@ -43,7 +43,7 @@ export function MatchRules({
   /** Classic's: absent in a mode it does not apply to. */
   handSmoothing?: RuleSwitch;
   freePick?: RuleSwitch;
-  /** All Random's: on, a table plays its first deal every game; off, every game deals fresh. */
+  /** All Random's: on, a table plays its first deal every series; off, every new series deals fresh. */
   lockDecks?: RuleSwitch;
   /** A tournament's deck policy: absent when the room is not a tournament. */
   tournamentDecks?: { value: TournamentDecks; locked: boolean; onChange: (decks: TournamentDecks) => void };
