@@ -21,9 +21,9 @@ import { useEffect, type ReactNode } from 'react';
 import type { RoomTable } from '@hadoku/shared';
 
 import { Avatar } from '../../components/Avatar.tsx';
+import { StatusPill } from '../../components/StatusPill.tsx';
 import { followMatchOnce } from '../../play/live/matchStart.ts';
 import { navigate, routeHash } from '../route.ts';
-import { StatusPill } from '../ConstructedScreen.tsx';
 import { TableSideboard } from '../TableSideboard.tsx';
 import type { TablesClient } from '../tables.ts';
 import { useTableStart } from './client.ts';

@@ -8,7 +8,7 @@
  * `playPod`).
  */
 
-import { StatusPill } from '../ConstructedScreen.tsx';
+import { StatusPill } from '../../components/StatusPill.tsx';
 import type { PodView } from './wire.ts';
 import './PodBuilding.css';
 

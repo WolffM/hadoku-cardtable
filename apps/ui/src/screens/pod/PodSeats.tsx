@@ -30,7 +30,8 @@
 
 import { ActionButton } from '../../components/ActionButton.tsx';
 import { Avatar } from '../../components/Avatar.tsx';
-import { CROWN, StatusPill } from '../ConstructedScreen.tsx';
+import { StatusPill } from '../../components/StatusPill.tsx';
+import { CROWN } from '../ConstructedScreen.tsx';
 import { isPodAi, POD_CLOSED, POD_SEATS, type PodSeats as PodSeatsValue } from './wire.ts';
 import './PodSeats.css';
 

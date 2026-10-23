@@ -201,6 +201,7 @@ import { GauntletScreen } from './gauntlet/GauntletScreen.tsx';
 import { seatAvatars } from './gauntlet/seats.tsx';
 import './pod/PodSeats.css';
 import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
+import { StatusPill, TICK } from '../components/StatusPill.tsx';
 import { entrantLookup, myCurrentTable, useFollowMyTable } from './pod/client.ts';
 import { TablePage, type TableReady } from './pod/TablePage.tsx';
 import { PodLobby } from './pod/PodLobby.tsx';
@@ -2692,28 +2693,6 @@ function startStateText(starting: boolean, matchId: string | null): string | nul
 
 /** The leader's mark, our own five-point outline, on a 12-unit square. */
 export const CROWN = 'M2 9V3.5l2.2 2L6 2.6l1.8 2.9L10 3.5V9Z';
-/** A pass: the ready pill's tick. */
-const TICK = 'M2.6 6.3 4.9 8.8 9.4 3.3';
-
-/**
- * A status, drawn: a shape, a colour and a word.
- *
- * Colour alone is not a status — a third of the operator's friends could not
- * read it — so each state has its OWN SHAPE (`data-mark`, drawn in an inline
- * `<svg>` we own) and its own border style as well. `screens.css` colours it;
- * remove every colour from that file and this still reads.
- */
-export function StatusPill({ testId, state, mark, label }: { testId: string; state: 'yes' | 'no'; mark: 'tick' | 'ring'; label: string }) {
-  return (
-    <span className="pill pill--ready" data-testid={testId} data-state={state} data-mark={mark}>
-      <svg className="pill__mark" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
-        {mark === 'tick' ? <path d={TICK} /> : <circle cx="6" cy="6" r="3.4" />}
-      </svg>
-      {label}
-    </span>
-  );
-}
-
 /**
  * One seat at the table, drawn as a draft seat is (`pod/PodSeats.tsx`, the operator, 2026-10-22: "can
  * we also show seats the same way we show seats then in draft?"): the member's avatar, ringed once

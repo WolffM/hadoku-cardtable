@@ -9,7 +9,8 @@
  */
 import type { GauntletChoice, GauntletSeatIndex, GauntletView } from '@hadoku/shared';
 
-import { StatusPill, type DeckOption } from '../ConstructedScreen.tsx';
+import { StatusPill } from '../../components/StatusPill.tsx';
+import type { DeckOption } from '../ConstructedScreen.tsx';
 import { DeckTile } from '../DeckTile.tsx';
 import { playRole } from '../../sound/index.ts';
 import { useTilePeek, type TileBinding } from './peek.tsx';
