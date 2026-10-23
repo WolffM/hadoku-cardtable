@@ -100,6 +100,7 @@ async function openApp(
 		checkPlan?: (plan: DraftPlan) => Promise<PoolVerdict>;
 		/** Wave 74 §E step 2: `/start`'s realistic-round pre-fetch. Omitted everywhere a test never plans a realistic round. */
 		realistic?: import('./rooms.ts').RoomsDeps['realistic'];
+		tableGames?: import('./rooms.ts').RoomsDeps['tableGames'];
 	} = {},
 ): Promise<Harness> {
 	const log = (entry: Record<string, unknown>): void => {
@@ -123,6 +124,7 @@ async function openApp(
 		closed: opts.closed,
 		checkPlan: opts.checkPlan ?? (async (plan) => ({ ok: true, cards: plan.rounds.length * 10 })),
 		...(opts.realistic === undefined ? {} : { realistic: opts.realistic }),
+		...(opts.tableGames === undefined ? {} : { tableGames: opts.tableGames }),
 	});
 	app.use('/api', api);
 
@@ -445,6 +447,23 @@ describe('POST /api/rooms', () => {
 });
 
 /* ── the list ────────────────────────────────────────────────────────── */
+
+describe('a room body’s table games', () => {
+	it('carries each table’s game by table id, for the table card, on every read', async () => {
+		const game: import('@hadoku/shared').TableGame = { decks: [{ name: 'Goblins', colors: ['R'], art: 'Goblin Matron' }, null], live: { turn: 3, active: 0, life: [20, 17], hand: [5, 6] } };
+		const h = await openApp(await tempDir(), { tableGames: (room) => ({ [room.tables[0]!.id]: game }) });
+		const made = (await call(h, 'POST', '/api/rooms', { body: { name: 'Kitchen table' } })).json() as { id: string; tables: { id: string }[]; tableGames?: unknown };
+		expect(made.tableGames).toEqual({ [made.tables[0]!.id]: game });
+		const read = (await call(h, 'GET', `/api/rooms/${made.id}`)).json() as { tableGames?: unknown };
+		expect(read.tableGames).toEqual({ [made.tables[0]!.id]: game });
+	});
+
+	it('is absent where nothing tells it', async () => {
+		const h = await openApp(await tempDir());
+		const made = (await call(h, 'POST', '/api/rooms', { body: { name: 'Kitchen table' } })).json() as object;
+		expect(made).not.toHaveProperty('tableGames');
+	});
+});
 
 describe('GET /api/rooms', () => {
 	it('shows every room to every friend, locked or not, and never a secret', async () => {

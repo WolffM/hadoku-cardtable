@@ -3935,3 +3935,42 @@ describe('the watcher channel: one public projection, on WATCHER_SEAT', () => {
 		expect(JSON.stringify(ended[0])).toContain('signal SIGKILL');
 	});
 });
+
+/**
+ * Where the game stands, as the table card draws it (`table-game.ts`): off the watcher's projector,
+ * by table seat, and told to the room (`liveChanged`) when the turn, its seat or a life total moves.
+ */
+describe('live', () => {
+	it('is null until the game runs, then the turn, whose it is, each seat’s life and hand — and the room is told', () => {
+		const { factory, hosts } = replayFactory();
+		let told = 0;
+		const registry = createMatchRegistry({
+			host: factory,
+			log: () => undefined,
+			overGraceMs: 60_000,
+			emit: () => undefined,
+			liveChanged: () => {
+				told += 1;
+			},
+		});
+		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
+		expect(match.live()).toBeNull();
+		// The opening deals no turn yet: Forge's first Turn delta comes after it.
+		(hosts[0] as ReplayHost).push(...OPENING);
+		expect(match.live()).toBeNull();
+		(hosts[0] as ReplayHost).push(...AFTER_PROBE);
+		const live = match.live();
+		expect(match.status).toBe('running');
+		expect(live).not.toBeNull();
+		expect(live!.turn).toBeGreaterThanOrEqual(1);
+		expect([0, 1, null]).toContain(live!.active);
+		expect(live!.life).toEqual([20, 20]);
+		for (const hand of live!.hand) expect(hand).toBeGreaterThan(0);
+		expect(told).toBeGreaterThan(0);
+		// The same state again tells nobody.
+		const before = told;
+		(hosts[0] as ReplayHost).push(...AFTER_PROBE.filter((l) => l.t === 'frame' && (l.frame as { method?: string }).method === 'applyDelta').slice(-1));
+		expect(told).toBe(before);
+	});
+});
+

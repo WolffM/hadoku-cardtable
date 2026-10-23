@@ -821,6 +821,44 @@ describe('turnNumber', () => {
 	});
 });
 
+describe('activePlayer and playerCounts', () => {
+	it('read whose turn it is and each player’s life and hand size off the table — the same for a watcher as for a seat', () => {
+		const game = deltaKey(DELTA_TYPE.game, 1);
+		const p0 = deltaKey(DELTA_TYPE.player, 0);
+		const p1 = deltaKey(DELTA_TYPE.player, 1);
+		const ids = (v: number[]) => ({ t: 'list', v: v.map((n) => ({ t: 'int', v: n })) });
+		const frame = {
+			kind: 'notify',
+			method: 'applyDelta',
+			payload: {
+				packet: {
+					seq: 1,
+					checksum: 0,
+					checksumProperties: [],
+					newObjects: { [game]: { _type: DELTA_TYPE.game, _id: 1 }, [p0]: { _type: DELTA_TYPE.player, _id: 0 }, [p1]: { _type: DELTA_TYPE.player, _id: 1 } },
+					objectDeltas: {
+						[game]: { _type: DELTA_TYPE.game, _id: 1, PlayerTurn: { t: 'int', v: 1 } },
+						[p0]: { _type: DELTA_TYPE.player, _id: 0, Life: { t: 'int', v: 14 }, Hand: ids([10, 11]) },
+						[p1]: { _type: DELTA_TYPE.player, _id: 1, Life: { t: 'int', v: 9 }, Hand: ids([20, 21, 22, 23]) },
+					},
+					events: [],
+				},
+			},
+		} as StateFrame;
+		for (const viewer of [null, 0]) {
+			const projector = createProjector(viewer);
+			expect(projector.activePlayer()).toBeNull();
+			expect(projector.playerCounts().size).toBe(0);
+			projector.project(frame);
+			expect(projector.activePlayer()).toBe(1);
+			expect([...projector.playerCounts()]).toEqual([
+				[0, { life: 14, hand: 2 }],
+				[1, { life: 9, hand: 4 }],
+			]);
+		}
+	});
+});
+
 describe('phase', () => {
 	it('is the Game object’s own Phase constant — null until one arrives', () => {
 		const projector = createProjector(0);

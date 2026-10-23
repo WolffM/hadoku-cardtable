@@ -41,7 +41,7 @@ afterEach(async () => {
 	for (const c of cleanups.splice(0).reverse()) await c();
 });
 
-async function boot(opts: { now?: () => number; touchEveryMs?: number } = {}): Promise<{ lobby: Lobby; port: number; lines: Record<string, unknown>[] }> {
+async function boot(opts: { now?: () => number; touchEveryMs?: number } = {}): Promise<{ lobby: Lobby; port: number; lines: Record<string, unknown>[]; feed: ReturnType<typeof attachRoomFeed> }> {
 	const dir = await mkdtemp(join(tmpdir(), 'cardtable-feed-test-'));
 	const lobby = await openLobby({ dir, ...(opts.now === undefined ? {} : { now: opts.now }) });
 	const http = createServer();
@@ -60,7 +60,7 @@ async function boot(opts: { now?: () => number; touchEveryMs?: number } = {}): P
 		io.close();
 		await rm(dir, { recursive: true, force: true });
 	});
-	return { lobby, port: (http.address() as AddressInfo).port, lines };
+	return { lobby, port: (http.address() as AddressInfo).port, lines, feed };
 }
 
 interface Peer {
@@ -118,6 +118,20 @@ describe('the room feed', () => {
 		lobby.setReady(other, CAROL.id, true);
 		await settle();
 		expect(bob.heard, 'watching a room you are not in tells you nothing').toEqual([{ room: id }]);
+	});
+
+	it('a room that reads differently with nothing written (a table’s game moved on) is said to its members, once a turn', async () => {
+		const { lobby, port, feed } = await boot();
+		const id = room(lobby, ALICE);
+		const alice = await connect(port, ALICE);
+		const carol = await connect(port, CAROL);
+		await watch(alice, [id]);
+		await watch(carol, [id]);
+		feed.changed(id);
+		feed.changed(id);
+		await settle();
+		expect(alice.heard).toEqual([{ room: id }]);
+		expect(carol.heard, 'not a member: hears nothing about the room').toEqual([]);
 	});
 
 	it('a match start writes the room three times and is said once', async () => {

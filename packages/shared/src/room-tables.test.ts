@@ -13,6 +13,8 @@ import {
   SeriesLengthSchema,
   SeriesPhaseSchema,
   SERIES_PHASES,
+  TableGameSchema,
+  TableGamesSchema,
 } from './room-tables.ts';
 
 const GAME = { matchId: 'm-1', winner: 0 } as const;
@@ -73,5 +75,27 @@ describe('RoomTablesSchema', () => {
     expect(RoomTablesSchema.safeParse([]).success).toBe(false);
     expect(RoomTablesSchema.safeParse([TABLE]).success).toBe(true);
     expect(RoomTablesSchema.safeParse([TABLE, { ...TABLE, id: 't-5678abcd' }]).success).toBe(true);
+  });
+});
+
+describe('TableGameSchema', () => {
+  const DECK = { name: 'Goblins', colors: ['R'], art: 'Goblin Matron' };
+  const LIVE = { turn: 7, active: 1, life: [14, 9], hand: [2, 4] };
+
+  it('accepts a game under way, a table between games, and a seat whose deck was never seen', () => {
+    expect(TableGameSchema.safeParse({ decks: [DECK, DECK], live: LIVE }).success).toBe(true);
+    expect(TableGameSchema.safeParse({ decks: [DECK, null], live: null }).success).toBe(true);
+    expect(TableGameSchema.safeParse({ decks: [{ ...DECK, art: null }, DECK], live: { ...LIVE, active: null, life: [null, 20] } }).success).toBe(true);
+  });
+
+  it('refuses a third seat, a colour that is not one, and an unknown field', () => {
+    expect(TableGameSchema.safeParse({ decks: [DECK, DECK, DECK], live: null }).success).toBe(false);
+    expect(TableGameSchema.safeParse({ decks: [{ ...DECK, colors: ['X'] }, DECK], live: null }).success).toBe(false);
+    expect(TableGameSchema.safeParse({ decks: [DECK, DECK], live: { ...LIVE, step: 'Combat' } }).success).toBe(false);
+  });
+
+  it('keys a room body’s games by table id', () => {
+    expect(TableGamesSchema.safeParse({ 't-1234abcd': { decks: [DECK, DECK], live: LIVE } }).success).toBe(true);
+    expect(TableGamesSchema.safeParse({ 't-1234abcd': { decks: [DECK], live: null } }).success).toBe(false);
   });
 });
