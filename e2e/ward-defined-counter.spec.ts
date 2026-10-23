@@ -16,26 +16,13 @@
  * {1}. `drag.spec.ts`'s own gesture for that scenario (drag onto the battlefield,
  * click the one legal creature) casts it here too.
  *
- * Full control is ON for alice (as `w49-counterspell.spec.ts`/`w67-counter.spec.ts`
- * do for whichever seat needs a window to observe the arc): with it off, ward's
- * unpayable {1} auto-cancels under `decideCancel`'s policy and the whole cast→
- * trigger→counter→graveyard arc runs in ONE synchronous Forge burst with no
- * priority stop anywhere in it — measured against the real claws (runs
- * 39992188518, 39996981297, repeatable both times): the browser's socket drops
- * mid-burst (`LiveBoard`'s `Reconnecting…`, `match.connected` false) and the
- * resync that follows wipes `placed.ts`'s transient stack-item bookkeeping before
- * it can ever draw the pairing, so Doom Blade departs as a bare "leaving" with no
- * "resolving"/"countered" mark at all — the operator's "too fast", still open,
- * NOT fixed by this change (see the lane report; this is a transport/pacing
- * question, not the wire fact `stackTargetOf` was missing). With full control on,
- * `FULL_CONTROL_POLICY.unpayableCost` is `'ask'`, not `'cancel'`: Forge's own Pay/
- * Cancel window is shown to alice rather than pressed for her, which holds the
- * arc at a real priority stop and is what proves the fixed wire fact actually
- * draws the countered beat in a real browser.
+ * Alice plays without full control, as the operator did: ward's unpayable {1} is cancelled
+ * for her (`decideCancel`), so cast, trigger, counter and graveyard run with no stop of hers in
+ * between. The beat must still draw.
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickOnce, dragHandCard, makeTitled, offered, pressOffered, resizeWindow, says } from './play/board.ts';
+import { dragHandCard, makeTitled, offered, pressOffered, resizeWindow, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -87,12 +74,6 @@ test(
       void bob;
       await resizeWindow(alice.page, { width: 1600, height: 1000 });
 
-      // Full control: a real priority stop over the burst, not the policy auto-
-      // cancelling ward's unpayable cost before this test (or a human) ever sees
-      // anything (module header).
-      await alice.page.getByTestId('live-full-control').click();
-      await expect(alice.page.getByTestId('live-full-control'), 'full control is on for alice').toHaveAttribute('aria-pressed', 'true');
-
       await expect.poll(() => offered(alice.page), { timeout: 45_000, message: 'alice is offered Doom Blade' }).not.toEqual([]);
       const blade = (await offered(alice.page))[0]!;
       const armadillo = alice.page.locator('[data-zone="battlefield"][data-owner="them"] [data-board-card]');
@@ -111,22 +92,16 @@ test(
       await expect(armadillo, "Forge's ask offers Armored Armadillo").toHaveAttribute('data-selectable', /.*/, { timeout: 10_000 });
       expect(await pressOffered(armadillo.first()), 'Armored Armadillo pressed as the target').toBe(true);
 
-      // Mana for Doom Blade itself ({1}{B}, two Swamps) is still unambiguous and
-      // paid for her; her own priority with Doom Blade (and then the ward
-      // trigger) on the stack is held by full control, and ward's unpayable {1}
-      // is Forge's own Pay/Cancel — Pay dead, Cancel the only live answer — shown
-      // to her rather than pressed by the server.
+      // Settled when Doom Blade's own element has left the stack. Not "no placed spell": that is
+      // also true before the cast is drawn at all.
+      const doomBlade = alice.page.locator('[data-placed-spell][aria-label*="Doom Blade"]');
+      await expect(doomBlade, 'Doom Blade is drawn on the stack').not.toHaveCount(0, { timeout: 20_000 });
       await expect
-        .poll(
-          async () => {
-            const text = await says(alice.page);
-            if (/^Priority:/.test(text)) await clickOnce(alice.page, text, 'ok');
-            if (/Pay Mana Cost/i.test(text)) await clickOnce(alice.page, text, 'cancel');
-            return !(await armadillo.count()) ? 'armadillo-gone' : (await alice.page.locator('[data-placed-spell]').count()) === 0 ? 'settled' : null;
-          },
-          { timeout: 20_000, message: 'the ward arc settles — Armored Armadillo survives, the stack empties' },
-        )
-        .toBe('settled');
+        .poll(() => doomBlade.count(), {
+          timeout: 20_000,
+          message: 'Doom Blade left the stack',
+        })
+        .toBe(0);
 
       await expect(armadillo, 'Armored Armadillo took no damage — Doom Blade never resolved').toHaveCount(1);
 
