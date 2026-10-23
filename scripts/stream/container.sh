@@ -32,7 +32,10 @@ set -euo pipefail
 IMAGE=${CARDTABLE_STREAM_IMAGE:-cardtable-stream-spike:w14}
 NAME_PREFIX=${CARDTABLE_STREAM_NAME_PREFIX:-cardtable-room}
 FORGE_JAR=${CARDTABLE_STREAM_FORGE_JAR:-$HOME/.local/share/cardtable/forge.jar}
-FORGE_RES=${CARDTABLE_STREAM_FORGE_RES:-$HOME/repos/hadoku-cardtable/forge/forge-gui/res}
+# The Forge resources of the tree this script is in — the deploy clone in
+# production (~/srv/hadoku-cardtable), never a fixed ~/repos path, whose forge
+# submodule is wherever the operator last left it.
+FORGE_RES=${CARDTABLE_STREAM_FORGE_RES:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/forge/forge-gui/res}
 DRY=${CARDTABLE_STREAM_DRY_RUN:-0}
 # The container's own noVNC port, fixed by the image's entrypoint.
 CONTAINER_WEB_PORT=6080
