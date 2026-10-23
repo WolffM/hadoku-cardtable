@@ -77,6 +77,14 @@ for (const size of [
         ).toBeChecked();
         await expect(page.getByTestId('room-event-single')).toBeChecked();
         bars[mode] = await measure(page, `${mode} at ${size.width}`);
+        if (mode === 'classic') {
+          // Seated with a deck in hand: the deck picker drawn, my seat taken (the operator, 2026-10-23,
+          // "it happens in classic when the decker picker is displayed").
+          await page.getByTestId('deck-random').click();
+          await expect(page.getByTestId('ready-toggle')).toBeEnabled();
+          await expect(page.getByTestId('deck-mine')).toBeVisible();
+          bars['classic seated'] = await measure(page, `classic seated at ${size.width}`);
+        }
         await page.getByTestId('room-event-tournament').click();
         await expect(page.getByTestId('room-event-tournament')).toBeChecked();
         await expect(page.getByTestId('tournament-lobby')).toBeVisible();
