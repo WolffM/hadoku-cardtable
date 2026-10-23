@@ -266,7 +266,8 @@ describe.skipIf(!available.ok)(title, () => {
 	it('logs one summary line for a phase of Forge’s own output, never the lines themselves', { timeout: 60_000 }, async () => {
 		if (!available.ok) return;
 		stderr.length = 0;
-		await service().boosters('ISD', 3, 'quiet-log');
+		// A play booster set: Forge prints a line per slot of its draw (an older set such as ISD prints nothing, and leaves no summary).
+		await service().boosters('BLB', 3, 'quiet-log');
 		const lines = () => stderr.flatMap((t) => t.split('\n')).filter((l) => l.trim() !== '');
 		// The summary goes out on stderr ahead of the reply on stdout, but two pipes keep no order between them.
 		await expect
