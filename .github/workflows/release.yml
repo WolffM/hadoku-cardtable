@@ -1,0 +1,97 @@
+name: Release to prod
+
+# The ONLY way prod moves (docs/planning/release-process.md). main deploys to
+# PPE on every green check (redeploy.yml); prod takes a release: a version, a
+# sha whose `check` is green, and the patch notes for it already on that sha
+# (docs/releases/<version>.md). This dispatches hadoku_site's exact-sha
+# redeploy for the `cardtable` service, then tags release/<version> — in that
+# order, so a failed dispatch leaves no tag and the same release can be re-run. The notes are
+# announced by prod itself when it boots on the release. docs/RELEASE.md is
+# the runbook.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, e.g. v0.33.0'
+        required: true
+      sha:
+        description: 'Commit to release (default: main''s head)'
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: release-cardtable
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      checks: read
+    steps:
+      - name: Mark the start, so the reported duration is real
+        run: echo "JOB_STARTED_AT=$(date -u +%s)" >> "$GITHUB_ENV"
+
+      - name: Refuse anything that is not a releasable sha
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          SHA_IN: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          api() { curl -fsS -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${REPO}/$1"; }
+          [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must look like v0.33.0, got '${VERSION}'"; exit 1; }
+          if curl -fsS -o /dev/null -H "Authorization: Bearer ${GH_TOKEN}" "https://api.github.com/repos/${REPO}/git/ref/tags/release/${VERSION}"; then
+            echo "::error::release/${VERSION} already exists"; exit 1
+          fi
+          sha="${SHA_IN:-$(api commits/main | jq -r .sha)}"
+          sha=$(api "commits/${sha}" | jq -r .sha)
+          check=$(api "commits/${sha}/check-runs?check_name=check&filter=latest" | jq -r '[.check_runs[].conclusion] | first // "none"')
+          [ "${check}" = success ] || { echo "::error::check on ${sha} is '${check}', not success"; exit 1; }
+          api "contents/docs/releases/${VERSION}.md?ref=${sha}" > /dev/null \
+            || { echo "::error::docs/releases/${VERSION}.md is not on ${sha}: write and land the notes first (docs/RELEASE.md)"; exit 1; }
+          echo "releasing ${VERSION} at ${sha}"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy the release to prod
+        env:
+          TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          SHA: ${{ steps.gate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          [ -n "${TOKEN}" ] || { echo "::error::HADOKU_SITE_TOKEN is not set on this repository."; exit 1; }
+          curl -fsS -X POST \
+            -H "Authorization: token ${TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/WolffM/hadoku_site/dispatches \
+            -d "$(jq -n --arg sha "${SHA}" \
+                  '{event_type:"redeploy_service", client_payload:{service:"cardtable", sha:$sha}}')"
+          echo "Dispatched redeploy_service for 'cardtable' (sha ${SHA})"
+
+      - name: Tag release/${{ inputs.version }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          SHA: ${{ steps.gate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          curl -fsS -X POST -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/git/refs" \
+            -d "$(jq -n --arg ref "refs/tags/release/${VERSION}" --arg sha "${SHA}" '{ref:$ref, sha:$sha}')" > /dev/null
+          echo "tagged release/${VERSION} at ${SHA}"
+
+      - name: Report the outcome so a silent failure can't hide
+        if: always()
+        uses: WolffM/hadoku-actions/report-job@v1
+        with:
+          job-name: cardtable:release
+          service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+          started-at: ${{ env.JOB_STARTED_AT }}

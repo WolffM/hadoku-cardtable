@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin as VitePlugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
+import { APP_BASE } from './app-base.ts';
 import { BUILD_DEFINES } from './build-defines.ts';
 import { uiScaleCss } from './src/settings/ui-scale.ts';
 
@@ -75,7 +76,7 @@ const requireOneStylesheet: VitePlugin = {
 };
 
 export default defineConfig({
-  base: '/cardtable/',
+  base: APP_BASE,
   define: BUILD_DEFINES,
   plugins: [react(), requireOneStylesheet],
   css: { postcss: { plugins: [shadowRootSelectors, uiScaleCss] } },

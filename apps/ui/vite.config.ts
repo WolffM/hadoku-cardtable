@@ -1,17 +1,18 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+import { APP_BASE } from './app-base.ts';
 import { APP_NAME } from './app-name.ts';
 import { BUILD_DEFINES } from './build-defines.ts';
 import { uiScaleCss } from './src/settings/ui-scale.ts';
 import { themeInitScript } from './theme-init.ts';
 
 /**
- * The app is served under `hadoku.me/cardtable/` behind the friend gate, so the
- * base path is not `/`.
+ * The app is served under `hadoku.me/cardtable/` (PPE: `/cardtable-ppe/`) behind
+ * the friend gate, so the base path is not `/`. See app-base.ts.
  */
 export default defineConfig({
-  base: '/cardtable/',
+  base: APP_BASE,
   define: BUILD_DEFINES,
   plugins: [
     react(),

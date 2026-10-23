@@ -14,5 +14,5 @@
     "allowImportingTsExtensions": true,
     "types": ["vite/client"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "vite.embed.config.ts", "build-defines.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "vite.embed.config.ts", "build-defines.ts", "app-base.ts"]
 }
