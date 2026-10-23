@@ -91,6 +91,7 @@ import { attachTables, loadTablesLibrary } from './http/index.js';
 import { attachDecks } from './http/decks.js';
 import { attachDrafts } from './http/drafts.js';
 import { attachRooms } from './http/rooms.js';
+import { attachTableActions } from './http/table-actions.js';
 import { seedTestingRooms } from './room/testing-rooms.js';
 import { attachTournaments } from './http/tournaments.js';
 import { attachSounds } from './http/sounds.js';
@@ -595,6 +596,8 @@ attachDraftSocket(io, { rooms: draftRooms, lobby, minTier: CONFIG.minTier, botPi
 // Every room write, pushed to the screens that have the room (or the list) open,
 // so none of them reads it on a timer. Behind the gate attachDraftSocket installed.
 const roomFeed = attachRoomFeed(io, { lobby });
+// A table's game resolved from its card: concede (`http/table-actions.ts`).
+attachTableActions(api, { lobby, match: (id) => play?.matches.get(id) });
 
 // ── Rooms are not immortal ───────────────────────────────────────────────────
 // `create` had no opposite for its whole life: no leave, no close, no expiry,

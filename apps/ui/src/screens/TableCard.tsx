@@ -14,6 +14,7 @@
  * or tournament's hub. What the card shows comes from the room body: the table (`RoomTable`) and its
  * game (`tableGames`, `@hadoku/shared`'s `TableGameSchema`).
  */
+import { useState } from 'react';
 import type { SeriesPhase, TableGame, TableSeatDeck } from '@hadoku/shared';
 
 import { Avatar } from '../components/Avatar.tsx';
@@ -67,9 +68,13 @@ export interface TableCardProps {
   go: TableCardGo | null;
   testId: string;
   tableId?: string | undefined;
+  /** My own game in play: concede it (the server's sentence on a refusal). Absent: the card offers none. */
+  onConcede?: (() => Promise<string | null>) | undefined;
 }
 
-export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series, matchId, game, go, testId, tableId }: TableCardProps) {
+export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series, matchId, game, go, testId, tableId, onConcede }: TableCardProps) {
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const phase = tablePhase(series.phase, matchId, game);
   const live = phase === 'mid' || phase === 'start' ? (game?.live ?? null) : null;
   const mine = myMemberId !== null && players.includes(myMemberId);
@@ -77,6 +82,10 @@ export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series,
   const gameNo = series.played + 1;
   const title = finished ? 'Match over' : phase === 'sideboard' ? `Game ${gameNo} next` : `Game ${gameNo}`;
   const detail = live === null ? null : `Turn ${live.turn}${live.active === null ? '' : ` · ${nameOf(players[live.active])}`}`;
+  // Mine to concede: my own game, in play. The confirm shows the score it leaves.
+  const mySeat = myMemberId === null ? -1 : players.indexOf(myMemberId);
+  const concedable = onConcede !== undefined && matchId !== null && !finished && phase !== 'sideboard' && (mySeat === 0 || mySeat === 1);
+  const after = mySeat === 0 ? `${series.wins[0]}–${series.wins[1] + 1}` : `${series.wins[0] + 1}–${series.wins[1]}`;
   const side = (seat: 0 | 1) => {
     const id = players[seat];
     const deck = game?.decks[seat] ?? null;
@@ -136,12 +145,51 @@ export function TableCard({ size, players, nameOf, avatarOf, myMemberId, series,
         </div>
         {side(1)}
       </div>
-      {go !== null && (
+      {(go !== null || concedable) && (
         <footer className="table-card__foot">
-          <a className="table-card__go" data-testid={go.testId} href={go.href}>
-            {go.label}
-          </a>
+          {go !== null && (
+            <a className="table-card__go" data-testid={go.testId} href={go.href}>
+              {go.label}
+            </a>
+          )}
+          {concedable && !confirming && (
+            <button type="button" className="table-card__resolve" data-testid={`${testId}-concede`} onClick={() => setConfirming(true)}>
+              Concede game
+            </button>
+          )}
         </footer>
+      )}
+      {concedable && confirming && (
+        <div className="table-card__confirm" role="group" aria-label="Concede game" data-testid={`${testId}-concede-confirm`}>
+          <span className="table-card__change">
+            <span>
+              {series.wins[0]}–{series.wins[1]}
+            </span>
+            <span aria-hidden="true">→</span>
+            <strong>{after}</strong>
+          </span>
+          <button type="button" className="table-card__resolve" data-testid={`${testId}-concede-keep`} onClick={() => setConfirming(false)}>
+            Keep playing
+          </button>
+          <button
+            type="button"
+            className="table-card__resolve table-card__resolve--danger"
+            data-testid={`${testId}-concede-yes`}
+            onClick={() => {
+              void onConcede!().then((refused) => {
+                setConfirming(false);
+                setError(refused);
+              });
+            }}
+          >
+            Concede
+          </button>
+        </div>
+      )}
+      {error !== null && (
+        <p className="ct-error table-card__error" role="alert">
+          {error}
+        </p>
       )}
     </section>
   );
