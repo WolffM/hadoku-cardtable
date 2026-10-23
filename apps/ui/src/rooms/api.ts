@@ -210,6 +210,8 @@ export interface RoomsClient {
   leave(roomId: string): Promise<RoomOutcome>;
   /** The owner ends the room for everyone: its games stop and it leaves the list. */
   close(roomId: string): Promise<{ ok: true } | { ok: false; message: string }>;
+  /** An admin resets a seeded testing room from the list: it closes, and the server seeds it fresh. */
+  reset(roomId: string): Promise<{ ok: true } | { ok: false; message: string }>;
   /**
    * Set the table's pool. The LEADER's call: anyone else gets the server's
    * `only the room leader…` refusal, in its own words, and the screen does not
@@ -336,6 +338,18 @@ export function roomsClient(
     return { ok: true, room };
   };
 
+  /** A room ended for everyone — closed by its leader, or a testing room reset — answered with no room. */
+  const end = async (roomId: string, verb: 'close' | 'reset', whatFailed: string): Promise<{ ok: true } | { ok: false; message: string }> => {
+    let res: Response;
+    try {
+      res = await sendJson(url(`/${encodeURIComponent(roomId)}/${verb}`), 'POST', {}, fetchImpl);
+    } catch {
+      return { ok: false, message: 'Could not reach the server.' };
+    }
+    if (res.ok) return { ok: true };
+    return { ok: false, message: `${whatFailed}: ${serverMessage(await bodyOf(res), res.status)}.` };
+  };
+
   /** One room's view: `null` on the server's usual 404, a thrown sentence for anything else. */
   const read = async (path: string): Promise<RoomView | null> => {
     let res: Response;
@@ -407,15 +421,12 @@ export function roomsClient(
       return write(`/${encodeURIComponent(roomId)}/leave`, {}, 'Could not leave the room');
     },
 
-    async close(roomId) {
-      let res: Response;
-      try {
-        res = await sendJson(url(`/${encodeURIComponent(roomId)}/close`), 'POST', {}, fetchImpl);
-      } catch {
-        return { ok: false, message: 'Could not reach the server.' };
-      }
-      if (res.ok) return { ok: true };
-      return { ok: false, message: `Could not close the room: ${serverMessage(await bodyOf(res), res.status)}.` };
+    close(roomId) {
+      return end(roomId, 'close', 'Could not close the room');
+    },
+
+    reset(roomId) {
+      return end(roomId, 'reset', 'Could not reset the room');
     },
 
     setFormat(roomId, format) {

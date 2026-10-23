@@ -916,6 +916,30 @@ describe('entering a room', () => {
     await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'room', roomId: 'r-mine' }));
   });
 
+  it('resets a testing room from its row, and only a testing room has the button', async () => {
+    const TESTING = room({ id: 'r-test', name: 'Testing: Constructed 1v1', testing: true, members: [] });
+    const posts: string[] = [];
+    let listed = [OPEN, TESTING];
+    const fetchImpl: Fetch = async (url, init) => {
+      if (init?.method === 'POST') {
+        posts.push(String(url));
+        listed = [OPEN, { ...TESTING, id: 'r-test2' }];
+        return json(200, { ok: true });
+      }
+      return json(200, { rooms: listed });
+    };
+    mount(roomsClient(fetchImpl, '/cardtable/api/'));
+    await waitFor(() => expect(screen.getAllByTestId('room-row')).toHaveLength(2));
+    expect(within(rowFor('r-open')).queryByTestId('room-reset')).toBeNull();
+
+    await act(async () => {
+      fireEvent.click(within(rowFor('r-test')).getByTestId('room-reset'));
+    });
+    expect(posts).toEqual(['/cardtable/api/rooms/r-test/reset']);
+    expect(parseRoute(globalThis.location.hash), 'it does not enter the room').toEqual({ kind: 'lobby' });
+    await waitFor(() => expect(within(rowFor('r-test2')).getByTestId('room-reset')).toBeDefined());
+  });
+
   it('says so when the server is rate-limiting password attempts', async () => {
     const fetchImpl: Fetch = async (_url, init) => (init?.method === 'POST' ? json(429, {}) : json(200, { rooms: [LOCKED] }));
     mount(roomsClient(fetchImpl, '/cardtable/api/'));

@@ -269,6 +269,20 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
     void enter();
   };
 
+  /** A seeded testing room, reset where it is listed: the server closes it and seeds it fresh. */
+  const onResetClick = async (): Promise<void> => {
+    playRole('ui.select');
+    setBusy(true);
+    setError(null);
+    const outcome = await client.reset(room.id);
+    setBusy(false);
+    if (!outcome.ok) {
+      playRole('ui.deny');
+      setError(outcome.message);
+    }
+    onGone();
+  };
+
   const onPassword = (e: FormEvent): void => {
     e.preventDefault();
     if (password === '') {
@@ -340,6 +354,12 @@ function RoomRow({ room, client, onGone }: { room: RoomView; client: RoomsClient
           onClick={onEnterClick}
         >
           Enter
+        </button>
+      )}
+
+      {!asking && room.testing && (
+        <button type="button" className="rooms__enter" data-testid="room-reset" aria-label={`Reset ${room.name}`} disabled={busy} onClick={() => void onResetClick()}>
+          Reset
         </button>
       )}
 

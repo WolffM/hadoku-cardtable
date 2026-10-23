@@ -2653,6 +2653,26 @@ describe('testing rooms (admin only, seeded)', () => {
 		expect(patched.status, patched.text).toBe(200);
 	});
 
+	it('resets from the list: an admin who is not in it ends it, a friend gets a 404, an ordinary room is never reset', async () => {
+		const h = await openFullApp(await tempDir());
+		await seedTestingRooms({ lobby: h.lobby, log: () => {} });
+		const admin = { headers: { 'x-hadoku-tier': 'admin' } };
+		const listed = (await call(h, 'GET', '/api/rooms', admin)).json() as { rooms: { id: string; name: string; testing: boolean }[] };
+		const room = listed.rooms.find((r) => r.name === 'Testing: Constructed 1v1 (Classic)')!;
+
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/reset`)).status, 'a friend: as if it did not exist').toBe(404);
+		expect(h.lobby.get(room.id)).toBeDefined();
+
+		const reset = await call(h, 'POST', `/api/rooms/${room.id}/reset`, admin);
+		expect(reset.status, reset.text).toBe(200);
+		expect(h.lobby.get(room.id), 'the room is closed; the seed recreates it').toBeUndefined();
+
+		const created = await call(h, 'POST', '/api/rooms', { ...admin, body: { name: 'Ordinary' } });
+		const ordinary = (created.json() as { id: string }).id;
+		expect((await call(h, 'POST', `/api/rooms/${ordinary}/reset`, admin)).status, 'only a testing room resets').toBe(404);
+		expect(h.lobby.get(ordinary)).toBeDefined();
+	});
+
 	it('boots idempotently: seeding twice on the same store never duplicates a room', async () => {
 		const dir = await tempDir();
 		const first = await openFullApp(dir);

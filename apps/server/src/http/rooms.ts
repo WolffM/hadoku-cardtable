@@ -459,6 +459,23 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	});
 
 	/**
+	 * An admin resets a testing room from the list, without joining it (the operator, 2026-10-23:
+	 * *"a 'reset' button next to the enter button on just the testing rooms"*): the room closes as
+	 * `/:id/close` would, and the seed recreates it fresh. Anything else 404s, as if it did not exist.
+	 */
+	rooms.post('/:id/reset', (req: Request, res: Response) => {
+		if (parseBody(EmptyBodySchema, req, res) === null) return;
+		const caller = callerOf(req);
+		const id = String(req.params.id);
+		if (!ROOM_ID_RE.test(id) || !isAdmin(req) || lobby.get(id)?.testing !== true) return noMatch(res);
+		const result = lobby.close(id, caller.id);
+		if (!result.ok) return noMatch(res);
+		deps.closed?.(id, result.matches);
+		deps.reseedTesting?.();
+		res.json({ ok: true });
+	});
+
+	/**
 	 * The caller's own avatar in this room — the last hop of the operator's
 	 * *"you're still not pulling in the watchparty selected avatars"*.
 	 *
