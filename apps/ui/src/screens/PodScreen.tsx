@@ -74,7 +74,7 @@ import { navigate, routeHash } from './route.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { SettingsGear } from '../settings/Settings.tsx';
 import type { RoomTable } from '@hadoku/shared';
-import { livePodSource, startMyTable, usePodContext, type PodContext, type PodSource } from './pod/client.ts';
+import { livePodSource, nextGameStarts, startMyTable, usePodContext, type PodContext, type PodSource } from './pod/client.ts';
 import { PodStandings } from './pod/PodStandings.tsx';
 import { TableSideboard } from './TableSideboard.tsx';
 import { PodBracket } from './pod/PodBracket.tsx';
@@ -236,9 +236,7 @@ export function PodScreen({ draftId, makeTransport, podSource = livePodSource }:
   useEffect(() => {
     if (myMemberId === null || ctx === null || phase !== 'rounds') return;
     const mine = myCurrentTable(ctx, myMemberId);
-    // `playing` with no match is a game that died (`releaseTableMatch`): it is
-    // started again, as a series' first game is — once per game of the series.
-    if (mine === undefined || mine.matchId !== null || (mine.series.phase !== 'seating' && mine.series.phase !== 'playing')) return;
+    if (mine === undefined || mine.matchId !== null || !nextGameStarts(mine.series.phase)) return;
     const ask = `${mine.id}:${mine.series.games.length}:${mine.series.phase}`;
     if (asked.current === ask) return;
     startTable(mine, ask);

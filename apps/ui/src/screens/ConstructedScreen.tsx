@@ -204,7 +204,7 @@ import { freshRoomMode, ModeRow } from './constructed-mode/ModeRow.tsx';
 import { TournamentOptions } from './constructed-mode/TournamentOptions.tsx';
 import { TournamentPodLobby } from './constructed-mode/TournamentPodLobby.tsx';
 import { TournamentRounds } from './constructed-mode/TournamentRounds.tsx';
-import { sitPod, aiPod, closePod, standPod, startMyTable } from './pod/client.ts';
+import { sitPod, aiPod, closePod, standPod, startMyTable, nextGameStarts } from './pod/client.ts';
 import { isPodAi } from './pod/wire.ts';
 import {
   RANDOM_DECK,
@@ -2149,7 +2149,7 @@ function RoomTableScreen({
     // once both decks are dealt) — the table's bare `seating` is true from the
     // pairing itself, long before anyone has readied, banned or picked.
     if (mode === 'gauntlet' && gauntlet?.phase !== 'playing') return;
-    if (myTournamentTable.matchId !== null || (myTournamentTable.series.phase !== 'seating' && myTournamentTable.series.phase !== 'playing')) return;
+    if (myTournamentTable.matchId !== null || !nextGameStarts(myTournamentTable.series.phase)) return;
     const ask = `${myTournamentTable.id}:${myTournamentTable.series.games.length}:${myTournamentTable.series.phase}`;
     if (tAsked.current === ask) return;
     startTournamentTable(myTournamentTable, ask);
