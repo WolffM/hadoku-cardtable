@@ -40,7 +40,13 @@ describe('PlayPrefsSchema', () => {
     const saved = { boardLayout: 'type-separated', stopAtEndStep: false, fastMode: true };
     expect(PlayPrefsSchema.safeParse(saved).success).toBe(false);
     const migrated = PlayPrefsSchema.safeParse({ ...PLAY_PREFS_DEFAULTS, ...dropRetiredStopAtEndStep(saved) });
-    expect(migrated.success && migrated.data).toEqual({ boardLayout: 'type-separated', endStepStop: true, fastMode: true, uiScale: 1 });
+    expect(migrated.success && migrated.data).toEqual({ boardLayout: 'type-separated', endStepStop: true, fastMode: true, uiScale: 1, packLayout: 'fan' });
+  });
+
+  it('holds a draft pack’s fan or grid, and nothing else', () => {
+    expect(PlayPrefsSchema.safeParse({ packLayout: 'grid' }).success).toBe(true);
+    expect(PlayPrefsSchema.safeParse({ packLayout: 'fan' }).success).toBe(true);
+    expect(PlayPrefsSchema.safeParse({ packLayout: 'list' }).success).toBe(false);
   });
 
   it('rejects a non-boolean fastMode', () => {
@@ -59,8 +65,8 @@ describe('PlayPrefsSchema', () => {
 });
 
 describe('PLAY_PREFS_DEFAULTS', () => {
-  it('matches Board’s own default (item 11: single), the End step stop’s (on), and Fast Mode’s (off — paced)', () => {
-    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, fastMode: false, uiScale: 1 });
+  it('matches Board’s own default (item 11: single), the End step stop’s (on), Fast Mode’s (off — paced), and a draft pack fanned', () => {
+    expect(PLAY_PREFS_DEFAULTS).toEqual({ boardLayout: 'single', endStepStop: true, fastMode: false, uiScale: 1, packLayout: 'fan' });
   });
 
   it('parses through its own schema — the defaults are themselves valid prefs', () => {

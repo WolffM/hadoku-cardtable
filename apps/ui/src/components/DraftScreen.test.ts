@@ -17,14 +17,47 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createElement, Fragment, useMemo, useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
+/** The player's saved preferences, as `@wolffm/prefs-client` would hold them: a save re-renders every reader. */
+const prefsStore = vi.hoisted(() => ({ prefs: {} as Record<string, unknown>, saved: [] as Record<string, unknown>[], readers: new Set<() => void>() }));
+vi.mock('@wolffm/prefs-client/react', async () => {
+  const { useEffect, useReducer } = await import('react');
+  return {
+    usePrefs: () => {
+      const [, rerender] = useReducer((n: number) => n + 1, 0);
+      useEffect(() => {
+        prefsStore.readers.add(rerender);
+        return () => void prefsStore.readers.delete(rerender);
+      }, []);
+      return {
+        prefs: prefsStore.prefs,
+        save: (patch: Record<string, unknown>) => {
+          prefsStore.saved.push(patch);
+          prefsStore.prefs = { ...prefsStore.prefs, ...patch };
+          prefsStore.readers.forEach((r) => r());
+          return Promise.resolve();
+        },
+        loading: false,
+        error: null,
+      };
+    },
+  };
+});
+vi.mock('../play/live/prefs.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../play/live/prefs.ts')>()),
+  getPlayPrefsClient: () => ({}),
+}));
+
 import { FIXTURES, loadFixtures } from '../draft/fixtures.ts';
 import { applyPayload, initialState, type TableState } from '../draft/table.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { DraftScreen } from './DraftScreen.tsx';
-import type { PackLayout } from './PackView.tsx';
 import { POOL_ENTER_MS } from './PoolView.tsx';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  prefsStore.prefs = {};
+  prefsStore.saved = [];
+});
 
 /**
  * The screen on the committed fixtures: a button per fixture, titled with its
@@ -33,7 +66,6 @@ afterEach(cleanup);
 function OnFixtures() {
   const views = useMemo(() => loadFixtures(), []);
   const [state, setState] = useState<TableState>(() => initialState(views[0]!));
-  const [layout, setLayout] = useState<PackLayout>('fan');
   const next = views.find((v) => v.draftId === state.view.draftId && v.seq > state.view.seq) ?? null;
   return createElement(
     Fragment,
@@ -46,8 +78,6 @@ function OnFixtures() {
       onChange: setState,
       nextPayload: next,
       onAdvance: next === null ? undefined : () => setState((prev) => applyPayload(prev, next)),
-      layout,
-      onLayoutChange: setLayout,
     }),
     createElement(TopLayer, { fixed: true }),
   );
@@ -329,5 +359,19 @@ describe('the draft screen, on committed fixtures', () => {
     const fanned = packCards().map((el) => el.getAttribute('data-card-id'));
     fireEvent.click(screen.getByRole('button', { name: 'grid' }));
     expect(packCards().map((el) => el.getAttribute('data-card-id'))).toEqual(fanned);
+  });
+
+  it('remembers fan or grid as the player’s own preference (the operator, 2026-10-23: "so they dont have to click it every time")', () => {
+    const pressed = () => screen.getByRole('group', { name: 'Pack layout' }).querySelector('[aria-pressed="true"]')?.textContent;
+    mount();
+    expect(pressed()).toBe('fan');
+    fireEvent.click(screen.getByRole('button', { name: 'grid' }));
+    expect(prefsStore.saved).toEqual([{ packLayout: 'grid' }]);
+    expect(pressed()).toBe('grid');
+    // The next draft opens on the saved choice, with no click.
+    cleanup();
+    mount();
+    expect(pressed()).toBe('grid');
+    expect(screen.getByTestId('pack').dataset.layout).toBe('grid');
   });
 });

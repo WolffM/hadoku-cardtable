@@ -71,7 +71,6 @@ import {
 import { initialState, type TableState } from '../draft/table.ts';
 import { DraftScreen, fitToWindow } from '../components/DraftScreen.tsx';
 import { useFitScale } from '../components/cardFit.ts';
-import type { PackLayout } from '../components/PackView.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
 import { navigate, routeHash } from './route.ts';
 import { TopLayer } from '../topLayer.tsx';
@@ -102,7 +101,6 @@ export interface PodScreenProps {
 export function PodScreen({ draftId, tableId, makeTransport, podSource = livePodSource }: PodScreenProps) {
   const [draft, setDraft] = useState<SocketDraft | null>(null);
   const [table, setTable] = useState<TableState | null>(null);
-  const [layout, setLayout] = useState<PackLayout>('fan');
   /**
    * The driver is a mutable handle — a socket's state changes under you. This
    * is what tells React something happened; the handle keeps its identity so
@@ -300,8 +298,6 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
             if (draft !== null) socketPick(draft, cardId);
           }}
           nextPayload={null}
-          layout={layout}
-          onLayoutChange={setLayout}
           buildStore={buildStore}
           arrivedWhole={draft?.arrivedWhole ?? false}
           side={side}

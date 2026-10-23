@@ -39,6 +39,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { usePrefs } from '@wolffm/prefs-client/react';
 
 import type { ConnectionState } from '../draft/connection.ts';
 import type { DraftView } from '../draft/types.ts';
@@ -63,6 +64,7 @@ import { useDraftBuild, type DraftBuildStore } from '../deck/useDraftBuild.ts';
 import { SeatBar } from './SeatBar.tsx';
 import { SpectatorNotice } from './SpectatorNotice.tsx';
 import { prefersReducedMotion } from '../play/motion.ts';
+import { getPlayPrefsClient, PLAY_PREFS_DEFAULTS } from '../play/live/prefs.ts';
 import './draft.css';
 
 const rectOf = (r: DOMRect): PoolEnterRect => ({ left: r.left, top: r.top, width: r.width, height: r.height });
@@ -82,8 +84,6 @@ export interface DraftScreenProps {
    */
   onPick?: (cardId: string) => void;
   onAdvance?: () => void;
-  layout?: PackLayout;
-  onLayoutChange?: (layout: PackLayout) => void;
   /**
    * What the connection is doing, for the banner above the table.
    *
@@ -144,8 +144,6 @@ export function DraftScreen({
   nextPayload = null,
   onPick,
   onAdvance,
-  layout: layoutProp,
-  onLayoutChange,
   connection = null,
   onDownloadDeck,
   title = 'Draft',
@@ -154,10 +152,11 @@ export function DraftScreen({
   buildStore = null,
   arrivedWhole = false,
 }: DraftScreenProps) {
-  const [localLayout, setLocalLayout] = useState<PackLayout>('fan');
+  // The player's own, wherever they draft next (`play/live/prefs.ts`).
+  const { prefs, save: savePrefs } = usePrefs(getPlayPrefsClient());
+  const layout = prefs?.packLayout ?? PLAY_PREFS_DEFAULTS.packLayout;
+  const setLayout = (packLayout: PackLayout) => void savePrefs({ packLayout });
   const fitAside = useFitScale();
-  const layout = layoutProp ?? localLayout;
-  const setLayout = onLayoutChange ?? setLocalLayout;
 
   const [message, setMessage] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<GroupBy>('color');

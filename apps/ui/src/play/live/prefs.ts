@@ -47,6 +47,7 @@ import { GainSchema, SeqCursorSchema } from '@hadoku/shared';
 import { CallIdSchema, ShowConfirmDialogReplySchema } from '@hadoku/forge-wire';
 
 import type { BoardLayout } from '../Board.tsx';
+import type { PackLayout } from '../../components/PackView.tsx';
 import { UI_SCALE } from '../../settings/ui-scale.ts';
 
 const borrowed = {
@@ -59,6 +60,9 @@ const borrowed = {
   /** A finite number: `GainSchema` is `z.number().min(0).max(2)`, narrowed below. */
   number: GainSchema,
 };
+
+/** A draft pack's `'fan' | 'grid'`, refined off a string as `BoardLayoutPrefSchema` below is. */
+const PackLayoutPrefSchema = borrowed.nonEmptyString.refine((v) => v === 'fan' || v === 'grid', { message: "must be 'fan' or 'grid'" });
 
 /** `'single' | 'type-separated'` — refined off a string, the same device `apps/server/src/play/transport.ts`'s `StopPreferenceSchema` uses for its own literal. */
 const BoardLayoutPrefSchema = borrowed.nonEmptyString.refine(
@@ -76,6 +80,8 @@ export const PlayPrefsSchema = borrowed.emptyObject
     fastMode: borrowed.boolean.optional(),
     /** The UI scale (`../../settings/ui-scale.ts`), the whole app's, not only a match's. */
     uiScale: borrowed.number.refine((v) => v >= UI_SCALE.min && v <= UI_SCALE.max, { message: 'outside the UI scale range' }).optional(),
+    /** A draft pack drawn fanned or as a grid (the operator, 2026-10-23: "remember whether a player has set the drafting mode to fan or grid"). */
+    packLayout: PackLayoutPrefSchema.optional(),
   })
   .strict();
 
@@ -86,6 +92,7 @@ export interface PlayPrefs {
   endStepStop?: boolean;
   fastMode?: boolean;
   uiScale?: number;
+  packLayout?: PackLayout;
 }
 
 /**
@@ -106,11 +113,12 @@ function fastModeDefaultOverride(): boolean {
  * (paced) everywhere except inside the e2e harness — see this module's
  * header.
  */
-export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; endStepStop: boolean; fastMode: boolean; uiScale: number } = {
+export const PLAY_PREFS_DEFAULTS: { boardLayout: BoardLayout; endStepStop: boolean; fastMode: boolean; uiScale: number; packLayout: PackLayout } = {
   boardLayout: 'single',
   endStepStop: true,
   fastMode: fastModeDefaultOverride(),
   uiScale: 1,
+  packLayout: 'fan',
 };
 
 /**
