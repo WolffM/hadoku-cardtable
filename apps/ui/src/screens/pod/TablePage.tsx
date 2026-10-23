@@ -4,7 +4,8 @@
  * `docs/planning/tournament-mode-plan.md`), or a plain room's one table, whose
  * room links here between games instead of drawing the sideboard itself.
  *
- * Its two players, and for a player of it everything before the game: the
+ * Its two players face to face (`FaceOff.tsx`, played as a reveal the first time a
+ * round's player reaches it), and for a player of it everything before the game: the
  * mode's own step (`children`: Classic's per-round deck pick, Gauntlet's
  * board), the sideboard between games (`TableSideboard`, full size), and the
  * start, which needs nobody to press anything (`useTableStart`). Once the table
@@ -12,7 +13,7 @@
  * (`followMatchOnce`); back here by choice, the card is the way in again.
  *
  * A table whose start waits on both seats' Ready (a Gauntlet's draw) passes `ready`: each seat shows
- * whether it is, and mine is the lobby's own Ready (`ReadyToggle`) beside the seats.
+ * whether it is, and mine is the lobby's own Ready (`ReadyToggle`) under the two.
  *
  * Per-type differences are inputs only: the slot, `canStart` and `ready`.
  */
@@ -20,15 +21,13 @@
 import { useEffect, type ReactNode } from 'react';
 import type { RoomTable } from '@hadoku/shared';
 
-import { Avatar } from '../../components/Avatar.tsx';
-import { StatusPill } from '../../components/StatusPill.tsx';
 import { followMatchOnce } from '../../play/live/matchStart.ts';
 import { navigate, routeHash } from '../route.ts';
 import { TableSideboard } from '../TableSideboard.tsx';
 import type { TablesClient } from '../tables.ts';
 import { useTableStart } from './client.ts';
 import { ReadyToggle } from './ReadyToggle.tsx';
-import { OpponentReveal, useOpponentReveal } from './OpponentReveal.tsx';
+import { FaceOff, useOpponentReveal, type FaceOffSeat } from './FaceOff.tsx';
 import { isPodAi, type PodView } from './wire.ts';
 import './PodSeats.css';
 
@@ -84,6 +83,12 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
   // seat (`room/lobby.ts`'s `#newPodTable`), which the series' wins and the seats' Ready are counted by.
   const seats = pairing === undefined ? table.players.map((p) => p.memberId) : isPodAi(pairing[0]) ? [pairing[1], pairing[0]] : pairing;
   const mySeat = seats.indexOf(myMemberId ?? '');
+  // Mine on the left; a watcher sees the table in seat order.
+  const left = mySeat === 1 ? 1 : 0;
+  const faceOff = (seat: number): FaceOffSeat => {
+    const id = seats[seat] ?? '';
+    return { seat, name: nameOf(id), avatarId: avatarOf(id), wins: table.series.wins[seat] ?? 0, ready: ready === undefined ? undefined : ready.seats[seat] === true, mine: id === myMemberId };
+  };
   const heading = pod === null ? null : pod.phase === 'done' ? 'Standings' : `Round ${pod.round} of ${pod.rounds}`;
   return (
     <div className="pod__room">
@@ -115,37 +120,12 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
             </a>
           )}
         </div>
-        {revealing ? (
-          <OpponentReveal
-            me={{ name: nameOf(myMemberId ?? ''), avatarId: avatarOf(myMemberId ?? '') }}
-            them={{ name: nameOf(seats[1 - mySeat] ?? ''), avatarId: avatarOf(seats[1 - mySeat] ?? '') }}
-          />
-        ) : (
-          <div className="pod-strip">
-            <ul className="pod-seats pod-seats--table" data-testid="table-seats">
-              {seats.map((id, seat) => {
-                const isReady = ready?.seats[seat] === true;
-                return (
-                  <li key={seat} className="pod-seats__seat" data-testid={`table-seat-${seat}`} data-mine={id === myMemberId ? '' : undefined}>
-                    <span className="pod-seats__avatar" data-ready={ready === undefined ? undefined : isReady ? 'true' : 'false'}>
-                      <Avatar id={avatarOf(id)} fallback="initial" name={nameOf(id)} className="pod-seats__avatar-img" fallbackClassName="pod-seats__avatar-fallback" />
-                    </span>
-                    <span className="pod-seats__label">{nameOf(id)}</span>
-                    <span className="pod-seats__wins" data-testid={`table-seat-${seat}-wins`}>
-                      {table.series.wins[seat] ?? 0}
-                    </span>
-                    {ready !== undefined && (
-                      <StatusPill testId={`table-seat-${seat}-ready`} state={isReady ? 'yes' : 'no'} mark={isReady ? 'tick' : 'ring'} label={isReady ? 'ready' : 'not ready'} />
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            {ready !== undefined && mine && current && mySeat >= 0 && (
-              <ReadyToggle ready={ready.seats[mySeat] === true} disabled={ready.disabled} onReady={ready.onReady} />
-            )}
-          </div>
-        )}
+        <div className="table-page__seats">
+          <FaceOff left={faceOff(left)} right={faceOff(1 - left)} scored={table.series.length > 1} revealing={revealing} />
+          {!revealing && ready !== undefined && mine && current && mySeat >= 0 && (
+            <ReadyToggle ready={ready.seats[mySeat] === true} disabled={ready.disabled} onReady={ready.onReady} />
+          )}
+        </div>
         {error !== null && (
           <div className="ct-error" role="alert" data-testid="pod-table-start-error">
             <p>{error}</p>

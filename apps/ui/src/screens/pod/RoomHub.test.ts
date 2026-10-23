@@ -12,7 +12,7 @@ import type { RoomTable } from '@hadoku/shared';
 import { forgetMatchesFollowed } from '../../play/live/matchStart.ts';
 import { navigate, parseRoute } from '../route.ts';
 import { RoomHub } from './RoomHub.tsx';
-import { forgetOpponentsRevealed, REVEAL_MS } from './OpponentReveal.tsx';
+import { forgetOpponentsRevealed, REVEAL_MS } from './FaceOff.tsx';
 import { TablePage, type TableReady } from './TablePage.tsx';
 import { POD_SEATS, type PodView } from './wire.ts';
 
@@ -127,7 +127,7 @@ describe('TablePage', () => {
   it('draws both seats with their games won, and the way back to the hub', () => {
     posts();
     page();
-    expect(screen.getAllByTestId(/^table-seat-\d$/).map((s) => [s.querySelector('.pod-seats__label')?.textContent, s.querySelector('.pod-seats__wins')?.textContent])).toEqual([
+    expect(screen.getAllByTestId(/^table-seat-\d$/).map((s) => [s.querySelector('.face-off__name')?.textContent, screen.getByTestId(`${s.dataset.testid}-wins`).textContent])).toEqual([
       ['Alice', '1'],
       ['Bob', '0'],
     ]);
@@ -146,7 +146,7 @@ describe('TablePage', () => {
   it('draws an AI entrant in its table seat, the last, by its own name, whichever side the pairing names it', () => {
     posts();
     page({ pod: pod({ pairings: [{ tableId: 't-1', players: ['ai:3', 'u-alice'] }] }), table: table({ players: [{ memberId: 'u-alice', name: 'Alice' }] }) });
-    expect(screen.getAllByTestId(/^table-seat-\d$/).map((s) => [s.querySelector('.pod-seats__label')?.textContent, s.querySelector('.pod-seats__wins')?.textContent])).toEqual([
+    expect(screen.getAllByTestId(/^table-seat-\d$/).map((s) => [s.querySelector('.face-off__name')?.textContent, screen.getByTestId(`${s.dataset.testid}-wins`).textContent])).toEqual([
       ['Alice', '1'],
       ['Rogue', '0'],
     ]);
@@ -213,25 +213,28 @@ describe('TablePage', () => {
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
   });
 
-  it('reveals a round’s opponent before the step before the game: "me vs them", the two avatars, then the seats, the Ready and the step', () => {
+  it('reveals a round’s opponent: "me vs them", mine on the left, the two at rest with the score, then my Ready and the step under them', () => {
     motion(false);
     posts();
     vi.useFakeTimers();
     const onReady = vi.fn();
     page({ me: 'u-bob', ready: { seats: [false, false], disabled: false, onReady } });
     expect(screen.getByTestId('table-page').hasAttribute('data-revealing')).toBe(true);
-    expect(screen.getByTestId('opponent-reveal-title').textContent).toBe('BobvsAlice');
-    expect(screen.getByTestId('opponent-reveal-me')).not.toBeNull();
-    expect(screen.getByTestId('opponent-reveal-them')).not.toBeNull();
-    expect(screen.queryByTestId('table-seats')).toBeNull();
+    expect(screen.getByTestId('table-seats').hasAttribute('data-revealing')).toBe(true);
+    expect(screen.getByTestId('face-off-title').textContent).toBe('BobvsAlice');
+    expect(screen.getByTestId('table-seat-1').dataset.side).toBe('left');
+    expect(screen.getByTestId('table-seat-0').dataset.side).toBe('right');
     expect(screen.queryByTestId('ready-toggle')).toBeNull();
     expect(screen.queryByTestId('stand-in-step')).toBeNull();
     act(() => {
       vi.advanceTimersByTime(REVEAL_MS);
     });
-    expect(screen.getByTestId('table-page').hasAttribute('data-revealing')).toBe(false);
-    expect(screen.queryByTestId('opponent-reveal')).toBeNull();
-    expect(screen.getAllByTestId(/^table-seat-\d$/)).toHaveLength(2);
+    // The same two, at rest: nothing is swapped in for them.
+    expect(screen.getByTestId('table-seats').hasAttribute('data-revealing')).toBe(false);
+    expect(screen.getByTestId('table-seat-1').dataset.side).toBe('left');
+    expect(screen.getByTestId('table-seat-1-wins').textContent).toBe('0');
+    expect(screen.getByTestId('table-seat-0-wins').textContent).toBe('1');
+    expect(screen.getByTestId('table-seat-1-ready').textContent).toContain('not ready');
     expect(screen.getByTestId('ready-toggle')).not.toBeNull();
     expect(screen.getByTestId('stand-in-step')).not.toBeNull();
   });
