@@ -1,0 +1,17 @@
+# Nomads en-Kor's {0}, activated twice in seat 0's (human) first main: each activation is an
+# "en-Kor Redirection" effect card in her Command zone until the end of the turn (the operator,
+# 2026-10-23, on a stack of them in the Command zone: "i wouldn't want them to show in the command
+# zone anyway"). Grizzly Bears is the redirect's target, so the target is a choice.
+turn=3
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Nomads en-Kor;Grizzly Bears;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains;Plains;Plains;Plains
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island;Island;Island
+aigraveyard=
