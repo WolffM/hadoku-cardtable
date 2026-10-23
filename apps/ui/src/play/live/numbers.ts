@@ -126,6 +126,7 @@ import { fly, impact } from './projectile.ts';
 import { cardColours } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import './numbers.css';
+import { timed } from './work-meter.ts';
 
 /* ── timing and thresholds, as Settled fixed them ────────────────────── */
 
@@ -966,7 +967,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const before = prevView;
       const diff = diffViews(before, view);
       prevView = view;
-      apply(diff, before, revealed);
+      timed('effects', () => apply(diff, before, revealed));
       markReveal(revealed);
       noteStack(view);
       const attacking = new Set(view.players.flatMap((p) => p.battlefield.filter((c) => c.attacking).map((c) => c.id)));

@@ -265,6 +265,7 @@ import { SELF_ANSWERING } from '../prompts/answer-table.ts';
 import type { PromptParts } from '../prompts/lookup.ts';
 import { foldPackets, type FoldablePacket, type FoldResult, type WireState } from '../fold.ts';
 import { expectWirePackets } from '../wire.ts';
+import { timed } from './work-meter.ts';
 import {
   abortFrame,
   autoYieldFrame,
@@ -2947,6 +2948,10 @@ function callIdOf(frame: unknown): string | null {
  * frames in any order and the driver has to behave.
  */
 export function ingest(match: LiveMatch, raw: unknown): void {
+  timed('forge', () => ingestNow(match, raw));
+}
+
+function ingestNow(match: LiveMatch, raw: unknown): void {
   if (match.awaitingSnapshot) {
     match.buffer.push(raw);
     match.stats.buffered += 1;

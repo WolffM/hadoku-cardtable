@@ -2725,6 +2725,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   useEffect(() => {
     if (frameTurn >= 0) frameWatch.current?.noteTurn(frameTurn);
   }, [frameTurn]);
+  const framePhase = match.view?.phase ?? 'none';
+  useEffect(() => {
+    frameWatch.current?.notePhase(framePhase);
+  }, [framePhase]);
   const frameOver = match.view?.gameOver === true;
   useEffect(() => {
     if (frameOver) frameWatch.current?.noteGameOver();

@@ -10,8 +10,12 @@
  *   the running animations by what they move, the turn and the counts.
  * - `what: 'loaf'` — one per long frame the browser attributed (Chrome's `long-animation-frame`): how its
  *   time split between script, the render phase's callbacks and style and layout, and the scripts that ran.
+ * - `what: 'work'` — where a reported stretch's time went, in any browser (`./work-meter.ts`): our own
+ *   hot paths by label, and what was left, the browser's style, layout, paint and compositing.
  * - `what: 'summary'` — every frame since the last summary, every {@link SUMMARY_EVERY_TURNS} turns, as
  *   the game ends and as the board or the tab closes: a baseline even when nothing went bad.
+ * - `what: 'phases'` — the same frames by the phase they were drawn in, beside each summary: combat
+ *   against a main phase, whether or not anything went bad in either.
  *
  * A frame costs two clock reads, a few counter writes and one histogram bump: no allocation, no DOM read,
  * no layout. Everything else is computed only when a stretch opens or a report goes out.
@@ -19,6 +23,7 @@
 import type { ClientEvent } from '@hadoku/shared';
 
 import type { BoardView } from '../adapter.ts';
+import { workSpent } from './work-meter.ts';
 
 type Data = ClientEvent['data'];
 
@@ -47,6 +52,13 @@ export const MAX_STRETCH_MS = 15_000;
 export const REPORT_EVERY_MS = 10_000;
 /** At most this many stretch reports in one match; the rest are counted in the summaries. */
 export const MAX_REPORTS = 30;
+/**
+ * The page's own facts (`pageFacts`: every running animation, the DOM's size) are read at most this
+ * often inside a stretch: one read cost 59 ms in a six-creature attack (`e2e/combat-perf.spec.ts`), and
+ * a stretch that keeps getting worse read them at every new worst frame — the monitor adding the lag
+ * it reports.
+ */
+export const PAGE_EVERY_MS = 1_000;
 /** How many of a stretch's longest frames are attributed, each in its own `loaf` event (the server takes 20 events a second). */
 export const TOP_LONG_FRAMES = 3;
 /** How many of a long frame's scripts are named. */
@@ -104,11 +116,15 @@ export interface FrameWatchHost {
   /** Where a closing tab says so (`pagehide`): the real `window` by default. */
   win?: Pick<Window, 'addEventListener' | 'removeEventListener' | 'innerWidth' | 'innerHeight'>;
   observer?: ObserverClass | null;
+  /** What our own hot paths have spent, by label (`./work-meter.ts`'s `workSpent`, the default). */
+  work?: () => ReadonlyMap<string, number>;
 }
 
 export interface FrameWatch {
   /** The turn moved on: every {@link SUMMARY_EVERY_TURNS} turns, a summary. */
   noteTurn(turn: number): void;
+  /** The phase the board is drawn in now: the frames after this count toward it in the `phases` report. */
+  notePhase(phase: string): void;
   /** The game is over: a summary of it. */
   noteGameOver(): void;
   /** Stop: a stretch still open is reported, then a summary. */
@@ -226,7 +242,24 @@ export function attributionOf(observer: ObserverClass | null | undefined): 'loaf
   return 'none';
 }
 
-const IDLE: FrameWatch = { noteTurn: () => undefined, noteGameOver: () => undefined, dispose: () => undefined };
+const IDLE: FrameWatch = { noteTurn: () => undefined, notePhase: () => undefined, noteGameOver: () => undefined, dispose: () => undefined };
+
+/** One phase's frames since the last summary. */
+interface PhaseFrames {
+  frames: number;
+  ms: number;
+  drops: number;
+  slow: number;
+  worst: number;
+}
+
+/** A phase's frames in one field: `f<frames> <fps>fps d<over DROP_MS> s<over SLOW_MS> w<worst ms>`. */
+export function phaseField(p: PhaseFrames): string {
+  return `f${p.frames} ${Math.round((p.frames * 1000) / Math.max(1, p.ms))}fps d${p.drops} s${p.slow} w${Math.round(p.worst)}`;
+}
+
+/** The phases a `phases` event can carry beside its `what` (the telemetry's 16 fields). */
+const PHASE_FIELDS = 15;
 
 export function watchFrames(host: FrameWatchHost): FrameWatch {
   // A document that draws no frames (a test's, a server render) has none to time.
@@ -239,6 +272,12 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
   const page = host.page ?? pageFacts;
   const Observer = host.observer === undefined ? (typeof PerformanceObserver === 'function' ? (PerformanceObserver as unknown as ObserverClass) : null) : host.observer;
   const attribution = attributionOf(Observer);
+  const work = host.work ?? workSpent;
+  /** What our hot paths had spent as the open stretch began. */
+  let workAtOpen = new Map<string, number>();
+  let phase = 'none';
+  let phaseNow: PhaseFrames | null = null;
+  const phases = new Map<string, PhaseFrames>();
 
   // The last gaps and when each ended, oldest overwritten.
   const gaps = new Float64Array(RING);
@@ -271,8 +310,10 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
   let sOver100 = 0;
   let sFreeze = false;
   let tailFrames = 0;
-  // What the board was doing at the stretch's worst frame so far.
+  // What the board was doing at the stretch's worst frame so far, and the page's facts as last read.
   let board: Data = {};
+  let pageRead: Data = {};
+  let pageReadAt = -Infinity;
 
   // Reports.
   let n = 0;
@@ -316,12 +357,17 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       count(gaps[i]!);
     }
     lastSlow = t;
+    workAtOpen = new Map(work());
     snapshot(t);
   }
 
-  /** The board as it is now, `t` into the stretch: a few DOM reads, so only at a new worst. */
+  /** The board as it is now, `t` into the stretch, only at a new worst; the page's facts at most every {@link PAGE_EVERY_MS}. */
   function snapshot(t: number): void {
-    board = { atMs: Math.round(t - start), ...host.board(), ...page() };
+    if (t - pageReadAt >= PAGE_EVERY_MS) {
+      pageRead = page();
+      pageReadAt = t;
+    }
+    board = { atMs: Math.round(t - start), ...host.board(), ...pageRead };
   }
 
   function count(gap: number): void {
@@ -366,6 +412,16 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
     });
     suppressed = 0;
     host.report({ what: 'board', n, ...board });
+    // Our own work inside the stretch, by label; the rest of its frames' time was the browser's.
+    const spentIn: Data = {};
+    let ours = 0;
+    for (const [label, total] of work()) {
+      const inStretch = total - (workAtOpen.get(label) ?? 0);
+      if (inStretch <= 0) continue;
+      spentIn[label] = Math.round(inStretch);
+      ours += inStretch;
+    }
+    host.report({ what: 'work', n, ms: Math.round(ms), ours: Math.round(ours), oursPct: Math.round((ours * 100) / ms), ...spentIn });
     if (attribution !== 'loaf') return;
     [...inside]
       .sort((a, b) => b.duration - a.duration)
@@ -390,6 +446,15 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
     watchedMs += gap;
     if (gap > worst) worst = gap;
     histogram[bucketOf(gap)]! += 1;
+    if (phaseNow === null) {
+      phaseNow = { frames: 0, ms: 0, drops: 0, slow: 0, worst: 0 };
+      phases.set(phase, phaseNow);
+    }
+    phaseNow.frames += 1;
+    phaseNow.ms += gap;
+    if (gap > DROP_MS) phaseNow.drops += 1;
+    if (gap > SLOW_MS) phaseNow.slow += 1;
+    if (gap > phaseNow.worst) phaseNow.worst = gap;
     // The monitor's own cost is timed on frames outside a stretch: a stretch's reads and reports are its cost, not a frame's.
     const plain = !open;
     if (gap > DROP_MS) {
@@ -456,6 +521,11 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       selfUs: Math.round((selfMs * 100_000) / Math.max(1, selfFrames)) / 100,
       attribution,
     });
+    const byPhase: Data = {};
+    for (const [name, p] of [...phases].sort((a, b) => b[1].frames - a[1].frames).slice(0, PHASE_FIELDS)) byPhase[name.slice(0, 32)] = phaseField(p);
+    host.report({ what: 'phases', ...byPhase });
+    phases.clear();
+    phaseNow = null;
     histogram.fill(0);
     frames = 0;
     watchedMs = 0;
@@ -483,6 +553,11 @@ export function watchFrames(host: FrameWatchHost): FrameWatch {
       lastTurn = turn;
       if (summaryTurn < 0) summaryTurn = turn;
       else if (turn - summaryTurn >= SUMMARY_EVERY_TURNS) summary('turns');
+    },
+    notePhase(next: string): void {
+      if (next === phase) return;
+      phase = next;
+      phaseNow = phases.get(next) ?? null;
     },
     noteGameOver(): void {
       summary('over');

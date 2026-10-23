@@ -415,6 +415,7 @@ import { documentScope, eventTarget } from '../dom.ts';
 import { TopLayer } from '../topLayer.tsx';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers, type Revealed } from './live/numbers.ts';
+import { addWork } from './live/work-meter.ts';
 import { installPlaced } from './live/placed.ts';
 import { DEPARTURE_MAX_MS, departuresOf, installDepartures, LEAVING_GAP_ATTR, type Departure } from './live/departures.ts';
 import { AbilityChip } from './live/AbilityChip.tsx';
@@ -4062,6 +4063,8 @@ export function Board({
    */
   boardLayout?: BoardLayout;
 }) {
+  // The render's cost, to its layout effects (`live/work-meter.ts`): read again in the last layout effect below.
+  const renderBegan = performance.now();
   const viewer = viewerOf(view);
   const others = view.players.filter((p) => !p.isViewer);
   // `data-carried`'s own bookkeeping only now (`StackView`'s own note): a played card standing in
@@ -4215,6 +4218,8 @@ export function Board({
   useLayoutEffect(() => {
     numbers.current?.notify(view, revealed ?? undefined);
   }, [view, revealed]);
+  // Every render, after every layout effect above: the board's own share of a slow stretch.
+  useLayoutEffect(() => addWork('board', performance.now() - renderBegan));
 
   /*
    * The placed-cards layer (`live/placed.ts`, §S), booted the same way as the

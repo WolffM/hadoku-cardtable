@@ -14,6 +14,7 @@ import {
   animationTop,
   boardFacts,
   loafFields,
+  phaseField,
   scriptField,
   watchFrames,
   type FrameWatchHost,
@@ -34,6 +35,7 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
   const pageHide = new Set<() => void>();
   const sent: Data[] = [];
   let reads = 0;
+  let pageReads = 0;
   const observers: { callback: (list: { getEntries(): readonly unknown[] }) => void; type: string; disconnected: boolean }[] = [];
   const Observer = class {
     static supportedEntryTypes = options.types ?? [];
@@ -58,7 +60,10 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
       reads += 1;
       return { phase: 'COMBAT_DECLARE_ATTACKERS', turn: 5, whose: 'yours', mine: 10, theirs: 6, hand: 3, stack: 0, paceQueue: 2, beats: 1, ui: '0.0.0' };
     },
-    page: () => ({ anims: 12, animTop: 'board-ram×10,t:left×2', dom: 4000 }),
+    page: () => {
+      pageReads += 1;
+      return { anims: 12, animTop: 'board-ram×10,t:left×2', dom: 4000 };
+    },
     raf: (cb) => {
       pending = cb;
       return nextHandle++;
@@ -112,6 +117,9 @@ function tab(options: { hidden?: boolean; types?: readonly string[] } = {}) {
     get reads() {
       return reads;
     },
+    get pageReads() {
+      return pageReads;
+    },
     get clock() {
       return clock;
     },
@@ -155,6 +163,21 @@ describe('watchFrames', () => {
     t.frames(200, 16);
     expect(t.reads).toBe(2);
     expect(t.of('board')[0]).toMatchObject({ atMs: 300 + 3 * 80 + 350 });
+    watch.dispose();
+  });
+
+  it('reads the page’s own facts — every running animation, the DOM’s size — at most once a second in a stretch: the monitor must not add the lag it reports', () => {
+    const t = tab();
+    const watch = watchFrames(t.host);
+    t.frames(500, 16);
+    t.frame(300); // opens: board and page
+    t.frame(320); // a new worst, inside the second: the board only
+    t.frame(340); // and again
+    expect([t.reads, t.pageReads]).toEqual([3, 1]);
+    t.frame(400); // a second on: the page again
+    expect([t.reads, t.pageReads]).toEqual([4, 2]);
+    t.frames(200, 16);
+    expect(t.of('board')[0]).toMatchObject({ anims: 12, dom: 4000 });
     watch.dispose();
   });
 
@@ -335,6 +358,39 @@ describe('watchFrames', () => {
     watch.dispose();
     expect(t.of('summary')[1]).toMatchObject({ why: 'end', fromTurn: 1 + SUMMARY_EVERY_TURNS, frames: 10, p50: 34, worstMs: 33 });
     expect(t.scheduled, 'disposed: the loop stops').toBe(false);
+  });
+
+  it('splits every summary’s frames by the phase they were drawn in — combat against a main phase, bad or not', () => {
+    const t = tab();
+    const watch = watchFrames(t.host);
+    watch.noteTurn(1);
+    watch.notePhase('MAIN1');
+    t.frames(61, 16);
+    watch.notePhase('COMBAT_DAMAGE');
+    t.frames(10, 40);
+    t.frame(120);
+    watch.notePhase('MAIN1');
+    t.frames(10, 16);
+    watch.dispose();
+    const [phases] = t.of('phases');
+    // MAIN1's first frame only starts the clock: 60 + 10 frames of 16 ms.
+    expect(phases).toEqual({ what: 'phases', MAIN1: phaseField({ frames: 70, ms: 1120, drops: 0, slow: 0, worst: 16 }), COMBAT_DAMAGE: phaseField({ frames: 11, ms: 520, drops: 11, slow: 1, worst: 120 }) });
+    expect(phases!.COMBAT_DAMAGE).toBe('f11 21fps d11 s1 w120');
+  });
+
+  it('says where a stretch’s time went in any browser: our own work by label, and how much of the stretch it was', () => {
+    const spent = new Map<string, number>([['forge', 5]]);
+    const t = tab();
+    const watch = watchFrames({ ...t.host, work: () => spent });
+    t.frames(60, 16);
+    t.frames(4, 80);
+    spent.set('forge', 45).set('effects', 120);
+    t.frames(4, 80);
+    t.frames(80, 16);
+    const [stretch] = t.of('stretch');
+    // What each label spent while the stretch was open, the work before it left out.
+    expect(t.of('work')).toEqual([{ what: 'work', n: 1, ms: stretch!.ms, ours: 160, oursPct: Math.round((160 * 100) / (stretch!.ms as number)), forge: 40, effects: 120 }]);
+    watch.dispose();
   });
 
   it('summarises as the game ends, and sends what it saw as the tab closes', () => {

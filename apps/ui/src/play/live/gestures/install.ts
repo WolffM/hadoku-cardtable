@@ -299,6 +299,7 @@ import {
   type Point,
 } from './types.ts';
 import { eventTarget } from '../../../dom.ts';
+import { timed } from '../work-meter.ts';
 import './gestures.css';
 
 /** Set on the canvas while this layer is installed, so `./gestures.css` can dress it. */
@@ -750,6 +751,10 @@ export function installGestures(options: GestureOptions): GestureHandle {
 
   /** Draw whatever the current state means, into lane A's overlay. Absent overlay: nothing. */
   function paint(): void {
+    timed('gestures', paintNow);
+  }
+
+  function paintNow(): void {
     const overlay = overlayOf(canvas);
     // Forge's own already-decided targets, measured before this paint writes anything: a box read after
     // a write lays the whole board out again, and in combat this runs on every frame Forge sends.
