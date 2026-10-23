@@ -30,7 +30,7 @@ function card(name: string, code: string): DraftCard {
 	};
 }
 
-const EMPTY_CATALOG: CatalogLookup = { byName: () => null, byNameInSet: () => null };
+const EMPTY_CATALOG: CatalogLookup = { byName: () => null, byNameInSet: () => null, byPrinting: () => null };
 
 function booster(names: string[], code: string): BoosterCard[] {
 	return names.map((name) => ({ name, set: code, collectorNumber: '1', foil: false }));
@@ -198,7 +198,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 			setCards: { ISD: ['Card A', 'Card B'] },
 			boosters: { ISD: [booster(['Card A', 'Startled Awake // Persistent Nightmare'], 'ISD')] },
 		});
-		const catalog: CatalogLookup = { byName: (name) => card(name, 'ISD'), byNameInSet: () => null };
+		const catalog: CatalogLookup = { byName: (name) => card(name, 'ISD'), byNameInSet: () => null, byPrinting: () => null };
 		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
 		const cards = await store.cardsFor('ISD');
 		expect(cards?.map((c) => c.name).sort()).toEqual(['Card A', 'Card B', 'Startled Awake // Persistent Nightmare'].sort());
@@ -209,11 +209,31 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 		const catalog: CatalogLookup = {
 			byName: (name) => card(name, 'LEA'),
 			byNameInSet: (name, set) => (name === 'Giant Growth' ? card(name, set) : null),
+			byPrinting: () => null,
 		};
 		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
 		const cards = await store.cardsFor('ISD');
 		expect(cards?.find((c) => c.name === 'Giant Growth')?.setCode).toBe('ISD');
 		expect(cards?.find((c) => c.name !== 'Giant Growth')?.setCode).toBe('LEA');
+	});
+
+	it("draws a card the set's boosters take from a bonus sheet as that sheet printed it (the operator, 2026-10-23: Precursor Golem in a Brothers' War set-cube drew Scars of Mirrodin's)", async () => {
+		const forge = fakeForge({
+			setCards: { BRO: ['Urza, Lord Protector'] },
+			boosters: { BRO: [[{ name: 'Precursor Golem', set: 'BRR', collectorNumber: '41', foil: false }]] },
+		});
+		const byPrinting = vi.fn((set: string, collectorNumber: string) => ({ ...card('Precursor Golem', set), collectorNumber }));
+		const catalog: CatalogLookup = {
+			byName: (name) => card(name, 'SOM'),
+			byNameInSet: (name, set) => (name === 'Urza, Lord Protector' ? card(name, set) : null),
+			byPrinting,
+		};
+		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
+		const cards = await store.cardsFor('BRO');
+		expect(cards?.find((c) => c.name === 'Precursor Golem')).toMatchObject({ setCode: 'BRR', collectorNumber: '41' });
+		// A name the set itself printed keeps the set's own printing, whatever a booster dealt.
+		expect(cards?.find((c) => c.name === 'Urza, Lord Protector')?.setCode).toBe('BRO');
+		expect(byPrinting).toHaveBeenCalledWith('BRR', '41');
 	});
 
 	it("looks a set's printings up under the code Scryfall prints it as, where Forge's differs (Conflux: CFX, CON)", async () => {
@@ -222,7 +242,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 			setCards: { CFX: ['Giant Growth'] },
 		});
 		const byNameInSet = vi.fn((name: string, set: string) => card(name, set));
-		const store = createSetsStore({ forge, catalog: { byName: (name) => card(name, 'LEA'), byNameInSet }, sampleBoosters: 0 });
+		const store = createSetsStore({ forge, catalog: { byName: (name) => card(name, 'LEA'), byNameInSet, byPrinting: () => null }, sampleBoosters: 0 });
 		await store.list();
 		expect((await store.cardsFor('CFX'))?.[0]?.setCode).toBe('CON');
 		expect(byNameInSet).toHaveBeenCalledWith('Giant Growth', 'CON');
@@ -230,7 +250,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 
 	it('a name the catalog cannot resolve carries typeLine \'\' — missingText, same signal pools/cubes.ts uses', async () => {
 		const forge = fakeForge({ setCards: { ISD: ['Known', 'Mystery'] } });
-		const catalog: CatalogLookup = { byName: (name) => (name === 'Known' ? card(name, 'ISD') : null), byNameInSet: () => null };
+		const catalog: CatalogLookup = { byName: (name) => (name === 'Known' ? card(name, 'ISD') : null), byNameInSet: () => null, byPrinting: () => null };
 		const store = createSetsStore({ forge, catalog, sampleBoosters: 1 });
 		const cards = await store.cardsFor('ISD');
 		expect(cards?.find((c) => c.name === 'Mystery')?.typeLine).toBe('');
@@ -252,7 +272,7 @@ describe('createSetsStore — cardsFor: the land/DFC slot setCards alone would m
 
 	it('the booster sample failing (no draft template, or a transient fault) still answers from setCards alone, logged', async () => {
 		const forge = fakeForge({ setCards: { ARB: ['Card D'] }, failBoosters: new Set(['ARB']) });
-		const catalog: CatalogLookup = { byName: (name) => card(name, 'ARB'), byNameInSet: () => null };
+		const catalog: CatalogLookup = { byName: (name) => card(name, 'ARB'), byNameInSet: () => null, byPrinting: () => null };
 		const log = vi.fn();
 		const store = createSetsStore({ forge, catalog, log });
 		const cards = await store.cardsFor('ARB');

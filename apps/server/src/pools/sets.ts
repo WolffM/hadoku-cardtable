@@ -60,10 +60,11 @@ export interface SetsForge {
 	boosters(code: string, count: number, seed: string): Promise<BoosterCard[][]>;
 }
 
-/** The slice of G's `CardCatalog` this module consumes: a set's card as that set printed it (the operator, 2026-10-22: "i see an alpha giant growth in my marvel set"), else by name. */
+/** The slice of G's `CardCatalog` this module consumes: a set's card as that set printed it (the operator, 2026-10-22: "i see an alpha giant growth in my marvel set"), else as its boosters dealt it, else by name. */
 export interface CatalogLookup {
 	byName(name: string): DraftCard | null;
 	byNameInSet(name: string, set: string): DraftCard | null;
+	byPrinting(set: string, collectorNumber: string): DraftCard | null;
 }
 
 export interface SetsStore {
@@ -147,10 +148,13 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 			warn({ evt: 'set-cards-failed', code, detail: (err as Error).message });
 			return null;
 		}
-		let boosterNames: string[] = [];
+		// The printing each sampled name was dealt as: a card the set's boosters take from a bonus
+		// sheet is printed there, not in the set (The Brothers' War's Retro Artifacts: Precursor Golem
+		// is BRR's, and by name alone it drew Scars of Mirrodin's — the operator, 2026-10-23).
+		const dealtAs = new Map<string, BoosterCard>();
 		try {
 			const boosters = await forge.boosters(code, sampleBoosters, `verdict:${code}`);
-			boosterNames = boosters.flat().map((c) => c.name);
+			for (const c of boosters.flat()) if (!dealtAs.has(c.name)) dealtAs.set(c.name, c);
 		} catch (err) {
 			// No draft booster template for this set, or a transient JVM fault —
 			// `setNames` alone still answers the question for a set-cube-only
@@ -158,9 +162,13 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
 			// own `boosters` call later, which is the honest place for that error.
 			warn({ evt: 'set-booster-sample-failed', code, detail: (err as Error).message });
 		}
-		const names = Array.from(new Set([...setNames, ...boosterNames]));
+		const names = Array.from(new Set([...setNames, ...dealtAs.keys()]));
 		const printed = printedCode.get(code) ?? code;
-		return names.map((name) => opts.catalog.byNameInSet(name, printed) ?? opts.catalog.byName(name) ?? missingTextCard(name, code));
+		const asDealt = (name: string): DraftCard | null => {
+			const dealt = dealtAs.get(name);
+			return dealt === undefined ? null : opts.catalog.byPrinting(printedCode.get(dealt.set) ?? dealt.set, dealt.collectorNumber);
+		};
+		return names.map((name) => opts.catalog.byNameInSet(name, printed) ?? asDealt(name) ?? opts.catalog.byName(name) ?? missingTextCard(name, code));
 	}
 
 	function cardsFor(code: string): Promise<readonly DraftCard[] | null> {
