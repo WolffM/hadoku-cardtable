@@ -1798,12 +1798,8 @@ function RoomTableScreen({
   /**
    * The LEADER flipped Tournament, or moved Decks between Locked and Each
    * round — both `PATCH /api/rooms/:id` with `{ settings }`, same as hand
-   * smoothing. The server refuses Tournament on while the mode is Gauntlet
-   * with `tournament-mode-unsupported` (a per-table Gauntlet-state follow-up
-   * lane's own gap, not a bug this UI should hide — `writeRoom` already
-   * shows any refusal in `actionError`, the room's one refusal line); the
-   * LEADER never has the chance to send it in the first place, because the
-   * toggle is disabled while `mode === 'gauntlet'` (below).
+   * smoothing. Any of the three modes may run a tournament
+   * (`docs/planning/tournament-mode-plan.md`).
    */
   const toggleTournament = (on: boolean): void => writeRoom(() => rooms.setSettings(roomId, { tournament: on }));
   const chooseTournamentDecks = (decks: TournamentDecks): void => writeRoom(() => rooms.setSettings(roomId, { tournamentDecks: decks }));
@@ -2307,7 +2303,7 @@ function RoomTableScreen({
                   mode and its options keep their one line. */}
               <GameTypeRow testId="room-game-type" value={gameType} disabled={!iAmLeader || typeLocked} onChange={chooseGameType} />
               <div className="lobby__modeline">
-                <ModeRow mode={mode} disabled={!iAmLeader || modeLocked} gauntletDisabled={tournament} onChoose={chooseMode} />
+                <ModeRow mode={mode} disabled={!iAmLeader || modeLocked} onChoose={chooseMode} />
                 {mode === 'classic' && loaded !== null && (
                   <ClassicOptions
                     formats={loaded.formats}
@@ -2347,7 +2343,7 @@ function RoomTableScreen({
                     tournament={tournament}
                     tournamentDecks={tournamentDecks}
                     leader={iAmLeader}
-                    disabled={modeLocked || mode === 'gauntlet'}
+                    disabled={modeLocked}
                     onTournament={toggleTournament}
                     onDecks={chooseTournamentDecks}
                   />
