@@ -22,6 +22,7 @@
   "apps/server/src/play/ey-seen.jvm.test.ts": 6.9,
   "apps/server/src/play/faces.jvm.test.ts": 11.7,
   "apps/server/src/play/hand-smoothing.jvm.test.ts": 44.4,
+  "apps/server/src/play/mulligan-cap.jvm.test.ts": 10,
   "apps/server/src/play/lands.jvm.test.ts": 6.6,
   "apps/server/src/play/mana-sources.jvm.test.ts": 117.6,
   "apps/server/src/play/match-frames.jvm.test.ts": 13.5,
