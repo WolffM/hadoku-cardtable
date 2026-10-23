@@ -107,6 +107,7 @@ function pod(over: Partial<PodView>): PodView {
 const ctxOf = (p: PodView | null, tables: PodContext['tables'] = []): PodContext => ({
   pod: p,
   tables,
+  games: {},
   names: { 'u-alice': 'Alice', 'u-bob': 'Bob' },
   members: [],
   leaderId: '',
@@ -393,7 +394,7 @@ describe('my table’s page is where a player comes back to', () => {
     await vi.waitFor(() => expect(posts.some((u) => u.endsWith('/play/matches'))).toBe(true));
   });
 
-  it('carries me into my game once; back on the hub, I stay, and my table card is the way back', () => {
+  it('carries me into my game once; back on the hub, I stay, and my table card is the way back into it', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
     const live = { id: 't-2', players, matchId: 'm-000000000007', series: series('playing') };
     let mounted = mountPod('t-2');
@@ -405,7 +406,7 @@ describe('my table’s page is where a player comes back to', () => {
     mounted.draft.send(complete());
     mounted.room.read(ctxOf(rounds('t-2'), [live]));
     expect(route()).toEqual({ kind: 'room', roomId: ROOM });
-    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe(`#/room/${ROOM}/table/t-2`);
+    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe('#/match/m-000000000007');
   });
 
   it('lets a watcher’s table page follow the match too', () => {

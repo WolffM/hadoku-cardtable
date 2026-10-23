@@ -223,6 +223,17 @@ test('a room with two live tables: a watcher is carried in once, stays in the ro
     // Switching away from table 1 did not touch alice's own game.
     await expect(alice.page.locator('[aria-label="Game board"]'), 'alice’s own board is untouched by carol’s switch').toBeVisible();
 
+    // ── alice, her own game live, watches table 2 and comes back to hers ──
+    // The operator, 2026-10-23: "even people who are seated and have an active game to play should be able
+    // to spectate other people and their games". Watching is a watcher's board; her own seat waits for her.
+    await alice.page.evaluate((hash) => (window.location.hash = hash), `#/match/${matchId2}`);
+    await expect(alice.page.locator('.live[data-role="watcher"]'), 'alice watches table 2').toBeVisible({ timeout: 30_000 });
+    await expect(alice.page.getByTestId('live-concede'), 'nothing of a seat at a table she is not at').toHaveCount(0);
+    await alice.page.evaluate((hash) => (window.location.hash = hash), `#/match/${matchId1}`);
+    await expect(alice.page.locator('[aria-label="Game board"]'), 'alice is back at table 1').toBeVisible({ timeout: 30_000 });
+    await expect(alice.page.locator('.live[data-role="watcher"]'), 'her own seat, not a watcher’s').toHaveCount(0);
+    await expect(alice.page.locator('[data-zone="hand"][data-owner="you"] [data-board-card]').first(), 'her own hand, face up').toBeVisible({ timeout: 30_000 });
+
     // ── the game's chat is apart from the lobby's: one per table ────────
     // The operator, 2026-10-19: "can we make sure the game-chat is seperate from the lobby chat?"
     // See the header: watchparty's own debug log is read, not the wire.

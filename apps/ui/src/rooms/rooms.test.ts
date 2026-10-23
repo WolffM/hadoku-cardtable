@@ -289,10 +289,10 @@ describe('the list', () => {
 
   // Captured from `apps/server/src/http/rooms.test.ts`'s harness: a constructed
   // room with two members and a mode, and a locked draft room with its pod.
-  it('reads the server’s own GET /api/rooms/:id bodies as themselves, less the AI it does not draw', () => {
+  it('reads the server’s own GET /api/rooms/:id bodies as themselves, the room’s AI with them (a table card draws it)', () => {
     for (const [kind, body] of Object.entries(SERVER_BODIES)) {
-      const { ai: _ai, ...view } = body;
-      expect(parseRoomView(body), kind).toStrictEqual(view);
+      const { tableGames: _none, ...view } = parseRoomView(body) as Record<string, unknown>;
+      expect(view, kind).toStrictEqual(body);
     }
   });
 });

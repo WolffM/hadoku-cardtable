@@ -113,21 +113,33 @@ test(
       await carol.page.goto(roomUrl);
       await expect(carol.page.getByTestId('pod-rounds'), 'carol: the hub').toBeVisible({ timeout: UI_TIMEOUT });
       await expect(carol.page.getByTestId('pod-tables-play'), 'carol plays at no table').toHaveCount(0);
-      await carol.page.getByTestId('pod-tables-watch').click();
+      await expect(carol.page.getByTestId('pod-tables-watch')).toHaveText('Watch');
+      // The whole card is the way in (the operator: "any spectator can click on any active game and enter it
+      // that way"): a press on the card's body, away from its Watch, still opens the table.
+      const card = carol.page.locator(`[data-testid="pod-tables-row"][data-table-id="${tableId}"]`);
+      await card.locator('.table-card__score').click();
       await carol.page.waitForURL(new RegExp(`#/match/${matchId}$`), { timeout: UI_TIMEOUT });
       expect((await hashes(carol.page)).some((h) => h.endsWith(`/table/${tableId}`)), 'carol: through the table page').toBe(true);
       await expect(carol.page.locator('[aria-label="Game board"]'), 'carol is watching').toBeVisible({ timeout: UI_TIMEOUT });
+      await expect(carol.page.locator('.live[data-role="watcher"]'), 'carol is in as a watcher').toBeVisible({ timeout: UI_TIMEOUT });
+      for (const id of ['live-concede', 'live-button-end-turn']) {
+        await expect(carol.page.getByTestId(id), `${id} is not drawn for a watcher`).toHaveCount(0);
+      }
 
       /* ── Alice back to the hub by choice: it keeps her ── */
       await alice.page.evaluate((hash) => (window.location.hash = hash), `#/room/${roomId}`);
       await expect(alice.page.getByTestId('pod-rounds'), 'alice: the hub').toBeVisible({ timeout: UI_TIMEOUT });
       await alice.page.waitForTimeout(3_000);
       expect(new URL(alice.page.url()).hash, 'alice stays on the hub').toBe(`#/room/${roomId}`);
-      await expect(alice.page.getByTestId('pod-tables-play')).toHaveAttribute('href', `#/room/${roomId}/table/${tableId}`);
-      await alice.page.getByTestId('pod-tables-play').click();
-      await alice.page.waitForURL(new RegExp(`#/room/${roomId}/table/${tableId}$`), { timeout: UI_TIMEOUT });
-      await alice.page.getByTestId('table-match-link').click();
-      await alice.page.waitForURL(matchUrl, { timeout: UI_TIMEOUT });
+      // Her card is the way back into her running game, in one press on the card (the operator: "make sure we
+      // dont lose the functionality of being able to click on the standings boxes to let people return to
+      // their games that way").
+      await expect(alice.page.getByTestId('pod-tables-play')).toHaveText('Return to game');
+      await expect(alice.page.getByTestId('pod-tables-play')).toHaveAttribute('href', `#/match/${matchId}`);
+      await alice.page.locator(`[data-testid="pod-tables-row"][data-table-id="${tableId}"] .table-card__score`).click();
+      await alice.page.waitForURL(new RegExp(`#/match/${matchId}$`), { timeout: UI_TIMEOUT });
+      await expect(alice.page.locator('.live[data-role="watcher"]'), 'alice is back in her seat, not watching').toHaveCount(0);
+      await expect(alice.page.locator('[aria-label="Game board"]'), 'alice: back in her game').toBeVisible({ timeout: UI_TIMEOUT });
 
       /* ── game 1 to Alice; the sideboard step is on the table page ── */
       await concedeToResult(bob, alice);

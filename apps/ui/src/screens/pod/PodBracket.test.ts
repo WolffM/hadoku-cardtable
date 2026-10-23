@@ -132,9 +132,10 @@ describe('PodBracket', () => {
     ]);
   });
 
-  it('makes every live table a link to its table page, Play on mine and Watch on somebody else’s; a finished one goes nowhere', () => {
+  it('makes every live table the way in: mine back into its running game, somebody else’s Watch through its table page; a finished one goes nowhere', () => {
     const { rerender } = render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
-    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe('#/room/r-1/table/t-3');
+    expect(screen.getByTestId('pod-tables-play').textContent).toBe('Return to game');
+    expect(screen.getByTestId('pod-tables-play').getAttribute('href')).toBe(`#/match/${midTables.find((t) => t.id === 't-3')!.matchId}`);
     expect(screen.queryByTestId('pod-tables-watch')).toBeNull();
     const mine = screen.getAllByTestId('pod-tables-row').find((r) => r.dataset.tableId === 't-3')!;
     expect(mine.dataset.mine).toBe('');
@@ -154,7 +155,7 @@ describe('PodBracket', () => {
     render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf }));
     const live = screen.getAllByTestId('pod-tables-row').find((r) => r.dataset.tableId === 't-3')!;
     expect(live.querySelector('img')?.getAttribute('src')).toMatch(/square_sage\.png$/);
-    expect(live.querySelector('.pod-bracket__face--none')?.textContent).toBe('C');
+    expect(live.querySelector('.table-card__face--none')?.textContent).toBe('C');
   });
 
   it('names each round’s bye, with no "(you)" beside my name', () => {

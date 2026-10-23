@@ -56,7 +56,7 @@ describe('fetchPodContext', () => {
 
   it('answers empty rather than throwing on a failed read', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
-    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], names: {}, members: [], leaderId: '', avatars: {}, me: null, name: '', leader: false, gone: false });
+    expect(await fetchPodContext('r-cube')).toEqual({ pod: null, tables: [], games: {}, names: {}, members: [], leaderId: '', avatars: {}, me: null, name: '', leader: false, gone: false });
   });
 
   it('says the room is gone on the server’s 404, and only then', async () => {

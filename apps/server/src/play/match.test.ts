@@ -1450,7 +1450,7 @@ function recordFor(match: Match, state: Survivable): JvmRecord {
 
 describe('a match nobody is at', () => {
 	/** Both seats claimed and opened; the departure grace 1 s, the rejoin grace 5 s. */
-	function table(opened = true): Harness {
+	function table(opened = true, online: ReadonlySet<string> = new Set()): Harness {
 		const { factory, hosts } = replayFactory();
 		const logs: Record<string, unknown>[] = [];
 		const registry = createMatchRegistry({
@@ -1459,6 +1459,7 @@ describe('a match nobody is at', () => {
 			overGraceMs: 60_000,
 			disconnectGraceMs: 1000,
 			rejoinGraceMs: 5000,
+			ownerOnline: (owner) => online.has(owner),
 			emit: () => undefined,
 		});
 		const match = registry.create({ seats: [{ ...TWO_HUMANS.seats[0] }, { ...TWO_HUMANS.seats[1] }] });
@@ -1483,6 +1484,21 @@ describe('a match nobody is at', () => {
 		expect(h.match.status).toBe('stopped');
 		expect(h.host.stopped).toBe(true);
 		expect(h.logs.find((l) => l.evt === 'match-not-rejoined')).toMatchObject({ matchId: h.match.id, status: 'running', afterMs: 5000 });
+	});
+
+	it('keeps it while a holder is watching another match, and stops it once they are gone from the server too', () => {
+		vi.useFakeTimers();
+		const online = new Set([ALICE]);
+		const h = table(true, online);
+		h.match.seatConnected(0);
+		h.match.seatConnected(1);
+		h.match.seatDisconnected(0);
+		h.match.seatDisconnected(1);
+		vi.advanceTimersByTime(1000 + 5000 * 4);
+		expect(h.match.status, 'alice is watching another table: her own game waits for her').toBe('running');
+		online.delete(ALICE);
+		vi.advanceTimersByTime(5000);
+		expect(h.match.status).toBe('stopped');
 	});
 
 	it('keeps it while one seat is still here', () => {

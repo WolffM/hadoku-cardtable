@@ -2024,15 +2024,19 @@ describe('the table’s pool', () => {
   });
 
   // The operator, 2026-10-21: "it's weird that it shows '2–0' even after i've stood up from the table.
-  // i dont need that win display at all actually, just get rid of it."
-  it('the room shows no series score, not even mid-series', async () => {
+  // i dont need that win display at all actually, just get rid of it." Then 2026-10-23, the table card:
+  // "showing the decks that each person is currently playing, and the current score" — drawn only while
+  // I am seated at the table, between its games.
+  it('the room shows no series score of its own; mid-series the score is my table card’s (`TableCard.tsx`)', async () => {
     await mountRoom({
       players: [opponent({ you: true, name: 'user-alice', seat: 0, ready: false }), opponent({ seat: 1, ready: false })],
       matchId: null,
       series: { length: 3, wins: [2, 0], games: [{ matchId: 'm-0', winner: 0 }, { matchId: 'm-1', winner: 0 }], phase: 'sideboarding' },
     });
-    await screen.findByTestId('room-players');
+    const card = await screen.findByTestId('room-table-card');
     expect(screen.queryByTestId('series-score')).toBeNull();
+    expect(card.querySelector('.table-card__wins')?.textContent).toBe('2–0');
+    card.remove();
     expect(document.body.textContent).not.toContain('2–0');
   });
 
