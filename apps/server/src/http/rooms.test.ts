@@ -2353,6 +2353,32 @@ describe('a tournament locks over HTTP, with the real PodChecks (regression: the
 		expect(after, 'the same locked decks after both ready').toEqual(before);
 	});
 
+	// The operator, 2026-10-22: "Show it once played" — a locked tournament's All Random deck is hidden until its
+	// entrant has finished a match with it, then named every round after.
+	it('All Random, locked: the seated deck is unnamed in round 1, and named once the entrant has finished a match with it', async () => {
+		const h = await openFullApp(await tempDir());
+		const created = (
+			await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Random tournament', mode: 'random', modeOptions: { pool: 'full' } } })
+		).json() as { id: string };
+		const id = created.id;
+		expect((await call(h, 'POST', `/api/rooms/${id}/join`, { as: 'bob' })).status).toBe(200);
+		expect((await call(h, 'PATCH', `/api/rooms/${id}`, { as: 'alice', body: { settings: { tournament: true } } })).status).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${id}/pod/sit`, { as: 'alice', body: { seat: 0 } })).status).toBe(200);
+		expect((await call(h, 'POST', `/api/rooms/${id}/pod/sit`, { as: 'bob', body: { seat: 1 } })).status).toBe(200);
+		for (const who of ['alice', 'bob']) expect((await call(h, 'POST', `/api/rooms/${id}/ready`, { as: who, body: { ready: true } })).status).toBe(200);
+		const started = await call(h, 'POST', `/api/rooms/${id}/start`, { as: 'alice' });
+		expect(started.status, started.text).toBe(200);
+		const tableId = (started.json() as import('../room/lobby.ts').RoomView).pod!.pairings[0]!.tableId;
+		const myDeck = async () =>
+			((await call(h, 'GET', `/api/tables/rooms/${id}?table=${tableId}`, { as: 'alice' })).json() as { players: { you: boolean; deck?: { name: string } | null }[] }).players.find((p) => p.you)
+				?.deck;
+
+		expect(await myDeck(), 'round 1: not yet played, not named').toBeNull();
+		for (const matchId of ['m-1', 'm-2']) h.lobby.recordGameResult(id, tableId, { matchId, winner: 0 });
+		expect(h.lobby.get(id)?.pod?.results.length, 'the round-1 match is recorded').toBeGreaterThan(0);
+		expect((await myDeck())?.name, 'played: named from here on').toEqual(expect.any(String));
+	});
+
 	it('All Random, locked, with one AI entrant: 200, round 1 paired against the AI, and the room still answers afterwards', async () => {
 		const h = await openFullApp(await tempDir());
 		const created = (

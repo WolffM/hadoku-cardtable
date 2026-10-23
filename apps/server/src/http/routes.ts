@@ -228,7 +228,7 @@ export interface RoomViewLike {
 	mode?: RoomModeState['mode'];
 	modeOptions?: RoomModeState['modeOptions'];
 	/** How the room's matches are dealt (`room/lobby.ts`'s `RoomSettings`). */
-	settings: { handSmoothing: boolean; tournament?: boolean };
+	settings: { handSmoothing: boolean; tournament?: boolean; tournamentDecks?: string };
 	/** The one member who may change the room's settings. `you.leader` is this, per caller. */
 	leader: string;
 	/**
@@ -250,11 +250,11 @@ export interface RoomViewLike {
 	tables: RoomTable[];
 	/**
 	 * Wave 72 §P: `null` for a `constructed-1v1` room, always present for a
-	 * `draft` one. Only `phase` is read here (`wrongGameType`'s "or a pod in
-	 * rounds") — the rest of `RoomView.pod` is `GET /api/rooms/:id`'s own
+	 * `draft` one. Only `phase` (`wrongGameType`'s "or a pod in rounds") and
+	 * `results` (`dealtUnseen`) are read here — the rest of `RoomView.pod` is `GET /api/rooms/:id`'s own
 	 * concern, not a table route's.
 	 */
-	pod: { phase: string } | null;
+	pod: { phase: string; results?: readonly { playerA: string; playerB: string | null }[] } | null;
 }
 
 /** The subset of `room/lobby.ts`'s `Lobby` a table uses. */
@@ -1154,7 +1154,7 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 				ready: p.ready,
 				// Yours alone; null for a seat you took ahead of a deck, and for an
 				// All Random deck not yet played (`dealtUnseen`).
-				...(p.member.id === me ? { deck: dealtUnseen(room, p.state, matchId) ? null : ownDeckView(p.state.deck) } : {}),
+				...(p.member.id === me ? { deck: dealtUnseen(room, p.state, matchId, p.member.id) ? null : ownDeckView(p.state.deck) } : {}),
 			})),
 		};
 	}
@@ -1165,8 +1165,15 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	 * after the game (the operator, 2026-10-22: "we should not display the name of the chosen deck
 	 * until after the game has concluded and players are back in the lobby").
 	 */
-	function dealtUnseen(room: RoomViewLike, state: TablePlayerState, matchId: string | null): boolean {
-		return randomPoolOf(room) !== null && (matchId !== null || seriesTextOf(state) === null);
+	function dealtUnseen(room: RoomViewLike, state: TablePlayerState, matchId: string | null, memberId: string): boolean {
+		if (randomPoolOf(room) === null) return false;
+		if (matchId !== null) return true;
+		if (seriesTextOf(state) !== null) return false;
+		// A locked tournament seats the same deck every round, with no series deck yet: its entrant has
+		// seen it once they have finished a match with it (the operator: "Show it once played"). A bye is
+		// not a match.
+		const lockedTournament = room.settings.tournament === true && room.settings.tournamentDecks === 'locked';
+		return !(lockedTournament && (room.pod?.results ?? []).some((r) => r.playerB !== null && (r.playerA === memberId || r.playerB === memberId)));
 	}
 
 	/** Every room route answers this, and only this, when you may not act. */
