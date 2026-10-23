@@ -2611,9 +2611,15 @@ class FileLobby implements Lobby {
 	 * on: the room still plays Bo1 series, the same players sit in the same
 	 * seats, and each still holds the deck it played (`PodChecks.holdsSeriesDeck`
 	 * — a deck, format or mode change drops or replaces it).
+	 *
+	 * Never a board-state room's (`scenario`): every game there starts from its scripted board, whatever
+	 * deck was held, so its Rematch starts that board again, a series of its own, rather than a Bo3
+	 * with a sideboard step in front of it (the operator, 2026-10-23: "just make sure that it resets
+	 * properly when i try it again").
 	 */
 	#rematchable(room: RoomRecord, table: TableRecord): boolean {
 		const { series } = table;
+		if (room.scenario !== undefined) return false;
 		if (series.phase !== 'done' || series.length !== 1 || series.settled || seriesFormatOf(seriesRoomOf(room)).length !== 1) return false;
 		return this.#stillSeated(table) && series.played.every((id) => id === null || this.#podChecks.holdsSeriesDeck(room.members.find((m) => m.id === id)?.state));
 	}

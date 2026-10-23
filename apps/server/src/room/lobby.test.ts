@@ -1323,6 +1323,21 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 		expect(ended).toEqual([]);
 	});
 
+	it('a board-state room never converts: its game is settled, and the next start is a series of its own on the scripted board again', async () => {
+		const ended: SeriesEnd[] = [];
+		const lobby = await openLobby({ dir: await tempDir(), onSeriesEnd: (end) => ended.push(end) });
+		const made = lobby.create(ALICE, { name: 'Board', gameType: 'constructed-1v1', clientMode: 'builtin', scenario: 'turn=1\nactiveplayer=human' });
+		if (!made.ok) throw new Error('create failed');
+		const id = made.room.id;
+		const tableId = made.room.tables[0]!.id;
+		expect(lobby.sit(id, tableId, ALICE.id)).toBe(true);
+		expect(lobby.setTableMatch(id, tableId, 'm-board-1')).toBe(true);
+		lobby.recordGameResult(id, tableId, { matchId: 'm-board-1', winner: 1 });
+		expect(lobby.beginSideboarding(id, tableId), 'no Bo3, no sideboard step').toBe(false);
+		expect(lobby.get(id)?.tables[0]?.series).toMatchObject({ length: 1, phase: 'done' });
+		expect(ended, 'settled at once: nothing is held open for a Rematch').toHaveLength(1);
+	});
+
 	it('Rematch converts it in place: Bo3, game 1 kept, 1-0, sideboarding — and game 2 continues the same series', async () => {
 		const { lobby, id, tableId, ended } = await playingTable();
 		lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 1 });
