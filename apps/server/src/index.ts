@@ -485,6 +485,14 @@ setsStore.onNamed(() => lobby.poolNamesChanged());
 // `checkDraftPlan` this file already built for `attachRooms` and
 // `attachSetRoutes`; without a jar `setsStore.list()` answers `[]` and the
 // set-draft room is skipped and logged, never created with no pool.
+//
+// Never awaited on the boot path, same discipline as `warmSetsStore` right
+// above: the set-draft room's own check can be a slow pool-JVM round trip,
+// and nothing optional may keep `httpServer.listen` waiting on it
+// (`index.test.ts`'s own boot test: the server must listen with the pool JVM
+// unresponsive). The four rooms that need no catalog are created within a
+// tick either way — `Lobby.create` is synchronous — so the gap a request
+// could race is only ever the fifth room.
 const runTestingRoomSeed = (): Promise<void> =>
 	seedTestingRooms({
 		lobby,
@@ -492,7 +500,7 @@ const runTestingRoomSeed = (): Promise<void> =>
 		newestSetCode: async () => (await setsStore.list())[0]?.code ?? null,
 		checkPlan: checkDraftPlan,
 	});
-await runTestingRoomSeed();
+void runTestingRoomSeed();
 
 attachRooms(api, {
 	lobby,
