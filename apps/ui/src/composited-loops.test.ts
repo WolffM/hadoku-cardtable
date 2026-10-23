@@ -21,10 +21,6 @@ const COMPOSITED = new Set(['transform', 'translate', 'rotate', 'scale', 'opacit
 
 /** Endless animations that still draw on the main thread, each with why — to be worked off, never added to. */
 const NOT_YET: Record<string, string> = {
-  'fly-across': 'a flyer composes four loops through registered custom properties; restructuring onto transforms is its own change',
-  'fly-rise': 'as fly-across',
-  'fly-tilt-across': 'as fly-across',
-  'fly-tilt-rise': 'as fly-across',
   'live-ok-pulse': 'one button’s ring, while a decision waits',
   'live-end-turn-nudge': 'one button’s glow, once End Turn has waited',
   'seat-picking': 'the draft lobby, never a match',

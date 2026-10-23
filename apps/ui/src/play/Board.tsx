@@ -416,6 +416,7 @@ import { TopLayer } from '../topLayer.tsx';
 import { clickLatch, pastSlop } from './live/gestures/types.ts';
 import { installNumbers, type Revealed } from './live/numbers.ts';
 import { addWork } from './live/work-meter.ts';
+import { pinFlight } from './flight.ts';
 import { installPlaced } from './live/placed.ts';
 import { DEPARTURE_MAX_MS, departuresOf, installDepartures, LEAVING_GAP_ATTR, type Departure } from './live/departures.ts';
 import { AbilityChip } from './live/AbilityChip.tsx';
@@ -4215,6 +4216,8 @@ export function Board({
       handle.dispose();
     };
   }, []);
+  // A flyer's every part on one clock, however late it was mounted (`./flight.ts`).
+  useLayoutEffect(() => (root.current === null ? undefined : pinFlight(root.current)), []);
   useLayoutEffect(() => {
     numbers.current?.notify(view, revealed ?? undefined);
   }, [view, revealed]);

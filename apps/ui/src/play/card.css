@@ -675,69 +675,38 @@
  * length, which to a few degrees is exactly rotateX·rotateY. The perspective is about three card
  * widths, as vanilla-tilt's 1000px is to the cards it is used on.
  *
- * Each motion is its own registered property, so they ADD (two animations of `translate` would not:
- * the later one wins). Never `transform`, which the turn rule owns: the individual properties apply
- * outside it, so a tapped flyer loops and tilts in the screen's frame and its quarter turn stays
- * intact. The `<li>` itself never moves — layout, drag and arrange stand still — and the battlefield
- * clips without scrolling (`board.css`), so a sideways step at the edge of the table makes no
- * scrollbar.
+ * Each motion is its own animation of the compositor's own properties, `translate` and `rotate`,
+ * and they ADD (`animation-composition`) onto the resting offset each element holds — so the browser
+ * moves the drawn card off the main thread, as it moves any transform. Never `transform`, which the
+ * turn rule owns: the individual properties apply outside it, so a tapped flyer loops and tilts in
+ * the screen's frame and its quarter turn stays intact. The `<li>` itself never moves — layout, drag
+ * and arrange stand still — and the battlefield clips without scrolling (`board.css`), so a sideways
+ * step at the edge of the table makes no scrollbar.
  *
- * The path runs ONCE, on the `<li>`: it animates only the inherited `--fly-x`/`--fly-y`/`--fly-lift`,
- * which move nothing there. Everything drawn on the card reads them — the art, and every overlay
- * the `<li>` lays out (marks, tags, counters, P/T, the type pill, copies, relations, picked) — so
- * the pills ride the card on the same clock, mounted whenever (the operator, 2026-10-15: "i just
- * want to make sure the pills are actually on the card"). Their `translate` is the path's, so an
- * overlay centres itself with `transform`, never `translate`. The tilt is the art's own lean in its
- * face's depth; the overlays ride flat on it, within a pixel of where the leaning art is drawn.
+ * The art, and every overlay the `<li>` lays out (marks, tags, counters, P/T, the type pill, copies,
+ * relations, picked), run the same two motions with the same timing, so the pills ride the card (the
+ * operator, 2026-10-15: "i just want to make sure the pills are actually on the card"). One clock for
+ * all of them, mounted whenever: `Board.tsx` starts every `fly-*` animation at the document's own
+ * origin (`pinFlight`), so each runs at the same point of its loop as its card's art, wherever in the
+ * loop it was mounted. An overlay centres itself with `transform`, never `translate`. The tilt is the
+ * art's own lean in its face's depth; the overlays ride flat on it, within a pixel of where the
+ * leaning art is drawn.
  *
  * A shadow lies in the strip of face the lift uncovers, drifting against the sway and narrowing as
  * the card rises. `--fly-phase` (`Board.tsx`, from the card's id) sets where in the loop each card
- * starts, so a row of flyers never moves in unison; every flyer keeps the same steady period.
+ * runs, so a row of flyers never moves in unison; every flyer keeps the same steady period.
+ *
+ * Until 2026-10-23 the path was five registered custom properties animated on the `<li>` and read by
+ * every part: one clock, but one the main thread had to restyle the whole card by on every frame, for
+ * every flyer on the table (`composited-loops.test.ts`).
  */
-/*
- * The path in px as plain numbers, a length only where it is drawn (`* 1px`). A keyframe holding a
- * length would hold `var(--ui-px)` once the UI scale rewrites it, and Firefox plays a registered
- * property's `var()` keyframes forwards on every iteration, never back: an `alternate` loop snapped
- * from end to start every 1.4 s (the operator, 2026-10-23, "every ~1.5s the creature repositions in
- * a random direction"). `ui-scale.ts` refuses such a keyframe.
- */
-@property --fly-x {
-  syntax: '<number>';
-  inherits: true;
-  initial-value: 0;
-}
-
-@property --fly-y {
-  syntax: '<number>';
-  inherits: true;
-  initial-value: 0;
-}
-
-@property --fly-lift {
-  syntax: '<number>';
-  inherits: true;
-  initial-value: 0.5;
-}
-
-/* Degrees, as numbers: they are the `rotate` axis as well as its length. */
-@property --fly-tilt-x {
-  syntax: '<number>';
-  inherits: false;
-  initial-value: 0;
-}
-
-@property --fly-tilt-y {
-  syntax: '<number>';
-  inherits: false;
-  initial-value: 0;
-}
-
 .board-card[data-flying] {
   --fly-loop: 5.6s;
   /* Always a whole loop or more in the past, so every offset below stays a negative delay. */
   --fly-start: calc(-1 * var(--fly-loop) * (1 + var(--fly-phase, 0)));
   --fly-ease: cubic-bezier(0.37, 0, 0.63, 1);
-  animation:
+  /* The path, as every part runs it: across once a loop, and down and up twice, an eighth late. */
+  --fly-path:
     fly-across calc(var(--fly-loop) / 2) var(--fly-ease) var(--fly-start) infinite alternate,
     fly-rise calc(var(--fly-loop) / 4) var(--fly-ease) calc(var(--fly-start) + var(--fly-loop) / 8) infinite alternate;
 }
@@ -749,12 +718,14 @@
 /* The art and everything the card wears: not the face (the shadow lies on it) and not the cards piled behind, each its own. */
 .board-card[data-flying] > .board-card__face > .card,
 .board-card[data-flying] > :not(.board-card__face, .board-card__pile) {
-  translate: calc(var(--fly-x) * 1px) calc(-3px + var(--fly-y) * 1px);
+  translate: 0 -3px;
+  animation: var(--fly-path);
+  animation-composition: add;
 }
 
 .board-card[data-flying] > .board-card__face > .card {
-  rotate: var(--fly-tilt-x) var(--fly-tilt-y) 0 calc(hypot(var(--fly-tilt-x), var(--fly-tilt-y)) * 1deg);
   animation:
+    var(--fly-path),
     fly-tilt-across calc(var(--fly-loop) / 2) var(--fly-ease) calc(var(--fly-start) + var(--fly-loop) / 4) infinite alternate,
     fly-tilt-rise calc(var(--fly-loop) / 4) var(--fly-ease) var(--fly-start) infinite alternate;
 }
@@ -770,45 +741,58 @@
   border-radius: 50%;
   background: radial-gradient(closest-side, var(--shadow), transparent);
   pointer-events: none;
-  translate: calc(var(--fly-x) * -0.4px) 0;
-  scale: calc(1.08 - var(--fly-lift) * 0.16) 1;
-  opacity: calc(1 - var(--fly-lift) * 0.35);
+  animation:
+    fly-shadow-across calc(var(--fly-loop) / 2) var(--fly-ease) var(--fly-start) infinite alternate,
+    fly-shadow-rise calc(var(--fly-loop) / 4) var(--fly-ease) calc(var(--fly-start) + var(--fly-loop) / 8) infinite alternate;
 }
 
 /* x = −A·cos(ωt): across and back once a loop. */
 @keyframes fly-across {
-  from { --fly-x: -3.5; }
-  to { --fly-x: 3.5; }
+  from { translate: -3.5px 0; }
+  to { translate: 3.5px 0; }
 }
 
 /* y = B·sin(2ωt) (an eighth of a loop late): down and up twice a loop, crossing the middle as the sway does. */
 @keyframes fly-rise {
-  from {
-    --fly-y: 1.25;
-    --fly-lift: 0;
-  }
-
-  to {
-    --fly-y: -1.25;
-    --fly-lift: 1;
-  }
+  from { translate: 0 1.25px; }
+  to { translate: 0 -1.25px; }
 }
 
 /* Moving right, the right side comes forward (rotateY < 0): −sin(ωt), against the sway's speed. */
 @keyframes fly-tilt-across {
-  from { --fly-tilt-y: -4; }
-  to { --fly-tilt-y: 4; }
+  from { rotate: y -4deg; }
+  to { rotate: y 4deg; }
 }
 
 /* Moving down, the bottom comes forward (rotateX > 0): cos(2ωt), the rise's speed. */
 @keyframes fly-tilt-rise {
-  from { --fly-tilt-x: 3; }
-  to { --fly-tilt-x: -3; }
+  from { rotate: x 3deg; }
+  to { rotate: x -3deg; }
+}
+
+/* The shadow drifts against the sway, two fifths as far, and narrows and fades as the card rises. */
+@keyframes fly-shadow-across {
+  from { translate: 1.4px 0; }
+  to { translate: -1.4px 0; }
+}
+
+@keyframes fly-shadow-rise {
+  from {
+    scale: 1.08 1;
+    opacity: 1;
+  }
+
+  to {
+    scale: 0.92 1;
+    opacity: 0.65;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .board-card[data-flying],
-  .board-card[data-flying] > .board-card__face > .card {
+  .board-card[data-flying] > .board-card__face > .card,
+  .board-card[data-flying] > :not(.board-card__face, .board-card__pile),
+  .board-card[data-flying] > .board-card__face::after,
+  .board-card[data-flying] > .board-card__face > .board-card__protection {
     animation: none;
   }
 }
@@ -833,7 +817,9 @@
 }
 
 .board-card[data-flying] > .board-card__face > .board-card__protection {
-  translate: calc(var(--fly-x) * 1px) calc(-3px + var(--fly-y) * 1px);
+  translate: 0 -3px;
+  animation: var(--fly-path);
+  animation-composition: add;
 }
 
 .board-card__protection::before,
@@ -1117,7 +1103,7 @@
 }
 
 .board-card[data-flying][data-combat-ready] > :not(.board-card__face, .board-card__pile) {
-  translate: calc(var(--fly-x) * 1px) calc(-7px + var(--fly-y) * 1px);
+  translate: 0 -7px;
 }
 
 @media (prefers-reduced-motion: reduce) {

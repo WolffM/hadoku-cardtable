@@ -1527,15 +1527,18 @@ describe('no rotated text (operator, 2026-09-26)', () => {
   it('sets no text sideways in board.css, and rotates only a CARD in card.css', () => {
     expect(withoutComments(BOARD_CSS).match(SIDEWAYS), 'board.css turns nothing on its side').toBeNull();
     /*
-     * card.css keeps exactly two rotations and neither is a word: a flyer's
-     * tilt, a few degrees in depth as it loops (the operator, 2026-10-15: "the
-     * card distortion should be a diagonal tilt"), and a tapped permanent
-     * turned a quarter inside a landscape box, which is the operator's own
-     * affordance and stays. If a third one appears, this is the test that says
-     * so.
+     * card.css keeps exactly two kinds of rotation and neither is a word: a
+     * flyer's tilt, a few degrees in depth as it loops (the operator,
+     * 2026-10-15: "the card distortion should be a diagonal tilt") — its four
+     * keyframes, each about the x or the y axis, never the screen's own — and
+     * a tapped permanent turned a quarter inside a landscape box, which is the
+     * operator's own affordance and stays. If a third one appears, this is the
+     * test that says so.
      */
-    const inCards = withoutComments(CARD_CSS).match(SIDEWAYS) ?? [];
-    expect(inCards, 'a flyer’s tilt, then the tapped card’s quarter turn ("marks tapped permanents by turning them")').toEqual(['rotate:', 'rotate(']);
+    const cards = withoutComments(CARD_CSS);
+    const inCards = cards.match(SIDEWAYS) ?? [];
+    expect(inCards, 'a flyer’s tilt, then the tapped card’s quarter turn ("marks tapped permanents by turning them")').toEqual(['rotate:', 'rotate:', 'rotate:', 'rotate:', 'rotate(']);
+    for (const tilt of cards.match(/rotate:[^;]*/g) ?? []) expect(tilt, 'a tilt in depth, never a turn on the screen').toMatch(/rotate:\s*[xy]\s/);
   });
 
   it('draws the lane labels that are left horizontally, with their counts', () => {
@@ -2400,8 +2403,10 @@ describe('drag to stack (#1, #19)', () => {
     expect(lift('.board-card[data-combat-ready] > .board-card__face'), 'the face rises 4px').toMatch(/translate:\s*0 -4px/);
     expect(lift('.board-card[data-combat-ready] > :not(.board-card__face, .board-card__pile)'), 'and its badges with it').toMatch(/translate:\s*0 -4px/);
     const flyer = lift('.board-card[data-flying][data-combat-ready] > :not(.board-card__face, .board-card__pile)');
-    expect(flyer, 'a flyer’s rides its loop across').toContain('--fly-x');
-    expect(flyer, 'and up and down, 4px over its rest').toMatch(/-7px[^;]*--fly-y/);
+    expect(flyer, 'a flyer’s rests 4px over its own rest').toMatch(/translate:\s*0 -7px/);
+    const riding = lift('.board-card[data-flying] > .board-card__face > .card,\n.board-card[data-flying] > :not(.board-card__face, .board-card__pile)');
+    expect(riding, 'and rides its loop on top of that rest').toContain('--fly-path');
+    expect(riding, 'added to the rest, not in place of it').toMatch(/animation-composition:\s*add/);
   });
 
   it('a pile that mixes cards has no count', () => {
