@@ -855,9 +855,37 @@ public final class PlayBridge {
     }
 
     /** The bridge's own facts beside a state frame's packet: what each stack item targets on the stack, the triggers still to go on it, what resolved abilities left waiting, who made each token, and which creatures can't block. */
+    /**
+     * One of the bridge's own reads of Forge beside a frame, or null when it throws: the frame goes without
+     * it. The bridge reads Forge's live objects from a seat's thread while the game thread moves them, and
+     * one read that threw took the whole frame with it — an optional replacement's confirm (a dredge) was
+     * never sent its question (the operator, 2026-10-23). Said on stderr, which the host logs
+     * (`host.ts`'s `bridgeDiagnostics`).
+     */
+    static <T> T orNull(final String what, final java.util.function.Supplier<T> read) {
+        try {
+            return read.get();
+        } catch (final RuntimeException e) {
+            System.err.println("[bridge] " + what + " could not be read (" + e + "); the frame goes without it");
+            return null;
+        }
+    }
+
+    /** A step the bridge takes before a frame, skipped when it throws so the frame still goes; see {@link #orNull}. */
+    static void guarded(final String what, final Runnable step) {
+        try {
+            step.run();
+        } catch (final RuntimeException e) {
+            System.err.println("[bridge] " + what + " failed (" + e + "); the frame goes without it");
+        }
+    }
+
     static void addStackFacts(final JsonObject payload) {
         final Game game = liveGame();
-        payload.add("stackTargetSpells", stackTargetSpellsJson(game));
+        // The stack is walked off the game thread, and what it targets is resolved through Forge's own
+        // ability reads (`stackTargetOf`): a state frame never waits on them.
+        final JsonArray stackTargets = orNull("stackTargetSpells", () -> stackTargetSpellsJson(game));
+        if (stackTargets != null) { payload.add("stackTargetSpells", stackTargets); }
         final JsonArray pending = pendingTriggersJson(game);
         if (pending != null) { payload.add("pendingTriggers", pending); }
         final JsonArray effects = waitingEffectsJson(game);
@@ -2348,7 +2376,8 @@ public final class PlayBridge {
             frame.addProperty("kind", "ask");
             frame.addProperty("callId", callId);
             frame.addProperty("method", method);
-            final JsonObject source = askSource();
+            // The ask goes whether or not its source can be read: one that never went parks Forge for good.
+            final JsonObject source = orNull("askSource", this::askSource);
             if (source != null) { frame.add("source", source); }
             pending.put(callId, ask);
             broadcastIfWaiting();
@@ -2488,7 +2517,7 @@ public final class PlayBridge {
         @Override
         public void setGameView(final GameView gameView, final long sequenceNumber) {
             // Wave 33 §S item 4 — before anything else: see `maybeEmitGameOverFirst`'s doc.
-            maybeEmitGameOverFirst();
+            guarded("gameover", PlayBridge::maybeEmitGameOverFirst);
             super.setGameView(gameView, sequenceNumber);
             final GameView view = getGameView();
             if (view == null) { return; }
@@ -2525,7 +2554,7 @@ public final class PlayBridge {
         @Override
         public void applyDelta(final DeltaPacket packet) {
             // Wave 33 §S item 4 — before anything else: see `maybeEmitGameOverFirst`'s doc.
-            maybeEmitGameOverFirst();
+            guarded("gameover", PlayBridge::maybeEmitGameOverFirst);
             // A REAL packet that happens to carry Mulligan (every normal input syncs
             // fine; only InputLondonMulligan's two no-sync calls do not, see
             // `syncMulliganFlag`) is what this seat was just told — record it so a
@@ -2620,6 +2649,11 @@ public final class PlayBridge {
          * seat that once saw {@code Mulligan: true} would fold it forever.
          */
         private void syncMulliganFlag() {
+            // Called ahead of a prompt, a bar, an ask and a delta: none of them waits on it.
+            guarded("syncMulliganFlag", this::syncMulliganFlagNow);
+        }
+
+        private void syncMulliganFlagNow() {
             final Boolean live = liveMulliganFlag();
             if (live == null) { return; }
             final Boolean last = lastToldMulligan;
@@ -2682,7 +2716,7 @@ public final class PlayBridge {
         @Override public void afterGameEnd() { frame(notify("afterGameEnd")); }
         @Override public void finishGame() {
             // The `gameover` line goes first, so the server has told every seat before this arrives.
-            maybeEmitGameOverFirst();
+            guarded("gameover", PlayBridge::maybeEmitGameOverFirst);
             frame(notify("finishGame"));
         }
         @Override public void clearSelectables() {
@@ -2734,12 +2768,7 @@ public final class PlayBridge {
 
         /** One of {@link #showPromptMessage}'s reads of Forge, or null when it throws: the prompt goes without it. */
         private static <T> T decoration(final String name, final java.util.function.Supplier<T> read) {
-            try {
-                return read.get();
-            } catch (final RuntimeException e) {
-                System.err.println("[bridge] showPromptMessage: " + name + " could not be read (" + e + "); the prompt goes without it");
-                return null;
-            }
+            return orNull("showPromptMessage: " + name, read);
         }
 
         /**
