@@ -1,0 +1,21 @@
+# Armored Armadillo's own Ward {1} trigger counters a spell it names by a
+# DEFINED reference (Forge's own generated trigger, `CardFactoryUtil.java`:
+# "DB$ Counter | Defined$ TriggeredSourceSA | ...", never `ValidTgts`), not
+# by targeting the stack back — the shape `PlayBridge.stackTargetOf` missed
+# until it also read a Counter effect's Defined victim. Modelled on
+# `auto-target.state` (Doom Blade, mandatory, single legal target — Armored
+# Armadillo, colorless and so nonblack, is the only creature out): alice has
+# exactly {1}{B}, enough to cast it and nothing left to pay ward's {1}.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Doom Blade
+humanbattlefield=Swamp;Swamp
+humanlibrary=Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Armored Armadillo
+ailibrary=Mountain;Mountain;Mountain;Mountain
+aigraveyard=
