@@ -118,6 +118,8 @@ const ISD_DFC_FRONTS = new Set([
 
 describe.skipIf(!available.ok)(title, () => {
 	let pools: ForgePools | null = null;
+	/** Every `pool-stderr` text the service wrote, for what reaches the server's log. */
+	const stderr: string[] = [];
 
 	afterAll(async () => {
 		if (pools !== null) await pools.close();
@@ -126,7 +128,10 @@ describe.skipIf(!available.ok)(title, () => {
 	/** Thrown only if a test body somehow runs without the `available.ok` guard below — never in practice. */
 	function service(): ForgePools {
 		if (!available.ok) throw new Error(available.reason);
-		pools ??= createForgePools(available.config, (entry) => console.log(`[forge.jvm] ${JSON.stringify(entry)}`));
+		pools ??= createForgePools(available.config, (entry) => {
+			if (entry.evt === 'pool-stderr') stderr.push(String(entry.text));
+			console.log(`[forge.jvm] ${JSON.stringify(entry)}`);
+		});
 		return pools;
 	}
 
@@ -255,4 +260,15 @@ describe.skipIf(!available.ok)(title, () => {
 			}
 		},
 	);
+
+	// Forge prints a line per booster slot to System.out (`BoosterGenerator`, `BoosterSlot`): two-thirds of the
+	// server's log. The service counts them instead, one summary line a phase; Forge's warnings still pass.
+	it('logs one summary line for a phase of Forge’s own output, never the lines themselves', { timeout: 60_000 }, async () => {
+		if (!available.ok) return;
+		stderr.length = 0;
+		await service().boosters('ISD', 3, 'quiet-log');
+		const lines = stderr.flatMap((t) => t.split('\n')).filter((l) => l.trim() !== '');
+		expect(lines.filter((l) => /^\d+ of type |^Attempting to lookup: |^Parsing from main code: |^Replaced a base slot! /.test(l)), 'Forge’s per-slot chatter').toEqual([]);
+		expect(lines.some((l) => /^\[PoolService\] boosters: \d+ lines of Forge output in \d+ ms$/.test(l)), `one summary for the draw: ${JSON.stringify(lines)}`).toBe(true);
+	});
 });
