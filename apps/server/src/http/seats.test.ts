@@ -232,7 +232,7 @@ describe('a room stored before the lobby held its seats', () => {
 		const path = join(s.dir, file!);
 		const snapshot = JSON.parse(await readFile(path, 'utf8')) as {
 			members: { participantId: string; app: { state: Record<string, unknown>; ready: boolean } | null }[];
-			app: { tables: Record<string, unknown>[]; gauntlet?: unknown };
+			app: { tables: Record<string, unknown>[]; gauntlet?: unknown; gauntlets?: unknown };
 		};
 		const table = snapshot.app.tables[0]!;
 		const blob = (id: string) => snapshot.members.find((m) => m.participantId === id)!.app!.state;
@@ -241,7 +241,11 @@ describe('a room stored before the lobby held its seats', () => {
 		Object.assign(blob(ALICE.id), { seatedAt: 200, ready: true });
 		table.seats = [null, null];
 		delete table.ready;
+		// The pre-tournament, one-per-room shape — predates `gauntlets` (per table),
+		// which the CURRENT `boot()` already persisted as `{}` above; dropped so
+		// this fixture is the legacy record it means to be, not a mix of both.
 		snapshot.app.gauntlet = { phase: 'options', ready: [false, true], players: null, era: null, revealAt: null, first: null, decks: [], marks: [], stepIndex: 0, taken: 0, games: [], choices: [null, null], winner: null };
+		delete snapshot.app.gauntlets;
 		await writeFile(path, JSON.stringify(snapshot));
 		return boot(s.dir, s.roomId);
 	}

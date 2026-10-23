@@ -17,15 +17,20 @@ const library = loadTablesLibrary(REPO_ROOT);
 interface Harness {
 	url: string;
 	room: GauntletRoom & { format: string };
-	stored: () => GauntletState | null;
+	/** `tableId` defaults to the room's first table — a plain one-table harness never has to name it. */
+	stored: (tableId?: string) => GauntletState | null;
 	/** Run every timer that is due, in order, as often as they re-arm. */
 	flush: () => void;
 	timers: { ms: number; fn: () => void }[];
-	dealt: { decks: [string, string]; players: [GauntletPlayer, GauntletPlayer]; era: string }[];
+	dealt: { tableId: string; decks: [string, string]; players: [GauntletPlayer, GauntletPlayer]; era: string }[];
 	clock: { now: number };
 	logs: Record<string, unknown>[];
 	handle: GauntletHandle;
 	server: Server;
+	/** Stands in for `room/lobby.ts`'s `Lobby.tournamentPairingOf`, by table id. Empty for a plain (non-tournament) harness. */
+	pairings: Record<string, { entrants: [string, string]; locked: boolean } | null>;
+	/** Stands in for `Lobby.lockedDeckOf`/`setLockedDeck`, by entrant id. */
+	locked: Record<string, string[]>;
 }
 
 let open: Harness | null = null;
@@ -35,42 +40,72 @@ afterEach(async () => {
 });
 
 async function boot(seated: string[], modeOptions: GauntletRoom['modeOptions'] = { family: 'modern' }): Promise<Harness> {
-	let gauntlet: GauntletState | null = null;
-	const ready = new Set<string>();
-	const room: GauntletRoom & { format: string } = {
-		id: 'r-1',
-		gameType: 'constructed-1v1',
-		mode: 'gauntlet',
-		modeOptions,
-		format: '2016-07-22',
+	return bootRoom({
 		members: [
 			{ id: 'alice', name: 'Alice' },
 			{ id: 'bob', name: 'Bob' },
 			{ id: 'carol', name: 'Carol' },
 		],
+		modeOptions,
+		tables: [{ id: 't-1', seated }],
+	});
+}
+
+/**
+ * The harness `boot` built, generalised to any number of tables (and their
+ * own seated lists) of ONE room — a tournament round's several Gauntlet
+ * tables, proved against the real `attachGauntlet` router exactly as a
+ * single table already is, just not through `http/routes.ts`'s own adapter
+ * (which this lane could not touch — see the lane's report). `pairings` and
+ * `locked`, on the returned harness, stand in for `room/lobby.ts`'s
+ * `tournamentPairingOf` / `lockedDeckOf`+`setLockedDeck`, mutable per test.
+ */
+async function bootRoom(input: {
+	members: { id: string; name: string }[];
+	modeOptions?: GauntletRoom['modeOptions'];
+	tables: { id: string; seated: string[] }[];
+}): Promise<Harness> {
+	const gauntlets = new Map<string, GauntletState>();
+	const readyBy = new Map<string, Set<string>>();
+	for (const t of input.tables) readyBy.set(t.id, new Set());
+	const seatedBy = new Map(input.tables.map((t) => [t.id, t.seated]));
+	const pairings: Record<string, { entrants: [string, string]; locked: boolean } | null> = {};
+	const locked: Record<string, string[]> = {};
+	const room: GauntletRoom & { format: string } = {
+		id: 'r-1',
+		gameType: 'constructed-1v1',
+		mode: 'gauntlet',
+		modeOptions: input.modeOptions ?? { family: 'modern' },
+		format: '2016-07-22',
+		members: input.members,
 		ai: { name: 'Sage' },
-		tables: [{ id: 't-1', matchId: null }],
+		tables: input.tables.map((t) => ({ id: t.id, matchId: null })),
 	};
 	const timers: Harness['timers'] = [];
 	const dealt: Harness['dealt'] = [];
 	const logs: Record<string, unknown>[] = [];
 	let n = 0;
 	const clock = { now: 1_760_000_000_000 };
-	const tables = express.Router();
-	const handle = attachGauntlet(tables, {
+	const tablesRouter = express.Router();
+	const handle = attachGauntlet(tablesRouter, {
 		rooms: {
 			get: (id) => (id === room.id ? room : undefined),
 			list: () => [room],
-			gauntlet: () => gauntlet,
-			setGauntlet: (_id, g) => {
-				gauntlet = g;
+			gauntlet: (_id, tableId = room.tables[0]!.id) => gauntlets.get(tableId) ?? null,
+			setGauntlet: (_id, g, tableId = room.tables[0]!.id) => {
+				if (g === null) gauntlets.delete(tableId);
+				else gauntlets.set(tableId, g);
 				return true;
 			},
+			tournamentPairingOf: (_id, tableId) => pairings[tableId] ?? null,
+			lockedPicksOf: (_id, entrant) => locked[entrant] ?? null,
+			storeLockedPicks: (_id, entrant, picks) => void (locked[entrant] = picks),
 		},
 		library,
-		seated: () => seated.map((id) => ({ memberId: id, name: room.members.find((m) => m.id === id)!.name, ready: ready.has(id) })),
-		setReady: (_room, id, on) => void (on ? ready.add(id) : ready.delete(id)),
-		dealGame: (_room, decks, players, era) => dealt.push({ decks, players, era }),
+		seated: (_room, tableId = room.tables[0]!.id) =>
+			(seatedBy.get(tableId) ?? []).map((id) => ({ memberId: id, name: room.members.find((m) => m.id === id)!.name, ready: readyBy.get(tableId)!.has(id) })),
+		setReady: (_room, id, on, tableId = room.tables[0]!.id) => void (on ? readyBy.get(tableId)!.add(id) : readyBy.get(tableId)!.delete(id)),
+		dealGame: (_room, decks, players, era, tableId = room.tables[0]!.id) => dealt.push({ tableId, decks, players, era }),
 		now: () => clock.now,
 		callerOf: (req) => String(req.headers['x-test-user']),
 		// A fixed walk through [0, 1), so a run is the same every time.
@@ -79,7 +114,7 @@ async function boot(seated: string[], modeOptions: GauntletRoom['modeOptions'] =
 		schedule: (fn, ms) => timers.push({ ms, fn }),
 	});
 	const app = express();
-	app.use('/api/tables', tables);
+	app.use('/api/tables', tablesRouter);
 	const server = createServer(app);
 	await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
 	const flush = (): void => {
@@ -88,7 +123,7 @@ async function boot(seated: string[], modeOptions: GauntletRoom['modeOptions'] =
 	open = {
 		url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/tables`,
 		room,
-		stored: () => gauntlet,
+		stored: (tableId = room.tables[0]!.id) => gauntlets.get(tableId) ?? null,
 		flush,
 		timers,
 		dealt,
@@ -96,6 +131,8 @@ async function boot(seated: string[], modeOptions: GauntletRoom['modeOptions'] =
 		logs,
 		handle,
 		server,
+		pairings,
+		locked,
 	};
 	return open;
 }
@@ -109,10 +146,21 @@ async function call(h: Harness, user: string, path: string, body?: unknown): Pro
 	return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
-async function view(h: Harness, user: string): Promise<GauntletView> {
-	const res = await call(h, user, '/rooms/r-1/gauntlet');
+async function view(h: Harness, user: string, table?: string): Promise<GauntletView> {
+	const res = await call(h, user, `/rooms/r-1/gauntlet${table === undefined ? '' : `?table=${encodeURIComponent(table)}`}`);
 	expect(res.status).toBe(200);
 	return GauntletViewSchema.parse(res.body);
+}
+
+/** Every act of a table's banpick, alternating seats as the snake's own step says — `table`'s picks and bans, as `drawn`/`view` already read them, just over the real HTTP router. */
+async function runBanpick(h: Harness, table: string, seats: readonly [string, string]): Promise<GauntletView> {
+	let v = await view(h, seats[0], table);
+	while (v.phase === 'banpick') {
+		const deck = v.decks.find((d) => d.status === 'open')!.id;
+		await call(h, seats[v.step!.seat], '/rooms/r-1/gauntlet/act', { act: v.step!.act, deck, table });
+		v = await view(h, seats[0], table);
+	}
+	return v;
 }
 
 const ME = ['alice', 'bob'] as const;
@@ -243,7 +291,7 @@ describe('the Gauntlet routes', () => {
 			expect(JSON.stringify(res.body)).not.toContain(`"mine":"${mine}"`);
 			expect((res.body.choice as { chosen: boolean[] }).chosen).toEqual([true, false]);
 		}
-		expect(h.logs.filter((l) => l.evt === 'gauntlet-chose')).toEqual([{ evt: 'gauntlet-chose', room: 'r-1', seat: 0 }]);
+		expect(h.logs.filter((l) => l.evt === 'gauntlet-chose')).toEqual([{ evt: 'gauntlet-chose', room: 'r-1', table: 't-1', seat: 0 }]);
 		expect(h.dealt).toEqual([]);
 
 		// Both chosen: the game is dealt, and still nobody but its chooser is told a deck until it is over.
