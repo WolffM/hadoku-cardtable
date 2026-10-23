@@ -42,6 +42,7 @@ vi.mock('@wolffm/prefs-client/react', () => ({
 }));
 
 import { App } from '../App.tsx';
+import { DISCORD_INVITE_URL } from './DiscordLink.tsx';
 
 afterEach(() => {
   cleanup();
@@ -77,6 +78,19 @@ describe('the standard child-app header', () => {
     // The heading stays INSIDE the link — the shape `AppHeader`'s node title is
     // documented for, and what keeps the page with an <h1> at all.
     expect(title.querySelector('h1')?.textContent).toBe(__HADOKU_APP_NAME__);
+  });
+});
+
+describe('the Discord link', () => {
+  it('sits in the header actions, before the theme picker, and opens the invite in a new tab', () => {
+    render(createElement(App));
+
+    const link = screen.getByRole('link', { name: 'Discord' });
+    expect(link.getAttribute('href')).toBe(DISCORD_INVITE_URL);
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    const actions = link.closest('.app-header__actions');
+    expect(actions?.firstElementChild).toBe(link);
   });
 });
 

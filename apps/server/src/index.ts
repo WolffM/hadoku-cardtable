@@ -75,6 +75,7 @@ import { podPickNumber } from '@hadoku/draft';
 import { CONFIG, INDEX_HTML } from './config.js';
 import { edgeProvenance, requireMinTier, tierOf, userIdOf } from './edge-auth.js';
 import { checkBundle, diagnosticPage, isEmbedEntry, sendIndex } from './base-path.js';
+import { announceRelease } from './announce.js';
 import { restoreRooms, sweepRooms } from './boot.js';
 import { DEFAULT_CUBE_ID, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from './room/draftRooms.js';
 import { checkCards, checkPlan } from './room/plan.js';
@@ -897,4 +898,11 @@ httpServer.listen(CONFIG.port, CONFIG.host, () => {
 	} else {
 		console.log(`[cardtable] ${basePath.detail}`);
 	}
+	void announceRelease({
+		releasesDir: resolve(REPO_ROOT, 'docs/releases'),
+		secret: CONFIG.archivebotSecret,
+		archivebotUrl: CONFIG.archivebotUrl,
+		appUrl: `https://hadoku.me${CONFIG.basePrefix}/`,
+		log: jsonLogger('cardtable-release'),
+	});
 });

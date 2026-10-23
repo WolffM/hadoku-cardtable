@@ -33,8 +33,10 @@
    It refuses unless `check` is green on that sha, the notes file is on it, and the tag is
    new. Then it dispatches the prod redeploy for that exact sha and tags `release/vX.Y.Z`.
 7. **Confirm prod.** `/health` on 9008 reports the deployed bundle (see the memory note
-   "Confirm a deploy from /health"). Once announce-on-boot lands (it waits on ArchiveBot), prod
-   posts the notes to Discord's `#announcements` when it boots on the release. Until then, post them by hand.
+   "Confirm a deploy from /health"). Prod posts the notes to Discord's `#announcements` when it
+   boots on the release: look for `"svc":"cardtable-release"` with `outcome: posted` (or
+   `already-posted` on a restart) in `pm2 logs cardtable`. A `failed` line says why; the next boot
+   retries.
 
 ## Notes file shape
 

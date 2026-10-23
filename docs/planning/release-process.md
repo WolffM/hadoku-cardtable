@@ -46,12 +46,13 @@ operator: "cut a release" ──► scripts/release/collect.ts ──► agent d
   and commit subjects since the previous `release/*` tag. An agent writes `docs/releases/vX.Y.Z.md`
   from them in plain language, the operator edits it, and it lands on main like any doc (a docs-only
   change doesn't redeploy PPE).
-- **The announcement rides with the deploy.** When prod boots on a release whose notes it hasn't
-  announced, it posts them through ArchiveBot (`/api/messages/send` with embeds; idempotency key
-  `cardtable-release-vX.Y.Z`) and records that in its `data/`. PPE has no announce channel
-  configured and never posts. A posting failure is logged and retried next boot, and never blocks
-  serving. This waits on ArchiveBot Asks 1–2 and the hadoku_site secret
-  (`docs/requests/ARCHIVEBOT_DISCORD_INTEGRATION.md`).
+- **The announcement rides with the deploy.** Every boot, prod posts the newest
+  `docs/releases/vX.Y.Z.md` through ArchiveBot (`/api/messages/send` with embeds; idempotency key
+  `cardtable-release-vX.Y.Z`, which ArchiveBot dedupes for 7 days, so a restart posts nothing new
+  and nothing is recorded in `data/`). PPE's wrapper doesn't hold `ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET`,
+  so PPE skips. A posting failure is logged (`svc: cardtable-release`) and retried next boot, and
+  never blocks serving. `apps/server/src/announce.ts`; contract in
+  `docs/requests/ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md`.
 
 ## Isolation: what each environment gets
 
@@ -81,7 +82,7 @@ install step writes the per-pin file instead of flipping a shared link.
 | cardtable | Vite `base` from `CARDTABLE_BASE_PREFIX` (app and embed builds) | **done** `a90b319a` |
 | cardtable | `scripts/release/collect.ts`, `.github/workflows/release.yml`, `docs/RELEASE.md` | **done** `a90b319a` |
 | cardtable | `redeploy.yml` dispatches `cardtable-ppe` instead of `cardtable` | **done** with v0.33.0's notes; `build-jar.sh` lost `--switch` (each wrapper loads its own pin's jar) |
-| cardtable | announce-on-boot through ArchiveBot | after ArchiveBot Asks 1–2 |
+| cardtable | announce-on-boot through ArchiveBot | **done** (`apps/server/src/announce.ts`); ArchiveBot `3f7b300`, secret in prod's wrapper at hadoku_site `e7809ee6` |
 
 ## Cutover
 

@@ -55,8 +55,10 @@ before planning cross-game work.
   a public or anonymous tier, not even "just for drafting".
 - **GPL-3.0-or-later** applies to this whole repo (we vendored Forge). Don't
   strip Forge's per-file copyright headers.
-- **No `.env`.** Secrets, if any ever exist, come from the vault broker. This app
-  should hold none.
+- **No `.env`.** Secrets come from the vault broker through the PM2 wrapper. The
+  app holds two: its stats service key and ArchiveBot's webhook secret
+  (`ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET`, prod only, for release notes). Never add one
+  without a vault key behind it.
 
 ## Layout
 

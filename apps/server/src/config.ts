@@ -92,6 +92,16 @@ export const CONFIG = {
 	/** The prefs mount the stats are reported to, without `/api/v1`. */
 	statsBaseUrl: process.env.CARDTABLE_STATS_BASE_URL || 'https://hadoku.me/prefs',
 
+	/**
+	 * ArchiveBot's webhook secret for this app, from the vault via the PM2 wrapper. Prod's wrapper
+	 * holds it and PPE's does not, which is what keeps release notes a prod-only post. Unset = the
+	 * boot announcement is skipped (`announce.ts`).
+	 */
+	archivebotSecret: process.env.ARCHIVEBOT_CARDTABLE_WEBHOOK_SECRET || '',
+
+	/** ArchiveBot's webhook server, on loopback beside this one. */
+	archivebotUrl: process.env.CARDTABLE_ARCHIVEBOT_URL || 'http://127.0.0.1:3004',
+
 	/** Structured access log destination (gitignored, created on boot). */
 	logDir: LOG_DIR,
 

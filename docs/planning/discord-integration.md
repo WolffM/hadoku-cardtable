@@ -18,9 +18,9 @@ The operator's words are quoted verbatim. **Design** is ours and may change.
 
 | # | Track | Owner | State |
 | --- | --- | --- | --- |
-| 1 | Discord icon in the top bar, between theme picker and gear | hadoku-task (lib), hadoku_site (contract, templates), then cardtable | Request sent: `docs/requests/HADOKU_SITE_HEADER_LINKS.md` |
-| 2 | The Discord server itself | operator (create), ArchiveBot (channels/roles/invite) | Layout proposed below; needs the operator to create the guild |
-| 3 | Automation: patch notes, tournament events, later linking + room announcements | ArchiveBot | Request sent: `ArchiveBot/docs/requests/CARDTABLE_DISCORD_INTEGRATION.md` (copy in `docs/requests/ARCHIVEBOT_DISCORD_INTEGRATION.md`) |
+| 1 | Discord icon in the top bar, between theme picker and gear | hadoku-task (lib), hadoku_site (contract, templates), then cardtable | **Live** in `status` (left of the picker), `apps/ui/src/chrome/DiscordLink.tsx`; moves between picker and gear when the `links` slot ships (`docs/requests/HADOKU_SITE_HEADER_LINKS.md`) |
+| 2 | The Discord server itself | operator (create), ArchiveBot (channels/roles/invite) | **Live** 2026-10-23: guild `1563307288406786078`, set up by ArchiveBot's `/setup cardtable`; invite `https://discord.gg/VvntUGQVwm` (permanent, joins as Player) |
+| 3 | Automation: patch notes, tournament events, later linking + room announcements | ArchiveBot | Patch notes **live** (`apps/server/src/announce.ts`, prod boot). Tournament events: ArchiveBot's routes are ready (`/api/events/create`, key `cardtable-tournament-<id>`; keep `eventId` for update/cancel) and wait on tournaments having a scheduled start. Contract: `docs/requests/ARCHIVEBOT_DISCORD_INTEGRATION_REPLY.md` |
 
 ## 1. Top bar
 

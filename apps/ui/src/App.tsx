@@ -38,6 +38,7 @@ import { Screen, type ScreenProps } from './screens/Screen.tsx';
 import { useRoute } from './screens/route.ts';
 import { setScreenMusic } from './sound/index.ts';
 import { AppChrome } from './chrome/AppChrome.tsx';
+import { DiscordLink } from './chrome/DiscordLink.tsx';
 import { RoomShell } from './room/RoomShell.tsx';
 import { useWhoami } from './room/whoami.ts';
 import { roomsClient } from './rooms/api.ts';
@@ -227,7 +228,7 @@ export function App({ transport }: AppProps) {
           <h1 className="cardtable-chrome__home-name">{__HADOKU_APP_NAME__}</h1>
         </a>
       }
-      // NO `status`. The viewer's name used to render here, and that was a
+      // NO name in `status`. The viewer's name used to render here, and that was a
       // deliberate break with the fleet's convention — identity lives in the
       // gear's popout and nowhere else. The justification was that the
       // operator had reported seeing `anon` where their name belongs, but the
@@ -237,6 +238,9 @@ export function App({ transport }: AppProps) {
       // top, that shows in the settings menu. why'd you break protocol with
       // this? this is not the standard header."* Do not reinstate it.
       //
+      // The slot holds the Discord link instead, until the header's `links`
+      // slot ships — see `chrome/DiscordLink.tsx`.
+      status={<DiscordLink />}
       // Identity the page already knows, so the popout does not re-resolve it.
       // `ConnectedSettings` otherwise calls its own `whoami()` against
       // `/session/whoami`, which is a second identity path to the same fact.
