@@ -158,8 +158,12 @@ export const BOLT_STAGGER_MS = 300;
 const drawing = new Set<Promise<void>>();
 const stillWaiters = new Set<() => void>();
 
+/** When a view last began drawing beats (epoch ms), for a held frame's report. */
+let lastBeatAt: number | null = null;
+
 /** `live/numbers.ts` is drawing a view's beats: the board is busy until `over` settles. */
 export function noteBoardDrawing(over: Promise<unknown>): void {
+  lastBeatAt = Date.now();
   const settled = over.then(
     () => undefined,
     () => undefined,
@@ -180,6 +184,17 @@ export function boardDrawing(): number {
   return drawing.size;
 }
 
+/** What a frame the board held past the pacer's cap was waiting on: the views still drawing, the beats by name, and when the last view began. */
+export interface BoardHold {
+  drawing: number;
+  waitingOn: string;
+  lastBeatAt: number | null;
+}
+
+export function boardHold(): BoardHold {
+  return { drawing: drawing.size, waitingOn: boardWaitingOn(), lastBeatAt };
+}
+
 /** Runs `done` once nothing the board is drawing is still playing — at once when it is still. Returns a cancel. */
 export function whenBoardStill(done: () => void): () => void {
   if (drawing.size === 0) {
@@ -193,9 +208,46 @@ export function whenBoardStill(done: () => void): () => void {
 }
 
 /**
- * Settles once every finite animation running on `root` and inside it has finished — a ram, a crash,
- * a crumble, a floating number — looking again after each round, since one may start another. An
- * endless one (a pulse, a shimmer) is not motion that ends, and is not waited for.
+ * The id every beat's own Web Animation carries (`live/ram.ts`, `live/crash.ts`, `live/projectile.ts`): what
+ * {@link animationsSettled} waits for, beside the beats' stylesheet animations ({@link BEAT_KEYFRAMES}).
+ */
+export const BEAT_ANIMATION_ID = 'beat';
+
+/**
+ * The keyframes a beat draws with: a card leaving (`departures.css`), a floating number (`numbers.css`), a hit,
+ * a crash or a bolt (`numbers.css`, `crash.css`, `projectile.css`), a spell resolving or countered (`placed.css`).
+ */
+const BEAT_KEYFRAMES = ['board-exit-', 'board-number-', 'effect-', 'placed-'] as const;
+
+/** A running animation's name: its id, a stylesheet animation's keyframes, or the property a transition moves. */
+function animationName(a: Animation): string {
+  const named = a as Animation & { animationName?: string; transitionProperty?: string };
+  if (typeof named.animationName === 'string' && named.animationName !== '') return named.animationName;
+  if (typeof named.transitionProperty === 'string' && named.transitionProperty !== '') return `transition:${named.transitionProperty}`;
+  return a.id === '' ? 'unnamed' : a.id;
+}
+
+function isBeat(a: Animation): boolean {
+  const name = animationName(a);
+  return name === BEAT_ANIMATION_ID || BEAT_KEYFRAMES.some((prefix) => name.startsWith(prefix));
+}
+
+/** What the board's beats are still waiting on, counted by name (`beat×2 board-number-rise×1`), for a held frame's report. */
+let waitingOn: readonly Animation[] = [];
+
+export function boardWaitingOn(): string {
+  const counts = new Map<string, number>();
+  for (const a of waitingOn) if (a.playState !== 'finished' && a.playState !== 'idle') counts.set(animationName(a), (counts.get(animationName(a)) ?? 0) + 1);
+  return [...counts].map(([name, n]) => `${name}×${n}`).join(' ');
+}
+
+/**
+ * Settles once every finite BEAT running on `root` and inside it has finished — a ram, a crash, a crumble, a
+ * floating number — looking again after each round, since one may start another. Anything else the board is
+ * animating is not a beat and is not waited for: an endless one (a pulse, a shimmer), and a finite one that is
+ * no beat (the turn's banner, the stack settling, a glide). Waiting on those held the next frame, and the
+ * decision behind it, until the pacer's cap with nothing left to draw (the operator, 2026-10-23, of the holds
+ * that idled past their last beat: "fix stray holds").
  */
 export function animationsSettled(root: Element): Promise<void> {
   return new Promise((resolve) => {
@@ -203,7 +255,8 @@ export function animationsSettled(root: Element): Promise<void> {
       if (typeof root.getAnimations !== 'function') return resolve();
       const running = root
         .getAnimations({ subtree: true })
-        .filter((a) => a.playState !== 'finished' && a.playState !== 'idle' && a.effect?.getComputedTiming().endTime !== Infinity);
+        .filter((a) => a.playState !== 'finished' && a.playState !== 'idle' && a.effect?.getComputedTiming().endTime !== Infinity && isBeat(a));
+      waitingOn = running;
       if (running.length === 0) return resolve();
       void Promise.allSettled(running.map((a) => a.finished)).then(look);
     };

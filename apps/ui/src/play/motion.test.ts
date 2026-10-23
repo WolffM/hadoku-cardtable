@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { afterGlide, animationsSettled, damagePower, GLIDE_MS, MAX_DAMAGE, noteBoardDrawing, powerSize, whenBoardStill } from './motion.ts';
+import { afterGlide, animationsSettled, BEAT_ANIMATION_ID, boardWaitingOn, damagePower, GLIDE_MS, MAX_DAMAGE, noteBoardDrawing, powerSize, whenBoardStill } from './motion.ts';
 
 afterEach(() => {
   vi.useRealTimers();
@@ -95,10 +95,10 @@ describe('afterGlide', () => {
 });
 
 /** An animation the test finishes by hand, with how long its timing says it runs. */
-function running(endTime: number): { anim: Animation; end: () => void } {
+function running(endTime: number, name: { id?: string; animationName?: string; transitionProperty?: string } = { id: BEAT_ANIMATION_ID }): { anim: Animation; end: () => void } {
   let resolve!: () => void;
   const finished = new Promise<void>((res) => (resolve = res));
-  const anim = { playState: 'running', finished, effect: { getComputedTiming: () => ({ endTime }) } } as unknown as Animation;
+  const anim = { playState: 'running', finished, effect: { getComputedTiming: () => ({ endTime }) }, id: '', ...name } as unknown as Animation;
   const end = (): void => {
     (anim as { playState: string }).playState = 'finished';
     resolve();
@@ -152,6 +152,28 @@ describe('the board’s stillness', () => {
     crash.end();
     await settle();
     expect(settled).toBe(true);
+  });
+
+  it('animationsSettled waits for the beats only: a turn banner, a stack settling or a glide under the board holds nothing', async () => {
+    const ram = running(1200);
+    const rise = running(900, { animationName: 'board-number-rise' });
+    const banner = running(2400, { animationName: 'turn-cue' });
+    const glide = running(300, { transitionProperty: 'left' });
+    let anims = [ram.anim, rise.anim, banner.anim, glide.anim];
+    const root = { getAnimations: () => anims } as unknown as Element;
+    let settled = false;
+    void animationsSettled(root).then(() => (settled = true));
+    await settle();
+    expect(boardWaitingOn(), 'what the board waits on, by name').toBe('beat×1 board-number-rise×1');
+    ram.end();
+    anims = [rise.anim, banner.anim, glide.anim];
+    await settle();
+    expect(settled, 'the number still rises').toBe(false);
+    rise.end();
+    anims = [banner.anim, glide.anim];
+    await settle();
+    expect(settled, 'the banner and the glide are not beats').toBe(true);
+    expect(boardWaitingOn()).toBe('');
   });
 });
 

@@ -25,7 +25,7 @@
 
 import type { ManaColor } from '@hadoku/shared';
 
-import { powerEase, powerSize } from '../motion.ts';
+import { BEAT_ANIMATION_ID, powerEase, powerSize } from '../motion.ts';
 
 import './projectile.css';
 
@@ -118,7 +118,7 @@ export function fly(root: HTMLElement, start: Point, end: Point, key: string, lo
     return ball;
   }
   const run = (el: HTMLElement, delay: number): void => {
-    el.animate(frames, { duration: ms, delay, easing: powerEase(power ?? 1), fill: 'both' }).finished.then(
+    el.animate(frames, { id: BEAT_ANIMATION_ID, duration: ms, delay, easing: powerEase(power ?? 1), fill: 'both' }).finished.then(
       () => el.remove(),
       () => el.remove(),
     );

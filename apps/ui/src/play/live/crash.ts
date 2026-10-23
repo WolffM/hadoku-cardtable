@@ -9,7 +9,7 @@
  * give the page a scrollbar (table-fit). Reduced motion: none of it.
  */
 
-import { powerSize } from '../motion.ts';
+import { BEAT_ANIMATION_ID, powerSize } from '../motion.ts';
 import { seedOf } from './projectile.ts';
 import './crash.css';
 
@@ -84,7 +84,7 @@ export function crash(root: HTMLElement, at: Point, power: number, key: string):
           { offset: 0.4, translate: `${(rock.dx * 0.55).toFixed(1)}px ${(rock.dy * 0.4 - rock.lift).toFixed(1)}px`, opacity: 1 },
           { translate: `${rock.dx.toFixed(1)}px ${rock.dy.toFixed(1)}px`, rotate: `${rock.spin.toFixed(0)}deg`, opacity: 0 },
         ],
-        { duration: CRASH_MS * (0.75 + 0.25 * seedOf(`${key}:t`)), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
+        { id: BEAT_ANIMATION_ID, duration: CRASH_MS * (0.75 + 0.25 * seedOf(`${key}:t`)), easing: 'cubic-bezier(0.2, 0.6, 0.5, 1)', fill: 'forwards' },
       );
     }
   }
@@ -124,7 +124,7 @@ export function shake(board: HTMLElement, amount: number, key: string): () => vo
   frames.push({ translate: '0px 0px' });
   const holder = board.parentElement;
   holder?.setAttribute(SHAKING_ATTR, '');
-  const anim = board.animate(frames, { duration: ms, easing: 'linear', composite: 'add' });
+  const anim = board.animate(frames, { id: BEAT_ANIMATION_ID, duration: ms, easing: 'linear', composite: 'add' });
   const done = (): void => holder?.removeAttribute(SHAKING_ATTR);
   anim.finished.then(done, done);
   return () => anim.cancel();

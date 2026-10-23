@@ -604,6 +604,27 @@ describe('pacedMatchTransport: one act at a time', () => {
     expect(received).toEqual([BLOW]);
   });
 
+  it('a hold that reaches the cap is reported, with what the board was still waiting on; one the board frees is not', async () => {
+    const inner = fakeInner();
+    const board = fakeBoard();
+    const reports: unknown[] = [];
+    const { received } = paced(inner, {
+      boardStill: board.still,
+      report: (r) => reports.push(r),
+      boardHold: () => ({ drawing: 1, waitingOn: 'turn-cue×1', lastBeatAt: null }),
+    });
+    board.busy(true);
+    inner.deliver(BLOW);
+    await vi.advanceTimersByTimeAsync(BOARD_HOLD_MAX_MS);
+    expect(received).toEqual([BLOW]);
+    expect(reports).toEqual([{ what: 'board-hold-capped', method: 'applyDelta', pace: 'default', ms: BOARD_HOLD_MAX_MS, drawing: 1, waitingOn: 'turn-cue×1', lastBeatMs: -1 }]);
+    inner.deliver(ATTACK);
+    await vi.advanceTimersByTimeAsync(PACE_DELAYS_MS.default + 10);
+    board.busy(false);
+    await vi.advanceTimersByTimeAsync(BOARD_HOLD_MAX_MS);
+    expect(reports, 'a hold the board ends in time says nothing').toHaveLength(1);
+  });
+
   it('Fast Mode holds nothing for the board, and turning it on lets a held frame go', async () => {
     const inner = fakeInner();
     const board = fakeBoard();

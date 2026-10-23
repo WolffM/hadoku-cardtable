@@ -41,7 +41,7 @@
  * Reduced motion: none.
  */
 
-import { homeEase, powerEase } from '../motion.ts';
+import { BEAT_ANIMATION_ID, homeEase, powerEase } from '../motion.ts';
 import { copyOfCard } from './departures.ts';
 import { along, seedOf } from './projectile.ts';
 import './ram.css';
@@ -423,7 +423,7 @@ function mover(root: HTMLElement, source: HTMLElement, from: Box): { el: HTMLEle
 
 /** Run `parts` on `el` (each from its own delay), then `done` when the last is over; returns a cancel. */
 function play(el: HTMLElement, parts: readonly { frames: Keyframe[]; delay: number; duration: number; easing?: string }[], done: () => void): () => void {
-  const anims = parts.map((p) => el.animate(p.frames, { delay: p.delay, duration: p.duration, easing: p.easing ?? 'linear', fill: 'forwards' }));
+  const anims = parts.map((p) => el.animate(p.frames, { id: BEAT_ANIMATION_ID, delay: p.delay, duration: p.duration, easing: p.easing ?? 'linear', fill: 'forwards' }));
   const last = anims[anims.length - 1]!;
   last.finished.then(done, done);
   return () => {

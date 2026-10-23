@@ -155,7 +155,7 @@
 import { DELTA_TYPE } from '@hadoku/forge-wire';
 import { CLIENT_EVENT, type ClientEvent } from '@hadoku/shared';
 
-import { whenBoardStill } from '../motion.ts';
+import { boardHold, whenBoardStill, type BoardHold } from '../motion.ts';
 import type { MatchTransport } from './match.ts';
 import { MATCH_EVENTS } from './transport.ts';
 
@@ -222,6 +222,21 @@ export interface InputHeld {
   classes: string;
   /** What the `default` frames among them changed (`Type.Property`, or a notify's method), the gaps nobody named. */
   defaults: string;
+}
+
+/**
+ * A frame the board held for the whole of {@link BOARD_HOLD_MAX_MS} — a beat that never said it was over — and
+ * what it was waiting on (`../motion.ts`'s {@link boardHold}): the views still drawing, the beats still running
+ * by name, and how long before the cap the last view began drawing (-1 for none).
+ */
+export interface BoardHoldCapped {
+  what: 'board-hold-capped';
+  method: string;
+  pace: PaceClass;
+  ms: number;
+  drawing: number;
+  waitingOn: string;
+  lastBeatMs: number;
 }
 
 /** A report's string field: at most what the telemetry schema keeps. */
@@ -483,12 +498,14 @@ export interface PaceOptions {
   cancel?: (handle: unknown) => void;
   /** Runs `done` once the board has drawn every beat it is drawing, at once when it is still; returns a cancel. Defaults to `../motion.ts`'s `whenBoardStill`. */
   boardStill?: (done: () => void) => () => void;
-  /** Where an {@link InputHeld} goes, with the payload it is about. Defaults to the match's client telemetry, on the inner transport. */
-  report?: (held: InputHeld, payload: unknown) => void;
+  /** Where an {@link InputHeld} or a {@link BoardHoldCapped} goes, with the payload it is about. Defaults to the match's client telemetry, on the inner transport. */
+  report?: (held: InputHeld | BoardHoldCapped, payload: unknown) => void;
+  /** Test seam: what the board is waiting on when a hold reaches the cap. Defaults to `../motion.ts`'s `boardHold`. */
+  boardHold?: () => BoardHold;
 }
 
 /** The match's client telemetry: the server writes it into the match's log (`@hadoku/shared`'s `telemetry.ts`). */
-function reportOn(inner: MatchTransport): (held: InputHeld, payload: unknown) => void {
+function reportOn(inner: MatchTransport): (held: InputHeld | BoardHoldCapped, payload: unknown) => void {
   return (held, payload) => {
     const matchId = (payload as { matchId?: unknown }).matchId;
     if (typeof matchId !== 'string' || matchId === '') return;
@@ -509,6 +526,7 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
   const cancel = options.cancel ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
   const boardStill = options.boardStill ?? whenBoardStill;
   const report = options.report ?? reportOn(inner);
+  const holdNow = options.boardHold ?? boardHold;
 
   let fast = options.initialFast ?? false;
   let endingTurn = false;
@@ -614,7 +632,22 @@ export function pacedMatchTransport(inner: MatchTransport, options: PaceOptions 
     if (stillNow) return false;
     waiting = true;
     boardSince = now();
-    const cap = schedule(release, BOARD_HOLD_MAX_MS);
+    const cap = schedule(() => {
+      const hold = holdNow();
+      report(
+        {
+          what: 'board-hold-capped',
+          method: methodOf(entry.payload),
+          pace: entry.pace,
+          ms: BOARD_HOLD_MAX_MS,
+          drawing: hold.drawing,
+          waitingOn: hold.waitingOn.slice(0, REPORT_TEXT_MAX),
+          lastBeatMs: hold.lastBeatAt === null ? -1 : Math.round(Date.now() - hold.lastBeatAt),
+        },
+        entry.payload,
+      );
+      release();
+    }, BOARD_HOLD_MAX_MS);
     boardWait = () => {
       stopStill();
       cancel(cap);
