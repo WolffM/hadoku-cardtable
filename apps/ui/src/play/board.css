@@ -1483,28 +1483,49 @@
   --lanes-empty: 4;
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='3'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 12, 1) + clamp(0, var(--cols, 0) - 39, 1));
+/*
+ * Each band's two thresholds on its zone, and one rule that counts the rows from them: each of its
+ * selectors ends on its own class, so the browser tries it only on the lists it can match. Six
+ * rules ending in an `:is()` list were tried on every element of the page at every restyle
+ * (`e2e/combat-perf.spec.ts`'s selector stats, 2026-10-23).
+ */
+[data-zone-aspect='3'] {
+  --rows-two-at: 12;
+  --rows-three-at: 39;
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='4'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 16, 1) + clamp(0, var(--cols, 0) - 49, 1));
+[data-zone-aspect='4'] {
+  --rows-two-at: 16;
+  --rows-three-at: 49;
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='5'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 20, 1) + clamp(0, var(--cols, 0) - 61, 1));
+[data-zone-aspect='5'] {
+  --rows-two-at: 20;
+  --rows-three-at: 61;
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='6'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 25, 1) + clamp(0, var(--cols, 0) - 77, 1));
+[data-zone-aspect='6'] {
+  --rows-two-at: 25;
+  --rows-three-at: 77;
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='8'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 33, 1) + clamp(0, var(--cols, 0) - 100, 1));
+[data-zone-aspect='8'] {
+  --rows-two-at: 33;
+  --rows-three-at: 100;
 }
 
-:is(.seat > .zone--battlefield, .zone--hand)[data-zone-aspect='10'] > :is(.zone__rows, .zone__cards, .card-backs) {
-  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - 40, 1) + clamp(0, var(--cols, 0) - 123, 1));
+[data-zone-aspect='10'] {
+  --rows-two-at: 40;
+  --rows-three-at: 123;
+}
+
+.seat > .zone--battlefield[data-zone-aspect] > .zone__rows,
+.zone--hand[data-zone-aspect] > .zone__cards,
+.zone--hand[data-zone-aspect] > .card-backs,
+.seat > .zone--battlefield[data-zone-aspect] > .zone__cards,
+.seat > .zone--battlefield[data-zone-aspect] > .card-backs,
+.zone--hand[data-zone-aspect] > .zone__rows {
+  --rows-shape: calc(1 + clamp(0, var(--cols, 0) - var(--rows-two-at), 1) + clamp(0, var(--cols, 0) - var(--rows-three-at), 1));
 }
 
 /*

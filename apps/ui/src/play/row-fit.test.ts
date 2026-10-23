@@ -257,8 +257,14 @@ function band(width: number, height: number): string | null {
   return el.getAttribute('data-zone-aspect');
 }
 
-const bandRule = (aspect: string | null) => (s: string): boolean =>
-  aspect !== null && s.startsWith(':is(.seat > .zone--battlefield, .zone--hand)') && s.includes(`[data-zone-aspect='${aspect}'] >`);
+/** A zone's band: the two thresholds `[data-zone-aspect='N']` gives it, which the lists in it count their rows by. */
+const bands = new Map<string, [string, string][]>();
+const bandOf = (aspect: string | null): [string, string][] => {
+  if (aspect === null) return [];
+  let vars = bands.get(aspect);
+  if (vars === undefined) bands.set(aspect, (vars = [...customs(declared(exactly(`[data-zone-aspect='${aspect}']`)))]));
+  return vars;
+};
 
 interface Laid {
   rows: number;
@@ -278,10 +284,10 @@ function grid(env: Env, decls: ReadonlyMap<string, string>, width: number, heigh
 
 /** The viewer's four lanes on a battlefield whose content box is `width`×`height`, `lanes` piles in each. */
 function layLanes(width: number, height: number, lanes: readonly number[]): Laid {
-  const zone = element(element(BOARD, customs(BATTLEFIELD)), new Map([['--zone-w', px(width)], ['--zone-h', px(height)]]));
   const aspect = band(width, height);
+  const zone = element(element(BOARD, customs(BATTLEFIELD)), new Map([['--zone-w', px(width)], ['--zone-h', px(height)], ...bandOf(aspect)]));
   const rowsDecls = declared(
-    (s) => s === '.zone__rows' || s === '.seat > .zone--battlefield > .zone__rows' || bandRule(aspect)(s) && s.endsWith(':is(.zone__rows, .zone__cards, .card-backs)'),
+    (s) => s === '.zone__rows' || s === '.seat > .zone--battlefield > .zone__rows' || (aspect !== null && s === '.seat > .zone--battlefield[data-zone-aspect] > .zone__rows'),
   );
   const empty = lanes.filter((n) => n === 0).length;
   const total = lanes.reduce((a, b) => a + b, 0);
@@ -331,13 +337,13 @@ function layTiers(width: number, height: number, lands: number, rest: number): L
 
 /** Your own hand: one list, its own row decision from its own box. */
 function layHand(width: number, height: number, cards: number): Laid {
-  const zone = element(BOARD, new Map([['--zone-w', px(width)], ['--zone-h', px(height)]]));
   const aspect = band(width, height);
+  const zone = element(BOARD, new Map([['--zone-w', px(width)], ['--zone-h', px(height)], ...bandOf(aspect)]));
   const listDecls = declared(
     (s) =>
       s === '.zone--hand > :is(.zone__cards, .card-backs)' ||
       s === '.seat[data-viewer] > .zone--hand > .zone__cards' ||
-      (bandRule(aspect)(s) && s.endsWith(':is(.zone__rows, .zone__cards, .card-backs)')),
+      (aspect !== null && s === '.zone--hand[data-zone-aspect] > .zone__cards'),
   );
   const list = element(zone, new Map([...customs(listDecls), ['--cols', String(cards)]]));
   const rows = evaluate(list.get('--rows')!).n;
@@ -381,7 +387,9 @@ describe('a crowded zone takes another row before its cards stop fitting (table-
     expect(layLanes(818 - GUTTER, 200, [5, 2, 4, 0]).rows).toBe(1);
   });
 
-  it('never lays out a battlefield or a hand that does not fit, at every width from 800 to 1000 and 8 to 20 permanents', () => {
+  // Every width, every height, every count: 4.4 s on an idle host and 7.4 s at a load of 21
+  // (2026-10-23), so vitest's own 5 s was a timeout on any busy machine, never a fault in the layout.
+  it('never lays out a battlefield or a hand that does not fit, at every width from 800 to 1000 and 8 to 20 permanents', { timeout: 30_000 }, () => {
     const bad: string[] = [];
     for (let box = 800; box <= 1000; box += 2) {
       for (const height of [180, 191, 200, 210]) {
