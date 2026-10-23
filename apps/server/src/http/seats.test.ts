@@ -190,7 +190,7 @@ describe('a constructed table', () => {
 		expect(roomSeats(s)).toEqual([[], ['alice']]);
 	});
 
-	it('empties the seats when the pool changes, and when a member leaves', async () => {
+	it('keeps the seats, unready, when the pool changes, and empties one when a member leaves', async () => {
 		const s = await boot();
 		await s.call('alice', 'PUT', '/deck', DECK);
 		await s.call('bob', 'PUT', '/deck', OTHER);
@@ -198,8 +198,8 @@ describe('a constructed table', () => {
 		expect(await seats(s, 'alice')).toEqual({ players: [['alice', false]], locked: false });
 		expect(roomSeats(s)).toEqual([['alice']]);
 		expect(s.lobby.setFormat(s.roomId, ALICE.id, '2011-07-15').ok).toBe(true);
-		expect(await seats(s, 'alice')).toEqual({ players: [], locked: false });
-		expect(roomSeats(s)).toEqual([[]]);
+		expect(await seats(s, 'alice')).toEqual({ players: [['alice', false]], locked: false });
+		expect(roomSeats(s)).toEqual([['alice']]);
 	});
 
 	it('comes back from a restart with its seats, their order and their Readys', async () => {

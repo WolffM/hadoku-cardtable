@@ -1836,19 +1836,20 @@ export function watchpartyRoomId(watchpartyRoom: string): string {
 const WATCHPARTY_ROOM: CreateRoomInput = { name: 'Watchparty table', gameType: DEFAULT_GAME_TYPE, clientMode: DEFAULT_CLIENT_MODE };
 
 /**
- * Every readiness flag, every seat and the deck holds with them — what a
- * change to the table's game type, pool or mode costs everybody. The per-member blob
- * `http/routes.ts` owns — the choice, the verdict, the checked `.dck` — was
- * produced for the table that just changed, so it is dropped whole rather
- * than edited, and a seat without its deck is given back with it.
+ * Every readiness flag and deck hold — what a change to the table's pool or
+ * mode costs everybody. The per-member blob `http/routes.ts` owns — the
+ * choice, the verdict, the checked `.dck` — was produced for the table that
+ * just changed, so it is dropped whole rather than edited. The seats stay
+ * (the operator, 2026-10-23: "can we try to keep players seated?") unless
+ * `unseat`: a game type change or a tournament's lock retires the tables.
  */
-function dropHolds(room: RoomRecord): void {
+function dropHolds(room: RoomRecord, unseat: boolean): void {
 	for (const member of room.members) {
 		member.ready = false;
 		member.state = undefined;
 	}
 	for (const table of room.tables) {
-		table.seats = [null, null];
+		if (unseat) table.seats = [null, null];
 		table.ready = [false, false];
 	}
 }
@@ -2532,12 +2533,12 @@ class FileLobby implements Lobby {
 	 * nothing is left to continue or rematch. `inPlay` has already refused the
 	 * change while a game is being played.
 	 */
-	#interruptSeries(room: RoomRecord): void {
+	#interruptSeries(room: RoomRecord, unseat: boolean): void {
 		for (const table of room.tables) {
 			this.#settleSeries(room, table, 'interrupted');
-			table.series = newSeries(room, [null, null], 'seating');
+			table.series = newSeries(room, unseat ? [null, null] : table.seats, 'seating');
 		}
-		dropHolds(room);
+		dropHolds(room, unseat);
 	}
 
 	addTable(roomId: string, callerId: string): AddTableResult {
@@ -2858,7 +2859,7 @@ class FileLobby implements Lobby {
 		// whatever series they were mid-via `#settleSeries`, and clears every
 		// seat, ready flag and deck hold (`dropHolds`) the same way a mode or
 		// format change already does.
-		this.#interruptSeries(room);
+		this.#interruptSeries(room, true);
 		// `draftStartedAt` and `pod` change together, as ONE atomic mutation —
 		// gather every deck above, BEFORE this point, then mutate, then read.
 		// `#dealPodRounds`, below, pairs the round and makes its tables
@@ -2892,7 +2893,7 @@ class FileLobby implements Lobby {
 			room.mode = null;
 			room.modeOptions = null;
 			room.gauntlets = {};
-			this.#interruptSeries(room);
+			this.#interruptSeries(room, true);
 		}
 		// Readiness is readiness for a particular game: a member who readied for
 		// a draft has not agreed to a constructed match. Cleared for everyone,
@@ -2914,7 +2915,7 @@ class FileLobby implements Lobby {
 		if (room.format === format) return { ok: true, room: this.#view(room) };
 		if (inPlay(room)) return { ok: false, reason: 'mode-locked' };
 		room.format = format;
-		this.#interruptSeries(room);
+		this.#interruptSeries(room, false);
 		this.#persist(room);
 		this.#log({ event: 'room-format', roomId, format });
 		return { ok: true, room: this.#view(room) };
@@ -2934,7 +2935,7 @@ class FileLobby implements Lobby {
 		room.gauntlets = {};
 		// A deck held for one mode was chosen for that mode's table, exactly as a
 		// deck held in one pool was checked in that pool.
-		this.#interruptSeries(room);
+		this.#interruptSeries(room, false);
 		this.#persist(room);
 		this.#log({ event: 'room-mode', roomId, mode: mode.mode, modeOptions: mode.modeOptions });
 		return { ok: true, room: this.#view(room) };

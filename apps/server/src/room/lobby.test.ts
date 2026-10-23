@@ -517,7 +517,7 @@ describe('Lobby.setFormat', () => {
 		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1, verdict: { legal: true } });
 	});
 
-	it('clears every readiness flag, every seat and every deck hold when the pool changes', async () => {
+	it('keeps every seat but clears every readiness flag and deck hold when the pool changes', async () => {
 		const dir = await tempDir();
 		const lobby = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
 		const id = await loadedRoom(lobby);
@@ -532,13 +532,13 @@ describe('Lobby.setFormat', () => {
 		// the checked text were all produced in the pool that just went away.
 		expect(lobby.playerState(id, ALICE.id)).toBeUndefined();
 		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
-		expect(seatReadys(lobby, id)).toEqual([]);
+		expect(seatReadys(lobby, id)).toEqual([false, false]);
 		// On disk as well as in memory.
 		const second = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
 		expect(second.get(id)?.format).toBe(POOLS[0]);
 		expect(second.get(id)?.members.map((m) => m.ready)).toEqual([false, false]);
 		expect(second.playerState(id, ALICE.id)).toBeUndefined();
-		expect(seatReadys(second, id)).toEqual([]);
+		expect(seatReadys(second, id)).toEqual([false, false]);
 	});
 
 	it('clears nothing when the pool it is set to is the one the room is on', async () => {
@@ -1555,9 +1555,11 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 			const { lobby, id, tableId, ended } = await playingTable();
 			lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
 			expect(lobby.setMode(id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
-			// A mode change gives every seat back; both sit down again to play it.
-			expect(lobby.seats(id, tableId)).toEqual([]);
-			expect(lobby.sit(id, tableId, ALICE.id) && lobby.sit(id, tableId, BOB.id)).toBe(true);
+			// A mode change keeps both seated, unready, to play it.
+			expect(lobby.seats(id, tableId)).toEqual([
+				{ memberId: ALICE.id, ready: false },
+				{ memberId: BOB.id, ready: false },
+			]);
 			ended.length = 0;
 			expect(lobby.setTableMatch(id, tableId, 'm-gauntlet-1')).toBe(true);
 			expect(lobby.recordGameResult(id, tableId, { matchId: 'm-gauntlet-1', winner: 1 })).toMatchObject({ phase: 'between' });
@@ -1572,13 +1574,14 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 		});
 
 		describe('a room change the series cannot continue through interrupts it (ruling 14)', () => {
-			const changes: [string, (lobby: Lobby, id: string) => { ok: boolean }][] = [
-				['the mode', (lobby, id) => lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'full' } })],
-				['the game type', (lobby, id) => lobby.setGameType(id, ALICE.id, 'draft')],
-				['the pool', (lobby, id) => lobby.setFormat(id, ALICE.id, lobby.get(id)?.format === POOLS[0] ? POOLS[1]! : POOLS[0]!)],
+			// The readiness of each seat left after the change: a game type change retires the table's seats.
+			const changes: [string, (lobby: Lobby, id: string) => { ok: boolean }, boolean[]][] = [
+				['the mode', (lobby, id) => lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'full' } }), [false, false]],
+				['the game type', (lobby, id) => lobby.setGameType(id, ALICE.id, 'draft'), []],
+				['the pool', (lobby, id) => lobby.setFormat(id, ALICE.id, lobby.get(id)?.format === POOLS[0] ? POOLS[1]! : POOLS[0]!), [false, false]],
 			];
 
-			for (const [what, change] of changes) {
+			for (const [what, change, seatsLeft] of changes) {
 				it(`changing ${what} in sideboarding at 1-0 records game 1 as a Bo1, logs it interrupted, and leaves the table clean`, async () => {
 					const { lobby, id, tableId, ended, logged } = await playingTable();
 					lobby.recordGameResult(id, tableId, { matchId: 'm-game-1', winner: 0 });
@@ -1587,8 +1590,8 @@ describe('a Constructed series — Bo1, a Rematch converts it to Bo3, and its re
 					expect(ended).toEqual([bo1(id, tableId, 'm-game-1', 0)]);
 					expect(logged).toContainEqual(expect.objectContaining({ event: 'table-series-ended', tableId, undecided: 'interrupted' }));
 					// Nothing of the old series is left to continue or to rematch.
-					expect(lobby.seats(id, tableId)).toEqual([]);
-					expect(lobby.get(id)?.tables[0]).toMatchObject({ players: [], matchId: null, series: { wins: [0, 0], games: [], phase: 'seating' } });
+					expect(lobby.seats(id, tableId).map((seat) => seat.ready)).toEqual(seatsLeft);
+					expect(lobby.get(id)?.tables[0]).toMatchObject({ matchId: null, series: { wins: [0, 0], games: [], phase: 'seating' } });
 					expect(lobby.beginSideboarding(id, tableId)).toBe(false);
 				});
 
@@ -2786,7 +2789,7 @@ describe('a constructed room’s mode', () => {
 		expect(lobby.setMode(draft.room.id, ALICE.id, random)).toEqual({ ok: false, reason: 'not-constructed' });
 	});
 
-	it('clears every readiness flag, every seat and every deck hold when it changes, and nothing when it does not', async () => {
+	it('keeps every seat but clears every readiness flag and deck hold when it changes, and nothing when it does not', async () => {
 		const dir = await tempDir();
 		const lobby = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
 		const { id, tableId } = await constructedRoom(lobby, true);
@@ -2799,14 +2802,16 @@ describe('a constructed room’s mode', () => {
 		expect(set.room.members.map((m) => m.ready)).toEqual([false, false]);
 		expect(lobby.playerState(id, ALICE.id)).toBeUndefined();
 		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
-		expect(lobby.seats(id, tableId)).toEqual([]);
+		// The operator, 2026-10-23: "seats get reliquished when changing game mode. can we try to keep players seated?"
+		expect(lobby.seats(id, tableId)).toEqual([
+			{ memberId: ALICE.id, ready: false },
+			{ memberId: BOB.id, ready: false },
+		]);
 
 		// The same mode with the same options again changes nothing and clears nothing.
 		expect(lobby.setPlayerState(id, BOB.id, { v: 1 })).toBe(true);
-		expect(lobby.sit(id, tableId, BOB.id)).toBe(true);
 		expect(lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'full' } }).ok).toBe(true);
 		expect(lobby.playerState(id, BOB.id)).toEqual({ v: 1 });
-		expect(lobby.seats(id, tableId)).toEqual([{ memberId: BOB.id, ready: false }]);
 		// New options for the same mode are a change.
 		expect(lobby.setMode(id, ALICE.id, { mode: 'random', modeOptions: { pool: 'modern' } }).ok).toBe(true);
 		expect(lobby.playerState(id, BOB.id)).toBeUndefined();
