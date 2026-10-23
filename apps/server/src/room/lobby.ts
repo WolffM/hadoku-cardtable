@@ -2699,6 +2699,9 @@ class FileLobby implements Lobby {
 		}
 		this.#persist(room);
 		this.#log({ event: 'room-ready', roomId, ready });
+		// Ruling 7: a tournament's Ready is also its own Lock seats, the moment
+		// the field is valid (`#maybeLockTournament`'s own doc).
+		this.#maybeLockTournament(room);
 		return true;
 	}
 
@@ -2793,12 +2796,32 @@ class FileLobby implements Lobby {
 	}
 
 	/**
-	 * Lock a tournament's seats and deal round 1 — `startDraft`'s tournament
-	 * branch. ≥ 2 entrants, at least one human (the operator, 2026-10-22:
-	 * reversing the plan's "no AI seats", but *"an all-AI field makes no
-	 * sense"*), each HUMAN ready per the mode (Classic: a legal deck already
-	 * held — `PodChecks.hasLegalSeatDeck`; Gauntlet/All Random: the room's
-	 * own `ready` flag). An AI entrant is always ready and never checked.
+	 * The operator, 2026-10-22 (ruling 7): *"why is there a 'lock seats'
+	 * button? that seems pointless the seats lock when all players are ready
+	 * and the games start."* The lock fires BY ITSELF the instant the field
+	 * is valid — mirrored from a draft pod's own last-Play-press deal
+	 * (`playPod`'s own `#dealPodRounds` call, the one other place a pod's
+	 * start is a side effect of readiness rather than an explicit press), so
+	 * called from every place a tournament's entrants or their readiness can
+	 * change: `setReady`, `sitPod`, `standPod`, `aiPod`. `#lockTournament`
+	 * itself is UNCHANGED and still the one locking routine — its own
+	 * `not-ready` refusal, discarded here, is exactly the right answer when
+	 * the field is not valid yet; `draftStartedAt !== null` makes a second
+	 * call once locked a no-op, so calling this from several places is safe.
+	 */
+	#maybeLockTournament(room: RoomRecord): void {
+		if (!isTournamentRoom(room) || room.draftStartedAt !== null) return;
+		this.#lockTournament(room);
+	}
+
+	/**
+	 * Lock a tournament's seats and deal round 1 — called the instant the
+	 * field is valid (`#maybeLockTournament`'s own doc; ruling 7). ≥ 2
+	 * entrants, at least one human (the operator, 2026-10-22: reversing the
+	 * plan's "no AI seats", but *"an all-AI field makes no sense"*), each
+	 * HUMAN ready per the mode (Classic: a legal deck already held —
+	 * `PodChecks.hasLegalSeatDeck`; Gauntlet/All Random: the room's own
+	 * `ready` flag). An AI entrant is always ready and never checked.
 	 *
 	 * `tournamentDecks === 'locked'` snapshots every entrant's CURRENT deck
 	 * here for Classic/All Random (`PodChecks.currentTournamentDeck`) —
@@ -3106,6 +3129,8 @@ class FileLobby implements Lobby {
 		room.podSeats = seats;
 		this.#persist(room);
 		this.#log({ event: 'pod-sit', roomId, memberId, seat: target });
+		// Ruling 7: sitting (the 2nd entrant, say) can itself complete the field.
+		this.#maybeLockTournament(room);
 		return { ok: true, room: this.#view(room) };
 	}
 
@@ -3123,6 +3148,8 @@ class FileLobby implements Lobby {
 		room.podSeats = seats;
 		this.#persist(room);
 		this.#log({ event: 'pod-stand', roomId, memberId });
+		// Ruling 7: an un-ready human standing can leave an all-ready field behind.
+		this.#maybeLockTournament(room);
 		return { ok: true, room: this.#view(room) };
 	}
 
@@ -3144,6 +3171,8 @@ class FileLobby implements Lobby {
 		room.podAi = room.podAi.map((a, i) => (i === seat ? avatar : a));
 		this.#persist(room);
 		this.#log({ event: on ? 'pod-ai-sit' : 'pod-ai-stand', roomId, memberId, seat });
+		// Ruling 7: an AI is always ready, so seating one can itself complete the field.
+		this.#maybeLockTournament(room);
 		return { ok: true, room: this.#view(room) };
 	}
 
