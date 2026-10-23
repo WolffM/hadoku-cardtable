@@ -3713,6 +3713,15 @@ describe('R16 — the result screen, drawn over the board', () => {
     expect(tableState.startRoom).toHaveBeenCalledWith('r-1');
   });
 
+  it('a series a room change interrupted is not rematched: the table no longer lists this game', async () => {
+    // The room's mode changed after this game: both stay seated (AF344), but the table's series is a fresh one.
+    const series = { length: 1, wins: [0, 0], games: [], phase: 'seating' };
+    roomsClientState.room = { settings: { handSmoothing: true }, mode: 'random', tables: [{ id: 't-1', players: [], matchId: null, series }], pod: null };
+    tableState.phase = 'seating';
+    const { rematch } = await victoryInRoom();
+    expect(rematch().disabled, 'nothing of the interrupted series to rematch').toBe(true);
+  });
+
   /* Two reads of the same thing in flight: the older answering last must not put the older state back (`../../rooms/latest.ts`). */
   describe('a read a newer one overtook', () => {
     const release = async (held: (() => void)[], i: number): Promise<void> => {
