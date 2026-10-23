@@ -694,16 +694,23 @@
  * the card rises. `--fly-phase` (`Board.tsx`, from the card's id) sets where in the loop each card
  * starts, so a row of flyers never moves in unison; every flyer keeps the same steady period.
  */
+/*
+ * The path in px as plain numbers, a length only where it is drawn (`* 1px`). A keyframe holding a
+ * length would hold `var(--ui-px)` once the UI scale rewrites it, and Firefox plays a registered
+ * property's `var()` keyframes forwards on every iteration, never back: an `alternate` loop snapped
+ * from end to start every 1.4 s (the operator, 2026-10-23, "every ~1.5s the creature repositions in
+ * a random direction"). `ui-scale.ts` refuses such a keyframe.
+ */
 @property --fly-x {
-  syntax: '<length>';
+  syntax: '<number>';
   inherits: true;
-  initial-value: 0px;
+  initial-value: 0;
 }
 
 @property --fly-y {
-  syntax: '<length>';
+  syntax: '<number>';
   inherits: true;
-  initial-value: 0px;
+  initial-value: 0;
 }
 
 @property --fly-lift {
@@ -742,7 +749,7 @@
 /* The art and everything the card wears: not the face (the shadow lies on it) and not the cards piled behind, each its own. */
 .board-card[data-flying] > .board-card__face > .card,
 .board-card[data-flying] > :not(.board-card__face, .board-card__pile) {
-  translate: var(--fly-x) calc(-3px + var(--fly-y));
+  translate: calc(var(--fly-x) * 1px) calc(-3px + var(--fly-y) * 1px);
 }
 
 .board-card[data-flying] > .board-card__face > .card {
@@ -763,26 +770,26 @@
   border-radius: 50%;
   background: radial-gradient(closest-side, var(--shadow), transparent);
   pointer-events: none;
-  translate: calc(var(--fly-x) * -0.4) 0;
+  translate: calc(var(--fly-x) * -0.4px) 0;
   scale: calc(1.08 - var(--fly-lift) * 0.16) 1;
   opacity: calc(1 - var(--fly-lift) * 0.35);
 }
 
 /* x = −A·cos(ωt): across and back once a loop. */
 @keyframes fly-across {
-  from { --fly-x: -3.5px; }
-  to { --fly-x: 3.5px; }
+  from { --fly-x: -3.5; }
+  to { --fly-x: 3.5; }
 }
 
 /* y = B·sin(2ωt) (an eighth of a loop late): down and up twice a loop, crossing the middle as the sway does. */
 @keyframes fly-rise {
   from {
-    --fly-y: 1.25px;
+    --fly-y: 1.25;
     --fly-lift: 0;
   }
 
   to {
-    --fly-y: -1.25px;
+    --fly-y: -1.25;
     --fly-lift: 1;
   }
 }
@@ -968,7 +975,7 @@
 }
 
 .board-card[data-flying][data-combat-ready] > :not(.board-card__face, .board-card__pile) {
-  translate: var(--fly-x) calc(-7px + var(--fly-y));
+  translate: calc(var(--fly-x) * 1px) calc(-7px + var(--fly-y) * 1px);
 }
 
 @media (prefers-reduced-motion: reduce) {

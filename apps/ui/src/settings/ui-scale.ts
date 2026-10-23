@@ -65,12 +65,14 @@ interface CssNode {
   parent?: unknown;
 }
 
-function inDescriptorRule(node: CssNode | undefined): boolean {
+function inAtRule(node: CssNode | undefined, names: ReadonlySet<string>): boolean {
   for (let n = node; n !== undefined; n = n.parent as CssNode | undefined) {
-    if (n.type === 'atrule' && n.name !== undefined && DESCRIPTOR_RULES.has(n.name.toLowerCase())) return true;
+    if (n.type === 'atrule' && n.name !== undefined && names.has(n.name.toLowerCase())) return true;
   }
   return false;
 }
+
+const KEYFRAMES = new Set(['keyframes']);
 
 /** Only the app's own sheets: the fleet's chrome and the symbol packs' vendor CSS keep their sizes. */
 function ownSheet(file: string | undefined): boolean {
@@ -81,9 +83,17 @@ function ownSheet(file: string | undefined): boolean {
 export const uiScaleCss = {
   postcssPlugin: 'cardtable-ui-scale',
   Declaration(decl: { prop: string; value: string; parent?: CssNode; source?: { input: { file?: string } } }): void {
-    if (OWN_UNITS.has(decl.prop) || !ownSheet(decl.source?.input.file) || inDescriptorRule(decl.parent)) return;
+    if (OWN_UNITS.has(decl.prop) || !ownSheet(decl.source?.input.file) || inAtRule(decl.parent, DESCRIPTOR_RULES)) return;
     const next = scaleCssValue(decl.value);
-    if (next !== decl.value) decl.value = next;
+    if (next === decl.value) return;
+    // Firefox plays a registered property's keyframes that hold a `var()` forwards on every
+    // iteration, never back, so an `alternate` loop snaps from its end to its start (`card.css`'s
+    // flyers, the operator, 2026-10-23). Such a keyframe animates a plain number, and the length is
+    // made where it is drawn (`calc(var(--x) * 1px)`), which this rewrites like any other.
+    if (decl.prop.startsWith('--') && inAtRule(decl.parent, KEYFRAMES)) {
+      throw new Error(`${decl.source?.input.file ?? 'a stylesheet'}: a keyframe sets ${decl.prop} to a length (${decl.value}); animate a number and multiply by 1px where it is used`);
+    }
+    decl.value = next;
   },
 };
 

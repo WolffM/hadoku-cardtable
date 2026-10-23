@@ -2399,7 +2399,9 @@ describe('drag to stack (#1, #19)', () => {
     const lift = (selector: string) => css.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
     expect(lift('.board-card[data-combat-ready] > .board-card__face'), 'the face rises 4px').toMatch(/translate:\s*0 -4px/);
     expect(lift('.board-card[data-combat-ready] > :not(.board-card__face, .board-card__pile)'), 'and its badges with it').toMatch(/translate:\s*0 -4px/);
-    expect(lift('.board-card[data-flying][data-combat-ready] > :not(.board-card__face, .board-card__pile)'), 'a flyer’s on its loop').toMatch(/translate:\s*var\(--fly-x\) calc\(-7px \+ var\(--fly-y\)\)/);
+    const flyer = lift('.board-card[data-flying][data-combat-ready] > :not(.board-card__face, .board-card__pile)');
+    expect(flyer, 'a flyer’s rides its loop across').toContain('--fly-x');
+    expect(flyer, 'and up and down, 4px over its rest').toMatch(/-7px[^;]*--fly-y/);
   });
 
   it('a pile that mixes cards has no count', () => {

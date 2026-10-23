@@ -65,6 +65,15 @@ describe('uiScaleCss', () => {
     expect(run({ prop: 'size-adjust', value: '2px', parent: { type: 'rule', parent: { type: 'atrule', name: 'font-face' } }, source: OURS })).toBe('2px');
     expect(run({ prop: 'gap', value: '4px', source: { input: { file: '/repo/node_modules/@wolffm/themes/dist/style.css' } } })).toBe('4px');
   });
+
+
+  // The operator, 2026-10-23: a flyer "repositions in a random direction" every 1.4 s in Firefox.
+  it('refuses a keyframe that animates a custom property as a length, which Firefox would snap', () => {
+    const keyframe = { type: 'rule', parent: { type: 'atrule', name: 'keyframes' } };
+    expect(() => run({ prop: '--fly-x', value: '3.5px', parent: keyframe, source: OURS })).toThrow(/animate a number/);
+    expect(run({ prop: '--fly-x', value: '3.5', parent: keyframe, source: OURS }), 'a number is left as it is').toBe('3.5');
+    expect(at(run({ prop: 'translate', value: '3.5px 0', parent: keyframe, source: OURS }), 2), 'a property that is not custom still scales').toBe('7px 0');
+  });
 });
 
 describe('the scale itself', () => {
