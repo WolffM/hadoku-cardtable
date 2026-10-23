@@ -98,11 +98,10 @@ export function ClassicOptions({
               dropdown"*. */}
           {leader ? (
             <>
-              {/* On Free pick the leader's switch says so and the browse tabs
-                  name themselves; the label would only push the switch onto
-                  a second line, and that line comes off the deck grid. */}
+              {/* The tabs name the row; the label is the select's name for assistive tech only, so
+                  Classic's mode row stays one line, the top bar's height in every mode. */}
               {!freePick && (
-                <label className="lobby__field" htmlFor="format">
+                <label className="lobby__field lobby__field--hidden" htmlFor="format">
                   Format
                 </label>
               )}
@@ -170,10 +169,8 @@ export function ClassicOptions({
             </>
           ) : (
             <>
-              {/* "Free pick" names itself; the label beside it would wrap
-                  the browse row (found at 1024x700 on the CI runner's fonts). */}
-              {!freePick && <span className="lobby__field">Format</span>}
-              <span className="lobby__pool" data-testid="format-fixed" data-format={poolId}>
+              {/* The pool's own name says what it is: no label beside it, as for the leader. */}
+              <span className="lobby__pool" data-testid="format-fixed" data-format={poolId} aria-label={`Format: ${poolLabel(formats, poolId)}`}>
                 {poolLabel(formats, poolId)}
               </span>
             </>

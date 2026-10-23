@@ -843,21 +843,27 @@
  * Every control in a room's top bar is one height, whatever the room plays (the operator, 2026-10-23:
  * "in classic, the top bar is very slightly bigger in height than the other modes. can we find a way
  * to keep the height consistent for all?"). Classic's era `<select>` stood 4px over the pills; now the
- * row is the token's height in every mode, and a control a mode adds later takes it too. The large mode
- * tiles a room with no mode yet draws are a different thing, not a bar.
+ * row is the token's height in every mode, and a control a mode adds later takes it too. Classic's row
+ * also stays one line where the others do: its tabs name it with no label beside them, and an era's long
+ * name is cut short in its select rather than wrapping the row. The large mode tiles a room with no mode
+ * yet draws are a different thing, not a bar.
  */
 .lobby__card {
   --lobby-control-h: calc(0.7rem + 2px + 12px * 1.4);
 }
 
 :is(.lobby__header, .lobby__modeline)
-  :is(.radio-cards:not(.radio-cards--large) .radio-cards__card, .lobby__format-tabs button, .lobby__rules, select, .lobby__pool, .lobby__field) {
+  :is(.radio-cards:not(.radio-cards--large) .radio-cards__card, .lobby__format-tabs button, .lobby__rules, select, .lobby__pool) {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   block-size: var(--lobby-control-h);
   padding-block: 0;
   line-height: 1;
+}
+
+.lobby__modeline select {
+  max-inline-size: 16rem;
 }
 
 /* A label that names the deck grid for assistive tech and is not drawn: the
