@@ -67,6 +67,7 @@
   "apps/ui/src/play/live/combat-drag.jvm.test.ts": 13.4,
   "apps/ui/src/play/live/designations.jvm.test.ts": 12.0,
   "apps/ui/src/play/live/enkor-effects.jvm.test.ts": 15.0,
+  "apps/server/src/play/dredge-confirm.jvm.test.ts": 15.0,
   "apps/ui/src/play/live/flow.jvm.test.ts": 62.6,
   "apps/ui/src/play/live/prompts.jvm.test.ts": 200.8,
   "apps/ui/src/play/prompts/choose-x.jvm.test.ts": 6.3,
