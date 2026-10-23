@@ -104,12 +104,16 @@ test(
       // Resolve each human's own table the same way the UI's `myTournamentTable` would: whichever
       // of `view.tables` holds their own member id — never by the pairing's own entrant ids, which
       // are real member/AI ids, not these test's literal names.
-      type RoomView = { tables: { id: string; players: { memberId: string }[] }[]; you: { id: string } };
+      type RoomView = { tables: { id: string; players: { memberId: string }[] }[]; you: { id: string }; pod: PodView };
       const roomView = await aliceApi<RoomView>('GET', `/rooms/${roomId}`);
       const myAliceId = roomView.body.you.id;
       const bobView = await bobApi<RoomView>('GET', `/rooms/${roomId}`);
       const myBobId = bobView.body.you.id;
-      const tableOf = (view: RoomView, memberId: string): string => view.tables.find((t) => t.players.some((p) => p.memberId === memberId))!.id;
+      // An earlier round's table stays in `tables`; only the current pairings' tables count.
+      const tableOf = (view: RoomView, memberId: string): string => {
+        const current = new Set(view.pod.pairings.map((p) => p.tableId));
+        return view.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === memberId))!.id;
+      };
       const t1Alice = tableOf(roomView.body, myAliceId);
       const t1Bob = tableOf(bobView.body, myBobId);
       expect(t1Alice, 'two DIFFERENT tables, not the same one').not.toBe(t1Bob);
@@ -190,16 +194,24 @@ test(
       const t2Alice = tableOf(roomView2.body, myAliceId);
       const t2Bob = tableOf(bobView2.body, myBobId);
 
-      // Locked: round 2 resumes straight into `choose` on the Ready alone — no draw, no banpick —
-      // for WHICHEVER human it is (both are already locked from round 1).
-      for (const [api, tableId, who] of [
-        [aliceApi, t2Alice, 'alice'],
-        [bobApi, t2Bob, 'bob'],
+      // Both lost to the AI in round 1, so Swiss pairs them together: one table for both.
+      expect(t2Alice, 'round 2 seats the two 0-point humans at one table').toBe(t2Bob);
+
+      // Locked: round 2 resumes straight into `choose` on the two Readies alone — no draw, no banpick.
+      for (const [api, who] of [
+        [aliceApi, 'alice'],
+        [bobApi, 'bob'],
       ] as const) {
-        const resumed = await api<GauntletView>('POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, table: tableId });
+        const resumed = await api<GauntletView>('POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, table: t2Alice });
         expect(resumed.status, JSON.stringify(resumed.body)).toBe(200);
-        console.log(`[tournament-gauntlet] round 2, ${who}@${tableId}: phase=${resumed.body.phase} (no banpick)`);
-        expect(resumed.body.phase, `${who}: round 2 skips the draw and banpick entirely`).toBe('choose');
+        console.log(`[tournament-gauntlet] round 2, ${who} ready@${t2Alice}: phase=${resumed.body.phase}`);
+        expect(resumed.body.phase, `${who}: round 2 never draws or bans`).not.toMatch(/^(reveal|banpick)$/);
+      }
+      for (const [api, who] of [
+        [aliceApi, 'alice'],
+        [bobApi, 'bob'],
+      ] as const) {
+        expect((await view(api, t2Alice)).phase, `${who}: round 2 skips the draw and banpick entirely`).toBe('choose');
       }
     } finally {
       await alice.context.close();
