@@ -429,35 +429,6 @@
    */
   --pool-ring: 2px;
   --mana-h: calc(2 * 14px + 2px + 2 * var(--pool-ring));
-  /*
-   * The counts' track: the two marks on one line and, under them, the player's
-   * counters. Fixed, so a counter arriving mid-game cannot
-   * move the graveyard that starts under it — and that is a stronger claim than
-   * "this many rem": `e2e/table-fit.spec.ts`'s Q9/Q2 column check reads the
-   * graveyard's own top edge straight off the hand/library marks' rendered box,
-   * so ANY growth of this track — even empty growth nothing is drawn into —
-   * moves the graveyard by exactly that much (measured: 3.6rem read back as
-   * 46.3px of "nothing but a pile's own margin" where GAP_MAX is 32).
-   *
-   * Wave 34 §B first tried growing this track to 3.6rem so poison, energy AND
-   * experience (`poison.state`) could each have their own line under
-   * hand/library — four lines total — which is what clipped the third line in
-   * w33's own screenshot at the OLD 2.2rem and fixed the clip, but broke the
-   * column check above. Reverted to 2.2rem; the counters themselves are now
-   * short enough (`PLAYER_COUNTER_ABBREV` in `Board.tsx`: `E7`, `XP2`, not
-   * `7 energy`) that hand+library and the counters fit in the same two lines
-   * this track always had room for — the full word never left, it just moved
-   * to `title`/`aria-label`. Poison is no longer one of them: it is drawn
-   * beside the life total.
-   */
-  --counts-h: 2.2rem;
-  /*
-   * The status zone's track (`SeatStatus`, `Board.tsx`): one line of chips — the storm count, the
-   * extra turns to come, the extra-turn mark — between the name and the counts. Reserved while it
-   * is empty, so a chip arriving moves neither the face nor the counts; it is taken from the
-   * graveyard, which is `flex: 1` and gives up exactly this much.
-   */
-  --status-h: 1.1rem;
   /* The gutter between the column and the battlefield: the most a box in the column may reach past it. */
   --side-gap: 8px;
   /*
@@ -599,64 +570,34 @@
 }
 
 /*
- * The vertical bar: the seat's avatar, life, name, status, counts and mana pool, in
- * four fixed tracks — the avatar's own height, `--status-h`, `--counts-h` and `--mana-h` — so
- * the graveyard under it starts at the same place at nought mana and at six
- * colours. R3 (wave 35, the fourth ask, with L9/P2/Q9): the operator's own
- * words were "avatar, counts, [then] the rest", and wave 32's build put the
- * mana pool between them — so the counts never actually sat next to the
- * avatar. **The counts are now the track right after the avatar**; the mana
- * pool moves to the far side, next to the graveyard, which is where the
- * counts used to be. The viewer's bar has the avatar first; the opponent's is
- * the mirror, mana first and the avatar last, against the centre line.
+ * The vertical bar: the seat's avatar, life and name, its status, its counts and its mana pool, top
+ * to bottom on the viewer's side; the opponent's is the mirror, mana first and the avatar last,
+ * against the centre line.
  *
- * (Wave 31 §A.3 deleted `Regroup`, which used to be a fourth track here.)
+ * Only the mana pool keeps room while it is empty (`--mana-h`), since it is so often in use. The
+ * status line and the counts take what they draw, and an empty status line takes nothing, so the
+ * deck mark sits right under the name and the graveyard below has the rest (the operator,
+ * 2026-10-22: "can we squish the deck list / count button up to be below the name? … retain space
+ * for the mana pool below that, but reclaim the other space if its not used so that graveyard can
+ * expand more"). A chip or a counter arriving moves the graveyard's top, never a face: the face is
+ * at the bar's outer end on both sides.
  */
 .board .seat__who {
   flex: none;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto var(--status-h) var(--counts-h) var(--mana-h);
+  display: flex;
+  flex-direction: column;
   gap: 3px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
-.board .seat__ident {
-  grid-row: 1;
-}
-
-.board .seat__status {
-  grid-row: 2;
-}
-
-.board .seat__counts {
-  grid-row: 3;
-}
-
-.board .seat__mana {
-  grid-row: 4;
-}
-
 .board .seat:not([data-viewer]) .seat__who {
-  grid-template-rows: var(--mana-h) var(--counts-h) var(--status-h) auto;
+  flex-direction: column-reverse;
 }
 
-.board .seat:not([data-viewer]) .seat__ident {
-  grid-row: 4;
-}
-
-.board .seat:not([data-viewer]) .seat__status {
-  grid-row: 3;
-}
-
-.board .seat:not([data-viewer]) .seat__counts {
-  grid-row: 2;
-}
-
-.board .seat:not([data-viewer]) .seat__mana {
-  grid-row: 1;
+.board .seat__status[data-items='0'] {
+  display: none;
 }
 
 /* The mark with the name under it. The `.face` draws its own name and would say
@@ -670,13 +611,12 @@
    * a box-shadow extending 6px past the mark) inside the bar's clip
    * (`.seat__who`, `overflow: hidden`): 6px matches the ring's own extent
    * exactly. Only the VIEWER's own ring actually needs it — their
-   * `.seat__ident` is `.seat__who`'s FIRST row (`grid-row: 1`), flush
-   * against the clip box's own top edge, so this padding is the only room
-   * between the ring's painted edge and the clip. The opponent's `.seat__ident`
-   * is the LAST row, with the counts and mana tracks already ahead of it, so
-   * their ring sits nowhere near `.seat__who`'s edge regardless of this
-   * value — but the same padding is harmless there too, so one value serves
-   * both.
+   * `.seat__ident` is `.seat__who`'s first item, flush against the clip
+   * box's own top edge, so this padding is the only room between the ring's
+   * painted edge and the clip. The opponent's `.seat__ident` is the last,
+   * with the counts and mana pool ahead of it, so their ring sits nowhere
+   * near `.seat__who`'s edge regardless of this value — but the same padding
+   * is harmless there too, so one value serves both.
    */
   padding-block: 6px;
   /* The life total is in the face's own flow now, under the mark (wave 31 §A.1). */
@@ -759,7 +699,7 @@
 
 /*
  * The status zone: one centred line of chips, each a drawn mark and a number on the quiet chip the
- * mana pool's entries sit on. Nothing is drawn while it is empty; its track is still there.
+ * mana pool's entries sit on. Nothing is drawn while it is empty, and it takes no room (`.seat__who`).
  */
 .board .seat__status {
   display: flex;
@@ -831,6 +771,9 @@
  * whole pool is in the list's accessible name in words (`Board.tsx`).
  */
 .board .seat__mana {
+  /* The one track kept while empty: see `.seat__who`. Its height holds the ring (`--mana-h`). */
+  flex: none;
+  height: var(--mana-h);
   display: flex;
   flex-wrap: wrap;
   justify-content: center;

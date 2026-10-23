@@ -490,20 +490,25 @@ describe('the seat’s status zone', () => {
     expect(renderBoard(withViewer({ extraTurns: 1 })).seat(0).querySelector<HTMLElement>('[data-testid="extra-turns"]')!.dataset.tip).toBe('1 extra turn');
   });
 
-  it('holds a fixed track in the bar, the same with chips as without, so a chip arriving moves no face or count', () => {
+  it('takes no room while empty, so the deck mark sits under the name; only the mana pool keeps its room', () => {
+    // The operator, 2026-10-22: "can we squish the deck list / count button up to be below the name? … retain
+    // space for the mana pool below that, but reclaim the other space if its not used".
     const css = styled();
-    const tracks = (view: BoardView) => {
-      const { seat, unmount } = renderBoard(view);
-      const read = [0, 1].map((id) => {
-        const bar = seat(id).querySelector<HTMLElement>('[data-player-bar]')!;
-        return { rows: css(bar, 'grid-template-rows'), status: css(status(seat(id)), 'grid-row') };
-      });
+    const { seat } = renderBoard(base);
+    for (const id of [0, 1]) expect(css(status(seat(id)), 'display'), 'an empty status line is not drawn at all').toBe('none');
+    const pool = (view: BoardView): string => {
+      const { seat: s, unmount } = renderBoard(view);
+      const height = css(s(0).querySelector<HTMLElement>('[data-mana-pool]')!, 'height');
       unmount();
-      return read;
+      return height;
     };
-    const empty = tracks(base);
-    for (const t of empty) expect(t.rows, 'the status track is a named, fixed one').toContain('var(--status-h)');
-    expect(tracks(withViewer({ storm: 3, extraTurn: true, extraTurns: 1 }, { extraTurns: 1 }))).toEqual(empty);
+    const emptyPool = pool(base);
+    expect(emptyPool, 'the mana pool holds a height of its own').not.toBe('');
+    expect(pool(withViewer({ manaPool: [{ color: 'R', count: 2 }] })), 'the same with mana as without').toBe(emptyPool);
+    const bar = seat(0).querySelector<HTMLElement>('[data-player-bar]')!;
+    expect(css(bar, 'display'), 'a column of what it draws, no fixed tracks').toBe('flex');
+    const withChips = renderBoard(withViewer({ storm: 3, extraTurn: true, extraTurns: 1 }, { extraTurns: 1 }));
+    expect(css(status(withChips.seat(0)), 'display'), 'a chip draws the line').not.toBe('none');
   });
 });
 
@@ -1664,11 +1669,12 @@ describe('the seat’s vertical bar (#9)', () => {
   it('R3 / Q9: the viewer reads avatar, status, counts, mana down the column; the opponent reads it mirrored', () => {
     const css = styled();
     const { seat } = renderBoard(view);
-    const order = (id: number): string[] =>
-      ['ident', 'status', 'counts', 'mana']
-        .map((name) => [name, Number(css(seat(id).querySelector(`.seat__${name}`)!, 'grid-row'))] as const)
-        .sort((a, b) => a[1] - b[1])
-        .map(([name]) => name);
+    // The bar is a flex column in the markup's order; the opponent's runs it in reverse.
+    const order = (id: number): string[] => {
+      const bar = seat(id).querySelector<HTMLElement>('[data-player-bar]')!;
+      const names = [...bar.children].map((el) => ['ident', 'status', 'counts', 'mana'].find((name) => el.classList.contains(`seat__${name}`))!);
+      return css(bar, 'flex-direction') === 'column-reverse' ? names.reverse() : names;
+    };
     expect(order(0), 'the viewer, top to bottom').toEqual(['ident', 'status', 'counts', 'mana']);
     expect(order(1), 'the opponent, top to bottom').toEqual(['mana', 'counts', 'status', 'ident']);
   });
@@ -5173,8 +5179,8 @@ describe('wave 33 §B', () => {
  * edge straight off the hand/library marks' rendered box — a gap that tracks
  * the TRACK, not the content — so the grown track moved the graveyard by
  * exactly the growth (measured: 46.3px of "nothing but a pile's own margin",
- * `GAP_MAX` 32). `--counts-h` is back at the original 2.2rem (asserted
- * above, in "P2 / Q9"); what changed instead is the counter's OWN glyph:
+ * `GAP_MAX` 32). The track went back to 2.2rem, and has since gone altogether (the counts take the
+ * room they draw, 2026-10-22); what changed instead is the counter's OWN glyph:
  * `PLAYER_COUNTER_ABBREV` (`Board.tsx`) draws `E3`, `XP5` — short enough
  * to share hand+library's second line rather than each claiming one of their
  * own. Poison has since moved beside the life total (`PoisonMark`). The word itself is not gone: `data-tip` and

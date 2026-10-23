@@ -3309,8 +3309,9 @@ function SeatEmblems({ emblems }: { emblems: readonly BoardEmblem[] }) {
  * then it'd be good to show it there."* What the game is tracking about this player right now, one
  * chip each: a drawn mark and a number, the words in the tip and the accessible name.
  *
- * Its track is a fixed one (`--status-h`, `board.css`) and is there while it is empty, so a chip
- * arriving moves neither the face nor the counts. The tracks it holds:
+ * It takes no room while it is empty (the operator, 2026-10-22: "reclaim the other space if its not
+ * used"), so the deck mark sits under the name; a chip arriving moves the counts and the graveyard's
+ * top down a line, never a face (`board.css`'s `.seat__who`). The tracks it holds:
  *
  *   - the storm count (`BoardPlayer.storm`): your own seat only, only while your hand holds a Storm
  *     card (the operator, 2026-10-14) — it was the last medallion round the avatar until this zone;
@@ -3465,8 +3466,7 @@ function playerCounterAbbrev(name: string): string {
  * Wave 34 §B: the glyph is a short abbreviation (`E7`, `XP2`), not the
  * word (`7 energy`). `e2e/table-fit.spec.ts`'s Q9/Q2 column check measures
  * the gap between the HAND/LIBRARY marks' own rendered box and the graveyard
- * — a gap that tracks `--counts-h` itself, not how much of it the counters
- * fill — so growing the track to fit a longer word moved the graveyard
+ * — so a longer word, taking a line of its own, moved the graveyard
  * (measured: 46.3px of "nothing but a pile's own margin", GAP_MAX 32). The
  * word, in full, is still here: in `data-tip` for a pointer and `aria-label` for
  * everything else — nothing about the counter's MEANING is abbreviated, only
@@ -3554,11 +3554,10 @@ function PlayerArea({
        * avatar with its life, the name, its status, the counts, then the mana pool — and,
        * on the viewer's side, the one control on this board that is ours.
        *
-       * Fixed grid tracks (`board.css`), with the avatar block in the seat's
-       * OUTER track so the two faces stay at opposite ends of the canvas, the
-       * counts in the one that has the slack, so a flag arriving mid-game cannot
-       * move a face, and the pool in a named track of its own for the same
-       * reason.
+       * A column in this order (`board.css`'s `.seat__who`), with the avatar block at
+       * the seat's OUTER end so the two faces stay at opposite ends of the canvas and
+       * nothing arriving mid-game moves one. Only the pool keeps its room while empty;
+       * the status and the counts take what they draw, the graveyard the rest.
        *
        * The column's LOWER cell is `.seat__piles`, beside the hand — so for the
        * viewer the portrait is above and the graveyard below it, which is the
@@ -3584,7 +3583,6 @@ function PlayerArea({
             </h3>
           </div>
           <SeatStatus player={player} />
-          <ManaPool player={player} interaction={interaction} />
           {/*
            * The library's count, as a MARK rather than a word (item 10: *"can we get
            * symbols to display hand/deck size instead of words?"*). The hand's count is
@@ -3618,6 +3616,7 @@ function PlayerArea({
             )}
             <PlayerCounters player={player} />
           </div>
+          <ManaPool player={player} interaction={interaction} />
         </div>
         {player.libraryTop !== undefined && (
           /*
