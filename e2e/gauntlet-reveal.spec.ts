@@ -9,7 +9,9 @@
  *
  * The order is recorded by a MutationObserver installed before the page loads, so it holds
  * whether the screen saw the reveal at its start or partway through. `[gauntlet-reveal]` lines
- * are the evidence: when the title, the coin and each tile first appeared.
+ * are the evidence: when the title, the coin and each tile first appeared, and how far the page
+ * or a scrolling ancestor of the board ran wider than itself on any frame (the operator,
+ * 2026-10-23: "when the gauntlet box first appears theres briefly a horizontal scroll bar").
  *
  * Ready, sit and the room's creation go through the API the room screen itself calls; the bans
  * and picks are pressed on the board, as a player does. The AI bans and picks at random on its
@@ -39,6 +41,21 @@ function recordAppearances(): void {
     document.querySelectorAll<HTMLElement>('[data-testid="gauntlet-pool"] [data-testid="gauntlet-deck"]').forEach((el) => note(`deck:${el.dataset.deckId}`));
   }).observe(document, { subtree: true, childList: true, characterData: true });
   (window as unknown as { gauntletSeen: Record<string, number> }).gauntletSeen = seen;
+  // Every frame: the widest horizontal overflow of the page, or of any ancestor of the board that scrolls.
+  const widest = { px: 0, at: '' };
+  const frame = (): void => {
+    const board = document.querySelector('[data-testid="gauntlet"]');
+    if (board !== null) {
+      for (let el: Element | null = board.parentElement; el !== null; el = el.parentElement) {
+        const scrolls = el === document.scrollingElement || /auto|scroll/.test(getComputedStyle(el).overflowX);
+        const over = el.scrollWidth - el.clientWidth;
+        if (scrolls && over > widest.px) Object.assign(widest, { px: over, at: `${el.tagName.toLowerCase()}.${el.className}` });
+      }
+    }
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+  (window as unknown as { gauntletOverflow: typeof widest }).gauntletOverflow = widest;
 }
 
 const seenOn = (page: Page): Promise<Record<string, number>> => page.evaluate(() => (window as unknown as { gauntletSeen: Record<string, number> }).gauntletSeen);
@@ -88,6 +105,11 @@ test(titled('Gauntlet reveal: the era title first, then ten decks; a ban greys a
     expect(decks).toHaveLength(10);
     expect(seen.title, 'the title is drawn').toBeDefined();
     for (const [deck, at] of decks) expect(at, `${deck} came after the title`).toBeGreaterThanOrEqual(seen.title!);
+    // The deal has landed; the title's entrance and every tile's fall are over.
+    await expect(alice.page.getByTestId('gauntlet')).not.toHaveAttribute('data-revealing', /.*/, { timeout: 30_000 });
+    const overflow = await alice.page.evaluate(() => (window as unknown as { gauntletOverflow: { px: number; at: string } }).gauntletOverflow);
+    console.log(`[gauntlet-reveal] widest horizontal overflow: ${JSON.stringify(overflow)}`);
+    expect(overflow.px, `the reveal ran ${overflow.px}px wider than ${overflow.at}`).toBe(0);
 
     const banned = await actOnOwnTurn(alice.page, 'Ban');
     const bannedTile = alice.page.locator(`[data-deck-id="${banned}"]`);
