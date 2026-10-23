@@ -6,8 +6,9 @@
  * itself replaced.
  *
  * Plays the AI's turn (`fly-jump`: it casts a creature and attacks with a Serra Angel) while alice's
- * flyers are drawn, and records on her screen, every animation frame: each flyer face's centre against
- * its own `<li>` (the loop moves it under 0.1 px a frame, so a step over 2 px is a jump), and every
+ * flyers are drawn, and records on her screen, every animation frame: each flyer's art centre against
+ * its own face, which carries the loop and nothing else (the face itself rises when the card may
+ * attack); the loop moves it under 0.1 px a frame, so a step over 2 px is a jump. And every
  * `<li>` added or removed, every `data-flying` change and every new fly animation, with when. Every
  * finding prints one `[flyjump]` line.
  *
@@ -74,9 +75,10 @@ async function watch(page: Page): Promise<void> {
     const frame = (): void => {
       for (const li of document.querySelectorAll<HTMLElement>('[data-board-card][data-flying]')) {
         const id = li.getAttribute('data-board-card')!;
-        const card = li.querySelector<HTMLElement>(':scope > .board-card__face > .card');
-        if (card === null) continue;
-        const l = li.getBoundingClientRect();
+        const face = li.querySelector<HTMLElement>(':scope > .board-card__face');
+        const card = face?.querySelector<HTMLElement>(':scope > .card') ?? null;
+        if (face == null || card === null) continue;
+        const l = face.getBoundingClientRect();
         const c = card.getBoundingClientRect();
         (w.path[id] ??= []).push([now(), c.left + c.width / 2 - (l.left + l.width / 2), c.top + c.height / 2 - (l.top + l.height / 2)]);
         for (const a of li.getAnimations()) {
