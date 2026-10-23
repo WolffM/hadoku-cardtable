@@ -856,25 +856,32 @@
     inset 0 0 2px 0 color-mix(in srgb, var(--ward) 55%, transparent);
 }
 
-/* Shroud: fog drifting across the art, clipped to the card's own corners. */
+/*
+ * Shroud: fog drifting across the art, clipped to the card's own corners. The fog is a layer half again
+ * as wide as the card that slides under the clip — a `translate`, so the compositor moves it; it scrolled
+ * its `background-position` until 2026-10-23, which drew every shrouded card again on every frame.
+ */
 [data-protection='shroud'] > .board-card__face > .board-card__protection {
   --glint: var(--shroud);
   --glint-peak: 0.85;
+
+  overflow: clip;
 }
 
 [data-protection='shroud'] > .board-card__face > .board-card__protection::before {
+  right: auto;
+  width: 160%;
   background:
     radial-gradient(40% 30% at 30% 45%, var(--shroud), transparent),
     radial-gradient(35% 28% at 70% 65%, var(--shroud), transparent);
-  background-size: 160% 100%;
   opacity: 0.55;
-  clip-path: inset(0 round var(--radius));
   animation: protection-mist 9s ease-in-out var(--protection-start) infinite alternate;
 }
 
+/* Across by the fog's own extra width (60% of the card, 37.5% of the fog), as the scrolled background did. */
 @keyframes protection-mist {
-  from { background-position: 0% 0%; }
-  to { background-position: 100% 20%; }
+  from { translate: 0 0; }
+  to { translate: -37.5% 0; }
 }
 
 /* Hexproof: a band of hex lattice crosses the art diagonally. */
