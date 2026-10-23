@@ -37,6 +37,18 @@ The operator's words are quoted verbatim. **Design** is ours and may change. The
    Gauntlet draft produced (an array of decks), and every later match skips the draft and plays from
    it. With Each round, every match is a fresh Gauntlet.
 
+8. **The hub and game rooms, verbatim (2026-10-23):** *"the tournament UI needs a bit of work still. I
+   think things like the deck selection should happen inside game rooms. in the top level lobby room i
+   would prefer to just show standings and links to the open rooms. then players can enter their game
+   rooms and perform the game room actions there."* Answers to follow-ups:
+   - a game room is a **table page inside the tournament** (its own link, e.g. `…/room/<id>/table/<table>`),
+     not a separate room;
+   - **anyone may open any match**: its two players play, and everyone else watches;
+   - **draft pods use the same hub and game room** after the draft.
+
+   So once rounds start, the room page is a hub: standings, the bracket, and a link per live match.
+   Everything a match does (deck pick, Ready, sideboard, the game itself) happens on its table page.
+
 ## What exists (2026-10-22, from code)
 
 - **Pods** (`apps/server/src/room/lobby.ts`) have everything Swiss needs:
