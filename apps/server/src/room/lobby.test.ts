@@ -2969,8 +2969,8 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 		expect(lobby.get(id)?.pod?.seats.map((s) => s?.memberId ?? null)).toEqual([ALICE.id, BOB.id, POD_AI, POD_CLOSED, null, null, null, null]);
 	});
 
-	describe('tournament + Gauntlet is refused — per-table GauntletState does not exist yet (follow-up item)', () => {
-		it('refuses turning tournament on while the room’s mode is gauntlet, for both orders', async () => {
+	describe('tournament + Gauntlet: a per-TABLE GauntletState (this lane), not the old per-room one', () => {
+		it('turns tournament on while the room’s mode is gauntlet, and switches to gauntlet with tournament already on — both now allowed', async () => {
 			const lobby = await openLobby({ dir: await tempDir() });
 			const made = lobby.create(ALICE, {
 				name: 'Kitchen table',
@@ -2980,18 +2980,82 @@ describe('tournament mode — docs/planning/tournament-mode-plan.md', () => {
 			});
 			if (!made.ok) throw new Error('create failed');
 			const id = made.room.id;
-			expect(lobby.setSettings(id, ALICE.id, { tournament: true })).toEqual({ ok: false, reason: 'tournament-mode-unsupported' });
-			expect(lobby.get(id)?.settings.tournament).toBe(false);
+			expect(lobby.setSettings(id, ALICE.id, { tournament: true }).ok).toBe(true);
+			expect(lobby.get(id)?.settings.tournament).toBe(true);
 
 			// The other order: tournament already on, then switching the mode to Gauntlet.
 			const classic = lobby.create(ALICE, { name: 'Other table', gameType: 'constructed-1v1', clientMode: 'builtin' });
 			if (!classic.ok) throw new Error('create failed');
 			expect(lobby.setSettings(classic.room.id, ALICE.id, { tournament: true }).ok).toBe(true);
-			expect(lobby.setMode(classic.room.id, ALICE.id, { mode: 'gauntlet', modeOptions: {} })).toEqual({
-				ok: false,
-				reason: 'tournament-mode-unsupported',
+			expect(lobby.setMode(classic.room.id, ALICE.id, { mode: 'gauntlet', modeOptions: {} }).ok).toBe(true);
+			expect(lobby.get(classic.room.id)?.mode).toBe('gauntlet');
+		});
+
+		it('keys the Gauntlet by TABLE: two tables of the same room hold independent states, a restart restores both, and clearing one leaves the other', async () => {
+			const dir = await tempDir();
+			const lobby = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+			const made = lobby.create(ALICE, {
+				name: 'Two tables',
+				gameType: 'constructed-1v1',
+				clientMode: 'builtin',
+				mode: { mode: 'gauntlet', modeOptions: {} },
 			});
-			expect(lobby.get(classic.room.id)?.mode).toBeNull();
+			if (!made.ok) throw new Error('create failed');
+			const id = made.room.id;
+			const t1 = made.room.tables[0]!.id;
+			const t2 = lobby.addTable(id, ALICE.id);
+			if (!t2.ok) throw new Error('addTable failed');
+
+			const g1 = { ...newGauntlet(), phase: 'reveal' as const, era: { id: 'e1', family: 'modern', title: 'e1' } };
+			const g2 = { ...newGauntlet(), phase: 'banpick' as const, era: { id: 'e2', family: 'modern', title: 'e2' } };
+			expect(lobby.setGauntlet(id, g1, t1)).toBe(true);
+			expect(lobby.setGauntlet(id, g2, t2.table.id)).toBe(true);
+			expect(lobby.gauntlet(id, t1)?.phase).toBe('reveal');
+			expect(lobby.gauntlet(id, t2.table.id)?.phase).toBe('banpick');
+			// The no-tableId default reads `tables[0]` — unaffected by the second table.
+			expect(lobby.gauntlet(id)?.phase).toBe('reveal');
+
+			const second = await openLobby({ dir, defaultFormat: POOLS[POOLS.length - 1] });
+			expect(second.gauntlet(id, t1)?.era?.id).toBe('e1');
+			expect(second.gauntlet(id, t2.table.id)?.era?.id).toBe('e2');
+
+			expect(lobby.setGauntlet(id, null, t1)).toBe(true);
+			expect(lobby.gauntlet(id, t1)).toBeNull();
+			expect(lobby.gauntlet(id, t2.table.id)?.phase).toBe('banpick');
+		});
+
+		it('tournamentPairingOf: null outside a tournament, the pairing once locked, AI always last, and the deck policy', async () => {
+			const lobby = await openLobby({ dir: await tempDir() });
+			const made = lobby.create(ALICE, { name: 'Pairing', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'gauntlet', modeOptions: {} } });
+			if (!made.ok) throw new Error('create failed');
+			const id = made.room.id;
+			const tableId = made.room.tables[0]!.id;
+			expect(lobby.tournamentPairingOf(id, tableId)).toBeNull();
+
+			expect(lobby.setSettings(id, ALICE.id, { tournament: true, tournamentDecks: 'locked' }).ok).toBe(true);
+			expect(lobby.join(id, BOB).ok).toBe(true);
+			expect(lobby.sitPod(id, ALICE.id, 0).ok).toBe(true);
+			expect(lobby.sitPod(id, BOB.id, 1).ok).toBe(true);
+			expect(lobby.setReady(id, ALICE.id, true)).toBe(true);
+			expect(lobby.setReady(id, BOB.id, true)).toBe(true);
+			expect(lobby.startDraft(id, ALICE.id).ok).toBe(true);
+			const dealtTable = lobby.get(id)!.pod!.pairings[0]!.tableId;
+			expect(lobby.tournamentPairingOf(id, dealtTable)).toEqual({ entrants: [ALICE.id, BOB.id], locked: true });
+
+			// A human vs. an AI entrant: the AI's id is always LAST, whichever
+			// order the Swiss pairing itself produced.
+			const vsAi = lobby.create(CAROL, { name: 'Pairing vs AI', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'gauntlet', modeOptions: {} } });
+			if (!vsAi.ok) throw new Error('create failed');
+			expect(lobby.setSettings(vsAi.room.id, CAROL.id, { tournament: true, tournamentDecks: 'per-round' }).ok).toBe(true);
+			expect(lobby.sitPod(vsAi.room.id, CAROL.id, 0).ok).toBe(true);
+			expect(lobby.aiPod(vsAi.room.id, CAROL.id, 1, true).ok).toBe(true);
+			expect(lobby.setReady(vsAi.room.id, CAROL.id, true)).toBe(true);
+			expect(lobby.startDraft(vsAi.room.id, CAROL.id).ok).toBe(true);
+			const aiTable = lobby.get(vsAi.room.id)!.pod!.pairings[0]!.tableId;
+			const pairing = lobby.tournamentPairingOf(vsAi.room.id, aiTable);
+			expect(pairing?.entrants[0]).toBe(CAROL.id);
+			expect(pairing?.entrants[1]).toMatch(/^ai:/);
+			expect(pairing?.locked).toBe(false);
 		});
 
 		it('leaves Classic and All Random unaffected, in either order', async () => {

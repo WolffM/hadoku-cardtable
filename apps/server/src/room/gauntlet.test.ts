@@ -11,6 +11,7 @@ import {
 	gauntletEras,
 	gauntletHoldsTable,
 	newGauntlet,
+	pickEra,
 	pickedDecks as picksOf,
 	readyFor,
 	resumeLockedGauntlet,
@@ -123,6 +124,15 @@ describe('the eras a Gauntlet is drawn from', () => {
 	it('draws only once: a second draw is refused', () => {
 		const s = drawn();
 		expect(drawGauntlet(s, { players: [...HUMANS], eras: ERAS, now: NOW, options: {}, random: seeded() })).toEqual({ ok: false, reason: 'drawn' });
+	});
+
+	it('pickEra: the same eligible-era rule a draw uses, but to show an era with no draw at all — null when none matches', () => {
+		for (let seed = 1; seed < 40; seed++) {
+			expect(['2022-04-29', 'modern-2022-04-29']).toContain(pickEra(ERAS, {}, seeded(seed))?.id);
+		}
+		expect(pickEra(ERAS, { era: '1998-07-01' }, seeded())).toBeNull();
+		expect(pickEra(ERAS, { family: 'legacy' }, seeded())).toBeNull();
+		expect(pickEra(ERAS, { family: 'modern' }, seeded())?.id).toBe('modern-2022-04-29');
 	});
 });
 
