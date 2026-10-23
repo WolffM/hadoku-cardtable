@@ -2333,10 +2333,10 @@ function RoomTableScreen({
                 )}
                 {mode === 'random' && (
                   <AllRandomOptions
-                    // The pair parsed together (`parseRoomView`), so an All Random room's options carry its pool.
-                    value={(view?.modeOptions as RandomOptions | null)?.pool ?? null}
+                    // The pair parsed together (`parseRoomView`), so an All Random room's options carry its pool and its lock.
+                    value={(view?.modeOptions as RandomOptions | null) ?? null}
                     disabled={!iAmLeader || modeLocked}
-                    onChange={(pool) => writeRoom(() => rooms.setRoomMode(roomId, { mode: 'random', modeOptions: { pool } }))}
+                    onChange={(options) => writeRoom(() => rooms.setRoomMode(roomId, { mode: 'random', modeOptions: options }))}
                   />
                 )}
                 {/* Tournament applies across every mode (ruling 2), so it sits
