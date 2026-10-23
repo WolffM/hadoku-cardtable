@@ -2401,30 +2401,15 @@ describe('tournament mode', () => {
     expect((screen.getByTestId('tournament-decks-locked') as HTMLInputElement).checked).toBe(true);
   });
 
-  it('disables Gauntlet in the mode row while Tournament is on, and disables Tournament while the mode is Gauntlet', async () => {
+  it('leaves Gauntlet live in the mode row while Tournament is on, and Tournament live while the mode is Gauntlet — any of the three modes may run a tournament', async () => {
     await mountTournament({ settings: { tournament: true, tournamentDecks: 'locked' }, pod: null });
-    expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).disabled, 'Tournament on: Gauntlet is off limits').toBe(true);
+    expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).disabled, 'Tournament on: Gauntlet still a live choice').toBe(false);
     expect((screen.getByTestId('constructed-mode-classic') as HTMLInputElement).disabled).toBe(false);
     expect((screen.getByTestId('constructed-mode-random') as HTMLInputElement).disabled).toBe(false);
 
-    screen.getByTestId('tournament-toggle').click();
-    await waitFor(() => expect(screen.getByTestId('tournament-toggle').getAttribute('aria-pressed')).toBe('false'));
-    expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).disabled, 'Tournament off: Gauntlet is live again').toBe(false);
-
     screen.getByTestId('constructed-mode-gauntlet').click();
     await waitFor(() => expect((screen.getByTestId('constructed-mode-gauntlet') as HTMLInputElement).checked).toBe(true));
-    expect((screen.getByTestId('tournament-toggle') as HTMLButtonElement).disabled, 'mode is Gauntlet: Tournament is off limits').toBe(true);
-  });
-
-  it('shows the server’s tournament-mode-unsupported refusal in the room’s own refusal style, if it ever sends one anyway', async () => {
-    await mountTournament({
-      settings: { tournament: false, tournamentDecks: 'locked' },
-      pod: null,
-      refusePatch: { status: 409, error: 'tournament-mode-unsupported' },
-    });
-    screen.getByTestId('tournament-toggle').click();
-    // `writeRoom`'s own wording, unchanged by this lane — no hint text of its own invention added.
-    await waitFor(() => expect(screen.getByTestId('table-error').textContent).toBe('Could not change the room settings: tournament-mode-unsupported.'));
+    expect((screen.getByTestId('tournament-toggle') as HTMLButtonElement).disabled, 'mode is Gauntlet: Tournament stays a live toggle').toBe(false);
   });
 
   it('a non-leader reads Tournament and Decks disabled, never able to move them', async () => {

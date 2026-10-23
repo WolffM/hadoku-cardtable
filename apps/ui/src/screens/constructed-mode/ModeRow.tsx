@@ -127,19 +127,10 @@ function morph(host: HTMLElement, group: HTMLElement, from: RowLook, to: RowLook
 export function ModeRow({
   mode,
   disabled,
-  gauntletDisabled = false,
   onChoose,
 }: {
   mode: ConstructedMode | null;
   disabled: boolean;
-  /**
-   * Gauntlet alone, off limits — the server's `tournament-mode-unsupported`
-   * (a per-table Gauntlet-state follow-up lane's own gap): a Constructed
-   * room with its Tournament setting on refuses a move to Gauntlet, so the
-   * leader never gets the chance to send one. Classic and All Random are
-   * unaffected.
-   */
-  gauntletDisabled?: boolean;
   onChoose: (mode: ConstructedMode) => void;
 }) {
   // The size drawn, which follows `mode` a step behind so the old layout can be read before it changes.
@@ -170,7 +161,7 @@ export function ModeRow({
       <RadioCards
         name="constructed-mode"
         label="Mode"
-        options={gauntletDisabled ? MODE_CARDS.map((c) => (c.value === 'gauntlet' ? { ...c, disabled: true } : c)) : MODE_CARDS}
+        options={MODE_CARDS}
         value={mode}
         disabled={disabled}
         onChange={onChoose}
