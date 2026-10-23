@@ -7,15 +7,11 @@
          tab and the header stay one name. See app-name.ts. -->
     <title>__HADOKU_APP_NAME__</title>
     <!--
-      Our own mark, inline: three fanned cards. A data URI rather than a file
-      because `*.png`/`*.jpg` are refused repo-wide (the no-card-images control)
-      and because it saves the browser's automatic /favicon.ico request, which
-      is otherwise a 404 on every page load.
+      The site's own mark, served by hadoku.me at the ROOT — deliberately not
+      under /cardtable/, which only this server answers. Every hadoku app links
+      the same one. Without it the browser asks for /favicon.ico, which 404s.
     -->
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314161a'/%3E%3Cg stroke='%23565d68' stroke-width='1.5' fill='%2323272f'%3E%3Crect x='6' y='11' width='11' height='15' rx='2' transform='rotate(-16 11.5 18.5)'/%3E%3Crect x='10.5' y='9' width='11' height='15' rx='2'/%3E%3Crect x='15' y='11' width='11' height='15' rx='2' transform='rotate(16 20.5 18.5)'/%3E%3C/g%3E%3C/svg%3E"
-    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
     <div id="root"></div>

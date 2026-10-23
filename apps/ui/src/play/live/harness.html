@@ -8,12 +8,9 @@
       A dev-only entry point for the LIVE board, served by `vite` at
       /cardtable/src/play/live/harness.html. Not a build input (vite.config.ts
       builds index.html only), so it never ships. Query parameters are read in
-      harness.tsx. Favicon: index.html's own inline mark, so no /favicon.ico.
+      harness.tsx. Favicon: the site's root mark, the same link as index.html.
     -->
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2314161a'/%3E%3Cg stroke='%23565d68' stroke-width='1.5' fill='%2323272f'%3E%3Crect x='6' y='11' width='11' height='15' rx='2' transform='rotate(-16 11.5 18.5)'/%3E%3Crect x='10.5' y='9' width='11' height='15' rx='2'/%3E%3Crect x='15' y='11' width='11' height='15' rx='2' transform='rotate(16 20.5 18.5)'/%3E%3C/g%3E%3C/svg%3E"
-    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body>
     <div id="root"></div>
