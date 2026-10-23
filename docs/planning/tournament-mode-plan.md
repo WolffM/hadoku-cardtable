@@ -145,20 +145,23 @@ One contract commit (the settings schema + `PodView` for a constructed room) lan
 server (lobby/routes/per-mode deck policy) and the UI work in parallel against it. The UI lands after
 the server.
 
-## Open: `http/routes.ts`'s own adapter is not yet per-table (2026-10-22)
+## `http/routes.ts`'s own adapter is now per-table (landed 2026-10-22)
 
 `room/lobby.ts`'s Gauntlet storage, `http/gauntlet.ts`'s routes and `GauntletDeps`/`GauntletHandle`
-are all keyed by `(roomId, tableId)` now, but `routes.ts`'s adapter — the object it builds to satisfy
-`GauntletDeps`, and the 4 call sites (`seated`/`setReady`/`dealGame`, `holdsTable`/`startRefusal`/
-`afterGame`) — still call with no table id, which every one of those signatures defaults to
-`tables[0]`. `routes.ts` was held by another session throughout this lane (`All Random hides the dealt
-deck`), so the patch is prepared, not applied: thread the real `table.id` (already resolved at every
-one of those call sites) through the 3 adapter closures and the 4 callers. Until it lands, a
-tournament's several simultaneous Gauntlet tables collapse onto one shared state, same as before this
-lane — a plain, non-tournament Gauntlet room is unaffected either way.
+were keyed by `(roomId, tableId)` from the start of this lane, but `routes.ts`'s adapter was held by
+another session (`All Random hides the dealt deck`) until it landed `b7ff6b6c`/`ac238376` and released
+the file. Once free, this lane re-read the current file (5a's `dealRandom`/`dealtUnseen` changes had
+moved the call sites) and threaded the real `table.id` through: the 3 `attachGauntlet` adapter closures
+(`seated`/`setReady`/`dealGame`), `tableLocked()`'s new `tableId` param and both its call sites, and
+`recordGame()`'s `afterGame` call. Proved with a failing test first, against the real `routes.ts`
+adapter (no mocks) via `rooms.test.ts`'s `openFullApp` harness: two simultaneous Gauntlet tables each
+ban/pick/choose independently, round 1 settles on both, and round 2's locked entrants resume straight
+to `choose` with no banpick — RED before the patch (409 on the second table's own ready), GREEN after.
+A tournament's several simultaneous Gauntlet tables no longer collapse onto one shared state; a plain,
+non-tournament Gauntlet room is unaffected either way.
 
 ## Watches
 
 - The first real 4-player tournament on production: a Classic one, locked decks.
-- The first real Gauntlet tournament, once `routes.ts`'s own patch lands (see "Open", above): two
-  simultaneous Gauntlet tables of one round, and a locked entrant's second match skipping its banpick.
+- The first real Gauntlet tournament: two simultaneous Gauntlet tables of one round, and a locked
+  entrant's second match skipping its banpick.

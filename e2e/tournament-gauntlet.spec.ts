@@ -74,6 +74,10 @@ test(
       // either) — the room's own screen coming up is the real proof.
       await bob.page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
       await expect(bob.page.getByTestId('constructed')).toBeVisible({ timeout: 15_000 });
+      // The page's own join is lazy — `ConstructedScreen.tsx`'s table-read effect
+      // joins only after its first read 404s as a non-member, a race `bobApi`'s
+      // own direct calls below must not depend on. Joined for real, right now.
+      expect((await bobApi('POST', `/rooms/${roomId}/join`, {})).status).toBe(200);
 
       const patched = await alice.context.request.patch(`${stack.origin}${PREFIX}/api/rooms/${roomId}`, { data: { settings: { tournament: true, tournamentDecks: 'locked' } } });
       expect(patched.status(), await patched.text()).toBe(200);
