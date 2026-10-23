@@ -1117,6 +1117,23 @@ function RoomTableScreen({
   const tournamentLobby = tournament && pod !== null && pod.phase === 'lobby';
   /** Seats are locked: the bracket, standings and "your table" replace the lobby's seats entirely. */
   const tournamentRounds = tournament && pod !== null && (pod.phase === 'rounds' || pod.phase === 'done');
+  /*
+   * The tournament's rounds: my own table (if any) among `view.tables` —
+   * possibly several at once, unlike the 1v1 room's single `myTable` —
+   * found the same way `PodScreen.tsx`'s own `myCurrentTable` does, from
+   * the CURRENT round's pairings, since an earlier round's table is still
+   * mine and finished. Computed here (ahead of the deck/table reads below)
+   * so a Gauntlet tournament's own state effect, further down, can scope
+   * its reads to it.
+   */
+  const myTournamentTable: SharedRoomTable | undefined = (() => {
+    if (pod === null || view === null) return undefined;
+    const current = new Set(pod.pairings.map((p) => p.tableId));
+    return view.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === view.you.id));
+  })();
+  const tSideboarding = myTournamentTable !== undefined && myTournamentTable.matchId === null && myTournamentTable.series.phase === 'sideboarding';
+  /** A tournament Gauntlet table is scoped by this id; a non-tournament one reads `undefined` (the room's first table), same as before. */
+  const gauntletTableId = tournament ? myTournamentTable?.id : undefined;
 
   // The formats and the decks — for a constructed table only. A draft room has
   // no deck to hold, and `routes.ts` refuses every table write it could make.
@@ -1332,10 +1349,14 @@ function RoomTableScreen({
   /**
    * The room's own table record (wave 71 §D's wire shape, via `@hadoku/shared`),
    * for the SERIES it carries — `wins`, `games`, `phase` — none of which
-   * `./tables.ts`'s own `RoomTable` (`table`, above) has. A constructed 1v1
-   * room is the one-table case, so this is always `tables[0]`.
+   * `./tables.ts`'s own `RoomTable` (`table`, above) has. A plain constructed
+   * 1v1 room is the one-table case, so this is `tables[0]`; a TOURNAMENT room
+   * never plays on `tables[0]` once it locks (`room/lobby.ts`'s
+   * `#lockTournament` unseats it — a real run, 2026-10-22, is exactly what
+   * reading it here regardless of mode cost), so this reads the player's own
+   * CURRENT tournament table (`myTournamentTable`) instead.
    */
-  const myTable: SharedRoomTable | null = view?.tables[0] ?? null;
+  const myTable: SharedRoomTable | null = tournament ? (myTournamentTable ?? null) : (view?.tables[0] ?? null);
   /** Between games of my series: the room is where the sideboard step is, whichever page I came back by (`TableSideboard`). */
   const mySideboarding = myTable !== null && myTable.matchId === null && myTable.series.phase === 'sideboarding';
   const streamed = modeRef.current === 'streamed';
@@ -1577,11 +1598,16 @@ function RoomTableScreen({
   // The match the server started — for whoever pressed nothing, too. Only one
   // this screen saw begin is new: a table that already had a match when it
   // first loaded is a match under way, and opens without the start sound.
+  //
+  // Never for a tournament: `table`/`matchId` read `tables[0]`, which a
+  // tournament room never plays on once it locks (`room/lobby.ts`'s
+  // `#lockTournament` unseats it) — a tournament's own match-follow is
+  // `myTournamentTable`'s effect, further down.
   const sawNoMatch = useRef(false);
   if (table !== null && matchId === null) sawNoMatch.current = true;
   useEffect(() => {
-    if (matchId !== null) followMatchOnce(matchId, sawNoMatch.current);
-  }, [matchId]);
+    if (!tournament && matchId !== null) followMatchOnce(matchId, sawNoMatch.current);
+  }, [tournament, matchId]);
 
   const startVsBot = (): void => {
     setStartRefusal(null);
@@ -1625,7 +1651,10 @@ function RoomTableScreen({
     lastMatch.current = matchId;
   }, [matchId]);
   useEffect(() => {
-    if (draftRoom || startAs === null || matchId !== null || mine === null || asked.current) return;
+    // Never for a tournament: `startRoom`/`startVsBot` with no table id act on
+    // `tables[0]`, which a tournament room never plays — its own start is
+    // `startTournamentTable`'s effect, scoped to `myTournamentTable`, further down.
+    if (tournament || draftRoom || startAs === null || matchId !== null || mine === null || asked.current) return;
     asked.current = true;
     setStarting(true);
     (startAs === 'ai' ? client.startVsBot(roomId) : client.startRoom(roomId))
@@ -1641,7 +1670,7 @@ function RoomTableScreen({
         setStartRefusal(err instanceof Error ? err.message : String(err));
         setStarting(false);
       });
-  }, [draftRoom, startAs, matchId, mine, client, roomId]);
+  }, [tournament, draftRoom, startAs, matchId, mine, client, roomId]);
 
   /*
    * Every member ready: deal the draft.
@@ -1874,16 +1903,18 @@ function RoomTableScreen({
   }, [client, wantsGauntletEras]);
 
   // A Gauntlet room's state, read on the room's own feed: every move the server
-  // stores pings it, so both screens and every watcher follow the board.
+  // stores pings it, so both screens and every watcher follow the board. A
+  // tournament scopes the read to MY OWN table (`gauntletTableId`); between
+  // rounds, before I have one, there is nothing of mine to show.
   useEffect(() => {
-    if (mode !== 'gauntlet') {
+    if (mode !== 'gauntlet' || (tournament && gauntletTableId === undefined)) {
       setGauntlet(null);
       return;
     }
     let live = true;
     const read = (): void => {
       const landed = gauntletReads.read();
-      client.gauntlet(roomId).then(
+      client.gauntlet(roomId, gauntletTableId).then(
         (next) => {
           if (!live) return;
           const verdict = landed();
@@ -1900,7 +1931,7 @@ function RoomTableScreen({
       live = false;
       stopFollowing();
     };
-  }, [client, feed, roomId, mode, gauntletReads]);
+  }, [client, feed, roomId, mode, gauntletReads, tournament, gauntletTableId]);
 
   /** One Gauntlet move (ready, ban, pick, choose): the board as it now stands, or the server's words. */
   const gauntletMove = (move: () => Promise<GauntletOutcome>): void => {
@@ -2025,20 +2056,6 @@ function RoomTableScreen({
       .finally(() => setBusy(false));
   };
 
-  /*
-   * The tournament's rounds: my own table (if any) among `view.tables` —
-   * possibly several at once, unlike the 1v1 room's single `myTable` —
-   * found the same way `PodScreen.tsx`'s own `myCurrentTable` does, from
-   * the CURRENT round's pairings, since an earlier round's table is still
-   * mine and finished.
-   */
-  const myTournamentTable: SharedRoomTable | undefined = (() => {
-    if (pod === null || view === null) return undefined;
-    const current = new Set(pod.pairings.map((p) => p.tableId));
-    return view.tables.find((t) => current.has(t.id) && t.players.some((p) => p.memberId === view.you.id));
-  })();
-  const tSideboarding = myTournamentTable !== undefined && myTournamentTable.matchId === null && myTournamentTable.series.phase === 'sideboarding';
-
   /**
    * Every entrant's display name and avatar — human members, plus whatever
    * `pod.seats` named for an AI entrant (`ai:<seat>` or the draft pod's
@@ -2138,11 +2155,15 @@ function RoomTableScreen({
   };
   useEffect(() => {
     if (!tournamentRounds || myTournamentTable === undefined || tNeedsDeck) return;
+    // Gauntlet's own flow decides when a game may start (its `playing` phase,
+    // once both decks are dealt) — the table's bare `seating` is true from the
+    // pairing itself, long before anyone has readied, banned or picked.
+    if (mode === 'gauntlet' && gauntlet?.phase !== 'playing') return;
     if (myTournamentTable.matchId !== null || (myTournamentTable.series.phase !== 'seating' && myTournamentTable.series.phase !== 'playing')) return;
     const ask = `${myTournamentTable.id}:${myTournamentTable.series.games.length}:${myTournamentTable.series.phase}`;
     if (tAsked.current === ask) return;
     startTournamentTable(myTournamentTable, ask);
-  }, [tournamentRounds, myTournamentTable, tNeedsDeck]);
+  }, [tournamentRounds, myTournamentTable, tNeedsDeck, mode, gauntlet]);
 
   const startState = startStateText(starting, matchId);
   /** Back in the room by choice while the game goes on: the way into it again. */
@@ -2166,6 +2187,46 @@ function RoomTableScreen({
       </button>
     </div>
   );
+
+  /**
+   * A Gauntlet tournament table's own board — `TournamentRounds`'s
+   * `gauntlet` slot. Nobody sits or stands here (the pod's pairing already
+   * fixed the two seats, ruling 5): before the draw, just the two entrants'
+   * names and MY OWN Ready; from the reveal on, `GauntletScreen`, exactly as
+   * a non-tournament Gauntlet table already draws it, just scoped to
+   * `gauntletTableId`.
+   */
+  const tGauntletBoard =
+    mode === 'gauntlet' && myTournamentTable !== undefined && gauntlet !== null ? (
+      <section className="lobby__card" data-testid="tournament-gauntlet">
+        {gauntlet.phase === 'options' ? (
+          <ul className="pod-seats pod-seats--table" data-testid="tournament-gauntlet-seats">
+            {[0, 1].map((seat) => (
+              <li key={seat} className="pod-seats__seat">
+                <span className="pod-seats__label">{myTournamentTable.players[seat]?.name ?? 'AI'}</span>
+                {gauntlet.you === seat && (
+                  <ActionButton
+                    action="ready"
+                    data-testid="tournament-gauntlet-ready"
+                    onPress={() => gauntletMove(() => client.gauntletReady(roomId, !gauntlet.ready[seat], undefined, gauntletTableId))}
+                  >
+                    {gauntlet.ready[seat] ? 'Waiting…' : 'Ready'}
+                  </ActionButton>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <GauntletScreen
+            view={gauntlet}
+            avatars={seatAvatars(gauntlet, members)}
+            onBan={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'ban', deck, gauntletTableId))}
+            onPick={(deck) => gauntletMove(() => client.gauntletAct(roomId, 'pick', deck, gauntletTableId))}
+            onChoose={(deck) => gauntletMove(() => client.gauntletChoose(roomId, deck, gauntletTableId))}
+          />
+        )}
+      </section>
+    ) : undefined;
 
   /*
    * The pod: the draft room's second phase, and the whole screen while it lasts.
@@ -2418,6 +2479,7 @@ function RoomTableScreen({
                     <TableSideboard key={`${myTournamentTable.id}:${myTournamentTable.series.games.length}`} roomId={roomId} tableId={myTournamentTable.id} refresh={view} tables={client} />
                   ) : undefined
                 }
+                gauntlet={tGauntletBoard}
               />
             ) : (
               mode !== null && (

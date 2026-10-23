@@ -326,6 +326,14 @@ interface Table {
   pod?: unknown;
   /** What `GET /api/decks` answers — Free pick's "My decks". Absent ⇒ none; a promise ⇒ answers when it settles. */
   myDecks?: MyDeck[] | Promise<MyDeck[]>;
+  /**
+   * Further `RoomView.tables` entries beside the one every other field here
+   * builds (`t-stub0001`) — a tournament round's OWN table, distinct from
+   * the room's stale default one, so a test can tell "the screen read MY
+   * table" from "the screen read `tables[0]`" (a real run, 2026-10-22:
+   * exactly the production bug this proves against).
+   */
+  extraTables?: { id: string; players: { memberId: string; name: string }[]; matchId: string | null; series?: Table['series'] }[];
 }
 
 /**
@@ -392,6 +400,12 @@ function stubServer(table: Table) {
         matchId: table.matchId,
         series: table.series ?? { length: 1, wins: [0, 0], games: [], phase: 'seating' },
       },
+      ...(table.extraTables ?? []).map((t) => ({
+        id: t.id,
+        players: t.players,
+        matchId: t.matchId,
+        series: t.series ?? { length: 1, wins: [0, 0], games: [], phase: 'seating' },
+      })),
     ],
   });
   /** One deck against one pool, which is the only question the gate answers. */
@@ -2494,6 +2508,28 @@ describe('tournament mode', () => {
     expect(screen.queryByTestId('room-players')).toBeNull();
     expect(screen.getByTestId('pod-round').textContent).toBe('Round 1 of 1');
     expect(screen.queryByTestId('pod-lock-seats')).toBeNull();
+  });
+
+  it('a real run, 2026-10-22 (room r-228e5e39987e): never follows a match on the room’s stale tables[0] — my own CURRENT round table is what surfaces', async () => {
+    await mountTournament({
+      // The stale table (`t-stub0001`, what every OTHER field here feeds) — as
+      // if Alice had sat here before ever turning Tournament on, and a match
+      // somehow still named it. The fix must never read or follow it.
+      players: [{ seat: 0, name: 'user-alice', you: true, ready: false }],
+      matchId: 'm-stale',
+      pod: tournamentPod({
+        phase: 'rounds',
+        round: 1,
+        rounds: 1,
+        pairings: [{ tableId: 't-round1', players: ['p-alice', 'p-1'] }],
+      }),
+      members: members(true, true),
+      extraTables: [{ id: 't-round1', players: [{ memberId: 'p-alice', name: 'user-alice' }], matchId: null }],
+    });
+    await screen.findByTestId('pod-tables');
+    // Never navigated into the stale match.
+    expect(globalThis.location.hash).toBe('');
+    expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'lobby' });
   });
 
   it('once the pod is done, heads with Standings rather than a round number', async () => {
