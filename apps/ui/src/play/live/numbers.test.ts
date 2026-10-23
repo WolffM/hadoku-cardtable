@@ -689,7 +689,7 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     vi.useFakeTimers();
     const { canvas, overlay } = sweeperBoard();
     const left: [Departure, number][] = [];
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (d, ms) => left.push([d, ms]) });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (batch) => batch.forEach(({ departure: d, delayMs: ms }) => left.push([d, ms])) });
     handle.notify(before);
     keepPlaces(canvas);
     const at = Date.now();
@@ -717,7 +717,7 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     vi.useFakeTimers();
     const { canvas } = sweeperBoard();
     const left: [number, number, string | undefined][] = [];
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (d, ms) => left.push([d.cardId, ms, d.cause]) });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (batch) => batch.forEach(({ departure: d, delayMs: ms }) => left.push([d.cardId, ms, d.cause])) });
     handle.notify(before);
     keepPlaces(canvas);
     handle.notify({ ...after, hits: [] });
@@ -732,7 +732,7 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     vi.useFakeTimers();
     const { canvas } = sweeperBoard();
     const left: [number, string | undefined][] = [];
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (d) => left.push([d.cardId, d.cause]) });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false, leave: (batch) => batch.forEach(({ departure: d }) => left.push([d.cardId, d.cause])) });
     handle.notify(before);
     keepPlaces(canvas);
     handle.notify({ ...after, hits: [], deathCauses: new Map([[7, 'SACRIFICED'], [9, 'DESTROYED']]) });
@@ -747,7 +747,7 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     vi.useFakeTimers();
     const { canvas, overlay } = sweeperBoard();
     const left: [number, number][] = [];
-    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => true, leave: (d, ms) => left.push([d.cardId, ms]) });
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => true, leave: (batch) => batch.forEach(({ departure: d, delayMs: ms }) => left.push([d.cardId, ms])) });
     handle.notify(before);
     keepPlaces(canvas);
     handle.notify(after);

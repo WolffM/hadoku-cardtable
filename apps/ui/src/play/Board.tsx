@@ -4204,7 +4204,7 @@ export function Board({
     const handle = installNumbers(el, {
       report: (data) => reportEffect.current?.(data),
       fastMode: () => fastNow.current,
-      leave: (departure, delayMs) => departures.current?.leave(departure, delayMs),
+      leave: (batch) => departures.current?.leave(batch),
     });
     numbers.current = handle;
     return () => {

@@ -109,7 +109,7 @@ describe('installDepartures', () => {
     const handle = installDepartures(canvas, { onDone });
     handle.snapshot();
     keepPlace(canvas);
-    handle.leave(departure('graveyard', 'sacrificed'), 100);
+    handle.leave([{ departure: departure('graveyard', 'sacrificed'), delayMs: 100 }]);
 
     const standIn = canvas.querySelector<HTMLElement>('[data-board-overlay] .board-departure')!;
     expect(standIn.getAttribute('data-exit')).toBe('crumple');
@@ -128,6 +128,38 @@ describe('installDepartures', () => {
     handle.dispose();
   });
 
+  it('a commit’s departures read every box before drawing any stand-in: a read after one is drawn lays the page out again, once per card', () => {
+    vi.useFakeTimers();
+    const canvas = document.createElement('div');
+    canvas.innerHTML = `
+      <div data-zone="battlefield"><ul>
+        <li class="board-card" data-board-card="7"><span class="name">Thalia</span></li>
+        <li class="board-card" data-board-card="8"><span class="name">Bear</span></li>
+      </ul></div>
+      <div data-board-overlay=""></div>`;
+    document.body.append(canvas);
+    const order: string[] = [];
+    const overlay = canvas.querySelector<HTMLElement>('[data-board-overlay]')!;
+    overlay.getBoundingClientRect = () => (order.push('read'), rect(0, 0, 1000, 800));
+    const append = overlay.append.bind(overlay);
+    overlay.append = (...nodes) => (order.push('write'), append(...nodes));
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    for (const [id, left] of [[7, 300], [8, 380]] as const) {
+      const gap = document.createElement('li');
+      gap.setAttribute(LEAVING_GAP_ATTR, String(id));
+      gap.getBoundingClientRect = () => (order.push('read'), rect(left, 400, 60, 84));
+      canvas.querySelector(`[data-board-card="${id}"]`)!.replaceWith(gap);
+    }
+    handle.leave([
+      { departure: departure('graveyard'), delayMs: 0 },
+      { departure: { ...departure('graveyard'), cardId: 8, card: { id: 8 } as BoardCard }, delayMs: 0 },
+    ]);
+    expect(canvas.querySelectorAll('.board-departure')).toHaveLength(2);
+    expect(order.lastIndexOf('read'), `every read before the first stand-in is drawn: ${order.join(' ')}`).toBeLessThan(order.indexOf('write'));
+    handle.dispose();
+  });
+
   it('reduced motion: no copy; the place is given back at the beat', () => {
     vi.useFakeTimers();
     vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce') }));
@@ -136,7 +168,7 @@ describe('installDepartures', () => {
     const handle = installDepartures(canvas, { onDone });
     handle.snapshot();
     keepPlace(canvas);
-    handle.leave(departure('graveyard'), 100);
+    handle.leave([{ departure: departure('graveyard'), delayMs: 100 }]);
     expect(canvas.querySelector('.board-departure')).toBeNull();
     vi.advanceTimersByTime(100);
     expect(onDone).toHaveBeenCalledWith(7);
@@ -150,7 +182,7 @@ describe('installDepartures', () => {
     const handle = installDepartures(canvas, { onDone });
     handle.snapshot();
     keepPlace(canvas);
-    handle.leave(departure('graveyard'), 0);
+    handle.leave([{ departure: departure('graveyard'), delayMs: 0 }]);
     const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
     expect(standIn.getAttribute('data-exit')).toBe('slice');
     expect([...standIn.querySelectorAll<HTMLElement>('.board-departure__piece')].map((p) => [p.dataset.piece, p.textContent])).toEqual([
@@ -187,7 +219,7 @@ describe('installDepartures', () => {
     handle.snapshot();
     handle.capture();
     keepPlace(canvas); // the gap stands at (300, 400): 20 px lower than the card was
-    handle.leave(departure('graveyard'), 0);
+    handle.leave([{ departure: departure('graveyard'), delayMs: 0 }]);
     handle.snapshot();
     vi.advanceTimersByTime(250);
     expect(report).toHaveBeenCalledWith(expect.objectContaining({ what: 'departure-layout', departures: 1, copyDx: 0, copyDy: 20 }));
@@ -206,7 +238,7 @@ describe('installDepartures', () => {
     canvas.append(hand);
     const own = hand.querySelector<HTMLElement>('li')!;
     own.getBoundingClientRect = () => rect(500, 700, 45, 63);
-    handle.leave(departure('hand'), 50);
+    handle.leave([{ departure: departure('hand'), delayMs: 50 }]);
     const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
     expect(standIn.getAttribute('data-exit')).toBe('return');
     // From the gap's centre (330, 442) to the card's (522.5, 731.5), at the card's width over the gap's.
@@ -235,13 +267,13 @@ describe('installDepartures', () => {
       <section data-zone="hand"><ul class="card-backs"><li class="card-back" data-card-back=""></li><li class="card-back" data-card-back=""></li></ul></section>`;
     canvas.append(seat);
     const newest = seat.querySelectorAll<HTMLElement>('.card-back')[1]!;
-    handle.leave({ ...departure('hand'), toPlayerId: 1 }, 0);
+    handle.leave([{ departure: { ...departure('hand'), toPlayerId: 1 }, delayMs: 0 }]);
     const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
     expect(standIn.getAttribute('data-exit')).toBe('return');
     expect([...standIn.querySelectorAll('.board-departure__piece')].map((p) => p.firstElementChild!.className)).toEqual(['board-card']);
     expect(newest.hasAttribute(LANDING_ATTR)).toBe(true);
     expect(seat.querySelectorAll('.card-back')[0]!.hasAttribute(LANDING_ATTR)).toBe(false);
-    handle.leave({ ...departure('hand'), cardId: 8, toPlayerId: 1 }, 0);
+    handle.leave([{ departure: { ...departure('hand'), cardId: 8, toPlayerId: 1 }, delayMs: 0 }]);
     expect(seat.querySelectorAll('.card-back')[0]!.hasAttribute(LANDING_ATTR), 'a second card into the hand lands on the next back').toBe(true);
     vi.advanceTimersByTime(EXIT_MOTIONS.return.ms);
     expect(newest.hasAttribute(LANDING_ATTR)).toBe(false);
@@ -253,7 +285,7 @@ describe('installDepartures', () => {
     const handle = installDepartures(canvas, { onDone: () => undefined });
     handle.snapshot();
     keepPlace(canvas);
-    handle.leave({ ...departure('exile'), hue: 'U' }, 0);
+    handle.leave([{ departure: { ...departure('exile'), hue: 'U' }, delayMs: 0 }]);
     const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
     expect(standIn.getAttribute('data-colour')).toBe('U');
     expect(standIn.querySelectorAll('.board-departure__speck')).toHaveLength(EXIT_MOTIONS.dissolve.specks);
@@ -263,7 +295,7 @@ describe('installDepartures', () => {
     const again = installDepartures(plain, { onDone: () => undefined });
     again.snapshot();
     keepPlace(plain);
-    again.leave(departure('exile'), 0);
+    again.leave([{ departure: departure('exile'), delayMs: 0 }]);
     expect(plain.querySelector('.board-departure')!.hasAttribute('data-colour')).toBe(false);
     again.dispose();
   });
@@ -276,7 +308,7 @@ describe('installDepartures', () => {
     const handle = installDepartures(canvas, { onDone: () => undefined });
     handle.snapshot();
     keepPlace(canvas);
-    handle.leave(departure('exile'), 0);
+    handle.leave([{ departure: departure('exile'), delayMs: 0 }]);
     const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
     expect(standIn.style.top).toBe('426px');
     for (const copy of standIn.querySelectorAll<HTMLElement>('.board-departure__piece > .board-card')) expect(copy.style.marginBlock).toBe('0px');
@@ -288,7 +320,7 @@ describe('installDepartures', () => {
     const handle = installDepartures(canvas, { onDone: () => undefined });
     handle.snapshot();
     keepPlace(canvas);
-    handle.leave(departure('graveyard', 'damage'), 0);
+    handle.leave([{ departure: departure('graveyard', 'damage'), delayMs: 0 }]);
     const standIn = canvas.querySelector<HTMLElement>('.board-departure')!;
     expect(standIn.getAttribute('data-exit')).toBe('shatter');
     const pieces = [...standIn.querySelectorAll<HTMLElement>('.board-departure__piece')];
@@ -305,7 +337,7 @@ describe('installDepartures', () => {
     const handle = installDepartures(canvas, { onDone: () => undefined });
     handle.snapshot();
     keepPlace(canvas);
-    handle.leave(departure('exile'), 0);
+    handle.leave([{ departure: departure('exile'), delayMs: 0 }]);
     expect(canvas.querySelector('.board-departure[data-exit="dissolve"]')).not.toBeNull();
     handle.dispose();
     expect(canvas.querySelector('.board-departure')).toBeNull();

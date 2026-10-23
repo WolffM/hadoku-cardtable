@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { powerEase } from '../motion.ts';
-import { alignOf, BLAST_MS, chargeControl, contactMs, fanOf, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset } from './ram.ts';
+import { alignOf, BLAST_MS, boxIn, chargeControl, contactMs, fanOf, punchAt, ram, RAMMING_ATTR, ramMs, RETURN_MS, strikeOffset } from './ram.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
@@ -37,7 +37,7 @@ describe('ramMs', () => {
 });
 
 describe('ram', () => {
-  it('its copy starts on the card’s own box, a turned card’s centring margins dropped without moving it, and the card is shown again once it is home', async () => {
+  it('its copy starts on the card’s own box, a turned card’s centring margins dropped without moving it, reading no box of its own, and the card is shown again once it is home', async () => {
     const root = document.createElement('div');
     root.getBoundingClientRect = () => rect(0, 0, 1000, 800);
     const card = document.createElement('li');
@@ -46,12 +46,18 @@ describe('ram', () => {
     card.style.marginTop = card.style.marginBottom = '26px';
     card.getBoundingClientRect = () => rect(99, 306, 78, 56);
     document.body.append(root, card);
+    // Measured by the caller, with every other ram's boxes, before any copy is drawn.
+    const from = boxIn(card, root);
+    const reads = vi.spyOn(card, 'getBoundingClientRect');
+    const rootReads = vi.spyOn(root, 'getBoundingClientRect');
     let finish: () => void = () => undefined;
     const finished = new Promise<void>((done) => (finish = done));
     const animate = vi.fn(() => ({ finished, cancel: () => undefined }) as unknown as Animation);
     HTMLElement.prototype.animate = animate;
     vi.useFakeTimers();
-    ram(root, card, { x: 138, y: 100, w: 78, h: 108 }, 'meet', 'bounce', 'k', 0, 0, 0);
+    ram(root, card, from, { x: 138, y: 100, w: 78, h: 108 }, 'meet', 'bounce', 'k', 0, 0, 0);
+    expect(reads, 'no box read while the attack is drawn: each lays the page out again').not.toHaveBeenCalled();
+    expect(rootReads).not.toHaveBeenCalled();
     const copy = root.querySelector<HTMLElement>('.board-ram')!;
     expect([copy.style.left, copy.style.top], 'on the card, not a margin lower').toEqual(['99px', '306px']);
     expect(copy.querySelector<HTMLElement>('.board-card')!.style.marginBlock).toBe('0px');

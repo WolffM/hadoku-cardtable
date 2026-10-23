@@ -314,8 +314,8 @@ export interface DeparturesHandle {
    * none reads nothing.
    */
   capture(): void;
-  /** The gap where `departure`'s card was: start its exit `delayMs` from now. */
-  leave(departure: Departure, delayMs: number): void;
+  /** The gaps where a commit's departures' cards were: start each one's exit `delayMs` from now. One call per commit, so every box is read before anything is drawn. */
+  leave(batch: readonly { departure: Departure; delayMs: number }[]): void;
   dispose(): void;
 }
 
@@ -326,14 +326,14 @@ export const LANDING_ATTR = 'data-departure-landing';
  * Where a card going back to its owner's hand lands: its own card there when this screen sees it, else
  * that hand's newest back not yet flown to, else the hand itself. The hand is the one in the seat of the player's face.
  */
-function handLanding(canvas: HTMLElement, departure: Departure): HTMLElement | null {
+function handLanding(canvas: HTMLElement, departure: Departure, taken: ReadonlySet<Element>): HTMLElement | null {
   const own = canvas.querySelector<HTMLElement>(`[data-zone="hand"] [data-board-card="${departure.cardId}"]`);
   if (own !== null) return own;
   const seat = canvas.querySelector(`[data-player-face][data-player-id="${departure.toPlayerId}"]`)?.closest('.seat');
   const hand = seat?.querySelector<HTMLElement>('[data-zone="hand"]') ?? null;
   if (hand === null) return null;
   // The newest back no other card is flying to: two cards into one hand land on two backs.
-  const backs = [...hand.querySelectorAll<HTMLElement>('.card-back')].filter((b) => !b.hasAttribute(LANDING_ATTR));
+  const backs = [...hand.querySelectorAll<HTMLElement>('.card-back')].filter((b) => !b.hasAttribute(LANDING_ATTR) && !taken.has(b));
   return backs.at(-1) ?? hand;
 }
 
@@ -348,24 +348,23 @@ export function copyOfCard(from: HTMLElement): HTMLElement {
 }
 
 /**
- * A turned card is centred in its upright place by margins above and below (`card.css`). A copy keeps
- * none: drops them, and returns how far down they had put the card.
+ * A turned card is centred in its upright place by margins above and below (`card.css`), a share of
+ * its container's width, so a copy's are read off the copy where it is drawn. How far down they put it.
+ * A read: in a batch, every copy is read before any is changed, so the page lays itself out once.
  */
-export function dropTurnedMargins(copies: readonly HTMLElement[]): number {
-  const step = copies.length === 0 ? 0 : parseFloat(getComputedStyle(copies[0]!).marginTop) || 0;
-  if (step > 0) for (const copy of copies) copy.style.marginBlock = '0';
-  return Math.max(0, step);
+function turnedStep(copy: HTMLElement | undefined): number {
+  return copy === undefined ? 0 : Math.max(0, parseFloat(getComputedStyle(copy).marginTop) || 0);
 }
 
 /**
  * A stand-in placed at `top` over a turned card's upright place (a departure's kept gap) is made the
- * turned card's own box: its copies' margins dropped, itself moved down by them, so whatever it draws
- * is the card's shape, not an upright card's. A copy placed over the card's own box (a ram's) only
- * drops the margins: that box is the turned card already.
+ * turned card's own box: its copies' margins dropped, itself moved down by `step`, so whatever it
+ * draws is the card's shape, not an upright card's.
  */
-function fitTurned(wrap: HTMLElement, copies: readonly HTMLElement[], top: number): void {
-  const step = dropTurnedMargins(copies);
-  if (step > 0) wrap.style.top = `${top + step}px`;
+function fitTurned(wrap: HTMLElement, copies: readonly HTMLElement[], top: number, step: number): void {
+  if (step === 0) return;
+  for (const copy of copies) copy.style.marginBlock = '0';
+  wrap.style.top = `${top + step}px`;
 }
 
 export function installDepartures(canvas: HTMLElement, host: DeparturesHost): DeparturesHandle {
@@ -391,8 +390,8 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
     return overlayOf(canvas);
   }
 
-  function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, motion: ExitMotion): HTMLElement {
-    const box = root.getBoundingClientRect();
+  /** The stand-in, built and placed, with no box read: `box` is the overlay's, read with every other box of the batch. */
+  function standIn(departure: Departure, from: HTMLElement, at: DOMRect, root: HTMLElement, box: DOMRect, motion: ExitMotion): HTMLElement {
     const wrap = document.createElement('div');
     wrap.className = 'board-departure';
     wrap.setAttribute('data-exit', motion);
@@ -447,13 +446,11 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       wrap.append(el);
     }
     root.append(wrap);
-    fitTurned(wrap, [...wrap.querySelectorAll<HTMLElement>(':scope > .board-departure__piece > .board-card')], at.top - box.top);
     return wrap;
   }
 
-  /** The way from the stand-in to where it lands, written on it for its keyframes. */
-  function aim(wrap: HTMLElement, at: DOMRect, landing: HTMLElement): void {
-    const to = landing.getBoundingClientRect();
+  /** The way from the stand-in to where it lands (`to`, the landing's box), written on it for its keyframes. */
+  function aim(wrap: HTMLElement, at: DOMRect, to: DOMRect): void {
     wrap.style.setProperty('--to-x', `${to.left + to.width / 2 - (at.left + at.width / 2)}px`);
     wrap.style.setProperty('--to-y', `${to.top + to.height / 2 - (at.top + at.height / 2)}px`);
     wrap.style.setProperty('--to-scale', String(at.width > 0 && to.width > 0 ? Math.min(1.2, to.width / at.width) : 1));
@@ -505,43 +502,60 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       boxes = new Map();
       for (const [id, el] of drawn) if (el.isConnected) boxes.set(id, el.getBoundingClientRect());
     },
-    leave(departure, delayMs) {
-      const done = (): void => host.onDone(departure.cardId);
-      const gap = canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${departure.cardId}"]`);
-      const from = drawn.get(departure.cardId);
+    leave(batch) {
       const root = overlay();
-      if (prefersReducedMotion() || gap === null || from === undefined || root === null) {
-        schedule(done, delayMs);
-        return;
+      const still = prefersReducedMotion() || root === null;
+      // Every box first, then every write: one layout for the whole batch, never one per card.
+      const box = still ? null : root.getBoundingClientRect();
+      const taken = new Set<Element>();
+      const plans: { departure: Departure; delayMs: number; from: HTMLElement; at: DOMRect; motion: ExitMotion; landing: HTMLElement | null; to: DOMRect | null }[] = [];
+      for (const { departure, delayMs } of batch) {
+        const gap = canvas.querySelector<HTMLElement>(`[${LEAVING_GAP_ATTR}="${departure.cardId}"]`);
+        const from = drawn.get(departure.cardId);
+        if (still || gap === null || from === undefined) {
+          schedule(() => host.onDone(departure.cardId), delayMs);
+          continue;
+        }
+        const motion = exitMotionFor(departure);
+        const at = gap.getBoundingClientRect();
+        const was = boxes.get(departure.cardId);
+        pending ??= { count: 0, copyDx: 0, copyDy: 0 };
+        pending.count += 1;
+        if (was !== undefined) {
+          pending.copyDx = Math.max(pending.copyDx, Math.abs(at.left - was.left));
+          pending.copyDy = Math.max(pending.copyDy, Math.abs(at.top - was.top));
+        }
+        const landing = travels(motion) ? handLanding(canvas, departure, taken) : null;
+        if (landing !== null) taken.add(landing);
+        plans.push({ departure, delayMs, from, at, motion, landing, to: landing?.getBoundingClientRect() ?? null });
       }
-      const motion = exitMotionFor(departure);
-      const at = gap.getBoundingClientRect();
-      const was = boxes.get(departure.cardId);
-      pending ??= { count: 0, copyDx: 0, copyDy: 0 };
-      pending.count += 1;
-      if (was !== undefined) {
-        pending.copyDx = Math.max(pending.copyDx, Math.abs(at.left - was.left));
-        pending.copyDy = Math.max(pending.copyDy, Math.abs(at.top - was.top));
-      }
-      const landing = travels(motion) ? handLanding(canvas, departure) : null;
-      const wrap = standIn(departure, from, at, root, motion);
-      wrap.setAttribute(DEPARTURE_ATTR, String(departure.cardId));
-      standIns.add(wrap);
-      // Only a card or a back is hidden while it is flown to — never a whole hand.
-      const hides = landing !== null && landing.getAttribute('data-zone') === null;
-      if (hides) landing.setAttribute(LANDING_ATTR, '');
-      if (landing !== null) aim(wrap, at, landing);
-      schedule(() => {
-        // Aimed again at its beat: the hand may have laid itself out anew since the card left.
-        if (landing?.isConnected === true) aim(wrap, at, landing);
-        wrap.setAttribute('data-exit-go', '');
-      }, delayMs);
-      schedule(() => {
-        if (hides) landing.removeAttribute(LANDING_ATTR);
-        wrap.remove();
-        standIns.delete(wrap);
-        done();
-      }, delayMs + EXIT_MOTIONS[motion].ms);
+      if (root === null || box === null || plans.length === 0) return;
+      const built = plans.map((p) => {
+        const wrap = standIn(p.departure, p.from, p.at, root, box, p.motion);
+        wrap.setAttribute(DEPARTURE_ATTR, String(p.departure.cardId));
+        standIns.add(wrap);
+        if (p.to !== null) aim(wrap, p.at, p.to);
+        return { ...p, wrap, copies: [...wrap.querySelectorAll<HTMLElement>(':scope > .board-departure__piece > .board-card')] };
+      });
+      const steps = built.map((b) => turnedStep(b.copies[0]));
+      built.forEach((b, i) => {
+        fitTurned(b.wrap, b.copies, b.at.top - box.top, steps[i]!);
+        const { wrap, at, landing, departure, delayMs, motion } = b;
+        // Only a card or a back is hidden while it is flown to — never a whole hand.
+        const hides = landing !== null && landing.getAttribute('data-zone') === null;
+        if (hides) landing.setAttribute(LANDING_ATTR, '');
+        schedule(() => {
+          // Aimed again at its beat: the hand may have laid itself out anew since the card left.
+          if (landing?.isConnected === true) aim(wrap, at, landing.getBoundingClientRect());
+          wrap.setAttribute('data-exit-go', '');
+        }, delayMs);
+        schedule(() => {
+          if (hides) landing.removeAttribute(LANDING_ATTR);
+          wrap.remove();
+          standIns.delete(wrap);
+          host.onDone(departure.cardId);
+        }, delayMs + EXIT_MOTIONS[motion].ms);
+      });
     },
     dispose() {
       live = false;

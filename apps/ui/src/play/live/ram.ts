@@ -42,7 +42,7 @@
  */
 
 import { homeEase, powerEase } from '../motion.ts';
-import { copyOfCard, dropTurnedMargins } from './departures.ts';
+import { copyOfCard } from './departures.ts';
 import { along, seedOf } from './projectile.ts';
 import './ram.css';
 
@@ -398,23 +398,26 @@ export function boxIn(el: Element, root: Element): Box {
   return { x: r.left - o.left + r.width / 2, y: r.top - o.top + r.height / 2, w: r.width, h: r.height };
 }
 
-/** What moves for `source`: its departure's stand-in as it is, else a copy of its row element over it. */
-function mover(root: HTMLElement, source: HTMLElement): { el: HTMLElement; standIn: boolean } {
+/**
+ * What moves for `source`: its departure's stand-in as it is, else a copy of its row element over
+ * `from`, the box it was measured at. Reads no box: a ram's copy drawn between two reads laid the page
+ * out again for every creature in the attack.
+ */
+function mover(root: HTMLElement, source: HTMLElement, from: Box): { el: HTMLElement; standIn: boolean } {
   if (root.contains(source)) return { el: source, standIn: true };
-  const at = source.getBoundingClientRect();
-  const box = root.getBoundingClientRect();
   const wrap = document.createElement('div');
   wrap.className = 'board-ram';
   wrap.setAttribute('aria-hidden', 'true');
-  wrap.style.left = `${at.left - box.left}px`;
-  wrap.style.top = `${at.top - box.top}px`;
-  wrap.style.width = `${at.width}px`;
-  wrap.style.setProperty('--card-w', `${at.width}px`);
+  wrap.style.left = `${from.x - from.w / 2}px`;
+  wrap.style.top = `${from.y - from.h / 2}px`;
+  wrap.style.width = `${from.w}px`;
+  wrap.style.setProperty('--card-w', `${from.w}px`);
   const copy = copyOfCard(source);
+  // Placed over the card's own box, which for a turned card is the turned card already: its centring
+  // margins (`card.css`) would move the copy off it. An upright card has none to drop.
+  copy.style.marginBlock = '0';
   wrap.append(copy);
   root.append(wrap);
-  // Placed over the card's own box, which for a turned card is the turned card already: margins only.
-  dropTurnedMargins([copy]);
   return { el: wrap, standIn: false };
 }
 
@@ -436,6 +439,7 @@ function play(el: HTMLElement, parts: readonly { frames: Keyframe[]; delay: numb
 export function ram(
   root: HTMLElement,
   source: HTMLElement,
+  from: Box,
   to: Box,
   kind: RamKind,
   end: RamEnd,
@@ -446,8 +450,7 @@ export function ram(
   formation: { start: number; at: Point | null } = { start: delayMs, at: null },
 ): () => void {
   if (typeof source.animate !== 'function') return () => undefined;
-  const { el, standIn } = mover(root, source);
-  const from = boxIn(el, root);
+  const { el, standIn } = mover(root, source, from);
   const strike = strikeOffset(from, to, kind);
   const contact = delayMs + contactMs(kind);
   const pace = powerEase(power);
@@ -496,8 +499,8 @@ export function ram(
  * A creature that dies of a blow it did not ram back into: its departure's stand-in `target` stands
  * still until `atMs`, then is blasted away from `from` (the box of the one that struck it).
  */
-export function blast(root: HTMLElement, target: HTMLElement, from: Box, key: string, atMs: number, power: number): () => void {
+export function blast(root: HTMLElement, target: HTMLElement, from: Box, at: Box, key: string, atMs: number, power: number): () => void {
   if (typeof target.animate !== 'function' || !root.contains(target)) return () => undefined;
-  const away = unit(from, boxIn(target, root));
+  const away = unit(from, at);
   return play(target, [{ frames: blastFrames({ x: 0, y: 0 }, away, power), delay: atMs, duration: BLAST_MS, easing: 'cubic-bezier(0.15, 0.7, 0.3, 1)' }], () => undefined);
 }

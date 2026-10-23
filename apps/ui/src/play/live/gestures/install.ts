@@ -734,9 +734,27 @@ export function installGestures(options: GestureOptions): GestureHandle {
     return aimedTarget(match, source, node);
   }
 
+  /**
+   * A paint at the next frame, however many ask before it: Forge's frames, React's redraws and every
+   * ram's start each asked for one, and each paint measures the board's cards — in combat, a layout of
+   * the whole board several times a frame. A pointer's own paint stays immediate (`paint`).
+   */
+  let paintFrame = 0;
+  function paintSoon(): void {
+    if (paintFrame !== 0) return;
+    paintFrame = requestAnimationFrame(() => {
+      paintFrame = 0;
+      if (live) paint();
+    });
+  }
+
   /** Draw whatever the current state means, into lane A's overlay. Absent overlay: nothing. */
   function paint(): void {
     const overlay = overlayOf(canvas);
+    // Forge's own already-decided targets, measured before this paint writes anything: a box read after
+    // a write lays the whole board out again, and in combat this runs on every frame Forge sends.
+    if ((match.view?.combat ?? []).length === 0) rammed.clear();
+    const lasting = overlay === null ? null : [...combatArrows(canvas, match, rammed), ...blockArrows(canvas, match, rammed), ...aimedArrows()];
     flag(CANVAS_ATTR, '');
     flag('data-dragging', drag !== null && drag.moved ? '' : null);
     flag('data-marquee', marquee !== null && marquee.moved ? '' : null);
@@ -804,10 +822,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     // so feeding them here too would draw every stack-item arrow twice. Only
     // the lasting attack arrow and the lasting block arrow — neither a
     // stack-item concern — stay on this reconciler.
-    if ((match.view?.combat ?? []).length === 0) rammed.clear();
-    if (overlay !== null) {
-      drawAutoTargetArrows(overlay, [...combatArrows(canvas, match, rammed), ...blockArrows(canvas, match, rammed), ...aimedArrows()]);
-    }
+    if (overlay !== null && lasting !== null) drawAutoTargetArrows(overlay, lasting);
     if (next === shape) return;
     shape = next;
     options.onChange?.();
@@ -840,7 +855,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
     aim = declaringAttackers(match) && ids.length > 0 ? { ...aim, ids } : null;
   }
 
+  /** Only a change is written: an attribute set to the value it has still invalidates the board's style. */
   function flag(name: string, value: string | null): void {
+    if (canvas.getAttribute(name) === value) return;
     if (value === null) canvas.removeAttribute(name);
     else canvas.setAttribute(name, value);
   }
@@ -1773,7 +1790,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     settleParkedIfResolved();
     syncStackStandIn();
     syncParkedGhost();
-    paint();
+    paintSoon();
   });
   /**
    * The ghost's own handoff (§S) — see `syncParkedGhost`'s header for why
@@ -1806,7 +1823,7 @@ export function installGestures(options: GestureOptions): GestureHandle {
     );
     if (setOff.length > 0) {
       for (const id of setOff) if (Number.isInteger(id)) rammed.add(id);
-      paint();
+      paintSoon();
     }
     if (records.every((r) => r.type === 'attributes')) return;
     // Our own arrow and marquee live in the overlay; reacting to those would be
@@ -1851,6 +1868,8 @@ export function installGestures(options: GestureOptions): GestureHandle {
       if ((drag !== null && drag.lifted) || parked !== null) previewAt(null);
       if (landingFrame !== 0) cancelAnimationFrame(landingFrame);
       landingFrame = 0;
+      if (paintFrame !== 0) cancelAnimationFrame(paintFrame);
+      paintFrame = 0;
       endPark('disposed');
       endTapSweep();
       canvas.removeAttribute(CANVAS_ATTR);

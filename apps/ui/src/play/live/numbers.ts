@@ -394,8 +394,8 @@ export interface NumbersHost {
   readonly fastMode?: () => boolean;
   /** Told what each view's beats were (the seat's `effect` client event): one call per view that drew any. */
   readonly report?: (data: Record<string, string | number | boolean>) => void;
-  /** A permanent left the battlefield: draw it leaving, from `delayMs` on (`departures.ts`'s `leave`). */
-  readonly leave?: (departure: Departure, delayMs: number) => void;
+  /** Permanents left the battlefield: draw each leaving, from its `delayMs` on (`departures.ts`'s `leave`) — the view's whole batch in one call. */
+  readonly leave?: (batch: readonly { departure: Departure; delayMs: number }[]) => void;
 }
 
 export interface NumbersHandle {
@@ -827,6 +827,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
      * What left the battlefield goes at its beat: what a hit killed the moment that hit lands, everything
      * else (destroyed, sacrificed, exiled) as the effects start.
      */
+    const exits: { departure: Departure; delayMs: number }[] = [];
     for (const dep of diff.departures) {
       // Why it died: Forge's word, else a hit drawn here killed it, else unknown (`departures.ts`'s `exitMotionFor`).
       const said = prevView?.deathCauses?.get(dep.cardId);
@@ -835,12 +836,13 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       const delay = fast() ? 0 : (fatalLand.get(departure.cardId) ?? startMs);
       if (firstExit === null || delay < firstExit) firstExit = delay;
       endMs = Math.max(endMs, delay + exitMs(departure));
-      host.leave?.(departure, delay);
+      exits.push({ departure, delayMs: delay });
       if (exitMotionFor(departure) === 'shatter') {
         const killedBy = Math.max(0, ...diff.hits.filter((h) => h.cardId === departure.cardId).map((h) => h.amount));
         sounds.push({ role: 'g.crumble', ms: delay, intensity: damagePower(killedBy), mine: viewers(departure.cardId) });
       }
     }
+    if (exits.length > 0) host.leave?.(exits);
     // After the departures: a creature that died in the fight rams as its departure's stand-in.
     const root = overlay();
     const rammers = new Set((combat?.rams ?? []).map((r) => r.sourceId));
@@ -870,17 +872,21 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     /** The rams drawn, and the least time a rammer's attack had been on screen when its ram set off (-1 for none). */
     let ramsDrawn = 0;
     let attackLeadMs = -1;
-    for (const plan of combat?.rams ?? []) {
+    // Every ram's boxes first, then the rams: each one draws a copy, and a box read after a copy is
+    // drawn lays the page out again — once per creature, the attack's longest frames.
+    const measured = (combat?.rams ?? []).flatMap((plan) => {
       const source = root?.querySelector<HTMLElement>(`[${DEPARTURE_ATTR}="${plan.sourceId}"]`) ?? battlefieldCard(canvas, plan.sourceId);
-      const struck = 'cardId' in plan.target ? plan.target.cardId : null;
       const target = struckEl(plan.target);
-      if (root === null || source === null || target === null) continue;
+      if (root === null || source === null || target === null) return [];
+      return [{ plan, source, target, from: boxIn(source, root), to: boxIn(target, root) }];
+    });
+    for (const { plan, source, target, from, to } of measured) {
+      const struck = 'cardId' in plan.target ? plan.target.cardId : null;
+      if (root === null) continue;
       ramsDrawn += 1;
       const lead = Date.now() + plan.delayMs - (attackingSince.get(plan.sourceId) ?? Date.now());
       attackLeadMs = attackLeadMs === -1 ? lead : Math.min(attackLeadMs, lead);
       const end = ramEnd(plan.kind, leaving.has(plan.sourceId), struck !== null && leaving.has(struck));
-      const from = boxIn(source, root);
-      const to = boxIn(target, root);
       // The blow: one crash per ram (a pair that meets is one blow), where the cards meet, or on the avatar.
       const partnerFirst = plan.kind === 'meet' && (combat?.rams ?? []).indexOf(plan) > (combat?.rams ?? []).findIndex((r) => r.sourceId === struck);
       if (!partnerFirst) {
@@ -899,13 +905,13 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       // Blasted as hard as what struck it hit: its partner's power when they met.
       const struckBy = (combat?.rams ?? []).find((r) => 'cardId' in r.target && r.target.cardId === plan.sourceId)?.power ?? plan.power;
       keep(
-        ram(root, source, to, plan.kind, end, `ram:${plan.sourceId}`, plan.delayMs, plan.power, struckBy, { start: plan.kind === 'charge' ? chargeStart : plan.delayMs, at: fanned.get(plan.sourceId) ?? null }),
+        ram(root, source, from, to, plan.kind, end, `ram:${plan.sourceId}`, plan.delayMs, plan.power, struckBy, { start: plan.kind === 'charge' ? chargeStart : plan.delayMs, at: fanned.get(plan.sourceId) ?? null }),
         plan.delayMs + ramMs(plan.kind, end),
       );
       // A creature killed by a blow it did not ram back into is blasted away from the one that struck it.
       if (struck !== null && !rammers.has(struck) && leaving.has(struck)) {
         const contact = plan.delayMs + contactMs(plan.kind);
-        keep(blast(root, target, from, `blast:${struck}`, contact, plan.power), contact + BLAST_MS);
+        keep(blast(root, target, from, to, `blast:${struck}`, contact, plan.power), contact + BLAST_MS);
       }
     }
     if (prevView !== null && firstCardImpact !== null) noteCardImpact(prevView.seq, Date.now() + firstCardImpact);
