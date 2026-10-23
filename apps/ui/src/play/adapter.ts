@@ -163,6 +163,7 @@ import {
   mergeArtIdIndexes,
   scryfallIdFor,
   tokenArtId,
+  cardKeyArtId,
   type ArtIdIndex,
   type ArtIdSource,
   type ArtIdTableFile,
@@ -1606,10 +1607,11 @@ function otherFaces(state: WireState, id: number, view: WireObject, shown: Draft
  * window's tile (`prompts/PromptShell.tsx`), which once looked up by name alone and so drew a
  * token whose only row is its tokenscript (the Wicked Role) with art on the board and none in the
  * window. A token by its tokenscript first (`ImageKey`): its name may be shared by printings of
- * other tokens, or have no row at all. Then the exact printing, then any printing of the name.
+ * other tokens, or have no row at all. Then the exact printing, then any printing of the name. Last,
+ * the card its image key names: an effect ("Teferi's Effect") draws its source's art.
  */
 export function artIdOf(artIds: ArtIdIndex, name: string, setCode: string, imageKey?: string | null): string | undefined {
-  return tokenArtId(artIds, imageKey) ?? scryfallIdFor(artIds, name, setCode);
+  return tokenArtId(artIds, imageKey) ?? scryfallIdFor(artIds, name, setCode) ?? cardKeyArtId(artIds, imageKey);
 }
 
 export function cardFaces(state: WireState, id: number, artIds: ArtIdIndex = KNOWN_ART_IDS): TileCard[] {

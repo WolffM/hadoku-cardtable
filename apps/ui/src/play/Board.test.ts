@@ -283,6 +283,21 @@ describe('the Command zone', () => {
     expect(seat(1).querySelector('[data-zone="command"]'), 'the other player holds nothing there').toBeNull();
     expect(container.querySelectorAll('[data-zone="command"]')).toHaveLength(1);
   });
+
+  // The operator, 2026-10-22: "what happens when there are lots of things in the command zone, ideally it is expandable just liky gy/exile".
+  it('opens as a pile on a click, every card in it, as a graveyard does', () => {
+    const base = boardFromFixture(fixture);
+    const piece = (id: number, name: string): BoardCard => ({ ...base.players[0]!.battlefield[0]!, id, attachedCardIds: [], card: { ...base.players[0]!.battlefield[0]!.card, name } });
+    const pieces = [piece(9001, 'The Initiative'), piece(9002, 'Undercity'), piece(9003, "Teferi's Effect"), piece(9004, 'The Monarch')];
+    const view = { ...base, players: base.players.map((p) => (p.isViewer ? { ...p, command: pieces } : p)) };
+    const { zone, container } = renderBoard(view);
+    expect(container.querySelector('[data-testid="pile-view"]')).toBeNull();
+    fireEvent.click(zone(0, 'command'));
+    const pile = container.querySelector<HTMLElement>('[data-testid="pile-view"]');
+    expect(pile?.dataset.zoneView).toBe('command');
+    expect(pile?.getAttribute('aria-label')).toBe('Command zone');
+    expect([...(pile?.querySelectorAll<HTMLElement>('.board-card') ?? [])].map((c) => Number(c.dataset.cardId)).sort()).toEqual([9001, 9002, 9003, 9004]);
+  });
 });
 
 describe('players', () => {

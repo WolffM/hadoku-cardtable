@@ -1,5 +1,5 @@
 /**
- * A graveyard or an exile, opened: every card of the pile laid out whole, over the board beside the
+ * A graveyard, an exile or a Command zone, opened: every card of the pile laid out whole, over the board beside the
  * pile it came from. The operator, 2026-10-09: *"i need some solution for when the graveyard and exile
  * get very large. i dont necessarily want to make them scrollable, but i do need a way to reach certain
  * cards which is currently impossible."* — the pile on the board squeezes each buried card's name
@@ -63,13 +63,23 @@ export function fitPile(count: number, preferredW: number, room: { width: number
   return { cardW: PILE_MIN_CARD_W, cols, rows: Math.ceil(n / cols) };
 }
 
+/** The side of its pile a view opens on: the one with more of the board beside it. */
+export type PileSide = 'right' | 'left';
+
+/** The room beside `pile` on each side, inside `bounds` and a `gap` from both. */
+export function roomBeside(pile: Box, bounds: Box, gap = PILE_GAP): Record<PileSide, number> {
+  return { right: bounds.right - Math.min(pile.right + gap, bounds.right) - gap, left: Math.max(pile.left - gap, bounds.left) - bounds.left - gap };
+}
+
 /**
- * Where a panel of `size` stands: just past the pile's right edge, centred on it vertically, and
- * shifted as little as needed to stay a `gap` inside `bounds`. Client coordinates in, client out.
+ * Where a panel of `size` stands: just past the pile's edge on `side` (a graveyard's right; the
+ * Command zone, at the board's right edge, its left), centred on it vertically, and shifted as
+ * little as needed to stay a `gap` inside `bounds`. Client coordinates in, client out.
  */
-export function placePile(pile: Box, bounds: Box, size: { width: number; height: number }, gap = PILE_GAP): { left: number; top: number } {
+export function placePile(pile: Box, bounds: Box, size: { width: number; height: number }, gap = PILE_GAP, side: PileSide = 'right'): { left: number; top: number } {
   const centre = (pile.top + pile.bottom) / 2 - size.height / 2;
-  return { left: clampSpan(pile.right + gap, size.width, bounds.left, bounds.right, gap), top: clampSpan(centre, size.height, bounds.top, bounds.bottom, gap) };
+  const left = side === 'right' ? pile.right + gap : pile.left - gap - size.width;
+  return { left: clampSpan(left, size.width, bounds.left, bounds.right, gap), top: clampSpan(centre, size.height, bounds.top, bounds.bottom, gap) };
 }
 
 type Layout = PileFit & { left: number; top: number };
@@ -93,7 +103,7 @@ export function PileView({
   children,
 }: {
   ownerSide: 'you' | 'them';
-  zone: 'graveyard' | 'exile';
+  zone: 'graveyard' | 'exile' | 'command';
   label: string;
   count: number;
   onClose: () => void;
@@ -119,8 +129,10 @@ export function PileView({
       const chromeH =
         Number.parseFloat(css.paddingTop) + Number.parseFloat(css.paddingBottom) + Number.parseFloat(css.borderTopWidth) + Number.parseFloat(css.borderBottomWidth) + head + PILE_GAP;
       const preferred = battlefieldCardWidth(board, ownerSide) ?? battlefieldCardWidth(board, 'you') ?? PILE_MIN_CARD_W * 2;
+      const beside = roomBeside(from, bounds);
+      const side: PileSide = beside.right >= beside.left ? 'right' : 'left';
       const room = {
-        width: bounds.right - Math.min(from.right + PILE_GAP, bounds.right) - PILE_GAP - chromeW,
+        width: beside[side] - chromeW,
         height: bounds.height - 2 * PILE_GAP - chromeH,
       };
       const fit = fitPile(count, preferred, room);
@@ -128,7 +140,7 @@ export function PileView({
         width: chromeW + fit.cols * fit.cardW + (fit.cols - 1) * PILE_GAP,
         height: chromeH + fit.rows * fit.cardW * CARD_TALL + (fit.rows - 1) * PILE_GAP,
       };
-      const at = placePile(from, bounds, size);
+      const at = placePile(from, bounds, size, PILE_GAP, side);
       setLayout({ ...fit, left: at.left - bounds.left, top: at.top - bounds.top });
     };
     measure();

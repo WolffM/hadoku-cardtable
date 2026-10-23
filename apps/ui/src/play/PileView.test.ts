@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 
 import { Board, type BoardInteraction } from './Board.tsx';
 import { boardFromFixture, PLAY_FIXTURES } from './fixtures.ts';
-import { closePileView, fitPile, placePile, PILE_GAP, PILE_MIN_CARD_W } from './PileView.tsx';
+import { closePileView, fitPile, placePile, PILE_GAP, PILE_MIN_CARD_W, roomBeside } from './PileView.tsx';
 
 afterEach(cleanup);
 
@@ -37,6 +37,13 @@ describe('placePile', () => {
   });
   it('stays inside the board on both axes', () => {
     expect(placePile({ left: 10, top: 600, right: 110, bottom: 700 }, bounds, { width: 950, height: 400 })).toEqual({ left: 1000 - PILE_GAP - 950, top: 700 - PILE_GAP - 400 });
+  });
+  // The Command zone sits at the board's right edge: its view opens to its left.
+  it('opens to the left of a pile at the right edge, where the room is', () => {
+    const command = { left: 850, top: 500, right: 990, bottom: 690 };
+    const room = roomBeside(command, bounds);
+    expect(room.left).toBeGreaterThan(room.right);
+    expect(placePile(command, bounds, { width: 400, height: 200 }, PILE_GAP, 'left')).toEqual({ left: 850 - PILE_GAP - 400, top: 700 - PILE_GAP - 200 });
   });
 });
 

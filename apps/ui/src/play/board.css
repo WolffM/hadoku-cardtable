@@ -936,6 +936,31 @@
 }
 
 /*
+ * Past two cards the row stays two cards wide (the operator, 2026-10-22: "what happens when there are
+ * lots of things in the command zone, ideally it is expandable just liky gy/exile"): the last card
+ * whole, every one before it a strip of what is left, each under the next, and a click opens them
+ * all as a pile (`PileView`).
+ */
+.board .seat .zone--command .zone__cards:has(> li:nth-child(3)) {
+  width: calc(var(--card-w) * 2 + var(--cards-gap));
+  gap: 0;
+}
+
+.board .seat .zone--command .zone__cards:has(> li:nth-child(3)) > li:not(:last-child) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.board .seat .zone--command .zone__cards:has(> li:nth-child(3)) > li > * {
+  width: var(--card-w);
+}
+
+/* A Command zone with cards in it opens as a `PileView` on a click, as a pile does. */
+.board .seat .zone--command:has(.zone__cards > li) {
+  cursor: pointer;
+}
+
+/*
  * The piles: the graveyard and, under it, exile — the rest of the left column
  * after the avatar and the counts (wave 32 Q9). `flex: 1` is the whole rule: the
  * graveyard is as tall as the column leaves it, and nothing here is a fraction.

@@ -293,6 +293,7 @@ export {
   mergeArtIdIndexes,
   scryfallIdFor,
   tokenArtId,
+  cardKeyArtId,
   type ArtIdIndex,
   type ArtIdSource,
   type ArtIdTableFile,

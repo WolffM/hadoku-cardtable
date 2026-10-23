@@ -615,8 +615,10 @@ export interface BoardInteraction {
 
 /** Which side of the table a zone is on. The stack belongs to neither. */
 type ZoneOwner = 'you' | 'them' | 'table';
-/** The two zones drawn as piles, each of which opens as a `PileView`. */
-type PileZone = 'graveyard' | 'exile';
+/** The zones drawn as piles, each of which opens as a `PileView`. */
+type PileZone = 'graveyard' | 'exile' | 'command';
+/** A pile's name, as its zone and its viewer say it. */
+const PILE_LABEL: Readonly<Record<PileZone, string>> = { graveyard: 'Graveyard', exile: 'Exile', command: 'Command zone' };
 
 /* ── the battlefield's rows ───────────────────────────────────────────── */
 
@@ -2767,7 +2769,7 @@ function Zone({
   cards: readonly BoardCard[];
   interaction: BoardInteraction | undefined;
   /**
-   * A graveyard or an exile only: opens its `PileView`. A click anywhere on the pile does, except
+   * A graveyard, an exile or the Command zone only: opens its `PileView`. A click anywhere on the pile does, except
    * on a card Forge offers — that click is the card's own, exactly as everywhere on the board.
    */
   onOpen?: () => void;
@@ -3706,10 +3708,12 @@ function PlayerArea({
        * but an emblem, which is a medallion on the face. At the end of the hand row, the board's
        * bottom right on yours and the mirror on theirs (the operator, 2026-10-22: "for command zone
        * i guess we need a place for that. maybe by default we use the bottom right of the board?").
-       * Drawn only while it holds a card, and the hand alone gives it room (`board.css`).
+       * Drawn only while it holds a card, and the hand alone gives it room (`board.css`). Its cards
+       * overlap past two cards' width, and a click opens them all as a pile, as a graveyard does (the
+       * operator, 2026-10-22: "ideally it is expandable just liky gy/exile").
        */}
       {player.command !== undefined && player.command.length > 0 && (
-        <Zone owner={player.name} ownerSide={side} zone="command" label="Command zone" cards={player.command} interaction={interaction} />
+        <Zone owner={player.name} ownerSide={side} zone="command" label={PILE_LABEL.command} cards={player.command} interaction={interaction} onOpen={() => onOpenPile('command')} />
       )}
     </section>
   );
@@ -4163,7 +4167,7 @@ export function Board({
   const [spellsHeld, setSpellsHeld] = useState<ReadonlySet<number>>(NOTHING_HELD);
   const held = leaving.size === 0 && spellsHeld.size === 0 ? NOTHING_HELD : new Set([...leaving.keys(), ...spellsHeld]);
   const pileOwner = openPile === null ? undefined : view.players.find((p) => p.id === openPile.playerId);
-  const pileCards = pileOwner === undefined || openPile === null ? [] : unheld(pileOwner[openPile.zone], held);
+  const pileCards = pileOwner === undefined || openPile === null ? [] : unheld(pileOwner[openPile.zone] ?? [], held);
   const shownPile = pileCards.length > 0 ? openPile : null;
   const openPileOf = (playerId: number) => (zone: PileZone) =>
     setOpenPile(shownPile?.playerId === playerId && shownPile.zone === zone ? null : { playerId, zone });
@@ -4406,7 +4410,7 @@ export function Board({
           <PileView
             ownerSide={pileOwner.isViewer ? 'you' : 'them'}
             zone={shownPile.zone}
-            label={shownPile.zone === 'graveyard' ? 'Graveyard' : 'Exile'}
+            label={PILE_LABEL[shownPile.zone]}
             count={pileCards.length}
             onClose={closePile}
           >

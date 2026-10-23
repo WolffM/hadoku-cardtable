@@ -186,6 +186,16 @@ export function tokenArtId(index: ArtIdIndex, imageKey: string | null | undefine
   return m === null ? undefined : scryfallIdFor(index, `t:${m[1]}`, m[2]!);
 }
 
+/**
+ * The card a `c:<name>|<set>|…` image key names. An effect Forge makes in the Command zone ("Teferi's
+ * Effect") is a card of its own name drawn with its source's image key (`createEffect`), so this is
+ * the art its own name never finds (the operator, 2026-10-22: "can we make this have teferi's art?").
+ */
+export function cardKeyArtId(index: ArtIdIndex, imageKey: string | null | undefined): string | undefined {
+  const m = /^c:([^|]+)\|([A-Za-z0-9]+)/.exec(imageKey ?? '');
+  return m === null ? undefined : scryfallIdFor(index, m[1]!, m[2]!);
+}
+
 const backsByIndex = new WeakMap<ArtIdIndex, ReadonlySet<string>>();
 
 /**

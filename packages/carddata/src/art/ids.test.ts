@@ -37,6 +37,7 @@ import {
   mergeArtIdIndexes,
   scryfallIdFor,
   tokenArtId,
+  cardKeyArtId,
   ART_ID_TABLE_VERSION,
   type ArtIdIndex,
   type ArtIdSource,
@@ -357,5 +358,18 @@ describe('backFaceNames: a two-image card’s other faces, by the table alone', 
     expect(backFaceNames(KNOWN, scryfallIdFor(KNOWN, 'Bonecrusher Giant', 'ELD')), 'an adventure is one image').toEqual([]);
     expect(backFaceNames(KNOWN, `${etali}${BACK_FACE}`)).toEqual([]);
     expect(backFaceNames(KNOWN, undefined)).toEqual([]);
+  });
+});
+
+// The operator, 2026-10-22: "i can see Teferi's Effect in my command zone. can we make this have teferi's art?" Forge makes
+// an effect a card of its own name ("…'s Effect") drawn with its source's image key (`SpellAbilityEffect.createEffect`).
+describe('an effect is drawn with the art of the card its image key names', () => {
+  it('reads the card and edition off a c: key, and nothing off any other', () => {
+    const teferi = scryfallIdFor(KNOWN, 'Teferi, Hero of Dominaria', 'DOM');
+    expect(teferi).toEqual(expect.any(String));
+    expect(cardKeyArtId(KNOWN, 'c:Teferi, Hero of Dominaria|DOM|1')).toBe(teferi);
+    expect(scryfallIdFor(KNOWN, "Teferi, Hero of Dominaria's Effect", 'DOM'), 'its own name finds nothing').toBeUndefined();
+    expect(cardKeyArtId(KNOWN, 't:w_1_1_spirit_flying|DOM|1')).toBeUndefined();
+    expect(cardKeyArtId(KNOWN, undefined)).toBeUndefined();
   });
 });

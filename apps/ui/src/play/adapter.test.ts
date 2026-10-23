@@ -70,11 +70,12 @@ function artUrlOf(card: BoardCard): string | null {
  * rename edits the wrong card and the test then reads an id off a card nothing
  * renamed. That cost one debugging round, so it is written down here.
  */
-function renameCard(state: Map<string, WireObject>, cardId: number, to: string, setCode: string): void {
+/** The card renamed as Forge would send that card: its name, its edition, and the image key that names them (`c:<name>|<set>|1`), unless `imageKey` says otherwise. */
+function renameCard(state: Map<string, WireObject>, cardId: number, to: string, setCode: string, imageKey = `c:${to}|${setCode}|1`): void {
   const key = cardStateKey(cardId, 0);
   const face = state.get(key);
   if (face === undefined) throw new Error(`no card state for card ${cardId}`);
-  state.set(key, { ...face, Name: { t: 'str', v: to }, SetCode: { t: 'str', v: setCode } } as WireObject);
+  state.set(key, { ...face, Name: { t: 'str', v: to }, SetCode: { t: 'str', v: setCode }, ImageKey: { t: 'str', v: imageKey } } as WireObject);
 }
 
 /** The id of the first card whose current face carries this name. */
@@ -175,6 +176,15 @@ describe('§D #9 — a card the cube pool never held still has art', () => {
     const card = allCards(adapt(state)).find((c) => c.card.name === 'Not A Card Anyone Printed')!;
     expect(card.card.scryfallId).toBeUndefined();
     expect(artUrlOf(card)).toBeNull();
+  });
+
+  // The operator, 2026-10-22: "i can see Teferi's Effect in my command zone. can we make this have teferi's art?"
+  it('draws an effect with the art of the card that made it, which its image key names', () => {
+    const state = baseState();
+    renameCard(state, cardIdNamed(state, 'Mountain'), "Teferi, Hero of Dominaria's Effect", 'DOM', 'c:Teferi, Hero of Dominaria|DOM|1');
+    const card = allCards(adapt(state)).find((c) => c.card.name === "Teferi, Hero of Dominaria's Effect")!;
+    expect(card.card.scryfallId).toBe(scryfallIdFor(KNOWN_ART_IDS, 'Teferi, Hero of Dominaria', 'DOM'));
+    expect(card.card.scryfallId).toEqual(expect.any(String));
   });
 
   it('does not repoint a cube card: the drafted pool keeps precedence', () => {
