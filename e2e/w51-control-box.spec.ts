@@ -13,10 +13,19 @@
  *  - *"why is the stack carousel so much higher than the decision box? thats
  *    silly it should be right above the decision box."*
  *
+ * Wave 75 — the operator, 2026-10-24: *"the 'next phase' button must go and
+ * instead we should use the decision modal for passing priority always."*
+ * `Next Phase` left the control box entirely: the empty-stack priority pass
+ * is now the decision pop-up too, asked as `Proceed to <next step>?` with one
+ * `Next Phase` button; the same pass over a stack is `Resolve <name>?` with a
+ * `Resolve` button (never a bare `OK`). The control box keeps three fixed
+ * buttons — `End Turn`, `Full control`, `Concede` — greyed when they do not
+ * apply, never four.
+ *
  * Every rule is proven against real Forge, on two committed scenarios:
  * `bolt-player.state` (seat 0's Main 1, Lightning Bolt and a Mountain) and
  * `attackers-declared.state` (seat 0's Main 1, an untapped Memnite, bob with
- * nothing). The four buttons are checked in every state the spec passes
+ * nothing). The three buttons are checked in every state the spec passes
  * through.
  *
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without
@@ -29,7 +38,7 @@ import { resolve } from 'node:path';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { castUntilOnStack, clickHandCard, clickOnce, enabledOk, makeTitled, pressOffered, resizeWindow, says, stackCount } from './play/board.ts';
+import { castUntilOnStack, clickHandCard, clickOnce, enabledOk, makeTitled, nextPhaseLive, pressOffered, resizeWindow, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -40,29 +49,24 @@ const titled = makeTitled(forge);
 const SHOTS = resolve(import.meta.dirname, '..', 'docs', 'planning', 'wave51-evidence', 'B');
 
 /**
- * The second slot reads `End Turn` on the viewer's OWN turn and `Auto Yield`
+ * The first slot reads `End Turn` on the viewer's OWN turn and `Auto Yield`
  * on the other seat's. Every scenario here is alice's own turn throughout,
  * so her page keeps the default and bob's page passes `'Auto Yield'`.
  */
-const four = (endTurnLabel = 'End Turn'): string[] => [
-  'live-button-next-phase=Next Phase',
-  `live-button-end-turn=${endTurnLabel}`,
-  'live-full-control=Full control',
-  'live-concede=Concede',
-];
+const three = (endTurnLabel = 'End Turn'): string[] => [`live-button-end-turn=${endTurnLabel}`, 'live-full-control=Full control', 'live-concede=Concede'];
 
-/** The control box is its four buttons, in order, in their own words — never one of Forge's. */
-async function expectFour(page: Page, where: string, endTurnLabel = 'End Turn'): Promise<void> {
+/** The control box is its three buttons, in order, in their own words — never one of Forge's, never a fourth. */
+async function expectThree(page: Page, where: string, endTurnLabel = 'End Turn'): Promise<void> {
   const buttons = await page
     .getByTestId('live-buttons')
     .locator('button')
     .evaluateAll((els) => els.map((b) => `${(b as HTMLElement).dataset.testid}=${b.textContent}`));
-  expect(buttons, `${where}: the four buttons`).toEqual(four(endTurnLabel));
+  expect(buttons, `${where}: the three buttons`).toEqual(three(endTurnLabel));
 }
 
-const nextPhase = (page: Page): Locator => page.getByTestId('live-button-next-phase');
 const endTurn = (page: Page): Locator => page.getByTestId('live-button-end-turn');
 const decision = (page: Page): Locator => page.getByTestId('live-decision');
+const decisionOk = (page: Page): Locator => page.getByTestId('live-decision-ok');
 const bobLife = (page: Page): Locator => page.locator('.seat:not([data-viewer]) [data-testid="life"]');
 const opponentFace = (page: Page): Locator => page.locator('[data-player-face]:not([data-viewer])');
 
@@ -86,7 +90,7 @@ async function offeredNamed(page: Page, name: string): Promise<number> {
 
 test.describe.configure({ mode: 'serial' });
 
-test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a stacked spell’s OK are pop-ups; End Turn greys, never vanishes; the stack sits on the pop-up'), async ({ browser }) => {
+test(titled('the empty-stack pass is the pop-up’s Next Phase; a target’s Cancel and a stacked spell’s Resolve are pop-ups too; End Turn greys, never vanishes; the box keeps three buttons'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -102,14 +106,15 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
     await page.getByTestId('live-full-control').click();
     await expect(page.getByTestId('live-full-control')).toHaveAttribute('aria-pressed', 'true');
 
-    /* ── the empty-stack priority pass: the box's, and no pop-up ───────── */
+    /* ── the empty-stack priority pass: the pop-up's Next Phase ────────── */
     const bolt = await offeredNamed(page, 'Lightning Bolt');
-    await expect(nextPhase(page), 'Main 1, nothing on the stack: Next Phase is the answer').toBeEnabled();
-    await expect(endTurn(page), 'and End Turn').toBeEnabled();
-    await expect(decision(page), 'no pop-up for the empty-stack pass').toHaveCount(0);
-    await expectFour(page, 'empty-stack priority');
-    await expectFour(bob.page, 'bob, waiting', 'Auto Yield');
-    await expect(nextPhase(bob.page), 'bob holds nothing: greyed').toBeDisabled();
+    await expect(nextPhaseLive(page), 'Main 1, nothing on the stack: the pop-up asks to proceed').toHaveCount(1);
+    await expect(decisionOk(page), 'and names the next step').toHaveText('Next Phase');
+    await expect(decision(page)).toContainText('Proceed to Combat?');
+    await expect(endTurn(page), 'End Turn is live too').toBeEnabled();
+    await expectThree(page, 'empty-stack priority');
+    await expectThree(bob.page, 'bob, waiting', 'Auto Yield');
+    await expect(decision(bob.page), 'bob holds nothing: no pop-up of his own').toHaveCount(0);
     // It is alice's turn, so bob's slot is Auto Yield, a standing
     // preference rather than an answer to Forge's bar — pressable, not greyed.
     await expect(endTurn(bob.page), 'bob: Auto Yield, pressable on alice’s turn').toBeEnabled();
@@ -118,27 +123,27 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
     await clickHandCard(page, bolt);
     await expect(page.getByTestId('live-decision-cancel'), 'choosing a target: Forge’s Cancel, in the pop-up').toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('live-decision-cancel')).toHaveText('Cancel');
-    await expect(nextPhase(page), 'choosing a target: Next Phase greyed').toBeDisabled();
+    await expect(nextPhaseLive(page), 'choosing a target: the pass pop-up is gone, this one is a target pick').toHaveCount(0);
     await expect(endTurn(page), 'End Turn is greyed, not absent, while Forge has no End Turn').toBeDisabled();
-    await expectFour(page, 'choosing a target');
+    await expectThree(page, 'choosing a target');
     await page.screenshot({ path: resolve(SHOTS, 'target-cancel.png') });
     await page.getByTestId('live-decision-cancel').click();
-    await expect(decision(page), 'backed out: the pop-up is gone').toHaveCount(0, { timeout: 15_000 });
+    await expect(nextPhaseLive(page), 'backed out: the plain pass pop-up is back').toHaveCount(1, { timeout: 15_000 });
     await expect(page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${bolt}"]`), 'the bolt is back in hand').toHaveCount(1, { timeout: 15_000 });
     expect(await stackCount(page), 'nothing went on the stack').toBe(0);
-    await expect(nextPhase(page), 'back at the empty-stack pass').toBeEnabled({ timeout: 15_000 });
-    await expectFour(page, 'after backing out');
+    await expectThree(page, 'after backing out');
 
-    /* ── the bolt on the stack: Forge's OK is the pop-up's ────────────── */
+    /* ── the bolt on the stack: Forge's OK is the pop-up's Resolve ─────── */
     await castUntilOnStack(page, stack, await offeredNamed(page, 'Lightning Bolt'), [opponentFace(page)]);
     expect(await stackCount(page), 'exactly the one bolt').toBe(1);
-    await expect(page.getByTestId('live-decision-ok'), 'a spell on the stack: Forge’s OK is in the pop-up').toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('live-decision-ok')).toHaveText('OK');
+    await expect(decisionOk(page), 'a spell on the stack: the pop-up’s own button').toBeVisible({ timeout: 15_000 });
+    await expect(decisionOk(page), 'it names what passing does — Resolve, never a bare OK').toHaveText('Resolve');
+    await expect(decision(page)).toContainText('Resolve Lightning Bolt?');
     await expect(page.getByTestId('live-decision-cancel'), 'End Turn is the box’s, never drawn twice').toHaveCount(0);
-    await expect(nextPhase(page), 'Next Phase is greyed with a spell on the stack').toBeDisabled();
+    await expect(nextPhaseLive(page), 'this is the resolve route, not the plain pass').toHaveCount(0);
     await expect(endTurn(page), 'End Turn stays pressable: Forge offers it').toBeEnabled();
-    await expect(page.getByTestId('live-buttons'), 'the box never says OK').not.toContainText('OK');
-    await expectFour(page, 'a spell on the stack');
+    await expect(page.getByTestId('live-buttons'), 'the box never says Forge’s own word').not.toContainText(/OK|Resolve/);
+    await expectThree(page, 'a spell on the stack');
 
     /*
      * §A.6 is superseded by wave 59 §S: the operator's own "right above the
@@ -161,24 +166,24 @@ test(titled('Next Phase only at the empty-stack pass; a target’s Cancel and a 
     }
     await resizeWindow(page, { width: 1280, height: 800 });
 
-    await page.getByTestId('live-decision-ok').click();
+    await decisionOk(page).click();
     // Bob holds nothing, so the server passes for him; his pop-up's OK is pressed only if it ever shows.
     const resolvedBy = Date.now() + 30_000;
     while ((await stackCount(page)) > 0 && Date.now() < resolvedBy) {
-      if ((await bob.page.getByTestId('live-decision-ok').count()) > 0) await clickOnce(bob.page, await says(bob.page), 'ok');
+      if ((await decisionOk(bob.page).count()) > 0) await clickOnce(bob.page, await says(bob.page), 'ok');
       await page.waitForTimeout(100);
     }
-    expect(await stackCount(page), 'the pop-up’s OK let the bolt resolve').toBe(0);
+    expect(await stackCount(page), 'the pop-up’s Resolve let the bolt resolve').toBe(0);
     await expect(bobLife(page), 'and it hit bob').toHaveText('17', { timeout: 15_000 });
-    await expect(decision(page), 'resolved: the pop-up is gone').toHaveCount(0);
-    await expectFour(page, 'after the bolt resolved');
-    await expectFour(bob.page, 'bob, after the bolt resolved', 'Auto Yield');
+    await expect(nextPhaseLive(page), 'resolved: back to the plain pass pop-up, not gone').toHaveCount(1, { timeout: 15_000 });
+    await expectThree(page, 'after the bolt resolved');
+    await expectThree(bob.page, 'bob, after the bolt resolved', 'Auto Yield');
   } finally {
     await stack.stop();
   }
 });
 
-test(titled('attackers declared → the pop-up’s OK confirms them; the box keeps its four buttons through combat'), async ({ browser }) => {
+test(titled('attackers declared → the pop-up’s OK confirms them; the box keeps its three buttons through combat'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -190,17 +195,18 @@ test(titled('attackers declared → the pop-up’s OK confirms them; the box kee
     const memnite = Number(await page.locator('.seat[data-viewer] [data-zone="battlefield"] li.board-card').first().getAttribute('data-board-card'));
     expect(Number.isInteger(memnite), 'Memnite is on alice’s battlefield').toBe(true);
 
-    // Main 1, nothing on the stack: Next Phase moves the game into combat.
-    await expect(nextPhase(page), 'Main 1: Next Phase').toBeEnabled({ timeout: 15_000 });
-    await expectFour(page, 'Main 1');
-    await nextPhase(page).click();
+    // Main 1, nothing on the stack: the pop-up's Next Phase moves the game into combat.
+    await expect(nextPhaseLive(page), 'Main 1: the pop-up asks to proceed').toHaveCount(1, { timeout: 15_000 });
+    await expect(decision(page)).toContainText('Proceed to Combat?');
+    await expectThree(page, 'Main 1');
+    await nextPhaseLive(page).click();
     await expect.poll(() => says(page), { timeout: 20_000, message: 'Forge’s own declare-attackers window opened' }).toMatch(/^Select creatures to attack/i);
 
-    await expect(page.getByTestId('live-decision-ok'), 'declaring: Forge’s OK is the pop-up’s').toBeVisible({ timeout: 10_000 });
+    await expect(decisionOk(page), 'declaring: Forge’s OK is the pop-up’s').toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId('live-decision-cancel'), 'the attack step’s second button stays refused').toHaveCount(0);
-    await expect(nextPhase(page), 'declaring: Next Phase greyed').toBeDisabled();
+    await expect(nextPhaseLive(page), 'declaring: this is not the plain pass').toHaveCount(0);
     await expect(endTurn(page), 'declaring: End Turn greyed, not absent').toBeDisabled();
-    await expectFour(page, 'declaring attackers');
+    await expectThree(page, 'declaring attackers');
 
     await expect(page.locator(`[data-board-card="${memnite}"]`), 'Memnite is offered to attack').toHaveAttribute('data-selectable', 'true', { timeout: 10_000 });
     expect(await pressOffered(page.locator(`[data-board-card="${memnite}"]`)), 'Memnite pressed').toBe(true);
@@ -208,7 +214,7 @@ test(titled('attackers declared → the pop-up’s OK confirms them; the box kee
     mkdirSync(SHOTS, { recursive: true });
     await page.screenshot({ path: resolve(SHOTS, 'attackers-declared.png') });
 
-    await page.getByTestId('live-decision-ok').click();
+    await decisionOk(page).click();
     await expect.poll(() => page.getByTestId('live-phases').getAttribute('data-phase'), { timeout: 15_000, message: 'the pop-up’s OK confirmed the attack' }).not.toBe('COMBAT_DECLARE_ATTACKERS');
 
     // Let combat run out: whichever of Forge's button one either seat is shown, until the damage lands.
@@ -220,7 +226,7 @@ test(titled('attackers declared → the pop-up’s OK confirms them; the box kee
         [page, 'End Turn'],
         [bob.page, 'Auto Yield'],
       ] as const) {
-        await expectFour(p, 'through combat', endTurnLabel);
+        await expectThree(p, 'through combat', endTurnLabel);
         if ((await enabledOk(p).count()) > 0) await clickOnce(p, await says(p), 'ok');
       }
       await page.waitForTimeout(100);

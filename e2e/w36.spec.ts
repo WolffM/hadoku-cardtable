@@ -143,11 +143,11 @@ test(titled('T4 — the opening Keep/Mulligan is a yes/no pop-up, and the contro
     await expect(decider.page.getByTestId('live-confirm-host'), 'it renders in the decision-area pop-up (shape 1)').toBeVisible();
     await expect(confirmYes(decider.page), 'button 1 is Keep, Forge\'s own word').toHaveText('Keep');
     await expect(confirmNo(decider.page), 'button 2 is Mulligan').toHaveText('Mulligan');
-    // The control box itself: both game buttons greyed while the pop-up owns
-    // the question, in their own words — the operator's own rule, "never put
-    // yes/no there, always the big pop-up" — and no decision pop-up beside it.
-    await expect(decider.page.getByTestId('live-button-next-phase'), 'Next Phase is greyed while the pop-up owns the question').toBeDisabled();
-    await expect(decider.page.getByTestId('live-button-end-turn'), 'End Turn too').toBeDisabled();
+    // The control box itself: its one game button greyed while the pop-up owns
+    // the question, in its own word — the operator's own rule, "never put
+    // yes/no there, always the big pop-up" — and no decision pop-up beside it
+    // (wave 75: the empty-stack pass pop-up is the next check, below).
+    await expect(decider.page.getByTestId('live-button-end-turn'), 'End Turn is greyed while the pop-up owns the question').toBeDisabled();
     await expect(decider.page.getByTestId('live-buttons'), 'the box never says Forge\'s word').not.toContainText(/Keep|Mulligan/);
     await expect(decider.page.getByTestId('live-decision'), 'one pop-up at a time').toHaveCount(0);
 

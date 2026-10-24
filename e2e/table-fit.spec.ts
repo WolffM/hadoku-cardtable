@@ -28,9 +28,10 @@
  *     watchparty's room frame scrolls on its own and would otherwise hide a
  *     scrollbar from the page-level check;
  *   - once the board is drawn, `live-buttons` has a nonzero box that lies
- *     inside the viewport, with exactly its four buttons in it, in order and
- *     in their own words (wave 51: Next Phase, End Turn, Full control,
- *     Concede — never one of Forge's), and NO text row (wave 25 §C took Forge's line and the log out of the
+ *     inside the viewport, with exactly its three buttons in it, in order and
+ *     in their own words (wave 75: End Turn, Full control, Concede — never
+ *     one of Forge's, and never a Next Phase, which moved into the decision
+ *     pop-up), and NO text row (wave 25 §C took Forge's line and the log out of the
  *     corner), and that box is at the SAME place and size in every frame at a
  *     given window size — a fixed home, not a bar on demand;
  *   - **no label in the chrome is CLIPPED** (wave 27 §B.3). This is the one
@@ -127,7 +128,7 @@ import { resolve } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
-import { enabledCancel, enabledOk as enabledButtonOne, offered, resizeWindow, twoLegalDecks } from './play/board.ts';
+import { enabledCancel, enabledOk as enabledButtonOne, nextPhaseLive, offered, resizeWindow, twoLegalDecks } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { confirmYes } from './play/confirm.ts';
 import { connectHands, type Hands } from './play/hands.ts';
@@ -351,19 +352,18 @@ function installSampler(): void {
         else {
           barBox = bar.getBoundingClientRect();
           if (!inside(barBox)) breach('button bar not wholly inside the window');
-          // Wave 51: the same four buttons every frame, in their own words — *"keep the same 4 buttons in the control box at all times"*.
-          // The second slot reads End Turn on the viewer's own turn and Auto
+          // Wave 75 dropped Next Phase: the same three buttons every frame, in their own words.
+          // The first slot reads End Turn on the viewer's own turn and Auto
           // Yield/Cancel Yield on the other seat's — same testid, same place,
           // so this sampler (installed on BOTH pages, across a whole real
           // match) must accept all three, never pin one.
-          const four = Array.from(bar.querySelectorAll('button'), (b) => `${b.dataset.testid}=${b.textContent}`).join(' ');
+          const three = Array.from(bar.querySelectorAll('button'), (b) => `${b.dataset.testid}=${b.textContent}`).join(' ');
           const endTurnLabels = ['End Turn', 'Auto Yield', 'Cancel Yield'];
-          const fourOk = endTurnLabels.some(
-            (label) =>
-              four === `live-button-next-phase=Next Phase live-button-end-turn=${label} live-full-control=Full control live-concede=Concede`,
+          const threeOk = endTurnLabels.some(
+            (label) => three === `live-button-end-turn=${label} live-full-control=Full control live-concede=Concede`,
           );
-          if (!fourOk) {
-            breach(`the control box is not its four buttons: ${four}`);
+          if (!threeOk) {
+            breach(`the control box is not its three buttons: ${three}`);
           }
           /*
            * Wave 25 §C: *"i mostly hate all the text in the bottom right it's
@@ -607,7 +607,7 @@ async function stateOf(f: Friend): Promise<Record<string, unknown>> {
     phase: await f.page.getByTestId('live-phases').getAttribute('data-phase'),
     // Forge's own line, in the logbook now (wave 25 §C) — same id, new home.
     says: await f.page.getByTestId('live-says').textContent(),
-    nextPhase: await f.page.getByTestId('live-button-next-phase').isEnabled(),
+    nextPhase: (await nextPhaseLive(f.page).count()) > 0,
     endTurn: await f.page.getByTestId('live-button-end-turn').isEnabled(),
     decision: await f.page.getByTestId('live-decision').evaluateAll((els) => els.map((e) => e.textContent)),
     // Wave 36 T4: a yes/no confirm pop-up, separate from `prompt` (a
@@ -1202,7 +1202,7 @@ test(TITLE, async ({ browser }) => {
       const pending = probe(seat);
       const dialog = f.page.getByTestId('confirm-dialog');
       await expect(dialog).toBeVisible({ timeout: 60_000 });
-      await expect(f.page.getByTestId('live-button-next-phase'), `${f.name}: the box stays, Next Phase greyed, under an open question`).toBeDisabled();
+      await expect(nextPhaseLive(f.page), `${f.name}: the pass pop-up stays closed under an open question`).toHaveCount(0);
       moments.push(await fitsNow(f, 'question open'));
       await dialog.locator('[data-answer="yes"]').click();
       expect((await pending).status(), `${f.name}: Forge got the answer`).toBe(200);

@@ -12,7 +12,7 @@
  * Proven on `attackers-declared.state` (seat 0's own Main Phase 1, an
  * untapped, non-sick Memnite, the opponent's battlefield empty) — the same
  * scenario `w46-attack.spec.ts` and `w51-control-box.spec.ts` already use for
- * a LIVE declare-attackers window reached by `Next Phase`. Here the attacking
+ * a LIVE declare-attackers window reached by the pop-up's `Next Phase`. Here the attacking
  * seat presses `End Turn` instead, which is the one click that asks the
  * server to run every phase it is not stopped at without pausing for it. A
  * `MutationObserver` is installed on the attacking seat's own page before
@@ -77,14 +77,12 @@ async function watchForWithheldWindow(page: Page): Promise<void> {
           const id = asElement.getAttribute('data-board-card');
           const says = document.querySelector('[data-testid="live-says"]')?.textContent ?? '';
           const phase = document.querySelector('[data-testid="live-phases"]')?.getAttribute('data-phase') ?? '';
-          const nextPhase = document.querySelector('[data-testid="live-button-next-phase"]');
           const endTurn = document.querySelector('[data-testid="live-button-end-turn"]');
           const decisionOk = document.querySelector('[data-testid="live-decision-ok"]');
           const decisionCancel = document.querySelector('[data-testid="live-decision-cancel"]');
           const snap = {
             says,
             phase,
-            nextPhaseDisabled: nextPhase === null ? null : (nextPhase as HTMLButtonElement).disabled,
             endTurnDisabled: endTurn === null ? null : (endTurn as HTMLButtonElement).disabled,
             decisionOk: decisionOk === null ? null : (decisionOk as HTMLButtonElement).disabled,
             decisionCancel: decisionCancel === null ? null : (decisionCancel as HTMLButtonElement).disabled,

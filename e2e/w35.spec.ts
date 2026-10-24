@@ -752,13 +752,13 @@ test(titled('R2 — the coin toss and the play/draw question render in the same 
     await expect(playOrDrawHost(asker.page), 'the coin toss / play-draw ask renders in its own decision-area host').toBeVisible();
     await expect(playOrDrawHost(asker.page).getByTestId('live-play-or-draw-play'), 'the Play button is there, Forge\'s own label').toBeVisible();
     await expect(playOrDrawHost(asker.page).getByTestId('live-play-or-draw-draw'), 'and Draw beside it').toBeVisible();
-    // It is NOT an answerable surface in the control box: both game buttons
-    // are greyed the whole time the decision area owns this question (wave 51:
-    // the box keeps its own words and its four buttons), and no second pop-up
-    // opens beside it.
-    await expect(asker.page.getByTestId('live-button-next-phase'), 'Next Phase is greyed while the decision area owns this question').toBeDisabled();
-    await expect(asker.page.getByTestId('live-button-end-turn'), 'and End Turn').toBeDisabled();
-    await expect(asker.page.getByTestId('live-decision'), 'one pop-up at a time').toHaveCount(0);
+    // It is NOT an answerable surface in the control box: its one game button
+    // is greyed the whole time the decision area owns this question (the box
+    // keeps its own word), and no second pop-up opens beside it (wave 75: the
+    // empty-stack pass is a pop-up of its own now, so this also proves it is
+    // not drawing one here).
+    await expect(asker.page.getByTestId('live-button-end-turn'), 'End Turn is greyed while the decision area owns this question').toBeDisabled();
+    await expect(asker.page.getByTestId('live-decision'), 'no pass/decision pop-up alongside the coin toss').toHaveCount(0);
   } finally {
     await stack.stop();
   }

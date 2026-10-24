@@ -4,25 +4,29 @@
  * bit distracting, can you unify that behavior."*
  *
  * Measured against a real match (`docs/planning/wave63-evidence/F/flash.md`):
- * the rail's `data-whose`, the control buttons' `disabled` state and End
- * Turn's `data-highlight` never move during an auto-passed
- * `UNTAP`/`UPKEEP`/`DRAW`. What flashed was the seat's priority mark (the
- * avatar ring now, the seat section's `data-priority`), fed by Forge's raw
- * per-frame `HasPriority` wire fact. The fix (`LiveBoard.tsx`'s
- * `withGatedPriority`) draws it only while that seat genuinely has something
- * open.
+ * the rail's `data-whose`, End Turn's `disabled` state and its `data-highlight`
+ * never move during an auto-passed `UNTAP`/`UPKEEP`/`DRAW`. What flashed was
+ * the seat's priority mark (the avatar ring now, the seat section's
+ * `data-priority`), fed by Forge's raw per-frame `HasPriority` wire fact. The
+ * fix (`LiveBoard.tsx`'s `withGatedPriority`) draws it only while that seat
+ * genuinely has something open.
  *
- * This spec watches all three original candidates (as a sanity check) plus
- * the real one, across a NORMAL turn's `UNTAP`/`UPKEEP`/`DRAW` (nobody
- * clicks anything; the opponent holds and plays nothing, `w63-flash.state`)
- * and the same span reached instead by pressing End Turn (which arms Forge's
+ * This spec watches both original candidates (as a sanity check) plus the
+ * real one, across a NORMAL turn's `UNTAP`/`UPKEEP`/`DRAW` (nobody clicks
+ * anything; the opponent holds and plays nothing, `w63-flash.state`) and the
+ * same span reached instead by pressing End Turn (which arms Forge's
  * `skipPhaseDelay` exemption). `[w63-flash]`-tagged rows are printed either
  * way — CI runners upload evidence on a red run only.
+ *
+ * Wave 75 dropped the control box's own `Next Phase` button (the empty-stack
+ * pass is the decision pop-up's now, mounted and unmounted rather than
+ * toggled, so it is not a third `disabled`-flip candidate this spec can watch
+ * the same way End Turn's is).
  */
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, serverLog } from './play/board.ts';
+import { makeTitled, nextPhaseLive, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -37,7 +41,7 @@ interface FlashRow {
   t: number;
   /** Wall clock (`Date.now()`), alongside `t`'s own page-relative clock — only the wall clock is comparable across alice's and bob's two pages. */
   wall: number;
-  signal: 'whose' | 'phase' | 'turn' | 'end-turn-disabled' | 'end-turn-highlight' | 'next-phase-disabled' | 'priority-flag-you' | 'priority-flag-opp';
+  signal: 'whose' | 'phase' | 'turn' | 'end-turn-disabled' | 'end-turn-highlight' | 'priority-flag-you' | 'priority-flag-opp';
   value: string;
 }
 
@@ -78,13 +82,6 @@ async function watchFlash(page: Page): Promise<void> {
       }
     }).observe(endTurn, { attributes: true, attributeFilter: ['disabled', 'data-highlight'] });
 
-    const nextPhase = document.querySelector<HTMLElement>('[data-testid="live-button-next-phase"]');
-    if (nextPhase === null) throw new Error('no Next Phase button to watch');
-    push('next-phase-disabled', String(nextPhase.hasAttribute('disabled')));
-    new MutationObserver((muts) => {
-      for (const m of muts) if (m.attributeName === 'disabled') push('next-phase-disabled', String(nextPhase.hasAttribute('disabled')));
-    }).observe(nextPhase, { attributes: true, attributeFilter: ['disabled'] });
-
     // The seat's priority ring (`data-priority` on its section), fed by
     // `BoardPlayer.hasPriority` as `LiveBoard.tsx`'s `withGatedPriority` gates it.
     for (const [label, scope] of [
@@ -102,20 +99,33 @@ async function watchFlash(page: Page): Promise<void> {
 
 const flashRowsOf = (page: Page): Promise<FlashRow[]> => page.evaluate(() => [...((window as unknown as { __flash?: FlashRow[] }).__flash ?? [])]);
 
-const nextPhaseOffered = (page: Page): Promise<boolean> => page.getByTestId('live-button-next-phase').isEnabled();
+/** Whether the seat's own empty-stack pass is open (`nextPhaseLive`, the pop-up's `Next Phase`). */
+const nextPhaseOffered = (page: Page): Promise<boolean> => nextPhaseLive(page).count().then((n) => n > 0);
 
-/** Timestamps (wall clock) every moment bob's OWN control bar becomes enabled — a real window genuinely opening for him. */
+/**
+ * Timestamps (wall clock) every moment bob's OWN control bar becomes enabled — a real window
+ * genuinely opening for him. End Turn is a persistent node that toggles `disabled`; the pass pop-up
+ * (wave 75) mounts and unmounts instead, so this watches BOTH's own open state on a stable ancestor
+ * and pushes on the rising edge, never a plain attribute flip — two buttons becoming enabled in the
+ * same commit is one window opening, not two.
+ */
 async function watchBobOpen(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as unknown as { __bobOpen?: number[] };
     w.__bobOpen = [];
-    for (const testid of ['live-button-next-phase', 'live-button-end-turn']) {
-      const el = document.querySelector<HTMLButtonElement>(`[data-testid="${testid}"]`);
-      if (el === null) continue;
-      new MutationObserver(() => {
-        if (!el.disabled) w.__bobOpen!.push(Date.now());
-      }).observe(el, { attributes: true, attributeFilter: ['disabled'] });
-    }
+    const root = document.querySelector<HTMLElement>('.live');
+    if (root === null) throw new Error('no .live root to watch');
+    const isOpen = (): boolean => {
+      const endTurn = document.querySelector<HTMLButtonElement>('[data-testid="live-button-end-turn"]');
+      const pass = document.querySelector<HTMLButtonElement>('[data-testid="live-decision-ok"]');
+      return (endTurn !== null && !endTurn.disabled) || (pass !== null && !pass.disabled && (pass.textContent ?? '').trim() === 'Next Phase');
+    };
+    let was = isOpen();
+    new MutationObserver(() => {
+      const open = isOpen();
+      if (open && !was) w.__bobOpen!.push(Date.now());
+      was = open;
+    }).observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['disabled'] });
   });
 }
 const bobOpenTimesOf = (page: Page): Promise<number[]> => page.evaluate(() => [...((window as unknown as { __bobOpen?: number[] }).__bobOpen ?? [])]);
@@ -133,10 +143,10 @@ function bothFlagsEverLit(rows: FlashRow[]): boolean {
   return false;
 }
 
-/** Click whichever of the two control buttons is offered, preferring Next Phase (never End Turn, by default). */
+/** Click whichever of the two buttons is offered, preferring the pop-up's Next Phase (never End Turn, by default). */
 async function passOnce(page: Page, button: 'next-phase' | 'end-turn' = 'next-phase'): Promise<void> {
-  const testid = button === 'end-turn' ? 'live-button-end-turn' : 'live-button-next-phase';
-  await page.getByTestId(testid).click();
+  if (button === 'end-turn') await page.getByTestId('live-button-end-turn').click();
+  else await nextPhaseLive(page).click();
 }
 
 /**

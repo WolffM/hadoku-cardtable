@@ -16,14 +16,14 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, makeTitled, offeredNamed } from './play/board.ts';
+import { clickHandCard, makeTitled, nextPhaseLive, offeredNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
 const titled = makeTitled(forge);
 
-const nextPhase = (page: Page) => page.getByTestId('live-button-next-phase');
+const nextPhase = (page: Page) => nextPhaseLive(page);
 const waitingPop = (page: Page) => page.getByTestId('live-waiting-pop');
 const decisionPop = (page: Page) => page.getByTestId('live-decision-host');
 
@@ -62,12 +62,12 @@ test(titled('bob holds full control: while he holds priority over her spell alic
     // Forge hands bob priority in alice's Main 1: his bar is live, and for as long as it is (sampled
     // well past the server's 150 ms grace on a waiting fact) bob reads no waiting sentence and alice
     // no pop-up of any kind.
-    await expect(nextPhase(bob.page), 'bob holds priority in alice’s turn').toBeEnabled({ timeout: 20_000 });
+    await expect(nextPhase(bob.page), 'bob holds priority in alice’s turn').toHaveCount(1, { timeout: 20_000 });
     for (let i = 0; i < 30; i++) {
       const bobPop = (await waitingPop(bob.page).count()) > 0 ? await waitingPop(bob.page).textContent() : null;
       const alicePop = (await waitingPop(alice.page).count()) > 0 ? await waitingPop(alice.page).textContent() : null;
       const aliceDecision = await decisionPop(alice.page).count();
-      const bobLive = await nextPhase(bob.page).isEnabled();
+      const bobLive = (await nextPhase(bob.page).count()) > 0;
       if (i === 0 || i === 29 || bobPop !== null || alicePop !== null || aliceDecision > 0) {
         console.log(`[fc-yield] sample ${i}: bob bar live ${bobLive}, bob waiting-pop ${JSON.stringify(bobPop)}, alice waiting-pop ${JSON.stringify(alicePop)}, alice decision ${aliceDecision}`);
       }
