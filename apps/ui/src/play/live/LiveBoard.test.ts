@@ -5103,6 +5103,7 @@ describe('the control box is fixed furniture; every answer to Forge, passing pri
     expect(getByTestId('live-decision-host').className).toBe('live__prompt');
     expect(popup.textContent).toContain('Stack: Direct Current');
     expect(getByTestId('live-decision-ok').textContent).toBe('Resolve');
+    expect(getByTestId('live-decision-host').hasAttribute('data-pass'), 'a stack to resolve is a question the zoom stands beside').toBe(false);
     expect(queryByTestId('live-decision-cancel'), 'End Turn is the box’s, never drawn twice').toBeNull();
     expect(box(getByTestId)).toEqual({ labels: THREE, endTurn: true });
     expect(getByTestId('board-mid').hasAttribute('data-question'), 'the stack knows a question is up').toBe(true);
@@ -5123,6 +5124,7 @@ describe('the control box is fixed furniture; every answer to Forge, passing pri
     expect(getByTestId('live-decision-ok').textContent).toBe('Next Phase');
     expect(queryByTestId('live-decision-cancel'), 'End Turn is the box’s').toBeNull();
     expect(popup.querySelector<HTMLElement>('.answers')!.hasAttribute('data-start'), 'agreeing to a step: bottom right').toBe(false);
+    expect(getByTestId('live-decision-host').hasAttribute('data-pass'), 'the hover zoom does not stand beside the pass').toBe(true);
     fireEvent.click(getByTestId('live-decision-ok'));
     await waitFor(() => expect(acts(s)).toEqual(['selectButtonOk']));
   });

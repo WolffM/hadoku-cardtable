@@ -21,7 +21,7 @@ import { ALLOWED_ART_HOSTS } from '@hadoku/carddata/art';
 import { cardImageUrl } from '../../draft/cardImage.ts';
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
 import { Board, type BoardInteraction } from '../Board.tsx';
-import { CARD_LONG_PRESS, LONG_PRESS_MS, mountInspector, PREF_W, type CardLongPress } from './index.ts';
+import { CARD_LONG_PRESS, LONG_PRESS_MS, mountInspector, OPEN_WINDOW, PREF_W, type CardLongPress } from './index.ts';
 import { DRAG_SLOP_PX } from '../live/gestures/types.ts';
 
 /** Uuid-shaped, so the art resolver accepts it; nothing is fetched in jsdom. */
@@ -385,6 +385,18 @@ describe('opening', () => {
     } finally {
       live.remove();
     }
+  });
+
+  it('the empty-stack pass is not a window the panel stands beside; a real question still is', () => {
+    // The pass ("Proceed to Combat?" / Next Phase) is up at every priority stop (the operator,
+    // 2026-10-24); standing the panel beside it would move every hover on every turn.
+    const live = document.createElement('div');
+    live.innerHTML =
+      '<div class="live__prompt" data-testid="live-decision-host" data-pass=""><section class="confirm">Proceed to Combat?</section></div>' +
+      '<div class="live__prompt" data-testid="live-decision-host"><section class="confirm">Resolve Lightning Bolt?</section></div>';
+    const [pass, resolve] = [...live.children];
+    expect(pass!.matches(OPEN_WINDOW), 'the pass').toBe(false);
+    expect(resolve!.matches(OPEN_WINDOW), 'a stack to resolve').toBe(true);
   });
 
   it('stays one panel while the pointer moves within the same card', () => {
