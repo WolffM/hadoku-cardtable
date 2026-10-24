@@ -36,7 +36,7 @@ interface SeatMarks {
   lit: string[];
   /** Whose side sits in the spotlight's shade. */
   shaded: string[];
-  /** The colour each lit side's edge light is drawn in: the accent on the viewer's turn, the danger on the other's. */
+  /** The colour each lit side's edge light is drawn in: the theme's success on the viewer's turn (wave 75; was the accent), the danger on the other's. */
   hue: string[];
 }
 
@@ -77,7 +77,7 @@ test(titled('the avatar ring follows who Forge is waiting on — the blocker dur
     // Forge's priority player is still bob (the active player) while alice declares blockers;
     // the one Forge is WAITING on is alice. The ring says so on both screens; the turn stays bob's.
     await expectMarks(alice.page, 'alice blocking, alice’s screen', { ring: ['you'], lit: ['them'], shaded: ['you'], hue: ['danger'] }, 'alice’s screen: the ring is on alice, who is asked; bob is the active player');
-    await expectMarks(bob.page, 'alice blocking, bob’s screen', { ring: ['them'], lit: ['you'], shaded: ['them'], hue: ['accent'] }, 'bob’s screen: the ring is on alice, who is asked; bob is the active player');
+    await expectMarks(bob.page, 'alice blocking, bob’s screen', { ring: ['them'], lit: ['you'], shaded: ['them'], hue: ['success'] }, 'bob’s screen: the ring is on alice, who is asked; bob is the active player');
   } finally {
     await stack.stop();
   }

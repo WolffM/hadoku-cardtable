@@ -150,10 +150,10 @@ export interface SeatTurnMark {
   shaded: boolean;
   /**
    * The theme colour its edge light and glow are drawn in (`board.css`'s `--turn-line` and
-   * `--turn-glow`): the accent on the viewer's own seat, the danger on the other's; `other` when
-   * neither pair matches.
+   * `--turn-glow`): the success on the viewer's own seat (wave 75; was the accent), the danger on
+   * the other's; `other` when neither pair matches.
    */
-  hue: 'accent' | 'danger' | 'other';
+  hue: 'success' | 'danger' | 'other';
 }
 
 /**
@@ -184,14 +184,14 @@ export function turnMarks(page: Page): Promise<SeatTurnMark[]> {
       probe.style.backgroundColor = `var(${name})`;
       return rgba(getComputedStyle(probe).backgroundColor);
     };
-    const pairs = { accent: [token('--turn-edge'), token('--accent')], danger: [token('--danger-ink'), token('--danger')] } as const;
+    const pairs = { success: [token('--turn-edge'), token('--success')], danger: [token('--danger-ink'), token('--danger')] } as const;
     probe.remove();
     const near = (a: readonly number[], b: readonly number[]): boolean => [0, 1, 2].every((i) => Math.abs(a[i]! - b[i]!) <= 6);
     return Array.from(document.querySelectorAll<HTMLElement>('[data-testid="player"]')).map((seat) => {
       const [edge, glow] = getComputedStyle(seat).boxShadow.match(/(?:rgba?|color|oklch|oklab|lab|lch)\([^()]*\)/g) ?? [];
       const field = seat.querySelector<HTMLElement>(':scope > [data-zone="battlefield"]');
       const drawn = edge === undefined || glow === undefined ? null : [rgba(edge), rgba(glow)];
-      const hue = (['accent', 'danger'] as const).find((h) => drawn !== null && near(drawn[0]!, pairs[h][0]) && near(drawn[1]!, pairs[h][1])) ?? ('other' as const);
+      const hue = (['success', 'danger'] as const).find((h) => drawn !== null && near(drawn[0]!, pairs[h][0]) && near(drawn[1]!, pairs[h][1])) ?? ('other' as const);
       return {
         id: seat.getAttribute('data-player-id') ?? '?',
         who: seat.hasAttribute('data-viewer') ? ('you' as const) : ('them' as const),

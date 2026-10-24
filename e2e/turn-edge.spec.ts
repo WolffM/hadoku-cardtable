@@ -9,8 +9,9 @@
  *
  *  - exactly one seat carries `data-active`, and it is Forge's active player;
  *  - that seat, and only it, is lit, and the other sits in shade;
- *  - the light is the accent on the viewer's own turn and the danger on the other seat's
- *    (`turnMarks`' `hue`), in a dark theme on Alice's screen and the default light one on Bob's.
+ *  - the light is the theme's success on the viewer's own turn (wave 75; was the accent) and the
+ *    danger on the other seat's (`turnMarks`' `hue`), in a dark theme on Alice's screen and the
+ *    default light one on Bob's.
  *
  * Throughout the passing, every sample also checks that the phase rail's `data-whose` agrees with
  * the seat's `data-active` in the same frame: both are read off one view, so a frame where they
@@ -79,7 +80,7 @@ function screenOf(page: Page): Promise<Screen> {
   }));
 }
 
-test(titled('the active seat’s edge light follows Forge’s turn on both screens, across three turns, in the accent on your turn and the danger on theirs'), async ({ browser }) => {
+test(titled('the active seat’s edge light follows Forge’s turn on both screens, across three turns, in the success colour on your turn and the danger on theirs'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(8 * 60_000);
@@ -135,7 +136,7 @@ test(titled('the active seat’s edge light follows Forge’s turn on both scree
       for (const [who, page] of screens) {
         const viewer = (await screenOf(page)).viewer;
         const seats = await page.locator('[data-testid="player"]').evaluateAll((all) => all.map((s) => s.getAttribute('data-player-id') ?? '?'));
-        const hue = active === viewer ? 'accent' : 'danger';
+        const hue = active === viewer ? 'success' : 'danger';
         let marks: Awaited<ReturnType<typeof turnMarks>> = [];
         try {
           await expect
