@@ -77,7 +77,12 @@ OUT="$DIR/summary.txt"
     case $jconc in failure|timed_out) red_job "$jid" ;; esac
     case $jname in changes|judge*) ;; *) [ "$jconc" = skipped ] || ran=1 ;; esac
   done < "$DIR/jobs.tsv"
-  [ $ran = 1 ] || echo "  note: every test job skipped — nothing ran (a bare dispatch on main needs -f full=true)"
+  if [ $ran = 0 ]; then
+    # The `changes` job says why it picked nothing: main unmoved, or the same proof already green.
+    cid=$(awk -F'\t' '$2 == "changes" { print $1 }' "$DIR/jobs.tsv")
+    why=$([ -n "$cid" ] && gh api --allow-escape-sequences "repos/$R/actions/jobs/$cid/logs" 2>/dev/null | grep -aoE 'running nothing: .*' | tail -1)
+    echo "  note: every test job skipped — ${why:-nothing ran (a bare dispatch on main needs -f full=true)}"
+  fi
 } > "$OUT"
 head -60 "$OUT"
 L=$(wc -l < "$OUT"); [ "$L" -gt 60 ] && echo "  … $((L - 60)) more lines in $OUT"
