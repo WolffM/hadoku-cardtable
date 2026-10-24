@@ -28,12 +28,14 @@ import { createRoot } from 'react-dom/client';
  *      imported by `App.tsx`), which CONSUME the tokens above and redefine
  *      none of them.
  *
- * All four fleet imports are required, and the reasons are not interchangeable:
+ * All five fleet imports are required, and the reasons are not interchangeable:
  * `style.css` is the token set itself, `icons.css` is icon sizing and the
- * accent tiles, `theme-picker.css` is the picker AppHeader renders, and
- * `app-header.css` is the header plus the settings popout — without that last
- * one the header comes out unstyled, a serif title with the controls stacked
- * down the left. Bundling them is also what keeps this page self-contained
+ * accent tiles, `theme-picker.css` is the picker AppHeader renders,
+ * `app-header.css` is the header plus the settings popout — without that one
+ * the header comes out unstyled, a serif title with the controls stacked
+ * down the left — and `tooltip.css` is the bubble the picker's buttons portal
+ * into <body> on hover — without it the label is plain text at the end of the
+ * page and pushes the room's chat up. Bundling them is also what keeps this page self-contained
  * instead of depending on `/mf/*` being reachable.
  */
 // REQUIRED: @wolffm/themes CSS — DO NOT REMOVE
@@ -41,6 +43,7 @@ import '@wolffm/themes/style.css';
 import '@wolffm/themes/icons.css';
 import '@wolffm/task-ui-components/theme-picker.css';
 import '@wolffm/task-ui-components/app-header.css';
+import '@wolffm/task-ui-components/tooltip.css';
 import './styles.css';
 import { App } from './App.tsx';
 import { canonicalizeAddress } from './screens/route.ts';
