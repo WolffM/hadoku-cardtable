@@ -88,21 +88,21 @@ describe('barRoute', () => {
     expect(barRoute(null, EMPTY)).toBe('none');
   });
 
-  it('priority with an empty stack is Next Phase (InputPassPriority: OK + End Turn)', () => {
-    expect(barRoute(buttons({ label1: 'OK', label2: 'End Turn' }), EMPTY)).toBe('next-phase');
+  it('priority with an empty stack is the pass (InputPassPriority: OK + End Turn)', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'End Turn' }), EMPTY)).toBe('pass');
   });
 
-  it('priority with spells on the stack is a decision — button one lets the top resolve', () => {
-    expect(barRoute(buttons({ label1: 'OK', label2: 'End Turn' }), STACKED)).toBe('decision');
+  it('priority with spells on the stack is resolve — button one lets the top resolve', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'End Turn' }), STACKED)).toBe('resolve');
   });
 
-  it('priority after a mana tap (OK + Undo (N)) with an empty stack is Next Phase, not a pop-up (operator, 2026-10-06)', () => {
-    expect(barRoute(buttons({ label1: 'OK', label2: 'Undo (1)' }), EMPTY)).toBe('next-phase');
-    expect(barRoute(buttons({ label1: 'OK', label2: 'Undo (3)' }), EMPTY)).toBe('next-phase');
+  it('priority after a mana tap (OK + Undo (N)) with an empty stack is the pass too', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'Undo (1)' }), EMPTY)).toBe('pass');
+    expect(barRoute(buttons({ label1: 'OK', label2: 'Undo (3)' }), EMPTY)).toBe('pass');
   });
 
-  it('priority after a mana tap with spells on the stack is still the pop-up', () => {
-    expect(barRoute(buttons({ label1: 'OK', label2: 'Undo (1)' }), STACKED)).toBe('decision');
+  it('priority after a mana tap with spells on the stack is resolve', () => {
+    expect(barRoute(buttons({ label1: 'OK', label2: 'Undo (1)' }), STACKED)).toBe('resolve');
   });
 
   it('a pressed priority pass (both disabled until Forge’s next bar) is none', () => {

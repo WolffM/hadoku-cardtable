@@ -37,6 +37,7 @@ import { PROMPT_COMPONENTS, PROMPT_METHODS } from '../prompts/index.ts';
 
 import {
   decisionMessage,
+  nextStepName,
   END_TURN_NUDGE_MS,
   END_UNSHOWN_MS,
   endingSentence,
@@ -634,8 +635,8 @@ describe('Forge asks with buttons, not only with asks', () => {
   /*
    * R2, wave 35: the coin toss / play-draw question moved OFF the control bar
    * and into the decision area (`PlayOrDrawPrompt`, lane G) — this used to
-   * assert the bar drew `Play`/`Draw`; now the control box's Next Phase and
-   * End Turn are both greyed while `PlayOrDrawPrompt` owns the question. See
+   * assert the bar drew `Play`/`Draw`; now the control box's End Turn is
+   * greyed and no decision pop-up opens while `PlayOrDrawPrompt` owns the question. See
    * `g.md` for the full shape.
    */
   it('the coin toss / play-draw question renders in the decision area, not the control bar, and sends the click Forge is waiting for', async () => {
@@ -650,9 +651,8 @@ describe('Forge asks with buttons, not only with asks', () => {
     expect(getByTestId('live-play-or-draw-play').textContent).toBe('Play');
     expect(getByTestId('live-play-or-draw-draw').textContent).toBe('Draw');
     // The control box does not ALSO answer it, and no second pop-up does either.
-    expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled, 'Next Phase cannot double-fire the answer').toBe(true);
     expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(true);
-    expect(queryByTestId('live-decision')).toBeNull();
+    expect(queryByTestId('live-decision'), 'no pass can double-fire the answer').toBeNull();
 
     const before = m.stats.replies;
     fireEvent.click(getByTestId('live-play-or-draw-play'));
@@ -668,28 +668,26 @@ describe('Forge asks with buttons, not only with asks', () => {
     s.send(stackDelta(m));
     await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
     for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
-    await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
+    const pass = await waitFor(() => getByTestId('live-decision-ok'));
 
-    fireEvent.click(getByTestId('live-button-next-phase'));
-    // The box stays where it is; its buttons go disabled until Forge sends a fresh bar.
-    await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(true));
+    fireEvent.click(pass);
+    // The pop-up goes with the bar, and the box stays where it is, greyed, until Forge sends a fresh bar.
+    await waitFor(() => expect(queryByTestId('live-decision')).toBeNull());
     expect(getByTestId('live-buttons')).toBeTruthy();
     // `pressButton` disabled both of Forge's buttons, so End Turn greys with it.
     expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(true);
-    expect(queryByTestId('live-decision')).toBeNull();
 
-    fireEvent.click(getByTestId('live-button-next-phase'));
+    fireEvent.click(pass);
     expect(pressButton(m, 'ok')).toBe(false);
     await s.untilClientFrames(1);
     expect(m.stats.replies).toBe(1);
   });
 
-  it('the box is there before Forge has sent a bar: our two labels, both greyed, nothing said', async () => {
+  it('the box is there before Forge has sent a bar: our End Turn, greyed, nothing said', async () => {
     const { getByTestId, queryByTestId } = await liveBoard();
     expect(getByTestId('live-says').textContent).toBe('');
-    const next = getByTestId('live-button-next-phase') as HTMLButtonElement;
     const end = getByTestId('live-button-end-turn') as HTMLButtonElement;
-    expect([next.textContent, next.disabled, end.textContent, end.disabled]).toEqual(['Next Phase', true, 'End Turn', true]);
+    expect([end.textContent, end.disabled]).toEqual(['End Turn', true]);
     expect(queryByTestId('live-decision')).toBeNull();
   });
 
@@ -698,22 +696,20 @@ describe('Forge asks with buttons, not only with asks', () => {
     s.send(stackDelta(m));
     await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
     for (const f of buttonFrames('Priority', 'OK', 'End Turn')) s.send(f);
-    await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
+    const pass = await waitFor(() => getByTestId('live-decision-ok'));
     expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled, 'Forge’s End Turn, enabled').toBe(false);
 
     s.send(confirmAsk('c-open'));
     await waitFor(() => getByTestId('confirm-dialog'));
-    const next = getByTestId('live-button-next-phase') as HTMLButtonElement;
-    expect(next.disabled).toBe(true);
     expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled, 'a question is open: End Turn greys').toBe(true);
-    expect(queryByTestId('live-decision'), 'the ask owns the column').toBeNull();
+    expect(queryByTestId('live-decision'), 'the ask owns the column: no pass beside it').toBeNull();
     expect(getByTestId('live-says').textContent).toBe('Priority');
-    fireEvent.click(next);
+    fireEvent.click(pass);
     expect(pressButton(m, 'ok')).toBe(false);
     expect(m.stats.replies).toBe(0);
 
     fireEvent.click(getByTestId('confirm-dialog').querySelector('[data-answer="yes"]')!);
-    await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => getByTestId('live-decision-ok'));
     expect((await s.framesFrom(m)).map((f) => (f.ok ? f.value.kind : null))).toEqual(['reply']);
   });
 });
@@ -1320,8 +1316,8 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
     const bar = getByTestId('live-buttons');
     expect(concede.tagName).toBe('BUTTON');
     expect(bar.contains(concede)).toBe(true);
-    // Not adjacent to Next Phase or End Turn: Full control stands between, so
-    // a reach for Concede is never a misclick on one of Forge's buttons.
+    // Not adjacent to End Turn: Full control stands between, so a reach for
+    // Concede is never a misclick on Forge's button.
     const order = [...bar.children].map((el) => (el as HTMLElement).dataset.testid);
     expect(order.indexOf('live-full-control'), 'Full control stands between Forge’s answers and Concede').toBe(
       order.indexOf('live-concede') - 1,
@@ -1343,7 +1339,7 @@ describe('Leave is deleted (item 5); Concede is the cluster’s only own control
       'live__buttons',
       'live__prompt',
     ]);
-    expect(bar.querySelectorAll('button')).toHaveLength(4);
+    expect(bar.querySelectorAll('button')).toHaveLength(3);
   });
 
   /*
@@ -1445,9 +1441,11 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // The spec queries `live-buttons` and then looks INSIDE it, so a second
     // container, or one of these drawn as a sibling, is a red e2e.
     expect(container.querySelectorAll('[data-testid="live-buttons"]')).toHaveLength(1);
-    for (const id of ['live-button-next-phase', 'live-button-end-turn', 'live-full-control', 'live-concede']) {
+    for (const id of ['live-button-end-turn', 'live-full-control', 'live-concede']) {
       expect(cluster.querySelector(`[data-testid="${id}"]`), `the cluster still holds ${id}`).not.toBeNull();
     }
+    // Passing priority is the decision pop-up's: the cluster has no Next Phase.
+    expect(cluster.querySelector('[data-testid="live-button-next-phase"]')).toBeNull();
     // Wave 32 Q15 took Settings out: it opens from your own face now.
     expect(cluster.querySelector('[data-testid="live-settings"]')).toBeNull();
     // Item 5 deleted `Leave`: the cluster no longer holds it at all.
@@ -1458,7 +1456,6 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
      * `Settings` (item 7) is written in the slot `Leave` vacated.
      */
     expect([...cluster.querySelectorAll('button')].map((b) => b.dataset.testid)).toEqual([
-      'live-button-next-phase',
       'live-button-end-turn',
       'live-full-control',
       'live-concede',
@@ -1493,7 +1490,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     // Every child of the cluster is a button now: nothing in it can be text that
     // grows, which is the other half of "one box at one window size". Still
     // five: item 7 put `Settings` where item 5's deletion of `Leave` left a gap.
-    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON', 'BUTTON']);
+    expect([...cluster.children].map((el) => el.tagName)).toEqual(['BUTTON', 'BUTTON', 'BUTTON']);
     // And both moved into the logbook, which is not inside the cluster.
     const logbook = getByTestId('live-logbook');
     expect(cluster.contains(logbook)).toBe(false);
@@ -1688,7 +1685,7 @@ describe('the controls are a cluster over the board, not a bar under it', () => 
     const tracks = Array.from({ length: Number(/repeat\((\d+), (\d+)px\)/.exec(rows!)?.[1]) }, () =>
       Number(/repeat\((\d+), (\d+)px\)/.exec(rows!)?.[2]),
     );
-    expect(tracks).toEqual([22, 22, 22, 22]);
+    expect(tracks).toEqual([22, 22, 22]);
     const padY = Number(/padding: (\d+)px/.exec(cluster)?.[1]);
     const gap = Number(/gap: (\d+)px/.exec(cluster)?.[1]);
     const token = Number(/--live-controls-h: (\d+)px/.exec(declarations(css, '.live'))?.[1]);
@@ -2309,6 +2306,10 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
     expect(getByTestId('live-buttons').textContent).not.toContain('Alpha Strike');
     expect(getByTestId('live-decision').textContent).not.toContain('Alpha Strike');
     expect(getByTestId('live-decision-ok').textContent, 'done declaring says what it does').toBe('Done Attacking');
+    expect(
+      getByTestId('live-decision').querySelector<HTMLElement>('.answers')!.hasAttribute('data-start'),
+      'Done Attacking ends the choosing: bottom left, where a No goes (the operator, 2026-10-24)',
+    ).toBe(true);
 
     // 3. One attacker declared. Forge's own `canCallBackAttackers()` is true now
     //    and it sends `Call Back` — item 16 refuses this one too, on the operator's
@@ -2325,9 +2326,9 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
    * Wave 32 Q15b — *"what is the point of the cancel button in the control
    * pane?"* — and wave 51: Forge's second button is the decision pop-up's,
    * drawn only while Forge enables it and in Forge's own word; the cluster
-   * keeps its four buttons whatever Forge sends.
+   * keeps its three buttons whatever Forge sends.
    */
-  it('Q15b: the second button is drawn only while Forge enables it, in Forge’s word, and the cluster keeps its four buttons', async () => {
+  it('Q15b: the second button is drawn only while Forge enables it, in Forge’s word, and the cluster keeps its three buttons', async () => {
     const { s, getByTestId, queryByTestId } = await liveBoard();
     expect(queryByTestId('live-decision-cancel'), 'no bar yet').toBeNull();
 
@@ -2339,7 +2340,6 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
     await waitFor(() => expect(queryByTestId('live-decision-cancel')).toBeNull());
     expect(getByTestId('live-decision-ok').textContent).toBe('OK');
     expect([...getByTestId('live-buttons').querySelectorAll('button')].map((b) => b.textContent)).toEqual([
-      'Next Phase',
       'End Turn',
       'Full control',
       'Concede',
@@ -2705,7 +2705,7 @@ describe('wave 31 §L — a watching window, the combat rail, and Concede after 
     expect(getByTestId('live-spectator').textContent).toBe('Watching: this seat is being played in another window');
     expect(queryByTestId('confirm-dialog'), 'a watcher is asked nothing').toBeNull();
     expect(queryByTestId('live-prompt')).toBeNull();
-    for (const id of ['live-button-next-phase', 'live-button-end-turn', 'live-full-control', 'live-concede']) {
+    for (const id of ['live-button-end-turn', 'live-full-control', 'live-concede']) {
       expect((getByTestId(id) as HTMLButtonElement).disabled, `${id} is inert`).toBe(true);
     }
     expect(queryByTestId('live-decision'), 'a watcher is offered no decision').toBeNull();
@@ -2984,8 +2984,8 @@ describe('R8 — the log button is an icon with an accessible name', () => {
 /**
  * Forge's stack, set to exactly these stack items. The fixture's own board has
  * two items on it (Direct Current and Fire Urchin's trigger), so a test about
- * the EMPTY-stack priority pass empties it first (wave 51: that is the only
- * input `Next Phase` presses).
+ * the EMPTY-stack priority pass empties it first (the pass the pop-up's `Next
+ * Phase` presses).
  */
 function stackDelta(m: LiveMatch, ids: number[] = []) {
   return parseServerFrame({
@@ -3210,7 +3210,7 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
       focus1: true,
     });
 
-  it('highlights End Turn (Forge’s label2, never Next Phase) exactly when nothingToDecide is true', async () => {
+  it('highlights End Turn (Forge’s label2) exactly when nothingToDecide is true', async () => {
     const { s, m, getByTestId } = await liveBoard();
     s.send(pastAttackers(m));
     await untilMatch(m, () => expect(m.view!.phase).toBe('MAIN2'));
@@ -3218,12 +3218,10 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     s.send(bar2('End Turn'));
     await waitFor(() => expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false));
     expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight'), 'Forge has not said "nothing" yet').toBe(false);
-    expect(getByTestId('live-button-next-phase').hasAttribute('data-highlight'), 'the highlight is never on Next Phase').toBe(false);
 
     s.send(weaklySelectable([]));
     await untilMatch(m, () => expect(nothingToDecide(m)).toBe(true));
     await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(true));
-    expect(getByTestId('live-button-next-phase').hasAttribute('data-highlight')).toBe(false);
 
     // Forge names a real decision (a non-land permanent): the highlight comes off at once.
     // By type line, not a hard-coded id — lane F's land-tapping fix means an
@@ -3249,7 +3247,6 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
     s.send(weaklySelectable([land]));
     await untilMatch(m, () => expect(nothingToDecide(m)).toBe(true));
     await waitFor(() => expect(getByTestId('live-button-end-turn').hasAttribute('data-highlight')).toBe(true));
-    expect(getByTestId('live-button-next-phase').hasAttribute('data-highlight')).toBe(false);
   });
 
   it('the highlight held END_TURN_NUDGE_MS escalates to data-nudge; a new input from Forge restarts the wait', async () => {
@@ -3282,7 +3279,6 @@ describe('R5 — End Turn is highlighted when there is nothing left to decide', 
       vi.advanceTimersByTime(END_TURN_NUDGE_MS);
     });
     await waitFor(() => expect(endTurn().hasAttribute('data-nudge')).toBe(true));
-    expect(getByTestId('live-button-next-phase').hasAttribute('data-nudge'), 'never on Next Phase').toBe(false);
 
     // Forge shows a new input with the same answer: the highlight stays, the nudge restarts.
     s.send(weaklySelectable([]));
@@ -4946,7 +4942,6 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     expect(getByTestId('live-confirm').textContent).toContain('Pay 2 life?');
     expect(getByTestId('prompt-confirm-yes').textContent).toBe('Yes');
     expect(getByTestId('prompt-confirm-no').textContent).toBe('No');
-    expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled, 'Next Phase cannot double-fire the answer').toBe(true);
     expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(true);
     expect(queryByTestId('live-decision'), 'one pop-up at a time').toBeNull();
 
@@ -4979,16 +4974,15 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     expect(getByTestId('prompt-confirm-no').textContent).toBe('Mulligan');
   });
 
-  it('an ordinary priority pass (OK/End Turn) with nothing on the stack is the control box’s — no pop-up opens for it', async () => {
+  it('an ordinary priority pass (OK/End Turn) with nothing on the stack is the pass pop-up, never the yes/no one', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     s.send(stackDelta(m));
     await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
     for (const f of buttonFrames('Priority: you', 'OK', 'End Turn')) s.send(f);
 
-    await waitFor(() => expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect(getByTestId('live-decision-ok').textContent).toBe('Next Phase'));
     expect((getByTestId('live-button-end-turn') as HTMLButtonElement).disabled).toBe(false);
     expect(queryByTestId('live-confirm-host')).toBeNull();
-    expect(queryByTestId('live-decision')).toBeNull();
   });
 
   it('a mana payment’s Auto/Cancel is not the yes/no pop-up — AUTO_PAY_LABEL is one of the excluded mechanical words', async () => {
@@ -5020,8 +5014,7 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     for (const f of buttonFrames('Keep this hand of seven?', 'Keep', 'Mulligan')) s.send(f);
 
     await waitFor(() => getByTestId('live-confirm-host'));
-    expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(true);
-    expect(getByTestId('live-buttons').textContent).toBe('Next PhaseEnd TurnFull controlConcede');
+    expect(getByTestId('live-buttons').textContent).toBe('End TurnFull controlConcede');
   });
 
   it('T4, finished: the box never says "Play" while the coin-toss pop-up is up', async () => {
@@ -5029,8 +5022,7 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
     for (const f of buttonFrames('You have won the coin toss.\n\nPlay or draw?', 'Play', 'Draw')) s.send(f);
 
     await waitFor(() => getByTestId('live-play-or-draw-host'));
-    expect((getByTestId('live-button-next-phase') as HTMLButtonElement).disabled).toBe(true);
-    expect(getByTestId('live-buttons').textContent).toBe('Next PhaseEnd TurnFull controlConcede');
+    expect(getByTestId('live-buttons').textContent).toBe('End TurnFull controlConcede');
   });
 
   /*
@@ -5058,54 +5050,51 @@ describe('T4 — every yes/no confirm is the pop-up, never the control bar', () 
 });
 
 /*
- * Wave 51. The operator, 2026-10-06: *"can we change the control box word to
- * 'Next Phase' so that button is specifically only for that. and any 'Ok'
- * situations are popups decisions instead?"* and *"keep the same 4 buttons in
- * the control box at all times? just grey out the 'Next Phase' and 'End Turn'
- * buttons when they are not relevant."*
+ * The operator, 2026-10-06: *"any 'Ok' situations are popups decisions
+ * instead"* and *"keep the same … buttons in the control box at all times? just
+ * grey out … when they are not relevant."* Then 2026-10-24: *"the 'next phase'
+ * button must go and instead we should use the decision modal for passing
+ * priority always"*, its button saying what the player agrees to.
  */
-describe('wave 51 — the control box is fixed furniture; every other answer is the decision pop-up', () => {
+describe('the control box is fixed furniture; every answer to Forge, passing priority included, is the decision pop-up', () => {
   const notify = (raw: unknown) => parseServerFrame(raw);
   const bar = (label1: string, label2: string, enable1 = true, enable2 = true) =>
     notify({ kind: 'notify', method: 'updateButtons', owner: { kind: 'player', id: 0 }, label1, label2, enable1, enable2, focus1: enable1 });
   const prompt = (message: string, cardId: number | null = null) =>
     notify({ kind: 'notify', method: 'showPromptMessage', player: { kind: 'player', id: 0 }, message, card: cardId === null ? null : { kind: 'card', id: cardId } });
-  const box = (getByTestId: (id: string) => HTMLElement) => {
-    const b = (id: string) => getByTestId(id) as HTMLButtonElement;
-    return {
-      labels: [...getByTestId('live-buttons').querySelectorAll('button')].map((el) => el.textContent),
-      nextPhase: !b('live-button-next-phase').disabled,
-      endTurn: !b('live-button-end-turn').disabled,
-    };
-  };
-  const FOUR = ['Next Phase', 'End Turn', 'Full control', 'Concede'];
+  const box = (getByTestId: (id: string) => HTMLElement) => ({
+    labels: [...getByTestId('live-buttons').querySelectorAll('button')].map((el) => el.textContent),
+    endTurn: !(getByTestId('live-button-end-turn') as HTMLButtonElement).disabled,
+  });
+  const THREE = ['End Turn', 'Full control', 'Concede'];
   const acts = (s: ReplayServer) =>
     s.clientFrames().flatMap((f) => (f.ok && f.value.kind === 'act' ? [f.value.method] : []));
+  const ok = (queryByTestId: (id: string) => HTMLElement | null) => queryByTestId('live-decision-ok')?.textContent ?? null;
 
-  it('draws the same four buttons in every state, with Next Phase only at the empty-stack priority pass and End Turn only while Forge names it', async () => {
+  it('draws the same three buttons in every state; the pop-up answers the pass, with words for what it does', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
-    const states: [string, () => unknown[], { nextPhase: boolean; endTurn: boolean }][] = [
-      ['no bar yet', () => [], { nextPhase: false, endTurn: false }],
-      ['priority with spells on the stack', () => [prompt('Priority: you'), bar('OK', 'End Turn')], { nextPhase: false, endTurn: true }],
-      ['priority, stack empty', () => [stackDelta(m), prompt('Priority: you'), bar('OK', 'End Turn')], { nextPhase: true, endTurn: true }],
-      ['priority after a mana tap (OK + Undo), stack empty', () => [bar('OK', 'Undo (1)')], { nextPhase: true, endTurn: false }],
-      ['a yes/no', () => [prompt('Pay 2 life?'), bar('Yes', 'No')], { nextPhase: false, endTurn: false }],
-      ['the coin toss', () => [prompt('Play or draw?'), bar('Play', 'Draw')], { nextPhase: false, endTurn: false }],
-      ['a target being chosen', () => [prompt('Select targets for Lightning Bolt'), bar('OK', 'Cancel', false, true)], { nextPhase: false, endTurn: false }],
-      ['blockers done', () => [prompt('Declare blockers'), bar('OK', 'Cancel', true, false)], { nextPhase: false, endTurn: false }],
-      ['a payment', () => [bar('Auto', 'Cancel'), prompt('Pay Mana Cost: {1}', mine[0]!)], { nextPhase: false, endTurn: false }],
+    const states: [string, () => unknown[], { endTurn: boolean; ok: string | null }][] = [
+      ['no bar yet', () => [], { endTurn: false, ok: null }],
+      ['priority with spells on the stack', () => [prompt('Priority: you'), bar('OK', 'End Turn')], { endTurn: true, ok: 'Resolve' }],
+      ['priority, stack empty', () => [stackDelta(m), prompt('Priority: you'), bar('OK', 'End Turn')], { endTurn: true, ok: 'Next Phase' }],
+      ['priority after a mana tap (OK + Undo), stack empty', () => [bar('OK', 'Undo (1)')], { endTurn: false, ok: 'Next Phase' }],
+      ['a yes/no', () => [prompt('Pay 2 life?'), bar('Yes', 'No')], { endTurn: false, ok: null }],
+      ['the coin toss', () => [prompt('Play or draw?'), bar('Play', 'Draw')], { endTurn: false, ok: null }],
+      ['a target being chosen', () => [prompt('Select targets for Lightning Bolt'), bar('OK', 'Cancel', false, true)], { endTurn: false, ok: null }],
+      ['a payment', () => [bar('Auto', 'Cancel'), prompt('Pay Mana Cost: {1}', mine[0]!)], { endTurn: false, ok: null }],
     ];
     for (const [what, frames, expected] of states) {
       for (const f of frames()) s.send(f as never);
-      await waitFor(() => expect(box(getByTestId), what).toEqual({ labels: FOUR, ...expected }));
+      await waitFor(() => expect({ ...box(getByTestId), ok: ok(queryByTestId) }, what).toEqual({ labels: THREE, ...expected }));
+      expect(queryByTestId('live-button-next-phase'), `${what}: no Next Phase in the box`).toBeNull();
       // One pop-up at a time, whichever it is.
       const popups = ['live-decision', 'live-confirm', 'live-play-or-draw', 'live-payment'].filter((id) => queryByTestId(id) !== null);
       expect(popups.length, `${what}: ${popups.join(', ')}`).toBeLessThanOrEqual(1);
     }
   });
 
-  it('priority with spells on the stack is the pop-up: Forge’s line and Forge’s OK, which passes; End Turn stays in the box', async () => {
+  it('priority with spells on the stack: the pop-up’s Resolve passes; End Turn stays in the box', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     expect(m.view!.stack.length, 'the fixture has spells on the stack').toBeGreaterThan(0);
     for (const f of [prompt('Priority: you\nStack: Direct Current'), bar('OK', 'End Turn')]) s.send(f);
@@ -5113,10 +5102,9 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
     const popup = await waitFor(() => getByTestId('live-decision'));
     expect(getByTestId('live-decision-host').className).toBe('live__prompt');
     expect(popup.textContent).toContain('Stack: Direct Current');
-    expect(getByTestId('live-decision-ok').textContent).toBe('OK');
+    expect(getByTestId('live-decision-ok').textContent).toBe('Resolve');
     expect(queryByTestId('live-decision-cancel'), 'End Turn is the box’s, never drawn twice').toBeNull();
-    expect(box(getByTestId)).toEqual({ labels: FOUR, nextPhase: false, endTurn: true });
-    expect(getByTestId('live-buttons').textContent, 'the box never says OK').not.toContain('OK');
+    expect(box(getByTestId)).toEqual({ labels: THREE, endTurn: true });
     expect(getByTestId('board-mid').hasAttribute('data-question'), 'the stack knows a question is up').toBe(true);
 
     fireEvent.click(getByTestId('live-decision-ok'));
@@ -5124,14 +5112,18 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
     await waitFor(() => expect(queryByTestId('live-decision'), 'pressed: the pop-up goes with the bar').toBeNull());
   });
 
-  it('Next Phase presses Forge’s button one at the empty-stack pass, and no pop-up opens', async () => {
+  it('the empty-stack pass asks to proceed to the next step, and its one Next Phase button presses Forge’s button one', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     s.send(stackDelta(m));
     await untilMatch(m, () => expect(m.view!.stack).toHaveLength(0));
+    expect(m.view!.phase, 'the fixture is in main 1').toBe('MAIN1');
     for (const f of [prompt('Priority: you'), bar('OK', 'End Turn')]) s.send(f);
-    await waitFor(() => expect(box(getByTestId).nextPhase).toBe(true));
-    expect(queryByTestId('live-decision')).toBeNull();
-    fireEvent.click(getByTestId('live-button-next-phase'));
+    const popup = await waitFor(() => getByTestId('live-decision'));
+    expect(popup.querySelector('.confirm__message')!.textContent).toBe('Proceed to Combat?');
+    expect(getByTestId('live-decision-ok').textContent).toBe('Next Phase');
+    expect(queryByTestId('live-decision-cancel'), 'End Turn is the box’s').toBeNull();
+    expect(popup.querySelector<HTMLElement>('.answers')!.hasAttribute('data-start'), 'agreeing to a step: bottom right').toBe(false);
+    fireEvent.click(getByTestId('live-decision-ok'));
     await waitFor(() => expect(acts(s)).toEqual(['selectButtonOk']));
   });
 
@@ -5140,7 +5132,7 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
     s.send(bar('OK', 'End Turn'));
     await waitFor(() => expect(box(getByTestId).endTurn).toBe(true));
     fireEvent.click(getByTestId('live-button-end-turn'));
-    await waitFor(() => expect(acts(s)).toEqual(['selectButtonCancel']));
+    await waitFor(() => expect(acts(s)).toContain('selectButtonCancel'));
   });
 
   it('a target’s Cancel is the pop-up’s, alone, in Forge’s word — and it backs out', async () => {
@@ -5153,12 +5145,13 @@ describe('wave 51 — the control box is fixed furniture; every other answer is 
     await waitFor(() => expect(acts(s)).toEqual(['selectButtonCancel']));
   });
 
-  it('OK + Undo (N) after a mana tap, stack empty: Next Phase stays live and no pop-up opens (operator, 2026-10-06)', async () => {
+  it('OK + Undo (N) after a mana tap, stack empty: the pass, and Forge’s Undo is not drawn (the land itself untaps)', async () => {
     const { s, m, getByTestId, queryByTestId } = await liveBoard();
     s.send(stackDelta(m));
     s.send(bar('OK', 'Undo (1)'));
-    await waitFor(() => expect(box(getByTestId)).toEqual({ labels: FOUR, nextPhase: true, endTurn: false }));
-    expect(queryByTestId('live-decision')).toBeNull();
+    await waitFor(() => expect(getByTestId('live-decision-ok').textContent).toBe('Next Phase'));
+    expect(queryByTestId('live-decision-cancel')).toBeNull();
+    expect(box(getByTestId)).toEqual({ labels: THREE, endTurn: false });
   });
 
   it('the payment window and a selection pop-up keep their inputs: no decision pop-up beside them', async () => {
@@ -5417,26 +5410,44 @@ describe('wave 59 §P — "Resolve {name}?" names the top of the stack', () => {
   const PRIORITY_WITH_STACK = 'Priority: A\nTurn: 2 (A)\nPhase: Main phase, precombat\nStack: 1 to Resolve.';
 
   it('a spell names itself', () => {
-    expect(decisionMessage(PRIORITY_WITH_STACK, stackEntry({ sourceName: 'Keiga, the Tide Star' }))).toBe('Resolve Keiga, the Tide Star?');
+    expect(decisionMessage(PRIORITY_WITH_STACK, stackEntry({ sourceName: 'Keiga, the Tide Star' }), null)).toBe('Resolve Keiga, the Tide Star?');
   });
 
   it('a trigger or an ability names its source, with "trigger" — never a bare "Resolve?"', () => {
-    expect(decisionMessage(PRIORITY_WITH_STACK, stackEntry({ isAbility: true, sourceName: 'Bitterblossom' }))).toBe(
+    expect(decisionMessage(PRIORITY_WITH_STACK, stackEntry({ isAbility: true, sourceName: 'Bitterblossom' }), null)).toBe(
       "Resolve Bitterblossom's trigger?",
     );
   });
 
   it('no stack item known yet (the view has not caught up to the prompt): the old bare question, never a guessed name', () => {
-    expect(decisionMessage(PRIORITY_WITH_STACK, null)).toBe('Resolve?');
+    expect(decisionMessage(PRIORITY_WITH_STACK, null, null)).toBe('Resolve?');
   });
 
   it('a stack item that reached this seat with no source name falls back rather than draw "Resolve null?"', () => {
-    expect(decisionMessage(PRIORITY_WITH_STACK, stackEntry({ sourceName: null }))).toBe('Resolve unknown source?');
+    expect(decisionMessage(PRIORITY_WITH_STACK, stackEntry({ sourceName: null }), null)).toBe('Resolve unknown source?');
+  });
+
+  it('priority on an empty stack asks to proceed to the step the rail moves to', () => {
+    expect(decisionMessage('Priority: A\nTurn: 2 (A)\nPhase: Main phase, precombat', null, 'Combat')).toBe('Proceed to Combat?');
+    expect(decisionMessage('Priority: A', null, 'Declare blockers')).toBe('Proceed to Declare blockers?');
+    expect(decisionMessage(PRIORITY_WITH_STACK, stackEntry({ sourceName: 'Remand' }), 'Combat'), 'a stack wins: it resolves, the step does not move').toBe('Resolve Remand?');
+  });
+
+  it('the step after each step is the rail\'s next row, combat collapsed outside combat', () => {
+    const at = (phase: string) => nextStepName({ phase } as BoardView);
+    expect(at('MAIN1')).toBe('Combat');
+    expect(at('COMBAT_DECLARE_ATTACKERS')).toBe('Declare blockers');
+    expect(at('COMBAT_DECLARE_BLOCKERS'), 'first strike is not a step Forge always runs').toBe('Combat damage');
+    expect(at('COMBAT_FIRST_STRIKE_DAMAGE')).toBe('Combat damage');
+    expect(at('COMBAT_END')).toBe('Main 2');
+    expect(at('END_OF_TURN')).toBe('Cleanup');
+    expect(at('CLEANUP')).toBe('Untap');
+    expect(at('NOT_A_STEP')).toBeNull();
   });
 
   it('a prompt that is not the priority-over-stack shape is untouched: Forge\'s own words, same as before this wave', () => {
-    expect(decisionMessage('Pay 2 life?', stackEntry({}))).toBe('Pay 2 life?');
-    expect(decisionMessage('Pay 2 life?', null)).toBe('Pay 2 life?');
+    expect(decisionMessage('Pay 2 life?', stackEntry({}), null)).toBe('Pay 2 life?');
+    expect(decisionMessage('Pay 2 life?', null, null)).toBe('Pay 2 life?');
   });
 
   it('the real fixture: the decision pop-up names Fire Urchin\'s trigger while it sits on top, then Direct Current once it is the only item left', async () => {
