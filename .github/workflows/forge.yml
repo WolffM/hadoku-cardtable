@@ -3,7 +3,12 @@ name: Forge
 # The Forge jobs: the real-Forge e2e and the jar-gated vitest suites, beside
 # `ci.yml`'s `check`. Since 2026-10-07 they gate NOTHING: `redeploy.yml`
 # deploys on `check` alone, and a red here is a work item for whoever landed it
-# (the operator: "look at the tests and fix them later").
+# (the operator: "look at the tests and fix them later"). Not a gate is a
+# decision, not a gap: Forge stays out of hadoku_site's ci-watch (operator,
+# 2026-10-24).
+#
+# A dispatch repeating a proof that already went green (same sha, same inputs)
+# runs nothing and names the green run: see the `changes` job.
 #
 # What runs is picked from the changed paths (`scripts/ci/select-forge-tests.ts`,
 # see the `changes` job). A push to main runs a short run: what changed itself
@@ -175,6 +180,8 @@ jobs:
           BASE: ${{ inputs.base }}
           SPECS_OVERRIDE: ${{ inputs.specs }}
           JVM_OVERRIDE: ${{ inputs.jvm }}
+          ONLY: ${{ inputs.only }}
+          VIDEO: ${{ inputs.video }}
         run: |
           set -uo pipefail
           emit() { printf '%s\n' "$@" >> "$GITHUB_OUTPUT"; printf '%s\n' "$@"; }
@@ -185,12 +192,30 @@ jobs:
             pull_request) all "event is a pull request" true ;;
             schedule)
               [ "$CRON" = '0 10 * * *' ] && all "the nightly run" true
-              last=$(api "actions/workflows/forge.yml/runs?event=schedule&branch=main&status=completed&per_page=20" \
-                | jq -r '[.workflow_runs[] | select(.conclusion == "success" or .conclusion == "failure")][0].head_sha // empty') \
+              # A run still in progress counts, as on a push: the nightly at 10:00 is still running
+              # when the 10:17 run asks, and counting only completed runs ran the same sha's full set
+              # twice every morning (2026-10-20..24, five of five days).
+              last=$(api "actions/workflows/forge.yml/runs?event=schedule&branch=main&per_page=20" \
+                | jq -r --argjson me "$RUN_ID" '[.workflow_runs[] | select(.id != $me and (.status == "in_progress" or .conclusion == "success" or .conclusion == "failure"))][0].head_sha // empty') \
                 || all "could not read the last scheduled run" false
               [ "$last" = "$HEAD_SHA" ] && none "main has not moved since the last full run ($last)"
               all "main moved since the last full run (${last:-none})" false ;;
             workflow_dispatch)
+              # The same proof twice: a dispatch with this sha and these exact inputs that already
+              # went green is the answer, so this one runs nothing and names it. The inputs are not
+              # in the runs API, so each run that runs prints its key and this reads the `changes`
+              # log of this sha's earlier green dispatches. A red one never stops a re-run.
+              key="forge-proof-key: $(printf '%s|' "$ONLY" "$SPECS_OVERRIDE" "$JVM_OVERRIDE" "$FULL" "$BASE" "$VIDEO" | sha256sum | cut -c1-16)"
+              for id in $(api "actions/workflows/forge.yml/runs?event=workflow_dispatch&head_sha=$HEAD_SHA&status=success&per_page=20" \
+                  | jq -r --argjson me "$RUN_ID" '.workflow_runs[] | select(.id != $me) | .id'); do
+                job=$(api "actions/runs/$id/jobs" | jq -r '.jobs[] | select(.name == "changes") | .id')
+                log=$([ -n "$job" ] && curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$REPO/actions/jobs/$job/logs")
+                if grep -qF "$key" <<<"$log"; then
+                  echo "::notice::already green with these inputs: https://github.com/$REPO/actions/runs/$id"
+                  none "the same proof passed in run $id"
+                fi
+              done
+              echo "$key"
               if [ -n "$SPECS_OVERRIDE$JVM_OVERRIDE" ]; then
                 echo "dispatch override: specs='$SPECS_OVERRIDE' jvm='$JVM_OVERRIDE'"
                 emit e2e=true e2e_specs= "shards=$([ -n "$SPECS_OVERRIDE" ] && echo '[1]' || echo '[1, 2, 3, 4]')" \
