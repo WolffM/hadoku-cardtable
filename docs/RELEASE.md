@@ -51,25 +51,47 @@ combines the pending files, shows the notes for editing, lands them and runs the
    `already-posted` on a restart) in `pm2 logs cardtable`. A `failed` line says why; the next boot
    retries.
 
-## Notes file shape
+## Notes style
+
+The operator, 2026-10-23: *"make sure that the formatting for the patch notes is consistent and
+also make sure the wording is not too verbose. the big features can get extra wording, but for
+random bugfixes we can keep the wording simple. make sure all commits get a mention in each
+release note"*. Every notes file, and every pending file, follows this.
 
 ```markdown
-# vX.Y.Z — <one-line headline>
+# vX.Y.Z — <headline, a few words>
 
-<one or two sentences: what this release is about>
+<one sentence: what this release is about>
 
 ## New
-- <what a player can now do, in their words>
+- **A big feature, in a sentence.** Up to two short sentences more: what it is and where to find it.
+- **A small addition.**
 
 ## Changed
-- ...
+- **What works differently now.**
 
 ## Fixed
-- ...
+- **What was wrong is right now.**
+
+## Under the hood
+- **Faster checks before an update ships.**
+- **Dependency updates.**
 ```
 
-Keep it short. It's posted as a Discord embed. A body over 4096 characters is split at its `##`
-headings into more embeds, but Discord caps a message at 6000 characters in all.
+- **These headings, in this order**, and no others. Drop an empty one.
+- **Every bullet leads with one bold sentence**, ending in a full stop, that stands on its own.
+- **Words follow size.** A big feature (something players will go looking for, or will notice
+  on every game) gets the bold sentence plus up to two short ones. Everything else, every bug
+  fix and small change, is the bold sentence alone, on one line, about ten words. When unsure,
+  shorter.
+- **Every commit gets a mention.** Each commit `collect.ts` lists under "Commits to cover" is in
+  exactly one bullet; related commits share one. Version bumps and notes commits are the only
+  ones left out, and `collect.ts` leaves them out for you. A commit no player sees (CI, tests,
+  tooling, docs, dependency updates, admin-only tools such as the testing rooms or the sound
+  builder) goes under **Under the hood**, grouped by kind, bold sentence only.
+- **Players' words**, Under the hood too: no file names, commit ids, ticket numbers or internals.
+- **Length.** It's posted as a Discord embed. A body over 4096 characters is split at its `##`
+  headings into more embeds, and Discord caps a message at 6000 characters in all.
 
 ## Fixing prod
 

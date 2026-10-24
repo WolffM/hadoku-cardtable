@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { changedRows, parseLedgerRow, render } from './collect.ts';
+import { changedRows, isBookkeeping, parseLedgerRow, render } from './collect.ts';
 
 const ROW = '| AF374 | (2026-10-23, operator) "concede from the card" | 1 | **built** | `table-actions.test.ts` | Press Concede game on your card | ✅ |';
 
@@ -58,5 +58,29 @@ describe('render', () => {
 		expect(text).toContain('- a player sees it by: Press Concede game on your card');
 		expect(text).toContain("- operator's check: ✅");
 		expect(text).toContain('- abc1234 fix: a thing');
+	});
+
+	it('lists every commit but the bookkeeping, and counts what it left out', () => {
+		const text = render({ since: 'release/v0.33.0', to: 'origin/main' }, [], [
+			{ sha: 'a1', subject: 'flyers: a steady loop in Firefox' },
+			{ sha: 'b2', subject: 'ui 0.32.586, server 0.32.391' },
+			{ sha: 'c3', subject: 'ui 0.32.587' },
+			{ sha: 'd4', subject: 'release: v0.34.0 notes' },
+			{ sha: 'e5', subject: 'chore: auto-update @wolffm/* to latest' },
+		]);
+		expect(text).toContain('## Commits to cover (2; 3 version bumps and notes commits left out)');
+		expect(text).toContain('- a1 flyers');
+		expect(text).toContain('- e5 chore');
+		expect(text).not.toContain('b2');
+		expect(text).not.toContain('d4');
+	});
+});
+
+describe('isBookkeeping', () => {
+	it('is a version bump or a notes commit, nothing that merely mentions one', () => {
+		expect(isBookkeeping('ui 0.32.585, server 0.32.391')).toBe(true);
+		expect(isBookkeeping('release notes: v0.34.0 — Card Table has a Discord')).toBe(true);
+		expect(isBookkeeping('ui: the header bumps to 0.32.585 spacing')).toBe(false);
+		expect(isBookkeeping('release.yml: the tag-exists probe is silent')).toBe(false);
 	});
 });

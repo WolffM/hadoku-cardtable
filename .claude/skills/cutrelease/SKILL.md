@@ -25,42 +25,34 @@ only the ones a pending file names — a land may have shipped with no file:
 git log --reverse --format='%h %s' "$LAST"..origin/main
 ```
 
-For each commit, decide whether a player would see or feel it. Skip version bumps (`ui 0.32.…`,
-`server …`), dependency updates, CI, tests, docs and admin-only work (testing rooms, the sound
-builder). When a subject does not say enough, read the commit (`git show --stat <sha>`, its body,
-the files it touched) before deciding. Every player-visible commit is either covered by a pending
-file or a ledger row (`collect.ts`'s output), or it is a **gap**: write its bullet yourself, from
-the commit and its ledger row's "check it by" column if it has one, in the players' words.
+**Every commit gets a mention** (the operator, 2026-10-23). `collect.ts`'s "Commits to cover"
+is the list: every commit since `$LAST` except version bumps and notes commits. Each one ends up
+in exactly one bullet. When a subject does not say enough, read the commit (`git show --stat
+<sha>`, its body, the files it touched). A player-visible commit is covered by a pending file, or
+it is a **gap**: write its bullet yourself, from the commit and its ledger row's "check it by"
+column if it has one. A commit no player sees goes under **Under the hood**.
 
-If there are no pending files and no player-visible commit since `$LAST`, say there is nothing to
-release and stop.
+If "Commits to cover" is empty, say there is nothing to release and stop.
 
 ## 2. Combine
 
-Write `docs/releases/vX.Y.Z.md` in a worktree off `origin/main`:
-
-```markdown
-# vX.Y.Z — <a short headline>
-
-<one or two sentences: what this release is about>
-
-## New
-## Changed
-## Fixed
-```
+Write `docs/releases/vX.Y.Z.md` in a worktree off `origin/main`, in the shape and wording rules
+of `docs/RELEASE.md` § "Notes style" (read it every time): New, Changed, Fixed, Under the hood;
+a bold lead sentence per bullet; extra words only for big features, a fix is one short line.
 
 - **Version:** `$LAST` plus a minor bump if any bullet is under New or Changed, else a patch
   bump. `v0.33.0` → `v0.34.0` or `v0.33.1`.
 - **Every pending bullet**, under its own heading, in the order the files sort (they are dated).
-  Fold two bullets about the same thing into one; drop an empty heading.
-- **Players' words** only: no file names, ids, internals. Keep each bullet's bold lead sentence.
-  The whole file is posted as a Discord embed (4096 characters), so keep it tight.
+  Fold two bullets about the same thing into one, and cut a pending bullet down to the style's
+  length when it is a small fix written long.
+- **Under the hood** groups the commits no player sees by kind ("Faster checks before an update
+  ships.", "Dependency updates."), bold sentence only.
 
 ## 3. The operator edits
 
-Show the operator the full notes text in chat, plus what fed it: the pending files, and each
-bullet you wrote for a gap with the commit(s) it came from, so they can check it and drop any
-that should not be there. Ask them to edit or approve. Apply their edits verbatim. Do not land
+Show the operator the full notes text in chat, then the **coverage**: every commit from "Commits
+to cover", each with the bullet it went into, so a missing one shows. Mark the bullets you wrote
+for a gap. Ask them to edit or approve. Apply their edits verbatim. Do not land
 or release until they say the notes are right.
 
 ## 4. Land the notes

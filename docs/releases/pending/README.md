@@ -8,8 +8,9 @@ deleted in the same commit that lands it.
 ## When to write one
 
 Whenever a land changes something a player can see or feel: a feature, a fix, a change in how
-something looks or plays, a speed-up they would notice. Not for tests, CI, refactors, docs or
-anything admin-only (testing rooms, the sound builder), unless it fixed something a player hit.
+something looks or plays, a speed-up they would notice. A land no player sees (tests, CI,
+refactors, docs, admin-only tools) needs no file: `/cutrelease` still gives it an
+**Under the hood** line, because every commit gets a mention in the notes.
 
 Write it in the same commit as the change, so a reverted change takes its note with it.
 
@@ -19,19 +20,6 @@ Write it in the same commit as the change, so a reverted change takes its note w
 The date keeps the folder in the order things landed; the slug says what it is. One file may
 hold several bullets when they are one piece of work.
 
-Use only these three headings, each optional, and bullets under them:
-
-```markdown
-## New
-- **What a player can now do.** One or two sentences in their words.
-
-## Changed
-- **What works differently now.** What they'll notice.
-
-## Fixed
-- **What was wrong, now right.** What they hit, and that it no longer happens.
-```
-
-Write for the players, not for us: no file names, commit ids, ticket numbers or internals.
-Lead each bullet with a bold sentence that stands on its own; the release's Discord embed
-shows them as they are.
+Use the headings and bullet shape in `docs/RELEASE.md` § "Notes style" (New, Changed, Fixed;
+Under the hood is `/cutrelease`'s): a bold lead sentence per bullet, up to two short sentences
+more for a big feature, and the lead alone for a fix or a small change.

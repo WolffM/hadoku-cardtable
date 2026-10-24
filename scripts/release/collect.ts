@@ -6,12 +6,13 @@
  * `--since` defaults to the newest `release/*` tag reachable from `--to`
  * (default `origin/main`); with no release tag yet it is required. Prints
  * markdown on stdout: the playtest ledger rows the range added or changed, then
- * the commit subjects. It writes nothing.
+ * every commit the notes must cover. It writes nothing.
  *
  * The ledger is the source because its rows are already in the player's terms:
  * every row says what was asked (`item`) and how a player sees it (`check it
- * by`). Commit subjects are engineering prose, listed only so nothing shipped
- * without a row goes unnoticed. The notes themselves are written from this by
+ * by`). Commit subjects are engineering prose, but every commit gets a mention
+ * in the notes (the operator, 2026-10-23), so each one listed needs a bullet;
+ * only bookkeeping is left out (`isBookkeeping`). The notes themselves are written from this by
  * an agent and edited by the operator — see docs/RELEASE.md.
  */
 import { execFileSync } from 'node:child_process';
@@ -75,6 +76,11 @@ export interface Commit {
 	subject: string;
 }
 
+/** land.sh's version bumps (`ui 0.32.586, server 0.32.391`) and the notes commits themselves: part of what they bump or announce, never a bullet of their own. */
+export function isBookkeeping(subject: string): boolean {
+	return /^[a-z-]+ \d+\.\d+\.\d+(, [a-z-]+ \d+\.\d+\.\d+)*$/.test(subject) || /^release( notes)?: v\d+\.\d+\.\d+\b/.test(subject);
+}
+
 export function render(range: { since: string; to: string }, rows: LedgerRow[], commits: Commit[]): string {
 	const out = [`# Release content: ${range.since}..${range.to}`, '', `## Ledger rows added or changed (${rows.length})`, ''];
 	for (const row of rows) {
@@ -82,8 +88,9 @@ export function render(range: { since: string; to: string }, rows: LedgerRow[], 
 		if (row.operatorCheck !== '') out.push(`- operator's check: ${row.operatorCheck}`);
 		out.push('');
 	}
-	out.push(`## Commits (${commits.length})`, '');
-	for (const commit of commits) out.push(`- ${commit.sha} ${commit.subject}`);
+	const cover = commits.filter((c) => !isBookkeeping(c.subject));
+	out.push(`## Commits to cover (${cover.length}; ${commits.length - cover.length} version bumps and notes commits left out)`, '');
+	for (const commit of cover) out.push(`- ${commit.sha} ${commit.subject}`);
 	return `${out.join('\n')}\n`;
 }
 
