@@ -237,7 +237,7 @@
 
 import { POOL_COLORS } from '@hadoku/deck';
 import type { ManaColor, Placement, RememberedTrigger } from '@hadoku/shared';
-import { ART_EVENT, asSeqCursor, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, selfAnswer } from '@hadoku/shared';
+import { ART_EVENT, asSeqCursor, CLIENT_EVENT, DECK_COLORS_EVENT, DeckColorsSchema, LIFE_PAYMENT, LIFE_PER_CLICK, selfAnswer } from '@hadoku/shared';
 import {
   REPLY_SCHEMAS,
   safeParseServerFrame,
@@ -1842,7 +1842,10 @@ export function selectCard(match: LiveMatch, cardId: number, placement?: Placeme
     // A held outline (`./offer-hold.ts`) is a promise the card is playable: keep the press for
     // Forge's word instead of refusing it — but only a play, never a choice a selection asks for.
     const drawn = drawnOffer(match);
-    if (match.offerHold === null || drawn.selectionOpen || !drawn.selectable.has(cardId)) return false;
+    if (match.offerHold === null || drawn.selectionOpen || !drawn.selectable.has(cardId)) {
+      reportRefusedClick(match, cardId);
+      return false;
+    }
     match.deferredSelect = { cardId, placement };
     return true;
   }
@@ -1864,6 +1867,43 @@ export function selectCard(match: LiveMatch, cardId: number, placement?: Placeme
     },
     placement,
   );
+}
+
+/** Why {@link boardInteraction} does not offer `cardId` now, the first gate that turns it away. */
+function refusal(match: LiveMatch, cardId: number): string {
+  if (match.view === null) return 'no-view';
+  if (!match.connected) return 'disconnected';
+  if (!match.inputLive) return 'no-input';
+  if (match.spent.cards.has(cardId)) return 'spent';
+  if (match.asks.length > 0) return 'ask-open';
+  if (match.selectables !== null) return 'not-in-selection';
+  if (match.weaklySelectable === null) return 'nothing-offered';
+  return match.weaklySelectable.has(cardId) ? 'not-in-view' : 'not-offered';
+}
+
+/**
+ * A board click turned away is logged (the operator's Eldrazi Spawn, 2026-10-24: a click refused
+ * here sent nothing, so the match log could not say it was ever made): the card, why, and what
+ * was open. A watcher sends nothing, as for every other client event.
+ */
+function reportRefusedClick(match: LiveMatch, cardId: number): void {
+  if (match.watcher) return;
+  match.transport.emit(CLIENT_EVENT, {
+    matchId: match.matchId,
+    kind: 'info',
+    data: {
+      what: 'click-refused',
+      card: cardId,
+      reason: refusal(match, cardId),
+      asks: match.asks.length,
+      ask: match.asks[0]?.method ?? '-',
+      selection: match.selectables !== null,
+      paying: payingMana(match),
+      offered: match.weaklySelectable?.has(cardId) ?? false,
+      manaOnly: match.weaklySelectableManaOnly?.has(cardId) ?? false,
+      prompt: (match.prompt ?? '').split('\n')[0]!.slice(0, 80),
+    },
+  });
 }
 
 /**

@@ -2852,6 +2852,17 @@ describe('a tapped permanent is clicked to untap exactly when Forge offers it', 
     expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: a } } });
   });
 
+  it('a click the board turns away is logged as a client event: the card, why, and what was open', async () => {
+    const { s, m, a, b } = await twoTapped();
+    await sendAndApply(s, m, [actionable([b]), optionAsk('q-2')]);
+    expect(selectCard(m, a)).toBe(false);
+    await until('the refusal at the server', () => s.received.some((r) => r.event === 'forge:client'));
+    expect(s.received.find((r) => r.event === 'forge:client')?.payload).toMatchObject({
+      kind: 'info',
+      data: { what: 'click-refused', card: a, reason: 'ask-open', asks: 1, ask: 'showOptionDialog', selection: false, offered: false },
+    });
+  });
+
   it('while targets are chosen, the tapped land Forge offers is clickable beside the targets', async () => {
     const { s, m, a } = await twoTapped();
     const { theirs } = ids(m);
