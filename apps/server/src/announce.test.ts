@@ -3,7 +3,7 @@
  * the request the way ArchiveBot does (HMAC-SHA256 of the raw body, `sha256=<hex>`).
  */
 import { createHmac } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import type { AddressInfo } from 'node:net';
@@ -11,7 +11,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { announceRelease, latestRelease, parseNotes, releaseEmbeds, splitBody } from './announce.ts';
+import { announceRelease, latestRelease, parseNotes, releaseEmbeds, splitBody, unwrap } from './announce.ts';
 
 const RELEASES = resolve(dirname(fileURLToPath(import.meta.url)), '../../../docs/releases');
 const SECRET = 'test-secret';
@@ -74,9 +74,54 @@ describe('release notes', () => {
 
 	it('keeps a body under the cap in one embed', async () => {
 		const notes = (await latestRelease(RELEASES))!;
-		const embeds = releaseEmbeds(notes, 'https://hadoku.me/cardtable/', new Date('2026-10-23T18:00:00Z'));
+		const embeds = releaseEmbeds(notes, 'https://hadoku.me/cardtable/');
 		expect(embeds).toHaveLength(1);
-		expect(embeds[0]).toMatchObject({ title: notes.title, description: notes.body, footer: { text: `Card Table ${notes.version}` } });
+		// The title already names the version and Discord dates the message: no footer, no timestamp.
+		expect(embeds[0]).toEqual({ title: notes.title, description: unwrap(notes.body), url: 'https://hadoku.me/cardtable/', color: 0x2f855a });
+	});
+
+	it('joins a wrapped sentence back into one line, keeping paragraphs, headings and list items apart', () => {
+		const body = [
+			'Card Table now has its own Discord server. Big turns',
+			'also got a lot smoother.',
+			'',
+			'## New',
+			'',
+			'- **A Discord button in the top bar**, next to the theme picker. It opens',
+			'  the invite.',
+			'- **Patch notes post themselves.**',
+			'',
+			'```',
+			'kept',
+			'as is',
+			'```',
+		].join('\n');
+		expect(unwrap(body)).toBe(
+			[
+				'Card Table now has its own Discord server. Big turns also got a lot smoother.',
+				'',
+				'## New',
+				'',
+				'- **A Discord button in the top bar**, next to the theme picker. It opens the invite.',
+				'- **Patch notes post themselves.**',
+				'',
+				'```',
+				'kept',
+				'as is',
+				'```',
+			].join('\n'),
+		);
+	});
+
+	it('posts no line of a release notes file broken mid-sentence', async () => {
+		for (const name of (await readdir(RELEASES)).filter((n) => /^v\d+\.\d+\.\d+\.md$/.test(n))) {
+			const notes = parseNotes(name.slice(0, -3), await readFile(resolve(RELEASES, name), 'utf8'));
+			const lines = unwrap(notes.body).split('\n');
+			lines.forEach((line, i) => {
+				const next = lines[i + 1] ?? '';
+				if (line.trim() !== '' && next.trim() !== '') expect(next, `${name}: "${line}" then "${next}"`).toMatch(/^\s*(#|[-*+] |\d+\. |>|```)/);
+			});
+		}
 	});
 
 	it('splits a long body at ## headings, never truncating', () => {

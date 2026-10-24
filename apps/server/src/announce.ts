@@ -31,8 +31,6 @@ export interface Embed {
 	description: string;
 	url: string;
 	color: number;
-	footer: { text: string };
-	timestamp: string;
 }
 
 /** The newest release notes in `dir`, by semver, or null when there are none. */
@@ -91,14 +89,37 @@ function splitLines(section: string, max: number): string[] {
 	return out;
 }
 
-export function releaseEmbeds(notes: ReleaseNotes, appUrl: string, now: Date): Embed[] {
-	return splitBody(notes.body).map((description, i) => ({
+/** A line that starts its own block in Markdown: a heading, a list item, a quote, a fence. */
+const BLOCK_START = /^\s*(#|[-*+] |\d+\. |>|```)/;
+
+/**
+ * The body with each paragraph and list item on one line. A notes file is wrapped at about a
+ * hundred columns, and Discord breaks the line at every newline it is sent, so a wrapped sentence
+ * would post broken in the middle. A line that continues the one above is joined to it; blank
+ * lines, block starts and anything inside a code fence stay as written.
+ */
+export function unwrap(body: string): string {
+	const out: string[] = [];
+	let fenced = false;
+	for (const line of body.split('\n')) {
+		const fence = line.trimStart().startsWith('```');
+		const last = out.length - 1;
+		if (!fenced && !fence && line.trim() !== '' && last >= 0 && out[last].trim() !== '' && !BLOCK_START.test(line) && !out[last].trimStart().startsWith('#')) {
+			out[last] = `${out[last].trimEnd()} ${line.trim()}`;
+		} else {
+			out.push(line);
+		}
+		if (fence) fenced = !fenced;
+	}
+	return out.join('\n');
+}
+
+export function releaseEmbeds(notes: ReleaseNotes, appUrl: string): Embed[] {
+	return splitBody(unwrap(notes.body)).map((description, i) => ({
 		...(i === 0 ? { title: notes.title } : {}),
 		description,
 		url: appUrl,
 		color: 0x2f855a,
-		footer: { text: `Card Table ${notes.version}` },
-		timestamp: now.toISOString(),
 	}));
 }
 
@@ -131,7 +152,7 @@ export async function announceRelease(options: AnnounceOptions): Promise<void> {
 			idempotencyKey: `cardtable-release-${notes.version}`,
 			timestamp: now.getTime(),
 			source: 'cardtable',
-			embeds: releaseEmbeds(notes, options.appUrl, now),
+			embeds: releaseEmbeds(notes, options.appUrl),
 		});
 		const signature = createHmac('sha256', options.secret).update(body).digest('hex');
 		const res = await (options.fetch ?? fetch)(`${options.archivebotUrl}/api/messages/send`, {
