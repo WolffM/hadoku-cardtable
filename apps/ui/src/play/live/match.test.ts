@@ -636,6 +636,13 @@ function ids(m: LiveMatch): { mine: number[]; theirs: number[] } {
   return { mine, theirs };
 }
 
+/** The ids of the viewer's own untapped battlefield cards: a tapped one Forge offers is an untap click in any input. */
+function myUntapped(m: LiveMatch): number[] {
+  const ids = m.view!.players.find((p) => p.isViewer)!.battlefield.filter((c) => !c.tapped).map((c) => c.id);
+  expect(ids.length).toBeGreaterThan(1);
+  return ids;
+}
+
 /** The id of a NON-land on the viewer's own battlefield — the fixture's first slot is a land. */
 function myNonLand(m: LiveMatch): number {
   const me = m.view!.players.find((p) => p.isViewer)!;
@@ -793,7 +800,8 @@ describe('clicking the board: only what Forge offered', () => {
 
   it('a selection OUTRANKS the actionable set: only Forge’s targets, and the players a selection takes', async () => {
     const { s, m } = await fullGame();
-    const { mine, theirs } = ids(m);
+    const { theirs } = ids(m);
+    const mine = myUntapped(m);
     await sendAndApply(s, m, [prompt('Priority'), actionable([mine[0]!, mine[1]!])]);
     expect(boardInteraction(m).selectablePlayers.size).toBe(0);
 
@@ -843,7 +851,7 @@ describe('clicking the board: only what Forge offered', () => {
 
   it('nothing is clicked while a question is open, before Forge has shown an input, or for an id not on the board', async () => {
     const { s, m } = await fullGame();
-    const { mine } = ids(m);
+    const mine = myUntapped(m);
     expect(selectCard(m, mine[0]!)).toBe(false);
     expect(selectPlayer(m, 1)).toBe(false);
     await sendAndApply(s, m, [prompt('Priority'), bar(true), actionable([mine[0]!]), optionAsk('c-open')]);
@@ -2821,6 +2829,37 @@ describe('a tapped permanent is clicked to untap exactly when Forge offers it', 
     expect(boardInteraction(m).selectable.has(a)).toBe(false);
     expect(selectCard(m, a)).toBe(false);
     expect(await s.framesFrom(m)).toHaveLength(0);
+  });
+
+  /*
+   * The operator, 2026-10-24: "clicking a land to untap it should work even when a question is on
+   * the board". Forge offers the permanents a click would untap in every input
+   * (`InputBase.selectCard`, `PlayerControllerHuman.pushUntappable`); a question open over the
+   * board leaves exactly those clickable.
+   */
+  it('with a question open, the tapped land Forge offers is clicked to untap; nothing else Forge offered is', async () => {
+    const { s, m, a } = await twoTapped();
+    const other = me(m).battlefield.find((c) => !c.card.typeLine.includes('Land'))!.id;
+    await sendAndApply(s, m, [
+      actionable([a, other]),
+      parseServerFrame({ kind: 'ask', callId: 'q-1', method: 'showConfirmDialog', message: 'Pay the kicker?', title: 'Kicker', yesButtonText: 'Yes', noButtonText: 'No', defaultYes: true }),
+    ]);
+    expect(m.asks).toHaveLength(1);
+    expect(boardInteraction(m).selectable).toEqual(new Set([a]));
+    expect(selectCard(m, other)).toBe(false);
+    expect(selectCard(m, a)).toBe(true);
+    await until('the click at the server', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: a } } });
+  });
+
+  it('while targets are chosen, the tapped land Forge offers is clickable beside the targets', async () => {
+    const { s, m, a } = await twoTapped();
+    const { theirs } = ids(m);
+    await sendAndApply(s, m, [selectables([theirs[0]!], 1, 1), actionable([a])]);
+    expect(boardInteraction(m).selectable).toEqual(new Set([theirs[0], a]));
+    expect(selectCard(m, a)).toBe(true);
+    await until('the click at the server', () => s.clientFrames().length === 1);
+    expect(s.clientFrames()[0]).toMatchObject({ ok: true, value: { kind: 'act', method: 'selectCard', card: { kind: 'card', id: a } } });
   });
 });
 
