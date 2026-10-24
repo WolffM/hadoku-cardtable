@@ -3844,7 +3844,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * it (`data-staged`, `live.css`).
        */}
       {decision && bar !== null && (
-        <div className="live__prompt" data-testid="live-decision-host" data-staged={interaction.stagedCardId !== undefined || undefined}>
+        <div
+          className="live__prompt"
+          data-testid="live-decision-host"
+          data-staged={interaction.stagedCardId !== undefined || undefined}
+          data-pass={route === 'pass' || undefined}
+        >
           <ConfirmPrompt
             testId="live-decision"
             message={
