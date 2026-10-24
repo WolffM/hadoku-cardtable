@@ -3675,12 +3675,10 @@ public final class PlayBridge {
          * restriction ({@code SpellAbilityRestriction}, {@code SpellAbilityVariables.getPhases})
          * is met now — Augur of Skulls in its controller's upkeep. Battlefield only, never the
          * hand: the card and its text are on the table for everyone.</li>
-         * <li>{@code animates}: the offered permanents this seat controls that are a play, are
-         * not a creature now, and have a non-mana ability that makes this permanent itself a
-         * creature ({@code ApiType.Animate}, {@code Defined$ Self} or none, {@code Types$}
-         * naming Creature) — a Mutavault, a Celestial Colonnade, a Vehicle's Crew. Not one that
-         * came under the seat's control this turn: animated, it could not attack. Battlefield
-         * only, like {@code phaseRestricted}.</li>
+         * <li>{@code animates}: the offered permanents that can make themselves a creature that
+         * could still fight this turn — a Mutavault before its controller's attack, an Inkmoth
+         * Nexus before the other player's blocks: the fork's {@code AvailableActions.Scan#animates},
+         * the same rule that decides whether such an ability is a play at all.</li>
          * <li>{@code attackers}: how many creatures attack in the game's current combat, 0
          * outside one — whether a combat step is one anybody attacked in. Read off the live
          * game in the same window, so it never trails the prompt the way a state delta can.</li>
@@ -3704,11 +3702,13 @@ public final class PlayBridge {
             if (mine == null || cards == null) { return; }
             // The plays of the scan that pushed this set, made on the game thread. Absent (an AI
             // seat, no full scan) omits both fields, which keeps the stop.
-            final java.util.Set<CardView> scanned = mine.getController() instanceof forge.player.PlayerControllerHuman human
-                    ? human.getActionablePlays() : null;
-            if (scanned == null) { return; }
+            final forge.ai.AvailableActions.Scan scan = mine.getController() instanceof forge.player.PlayerControllerHuman human
+                    ? human.getActionableScan() : null;
+            if (scan == null) { return; }
             final java.util.Set<Integer> plays = new java.util.HashSet<>();
-            for (final CardView p : scanned) { plays.add(p.getId()); }
+            for (final CardView p : scan.plays()) { plays.add(p.getId()); }
+            final java.util.Set<Integer> animating = new java.util.HashSet<>();
+            for (final CardView a : scan.animates()) { animating.add(a.getId()); }
             try {
                 final JsonArray manaOnly = new JsonArray();
                 final JsonArray phaseRestricted = new JsonArray();
@@ -3725,23 +3725,13 @@ public final class PlayBridge {
                         continue;
                     }
                     if (!c.isInPlay() || c.getController() != mine) { continue; }
-                    final java.util.List<SpellAbility> abilities = c.getAllPossibleAbilities(mine, true);
-                    for (final SpellAbility sa : abilities) {
+                    for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
                         if (!sa.isManaAbility() && sa.getRestrictions() != null && !sa.getRestrictions().getPhases().isEmpty()) {
                             phaseRestricted.add(ref("card", cv.getId()));
                             break;
                         }
                     }
-                    if (!c.isCreature() && !c.hasSickness()) {
-                        for (final SpellAbility sa : abilities) {
-                            if (!sa.isManaAbility() && sa.getApi() == forge.game.ability.ApiType.Animate
-                                    && (!sa.hasParam("Defined") || "Self".equals(sa.getParam("Defined")))
-                                    && sa.hasParam("Types") && java.util.Arrays.asList(sa.getParam("Types").split(",")).contains("Creature")) {
-                                animates.add(ref("card", cv.getId()));
-                                break;
-                            }
-                        }
-                    }
+                    if (animating.contains(cv.getId())) { animates.add(ref("card", cv.getId())); }
                 }
                 f.add("manaOnly", manaOnly);
                 f.add("phaseRestricted", phaseRestricted);
