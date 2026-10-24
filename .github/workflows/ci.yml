@@ -246,6 +246,10 @@ jobs:
       - name: E2E — browser
         run: pnpm --filter @hadoku/e2e run install-browsers
 
+      # Four free loopback ports for this job: `scripts/ci/pick-e2e-ports.mjs` says why.
+      - name: E2E — pick this run's own ports
+        run: node scripts/ci/pick-e2e-ports.mjs | tee -a "$GITHUB_ENV"
+
       # Every spec runs here, and the two that need Forge — `play.spec.ts`'s
       # match and `table-fit.spec.ts` — SELF-SKIP, on purpose: this job runs on
       # the fleet claws (`vars.CI_RUNNER`), and no claw has a Forge jar. Those
