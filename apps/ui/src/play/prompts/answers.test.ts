@@ -5,13 +5,19 @@
  * right."*
  *
  * Every decision box's answers are one row (`AnswerRow`). When it holds exactly
- * two answers the row is a pair: the affirmative (Forge's button one, the
- * sheet's OK) is its LAST child, anchored bottom-right (the operator, 2026-10-22:
- * *"yes always bottom right."*), and the other answer is its first child,
- * anchored bottom-left; anything else in the row (the
- * "Always" box) sits between them. jsdom has no layout, so the anchoring is
- * pinned the way `PromptShell.test.ts` pins the scrolling body: the markup's
- * order plus the CSS rule that turns that order into the two corners.
+ * two answers AND the caller says `yesNo` (wave 75 §A: never from the count
+ * alone — Forge's `InputConfirm` puts a colour pick, Keep/Mulligan, Top/Bottom,
+ * … on the SAME two-button bar a real yes/no uses, and the new player pressed
+ * Stirring Wildwood's White/Blue 16 times because the old rule split it like
+ * one; operator, 2026-10-24: *"let's keep the left/right decisions only for
+ * yes/no"*, superseding AF289's reach for anything that is not) the row is a
+ * pair: the affirmative (Forge's button one, the sheet's OK) is its LAST
+ * child, anchored bottom-right (the operator, 2026-10-22: *"yes always bottom
+ * right."*), and the other answer is its first child, anchored bottom-left;
+ * anything else in the row (the "Always" box) sits between them. jsdom has no
+ * layout, so the anchoring is pinned the way `PromptShell.test.ts` pins the
+ * scrolling body: the markup's order plus the CSS rule that turns that order
+ * into the two corners.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -51,7 +57,7 @@ function expectPair(root: ParentNode, affirmative: string, other: string): void 
 
 const noop = () => {};
 
-describe('a two-answer decision anchors its answers bottom-left and bottom-right', () => {
+describe('a real yes/no anchors its answers bottom-left and bottom-right (wave 75 §A)', () => {
   it('the bar yes/no: No left, Yes right, with the Always box between them', () => {
     const { container } = render(
       createElement(ConfirmPrompt, {
@@ -69,30 +75,6 @@ describe('a two-answer decision anchors its answers bottom-left and bottom-right
     expect(aside.querySelector('.confirm__check')).not.toBeNull();
   });
 
-  it("the mulligan's Keep/Mulligan: Mulligan left, Keep right", () => {
-    const { container } = render(
-      createElement(ConfirmPrompt, {
-        testId: 'live-confirm',
-        message: 'Keep this hand?',
-        button1: { label: 'Keep', enabled: true, testId: 'prompt-confirm-yes', onClick: noop },
-        button2: { label: 'Mulligan', enabled: true, testId: 'prompt-confirm-no', onClick: noop },
-      }),
-    );
-    expectPair(container, '[data-testid="prompt-confirm-yes"]', '[data-testid="prompt-confirm-no"]');
-  });
-
-  it('the coin toss: Draw left, Play right', () => {
-    const { container } = render(
-      createElement(ConfirmPrompt, {
-        testId: 'live-play-or-draw',
-        message: 'You won the toss',
-        button1: { label: PLAY_LABEL, enabled: true, testId: 'live-play-or-draw-play', onClick: noop },
-        button2: { label: DRAW_LABEL, enabled: true, testId: 'live-play-or-draw-draw', onClick: noop },
-      }),
-    );
-    expectPair(container, '[data-testid="live-play-or-draw-play"]', '[data-testid="live-play-or-draw-draw"]');
-  });
-
   it("showConfirmDialog: its no left, its yes right, whichever one Forge's default focuses", () => {
     const { container } = render(
       createElement(ConfirmPrompt, {
@@ -106,53 +88,78 @@ describe('a two-answer decision anchors its answers bottom-left and bottom-right
     expectPair(container, '[data-answer="yes"]', '[data-answer="no"]');
   });
 
-  it("the confirm ask: Forge's second option left, its first right", () => {
-    const { container } = mountPrompt('confirm', { ...askFor('confirm'), options: ['Blue', 'Black'] });
-    expectPair(container, '[data-answer="true"]', '[data-answer="false"]');
-  });
-
-  it('a two-option showOptionDialog: option two left, option one right', () => {
-    const ask = { ...askFor('showOptionDialog'), options: ['Play first', 'Draw first'] };
-    const { container, getAllByTestId } = mountPrompt('showOptionDialog', ask);
-    const [one, two] = getAllByTestId('prompt-option');
-    const row = answerRow(container);
-    expect(row.dataset.pair).toBe('true');
-    expect(row.firstElementChild).toBe(one);
-    expect(row.lastElementChild).toBe(two);
-  });
-
-  it('showInputDialog: Cancel left, OK right', () => {
-    const { container } = mountPrompt('showInputDialog', askFor('showInputDialog'));
-    expectPair(container, '[data-testid="prompt-submit"]', '[data-testid="prompt-cancel"]');
-  });
-
-  it('sideboarding: Keep deck left, Done right', () => {
-    const { container } = mountPrompt('sideboard', askFor('sideboard'));
-    expectPair(container, '[data-testid="prompt-submit"]', '[data-testid="prompt-cancel"]');
-  });
-
-  it('combat damage: Auto left, OK right', () => {
-    const { container } = mountPrompt('assignCombatDamage', askFor('assignCombatDamage'));
-    expectPair(container, '[data-testid="prompt-submit"]', '[data-testid="prompt-auto"]');
-  });
-
-  it("a selection sheet's OK/Cancel: Cancel left, OK right", () => {
+  it('showConfirmDialog still splits with its own custom text (the mana-floating check’s OK/Cancel) — the `answer` tag is the signal, not the words', () => {
     const { container } = render(
-      createElement(SelectionPrompt, {
-        message: 'Select up to 2 lands to sacrifice',
-        cards: [1, 2],
-        lookup: EMPTY_LOOKUP,
-        picked: new Set<number>(),
-        onPick: noop,
-        done: { label: 'OK', enabled: true, onClick: noop },
-        cancel: { label: 'Cancel', enabled: true, onClick: noop },
+      createElement(ConfirmPrompt, {
+        testId: 'confirm-dialog',
+        title: 'Mana Floating',
+        message: 'You have mana floating…',
+        button1: { label: 'OK', enabled: true, answer: 'yes', onClick: noop },
+        button2: { label: 'Cancel', enabled: true, answer: 'no', isDefault: true, onClick: noop },
       }),
     );
-    expectPair(container, '[data-testid="selection-done"]', '[data-testid="selection-cancel"]');
+    expectPair(container, '[data-answer="yes"]', '[data-answer="no"]');
   });
 });
 
-describe('a row that is not two answers is not a pair', () => {
+/*
+ * Forge's bar (`InputConfirm`/`InputConfirmMulligan`) has no boolean of its
+ * own — only the two words on the buttons — so Wildwood's colour pick and a
+ * real "Pay 2 life?" arrive through the exact same mechanism
+ * (`ConfirmPrompt`'s own header). The one signal left is whether those words
+ * ARE Forge's own default pair (`lblYes`/`lblNo`) or a custom one a card
+ * script chose instead. None of the cases below is that default pair, so
+ * none is a yes/no, and the operator's 2026-10-24 ruling keeps the row
+ * together rather than splitting it like one.
+ */
+describe('a two-button bar that is not Forge’s own default pair is not a yes/no, and sits together (wave 75 §A)', () => {
+  it('a two-colour confirm — Stirring Wildwood’s White/Blue — renders its answers together, not split', () => {
+    const { container } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'Add {W} or {U}.',
+        button1: { label: 'White', enabled: true, testId: 'prompt-confirm-yes', onClick: noop },
+        button2: { label: 'Blue', enabled: true, testId: 'prompt-confirm-no', onClick: noop },
+      }),
+    );
+    const row = answerRow(container);
+    expect(row.dataset.pair, 'a colour pick is not a yes/no').toBeUndefined();
+    // Not swapped either: Forge's own order survives since nothing anchors a corner.
+    expect(row.firstElementChild).toBe(container.querySelector('[data-testid="prompt-confirm-yes"]'));
+    expect(row.lastElementChild).toBe(container.querySelector('[data-testid="prompt-confirm-no"]'));
+  });
+
+  it("the mulligan's Keep/Mulligan is not Forge's Yes/No, and sits together", () => {
+    const { container } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'Keep this hand?',
+        button1: { label: 'Keep', enabled: true, testId: 'prompt-confirm-yes', onClick: noop },
+        button2: { label: 'Mulligan', enabled: true, testId: 'prompt-confirm-no', onClick: noop },
+      }),
+    );
+    expect(answerRow(container).dataset.pair).toBeUndefined();
+  });
+
+  it('the coin toss (Play/Draw) sits together', () => {
+    const { container } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-play-or-draw',
+        message: 'You won the toss',
+        button1: { label: PLAY_LABEL, enabled: true, testId: 'live-play-or-draw-play', onClick: noop },
+        button2: { label: DRAW_LABEL, enabled: true, testId: 'live-play-or-draw-draw', onClick: noop },
+      }),
+    );
+    expect(answerRow(container).dataset.pair).toBeUndefined();
+  });
+
+  it("the confirm ask with a card script's own options (Blue/Black) sits together", () => {
+    const { container } = mountPrompt('confirm', { ...askFor('confirm'), options: ['Blue', 'Black'] });
+    expect(answerRow(container).dataset.pair).toBeUndefined();
+  });
+});
+
+describe('a row that is not two answers, or not a real yes/no, is not a pair', () => {
   it('a lone OK', () => {
     const { container } = render(createElement(PromptShell, { method: 'getChoices', title: 'Choose a mode', onSubmit: noop }));
     expect(answerRow(container).dataset.pair).toBeUndefined();
@@ -170,6 +177,51 @@ describe('a row that is not two answers is not a pair', () => {
         message: 'Choose a target',
         button2: { label: 'Cancel', enabled: true, testId: 'live-decision-cancel', onClick: noop },
         check: { label: 'Same target for all', testId: 'live-same-target', checked: false, onChange: noop },
+      }),
+    );
+    expect(answerRow(container).dataset.pair).toBeUndefined();
+  });
+
+  /*
+   * Every other `PromptShell`-based sheet answers through its generic
+   * `actions` row, which never knows whether its two children happen to be a
+   * real yes/no — `PromptShell` always passes `yesNo` unset for them
+   * (`PromptShell.tsx`'s own `yesNo` prop doc). So a two-option
+   * `showOptionDialog`, `showInputDialog`'s OK/Cancel, sideboarding's
+   * Keep/Done and a combat-damage sheet's Auto/OK all sit together now,
+   * same as the bar's own non-yes/no pairs above.
+   */
+  it('a two-option showOptionDialog sits together', () => {
+    const ask = { ...askFor('showOptionDialog'), options: ['Play first', 'Draw first'] };
+    const { container } = mountPrompt('showOptionDialog', ask);
+    expect(answerRow(container).dataset.pair).toBeUndefined();
+  });
+
+  it('showInputDialog’s OK/Cancel sits together', () => {
+    const { container } = mountPrompt('showInputDialog', askFor('showInputDialog'));
+    expect(answerRow(container).dataset.pair).toBeUndefined();
+  });
+
+  it('sideboarding’s Keep deck/Done sits together', () => {
+    const { container } = mountPrompt('sideboard', askFor('sideboard'));
+    expect(answerRow(container).dataset.pair).toBeUndefined();
+  });
+
+  it('combat damage’s Auto/OK sits together', () => {
+    const { container } = mountPrompt('assignCombatDamage', askFor('assignCombatDamage'));
+    expect(answerRow(container).dataset.pair).toBeUndefined();
+  });
+
+  it("a selection sheet's OK/Cancel sits together", () => {
+    const { container } = render(
+      createElement(SelectionPrompt, {
+        message: 'Select up to 2 lands to sacrifice',
+        cards: [1, 2],
+        lookup: EMPTY_LOOKUP,
+        picked: new Set<number>(),
+        onPick: noop,
+        done: { label: 'OK', enabled: true, onClick: noop },
+        cancel: { label: 'Cancel', enabled: true, onClick: noop },
       }),
     );
     expect(answerRow(container).dataset.pair).toBeUndefined();

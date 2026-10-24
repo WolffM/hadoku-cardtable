@@ -329,3 +329,68 @@ describe('ConfirmPrompt — the question first, the ability under it', () => {
     expect(getByTestId('no').compareDocumentPosition(getByTestId('yes')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+/*
+ * Wave 75 §A. The new player pressed Stirring Wildwood's White/Blue 16 times
+ * (`m-5c5661529ad9`): Forge's `InputConfirm` puts a colour pick on the SAME
+ * two-button bar a real yes/no uses (this file's own header), and the old
+ * rule split ANY two-answer row left/right — so a colour pick drew exactly
+ * like a yes/no. The operator, 2026-10-24: *"let's keep the left/right
+ * decisions only for yes/no"*, superseding AF289's reach for anything that is
+ * not. `isYesNoPair` (unexported — proved here through `AnswerRow`'s own
+ * `data-pair`, the one thing a player sees) is the rule: Forge's own default
+ * pair (`lblYes`/`lblNo`) or `showConfirmDialog`'s tagged boolean reply is a
+ * real yes/no; any other two-word pair Forge put on the SAME bar is a choice,
+ * not a yes/no, and sits together instead.
+ */
+describe('ConfirmPrompt — a yes/no is decided by Forge’s own labels, never by the count (wave 75 §A)', () => {
+  it('a two-colour confirm (Wildwood’s White/Blue) renders its answers together, not split', () => {
+    const { container } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'Add {W} or {U}.',
+        button1: { label: 'White', enabled: true, testId: 'white', onClick: () => {} },
+        button2: { label: 'Blue', enabled: true, testId: 'blue', onClick: () => {} },
+      }),
+    );
+    const row = container.querySelector<HTMLElement>('.answers')!;
+    expect(row.dataset.pair, 'a colour pick is not a yes/no').toBeUndefined();
+    // Forge's own order survives: White first, Blue second — nothing swaps a corner that is not anchored.
+    expect(row.firstElementChild).toBe(elementByTestId(container, 'white'));
+    expect(row.lastElementChild).toBe(elementByTestId(container, 'blue'));
+  });
+
+  it('a real yes/no (Pay 2 life? Yes/No) still splits — no left, yes right, as AF289 asked', () => {
+    const { container } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'Pay 2 life?',
+        button1: { label: 'Yes', enabled: true, testId: 'yes', onClick: () => {} },
+        button2: { label: 'No', enabled: true, testId: 'no', onClick: () => {} },
+      }),
+    );
+    const row = container.querySelector<HTMLElement>('.answers')!;
+    expect(row.dataset.pair, 'Yes/No is a real yes/no').toBe('true');
+    expect(row.firstElementChild).toBe(elementByTestId(container, 'no'));
+    expect(row.lastElementChild).toBe(elementByTestId(container, 'yes'));
+  });
+
+  it("another labelled pair on the same bar (the scry's Top/Bottom) is not a yes/no either", () => {
+    const { container } = render(
+      createElement(ConfirmPrompt, {
+        testId: 'live-confirm',
+        message: 'Put Serra Angel on the top or bottom of your library?',
+        button1: { label: 'Top', enabled: true, testId: 'top', onClick: () => {} },
+        button2: { label: 'Bottom', enabled: true, testId: 'bottom', onClick: () => {} },
+      }),
+    );
+    expect(container.querySelector<HTMLElement>('.answers')!.dataset.pair).toBeUndefined();
+  });
+});
+
+/** A plain child lookup, by `data-testid`, off a raw DOM node rather than testing-library's render result. */
+function elementByTestId(root: ParentNode, testId: string): Element {
+  const el = root.querySelector(`[data-testid="${testId}"]`);
+  if (el === null) throw new Error(`no [data-testid="${testId}"]`);
+  return el;
+}

@@ -1950,9 +1950,11 @@ function askQuestion(cards: number): Promise<QuestionFit> {
     grid.appendChild(li);
   }
   const actions = document.createElement('div');
-  // `AnswerRow`'s markup for a selection's OK + Cancel: a pair, OK first.
+  // `AnswerRow`'s markup for a selection's OK + Cancel: OK/Cancel is not Forge's
+  // own yes/no, so it sits together at the right edge, OK first — no `data-pair`
+  // (wave 75 §A: pairing needs the caller to say `yesNo`, which `PromptShell`'s
+  // own generic `actions` row never does).
   actions.className = 'prompt__actions answers';
-  actions.setAttribute('data-pair', 'true');
   for (const word of ['OK', 'Cancel']) {
     const b = document.createElement('button');
     b.type = 'button';

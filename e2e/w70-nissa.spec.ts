@@ -190,8 +190,10 @@ test(titled('a scry 1 shows its card in the decision window, never on the board,
       const labels = (await confirm.locator('.confirm__button').allTextContents()).map((s) => s.trim());
       const shown = (await confirm.getByTestId('confirm-card').locator('.card__name').allTextContents()).map((s) => s.trim());
       console.log(`[w70-scry-one] decision: "${message}" buttons [${labels.join(', ')}] card [${shown.join(', ')}]`);
-      // Top is Forge's yes (`willPutCardOnTop`), and the yes is always bottom right (`AnswerRow`).
-      expect.soft(labels, 'Bottom, then Top: the yes last').toEqual(['Bottom', 'Top']);
+      // Top/Bottom is Forge's own custom pair (`willPutCardOnTop`), not its default Yes/No, so it is
+      // not a yes/no (wave 75 §A, operator 2026-10-24: "let's keep the left/right decisions only for
+      // yes/no") — the row sits together in Forge's own order instead of splitting left/right.
+      expect.soft(labels, 'Top, then Bottom: Forge’s own order, not split').toEqual(['Top', 'Bottom']);
       expect.soft(shown, 'the decision window draws the scried card').toEqual([scried]);
       expect.soft(await libraryOnBoard(alice.page), 'alice’s board draws no library card during the scry').toEqual([]);
       expect.soft(await libraryOnBoard(bob.page), 'bob’s board draws no library card during the scry').toEqual([]);
