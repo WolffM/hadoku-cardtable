@@ -1038,18 +1038,27 @@ test(TITLE, async ({ browser }) => {
       // target, 2026-10-16): the board does not arm an arrange-drag under an
       // open decision, and a paused bot never answers it. It gets two seconds
       // to close on its own, then its Cancel, which backs the cast out.
+      //
+      // Wave 75: the empty-stack priority pass moved into this SAME pop-up
+      // (`Proceed to <next step>?`, one `Next Phase` button, no Cancel), and
+      // it is open on ordinary turns too — `install.ts`'s own arrange-drag
+      // gate (`declaringCombat`/`payingMana`) never looks at it, so it must
+      // not count as a blocking decision here either, or this wait never
+      // ends on a perfectly ordinary turn. `blockingDecision` is the pop-up
+      // minus that one case.
       const notDeclaring = /^COMBAT_DECLARE_(ATTACKERS|BLOCKERS)$/;
       const decision = f.page.getByTestId('live-decision');
+      const blockingDecision = async (): Promise<boolean> => (await decision.count()) > 0 && (await nextPhaseLive(f.page).count()) === 0;
       const declareDeadline = Date.now() + 30_000;
       let decidingSince = 0;
       while (
         notDeclaring.test((await f.page.getByTestId('live-phases').getAttribute('data-phase')) ?? '') ||
-        (await decision.count()) > 0
+        (await blockingDecision())
       ) {
         if (Date.now() > declareDeadline) {
           throw new Error(`${f.name}: still in a combat-declare window or an open decision after 30s — the board claims a press on the viewer's own battlefield there, so this drag is not testing the arrange gesture at all`);
         }
-        if ((await decision.count()) > 0) {
+        if (await blockingDecision()) {
           if (decidingSince === 0) decidingSince = Date.now();
           if (Date.now() - decidingSince > 2_000) await f.page.getByTestId('live-decision-cancel').click({ timeout: 2_000 }).catch(() => {});
         } else {
@@ -1061,7 +1070,7 @@ test(TITLE, async ({ browser }) => {
       }
       const phaseNow = await f.page.getByTestId('live-phases').getAttribute('data-phase');
       expect(phaseNow, `${f.name}: the precondition this drag needs — out of a combat-declare window`).not.toMatch(notDeclaring);
-      expect(await decision.count(), `${f.name}: the precondition this drag needs — no decision open`).toBe(0);
+      expect(await blockingDecision(), `${f.name}: the precondition this drag needs — no decision open (the plain pass pop-up does not count)`).toBe(false);
       // Re-read, not the `seats` snapshot taken before the wait above: the
       // board is not frozen just because the bots are paused (Forge's own
       // combat progression moved it past the declare window on its own), so
