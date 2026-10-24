@@ -103,8 +103,9 @@
 }
 
 /* `BackLink`: the arrow alone, at the page title's size, never underlined. */
-.back-link {
-  color: var(--color-primary);
+.back-link,
+.back-link:visited {
+  color: var(--color-text);
   font-size: 28px;
   line-height: 1;
   text-decoration: none;

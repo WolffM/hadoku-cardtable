@@ -24,7 +24,7 @@ describe('BackLink', () => {
 
   it('is never underlined', () => {
     const css = readFileSync('apps/ui/src/screens/screens.css', 'utf8');
-    expect(css).toMatch(/\.back-link \{[^}]*text-decoration: none;/);
+    expect(css).toMatch(/\.back-link,\s*\.back-link:visited \{[^}]*text-decoration: none;/);
     expect(css).not.toMatch(/\.back-link:[a-z-]+[^{]*\{[^}]*text-decoration: underline/);
   });
 
