@@ -2588,18 +2588,16 @@ describe('drag to stack (#1, #19)', () => {
       expect(columns(container, 'creatures')).toEqual([[21, 901]]);
     });
 
-    it('leaves an aura on the opponent’s creature where Forge lists it', () => {
-      // The host is not on this battlefield, so nothing is folded in: the aura
-      // is a card of its own controller's side, which is where Forge put it.
+    it('attachedToId never builds a stack by itself — only a host’s attachedCardIds does', () => {
+      // Card 21's own attachedCardIds is still the claim, so it still stacks whatever this
+      // decoy attachedToId says — the HOST's `AttachedCards` is the one authority.
       const base = equipped();
       const view: BoardView = {
         ...base,
         players: base.players.map((p) =>
-          !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === 901 ? { ...c, attachedToId: 99 } : c)) },
+          !p.isViewer ? p : { ...p, battlefield: p.battlefield.map((c) => (c.id === 901 ? { ...c, attachedToId: 99999 } : c)) },
         ),
       };
-      // Card 21 still claims it, so it still stacks — the HOST's `AttachedCards`
-      // is the authority and `attachedToId` never builds a stack by itself.
       const { container } = renderBoard(view);
       expect(columns(container, 'creatures')).toEqual([[21, 901]]);
       cleanup();
@@ -2614,6 +2612,78 @@ describe('drag to stack (#1, #19)', () => {
       const after = renderBoard(unclaimed);
       expect(columns(after.container, 'creatures')).toEqual([[21]]);
       expect(columns(after.container, 'artifacts')).toEqual([[901]]);
+    });
+  });
+
+  /**
+   * Item 6 (playtest 2026-10-24, m-32b7a3ef1a95): the new player put Spreading Seas on the
+   * opponent's Inkmoth Nexus; afterwards the aura sat in the new player's OWN back row, unfolded,
+   * because `withAttachments` only ever looked at the attaching player's own `battlefield` array —
+   * the host, on the other seat's battlefield, was invisible to it. The fault was CONTROL (whose
+   * card the attachment is), not land-vs-creature, so both an aura and an equipment reproduce it,
+   * and the fix is the same for any attachment kind: it follows its host, wherever on the table
+   * that host actually is.
+   */
+  describe('an attachment follows its HOST, whoever controls the attachment (item 6)', () => {
+    const base = boardFromFixture(fixture);
+    const me = base.players.find((p) => p.isViewer)!;
+    const them = base.players.find((p) => !p.isViewer)!;
+
+    /** `hostId`, on the OPPONENT's battlefield, claims a new attachment the VIEWER controls. */
+    function crossControlled(hostId: number, attachmentId: number, typeLine: string): BoardView {
+      const seed = me.battlefield[0]!;
+      const attachment: BoardCard = {
+        ...seed,
+        id: attachmentId,
+        card: { ...seed.card, cardId: `w${attachmentId}`, name: `Cross-controlled ${attachmentId}`, typeLine },
+        attachedCardIds: [],
+        attachedToId: hostId,
+      };
+      return {
+        ...base,
+        players: base.players.map((p) => {
+          if (p.id === them.id) return { ...p, battlefield: p.battlefield.map((c) => (c.id === hostId ? { ...c, attachedCardIds: [attachmentId] } : c)) };
+          if (p.id === me.id) return { ...p, battlefield: [...p.battlefield, attachment] };
+          return p;
+        }),
+      };
+    }
+
+    /**
+     * A seat's piles for one row, by player id rather than `[data-viewer]` — both sides. The
+     * opponent's own board is always `single` (Q15c), whose rows are a `ul[data-tier]` with no
+     * `[data-board-row]` wrapper at all, so both markups are tried.
+     */
+    function pilesOf(container: HTMLElement, playerId: number, row: string): number[][] {
+      const seat = container.querySelector<HTMLElement>(`[data-testid="player"][data-player-id="${playerId}"]`)!;
+      const lane =
+        seat.querySelector<HTMLElement>(`[data-board-row="${row}"] > ul.zone__cards`) ??
+        seat.querySelector<HTMLElement>(`ul.zone__cards[data-tier="${row}"]`);
+      if (lane === null) return [];
+      return [...lane.querySelectorAll<HTMLElement>(':scope > li.board-card')].map((el) => [
+        Number(el.dataset.cardId),
+        ...[...el.querySelectorAll<HTMLElement>(':scope > ul.board-card__pile > li.board-card')].map((m) => Number(m.dataset.cardId)),
+      ]);
+    }
+
+    // The opponent's own board is always `single` (Q15c) whatever layout the viewer picked —
+    // one lane of lands in `back`, everything else in `front` — never the type-separated lanes.
+    it('my aura on their land draws in THEIR pile, not mine', () => {
+      const mountain = them.battlefield.find((c) => c.card.name === 'Mountain')!;
+      const { container } = renderBoard(crossControlled(mountain.id, 902, 'Enchantment — Aura'));
+      expect(pilesOf(container, them.id, 'back'), 'the host’s pile, on their board').toContainEqual([mountain.id, 902]);
+      expect(pilesOf(container, me.id, 'lands').flat(), 'not drawn on my own board at all').not.toContain(902);
+      expect(pilesOf(container, me.id, 'other').flat(), 'nor dumped in an unmanaged lane of mine').not.toContain(902);
+      const gear = container.querySelector<HTMLElement>('[data-card-id="902"]')!;
+      expect(gear.dataset.attached, 'still Forge’s attachment, not the player’s').toBe('true');
+    });
+
+    it('my equipment on their creature draws in THEIR pile, not mine', () => {
+      const boar = them.battlefield.find((c) => c.card.name === 'Vulshok War Boar')!;
+      const { container } = renderBoard(crossControlled(boar.id, 903, 'Artifact — Equipment'));
+      expect(pilesOf(container, them.id, 'front'), 'the host’s pile, on their board').toContainEqual([boar.id, 903]);
+      expect(pilesOf(container, me.id, 'artifacts').flat(), 'not drawn on my own board at all').not.toContain(903);
+      expect(pilesOf(container, me.id, 'other').flat()).not.toContain(903);
     });
   });
 });
