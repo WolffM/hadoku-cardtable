@@ -996,6 +996,10 @@
   gap: 8px;
 }
 
+.answers[data-start] {
+  justify-content: flex-start;
+}
+
 .answers[data-pair] > :first-child {
   margin-right: auto;
 }

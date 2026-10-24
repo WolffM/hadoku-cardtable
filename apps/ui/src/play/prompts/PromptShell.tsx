@@ -398,19 +398,25 @@ export function AnswerRow({
   className,
   aside,
   yesNo,
+  start,
   children,
 }: {
   className?: string;
   aside?: ReactNode;
   /** The caller's own word that these two answers are a real yes/no — never inferred from their count. */
   yesNo?: boolean;
+  /**
+   * The answers sit where a No goes, bottom-left: the caller's word that answering ends the player's own
+   * choosing rather than agreeing to a step (Done Attacking, Done Blocking).
+   */
+  start?: boolean;
   children: ReactNode;
 }) {
   const answers = Children.toArray(children);
   const pair = yesNo === true && answers.length === 2;
   const side = aside === undefined || aside === null || aside === false ? null : <span className="answers__aside">{aside}</span>;
   return (
-    <div className={className === undefined ? 'answers' : `${className} answers`} data-pair={pair || undefined}>
+    <div className={className === undefined ? 'answers' : `${className} answers`} data-pair={pair || undefined} data-start={(!pair && start === true) || undefined}>
       {pair ? (
         <>
           {answers[1]}

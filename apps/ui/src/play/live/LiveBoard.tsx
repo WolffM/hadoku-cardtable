@@ -147,8 +147,8 @@
  * own two labels. No new words, and nothing in `../prompts/` — there is no ask
  * to have a prompt component for.
  *
- * The control box's `Next Phase` and `End Turn` stay greyed through a payment:
- * Forge's bar there is `Auto` + `Cancel`, which is neither of them.
+ * The control box's `End Turn` stays greyed through a payment: Forge's bar
+ * there is `Auto` + `Cancel`, which is not it.
  *
  * The toggle beside the buttons is §C.4's escape hatch: full control OFF is
  * the default (the shortcuts run), ON asks every question and stops at every
@@ -175,19 +175,19 @@
  * first place. Wave 25 took the two TEXT rows out of it, so the box is shorter
  * and holds nothing that can grow: every child is now a button.
  *
- * Wave 51: the two game buttons are `Next Phase` and `End Turn`, our words,
- * enabled only for the one input each presses (`barRoute`, `offersEndTurn`);
- * every other answer to Forge's bar is the decision pop-up. `pressButton`
- * refuses a disabled bar too, so a greyed button that is somehow pressed still
- * sends nothing.
+ * The one game button is `End Turn`, our words, enabled only for the one
+ * input it presses (`offersEndTurn`); every other answer to Forge's bar,
+ * passing priority included, is the decision pop-up (`barRoute`).
+ * `pressButton` refuses a disabled bar too, so a greyed button that is somehow
+ * pressed still sends nothing.
  *
  * On the OTHER seat's turn the End Turn slot is repurposed — Auto Yield /
  * Cancel Yield, a standing preference (`setAutoYield`, `isAutoYieldOn`)
  * rather than an answer to Forge's bar, pressable from the instant the other
  * seat's turn starts. The server acts on it (`match.ts`'s `maybeAutoPass`).
  *
- * **Concede and Settings are in it** (wave 24 §C.4, wave 30 item 7), BELOW Next
- * Phase and End Turn with Full control between them. Neither is an answer to Forge,
+ * **Concede and Settings are in it** (wave 24 §C.4, wave 30 item 7), BELOW End
+ * Turn with Full control between them. Neither is an answer to Forge,
  * and keeping them out of reach of Forge's two is what stops a reach for one
  * being a misclick on theirs. Wave 27 §B.1 made the cluster a single column,
  * so "its own row" is now every button's. `Leave` sat where `Settings` is now,
@@ -281,7 +281,7 @@ import { lookupFromState, plainRulesText, promptLines, promptText, selectionText
 import { RulesText } from '../prompts/RulesText.tsx';
 import { ManaPip } from '../../components/ManaPip.tsx';
 import { RevealNotice } from '../prompts/RevealNotice.tsx';
-import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn } from '../prompts/ConfirmPrompt.tsx';
+import { ConfirmPrompt, DRAW_LABEL, PLAY_LABEL, barRoute, isConfirmPrompt, isPlayOrDrawPrompt, offersEndTurn, type BarRoute } from '../prompts/ConfirmPrompt.tsx';
 import { AnswerRow, promptTileFor } from '../prompts/PromptShell.tsx';
 import { classifySelection, isPromptMethod, PromptFor, SelectionPrompt, type AskOf, type PromptMethod, type SelectionKind } from '../prompts/index.ts';
 import { installGestures } from './gestures/index.ts';
@@ -489,15 +489,20 @@ const MULLIGAN_BOTTOM_PICK = /^Return \d+ card\(s\) to the bottom of your librar
 
 /**
  * What the decision pop-up says. Forge's priority status block is what the
- * log's status line is for; in the pop-up, with its OK meaning "let the stack
- * resolve", it names the top of the stack (the operator, 2026-10-08: never a
- * bare "Resolve?"): a trigger or an ability names its SOURCE ("Resolve
- * Bitterblossom's trigger?"), a spell names itself ("Resolve Keiga, the Tide
- * Star?"). `topStack` is `match.view.stack[0]`; while the view has not caught
- * up with the prompt it is `null` and the question stays bare rather than
- * invent a name. Every other prompt is Forge's own words, made readable.
+ * log's status line is for; in the pop-up it names what passing does. With
+ * something on the stack its OK lets the top resolve, so it names the top of
+ * the stack (the operator, 2026-10-08: never a bare "Resolve?"): a trigger or
+ * an ability names its SOURCE ("Resolve Bitterblossom's trigger?"), a spell
+ * names itself ("Resolve Keiga, the Tide Star?"). `topStack` is
+ * `match.view.stack[0]`; while the view has not caught up with the prompt it is
+ * `null` and the question stays bare rather than invent a name. With the stack
+ * empty its OK moves the game on, so it names the step the rail moves to:
+ * "Proceed to Declare blockers?". `next` is that step's name, given only for
+ * the empty-stack pass (`barRoute`'s `pass`, `nextStepName`). Every other
+ * prompt is Forge's own words, made readable.
  */
-export function decisionMessage(prompt: string, topStack: StackEntry | null): string {
+export function decisionMessage(prompt: string, topStack: StackEntry | null, next: string | null): string {
+  if (PRIORITY_PROMPT.test(prompt) && !PRIORITY_OVER_STACK.test(prompt) && next !== null) return `Proceed to ${next}?`;
   if (!PRIORITY_OVER_STACK.test(prompt)) return promptText(prompt);
   if (topStack === null) return 'Resolve?';
   const name = topStack.sourceName ?? 'unknown source';
@@ -1237,6 +1242,25 @@ function railRows(inCombat: boolean): RailRow[] {
   return out;
 }
 
+/** A rail row's name. */
+function rowLabel(phase: string): string {
+  return PHASE_LABEL[phase] ?? (phase === COMBAT_ROW ? 'Combat' : phase);
+}
+
+/**
+ * The name of the rail row after the current step's, the step passing priority on an empty stack moves to;
+ * null off the rail. First-strike damage is never named: Forge runs that step only when a creature in the
+ * combat has first strike, so the step after blockers is said as Combat damage.
+ */
+export function nextStepName(view: BoardView): string | null {
+  const at = PHASE_ORDER.findIndex((p) => p.phase === view.phase);
+  if (at < 0) return null;
+  const rows = railRows(PHASE_ORDER[at]!.group === 'combat');
+  const here = rows.findIndex((r) => r.last >= at);
+  const next = rows.slice(here + 1).find((r) => r.phase !== 'COMBAT_FIRST_STRIKE_DAMAGE') ?? rows[0]!;
+  return rowLabel(next.phase);
+}
+
 /**
  * R6: a real gap, not a guess — see `docs/planning/wave35-evidence/l4-flicker.md`
  * for the full derivation. The short version:
@@ -1466,7 +1490,7 @@ function PhaseRail({ view, stop, onStop }: { view: BoardView; stop: StopPhase | 
               data-stoppable={target === null ? undefined : ''}
               onClick={target === null ? undefined : () => onStop?.(marked ? null : target)}
             >
-              <span className="live__step-name">{PHASE_LABEL[phase] ?? (phase === COMBAT_ROW ? 'Combat' : phase)}</span>
+              <span className="live__step-name">{rowLabel(phase)}</span>
             </li>
           );
         })}
@@ -1516,6 +1540,16 @@ function combatDoneLabel(match: LiveMatch): string | null {
   if (declaringAttackers(match)) return 'Done Attacking';
   if (declaringBlockers(match)) return 'Done Blocking';
   return null;
+}
+
+/**
+ * The priority pass's button names what the player agrees to (the operator, 2026-10-24: *"we want our words
+ * to be very consistent here about what the player is actually agreeing to"*): `Next Phase` with the stack
+ * empty, `Resolve` with something on it. Null for every other bar, which keeps Forge's own label.
+ */
+function passLabel(route: BarRoute): string | null {
+  if (route === 'pass') return 'Next Phase';
+  return route === 'resolve' ? 'Resolve' : null;
 }
 
 /**
@@ -2822,8 +2856,8 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    */
   const pregameWait = isWaitingForPregameDecision(match);
   /*
-   * Wave 51: what Forge's bar is, now that the control box only ever draws
-   * `Next Phase` and `End Turn` for it (`barRoute`'s own note). Every pop-up
+   * What Forge's bar is, now that the control box only ever draws `End Turn`
+   * for it (`barRoute`'s own note). Every pop-up
    * above keeps the input it already owned; whatever is left with an enabled
    * button is the decision pop-up, in the same slot.
    */
@@ -2855,7 +2889,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * one would lock the pop-up onto the wrong sentence for the whole pick.
    */
   if (mulliganPick) {
-    const text = decisionMessage(prompt, match.view?.stack[0] ?? null);
+    const text = decisionMessage(prompt, match.view?.stack[0] ?? null, null);
     if (mulliganPickText.current === null && MULLIGAN_BOTTOM_PICK.test(text)) mulliganPickText.current = text;
   } else {
     mulliganPickText.current = null;
@@ -2864,11 +2898,12 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   // end of turn. You may cancel this…", `lblYieldingUntil*`). The operator, 2026-10-07: "i dont need a way to
   // cancel my 'end turn' decision. if i click end turn i'm locked in" — no pop-up for it.
   const yielding = YIELDING.test(match.prompt ?? '');
-  const decisionOk = !yielding && ((route === 'decision' && bar !== null && bar.enable1) || mulliganPick);
+  const decisionOk = !yielding && ((route !== 'none' && bar !== null && bar.enable1) || mulliganPick);
   // No second button during the bottom pick (the operator: "remove the 'auto' button") — Forge's own `Auto`
   // would otherwise draw beside OK the same way it does for every other decision-area bar.
-  const decisionCancel = !yielding && route === 'decision' && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match) && !mulliganPick;
+  const decisionCancel = !yielding && (route === 'decision' || route === 'resolve') && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match) && !mulliganPick;
   const decision = decisionOk || decisionCancel;
+  const combatDone = combatDoneLabel(match);
   /*
    * The operator, 2026-10-20 (m-b752a3424b43): Tinker's sacrifice "never popped up on my screen" until a
    * reload, and no repro failed to draw it (`e2e/tk-tinker.spec.ts`). What the board draws for a pick, and
@@ -3097,13 +3132,10 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
    * ever opened.
    */
   /*
-   * Wave 51: the control box's two game buttons are always drawn, and are
-   * enabled only for the one input each is for. `Next Phase` is Forge's button
-   * one at the empty-stack priority pass (`barRoute`); `End Turn` is Forge's
-   * button two while Forge names it `End Turn` (`InputPassPriority`'s cancel
-   * slot, `offersEndTurn`).
+   * The control box's one game button, `End Turn`, is always drawn and enabled
+   * only while Forge names its button two `End Turn` (`InputPassPriority`'s
+   * cancel slot, `offersEndTurn`).
    */
-  const nextPhaseEnabled = route === 'next-phase';
   const endTurnEnabled = !spectator && !askOpen && offersEndTurn(bar);
   /*
    * R5: End Turn is highlighted when there is nothing left to decide.
@@ -3117,7 +3149,6 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     !spectator &&
     status === 'live' &&
     barStuck(match.buttons, yielding, {
-      nextPhase: nextPhaseEnabled,
       endTurn: endTurnEnabled,
       decisionOk,
       decisionCancel,
@@ -3152,11 +3183,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   /*
    * The highlight held unchanged for `END_TURN_NUDGE_MS` escalates to the
    * bigger pulse — never while a pop-up of this seat's own is open (a
-   * pass-to-resolve decision can sit under the highlight). Unchanged means the
-   * same Forge state (`forgeSeq`), the same actionable set and the same bar: a
-   * new delta, a new input or a press restarts the wait.
+   * pass-to-resolve decision can sit under the highlight). The empty-stack
+   * pass's own pop-up is not one: it is up whenever End Turn is, and it is
+   * the other way on to the same place. Unchanged means the same Forge state
+   * (`forgeSeq`), the same actionable set and the same bar: a new delta, a new
+   * input or a press restarts the wait.
    */
-  const nudgeEndTurn = useIdleNudge(endTurnHighlighted && !myOwnDecisionOpen, [
+  const nudgeEndTurn = useIdleNudge(endTurnHighlighted && (!myOwnDecisionOpen || route === 'pass'), [
     match.forgeSeq,
     match.weaklySelectable,
     match.buttons,
@@ -3688,27 +3721,17 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       {!watcher && (
       <div className="live__buttons" data-testid="live-buttons">
         {/*
-         * Wave 51: the same four buttons every frame, in this order — `Next
-         * Phase`, `End Turn`, `Full control`, `Concede`. The operator: *"keep the
-         * same 4 buttons in the control box at all times … just grey out the
-         * 'Next Phase' and 'End Turn' buttons when they are not relevant."* The
-         * labels are ours and never change; every other answer to Forge's bar is
-         * the decision pop-up below. `data-highlight` (R5) is End Turn's, and
+         * The same three buttons every frame, in this order — `End Turn`, `Full
+         * control`, `Concede` — greyed when they do not apply. Passing priority
+         * is the decision pop-up's (`barRoute`'s `pass`): the operator,
+         * 2026-10-24, *"the 'next phase' button must go"*. The labels are ours
+         * and never change. `data-highlight` (R5) is End Turn's, and
          * `data-nudge` its escalation once that has held (`useIdleNudge`).
          *
          * The one exception: on the OTHER seat's turn the End Turn slot
          * reads Auto Yield / Cancel Yield instead, same testid and place
          * (`yieldMode`/`autoYieldOn`, above).
          */}
-        <button
-          type="button"
-          className="live__next-phase"
-          data-testid="live-button-next-phase"
-          disabled={!nextPhaseEnabled}
-          onClick={() => pressWithSound(match, 'ok')}
-        >
-          Next Phase
-        </button>
         <ActionButton
           action={yieldMode ? (autoYieldOn ? 'yield-cancel' : 'yield') : 'end-turn'}
           className="live__end-turn"
@@ -3824,12 +3847,17 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
         <div className="live__prompt" data-testid="live-decision-host" data-staged={interaction.stagedCardId !== undefined || undefined}>
           <ConfirmPrompt
             testId="live-decision"
-            message={mulliganPick ? mulliganPickText.current ?? '' : decisionMessage(question, match.view?.stack[0] ?? null)}
+            message={
+              mulliganPick
+                ? mulliganPickText.current ?? ''
+                : decisionMessage(question, match.view?.stack[0] ?? null, route === 'pass' && match.view !== null ? nextStepName(match.view) : null)
+            }
             context={mulliganPick ? null : context}
+            start={combatDone !== null}
             button1={
               decisionOk
                 ? {
-                    label: combatDoneLabel(match) ?? bar.label1,
+                    label: combatDone ?? passLabel(route) ?? bar.label1,
                     enabled: (!mulliganPick || bar.enable1) && bar.refusal1 === undefined,
                     ...(bar.refusal1 === undefined ? {} : { tip: promptText(bar.refusal1) }),
                     testId: 'live-decision-ok',
@@ -3886,7 +3914,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * table) when there is one. `!viewerOpen`: never drawn while this
        * seat holds a live bar or decision of its own, stale fact or not —
        * the operator, 2026-10-11, under full control, read "Waiting for
-       * Hadoku to decide…" over his own live Next Phase / End Turn.
+       * Hadoku to decide…" over his own live pass / End Turn.
        */}
       {/* The coin is its own fact, told before the lagged `waitingOn` — never gated on it. */}
       {coinToss !== null && !playOrDraw && !myOwnDecisionOpen && !(match.view?.gameOver ?? false) && (

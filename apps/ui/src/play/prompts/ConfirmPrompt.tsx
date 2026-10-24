@@ -189,16 +189,19 @@ const END_TURN_LABEL = 'End Turn';
  * button is specifically only for that. and any 'Ok' situations are popups
  * decisions instead"*.
  *
- *  - `next-phase`: the priority pass (`OK` + `End Turn`, button one enabled)
- *    with nothing on the stack. Button one moves the game to the next step, and
- *    the control box's fixed `Next Phase` button is the one that presses it.
- *    Also `OK` + `Undo (N)` with nothing on the stack (`InputPassPriority.java:171`,
- *    after a manual mana tap): the operator, 2026-10-06, chose Next Phase over a
- *    pop-up there, since a click on the land tapped last already untaps it, so
+ *  - `pass`: the priority pass (`OK` + `End Turn`, button one enabled) with
+ *    nothing on the stack. Button one moves the game to the next step, so the
+ *    decision pop-up asks to proceed to it and its one button says `Next Phase`
+ *    (the operator, 2026-10-24: *"the 'next phase' button must go and instead we
+ *    should use the decision modal for passing priority always"*). Also `OK` +
+ *    `Undo (N)` with nothing on the stack (`InputPassPriority.java:171`, after a
+ *    manual mana tap): a click on the land tapped last already untaps it, so
  *    Forge's `Undo (N)` button is not drawn at all.
+ *  - `resolve`: the same priority pass with something on the stack. Button one
+ *    lets the top resolve, so the pop-up's button says `Resolve` (with an
+ *    `Undo (N)` beside it after a mana tap).
  *  - `decision`: any other bar with an enabled button that is not `End Turn`
- *    (the control box's own second button). Priority with spells on the stack
- *    (button one lets the top resolve; with an `Undo (N)` beside it too), declare
+ *    (the control box's own second button): declare
  *    attackers or blockers done, a target's `Cancel`, the London mulligan's
  *    `OK` + `Auto`, a payment Forge drew no payment window for.
  *  - `none`: no bar, nothing enabled beyond `End Turn`, or a pop-up of its own
@@ -206,7 +209,7 @@ const END_TURN_LABEL = 'End Turn';
  *    (`isConfirmPrompt`), or whatever the caller says is open (`owned`: an ask,
  *    the payment window, a selection pop-up, the pregame wait).
  */
-export type BarRoute = 'next-phase' | 'decision' | 'none';
+export type BarRoute = 'pass' | 'resolve' | 'decision' | 'none';
 
 /** Forge's second button after a manual mana tap (`lblUndo` + ` (N)`, `InputPassPriority.java:171`). */
 const UNDO_LABEL = /^Undo \(\d+\)$/;
@@ -215,7 +218,7 @@ export function barRoute(bar: LiveButtons | null, stackEmpty: boolean, owned = f
   if (bar === null || owned || isPlayOrDrawPrompt(bar) || isConfirmPrompt(bar)) return 'none';
   const endTurn = bar.label2 === END_TURN_LABEL;
   const undo = UNDO_LABEL.test(bar.label2);
-  if (bar.enable1 && bar.label1 === BAR_OK_LABEL && (endTurn || undo) && stackEmpty) return 'next-phase';
+  if (bar.enable1 && bar.label1 === BAR_OK_LABEL && (endTurn || undo)) return stackEmpty ? 'pass' : 'resolve';
   return bar.enable1 || (bar.enable2 && !endTurn) ? 'decision' : 'none';
 }
 
@@ -268,6 +271,8 @@ export interface ConfirmPromptProps {
    * a scry 1's library card (the operator, 2026-10-11: *"we should have a proper decision card for this"*).
    */
   card?: { id: number; tile: DraftCard };
+  /** The answers sit bottom-left, where a No goes (`AnswerRow`'s `start`). */
+  start?: boolean;
 }
 
 /**
@@ -278,7 +283,7 @@ export interface ConfirmPromptProps {
  * `onClick` it is handed is one of `LiveBoard.tsx`'s own handlers — this
  * component sends nothing itself.
  */
-export function ConfirmPrompt({ testId, role = 'dialog', title, message, context, coin, callId, button1, button2, check, card }: ConfirmPromptProps) {
+export function ConfirmPrompt({ testId, role = 'dialog', title, message, context, coin, callId, button1, button2, check, card, start }: ConfirmPromptProps) {
   const titleId = useId();
   const messageId = useId();
   return (
@@ -311,6 +316,7 @@ export function ConfirmPrompt({ testId, role = 'dialog', title, message, context
       )}
       <AnswerRow
         yesNo={isYesNoPair(button1, button2)}
+        start={start}
         aside={
           check !== undefined && (
             <label className="confirm__check">

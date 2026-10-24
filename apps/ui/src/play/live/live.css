@@ -52,7 +52,7 @@
  * | --- | --- | --- |
  * | question / payment | 59.4% across, 24% down, 24.1% × 48% | `--live-col-x` / `--live-col-w`, `.live__prompt` |
  * | phase rail | 8.4% wide, 31% down, 35% tall, right | `--live-rail-w`, `.live__phases` |
- * | controls | 112 × 84 → 112 × 110, 67% down, under the rail | `--live-controls-*`, `.live__buttons` |
+ * | controls | 112 × 84 → 112 × 110 → 112 × 84, 67% down, under the rail | `--live-controls-*`, `.live__buttons` |
  * | log button | 36 × 32, above the rail | `.live__log-button` |
  *
  * ## The drawing's WIDTH is real and its HEIGHT was not (wave 27 §B.1)
@@ -148,7 +148,7 @@
  * it at, and the rail is never narrower than the thing it exists to be read at.
  */
 .live {
-  --live-controls-h: 110px;
+  --live-controls-h: 84px;
   --live-controls-w: 112px;
   --live-rail-w: max(8.4%, 6.75rem);
   /* In `.live`'s own width (`cqw`, the container below), not a percentage: a question that grows past the
@@ -352,7 +352,7 @@
   height: var(--live-controls-h);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: repeat(4, 22px);
+  grid-template-rows: repeat(3, 22px);
   grid-auto-rows: 22px;
   align-content: start;
   gap: 4px;

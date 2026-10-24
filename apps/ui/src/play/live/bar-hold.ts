@@ -30,7 +30,7 @@ export function pressableBar(bar: LiveButtons | null, hold: BarHold | null, now:
 
 /**
  * Every surface that can take this seat's input, by name: `true` when it is drawn and
- * pressable. The control box's two buttons, the decision pop-up's two, and every pop-up or
+ * pressable. The control box's End Turn, the decision pop-up's two, and every pop-up or
  * board mode that owns the input while it is open (an ask, a payment, a selection, the
  * yes/no, the coin toss's Play/Draw, the mulligan pick, declaring combat on the board).
  */
