@@ -49,8 +49,13 @@ import { LIBRARY, deckPath, poolFixturePath, type FormatFamily, type LibraryColl
 import type { DraftCard } from '../draft/types.ts';
 import { DeckEditor } from '../deck/DeckEditor.tsx';
 import { deckFromPool, dckTextOf } from '../draft/deckFromPool.ts';
+
 import { deckColorsByName, foldDeckColors, manaTokensOf, type DeckColor } from '@hadoku/deck';
 import { DeckColors, DeckView } from './DeckView.tsx';
+
+// A slow case's own budget, which must never undercut CI's (vitest.config.ts):
+// 20 s here, 60 s on a shared CI runner where the default is already 30 s.
+const SLOW_TIMEOUT = process.env.CI ? 60_000 : 20_000;
 
 afterEach(cleanup);
 
@@ -182,7 +187,7 @@ describe('the frozen Standard pools carry what a colour fold needs', () => {
   // to 31 (16 MB) across three families, and reading and parsing all of them is
   // 1.5 s alone on a loaded host (2026-10-16), several times that inside a full
   // `pnpm run check`.
-  it('maps a cost and a colour for its own cards, under the names a decklist uses', { timeout: 20_000 }, () => {
+  it('maps a cost and a colour for its own cards, under the names a decklist uses', { timeout: SLOW_TIMEOUT }, () => {
     for (const { family, date } of FIXTURE_KEYS) {
       const fixture = fixtureFor(date, family);
       const label = `${family} ${date}`;

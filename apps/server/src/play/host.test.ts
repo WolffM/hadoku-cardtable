@@ -40,6 +40,10 @@ import {
 } from './host.js';
 
 const FAKE = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-bridge.mjs');
+// A slow case's own budget, which must never undercut CI's (vitest.config.ts):
+// 20 s here, 60 s on a shared CI runner where the default is already 30 s.
+const SLOW_TIMEOUT = process.env.CI ? 60_000 : 20_000;
+
 const scratch = mkdtempSync(join(tmpdir(), 'cardtable-host-test-'));
 
 // The pool runs `<java> <jvm flags> -cp <jar> <bridge source> <args>`; this
@@ -660,7 +664,7 @@ describe('handing a match over on the way out', () => {
 		const resumed = recorder();
 		track(second.attach(back[0] as JvmRecord, resumed));
 		expect(resumed.lines.map((l) => l.t)).toEqual(['ready']);
-	}, 20_000);
+	}, SLOW_TIMEOUT);
 });
 
 describe('the boot sweep and a live directory it can identify', () => {
@@ -853,7 +857,7 @@ describe('going down: what must die before we do', () => {
 		// And its run directory goes with it, so no successor is offered a finished
 		// game and the next boot's `RUN_DIR_FRESH_MS` window has nothing to spare.
 		expect(existsSync(ended.run)).toBe(false);
-	}, 20_000);
+	}, SLOW_TIMEOUT);
 
 	it('a HANDED-OVER match is still alive after that same reap, standing in its run dir with its orphanedAt', async () => {
 		const { handed, reaped } = await shutdownWith({ handed: HANDED, ended: ENDED });
@@ -867,7 +871,7 @@ describe('going down: what must die before we do', () => {
 		const record = readJvmRecord(handed.run) as JvmRecord;
 		expect(record.orphanedAt).toEqual(expect.any(String));
 		expect([record.pid, record.epoch, record.owners]).toEqual([handed.pid, 'e-1', ['p-alice', 'p-bob']]);
-	}, 20_000);
+	}, SLOW_TIMEOUT);
 
 	it('refuses to signal a pid that is not the process standing in that run dir, and says the JVM was LEFT', async () => {
 		const workDir = mkdtempSync(join(scratch, 'reap-guard-'));
@@ -888,7 +892,7 @@ describe('going down: what must die before we do', () => {
 		renameSync(`${jvm.run}-moved`, jvm.run);
 		expect(pool.reapOnExit()).toMatchObject({ killed: ['m-0000000000c3'], left: [] });
 		expect(running(jvm.pid)).toBe(false);
-	}, 20_000);
+	}, SLOW_TIMEOUT);
 
 	it('reaps the idle spare too, even after close() has forgotten it — it holds no game and must not outlive us', async () => {
 		const workDir = mkdtempSync(join(scratch, 'reap-spare-'));
@@ -906,5 +910,5 @@ describe('going down: what must die before we do', () => {
 		expect(pool.reapOnExit().killed).toEqual([spare.matchId]);
 		expect(running(spare.pid)).toBe(false);
 		expect(existsSync(join(workDir, dir))).toBe(false);
-	}, 20_000);
+	}, SLOW_TIMEOUT);
 });

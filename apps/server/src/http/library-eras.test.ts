@@ -29,6 +29,10 @@ import { LIBRARY, formatIdOf, poolFixturePath, type FormatFamily, type LibraryCo
 import { loadTablesLibrary } from './library.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// A slow case's own budget, which must never undercut CI's (vitest.config.ts):
+// 20 s here, 60 s on a shared CI runner where the default is already 30 s.
+const SLOW_TIMEOUT = process.env.CI ? 60_000 : 20_000;
+
 // @reads decks/
 const REPO_ROOT = resolve(HERE, '../../../..');
 
@@ -54,7 +58,7 @@ describe('the picker offers exactly the catalogued eras', () => {
 
 	// Copies the whole decks/ tree (46 MB of pools since the library ran to 2025) and loads
 	// the library twice, so it gets 20 s rather than the default 5.
-	it('a fixture pool under an UNCATALOGUED date never reaches the picker', { timeout: 20_000 }, () => {
+	it('a fixture pool under an UNCATALOGUED date never reaches the picker', { timeout: SLOW_TIMEOUT }, () => {
 		// A temp copy of the real decks/ tree — real data, never the repo's own files.
 		tempDir = mkdtempSync(join(tmpdir(), 'cardtable-w34-eras-'));
 		cpSync(resolve(REPO_ROOT, 'decks'), join(tempDir, 'decks'), { recursive: true });

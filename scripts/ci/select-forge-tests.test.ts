@@ -33,6 +33,10 @@ import {
 import { fixtureSha, snapshotPath } from './snapshot-fixtures.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+// A slow case's own budget, which must never undercut CI's (vitest.config.ts):
+// 20 s here, 60 s on a shared CI runner where the default is already 30 s.
+const SLOW_TIMEOUT = process.env.CI ? 60_000 : 20_000;
+
 
 /** History held in memory: lands newest first, and the names each commit edited, by `sha:file`. */
 interface History {
@@ -487,7 +491,7 @@ describe('the hot-path table', () => {
  * times that on a loaded one, so these and the replays below get 20 s rather than
  * the default 5.
  */
-describe('real landed ranges', { timeout: 20_000 }, () => {
+describe('real landed ranges', { timeout: SLOW_TIMEOUT }, () => {
   const ranges = new Map<string, { range: string; files: Change[] }>();
   const read = (name: string): { range: string; files: Change[] } => {
     if (!ranges.has(name)) ranges.set(name, JSON.parse(readFileSync(join(ROOT, 'scripts/ci/fixtures', `${name}.json`), 'utf8')) as { range: string; files: Change[] });
@@ -542,7 +546,7 @@ describe('real landed ranges', { timeout: 20_000 }, () => {
  * and the land it shipped in, history included; replayed as a push, the guarding
  * spec must be picked.
  */
-describe('historical misses, replayed as a push', { timeout: 20_000 }, () => {
+describe('historical misses, replayed as a push', { timeout: SLOW_TIMEOUT }, () => {
   interface Miss {
     commit: string;
     files: Change[];
