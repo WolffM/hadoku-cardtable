@@ -818,16 +818,17 @@ describe.skipIf(!available.ok)(title, () => {
 				expect(row.enable1).toBe(true);
 				expect(row.enable2).toBe(true);
 				// Forge's own frame names nothing it is paid for: no card reference, no
-				// cost. Since w52 the bridge adds the ability the confirm belongs to
-				// (`confirmAbility`, read off `InputConfirm.sa`): an Evolving Wilds of
-				// seat 0's. That is what lets `chosenCostConfirm` answer it.
-				expect(row.card).toBeNull();
+				// cost. The bridge adds the ability the confirm belongs to (`confirmAbility`,
+				// read off `InputConfirm.sa`), and since cab3a35b its card on the prompt
+				// (`confirmCard`): an Evolving Wilds of seat 0's. That is what lets
+				// `chosenCostConfirm` answer it.
 				const seat0 = stateOf(0).get(deltaKey(DELTA_TYPE.player, match.seats[0]!.playerId ?? -1));
 				const wilds = ['Battlefield', 'Graveyard', 'Hand'].flatMap((z) => ids(seat0, z)).filter((id) => {
 					const view = stateOf(0).get(deltaKey(DELTA_TYPE.card, id));
 					return str(view, 'Name') === 'Evolving Wilds' || str(stateOf(0).get(deltaKey(DELTA_TYPE.cardState, id * 16)), 'Name') === 'Evolving Wilds';
 				});
 				expect(wilds).toContain((row.confirmAbility as { hostCard?: { id: number } } | null)?.hostCard?.id);
+				expect((row.card as { id?: number } | null)?.id).toBe((row.confirmAbility as { hostCard?: { id: number } } | null)?.hostCard?.id);
 				const facts: PromptFacts = readPromptFacts(notesFrom(row));
 				expect(facts.window).toBe('other');
 				expect(facts.cost).toBeNull();
@@ -847,7 +848,8 @@ describe.skipIf(!available.ok)(title, () => {
 			 */
 			for (const row of otherConfirmRows()) {
 				console.log(`[lane-e] a second confirm this run found: ${JSON.stringify({ message: row.message, card: row.card })}`);
-				expect(row.card).toBeNull();
+				// The prompt's card is the confirm's own ability's, or none (`confirmCard`).
+				expect((row.card as { id?: number } | null)?.id ?? null).toBe((row.confirmAbility as { hostCard?: { id: number } } | null)?.hostCard?.id ?? null);
 				const facts: PromptFacts = readPromptFacts(notesFrom(row));
 				expect(facts.window).toBe('other');
 				expect(facts.cost).toBeNull();
