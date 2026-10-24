@@ -108,12 +108,12 @@
    */
   --accent-ink: color-mix(in srgb, var(--accent) 35%, var(--ink));
   /*
-   * The active player's edge light (`play/board.css`): a 3px line, so a non-text mark that must
-   * clear 3:1 on the seat (`--bg-raised`) in every theme. The raw accent is 1.56:1 in
-   * izakaya-light; 55% toward the ink keeps the hue and clears 3.3:1 in the worst theme
-   * (`screens/tokens.test.ts` measures it).
+   * The viewer's edge light on their own turn (`play/board.css`): a line, so a non-text mark
+   * that must clear 3:1 on the seat (`--bg-raised`) in every theme. It is the theme's success,
+   * the viewer's colour as danger is the other seat's; mixed toward the ink so it keeps the hue
+   * and clears 3:1 in the worst theme (`screens/tokens.test.ts` measures it).
    */
-  --turn-edge: color-mix(in srgb, var(--accent) 55%, var(--ink));
+  --turn-edge: color-mix(in srgb, var(--success) 45%, var(--ink));
   --on-accent: var(--color-on-primary);
   --warn: var(--color-warning);
   /*

@@ -470,10 +470,10 @@
   /* Whose turn it is: the edge light along the seat's own table edge (see below), which edge and what colour per seat. */
   --turn-y: -1;
   --turn-line: var(--turn-edge);
-  --turn-glow: var(--accent);
+  --turn-glow: var(--success);
   box-shadow:
-    inset 0 calc(var(--turn-y) * 3px) 0 color-mix(in srgb, var(--turn-line) calc(var(--turn-lit) * 100%), transparent),
-    inset 0 calc(var(--turn-y) * 22px) 18px -12px color-mix(in srgb, var(--turn-glow) calc(var(--turn-lit) * 45%), transparent);
+    inset 0 calc(var(--turn-y) * 6px) 0 color-mix(in srgb, var(--turn-line) calc(var(--turn-lit) * 100%), transparent),
+    inset 0 calc(var(--turn-y) * 70px) 60px -24px color-mix(in srgb, var(--turn-glow) calc(var(--turn-lit) * 60%), transparent);
   transition:
     --turn-lit 0.9s ease-in-out,
     --turn-shade 0.9s ease-in-out;
@@ -502,7 +502,7 @@
  * - The EDGE LIGHT: a `--turn-line` along the active side's own table edge — the bottom of
  *   your seat, the top of theirs — with a soft `--turn-glow` inward from it. Inset shadows on the
  *   seat (`.board .seat`, above): they paint in the seat's own padding, under every child, and
- *   add no size. Your turn is the accent; theirs is the theme's danger, like their priority ring
+ *   add no size. Your turn is the theme's success; theirs is its danger, like their priority ring
  *   and the phase rail (the operator, 2026-10-17: "make sure the curved board outline for the
  *   active player matches who's turn it is (danger for enemy)"). The line is `--danger-ink`, the
  *   danger mixed toward the ink: raw `--danger` is under 3:1 on the seat in some themes, and the
@@ -511,6 +511,9 @@
  *   its hand tray — sit `--turn-step` darker. Surface colours, not a filter and not a layer: a
  *   filter would make the seat the containing block of a lifted card's `position: fixed`, and the
  *   cards themselves keep exactly their own contrast.
+ *
+ * The operator, 2026-10-24, chose the stronger of two edge lights for a new player who could not
+ * tell whose turn it was: a 6px line, and a glow reaching 70px in at 60%.
  *
  * Both ride two registered numbers, so a turn passing eases across; reduced motion is the state.
  */
@@ -528,6 +531,22 @@
 
 .board .seat[data-active] {
   --turn-lit: 1;
+}
+
+/*
+ * Your own side on your turn takes a faint wash of the success colour — the operator, 2026-10-24,
+ * of a slider from 0 to 30%: *"+2% 'Your side on your turn' is acceptable"*. `--turn-wash` is one
+ * layer over each surface's own colour (the seat and its side column, its battlefield, its hand
+ * tray's stripes), so the surfaces keep their shade rule; it rides `--turn-lit`, so it eases in and
+ * out with the edge light.
+ */
+.board .seat[data-viewer] {
+  --turn-wash: color-mix(in srgb, var(--success) calc(var(--turn-lit) * 2%), transparent);
+}
+
+.board .seat[data-viewer],
+.board .seat[data-viewer] > .zone--battlefield {
+  background-image: linear-gradient(var(--turn-wash), var(--turn-wash));
 }
 
 .board:has(.seat[data-active]) .seat:not([data-active]) {
@@ -1233,6 +1252,7 @@
   padding: 0 0 0 2px;
   padding-right: var(--right-gutter);
   background:
+    linear-gradient(var(--turn-wash), var(--turn-wash)),
     repeating-linear-gradient(-45deg, transparent 0 7px, color-mix(in srgb, var(--ink) 4.5%, transparent) 7px 14px),
     oklch(from var(--bg-card) calc(l - var(--turn-shade) * var(--turn-step)) c h);
   border: 1px solid var(--line);
