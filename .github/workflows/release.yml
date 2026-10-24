@@ -53,7 +53,26 @@ jobs:
           fi
           sha="${SHA_IN:-$(api commits/main | jq -r .sha)}"
           sha=$(api "commits/${sha}" | jq -r .sha)
-          check=$(api "commits/${sha}/check-runs?check_name=check&filter=latest" | jq -r '[.check_runs[].conclusion] | first // "none"')
+          check_of() { api "commits/$1/check-runs?check_name=check&filter=latest" | jq -r '[.check_runs[].conclusion] | first // "none"'; }
+          check=$(check_of "${sha}")
+          # A docs-only push runs no CI (ci.yml's `paths`), so its sha has no
+          # `check`. Then the nearest first-parent ancestor with one stands in,
+          # provided it is green and everything between is docs by ci.yml's rule:
+          # docs/**, .claude/** or *.md, never docs/releases/**.
+          if [ "${check}" = none ]; then
+            base="${sha}"
+            for _ in $(seq 30); do
+              base=$(api "commits/${base}" | jq -r '.parents[0].sha')
+              check=$(check_of "${base}")
+              [ "${check}" = none ] || break
+            done
+            [ "${check}" = success ] || { echo "::error::${sha} has no check, and its nearest checked ancestor ${base} is '${check}'"; exit 1; }
+            files=$(api "compare/${base}...${sha}" | jq -r '.files[].filename')
+            code=$( { grep -E '^docs/releases/' <<<"${files}"; grep -vE '^(docs/|\.claude/)|\.md$' <<<"${files}"; } || true)
+            [ -z "${code}" ] || { echo "::error::${sha} has no check and changes more than docs since green ${base}:"; echo "${code}"; exit 1; }
+            echo "${sha} is docs-only since ${base}, whose check is green"
+            check=success
+          fi
           [ "${check}" = success ] || { echo "::error::check on ${sha} is '${check}', not success"; exit 1; }
           api "contents/docs/releases/${VERSION}.md?ref=${sha}" > /dev/null \
             || { echo "::error::docs/releases/${VERSION}.md is not on ${sha}: write and land the notes first (docs/RELEASE.md)"; exit 1; }

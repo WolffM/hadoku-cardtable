@@ -575,6 +575,43 @@ jobs:
   # shard that dies before writing its report is a red in both, not a silent
   # pass.
   #
+  # The browser e2e titled `[nightly]`: too slow for `ci.yml`'s `check`, which
+  # skips them, and needing no Forge (the pod-fit layout matrix). Runs whenever
+  # `changes` says `nightly`: the nightly schedule, a PR, a `full` dispatch.
+  e2e-nightly:
+    name: e2e-nightly
+    needs: changes
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.nightly == 'true'
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      # As in `ci.yml`'s `static`: setup-pnpm asserts the registry credential,
+      # and the token goes on the Install step's env only.
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
+        with:
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+      - name: A dot-free, on-disk temp root (as in `ci.yml`)
+        run: |
+          mkdir -p "$HOME/runner-tmp"
+          echo "TMPDIR=$HOME/runner-tmp" >> "$GITHUB_ENV"
+
+      - name: Build the bundle and the server
+        run: pnpm --filter @hadoku/ui build && pnpm --filter @hadoku/server build
+      - name: E2E — browser
+        run: pnpm --filter @hadoku/e2e run install-browsers
+      # `--pass-with-no-tests` is not passed: zero `[nightly]` tests means the tag
+      # was renamed or dropped, and that should be red, not a quiet green.
+      - name: E2E — the [nightly] tests
+        run: pnpm --filter @hadoku/e2e test --grep '\[nightly\]'
+
   # NIGHTLY-ONLY TESTS. Three things were half of this job's 25 minutes
   # (run 37487474250: 745 of 1483 s) and none of them earns a place on every
   # push: `library-match` starts 31 matches to prove the deck library loads;

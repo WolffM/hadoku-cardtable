@@ -10,14 +10,30 @@ name: CI
 # `push: main` is covered too, because this repo's normal path is landing
 # straight on main rather than opening a PR. A PR-only gate would leave that
 # path with no CI at all.
+#
+# A push that changes only docs (`docs/**`, `.claude/**`, any `*.md`) runs
+# nothing: no code moved, so there is nothing to check or deploy, and two such
+# pushes held the one-deep queue for 28 minutes on 2026-10-23. `docs/releases/`
+# is the exception, because the server reads it (`apps/server/src/announce.ts`)
+# and its test reads the real files. `release.yml` accepts a sha whose only
+# changes since a green ancestor are docs, by the same rule.
 on:
   pull_request:
   push:
     branches: [main]
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!.claude/**'
+      - '!**/*.md'
+      - 'docs/releases/**'
   workflow_dispatch:
 
-# This workflow is `check` alone since 2026-10-07: typecheck, lint and the unit
-# suites, about four minutes, and it is what `redeploy.yml` deploys on. The
+# `check` is what `redeploy.yml` deploys on, what `release.yml` gates on, and
+# the required status: since 2026-10-23 a job that only collects the four jobs
+# that do the work in parallel (`static`, two `unit` shards, `e2e`). Serially
+# they took about 14 minutes (unit 6, the draft e2e 6), and a land waited for
+# the run ahead of it as well; in parallel the longest is about 6. The
 # Forge jobs (`forge-e2e`, `forge-jvm`) run beside it in `forge.yml`, on the
 # same push, and gate nothing — the operator: "let the deploys go through
 # faster and have the tests run in parallel and then look at the tests and fix
@@ -36,8 +52,8 @@ permissions:
   actions: read
 
 jobs:
-  check:
-    name: check
+  static:
+    name: static
     # Never on a fork's pull request: this job runs on the operator's self-hosted
     # runners, so a fork PR would run arbitrary code on the production host.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -69,9 +85,9 @@ jobs:
     #
     # It was not: `warm-claw-8` ran `check` with a temp root under a `.cache`
     # segment and the three suites refused it (runs 37582769530 and
-    # 37584876674, 2026-10-07 — main red, no deploy). So the Test step sets its
+    # 37584876674, 2026-10-07 — main red, no deploy). So `unit` and `e2e` set their
     # own on-disk, dot-free TMPDIR, whatever the runner's environment says.
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
 
@@ -122,6 +138,33 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+  # The unit suites, split by file across two runners (vitest `--shard`). One
+  # runner took about 6 minutes; the slowest suites are the JVM-free server
+  # ones, and they spread across both shards.
+  unit:
+    name: unit (${{ matrix.shard }}/2)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v6
+      # As in `static`: setup-pnpm asserts the registry credential, and the token
+      # goes on the Install step's env only.
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
+        with:
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+
       - name: A dot-free, on-disk temp root for the suites that refuse a dot segment
         run: |
           mkdir -p "$HOME/runner-tmp"
@@ -129,7 +172,34 @@ jobs:
           echo "TMPDIR=$HOME/runner-tmp (was ${TMPDIR:-unset})"
 
       - name: Test
-        run: pnpm run test
+        run: pnpm exec vitest run --passWithNoTests --shard=${{ matrix.shard }}/2
+
+  # The built app: the draft e2e against the built server, and the image
+  # boundary on the built bundle.
+  e2e:
+    name: e2e
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      # As in `static`: setup-pnpm asserts the registry credential, and the token
+      # goes on the Install step's env only.
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
+        with:
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+
+      - name: A dot-free, on-disk temp root (see `unit`)
+        run: |
+          mkdir -p "$HOME/runner-tmp"
+          echo "TMPDIR=$HOME/runner-tmp" >> "$GITHUB_ENV"
 
       # ── The image boundary: D13 as amended by D15 ────────────────────────
       #
@@ -184,8 +254,10 @@ jobs:
       # did exactly its job and failed, and the image-boundary steps after it
       # were skipped. A guard that reds is the guard working; the premise was
       # what was wrong.
+      # A test titled `[nightly]` is too slow for every push and runs in
+      # `forge.yml`'s `e2e-nightly` instead.
       - name: E2E — two friends draft one pod
-        run: pnpm --filter @hadoku/e2e test
+        run: pnpm --filter @hadoku/e2e test --grep-invert '\[nightly\]'
 
       # Runs FIRST, and deliberately. A green gate is a claim; this is the
       # demonstration. 65 throwaway fixtures under `mktemp -d`, each arm
@@ -198,3 +270,22 @@ jobs:
 
       - name: Image boundary (D13/D15) — the CDN hosts, we do not
         run: bash scripts/d13-gate.sh apps/ui/dist
+
+  # The required status, and the one `redeploy.yml` and `release.yml` read: green
+  # only when every job above is. `always()` so a red job still reports `check`
+  # red, rather than skipped, which a branch rule would wait on forever. The fork
+  # guard is on each job above; for a fork's PR they are all skipped and so is
+  # this.
+  check:
+    name: check
+    needs: [static, unit, e2e]
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 2
+    steps:
+      - name: Every job is green
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "static, unit, e2e: ${RESULTS}"
+          [ "$(echo "${RESULTS}" | jq -r 'map(select(. != "success")) | length')" = 0 ]

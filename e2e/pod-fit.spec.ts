@@ -178,8 +178,12 @@ for (const n of [4, 6, 8]) {
   }
 }
 
+// Every push runs the hardest case: 8 seats, the larger UI scale, mixed queues. The other 27, at
+// about 5 s each, are `[nightly]`: `ci.yml` skips them and `forge.yml`'s `e2e-nightly` runs them.
+const everyPush = (c: (typeof cases)[number]): boolean => c.n === 8 && c.scale === 1.25 && c.tag === 'mixed 1–4';
+
 for (const c of cases) {
-  test(`${c.n} seats at ${c.scale * 100}%, ${c.tag}: every pack in view stands clear of every other, every face, name, arrow and the counters, inside the panel`, async ({ page }) => {
+  test(`${everyPush(c) ? '' : '[nightly] '}${c.n} seats at ${c.scale * 100}%, ${c.tag}: every pack in view stands clear of every other, every face, name, arrow and the counters, inside the panel`, async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${base}src/fit/pod.html?n=${c.n}&scale=${c.scale}&q=${c.q.join(',')}`);
