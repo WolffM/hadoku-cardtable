@@ -1581,6 +1581,10 @@ function nothingClickable(match: LiveMatch): LiveClickables {
  *    while attacks are declared and the viewer while a payment takes life;
  *  - Forge has named none of the four → nothing.
  *
+ * A permanent of the seat's own that Forge offers tapped is a click that untaps it
+ * ({@link untapOffers}), and Forge offers those in every input: so with a selection open it
+ * joins the selection's cards, and with a question open it is all the board may click.
+ *
  * ## Why `highlighted` sits BESIDE `selectables` and is not folded into it
  *
  * Wave 22 lane L. The two are different claims. `setSelectables` is an OFFER:
@@ -1608,10 +1612,12 @@ function nothingClickable(match: LiveMatch): LiveClickables {
  */
 export function boardInteraction(match: LiveMatch): LiveClickables {
   const view = match.view;
-  if (view === null || !match.inputLive || !match.connected || match.asks.length > 0) return nothingClickable(match);
+  if (view === null || !match.inputLive || !match.connected) return nothingClickable(match);
   const selection = match.selectables;
   const named =
-    selection === null
+    match.asks.length > 0
+      ? untapOffers(match, view)
+      : selection === null
       ? union(
           match.weaklySelectable,
           match.highlighted,
@@ -1621,7 +1627,7 @@ export function boardInteraction(match: LiveMatch): LiveClickables {
           declaredAttackers(match, view),
           attackDefenders(match, view),
         )
-      : selection.cards;
+      : union(selection.cards, untapOffers(match, view));
   if (named === null) return nothingClickable(match);
   const drawn = cardIdsInView(view);
   const offered = new Set<number>();
@@ -1723,6 +1729,17 @@ function attackInputLive(match: LiveMatch): boolean {
 /** `InputBlock` is the input running on this seat: the block step, and its current attacker marked (`blockFocusOf`). */
 function blockInputLive(match: LiveMatch): boolean {
   return blockFocusOf(match) !== null;
+}
+
+/**
+ * The seat's own tapped permanents in Forge's actionable set: each a click untaps (its mana
+ * unspent, nothing triggered — `PlayerControllerHuman.tryUndo`), whatever input is open.
+ */
+function untapOffers(match: LiveMatch, view: BoardView): ReadonlySet<number> {
+  const out = new Set<number>();
+  if (match.weaklySelectable === null) return out;
+  for (const c of viewerOf(view)?.battlefield ?? []) if (c.tapped && match.weaklySelectable.has(c.id)) out.add(c.id);
+  return out;
 }
 
 /**
