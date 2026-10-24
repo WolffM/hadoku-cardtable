@@ -13,6 +13,7 @@ import { useState } from 'react';
 
 import { colorWordToken, ManaPip } from '../../components/ManaPip.tsx';
 import { OptionButton, PromptShell } from './PromptShell.tsx';
+import { isForgeYesNo } from './ConfirmPrompt.tsx';
 import { refName } from './lookup.ts';
 import { confirmButtons, confirmProblems, inputDialogProblems, optionDialogProblems } from './rules.ts';
 import { assertAnswerable, checkedReply, type PromptProps } from './types.ts';
@@ -110,6 +111,7 @@ export function ConfirmAskPrompt({ ask, onAnswer, lookup }: PromptProps<'confirm
       method="confirm"
       title={title}
       message={ask.question}
+      yesNo={isForgeYesNo(buttons[0], buttons[1])}
       actions={buttons.map((label, i) => (
         <OptionButton
           key={`${i}:${label}`}

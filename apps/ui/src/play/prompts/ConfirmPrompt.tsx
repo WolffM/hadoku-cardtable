@@ -122,37 +122,28 @@ const YES_LABEL = 'Yes';
 const NO_LABEL = 'No';
 
 /**
- * True only for a REAL yes/no, never from how many buttons there are
- * (wave 75 §A — the new player pressed Stirring Wildwood's White/Blue 16
- * times because it split left/right like a yes/no). Forge's wire carries no
- * "is this boolean" flag of its own for either of this component's two
- * mechanisms, so each needs its own signal:
- *
- *  - `showConfirmDialog` answers with an actual boolean
- *    (`answerConfirm(match, callId, true/false)`), so `LiveBoard.tsx`
- *    already tags its own two buttons `answer: 'yes'/'no'` for `LiveBoard.test.ts` —
- *    that tag alone says this is real, whatever text Forge put on the
- *    buttons (`InputPassPriority.java:318`'s "mana floating" check answers
- *    boolean with OK/Cancel on the buttons, not Yes/No).
- *  - the bar's `InputConfirm`/`InputConfirmMulligan` (`isConfirmPrompt`)
- *    answers by WHICH button was pressed, with no boolean at all — the
- *    two-word pair Forge put on the buttons is the only fact on the wire, so
- *    the one usable signal is whether that pair IS Forge's own default
- *    (`InputConfirm.defaultOptions`, `lblYes`/`lblNo`) or a custom one a card
- *    script supplied instead (`InputConfirm.confirm`'s 5-argument overload:
- *    the surveil Library/Graveyard pick `PlayerControllerHuman.java:1074`,
- *    the scry Top/Bottom `:1111`, `chooseBinary`'s whole
- *    `BinaryChoiceType` family — Heads/Tails, Tap/Untap, Left/Right, … —
- *    `:1890`, the colour pick `:2049`, and `InputConfirmMulligan`'s own
- *    fixed Keep/Mulligan). None of those is a yes/no question; they are a
- *    CHOICE Forge happens to render on the same two-button bar. Operator,
- *    2026-10-24: *"let's keep the left/right decisions only for yes/no"* —
- *    supersedes AF289's reach for anything that is not.
+ * Whether two button labels are Forge's own default pair (`InputConfirm.defaultOptions`, `lblYes`/`lblNo`)
+ * rather than a pair a card script supplied. Forge's two-button bar carries no "is this a yes/no" flag:
+ * the surveil Library/Graveyard pick (`PlayerControllerHuman.java:1074`), the scry Top/Bottom (`:1111`),
+ * `chooseBinary`'s Heads/Tails, Tap/Untap, Left/Right, … (`:1890`), the colour pick (`:2049`) and
+ * `InputConfirmMulligan`'s Keep/Mulligan ride the same bar a real yes/no does, so the labels are the one
+ * fact on the wire that tells them apart. The operator, 2026-10-24: *"let's keep the left/right decisions
+ * only for yes/no"*.
+ */
+export function isForgeYesNo(label1: string | undefined, label2: string | undefined): boolean {
+  return label1 === YES_LABEL && label2 === NO_LABEL;
+}
+
+/**
+ * A real yes/no: `showConfirmDialog` answers with an actual boolean, so its buttons are tagged
+ * `answer: 'yes'/'no'` whatever Forge wrote on them (the floating-mana check's OK/Cancel,
+ * `InputPassPriority.java:318`); the bar's confirms answer by which button was pressed, so only
+ * Forge's own labels say so (`isForgeYesNo`).
  */
 function isYesNoPair(b1: ConfirmPromptButton | undefined, b2: ConfirmPromptButton | undefined): boolean {
   if (b1 === undefined || b2 === undefined) return false;
   if (b1.answer === 'yes' && b2.answer === 'no') return true;
-  return b1.label === YES_LABEL && b2.label === NO_LABEL;
+  return isForgeYesNo(b1.label, b2.label);
 }
 
 /** Forge's own two labels for the coin toss (`en-US.properties`'s `lblPlay`/`lblDraw`). */

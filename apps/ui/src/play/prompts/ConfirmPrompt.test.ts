@@ -331,19 +331,18 @@ describe('ConfirmPrompt — the question first, the ability under it', () => {
 });
 
 /*
- * Wave 75 §A. The new player pressed Stirring Wildwood's White/Blue 16 times
+ * The new player pressed Stirring Wildwood's White/Blue 16 times
  * (`m-5c5661529ad9`): Forge's `InputConfirm` puts a colour pick on the SAME
  * two-button bar a real yes/no uses (this file's own header), and the old
  * rule split ANY two-answer row left/right — so a colour pick drew exactly
  * like a yes/no. The operator, 2026-10-24: *"let's keep the left/right
- * decisions only for yes/no"*, superseding AF289's reach for anything that is
- * not. `isYesNoPair` (unexported — proved here through `AnswerRow`'s own
+ * decisions only for yes/no"*. `isYesNoPair` (unexported — proved here through `AnswerRow`'s own
  * `data-pair`, the one thing a player sees) is the rule: Forge's own default
  * pair (`lblYes`/`lblNo`) or `showConfirmDialog`'s tagged boolean reply is a
  * real yes/no; any other two-word pair Forge put on the SAME bar is a choice,
  * not a yes/no, and sits together instead.
  */
-describe('ConfirmPrompt — a yes/no is decided by Forge’s own labels, never by the count (wave 75 §A)', () => {
+describe('ConfirmPrompt — a yes/no is decided by Forge’s own labels, never by the count', () => {
   it('a two-colour confirm (Wildwood’s White/Blue) renders its answers together, not split', () => {
     const { container } = render(
       createElement(ConfirmPrompt, {
@@ -360,7 +359,7 @@ describe('ConfirmPrompt — a yes/no is decided by Forge’s own labels, never b
     expect(row.lastElementChild).toBe(elementByTestId(container, 'blue'));
   });
 
-  it('a real yes/no (Pay 2 life? Yes/No) still splits — no left, yes right, as AF289 asked', () => {
+  it('a real yes/no (Pay 2 life? Yes/No) still splits — no left, yes right', () => {
     const { container } = render(
       createElement(ConfirmPrompt, {
         testId: 'live-confirm',

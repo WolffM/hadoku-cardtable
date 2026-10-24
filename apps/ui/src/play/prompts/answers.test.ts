@@ -5,12 +5,12 @@
  * right."*
  *
  * Every decision box's answers are one row (`AnswerRow`). When it holds exactly
- * two answers AND the caller says `yesNo` (wave 75 §A: never from the count
+ * two answers AND the caller says `yesNo` (never from the count
  * alone — Forge's `InputConfirm` puts a colour pick, Keep/Mulligan, Top/Bottom,
  * … on the SAME two-button bar a real yes/no uses, and the new player pressed
  * Stirring Wildwood's White/Blue 16 times because the old rule split it like
  * one; operator, 2026-10-24: *"let's keep the left/right decisions only for
- * yes/no"*, superseding AF289's reach for anything that is not) the row is a
+ * yes/no"*) the row is a
  * pair: the affirmative (Forge's button one, the sheet's OK) is its LAST
  * child, anchored bottom-right (the operator, 2026-10-22: *"yes always bottom
  * right."*), and the other answer is its first child, anchored bottom-left;
@@ -57,7 +57,7 @@ function expectPair(root: ParentNode, affirmative: string, other: string): void 
 
 const noop = () => {};
 
-describe('a real yes/no anchors its answers bottom-left and bottom-right (wave 75 §A)', () => {
+describe('a real yes/no anchors its answers bottom-left and bottom-right', () => {
   it('the bar yes/no: No left, Yes right, with the Always box between them', () => {
     const { container } = render(
       createElement(ConfirmPrompt, {
@@ -112,7 +112,7 @@ describe('a real yes/no anchors its answers bottom-left and bottom-right (wave 7
  * none is a yes/no, and the operator's 2026-10-24 ruling keeps the row
  * together rather than splitting it like one.
  */
-describe('a two-button bar that is not Forge’s own default pair is not a yes/no, and sits together (wave 75 §A)', () => {
+describe('a two-button bar that is not Forge’s own default pair is not a yes/no, and sits together', () => {
   it('a two-colour confirm — Stirring Wildwood’s White/Blue — renders its answers together, not split', () => {
     const { container } = render(
       createElement(ConfirmPrompt, {

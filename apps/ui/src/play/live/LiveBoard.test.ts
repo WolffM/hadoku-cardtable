@@ -1899,11 +1899,12 @@ describe('a mana payment pops out of the corner', () => {
     // Forge's labels, not ours.
     expect(getByTestId('live-payment-ok').textContent).toBe('Auto');
     expect(getByTestId('live-payment-cancel').textContent).toBe('Cancel');
-    // Two answers: its Cancel bottom-left, Forge's button one bottom-right ("yes always bottom right").
+    // Auto/Cancel is not a yes/no, so the two sit together at the right, Forge's button one first
+    // (the operator, 2026-10-24: "let's keep the left/right decisions only for yes/no").
     const row = sheet.querySelector<HTMLElement>('.answers')!;
-    expect(row.dataset.pair).toBe('true');
-    expect(row.firstElementChild).toBe(getByTestId('live-payment-cancel'));
-    expect(row.lastElementChild).toBe(getByTestId('live-payment-ok'));
+    expect(row.dataset.pair).toBeUndefined();
+    expect(row.firstElementChild).toBe(getByTestId('live-payment-ok'));
+    expect(row.lastElementChild).toBe(getByTestId('live-payment-cancel'));
     /*
      * And it is NOT `live-prompt`. That id means "one of Forge's fifteen asks is
      * open" to three e2e readers — `e2e/play/prompts.ts` switches on the host's
@@ -2045,14 +2046,14 @@ describe('Concede asks first', () => {
     expect(document.activeElement).toBe(getByTestId('live-concede-no'));
   });
 
-  it('its two answers sit at the box’s opposite ends: Cancel bottom-left, Concede bottom-right', async () => {
+  it('its two answers sit together at the right, Cancel at the edge: Concede/Cancel is not a yes/no', async () => {
     const { getByTestId } = await liveBoard();
     fireEvent.click(getByTestId('live-concede'));
     const ask = await waitFor(() => getByTestId('live-concede-ask'));
     const row = ask.querySelector<HTMLElement>('.answers')!;
-    expect(row.dataset.pair).toBe('true');
-    expect(row.firstElementChild).toBe(getByTestId('live-concede-no'));
-    expect(row.lastElementChild).toBe(getByTestId('live-concede-yes'));
+    expect(row.dataset.pair).toBeUndefined();
+    expect(row.firstElementChild).toBe(getByTestId('live-concede-yes'));
+    expect(row.lastElementChild).toBe(getByTestId('live-concede-no'));
   });
 
   it('cancel closes it and sends nothing', async () => {
