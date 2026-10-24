@@ -178,12 +178,13 @@ if [ -z "$GONE" ] && ! grep -qE -e '^(packages/|apps/ui/src/test-setup\.ts$)' -f
   # A suite that reads a file by name (`readFileSync(resolve(dir, 'board.css'))`) runs when that
   # file changes, with or without an `@reads` line: a1b97799 changed board.css and reddened
   # zone-box.test.ts, which names it and never imports it. Only non-code files, whose readers
-  # `related` cannot see; the name must stand as a whole string or its last path segment.
+  # `related` cannot see; the name must stand as a whole string or its last path segment. Not
+  # markdown: a `README.md` is named by fixtures all over, and no suite reads prose by name.
   while IFS= read -r f; do
     [ -f "$f" ] || continue
     name=$(basename "$f" | sed 's/[.[\*^$]/\\&/g')
     mapfile -t -O "${#RELATED[@]}" RELATED < <(git grep -lE "[\"'\`/]${name}[\"'\`]" -- '*.test.ts' '*.test.tsx' || true)
-  done < <(grep -vE '\.tsx?$' <<<"$CHANGED" || true)
+  done < <(grep -vE '\.(tsx?|md)$' <<<"$CHANGED" || true)
   if [ ${#RELATED[@]} = 0 ]; then
     TESTS="echo 'land: no source file changed — no unit suite to run'"
   else
