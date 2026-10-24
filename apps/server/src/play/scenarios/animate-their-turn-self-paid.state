@@ -1,0 +1,16 @@
+# The opponent's turn: seat 1 (the Forge AI) attacks with Craw Wurm (6/4) from its Main 1. Seat 0
+# holds Inkmoth Nexus and no other mana source: its {1} could only come from its own {T}, and tapped
+# it could not block, so no window of this turn stops for it.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Inkmoth Nexus
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Craw Wurm;Forest
+ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
+aigraveyard=

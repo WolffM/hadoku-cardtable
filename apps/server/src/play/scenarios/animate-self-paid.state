@@ -1,0 +1,17 @@
+# The operator, 2026-10-24: "when i only have one mana and i can make inkmoth a creature, but it has
+# to tap itself to do it so it wouldn't be able to block". Inkmoth Nexus untapped and no other mana
+# source, in seat 0's own Main 1: its {1} could only come from its own {T}, so Beginning of Combat
+# is passed.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=Inkmoth Nexus
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Island
+ailibrary=Island;Island;Island;Island;Island;Island
+aigraveyard=
