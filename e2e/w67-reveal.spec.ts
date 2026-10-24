@@ -22,7 +22,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { dragHandCard, handCardNamed, makeTitled, offered, pressPaymentAuto, says, serverLog } from './play/board.ts';
+import { dragHandCard, handCardNamed, makeTitled, nextPhaseLive, offered, pressPaymentAuto, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -98,7 +98,7 @@ test(titled("Dark Confidant's reveal is drawn on the board on both screens, neve
     await expect.poll(() => genjuIn(alice.page, '.seat[data-viewer]'), { timeout: 10_000, message: "alice's screen draws the revealed Genju and her draw in her hand" }).toBe(2);
     await expect.poll(() => genjuIn(bob.page, '.seat:not([data-viewer])'), { timeout: 10_000, message: "bob's screen draws the revealed Genju face up in alice's hand" }).toBe(1);
 
-    await expect(alice.page.locator('[data-testid="live-button-next-phase"]:enabled'), "alice's priority is live in her main phase").toHaveCount(1, { timeout: 30_000 });
+    await expect(nextPhaseLive(alice.page), "alice's priority is live in her main phase").toHaveCount(1, { timeout: 30_000 });
     console.log(`[w67-reveal] alice main phase, priority live: ${await alice.page.getByTestId('live-says').textContent()}`);
 
     await expect(alice.page.locator('.seat[data-viewer] [data-testid="life"]'), "the Confidant's trigger resolved: alice lost 1 for the Genju").toHaveText('19', { timeout: 10_000 });

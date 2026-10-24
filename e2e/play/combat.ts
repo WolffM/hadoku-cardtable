@@ -13,7 +13,11 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { clickOnce, enabledOk, says } from './board.ts';
 
-/** Where the game is on one screen: the rail's phase, whose turn and turn number, and whether Next Phase is pressable. */
+/**
+ * Where the game is on one screen: the rail's phase, whose turn and turn number, and whether the
+ * seat's own empty-stack priority pass (the control box's `Next Phase` before wave 75, now the
+ * decision pop-up's `Next Phase`) is open and pressable.
+ */
 export interface RailAt {
   phase: string;
   whose: string;
@@ -27,17 +31,22 @@ export interface RailAt {
  * phase from one turn beside a turn number and a live bar from a later one, which is how
  * `phase-stop.spec.ts` once saw alice "held" in an end step the server had passed for her.
  * Null while the rail is not drawn.
+ *
+ * Wave 75: `live-button-next-phase` is gone, and `live-decision-ok` now also answers the resolve
+ * route (something on the stack) and every other decision — `live` stays the EMPTY-STACK pass only
+ * by reading the button's own label (`passLabel`'s `Next Phase`, drawn only for that route), not
+ * just whether it is enabled.
  */
 export function railAt(page: Page): Promise<RailAt | null> {
   return page.evaluate(() => {
     const rail = document.querySelector('[data-testid="live-phases"]');
     if (rail === null) return null;
-    const next = document.querySelector<HTMLButtonElement>('[data-testid="live-button-next-phase"]');
+    const ok = document.querySelector<HTMLButtonElement>('[data-testid="live-decision-ok"]');
     return {
       phase: rail.getAttribute('data-phase') ?? '',
       whose: rail.getAttribute('data-whose') ?? '',
       turn: Number(rail.getAttribute('data-turn')),
-      live: next !== null && !next.disabled,
+      live: ok !== null && !ok.disabled && ok.textContent?.trim() === 'Next Phase',
     };
   });
 }

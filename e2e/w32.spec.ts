@@ -45,7 +45,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { openFriend, type Friend } from './play/browser.ts';
 import { answerConfirm, confirmYes } from './play/confirm.ts';
-import { enterMatch, grindPriority, makeTitled, resizeWindow, says, serverLog } from './play/board.ts';
+import { enterMatch, grindPriority, makeTitled, nextPhaseLive, resizeWindow, says, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { recordSurface, type Surface } from './play/surface.ts';
@@ -182,7 +182,7 @@ test(titled('the turn reads Start with no name under it (Q1); End Turn passes sk
     await grindPriority([first.page], () => endTurnOffered(second.page), { timeoutMs: 18_000, intervalMs: 150 });
     expect(await endTurnOffered(second.page), `${second.name} reached its own main phase`).toBe(true);
     const passed = await mark(second.page);
-    await second.page.getByTestId('live-button-next-phase').click();
+    await nextPhaseLive(second.page).click();
     await expect
       .poll(async () => {
         for (const f of [alice, bob]) await answerPrompt(f.page);

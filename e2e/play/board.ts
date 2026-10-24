@@ -85,19 +85,31 @@ export async function drawnText(page: Page, testId: string): Promise<string | nu
 }
 
 /**
- * Forge's button one wherever the page draws it, only while it is pressable
- * (wave 51): the control box's `Next Phase` at the empty-stack priority pass,
+ * Forge's button one wherever the page draws it, only while it is pressable:
  * the payment window's or a selection pop-up's own, and the decision pop-up's
- * OK for every other input. At most one of them at a time.
+ * OK for every other input — the empty-stack priority pass included, since
+ * wave 75 moved that off the control box's `Next Phase` and into the pop-up
+ * (`Proceed to <next step>?` / `Resolve <name>?`). At most one of them at a
+ * time.
  */
 export const BUTTON_ONE =
-  '[data-testid="live-button-next-phase"]:enabled, [data-testid="live-decision-ok"]:enabled, [data-testid="live-payment-ok"]:enabled, [data-testid="selection-done"]:enabled';
+  '[data-testid="live-decision-ok"]:enabled, [data-testid="live-payment-ok"]:enabled, [data-testid="selection-done"]:enabled';
 /** Forge's button two, the same way: the box's `End Turn`, or the pop-up that owns the input. */
 export const BUTTON_TWO =
   '[data-testid="live-button-end-turn"]:enabled, [data-testid="live-decision-cancel"]:enabled, [data-testid="live-payment-cancel"]:enabled, [data-testid="selection-cancel"]:enabled';
 
 export const enabledOk = (page: Page): Locator => page.locator(BUTTON_ONE);
 export const enabledCancel = (page: Page): Locator => page.locator(BUTTON_TWO);
+
+/**
+ * The seat's own empty-stack priority pass, specifically — the replacement for the removed
+ * `[data-testid="live-button-next-phase"]:enabled` (wave 75 moved it into the decision pop-up).
+ * `enabledOk` alone is not narrow enough here: it also matches the resolve route (something on the
+ * stack) and every other decision with an enabled OK. The pop-up's button is labelled `Next Phase`
+ * ONLY for the pass route (`passLabel` in `LiveBoard.tsx`), so the label is read rather than
+ * guessed from the phase or the stack.
+ */
+export const nextPhaseLive = (page: Page): Locator => page.locator('[data-testid="live-decision-ok"]:enabled', { hasText: /^Next Phase$/ });
 
 /** `[data-zone="stack"]`'s own `data-count` (`Board.tsx`) — never counted from children. */
 export const stackCount = (page: Page): Promise<number> =>

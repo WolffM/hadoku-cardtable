@@ -14,7 +14,7 @@
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { makeTitled, serverLog } from './play/board.ts';
+import { makeTitled, nextPhaseLive, serverLog } from './play/board.ts';
 import { railAt, type RailAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -24,7 +24,8 @@ const titled = makeTitled(forge);
 
 const rail = (page: Page): Locator => page.getByTestId('live-phases');
 const row = (page: Page, phase: string): Locator => rail(page).locator(`li[data-phase="${phase}"]`);
-const nextPhase = (page: Page): Locator => page.getByTestId('live-button-next-phase');
+/** The seat's own empty-stack pass, now the decision pop-up's own `Next Phase` (wave 75; `nextPhaseLive`). */
+const nextPhase = (page: Page): Locator => nextPhaseLive(page);
 const endTurn = (page: Page): Locator => page.getByTestId('live-button-end-turn');
 
 /** What the spec saw and pressed, in order — printed whatever the outcome, so a red names the frame it read. */
@@ -87,7 +88,7 @@ test(titled('a stop set on the rail holds priority at the next occurrence of tha
     lastSeen.clear();
     t0 = Date.now();
 
-    await expect(nextPhase(page), "alice's own Main 1 bar").toBeEnabled({ timeout: 60_000 });
+    await expect(nextPhase(page), "alice's own Main 1 bar").toHaveCount(1, { timeout: 60_000 });
     console.log(`[phase-stop] start ${JSON.stringify(await at(page))}`);
 
     await clickRow(page, 'END_OF_TURN');
@@ -115,7 +116,7 @@ test(titled('a stop set on the rail holds priority at the next occurrence of tha
     await expect(row(page, 'UPKEEP'), 'Upkeep marked').toHaveAttribute('data-stop', '');
     await page.reload();
     await expect(row(page, 'UPKEEP'), 'Upkeep still marked after a reload').toHaveAttribute('data-stop', '', { timeout: 30_000 });
-    await expect(nextPhase(page), 'her end-step bar is back after the reload').toBeEnabled({ timeout: 30_000 });
+    await expect(nextPhase(page), 'her end-step bar is back after the reload').toHaveCount(1, { timeout: 30_000 });
     await nextPhase(page).click();
 
     await expect

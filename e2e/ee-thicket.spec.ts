@@ -14,7 +14,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, pressPaymentAuto, serverLog } from './play/board.ts';
+import { makeTitled, nextPhaseLive, pressPaymentAuto, serverLog } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -88,7 +88,7 @@ test(titled("Fire-Lit Thicket's filter ability, paid by Auto under Full control:
     const answered = serverLog(stack).slice(from).filter((r) => r.evt === 'ask-answered' && r.method === 'assignGenericAmount');
     console.log(`[ee-thicket] answered: ${answered.map((r) => `${String(r.callId)} ${String(r.ms)} ms`).join(', ')}`);
     expect(answered.length, 'alice answered the combination herself').toBe(1);
-    await expect(alice.page.locator('[data-testid="live-button-next-phase"]:enabled'), 'her priority is live again: the game goes on').toHaveCount(1, { timeout: 15_000 });
+    await expect(nextPhaseLive(alice.page), 'her priority is live again: the game goes on').toHaveCount(1, { timeout: 15_000 });
   } finally {
     await stack.stop();
   }

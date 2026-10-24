@@ -9,8 +9,10 @@
  * to the one before the suspend — and no press ever reached it. Two browsers, a real Forge match
  * (`scenarios/dead-bar.state`): alice suspends Ancestral Vision by dragging it out of her hand
  * (it goes to exile, never the stack or the battlefield), and, in the second test, plays Ghost
- * Quarter. After each act her Next Phase and End Turn must be pressable within a bound, and a
- * real mouse press on Next Phase must reach the server.
+ * Quarter. After each act her pop-up Next Phase and End Turn must be pressable within a bound,
+ * and a real mouse press on Next Phase must reach the server. (Wave 75: the empty-stack pass
+ * moved off the control box's own `Next Phase` button and into the decision pop-up's
+ * `live-decision-ok`.)
  *
  * Serves the prebuilt dist (`e2e/play/harness.ts`); skips, with a title that says why, when
  * Forge is absent.
@@ -42,14 +44,12 @@ async function barState(page: Page): Promise<string> {
     };
     const prompts = Array.from(document.querySelectorAll('[data-testid="live-prompt"]')).map((e) => e.getAttribute('data-method'));
     const lifted = Array.from(document.querySelectorAll('[data-cast-lift]')).map((e) => `${e.getAttribute('data-board-card') ?? e.getAttribute('data-cast-ghost') ?? '?'}=${e.getAttribute('data-cast-lift')}`);
-    return [at('live-button-next-phase'), at('live-button-end-turn'), at('live-decision-ok'), `prompts=[${prompts.join(',')}]`, `lifted=[${lifted.join(',')}]`].join(' ');
+    return [at('live-decision-ok'), at('live-button-end-turn'), `prompts=[${prompts.join(',')}]`, `lifted=[${lifted.join(',')}]`].join(' ');
   });
 }
 
-const NEXT_PHASE = '[data-testid="live-button-next-phase"]';
-
 /** The first enabled button `selector` names is what a press at its centre lands on. */
-async function pressable(page: Page, selector = NEXT_PHASE): Promise<boolean> {
+async function pressable(page: Page, selector = BUTTON_ONE): Promise<boolean> {
   return page.evaluate((sel) => {
     const el = Array.from(document.querySelectorAll<HTMLButtonElement>(sel)).find((b) => !b.disabled);
     if (el === undefined) return false;
@@ -68,8 +68,8 @@ function serverTail(stack: PlayStack, seat = 0): string {
     .join(' | ');
 }
 
-/** After an act: `selector` (Next Phase by default) pressable within the bound, then a real press at its centre reaches the server. */
-async function mustPressNextPhase(page: Page, stack: PlayStack, label: string, seat = 0, selector = NEXT_PHASE): Promise<void> {
+/** After an act: `selector` (the pop-up's Next Phase by default) pressable within the bound, then a real press at its centre reaches the server. */
+async function mustPressNextPhase(page: Page, stack: PlayStack, label: string, seat = 0, selector = BUTTON_ONE): Promise<void> {
   const from = Date.now();
   const live = await expect
     .poll(() => pressable(page, selector), { timeout: PRESSABLE_WITHIN_MS, intervals: [50] })

@@ -15,7 +15,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { makeTitled, says } from './play/board.ts';
+import { BUTTON_ONE, makeTitled, says } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -125,7 +125,7 @@ test.describe(titled('an ability nobody stopped'), () => {
       const stackUp = (page: Page) => page.locator('[data-zone="stack"]').evaluate((el) => Number(el.getAttribute('data-count') ?? '0') > 0);
       const deadline = Date.now() + 90_000;
       while (Date.now() < deadline && !(await stackUp(bob.page))) {
-        const ok = bob.page.locator('[data-testid="live-button-next-phase"]:enabled, [data-testid="live-decision-ok"]:enabled');
+        const ok = bob.page.locator(BUTTON_ONE);
         if ((await ok.count()) > 0 && !(await stackUp(bob.page))) await ok.first().click().catch(() => undefined);
         await bob.page.waitForTimeout(150);
       }
@@ -137,7 +137,7 @@ test.describe(titled('an ability nobody stopped'), () => {
       for (const [name, page] of [['alice', alice.page], ['bob', bob.page]] as const) console.log(`[abilities] full control, ${name}: ${line(await record(page))}`);
 
       // He passes: it resolves and goes.
-      await bob.page.locator('[data-testid="live-decision-ok"]:enabled, [data-testid="live-button-next-phase"]:enabled').first().click();
+      await bob.page.locator(BUTTON_ONE).first().click();
       for (const page of [alice.page, bob.page]) await expect(chip(page), 'the chip leaves once the trigger resolves').toHaveCount(0, { timeout: 10_000 });
     } finally {
       await stack.stop();

@@ -14,7 +14,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, handCardNamed, makeTitled, offered, pressOffered, says, stackCount } from './play/board.ts';
+import { clickHandCard, handCardNamed, makeTitled, nextPhaseLive, offered, pressOffered, says, stackCount } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch, type ScenarioMatch } from './play/scenario.ts';
@@ -102,7 +102,7 @@ test(titled("Gitaxian Probe: bob's hand is face up on alice's screen, and no rev
     await expect
       .poll(() => ownHand(bob.page), { timeout: 10_000, message: "bob's screen marks both his cards seen" })
       .toEqual(expect.arrayContaining([{ name: 'Lightning Bolt', seen: true }, { name: 'Mountain', seen: true }]));
-    await expect(page.locator('[data-testid="live-button-next-phase"]:enabled'), "alice's priority is live in her main phase").toHaveCount(1, { timeout: 15_000 });
+    await expect(nextPhaseLive(page), "alice's priority is live in her main phase").toHaveCount(1, { timeout: 15_000 });
     // A notice would have arrived before all of this: the server holds what the reveal's resolution did until the reveal is out.
     const seen = { alice: await notices(page), bob: await notices(bob.page) };
     log('after the Probe', { aliceSees: await theirHand(page), bobHand: await ownHand(bob.page), notices: seen, says: await says(page) });

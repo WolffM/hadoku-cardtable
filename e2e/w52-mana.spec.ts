@@ -20,7 +20,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickPermanent, clickRecords, isOffered, isTapped, livePrompt, makeTitled, manaPool as pool, ownNamed } from './play/board.ts';
+import { clickPermanent, clickRecords, isOffered, isTapped, livePrompt, makeTitled, manaPool as pool, nextPhaseLive, ownNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -41,9 +41,10 @@ async function tapUndoTap(page: Page, stack: PlayStack): Promise<void> {
   await expect.poll(async () => (await pool(page)).U, { timeout: 10_000, message: 'the Island added {U}' }).toBe(1);
 
   // The way back is a click on the land tapped last (Forge's Undo underneath, ledger V6): after a mana tap
-  // the table draws no Undo button and Next Phase stays live (operator, 2026-10-06).
-  await expect(page.getByTestId('live-decision'), 'no pop-up after a mana tap').toHaveCount(0);
-  await expect(page.getByTestId('live-button-next-phase'), 'Next Phase stays live after a mana tap').toBeEnabled({ timeout: 10_000 });
+  // the pass pop-up draws no Undo button and Next Phase stays live (operator, 2026-10-06; wave 75 moved
+  // that pop-up off the control box, but the stack is still empty so the route is still the plain pass).
+  await expect(page.getByTestId('live-decision-cancel'), 'no Undo button beside it').toHaveCount(0);
+  await expect(nextPhaseLive(page), 'Next Phase stays live after a mana tap').toHaveCount(1, { timeout: 10_000 });
   expect(await clickPermanent(page, island, 10_000), 'the tapped Island is offered for the untap click').toBe(true);
   await expect.poll(() => isTapped(page, island), { timeout: 10_000, message: 'a click on the Island untapped it (Undo)' }).toBe(false);
   await expect.poll(async () => (await pool(page)).total, { timeout: 10_000, message: 'Undo emptied the pool' }).toBe(0);
