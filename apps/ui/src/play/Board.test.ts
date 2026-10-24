@@ -5857,7 +5857,7 @@ describe('2026-10-17 — the other seat’s marks in danger, a raised number in 
     expect(rule(LIVE_CSS, ".live__phases[data-whose='theirs'] .live__step[data-stop][data-current]")).toMatch(/inset -3px 0 0 0 var\(--warn\)/);
   });
 
-  it('lights the active seat’s edge in the theme’s danger on the other seat’s turn, and in the accent on the viewer’s — one shadow, coloured per seat', () => {
+  it('lights the active seat’s edge in the theme’s danger on the other seat’s turn, and in its success on the viewer’s — one shadow, coloured per seat', () => {
     const css = styled();
     const view = boardFromFixture(fixture);
     for (const activeIsViewer of [true, false]) {
@@ -5868,11 +5868,13 @@ describe('2026-10-17 — the other seat’s marks in danger, a raised number in 
       expect(seat(active.id).dataset.active, whose).toBe('true');
       expect(css(seat(active.id), '--turn-lit'), `${whose}: the active seat is lit`).toBe('1');
       expect([css(seat(active.id), '--turn-line'), css(seat(active.id), '--turn-glow')], `${whose}: the edge and its glow`).toEqual(
-        activeIsViewer ? ['var(--turn-edge)', 'var(--accent)'] : ['var(--danger-ink)', 'var(--danger)'],
+        activeIsViewer ? ['var(--turn-edge)', 'var(--success)'] : ['var(--danger-ink)', 'var(--danger)'],
       );
       cleanup();
     }
-    expect(rule(BOARD_CSS, '.board .seat')).toMatch(/inset 0 calc\(var\(--turn-y\) \* 3px\) 0 color-mix\(in srgb, var\(--turn-line\)/);
+    // The operator, 2026-10-24, picking the stronger of two edge lights: a 6px line and a glow reaching 70px in.
+    expect(rule(BOARD_CSS, '.board .seat')).toMatch(/inset 0 calc\(var\(--turn-y\) \* 6px\) 0 color-mix\(in srgb, var\(--turn-line\)/);
+    expect(rule(BOARD_CSS, '.board .seat')).toMatch(/inset 0 calc\(var\(--turn-y\) \* 70px\) 60px -24px color-mix\(in srgb, var\(--turn-glow\) calc\(var\(--turn-lit\) \* 60%\)/);
     expect(rule(BOARD_CSS, '.board .seat')).toMatch(/color-mix\(in srgb, var\(--turn-glow\)/);
     expect(rule(BOARD_CSS, '.board .seat:not([data-viewer])'), 'the other seat restates no shadow, only its colours and edge').not.toMatch(/box-shadow/);
   });

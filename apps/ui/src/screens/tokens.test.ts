@@ -126,22 +126,23 @@ describe('the accent as text', () => {
 });
 
 /*
- * The active player's edge light (`board.css`, the operator 2026-10-14) is a 3px line: a
+ * The viewer's edge light on their own turn (`board.css`, the operator 2026-10-14) is a line: a
  * non-text mark, so it must clear 3:1 against the seat it is drawn on (`--bg-raised`, the
- * theme's card colour) in every theme. The raw accent does not (1.56:1 in izakaya-light).
+ * theme's card colour) in every theme. It is the theme's success, the viewer's colour (the
+ * operator 2026-10-24); the raw colour does not clear it everywhere, so it is mixed toward the ink.
  */
 describe('the turn’s edge light', () => {
-  const mixOf = /--turn-edge:\s*color-mix\(in srgb,\s*var\(--accent\)\s*(\d+)%,\s*var\(--ink\)\)/.exec(ownCss);
+  const mixOf = /--turn-edge:\s*color-mix\(in srgb,\s*var\(--success\)\s*(\d+)%,\s*var\(--ink\)\)/.exec(ownCss);
   const share = mixOf === null ? 1 : Number(mixOf[1]) / 100;
 
-  it('is the accent mixed toward the ink', () => {
+  it('is the success colour mixed toward the ink', () => {
     expect(mixOf).not.toBeNull();
   });
 
   it('clears 3:1 on the seat in every theme', () => {
     const failures: string[] = [];
     for (const t of themes) {
-      const primary = hex(t.vars.primary);
+      const primary = hex(t.vars.success);
       const ink = hex(t.vars.text);
       if (primary === null || ink === null) continue;
       const mixed = primary.map((c, i) => Math.round(c * share + ink[i] * (1 - share))) as Rgb;
