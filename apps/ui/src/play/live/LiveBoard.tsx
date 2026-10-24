@@ -1290,16 +1290,19 @@ const CRAWL_COOLDOWN_MS = 250;
 export function useCrawlGuard(phase: string | null): boolean {
   const [crawling, setCrawling] = useState(false);
   const lastChangeAt = useRef<number | null>(null);
+  // The cooldown outlives the change that armed it: an ordinary change after a crawl must not
+  // cancel it, or nothing ever lifts the guard and the rail stops animating for good.
+  const cooldown = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(cooldown.current), []);
   useEffect(() => {
     const now = performance.now();
     const previous = lastChangeAt.current;
     lastChangeAt.current = now;
     if (previous !== null && now - previous < CRAWL_GAP_MS) {
       setCrawling(true);
-      const id = setTimeout(() => setCrawling(false), CRAWL_COOLDOWN_MS);
-      return () => clearTimeout(id);
+      clearTimeout(cooldown.current);
+      cooldown.current = setTimeout(() => setCrawling(false), CRAWL_COOLDOWN_MS);
     }
-    return undefined;
     // `phase` (not `view`): a prop that changes on every state frame, combat or
     // not, would arm the cooldown for frames that never touch `data-combat` at
     // all (a target or a says-only update), re-arming the timer for no reason

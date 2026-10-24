@@ -2888,11 +2888,9 @@ describe('wave 32 lane L: chrome', () => {
     expect(css(step.querySelector('.live__step-name')!, 'text-align')).toBe('center');
     expect(css(step, 'justify-content')).toBe('center');
     // The replayed phases can land in two renders under 80 ms apart on a loaded worker, which arms
-    // `useCrawlGuard`'s snap for its cooldown, re-armed by each such pair; the rule this pins is the
-    // rail's at rest. A whole suite's parallel run on a busy host kept it armed past `waitFor`'s own
-    // second (land of 2026-10-23), so the rest is waited for as long as a loaded worker needs.
+    // `useCrawlGuard`'s snap for its cooldown; the rule this pins is the rail's at rest.
     const rail = container.querySelector<HTMLElement>('.live__phases')!;
-    await waitFor(() => expect(rail.hasAttribute('data-crawl')).toBe(false), { timeout: 5_000 });
+    await waitFor(() => expect(rail.hasAttribute('data-crawl')).toBe(false));
     expect(css(rail, 'transition'), 'the rail animates its height in CSS').toContain('height');
   });
 
@@ -3398,6 +3396,21 @@ describe('R6 — the End Turn flicker: the rail’s resize transition is suppres
     now.mockReturnValue(1040);
     rerender(createElement(CrawlProbe, { phase: 'COMBAT_BEGIN' }));
     expect(getByTestId('crawl-probe').hasAttribute('data-crawl')).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(260);
+    });
+    expect(getByTestId('crawl-probe').hasAttribute('data-crawl')).toBe(false);
+  });
+
+  it('an ordinary change after a crawl still lets it lift — the cooldown is not cancelled by the next phase', () => {
+    vi.useFakeTimers();
+    const now = vi.spyOn(performance, 'now');
+    now.mockReturnValue(1000);
+    const { getByTestId, rerender } = render(createElement(CrawlProbe, { phase: 'MAIN1' }));
+    now.mockReturnValue(1040);
+    rerender(createElement(CrawlProbe, { phase: 'COMBAT_BEGIN' }));
+    now.mockReturnValue(1200);
+    rerender(createElement(CrawlProbe, { phase: 'COMBAT_DECLARE_ATTACKERS' }));
     act(() => {
       vi.advanceTimersByTime(260);
     });
