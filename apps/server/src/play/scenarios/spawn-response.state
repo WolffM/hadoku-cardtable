@@ -1,0 +1,18 @@
+# The operator's sequence, match m-32b7a3ef1a95 (04:40:01): the other player casts a sweeper while an
+# Eldrazi Spawn token is on the board. Bob (seat 1) is in his Main 1 with Pyroclasm and two Mountains;
+# Alice (seat 0) has the Spawn and Ghost Quarter (a real play, so her window over the Pyroclasm is
+# hers, as Tectonic Edge's was). Her click on the Spawn in that window sacrifices it for {C} before the
+# Pyroclasm resolves. `e2e/spawn-sacrifice.spec.ts`.
+turn=2
+activeplayer=ai
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=T:c_0_1_eldrazi_spawn_sac;Ghost Quarter
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=Pyroclasm
+aibattlefield=Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=

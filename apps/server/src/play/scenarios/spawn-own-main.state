@@ -1,0 +1,16 @@
+# The operator, 2026-10-24: "eldrazi spawn on the board should be sacrificable even if theres nothing to
+# do with them". Alice (seat 0) in her own Main 1 with an Eldrazi Spawn token and a Mountain, nothing in
+# hand: a click on the Spawn sacrifices it for {C}. `e2e/spawn-sacrifice.spec.ts`.
+turn=2
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=
+humanbattlefield=T:c_0_1_eldrazi_spawn_sac;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+humangraveyard=
+aihand=
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain;Mountain
+aigraveyard=
