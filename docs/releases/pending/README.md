@@ -21,5 +21,5 @@ The date keeps the folder in the order things landed; the slug says what it is. 
 hold several bullets when they are one piece of work.
 
 Use the headings and bullet shape in `docs/RELEASE.md` § "Notes style" (New, Changed, Fixed;
-Under the hood is `/cutrelease`'s): a bold lead sentence per bullet, up to two short sentences
-more for a big feature, and the lead alone for a fix or a small change.
+Under the hood is `/cutrelease`'s): a lead sentence per bullet, plain, alone on one line for a fix
+or a small change; a big feature bolds its lead and adds up to two short sentences.

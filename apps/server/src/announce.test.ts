@@ -11,7 +11,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { announceRelease, latestRelease, parseNotes, releaseEmbeds, splitBody, unwrap } from './announce.ts';
+import { announceRelease, latestRelease, parseNotes, releaseEmbeds, splitBody, forDiscord } from './announce.ts';
 
 const RELEASES = resolve(dirname(fileURLToPath(import.meta.url)), '../../../docs/releases');
 const SECRET = 'test-secret';
@@ -77,10 +77,10 @@ describe('release notes', () => {
 		const embeds = releaseEmbeds(notes, 'https://hadoku.me/cardtable/');
 		expect(embeds).toHaveLength(1);
 		// The title already names the version and Discord dates the message: no footer, no timestamp.
-		expect(embeds[0]).toEqual({ title: notes.title, description: unwrap(notes.body), url: 'https://hadoku.me/cardtable/', color: 0x2f855a });
+		expect(embeds[0]).toEqual({ title: notes.title, description: forDiscord(notes.body), url: 'https://hadoku.me/cardtable/', color: 0x2f855a });
 	});
 
-	it('joins a wrapped sentence back into one line, keeping paragraphs, headings and list items apart', () => {
+	it('joins a wrapped sentence back into one line and drops the blank lines beside a heading, keeping list items and fences apart', () => {
 		const body = [
 			'Card Table now has its own Discord server. Big turns',
 			'also got a lot smoother.',
@@ -96,12 +96,10 @@ describe('release notes', () => {
 			'as is',
 			'```',
 		].join('\n');
-		expect(unwrap(body)).toBe(
+		expect(forDiscord(body)).toBe(
 			[
 				'Card Table now has its own Discord server. Big turns also got a lot smoother.',
-				'',
 				'## New',
-				'',
 				'- **A Discord button in the top bar**, next to the theme picker. It opens the invite.',
 				'- **Patch notes post themselves.**',
 				'',
@@ -113,10 +111,18 @@ describe('release notes', () => {
 		);
 	});
 
+	it('has no pending note with a bullet bold from end to end — only a big feature bolds its lead (docs/RELEASE.md)', async () => {
+		const pending = resolve(RELEASES, 'pending');
+		for (const name of (await readdir(pending)).filter((n) => n.endsWith('.md') && n !== 'README.md')) {
+			const bullets = forDiscord(await readFile(resolve(pending, name), 'utf8')).split('\n').filter((line) => line.startsWith('- '));
+			for (const bullet of bullets) expect(bullet, `${name}: ${bullet}`).not.toMatch(/^- \*\*[^*]+\*\*$/);
+		}
+	});
+
 	it('posts no line of a release notes file broken mid-sentence', async () => {
 		for (const name of (await readdir(RELEASES)).filter((n) => /^v\d+\.\d+\.\d+\.md$/.test(n))) {
 			const notes = parseNotes(name.slice(0, -3), await readFile(resolve(RELEASES, name), 'utf8'));
-			const lines = unwrap(notes.body).split('\n');
+			const lines = forDiscord(notes.body).split('\n');
 			lines.forEach((line, i) => {
 				const next = lines[i + 1] ?? '';
 				if (line.trim() !== '' && next.trim() !== '') expect(next, `${name}: "${line}" then "${next}"`).toMatch(/^\s*(#|[-*+] |\d+\. |>|```)/);

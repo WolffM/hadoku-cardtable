@@ -56,7 +56,8 @@ combines the pending files, shows the notes for editing, lands them and runs the
 The operator, 2026-10-23: *"make sure that the formatting for the patch notes is consistent and
 also make sure the wording is not too verbose. the big features can get extra wording, but for
 random bugfixes we can keep the wording simple. make sure all commits get a mention in each
-release note"*. Every notes file, and every pending file, follows this.
+release note"*. And of v0.35.0's post: *"everything in the bullets is bolded which looks bad"*.
+Every notes file, and every pending file, follows this.
 
 ```markdown
 # vX.Y.Z — <headline, a few words>
@@ -65,31 +66,34 @@ release note"*. Every notes file, and every pending file, follows this.
 
 ## New
 - **A big feature, in a sentence.** Up to two short sentences more: what it is and where to find it.
-- **A small addition.**
+- A small addition.
 
 ## Changed
-- **What works differently now.**
+- What works differently now.
 
 ## Fixed
-- **What was wrong is right now.**
+- What was wrong is right now.
 
 ## Under the hood
-- **Faster checks before an update ships.**
-- **Dependency updates.**
+- Faster checks before an update ships.
+- Dependency updates.
 ```
 
 - **These headings, in this order**, and no others. Drop an empty one.
-- **Every bullet leads with one bold sentence**, ending in a full stop, that stands on its own.
+- **Every bullet leads with one sentence**, ending in a full stop, that stands on its own.
 - **Words follow size.** A big feature (something players will go looking for, or will notice
-  on every game) gets the bold sentence plus up to two short ones. Everything else, every bug
-  fix and small change, is the bold sentence alone, on one line, about ten words. When unsure,
-  shorter.
+  on every game) gets the lead plus up to two short sentences, and only there is the lead bold,
+  to set it off from what follows. Everything else, every bug fix and small change, is the lead
+  alone, plain, on one line, about ten words. When unsure, shorter. A bullet that is bold from
+  end to end is wrong.
 - **Every commit gets a mention.** Each commit `collect.ts` lists under "Commits to cover" is in
   exactly one bullet; related commits share one. Version bumps and notes commits are the only
   ones left out, and `collect.ts` leaves them out for you. A commit no player sees (CI, tests,
   tooling, docs, dependency updates, admin-only tools such as the testing rooms or the sound
-  builder) goes under **Under the hood**, grouped by kind, bold sentence only.
+  builder) goes under **Under the hood**, grouped by kind, one plain sentence each.
 - **Players' words**, Under the hood too: no file names, commit ids, ticket numbers or internals.
+- **Blank lines are for the file.** Write a blank line around each heading as usual; the post
+  drops them, since Discord already spaces a heading, and joins a wrapped line back up.
 - **Length.** It's posted as a Discord embed. A body over 4096 characters is split at its `##`
   headings into more embeds, and Discord caps a message at 6000 characters in all.
 

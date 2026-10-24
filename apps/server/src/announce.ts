@@ -93,12 +93,12 @@ function splitLines(section: string, max: number): string[] {
 const BLOCK_START = /^\s*(#|[-*+] |\d+\. |>|```)/;
 
 /**
- * The body with each paragraph and list item on one line. A notes file is wrapped at about a
- * hundred columns, and Discord breaks the line at every newline it is sent, so a wrapped sentence
- * would post broken in the middle. A line that continues the one above is joined to it; blank
- * lines, block starts and anything inside a code fence stay as written.
+ * The body as Discord should get it. Discord breaks the line at every newline it is sent, and a
+ * notes file is wrapped at about a hundred columns, so a line that continues the one above is
+ * joined to it. Discord also spaces a heading by itself, so a blank line beside one would double
+ * the gap: those go. Other blank lines, block starts and anything inside a code fence stay.
  */
-export function unwrap(body: string): string {
+export function forDiscord(body: string): string {
 	const out: string[] = [];
 	let fenced = false;
 	for (const line of body.split('\n')) {
@@ -111,11 +111,12 @@ export function unwrap(body: string): string {
 		}
 		if (fence) fenced = !fenced;
 	}
-	return out.join('\n');
+	const heading = (line: string | undefined): boolean => line !== undefined && line.trimStart().startsWith('#');
+	return out.filter((line, i) => line.trim() !== '' || !(heading(out[i - 1]) || heading(out[i + 1]))).join('\n');
 }
 
 export function releaseEmbeds(notes: ReleaseNotes, appUrl: string): Embed[] {
-	return splitBody(unwrap(notes.body)).map((description, i) => ({
+	return splitBody(forDiscord(notes.body)).map((description, i) => ({
 		...(i === 0 ? { title: notes.title } : {}),
 		description,
 		url: appUrl,
