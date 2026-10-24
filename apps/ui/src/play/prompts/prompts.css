@@ -977,11 +977,17 @@
 }
 
 /*
- * Every decision box's answers (`AnswerRow`, `PromptShell.tsx`). Two answers
- * are a pair: the first anchored bottom-left, the last bottom-right, and the
- * row's aside (the "Always" box) centred between them by the two auto margins.
- * The margins, not `space-between`, so a pair that wraps still keeps its second
- * answer at the right edge.
+ * Every decision box's answers (`AnswerRow`, `PromptShell.tsx`). `data-pair`
+ * only when the caller said `yesNo` AND there are exactly two answers (wave 75
+ * §A: a two-button bar is not always a yes/no — Forge's `InputConfirm` puts a
+ * colour pick, Keep/Mulligan, Top/Bottom, … on the same bar a real yes/no
+ * uses, and the count alone cannot tell them apart). A pair is the first
+ * anchored bottom-left, the last bottom-right, and the row's aside (the
+ * "Always" box) centred between them by the two auto margins. The margins,
+ * not `space-between`, so a pair that wraps still keeps its second answer at
+ * the right edge. Every other row — not a pair — sits together at the right
+ * edge, with `aside` leading: that is how a colour pick (or any other
+ * non-yes/no choice) now draws.
  */
 .answers {
   display: flex;

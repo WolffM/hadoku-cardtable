@@ -49,6 +49,16 @@ export interface PromptShellProps {
    * node per answer, affirmative first, so the row can count them.
    */
   actions?: ReactNode;
+  /**
+   * `AnswerRow`'s own `yesNo` — every current `PromptShell` caller hands it
+   * a generic action list (a selection's Cancel, a mode's options, …), never
+   * Forge's literal default yes/no, so this stays unset and the row never
+   * splits left/right. A future caller whose `actions` ARE a real yes/no
+   * (`DialogPrompts.tsx`'s `confirm` ask when Forge sent its own default
+   * pair, `rules.ts`'s `confirmButtons`) can set it — `DialogPrompts.tsx` is
+   * outside this lane's files, so that caller does not set it yet.
+   */
+  yesNo?: boolean;
   /** The card the whole question is about, drawn beside the title and the message (`promptThumb`). */
   face?: ReactNode;
   /**
@@ -147,6 +157,7 @@ export function PromptShell({
   submitLabel = 'OK',
   onSubmit,
   actions,
+  yesNo,
   face,
   effectText = true,
   context = null,
@@ -195,7 +206,7 @@ export function PromptShell({
         </ul>
       )}
       {(onSubmit !== undefined || actions !== undefined) && (
-        <AnswerRow className="prompt__actions">
+        <AnswerRow className="prompt__actions" yesNo={yesNo}>
           {onSubmit !== undefined && (
             <button
               type="button"
@@ -371,20 +382,41 @@ export function promptThumb(lookup: PromptLookup, ref: { kind: string; id: numbe
  * sheet's (`PromptShell`), `ConfirmPrompt`'s, and the board's own concede and
  * payment boxes. The operator, 2026-10-21: *"a question with yes/no must put
  * yes/no on opposite ends of the decision box. anchor one bottom left, the
- * other bottom right."* and, 2026-10-22: *"yes always bottom right."* So exactly
- * two answers make a pair (`data-pair`, `prompts.css`): the affirmative —
- * Forge's button one, the sheet's OK — anchored bottom-RIGHT, the other
- * bottom-left, and `aside` (the "Always" box, the payment's life button)
- * between them. Any other count
- * stays at the right edge, with `aside` leading. Children are the answers,
- * affirmative first; the row counts them, so a caller hands each one as its
- * own child (an array, never one fragment). Every answer is a real button with one look and one height:
+ * other bottom right."* and, 2026-10-22: *"yes always bottom right."*
+ *
+ * **Pairing is never decided by counting the answers (wave 75 §A).** The new
+ * player pressed Stirring Wildwood's White/Blue 16 times — Forge's
+ * `InputConfirm` puts a colour pick on the SAME two-button bar a real yes/no
+ * uses (`ConfirmPrompt.tsx`'s own header), so "exactly two answers" used to
+ * split a colour choice left/right like a yes/no, and that read as one. The
+ * operator, 2026-10-24: *"let's keep the left/right decisions only for
+ * yes/no"* — supersedes AF289's reach for anything that is not. So a pair
+ * (`data-pair`, `prompts.css`) needs the caller to say `yesNo`: the
+ * affirmative — Forge's button one, the sheet's OK — anchored bottom-RIGHT,
+ * the other bottom-left, and `aside` (the "Always" box, the payment's life
+ * button) between them. Every other row — `yesNo` false or absent, any other
+ * count, or a caller that cannot say what its answers mean (`PromptShell`'s
+ * own `actions` row below, which never knows) — stays at the right edge, with
+ * `aside` leading. Children are the answers, affirmative first; the row
+ * counts them, so a caller hands each one as its own child (an array, never
+ * one fragment). Every answer is a real button with one look and one height:
  * a sheet's Cancel used to be a text link pinned to the row's top beside a
  * filled OK, and its other answers the browser's own grey face.
  */
-export function AnswerRow({ className, aside, children }: { className?: string; aside?: ReactNode; children: ReactNode }) {
+export function AnswerRow({
+  className,
+  aside,
+  yesNo,
+  children,
+}: {
+  className?: string;
+  aside?: ReactNode;
+  /** The caller's own word that these two answers are a real yes/no — never inferred from their count. */
+  yesNo?: boolean;
+  children: ReactNode;
+}) {
   const answers = Children.toArray(children);
-  const pair = answers.length === 2;
+  const pair = yesNo === true && answers.length === 2;
   const side = aside === undefined || aside === null || aside === false ? null : <span className="answers__aside">{aside}</span>;
   return (
     <div className={className === undefined ? 'answers' : `${className} answers`} data-pair={pair || undefined}>
