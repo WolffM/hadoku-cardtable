@@ -17,12 +17,12 @@
 }
 
 .pod-standings tr[data-mine] td {
-  color: var(--color-primary);
+  background: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
 }
 
 /* The key that separated two rows level on points (`decidedBy`), marked on both. */
 .pod-standings td[data-decided] {
-  color: var(--color-primary);
   font-weight: 600;
   text-decoration: underline;
   text-decoration-color: var(--color-primary);

@@ -9,7 +9,8 @@
     "dev": "vite",
     "build": "vite build && vite build -c vite.embed.config.ts",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint:css": "node node_modules/@wolffm/themes/scripts/check-usage.mjs ./src"
   },
   "dependencies": {
     "@hadoku/carddata": "workspace:*",

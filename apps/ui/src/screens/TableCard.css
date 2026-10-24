@@ -174,7 +174,9 @@
 }
 
 .table-card__side[data-won] .table-card__name {
-  color: var(--color-primary);
+  color: var(--color-text);
+  text-decoration: underline 2px var(--color-primary);
+  text-underline-offset: 3px;
 }
 
 .table-card__score {

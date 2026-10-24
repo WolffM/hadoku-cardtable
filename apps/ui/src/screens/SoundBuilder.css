@@ -88,7 +88,8 @@
 
 .sound-builder__btn[aria-pressed='true'] {
   border-color: var(--color-primary);
-  color: var(--color-primary);
+  background: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
 }
 
 a.sound-builder__btn {
@@ -149,8 +150,10 @@ a.sound-builder__btn {
 }
 
 .sound-sandbox__beats tr[data-fired] .sound-sandbox__time {
-  color: var(--color-primary);
+  color: var(--color-text);
   font-weight: 600;
+  text-decoration: underline 2px var(--color-primary);
+  text-underline-offset: 3px;
 }
 
 .sound-sandbox__time,
@@ -389,7 +392,9 @@ a.sound-builder__btn {
 
 .sound-builder__rolefind:hover,
 .sound-builder__rolefind:focus-visible {
-  color: var(--color-primary);
+  color: var(--color-text);
+  text-decoration: underline 2px var(--color-primary);
+  text-underline-offset: 3px;
 }
 
 .sound-builder__rowsub {
@@ -742,8 +747,10 @@ a.sound-builder__btn {
 }
 
 .music-review__track[data-picked] .music-review__name {
-  color: var(--color-primary);
+  color: var(--color-text);
   font-weight: 600;
+  text-decoration: underline 2px var(--color-primary);
+  text-underline-offset: 3px;
 }
 
 .music-review__play {
@@ -768,7 +775,9 @@ a.sound-builder__btn {
 }
 
 .music-review__play[aria-pressed='true'] > svg:first-child {
-  color: var(--color-primary);
+  border-radius: var(--hdk-radius-sm);
+  background: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
 }
 
 .music-review__name {

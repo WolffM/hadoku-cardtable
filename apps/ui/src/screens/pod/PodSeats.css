@@ -105,7 +105,7 @@
 
 .pod-seats__avatar--ai {
   background: var(--color-primary-bg);
-  color: var(--color-primary);
+  color: var(--color-on-primary-bg);
 }
 
 .pod-seats__avatar--ai .pod-seats__avatar-fallback {
@@ -148,7 +148,7 @@
   color: var(--color-text);
   background: var(--color-bg);
   border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius-sm, 4px);
+  border-radius: var(--hdk-radius-sm);
   padding: 2px 6px;
   cursor: pointer;
 }

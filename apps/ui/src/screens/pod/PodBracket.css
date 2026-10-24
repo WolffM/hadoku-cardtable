@@ -28,7 +28,9 @@
 }
 
 .pod-bracket__round--now .pod-bracket__head {
-  color: var(--color-primary);
+  color: var(--color-text);
+  text-decoration: underline 2px var(--color-primary);
+  text-underline-offset: 3px;
 }
 
 .pod-bracket__list {

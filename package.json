@@ -10,9 +10,10 @@
     "pnpm": ">=11.0.0"
   },
   "scripts": {
-    "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run lint:css && pnpm run test",
     "typecheck": "tsc --noEmit --strict --noImplicitAny --target es2023 --module nodenext --moduleResolution nodenext --resolveJsonModule --skipLibCheck vitest.config.ts && pnpm -r --if-present run typecheck",
     "lint": "eslint . --no-error-on-unmatched-pattern",
+    "lint:css": "pnpm --filter @hadoku/ui run lint:css",
     "lint:fix": "eslint . --no-error-on-unmatched-pattern --fix",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",

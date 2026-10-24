@@ -91,14 +91,15 @@
 
 .shell__link,
 .shell__link:visited {
-  color: var(--color-primary);
-  text-decoration: none;
+  color: var(--color-text);
+  text-decoration: underline 1px var(--color-primary);
+  text-underline-offset: 3px;
   white-space: nowrap;
 }
 
 .shell__link:hover,
 .shell__link:focus-visible {
-  text-decoration: underline;
+  text-decoration-thickness: 2px;
 }
 
 /* The way home is the arrow alone, at the title's size. */

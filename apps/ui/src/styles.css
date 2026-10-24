@@ -90,12 +90,12 @@
   --ink: var(--color-text);
   /* Both read `--color-text-secondary`, NOT `--color-text-tertiary`: tertiary is
      accent-tinted in some themes (cyan in ocean-light, 2.6:1 on white) and
-     secondary is 5.4:1 or better on the page in every theme that defines it. A
-     theme without it (izakaya) falls back to the theme's own ink. Plain colours,
+     secondary is 5.4:1 or better on the page, and every theme defines it (no
+     `var()` fallback: one hides a broken token). Plain colours,
      not `color-mix`: the e2e contrast measure reads `rgb()` only, and a mixed
      value computes to `color(srgb ...)`. `screens/tokens.test.ts` measures this. */
-  --ink-dim: var(--color-text-secondary, var(--color-text));
-  --ink-faint: var(--color-text-secondary, var(--color-text));
+  --ink-dim: var(--color-text-secondary);
+  --ink-faint: var(--color-text-secondary);
   --accent: var(--color-primary);
   /*
    * The accent as TEXT (wave 32, a w31 leftover). `--accent` is the theme's fill

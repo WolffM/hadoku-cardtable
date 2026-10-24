@@ -138,6 +138,11 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      # The @wolffm/themes token gate (check-usage) over apps/ui: a family fill
+      # used as text, an unknown token, a var() fallback.
+      - name: Lint CSS
+        run: pnpm run lint:css
+
   # The unit suites, split by file across two runners (vitest `--shard`). One
   # runner took about 6 minutes; the slowest suites are the JVM-free server
   # ones, and they spread across both shards.
