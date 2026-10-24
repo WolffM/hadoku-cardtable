@@ -54,7 +54,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DeckEditor } from '../deck/DeckEditor.tsx';
 import { deckStoreClient, type DeckStoreClient, type Mine } from '../deck/deckStore.ts';
-import { navigate, routeHash } from './route.ts';
+import { BackLink } from './BackLink.tsx';
+import { navigate } from './route.ts';
 import { DeckManage } from './DeckManage.tsx';
 import { myDecksClient, type MyDeck, type MyDecksClient } from '../deck/myDecks.ts';
 import { livePodSource, myCurrentTable, playPod, startMyTable, usePodContext, type PodSource } from './pod/client.ts';
@@ -194,17 +195,7 @@ export function DeckScreen({
     <div ref={shellRef} className="shell shell--fit deck-screen" data-testid="deck">
       {standalone && (
         <nav className="shell__head">
-          <a
-            className="shell__link"
-            href={routeHash({ kind: 'decks' })}
-            data-testid="back-to-decks"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate({ kind: 'decks' });
-            }}
-          >
-            ← Decks
-          </a>
+          <BackLink to={{ kind: 'decks' }} label="Decks" testId="back-to-decks" />
           {myDeck !== null && (
             <DeckManage deck={myDeck} client={decksClient} onRenamed={setMyDeck} onDeleted={() => navigate({ kind: 'decks' })} />
           )}

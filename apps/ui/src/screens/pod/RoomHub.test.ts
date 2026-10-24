@@ -134,13 +134,14 @@ describe('TablePage', () => {
     expect(screen.getByTestId('table-hub').getAttribute('href')).toBe(`#/room/${ROOM}`);
   });
 
-  it('heads the page with its round, and the way back to the lobby is the plain ← Lobby link on its right', () => {
+  it('heads the page with its round, and the way back to the lobby is the site’s back arrow on its left', () => {
     posts();
     page();
     expect(screen.getByTestId('table-round').textContent).toBe('Round 1 of 2');
-    expect(screen.getByTestId('table-hub').textContent).toBe('← Lobby');
-    expect(screen.getByTestId('table-hub').className).toBe('shell__link');
-    expect(screen.getByTestId('table-round').nextElementSibling).toBe(screen.getByTestId('table-hub'));
+    expect(screen.getByTestId('table-hub').textContent).toBe('←');
+    expect(screen.getByTestId('table-hub').getAttribute('aria-label')).toBe('Lobby');
+    expect(screen.getByTestId('table-hub').className).toBe('back-link');
+    expect(screen.getByTestId('table-hub').nextElementSibling).toBe(screen.getByTestId('table-round'));
   });
 
   it('draws an AI entrant in its table seat, the last, by its own name, whichever side the pairing names it', () => {

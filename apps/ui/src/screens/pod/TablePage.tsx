@@ -23,6 +23,7 @@ import type { RoomTable, TableGame } from '@hadoku/shared';
 
 import { followMatchOnce } from '../../play/live/matchStart.ts';
 import { navigate, routeHash } from '../route.ts';
+import { BackLink } from '../BackLink.tsx';
 import { TableCard } from '../TableCard.tsx';
 import { resolveTable } from '../tableActions.ts';
 import { TableSideboard } from '../TableSideboard.tsx';
@@ -105,18 +106,8 @@ export function TablePage({ roomId, pod, table, myMemberId, nameOf, avatarOf, ca
       >
         <div className="lobby__deckhead">
           <span className="table-page__title">
+            <BackLink to={{ kind: 'room', roomId }} label="Lobby" testId="table-hub" />
             {heading !== null && <h2 data-testid="table-round">{heading}</h2>}
-            <a
-              className="shell__link"
-              data-testid="table-hub"
-              href={routeHash({ kind: 'room', roomId })}
-              onClick={(e) => {
-                e.preventDefault();
-                navigate({ kind: 'room', roomId });
-              }}
-            >
-              ← Lobby
-            </a>
           </span>
         </div>
         <div className="table-page__seats">

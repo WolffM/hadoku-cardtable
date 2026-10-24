@@ -4,7 +4,7 @@
  * - *"why is this not showing the AIs name and avatar anymore? it was showing in the lobby"*: the AI
  *   entrant is named on the table page and in the hub's bracket as it was in the lobby's seat;
  * - *"'Round 1 of 3' it's not obvious that clicking this would take you back to the lobby"*: the
- *   round is a heading, and ← Lobby is a plain link on its right;
+ *   round is a heading, and the site's back arrow to the lobby sits on its left;
  * - *"the box with the ready button in it looks awkward, can we instead retain the logic of the
  *   ready button from the lobby?"*: the table's start waits on the lobby's own Ready, beside the
  *   table's seats, and pressing it starts the draw.
@@ -23,7 +23,7 @@ const titled = (t: string) => (forge.ok ? t : `${t} — SKIPPED: ${forge.reason}
 const PREFIX = '/cardtable';
 const UI_TIMEOUT = 30_000;
 
-test(titled('a tournament table page names its AI, heads with its round, ← Lobby on its right, and starts on the lobby’s Ready'), async ({ browser }) => {
+test(titled('a tournament table page names its AI, heads with its round, the back arrow on its left, and starts on the lobby’s Ready'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(4 * 60_000);
@@ -62,7 +62,8 @@ test(titled('a tournament table page names its AI, heads with its round, ← Lob
     expect(labels.map((l) => l.trim()), 'the table names the AI as the lobby did').toContain(aiName);
 
     const back = alice.page.getByTestId('table-hub');
-    await expect(back).toHaveText('← Lobby');
+    await expect(back).toHaveText('←');
+    await expect(back).toHaveAccessibleName('Lobby');
     await expect(alice.page.getByTestId('table-round'), 'the round is a heading of its own').toHaveText('Round 1 of 1');
     expect(await back.locator('[data-testid="table-round"]').count(), 'the heading is not part of the button').toBe(0);
 

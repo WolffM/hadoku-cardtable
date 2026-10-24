@@ -102,10 +102,16 @@
   text-decoration-thickness: 2px;
 }
 
-/* The way home is the arrow alone, at the title's size. */
-.shell__back {
+/* `BackLink`: the arrow alone, at the page title's size, never underlined. */
+.back-link {
+  color: var(--color-primary);
   font-size: 28px;
   line-height: 1;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  opacity: 0.8;
 }
 
 /* The match (`MatchScreen`): one viewport tall, the table edge to edge. The
