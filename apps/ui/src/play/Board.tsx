@@ -985,8 +985,18 @@ function arrangementFor(key: string, viewerId: number): Arrangement {
  * lists twice, or lists for a card that has left the battlefield, cannot
  * duplicate a card or lose one. `data-card-id` is unique across the board and
  * three other lanes depend on that.
+ *
+ * `foreign` is every OTHER player's battlefield cards, for `withAttachments` alone: an
+ * attachment's host may be a permanent somebody else controls (item 6). This player's own
+ * placement and arrival, above, never look at it — those are `cards` only, exactly as before.
  */
-export function group(cards: readonly BoardCard[], playerId: number, arranged: Arrangement, layout: BoardLayout): Grouped {
+export function group(
+  cards: readonly BoardCard[],
+  playerId: number,
+  arranged: Arrangement,
+  layout: BoardLayout,
+  foreign: readonly BoardCard[] = [],
+): Grouped {
   const byId = new Map(cards.map((c) => [c.id, c]));
   const rows: Record<BoardRow, BoardCard[][]> = emptyRows();
   const placed = new Set<number>();
@@ -1026,8 +1036,11 @@ export function group(cards: readonly BoardCard[], playerId: number, arranged: A
     }
   }
   // An attachment nobody placed takes no column: `withAttachments` draws it in its host's pile, and a
-  // column it filled here would close up there, moving every column right of it.
-  const attached = new Set(cards.flatMap((c) => (c.attachedCardIds ?? []).filter((id) => id !== c.id && byId.has(id))));
+  // column it filled here would close up there, moving every column right of it. The host making that
+  // claim may be a FOREIGN card (someone else's permanent) — still a claim on one of OUR OWN cards.
+  const attached = new Set(
+    [...cards, ...foreign].flatMap((c) => (c.attachedCardIds ?? []).filter((id) => id !== c.id && byId.has(id))),
+  );
   for (const card of cards) {
     if (placed.has(card.id) || attached.has(card.id)) continue;
     // A card nobody placed — a token, a card an effect put onto the battlefield, any arrival with no
@@ -1037,7 +1050,7 @@ export function group(cards: readonly BoardCard[], playerId: number, arranged: A
     if (gap === -1) row.push([card]);
     else row[gap] = [card];
   }
-  return withAttachments(rows, cards, layout);
+  return withAttachments(rows, cards, layout, foreign);
 }
 
 /**
@@ -1050,22 +1063,28 @@ export function group(cards: readonly BoardCard[], playerId: number, arranged: A
  * or a player and the two id spaces overlap (`adapter.ts`'s header).
  *
  * An attachment joins its host's pile wherever the player has put that host, so
- * rearranging cannot separate an equipped creature from its gear; only cards on
- * THIS battlefield are folded in, so an aura you control on their creature stays
- * a card on your own side, which is where Forge lists it.
+ * rearranging cannot separate an equipped creature from its gear. It follows the
+ * HOST, never who controls the attachment (item 6, playtest 2026-10-24): an
+ * aura, equipment or fortification you control on an opponent's permanent is
+ * drawn in THEIR pile, because that is where the host — and so the stack — is.
+ * `cards` is this player's own battlefield; `foreign` is everyone else's, read
+ * here ONLY to find a host that lives there, never drawn on this side by itself
+ * (the host's own side's call, where it is `cards`, draws it there instead).
  *
- * With nothing attached this returns the rows it was given, unchanged — the
- * common case costs one map and no allocation.
+ * With nothing attached anywhere this returns the rows it was given, unchanged
+ * — the common case costs one map and no allocation.
  */
 function withAttachments(
   rows: Record<BoardRow, BoardCard[][]>,
   cards: readonly BoardCard[],
   layout: BoardLayout,
+  foreign: readonly BoardCard[] = [],
 ): Grouped {
-  const byId = new Map(cards.map((c) => [c.id, c]));
-  /** attachment id → the host that claims it. First claim wins. */
+  const foreignIds = new Set(foreign.map((c) => c.id));
+  const byId = new Map([...cards, ...foreign].map((c) => [c.id, c]));
+  /** attachment id → the host that claims it. First claim wins, this side's own cards before anyone else's. */
   const hostOf = new Map<number, number>();
-  for (const card of cards) {
+  for (const card of [...cards, ...foreign]) {
     for (const attached of card.attachedCardIds ?? []) {
       if (attached === card.id || !byId.has(attached) || hostOf.has(attached)) continue;
       hostOf.set(attached, card.id);
@@ -1073,7 +1092,7 @@ function withAttachments(
   }
   if (hostOf.size === 0) return rows;
 
-  /** The bottom of a chain (equipment on a creature, an aura on that equipment). */
+  /** The bottom of a chain (equipment on a creature, an aura on that equipment) — wherever on the table it is. */
   const rootHost = (id: number): number => {
     const seen = new Set<number>([id]);
     let at = id;
@@ -1100,12 +1119,16 @@ function withAttachments(
       for (const c of kept) home.set(c.id, kept);
     }
   }
-  for (const card of cards) {
-    if (rootHost(card.id) === card.id) continue;
-    const pile = home.get(rootHost(card.id));
-    // A host that is itself an attachment of an attachment in a cycle has no
-    // home; its gear is still drawn, on its own, rather than lost.
+  for (const card of [...cards, ...foreign]) {
+    const rootId = rootHost(card.id);
+    if (rootId === card.id) continue;
+    const pile = home.get(rootId);
     if (pile === undefined) {
+      // Not ours to draw: a foreign card we never place by itself, or one of our own whose
+      // (foreign) host's side will splice it in from their own call instead.
+      if (foreignIds.has(card.id) || foreignIds.has(rootId)) continue;
+      // A host that is itself an attachment of an attachment in a cycle, on THIS side, has no
+      // home anywhere; its gear is still drawn, on its own, rather than lost.
       out[visualRow(card, layout)].push([card]);
       continue;
     }
@@ -2916,6 +2939,8 @@ const NOTHING_LEAVING: readonly Departure[] = [];
 
 const NOTHING_HELD: ReadonlySet<number> = new Set();
 
+const NOTHING_FOREIGN: readonly BoardCard[] = [];
+
 /** A pile less the cards still on their way to it. */
 function unheld(cards: readonly BoardCard[], held: ReadonlySet<number>): readonly BoardCard[] {
   return held.size === 0 || !cards.some((c) => held.has(c.id)) ? cards : cards.filter((c) => !held.has(c.id));
@@ -2943,6 +2968,7 @@ function Battlefield({
   arranged,
   layout,
   leaving = NOTHING_LEAVING,
+  foreign = NOTHING_FOREIGN,
 }: {
   player: BoardPlayer;
   ownerSide: ZoneOwner;
@@ -2952,9 +2978,11 @@ function Battlefield({
   layout: BoardLayout;
   /** This battlefield's permanents still drawn leaving (`live/departures.ts`): their places are kept as gaps. */
   leaving?: readonly Departure[];
+  /** Every OTHER player's battlefield, for `group()` alone (item 6: an attachment follows its host, not its controller). */
+  foreign?: readonly BoardCard[];
 }) {
   const leavingIds = new Set(leaving.map((d) => d.cardId));
-  const grouped = group(withLeaving(player.battlefield, leaving), player.id, arranged, layout);
+  const grouped = group(withLeaving(player.battlefield, leaving), player.id, arranged, layout, foreign);
   const expected = PENDING_PLACEMENTS.get(player.id);
   const reserved =
     expected === undefined || expected.expiresAt < Date.now() || !rowsForLayout(layout).includes(expected.slot)
@@ -3520,6 +3548,7 @@ function PlayerArea({
   arranged,
   layout,
   leaving,
+  foreign = NOTHING_FOREIGN,
   held,
   onOpenPile,
   onOpenSettings,
@@ -3531,6 +3560,8 @@ function PlayerArea({
   arranged: Arrangement;
   layout: BoardLayout;
   leaving: readonly Departure[];
+  /** Every OTHER player's battlefield, threaded to `Battlefield` (item 6: an attachment follows its host). */
+  foreign?: readonly BoardCard[];
   /** Cards still on their way to a pile (`Board`'s `held`): left out of the graveyard and exile until they arrive. */
   held: ReadonlySet<number>;
   onOpenPile: (zone: PileZone) => void;
@@ -3701,6 +3732,7 @@ function PlayerArea({
         arranged={arranged}
         layout={layout}
         leaving={leaving}
+        foreign={foreign}
       />
       {player.hand !== null ? (
         <Zone
@@ -4068,6 +4100,9 @@ export function Board({
   const renderBegan = performance.now();
   const viewer = viewerOf(view);
   const others = view.players.filter((p) => !p.isViewer);
+  /** Every battlefield card belonging to a player OTHER than `id` (item 6: a cross-controlled attachment's host). */
+  const foreignBattlefieldOf = (id: number): readonly BoardCard[] =>
+    view.players.length <= 1 ? NOTHING_FOREIGN : view.players.filter((p) => p.id !== id).flatMap((p) => p.battlefield);
   // `data-carried`'s own bookkeeping only now (`StackView`'s own note): a played card standing in
   // for its own spell, in the gap before `live/placed.ts` takes over drawing it at that point.
   // The third argument is the same reading: a statically rendered board (`live/parity.test.ts`) has no gesture layer, and so carries nothing.
@@ -4299,7 +4334,11 @@ export function Board({
     // runtime fact being that `useArrangeDrag` never starts a drag from a hand card at all.
     if (slot === 'hand') return;
     if (!cardIds.every((id) => viewer.battlefield.some((c) => c.id === id))) return;
-    setArranged(key, viewer.id, withMove(group(viewer.battlefield, viewer.id, arranged, boardLayout), viewer.id, arranged, cardIds, slot, target, boardLayout));
+    setArranged(
+      key,
+      viewer.id,
+      withMove(group(viewer.battlefield, viewer.id, arranged, boardLayout, foreignBattlefieldOf(viewer.id)), viewer.id, arranged, cardIds, slot, target, boardLayout),
+    );
     redraw();
   };
   useArrangeDrag(root, viewer !== undefined, commit);
@@ -4345,7 +4384,15 @@ export function Board({
       // later: the message is the authority, whichever came first.
       const card = pending.expiresAt < now ? undefined : player.battlefield.find((c) => c.id === pending.cardId);
       if (card !== undefined) {
-        next = withMove(group(player.battlefield, player.id, next, boardLayout), player.id, next, card.id, pending.slot, pending.target, boardLayout);
+        next = withMove(
+          group(player.battlefield, player.id, next, boardLayout, foreignBattlefieldOf(player.id)),
+          player.id,
+          next,
+          card.id,
+          pending.slot,
+          pending.target,
+          boardLayout,
+        );
         if (player.id === viewer?.id) ownChanged = true;
       }
       if (card !== undefined || pending.expiresAt < now) dropPlacement(player.id);
@@ -4371,6 +4418,7 @@ export function Board({
             /* Mine only (Q15c): the opponent's board is always the default one. */
             layout="single"
             leaving={leavingOn(p.id)}
+            foreign={foreignBattlefieldOf(p.id)}
             held={held}
             onOpenPile={openPileOf(p.id)}
           />
@@ -4404,6 +4452,7 @@ export function Board({
           arranged={arranged}
           layout={boardLayout}
           leaving={leavingOn(viewer.id)}
+          foreign={foreignBattlefieldOf(viewer.id)}
           held={held}
           onOpenPile={openPileOf(viewer.id)}
           onOpenSettings={onOpenSettings}
