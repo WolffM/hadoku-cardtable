@@ -264,9 +264,12 @@ jobs:
       # were skipped. A guard that reds is the guard working; the premise was
       # what was wrong.
       # A test titled `[nightly]` is too slow for every push and runs in
-      # `forge.yml`'s `e2e-nightly` instead.
+      # `forge.yml`'s `e2e-nightly` instead. A failing test keeps its trace
+      # (`e2e/.run/test-results/`), uploaded by the evidence step at the end of
+      # this job: issue #13's red was a page that stopped answering, and with
+      # traces off the run kept nothing that could say why.
       - name: E2E — two friends draft one pod
-        run: pnpm --filter @hadoku/e2e test --grep-invert '\[nightly\]'
+        run: pnpm --filter @hadoku/e2e test --grep-invert '\[nightly\]' --trace=retain-on-failure
 
       # Runs FIRST, and deliberately. A green gate is a claim; this is the
       # demonstration. 65 throwaway fixtures under `mktemp -d`, each arm
@@ -279,6 +282,24 @@ jobs:
 
       - name: Image boundary (D13/D15) — the CDN hosts, we do not
         run: bash scripts/d13-gate.sh apps/ui/dist
+
+      # The evidence a red needs, kept past the job, as `forge.yml`'s forge-e2e
+      # keeps its own: the failing test's trace and error context, and the
+      # harness's server logs. `e2e/.run/` is a dot-directory, which the action
+      # skips by default.
+      - name: E2E evidence (on failure)
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-evidence-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: |
+            e2e/.run/test-results/**
+            e2e/.run/*.jsonl
+            e2e/.run/*.json
+            e2e/.run/*.log
 
   # The required status, and the one `redeploy.yml` and `release.yml` read: green
   # only when every job above is. `always()` so a red job still reports `check`
