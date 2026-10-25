@@ -1,0 +1,717 @@
+import forge.StaticData;
+import forge.ai.LobbyPlayerAi;
+import forge.ai.PlayerControllerAi;
+import forge.deck.CardPool;
+import forge.deck.Deck;
+import forge.deck.DeckSection;
+import forge.deck.io.DeckSerializer;
+import forge.game.Game;
+import forge.game.GameEndReason;
+import forge.game.GameOutcome;
+import forge.game.GameRules;
+import forge.game.GameType;
+import forge.game.Match;
+import forge.game.combat.Combat;
+import forge.game.player.Player;
+import forge.game.player.RegisteredPlayer;
+import forge.game.spellability.SpellAbility;
+import forge.gamemodes.limited.SealedDeckBuilder;
+import forge.gui.GuiBase;
+import forge.item.PaperCard;
+import forge.localinstance.properties.ForgeConstants;
+import forge.localinstance.properties.ForgeNetPreferences;
+import forge.localinstance.properties.ForgePreferences.FPref;
+import forge.model.FModel;
+import forge.GuiDesktop;
+import forge.util.MyRandom;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
+
+/**
+ * Forge scale harness: N concurrent matches in ONE JVM through the engine
+ * ({@code Match.startGame}, no {@code FServerManager}), held for a fixed wall
+ * time with churn — a slot whose match ends starts the next one — so the JVM
+ * sits at N live matches for the whole run.
+ *
+ * <p>Seats are AI controllers with timing hooks ({@link Seat}). A PACED seat
+ * stands in for a human: it waits a random pause before every decision a human
+ * would actually make (an action, its own main-phase pass, attacks, blocks)
+ * and passes instantly elsewhere, as auto-yield does. Its choices are computed
+ * by the AI, which a real human's are not, so its compute time is reported on
+ * its own ({@code paced_compute_s}) to be subtracted.
+ *
+ * <p>The "struggling" signal is Forge's own: {@code AiController} prints
+ * {@code AI eval thread at timeout:} when the 5 s {@code Game.AI_TIMEOUT} cuts
+ * a priority decision short. {@link Counting} counts those lines on stdout and
+ * keeps the frame the eval thread was stuck in.
+ *
+ * <p>Output: one {@code RESULT} line of tab-separated key=value pairs on the
+ * real stdout; Forge's own chatter goes to {@code stress.log}.
+ */
+public final class ForgeScale {
+
+    private ForgeScale() {}
+
+    private static final long MB = 1024L * 1024L;
+    static final String TIMEOUT_MARK = "AI eval thread at timeout:";
+    /**
+     * Forge treats a thread as a game thread by name alone ({@code ThreadUtil.isGameThread}:
+     * starts with "Game"); off one, {@code GameAction.invoke} hands work to Forge's own pool
+     * and races the game loop. HostedMatch's games run on "Game-n" threads; so do ours.
+     */
+    static final String SLOT_PREFIX = "Game-stress-slot-";
+
+    // --- configuration --------------------------------------------------------
+    static final int N = Integer.getInteger("stress.matches", 1);
+    static final String MODE = System.getProperty("stress.mode", "paced"); // paced | full
+    static final double HVH = Double.parseDouble(System.getProperty("stress.hvh", "0")); // share of slots with two paced seats
+    static final long PAUSE_MIN = Long.getLong("stress.pauseMinMs", 2000L);
+    static final long PAUSE_MAX = Long.getLong("stress.pauseMaxMs", 15000L);
+    static final long DURATION_S = Long.getLong("stress.durationSec", 600L);
+    static final long MATCH_CAP_S = Long.getLong("stress.matchCapSec", 3600L);
+    static final long SEED = Long.getLong("stress.seed", 20261024L);
+    static final String DECKS = System.getProperty("stress.decks", "cube"); // cube | precon
+    static final String DECK_DIR = System.getProperty("stress.deckDir", "decks");
+    static final String CUBE_NAMES = System.getProperty("stress.cubeNames", "cube-names.txt");
+    static final int CUBE_DECKS = Integer.getInteger("stress.cubeDecks", 16);
+    static final long LIVE_GC_S = Long.getLong("stress.liveGcSec", 60L); // 0 = never force a GC
+    static final String SERIES = System.getProperty("stress.series", "");
+    static final int STAGGER_MS = Integer.getInteger("stress.staggerMs", 250);
+    static final int HEAVY = Integer.getInteger("stress.heavySlots", 0); // first k slots: AI-vs-AI from a stalled crowded board
+
+    // --- metrics --------------------------------------------------------------
+    static final ConcurrentLinkedQueue<Long> AI_PRIORITY_US = new ConcurrentLinkedQueue<>();
+    static final ConcurrentLinkedQueue<Long> AI_COMBAT_US = new ConcurrentLinkedQueue<>();
+    static final ConcurrentLinkedQueue<Long> ACT_US = new ConcurrentLinkedQueue<>();
+    static final LongAdder AI_COMPUTE_US = new LongAdder();
+    static final LongAdder PACED_COMPUTE_US = new LongAdder();
+    static final LongAdder PAUSES = new LongAdder();
+    static final AtomicInteger TIMEOUTS = new AtomicInteger();
+    static final AtomicInteger HEAVY_TIMEOUTS = new AtomicInteger();
+    static final ConcurrentLinkedQueue<Long> HEAVY_PRIORITY_US = new ConcurrentLinkedQueue<>();
+    static final ConcurrentLinkedQueue<Long> HEAVY_COMBAT_US = new ConcurrentLinkedQueue<>();
+    static final Map<String, AtomicInteger> TIMEOUT_FRAMES = new ConcurrentHashMap<>();
+    static final AtomicLong FORCED_GC_MS = new AtomicLong();
+    static final java.util.Set<Game> CAPPED = ConcurrentHashMap.newKeySet();
+    static volatile boolean stopping;
+
+    public static void main(final String[] args) throws Exception {
+        final PrintStream result = new PrintStream(new FileOutputStream(java.io.FileDescriptor.out), true, StandardCharsets.UTF_8);
+        final Counting forgeOut = new Counting(new FileOutputStream("stress.log"));
+        System.setOut(forgeOut);
+        System.setErr(forgeOut);
+
+        final Map<String, Object> r = new LinkedHashMap<>();
+        r.put("mode", MODE);
+        r.put("matches", N);
+        r.put("hvh", HVH);
+        r.put("decks", DECKS);
+        r.put("seed", SEED);
+        r.put("duration_s", DURATION_S);
+        r.put("pause_ms", PAUSE_MIN + "-" + PAUSE_MAX);
+        r.put("cpus_jvm", Runtime.getRuntime().availableProcessors());
+        r.put("xmx_mb", Runtime.getRuntime().maxMemory() / MB);
+        r.put("gc", gcNames());
+
+        final long initStart = System.nanoTime();
+        GuiBase.setInterface(new GuiDesktop());
+        FModel.initialize(null, prefs -> {
+            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, false);
+            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
+            prefs.setPref(FPref.ENFORCE_DECK_LEGALITY, false);
+            return null;
+        });
+        if (StaticData.instance() == null) {
+            throw new IllegalStateException("Forge did not initialise: is res/ in the working directory?");
+        }
+        FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.UPnP, "NEVER");
+        r.put("init_ms", (System.nanoTime() - initStart) / 1_000_000L);
+
+        MyRandom.setRandom(new Random(SEED));
+        final List<Deck> decks = loadDecks(r);
+        fullGc();
+        r.put("heap_idle_mb", usedHeapMb());
+        r.put("rss_idle_mb", procKb("/proc/self/status", "VmRSS:") / 1024);
+
+        // --- the run ----------------------------------------------------------
+        final Sampler sampler = new Sampler(SERIES);
+        sampler.start();
+        final OperatingSystemCpu cpu = new OperatingSystemCpu();
+        final long cpuStart = cpu.processCpuNs();
+        final long gcStart = gcMillis();
+        final long runStart = System.nanoTime();
+        final long deadline = runStart + DURATION_S * 1_000_000_000L;
+
+        final AtomicInteger started = new AtomicInteger();
+        final AtomicInteger completed = new AtomicInteger();
+        final AtomicInteger failed = new AtomicInteger();
+        final AtomicInteger capped = new AtomicInteger();
+        final ConcurrentLinkedQueue<Long> matchMs = new ConcurrentLinkedQueue<>();
+        final ConcurrentLinkedQueue<Integer> turns = new ConcurrentLinkedQueue<>();
+        final LongAdder matchNanos = new LongAdder();
+        final List<Game> live = Collections.synchronizedList(new ArrayList<>());
+        final StringBuilder errors = new StringBuilder();
+
+        final List<Thread> slots = new ArrayList<>();
+        for (int s = 0; s < N; s++) {
+            final int slot = s;
+            final boolean heavy = slot < HEAVY;
+            final boolean hvh = MODE.equals("paced") && !heavy && slot < HEAVY + Math.round(HVH * (N - HEAVY));
+            final Thread t = new Thread(() -> {
+                int k = 0;
+                while (!stopping && System.nanoTime() < deadline) {
+                    final int pair = (slot * 7 + k++) % (decks.size() / 2);
+                    final List<RegisteredPlayer> players = new ArrayList<>();
+                    for (int p = 0; p < 2; p++) {
+                        final boolean paced = MODE.equals("paced") && !heavy && (p == 0 || hvh);
+                        final RegisteredPlayer rp = new RegisteredPlayer(decks.get(pair * 2 + p));
+                        final StressPlayer lp = new StressPlayer((paced ? "Paced" : "Ai") + (p + 1) + "-s" + slot, paced, heavy);
+                        lp.setAiProfile("Default");
+                        rp.setPlayer(lp);
+                        players.add(rp);
+                    }
+                    final Match match = new Match(new GameRules(GameType.Constructed), players, "stress-" + slot + "-" + k);
+                    final Game game = match.createGame();
+                    game.setNoGUIUser();
+                    live.add(game);
+                    started.incrementAndGet();
+                    final long s0 = System.nanoTime();
+                    final Thread capper = capper(game, s0);
+                    try {
+                        if (heavy) {
+                            final forge.game.GameState board = heavyBoard();
+                            match.startGame(game, () -> board.applyToGame(game));
+                        } else {
+                            match.startGame(game);
+                        }
+                        final GameOutcome o = game.getOutcome();
+                        final long ms = (System.nanoTime() - s0) / 1_000_000L;
+                        if (stopping || System.nanoTime() >= deadline && o == null) {
+                            // ended by the run's deadline: partial, counted in match-minutes only
+                        } else if (CAPPED.remove(game)) {
+                            capped.incrementAndGet();
+                        } else if (o == null || !game.isGameOver()) {
+                            failed.incrementAndGet();
+                        } else {
+                            completed.incrementAndGet();
+                            matchMs.add(ms);
+                            turns.add(o.getLastTurnNumber());
+                        }
+                    } catch (final Throwable e) {
+                        failed.incrementAndGet();
+                        synchronized (errors) {
+                            errors.append(errors.length() == 0 ? "" : ",").append(e.getClass().getSimpleName());
+                        }
+                        e.printStackTrace(System.out);
+                    } finally {
+                        capper.interrupt();
+                        matchNanos.add(System.nanoTime() - s0);
+                        live.remove(game);
+                    }
+                }
+            }, SLOT_PREFIX + slot);
+            t.setDaemon(true);
+            slots.add(t);
+            t.start();
+            Thread.sleep(STAGGER_MS);
+        }
+
+        long nextGc = System.nanoTime() + LIVE_GC_S * 1_000_000_000L;
+        long liveMax = 0;
+        final List<Long> liveSamples = new ArrayList<>();
+        while (System.nanoTime() < deadline) {
+            Thread.sleep(1000);
+            if (LIVE_GC_S > 0 && System.nanoTime() >= nextGc) {
+                final long g0 = System.nanoTime();
+                fullGc();
+                FORCED_GC_MS.addAndGet((System.nanoTime() - g0) / 1_000_000L);
+                final long used = usedHeapMb();
+                liveSamples.add(used);
+                liveMax = Math.max(liveMax, used);
+                sampler.noteLive(used);
+                nextGc += LIVE_GC_S * 1_000_000_000L;
+            }
+        }
+        stopping = true;
+        final long runNs = System.nanoTime() - runStart;
+        final long cpuNs = cpu.processCpuNs() - cpuStart;
+        final long gcMs = gcMillis() - gcStart;
+        synchronized (live) {
+            for (final Game g : live) {
+                g.setGameOver(GameEndReason.Draw);
+            }
+        }
+        for (final Thread t : slots) {
+            t.join(20_000);
+        }
+        sampler.interrupt();
+
+        final double matchMin = matchNanos.sum() / 60e9;
+        r.put("run_s", Math.round(runNs / 1e9));
+        r.put("started", started.get());
+        r.put("completed", completed.get());
+        r.put("failed", failed.get());
+        r.put("capped", capped.get());
+        r.put("errors", errors.length() == 0 ? "-" : errors.toString());
+        r.put("match_min_median", fmt(median(matchMs) / 60000.0));
+        r.put("turns_median", median(new ArrayList<>(turns).stream().map(Integer::longValue).toList()));
+        r.put("match_minutes", fmt(matchMin));
+        r.put("cpu_s", fmt(cpuNs / 1e9));
+        r.put("cpu_s_per_match_min", fmt(matchMin > 0 ? cpuNs / 1e9 / matchMin : -1));
+        r.put("cores_busy", fmt(cpuNs / (double) runNs));
+        r.put("ai_compute_s", fmt(AI_COMPUTE_US.sum() / 1e6));
+        r.put("paced_compute_s", fmt(PACED_COMPUTE_US.sum() / 1e6));
+        r.put("pauses", PAUSES.sum());
+        r.put("ai_decisions", AI_PRIORITY_US.size());
+        r.put("ai_p50_ms", pct(AI_PRIORITY_US, 50));
+        r.put("ai_p95_ms", pct(AI_PRIORITY_US, 95));
+        r.put("ai_p99_ms", pct(AI_PRIORITY_US, 99));
+        r.put("ai_max_ms", pct(AI_PRIORITY_US, 100));
+        r.put("combat_p95_ms", pct(AI_COMBAT_US, 95));
+        r.put("combat_max_ms", pct(AI_COMBAT_US, 100));
+        r.put("ai_timeouts", TIMEOUTS.get());
+        r.put("timeouts_per_100_dec", fmt(AI_PRIORITY_US.isEmpty() ? 0 : 100.0 * TIMEOUTS.get() / AI_PRIORITY_US.size()));
+        r.put("act_n", ACT_US.size());
+        r.put("act_p50_ms", pct(ACT_US, 50));
+        r.put("act_p95_ms", pct(ACT_US, 95));
+        r.put("act_p99_ms", pct(ACT_US, 99));
+        r.put("gc_ms", gcMs);
+        r.put("forced_gc_ms", FORCED_GC_MS.get());
+        r.put("gc_pct", fmt(100.0 * Math.max(0, gcMs - FORCED_GC_MS.get()) / (runNs / 1e6)));
+        r.put("live_heap_max_mb", liveMax);
+        r.put("live_heap_median_mb", median(liveSamples));
+        r.put("live_heap_per_match_mb", fmt(N > 0 && !liveSamples.isEmpty() ? (median(liveSamples) - (long) r.get("heap_idle_mb")) / (double) N : -1));
+        r.put("rss_peak_mb", procKb("/proc/self/status", "VmHWM:") / 1024);
+        r.put("pss_peak_mb", sampler.pssMaxKb.get() / 1024);
+        r.put("rss_end_mb", procKb("/proc/self/status", "VmRSS:") / 1024);
+        r.put("threads_peak", ManagementFactory.getThreadMXBean().getPeakThreadCount());
+        r.put("eval_threads_peak", sampler.evalMax.get());
+        r.put("timeout_frames", topFrames());
+        {
+            r.put("heavy_slots", HEAVY);
+            r.put("heavy_decisions", HEAVY_PRIORITY_US.size());
+            r.put("heavy_p95_ms", pct(HEAVY_PRIORITY_US, 95));
+            r.put("heavy_max_ms", pct(HEAVY_PRIORITY_US, 100));
+            r.put("heavy_combat_p95_ms", pct(HEAVY_COMBAT_US, 95));
+            r.put("heavy_combat_max_ms", pct(HEAVY_COMBAT_US, 100));
+            r.put("heavy_timeouts", HEAVY_TIMEOUTS.get());
+        }
+
+        final StringBuilder line = new StringBuilder("RESULT");
+        for (final Map.Entry<String, Object> e : r.entrySet()) {
+            line.append('\t').append(e.getKey()).append('=').append(e.getValue());
+        }
+        result.println(line);
+        result.flush();
+        Runtime.getRuntime().halt(failed.get() == 0 ? 0 : 1);
+    }
+
+    /** Ends a match that outlives the per-match cap, so one stuck game cannot hold a slot. */
+    private static Thread capper(final Game game, final long s0) {
+        final Thread t = new Thread(() -> {
+            try {
+                Thread.sleep(MATCH_CAP_S * 1000L);
+                CAPPED.add(game);
+                game.setGameOver(GameEndReason.Draw);
+            } catch (final InterruptedException ignored) {
+                // the match ended first: nothing to cap
+            }
+        }, "stress-cap");
+        t.setDaemon(true);
+        t.start();
+        return t;
+    }
+
+    // --- decks ----------------------------------------------------------------
+
+    /**
+     * Cube decks: built ONCE from the cube list with a fixed seed and written
+     * to {@code stress.deckDir}; later runs (and other hosts) load those files,
+     * so every claw plays the identical decks.
+     */
+    private static List<Deck> loadDecks(final Map<String, Object> r) throws IOException {
+        final List<Deck> decks = new ArrayList<>();
+        if (DECKS.equals("precon")) {
+            for (final String name : new String[] {"Abzan Siege", "Air Forces"}) {
+                decks.add(DeckSerializer.fromFile(new File(ForgeConstants.QUEST_PRECON_DIR, name + ".dck")));
+            }
+            r.put("deck_set", "precon:2");
+            return decks;
+        }
+        final File dir = new File(DECK_DIR);
+        final File[] have = dir.listFiles((d, n) -> n.endsWith(".dck"));
+        if (have != null && have.length >= 2) {
+            final List<File> files = new ArrayList<>(List.of(have));
+            files.sort(null);
+            for (final File f : files) {
+                decks.add(DeckSerializer.fromFile(f));
+            }
+            r.put("deck_set", "cube-files:" + decks.size());
+            return decks;
+        }
+        final List<String> names = new ArrayList<>(Files.readAllLines(Path.of(CUBE_NAMES)));
+        names.removeIf(String::isBlank);
+        final List<PaperCard> cube = new ArrayList<>();
+        int missing = 0;
+        for (final String n : names) {
+            PaperCard c = StaticData.instance().getCommonCards().getCard(n);
+            if (c == null && n.contains(" // ")) {
+                c = StaticData.instance().getCommonCards().getCard(n.substring(0, n.indexOf(" // ")));
+            }
+            if (c == null) {
+                missing++;
+                System.out.println("[stress] cube card not in Forge: " + n);
+            } else {
+                cube.add(c);
+            }
+        }
+        Collections.shuffle(cube, new Random(SEED));
+        dir.mkdirs();
+        for (int i = 0; i < CUBE_DECKS; i++) {
+            final List<PaperCard> pool = new ArrayList<>(cube.subList(i * 45 % (cube.size() - 45), i * 45 % (cube.size() - 45) + 45));
+            final Deck d = new SealedDeckBuilder(pool).buildDeck();
+            d.setName(String.format("cube-%02d", i));
+            final CardPool main = d.getOrCreate(DeckSection.Main);
+            if (main.countAll() < 40) {
+                throw new IllegalStateException(d.getName() + " has " + main.countAll() + " cards");
+            }
+            d.getOrCreate(DeckSection.Sideboard).clear();
+            DeckSerializer.writeDeck(d, new File(dir, d.getName() + ".dck"));
+            decks.add(d);
+        }
+        r.put("deck_set", "cube-built:" + decks.size() + ":missing=" + missing);
+        return decks;
+    }
+
+    /**
+     * A stalled, crowded board in the shape Card-Forge/forge#3410 describes:
+     * two dozen creatures a side, none able to attack profitably, so every
+     * declare-attackers and every priority pass weighs a large board.
+     */
+    static forge.game.GameState heavyBoard() {
+        final String[] side = {"Grizzly Bears", "Hill Giant", "Wall of Omens", "Giant Spider", "Serra Angel",
+                "Llanowar Elves", "Craw Wurm", "Prodigal Sorcerer", "Wall of Wood", "Centaur Courser",
+                "Elvish Mystic", "Watchwolf", "Gray Ogre", "Horned Turtle", "Air Elemental", "Coral Merfolk"};
+        final StringBuilder bf = new StringBuilder();
+        for (int i = 0; i < 24; i++) {
+            bf.append(bf.length() == 0 ? "" : ";").append(side[i % side.length]);
+        }
+        for (final String l : new String[] {"Forest", "Island", "Plains", "Mountain", "Swamp"}) {
+            bf.append(';').append(l).append(';').append(l);
+        }
+        final forge.game.GameState st = new forge.game.GameState();
+        st.parse(List.of("humanlife=20", "ailife=20", "turn=3", "activeplayer=human", "activephase=MAIN1",
+                "removesummoningsickness=true", "humanbattlefield=" + bf, "aibattlefield=" + bf));
+        return st;
+    }
+
+    // --- seats ----------------------------------------------------------------
+
+    /** Forge's AI lobby player, handing out a {@link Seat} instead of a stock controller. */
+    static final class StressPlayer extends LobbyPlayerAi {
+        final boolean paced;
+
+        final boolean heavy;
+
+        StressPlayer(final String name, final boolean paced, final boolean heavy) {
+            super(name, null);
+            this.paced = paced;
+            this.heavy = heavy;
+        }
+
+        @Override
+        public Player createIngamePlayer(final Game game, final int id) {
+            final Player p = new Player(getName(), game, id);
+            final Seat c = new Seat(game, p, this, paced, heavy);
+            c.getAi().setUseSimulation(null);
+            p.setFirstController(c);
+            return p;
+        }
+    }
+
+    /** One game's "a paced seat acted; when does anyone get asked next?" clock. */
+    static final Map<Game, AtomicLong> ACTED_AT = Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    static final class Seat extends PlayerControllerAi {
+        final boolean paced;
+        final boolean heavy;
+
+        Seat(final Game game, final Player p, final LobbyPlayerAi lp, final boolean paced, final boolean heavy) {
+            super(game, p, lp);
+            this.paced = paced;
+            this.heavy = heavy;
+        }
+
+        private void entered() {
+            final AtomicLong at = ACTED_AT.get(getGame());
+            if (at != null) {
+                final long t = at.getAndSet(0);
+                if (t != 0) {
+                    ACT_US.add((System.nanoTime() - t) / 1000L);
+                }
+            }
+        }
+
+        private void acted() {
+            ACTED_AT.computeIfAbsent(getGame(), g -> new AtomicLong()).set(System.nanoTime());
+        }
+
+        private void think() {
+            PAUSES.increment();
+            final long ms = ThreadLocalRandom.current().nextLong(PAUSE_MIN, PAUSE_MAX + 1);
+            final long end = System.currentTimeMillis() + ms;
+            while (System.currentTimeMillis() < end && !getGame().isGameOver() && !stopping) {
+                try {
+                    Thread.sleep(Math.min(250, Math.max(1, end - System.currentTimeMillis())));
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+
+        private long timed(final long t0, final ConcurrentLinkedQueue<Long> into) {
+            final long us = (System.nanoTime() - t0) / 1000L;
+            if (paced) {
+                PACED_COMPUTE_US.add(us);
+            } else if (heavy) {
+                (into == AI_PRIORITY_US ? HEAVY_PRIORITY_US : HEAVY_COMBAT_US).add(us);
+            } else {
+                AI_COMPUTE_US.add(us);
+                into.add(us);
+            }
+            return us;
+        }
+
+        @Override
+        public List<SpellAbility> chooseSpellAbilityToPlay() {
+            entered();
+            final long t0 = System.nanoTime();
+            final List<SpellAbility> sa = super.chooseSpellAbilityToPlay();
+            timed(t0, AI_PRIORITY_US);
+            if (paced) {
+                final boolean ownMain = getGame().getPhaseHandler().isPlayerTurn(getPlayer())
+                        && getGame().getPhaseHandler().getPhase() != null
+                        && getGame().getPhaseHandler().getPhase().isMain();
+                if ((sa != null && !sa.isEmpty()) || ownMain) {
+                    think();
+                }
+                if (sa != null && !sa.isEmpty()) {
+                    acted();
+                }
+            }
+            return sa;
+        }
+
+        @Override
+        public void declareAttackers(final Player attacker, final Combat combat) {
+            entered();
+            final long t0 = System.nanoTime();
+            super.declareAttackers(attacker, combat);
+            timed(t0, AI_COMBAT_US);
+            if (paced && !attacker.getCreaturesInPlay().isEmpty()) {
+                think();
+                acted();
+            }
+        }
+
+        @Override
+        public void declareBlockers(final Player defender, final Combat combat) {
+            entered();
+            final long t0 = System.nanoTime();
+            super.declareBlockers(defender, combat);
+            timed(t0, AI_COMBAT_US);
+            if (paced && !defender.getCreaturesInPlay().isEmpty()) {
+                think();
+                acted();
+            }
+        }
+    }
+
+    // --- Forge's stdout: count AI timeouts ----------------------------------
+
+    static final class Counting extends PrintStream {
+        Counting(final FileOutputStream out) {
+            super(out, true, StandardCharsets.UTF_8);
+        }
+
+        private void inspect(final String s) {
+            if (s != null && s.startsWith(TIMEOUT_MARK)) {
+                // AiController prints this on the game thread, which is the slot's own thread.
+                final String t = Thread.currentThread().getName();
+                if (t.startsWith(SLOT_PREFIX) && Integer.parseInt(t.substring(SLOT_PREFIX.length())) < HEAVY) {
+                    HEAVY_TIMEOUTS.incrementAndGet();
+                    return;
+                }
+                TIMEOUTS.incrementAndGet();
+                // The eval thread's top frames inside forge, as "Class.method" — where the AI was slow.
+                final StringBuilder key = new StringBuilder();
+                int n = 0;
+                for (final String l : s.split("\n")) {
+                    final String f = l.trim();
+                    if (f.startsWith("at forge.") && n < 2) {
+                        final String m = f.substring(3, f.indexOf('(') > 0 ? f.indexOf('(') : f.length());
+                        final String[] parts = m.split("\\.");
+                        key.append(n++ == 0 ? "" : "<").append(parts[parts.length - 2]).append('.').append(parts[parts.length - 1]);
+                    }
+                }
+                TIMEOUT_FRAMES.computeIfAbsent(key.length() == 0 ? "?" : key.toString(), k -> new AtomicInteger()).incrementAndGet();
+            }
+        }
+
+        @Override public void println(final Object x) { inspect(String.valueOf(x)); super.println(x); }
+        @Override public void println(final String x) { inspect(x); super.println(x); }
+    }
+
+    private static String topFrames() {
+        if (TIMEOUT_FRAMES.isEmpty()) {
+            return "-";
+        }
+        final List<Map.Entry<String, AtomicInteger>> es = new ArrayList<>(TIMEOUT_FRAMES.entrySet());
+        es.sort((a, b) -> b.getValue().get() - a.getValue().get());
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < Math.min(4, es.size()); i++) {
+            sb.append(i == 0 ? "" : ";").append(es.get(i).getKey()).append('x').append(es.get(i).getValue().get());
+        }
+        return sb.toString();
+    }
+
+    // --- sampling -------------------------------------------------------------
+
+    /** Every 5 s: PSS (peak), live "Game AI Eval" threads (peak), and an optional time series. */
+    static final class Sampler extends Thread {
+        final AtomicLong pssMaxKb = new AtomicLong();
+        final AtomicInteger evalMax = new AtomicInteger();
+        private final PrintStream series;
+        private volatile long lastLive = -1;
+
+        Sampler(final String seriesPath) throws IOException {
+            super("stress-sampler");
+            setDaemon(true);
+            series = seriesPath.isEmpty() ? null : new PrintStream(new FileOutputStream(seriesPath), true, StandardCharsets.UTF_8);
+            if (series != null) {
+                series.println("t_s\trss_mb\tpss_mb\theap_used_mb\tlive_after_gc_mb\tthreads\teval_threads\tai_timeouts\tai_decisions\tcpu_s");
+            }
+        }
+
+        void noteLive(final long mb) { lastLive = mb; }
+
+        @Override
+        public void run() {
+            final long t0 = System.nanoTime();
+            final ThreadMXBean tm = ManagementFactory.getThreadMXBean();
+            final OperatingSystemCpu cpu = new OperatingSystemCpu();
+            while (!isInterrupted()) {
+                try {
+                    final long pss = procKb("/proc/self/smaps_rollup", "Pss:");
+                    pssMaxKb.accumulateAndGet(pss, Math::max);
+                    int eval = 0;
+                    for (final Thread t : Thread.getAllStackTraces().keySet()) {
+                        if ("Game AI Eval".equals(t.getName())) {
+                            eval++;
+                        }
+                    }
+                    evalMax.accumulateAndGet(eval, Math::max);
+                    if (series != null) {
+                        series.printf("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%.1f%n", (System.nanoTime() - t0) / 1_000_000_000L,
+                                procKb("/proc/self/status", "VmRSS:") / 1024, pss / 1024, usedHeapMb(), lastLive,
+                                tm.getThreadCount(), eval, TIMEOUTS.get(), AI_PRIORITY_US.size(), cpu.processCpuNs() / 1e9);
+                    }
+                    Thread.sleep(5000);
+                } catch (final InterruptedException e) {
+                    return;
+                } catch (final IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        }
+    }
+
+    static final class OperatingSystemCpu {
+        long processCpuNs() {
+            return ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getProcessCpuTime();
+        }
+    }
+
+    // --- helpers --------------------------------------------------------------
+
+    private static void fullGc() {
+        System.gc();
+        System.gc();
+    }
+
+    private static long usedHeapMb() {
+        return ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / MB;
+    }
+
+    private static long gcMillis() {
+        long c = 0;
+        for (final GarbageCollectorMXBean b : ManagementFactory.getGarbageCollectorMXBeans()) {
+            c += Math.max(0, b.getCollectionTime());
+        }
+        return c;
+    }
+
+    private static String gcNames() {
+        final List<String> names = new ArrayList<>();
+        for (final GarbageCollectorMXBean b : ManagementFactory.getGarbageCollectorMXBeans()) {
+            names.add(b.getName().replace(' ', '_'));
+        }
+        return String.join("+", names);
+    }
+
+    private static long median(final java.util.Collection<Long> xs) {
+        if (xs.isEmpty()) {
+            return -1;
+        }
+        final List<Long> s = new ArrayList<>(xs);
+        s.sort(Long::compare);
+        return s.get(s.size() / 2);
+    }
+
+    /** Percentile of microsecond samples, reported in ms with one decimal; -1 when empty. */
+    private static String pct(final ConcurrentLinkedQueue<Long> us, final int p) {
+        final List<Long> s = new ArrayList<>(us);
+        if (s.isEmpty()) {
+            return "-1";
+        }
+        s.sort(Long::compare);
+        final int i = Math.min(s.size() - 1, (int) Math.ceil(p / 100.0 * s.size()) - 1);
+        return fmt(s.get(Math.max(0, i)) / 1000.0);
+    }
+
+    private static String fmt(final double d) {
+        return String.format("%.2f", d);
+    }
+
+    /** A {@code kB} field from a /proc file. Throws rather than report a 0 it did not read. */
+    static long procKb(final String file, final String field) throws IOException {
+        for (final String l : Files.readAllLines(Path.of(file))) {
+            if (l.startsWith(field)) {
+                return Long.parseLong(l.substring(field.length()).trim().split("\\s+")[0]);
+            }
+        }
+        throw new IllegalStateException(field + " not found in " + file);
+    }
+}
