@@ -182,10 +182,9 @@ public final class ForgeScale {
         final ConcurrentLinkedQueue<Long> matchMs = new ConcurrentLinkedQueue<>();
         final ConcurrentLinkedQueue<Integer> turns = new ConcurrentLinkedQueue<>();
         final LongAdder matchNanos = new LongAdder();
-        final List<Game> live = Collections.synchronizedList(new ArrayList<>());
+        final Map<Game, Long> live = new ConcurrentHashMap<>(); // game -> start nanos
         final StringBuilder errors = new StringBuilder();
 
-        final List<Thread> slots = new ArrayList<>();
         for (int s = 0; s < N; s++) {
             final int slot = s;
             final boolean heavy = slot < HEAVY;
@@ -206,9 +205,9 @@ public final class ForgeScale {
                     final Match match = new Match(new GameRules(GameType.Constructed), players, "stress-" + slot + "-" + k);
                     final Game game = match.createGame();
                     game.setNoGUIUser();
-                    live.add(game);
-                    started.incrementAndGet();
                     final long s0 = System.nanoTime();
+                    live.put(game, s0);
+                    started.incrementAndGet();
                     final Thread capper = capper(game, s0);
                     try {
                         if (heavy) {
@@ -238,13 +237,13 @@ public final class ForgeScale {
                         e.printStackTrace(System.out);
                     } finally {
                         capper.interrupt();
-                        matchNanos.add(System.nanoTime() - s0);
-                        live.remove(game);
+                        if (live.remove(game) != null && !stopping) {
+                            matchNanos.add(System.nanoTime() - s0);
+                        }
                     }
                 }
             }, SLOT_PREFIX + slot);
             t.setDaemon(true);
-            slots.add(t);
             t.start();
             Thread.sleep(STAGGER_MS);
         }
@@ -267,17 +266,15 @@ public final class ForgeScale {
                 nextGc += LIVE_GC_S * 1_000_000_000L;
             }
         }
+        // Read everything at the deadline and halt with the games still live: ending them all at
+        // once is not load (paced seats stop pausing and every game races to its end).
         stopping = true;
         final long runNs = System.nanoTime() - runStart;
         final long cpuNs = cpu.processCpuNs() - cpuStart;
         final long gcMs = gcMillis() - gcStart;
-        synchronized (live) {
-            for (final Game g : live) {
-                g.setGameOver(GameEndReason.Draw);
-            }
-        }
-        for (final Thread t : slots) {
-            t.join(20_000);
+        final long now = System.nanoTime();
+        for (final Long s0 : live.values()) {
+            matchNanos.add(now - s0);
         }
         sampler.interrupt();
 
