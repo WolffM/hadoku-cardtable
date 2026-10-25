@@ -274,6 +274,20 @@ on a cell already vary at random, never the last one twice, and `intensityVoice`
 python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r11-impact --to apps/server/data/sounds --add
 ```
 
+## Round 12: combat drums (2026-10-25)
+
+The operator, playtest 2026-10-24: a combat drum sound when combat is entered, not when it is skipped. `g.combat`
+("Combat drums") plays once per combat, on both screens, when the attack is declared (`attackDeclared` in
+`apps/ui/src/play/live/sound-events.ts`: on the attacker's own screen it waits for the lock-in, not the first pick).
+`round12-combat-drums.json` is eight short percussion phrases, deliberately varied (a "taiko war drums" music
+track is in the retired log); `finish.py` caps them at 2.6 s.
+
+```sh
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round12-combat-drums.json --takes 2 --seed 12000
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 12000 --only g.combat --out finished-r12-drums
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r12-drums --to <sounds dir> --add
+```
+
 ## Match music, generated locally (2026-10-17)
 
 The operator: *"we can use local models to generate better stuff … keep the variance high. not everything should

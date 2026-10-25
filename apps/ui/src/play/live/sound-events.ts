@@ -29,7 +29,7 @@
 import { COLOR_OF_BASIC_LAND, DECK_COLORS } from '@hadoku/deck';
 import { COLOUR_IDS, type ColourId, type DraftCard, type ParadigmId } from '@hadoku/shared';
 
-import { viewerOf, type BoardCard, type BoardCardChoice, type BoardPlayer, type BoardView } from '../adapter.ts';
+import { attackLockedIn, viewerOf, type BoardCard, type BoardCardChoice, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { damagePower } from '../motion.ts';
 import type { DelayedSoundEvent } from '../../sound/index.ts';
 import type { Seat } from '../../sound/mix.ts';
@@ -186,6 +186,17 @@ const seatOf = (player: BoardPlayer | undefined): Seat => (player === undefined 
 
 const counterTotal = (entry: BoardCard): number => entry.counters.reduce((n, c) => n + c.count, 0);
 
+const anyAttacking = (view: BoardView): boolean => view.players.some((p) => p.battlefield.some((c) => c.attacking));
+
+/**
+ * Whether this view shows a declared attack: a creature attacking, and in Declare Attackers itself the
+ * attack locked in (`attackLockedIn`: the attackers tapped, or the attacker holding priority again). A
+ * combat whose attack is skipped never shows one.
+ */
+export function attackDeclared(view: BoardView): boolean {
+  return anyAttacking(view) && (view.phase !== 'COMBAT_DECLARE_ATTACKERS' || attackLockedIn(view.players));
+}
+
 export function deriveSoundEvents(prev: BoardView | null, next: BoardView): DelayedSoundEvent[] {
   if (prev === null || next.seq <= prev.seq) return [];
   const events: DelayedSoundEvent[] = [];
@@ -212,6 +223,13 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
   } else if (next.phase !== prev.phase && next.phase !== null) {
     push('g.phase', active);
   }
+
+  // ── combat begins ─────────────────────────────────────────────────────
+  // The drums, once per combat, when the attack is declared (the operator, 2026-10-24: a combat drum
+  // "when combat [is] entered", not when it is skipped). On the attacker's own screen a creature turns
+  // `attacking` as it is picked, so the drums wait for the lock-in. A view that leaves Declare Attackers
+  // with untapped (vigilant) attackers is the same attack still, not a second one.
+  if (attackDeclared(next) && !attackDeclared(prev) && (!anyAttacking(prev) || prev.phase === next.phase)) push('g.combat', active);
 
   // ── the stack ─────────────────────────────────────────────────────────
   const before = placements(prev);

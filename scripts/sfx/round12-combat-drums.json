@@ -1,0 +1,24 @@
+{
+ "note": "Round 12 (2026-10-25): the operator, playtest 2026-10-24: a combat drum sound when combat is entered, not when it is skipped; the slot is g.combat, played once when attackers are declared (both seats, the opponent's quieter). A short phrase that says 'battle starts', not a music loop. The retired log has a 'thundering taiko war drums' music track thrown out, so the styles vary widely: war drums, timpani, frame drum, snare, toms, hand drums, a single great drum.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, percussion only, dry and punchy, one short phrase that ends cleanly.",
+ "negative": "low quality, muffled, lo-fi, hiss, clipping, distortion, melody, song, loop, synth, guitar, brass, strings, speech, voice, vocals, choir, chant, shouting, crowd, chime, bell, gong, cymbal crash, laser, sci-fi, beeping, whoosh",
+ "seconds": 3.0,
+ "sounds": {
+  "g.combat": {
+   "group": "Round 12",
+   "name": "Combat drums",
+   "section": "Moments",
+   "seconds": 3.0,
+   "prompts": [
+    "Three heavy war drum hits building to a fast roll, a battle about to begin, large wooden drums with deep low end",
+    "A short timpani roll swelling then two hard accented strikes, orchestral call to battle",
+    "A Viking-style frame drum beating a slow four-beat war rhythm, deep skin drums in a stone hall",
+    "A tight military snare drum roll ending on a single big bass drum hit, call to arms",
+    "Low floor toms pounding a quick galloping rhythm, two players in unison, cavalry about to charge",
+    "One enormous ceremonial drum struck twice, a deep booming signal across a battlefield",
+    "Hand drums and a deep bass drum in a fast tribal rhythm that stops on one hard accent",
+    "A marching bass drum and snare playing a short fanfare rhythm, soldiers ready to fight"
+   ]
+  }
+ }
+}

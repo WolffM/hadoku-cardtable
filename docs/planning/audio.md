@@ -140,6 +140,7 @@ object, but the id may still be stable.
 
 | Role | Trigger |
 | --- | --- |
+| `g.combat` | the attack is declared: a creature attacking, locked in during Declare Attackers (`attackDeclared`); once per combat, never for a skipped one |
 | `g.attack` | `attacking` turns on (a burst collapses to one) |
 | `g.block` | `blocking` turns on |
 | `g.damage` | creature `damage` rises |

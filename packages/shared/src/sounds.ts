@@ -298,6 +298,7 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 		id: 'combat',
 		name: 'Combat and life',
 		roles: [
+			game('g.combat', 'Combat drums', 'Combat begins: the attack is declared. Once per combat, on both screens; a skipped combat stays quiet.'),
 			game('g.attack', 'Attack', 'Attackers are declared.'),
 			game('g.block', 'Block', 'Blockers are declared.'),
 			game('g.damage', 'Damage to a creature', 'A creature takes damage.'),
