@@ -105,7 +105,11 @@ REMOTE
 		k=${pair%%=*}; v=${pair#*=}
 		hdr+=("$k"); vals+=("$v")
 	done
-	if [ ! -s "$tsv" ]; then (IFS=$'\t'; echo "${hdr[*]}") > "$tsv"; fi
+	# A harness change that adds columns starts a new file rather than misalign the old one.
+	local header
+	header=$(IFS=$'\t'; echo "${hdr[*]}")
+	if [ -s "$tsv" ] && [ "$(head -1 "$tsv")" != "$header" ]; then tsv=${tsv%.tsv}.c${#hdr[@]}.tsv; fi
+	if [ ! -s "$tsv" ]; then echo "$header" > "$tsv"; fi
 	(IFS=$'\t'; echo "${vals[*]}") >> "$tsv"
 	(IFS=$'\t'; paste <(printf '%s\n' "${hdr[@]}") <(printf '%s\n' "${vals[@]}") | grep -E '^(label|rc|matches|mode|completed|failed|capped|cpu_s_per_match_min|cores_busy|ai_p50_ms|ai_p95_ms|ai_p99_ms|ai_timeouts|act_p99_ms|gc_pct|live_heap_median_mb|live_heap_per_match_mb|rss_peak_mb|runners_pre|runners_post|load_pre|load_post)\b' | tr '\n' ' ') >&2
 	echo >&2

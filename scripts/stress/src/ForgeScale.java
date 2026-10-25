@@ -113,6 +113,17 @@ public final class ForgeScale {
     static final ConcurrentLinkedQueue<Long> HEAVY_COMBAT_US = new ConcurrentLinkedQueue<>();
     static final Map<String, AtomicInteger> TIMEOUT_FRAMES = new ConcurrentHashMap<>();
     static final AtomicLong FORCED_GC_MS = new AtomicLong();
+    /**
+     * Bumped before and after each forced GC. A measurement whose epoch changed spanned one of
+     * OUR stop-the-world GCs, which production never runs, so it is dropped (and counted).
+     */
+    static final AtomicInteger GC_EPOCH = new AtomicInteger();
+    static final LongAdder SPANNED_GC = new LongAdder();
+    static final long SLOW_MS = Long.getLong("stress.slowMs", 3000L);
+    static final java.util.Set<Seat> DECIDING = ConcurrentHashMap.newKeySet();
+    static final Map<String, AtomicInteger> SLOW_FRAMES = new ConcurrentHashMap<>();
+    static final AtomicInteger SLOW = new AtomicInteger();
+    static final AtomicInteger OVER_5S = new AtomicInteger();
     static final java.util.Set<Game> CAPPED = ConcurrentHashMap.newKeySet();
     static volatile boolean stopping;
 
@@ -157,6 +168,7 @@ public final class ForgeScale {
         // --- the run ----------------------------------------------------------
         final Sampler sampler = new Sampler(SERIES);
         sampler.start();
+        startWatchdog();
         final OperatingSystemCpu cpu = new OperatingSystemCpu();
         final long cpuStart = cpu.processCpuNs();
         final long gcStart = gcMillis();
@@ -244,7 +256,9 @@ public final class ForgeScale {
             Thread.sleep(1000);
             if (LIVE_GC_S > 0 && System.nanoTime() >= nextGc) {
                 final long g0 = System.nanoTime();
+                GC_EPOCH.incrementAndGet();
                 fullGc();
+                GC_EPOCH.incrementAndGet();
                 FORCED_GC_MS.addAndGet((System.nanoTime() - g0) / 1_000_000L);
                 final long used = usedHeapMb();
                 liveSamples.add(used);
@@ -298,6 +312,7 @@ public final class ForgeScale {
         r.put("act_p99_ms", pct(ACT_US, 99));
         r.put("gc_ms", gcMs);
         r.put("forced_gc_ms", FORCED_GC_MS.get());
+        r.put("dropped_spanning_gc", SPANNED_GC.sum());
         r.put("gc_pct", fmt(100.0 * Math.max(0, gcMs - FORCED_GC_MS.get()) / (runNs / 1e6)));
         r.put("live_heap_max_mb", liveMax);
         r.put("live_heap_median_mb", median(liveSamples));
@@ -307,7 +322,10 @@ public final class ForgeScale {
         r.put("rss_end_mb", procKb("/proc/self/status", "VmRSS:") / 1024);
         r.put("threads_peak", ManagementFactory.getThreadMXBean().getPeakThreadCount());
         r.put("eval_threads_peak", sampler.evalMax.get());
-        r.put("timeout_frames", topFrames());
+        r.put("timeout_frames", topFrames(TIMEOUT_FRAMES));
+        r.put("slow_decisions", SLOW.get());
+        r.put("decisions_over_5s", OVER_5S.get());
+        r.put("slow_frames", topFrames(SLOW_FRAMES));
         {
             r.put("heavy_slots", HEAVY);
             r.put("heavy_decisions", HEAVY_PRIORITY_US.size());
@@ -452,6 +470,7 @@ public final class ForgeScale {
 
     /** One game's "a paced seat acted; when does anyone get asked next?" clock. */
     static final Map<Game, AtomicLong> ACTED_AT = Collections.synchronizedMap(new java.util.WeakHashMap<>());
+    static final Map<Game, Integer> ACTED_EPOCH = Collections.synchronizedMap(new java.util.WeakHashMap<>());
 
     static final class Seat extends PlayerControllerAi {
         final boolean paced;
@@ -464,16 +483,24 @@ public final class ForgeScale {
         }
 
         private void entered() {
+            if (stopping) {
+                return;
+            }
             final AtomicLong at = ACTED_AT.get(getGame());
             if (at != null) {
                 final long t = at.getAndSet(0);
                 if (t != 0) {
-                    ACT_US.add((System.nanoTime() - t) / 1000L);
+                    if (Integer.valueOf(GC_EPOCH.get()).equals(ACTED_EPOCH.get(getGame()))) {
+                        ACT_US.add((System.nanoTime() - t) / 1000L);
+                    } else {
+                        SPANNED_GC.increment();
+                    }
                 }
             }
         }
 
         private void acted() {
+            ACTED_EPOCH.put(getGame(), GC_EPOCH.get());
             ACTED_AT.computeIfAbsent(getGame(), g -> new AtomicLong()).set(System.nanoTime());
         }
 
@@ -491,8 +518,36 @@ public final class ForgeScale {
             }
         }
 
+        volatile long decidingSince;
+        volatile boolean sampled;
+        volatile Thread decider;
+        volatile int epoch;
+
+        private long begin() {
+            final long t0 = System.nanoTime();
+            decider = Thread.currentThread();
+            epoch = GC_EPOCH.get();
+            sampled = false;
+            decidingSince = t0;
+            DECIDING.add(this);
+            return t0;
+        }
+
         private long timed(final long t0, final ConcurrentLinkedQueue<Long> into) {
+            DECIDING.remove(this);
+            decidingSince = 0;
             final long us = (System.nanoTime() - t0) / 1000L;
+            if (stopping) {
+                // Teardown ends every game at once; what the AI does then is not load.
+                return us;
+            }
+            if (epoch != GC_EPOCH.get()) {
+                SPANNED_GC.increment();
+                return us;
+            }
+            if (us > 5_000_000L) {
+                OVER_5S.incrementAndGet();
+            }
             if (paced) {
                 PACED_COMPUTE_US.add(us);
             } else if (heavy) {
@@ -507,7 +562,7 @@ public final class ForgeScale {
         @Override
         public List<SpellAbility> chooseSpellAbilityToPlay() {
             entered();
-            final long t0 = System.nanoTime();
+            final long t0 = begin();
             final List<SpellAbility> sa = super.chooseSpellAbilityToPlay();
             timed(t0, AI_PRIORITY_US);
             if (paced) {
@@ -527,7 +582,7 @@ public final class ForgeScale {
         @Override
         public void declareAttackers(final Player attacker, final Combat combat) {
             entered();
-            final long t0 = System.nanoTime();
+            final long t0 = begin();
             super.declareAttackers(attacker, combat);
             timed(t0, AI_COMBAT_US);
             if (paced && !attacker.getCreaturesInPlay().isEmpty()) {
@@ -539,7 +594,7 @@ public final class ForgeScale {
         @Override
         public void declareBlockers(final Player defender, final Combat combat) {
             entered();
-            final long t0 = System.nanoTime();
+            final long t0 = begin();
             super.declareBlockers(defender, combat);
             timed(t0, AI_COMBAT_US);
             if (paced && !defender.getCreaturesInPlay().isEmpty()) {
@@ -547,6 +602,44 @@ public final class ForgeScale {
                 acted();
             }
         }
+    }
+
+    /**
+     * The 5 s AI_TIMEOUT guards only the canPlay scan inside
+     * {@code AiController.chooseSpellAbilityToPlayFromList}; everything else a decision does is
+     * unguarded. Any decision still running after {@code stress.slowMs} gets its thread's stack
+     * sampled once, so an unguarded stall says where it is.
+     */
+    private static void startWatchdog() {
+        final Thread w = new Thread(() -> {
+            while (!stopping) {
+                final long now = System.nanoTime();
+                for (final Seat seat : DECIDING) {
+                    final long since = seat.decidingSince;
+                    final Thread t = seat.decider;
+                    if (since != 0 && !seat.sampled && t != null && now - since > SLOW_MS * 1_000_000L) {
+                        seat.sampled = true;
+                        SLOW.incrementAndGet();
+                        final StringBuilder key = new StringBuilder(seat.heavy ? "heavy:" : "");
+                        int n = 0;
+                        for (final StackTraceElement e : t.getStackTrace()) {
+                            if (e.getClassName().startsWith("forge.") && n < 3) {
+                                final String c = e.getClassName();
+                                key.append(n++ == 0 ? "" : "<").append(c.substring(c.lastIndexOf('.') + 1)).append('.').append(e.getMethodName());
+                            }
+                        }
+                        SLOW_FRAMES.computeIfAbsent(key.toString(), k -> new AtomicInteger()).incrementAndGet();
+                    }
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (final InterruptedException e) {
+                    return;
+                }
+            }
+        }, "stress-watchdog");
+        w.setDaemon(true);
+        w.start();
     }
 
     // --- Forge's stdout: count AI timeouts ----------------------------------
@@ -557,7 +650,7 @@ public final class ForgeScale {
         }
 
         private void inspect(final String s) {
-            if (s != null && s.startsWith(TIMEOUT_MARK)) {
+            if (s != null && s.startsWith(TIMEOUT_MARK) && !stopping) {
                 // AiController prints this on the game thread, which is the slot's own thread.
                 final String t = Thread.currentThread().getName();
                 if (t.startsWith(SLOT_PREFIX) && Integer.parseInt(t.substring(SLOT_PREFIX.length())) < HEAVY) {
@@ -584,11 +677,11 @@ public final class ForgeScale {
         @Override public void println(final String x) { inspect(x); super.println(x); }
     }
 
-    private static String topFrames() {
-        if (TIMEOUT_FRAMES.isEmpty()) {
+    private static String topFrames(final Map<String, AtomicInteger> frames) {
+        if (frames.isEmpty()) {
             return "-";
         }
-        final List<Map.Entry<String, AtomicInteger>> es = new ArrayList<>(TIMEOUT_FRAMES.entrySet());
+        final List<Map.Entry<String, AtomicInteger>> es = new ArrayList<>(frames.entrySet());
         es.sort((a, b) -> b.getValue().get() - a.getValue().get());
         final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < Math.min(4, es.size()); i++) {
