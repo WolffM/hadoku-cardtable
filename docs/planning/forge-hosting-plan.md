@@ -20,7 +20,10 @@ means it doesn't yet.
    2026-10-24). Other availability alerts go to the same channel (§7).
 6. **Ethernet will not happen on claw-1, 2 or 3** (2026-10-25). They are on
    Wi-Fi, so the bar for being a Forge host rises instead (§4.1). They stay CI
-   claws.
+   claws. The host pool is claw-4, 5, 6, 8, 9, which is enough.
+7. **Quality before capacity** (2026-10-25): *"we dont want to deliver bad
+   quality games."* Where performance and match count conflict, performance
+   wins (§4.2).
 
 ## 2. What is measured
 
@@ -113,6 +116,22 @@ N=1 value; human action → frame p99 > 500 ms; GC time > 10%.
   declared resources), our T9 calibration, and the match type. vs-AI matches go
   to fast-core hosts; human-vs-human anywhere with room. Spread matches across
   hosts rather than packing.
+
+### 4.2 Quality first (ruling 7)
+
+- **Admission control, never degradation.** A match starts only on a host with
+  quality headroom for its tier. If none has it, the match waits or is refused
+  with a plain reason, and the capacity alert fires. A match is never squeezed
+  onto a host that would make it laggy.
+- **Hosts run at about half their knee.** Each host's per-tier cap is ~50% of
+  the N where T1–T3 first trip a "struggling" criterion (§3) on that claw.
+  The headroom absorbs a #3410-style heavy board, a GC pause or a CI neighbour
+  that should not be there.
+- **Best host, not emptiest.** vs-AI matches go to the fastest single core with
+  headroom (claw-8 first). Human-vs-human matches fill the remaining hosts.
+- **Live quality is watched, not assumed.** Any AI cutoff hit, and paced-action
+  p95 over 250 ms, count against the host in real time. A host over either bar
+  takes no new matches until it is clean again.
 
 ### 4.1 Host eligibility
 
