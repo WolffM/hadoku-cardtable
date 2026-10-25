@@ -341,7 +341,13 @@ jobs:
     # each of four shards held ~93 tests, about 26 min on hokon but ~36 s a
     # test on two busy warm claws, so two shards were cut off at 55 min with
     # nothing red. 75 covers that measured worst case with headroom.
-    timeout-minutes: 75
+    #
+    # A one-shard run (a push's selection, a dispatch's `specs`) is far shorter, so a hang there
+    # dies at 45 instead of holding a claw for 75. Measured over 2026-10-17..24, green jobs only,
+    # by job: one shard p50 3–13, p95 20.5, max 36.0 min (a cold jar build plus a loaded claw);
+    # 45 clears that max. A full set stays at 75: its green shards reach p95 63, max 65, and its
+    # reds run as long as its greens (Playwright finishes the shard), so they are not hangs.
+    timeout-minutes: ${{ needs.changes.outputs.shards == '[1]' && 45 || 75 }}
     steps:
       - uses: actions/checkout@v6
 
