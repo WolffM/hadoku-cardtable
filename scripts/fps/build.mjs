@@ -1,7 +1,7 @@
 /*
  * Build the browser-fps harness the way production builds the app: `apps/ui/vite.config.ts`'s own
- * plugins, defines and UI-scale PostCSS, React in production mode. Not minified, so a CPU profile names
- * components and functions (a little parse time, nothing per frame).
+ * plugins, defines and UI-scale PostCSS, React in production mode. Not minified and source-mapped, so a profile names
+ * components and functions and `measure.mjs` maps them back to file:line (a little parse time, nothing per frame).
  *
  *   node scripts/fps/build.mjs [outDir]   (default ~/.cache/cardtable-fps/dist)
  */
@@ -25,7 +25,7 @@ await vite.build(
     mode: 'production',
     logLevel: 'warn',
     resolve: { alias: { react: resolve(uiModules, 'react'), 'react-dom': resolve(uiModules, 'react-dom') } },
-    build: { outDir, emptyOutDir: true, minify: false, sourcemap: false, rollupOptions: { input: resolve(here, 'harness.html') } },
+    build: { outDir, emptyOutDir: true, minify: false, sourcemap: true, rollupOptions: { input: resolve(here, 'harness.html') } },
   }),
 );
 console.log(`built ${outDir}`);

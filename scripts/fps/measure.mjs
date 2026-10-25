@@ -6,10 +6,13 @@
  *   node scripts/fps/measure.mjs trace   --throttle 4 --out <tsv>          (Chromium: where the time goes)
  *   node scripts/fps/measure.mjs leak    --minutes 10 --out <tsv>          (Chromium: heap + DOM over a loop)
  *
+ * --drop-rules <regex> (frames, trace): CSS rules whose selector matches are deleted in the page before
+ * recording — an A/B for a rule's cost that edits nothing in the app.
+ *
  * Common: --dist <built harness dir> (default ~/.cache/cardtable-fps/dist), --cases a/b,c/d (board/anim),
  * --secs N recording window, --repeat N.
  */
-import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { loadavg } from 'node:os';
 import { dirname, resolve } from 'node:path';
@@ -20,6 +23,10 @@ import { serve } from './serve.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(resolve(here, '../../e2e/package.json'));
 const { chromium, firefox } = require('@playwright/test');
+// source-map-js, through the toolchain that already carries it: apps/ui's vite → its postcss → source-map-js.
+const viteEntry = createRequire(resolve(here, '../../apps/ui/package.json')).resolve('vite');
+const postcssEntry = createRequire(viteEntry).resolve('postcss');
+const { SourceMapConsumer } = createRequire(postcssEntry)('source-map-js');
 
 const mode = process.argv[2];
 const arg = (name, fallback) => {
@@ -33,6 +40,7 @@ const repeat = Number(arg('repeat', '1'));
 const browserName = arg('browser', 'chromium');
 const viewportName = arg('viewport', 'desktop');
 const throttles = arg('throttle', '1').split(',').map(Number);
+const dropRules = arg('drop-rules', null);
 
 /** board query → label. `crowded-nofly` is `crowded` with the flyers swapped for ground creatures. */
 const BOARDS = {
@@ -89,9 +97,29 @@ async function openBoard(browser, board, viewport) {
   await page.goto(`${server.url}/harness.html?${BOARDS[board]}`);
   await page.waitForFunction(() => document.querySelectorAll('[data-card-id]').length > 0, null, { timeout: 30_000 });
   // Art from the CDN decoded, entry motion over.
-  await page.waitForLoadState('networkidle').catch(() => {});
-  await page.waitForTimeout(2500);
-  return { context, page, errors };
+  // Not `networkidle`: the app's own calls the harness has no server for (`/session/whoami`,
+  // `/api/sounds/…`) keep the network from ever going idle, and every case waited out the 30 s timeout.
+  await page
+    .waitForFunction(() => [...document.images].every((img) => img.complete), null, { timeout: 10_000 })
+    .catch(() => {});
+  await page.waitForTimeout(2000);
+  const dropped = dropRules === null ? 0 : await page.evaluate((source) => {
+    const re = new RegExp(source);
+    let n = 0;
+    const walk = (rules, owner) => {
+      for (let i = rules.length - 1; i >= 0; i--) {
+        const r = rules[i];
+        if (r.selectorText === undefined && r.cssRules !== undefined) walk(r.cssRules, r);
+        else if (re.test(r.selectorText ?? '')) {
+          owner.deleteRule(i);
+          n += 1;
+        }
+      }
+    };
+    for (const sheet of document.styleSheets) walk(sheet.cssRules, sheet);
+    return n;
+  }, dropRules);
+  return { context, page, errors, dropped };
 }
 
 /** Viewport points over battlefield and hand cards, for the input drivers. */
@@ -135,13 +163,13 @@ async function drive(page, anim, viewport, ms) {
 }
 
 async function frames() {
-  const header = ['browser', 'viewport', 'throttle', 'board', 'anim', 'run', 'n_frames', 'fps_p50', 'frame_p95_ms', 'frame_p99_ms', 'over16_7_pct', 'over33_pct', 'worst_ms', 'longtasks', 'longtask_ms_total', 'loaf_n', 'loaf_script_ms', 'loaf_stylelayout_ms', 'input_n', 'input_p50_ms', 'input_p95_ms', 'evt_n', 'evt_p95_ms', 'dom_nodes', 'load1_before', 'load1_after', 'errors'];
+  const header = ['browser', 'viewport', 'throttle', 'board', 'anim', 'run', 'n_frames', 'fps_p50', 'frame_p95_ms', 'frame_p99_ms', 'over16_7_pct', 'over33_pct', 'worst_ms', 'longtasks', 'longtask_ms_total', 'loaf_n', 'loaf_script_ms', 'loaf_stylelayout_ms', 'input_n', 'input_p50_ms', 'input_p95_ms', 'evt_n', 'evt_p95_ms', 'dom_nodes', 'load1_before', 'load1_after', 'dropped_rules', 'errors'];
   const browser = await launch(browserName);
   for (const throttle of throttles) {
     for (const { board, anim } of cases) {
       for (let run = 1; run <= repeat; run++) {
         const before = load();
-        const { context, page, errors } = await openBoard(browser, board, viewportName);
+        const { context, page, errors, dropped } = await openBoard(browser, board, viewportName);
         if (browserName === 'chromium' && throttle !== 1) {
           const cdp = await context.newCDPSession(page);
           await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });
@@ -184,6 +212,7 @@ async function frames() {
           dom_nodes: r.dom,
           load1_before: before,
           load1_after: load(),
+          dropped_rules: dropRules === null ? '' : `${dropped}:${dropRules}`,
           errors: errors.length === 0 ? '' : errors.slice(0, 2).join(' | ').replace(/\s+/g, ' ').slice(0, 200),
         });
         await context.close();
@@ -204,11 +233,11 @@ const KIND = {
 const kindOf = new Map(Object.entries(KIND).flatMap(([k, names]) => names.map((n) => [n, k])));
 
 async function trace() {
-  const header = ['viewport', 'throttle', 'board', 'anim', 'window_ms', 'script_ms', 'style_ms', 'layout_ms', 'paint_ms', 'composite_ms', 'layouts', 'forced_layouts', 'forced_layout_ms', 'style_recalcs', 'style_elements_p95', 'top_forced_from', 'top_script_fns', 'load1'];
+  const header = ['viewport', 'throttle', 'board', 'anim', 'window_ms', 'script_ms', 'style_ms', 'layout_ms', 'paint_ms', 'composite_ms', 'layouts', 'forced_layouts', 'forced_layout_ms', 'style_recalcs', 'style_elements_p95', 'full_restyles', 'full_restyle_ms', 'dropped_rules', 'top_forced_from', 'top_script_fns', 'load1'];
   const browser = await launch('chromium');
   for (const throttle of throttles) {
     for (const { board, anim } of cases) {
-      const { context, page } = await openBoard(browser, board, viewportName);
+      const { context, page, dropped } = await openBoard(browser, board, viewportName);
       const cdp = await context.newCDPSession(page);
       if (throttle !== 1) await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });
       if (LOOP_PERIOD[anim] !== undefined) {
@@ -243,6 +272,9 @@ async function trace() {
       let forcedMs = 0;
       const forcedFrom = new Map();
       const styleElements = [];
+      // A restyle of more elements than this is the whole board's, not one card's.
+      let fullRestyles = 0;
+      let fullRestyleMs = 0;
       // Self time per kind: sort complete events on the main thread and subtract children.
       const evs = events
         .filter((e) => `${e.pid}:${e.tid}` === main && e.ph === 'X' && typeof e.dur === 'number')
@@ -262,11 +294,17 @@ async function trace() {
             forced += 1;
             forcedMs += e.dur / 1000;
             const frame = e.args?.beginData?.stackTrace?.[0] ?? null;
-            const at = frame === null ? 'unknown' : `${frame.functionName || '(anon)'}@${frame.lineNumber}`;
+            const at = frame === null ? 'unknown' : sourceOf(frame.functionName || '(anon)', frame.lineNumber, (frame.columnNumber ?? 1) - 1);
             forcedFrom.set(at, (forcedFrom.get(at) ?? 0) + e.dur / 1000);
           }
         }
-        if (e.name === 'UpdateLayoutTree' && typeof e.args?.elementCount === 'number') styleElements.push(e.args.elementCount);
+        if (e.name === 'UpdateLayoutTree' && typeof e.args?.elementCount === 'number') {
+          styleElements.push(e.args.elementCount);
+          if (e.args.elementCount > 1000) {
+            fullRestyles += 1;
+            fullRestyleMs += e.dur / 1000;
+          }
+        }
         stack.push(e);
       }
       for (const e of evs) if (e.kind !== undefined) sums[e.kind] += Math.max(0, e.self) / 1000;
@@ -292,6 +330,9 @@ async function trace() {
         forced_layout_ms: f1(forcedMs),
         style_recalcs: styleElements.length,
         style_elements_p95: q(styleElements, 0.95) ?? '-',
+        full_restyles: fullRestyles,
+        full_restyle_ms: f1(fullRestyleMs),
+        dropped_rules: dropRules === null ? '' : `${dropped}:${dropRules}`,
         top_forced_from: [...forcedFrom.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}=${f1(v)}`).join(' '),
         top_script_fns: topFunctions(profile, 5),
         load1: load(),
@@ -302,7 +343,20 @@ async function trace() {
   await browser.close();
 }
 
-/** The CPU profile's top functions by self time, as `name@line=ms` (the harness is unminified). */
+/** The bundle's source map, so a profile's or a trace's bundle line reads as the app's own `file:line`. */
+let consumer;
+function sourceOf(name, line, column) {
+  if (consumer === undefined) {
+    const map = readdirSync(resolve(dist, 'assets')).find((f) => /^harness-.*\.js\.map$/.test(f));
+    consumer = map === undefined ? null : new SourceMapConsumer(JSON.parse(readFileSync(resolve(dist, 'assets', map), 'utf8')));
+  }
+  const at = consumer?.originalPositionFor({ line, column: Math.max(0, column) });
+  if (at?.source == null) return `${name}@bundle:${line}`;
+  const file = at.source.replace(/^.*?(apps\/ui\/src\/|packages\/|scripts\/fps\/|node_modules\/(\.pnpm\/[^/]+\/node_modules\/)?)/, '$1').replace(/^node_modules\/\.pnpm\/[^/]+\/node_modules\//, '');
+  return `${name}@${file}:${at.line}`;
+}
+
+/** The CPU profile's top functions by self time, as `name@file:line=ms`. */
 function topFunctions(profile, n) {
   const dt = new Map();
   for (let i = 0; i < profile.samples.length; i++) dt.set(profile.samples[i], (dt.get(profile.samples[i]) ?? 0) + (profile.timeDeltas[i] ?? 0));
@@ -310,7 +364,7 @@ function topFunctions(profile, n) {
   for (const node of profile.nodes) {
     const cf = node.callFrame;
     if (cf.url === '' || cf.functionName === '(program)' || cf.functionName === '(idle)' || cf.functionName === '(garbage collector)') continue;
-    const k = `${cf.functionName || '(anon)'}@${cf.lineNumber + 1}`;
+    const k = sourceOf(cf.functionName || '(anon)', cf.lineNumber + 1, cf.columnNumber);
     self.set(k, (self.get(k) ?? 0) + (dt.get(node.id) ?? 0) / 1000);
   }
   return [...self.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k}=${f1(v)}`).join(' ');
