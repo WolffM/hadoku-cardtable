@@ -1,0 +1,7 @@
+browser	viewport	throttle	board	anim	run	n_frames	fps_p50	frame_p95_ms	frame_p99_ms	over16_7_pct	over33_pct	worst_ms	longtasks	longtask_ms_total	loaf_n	loaf_script_ms	loaf_stylelayout_ms	input_n	input_p50_ms	input_p95_ms	evt_n	evt_p95_ms	dom_nodes	load1_before	load1_after	dropped_rules	errors
+chromium	desktop	4x	crowded	click	1	448	59.9	16.8	83.3	4.7	2.5	133.4	9	701.0	10	193.1	63.8	21	76.4	145.1	170	152.0	2093	8.9	7.8		
+chromium	desktop	4x	crowded	click	2	439	59.9	33.3	116.6	5.7	3.4	166.7	8	799.0	10	214.4	66.7	21	112.4	168.2	170	184.0	2093	7.8	7.8		
+chromium	desktop	4x	huge	click	1	342	59.9	49.9	166.7	17.5	6.1	283.4	13	1583.0	15	556.8	358.7	18	141.4	291.3	142	304.0	3321	7.8	12.0		
+chromium	desktop	4x	huge	click	2	396	59.9	33.4	133.4	9.1	4.0	216.6	13	1366.0	15	439.6	217.9	20	116.3	228.5	159	240.0	3321	12.0	9.8		
+chromium	desktop	4x	crowded	stack	1	413	59.9	16.8	116.7	2.9	2.4	216.7	13	1236.0	10	1110.3	465.5	0	-	-	0	-	2127	9.8	8.8		
+chromium	desktop	4x	crowded	stack	2	424	59.9	16.8	116.7	2.8	2.4	166.8	13	1059.0	10	973.8	389.3	0	-	-	0	-	2127	8.8	7.7		

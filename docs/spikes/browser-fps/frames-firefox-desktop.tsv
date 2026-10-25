@@ -1,0 +1,23 @@
+browser	viewport	throttle	board	anim	run	n_frames	fps_p50	frame_p95_ms	frame_p99_ms	over16_7_pct	over33_pct	worst_ms	longtasks	longtask_ms_total	loaf_n	loaf_script_ms	loaf_stylelayout_ms	input_n	input_p50_ms	input_p95_ms	evt_n	evt_p95_ms	dom_nodes	load1_before	load1_after	dropped_rules	errors
+firefox	desktop	none	early	idle	1	481	58.7	17.1	17.5	0.0	0.0	17.6	0	0.0	0	0.0	0.0	0	-	-	0	-	628	8.0	8.1		
+firefox	desktop	none	early	hover	1	485	58.7	17.3	17.4	0.2	0.2	49.6	0	0.0	0	0.0	0.0	31	15.6	17.4	24	24.0	650	8.1	9.3		
+firefox	desktop	none	early	click	1	498	58.6	17.1	17.3	0.0	0.0	17.5	0	0.0	0	0.0	0.0	24	29.7	33.6	23	16.0	628	9.3	8.9		
+firefox	desktop	none	mid	idle	1	481	58.6	17.1	17.1	0.0	0.0	17.1	0	0.0	0	0.0	0.0	0	-	-	0	-	858	8.9	8.2		
+firefox	desktop	none	mid	tap	1	480	58.6	17.1	17.1	0.0	0.0	17.1	0	0.0	0	0.0	0.0	0	-	-	0	-	858	8.2	7.5		
+firefox	desktop	none	mid	attack	1	480	58.6	17.1	17.1	0.0	0.0	17.1	0	0.0	0	0.0	0.0	0	-	-	0	-	876	7.5	5.8		
+firefox	desktop	none	mid	stack	1	480	58.6	17.1	17.1	0.0	0.0	17.1	0	0.0	0	0.0	0.0	0	-	-	0	-	892	5.8	5.3		
+firefox	desktop	none	mid	hover	1	485	58.6	17.1	17.1	0.0	0.0	17.1	0	0.0	0	0.0	0.0	30	16.3	16.8	0	-	881	5.3	4.2		
+firefox	desktop	none	mid	click	1	509	58.7	17.2	17.4	0.0	0.0	17.5	0	0.0	0	0.0	0.0	24	29.0	32.7	22	24.0	858	4.2	4.9		
+firefox	desktop	none	crowded	idle	1	481	60.0	17.4	17.5	0.0	0.0	17.5	0	0.0	0	0.0	0.0	0	-	-	0	-	2093	4.9	13.3		
+firefox	desktop	none	crowded-nofly	idle	1	480	58.6	17.1	17.1	0.0	0.0	17.3	0	0.0	0	0.0	0.0	0	-	-	0	-	2093	13.3	12.5		
+firefox	desktop	none	crowded	tap	1	481	58.6	17.1	17.1	0.0	0.0	17.3	0	0.0	0	0.0	0.0	0	-	-	0	-	2093	12.5	10.2		
+firefox	desktop	none	crowded	attack	1	480	58.6	17.1	17.1	0.0	0.0	17.1	0	0.0	0	0.0	0.0	0	-	-	0	-	2151	10.2	8.1		
+firefox	desktop	none	crowded	stack	1	480	58.6	17.1	17.1	0.0	0.0	17.1	0	0.0	0	0.0	0.0	0	-	-	0	-	2127	8.1	6.9		
+firefox	desktop	none	crowded	hover	1	485	58.5	17.1	17.1	0.0	0.0	17.4	0	0.0	0	0.0	0.0	29	16.1	17.1	0	-	2114	6.9	6.9		
+firefox	desktop	none	crowded	click	1	500	60.0	17.4	17.6	0.6	0.2	49.3	0	0.0	0	0.0	0.0	23	26.8	42.8	100	32.0	2093	6.9	8.0		
+firefox	desktop	none	huge	idle	1	479	60.0	17.3	17.5	0.2	0.2	33.5	0	0.0	0	0.0	0.0	0	-	-	0	-	3321	8.0	15.7		
+firefox	desktop	none	huge	tap	1	472	59.5	17.4	33.2	1.5	0.8	49.4	0	0.0	0	0.0	0.0	0	-	-	0	-	3321	15.7	16.2		
+firefox	desktop	none	huge	attack	1	476	58.8	17.2	17.5	0.8	0.2	49.6	0	0.0	0	0.0	0.0	0	-	-	0	-	3379	16.2	14.4		
+firefox	desktop	none	huge	stack	1	469	58.6	17.2	33.2	2.1	0.9	50.6	0	0.0	0	0.0	0.0	0	-	-	0	-	3355	14.4	15.0		
+firefox	desktop	none	huge	hover	1	485	59.0	17.2	17.6	0.4	0.0	33.1	0	0.0	0	0.0	0.0	24	15.6	17.5	58	24.0	3342	15.0	15.2		
+firefox	desktop	none	huge	click	1	508	58.6	17.1	17.1	0.0	0.0	17.1	0	0.0	0	0.0	0.0	24	29.4	31.8	31	32.0	3321	15.2	12.8		
