@@ -117,22 +117,6 @@ N=1 value; human action → frame p99 > 500 ms; GC time > 10%.
   to fast-core hosts; human-vs-human anywhere with room. Spread matches across
   hosts rather than packing.
 
-### 4.2 Quality first (ruling 7)
-
-- **Admission control, never degradation.** A match starts only on a host with
-  quality headroom for its tier. If none has it, the match waits or is refused
-  with a plain reason, and the capacity alert fires. A match is never squeezed
-  onto a host that would make it laggy.
-- **Hosts run at about half their knee.** Each host's per-tier cap is ~50% of
-  the N where T1–T3 first trip a "struggling" criterion (§3) on that claw.
-  The headroom absorbs a #3410-style heavy board, a GC pause or a CI neighbour
-  that should not be there.
-- **Best host, not emptiest.** vs-AI matches go to the fastest single core with
-  headroom (claw-8 first). Human-vs-human matches fill the remaining hosts.
-- **Live quality is watched, not assumed.** Any AI cutoff hit, and paced-action
-  p95 over 250 ms, count against the host in real time. A host over either bar
-  takes no new matches until it is clean again.
-
 ### 4.1 Host eligibility
 
 Ruling 4 makes every network silence longer than the failover window cost every
@@ -159,6 +143,22 @@ The Wi-Fi claws fail the link bars on this sample, and claw-1–3 are also among
 the slowest CPUs, so the fleet loses little hosting capacity. A 48 h probe
 (`cardtable-netprobe`, 1 ping/s per claw plus link counters every 5 min) is
 running to set the thresholds and the failover window from real outage data.
+
+### 4.2 Quality first (ruling 7)
+
+- **Admission control, never degradation.** A match starts only on a host with
+  quality headroom for its tier. If none has it, the match waits or is refused
+  with a plain reason, and the capacity alert fires. A match is never squeezed
+  onto a host that would make it laggy.
+- **Hosts run at about half their knee.** Each host's per-tier cap is ~50% of
+  the N where T1–T3 first trip a "struggling" criterion (§3) on that claw.
+  The headroom absorbs a #3410-style heavy board, a GC pause or a CI neighbour
+  that should not be there.
+- **Best host, not emptiest.** vs-AI matches go to the fastest single core with
+  headroom (claw-8 first). Human-vs-human matches fill the remaining hosts.
+- **Live quality is watched, not assumed.** Any AI cutoff hit, and paced-action
+  p95 over 250 ms, count against the host in real time. A host over either bar
+  takes no new matches until it is clean again.
 
 ## 5. Failover and resurrection
 
