@@ -51,10 +51,28 @@ describe('pinFlight', () => {
     await flush();
     expect(drawnAnimations[0]!.startTime, 'a flyer drawn').toBe(0);
 
-    drawnAnimations[0]!.startTime = 1234;
-    drawn.append(document.createElement('span'));
+    const pill = document.createElement('span');
+    const pillAnimations = animate(pill, ['fly-across']);
+    drawn.append(pill);
     await flush();
-    expect(drawnAnimations[0]!.startTime, 'a pill added to it').toBe(0);
+    expect(pillAnimations[0]!.startTime, 'a pill added to it').toBe(0);
+
+    const face = document.createElement('div');
+    face.className = 'board-card__face';
+    drawn.append(face);
+    await flush();
+    const art = document.createElement('div');
+    const artAnimations = animate(art, ['fly-tilt-across']);
+    face.append(art);
+    await flush();
+    expect(artAnimations[0]!.startTime, 'art drawn into its face').toBe(0);
+
+    // Inside a part, nothing starts a `fly-*` animation: no re-read of the card for a pill's text.
+    drawnAnimations[0]!.startTime = 1234;
+    pillAnimations[0]!.startTime = 1234;
+    pill.append(document.createElement('b'));
+    await flush();
+    expect([drawnAnimations[0]!.startTime, pillAnimations[0]!.startTime], 'a change inside a pill').toEqual([1234, 1234]);
 
     const grounded = document.createElement('li');
     const groundedAnimations = animate(grounded, ['fly-rise']);

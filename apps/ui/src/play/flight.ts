@@ -15,6 +15,15 @@
 
 const FLYING = '[data-flying]';
 
+/**
+ * Where a node added to a flyer can start a `fly-*` animation: as a part the `<li>` lays out, or as the
+ * face (its art, protection layer and shadow) or a part of it. Anything deeper — a pill's text, a
+ * counter's digits — runs none, and pinning on it would read every animation of the card again
+ * (`getAnimations` brings the page's style up to date first) for every change inside an attacking
+ * flyer (`docs/spikes/browser-fps.md`).
+ */
+const FLYING_PART = ':is([data-flying], [data-flying] > .board-card__face) > *';
+
 /** Start every `fly-*` animation of `el` and everything in it at the document's origin. */
 function pin(el: Element): void {
   if (typeof el.getAnimations !== 'function') return;
@@ -27,16 +36,21 @@ function pin(el: Element): void {
 
 /** Keep every flyer in `root` on the document's clock from the frame it is first drawn. Returns the uninstall. */
 export function pinFlight(root: HTMLElement): () => void {
-  const flyers = new Set<Element>();
   const observer = new MutationObserver((records) => {
-    flyers.clear();
+    const pinned = new Set<Element>();
     for (const r of records) {
-      const at = r.target instanceof Element ? r.target : r.target.parentElement;
-      const flyer = at?.closest(FLYING) ?? null;
-      if (flyer !== null) flyers.add(flyer);
-      for (const node of r.addedNodes) if (node instanceof Element) for (const f of [node, ...node.querySelectorAll(FLYING)]) if (f.matches(FLYING)) flyers.add(f);
+      // A card that starts flying: all of it.
+      if (r.type === 'attributes') {
+        if (r.target instanceof Element && r.target.matches(FLYING)) pinned.add(r.target);
+        continue;
+      }
+      for (const node of r.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node.matches(FLYING) || node.matches(FLYING_PART)) pinned.add(node);
+        for (const f of node.querySelectorAll(FLYING)) pinned.add(f);
+      }
     }
-    for (const flyer of flyers) pin(flyer);
+    for (const el of pinned) pin(el);
   });
   observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-flying'] });
   // Whatever already flies as this is installed (a layout effect, before the board is first drawn).
