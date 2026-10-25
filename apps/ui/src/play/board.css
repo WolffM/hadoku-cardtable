@@ -902,18 +902,23 @@
  * lots of things in the command zone, ideally it is expandable just liky gy/exile"): the last card
  * whole, every one before it a strip of what is left, each under the next, and a click opens them
  * all as a pile (`PileView`).
+ *
+ * "Past two" reads the zone's own `data-count`, never `:has(> li:nth-child(3))`: an `:nth-child` inside
+ * `:has()` makes Chromium restyle the whole board on every card that enters or leaves any zone (2,300
+ * elements on a crowded board, 34-46 ms each on a slow laptop; `docs/spikes/browser-fps.md`).
+ * `has-invalidation.test.ts` keeps it out.
  */
-.board .seat .zone--command .zone__cards:has(> li:nth-child(3)) {
+.board .seat .zone--command:not([data-count='0'], [data-count='1'], [data-count='2']) .zone__cards {
   width: calc(var(--card-w) * 2 + var(--cards-gap));
   gap: 0;
 }
 
-.board .seat .zone--command .zone__cards:has(> li:nth-child(3)) > li:not(:last-child) {
+.board .seat .zone--command:not([data-count='0'], [data-count='1'], [data-count='2']) .zone__cards > li:not(:last-child) {
   flex: 1 1 0;
   min-width: 0;
 }
 
-.board .seat .zone--command .zone__cards:has(> li:nth-child(3)) > li > * {
+.board .seat .zone--command:not([data-count='0'], [data-count='1'], [data-count='2']) .zone__cards > li > * {
   width: var(--card-w);
 }
 
