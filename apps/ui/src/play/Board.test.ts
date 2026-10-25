@@ -3328,6 +3328,59 @@ describe('combat-ready: the creatures that can attack or block right now', () =>
   });
 });
 
+/*
+ * The operator, 2026-10-24: *"a 'saturation and focus lighting' effect … during declare blockers/attacks
+ * focus on only cards that can actually be clicked … any time you are drawing a targeting arrow, apply
+ * the filter over everything else that cannot be targeted"*, for every card pick, over the whole table.
+ * Hovering still shows the normal enlargement: the inspector draws a clone in the top layer, outside
+ * `.board`, so nothing scoped to `.board[data-focus]` reaches it.
+ */
+describe('focus lighting: while a pick is open, only what can be picked stays lit', () => {
+  const view = boardFromFixture(fixture);
+  const me = view.players.find((p) => p.isViewer)!;
+  const focus = (container: HTMLElement) => container.querySelector('.board')!.hasAttribute('data-focus');
+
+  it('is on while Forge asks for a pick (a target, a sacrifice, a discard: an open selection)', () => {
+    const { container } = renderBoard(view, spyInteraction([me.battlefield[0]!.id], [], true).interaction);
+    expect(focus(container)).toBe(true);
+  });
+
+  it('is on while this seat declares attackers or blockers', () => {
+    const { container } = renderBoard(view, { ...spyInteraction([]).interaction, combatReady: new Set([me.battlefield[0]!.id]) });
+    expect(focus(container)).toBe(true);
+  });
+
+  it('is off at an ordinary priority stop, where castable cards are merely clickable, and with nothing asked', () => {
+    const clickable = renderBoard(view, spyInteraction([me.battlefield[0]!.id], [], false, [me.battlefield[0]!.id]).interaction);
+    expect(focus(clickable.container), 'actionable is not asking').toBe(false);
+    cleanup();
+    expect(focus(renderBoard(view).container), 'no interaction').toBe(false);
+    cleanup();
+    expect(focus(renderBoard(view, { ...spyInteraction([]).interaction, combatReady: new Set() }).container), 'an empty combat set').toBe(false);
+  });
+
+  it('darkens the whole table with ONE layer, and lifts what can be picked over it', () => {
+    const css = withoutComments(BOARD_CSS);
+    expect(css, 'one layer over the table, faded in by data-focus').toMatch(/\.board::after\s*\{[^}]*position: absolute;[^}]*inset: 0;[^}]*z-index: var\(--z-focus, 10\);[^}]*opacity: 0;/);
+    expect(css).toMatch(/\.board\[data-focus\]::after\s*\{[^}]*opacity: 1;/);
+    expect(css, 'the picks rise over the layer').toContain(
+      [
+        '.board[data-focus] .board-card:is([data-selectable], [data-combat-ready], [data-attacking]),',
+        '.board[data-focus] .staging .board-card,',
+        '.board[data-focus] .seat[data-selectable] .face {',
+        '  z-index: calc(var(--z-focus, 10) + 1);',
+      ].join('\n'),
+    );
+  });
+
+  it('never filters a card or a surface: no second effect, and no colour-shifted art', () => {
+    for (const css of [withoutComments(BOARD_CSS), withoutComments(CARD_CSS)]) {
+      expect(css).not.toMatch(/\[data-focus\][^{]*\{[^}]*filter:/);
+      expect(css).not.toMatch(/--focus-shade|--focus-step/);
+    }
+  });
+});
+
 /* ── haste is not summoning sickness ──────────────────────────────────── */
 
 describe('a hasty creature does not claim to be summoning sick (#17)', () => {
