@@ -9,8 +9,9 @@ import { loadPackets, PLAY_FIXTURES } from '../fixtures.ts';
 import { foldPackets } from '../fold.ts';
 import { type WireObject } from '../wire.ts';
 import { damagePower } from '../motion.ts';
+import type { DelayedSoundEvent } from '../../sound/index.ts';
 import poolData from '../../draft/pool.json' with { type: 'json' };
-import { castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, UNTAP_REPEAT_GAP_MS, UNTAP_REPEAT_MAX, wasShuffled } from './sound-events.ts';
+import { attackDeclared, castRole, colourCell, colourRow, deriveSoundEvents, LAND_THUD_DELAY_MS, UNTAP_REPEAT_GAP_MS, UNTAP_REPEAT_MAX, wasShuffled } from './sound-events.ts';
 
 function card(typeLine: string, colors: DraftCard['colors'] = [], oracleText = ''): DraftCard {
   return {
@@ -378,6 +379,7 @@ describe('deriveSoundEvents', () => {
     const before = view(1, { battlefield: [entry(1, BEAR)] }, { battlefield: [entry(2, BEAR)] });
     const after = view(2, { battlefield: [entry(1, BEAR, { attacking: true, tapped: true })] }, { battlefield: [entry(2, BEAR, { blocking: true })] });
     expect(deriveSoundEvents(before, after)).toEqual([
+      { role: 'g.combat', seat: 'me' },
       { role: 'g.tap', seat: 'me' },
       { role: 'g.attack', seat: 'me' },
       { role: 'g.block', seat: 'opp' },
@@ -448,6 +450,62 @@ describe('deriveSoundEvents', () => {
   });
 });
 
+describe('combat drums: once per combat, when the attack is declared', () => {
+  const DA = 'COMBAT_DECLARE_ATTACKERS';
+  const drums = (a: BoardView, b: BoardView): DelayedSoundEvent[] => deriveSoundEvents(a, b).filter((e) => e.role === 'g.combat');
+  const at = (seq: number, phase: string, mine: BoardCard[], meExtra: Partial<BoardPlayer> = {}, themExtra: Partial<BoardPlayer> = {}): BoardView =>
+    view(seq, { isActive: true, battlefield: mine, ...meExtra }, themExtra, { phase });
+
+  it('waits on the attacker’s own screen while creatures are picked, and plays at the lock-in', () => {
+    const begin = at(1, 'COMBAT_BEGIN', [entry(1, BEAR), entry(2, BEAR)]);
+    const picking = at(2, DA, [entry(1, BEAR, { attacking: true }), entry(2, BEAR)], {}, { hasPriority: true });
+    const picked = at(3, DA, [entry(1, BEAR, { attacking: true }), entry(2, BEAR, { attacking: true })], {}, { hasPriority: true });
+    const locked = at(4, DA, [entry(1, BEAR, { attacking: true, tapped: true }), entry(2, BEAR, { attacking: true, tapped: true })]);
+    const blockers = at(5, 'COMBAT_DECLARE_BLOCKERS', locked.players[0]!.battlefield);
+    expect(drums(begin, picking), 'the first pick').toEqual([]);
+    expect(drums(picking, picked), 'the second pick').toEqual([]);
+    expect(drums(picked, locked)).toEqual([{ role: 'g.combat', seat: 'me' }]);
+    expect(drums(locked, blockers), 'the same combat, a step on').toEqual([]);
+  });
+
+  it('plays for the defender when the locked-in attack arrives, quieter as the opponent’s', () => {
+    const begin = view(1, { battlefield: [entry(9, BEAR)] }, { isActive: true, battlefield: [entry(1, BEAR)] }, { phase: 'COMBAT_BEGIN', activePlayerId: 2 });
+    const locked = view(2, { battlefield: [entry(9, BEAR)] }, { isActive: true, battlefield: [entry(1, BEAR, { attacking: true, tapped: true })] }, { phase: DA, activePlayerId: 2 });
+    expect(drums(begin, locked)).toEqual([{ role: 'g.combat', seat: 'opp' }]);
+  });
+
+  it('stays quiet when combat is skipped: no creature attacks', () => {
+    const begin = at(1, 'COMBAT_BEGIN', [entry(1, BEAR)]);
+    const none = at(2, DA, [entry(1, BEAR)], { hasPriority: true });
+    expect(drums(begin, none)).toEqual([]);
+    expect(drums(none, at(3, 'COMBAT_END', [entry(1, BEAR)]))).toEqual([]);
+  });
+
+  it('a vigilant attack locks in on the attacker’s priority, and plays once through the steps after', () => {
+    const vigilant = (extra: Partial<BoardCard> = {}): BoardCard[] => [entry(1, BEAR, { attacking: true, ...extra })];
+    const picking = at(1, DA, vigilant(), {}, { hasPriority: true });
+    const locked = at(2, DA, vigilant(), { hasPriority: true });
+    const passed = at(3, DA, vigilant(), {}, { hasPriority: true });
+    const blockers = at(4, 'COMBAT_DECLARE_BLOCKERS', vigilant());
+    expect(drums(picking, locked)).toEqual([{ role: 'g.combat', seat: 'me' }]);
+    expect(drums(locked, passed)).toEqual([]);
+    expect(drums(passed, blockers), 'leaving Declare Attackers is not a second attack').toEqual([]);
+  });
+
+  it('a second combat in the turn plays again', () => {
+    const ended = at(1, 'COMBAT_END', [entry(1, BEAR, { tapped: true })]);
+    const again = at(2, DA, [entry(1, BEAR, { tapped: true }), entry(2, BEAR, { attacking: true, tapped: true })]);
+    expect(drums(ended, again)).toEqual([{ role: 'g.combat', seat: 'me' }]);
+  });
+
+  it('attackDeclared: an attacking creature, and in Declare Attackers the lock-in', () => {
+    expect(attackDeclared(at(1, DA, [entry(1, BEAR, { attacking: true })], {}, { hasPriority: true }))).toBe(false);
+    expect(attackDeclared(at(1, DA, [entry(1, BEAR, { attacking: true, tapped: true })]))).toBe(true);
+    expect(attackDeclared(at(1, 'COMBAT_DAMAGE', [entry(1, BEAR, { attacking: true })]))).toBe(true);
+    expect(attackDeclared(at(1, DA, [entry(1, BEAR)], { hasPriority: true }))).toBe(false);
+  });
+});
+
 describe('against a real captured game', () => {
   /*
    * The deriver's zone moves assume a card keeps its id from hand to stack to
@@ -461,6 +519,8 @@ describe('against a real captured game', () => {
     const packets = loadPackets(fixture);
     const roles = new Set<string>();
     const cells = new Set<string>();
+    const drumTurns: number[] = [];
+    const attackTurns = new Set<number>();
     let prev: BoardView | null = null;
     for (let k = 1; k <= packets.length; k++) {
       const { state, seq } = foldPackets(packets.slice(0, k));
@@ -468,9 +528,12 @@ describe('against a real captured game', () => {
       for (const e of deriveSoundEvents(prev, next)) {
         roles.add(e.role);
         if (e.colourCell != null) cells.add(e.colourCell);
+        if (e.role === 'g.combat') drumTurns.push(next.turn);
       }
+      if (next.players.some((p) => p.battlefield.some((c) => c.attacking))) attackTurns.add(next.turn);
       prev = next;
     }
+    expect(drumTurns, 'the drums once in every turn that had an attack, and in no other').toEqual([...attackTurns]);
     for (const role of ['g.turn-mine', 'g.draw', 'g.land', 'g.cast.creature', 'g.resolve', 'g.creature', 'g.enter', 'g.tap', 'g.untap', 'g.attack', 'g.block', 'g.dies', 'g.damage-player']) {
       expect(roles, role).toContain(role);
     }
