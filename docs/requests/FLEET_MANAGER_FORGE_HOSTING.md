@@ -32,10 +32,15 @@ are running CI jobs while we would measure (2 and 1 `Runner.Worker` at
 - Say when each lease starts and ends. Cardtable will not run heavy load on
   a claw outside a lease.
 
-### 2. Java 21 on claw-1, claw-2 and claw-6
+### 2. Java 21 on claw-6
 
-Those three do not earn `jdk21`. Without it they cannot be calibrated or host.
+claw-6 does not earn `jdk21`. Without it, it cannot be calibrated or host.
 Earned by execution, like every other capability.
+
+**Amended 2026-10-25:** claw-1 and claw-2 are dropped from this ask. They are
+on Wi-Fi, which will not change, and the Wi-Fi claws fail cardtable's
+host-eligibility bars (`docs/planning/forge-hosting-plan.md` §4.1). If you
+already installed Java 21 there, keep it; nothing needs undoing.
 
 ### 3. A host role that keeps CI off the box
 
@@ -86,7 +91,7 @@ boundary.
 ## How we will know it is done
 
 - `fleet` status shows the lease (§1) and its end.
-- `jdk21` is earned on claw-1, 2, 6, or a reason says why not.
+- `jdk21` is earned on claw-6, or a reason says why not.
 - A host-role claw carries no CI registrations, and its declared resources
   match its cgroup.
 - The `--json` status (§4) names a node we can switch off and reports it

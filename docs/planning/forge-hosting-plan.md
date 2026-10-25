@@ -18,6 +18,9 @@ means it doesn't yet.
 5. **Every failover is an emergency alert** to Discord through the
    `DISCORD_CARDTABLE_ALERT_WEBHOOK` secret (vault broker, ACL granted
    2026-10-24). Other availability alerts go to the same channel (§7).
+6. **Ethernet will not happen on claw-1, 2 or 3** (2026-10-25). They are on
+   Wi-Fi, so the bar for being a Forge host rises instead (§4.1). They stay CI
+   claws.
 
 ## 2. What is measured
 
@@ -111,6 +114,33 @@ N=1 value; human action → frame p99 > 500 ms; GC time > 10%.
   to fast-core hosts; human-vs-human anywhere with room. Spread matches across
   hosts rather than packing.
 
+### 4.1 Host eligibility
+
+Ruling 4 makes every network silence longer than the failover window cost every
+match on that claw, so a host must prove a quiet link, not just be online. A
+claw is eligible only while **all** of these hold, measured, never declared:
+
+| bar | measured by | starting threshold (tune from data) |
+| --- | --- | --- |
+| link quiet | coordinator → claw probe, 1/s, rolling 24 h | zero silences ≥ 3 s; p99 RTT ≤ 50 ms |
+| link stable | carrier changes on the default route, rolling 7 d | ≤ 1 |
+| fast enough | T9 calibration at N=1 | AI p95 ≤ half the 5 s cutoff (vs-AI tier); paced action p95 ≤ 250 ms (any tier) |
+| capacity | fleet-manager's observed resources for the role | room for ≥ 1 JVM at its measured size |
+| toolchain | `jdk21` earned | earned |
+| status fresh | fleet-manager `--json` | observed within its stated freshness |
+
+A claw that drops below a bar takes **no new matches** at once. Its live
+matches stay unless it actually fails (ruling 4). It regains eligibility only
+after a full window clean again.
+
+**Measured 2026-10-25** (300 pings at 5/s, hokon → claw over Tailscale, direct
+on the LAN): wired claws average ~6 ms with worst 32–68 ms. The Wi-Fi claws:
+claw-2 avg 57 ms / worst 0.5 s, claw-1 74 ms / **2.7 s**, claw-3 132 ms / 1.3 s.
+The Wi-Fi claws fail the link bars on this sample, and claw-1–3 are also among
+the slowest CPUs, so the fleet loses little hosting capacity. A 48 h probe
+(`cardtable-netprobe`, 1 ping/s per claw plus link counters every 5 min) is
+running to set the thresholds and the failover window from real outage data.
+
 ## 5. Failover and resurrection
 
 **Detection.** The agent heartbeats the coordinator every 2 s; 3 misses, a
@@ -152,8 +182,8 @@ rebuild it (`apps/server/src/play/README.md`, seed section).
 
 Only what ruling 2 allows; it goes to them as a request in `docs/requests/`:
 
-- Claws online, Java 21 on every claw that may host (claw-1, 2, 6 lack it), and
-  our per-pin jar and `res` present.
+- Claws online, and Java 21 on claw-6, the one wired claw without it. claw-1,
+  2 and 3 do not need it for hosting (§4.1).
 - Status we can read: online, health findings, drains, declared resources.
   Notice of a drain *before* it happens, so we can move matches off first.
 - Resources served as declared: memory and cores reserved for the host role are
