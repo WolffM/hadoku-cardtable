@@ -1,0 +1,2 @@
+ts	claw	nproc	mem_gb	label	cap_cpus	cap_mem	xmx	runners_pre	load_pre	avail_mb_pre	runners_post	load_post	avail_mb_post	rc	oom_lines	series_last	rundir
+2026-10-25T06:40:36Z	claw-9	12	31	t1f-c12-n512	12	29955M	25461m	0	8.73	30623	0	9.42	30653	124	0	828,13927,3854,19	/home/hadoku/.cache/cardtable-stress/runs/t1f-c12-n512-1792909578

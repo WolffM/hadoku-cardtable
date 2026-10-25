@@ -1,0 +1,2 @@
+ts	claw	nproc	mem_gb	label	cap_cpus	cap_mem	xmx	runners_pre	load_pre	avail_mb_pre	runners_post	load_post	avail_mb_post	rc	oom_lines	series_last	rundir
+2026-10-25T06:24:43Z	claw-5	8	15	vsai-c2-n96	2	1500M	1000m	2	6.74	14419	2	5.28	14682	124	0	617,1215,377,19	/home/hadoku/.cache/cardtable-stress/runs/vsai-c2-n96-1792908813
