@@ -24,6 +24,9 @@ means it doesn't yet.
 7. **Quality before capacity** (2026-10-25): *"we dont want to deliver bad
    quality games."* Where performance and match count conflict, performance
    wins (§4.2).
+8. **hokon is an emergency backstop only** (2026-10-25), exactly as it is for
+   CI's JIT queue: *"make sure we have the same functionality that we have for
+   the JIT queue"* (§4.3).
 
 ## 2. What is measured
 
@@ -159,6 +162,35 @@ running to set the thresholds and the failover window from real outage data.
 - **Live quality is watched, not assumed.** Any AI cutoff hit, and paced-action
   p95 over 250 ms, count against the host in real time. A host over either bar
   takes no new matches until it is clean again.
+
+### 4.3 hokon as backstop (ruling 8)
+
+hokon is not in the host pool. It takes Forge matches only when the CI backstop
+would take CI jobs, with the same rules. Those rules are fleet-manager's,
+in `src/runners/backstop.ts` and `backstop-force.ts`, read 2026-10-25:
+
+| CI backstop (fleet-manager) | Forge backstop (ours) |
+| --- | --- |
+| **Outage**: fewer than half the registered claws answer, or zero registered. Promotes regardless of queue | fewer than half the eligible hosts (§4.1) answer, or none are eligible |
+| **Saturation**: the oldest queued run has waited ≥ 100 s (`SATURATION_QUEUE_SECONDS`, the measured p90) | a match has waited ≥ N s for a host under admission control (§4.2). N comes from data, as 100 did |
+| **Idle gate** on saturation: load ≤ 4/core, ≥ 12 GB available, /tmp ≥ 2 GB (the last refuses even a forced mint) | the same gate, the same constants |
+| Saturation yields to prod work (the pm2-host rung, deploys); an outage does not | the same: a deploy or reserved prod work beats saturation, never an outage |
+| **Hysteresis**: stands down after 3 calm ticks, or at once when the queue is measured empty | the same: no new matches once calm |
+| **Unmeasured is not dark**: no probe this tick → hold the current state | the same: stale or unreadable fleet status holds, never promotes or demotes |
+| **Operator force**: time-boxed (default 1 h, ceiling 6 h), on disk, shown; does not beat a drain or quarantine, or physical admission | a Forge force switch with the same shape, separate from CI's |
+
+What is ours on top:
+
+- **Promoted hokon still obeys quality first.** Its per-tier cap is half its own
+  measured knee, lowered by what prod is using at the moment.
+- **Demotion takes no new matches.** Live matches finish on hokon; moving a
+  healthy match is a restore, and that costs quality for nothing.
+- **Promote and demote are alerts** (🔺/🔻, §7).
+
+**One implementation, not two.** The decision is pure and tested in
+fleet-manager but not exported from `@wolffm/fleet-manager`. Cardtable asks for
+it to be exported (request §6) and calls it with its own inputs, rather than
+keeping a copy that drifts.
 
 ## 5. Failover and resurrection
 

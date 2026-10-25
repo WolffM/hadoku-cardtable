@@ -81,6 +81,23 @@ The coordinator on hokon must reach each host claw's agent on one TCP port on
 the LAN. Pick the port and tell us; nothing needs to cross the egress
 boundary.
 
+### 6. Export the backstop decision (added 2026-10-25)
+
+The operator ruled that hokon is an emergency backstop for Forge matches
+exactly as it is for CI, with "the same functionality that we have for the JIT
+queue". Cardtable will make its own backstop call with its own inputs (hosts
+answering, a match waiting for a host). It should not reimplement your rules:
+
+- Export from `@wolffm/fleet-manager`'s root entry: `decideBackstop` and its
+  types, `clawsAreHealthy`, the idle-gate check and its constants
+  (`BACKSTOP_IDLE_MAX_LOAD_PER_CORE`, `BACKSTOP_IDLE_MIN_AVAILABLE_MB`, the
+  /tmp floor), and the force record's parse/expiry helpers.
+- If the names carry CI words (`claws`, `queue`), a neutral alias is welcome
+  but not required.
+- No behaviour change, and no knowledge of cardtable. It is a library export,
+  under your contract rules, so a later change to the rules reaches both
+  backstops in one publish.
+
 ## What we do NOT ask
 
 - Choosing hosts, balancing load, failover, retries, or alerts. Ours.
