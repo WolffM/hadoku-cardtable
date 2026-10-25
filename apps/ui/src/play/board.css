@@ -1965,3 +1965,43 @@
 .board-card[data-library-top][data-only-viewer] > .board-card__face .card {
   outline-color: color-mix(in srgb, var(--accent) 70%, transparent);
 }
+
+/* ── focus lighting: while a pick is open, only what can be picked is lit ── */
+
+/*
+ * The operator, 2026-10-24: *"focus on only cards that can actually be clicked"*, and while a
+ * targeting arrow is drawn, darken *"everything else that cannot be targeted"* — as *"a global
+ * darkening rather than two separate effects for cards/boards"*. `Board.tsx`'s `data-focus` says a
+ * pick is open. One translucent layer covers the whole table, and what can be picked is lifted over
+ * it: a card that is offered (`data-selectable`, a target included), can attack or block
+ * (`data-combat-ready`) or is an attacker a blocker goes onto (`data-attacking`), the card being cast
+ * (where the arrow starts), and a player who can be picked. No card image is filtered — Scryfall's
+ * guidelines forbid colour-shifting the art (`cardImageRules.test.ts`); a layer over it is shade, the
+ * same as the table's. The arrow's overlay and every prompt sit above at `--z-overlay`; the hover
+ * enlargement is a top-layer clone outside `.board`, so neither is dimmed.
+ */
+.board::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-focus, 10);
+  /*
+   * Black at a fixed strength, taken off a token so it is no literal: the theme's own scrim
+   * (`--scrim`) is pink on two themes and 20%–80% strong across them, and this must be the same
+   * shade on every one.
+   */
+  background: oklch(from var(--ink) 0 0 h / var(--focus-dim, 0.35));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+
+.board[data-focus]::after {
+  opacity: 1;
+}
+
+.board[data-focus] .board-card:is([data-selectable], [data-combat-ready], [data-attacking]),
+.board[data-focus] .staging .board-card,
+.board[data-focus] .seat[data-selectable] .face {
+  z-index: calc(var(--z-focus, 10) + 1);
+}

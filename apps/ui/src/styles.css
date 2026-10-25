@@ -177,6 +177,7 @@
   --z-board: 0;
   --z-card-badge: 1;
   --z-card-raised: 1; /* an emphasised card, over the cards beside it */
+  --z-focus: 10; /* focus lighting's dark layer: over the table, under what can be picked */
   --z-overlay: 20; /* rail, controls, the stack */
   --z-popover: 40; /* prompts, dialogs, menus */
   --z-modal: 50; /* a panel over a dimmed page: the settings, the stats, the create form */

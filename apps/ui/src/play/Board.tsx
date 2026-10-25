@@ -4404,9 +4404,16 @@ export function Board({
   }, [view, viewer, arranged, key, boardLayout]);
 
   const arranging: Arranging | undefined = viewer === undefined ? undefined : ARRANGING;
+  /*
+   * Focus lighting (the operator, 2026-10-24): while Forge asks this seat to pick — an open selection
+   * (a target, so every targeting arrow; a sacrifice; a discard) or a combat declaration — one dark
+   * layer covers the table and only what can be picked rises over it (`board.css`). Never at an ordinary priority stop, where
+   * castable cards are clickable but nothing is asked.
+   */
+  const focus = interaction?.selectionOpen === true || (interaction?.combatReady?.size ?? 0) > 0;
 
   return (
-    <section className="board" aria-label="Game board" ref={root}>
+    <section className="board" aria-label="Game board" ref={root} data-focus={focus || undefined}>
       <div className="board__opponents">
         {others.map((p) => (
           <PlayerArea
