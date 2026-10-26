@@ -7,10 +7,17 @@ import { expect, type Browser, type BrowserContext, type Page } from '@playwrigh
 
 import { EMBED_HOST_PATH } from '../edge.ts';
 import { SESSION_COOKIE } from '../identities.ts';
+import { registerFriendContext } from './open-friends.ts';
 
-/** A friend's browser at the embed's viewport, `init` run in every page before the host's own scripts. */
+/**
+ * A friend's browser at the embed's viewport, `init` run in every page before the host's own scripts.
+ * Registered as `openFriend`'s are, so the next stack closes it: left open, its sockets reconnect to
+ * the next spec's server on the same port as this friend (turnover.spec's alice kept
+ * un-unfinished-game's walked-away match alive, `ownerOnline`).
+ */
 export async function embedContext(browser: Browser, name: string, init?: () => void): Promise<BrowserContext> {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  registerFriendContext(context);
   await context.addCookies([{ name: SESSION_COOKIE, value: name, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
   if (init !== undefined) await context.addInitScript(init);
   return context;
