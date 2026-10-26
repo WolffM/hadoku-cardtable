@@ -383,21 +383,28 @@ test(titled('a cast spell is a back at the release point on bob’s screen, then
     await alice.page.mouse.down();
     await alice.page.mouse.move(herField.x + herField.width * 0.85, herField.y + herField.height * 0.25, { steps: 10 });
     await alice.page.mouse.up();
+    // Where she let it go, on bob's board: her own copy's centre as a fraction of her board, mirrored top
+    // to bottom, the back's own rule above. His copy is followed there, not merely moved: the drag's moves
+    // cross in several messages, and a busy runner can leave a gap between two of them longer than any
+    // quiet spell `settled` waits for.
+    const ownDropped = centre((await settled(ownPlaced))!);
+    const droppedOnBob = {
+      x: bobBoard.x + ((ownDropped.x - aliceBoard.x) / aliceBoard.width) * bobBoard.width,
+      y: bobBoard.y + (1 - (ownDropped.y - aliceBoard.y) / aliceBoard.height) * bobBoard.height,
+    };
     await expect
       .poll(
         async () => {
           const b = await placedOnBob.boundingBox();
-          return b === null ? false : Math.abs(b.x - placedBoxBefore.x) > 20 || Math.abs(b.y - placedBoxBefore.y) > 20;
+          return b !== null && Math.abs(centre(b).x - droppedOnBob.x) < 4 && Math.abs(centre(b).y - droppedOnBob.y) < 4;
         },
-        { timeout: 10_000, message: 'bob’s copy followed her drag' },
+        { timeout: 10_000, message: `bob’s copy followed her drag to where she let it go (${droppedOnBob.x}, ${droppedOnBob.y})` },
       )
       .toBe(true);
 
-    // A reload of bob's tab is sent her spell's last move as it joins — but the drag itself can
-    // still be delivering intermediate positions over several wire messages after the mouse lets
-    // go; settle on bob's own copy first; a reload the instant it merely started moving could
-    // still race one of those in flight against the join's own replay.
+    // A reload of bob's tab is sent her spell's last move as it joins.
     const movedBox = (await settled(placedOnBob))!;
+    console.log(`[presence over] dropped: hers mapped to bob's board=(${droppedOnBob.x},${droppedOnBob.y}) his centre=(${centre(movedBox).x},${centre(movedBox).y})`);
     await bob.page.reload();
     await expect
       .poll(
