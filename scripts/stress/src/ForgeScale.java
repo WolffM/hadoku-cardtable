@@ -146,17 +146,7 @@ public final class ForgeScale {
         r.put("gc", gcNames());
 
         final long initStart = System.nanoTime();
-        GuiBase.setInterface(new GuiDesktop());
-        FModel.initialize(null, prefs -> {
-            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, false);
-            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
-            prefs.setPref(FPref.ENFORCE_DECK_LEGALITY, false);
-            return null;
-        });
-        if (StaticData.instance() == null) {
-            throw new IllegalStateException("Forge did not initialise: is res/ in the working directory?");
-        }
-        FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.UPnP, "NEVER");
+        initForge();
         r.put("init_ms", (System.nanoTime() - initStart) / 1_000_000L);
 
         MyRandom.setRandom(new Random(SEED));
@@ -342,6 +332,21 @@ public final class ForgeScale {
         Runtime.getRuntime().halt(failed.get() == 0 ? 0 : 1);
     }
 
+    /** Forge's model, headless, from the res/ in the working directory. */
+    static void initForge() {
+        GuiBase.setInterface(new GuiDesktop());
+        FModel.initialize(null, prefs -> {
+            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, false);
+            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
+            prefs.setPref(FPref.ENFORCE_DECK_LEGALITY, false);
+            return null;
+        });
+        if (StaticData.instance() == null) {
+            throw new IllegalStateException("Forge did not initialise: is res/ in the working directory?");
+        }
+        FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.UPnP, "NEVER");
+    }
+
     /** Ends a match that outlives the per-match cap, so one stuck game cannot hold a slot. */
     private static Thread capper(final Game game, final long s0) {
         final Thread t = new Thread(() -> {
@@ -365,7 +370,7 @@ public final class ForgeScale {
      * to {@code stress.deckDir}; later runs (and other hosts) load those files,
      * so every claw plays the identical decks.
      */
-    private static List<Deck> loadDecks(final Map<String, Object> r) throws IOException {
+    static List<Deck> loadDecks(final Map<String, Object> r) throws IOException {
         final List<Deck> decks = new ArrayList<>();
         if (DECKS.equals("precon")) {
             for (final String name : new String[] {"Abzan Siege", "Air Forces"}) {
@@ -380,7 +385,11 @@ public final class ForgeScale {
             final List<File> files = new ArrayList<>(List.of(have));
             files.sort(null);
             for (final File f : files) {
-                decks.add(DeckSerializer.fromFile(f));
+                final Deck d = DeckSerializer.fromFile(f);
+                // A parsed deck loads its sections on first use, unsynchronised (Deck.loadDeferredSections):
+                // two matches opening one shared deck at once can deal a player an empty library.
+                d.getMain();
+                decks.add(d);
             }
             r.put("deck_set", "cube-files:" + decks.size());
             return decks;
