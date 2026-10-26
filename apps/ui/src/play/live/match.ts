@@ -903,6 +903,12 @@ export interface LiveMatch extends Omit<FoldResult, 'seq'> {
    */
   finished: boolean;
   /**
+   * The server's ending notice (`showErrorDialog` marked `matchEnded`), in its words: the match
+   * cannot go on, and no game result is coming — the JVM died, the server is stopping. `null` until
+   * one arrives; reset by a snapshot, which the server follows with the notice again.
+   */
+  ended: { title: string; message: string } | null;
+  /**
    * Who lost, by player id, as the end notice told it: the game's result even when this screen's
    * view never caught up with the end. `null` until a notice that carries it arrives; reset with
    * `finished`.
@@ -1086,6 +1092,7 @@ export function startMatch(options: LiveMatchOptions): LiveMatch {
     perspective: null,
     over: false,
     finished: false,
+    ended: null,
     losers: null,
     lost: null,
     fullControl: false,
@@ -2824,6 +2831,7 @@ function adoptSnapshot(match: LiveMatch, snapshot: MatchSnapshot): void {
   match.windowHalf = null;
   match.over = false;
   match.finished = false;
+  match.ended = null;
   match.losers = null;
   match.lost = null;
   unspend(match);
@@ -3267,8 +3275,11 @@ function applyFrame(match: LiveMatch, frame: ServerFrame): void {
     if (frame.lost !== undefined) match.lost = new Map(frame.lost.map((l) => [l.player, l]));
   } else if (frame.kind === 'notify' && frame.method === 'showErrorDialog' && frame.matchEnded === true) {
     // The server's own ending notice (`Match.endNotice`): the match cannot
-    // continue, whatever the board still shows.
+    // continue, whatever the board still shows — and nothing still open on it
+    // can be answered, so none of it stays drawn.
     match.over = true;
+    match.ended = { title: frame.title, message: frame.message };
+    dropOpenInput(match);
   } else if (frame.kind === 'notify' && frame.method === 'message') {
     // Display only — see the module header. Not an input frame, not an answer:
     // nothing below this line reads it back, on purpose.
@@ -3317,14 +3328,12 @@ function unspend(match: LiveMatch): void {
   match.spent = { cards: new Set(), players: new Set() };
 }
 
-function discardLocal(match: LiveMatch): void {
-  match.cursor = null;
-  const { seq, ...empty } = foldPackets([]);
-  Object.assign(match, empty);
-  match.forgeSeq = seq;
-  match.view = null;
+/**
+ * Everything this seat could still answer or press, and every pop-up that says who is deciding:
+ * dropped when the board is replaced, and when the match ends with nothing left to answer them.
+ */
+function dropOpenInput(match: LiveMatch): void {
   match.asks = [];
-  match.settled.clear();
   match.reveal = null;
   match.revealed = null;
   match.prompt = null;
@@ -3343,7 +3352,6 @@ function discardLocal(match: LiveMatch): void {
   match.heldChanges = null;
   match.highlighted = null;
   match.highlightedPlayers = null;
-  match.says = [];
   match.inputLive = false;
   match.attackIntent = null;
   match.lastSelectedCard = null;
@@ -3351,20 +3359,32 @@ function discardLocal(match: LiveMatch): void {
   match.refused = null;
   match.offerHold = null;
   match.deferredSelect = null;
-  match.hits = [];
-  match.faceHits = [];
-  match.deathCauses = new Map();
   match.promptTargetMore = 0;
   match.promptSelection = null;
   match.sameTarget = false;
+  match.waitingOn = null;
+  match.coinToss = null;
+}
+
+function discardLocal(match: LiveMatch): void {
+  match.cursor = null;
+  const { seq, ...empty } = foldPackets([]);
+  Object.assign(match, empty);
+  match.forgeSeq = seq;
+  match.view = null;
+  dropOpenInput(match);
+  match.settled.clear();
+  match.says = [];
+  match.hits = [];
+  match.faceHits = [];
+  match.deathCauses = new Map();
   match.avatarByPlayerId = null;
   match.unclaimedAvatar = null;
   match.nameByPlayerId = null;
   match.playerIdBySeat = null;
-  match.waitingOn = null;
-  match.coinToss = null;
   match.over = false;
   match.finished = false;
+  match.ended = null;
   match.losers = null;
   match.lost = null;
   unspend(match);

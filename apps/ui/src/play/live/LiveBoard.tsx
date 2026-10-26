@@ -630,7 +630,7 @@ function WaitingPop({ sentence }: { sentence: string }) {
 export function isWaitingForOpponent(match: LiveMatch): boolean {
   if (match.spectator) return false;
   const view = match.view;
-  if (view === null || view.gameOver) return false;
+  if (view === null || match.over) return false;
   return theirWaitingOn(match) !== null || theyLeft(match);
 }
 
@@ -2139,6 +2139,57 @@ export function SideboardStep({
   );
 }
 
+/**
+ * The two ways off a match that is over: Back to room, and Main menu (which leaves the room). The
+ * result screen and the ended notice both end in them.
+ */
+function useMatchExits(roomId: string | null): { leaving: boolean; onBackToRoom: () => void; exits: ReactNode } {
+  const [leaving, setLeaving] = useState(false);
+  // The room itself (the operator, 2026-10-23: back in the room mid-series, "a small box that lets me return"
+  // to the table, not the sideboard step there); the table's page is one press from it.
+  const onBackToRoom = (): void => {
+    if (roomId !== null) navigate({ kind: 'room', roomId });
+  };
+  const onMainMenu = (): void => {
+    setLeaving(true);
+    const left: Promise<unknown> = roomId === null ? Promise.resolve() : roomsClient().leave(roomId);
+    void left.finally(() => navigate({ kind: 'lobby' }));
+  };
+  const exits = (
+    <>
+      <button type="button" className="button" data-testid="game-result-room" disabled={roomId === null || leaving} onClick={onBackToRoom}>
+        Back to room
+      </button>
+      <button type="button" className="button" data-testid="game-result-menu" disabled={leaving} onClick={onMainMenu}>
+        Main menu
+      </button>
+    </>
+  );
+  return { leaving, onBackToRoom, exits };
+}
+
+/**
+ * A match that ended with no game result — its JVM died, the server is stopping, anything that ends
+ * it from outside the game: the server's own words over the board, and the ways off it. Every such
+ * ending reaches the screen as the one notice (`LiveMatch.ended`), so this is the one screen for all
+ * of them. Drawn like the result screen, which a game that did finish gets instead.
+ */
+function MatchEndedNotice({ ended, roomId }: { ended: { title: string; message: string }; roomId: string | null }) {
+  const titleId = useId();
+  const { exits } = useMatchExits(roomId);
+  return (
+    <section className="board__over" data-testid="match-ended" role="alertdialog" aria-labelledby={titleId}>
+      <div className="confirm live__result">
+        <h2 className="confirm__title" id={titleId}>
+          {ended.title}
+        </h2>
+        <p className="confirm__message live__result-ending">{ended.message}</p>
+        <div className="confirm__actions answers">{exits}</div>
+      </div>
+    </section>
+  );
+}
+
 function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string | null }) {
   const view = match.view!;
   const outcome = gameOutcome(match)!;
@@ -2146,7 +2197,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const opponent = opponentOf(view);
   const ending = endingSentence(match, view);
   const titleId = useId();
-  const [leaving, setLeaving] = useState(false);
+  const { leaving, onBackToRoom, exits } = useMatchExits(roomId);
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [table, setTable] = useState<RoomTable | null>(null);
@@ -2373,18 +2424,6 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
     }, unreachable);
   };
 
-  // The room itself (the operator, 2026-10-23: back in the room mid-series, "a small box that lets me return"
-  // to the table, not the sideboard step there); the table's page is one press from it.
-  const onBackToRoom = (): void => {
-    if (roomId !== null) navigate({ kind: 'room', roomId });
-  };
-
-  const onMainMenu = (): void => {
-    setLeaving(true);
-    const left: Promise<unknown> = roomId === null ? Promise.resolve() : roomsClient().leave(roomId);
-    void left.finally(() => navigate({ kind: 'lobby' }));
-  };
-
   /** The next game is set up in the room, not agreed here (`between`). */
   const nextInRoom = phase === 'between';
 
@@ -2398,17 +2437,6 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
   const [nextPressed, setNextPressed] = useState(false);
 
   if (!shownOnce.current) return null;
-
-  const backButtons = (
-    <>
-      <button type="button" className="button" data-testid="game-result-room" disabled={roomId === null || leaving} onClick={onBackToRoom}>
-        Back to room
-      </button>
-      <button type="button" className="button" data-testid="game-result-menu" disabled={leaving} onClick={onMainMenu}>
-        Main menu
-      </button>
-    </>
-  );
 
   // Between games the result gives way to the sideboard step, which takes
   // the whole match box: the outcome shrinks to a line above the editor.
@@ -2432,7 +2460,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
               </p>
             )}
             <span className="live__sideboard-spacer" />
-            {backButtons}
+            {exits}
           </div>
           {sideboardInputs !== undefined && <SideboardStep roomId={roomId} tableId={tableId} tables={tables} choice={choice} inputs={sideboardInputs} />}
         </div>
@@ -2475,7 +2503,7 @@ function GameResultScreen({ match, roomId }: { match: LiveMatch; roomId: string 
               {nextInRoom ? 'Next game' : 'Rematch'}
             </ActionButton>
           )}
-          {backButtons}
+          {exits}
         </div>
       </div>
     </section>
@@ -3960,6 +3988,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       )}
       {/* R16: Victory/Defeat/Draw, in place of the toast (`Board`'s old `game over` banner). Over the board, which stays visible behind it. */}
       {resultShown && match.view !== null && <GameResultScreen match={match} roomId={roomId} />}
+      {match.ended !== null && gameOutcome(match) === null && <MatchEndedNotice ended={match.ended} roomId={roomId} />}
       {/* Cardtable's own settings, opened from the viewer's own face (`../../settings/Settings.tsx`). */}
       {settings.trigger !== null && (
         <SettingsPopover trigger={settings.trigger} onClose={settings.close}>
