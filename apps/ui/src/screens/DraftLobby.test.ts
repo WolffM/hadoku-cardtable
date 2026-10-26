@@ -497,10 +497,13 @@ describe('the Custom tab (wave 74 §F)', () => {
 
     for (const round of [0, 1, 2]) {
       // `pool-picker-custom-round-<n>`'s own testid sits on the slot's native radio
-      // input; its surrounding label carries the text this asserts on.
-      const input = await waitFor(() => screen.getByTestId(`pool-picker-custom-round-${round}`));
-      const slot = input.closest('label');
-      expect(slot?.textContent, `slot ${round}`).toContain('A Fine Cube');
+      // input; its surrounding label carries the text this asserts on. The slot
+      // renders from the `pod` prop at once, but its NAME comes from the async
+      // `pools.listCubes()` — until that lands it reads the cube's id — so the
+      // text itself is waited on (CI run 40164963782 asserted first, on a busy claw).
+      await waitFor(() =>
+        expect(screen.getByTestId(`pool-picker-custom-round-${round}`).closest('label')?.textContent, `slot ${round}`).toContain('A Fine Cube'),
+      );
     }
   });
 
