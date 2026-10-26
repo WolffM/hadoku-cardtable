@@ -47,7 +47,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { clickOnce, enabledOk, grindPriority, makeTitled, pressOffered, says } from './play/board.ts';
-import { phaseOf } from './play/combat.ts';
+import { phaseOf, railAt } from './play/combat.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
@@ -464,7 +464,18 @@ test(titled('a selected attacker wears the crossed-swords mark, upright on its t
     expect(await pressOffered(attacker), 'Memnite pressed again').toBe(true);
     await expect(swords(alice.page), 'selected again, marked again').toHaveCount(1, { timeout: 10_000 });
     await unmarkedOnDefender('still the attacker’s own choice');
+    // With no stop on either seat, lock-in to Main 2 took 100 ms on a busy claw (run 40033767105), shorter
+    // than a poll's gap. Full control for bob from here makes his priority over the declared attack a real
+    // stop, so the defender's screen is read while the attack stands, not raced.
+    await bob.page.getByTestId('live-full-control').click();
+    await expect(bob.page.getByTestId('live-full-control'), 'full control is on for bob').toHaveAttribute('aria-pressed', 'true');
     await clickOnce(alice.page, await says(alice.page), 'ok');
+    await expect
+      .poll(async () => {
+        const at = await railAt(bob.page);
+        return `${at?.phase}:${String(at?.live)}`;
+      }, { message: 'locked in: bob holds priority over the attack', timeout: 10_000 })
+      .toBe('COMBAT_DECLARE_ATTACKERS:true');
     let lockedIn: Awaited<ReturnType<typeof read>> | null = null;
     await expect
       .poll(async () => (lockedIn = await read(bob.page)).mark, { message: 'locked in: the defender sees the attacker', timeout: 10_000 })
