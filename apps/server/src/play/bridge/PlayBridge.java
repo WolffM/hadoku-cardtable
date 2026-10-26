@@ -130,6 +130,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.security.SecureRandom;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -222,7 +223,7 @@ public final class PlayBridge {
     static String matchId = "";
 
     /**
-     * Optional. Seeds Forge's shared {@code MyRandom} (shuffles, the coin toss) and the
+     * Optional. Seeds the match's own random (shuffles, the coin toss) and the
      * precon pick, so a test run can be repeated. A match is still not fully
      * deterministic: the AI and thread timing are not seeded.
      */
@@ -261,7 +262,7 @@ public final class PlayBridge {
      * Wave 71 §E. Optional. Names the seat ({@code 0} or {@code 1}) the room wants
      * asked play-or-draw. {@code null} (the room sent no {@code chooser}): the
      * match's coin toss is untouched, byte-identical to before this wave.
-     * {@link #startMatch} applies it by rigging the shared {@link MyRandom}, since
+     * {@link #startMatch} applies it by rigging the match's random, since
      * {@code forge/} always tosses a fresh coin for the first game of its own
      * {@code Match} — see {@link RiggedCoinToss}'s doc for why that is enough.
      */
@@ -6210,12 +6211,12 @@ public final class PlayBridge {
         final ServerGameLobby lobby = booted.lobby();
         LOBBY = lobby;
         final Random random = seed == null ? new Random() : new Random(seed);
-        if (seed != null) {
-            forge.util.MyRandom.setRandom(new Random(seed));
-        }
-        if (chooser != null) {
-            forge.util.MyRandom.setRandom(new RiggedCoinToss(forge.util.MyRandom.getRandom(), chooser));
-        }
+        // The match's own random (forge.util.MyRandom): bound to this thread while it builds the
+        // lobby's players and starts the match, so HostedMatch's Match adopts it and every thread
+        // that works for the game draws from it. No other match in the JVM can touch it.
+        final Random seeded = seed == null ? new SecureRandom() : new Random(seed);
+        final Random matchRandom = chooser == null ? seeded : new RiggedCoinToss(seeded, chooser);
+        final forge.util.MyRandom.Scope matchRng = forge.util.MyRandom.bind(matchRandom);
         // Read when the opening hands are dealt (GameAction.startGame) and on every
         // mulligan, so it is set here, after FModel.initialize set it from preferences.
         StaticData.instance().setFilteredHandsEnabled(handSmoothing);
@@ -6322,6 +6323,8 @@ public final class PlayBridge {
             start.run();
         } catch (final RuntimeException e) {
             fatal("Forge failed while starting the match", e);
+        } finally {
+            matchRng.close();
         }
 
         // Everything from here is Netty, the game thread and the EDT. Park until told to stop.
