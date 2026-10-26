@@ -248,8 +248,10 @@ Only what ruling 2 allows; it goes to them as a request in `docs/requests/`:
   the next slice is up.
 - Secrecy: CI runs as the same user as the agent and `ptrace_scope` is 0
   (fleet-manager's §7 reply), so `0700` stops nothing; the only barrier is that
-  CI runs only our own workflows. Running the agent as its own user is the fix
-  if the operator wants one (not decided).
+  CI runs only our own workflows. **The operator ruled 2026-10-25: the agent
+  runs as its own user** (request §9). Ours to build with it: the agent fetches
+  its jar and `res` from the coordinator and checks their sha256 (no
+  CI-writable path to its code), and its port authenticates the coordinator.
 - No reboot of a host claw without a planned drain ≥15 min ahead.
 - A leased claw for the T0–T9 measurement window.
 

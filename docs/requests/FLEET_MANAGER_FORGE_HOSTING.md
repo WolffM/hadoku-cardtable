@@ -1,8 +1,8 @@
 # Request to hadoku-fleet-manager: claws that host Forge matches
 
 From: hadoku-cardtable, 2026-10-24. Status: **OPEN** — §1–§6 answered in
-`FLEET_MANAGER_FORGE_HOSTING_REPLY.md`, §7 answered (948b6edf); §8 (2026-10-25)
-is new and open.
+`FLEET_MANAGER_FORGE_HOSTING_REPLY.md`, §7 answered (948b6edf), §8 answered (2c8df02c); §9 (2026-10-25) is new
+and open.
 Plan this serves: `docs/planning/forge-hosting-plan.md` (cardtable repo).
 
 ## Context
@@ -211,6 +211,47 @@ reach about 70% of their quality cap and removes one only after a calm spell,
 so a slice does not flap on one match starting and ending. You will see a
 declaration at most every few minutes, typically a few a day.
 
+### 9. The agent runs as its own user (added 2026-10-25)
+
+Your §7 reply found that CI runs as the same user as the agent with
+`ptrace_scope` 0, so a run directory at `0700` stops nothing. The operator's
+ruling: **run the agent as its own user.** It supersedes the agent half of your
+§3 design (a user unit under `user@1000`, started from
+`~/.local/share/cardtable-agent/run`).
+
+What we ask, on each node the hosting role is declared on (§8 still decides
+when):
+
+- **A dedicated system user** (e.g. `cardtable-agent`): no login shell, no
+  sudo, not in any group the CI user is in, its home `0700`.
+- **The agent as a system unit running as that user**, inside the hosting
+  slice, with §7's guarantees carried over: the CPU quota/weight, the memory
+  partition and `MemoryMin` (now on the system slice's ancestors rather than
+  `user@1000`'s), and an OOM score **below** CI's. A system unit can go under
+  100, which the user unit could not.
+- **The CI user cannot write anything the agent runs or reads as code.** The
+  executable, and everything under the agent user's home, are writable only by
+  that user (or root). Otherwise a CI job could replace the agent and run as
+  it. The fleet still never ships the agent: how the first executable gets
+  there without a CI-writable step is the one thing we need you to design.
+  Name what you propose, e.g. a root-owned install step `fleet hosting` runs
+  from a path and sha256 cardtable gives it.
+- **The CI user cannot signal, ptrace or read the agent's processes**: a
+  different uid gives that with `ptrace_scope` 0. Confirm by test, as you did
+  §7's guarantees: from a CI unit, read `/proc/<agent pid>/mem` and `environ`,
+  `kill -0` it, and write into its home. Each must be refused.
+- `fleet hosting --check --json` reads back the user, the unit's `User=`, the
+  file modes and owners, and the agent's `oom_score_adj` against CI's.
+- Restart as before: `Restart=always`, plus a way for **cardtable's
+  coordinator** (not a CI job) to restart it after an upgrade. Tell us the
+  mechanism.
+
+**Ours, not yours** (recorded so the line is clear): the agent fetches its own
+jar and `res` from the coordinator and checks each against a sha256 the
+coordinator signs off, so no CI-writable directory sits on its code path; and
+its TCP port (§5) authenticates the coordinator, so a CI job on the same box
+cannot connect and ask for a match's frames.
+
 ## What we do NOT ask
 
 - Choosing hosts, balancing load, failover, retries, or alerts. Ours.
@@ -230,3 +271,5 @@ declaration at most every few minutes, typically a few a day.
   in `notices` ≥15 min ahead.
 - §8: cardtable's coordinator declares and ends a slice unattended; the reply
   states the time to a guaranteed slice and that no CI job is killed by one.
+- §9: from a CI unit on a hosting node, reading, signalling and writing the
+  agent are each refused, and `--check --json` shows it.
