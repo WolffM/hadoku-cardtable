@@ -3462,6 +3462,8 @@ describe('spectator, names and the end of the game (wave 31 §S)', () => {
       parseServerFrame({ kind: 'notify', method: 'showErrorDialog', title: 'Game over', message: 'Forge stopped.', matchEnded: true }),
     ]);
     expect(m.over).toBe(true);
+    expect(m.ended, 'the server’s own words, for the screen').toEqual({ title: 'Game over', message: 'Forge stopped.' });
+    expect(m.finished, 'no game result came with it').toBe(false);
   });
 
   it('an unrelated error dialog does not end the game, whatever its title', async () => {

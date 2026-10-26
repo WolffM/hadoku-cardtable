@@ -4361,6 +4361,58 @@ describe('R16 — the result screen, drawn over the board', () => {
  * ── Wave 36 lane L ──────────────────────────────────────────────────────
  */
 
+describe('a match that ends with no result (its JVM died, the server stopping) says so, and leaves nothing open', () => {
+  const ENDED = { kind: 'notify', method: 'showErrorDialog', title: 'Match ended', message: 'Forge stopped, and this match cannot continue: the JVM exited (signal SIGKILL).', matchEnded: true };
+
+  it('draws the server’s words with the ways off the match, and drops the open prompt', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    const mine = m.view!.players.find((p) => p.isViewer)!.battlefield.map((c) => c.id);
+    s.send(
+      parseServerFrame({
+        kind: 'ask',
+        callId: 'fx-open',
+        method: 'getAbilityToPlay',
+        hostCard: { kind: 'card', id: mine[0]! },
+        abilities: [
+          { kind: 'spellAbility', id: 9001, label: '{T}: Add {R}.' },
+          { kind: 'spellAbility', id: 9002, label: '{2}, Sacrifice Pyrite Spellbomb: Draw a card.' },
+        ],
+        triggerEvent: null,
+      }),
+    );
+    await waitFor(() => expect(getByTestId('live-prompt').dataset.method).toBe('getAbilityToPlay'));
+
+    s.send(parseServerFrame(ENDED));
+    const notice = await waitFor(() => getByTestId('match-ended'));
+    expect(notice.querySelector('h2')!.textContent).toBe('Match ended');
+    expect(notice.textContent).toContain(ENDED.message);
+    expect([...notice.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Back to room', 'Main menu']);
+    expect(queryByTestId('live-prompt'), 'nothing left to answer').toBeNull();
+    expect(currentAsk(m)).toBeNull();
+    expect(queryByTestId('game-result'), 'no game result: the game did not finish').toBeNull();
+    expect((getByTestId('live-concede') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('drops the line that says the other player is deciding', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    await sendTheirWaitingOn(s, m, { method: 'getChoices', hostCard: null });
+    await waitFor(() => getByTestId('live-waiting-pop'));
+    s.send(parseServerFrame(ENDED));
+    await waitFor(() => getByTestId('match-ended'));
+    expect(queryByTestId('live-waiting-pop'), 'nobody is deciding anything').toBeNull();
+    expect(isWaitingForOpponent(m)).toBe(false);
+  });
+
+  it('a game that finished keeps its result screen, even when the server stops after it', async () => {
+    const { s, m, getByTestId, queryByTestId } = await liveBoard();
+    s.send(parseServerFrame({ kind: 'notify', method: 'finishGame', losers: [m.view!.players.find((p) => !p.isViewer)!.id] }));
+    s.send(parseServerFrame({ ...ENDED, message: 'The server is restarting for a deploy.' }));
+    await untilMatch(m, () => expect(m.ended).not.toBeNull());
+    await waitFor(() => expect(getByTestId('game-result').dataset.result).toBe('victory'), { timeout: END_UNSHOWN_MS + 2000 });
+    expect(queryByTestId('match-ended')).toBeNull();
+  });
+});
+
 describe('T5 — the current phase’s highlight on the rail is stronger', () => {
   it('the current row is tinted and barred, in theme tokens, and not with a border every row would share', async () => {
     const css = styled();
