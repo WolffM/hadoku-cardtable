@@ -5,10 +5,11 @@
  *
  * Against real Forge: `xt-extra-turn.state` is alice's own turn-1 main phase with Time Walk and two
  * Islands. She casts it: her seat's status zone shows one extra turn to come on BOTH screens
- * (`PlayerView.ExtraTurnCount`, public), and the chip arriving moves neither her face nor her library
- * mark. During turn 2 — her extra turn — the count is gone and her seat wears the extra-turn mark on
- * both screens (`PlayerView.IsExtraTurn`); once bob's turn 3 begins, neither is drawn anywhere,
- * though Forge leaves alice's flag up (`extra-turn.jvm.test.ts`).
+ * (`PlayerView.ExtraTurnCount`, public), and the chip arriving moves no face; her library mark moves
+ * along the column, away from her face, since an empty status line takes no room. During turn 2 — her
+ * extra turn — the count is gone and her seat wears the extra-turn mark on both screens
+ * (`PlayerView.IsExtraTurn`); once bob's turn 3 begins, neither is drawn anywhere, though Forge leaves
+ * alice's flag up (`extra-turn.jvm.test.ts`).
  *
  * Every step prints one `[xt]` line (claws keep artifacts only on red).
  *
@@ -81,7 +82,12 @@ test(titled('Time Walk: the caster’s status zone shows the extra turn to come 
       const screen = i === 0 ? 'alice' : 'bob';
       expect([s.extraTurns, s.tip, s.now], `${screen}'s screen: one extra turn to come on alice's seat`).toEqual([1, '1 extra turn', false]);
       expect(s.face, `${screen}'s screen: the chip moved no face`).toEqual(before[i]!.face);
-      expect(s.library, `${screen}'s screen: nor the library mark`).toEqual(before[i]!.library);
+      // The status line takes no room while empty (`board.css`'s `.seat__who`, the operator 2026-10-22), so the
+      // library mark under it moves along the column, away from the face, and nowhere else.
+      const [left, top, width, height] = s.library!;
+      const [left0, top0, width0, height0] = before[i]!.library!;
+      expect([left, width, height], `${screen}'s screen: the library mark keeps its column and size`).toEqual([left0, width0, height0]);
+      expect(i === 0 ? top > top0 : top < top0, `${screen}'s screen: the library mark moves away from alice's face (${top0} → ${top})`).toBe(true);
     }
     for (const s of await his()) expect(s.anywhere, 'bob has none').toBe(0);
 
