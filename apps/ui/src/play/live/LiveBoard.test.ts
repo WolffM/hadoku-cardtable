@@ -2383,6 +2383,31 @@ describe('§A.6 / item 16 — Forge’s second button is refused for the whole o
     expect(done().closest('[data-tip]'), 'nothing to explain').toBeNull();
     expect(pressButton(m, 'ok')).toBe(true);
   });
+
+  /*
+   * Done Attacking and Done Blocking name the declaration, not the step: once it is made, the same
+   * step's priority stop (`InputPassPriority`, OK beside End Turn) is the pass every other step has,
+   * in the answers' usual place.
+   */
+  it('a declare step’s own priority stop is the pass, in the answers’ usual place', async () => {
+    const { s, m, getByTestId } = await liveBoard();
+    const me = m.view!.players.find((p) => p.isViewer)!;
+    const opponent = m.view!.players.find((p) => !p.isViewer)!;
+    const ok = () => getByTestId('live-decision-ok');
+    const start = () => getByTestId('live-decision').querySelector<HTMLElement>('.answers')!.hasAttribute('data-start');
+
+    for (const [step, active] of [
+      ['COMBAT_DECLARE_ATTACKERS', me.id],
+      ['COMBAT_DECLARE_BLOCKERS', opponent.id],
+    ] as const) {
+      s.send(phase(m, step, active));
+      s.send(bar('End Turn'));
+      // The pass's own word: Next Phase with the stack empty, Resolve over this fixture's stack (`passLabel`).
+      const pass = m.view!.stack.length === 0 ? 'Next Phase' : 'Resolve';
+      await waitFor(() => expect(ok().textContent, `${step}: the priority stop`).toBe(pass));
+      expect(start(), `${step}: the pass sits where every pass does`).toBe(false);
+    }
+  });
 });
 
 /* ── §A.11 — the log, as something you can read ──────────────────────── */
