@@ -22,14 +22,14 @@
  *
  * The operator's three sounds for a creature spell: the quiet cast when it
  * goes on the stack, then its voice (the colour × creature cell) as it
- * resolves, then the thud of it landing. The last two arrive in the same view,
- * so they carry `delayMs` to stay in that order.
+ * resolves, then the thud of it landing, heavier the bigger it is (`landingRole`).
+ * The last two arrive in the same view, so they carry `delayMs` to stay in that order.
  */
 
 import { COLOR_OF_BASIC_LAND, DECK_COLORS } from '@hadoku/deck';
-import { COLOUR_IDS, type ColourId, type DraftCard, type ParadigmId } from '@hadoku/shared';
+import { COLOUR_IDS, landingRole, type ColourId, type DraftCard, type ParadigmId } from '@hadoku/shared';
 
-import { attackLockedIn, viewerOf, type BoardCard, type BoardCardChoice, type BoardPlayer, type BoardView } from '../adapter.ts';
+import { attackLockedIn, boardPT, viewerOf, type BoardCard, type BoardCardChoice, type BoardPlayer, type BoardView } from '../adapter.ts';
 import { damagePower } from '../motion.ts';
 import type { DelayedSoundEvent } from '../../sound/index.ts';
 import type { Seat } from '../../sound/mix.ts';
@@ -280,7 +280,7 @@ export function deriveSoundEvents(prev: BoardView | null, next: BoardView): Dela
       if (was?.zone === 'graveyard') push('g.reanimate', active);
       if (isType(entry, 'Creature')) {
         push('g.creature', owner, { colourCell: colourCell(entry), delayMs: 60 });
-        push('g.enter', owner, { delayMs: 60 + LAND_THUD_DELAY_MS });
+        push(landingRole(boardPT(entry)?.power ?? 0), owner, { delayMs: 60 + LAND_THUD_DELAY_MS });
       } else {
         push('g.enter', owner, { colourCell: isType(entry, 'Artifact') ? colourCell(entry) : null });
       }

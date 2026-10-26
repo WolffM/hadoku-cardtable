@@ -131,6 +131,7 @@ object, but the id may still be stable.
 | Role | Trigger |
 | --- | --- |
 | `g.tap` / `g.untap` | `tapped` flips; the untap step plays `g.untap` once per card, 90 ms apart, at most 8 (2026-10-10; `g.untap-all` retired). Since 2026-10-15 `g.untap` has no cell: it plays the Tap take backwards (`REVERSED_ROLES`). The operator: *"untap should always be the reverse of tap, doesn't need its own sound"* |
+| `g.landing.<tier>` | a creature lands with power 3–4, 5–6, 7–9 or 10+: its thud after the voice (`landingRole`), under 3 still `g.enter`; each tier falls back to the one below. The operator, 2026-10-25: *"progressive sounds for bigger creatures landing on the board"* |
 | `g.counter-on` / `g.counter-off` | `counters` count changes |
 | `g.attach` | `attachedToId` changes |
 | `g.transform` | `changedFrom` appears or changes |
@@ -145,6 +146,7 @@ object, but the id may still be stable.
 | `g.block` | `blocking` turns on |
 | `g.damage` | creature `damage` rises |
 | `g.damage-player` | `life` falls |
+| `g.walker-hit` | an attacker's charge strikes a planeswalker or a battle (`live/numbers.ts`); falls back to `g.impact.1`. The operator, 2026-10-25: impact sounds for *"creature on planeswalker"* |
 | `g.spell-hit` | a resolving spell's or ability's ball lands (`live/numbers.ts`), once per target, 300 ms apart; a spell's colour `spell` cell on top. Falls back to `g.crash` until it has a take. The operator, 2026-10-25: Pyroclasm's fire *"multiple times for each target"*, and an impact *"when the fireball hits"* |
 
 ### Turn and game

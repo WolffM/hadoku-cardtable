@@ -1,0 +1,97 @@
+{
+ "note": "Round 14 (2026-10-25): the operator: \"impact sounds for creature on creature, creature on planeswalker and creature into player. creature into player i potentially want a bunch of different sounds\". g.crash is the blow of two creatures meeting; g.walker-hit (new) is an attacker crashing into a planeswalker or a battle; g.impact.<tier> is an attacker crashing into a player, by damage. Round 11 already gave each player tier eight takes (bodies, hammers, cannons, explosions), none placed yet; these add creature-flavoured blows so each tier has many kinds to pick from. intensityVoice still shades each within its cell.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, foley, full and punchy, clean tail.",
+ "negative": "low quality, muffled, lo-fi, hiss, clipping, distortion, music, melody, song, speech, voice, vocals, words, chime, chimes, bell, gong, laser, sci-fi, beeping, whoosh",
+ "seconds": 2.0,
+ "sounds": {
+  "g.crash": {
+   "group": "Round 14", "name": "Creatures collide", "section": "Moments", "seconds": 1.5,
+   "prompts": [
+    "Two huge beasts slamming head to head, a deep meaty thud and a grunt of impact, no voice",
+    "Two armoured knights colliding at full charge, a crunch of steel plate and a heavy thump",
+    "Two rams butting horns, a hard sharp crack of bone and a short rumble",
+    "A heavy wooden shield wall hit by a charging creature, a booming wooden slam",
+    "Claws raking against thick scales, a harsh scrape ending in a solid body thud",
+    "Two stone golems smashing into each other, a deep rocky crunch with pebbles falling",
+    "A giant fist hitting a creature's armoured chest, a heavy blunt thump and a rattle",
+    "Two wolves crashing together mid-leap, a quick fleshy impact and a scuffle of claws on stone"
+   ]
+  },
+  "g.walker-hit": {
+   "group": "Round 14", "name": "Hit a planeswalker", "section": "Moments", "seconds": 1.8,
+   "prompts": [
+    "A blow shattering a magical ward, a crack of breaking crystal and a deep thump behind it",
+    "A creature slamming into a glowing arcane shield, a resonant bass impact with crackling energy",
+    "A heavy strike on a sorcerer's barrier, a hollow boom and a brief shimmer of breaking glass",
+    "A charging beast hitting a robed mage, a body thud and a burst of crackling magical sparks",
+    "A sword striking an enchanted staff held up to block, a ringing clash and a fizzing discharge",
+    "A crashing blow against a stone pillar covered in runes, a deep crack and a dying magical hum",
+    "A heavy club smashing through a floating spell circle, a thick impact and a quick electric snap",
+    "A creature tackling a wizard to the ground, a heavy fall, a clatter of a dropped staff and a puff of magic"
+   ]
+  },
+  "g.impact.1": {
+   "group": "Round 14", "name": "Player hit: 1 damage", "section": "Moments", "seconds": 1.2,
+   "prompts": [
+    "A small creature's quick bite on a leather glove, one short snap",
+    "A tiny goblin's punch into a padded tunic, one light dull pat",
+    "A bird's beak pecking a wooden shield once, one crisp tap",
+    "A thrown pebble bouncing off a leather jerkin, one soft thock"
+   ]
+  },
+  "g.impact.2": {
+   "group": "Round 14", "name": "Player hit: 2 damage", "section": "Moments", "seconds": 1.4,
+   "prompts": [
+    "A dog-sized beast leaping into a man's chest, a solid thump and a stagger of boots",
+    "A soldier's shield bash into a body, a firm wooden thud",
+    "A swift claw swipe across chainmail, a short metallic rake and a dull hit",
+    "A wolf barrelling into a traveller's legs, a heavy fleshy thud on dirt"
+   ]
+  },
+  "g.impact.3": {
+   "group": "Round 14", "name": "Player hit: 3 damage", "section": "Moments", "seconds": 1.6,
+   "prompts": [
+    "A charging boar slamming into a wooden barricade, a heavy crunch and splintering",
+    "A bear swatting an armoured man off his feet, a heavy blow and a crash of armour on stone",
+    "A horse-sized beast kicking a door in, a deep slam and a rattling frame",
+    "A knight's lance hitting a shield at a gallop, a loud crack and a heavy thump"
+   ]
+  },
+  "g.impact.4": {
+   "group": "Round 14", "name": "Player hit: 4 damage", "section": "Moments", "seconds": 1.8,
+   "prompts": [
+    "An ogre's club smashing a wooden cart apart, a booming crash and splintering planks",
+    "A rhino charging through a wooden fence, a heavy crash and timber flying",
+    "A stone giant's punch into a stone wall, a deep crunch and rubble falling",
+    "A war elephant ramming a palisade, a booming thud and creaking logs"
+   ]
+  },
+  "g.impact.5": {
+   "group": "Round 14", "name": "Player hit: 5-6 damage", "section": "Moments", "seconds": 2.2,
+   "prompts": [
+    "A troll smashing through a stone doorway, a huge crash and heavy blocks tumbling",
+    "A dragon's tail lashing a stone tower, a booming slam and a rain of masonry",
+    "A siege golem's fist pounding a castle gate, a deep thunderous boom and splintering iron-bound wood",
+    "A giant wurm bursting up through the ground, a rumbling crash of rock and earth"
+   ]
+  },
+  "g.impact.7": {
+   "group": "Round 14", "name": "Player hit: 7-9 damage", "section": "Moments", "seconds": 2.8,
+   "prompts": [
+    "A titan stomping down on a fortress courtyard, a massive boom and the ground cracking apart",
+    "A dragon crashing down onto a castle wall, an enormous impact, stone collapsing and a long rumble",
+    "A colossal beast ramming a mountain cliff, a thunderous crash and an avalanche of boulders",
+    "A giant hurling a boulder through a keep, a huge smash and heavy rubble crashing for seconds"
+   ]
+  },
+  "g.impact.10": {
+   "group": "Round 14", "name": "Player hit: 10+ damage", "section": "Moments", "seconds": 3.6,
+   "prompts": [
+    "A world-ending titan's fist striking the earth, a gigantic boom, shockwave and long rolling thunder of collapse",
+    "An enormous ancient dragon slamming into a city wall, a devastating crash and buildings crumbling for seconds",
+    "A mountain-sized beast falling onto a castle, a colossal impact and a long tail of falling stone",
+    "A god-like creature's hammer blow splitting the ground, an earth-shattering boom and a deep rumbling aftermath"
+   ]
+  }
+ }
+}

@@ -1,0 +1,24 @@
+{
+ "note": "Round 13 (2026-10-25): the operator, of Pyroclasm: the fire should play once per target, and there was no impact sound \"when the fireball hits\". g.spell-hit plays as each of a spell's balls lands, once per target, 300 ms apart, with the spell's colour spell cell on top (so the colour flavour is not this take's job), louder and lower with the damage (intensityVoice). Short, punchy slams of a magic projectile into a body or a card: fireball, energy bolt, arcane burst, varied. Round 9's no-explosion rule was for creatures dying; a spell's hit may burst.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, foley, one short punchy impact, clean quick tail.",
+ "negative": "low quality, muffled, lo-fi, hiss, clipping, distortion, music, melody, song, speech, voice, vocals, crowd, chime, chimes, bell, gong, laser, sci-fi, beeping, whoosh, long rumble, several hits",
+ "seconds": 1.5,
+ "sounds": {
+  "g.spell-hit": {
+   "group": "Round 13",
+   "name": "Spell hits",
+   "section": "Moments",
+   "seconds": 1.5,
+   "prompts": [
+    "A fireball slamming into a stone wall, one sharp burst of flame and a crackling puff",
+    "A ball of magic energy striking a wooden shield, one bright thump with a short crackle",
+    "A heavy magical bolt hitting armour, a single deep whump with sparks",
+    "A small explosive blast of fire hitting the ground, one tight boom and a quick hiss of embers",
+    "A glowing orb bursting on impact against a body, a soft punchy pop with a fizzing tail",
+    "A thrown flaming rock smashing into dirt, one hard thud and a short flare of fire",
+    "An arcane missile striking a target dead centre, a crisp snap and a brief resonant thud",
+    "A burst of hot magical fire hitting a creature, a single whoomp of flame igniting"
+   ]
+  }
+ }
+}

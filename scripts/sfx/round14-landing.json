@@ -1,0 +1,48 @@
+{
+ "note": "Round 14 (2026-10-25): the operator: \"we're missing progressive sounds for bigger creatures landing on the board\". g.landing.<tier> (new) is the thud after a creature's voice, by its power: 3-4, 5-6, 7-9, 10+; under 3 it is still g.enter (Hits the table). A landing, not a fight: weight arriving on the table, growing from a heavy step to the ground shaking. The colour's creature voice plays first, so these carry no creature voices.",
+ "suffix": "High-quality, stereo, 44.1kHz, sound effect, foley, one landing, full low end, clean tail.",
+ "negative": "low quality, muffled, lo-fi, hiss, clipping, distortion, music, melody, song, speech, voice, vocals, roar, growl, animal call, chime, bell, gong, laser, sci-fi, beeping, whoosh, explosion",
+ "seconds": 2.0,
+ "sounds": {
+  "g.landing.3": {
+   "group": "Round 14", "name": "Creature lands: power 3-4", "section": "Moments", "seconds": 1.2,
+   "prompts": [
+    "A large beast landing from a short jump onto packed earth, one heavy padded thud",
+    "An armoured warrior dropping down onto a wooden floor, a solid stomp and a rattle of mail",
+    "A big cat landing on stone, a weighty soft thump",
+    "A heavy sack of sand dropped on a wooden table, one deep full thud",
+    "A horse planting its hooves after a leap, a firm double thump on dirt"
+   ]
+  },
+  "g.landing.5": {
+   "group": "Round 14", "name": "Creature lands: power 5-6", "section": "Moments", "seconds": 1.6,
+   "prompts": [
+    "A troll dropping onto a stone floor, a heavy boom and a little dust and grit settling",
+    "A bear-sized beast slamming down onto wooden planks, a deep thud and creaking boards",
+    "A stone golem setting its foot down hard, a deep rocky thump and pebbles skittering",
+    "An ogre landing from a wall onto cobblestones, a weighty crash of feet",
+    "A huge iron anvil dropped onto a stone floor, one massive dull boom"
+   ]
+  },
+  "g.landing.7": {
+   "group": "Round 14", "name": "Creature lands: power 7-9", "section": "Moments", "seconds": 2.0,
+   "prompts": [
+    "A giant stepping down onto a rocky plain, a deep booming footfall and the ground trembling",
+    "A dragon landing in a stone courtyard, a massive thump, a gust and rubble shifting",
+    "An enormous beast dropping onto the ground, a deep thud that shakes loose stones",
+    "A colossal stone statue toppling upright into place, a heavy grinding boom",
+    "A war elephant stamping down hard, a deep heavy boom with a short rumble"
+   ]
+  },
+  "g.landing.10": {
+   "group": "Round 14", "name": "Creature lands: power 10+", "section": "Moments", "seconds": 2.8,
+   "prompts": [
+    "A titan landing on the earth, an enormous ground-shaking boom and a long rumble of the land settling",
+    "A mountain-sized creature stepping down, a colossal footfall, cracking earth and falling rocks",
+    "An ancient leviathan crashing down onto land, a huge deep impact and the ground groaning",
+    "A gigantic colossus planting its foot, a massive boom echoing across a valley with debris settling",
+    "A world-shaking beast arriving, a deep seismic thud and a long low tremor"
+   ]
+  }
+ }
+}

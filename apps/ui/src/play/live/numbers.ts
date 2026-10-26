@@ -919,7 +919,9 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
         const contact = plan.delayMs + contactMs(plan.kind);
         const mine = viewers(plan.sourceId);
         // On a player the blow is as big as its damage, and a crowd cheers from 5 (`impactRole`, `cheerRole`).
-        sounds.push({ role: plan.kind === 'charge' ? impactRole(plan.amount) : 'g.crash', ms: contact, intensity: plan.power, mine });
+        // A charge into a planeswalker or a battle is its own blow (the operator, 2026-10-25).
+        const blow = plan.kind !== 'charge' ? 'g.crash' : 'playerId' in plan.target ? impactRole(plan.amount) : 'g.walker-hit';
+        sounds.push({ role: blow, ms: contact, intensity: plan.power, mine });
         const cheer = plan.kind === 'charge' ? cheerRole(plan.amount) : null;
         if (cheer !== null) sounds.push({ role: cheer, ms: contact, intensity: plan.power, mine });
       }

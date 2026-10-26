@@ -310,6 +310,15 @@ describe('deriveSoundEvents', () => {
     ]);
   });
 
+  it('a bigger creature lands heavier: from power 3 its thud is its power tier’s, and below that the plain thud', () => {
+    const giant = { ...card('Creature — Giant', ['R']), power: '7', toughness: '7' };
+    const cast = view(1, {}, {}, { stack: [spell(1, giant, 'alice')] });
+    const landed = deriveSoundEvents(cast, view(2, { battlefield: [entry(101, giant)] }));
+    expect(landed.at(-1)).toEqual({ role: 'g.landing.7', seat: 'me', delayMs: 60 + LAND_THUD_DELAY_MS });
+    const cub = { ...card('Creature — Cat', ['G']), power: '2', toughness: '2' };
+    expect(deriveSoundEvents(view(1, {}, {}, { stack: [spell(1, cub, 'alice')] }), view(2, { battlefield: [entry(101, cub)] })).at(-1)?.role).toBe('g.enter');
+  });
+
   it("the opponent's instant resolves with its colour's spell cell, from their seat", () => {
     const cast = view(1, {}, {}, { stack: [spell(1, BOLT, 'bob')] });
     const done = view(2, {}, { graveyard: [entry(101, BOLT)] });

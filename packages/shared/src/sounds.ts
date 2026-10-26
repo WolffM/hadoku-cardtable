@@ -196,6 +196,23 @@ function tierLabel(tiers: readonly number[], i: number): string {
 	return next === lo + 1 ? `${lo} damage` : `${lo}–${next - 1} damage`;
 }
 
+/**
+ * A creature lands as heavy as it is big (the operator, 2026-10-25: *"we're missing progressive sounds for bigger
+ * creatures landing on the board"*): its power's tier from 3, the plain thud (`g.enter`) below. Each tier runs to
+ * the next: 3–4, 5–6, 7–9, 10 or more.
+ */
+export const LANDING_TIERS = [3, 5, 7, 10] as const;
+
+function landingTierRole(tier: number): string {
+	return `g.landing.${tier}`;
+}
+
+/** The thud of a creature of `power` landing: its tier's role, or `g.enter` under the first. */
+export function landingRole(power: number): string {
+	const t = tierOf(LANDING_TIERS, power);
+	return t === null ? 'g.enter' : landingTierRole(t);
+}
+
 /** The impact role for a blow of `amount` to a player; a blow of under 1 is still the smallest. */
 export function impactRole(amount: number): string {
 	return impactTierRole(tierOf(IMPACT_TIERS, amount) ?? IMPACT_TIERS[0]);
@@ -210,13 +227,16 @@ export function cheerRole(amount: number): string | null {
 /**
  * A role whose cell is empty plays this one's instead, and so on down: an impact tier the tier below it, the
  * smallest Creatures collide (what a blow to a player played before the tiers), and Spell hits Creatures collide
- * too; a cheer the cheer below it; a Gauntlet moment the nearest sound the app already had for it. So a role
+ * too; Hit a planeswalker the smallest player hit; a landing tier the tier below, the smallest Hits the table; a
+ * cheer the cheer below it; a Gauntlet moment the nearest sound the app already had for it. So a role
  * nobody has filled yet still sounds.
  */
 export const FALLBACK_ROLES: Readonly<Record<string, string>> = Object.fromEntries([
 	...IMPACT_TIERS.map((t, i) => [impactTierRole(t), i === 0 ? 'g.crash' : impactTierRole(IMPACT_TIERS[i - 1]!)]),
 	...CHEER_TIERS.slice(1).map((t, i) => [cheerTierRole(t), cheerTierRole(CHEER_TIERS[i]!)]),
 	['g.spell-hit', 'g.crash'],
+	['g.walker-hit', impactTierRole(IMPACT_TIERS[0])],
+	...LANDING_TIERS.map((t, i) => [landingTierRole(t), i === 0 ? 'g.enter' : landingTierRole(LANDING_TIERS[i - 1]!)]),
 	['ui.gauntlet-deal', 'g.draw'],
 	['ui.gauntlet-ban', 'g.exile'],
 	['ui.gauntlet-pick', 'ui.draft-pick'],
@@ -273,6 +293,9 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			game('g.creature', 'Creature voice', "A creature resolves. The colour layer is the colour's creature cell."),
 			// Not lands: a played land is `g.land` alone. "Lands on the table" read as the card type (the operator, 2026-10-11).
 			game('g.enter', 'Hits the table', 'Any other permanent arrives: the thud after a creature’s voice, an artifact, an enchantment.'),
+			...LANDING_TIERS.map((t, i) =>
+				game(landingTierRole(t), `Creature lands: ${tierLabel(LANDING_TIERS, i).replace('damage', 'power')}`, `The thud after the voice of a creature with ${tierLabel(LANDING_TIERS, i).replace('damage', 'power')}. Empty: the tier below plays, and below 3 Hits the table.`),
+			),
 			game('g.token', 'Token appears', 'A token is created.'),
 			game('g.tap', 'Tap', 'A permanent turns sideways. Untapping plays it backwards.'),
 			game('g.counter-on', 'Counter added', 'A +1/+1, loyalty or other counter is put on.'),
@@ -307,6 +330,7 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			game('g.damage-player', 'Damage to a player', 'A player or planeswalker loses life to damage.'),
 			game('g.charge', 'Charge at a player', 'An unblocked attacker launches at the player it hits. Louder and lower the more damage it deals.'),
 			game('g.crash', 'Creatures collide', 'The blow of a creature ramming another: plays on top of the damage. Louder and lower the more damage.'),
+			game('g.walker-hit', 'Hit a planeswalker', 'An attacker crashes into a planeswalker or a battle. Louder and lower the more damage. Empty: Hit a player: 1 damage plays.'),
 			game('g.spell-hit', 'Spell hits', "A spell's ball slams into a creature or a player, once per target, its colour's spell cell on top. Louder and lower the more damage."),
 			...IMPACT_TIERS.map((t, i) =>
 				game(impactTierRole(t), `Hit a player: ${tierLabel(IMPACT_TIERS, i)}`, `An attacker crashes into the player it hits for ${tierLabel(IMPACT_TIERS, i)}. Empty: the tier below plays, and below 2 Creatures collide.`),

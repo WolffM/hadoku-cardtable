@@ -915,6 +915,23 @@ describe('installNumbers: a ram', () => {
     handle.dispose();
   });
 
+  it('a charge into a planeswalker is its own blow, not a player’s', () => {
+    vi.useFakeTimers();
+    const { canvas } = board();
+    canvas.querySelector('[data-zone="battlefield"][data-owner="them"]')!.innerHTML = '<li class="board-card" data-board-card="50"></li>';
+    canvas.querySelector('[data-zone="battlefield"][data-owner="you"]')!.insertAdjacentHTML('beforeend', '<li class="board-card" data-board-card="30" data-card-id="30"></li>');
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    const attacker = card(50, 0);
+    const walker = { ...card(30, 0), card: { ...card(30, 0).card, typeLine: 'Legendary Planeswalker — Jace' } };
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [walker] }), player(1, 20, { battlefield: [attacker] })]));
+    handle.notify({
+      ...view([player(0, 20, { isViewer: true, battlefield: [walker] }), player(1, 20, { battlefield: [attacker] })]),
+      hits: [{ seq: 1, cardId: 30, sourceId: 50, amount: 3 }],
+    });
+    expect(boardSoundsAt(1).map((s) => s.role)).toEqual(['g.walker-hit', 'g.charge']);
+    handle.dispose();
+  });
+
   it('a charge of 5 or more brings the crowd in on the blow, by its own tier', () => {
     vi.useFakeTimers();
     const { canvas } = board();

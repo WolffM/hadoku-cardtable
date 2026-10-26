@@ -81,6 +81,8 @@ export {
   CHEER_TIERS,
   impactRole,
   cheerRole,
+  LANDING_TIERS,
+  landingRole,
   SOUND_MATRIX,
   SOUND_SECTIONS,
   TAKE_FILE_RE,

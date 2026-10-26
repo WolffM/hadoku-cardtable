@@ -288,6 +288,34 @@ track is in the retired log); `finish.py` caps them at 2.6 s.
 python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r12-drums --to <sounds dir> --add
 ```
 
+## Round 13: spell hits (2026-10-25)
+
+The operator, of Pyroclasm: the fire should play once per target, and there was no impact *"when the fireball
+hits"*. `g.spell-hit` ("Spell hits") plays as each of a spell's balls lands (`live/numbers.ts`), 300 ms apart, with
+the spell's colour `spell` cell on top, so the take itself is a colour-neutral slam. `finish.py` caps it at 1.0 s.
+
+```sh
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/generate.py --spec scripts/sfx/round13-spell-hit.json --takes 2 --seed 13000
+~/.local/opt/stable-audio/.venv/bin/python scripts/sfx/finish.py --min-seed 13000 --only g.spell-hit --out finished-r13-spellhit
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r13-spellhit --to <sounds dir> --add
+```
+
+## Round 14: combat blows and landings by size (2026-10-25)
+
+The operator: impact sounds for *"creature on creature, creature on planeswalker and creature into player"*, *"a bunch
+of different sounds"* for the player, and *"progressive sounds for bigger creatures landing"*. `round14-combat.json`
+adds eight `g.crash` blows, eight for the new `g.walker-hit` and four creature-flavoured prompts per `g.impact` tier
+(round 11's eight per tier were never placed). `round14-landing.json` fills the new `g.landing.<tier>` (power 3–4,
+5–6, 7–9, 10+; `landingRole`), the thud after a creature's voice, from a heavy step to the ground shaking.
+
+```sh
+P=~/.local/opt/stable-audio/.venv/bin/python
+$P scripts/sfx/generate.py --spec scripts/sfx/round14-combat.json --takes 2 --seed 14000
+$P scripts/sfx/generate.py --spec scripts/sfx/round14-landing.json --takes 2 --seed 14000
+$P scripts/sfx/finish.py --min-seed 14000 --out finished-r14-combat
+python3 scripts/sfx/import.py --from ~/.local/share/cardtable-sfx/finished-r14-combat --to <sounds dir> --add
+```
+
 ## Match music, generated locally (2026-10-17)
 
 The operator: *"we can use local models to generate better stuff … keep the variance high. not everything should
