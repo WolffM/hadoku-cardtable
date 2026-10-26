@@ -144,6 +144,27 @@ describe('queueColdStarts', () => {
 		expect(waiter.seen.exits).toEqual(['the server is closing']);
 	});
 
+	// hosting-test-plan H5: a start the factory cannot make is refused the same way whether it waited or not.
+	it('a waiter whose JVM the factory cannot make is told why with the error itself, then exits', () => {
+		let fail = false;
+		const p = pool();
+		const throwing = ((id: string, spec: MatchSpec, ev: HostEvents) => {
+			if (fail) throw new Error('ENOSPC: no space left on device, write');
+			return p.factory(id, spec, ev);
+		}) as MatchHostFactory;
+		const q = queueColdStarts(throwing, 1, () => {});
+		q('m-1', SPEC, events().ev);
+		const waiter = events();
+		const refused: Error[] = [];
+		const told: StartEvents = { ...waiter.ev, unstartable: (err) => refused.push(err) };
+		q('m-2', SPEC, told);
+		fail = true;
+		p.asked[0]!.events.line(READY);
+		expect(refused.map((e) => e.message)).toEqual(['ENOSPC: no space left on device, write']);
+		expect(waiter.seen.exits).toEqual(['Forge could not be started: ENOSPC: no space left on device, write']);
+		expect(q.queue()).toEqual({ booting: 0, waiting: 0 });
+	});
+
 	it('reads its limit from CARDTABLE_PLAY_COLD_STARTS, a whole number of at least 1', () => {
 		expect(coldStartsFrom({})).toBe(COLD_STARTS);
 		expect(coldStartsFrom({ CARDTABLE_PLAY_COLD_STARTS: '3' })).toBe(3);
