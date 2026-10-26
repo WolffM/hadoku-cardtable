@@ -238,9 +238,12 @@ Only what ruling 2 allows; it goes to them as a request in `docs/requests/`:
 - Status we can read: online, health findings, drains, declared resources.
   Notice of a drain *before* it happens, so we can move matches off first.
 - Resources served as declared: memory and cores reserved for the host role are
-  not given to CI. A CI job on a host claw could also read a live match's hidden
-  cards from `/proc` or its run directory (the repo is public), so a host claw
-  should not run CI at the same time.
+  not given to CI. Since 2026-10-25 that is a **slice** of 4 cores and 4 GB on
+  claw-8, claw-9 and claw-4, with CI on the rest of the box (request §7): the
+  operator capped the target at 100 concurrent matches on at least 3 claws, and
+  any one slice carries all 100. CI on the claws runs only our own workflows,
+  so a run directory at `0700` is the secrecy line, not a CI-free box.
+- No reboot of a host claw without a planned drain ≥15 min ahead.
 - A leased claw for the T0–T9 measurement window.
 
 ## 7. Alerts (`DISCORD_CARDTABLE_ALERT_WEBHOOK`)
