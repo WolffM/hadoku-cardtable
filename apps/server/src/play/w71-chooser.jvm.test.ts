@@ -30,7 +30,7 @@
  * `MatchSpec.chooser` (`host.ts`) flows to `config.json` unchanged, like every
  * other spec field (`bridgeConfig` just spreads the spec). `PlayBridge.java`'s
  * `configFrom` reads it into the static `chooser` field, and `startMatch` — when
- * it is set — wraps the shared `MyRandom` in `RiggedCoinToss`, whose doc comment
+ * it is set — wraps the match's own random in `RiggedCoinToss`, whose doc comment
  * has the full case for why forcing exactly one `nextInt(2)` call, gated on the
  * caller being `forge.util.Aggregates.random`, is enough: `forge/` is untouched
  * and no fork pin changes.
