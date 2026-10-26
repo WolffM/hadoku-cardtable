@@ -6,6 +6,8 @@
  * Same device `numbers.test.ts` uses: jsdom gives every element a zero rect,
  * so `getBoundingClientRect` is stubbed with real numbers.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardView, StackEntry } from '../adapter.ts';
@@ -27,6 +29,7 @@ import {
   COUNTERED_MS,
   COUNTER_HOLD_MS,
   PLACED_PENDING_MS,
+  STACK_HOVER_MAX,
   RESOLVE_BLINK_MS,
   setChainHalted,
   STACK_SETTLE_ATTR,
@@ -625,6 +628,20 @@ describe('installPlaced: drawing', () => {
     const next = canvas.querySelectorAll('[data-placed-next]');
     expect(next, 'never more than one at a time').toHaveLength(1);
     expect(next[0]!.getAttribute('data-placed-spell')).toBe('2');
+    handle.dispose();
+  });
+
+  it('only the top of a deep stack hovers: below STACK_HOVER_MAX the cards hold still (m-0a1c953741c7: 23 on the stack, 69 endless animations, 25 fps)', () => {
+    const { canvas } = board();
+    const handle = installPlaced(canvas);
+    const depth = STACK_HOVER_MAX + 2;
+    handle.notify(view(Array.from({ length: depth }, (_, i) => stackItem(depth - i))));
+    const still = [...canvas.querySelectorAll('[data-placed-spell]')].filter((el) => el.hasAttribute('data-placed-still')).map((el) => el.getAttribute('data-placed-spell'));
+    expect(still, 'the two deepest').toEqual(['2', '1']);
+    handle.notify(view([stackItem(2), stackItem(1)]));
+    expect(canvas.querySelector('[data-placed-still]'), 'the stack shrank: everything left hovers again').toBeNull();
+    const css = readFileSync(resolve(import.meta.dirname ?? 'apps/ui/src/play/live', 'placed.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(css, 'a still card drops only the hover from its animations').toMatch(/\.placed\[data-placed-still\]\s*>\s*\.placed__hover\s*\{\s*--stack-hover:\s*none;\s*\}/);
     handle.dispose();
   });
 

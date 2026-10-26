@@ -68,6 +68,11 @@
   animation: var(--stack-hover);
 }
 
+/* Below the top `STACK_HOVER_MAX` (`placed.ts`) a card holds still; any other animation it has still runs. */
+.placed[data-placed-still] > .placed__hover {
+  --stack-hover: none;
+}
+
 .placed__hover:has(> .placed__chip) {
   border-radius: 12px;
 }

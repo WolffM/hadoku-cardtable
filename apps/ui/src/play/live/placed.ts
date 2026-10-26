@@ -129,6 +129,12 @@ const DURATIONS = [
 ] as const;
 /** On a permanent's own board card once it resolves off the stack, until its settle has run (`placed.css`'s `stack-settle`). */
 export const STACK_SETTLE_ATTR = 'data-stack-settle';
+/**
+ * How many of the stack's top cards hover (`placed.css`'s `--stack-hover`); the rest hold still. Each hovering
+ * card is three endless animations the browser runs every frame: 23 triggers on the stack ran the operator's
+ * game at 25 fps for thirteen seconds (match m-0a1c953741c7, 2026-10-25).
+ */
+export const STACK_HOVER_MAX = 4;
 /** One turn of the sheen round a card whose ability resolved with nobody stopping it (`card.css`). */
 export const SHIMMER_MS = 1100;
 
@@ -1162,6 +1168,7 @@ export function installPlaced(canvas: HTMLElement, host: PlacedHost = {}): Place
       const selectable = !item.isAbility && item.sourceCardId !== null && interaction?.isSelectable(item.sourceCardId) === true;
       if (selectable) d.el.setAttribute('data-selectable', '');
       else d.el.removeAttribute('data-selectable');
+      d.el.toggleAttribute('data-placed-still', index >= STACK_HOVER_MAX);
       if (index === 0 && item.pending !== true) d.el.setAttribute('data-placed-next', '');
       else d.el.removeAttribute('data-placed-next');
       d.current = item.current === true;
