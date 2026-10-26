@@ -3413,7 +3413,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
 
   /*
    * `--live-h`: `.live`'s own real resolved height, in pixels, kept current on
-   * this element so `live.css`'s `--rail-row-h` (wave 33 §L1) can read it.
+   * this element so `live.css`'s `--rail-row-h` (wave 33 §L1) can read it; and
+   * `--live-w`, its width, which the decision column's `--live-col-x` /
+   * `--live-col-w` are fractions of wherever they are read.
    *
    * Why this exists rather than a CSS length: `.live` is `height: 100dvh` on
    * the bare/dev-harness route, but on the MATCH route (`.shell--match` is an
@@ -3452,7 +3454,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
     // is what turned the one-time 23px overlap into a RACE (e2e's "same row
     // height" check read `.live` before and after this effect had run, 2 of
     // 3 times) once `--live-h` existed at all.
-    const sync = () => el.style.setProperty('--live-h', `${el.getBoundingClientRect().height}px`);
+    const sync = () => {
+      const box = el.getBoundingClientRect();
+      el.style.setProperty('--live-h', `${box.height}px`);
+      el.style.setProperty('--live-w', `${box.width}px`);
+    };
     sync();
     const observer = new ResizeObserver(sync);
     observer.observe(el);

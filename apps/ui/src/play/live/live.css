@@ -151,10 +151,13 @@
   --live-controls-h: 84px;
   --live-controls-w: 112px;
   --live-rail-w: max(8.4%, 6.75rem);
-  /* In `.live`'s own width (`cqw`, the container below), not a percentage: a question that grows past the
-     column (`.live__prompt:has(.prompt__cards)`) still knows the column's width from inside a wider box. */
-  --live-col-x: 57cqw;
-  --live-col-w: 26.5cqw;
+  /* In `.live`'s own width (`--live-w`, below), not a percentage: a question that grows past the column
+     (`.live__prompt:has(.prompt__cards)`) still knows the column's width from inside a wider box. Not
+     `cqw` either: a size container on `.live` turned every move of the other seat's mirrored pointer
+     into a layout of the whole board, its share of a drag's work on that screen 0.05 to 0.3
+     (`e2e/w69-perf.spec.ts`). */
+  --live-col-x: calc(var(--live-w) * 0.57);
+  --live-col-w: calc(var(--live-w) * 0.265);
   /* The gutter the three permanent overlays share, measured from the right edge
      of `.live`. The log button sits in it at full width; the rail and the
      controls sit beside it. */
@@ -167,10 +170,11 @@
      one is mounted), so a viewport unit overshoots it — see that effect's own
      comment and `wave33-evidence/l1-rail-rows.md` for the measured gap. */
   --live-h: 100dvh;
+  /* `.live`'s own real width, written by the same `ResizeObserver` as `--live-h`; the viewport's until then. */
+  --live-w: 100vw;
 
   height: 100dvh;
   position: relative;
-  container-type: inline-size;
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
