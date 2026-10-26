@@ -310,6 +310,8 @@ interface Table {
   refuseStart?: { status: number; error: string };
   /** A start that answers only once this settles — Forge coming up. */
   holdStart?: Promise<void>;
+  /** What `GET /play/queue` answers: my place while the start waits for a Forge JVM. */
+  queuePlace?: number;
   /**
    * What `GET /tables/decks` offers. Absent ⇒ {@link DECKS}, the two Paris rows
    * every other suite uses.
@@ -628,6 +630,7 @@ function stubServer(table: Table) {
       table.matchId = MATCH;
       return json(201, { matchId: MATCH });
     }
+    if (url.endsWith('/play/queue')) return json(200, { place: table.queuePlace ?? null });
     return json(404, { error: 'not found' });
   };
   return {
@@ -1354,6 +1357,20 @@ describe('a room’s table', () => {
 });
 
 describe('a start in flight', () => {
+  it('says its place while it waits for a Forge JVM, and says it no more once Forge is up', async () => {
+    let up = (): void => {};
+    const server = await mountRoom({ players: [opponent({ ready: true })], matchId: null, holdStart: new Promise<void>((r) => (up = r)), queuePlace: 3 });
+    await pick(UG_POLYMORPH);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('ready-toggle'));
+    });
+    await waitFor(() => expect(screen.getByTestId('start-state').textContent).toBe('Starting Forge… #3 in the queue'), { timeout: 3000 });
+    server.table.queuePlace = 1;
+    await waitFor(() => expect(screen.getByTestId('start-state').textContent).toBe('Starting Forge… #1 in the queue'), { timeout: 3000 });
+    await act(async () => up());
+    await waitFor(() => expect(parseRoute(globalThis.location.hash)).toEqual({ kind: 'match', matchId: MATCH }));
+  });
+
   it('takes the table out of everyone’s hands until the match is up: no Stand down, no new deck', async () => {
     let up = (): void => {};
     await mountRoom({ players: [opponent({ ready: true })], matchId: null, holdStart: new Promise<void>((r) => (up = r)) });

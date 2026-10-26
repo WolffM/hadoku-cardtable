@@ -73,6 +73,8 @@ async function boot(
 		probe?: boolean;
 		maxMatches?: number;
 		rejoinGraceMs?: number;
+		coldStarts?: number;
+		startTimeoutMs?: number;
 		/** Each seat holder's avatar, by user name — what the room answers in production. */
 		faces?: Map<string, string>;
 		/** The JVM pool, when the test needs the re-attach seam; its hosts are listed in `hosts`. */
@@ -93,8 +95,9 @@ async function boot(
 		minTier: 'friend',
 		host: factory,
 		log: (e) => logs.push(e),
-		startTimeoutMs: 5000,
+		startTimeoutMs: options.startTimeoutMs ?? 5000,
 		joinWaitMs: 1000,
+		...(options.coldStarts === undefined ? {} : { coldStarts: options.coldStarts }),
 		devIdentity: options.devIdentity,
 		disconnectGraceMs: options.disconnectGraceMs,
 		probe: options.probe,
@@ -432,6 +435,76 @@ describe('POST /api/play/matches: scenario needs the probe flag', () => {
 		const { status } = await startMatch(h);
 		expect(status).toBe(201);
 		expect(h.hosts[0]?.spec.scenario).toBeUndefined();
+	});
+});
+
+describe('a burst of starts', () => {
+	// Hosting test C7: ten starts at once each booted a cold JVM in ~50 s, against ~10 s for one, the
+	// slowest 8 s inside the start timeout. Here each "JVM" boots in BOOT_MS once asked for — the test
+	// plays Forge — and the timeout is shorter than the burst takes, but longer than one boot.
+	it('boots at most coldStarts at once, times none out while it waits, and tells each waiter its place', async () => {
+		const LIMIT = 2;
+		const BURST = 6;
+		const BOOT_MS = 120;
+		const h = await boot({ coldStarts: LIMIT, startTimeoutMs: 4 * BOOT_MS });
+		let bootingNow = 0;
+		let peak = 0;
+		let seen = 0;
+		let stop = false;
+		const forge = (async () => {
+			while (!stop) {
+				for (const host of h.hosts.slice(seen)) {
+					seen += 1;
+					bootingNow += 1;
+					peak = Math.max(peak, bootingNow);
+					setTimeout(() => {
+						bootingNow -= 1;
+						host.push(...OPENING);
+					}, BOOT_MS);
+				}
+				await new Promise((r) => setTimeout(r, 5));
+			}
+		})();
+		const users = Array.from({ length: BURST }, (_, i) => `burst${i}`);
+		const places = new Map<string, number[]>(users.map((u) => [u, []]));
+		const answered = new Set<string>();
+		const t0 = Date.now();
+		const results = users.map(async (user) => {
+			const res = await fetch(`http://127.0.0.1:${h.port}/api/play/matches`, {
+				method: 'POST',
+				headers: { ...edgeHeaders(user), 'content-type': 'application/json' },
+				body: JSON.stringify({ opponent: 'human' }),
+			});
+			answered.add(user);
+			return { user, status: res.status, ms: Date.now() - t0 };
+		});
+		while (answered.size < BURST) {
+			await Promise.all(
+				users
+					.filter((u) => !answered.has(u))
+					.map(async (user) => {
+						const res = await fetch(`http://127.0.0.1:${h.port}/api/play/queue`, { headers: edgeHeaders(user) });
+						if (res.status !== 200) return;
+						const { place } = (await res.json()) as { place: number | null };
+						if (place !== null && places.get(user)!.at(-1) !== place) places.get(user)!.push(place);
+					}),
+			);
+			await new Promise((r) => setTimeout(r, 10));
+		}
+		const done = await Promise.all(results);
+		stop = true;
+		await forge;
+
+		expect(done.filter((r) => r.status !== 201), 'every start answered 201').toEqual([]);
+		// The whole burst took longer than one start's timeout: the time in the queue did not count.
+		expect(Math.max(...done.map((r) => r.ms))).toBeGreaterThan(4 * BOOT_MS);
+		expect(peak, 'JVMs booting at once').toBe(LIMIT);
+		const waited = [...places.values()].filter((p) => p.length > 0);
+		expect(waited, 'every start past the first two was told its place').toHaveLength(BURST - LIMIT);
+		for (const seen of waited) expect(seen, 'a place only falls').toEqual([...seen].sort((a, b) => b - a));
+		// And nobody else is told a place for someone else's start.
+		const stranger = await fetch(`http://127.0.0.1:${h.port}/api/play/queue`, { headers: edgeHeaders('stranger') });
+		expect(await stranger.json()).toEqual({ place: null });
 	});
 });
 
