@@ -907,9 +907,10 @@ function sleepSync(ms: number): void {
  * is "res/" when the version string carries no "git"), and reads its user and
  * cache dirs from `forge.profile.properties` there. So each match gets its own
  * directory — the same staging `scripts/spike/tierc/run.sh` does — and
- * nothing is written into the Forge build it reads from.
+ * nothing is written into the Forge build it reads from. Exported for
+ * `multi-match.jvm.test.ts`, which stages a `--host` JVM itself.
  */
-function stageRunDir(config: JvmHostConfig, name: string): string {
+export function stageRunDir(config: JvmHostConfig, name: string): string {
 	const run = join(config.workDir, name);
 	rmSync(run, { recursive: true, force: true });
 	mkdirSync(join(run, 'user', 'decks', 'constructed'), { recursive: true });
