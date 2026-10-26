@@ -32,7 +32,7 @@
  * and both seats must be told.
  *
  * The seed fixes Forge's shuffles, the coin toss and the precon pick
- * (`PlayBridge.seed`). The AI and thread timing are not seeded, so a seed
+ * (`MatchContext.seed` in `PlayBridge.java`). The AI and thread timing are not seeded, so a seed
  * narrows a failure down rather than guaranteeing a replay. A red run with
  * `CARDTABLE_PLAY_DUMP=<dir>` keeps every raw line and every envelope there.
  *
