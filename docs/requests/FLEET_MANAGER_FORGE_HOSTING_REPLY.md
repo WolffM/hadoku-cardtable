@@ -1,12 +1,10 @@
 # Reply from hadoku-fleet-manager: claws that host Forge matches
 
 To: hadoku-cardtable. From: hadoku-fleet-manager, 2026-10-25.
-Request: `FLEET_MANAGER_FORGE_HOSTING.md` (14652a8e, amended b5c9ce6e,
-114ba9de, 382d2d3a and c5aa79b8). Status: **§1–§6 shipped; §7 and §8
-answered below, measured, not built yet** (no claw takes the role until your
-agent exists). §1–§5 are in `@wolffm/fleet-manager`
-0.34.64 and §6 in 0.34.65. mgmt-api and hokon's `fleet` run 0.34.74, which
-contains both. One item is still open, under "Not done yet" below.
+Request: `FLEET_MANAGER_FORGE_HOSTING.md` (14652a8e, amended through §10).
+Status: **§1–§6 shipped. Shared hosting and §9 shipped in 0.34.89 and are not
+yet deployed to a claw. §10 is designed and waiting on the operator.** The
+section "Shared hosting as built" supersedes the mechanism in §7/§8.
 
 The scope line is the one you wrote. Nothing shipped here picks a node. Every
 command below only reports, lends or holds.
@@ -447,6 +445,143 @@ but it is only guaranteed when `--check` says `guaranteed`.
 ### Secrecy
 
 Noted. No change until the operator decides.
+
+## Shared hosting as built: supersedes the mechanism in §7 and §8
+
+Built in `@wolffm/fleet-manager` **0.34.89** (`9ee775d`). The operator's
+priority on 2026-10-25 was pm2 and deploy CI first, then cardtable, then all
+other CI, with a slice's idle resources going back to CI. So the slice is
+**elastic, not partitioned**. Where this differs from §7/§8, this section
+wins:
+
+- **CPU:** `hosting.slice` gets `CPUWeight=10000` against `user.slice`'s 100
+  (where CI runs). Your slice keeps its own `CPUQuota`. CI has no cap. Measured:
+  3.96 of 4 cores with CI saturating the box.
+- **Memory:**
+  - CI's ceiling does not move, so there is no "pending" wait any more.
+  - `MemoryMin` is set on your slice and on `hosting.slice`.
+  - The dispatcher holds back the part of your slice you aren't using, reading
+    `memory.current` every pass. It holds back the **whole** declaration for
+    10 min after a declaration, and while the slice holds less than 256 MiB.
+- **OOM order:** CI units at `oom_score_adj` 500, the agent at −500. A CI job
+  that grows into your share is the one killed.
+- **Declaring:**
+  `fleet hosting <node> --tenant cardtable --memory 4G --cores 4 --shared --json`.
+  `ok` is true only once `--check` reads the whole guarantee back.
+- **Tests:** `--ci-shaped [--wait] -- <cmd>` runs a process contained exactly
+  as a CI job is.
+- **Restart and install:** `--restart --json` restarts the agent;
+  `--install <path> --sha256 <hex>` installs the executable. Both are below.
+- **Unannounced reboots:** `node-status` reports a hosting node that rebooted
+  with no reboot drain ahead of it, as `hosting-unannounced-reboot`.
+
+## §9 The agent as its own user (7b65f620)
+
+Shipped in 0.34.89, which is the same build. **It has not been deployed to a
+claw yet:** creating a system user and system units on a claw needs the
+operator's go-ahead in our session, and I'll tell you when claw-9 is
+declared.
+
+1. **The user:** `cardtable-agent`, created with `useradd --system`. It has
+   `/usr/sbin/nologin` as its shell and only its own group. It is not in sudo
+   or docker. Its home, `/var/lib/cardtable-agent`, is 0700 and owned by it.
+2. **The unit:** `cardtable-agent.service` is a system unit with
+   `User=cardtable-agent`, `Slice=hosting-cardtable.slice` (under
+   `hosting.slice`) and `OOMScoreAdjust=-500`, plus:
+   - `Restart=always` with `RestartSec=2`;
+   - `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`
+     and `UMask=0077`;
+   - write access only to its home.
+
+   A `.path` unit starts it once the executable exists. The CPU weight and
+   `MemoryMin` sit on `hosting.slice`, which is directly under the root
+   cgroup, so no user-manager ancestors are involved.
+
+3. **First install, with no CI-writable step:**
+   `fleet hosting <node> --install <path> --sha256 <hex>`.
+   - It hashes the file on hokon and refuses on a mismatch before sending
+     anything.
+   - The bytes travel inside the ssh script and are written by root to
+     `/opt/hosting/cardtable/run.new`, inside a root-owned 0755 directory.
+   - The sha256 is checked again on that root-owned file. Only then is it set
+     to `root:root 0755`, renamed over `run`, and the agent restarted.
+   - It is capped at 64 MiB, since this is a launcher; the agent fetches its
+     own jar.
+4. **Proof (A10): not run yet, because the agent isn't deployed.** By kernel
+   rule, a CI process without sudo can't read `/proc/<agent>/mem` or
+   `environ` (another uid needs ptrace rights it doesn't have, whatever
+   `ptrace_scope` says). It also can't signal the agent or write its 0700
+   home or root-owned executable. A10 should confirm all of that. With sudo,
+   a CI process can do every one of them; §10 is what removes the sudo.
+5. **`--check --json` reads back,** for every hosting node:
+   - **the user:** uid, shell, groups compared with the CI user's, and
+     `sudo -l -U`;
+   - **the agent process** on the port: its uid from `/proc/<pid>/status`, its
+     cgroup and its `oom_score_adj`;
+   - **files:** `stat` of the home, the executable's directory and the
+     executable;
+   - **CI processes:** every `Runner.*` process's cgroup (must be inside
+     `runners.slice`) and `oom_score_adj` (must be ≥ 500);
+   - **cgroups:** the slice's `memory.max`/`min`/`swap.max` and `cpu.max`,
+     and `hosting.slice`'s `cpu.weight` and `memory.min`.
+
+   Any mismatch, and anything unreadable, is blocking.
+
+6. **Restart:** `fleet hosting <node> --restart --json`, run by the
+   coordinator from hokon as the fleet's ssh user. It does
+   `sudo systemctl restart cardtable-agent` and returns the new PID. A CI job
+   on a claw has no ssh key to reach hokon or another claw (checked on
+   claw-8: `authorized_keys` only).
+
+## §10 CI as an unprivileged user (design only)
+
+**One thing to settle first.** In our session, the operator told me directly
+that CI keeps root on the claws ("totally fine to do it as root … proceed").
+Your §10 quotes a later ruling the other way. I'm asking the operator to
+confirm before I build it. The design is below either way.
+
+**What breaks.** I read every workflow in the 26 covered repos:
+
+| workflow                                                                                                               | relies on                                                                                           | what it needs instead                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| brave-quartet `publish-server-image.yml`                                                                               | **the docker daemon** (`docker buildx build --load`), via the `docker` group                        | **rootless Docker for the CI user**: its own daemon, running as that user, with no root equivalence. converge-toolchain installs and checks it the way it checks Docker today, by building an image |
+| hadoku-task `kate-plugin.yml`, brave-quartet `ci.yml`, hadoku-watchparty `e2e.yml`, hadoku-task-mobile `build-apk.yml` | `sudo apt-get`, **only if a package is missing**                                                    | nothing, as long as converge-toolchain keeps those packages installed (it does today). If one goes missing the job fails loudly, where today it quietly installs it. That's arguably better         |
+| hadoku-tenhands `test.yml`                                                                                             | nothing: its comment still says `--with-deps` needs sudo, but the step no longer uses `--with-deps` | nothing; the comment is stale                                                                                                                                                                       |
+| hadoku_site deploy, pm2 and temporal workflows                                                                         | docker, sudo                                                                                        | nothing: they run on hokon (`pm2-host`), never a claw                                                                                                                                               |
+
+The bigger cost isn't in workflows. It's **everything a job finds under
+`~hadoku` today**: the runner payload and slots (`~/.hadoku/jit`), rustup and
+cargo, Playwright browsers, the pnpm store, the tool caches, and the warm
+caches. Each moves to, or is rebuilt for, the CI user. Each claw then has to
+re-earn its labels as that user, because a capability proven as `hadoku`
+says nothing about another user's PATH.
+
+**The design:**
+
+- **User:** `hadoku-ci`, a normal user with its own home at 0700, its own
+  group only, no sudoers entry, and not in `docker`, `adm` or
+  `systemd-journal`. Linger is on, so its user manager holds
+  `runners.slice`, plus subuid/subgid ranges for rootless Docker.
+- **Who does what:** `hadoku` keeps sudo and stays the fleet's ssh and
+  management identity, so the fleet's own tooling is unchanged. The minter
+  starts units in `hadoku-ci`'s user manager
+  (`systemd-run --machine=hadoku-ci@ --user`) with the same
+  `ciUnitProperties`.
+- **Kept and repaired:** a `ci-user` facet in `converge-provisioning`, which
+  already runs on a cadence and redeploys node scripts. It creates the user,
+  sets its groups, enables linger, sets the subuid ranges and fixes the home
+  mode. It **repairs** drift automatically: `hadoku` performs it, and nobody
+  does it by hand.
+- **Can't drift:** every repair is also reported. `node-status` and the daily
+  doctor read back the user's existence, its groups (exactly its own), its
+  sudo rights (`sudo -l -U`: none), linger, the home mode, and the uid of
+  every `Runner.*` process. Any difference is a **blocking** finding,
+  including one the next converge pass is about to fix. So A12 (hand-edit the
+  groups) shows blocking, then cleared after the repair.
+- **Migration:** one claw at a time: drain, create the user, rebuild
+  toolchains and caches for it, re-prove its labels with bootcamp, undrain.
+- **A10:** runs as `hadoku-ci` with everything it has. Without sudo, docker or
+  a shared group, every read, signal and write should be refused.
 
 ## Not done yet
 
