@@ -362,6 +362,7 @@ import { castForbiddenTip, costTip, flashTip } from '../tip/words.ts';
 import './live.css';
 import { CoinToss, useCoinFlipping } from './CoinToss.tsx';
 import { TurnCue, useYourTurnCue } from './TurnCue.tsx';
+import { installDialogMover, QuestionHost, restingTop } from './movable.tsx';
 
 /* ── Where the match is: seven states, one line ───────────────────────── */
 
@@ -409,14 +410,15 @@ const QUESTION_SELECTOR = '.live__prompt > *, .staging__list';
  * frame (`.board__mid`'s containing block, its `position: relative` parent
  * `.board`), or `null` when nothing is there. The topmost one wins: a card
  * staged for its target sits above its decision pop-up (`data-staged`), and
- * the stack sits above the card.
+ * the stack sits above the card. A pop-up the player moved is measured where it would stand unmoved
+ * (`restingTop`): the stack keeps its place rather than following it round the table.
  */
 export function questionTopOf(root: HTMLElement): number | null {
   const frame = root.querySelector('.board__mid')?.parentElement;
   if (frame == null) return null;
-  const tops = Array.from(root.querySelectorAll(QUESTION_SELECTOR), (el) => el.getBoundingClientRect())
-    .filter((box) => box.height > 0)
-    .map((box) => box.top);
+  const tops = Array.from(root.querySelectorAll(QUESTION_SELECTOR))
+    .filter((el) => el.getBoundingClientRect().height > 0)
+    .map(restingTop);
   return tops.length === 0 ? null : Math.min(...tops) - frame.getBoundingClientRect().top;
 }
 
@@ -597,11 +599,11 @@ function waitingSentence(name: string, fact: { method: string; hostCard: string 
  */
 function WaitingPop({ sentence }: { sentence: string }) {
   return (
-    <div className="live__prompt">
+    <QuestionHost>
       <section className="confirm" data-testid="live-waiting-pop" role="status" aria-live="polite">
         <p className="confirm__message">{sentence}</p>
       </section>
-    </div>
+    </QuestionHost>
   );
 }
 
@@ -1588,7 +1590,7 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
   const bar = liveBar(match);
   const { question, context } = promptLines(match.prompt ?? '', match.promptParts, match.promptTrigger !== null);
   return (
-    <div className="live__prompt" data-testid="live-payment-host">
+    <QuestionHost data-testid="live-payment-host">
       <section className="confirm live__payment" data-testid="live-payment" role="dialog" aria-labelledby={messageId}>
         <p className="confirm__message" id={messageId}>
           <RulesText text={question} />
@@ -1634,7 +1636,7 @@ function PaymentWindow({ match }: { match: LiveMatch }) {
           </button>
         </AnswerRow>
       </section>
-    </div>
+    </QuestionHost>
   );
 }
 
@@ -3070,6 +3072,11 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   };
 
   const rootRef = useRef<HTMLDivElement>(null);
+  // Every floating dialog over the board can be moved by the player (`./movable.tsx`).
+  useEffect(() => {
+    const root = rootRef.current;
+    return root === null ? undefined : installDialogMover(root);
+  }, []);
   /*
    * Concede's confirmation is open. Local state, not a `LiveMatch` field: it
    * is this component's own question, nothing on the wire is waiting on it,
@@ -3774,7 +3781,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
       </div>
       )}
       {ask !== null && (
-        <div className="live__prompt" data-testid="live-prompt" data-call-id={ask.callId} data-method={ask.method}>
+        <QuestionHost data-testid="live-prompt" data-call-id={ask.callId} data-method={ask.method}>
           <PromptBoundary
             key={ask.callId}
             onError={(error) => {
@@ -3785,7 +3792,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
           >
             <LivePrompt match={match} ask={ask} />
           </PromptBoundary>
-        </div>
+        </QuestionHost>
       )}
       {match.reveal !== null && (
         <RevealNotice key={match.reveal.callId} reveal={match.reveal} lookup={lookupFromState(match.state)} onDone={dismissReveal.bind(null, match, match.reveal.callId)} />
@@ -3798,7 +3805,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * buttons, so the wire cannot tell where a press came from.
        */}
       {playOrDraw && (
-        <div className="live__prompt" data-testid="live-play-or-draw-host">
+        <QuestionHost data-testid="live-play-or-draw-host">
           {coinToss !== null && <CoinToss {...coinToss} />}
           {!coinFlipping && (
             <ConfirmPrompt
@@ -3808,7 +3815,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
               button2={{ label: DRAW_LABEL, enabled: bar?.enable2 ?? false, testId: 'live-play-or-draw-draw', onClick: () => pressWithSound(match, 'cancel') }}
             />
           )}
-        </div>
+        </QuestionHost>
       )}
       {/*
        * T4 (shape 1): every yes/no that is an ANSWER, in the decision area —
@@ -3819,7 +3826,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * box's two game buttons stay greyed while it is up.
        */}
       {confirmPrompt && bar !== null && (
-        <div className="live__prompt" data-testid="live-confirm-host">
+        <QuestionHost data-testid="live-confirm-host">
           <ConfirmPrompt
             testId="live-confirm"
             message={promptText(question)}
@@ -3829,7 +3836,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             check={match.promptTrigger === null ? undefined : { label: 'Always', testId: 'live-confirm-always', checked: always, onChange: setAlways }}
             card={confirmCard}
           />
-        </div>
+        </QuestionHost>
       )}
       {/*
        * Wave 51: every other enabled bar button, in the decision area — priority
@@ -3841,14 +3848,15 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * mulligan's bottom pick is `OK` alone: its message is the one
        * sentence held in `mulliganPickText`, not Forge's current count-down.
        * While a played card is staged for its target the pop-up draws under
-       * it (`data-staged`, `live.css`).
+       * it (`data-staged`, `live.css`), and opens there whatever spot the
+       * player last moved a question to (`spot`).
        */}
       {decision && bar !== null && (
-        <div
-          className="live__prompt"
+        <QuestionHost
           data-testid="live-decision-host"
           data-staged={interaction.stagedCardId !== undefined || undefined}
           data-pass={route === 'pass' || undefined}
+          spot={interaction.stagedCardId !== undefined ? 'staged' : undefined}
         >
           <ConfirmPrompt
             testId="live-decision"
@@ -3873,13 +3881,13 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             button2={decisionCancel ? { label: bar.label2, enabled: true, testId: 'live-decision-cancel', onClick: () => pressWithSound(match, 'cancel') } : undefined}
             check={sameTargetCheck}
           />
-        </div>
+        </QuestionHost>
       )}
       {/* A trigger's target with identical ones waiting and no button of Forge's to draw: the box alone, under Forge's own line. */}
       {sameTargetCheck !== undefined && !(decision && bar !== null) && (
-        <div className="live__prompt" data-testid="live-target-host">
+        <QuestionHost data-testid="live-target-host">
           <ConfirmPrompt testId="live-target" message={promptText(question)} context={context} check={sameTargetCheck} />
-        </div>
+        </QuestionHost>
       )}
       {/*
        * W18 (off-board: Relentless Dead's graveyard target, no board element
@@ -3893,7 +3901,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * with the bar's OK gone this Done is the only place it can be pressed.
        */}
       {selectionPopup && match.selectables !== null && (
-        <div className="live__prompt" data-testid="live-selection-host">
+        <QuestionHost data-testid="live-selection-host">
           <SelectionPrompt
             message={promptText(question)}
             context={lines.context}
@@ -3905,7 +3913,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
             done={bar?.enable1 === true ? { label: bar.label1, enabled: true, onClick: () => pressWithSound(match, 'ok') } : undefined}
             cancel={bar?.enable2 === true ? { label: bar.label2, enabled: true, onClick: () => pressWithSound(match, 'cancel') } : undefined}
           />
-        </div>
+        </QuestionHost>
       )}
       {/*
        * T2 + W1, merged into one pop-out — see `WaitingPop`'s own note.
@@ -3923,9 +3931,9 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        */}
       {/* The coin is its own fact, told before the lagged `waitingOn` — never gated on it. */}
       {coinToss !== null && !playOrDraw && !myOwnDecisionOpen && !(match.view?.gameOver ?? false) && (
-        <div className="live__prompt" data-testid="live-coin-toss-host">
+        <QuestionHost data-testid="live-coin-toss-host">
           <CoinToss {...coinToss} waiting={match.seat !== coinToss.winner} />
-        </div>
+        </QuestionHost>
       )}
       {waitingForOpponent && !viewerOpen && coinToss === null && (
         <WaitingPop

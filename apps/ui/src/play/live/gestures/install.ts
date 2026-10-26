@@ -281,6 +281,7 @@ import {
 } from './hand.ts';
 import { installMarks, markScanWanted } from './intent.ts';
 import { clearMarquee, drawMarquee } from './marquee.ts';
+import { MOVABLE_DIALOG } from '../movable.tsx';
 import { guardTextSelection } from './text-press.ts';
 import { commitStackTarget, stackAsk, stackItemBox, stackItemUnder } from './stack.ts';
 import { playRole } from '../../../sound/index.ts';
@@ -563,8 +564,9 @@ export function installGestures(options: GestureOptions): GestureHandle {
   let handPressIndex: number | null = null;
 
 
+  /** On the table: a press there may start a board gesture. A dialog over it (`../movable.tsx`) is the dialog's to move. */
   const inside = (node: EventTarget | null): boolean =>
-    node instanceof Element && (node.closest('.board') !== null || node.closest('[data-zone]') !== null);
+    node instanceof Element && (node.closest('.board') !== null || node.closest('[data-zone]') !== null) && node.closest(MOVABLE_DIALOG) === null;
 
   /**
    * The press began on a card `Board.tsx`'s own arrange gesture picks up
