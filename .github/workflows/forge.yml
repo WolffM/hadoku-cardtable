@@ -799,3 +799,55 @@ jobs:
           jq -s '{testResults: [.[].testResults[]]}' "${reports[@]}" > "$merged"
           echo "merged ${#reports[@]} shard reports: $(jq '[.testResults[].assertionResults[]] | length' "$merged") tests"
           scripts/ci/judge-jvm-report.sh "$merged"
+
+  # ── The full run says how main is ─────────────────────────────────────────
+  #
+  # This workflow gates nothing (`ci.yml`'s `check` is the gate), so a red full
+  # run was seen by nobody: from 2026-10-23 to 10-26 every scheduled run failed
+  # on the same eight specs and no one knew. A full run of main — the schedule,
+  # or a dispatch with `full` on main — reports its outcome to the fleet
+  # execution log (`report-job`), the one path that alerts Discord: once, then a
+  # reminder a day, and a recovery notice when it goes green. A scheduled run
+  # that skipped everything (main had not moved) reports nothing; it learned
+  # nothing, and the last report still stands. A push runs a selection and any
+  # other dispatch is somebody's proof run, so neither says how main is.
+  report:
+    name: report main
+    needs: [changes, forge-e2e, e2e-nightly, forge-jvm-judge]
+    if: >-
+      ${{ always() && github.ref == 'refs/heads/main'
+      && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full && inputs.specs == '' && inputs.jvm == ''))
+      && (needs.changes.result != 'success' || needs.changes.outputs.e2e == 'true' || needs.changes.outputs.jvm == 'true') }}
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 3
+    steps:
+      - name: The full run's outcome
+        id: outcome
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          failed=$(jq -r '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key] | join(", ")' <<<"$NEEDS")
+          echo "jobs: $(jq -c 'with_entries(.value |= .result)' <<<"$NEEDS")"
+          started=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" | jq -r .run_started_at)
+          echo "started=$(date -u -d "$started" +%s)" >> "$GITHUB_OUTPUT"
+          if [ -n "$failed" ]; then
+            echo "outcome=failure" >> "$GITHUB_OUTPUT"
+            echo "message=Forge full run on main@${GITHUB_SHA::8} failed: $failed — $RUN_URL" >> "$GITHUB_OUTPUT"
+          else
+            echo "outcome=success" >> "$GITHUB_OUTPUT"
+            echo "message=" >> "$GITHUB_OUTPUT"
+          fi
+      # `always()`, and this job's own status when the step above did not get
+      # as far as an outcome: a report that cannot be worked out is a failure
+      # to report, never a silence.
+      - name: Report it so a red main can't hide
+        if: always()
+        uses: WolffM/hadoku-actions/report-job@v1
+        with:
+          job-name: cardtable:forge-full
+          service-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+          outcome: ${{ steps.outcome.outputs.outcome || job.status }}
+          started-at: ${{ steps.outcome.outputs.started }}
+          error-message: ${{ steps.outcome.outputs.message }}
