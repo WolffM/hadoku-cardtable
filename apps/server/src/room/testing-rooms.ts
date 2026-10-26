@@ -389,6 +389,11 @@ async function seedTournamentRound2Gauntlet(deps: TestingRoomsDeps, log: (entry:
  * "forgotten, then immediately re-seeded fresh under the same identity" —
  * `http/rooms.ts`'s close route calls this again rather than special-casing
  * a reset).
+ *
+ * It never rejects: `index.ts` starts it unawaited, where a rejection is
+ * unhandled and ends the server. A room whose seeding throws (the set draft's
+ * catalog is a pool-JVM round trip that can time out) is logged and skipped,
+ * and the rooms after it are still seeded.
  */
 export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 	const { lobby } = deps;
@@ -398,7 +403,17 @@ export async function seedTestingRooms(deps: TestingRoomsDeps): Promise<void> {
 		if (existing.has(spec.name)) continue;
 		seedOne(lobby, spec, log);
 	}
-	if (!existing.has(TESTING_SET_DRAFT_NAME)) await seedSetDraft(deps, log);
-	if (!existing.has(TESTING_CLASSIC_ROUND2_NAME)) await seedTournamentRound2Classic(deps, log);
-	if (!existing.has(TESTING_GAUNTLET_ROUND2_NAME)) await seedTournamentRound2Gauntlet(deps, log);
+	const seeds: [string, (deps: TestingRoomsDeps, log: (entry: Record<string, unknown>) => void) => Promise<void>][] = [
+		[TESTING_SET_DRAFT_NAME, seedSetDraft],
+		[TESTING_CLASSIC_ROUND2_NAME, seedTournamentRound2Classic],
+		[TESTING_GAUNTLET_ROUND2_NAME, seedTournamentRound2Gauntlet],
+	];
+	for (const [name, seed] of seeds) {
+		if (existing.has(name)) continue;
+		try {
+			await seed(deps, log);
+		} catch (err) {
+			log({ event: 'testing-room-seed-failed', name, detail: err instanceof Error ? err.message : String(err) });
+		}
+	}
 }
