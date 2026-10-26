@@ -15,7 +15,8 @@
  * - every line carries its match, and no match's frames or game log ever name
  *   a card only the other match's decks hold (each match plays one precon on
  *   both sides, Spirit Flames in A, Decay in B), while each human seat does see
- *   its own deck's cards — the check can fail;
+ *   its own deck's cards — the check can fail. Every hand is kept, so both
+ *   games reach their first turn and forward Forge's game log;
  * - a server-side ask (`probe`) parked in each match at once is answered per
  *   match, each with its own answer;
  * - both games are live on Forge's `Game-…` threads at once (a thread dump);
@@ -160,6 +161,26 @@ describe.skipIf(!available.ok)(title, () => {
 				tail,
 			);
 
+			// Keep every opening hand. Forge's game log is forwarded from the first turn on
+			// (`GameLogForward` installs at `startGameHook`, after the mulligan), so each match must
+			// get there for the log check below to mean anything. An OK sent before the mulligan
+			// input is up is dropped, so it is sent again until that match logs.
+			const humans: [string, number][] = [
+				[A, 0],
+				[B, 0],
+				[B, 1],
+			];
+			const keep = setInterval(() => {
+				for (const [match, seat] of humans) {
+					if (of(match, 'log').length === 0) send({ t: 'act', match, seat, frame: { method: 'selectButtonOk' } });
+				}
+			}, 1000);
+			try {
+				await waitUntil(() => of(A, 'log').length > 0 && of(B, 'log').length > 0, 'both matches to reach their first turn', 90_000, tail);
+			} finally {
+				clearInterval(keep);
+			}
+
 			// A server-side ask parked in each match at once, answered differently per match.
 			send({ t: 'probe', match: A, seat: 0, probeId: 'pa', message: probeText[A] });
 			send({ t: 'probe', match: B, seat: 0, probeId: 'pb', message: probeText[B] });
@@ -227,7 +248,6 @@ describe.skipIf(!available.ok)(title, () => {
 		const textB = names(B);
 		expect(onlyB.filter((n) => textA.includes(`"${n}"`) || textA.includes(` ${n} `))).toEqual([]);
 		expect(onlyA.filter((n) => textB.includes(`"${n}"`) || textB.includes(` ${n} `))).toEqual([]);
-		expect(of(B, 'log').length).toBeGreaterThan(0);
 
 		send({ t: 'stop', match: hostId });
 		expect(await exited).toBe(0);
