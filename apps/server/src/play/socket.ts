@@ -589,7 +589,7 @@ export function attachPlay(io: SocketIOServer, api: Router, deps: PlayDeps): Pla
 		waitingOn.delete(match);
 		if (!running.ok) {
 			match.stop();
-			res.status(500).json({ matchId: match.id, error: running.error });
+			res.status(match.unstartable === null ? 500 : 503).json({ matchId: match.id, error: running.error });
 			return;
 		}
 		res.status(201).json({

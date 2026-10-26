@@ -1245,10 +1245,27 @@ export class Match {
 		}
 	}
 
-	/** Start Forge. Separate from the constructor so nothing can emit before the match is registered. */
+	/**
+	 * Why this server could not give the match a Forge at all (the host threw: a full
+	 * disk, a JVM that could not be spawned), or null. The match is `failed` with it;
+	 * `POST /play/matches` answers it as 503, since it says nothing about the match.
+	 */
+	unstartable: string | null = null;
+
+	/**
+	 * Start Forge. Separate from the constructor so nothing can emit before the match is
+	 * registered. A host that throws fails the match here, so a start never leaves one
+	 * `starting` for good and never escapes the route as an exception.
+	 */
 	start(): void {
 		if (this.host !== null) return;
-		this.host = this.deps.host(this.id, this.spec, this.hostEvents());
+		try {
+			this.host = this.deps.host(this.id, this.spec, this.hostEvents());
+		} catch (err) {
+			this.unstartable = `this server could not start a match just now (${(err as Error).message})`;
+			this.fail(this.unstartable);
+			return;
+		}
 		this.host.remember?.({ epoch: this.epoch, owners: this.owners() });
 	}
 

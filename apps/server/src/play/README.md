@@ -117,7 +117,8 @@ right after it is served at once:
 | 400 | `{ error }` — body not understood; no JVM is started |
 | 404 | below the tier floor (same as every route) |
 | 500 | `{ matchId, error }` — Forge could not start it (the bridge's `fatal`) |
-| 503 | `{ error }` — Forge not configured, or `maxMatches` (default 2) already running |
+| 503 | `{ error }` — Forge not configured, or `maxMatches` (default 10) already running |
+| 503 | `{ matchId, error }` — this server could not give the match a JVM at all (a full disk, a spawn that failed); the match is `failed` with the same words, and nothing of it is left running |
 
 **`GET /api/play/matches/:id`** → `{ matchId, status, failure, winner, seats: [{ seat, kind, deck, claimedBy }] }`.
 `claimedBy` is the participant's 6-character digest handle, never the id.

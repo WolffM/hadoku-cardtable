@@ -235,6 +235,72 @@ public final class PlayBridge {
     /** Every match this JVM hosts, by id: one, unless {@link #hostMode}. */
     static final Map<String, MatchContext> MATCHES = new ConcurrentHashMap<>();
 
+    /**
+     * How often {@link #startAlive} says {@code alive}. {@code host.ts} fails a match whose JVM
+     * has said nothing for {@code JvmHostConfig.unresponsiveMs}; see its "Liveness" section for
+     * the numbers.
+     */
+    static final long ALIVE_MS = Long.getLong("cardtable.aliveMs", 2000L);
+
+    /**
+     * A TEST-only fault, off unless {@code -Dcardtable.fault=<kind>} is on the JVM's command line,
+     * which {@code host.ts} never puts there (a test does, through
+     * {@code CARDTABLE_PLAY_JVM_OPTS}/{@code JvmHostConfig.jvmOpts}). {@code game-throw}: the game
+     * thread throws an {@code Error} from inside the game, as an engine bug would.
+     * {@code oom}: a thread of its own runs out of heap once the match is ready.
+     */
+    static final String FAULT = System.getProperty("cardtable.fault", "");
+
+    /**
+     * Liveness, from a thread no game, seat or Netty work runs on: one {@code alive} line every
+     * {@link #ALIVE_MS} for as long as the JVM runs, from before Forge boots. A JVM that is
+     * stopped (SIGSTOP), wedged in a stop-the-world pause or otherwise not scheduled says
+     * nothing, and {@code host.ts} notices the silence. It says nothing about a single match's
+     * game: a dead game thread is {@link #uncaught}'s.
+     */
+    static void startAlive() {
+        final Thread t = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(ALIVE_MS);
+                } catch (final InterruptedException e) {
+                    return;
+                }
+                emit(processId, line("alive"));
+            }
+        }, "bridge-alive");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
+     * Forge runs a game through {@code GameAction.invoke} → {@code ThreadUtil.invokeInGameThread},
+     * a bare {@code ExecutorService.execute} with no handler, so a throw out of the game ends
+     * the game thread and nothing else: the players would wait for good. Each match's start-game
+     * hook therefore gives the thread its game runs on a handler of its own that fails that match
+     * ({@link BridgeGui#hostMatch}); a per-thread handler outranks the JVM's default, whoever
+     * sets that.
+     *
+     * <p>This is the JVM's default, for what the per-thread one cannot cover: a game thread that
+     * throws before its match's hook ran. In a one-match JVM that thread can only be the match's;
+     * in a {@link #hostMode} JVM it cannot be told whose, and is printed like anything else.
+     * Installed after Forge's own {@code forge.error.ExceptionHandler} is loaded, because that
+     * class's static initializer replaces the default handler whenever it first loads.
+     */
+    static void uncaught(final Thread t, final Throwable e) {
+        if (!hostMode && t.getName().startsWith("Game") && MATCHES.size() == 1) {
+            MATCHES.values().iterator().next().fail("Forge's game thread failed", e);
+            return;
+        }
+        System.err.print("Exception in thread \"" + t.getName() + "\" ");
+        e.printStackTrace(System.err);
+    }
+
+    static void installUncaught() throws ClassNotFoundException {
+        Class.forName("forge.error.ExceptionHandler");
+        Thread.setDefaultUncaughtExceptionHandler(PlayBridge::uncaught);
+    }
+
     static synchronized void emit(final String match, final JsonObject line) {
         line.addProperty("match", match);
         protocol.println(GSON.toJson(line));
@@ -419,6 +485,44 @@ public final class PlayBridge {
 
         void emit(final JsonObject line) {
             PlayBridge.emit(matchId, line);
+        }
+
+        /** Set once by {@link #fail}: a match is failed at most once, whoever notices first. */
+        final AtomicBoolean failed = new AtomicBoolean(false);
+
+        /**
+         * This match cannot go on, said from a thread that is NOT the match's own: the game
+         * thread's uncaught-exception handler ({@link PlayBridge#uncaught}), a seat client's
+         * Netty thread ({@link #seatDisconnected}). Never throws. A one-match JVM says
+         * {@code fatal} and exits, as {@link #fatal} does; a {@link #hostMode} JVM says
+         * {@code fatal} for this match and stops it, and its own thread unwinds through
+         * {@link PlayBridge#startMatch}.
+         */
+        void fail(final String message, final Throwable cause) {
+            if (!failed.compareAndSet(false, true)) { return; }
+            if (!hostMode) {
+                PlayBridge.fatal(matchId, message, cause);
+            }
+            final JsonObject o = line("fatal");
+            o.addProperty("message", message + (cause == null ? "" : ": " + cause));
+            emit(o);
+            if (cause != null) {
+                cause.printStackTrace(System.err);
+            }
+            stop.countDown();
+        }
+
+        /**
+         * A seat's loopback client lost its connection to this match's Forge server
+         * ({@code FGameClient}'s {@code channelInactive} tells every lobby listener). Nothing
+         * reconnects it — Forge's server forgets the client, and every later press logs
+         * {@code No encoder in client pipeline} — so the seat can never act again and the match
+         * is failed, which tells both players. A close this bridge made itself (the match was
+         * stopped, or its game is over) is not a failure.
+         */
+        void seatDisconnected(final int seat) {
+            if (stop.getCount() == 0 || gameOverEmitted.get()) { return; }
+            fail("seat " + seat + " lost its connection to Forge's server", null);
         }
 
         /**
@@ -5237,7 +5341,13 @@ public final class PlayBridge {
             } else {
                 state = null;
             }
+            // The game thread is a pooled one: the handler is this game's only while it runs.
+            hm.setEndGameHook(() -> Thread.currentThread().setUncaughtExceptionHandler(null));
             hm.setStartGameHook(() -> {
+                Thread.currentThread().setUncaughtExceptionHandler((t, e) -> m.fail("Forge's game thread failed", e));
+                if ("game-throw".equals(FAULT)) {
+                    throw new Error("cardtable.fault=game-throw: a test-only failure on the game thread");
+                }
                 hm.getGame().subscribeToEvents(new CombatSync(hm.getGame()));
                 hm.getGame().subscribeToEvents(m.effects.reset());
                 final GameLogForward log = GameLogForward.install(hm.getGame(), m);
@@ -6135,6 +6245,8 @@ public final class PlayBridge {
     public static void main(final String[] args) throws Exception {
         protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
         System.setOut(System.err);
+        installUncaught();
+        startAlive();
         if (args.length == 2 && "--host".equals(args[0])) {
             hostMode = true;
             processId = args[1];
@@ -6434,6 +6546,7 @@ public final class PlayBridge {
         // land in slot i — asserted below rather than assumed.
         for (int i = 0; i < seats.size(); i++) {
             if (seats.get(i).ai()) { continue; }
+            final int seat = i;
             final SeatGui gui = new SeatGui(match, i);
             match.seatGuis.put(i, gui);
             final ClientGameLobby clientLobby = new ClientGameLobby();
@@ -6451,7 +6564,7 @@ public final class PlayBridge {
                     }
                 }
                 @Override public void message(final String source, final String message, final ChatMessage.MessageType type) { }
-                @Override public void close() { }
+                @Override public void close() { match.seatDisconnected(seat); }
                 @Override public ClientGameLobby getLobby() { return clientLobby; }
             });
             client.connect();
@@ -6504,6 +6617,14 @@ public final class PlayBridge {
         }
         ready.add("seats", seatInfo);
         match.emit(ready);
+        if ("oom".equals(FAULT)) {
+            final Thread oom = new Thread(() -> {
+                final long[] tooBig = new long[(int) Math.min(Integer.MAX_VALUE - 16L, Runtime.getRuntime().maxMemory() / 4)];
+                System.err.println("[bridge] cardtable.fault=oom allocated " + tooBig.length);
+            }, "bridge-fault-oom");
+            oom.setDaemon(true);
+            oom.start();
+        }
 
         if (!hostMode) {
             final Thread reader = new Thread(PlayBridge::readCommands, "bridge-stdin");
