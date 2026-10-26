@@ -5,6 +5,7 @@
 // is exercised by `match.jvm.test.ts`.
 //
 // FAKE_BRIDGE_MODE=die exits at once, like a JVM that cannot boot.
+// FAKE_BRIDGE_ALIVE_MS=<ms> says `alive` that often, as the real bridge does every 2 s.
 import { readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
@@ -20,6 +21,8 @@ const ready = () => out({ t: 'ready', forgePort: 0, bootMs: 1, startMs: 1, seats
 
 if (started) ready();
 else out({ t: 'warm', bootMs: 1 });
+const aliveMs = Number(process.env.FAKE_BRIDGE_ALIVE_MS ?? 0);
+if (aliveMs > 0) setInterval(() => out({ t: 'alive' }), aliveMs);
 
 const lines = createInterface({ input: process.stdin });
 lines.on('line', (text) => {

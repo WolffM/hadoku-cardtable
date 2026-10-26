@@ -5,15 +5,17 @@
  * `jvm.test.ts` (the warm-spare run) and measured by `dev/spare-bench.ts`.
  */
 
-import { spawn } from 'node:child_process';
-import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { appendFileSync, chmodSync, closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import {
+	BRIDGE_JVM_FLAGS,
 	CRASH_RECORDS_KEPT,
+	DEGRADED_RECORD_FILE,
 	bridgeDiagnostics,
 	CRASH_RECORD_FILES,
 	CRASH_RECORD_MAX_AGE_MS,
@@ -52,7 +54,7 @@ const scratch = mkdtempSync(join(tmpdir(), 'cardtable-host-test-'));
 const java = join(scratch, 'java');
 writeFileSync(
 	java,
-	`#!/bin/sh\nwhile [ "$1" != "BRIDGE" ]; do shift; done\nshift\necho "fake-bridge stderr: $*" >&2\nexec "${process.execPath}" "${FAKE}" "$@"\n`,
+	`#!/bin/sh\nargv="$*"\nwhile [ "$1" != "BRIDGE" ]; do shift; done\nshift\necho "fake-bridge stderr: $*" >&2\necho "fake-java argv: $argv" >&2\nexec "${process.execPath}" "${FAKE}" "$@"\n`,
 );
 chmodSync(java, 0o755);
 
@@ -195,6 +197,56 @@ describe('the ceiling', () => {
 	it('caps every JVM heap unless the operator names one', () => {
 		expect(withHeapCap(['-XX:+UseG1GC'])).toEqual(['-Xmx1g', '-XX:+UseG1GC']);
 		expect(withHeapCap(['-Xmx2g'])).toEqual(['-Xmx2g']);
+	});
+
+	// hosting-test-plan H7 (a JVM out of heap never exited) and H3 (Forge dropped its own loopback
+	// clients after a 45 s pause and the match never moved again).
+	it('launches every bridge JVM to exit on OutOfMemoryError and with Forge\'s client timeout far past any pause, before the operator\'s own flags', async () => {
+		const pool = jvmHostFactory({ ...config, jvmOpts: ['-Dforge.net.heartbeatTimeout=2'] }, { spare: false, sweep: false });
+		pools.push(pool);
+		const events = recorder();
+		track(pool('m-0000000000f7', SPEC, events));
+		await waitUntil(() => events.lines.some((l) => l.t === 'ready'), 'ready');
+		const argv = readFileSync(join(config.workDir, 'm-0000000000f7', 'bridge.stderr.txt'), 'utf8').split('\n').find((l) => l.startsWith('fake-java argv: ')) ?? '';
+		expect(argv).toContain(' -XX:+ExitOnOutOfMemoryError ');
+		const timeouts = [...argv.matchAll(/-Dforge\.net\.heartbeatTimeout=(\d+)/g)].map((m) => Number(m[1]));
+		// Ours first and far past UNRESPONSIVE_MS (which ends a stopped JVM long before); a later flag of the operator's wins.
+		expect(timeouts).toEqual([86_400, 2]);
+		expect(BRIDGE_JVM_FLAGS).toContain('-XX:+ExitOnOutOfMemoryError');
+	});
+});
+
+// hosting-test-plan H2/C2: a SIGSTOPped bridge kept its match `running` for 3+ minutes.
+describe('liveness: a JVM that stops saying anything is killed, and its match told why', () => {
+	afterEach(() => {
+		delete process.env.FAKE_BRIDGE_ALIVE_MS;
+	});
+
+	it('a JVM that keeps saying alive is left alone; the same JVM SIGSTOPped is killed within the window, through the exit path', async () => {
+		process.env.FAKE_BRIDGE_ALIVE_MS = '100';
+		const poolLog: Record<string, unknown>[] = [];
+		const pool = jvmHostFactory({ ...config, unresponsiveMs: 1500 }, { spare: false, sweep: false, log: (e) => poolLog.push(e) });
+		pools.push(pool);
+		const events = recorder();
+		track(pool('m-0000000000f1', SPEC, events));
+		await waitUntil(() => events.lines.some((l) => l.t === 'ready'), 'ready');
+		await new Promise((r) => setTimeout(r, 2500));
+		expect(events.exits).toEqual([]);
+		// Liveness is never a match's line, never kept for a replay, and never noise.
+		expect(events.lines.map((l) => l.t)).toEqual(['ready']);
+		expect(readFileSync(join(config.workDir, 'm-0000000000f1', STREAM_FILE), 'utf8')).not.toContain('alive');
+		expect(events.logs.filter((l) => l.evt === 'bridge-noise' || l.evt === 'bridge-wrong-match')).toEqual([]);
+
+		const pid = events.logs.find((l) => l.evt === 'jvm-spawned')?.pid as number;
+		const stoppedAt = Date.now();
+		process.kill(pid, 'SIGSTOP');
+		await waitUntil(() => events.exits.length > 0, 'the stopped JVM to be failed', 5000);
+		expect(Date.now() - stoppedAt).toBeLessThan(1500 + 2000);
+		expect(events.exits[0]).toMatch(/^the JVM stopped answering \(nothing from it for \d+ s\), so it was killed; see /);
+		expect(events.logs.find((l) => l.evt === 'jvm-unresponsive')).toMatchObject({ id: 'm-0000000000f1', pid });
+		expect(liveJvmCount()).toBe(0);
+		// A crash, so its record is kept like any other.
+		expect(existsSync(join(config.workDir, 'm-0000000000f1', 'crash.json'))).toBe(true);
 	});
 });
 
@@ -727,6 +779,21 @@ describe('the boot sweep and a live directory it can identify', () => {
 		}
 	});
 
+	it('ends a live match whose stream broke: it was renamed out of jvm.json, nothing can replay it, and it is never spared as a stranger', async () => {
+		const root = mkdtempSync(join(scratch, 'ident-'));
+		const s = await squatted(root, 'm-00000000c00d');
+		renameSync(join(s.dir, JVM_RECORD_FILE), join(s.dir, DEGRADED_RECORD_FILE));
+		try {
+			const swept = sweepRunDirs(root);
+			expect(swept.killed).toEqual(['m-00000000c00d']);
+			expect(swept.live).toEqual([]);
+			expect(swept.orphans).toEqual([]);
+			expect(existsSync(s.dir)).toBe(false);
+		} finally {
+			s.kill();
+		}
+	});
+
 	it(`ends a live match that has been an orphan for longer than ORPHAN_MAX_MS rather than offering it back`, async () => {
 		const root = mkdtempSync(join(scratch, 'ident-'));
 		const old = new Date(Date.now() - ORPHAN_MAX_MS - 1).toISOString();
@@ -911,4 +978,94 @@ describe('going down: what must die before we do', () => {
 		expect(running(spare.pid)).toBe(false);
 		expect(existsSync(join(workDir, dir))).toBe(false);
 	}, SLOW_TIMEOUT);
+});
+
+/**
+ * hosting-test-plan C6, H4 and H5, on a filesystem that is really full: a small tmpfs mounted
+ * in a user + mount namespace of its own (`unshare -rm`, no root), held open by a `sleep` and
+ * reached from here through `/proc/<that pid>/root`. Nothing outside the namespace sees it.
+ */
+const canUnshare = spawnSync('unshare', ['-rm', 'true']).status === 0;
+describe.skipIf(!canUnshare)(`a full disk${canUnshare ? '' : ' — SKIPPED: unshare -rm (an unprivileged user namespace) is not available here'}`, () => {
+	let holder: ReturnType<typeof spawn> | null = null;
+	let workDir = '';
+	const filler = (): string => join(workDir, '..', 'filler');
+
+	beforeAll(async () => {
+		const mount = mkdtempSync(join(scratch, 'full-'));
+		holder = spawn('unshare', ['-rm', 'sh', '-c', `mount -t tmpfs -o size=1m tmpfs ${mount} && echo mounted && exec sleep 600`], { stdio: ['ignore', 'pipe', 'inherit'] });
+		await new Promise<void>((done, fail) => {
+			holder?.stdout?.on('data', (d: Buffer) => d.toString().includes('mounted') && done());
+			holder?.on('exit', (code) => fail(new Error(`unshare exited ${code}`)));
+		});
+		workDir = join(`/proc/${holder.pid}/root`, mount, 'runs');
+		mkdirSync(workDir);
+	});
+	afterAll(() => {
+		holder?.kill('SIGKILL');
+	});
+	afterEach(() => rmSync(filler(), { force: true }));
+
+	/** Fill the filesystem to the last byte. */
+	function fill(): void {
+		const chunk = Buffer.alloc(4096);
+		const fd = openSync(filler(), 'a');
+		try {
+			for (;;) writeSync(fd, chunk);
+		} catch (err) {
+			expect((err as NodeJS.ErrnoException).code).toBe('ENOSPC');
+		} finally {
+			closeSync(fd);
+		}
+	}
+
+	it('a record rewrite that does not fit leaves the old record whole, and a stream that breaks makes the match degraded: renamed out of jvm.json, handover refused in words', async () => {
+		const pool = jvmHostFactory({ ...config, workDir }, { spare: false, sweep: false });
+		pools.push(pool);
+		const events = recorder();
+		const host = track(pool('m-0000000000e1', SPEC, events));
+		await waitUntil(() => events.lines.some((l) => l.t === 'ready'), 'ready');
+		const run = join(workDir, 'm-0000000000e1');
+		expect(readJvmRecord(run)?.matchId).toBe('m-0000000000e1');
+
+		fill();
+		// Bigger than the page the old record held: an in-place rewrite truncates, then cannot finish.
+		host.remember?.({ epoch: 'e'.repeat(6000), owners: [null, null] });
+		expect(readJvmRecord(run)).toMatchObject({ matchId: 'm-0000000000e1', epoch: null });
+		expect(events.logs.find((l) => l.evt === 'jvm-record-failed')?.error).toMatch(/ENOSPC/);
+
+		// More than the stream's last page has left, so the append needs a page the disk does not have.
+		host.send({ t: 'reply', seat: 0, callId: 'c-1', result: 'r'.repeat(8000) });
+		expect(events.logs.find((l) => l.evt === 'jvm-stream-broken')?.error).toMatch(/ENOSPC/);
+		expect(events.logs.find((l) => l.evt === 'match-degraded')).toMatchObject({ level: 'error', matchId: 'm-0000000000e1' });
+		expect(existsSync(join(run, JVM_RECORD_FILE))).toBe(false);
+		expect(readJvmRecord(run, DEGRADED_RECORD_FILE)?.matchId).toBe('m-0000000000e1');
+		// The match still plays in this process.
+		await waitUntil(() => events.lines.some((l) => l.t === 'rejected' && l.message === 'echo'), 'the echo');
+
+		expect(host.handOver?.()).toBe(false);
+		expect(events.logs.find((l) => l.evt === 'jvm-handover-refused')?.why).toMatch(/^this match cannot be kept across a restart: its stream could not be written \(ENOSPC/);
+	});
+
+	it('a cold start that does not fit throws and leaves no half-staged run directory and no JVM', async () => {
+		const pool = jvmHostFactory({ ...config, workDir }, { spare: false, sweep: false });
+		pools.push(pool);
+		fill();
+		expect(() => pool('m-0000000000e2', SPEC, recorder())).toThrow(/ENOSPC/);
+		expect(existsSync(join(workDir, 'm-0000000000e2'))).toBe(false);
+		expect(liveJvmCount()).toBe(0);
+	});
+
+	it('a spare adopted onto a full disk is stopped rather than leaked, and no replacement spare throws out of the pool', async () => {
+		const poolLog: Record<string, unknown>[] = [];
+		const pool = jvmHostFactory({ ...config, workDir }, { sweep: false, log: (e) => poolLog.push(e) });
+		pools.push(pool);
+		await waitUntil(() => pool.spare() === 'warm', 'the spare');
+		fill();
+		const events = recorder();
+		expect(() => pool('m-0000000000e3', SPEC, events)).toThrow(/ENOSPC/);
+		expect(events.logs.find((l) => l.evt === 'jvm-adopt-failed')).toMatchObject({ matchId: 'm-0000000000e3' });
+		await waitUntil(() => liveJvmCount() === 0, 'the taken spare to be stopped');
+		expect(poolLog.find((l) => l.evt === 'spare-failed')?.error).toMatch(/ENOSPC/);
+	});
 });

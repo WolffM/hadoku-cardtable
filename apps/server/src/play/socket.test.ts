@@ -288,6 +288,23 @@ describe('POST /api/play/matches', () => {
 		expect((await startMatch(h)).status).toBe(201);
 	});
 
+	// hosting-test-plan C6: ENOSPC out of the JVM pool escaped as Express's HTML 500 and left the match `starting`.
+	it('a host that cannot start a JVM answers 503 in words, as JSON, and the match is failed rather than left starting', async () => {
+		const factory = (() => {
+			throw Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC' });
+		}) as MatchHostFactory;
+		const h = await boot({ host: { factory, hosts: [] } });
+		const res = await refusedStart(h);
+		expect(res.status).toBe(503);
+		expect(res.headers.get('content-type')).toMatch(/application\/json/);
+		const body = (await res.json()) as { matchId: string; error: string };
+		expect(body.error).toBe('this server could not start a match just now (ENOSPC: no space left on device, write)');
+		const match = h.handle.matches.get(body.matchId);
+		expect(match?.status).toBe('failed');
+		expect(match?.failure).toBe(body.error);
+		expect(h.handle.matches.active()).toEqual([]);
+	});
+
 	it('defaults the ceiling to MAX_CONCURRENT_MATCHES, which is 10', () => {
 		expect(MAX_CONCURRENT_MATCHES).toBe(10);
 	});
