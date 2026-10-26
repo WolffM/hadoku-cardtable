@@ -56,11 +56,14 @@ async function bobsCombat({ alice, bob }: ScenarioMatch, attack: boolean, until:
       passedMain = true;
       await enabledOk(bob.page).first().click();
     }
+    // The attack prompt's words can be drawn before the Giant is offered: OK then would declare no attacker,
+    // so with `attack` it waits for the Giant to be offered, pressed and drawn attacking.
     if (!declared && ATTACK.test(line)) {
       if (attack && (await pressOffered(giant))) {
         await expect(bob.page.locator(`[data-board-card="${giantId}"]`), 'Forge declared the Giant attacking').toHaveAttribute('data-attacking', 'true', { timeout: 10_000 });
       }
-      if (attack || (await enabledOk(bob.page).count()) > 0) {
+      const ready = attack ? (await giant.getAttribute('data-attacking')) === 'true' : (await enabledOk(bob.page).count()) > 0;
+      if (ready) {
         declared = true;
         await clickOnce(bob.page, line, 'ok');
       }
