@@ -9,7 +9,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { clickHandCard, makeTitled, offeredNamed, serverLog } from './play/board.ts';
+import { clickHandCard, makeTitled, offeredNamed, serverLog, stackCount } from './play/board.ts';
 import type { Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { startScenarioMatch } from './play/scenario.ts';
@@ -29,7 +29,11 @@ const asked = (stack: { serverLogFile: string }, from: number) =>
     .slice(from)
     .filter((r) => r.evt === 'forge-frame' && r.seat === 0 && r.method === 'showPromptMessage' && String(r.message ?? '').startsWith(`Use triggered ability of ${ATTENDANT}`));
 
-/** Cast the next Memnite and pass every window either seat is given until `done` holds — never answering alice's confirm. */
+/**
+ * Cast the next Memnite and pass every window either seat is given over it until `done` holds — never
+ * answering alice's confirm, and never her own priority with the stack empty: that OK is her main phase
+ * passed, and the next Memnite would wait for a turn of hers that never comes (run 40348885894).
+ */
 async function castMemnite(alice: Friend, bob: Friend, done: () => Promise<boolean>, what: string): Promise<void> {
   let memnite: number | undefined;
   await expect.poll(async () => (memnite = await offeredNamed(alice.page, 'Memnite')), { timeout: 60_000, message: 'alice is offered a Memnite' }).not.toBeUndefined();
@@ -37,7 +41,9 @@ async function castMemnite(alice: Friend, bob: Friend, done: () => Promise<boole
   await expect
     .poll(
       async () => {
+        if (await done()) return true;
         for (const page of [alice.page, bob.page]) {
+          if (page === alice.page && (await stackCount(alice.page)) === 0) continue;
           const ok = page.locator('[data-testid="live-decision-ok"]:enabled');
           if ((await ok.count()) > 0) await ok.click({ timeout: 1_000 }).catch(() => undefined);
         }
