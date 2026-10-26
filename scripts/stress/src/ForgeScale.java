@@ -99,6 +99,21 @@ public final class ForgeScale {
     static final String SERIES = System.getProperty("stress.series", "");
     static final int STAGGER_MS = Integer.getInteger("stress.staggerMs", 250);
     static final int HEAVY = Integer.getInteger("stress.heavySlots", 0); // first k slots: AI-vs-AI from a stalled crowded board
+    /**
+     * Fault injection (hosting-test-plan.md B2/B3): the next {@code stress.faultSlots} slots after
+     * the heavy ones play a normal vs-AI match whose AI seat, at its {@code stress.faultAfter}-th
+     * priority decision, does {@code stress.fault}: {@code soe} recurses until a real
+     * StackOverflowError, {@code throw} throws an engine exception, {@code spin} loops on the CPU
+     * forever (a hung AI no interrupt reaches), {@code block} waits forever (a hung AI an
+     * interrupt does reach). {@code stress.faultRescueSec} after a hang, the harness tries what a
+     * host could: end the game and interrupt its thread.
+     */
+    static final String FAULT = System.getProperty("stress.fault", "");
+    static final int FAULT_SLOTS = FAULT.isEmpty() ? 0 : Integer.getInteger("stress.faultSlots", 1);
+    static final int FAULT_AFTER = Integer.getInteger("stress.faultAfter", 10);
+    static final long FAULT_RESCUE_S = Long.getLong("stress.faultRescueSec", 30L);
+    /** Overrides {@code Game.AI_TIMEOUT} (seconds) for every game: 0 makes every canPlay scan a cutoff (B5). */
+    static final int AI_TIMEOUT_S = Integer.getInteger("stress.aiTimeoutSec", -1);
 
     // --- metrics --------------------------------------------------------------
     static final ConcurrentLinkedQueue<Long> AI_PRIORITY_US = new ConcurrentLinkedQueue<>();
@@ -126,6 +141,15 @@ public final class ForgeScale {
     static final AtomicInteger OVER_5S = new AtomicInteger();
     static final java.util.Set<Game> CAPPED = ConcurrentHashMap.newKeySet();
     static volatile boolean stopping;
+    static final AtomicInteger FAULTS = new AtomicInteger();
+    static final Map<String, AtomicInteger> FAULT_ENDS = new ConcurrentHashMap<>();
+    static final ConcurrentLinkedQueue<Long> FAULT_UNWIND_MS = new ConcurrentLinkedQueue<>();
+    /** A hung fault seat -> when it hung (nanos); the main loop rescues entries older than faultRescueSec. */
+    static final Map<Seat, Long> HUNG = new ConcurrentHashMap<>();
+    static final AtomicInteger RESCUES = new AtomicInteger();
+    static final AtomicInteger RESCUED = new AtomicInteger();
+    static final AtomicLong FAULT_DETECTED_MS = new AtomicLong(-1);
+    static volatile long spinSink;
 
     public static void main(final String[] args) throws Exception {
         final PrintStream result = new PrintStream(new FileOutputStream(java.io.FileDescriptor.out), true, StandardCharsets.UTF_8);
@@ -178,7 +202,8 @@ public final class ForgeScale {
         for (int s = 0; s < N; s++) {
             final int slot = s;
             final boolean heavy = slot < HEAVY;
-            final boolean hvh = MODE.equals("paced") && !heavy && slot < HEAVY + Math.round(HVH * (N - HEAVY));
+            final boolean fault = !heavy && slot < HEAVY + FAULT_SLOTS;
+            final boolean hvh = MODE.equals("paced") && !heavy && !fault && slot < HEAVY + FAULT_SLOTS + Math.round(HVH * (N - HEAVY - FAULT_SLOTS));
             final Thread t = new Thread(() -> {
                 int k = 0;
                 while (!stopping && System.nanoTime() < deadline) {
@@ -187,7 +212,7 @@ public final class ForgeScale {
                     for (int p = 0; p < 2; p++) {
                         final boolean paced = MODE.equals("paced") && !heavy && (p == 0 || hvh);
                         final RegisteredPlayer rp = new RegisteredPlayer(decks.get(pair * 2 + p));
-                        final StressPlayer lp = new StressPlayer((paced ? "Paced" : "Ai") + (p + 1) + "-s" + slot, paced, heavy);
+                        final StressPlayer lp = new StressPlayer((paced ? "Paced" : "Ai") + (p + 1) + "-s" + slot, paced, heavy, fault && p == 1);
                         lp.setAiProfile("Default");
                         rp.setPlayer(lp);
                         players.add(rp);
@@ -195,6 +220,9 @@ public final class ForgeScale {
                     final Match match = new Match(new GameRules(GameType.Constructed), players, "stress-" + slot + "-" + k);
                     final Game game = match.createGame();
                     game.setNoGUIUser();
+                    if (AI_TIMEOUT_S >= 0) {
+                        game.AI_TIMEOUT = AI_TIMEOUT_S;
+                    }
                     final long s0 = System.nanoTime();
                     live.put(game, s0);
                     started.incrementAndGet();
@@ -208,6 +236,9 @@ public final class ForgeScale {
                         }
                         final GameOutcome o = game.getOutcome();
                         final long ms = (System.nanoTime() - s0) / 1_000_000L;
+                        if (fault) {
+                            faultEnd(game, "returned:" + (game.isGameOver() ? "over" : "live"));
+                        }
                         if (stopping || System.nanoTime() >= deadline && o == null) {
                             // ended by the run's deadline: partial, counted in match-minutes only
                         } else if (CAPPED.remove(game)) {
@@ -220,12 +251,17 @@ public final class ForgeScale {
                             turns.add(o.getLastTurnNumber());
                         }
                     } catch (final Throwable e) {
+                        if (fault) {
+                            faultEnd(game, "threw:" + e.getClass().getSimpleName());
+                        }
                         failed.incrementAndGet();
                         synchronized (errors) {
                             errors.append(errors.length() == 0 ? "" : ",").append(e.getClass().getSimpleName());
                         }
                         e.printStackTrace(System.out);
                     } finally {
+                        // A decision that threw never reached timed(): drop its seat, or the set holds the game.
+                        DECIDING.removeIf(seat -> seat.getGame() == game);
                         capper.interrupt();
                         if (live.remove(game) != null && !stopping) {
                             matchNanos.add(System.nanoTime() - s0);
@@ -243,6 +279,7 @@ public final class ForgeScale {
         final List<Long> liveSamples = new ArrayList<>();
         while (System.nanoTime() < deadline) {
             Thread.sleep(1000);
+            rescueHung();
             if (LIVE_GC_S > 0 && System.nanoTime() >= nextGc) {
                 final long g0 = System.nanoTime();
                 GC_EPOCH.incrementAndGet();
@@ -323,6 +360,34 @@ public final class ForgeScale {
             r.put("heavy_timeouts", HEAVY_TIMEOUTS.get());
         }
 
+        {
+            r.put("fault", FAULT.isEmpty() ? "-" : FAULT);
+            r.put("fault_slots", FAULT_SLOTS);
+            r.put("faults", FAULTS.get());
+            r.put("fault_ends", topFrames(FAULT_ENDS));
+            r.put("fault_unwind_p50_ms", median(FAULT_UNWIND_MS));
+            r.put("fault_detected_ms", FAULT_DETECTED_MS.get());
+            r.put("rescues", RESCUES.get());
+            r.put("rescued", RESCUED.get());
+            r.put("still_hung", HUNG.size());
+            long faultCpuNs = 0;
+            int faultAlive = 0;
+            final ThreadMXBean tm = ManagementFactory.getThreadMXBean();
+            for (final Thread t : Thread.getAllStackTraces().keySet()) {
+                final String n = t.getName();
+                if (n.startsWith(SLOT_PREFIX) && Integer.parseInt(n.substring(SLOT_PREFIX.length())) >= HEAVY
+                        && Integer.parseInt(n.substring(SLOT_PREFIX.length())) < HEAVY + FAULT_SLOTS) {
+                    faultAlive++;
+                    faultCpuNs += Math.max(0, tm.getThreadCpuTime(t.getId()));
+                }
+            }
+            r.put("fault_threads_alive", faultAlive);
+            r.put("fault_threads_cpu_s", fmt(faultCpuNs / 1e9));
+            r.put("ai_timeout_s", AI_TIMEOUT_S);
+            r.put("eval_threads_end", sampler.evalNow());
+            r.put("threads_end", tm.getThreadCount());
+        }
+
         final StringBuilder line = new StringBuilder("RESULT");
         for (final Map.Entry<String, Object> e : r.entrySet()) {
             line.append('\t').append(e.getKey()).append('=').append(e.getValue());
@@ -361,6 +426,37 @@ public final class ForgeScale {
         t.setDaemon(true);
         t.start();
         return t;
+    }
+
+    private static void faultEnd(final Game game, final String how) {
+        FAULT_ENDS.computeIfAbsent(how, k -> new AtomicInteger()).incrementAndGet();
+        final Long at = FAULTED_AT.remove(game);
+        if (at != null) {
+            FAULT_UNWIND_MS.add((System.nanoTime() - at) / 1_000_000L);
+        }
+    }
+
+    static final Map<Game, Long> FAULTED_AT = new ConcurrentHashMap<>();
+
+    /** What a host could do about a hung match without killing the JVM: end the game, interrupt its thread. */
+    private static void rescueHung() {
+        final long now = System.nanoTime();
+        for (final Map.Entry<Seat, Long> e : HUNG.entrySet()) {
+            final Seat seat = e.getKey();
+            if (!seat.rescueTried && now - e.getValue() > FAULT_RESCUE_S * 1_000_000_000L) {
+                seat.rescueTried = true;
+                RESCUES.incrementAndGet();
+                seat.getGame().setGameOver(GameEndReason.Draw);
+                final Thread t = seat.decider;
+                if (t != null) {
+                    t.interrupt();
+                }
+            }
+        }
+    }
+
+    static int recurse(final int depth) {
+        return recurse(depth + 1) + 1;
     }
 
     // --- decks ----------------------------------------------------------------
@@ -458,16 +554,19 @@ public final class ForgeScale {
 
         final boolean heavy;
 
-        StressPlayer(final String name, final boolean paced, final boolean heavy) {
+        final boolean fault;
+
+        StressPlayer(final String name, final boolean paced, final boolean heavy, final boolean fault) {
             super(name, null);
             this.paced = paced;
             this.heavy = heavy;
+            this.fault = fault;
         }
 
         @Override
         public Player createIngamePlayer(final Game game, final int id) {
             final Player p = new Player(getName(), game, id);
-            final Seat c = new Seat(game, p, this, paced, heavy);
+            final Seat c = new Seat(game, p, this, paced, heavy, fault);
             c.getAi().setUseSimulation(null);
             p.setFirstController(c);
             return p;
@@ -481,11 +580,46 @@ public final class ForgeScale {
     static final class Seat extends PlayerControllerAi {
         final boolean paced;
         final boolean heavy;
+        final boolean fault;
+        int faultCountdown = FAULT_AFTER;
+        volatile boolean rescueTried;
 
-        Seat(final Game game, final Player p, final LobbyPlayerAi lp, final boolean paced, final boolean heavy) {
+        Seat(final Game game, final Player p, final LobbyPlayerAi lp, final boolean paced, final boolean heavy, final boolean fault) {
             super(game, p, lp);
             this.paced = paced;
             this.heavy = heavy;
+            this.fault = fault;
+        }
+
+        /** The injected fault, on the game thread, inside a priority decision (so the watchdog sees a hang). */
+        private void inject() {
+            FAULTS.incrementAndGet();
+            FAULTED_AT.put(getGame(), System.nanoTime());
+            switch (FAULT) {
+                case "soe" -> recurse(0);
+                case "throw" -> throw new IllegalStateException("stress fault: engine exception");
+                case "spin" -> {
+                    HUNG.put(this, System.nanoTime());
+                    long x = 0;
+                    while (true) {
+                        x += System.nanoTime() ^ x;
+                        spinSink = x;
+                    }
+                }
+                case "block" -> {
+                    HUNG.put(this, System.nanoTime());
+                    try {
+                        new java.util.concurrent.CountDownLatch(1).await();
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        if (HUNG.remove(this) != null && rescueTried) {
+                            RESCUED.incrementAndGet();
+                        }
+                    }
+                }
+                default -> throw new IllegalArgumentException("unknown stress.fault " + FAULT);
+            }
         }
 
         private void entered() {
@@ -554,6 +688,9 @@ public final class ForgeScale {
             if (us > 5_000_000L) {
                 OVER_5S.incrementAndGet();
             }
+            if (fault) {
+                return us;
+            }
             if (paced) {
                 PACED_COMPUTE_US.add(us);
             } else if (heavy) {
@@ -569,6 +706,9 @@ public final class ForgeScale {
         public List<SpellAbility> chooseSpellAbilityToPlay() {
             entered();
             final long t0 = begin();
+            if (fault && --faultCountdown == 0) {
+                inject();
+            }
             final List<SpellAbility> sa = super.chooseSpellAbilityToPlay();
             timed(t0, AI_PRIORITY_US);
             if (paced) {
@@ -626,7 +766,13 @@ public final class ForgeScale {
                     if (since != 0 && !seat.sampled && t != null && now - since > SLOW_MS * 1_000_000L) {
                         seat.sampled = true;
                         SLOW.incrementAndGet();
-                        final StringBuilder key = new StringBuilder(seat.heavy ? "heavy:" : "");
+                        final StringBuilder key = new StringBuilder(seat.heavy ? "heavy:" : seat.fault ? "fault:" : "");
+                        if (seat.fault) {
+                            final Long at = HUNG.get(seat);
+                            if (at != null) {
+                                FAULT_DETECTED_MS.compareAndSet(-1, (now - at) / 1_000_000L);
+                            }
+                        }
                         int n = 0;
                         for (final StackTraceElement e : t.getStackTrace()) {
                             if (e.getClassName().startsWith("forge.") && n < 3) {
@@ -710,11 +856,30 @@ public final class ForgeScale {
             setDaemon(true);
             series = seriesPath.isEmpty() ? null : new PrintStream(new FileOutputStream(seriesPath), true, StandardCharsets.UTF_8);
             if (series != null) {
-                series.println("t_s\trss_mb\tpss_mb\theap_used_mb\tlive_after_gc_mb\tthreads\teval_threads\tai_timeouts\tai_decisions\tcpu_s");
+                series.println("t_s\trss_mb\tpss_mb\theap_used_mb\tlive_after_gc_mb\tthreads\teval_threads\tai_timeouts\tai_decisions\tcpu_s\tmetaspace_mb\tclasses\tgc_ms");
             }
         }
 
         void noteLive(final long mb) { lastLive = mb; }
+
+        int evalNow() {
+            int eval = 0;
+            for (final Thread t : Thread.getAllStackTraces().keySet()) {
+                if ("Game AI Eval".equals(t.getName())) {
+                    eval++;
+                }
+            }
+            return eval;
+        }
+
+        private static long metaspaceMb() {
+            for (final java.lang.management.MemoryPoolMXBean p : ManagementFactory.getMemoryPoolMXBeans()) {
+                if ("Metaspace".equals(p.getName())) {
+                    return p.getUsage().getUsed() / MB;
+                }
+            }
+            return -1;
+        }
 
         @Override
         public void run() {
@@ -725,17 +890,13 @@ public final class ForgeScale {
                 try {
                     final long pss = procKb("/proc/self/smaps_rollup", "Pss:");
                     pssMaxKb.accumulateAndGet(pss, Math::max);
-                    int eval = 0;
-                    for (final Thread t : Thread.getAllStackTraces().keySet()) {
-                        if ("Game AI Eval".equals(t.getName())) {
-                            eval++;
-                        }
-                    }
+                    final int eval = evalNow();
                     evalMax.accumulateAndGet(eval, Math::max);
                     if (series != null) {
-                        series.printf("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%.1f%n", (System.nanoTime() - t0) / 1_000_000_000L,
+                        series.printf("%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%.1f\t%d\t%d\t%d%n", (System.nanoTime() - t0) / 1_000_000_000L,
                                 procKb("/proc/self/status", "VmRSS:") / 1024, pss / 1024, usedHeapMb(), lastLive,
-                                tm.getThreadCount(), eval, TIMEOUTS.get(), AI_PRIORITY_US.size(), cpu.processCpuNs() / 1e9);
+                                tm.getThreadCount(), eval, TIMEOUTS.get(), AI_PRIORITY_US.size(), cpu.processCpuNs() / 1e9,
+                                metaspaceMb(), ManagementFactory.getClassLoadingMXBean().getLoadedClassCount(), gcMillis());
                     }
                     Thread.sleep(5000);
                 } catch (final InterruptedException e) {

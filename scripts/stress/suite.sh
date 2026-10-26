@@ -20,6 +20,16 @@
 #   t3       mix at N=$N paced matches: 30/60/100% vs-AI (the rest human-vs-human)
 #   t6       OOM: N=$N paced matches in a heap too small, -XX:+ExitOnOutOfMemoryError
 #   t7       GC: N=$N paced matches under G1, Serial and generational ZGC
+#
+# Failure isolation (docs/planning/hosting-test-plan.md §B), inside a 4 CPU /
+# 3 GB slice like a planned hosting slice, N=${N:-16} paced matches each:
+#   b3       a baseline, then one slot's AI throwing a real StackOverflowError,
+#            then an engine exception, each beside the N-1 others
+#   b2       a hung AI beside N-1 others: one spinning on the CPU (no interrupt
+#            reaches it), one blocked (an interrupt does), one forge#3410 board
+#   b4       OOM: a heap too small with and without -XX:+ExitOnOutOfMemoryError,
+#            then a cgroup MemoryMax below the heap (the kernel kills it)
+#   b5       AI cutoffs on every scan (Game.AI_TIMEOUT=0): live eval threads
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 suite=$1 claw=$2 out=$3
@@ -77,6 +87,27 @@ case $suite in
 			# shellcheck disable=SC2086 # the GC flags are separate words on purpose
 			R "t7-n$N-$(echo $gc | sed 's/-XX:+Use//; s/ -XX:+ZGenerational/gen/')" "$CPUS" "$MEM" "$XMX" $gc "${PACED[@]}" -Dstress.matches=$N -Dstress.durationSec=${DUR:-420} -Dstress.liveGcSec=60
 		done
+		;;
+	b3)
+		R "b3-base-n$N" 4 3G 2200m "${PACED[@]}" -Dstress.matches=$N -Dstress.durationSec=${DUR:-240} -Dstress.liveGcSec=60
+		for f in soe throw; do
+			R "b3-$f-n$N" 4 3G 2200m "${PACED[@]}" -Dstress.matches=$N -Dstress.fault=$f -Dstress.faultSlots=2 -Dstress.durationSec=${DUR:-240} -Dstress.liveGcSec=60
+		done
+		;;
+	b2)
+		for f in spin block; do
+			R "b2-$f-n$N" 4 3G 2200m "${PACED[@]}" -Dstress.matches=$N -Dstress.fault=$f -Dstress.faultSlots=1 -Dstress.faultRescueSec=30 -Dstress.durationSec=${DUR:-240} -Dstress.liveGcSec=60
+		done
+		R "b2-heavy-n$N" 4 3G 2200m "${PACED[@]}" -Dstress.matches=$N -Dstress.heavySlots=1 -Dstress.durationSec=${DUR:-240} -Dstress.liveGcSec=60
+		;;
+	b4)
+		R "b4-exit-n64-400m" 4 3G 400m "${PACED[@]}" -XX:+ExitOnOutOfMemoryError -Dstress.matches=64 -Dstress.durationSec=${DUR:-300} -Dstress.liveGcSec=30
+		R "b4-noexit-n64-400m" 4 3G 400m "${PACED[@]}" -Dstress.matches=64 -Dstress.durationSec=${DUR:-300} -Dstress.liveGcSec=30
+		R "b4-cgroup-n64-700M" 4 700M 2200m "${PACED[@]}" -XX:+ExitOnOutOfMemoryError -Dstress.matches=64 -Dstress.durationSec=${DUR:-300} -Dstress.liveGcSec=30
+		;;
+	b5)
+		R "b5-cutoff0-n$N" 4 3G 2200m "${PACED[@]}" -Dstress.matches=$N -Dstress.aiTimeoutSec=0 -Dstress.durationSec=${DUR:-300} -Dstress.liveGcSec=60
+		R "b5-cutoff0-full-n4" 4 3G 2200m "${FULL[@]}" -Dstress.matches=4 -Dstress.aiTimeoutSec=0 -Dstress.durationSec=${DUR:-300} -Dstress.liveGcSec=60
 		;;
 	*) echo "unknown suite $suite" >&2; exit 2 ;;
 esac
