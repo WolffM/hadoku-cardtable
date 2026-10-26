@@ -26,6 +26,7 @@
 import type { ManaColor } from '@hadoku/shared';
 
 import { BEAT_ANIMATION_ID, powerEase, powerSize } from '../motion.ts';
+import { claimParticles } from './effect-budget.ts';
 
 import './projectile.css';
 
@@ -140,8 +141,9 @@ export function impact(root: HTMLElement, at: Point, look: ProjectileLook, key: 
   burst.style.top = `${at.y}px`;
   if (power !== null) burst.style.setProperty('--power-size', powerSize(power).toFixed(2));
   const seed = seedOf(key);
-  // More sparks for a heavier hit: six for a point, twelve at ten.
-  const sparks = 6 + Math.round(6 * (power ?? 0));
+  // More sparks for a heavier hit: six for a point, twelve at ten, out of the board's pool (`effect-budget.ts`).
+  const now = Date.now();
+  const sparks = claimParticles(root, 6 + Math.round(6 * (power ?? 0)), 2, now, now + IMPACT_MS);
   for (let i = 0; i < sparks; i++) {
     const spark = document.createElement('span');
     spark.className = 'effect-impact__spark';

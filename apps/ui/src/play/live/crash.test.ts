@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { damagePower } from '../motion.ts';
 import { crash, CRASH_MS, rocks, shakeOf } from './crash.ts';
+import { claimParticles, PARTICLE_BUDGET } from './effect-budget.ts';
+import { impact } from './projectile.ts';
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -52,5 +54,15 @@ describe('crash', () => {
     expect(el.querySelectorAll('.effect-crash__rock')).toHaveLength(rocks('c', damagePower(3)).length);
     vi.advanceTimersByTime(CRASH_MS + 50);
     expect(root.querySelector('.effect-crash')).toBeNull();
+  });
+
+  it('a crash and an impact on a board already full of particles throw only their floors (`effect-budget.ts`)', () => {
+    vi.useFakeTimers();
+    const root = document.createElement('div');
+    document.body.append(root);
+    claimParticles(root, PARTICLE_BUDGET, 6, Date.now(), Date.now() + 5000);
+    const el = crash(root, { x: 0, y: 0 }, 1, 'c');
+    expect([el.querySelectorAll('.effect-crash__rock').length, el.querySelectorAll('.effect-crash__dust').length]).toEqual([4, 2]);
+    expect(impact(root, { x: 0, y: 0 }, 'bolt', 'i', 'R', 1).querySelectorAll('.effect-impact__spark')).toHaveLength(2);
   });
 });

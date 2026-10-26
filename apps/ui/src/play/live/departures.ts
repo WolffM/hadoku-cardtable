@@ -51,7 +51,7 @@ import './departures.css';
 import { seedOf } from './projectile.ts';
 import { prefersReducedMotion } from '../motion.ts';
 import { overlayOf } from './board-dom.ts';
-import { particleShare, shared } from './effect-budget.ts';
+import { claimParticles, particleShare, shared } from './effect-budget.ts';
 
 /**
  * Why a permanent died. Forge's `GameEventCardDied` says it (`DeathCause`, folded here); before a Forge
@@ -544,7 +544,9 @@ export function installDepartures(canvas: HTMLElement, host: DeparturesHost): De
       const shardShare = particleShare(shatters * EXIT_MOTIONS.shatter.pieces, SHARD_BUDGET);
       const built = plans.map((p) => {
         const full = EXIT_MOTIONS[p.motion].pieces;
-        const count = { pieces: shattered(p.motion) ? shared(full, shardShare, MIN_SHARDS) : full, specks: shared(specksOf(p.motion), speckShare, 6) };
+        const start = Date.now() + p.delayMs;
+        const specks = claimParticles(root, shared(specksOf(p.motion), speckShare, 6), 6, start, start + EXIT_MOTIONS[p.motion].ms);
+        const count = { pieces: shattered(p.motion) ? shared(full, shardShare, MIN_SHARDS) : full, specks };
         const wrap = standIn(p.departure, p.from, p.at, root, box, p.motion, count);
         wrap.setAttribute(DEPARTURE_ATTR, String(p.departure.cardId));
         standIns.add(wrap);

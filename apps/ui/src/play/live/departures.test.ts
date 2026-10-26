@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoardCard, BoardPlayer, BoardView } from '../adapter.ts';
+import { claimParticles, PARTICLE_BUDGET } from './effect-budget.ts';
 import { departureCause, departuresOf, DISSOLVE_SWEEP, EXIT_MOTIONS, shards, exitMotionFor, installDepartures, LANDING_ATTR, LEAVING_GAP_ATTR, specks, type Departure, type DepartureCause } from './departures.ts';
 
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
@@ -353,6 +354,17 @@ describe('installDepartures', () => {
     expect(pieces.reduce((a, b) => a + b, 0), 'every shard is a whole copy of its card: about two shatters’ worth in all').toBeLessThanOrEqual(2 * EXIT_MOTIONS.shatter.pieces);
     const specks = canvas.querySelectorAll('.board-departure__speck').length;
     expect(specks, 'about one budget of dust, not four shatters’').toBeLessThan(2 * EXIT_MOTIONS.shatter.specks);
+    handle.dispose();
+  });
+
+  it('a shatter while the board is already full of particles (a crash’s rocks, an impact’s sparks) throws only its floor of dust', () => {
+    const canvas = board();
+    claimParticles(canvas.querySelector('[data-board-overlay]')!, PARTICLE_BUDGET, 4, Date.now(), Date.now() + 5000);
+    const handle = installDepartures(canvas, { onDone: () => undefined });
+    handle.snapshot();
+    keepPlace(canvas);
+    handle.leave([{ departure: departure('graveyard', 'damage'), delayMs: 0 }]);
+    expect(canvas.querySelectorAll('.board-departure__speck')).toHaveLength(6);
     handle.dispose();
   });
 
