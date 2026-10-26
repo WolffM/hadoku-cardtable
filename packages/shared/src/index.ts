@@ -408,6 +408,8 @@ export {
   SetSummarySchema,
   DraftPresetSchema,
   SavePresetBodySchema,
+  sourceLabel,
+  planDisplayName,
   type PoolSource,
   type DraftPlan,
   type PoolVerdict,

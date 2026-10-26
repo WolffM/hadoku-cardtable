@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { CubeSummarySchema } from './pool.ts';
+import { CubeSummarySchema, planDisplayName, type DraftPlan } from './pool.ts';
 
 const base = {
   id: 'a-cube',
@@ -31,5 +31,27 @@ describe('CubeSummarySchema', () => {
 
   it('refuses a URL in artId’s place — the field is a scryfall uuid, never a URL', () => {
     expect(CubeSummarySchema.safeParse({ ...base, artId: 'https://cards.scryfall.io/art_crop/x.jpg' }).success).toBe(false);
+  });
+});
+
+describe('planDisplayName', () => {
+  const ala = { kind: 'set', code: 'ALA', style: 'realistic' } as const;
+  const arb = { kind: 'set', code: 'ARB', style: 'realistic' } as const;
+
+  it('three equal rounds give that source’s label: a cube’s name, a set’s name with its style', () => {
+    const cube = { kind: 'cube', cubeId: 'vintage' } as const;
+    expect(planDisplayName({ rounds: [cube, cube, cube] }, ['Vintage Cube', 'Vintage Cube', 'Vintage Cube'])).toBe('Vintage Cube');
+    expect(planDisplayName({ rounds: [ala, ala, ala] }, ['Shards of Alara', 'Shards of Alara', 'Shards of Alara'])).toBe('Shards of Alara · Realistic');
+  });
+
+  it('otherwise joins the three labels, each with its own style', () => {
+    const plan: DraftPlan = { rounds: [ala, ala, { ...arb, style: 'set-cube' }] };
+    expect(planDisplayName(plan, ['Shards of Alara', 'Shards of Alara', 'Alara Reborn'])).toBe(
+      'Shards of Alara · Realistic / Shards of Alara · Realistic / Alara Reborn · Set-cube',
+    );
+  });
+
+  it('the same set in two styles is two sources', () => {
+    expect(planDisplayName({ rounds: [ala, ala, { ...ala, style: 'set-cube' }] }, ['ALA', 'ALA', 'ALA'])).toBe('ALA · Realistic / ALA · Realistic / ALA · Set-cube');
   });
 });

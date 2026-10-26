@@ -236,27 +236,8 @@ async function draftedWithout(src: PoolSource, verdict: Extract<PoolVerdict, { o
 	return all?.filter((card) => !without.has(card.name)).length ?? 0;
 }
 
-/** Two sources are the SAME round, for display: an exact match, not merely the same `sourceKey` grouping `deal()`/`checkPlan` use (those dedupe realistic/set-cube of one code onto one verdict; a display name must not conflate the two styles). */
-function sameSource(a: PoolSource, b: PoolSource): boolean {
-	if (a.kind !== b.kind) return false;
-	return a.kind === 'cube' && b.kind === 'cube' ? a.cubeId === b.cubeId : a.kind === 'set' && b.kind === 'set' ? a.code === b.code && a.style === b.style : false;
-}
-
-/**
- * `PodView.planName` — the plan's display name (wave 74 §Wire contract):
- *
- *   - three equal rounds give that source's name, e.g. "Innistrad · Realistic";
- *   - otherwise the round names are joined with ' / ', e.g. "Shards of
- *     Alara / Shards of Alara / Alara Reborn".
- *
- * `nameOf` is the caller's own say in a single source's name — `draftRooms.ts`'s
- * `PoolSourceResolver.name` in production (`http/routes.ts`'s `planNameOf`),
- * a fake in tests. This function only decides the EQUAL-vs-JOINED shape; it
- * never resolves a name itself, so it has no Forge/cube-store dependency of
- * its own (unlike `checkPlan`, which must).
- */
-export function planDisplayName(plan: DraftPlan, nameOf: (src: PoolSource) => string): string {
+/** Each round's bare name (`PodView.roundNames`), by the caller's own say in one source's name. */
+export function roundNamesOf(plan: DraftPlan, nameOf: (src: PoolSource) => string): [string, string, string] {
 	const [first, second, third] = plan.rounds;
-	if (sameSource(first, second) && sameSource(second, third)) return nameOf(first);
-	return plan.rounds.map(nameOf).join(' / ');
+	return [nameOf(first), nameOf(second), nameOf(third)];
 }

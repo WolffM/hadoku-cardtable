@@ -30,7 +30,7 @@ import { poolFixturePath, type LibraryCollection } from '@hadoku/deck/library';
 import { loadTablesLibrary } from '../http/library.ts';
 import { createDraftRooms, DEFAULT_PLAN, singlePoolResolver, stateOf } from './draftRooms.ts';
 import { loadPool } from './pool.ts';
-import { planDisplayName } from './plan.ts';
+import { roundNamesOf } from './plan.ts';
 import { AVATAR_ID_MAX, CLIENT_MODES, DEFAULT_CLIENT_MODE, POD_SEATS, type ClientMode, type PoolVerdict, type Tournament } from '@hadoku/shared';
 import {
 	AVATAR_POOL,
@@ -2132,7 +2132,7 @@ function fakeChecks(
 		built: (_podId, memberId) => built.has(memberId),
 		seatState: (_podId, memberId) => ({ seatedFor: memberId }),
 		holdsSeriesDeck: () => true,
-		planNameOf: (plan) => planDisplayName(plan, (source) => (source.kind === 'cube' ? source.cubeId : `${source.code} (${source.style})`)),
+		roundNamesOf: (plan) => roundNamesOf(plan, (source) => (source.kind === 'cube' ? source.cubeId : source.code)),
 		hasLegalSeatDeck: (_roomId, memberId) => legalSeatDeck.has(memberId),
 		currentTournamentDeck: (_roomId, entrant) => (opts.currentDeck ? opts.currentDeck(entrant) : { deckOf: entrant }),
 		seatTournamentDeck: (_roomId, tableId, entrant, deck) => opts.onSeatDeck?.(tableId, entrant, deck),

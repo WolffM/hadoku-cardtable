@@ -14,6 +14,28 @@ export const DraftPlanSchema = z.strictObject({
 });
 export type DraftPlan = z.infer<typeof DraftPlanSchema>;
 
+/** Two sources are the SAME round, for display: an exact match, not the server's `sourceKey` grouping (which puts a set's two styles on one verdict); a display name must not conflate the two styles. */
+function sameSource(a: PoolSource, b: PoolSource): boolean {
+  if (a.kind === 'cube') return b.kind === 'cube' && a.cubeId === b.cubeId;
+  return b.kind === 'set' && a.code === b.code && a.style === b.style;
+}
+
+/** One source's label from its bare name: a cube's name as it is, a set's with its style, e.g. "Innistrad · Realistic". */
+export function sourceLabel(source: PoolSource, name: string): string {
+  return source.kind === 'cube' ? name : `${name} · ${source.style === 'realistic' ? 'Realistic' : 'Set-cube'}`;
+}
+
+/**
+ * A plan's display name from its rounds' bare names (`PodView.roundNames`): three equal rounds give
+ * that source's label, otherwise the three labels are joined with ' / ', e.g. "Shards of Alara ·
+ * Realistic / Shards of Alara · Realistic / Alara Reborn · Realistic".
+ */
+export function planDisplayName(plan: DraftPlan, roundNames: readonly [string, string, string]): string {
+  const [first, second, third] = plan.rounds;
+  if (sameSource(first, second) && sameSource(second, third)) return sourceLabel(first, roundNames[0]);
+  return plan.rounds.map((source, i) => sourceLabel(source, roundNames[i]!)).join(' / ');
+}
+
 export const PoolVerdictSchema = z.discriminatedUnion('ok', [
   z.strictObject({ ok: z.literal(true), cards: z.number().int().nonnegative() }),
   // `message`: why no card could be checked at all (the pool service down), in place of a card list.

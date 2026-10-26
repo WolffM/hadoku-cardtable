@@ -90,6 +90,7 @@ import {
 	type ConstructedMode,
 	type DraftPlan,
 	type GameType,
+	planDisplayName,
 	type ModeOptions,
 	type PoolSource,
 	type PoolVerdict,
@@ -109,7 +110,7 @@ import {
 import { botSeatAcross, pairRound, rankStandings, roundsFor, standings, type MatchResult, type PodPlayer, type RankedStandingsRow } from '@hadoku/draft';
 import { DEFAULT_PLAN, type PodDeal } from './draftRooms.ts';
 import { isGauntletState, type GauntletState } from './gauntlet.ts';
-import { planDisplayName } from './plan.ts';
+import { roundNamesOf } from './plan.ts';
 import { leaveSeat, readySeat, seatList, sitAt, type TableSeat, type TableSeats } from './seats.ts';
 import { convertToBo3, newSeries, recordGame, seriesFormatOf, seriesWinner, statsModeOf, type SeriesGame, type SeriesRecord, type SeriesRoom } from './series.ts';
 
@@ -659,12 +660,11 @@ export interface PodChecks {
 	seatState(podId: string, memberId: string): unknown;
 	holdsSeriesDeck(state: unknown): boolean;
 	/**
-	 * The plan's display name (`PodView.planName`, wave 74 §Wire contract) —
-	 * `room/plan.ts`'s `planDisplayName`, bound to `draftRooms.ts`'s resolver
-	 * for a single source's own name (the same rule `cubeMetaOf` reads it
-	 * with).
+	 * Each round's bare name (`PodView.roundNames`) — `room/plan.ts`'s
+	 * `roundNamesOf`, bound to `draftRooms.ts`'s resolver for a single
+	 * source's own name (the same rule `cubeMetaOf` labels it from).
 	 */
-	planNameOf(plan: DraftPlan): string;
+	roundNamesOf(plan: DraftPlan): [string, string, string];
 	/**
 	 * Tournament, Classic only: whether `memberId`'s own per-room state
 	 * (`member.state`, the same blob `PUT …/deck` writes) already holds a
@@ -698,9 +698,9 @@ export interface PodChecks {
 	seatTournamentDeck(roomId: string, tableId: string, entrant: string, deck: unknown | null): void;
 }
 
-/** The fallback a single source's name gets with no `DraftRooms` wired (no jar/no cube store) — same shape `draftRooms.ts`'s real resolver produces, so `NO_POD_CHECKS` and the wired case read identically in a room screen. */
+/** The bare name a single source gets with no `DraftRooms` wired (no jar/no cube store): its id or code, which is also what the real resolver falls back to. */
 function fallbackSourceName(source: PoolSource): string {
-	return source.kind === 'cube' ? source.cubeId : `${source.code} · ${source.style === 'realistic' ? 'Realistic' : 'Set-cube'}`;
+	return source.kind === 'cube' ? source.cubeId : source.code;
 }
 
 const NO_POD_CHECKS: PodChecks = {
@@ -708,7 +708,7 @@ const NO_POD_CHECKS: PodChecks = {
 	built: () => false,
 	seatState: () => null,
 	holdsSeriesDeck: () => true,
-	planNameOf: (plan) => planDisplayName(plan, fallbackSourceName),
+	roundNamesOf: (plan) => roundNamesOf(plan, fallbackSourceName),
 	hasLegalSeatDeck: () => false,
 	currentTournamentDeck: () => null,
 	seatTournamentDeck: () => {},
@@ -874,13 +874,12 @@ function rankedStandings(humans: string[], results: MatchResult[]): RankedStandi
  * instant `draftStartedAt` is set (`PUT …/pod/plan` refuses from there — see
  * `RoomRecord.plan`'s own doc), so reading it here is right in every phase,
  * not just `lobby`. A constructed TOURNAMENT pod drafts no pool at all:
- * `plan`/`verdict` are `null` and `planName` is `''` (`PodView.plan`'s own
- * doc).
+ * `plan`/`roundNames`/`verdict` are `null` (`PodView.plan`'s own doc).
  */
 function podViewOf(room: RoomRecord, checks: PodChecks): PodView {
 	const phase = podPhaseOf(room, checks);
 	const tournament = isTournamentRoom(room);
-	const planFields = tournament ? { plan: null, planName: '', verdict: null } : { plan: room.plan, planName: checks.planNameOf(room.plan), verdict: room.planVerdict };
+	const planFields = tournament ? { plan: null, roundNames: null, verdict: null } : { plan: room.plan, roundNames: checks.roundNamesOf(room.plan), verdict: room.planVerdict };
 	// Filled only in `lobby` — the wire contract's own words ("lobby phase: the
 	// 8 pod seats"). Once drafting starts, who is at what SEAT is the draft
 	// engine's own business (`room/draftRooms.ts`'s `viewForParticipant`), and
@@ -1039,7 +1038,7 @@ export interface Lobby {
 	/**
 	 * A pool source's display name changed outside any room (a set's name,
 	 * known only once Forge answers after boot): every draft room's view —
-	 * `PodView.planName` — reads differently now, so every one is named to
+	 * `PodView.roundNames` — reads differently now, so every one is named to
 	 * `onChange` with nothing written.
 	 */
 	poolNamesChanged(): void;
@@ -3288,7 +3287,7 @@ class FileLobby implements Lobby {
 		room.plan = plan;
 		room.planVerdict = verdict;
 		this.#persist(room);
-		this.#log({ event: 'pod-plan-set', roomId, memberId, planName: this.#podChecks.planNameOf(plan) });
+		this.#log({ event: 'pod-plan-set', roomId, memberId, planName: planDisplayName(plan, this.#podChecks.roundNamesOf(plan)) });
 		return { ok: true, room: this.#view(room) };
 	}
 

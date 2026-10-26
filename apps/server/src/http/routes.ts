@@ -182,7 +182,7 @@ import { botDeckText } from '../room/botDeck.js';
 import { httpCaller } from './request.js';
 import { isAdmin } from '../edge-auth.js';
 import { draftIdOfPool, draftPoolId, isAiEntrant, type Lobby, type PodChecks } from '../room/lobby.js';
-import { planDisplayName } from '../room/plan.js';
+import { roundNamesOf } from '../room/plan.js';
 import { drawRandomDeck, drawRandomDecks } from '../room/random-decks.js';
 import { statsModeOf } from '../room/series.js';
 import type { MatchSpec } from '../play/host.js';
@@ -867,14 +867,12 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	// is not touched for either.
 	rooms?.setPodChecks?.({
 		holdsSeriesDeck,
-		// `planDisplayName` decides equal-vs-joined (wave 74 §Wire contract);
-		// `nameOf` is this file's own say in ONE source's name, independent of
-		// any `DraftRoom` — a room still in its lobby has not built one yet
+		// `nameOf` is this file's own say in ONE source's bare name, independent
+		// of any `DraftRoom` — a room still in its lobby has not built one yet
 		// (`draftRooms.ts`'s `nameOf`).
-		planNameOf(plan) {
-			const nameOf = (source: PoolSource): string =>
-				deps.draftRooms?.nameOf(source) ?? (source.kind === 'cube' ? source.cubeId : `${source.code} · ${source.style === 'realistic' ? 'Realistic' : 'Set-cube'}`);
-			return planDisplayName(plan, nameOf);
+		roundNamesOf(plan) {
+			const nameOf = (source: PoolSource): string => deps.draftRooms?.nameOf(source) ?? (source.kind === 'cube' ? source.cubeId : source.code);
+			return roundNamesOf(plan, nameOf);
 		},
 		draftComplete(podId) {
 			const room = deps.draftRooms?.find(podId);

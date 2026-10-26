@@ -450,8 +450,7 @@ const poolResolver: PoolSourceResolver = {
 	},
 	name(src) {
 		if (src.kind === 'cube') return cubeStore.list().find((c) => c.id === src.cubeId)?.name ?? src.cubeId;
-		const setName = setsStore.nameOf(src.code) ?? src.code;
-		return `${setName} · ${src.style === 'realistic' ? 'Realistic' : 'Set-cube'}`;
+		return setsStore.nameOf(src.code) ?? src.code;
 	},
 };
 const defaultCubeCards = cubeStore.cards(DEFAULT_CUBE_ID) ?? null;

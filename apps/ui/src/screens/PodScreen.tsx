@@ -58,6 +58,7 @@
  */
 
 import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
+import { planDisplayName } from '@hadoku/shared';
 
 import {
   applyPick as socketPick,
@@ -212,8 +213,8 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
 
       {/* What is being drafted and who is at the table, on one line under the room's name. */}
       <div className="pod__meta">
-        {/* Round 1's source name today (the Cube tab fills every round alike); a per-round label is wave 74's Custom tab. */}
-        {ctx?.pod != null && ctx.pod.planName !== '' && <span className="pod__cube">{ctx.pod.planName}</span>}
+        {/* The plan by name, from the pod itself: one source's, or the three rounds' joined. */}
+        {ctx?.pod?.plan != null && ctx.pod.roundNames !== null && <span className="pod__cube">{planDisplayName(ctx.pod.plan, ctx.pod.roundNames)}</span>}
         <PodSeats
           connected={draft?.connected === true}
           everConnected={draft?.everConnected === true}

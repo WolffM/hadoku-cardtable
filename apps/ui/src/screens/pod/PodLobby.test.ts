@@ -33,7 +33,7 @@ function pod(over: Partial<PodView> = {}): PodView {
     built: [],
     personas: {},
     plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
-    planName: 'Test Cube',
+    roundNames: ['Test Cube', 'Test Cube', 'Test Cube'],
     verdict: null,
     ...over,
   };

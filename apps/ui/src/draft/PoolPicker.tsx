@@ -130,6 +130,8 @@ export interface PoolPickerProps {
   selected: PoolSource | null;
   /** Custom's three rounds, independently — `null` for a round nothing has chosen yet. */
   customRounds: readonly [PoolSource | null, PoolSource | null, PoolSource | null];
+  /** Each of those rounds' bare name from the pod (`PodView.roundNames`) while it is still the room's plan; `null` for one picked here. */
+  customNames: readonly [string | null, string | null, string | null];
 
   /** Only the leader edits; everyone else reads the same picker, disabled. */
   leader: boolean;
@@ -166,14 +168,15 @@ function sourceVerdict(source: PoolSource | null, cubes: readonly CubeSummary[],
 }
 
 /** A pack slot's one-line summary: what it holds, and what kind — `null` for a round nothing has chosen yet. */
-function sourceSummary(source: PoolSource | null, cubes: readonly CubeSummary[], sets: readonly SetSummary[]): { name: string; kind: string } | null {
+/** `known` is the pod's own name for a round still on the room's plan, so the slot never waits on the lists. */
+function sourceSummary(source: PoolSource | null, known: string | null, cubes: readonly CubeSummary[], sets: readonly SetSummary[]): { name: string; kind: string } | null {
   if (source === null) return null;
   if (source.kind === 'cube') {
     const cube = cubes.find((c) => c.id === source.cubeId);
-    return { name: cube?.name ?? source.cubeId, kind: 'Cube' };
+    return { name: known ?? cube?.name ?? source.cubeId, kind: 'Cube' };
   }
   const set = sets.find((s) => s.code === source.code);
-  return { name: set?.name ?? source.code, kind: `Set · ${source.style === 'realistic' ? 'Realistic' : 'Set-cube'}` };
+  return { name: known ?? set?.name ?? source.code, kind: `Set · ${source.style === 'realistic' ? 'Realistic' : 'Set-cube'}` };
 }
 
 /**
@@ -459,6 +462,7 @@ export function PoolPicker({
   presetsError,
   selected,
   customRounds,
+  customNames,
   leader,
   busy,
   checking,
@@ -594,7 +598,7 @@ export function PoolPicker({
             renderRow={(option, input) => {
               const round = Number(option.value) as 0 | 1 | 2;
               const source = customRounds[round];
-              const summary = sourceSummary(source, cubes, sets);
+              const summary = sourceSummary(source, customNames[round], cubes, sets);
               const verdict = sourceVerdict(source, cubes, sets);
               return (
                 <label key={option.value} className="radio-cards__card pool-picker__pack" data-verdict={verdict === null ? undefined : verdict.ok ? 'ready' : 'refused'}>

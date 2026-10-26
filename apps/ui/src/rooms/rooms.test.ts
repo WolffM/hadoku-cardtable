@@ -535,7 +535,7 @@ describe('RoomView.tables and RoomView.pod', () => {
       personas: {},
       // wave 73 §A: PodView gains these three.
       plan: { rounds: [{ kind: 'cube' as const, cubeId: 'default' }, { kind: 'cube' as const, cubeId: 'default' }, { kind: 'cube' as const, cubeId: 'default' }] },
-      planName: 'Test Cube',
+      roundNames: ['Test Cube', 'Test Cube', 'Test Cube'],
       verdict: null,
     };
     expect(parseRoomView({ ...OPEN, pod: POD })?.pod).toEqual(POD);

@@ -1105,7 +1105,7 @@ describe('the wire: cubeMetaOf never emits a CubeMeta the real ServerMessage sch
 	});
 
 	it('a MIXED plan (realistic / set-cube / cube) state message round-trips the real schema — fails on main', () => {
-		// `cubeMetaOf` reads round 1's source (`PodView.planName`'s own rule),
+		// `cubeMetaOf` reads round 1's source only,
 		// so the realistic round has to be FIRST for this plan to exercise the
 		// bug at all — a mixed plan with it in round 2 or 3 would pass on main
 		// too, for the wrong reason (cubeMetaOf never looking at it).

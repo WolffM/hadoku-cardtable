@@ -129,8 +129,8 @@ export type PodPairing = z.infer<typeof PodPairingSchema>;
  * `RoomView.gameType === 'draft'`, OR whenever it is `'constructed-1v1'` with
  * `RoomView.settings.tournament` on (`docs/planning/tournament-mode-plan.md`).
  * A constructed tournament's phases are only ever `lobby` / `rounds` / `done`
- * (it never drafts or builds a deck), so `plan`/`planName`/`verdict` — a
- * DRAFT's pool choice and its playability check — read `null`/`''`/`null`
+ * (it never drafts or builds a deck), so `plan`/`roundNames`/`verdict` — a
+ * DRAFT's pool choice and its playability check — read `null`
  * there; every OTHER field (seats, round, standings, pairings, bye,
  * drafters, built) is filled exactly as a draft pod's, because it is the
  * same Swiss engine.
@@ -194,8 +194,12 @@ export const PodViewSchema = z.strictObject({
    * a constructed tournament pod, which drafts no pool at all.
    */
   plan: DraftPlanSchema.nullable(),
-  /** The display name of round 1's source — `cube.name` for a cube, or a set's own name once wave 74 adds those. `''` for a constructed tournament pod. */
-  planName: z.string(),
+  /**
+   * Each round's source by its bare name — a cube's or a set's own name, without a set's style — so the
+   * room names its plan without waiting on the cube and set lists (`planDisplayName` joins them). `null`
+   * with `plan`.
+   */
+  roundNames: z.tuple([z.string(), z.string(), z.string()]).nullable(),
   /** `plan`'s last playability check, or `null` while one is running or before the first ever ran. */
   verdict: PoolVerdictSchema.nullable(),
 });

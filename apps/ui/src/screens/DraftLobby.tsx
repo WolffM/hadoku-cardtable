@@ -264,6 +264,13 @@ export function DraftLobby({
     customDraft[1] ?? planRounds?.[1] ?? null,
     customDraft[2] ?? planRounds?.[2] ?? null,
   ];
+  /** The pod's own name for each round still on the room's plan — what the slot draws before the cube and set lists land. */
+  const planNames = pod?.roundNames ?? null;
+  const customNames: [string | null, string | null, string | null] = [
+    customDraft[0] === null ? (planNames?.[0] ?? null) : null,
+    customDraft[1] === null ? (planNames?.[1] ?? null) : null,
+    customDraft[2] === null ? (planNames?.[2] ?? null) : null,
+  ];
 
   const writeSource = (source: PoolSource): void => {
     setPlanBusy(true);
@@ -434,6 +441,7 @@ export function DraftLobby({
             presetsError={presetsError}
             selected={selectedSource}
             customRounds={customRounds}
+            customNames={customNames}
             leader={amLeader}
             busy={planBusy}
             checking={checking}

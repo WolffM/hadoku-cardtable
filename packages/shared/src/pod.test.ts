@@ -50,7 +50,7 @@ const LOBBY_VIEW = {
   built: [],
   personas: {},
   plan: PLAN,
-  planName: 'MTGO Vintage Cube 2025-12',
+  roundNames: ['MTGO Vintage Cube 2025-12', 'MTGO Vintage Cube 2025-12', 'MTGO Vintage Cube 2025-12'],
   verdict: VERDICT,
 } as const;
 
@@ -67,7 +67,7 @@ const ROUNDS_VIEW = {
   built: ['fk:alice', 'fk:bob', 'fk:carol'],
   personas: {},
   plan: PLAN,
-  planName: 'MTGO Vintage Cube 2025-12',
+  roundNames: ['MTGO Vintage Cube 2025-12', 'MTGO Vintage Cube 2025-12', 'MTGO Vintage Cube 2025-12'],
   verdict: VERDICT,
 } as const;
 

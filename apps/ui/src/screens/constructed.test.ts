@@ -2183,7 +2183,7 @@ describe('a draft room', () => {
     // wave 73 §A: PodView gains these three (PodViewSchema is a strictObject,
     // so a pod literal missing them fails parsePodView and nothing renders).
     plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
-    planName: 'Test Cube',
+    roundNames: ['Test Cube', 'Test Cube', 'Test Cube'],
     verdict: null,
   });
 
@@ -2399,7 +2399,7 @@ describe('tournament mode', () => {
     ready.map((r, i) => ({ id: i === 0 ? 'p-alice' : `p-${i}`, name: i === 0 ? 'user-alice' : `user-${i}`, ready: r }));
   const emptySeats = (): ({ memberId: string; name: string } | null)[] => Array.from({ length: 8 }, () => null);
 
-  /** A constructed tournament pod: `plan`/`planName`/`verdict` null/''/null — it never drafts (the landed contract, `@hadoku/shared`'s `pod.ts`). */
+  /** A constructed tournament pod: `plan`/`roundNames`/`verdict` null — it never drafts (the landed contract, `@hadoku/shared`'s `pod.ts`). */
   const tournamentPod = (over: Record<string, unknown> = {}) => ({
     phase: 'lobby',
     seats: emptySeats(),
@@ -2413,7 +2413,7 @@ describe('tournament mode', () => {
     built: [],
     personas: {},
     plan: null,
-    planName: '',
+    roundNames: null,
     verdict: null,
     ...over,
   });

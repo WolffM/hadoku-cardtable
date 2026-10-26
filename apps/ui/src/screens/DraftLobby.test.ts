@@ -97,16 +97,16 @@ const podFixture = (over: Partial<PodView> = {}): PodView => ({
   // wave 73 §A step 6: PodView gains these three. Minimal valid default only
   // — B's own lane fills in the real picker/verdict fixtures on rebase.
   plan: { rounds: [{ kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }, { kind: 'cube', cubeId: 'default' }] },
-  planName: 'Test Cube',
+  roundNames: ['Test Cube', 'Test Cube', 'Test Cube'],
   verdict: null,
   ...over,
 });
 
-/** `podFixture` plus the three pool-picker fields set to specific values, for a test that cares which ones. */
-const plannedPod = (plan: DraftPlan, planName: string, verdict: PoolVerdict | null, over: Partial<PodView> = {}): PodView => ({
+/** `podFixture` plus the three pool-picker fields set to specific values, for a test that cares which ones; `name` is every round's. */
+const plannedPod = (plan: DraftPlan, name: string, verdict: PoolVerdict | null, over: Partial<PodView> = {}): PodView => ({
   ...podFixture(over),
   plan,
-  planName,
+  roundNames: [name, name, name],
   verdict,
 });
 
@@ -410,7 +410,7 @@ describe('the Set tab (wave 74 §F)', () => {
   it('a non-leader follows the room onto the Set tab with no interaction of their own, and sees the same set/style chosen', async () => {
     const isd = setFixture();
     vi.mocked(pools.listSets).mockResolvedValue([isd]);
-    const pod = plannedPod(setPlan(isd.code), 'Innistrad · Realistic', { ok: true, cards: isd.cards });
+    const pod = plannedPod(setPlan(isd.code), 'Innistrad', { ok: true, cards: isd.cards });
 
     render(createElement(DraftLobby, { ...baseProps, pod, myId: 'u-bob', members: [alice, bob] }));
 
@@ -505,6 +505,55 @@ describe('the Custom tab (wave 74 §F)', () => {
         expect(screen.getByTestId(`pool-picker-custom-round-${round}`).closest('label')?.textContent, `slot ${round}`).toContain('A Fine Cube'),
       );
     }
+  });
+
+  // The slots' names ride on the pod (`PodView.roundNames`), not on the cube and set lists: a list
+  // that lands late, or never, still shows each round's name and never its bare id or code.
+  const mixedPod = (cube: CubeSummary, set: SetSummary): PodView => ({
+    ...plannedPod(
+      { rounds: [{ kind: 'cube', cubeId: cube.id }, { kind: 'cube', cubeId: cube.id }, { kind: 'set', code: set.code, style: 'realistic' }] },
+      cube.name,
+      { ok: true, cards: cube.size },
+    ),
+    roundNames: [cube.name, cube.name, set.name],
+  });
+  const expectNamedSlots = async (cube: CubeSummary, set: SetSummary): Promise<void> => {
+    for (const round of [0, 1] as const) {
+      const text = (await screen.findByTestId(`pool-picker-custom-round-${round}`)).closest('label')?.textContent ?? '';
+      expect(text, `slot ${round}`).toContain(cube.name);
+      expect(text, `slot ${round}`).not.toContain(cube.id);
+    }
+    const text = (await screen.findByTestId('pool-picker-custom-round-2')).closest('label')?.textContent ?? '';
+    expect(text, 'slot 2').toContain(`${set.name}Set · Realistic`);
+    expect(text, 'slot 2').not.toContain(set.code);
+  };
+
+  it('the slots name every round from the pod while the cube and set lists are still loading', async () => {
+    const good = cubeFixture({ id: 'good-cube', name: 'A Fine Cube' });
+    const arb = setFixture({ code: 'ARB', name: 'Alara Reborn' });
+    // Never settled: the lists are still loading for the whole test.
+    vi.mocked(pools.listCubes).mockReturnValue(new Promise(() => undefined));
+    vi.mocked(pools.listSets).mockReturnValue(new Promise(() => undefined));
+
+    render(createElement(DraftLobby, { ...baseProps, pod: mixedPod(good, arb), members: [alice, bob] }));
+    fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
+
+    await expectNamedSlots(good, arb);
+  });
+
+  it('the slots stay named when the cube and set lists fail to load', async () => {
+    const good = cubeFixture({ id: 'good-cube', name: 'A Fine Cube' });
+    const arb = setFixture({ code: 'ARB', name: 'Alara Reborn' });
+    const fail: ((e: Error) => void)[] = [];
+    vi.mocked(pools.listCubes).mockReturnValue(new Promise((_, reject) => fail.push(reject)));
+    vi.mocked(pools.listSets).mockReturnValue(new Promise((_, reject) => fail.push(reject)));
+
+    render(createElement(DraftLobby, { ...baseProps, pod: mixedPod(good, arb), members: [alice, bob] }));
+    fireEvent.click(screen.getByTestId('pool-picker-tab-custom'));
+    expect(fail).toHaveLength(2);
+    await act(async () => fail.forEach((reject) => reject(new Error('the pool service is down'))));
+
+    await expectNamedSlots(good, arb);
   });
 
   it("a round's own edit writes the whole plan AT ONCE, merging the other two rounds from the room's current plan", async () => {

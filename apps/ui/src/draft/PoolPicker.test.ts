@@ -66,6 +66,7 @@ const baseProps: PoolPickerProps = {
   presetsError: null,
   selected: null,
   customRounds: [null, null, null],
+  customNames: [null, null, null],
   leader: true,
   busy: false,
   checking: false,

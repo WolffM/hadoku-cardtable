@@ -143,7 +143,7 @@ import {
 	planPool,
 	type RealisticPacks,
 } from '@hadoku/draft';
-import { cursorOf, type CubeMeta, type DraftCard, type DraftPlan, type DraftView, type PoolSource, type WireCursor } from '@hadoku/shared';
+import { cursorOf, sourceLabel, type CubeMeta, type DraftCard, type DraftPlan, type DraftView, type PoolSource, type WireCursor } from '@hadoku/shared';
 import {
 	applySnapshot,
 	decodeSnapshot,
@@ -277,7 +277,7 @@ export const DEFAULT_PLAN: DraftPlan = {
 export interface PoolSourceResolver {
 	/** Every card a source holds — handed straight to `@hadoku/draft`'s `deal()`. */
 	cards(src: PoolSource): readonly DraftCard[];
-	/** Its display name — `CubeMeta.name`, `PodView.planName`. */
+	/** Its bare name — a cube's or a set's own, without a set's style: `PodView.roundNames`, and `CubeMeta.name` once labelled (`sourceLabel`). */
 	name(src: PoolSource): string;
 }
 
@@ -367,7 +367,7 @@ export interface DraftRooms {
 	setPodLookup(lookup: (draftId: string) => PodDeal | null): void;
 	/** The cube this room's pod is (or will be) dealt from — round 1's source, by name and declared size. `DraftStateMessage.cube`, `MyDeck.cube`'s source. */
 	cubeMetaOf(room: DraftRoom): CubeMeta;
-	/** A bare source's display name — `PodView.planName` for a room still in its lobby, no `DraftRoom` built yet. */
+	/** A source's bare name — `PodView.roundNames` for a room still in its lobby, no `DraftRoom` built yet. */
 	nameOf(src: PoolSource): string;
 	/**
 	 * A realistic round's pre-fetched, catalog-mapped packs — `[seat][card]`
@@ -728,7 +728,7 @@ export function createDraftRooms(options: DraftRoomsOptions): DraftRooms {
 			// pod's seats × pack size is still an honest, always-positive
 			// stand-in for "how big is this source" when the resolver has
 			// nothing better.
-			return { name: options.resolver.name(src), size: size > 0 ? size : params.seatCount * params.packSize };
+			return { name: sourceLabel(src, options.resolver.name(src)), size: size > 0 ? size : params.seatCount * params.packSize };
 		},
 		nameOf(src) {
 			return options.resolver.name(src);

@@ -26,7 +26,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { isPodAi, RoomBodySchema, type DraftCard, type DraftPlan, type PoolSource, type PoolVerdict } from '@hadoku/shared';
+import { isPodAi, planDisplayName, RoomBodySchema, type DraftCard, type DraftPlan, type PoolSource, type PoolVerdict } from '@hadoku/shared';
 
 import { loadTablesLibrary } from './library.ts';
 import { createDraftRooms, DEFAULT_PLAN, stateOf, type PoolSourceResolver } from '../room/draftRooms.ts';
@@ -921,7 +921,7 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 		const ok = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: PLAN } });
 		expect(ok.status).toBe(200);
 		expect((ok.json() as import('../room/lobby.ts').RoomView).pod?.plan).toEqual(PLAN);
-		expect((ok.json() as import('../room/lobby.ts').RoomView).pod?.planName).toBe('legacy');
+		expect((ok.json() as import('../room/lobby.ts').RoomView).pod?.roundNames).toEqual(['legacy', 'legacy', 'legacy']);
 
 		const after = (await call(h, 'GET', `/api/rooms/${room.id}`)).json() as import('../room/lobby.ts').RoomView;
 		expect(after.pod?.plan).toEqual(PLAN);
@@ -934,7 +934,7 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 	 * longer 400ing a set source before `checkPlan` ever runs; set verdicts
 	 * for real are `room/plan.test.ts`'s job.
 	 */
-	it('accepts a kind: \'set\' source — the 400 refusal this wave removes — and a mixed plan\'s planName joins the round names', async () => {
+	it('accepts a kind: \'set\' source — the 400 refusal this wave removes — and a mixed plan names each round, which the display name joins', async () => {
 		const h = await openApp(await tempDir());
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Set night', gameType: 'draft' } }))
 			.json() as import('../room/lobby.ts').RoomView;
@@ -944,11 +944,12 @@ describe('PUT /api/rooms/:id/pod/plan', () => {
 		expect(allRes.status).toBe(200);
 		expect((allRes.json() as import('../room/lobby.ts').RoomView).pod?.plan).toEqual(allSetCube);
 
-		const mixed = { rounds: [{ kind: 'set', code: 'ALA', style: 'realistic' }, { kind: 'set', code: 'ALA', style: 'realistic' }, { kind: 'set', code: 'ARB', style: 'realistic' }] };
+		const mixed: DraftPlan = { rounds: [{ kind: 'set', code: 'ALA', style: 'realistic' }, { kind: 'set', code: 'ALA', style: 'realistic' }, { kind: 'set', code: 'ARB', style: 'realistic' }] };
 		const mixedRes = await call(h, 'PUT', `/api/rooms/${room.id}/pod/plan`, { as: 'alice', body: { plan: mixed } });
 		expect(mixedRes.status).toBe(200);
-		const planName = (mixedRes.json() as import('../room/lobby.ts').RoomView).pod?.planName;
-		expect(planName).toBe(['ALA · Realistic', 'ALA · Realistic', 'ARB · Realistic'].join(' / '));
+		const roundNames = (mixedRes.json() as import('../room/lobby.ts').RoomView).pod?.roundNames ?? null;
+		expect(roundNames).toEqual(['ALA', 'ALA', 'ARB']);
+		expect(planDisplayName(mixed, roundNames!)).toBe(['ALA · Realistic', 'ALA · Realistic', 'ARB · Realistic'].join(' / '));
 	});
 
 	it('a refused verdict is 409 { verdict } and leaves the room\'s plan unchanged', async () => {

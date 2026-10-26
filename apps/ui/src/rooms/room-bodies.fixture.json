@@ -142,7 +142,7 @@
           }
         ]
       },
-      "planName": "mtgo-vintage-cube-2025-12",
+      "roundNames": ["mtgo-vintage-cube-2025-12", "mtgo-vintage-cube-2025-12", "mtgo-vintage-cube-2025-12"],
       "verdict": null
     },
     "ai": {
