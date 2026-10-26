@@ -81,8 +81,31 @@ Every row is at pin `9e5f5b75` (Forge) or `origin/main` before this lane
 | `DeltaSyncManager.NEXT_CONSUMER_ID` | `DeltaSyncManager.java:72` | static counter | Fine: `AtomicInteger` |
 | Id counters: `Game.maxId`, `SpellAbility.maxId`, `Trigger.maxId`, `StaticAbility.maxId`, `ReplacementEffect.maxId`, `SpellAbilityStackInstance.maxId`, `CombatView.nextId` | `Game.java:67-68`, `SpellAbility.java:79-80`, `Trigger.java:55`, `StaticAbility.java:54`, `ReplacementEffect.java:50`, `SpellAbilityStackInstance.java:41`, `CombatView.java:24` | plain `int`s shared by every game, not atomic | Left. A lost update can give two games the same id, never one game two (each game's increments are sequential on its thread). Ids are only looked up inside one game, and the bridge keys them per seat. ASSUMED harmless; `forge-scale.md` ran 256+ matches in one JVM and attributed no failure to them. Card ids are per game (`Game.nextCardId`, `:1044-1045`) |
 | `GuiGameEvent.staticId` | `GuiGameEvent.java:7, :14` | non-atomic counter | Left, same reasoning |
-| `ChangeZoneAi.multipleCardsToChoose` | `ChangeZoneAi.java:52, :142, :162, :1550` | a static list the AI fills for Intuition | Left, a real race: two AI seats in two matches each choosing for Intuition at the same moment could read each other's pile. One card, AI-only. Noted for the fork, not fixed here |
+| `ChangeZoneAi.multipleCardsToChoose` | `ChangeZoneAi.java:52, :142, :162, :1550` | a static list the AI fills for Intuition | **Fixed** by lane H-fork (fork `5feb9cf1`): the plan is the deciding AI's own (`AiController.getPlannedChoices`). Any AI's ChangeZone check in any game used to clear it, too |
 | `Spell.performanceMode` | `Spell.java:51` | static flag | Fine: never set by the bridge |
+
+### Sweep for shared state on the AI path (lane H-fork, 2026-10-26)
+
+Every non-final static field in `forge-ai`, `forge-game` and `forge-core`, and every
+static final mutable container in `forge-ai` and `forge-game`, at fork `005e8186`.
+Rows already in the table above are not repeated.
+
+| What | Where | Status |
+| --- | --- | --- |
+| `CounterKeywordType.sMap`, `CounterCustomType.sMap` | `CounterKeywordType.java:20`, `CounterCustomType.java:10` | **Fixed** (fork `5feb9cf1`): a `HashMap` every game thread filled on first sight of a counter type (`containsKey`, `put`, `get`, no lock), so a resize under a concurrent put could answer `null`. Now a synchronized map, iterated under its lock, in the same order |
+| `Card.cp2card` (`getCardForUi`) | `Card.java:7453` | **Fixed**, same way. Read on game threads through `CardView` (`CardView.java:59, :1057`) |
+| `Keyword.cardKeywordSetLookup` | `Keyword.java:295` | **Fixed**, same way |
+| `TrackableTypes.enumTypes` | `TrackableTypes.java:139` | Fine: filled while the `TrackableProperty` constants initialise, once per class |
+| `AiProfileUtil.loadedProfiles`, `AI_PROFILE_DIR`, `aiSideboardingMode` | `AiProfileUtil.java:42, 44, 60` | Fine: loaded at boot (`bootModel`), read after |
+| `AiAbilityDecision.MIN_RATING` | `AiAbilityDecision.java:10` | Fine: never written |
+| `AiPlayerPredicates.compareByBoardPosition` | `AiPlayerPredicates.java:35` | Fine: a stateless comparator. It passes a null AI player, which the per-game `AiCache` (7878fe75) dereferenced: a NullPointerException for an AI picking a curse target among several opponents. **Fixed** (fork `2ea11deb`), and Forge's `ChoosePlayerAiTest` is green again |
+| `GameSimulator.COPY_STACK`, `debugPrint`, `debugLines`; `SimulationController.DEBUG` | `GameSimulator.java:19, 128-129`, `SimulationController.java:14` | Fine: the simulation AI only, a lobby option (`AIOption.USE_FULL_SIMULATION`) the bridge never sets; debug switches |
+| `GameCopier.hidden_info_card`, `ComputerUtilCard.creatureEvaluator`/`landEvaluator` | `GameCopier.java:295`, `ComputerUtilCard.java:773-774` | Fine: immutable or stateless |
+| `OnePlaySafetyChecker.CHECKING` | `OnePlaySafetyChecker.java:10` | Fine: a `ThreadLocal` |
+| `CardUtil.NON_STACKING_LIST`, `ApiType.allValues`, `GameState.ZONES` | `CardUtil.java:50`, `ApiType.java:225`, `GameState.java:46` | Fine: filled at boot or class init, read after |
+| `BagRandomizer.random` | `BagRandomizer.java:15` | Not on a match's path: booster generation (`ChaosBoosterSupplier`) |
+| `TextUtil.simpleDate` (a `SimpleDateFormat`, not thread-safe) | `TextUtil.java:30` | Not on a match's path: no caller in `forge-game`, `forge-ai` or `forge-gui` |
+| `ImageKeys` caches, `CardTranslation`, `Lang`, `Localizer`, `NameGenerator` | `forge-core` | Not on the AI path: images, translation and lobby names, loaded at boot |
 
 ### Bridge (PlayBridge.java, `origin/main` before this lane)
 
@@ -164,7 +187,7 @@ cold or spare one-match JVM through this bridge.
   every match on it (plan §5). The orphan and attach logic (`jvm.json`, one
   `matchId` per record) is per match today and needs a per-JVM record listing its
   matches.
-- **The `ChangeZoneAi` static**, and the non-atomic id counters if a measured
+- **The non-atomic id counters**, if a measured
   failure ever points at them.
 - **A stopped match whose game will not end**: `endGame` gives up after 10 s
   and logs it. The game thread is then parked for good on a closed seat (a
