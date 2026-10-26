@@ -448,6 +448,17 @@ describe('installNumbers: a resolution’s hits', () => {
     handle.dispose();
   });
 
+  it('the hit on the face is heard as it lands, on the caster’s side; an ability’s hit has no colour layer', () => {
+    vi.useFakeTimers();
+    const { canvas } = sorinBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 20)]), [{ ...item(40, 8), controllerName: 'P0' }]));
+    const now = Date.now();
+    handle.notify(view([player(0, 20, { isViewer: true, battlefield: [card(8, 0)] }), player(1, 18)]));
+    expect(boardSoundsAt(1).map((s) => [s.role, s.at - now, s.intensity, s.mine, s.colourCell])).toEqual([['g.spell-hit', HIT_MS, damagePower(2), true, null]]);
+    handle.dispose();
+  });
+
   /*
    * lg-gamelog, run 39378286337: Lightning Bolt's hit (22 → 19) was still in flight when the Bears'
    * combat damage (19 → 17) arrived and was drawn at once; the bolt landed after it and wrote its own 19
@@ -710,6 +721,22 @@ describe('installNumbers: a sweeper (the operator’s Slagstorm, 2026-10-15)', (
     vi.advanceTimersByTime(BOLT_STAGGER_MS);
     expect([...overlay.querySelectorAll<HTMLElement>('.effect-impact')].map((n) => n.dataset.impact)).toEqual(['card:7:1', 'card:9:2']);
     expect(overlay.querySelector('.board-number'), 'no number on a creature: the impact is the hit').toBeNull();
+    handle.dispose();
+  });
+
+  it('each fireball is heard as it slams in: its own hit, in the spell’s colour, as heavy as its damage, on the caster’s side', () => {
+    vi.useFakeTimers();
+    const { canvas } = sweeperBoard();
+    const handle = installNumbers(canvas, { reducedMotion: () => false, fastMode: () => false });
+    handle.notify(withStack(before, [{ ...before.stack[0]!, controllerName: 'P1' }]));
+    keepPlaces(canvas);
+    const now = Date.now();
+    handle.notify(after);
+    const hits = boardSoundsAt(1).filter((s) => s.role === 'g.spell-hit');
+    expect(hits.map((s) => [s.role, s.at - now, s.intensity, s.mine, s.colourCell]), 'one hit per fireball, in Slagstorm’s red').toEqual([
+      ['g.spell-hit', HIT_MS, damagePower(3), false, 'R|spell'],
+      ['g.spell-hit', BOLT_STAGGER_MS + HIT_MS, damagePower(3), false, 'R|spell'],
+    ]);
     handle.dispose();
   });
 

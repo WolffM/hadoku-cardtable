@@ -306,14 +306,16 @@ export function exitBeatAt(seq: number): number | null {
 }
 
 /**
- * A sound only the board's own drawing knows to play: a ram's charge and blow, a creature cracking.
- * `at` is when (epoch ms), `intensity` how heavy (`damagePower`), `mine` whether the viewer's side did it.
+ * A sound only the board's own drawing knows to play: a ram's charge and blow, a spell's ball slamming in,
+ * a creature cracking. `at` is when (epoch ms), `intensity` how heavy (`damagePower`), `mine` whether the
+ * viewer's side did it, `colourCell` a colour cell to layer on top.
  */
 export interface BoardSound {
   readonly role: string;
   readonly at: number;
   readonly intensity: number;
   readonly mine: boolean;
+  readonly colourCell?: string | null;
 }
 
 let boardSounds: { seq: number; sounds: readonly BoardSound[] } | null = null;

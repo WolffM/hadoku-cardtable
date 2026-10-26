@@ -1895,10 +1895,10 @@ function afterTheHits(events: readonly DelayedSoundEvent[], seq: number): Delaye
   });
 }
 
-/** The sounds only the board's drawing knows the moment of (a ram's charge and blow, a creature cracking), each on its beat. */
+/** The sounds only the board's drawing knows the moment of (a ram's charge and blow, a spell's hit, a creature cracking), each on its beat. */
 function fromTheBoard(seq: number): DelayedSoundEvent[] {
   const now = Date.now();
-  return boardSoundsAt(seq).map((s) => ({ role: s.role, seat: s.mine ? 'me' : 'opp', intensity: s.intensity, delayMs: Math.max(0, s.at - now) }));
+  return boardSoundsAt(seq).map((s) => ({ role: s.role, seat: s.mine ? 'me' : 'opp', intensity: s.intensity, colourCell: s.colourCell ?? null, delayMs: Math.max(0, s.at - now) }));
 }
 
 /**

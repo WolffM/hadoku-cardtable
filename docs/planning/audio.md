@@ -145,6 +145,7 @@ object, but the id may still be stable.
 | `g.block` | `blocking` turns on |
 | `g.damage` | creature `damage` rises |
 | `g.damage-player` | `life` falls |
+| `g.spell-hit` | a resolving spell's or ability's ball lands (`live/numbers.ts`), once per target, 300 ms apart; a spell's colour `spell` cell on top. Falls back to `g.crash` until it has a take. The operator, 2026-10-25: Pyroclasm's fire *"multiple times for each target"*, and an impact *"when the fireball hits"* |
 
 ### Turn and game
 

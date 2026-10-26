@@ -124,7 +124,7 @@ import { ALIGN_MS, BLAST_MS, blast, boxIn, contactMs, fanOf, ram, RAM_STAGGER_MS
 import { crash, crashParticles, shake } from './crash.ts';
 import { particleShare } from './effect-budget.ts';
 import { fly, impact } from './projectile.ts';
-import { cardColours } from './sound-events.ts';
+import { cardColours, colourRow } from './sound-events.ts';
 import { CAST_LANDING_ATTR, landCastGhost, parkedGhost } from './gestures/cast.ts';
 import './numbers.css';
 import { timed } from './work-meter.ts';
@@ -740,7 +740,17 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
     let firstCardImpact: number | null = null;
     let firstExit: number | null = null;
     /** The sounds only this drawing knows the moment of (a charge, a blow, a crack), in ms from now. */
-    const sounds: { role: string; ms: number; intensity: number; mine: boolean }[] = [];
+    const sounds: { role: string; ms: number; intensity: number; mine: boolean; colourCell?: string | null }[] = [];
+    /**
+     * Each ball is heard as it slams in, once per target (the operator, 2026-10-25: Pyroclasm's fire "multiple
+     * times for each target", and an impact "when the fireball hits"): on the caster's side, a spell's with its
+     * colour's spell cell on top, as `sound-events.ts` layers the resolve.
+     */
+    const caster = before?.players.find((p) => p.name === item?.controllerName) ?? before?.players.find((p) => p.id === before.activePlayerId);
+    const spellCell = item === undefined || item.isAbility || item.sourceCard === null ? null : `${colourRow(cardColours(item.sourceCard, sourceOnBoard?.choices))}|spell`;
+    const boltSound = (landsAt: number, amount: number): void => {
+      sounds.push({ role: 'g.spell-hit', ms: landsAt, intensity: damagePower(amount), mine: caster?.isViewer === true, colourCell: spellCell });
+    };
     /** Whether `cardId` stood on the viewer's side of the table: whose sound it is. */
     const viewers = (cardId: number): boolean =>
       prevView?.players.some((p) => p.isViewer && p.battlefield.some((c) => c.id === cardId)) === true ||
@@ -790,6 +800,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       endMs = Math.max(endMs, delay + HIT_MS);
       if (firstLifeLand === null) firstLifeLand = delay + HIT_MS;
       hit(origin, face, `player:${change.playerId}`, lifeColour(change.to - change.from), delay, land, spellHue, Math.abs(change.to - change.from));
+      if (change.to < change.from) boltSound(delay + HIT_MS, change.from - change.to);
     }
     /*
      * Forge's own hits (`PlayBridge.java`'s `damage`): a creature that took lethal damage is already in
@@ -815,7 +826,10 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
           if (!combat?.hitAt.has(h.seq)) bang(target, key, h.amount);
           land();
         }, delay);
-      } else hit(origin, target, key, 'danger', delay, land, spellHue, h.amount);
+      } else {
+        hit(origin, target, key, 'danger', delay, land, spellHue, h.amount);
+        boltSound(landsAt, h.amount);
+      }
     }
     let fromMaker = 0;
     for (const arrival of diff.arrivals) {
@@ -923,7 +937,7 @@ export function installNumbers(canvas: HTMLElement, host: NumbersHost = {}): Num
       }
     }
     if (prevView !== null && firstCardImpact !== null) noteCardImpact(prevView.seq, Date.now() + firstCardImpact);
-    if (prevView !== null) noteBoardSounds(prevView.seq, sounds.map((s) => ({ role: s.role, at: Date.now() + s.ms, intensity: s.intensity, mine: s.mine })));
+    if (prevView !== null) noteBoardSounds(prevView.seq, sounds.map((s) => ({ role: s.role, at: Date.now() + s.ms, intensity: s.intensity, mine: s.mine, colourCell: s.colourCell ?? null })));
     if (prevView !== null && firstExit !== null) noteExitBeat(prevView.seq, Date.now() + firstExit);
     if (item !== undefined && effects) noteResolutionEffects(item.id, Date.now() + Math.max(endMs, startMs));
     // The other seat's attack is seen before anything after it is drawn (`live/pace.ts` waits on this beat).

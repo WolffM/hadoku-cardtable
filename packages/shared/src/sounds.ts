@@ -209,12 +209,14 @@ export function cheerRole(amount: number): string | null {
 
 /**
  * A role whose cell is empty plays this one's instead, and so on down: an impact tier the tier below it, the
- * smallest Creatures collide (what a blow to a player played before the tiers); a cheer the cheer below it; a
- * Gauntlet moment the nearest sound the app already had for it. So a role nobody has filled yet still sounds.
+ * smallest Creatures collide (what a blow to a player played before the tiers), and Spell hits Creatures collide
+ * too; a cheer the cheer below it; a Gauntlet moment the nearest sound the app already had for it. So a role
+ * nobody has filled yet still sounds.
  */
 export const FALLBACK_ROLES: Readonly<Record<string, string>> = Object.fromEntries([
 	...IMPACT_TIERS.map((t, i) => [impactTierRole(t), i === 0 ? 'g.crash' : impactTierRole(IMPACT_TIERS[i - 1]!)]),
 	...CHEER_TIERS.slice(1).map((t, i) => [cheerTierRole(t), cheerTierRole(CHEER_TIERS[i]!)]),
+	['g.spell-hit', 'g.crash'],
 	['ui.gauntlet-deal', 'g.draw'],
 	['ui.gauntlet-ban', 'g.exile'],
 	['ui.gauntlet-pick', 'ui.draft-pick'],
@@ -305,6 +307,7 @@ export const SOUND_ROLE_GROUPS: readonly SoundRoleGroup[] = [
 			game('g.damage-player', 'Damage to a player', 'A player or planeswalker loses life to damage.'),
 			game('g.charge', 'Charge at a player', 'An unblocked attacker launches at the player it hits. Louder and lower the more damage it deals.'),
 			game('g.crash', 'Creatures collide', 'The blow of a creature ramming another: plays on top of the damage. Louder and lower the more damage.'),
+			game('g.spell-hit', 'Spell hits', "A spell's ball slams into a creature or a player, once per target, its colour's spell cell on top. Louder and lower the more damage."),
 			...IMPACT_TIERS.map((t, i) =>
 				game(impactTierRole(t), `Hit a player: ${tierLabel(IMPACT_TIERS, i)}`, `An attacker crashes into the player it hits for ${tierLabel(IMPACT_TIERS, i)}. Empty: the tier below plays, and below 2 Creatures collide.`),
 			),
