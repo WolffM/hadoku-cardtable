@@ -133,6 +133,7 @@ import java.util.Map;
 import java.security.SecureRandom;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -248,6 +249,7 @@ public final class PlayBridge {
      * {@code CARDTABLE_PLAY_JVM_OPTS}/{@code JvmHostConfig.jvmOpts}). {@code game-throw}: the game
      * thread throws an {@code Error} from inside the game, as an engine bug would.
      * {@code oom}: a thread of its own runs out of heap once the match is ready.
+     * {@code match-throw}: the match's own thread throws an {@code Error} once the match is ready.
      */
     static final String FAULT = System.getProperty("cardtable.fault", "");
 
@@ -483,6 +485,18 @@ public final class PlayBridge {
             }
         }
 
+        /**
+         * Why this config cannot be played, or null. Asked before Forge is touched. A match
+         * with no human seat cannot: Forge's {@code HostedMatch.startGame} watches such a game
+         * through {@code GuiBase.getInterface().getNewGuiGame()}, which here is the desktop
+         * GUI, and its Swing frame throws {@code HeadlessException} on the match's thread.
+         */
+        String refusal() {
+            if (seats.size() != 2) { return "a match has exactly two seats, got " + seats.size(); }
+            if (seats.stream().allMatch(SeatConfig::ai)) { return "a match needs a human seat: Forge cannot host AI against AI headless"; }
+            return null;
+        }
+
         void emit(final JsonObject line) {
             PlayBridge.emit(matchId, line);
         }
@@ -491,12 +505,12 @@ public final class PlayBridge {
         final AtomicBoolean failed = new AtomicBoolean(false);
 
         /**
-         * This match cannot go on, said from a thread that is NOT the match's own: the game
-         * thread's uncaught-exception handler ({@link PlayBridge#uncaught}), a seat client's
-         * Netty thread ({@link #seatDisconnected}). Never throws. A one-match JVM says
-         * {@code fatal} and exits, as {@link #fatal} does; a {@link #hostMode} JVM says
-         * {@code fatal} for this match and stops it, and its own thread unwinds through
-         * {@link PlayBridge#startMatch}.
+         * This match cannot go on, said from outside the match's code: the game thread's
+         * uncaught-exception handler ({@link PlayBridge#uncaught}), a seat client's Netty thread
+         * ({@link #seatDisconnected}), or a throw out of the match's own thread
+         * ({@link PlayBridge#startMatch}). Never throws. A one-match JVM says {@code fatal} and
+         * exits, as {@link #fatal} does; a {@link #hostMode} JVM says {@code fatal} for this
+         * match and stops it, and its own thread unwinds through {@link PlayBridge#startMatch}.
          */
         void fail(final String message, final Throwable cause) {
             if (!failed.compareAndSet(false, true)) { return; }
@@ -6300,11 +6314,11 @@ public final class PlayBridge {
             return;
         }
         processId = match.matchId;
-        if (match.seats.size() != 2) {
-            fatal(processId, "a match has exactly two seats, got " + match.seats.size(), null);
+        if (match.refusal() != null) {
+            fatal(processId, match.refusal(), null);
         }
         MATCHES.put(match.matchId, match);
-        startMatch(match, booted, startAt);
+        startMatch(match, () -> booted, startAt);
         // Netty's event loops are non-daemon in places; do not wait for them.
         Runtime.getRuntime().halt(0);
     }
@@ -6316,8 +6330,8 @@ public final class PlayBridge {
      */
     static void startHosted(final JsonObject config) {
         final MatchContext match = new MatchContext(config);
-        if (match.seats.size() != 2) {
-            throw new IllegalArgumentException("a match has exactly two seats, got " + match.seats.size());
+        if (match.refusal() != null) {
+            throw new IllegalArgumentException(match.refusal());
         }
         if (MATCHES.putIfAbsent(match.matchId, match) != null) {
             throw new IllegalArgumentException("match " + match.matchId + " is already hosted here");
@@ -6325,14 +6339,7 @@ public final class PlayBridge {
         final long startAt = System.currentTimeMillis();
         final Thread t = new Thread(() -> {
             try {
-                startMatch(match, bootServer(), startAt);
-            } catch (final MatchFailed e) {
-                System.err.println("[bridge] match " + match.matchId + " failed: " + e.getMessage());
-            } catch (final Exception e) {
-                final JsonObject o = line("fatal");
-                o.addProperty("message", "the match failed: " + e);
-                match.emit(o);
-                e.printStackTrace(System.err);
+                startMatch(match, PlayBridge::bootServer, startAt);
             } finally {
                 MATCHES.remove(match.matchId);
                 match.emit(line("stopped"));
@@ -6490,20 +6497,32 @@ public final class PlayBridge {
      * is when the match was handed to this JVM (the config file read, or the {@code start}); the
      * {@code ready} line's {@code startMs} is measured from it, and its {@code bootMs}
      * from the JVM's own start — which for a spare includes however long it sat idle.
+     *
+     * <p>Runs on the match's own thread (the JVM's main one, or {@link #startHosted}'s). Anything
+     * thrown on it, an {@code Error} included, fails the match through {@link MatchContext#fail}
+     * before its seats are closed, so the match reads as {@code fatal}, never as a clean stop.
      */
-    static void startMatch(final MatchContext match, final Booted booted, final long startAt) throws Exception {
+    static void startMatch(final MatchContext match, final Callable<Booted> boot, final long startAt) {
         final List<FGameClient> clients = new ArrayList<>();
+        Booted booted = null;
         try {
+            booted = boot.call();
             play(match, booted, startAt, clients);
             match.stop.await();
             if (hostMode) {
                 endGame(match);
             }
+        } catch (final MatchFailed e) {
+            System.err.println("[bridge] match " + match.matchId + " failed: " + e.getMessage());
+        } catch (final Throwable e) {
+            match.fail("the match failed", e);
         } finally {
             for (final FGameClient c : clients) {
                 try { c.close(); } catch (final RuntimeException e) { e.printStackTrace(System.err); }
             }
-            try { booted.server().stopServer(); } catch (final RuntimeException e) { e.printStackTrace(System.err); }
+            if (booted != null) {
+                try { booted.server().stopServer(); } catch (final RuntimeException e) { e.printStackTrace(System.err); }
+            }
             // A one-match JVM exits next; a host goes on, without this match's threads.
             if (hostMode) {
                 for (final SeatGui g : match.seatGuis.values()) {
@@ -6617,6 +6636,9 @@ public final class PlayBridge {
         }
         ready.add("seats", seatInfo);
         match.emit(ready);
+        if ("match-throw".equals(FAULT)) {
+            throw new Error("cardtable.fault=match-throw: a test-only failure on the match's own thread");
+        }
         if ("oom".equals(FAULT)) {
             final Thread oom = new Thread(() -> {
                 final long[] tooBig = new long[(int) Math.min(Integer.MAX_VALUE - 16L, Runtime.getRuntime().maxMemory() / 4)];

@@ -191,7 +191,7 @@ export type SeatSpecWithIdentity = MatchSpec['seats'][number] & {
 
 /** `MatchSpec`, with both seats widened the same way. */
 export type MatchSpecWithIdentity = Omit<MatchSpec, 'seats'> & {
-	seats: [SeatSpecWithIdentity, SeatSpecWithIdentity];
+	seats: [SeatSpecWithIdentity & { ai: false }, SeatSpecWithIdentity];
 };
 
 import {

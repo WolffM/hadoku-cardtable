@@ -281,7 +281,11 @@ export interface SeatSpec {
 }
 
 export interface MatchSpec {
-	seats: [SeatSpec, SeatSpec];
+	/**
+	 * Seat 0 is always a human: the bridge refuses a match with no human seat, because Forge
+	 * watches an AI-against-AI game through a desktop window a headless JVM cannot open.
+	 */
+	seats: [SeatSpec & { ai: false }, SeatSpec];
 	/** Seeds Forge's shuffles and the precon pick, for a repeatable test run. Omitted in play. */
 	seed?: number;
 	/**

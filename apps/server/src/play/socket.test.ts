@@ -1931,3 +1931,24 @@ describe('a third account watches a full match', () => {
 		expect(alice.roles).toEqual([{ matchId, role: 'player' }]);
 	});
 });
+
+/**
+ * The bridge refuses a match with no human seat (`MatchContext.refusal`): Forge watches an
+ * AI-against-AI game through a desktop window, which a headless JVM cannot open. The create
+ * route can only ever ask for one AI seat, and `MatchSpec` types seat 0 as human.
+ */
+describe('POST /matches: a match always has a human seat', () => {
+	it('seats a human first, against a human or the AI', () => {
+		for (const opponent of ['human', 'ai'] as const) {
+			const r = parseStartBody({ opponent });
+			expect(r.ok).toBe(true);
+			if (!r.ok) return;
+			expect(r.spec.seats.map((s) => s.ai)).toEqual([false, opponent === 'ai']);
+		}
+	});
+
+	it('refuses a body that tries to seat the AI on both sides, in words', () => {
+		const r = parseStartBody({ opponent: 'ai', seats: [{ ai: true }, { ai: true }] });
+		expect(r).toEqual({ ok: false, error: expect.stringContaining('seats') });
+	});
+});
