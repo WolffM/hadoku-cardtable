@@ -1,0 +1,337 @@
+# ForgeReplay GAME lines, claw-8, 2026-10-26 UTC. Jars: fork-* = rng-per-game a401b5d0 (per-game RNG, global AiCache);
+# v2-* (except v2-stock*) = 7878fe75 (per-game RNG + per-game AiCache); stock-*, v2-stock* = stock pin 9e5f5b75.
+# fork-solo16w and fork-conc16c/d/e load decks before sharing them; see ../per-game-rng.md.
+# fork-solo-a
+MODE concurrent=false repeat=2 perGameRandom=true cpus=8
+GAME	seed=101	run=0	pair=0	hash=4b2678150a868611	log_lines=498	turns=18	winner=Ai1	ai_timeouts=0	ms=4699	error=-
+GAME	seed=101	run=1	pair=0	hash=4b2678150a868611	log_lines=498	turns=18	winner=Ai1	ai_timeouts=0	ms=3233	error=-
+GAME	seed=102	run=0	pair=1	hash=207206deced11d85	log_lines=368	turns=16	winner=Ai2	ai_timeouts=0	ms=1622	error=-
+GAME	seed=102	run=1	pair=1	hash=207206deced11d85	log_lines=368	turns=16	winner=Ai2	ai_timeouts=0	ms=1429	error=-
+GAME	seed=103	run=0	pair=2	hash=7be6f53d882321fa	log_lines=293	turns=12	winner=Ai2	ai_timeouts=0	ms=1179	error=-
+GAME	seed=103	run=1	pair=2	hash=7be6f53d882321fa	log_lines=293	turns=12	winner=Ai2	ai_timeouts=0	ms=1070	error=-
+GAME	seed=104	run=0	pair=3	hash=26a9e49e624d42a7	log_lines=577	turns=26	winner=Ai2	ai_timeouts=0	ms=1835	error=-
+GAME	seed=104	run=1	pair=3	hash=26a9e49e624d42a7	log_lines=577	turns=26	winner=Ai2	ai_timeouts=0	ms=1747	error=-
+GAME	seed=105	run=0	pair=4	hash=b8baa5704b244d47	log_lines=363	turns=16	winner=Ai2	ai_timeouts=0	ms=1121	error=-
+GAME	seed=105	run=1	pair=4	hash=b8baa5704b244d47	log_lines=363	turns=16	winner=Ai2	ai_timeouts=0	ms=1202	error=-
+GAME	seed=106	run=0	pair=5	hash=a05450e2ceab97c4	log_lines=641	turns=29	winner=Ai1	ai_timeouts=0	ms=2616	error=-
+GAME	seed=106	run=1	pair=5	hash=a05450e2ceab97c4	log_lines=641	turns=29	winner=Ai1	ai_timeouts=0	ms=2532	error=-
+GAME	seed=107	run=0	pair=6	hash=6af15de56950d6c3	log_lines=331	turns=13	winner=Ai2	ai_timeouts=0	ms=715	error=-
+GAME	seed=107	run=1	pair=6	hash=6af15de56950d6c3	log_lines=331	turns=13	winner=Ai2	ai_timeouts=0	ms=736	error=-
+GAME	seed=108	run=0	pair=7	hash=bdcfb201480330fb	log_lines=324	turns=13	winner=Ai2	ai_timeouts=0	ms=730	error=-
+GAME	seed=108	run=1	pair=7	hash=bdcfb201480330fb	log_lines=324	turns=13	winner=Ai2	ai_timeouts=0	ms=787	error=-
+# fork-solo-b
+MODE concurrent=false repeat=1 perGameRandom=true cpus=8
+GAME	seed=101	run=0	pair=0	hash=4b2678150a868611	log_lines=498	turns=18	winner=Ai1	ai_timeouts=0	ms=4568	error=-
+GAME	seed=102	run=0	pair=1	hash=207206deced11d85	log_lines=368	turns=16	winner=Ai2	ai_timeouts=0	ms=1743	error=-
+GAME	seed=103	run=0	pair=2	hash=7be6f53d882321fa	log_lines=293	turns=12	winner=Ai2	ai_timeouts=0	ms=1265	error=-
+GAME	seed=104	run=0	pair=3	hash=26a9e49e624d42a7	log_lines=577	turns=26	winner=Ai2	ai_timeouts=0	ms=1938	error=-
+GAME	seed=105	run=0	pair=4	hash=b8baa5704b244d47	log_lines=363	turns=16	winner=Ai2	ai_timeouts=0	ms=1239	error=-
+GAME	seed=106	run=0	pair=5	hash=a05450e2ceab97c4	log_lines=641	turns=29	winner=Ai1	ai_timeouts=0	ms=2715	error=-
+GAME	seed=107	run=0	pair=6	hash=6af15de56950d6c3	log_lines=331	turns=13	winner=Ai2	ai_timeouts=0	ms=730	error=-
+GAME	seed=108	run=0	pair=7	hash=bdcfb201480330fb	log_lines=324	turns=13	winner=Ai2	ai_timeouts=0	ms=800	error=-
+# fork-conc
+MODE concurrent=true repeat=1 perGameRandom=true cpus=8
+GAME	seed=107	run=0	pair=6	hash=6af15de56950d6c3	log_lines=331	turns=13	winner=Ai2	ai_timeouts=0	ms=3842	error=-
+GAME	seed=108	run=0	pair=7	hash=bdcfb201480330fb	log_lines=324	turns=13	winner=Ai2	ai_timeouts=0	ms=3959	error=-
+GAME	seed=103	run=0	pair=2	hash=7be6f53d882321fa	log_lines=293	turns=12	winner=Ai2	ai_timeouts=0	ms=4500	error=-
+GAME	seed=105	run=0	pair=4	hash=b8baa5704b244d47	log_lines=363	turns=16	winner=Ai2	ai_timeouts=0	ms=5025	error=-
+GAME	seed=102	run=0	pair=1	hash=207206deced11d85	log_lines=368	turns=16	winner=Ai2	ai_timeouts=0	ms=5345	error=-
+GAME	seed=104	run=0	pair=3	hash=26a9e49e624d42a7	log_lines=577	turns=26	winner=Ai2	ai_timeouts=0	ms=6232	error=-
+GAME	seed=101	run=0	pair=0	hash=4b2678150a868611	log_lines=498	turns=18	winner=Ai1	ai_timeouts=0	ms=7362	error=-
+GAME	seed=106	run=0	pair=5	hash=a05450e2ceab97c4	log_lines=641	turns=29	winner=Ai1	ai_timeouts=0	ms=7549	error=-
+# stock-solo-a
+MODE concurrent=false repeat=2 perGameRandom=false cpus=8
+GAME	seed=101	run=0	pair=0	hash=4b2678150a868611	log_lines=498	turns=18	winner=Ai1	ai_timeouts=0	ms=4671	error=-
+GAME	seed=101	run=1	pair=0	hash=4b2678150a868611	log_lines=498	turns=18	winner=Ai1	ai_timeouts=0	ms=3353	error=-
+GAME	seed=102	run=0	pair=1	hash=207206deced11d85	log_lines=368	turns=16	winner=Ai2	ai_timeouts=0	ms=1611	error=-
+GAME	seed=102	run=1	pair=1	hash=207206deced11d85	log_lines=368	turns=16	winner=Ai2	ai_timeouts=0	ms=1385	error=-
+GAME	seed=103	run=0	pair=2	hash=7be6f53d882321fa	log_lines=293	turns=12	winner=Ai2	ai_timeouts=0	ms=1208	error=-
+GAME	seed=103	run=1	pair=2	hash=7be6f53d882321fa	log_lines=293	turns=12	winner=Ai2	ai_timeouts=0	ms=1083	error=-
+GAME	seed=104	run=0	pair=3	hash=26a9e49e624d42a7	log_lines=577	turns=26	winner=Ai2	ai_timeouts=0	ms=1845	error=-
+GAME	seed=104	run=1	pair=3	hash=26a9e49e624d42a7	log_lines=577	turns=26	winner=Ai2	ai_timeouts=0	ms=1733	error=-
+GAME	seed=105	run=0	pair=4	hash=b8baa5704b244d47	log_lines=363	turns=16	winner=Ai2	ai_timeouts=0	ms=1175	error=-
+GAME	seed=105	run=1	pair=4	hash=b8baa5704b244d47	log_lines=363	turns=16	winner=Ai2	ai_timeouts=0	ms=1145	error=-
+GAME	seed=106	run=0	pair=5	hash=a05450e2ceab97c4	log_lines=641	turns=29	winner=Ai1	ai_timeouts=0	ms=2682	error=-
+GAME	seed=106	run=1	pair=5	hash=a05450e2ceab97c4	log_lines=641	turns=29	winner=Ai1	ai_timeouts=0	ms=2527	error=-
+GAME	seed=107	run=0	pair=6	hash=6af15de56950d6c3	log_lines=331	turns=13	winner=Ai2	ai_timeouts=0	ms=734	error=-
+GAME	seed=107	run=1	pair=6	hash=6af15de56950d6c3	log_lines=331	turns=13	winner=Ai2	ai_timeouts=0	ms=747	error=-
+GAME	seed=108	run=0	pair=7	hash=bdcfb201480330fb	log_lines=324	turns=13	winner=Ai2	ai_timeouts=0	ms=733	error=-
+GAME	seed=108	run=1	pair=7	hash=bdcfb201480330fb	log_lines=324	turns=13	winner=Ai2	ai_timeouts=0	ms=719	error=-
+# stock-solo-b
+MODE concurrent=false repeat=1 perGameRandom=false cpus=8
+GAME	seed=101	run=0	pair=0	hash=4b2678150a868611	log_lines=498	turns=18	winner=Ai1	ai_timeouts=0	ms=4804	error=-
+GAME	seed=102	run=0	pair=1	hash=207206deced11d85	log_lines=368	turns=16	winner=Ai2	ai_timeouts=0	ms=1791	error=-
+GAME	seed=103	run=0	pair=2	hash=7be6f53d882321fa	log_lines=293	turns=12	winner=Ai2	ai_timeouts=0	ms=1351	error=-
+GAME	seed=104	run=0	pair=3	hash=26a9e49e624d42a7	log_lines=577	turns=26	winner=Ai2	ai_timeouts=0	ms=2093	error=-
+GAME	seed=105	run=0	pair=4	hash=b8baa5704b244d47	log_lines=363	turns=16	winner=Ai2	ai_timeouts=0	ms=1310	error=-
+GAME	seed=106	run=0	pair=5	hash=a05450e2ceab97c4	log_lines=641	turns=29	winner=Ai1	ai_timeouts=0	ms=2886	error=-
+GAME	seed=107	run=0	pair=6	hash=6af15de56950d6c3	log_lines=331	turns=13	winner=Ai2	ai_timeouts=0	ms=785	error=-
+GAME	seed=108	run=0	pair=7	hash=bdcfb201480330fb	log_lines=324	turns=13	winner=Ai2	ai_timeouts=0	ms=891	error=-
+# stock-conc
+MODE concurrent=true repeat=1 perGameRandom=false cpus=8
+GAME	seed=106	run=0	pair=5	hash=af170c211dd83a4c	log_lines=327	turns=15	winner=Ai1	ai_timeouts=0	ms=5999	error=-
+GAME	seed=103	run=0	pair=2	hash=20758fb8239d97e8	log_lines=301	turns=13	winner=Ai1	ai_timeouts=0	ms=6977	error=-
+GAME	seed=101	run=0	pair=0	hash=87dc416b5762ab66	log_lines=400	turns=17	winner=Ai1	ai_timeouts=0	ms=8793	error=-
+GAME	seed=102	run=0	pair=1	hash=f6710972b8ecdebe	log_lines=373	turns=15	winner=Ai2	ai_timeouts=0	ms=9345	error=-
+GAME	seed=104	run=0	pair=3	hash=b28b15bd2ee6a1c0	log_lines=402	turns=17	winner=Ai2	ai_timeouts=0	ms=11017	error=-
+GAME	seed=105	run=0	pair=4	hash=8fe98aa0f1515d3c	log_lines=553	turns=26	winner=Ai1	ai_timeouts=0	ms=11781	error=-
+GAME	seed=107	run=0	pair=6	hash=d465c4da030ec85a	log_lines=571	turns=21	winner=Ai1	ai_timeouts=0	ms=14197	error=-
+GAME	seed=108	run=0	pair=7	hash=e6a2bf2d8aa52ec8	log_lines=585	turns=22	winner=Ai2	ai_timeouts=0	ms=17384	error=-
+# fork-solo16w
+MODE concurrent=false repeat=1 perGameRandom=true cpus=8
+GAME	seed=201	run=0	pair=0	hash=4f07e428cc18997f	log_lines=291	turns=13	winner=Ai1	ai_timeouts=0	ms=2117	error=-
+GAME	seed=202	run=0	pair=1	hash=81dfbdaae9c10b23	log_lines=387	turns=16	winner=Ai2	ai_timeouts=0	ms=1953	error=-
+GAME	seed=203	run=0	pair=2	hash=9c97af14b2920792	log_lines=287	turns=13	winner=Ai1	ai_timeouts=0	ms=1045	error=-
+GAME	seed=204	run=0	pair=3	hash=9e9ebdb77c591021	log_lines=392	turns=16	winner=Ai2	ai_timeouts=0	ms=2002	error=-
+GAME	seed=205	run=0	pair=4	hash=48d41653a393d1aa	log_lines=325	turns=14	winner=Ai1	ai_timeouts=0	ms=1132	error=-
+GAME	seed=206	run=0	pair=5	hash=113656249f9ba858	log_lines=995	turns=42	winner=Ai1	ai_timeouts=0	ms=4457	error=-
+GAME	seed=207	run=0	pair=6	hash=c83fc699451844cf	log_lines=427	turns=16	winner=Ai1	ai_timeouts=0	ms=1542	error=-
+GAME	seed=208	run=0	pair=7	hash=ac7892dd7cccd61c	log_lines=591	turns=22	winner=Ai2	ai_timeouts=0	ms=3823	error=-
+GAME	seed=209	run=0	pair=0	hash=11795b69942cdf30	log_lines=570	turns=24	winner=Ai2	ai_timeouts=0	ms=4732	error=-
+GAME	seed=210	run=0	pair=1	hash=1ec8ac7c355c4a3e	log_lines=511	turns=21	winner=Ai1	ai_timeouts=0	ms=1962	error=-
+GAME	seed=211	run=0	pair=2	hash=4be9d0b61d55895f	log_lines=420	turns=17	winner=Ai2	ai_timeouts=0	ms=1531	error=-
+GAME	seed=212	run=0	pair=3	hash=ce130935ed7b823a	log_lines=291	turns=13	winner=Ai2	ai_timeouts=0	ms=721	error=-
+GAME	seed=213	run=0	pair=4	hash=07a522d3818ed812	log_lines=494	turns=21	winner=Ai2	ai_timeouts=0	ms=1576	error=-
+GAME	seed=214	run=0	pair=5	hash=6160aec247c4d740	log_lines=489	turns=20	winner=Ai1	ai_timeouts=0	ms=1813	error=-
+GAME	seed=215	run=0	pair=6	hash=f16ee3a71970642f	log_lines=575	turns=23	winner=Ai1	ai_timeouts=0	ms=1490	error=-
+GAME	seed=216	run=0	pair=7	hash=b43c841879927c6d	log_lines=804	turns=26	winner=Ai2	ai_timeouts=0	ms=4764	error=-
+# fork-conc16c
+MODE concurrent=true repeat=1 perGameRandom=true cpus=8
+GAME	seed=201	run=0	pair=0	hash=4f07e428cc18997f	log_lines=291	turns=13	winner=Ai1	ai_timeouts=0	ms=6109	error=-
+GAME	seed=203	run=0	pair=2	hash=9c97af14b2920792	log_lines=287	turns=13	winner=Ai1	ai_timeouts=0	ms=5921	error=-
+GAME	seed=212	run=0	pair=3	hash=ce130935ed7b823a	log_lines=291	turns=13	winner=Ai2	ai_timeouts=0	ms=6537	error=-
+GAME	seed=214	run=0	pair=5	hash=5aa29093f6125bea	log_lines=306	turns=12	winner=Ai1	ai_timeouts=0	ms=7440	error=-
+GAME	seed=205	run=0	pair=4	hash=48d41653a393d1aa	log_lines=325	turns=14	winner=Ai1	ai_timeouts=0	ms=7767	error=-
+GAME	seed=202	run=0	pair=1	hash=81dfbdaae9c10b23	log_lines=387	turns=16	winner=Ai2	ai_timeouts=0	ms=9476	error=-
+GAME	seed=204	run=0	pair=3	hash=9e9ebdb77c591021	log_lines=392	turns=16	winner=Ai2	ai_timeouts=0	ms=9922	error=-
+GAME	seed=211	run=0	pair=2	hash=4be9d0b61d55895f	log_lines=420	turns=17	winner=Ai2	ai_timeouts=0	ms=10509	error=-
+GAME	seed=207	run=0	pair=6	hash=c83fc699451844cf	log_lines=427	turns=16	winner=Ai1	ai_timeouts=0	ms=10738	error=-
+GAME	seed=213	run=0	pair=4	hash=07a522d3818ed812	log_lines=494	turns=21	winner=Ai2	ai_timeouts=0	ms=12309	error=-
+GAME	seed=215	run=0	pair=6	hash=f16ee3a71970642f	log_lines=575	turns=23	winner=Ai1	ai_timeouts=0	ms=12685	error=-
+GAME	seed=210	run=0	pair=1	hash=1ec8ac7c355c4a3e	log_lines=511	turns=21	winner=Ai1	ai_timeouts=0	ms=12905	error=-
+GAME	seed=208	run=0	pair=7	hash=ac7892dd7cccd61c	log_lines=591	turns=22	winner=Ai2	ai_timeouts=0	ms=15868	error=-
+GAME	seed=206	run=0	pair=5	hash=5c3f849232e1471c	log_lines=924	turns=40	winner=Ai1	ai_timeouts=0	ms=16366	error=-
+GAME	seed=209	run=0	pair=0	hash=11795b69942cdf30	log_lines=570	turns=24	winner=Ai2	ai_timeouts=0	ms=16743	error=-
+GAME	seed=216	run=0	pair=7	hash=b43c841879927c6d	log_lines=804	turns=26	winner=Ai2	ai_timeouts=0	ms=17269	error=-
+# fork-conc16d
+MODE concurrent=true repeat=1 perGameRandom=true cpus=8
+GAME	seed=203	run=0	pair=2	hash=9c97af14b2920792	log_lines=287	turns=13	winner=Ai1	ai_timeouts=0	ms=7295	error=-
+GAME	seed=201	run=0	pair=0	hash=4f07e428cc18997f	log_lines=291	turns=13	winner=Ai1	ai_timeouts=0	ms=7735	error=-
+GAME	seed=212	run=0	pair=3	hash=ce130935ed7b823a	log_lines=291	turns=13	winner=Ai2	ai_timeouts=0	ms=8416	error=-
+GAME	seed=214	run=0	pair=5	hash=8cd15445d0d4d580	log_lines=339	turns=14	winner=Ai1	ai_timeouts=0	ms=9611	error=-
+GAME	seed=205	run=0	pair=4	hash=48d41653a393d1aa	log_lines=325	turns=14	winner=Ai1	ai_timeouts=0	ms=10011	error=-
+GAME	seed=202	run=0	pair=1	hash=81dfbdaae9c10b23	log_lines=387	turns=16	winner=Ai2	ai_timeouts=0	ms=11116	error=-
+GAME	seed=204	run=0	pair=3	hash=9e9ebdb77c591021	log_lines=392	turns=16	winner=Ai2	ai_timeouts=0	ms=12079	error=-
+GAME	seed=211	run=0	pair=2	hash=4be9d0b61d55895f	log_lines=420	turns=17	winner=Ai2	ai_timeouts=0	ms=12714	error=-
+GAME	seed=207	run=0	pair=6	hash=c83fc699451844cf	log_lines=427	turns=16	winner=Ai1	ai_timeouts=0	ms=13180	error=-
+GAME	seed=213	run=0	pair=4	hash=07a522d3818ed812	log_lines=494	turns=21	winner=Ai2	ai_timeouts=0	ms=14512	error=-
+GAME	seed=215	run=0	pair=6	hash=f16ee3a71970642f	log_lines=575	turns=23	winner=Ai1	ai_timeouts=0	ms=14977	error=-
+GAME	seed=210	run=0	pair=1	hash=1ec8ac7c355c4a3e	log_lines=511	turns=21	winner=Ai1	ai_timeouts=0	ms=15372	error=-
+GAME	seed=209	run=0	pair=0	hash=11795b69942cdf30	log_lines=570	turns=24	winner=Ai2	ai_timeouts=0	ms=19986	error=-
+GAME	seed=216	run=0	pair=7	hash=b43c841879927c6d	log_lines=804	turns=26	winner=Ai2	ai_timeouts=0	ms=21074	error=-
+GAME	seed=206	run=0	pair=5	hash=113656249f9ba858	log_lines=995	turns=42	winner=Ai1	ai_timeouts=0	ms=21485	error=-
+GAME	seed=208	run=0	pair=7	hash=fc81674071953e64	log_lines=751	turns=25	winner=Ai2	ai_timeouts=0	ms=22655	error=-
+# fork-conc16e
+MODE concurrent=true repeat=1 perGameRandom=true cpus=8
+GAME	seed=201	run=0	pair=0	hash=4f07e428cc18997f	log_lines=291	turns=13	winner=Ai1	ai_timeouts=0	ms=11646	error=-
+GAME	seed=203	run=0	pair=2	hash=9c97af14b2920792	log_lines=287	turns=13	winner=Ai1	ai_timeouts=0	ms=12266	error=-
+GAME	seed=212	run=0	pair=3	hash=ce130935ed7b823a	log_lines=291	turns=13	winner=Ai2	ai_timeouts=0	ms=13630	error=-
+GAME	seed=205	run=0	pair=4	hash=48d41653a393d1aa	log_lines=325	turns=14	winner=Ai1	ai_timeouts=0	ms=14958	error=-
+GAME	seed=214	run=0	pair=5	hash=8cd15445d0d4d580	log_lines=339	turns=14	winner=Ai1	ai_timeouts=0	ms=15366	error=-
+GAME	seed=202	run=0	pair=1	hash=81dfbdaae9c10b23	log_lines=387	turns=16	winner=Ai2	ai_timeouts=0	ms=16917	error=-
+GAME	seed=204	run=0	pair=3	hash=9e9ebdb77c591021	log_lines=392	turns=16	winner=Ai2	ai_timeouts=0	ms=18573	error=-
+GAME	seed=207	run=0	pair=6	hash=c83fc699451844cf	log_lines=427	turns=16	winner=Ai1	ai_timeouts=0	ms=19189	error=-
+GAME	seed=211	run=0	pair=2	hash=9571c464692e0925	log_lines=421	turns=17	winner=Ai2	ai_timeouts=0	ms=19901	error=-
+GAME	seed=215	run=0	pair=6	hash=efd3b16f12022358	log_lines=575	turns=23	winner=Ai1	ai_timeouts=0	ms=21818	error=-
+GAME	seed=213	run=0	pair=4	hash=07a522d3818ed812	log_lines=494	turns=21	winner=Ai2	ai_timeouts=0	ms=22082	error=-
+GAME	seed=210	run=0	pair=1	hash=1ec8ac7c355c4a3e	log_lines=511	turns=21	winner=Ai1	ai_timeouts=0	ms=22465	error=-
+GAME	seed=208	run=0	pair=7	hash=ac7892dd7cccd61c	log_lines=591	turns=22	winner=Ai2	ai_timeouts=0	ms=25677	error=-
+GAME	seed=209	run=0	pair=0	hash=11795b69942cdf30	log_lines=570	turns=24	winner=Ai2	ai_timeouts=0	ms=26494	error=-
+GAME	seed=216	run=0	pair=7	hash=b43c841879927c6d	log_lines=804	turns=26	winner=Ai2	ai_timeouts=0	ms=27637	error=-
+GAME	seed=206	run=0	pair=5	hash=113656249f9ba858	log_lines=995	turns=42	winner=Ai1	ai_timeouts=0	ms=27844	error=-
+# v2-solo
+MODE concurrent=false repeat=1 perGameRandom=true cpus=8
+GAME	seed=201	run=0	pair=0	hash=4f07e428cc18997f	log_lines=291	turns=13	winner=Ai1	ai_timeouts=0	ms=1779	error=-
+GAME	seed=202	run=0	pair=1	hash=81dfbdaae9c10b23	log_lines=387	turns=16	winner=Ai2	ai_timeouts=0	ms=1737	error=-
+GAME	seed=203	run=0	pair=2	hash=9c97af14b2920792	log_lines=287	turns=13	winner=Ai1	ai_timeouts=0	ms=938	error=-
+GAME	seed=204	run=0	pair=3	hash=9e9ebdb77c591021	log_lines=392	turns=16	winner=Ai2	ai_timeouts=0	ms=2136	error=-
+GAME	seed=205	run=0	pair=4	hash=48d41653a393d1aa	log_lines=325	turns=14	winner=Ai1	ai_timeouts=0	ms=1235	error=-
+GAME	seed=206	run=0	pair=5	hash=113656249f9ba858	log_lines=995	turns=42	winner=Ai1	ai_timeouts=0	ms=4784	error=-
+GAME	seed=207	run=0	pair=6	hash=c83fc699451844cf	log_lines=427	turns=16	winner=Ai1	ai_timeouts=0	ms=1669	error=-
+GAME	seed=208	run=0	pair=7	hash=ac7892dd7cccd61c	log_lines=591	turns=22	winner=Ai2	ai_timeouts=0	ms=4170	error=-
+GAME	seed=209	run=0	pair=0	hash=11795b69942cdf30	log_lines=570	turns=24	winner=Ai2	ai_timeouts=0	ms=5633	error=-
+GAME	seed=210	run=0	pair=1	hash=1ec8ac7c355c4a3e	log_lines=511	turns=21	winner=Ai1	ai_timeouts=0	ms=2282	error=-
+GAME	seed=211	run=0	pair=2	hash=4be9d0b61d55895f	log_lines=420	turns=17	winner=Ai2	ai_timeouts=0	ms=1785	error=-
+GAME	seed=212	run=0	pair=3	hash=ce130935ed7b823a	log_lines=291	turns=13	winner=Ai2	ai_timeouts=0	ms=1071	error=-
+GAME	seed=213	run=0	pair=4	hash=07a522d3818ed812	log_lines=494	turns=21	winner=Ai2	ai_timeouts=0	ms=2245	error=-
+GAME	seed=214	run=0	pair=5	hash=6160aec247c4d740	log_lines=489	turns=20	winner=Ai1	ai_timeouts=0	ms=3238	error=-
+GAME	seed=215	run=0	pair=6	hash=f16ee3a71970642f	log_lines=575	turns=23	winner=Ai1	ai_timeouts=0	ms=2441	error=-
+GAME	seed=216	run=0	pair=7	hash=b43c841879927c6d	log_lines=804	turns=26	winner=Ai2	ai_timeouts=0	ms=7387	error=-
+# v2-conc1
+MODE concurrent=true repeat=1 perGameRandom=true cpus=8
+GAME	seed=201	run=0	pair=0	hash=4f07e428cc18997f	log_lines=291	turns=13	winner=Ai1	ai_timeouts=0	ms=8574	error=-
+GAME	seed=203	run=0	pair=2	hash=9c97af14b2920792	log_lines=287	turns=13	winner=Ai1	ai_timeouts=0	ms=9435	error=-
+GAME	seed=212	run=0	pair=3	hash=ce130935ed7b823a	log_lines=291	turns=13	winner=Ai2	ai_timeouts=0	ms=11024	error=-
+GAME	seed=205	run=0	pair=4	hash=48d41653a393d1aa	log_lines=325	turns=14	winner=Ai1	ai_timeouts=0	ms=12319	error=-
+GAME	seed=202	run=0	pair=1	hash=81dfbdaae9c10b23	log_lines=387	turns=16	winner=Ai2	ai_timeouts=0	ms=13783	error=-
+GAME	seed=204	run=0	pair=3	hash=9e9ebdb77c591021	log_lines=392	turns=16	winner=Ai2	ai_timeouts=0	ms=14992	error=-
+GAME	seed=207	run=0	pair=6	hash=c83fc699451844cf	log_lines=427	turns=16	winner=Ai1	ai_timeouts=0	ms=15617	error=-
+GAME	seed=211	run=0	pair=2	hash=4be9d0b61d55895f	log_lines=420	turns=17	winner=Ai2	ai_timeouts=0	ms=16200	error=-
+GAME	seed=214	run=0	pair=5	hash=6160aec247c4d740	log_lines=489	turns=20	winner=Ai1	ai_timeouts=0	ms=17560	error=-
+GAME	seed=213	run=0	pair=4	hash=07a522d3818ed812	log_lines=494	turns=21	winner=Ai2	ai_timeouts=0	ms=17765	error=-
+GAME	seed=215	run=0	pair=6	hash=f16ee3a71970642f	log_lines=575	turns=23	winner=Ai1	ai_timeouts=0	ms=18090	error=-
+GAME	seed=210	run=0	pair=1	hash=1ec8ac7c355c4a3e	log_lines=511	turns=21	winner=Ai1	ai_timeouts=0	ms=18347	error=-
+GAME	seed=208	run=0	pair=7	hash=ac7892dd7cccd61c	log_lines=591	turns=22	winner=Ai2	ai_timeouts=0	ms=20728	error=-
+GAME	seed=209	run=0	pair=0	hash=11795b69942cdf30	log_lines=570	turns=24	winner=Ai2	ai_timeouts=0	ms=21653	error=-
+GAME	seed=216	run=0	pair=7	hash=b43c841879927c6d	log_lines=804	turns=26	winner=Ai2	ai_timeouts=0	ms=22338	error=-
+GAME	seed=206	run=0	pair=5	hash=113656249f9ba858	log_lines=995	turns=42	winner=Ai1	ai_timeouts=0	ms=22612	error=-
+# v2-conc2
+MODE concurrent=true repeat=1 perGameRandom=true cpus=8
+GAME	seed=201	run=0	pair=0	hash=4f07e428cc18997f	log_lines=291	turns=13	winner=Ai1	ai_timeouts=0	ms=6516	error=-
+GAME	seed=212	run=0	pair=3	hash=ce130935ed7b823a	log_lines=291	turns=13	winner=Ai2	ai_timeouts=0	ms=6817	error=-
+GAME	seed=203	run=0	pair=2	hash=9c97af14b2920792	log_lines=287	turns=13	winner=Ai1	ai_timeouts=0	ms=7159	error=-
+GAME	seed=205	run=0	pair=4	hash=48d41653a393d1aa	log_lines=325	turns=14	winner=Ai1	ai_timeouts=0	ms=7825	error=-
+GAME	seed=202	run=0	pair=1	hash=81dfbdaae9c10b23	log_lines=387	turns=16	winner=Ai2	ai_timeouts=0	ms=9746	error=-
+GAME	seed=204	run=0	pair=3	hash=9e9ebdb77c591021	log_lines=392	turns=16	winner=Ai2	ai_timeouts=0	ms=10888	error=-
+GAME	seed=207	run=0	pair=6	hash=c83fc699451844cf	log_lines=427	turns=16	winner=Ai1	ai_timeouts=0	ms=11409	error=-
+GAME	seed=211	run=0	pair=2	hash=4be9d0b61d55895f	log_lines=420	turns=17	winner=Ai2	ai_timeouts=0	ms=11778	error=-
+GAME	seed=215	run=0	pair=6	hash=f16ee3a71970642f	log_lines=575	turns=23	winner=Ai1	ai_timeouts=0	ms=13005	error=-
+GAME	seed=213	run=0	pair=4	hash=07a522d3818ed812	log_lines=494	turns=21	winner=Ai2	ai_timeouts=0	ms=13260	error=-
+GAME	seed=214	run=0	pair=5	hash=6160aec247c4d740	log_lines=489	turns=20	winner=Ai1	ai_timeouts=0	ms=13541	error=-
+GAME	seed=210	run=0	pair=1	hash=1ec8ac7c355c4a3e	log_lines=511	turns=21	winner=Ai1	ai_timeouts=0	ms=13799	error=-
+GAME	seed=208	run=0	pair=7	hash=ac7892dd7cccd61c	log_lines=591	turns=22	winner=Ai2	ai_timeouts=0	ms=16345	error=-
+GAME	seed=209	run=0	pair=0	hash=11795b69942cdf30	log_lines=570	turns=24	winner=Ai2	ai_timeouts=0	ms=17314	error=-
+GAME	seed=206	run=0	pair=5	hash=113656249f9ba858	log_lines=995	turns=42	winner=Ai1	ai_timeouts=0	ms=18001	error=-
+GAME	seed=216	run=0	pair=7	hash=b43c841879927c6d	log_lines=804	turns=26	winner=Ai2	ai_timeouts=0	ms=18199	error=-
+# v2-conc3
+MODE concurrent=true repeat=1 perGameRandom=true cpus=8
+GAME	seed=201	run=0	pair=0	hash=4f07e428cc18997f	log_lines=291	turns=13	winner=Ai1	ai_timeouts=0	ms=6435	error=-
+GAME	seed=203	run=0	pair=2	hash=9c97af14b2920792	log_lines=287	turns=13	winner=Ai1	ai_timeouts=0	ms=7092	error=-
+GAME	seed=212	run=0	pair=3	hash=ce130935ed7b823a	log_lines=291	turns=13	winner=Ai2	ai_timeouts=0	ms=8817	error=-
+GAME	seed=205	run=0	pair=4	hash=48d41653a393d1aa	log_lines=325	turns=14	winner=Ai1	ai_timeouts=0	ms=9865	error=-
+GAME	seed=202	run=0	pair=1	hash=81dfbdaae9c10b23	log_lines=387	turns=16	winner=Ai2	ai_timeouts=0	ms=11146	error=-
+GAME	seed=204	run=0	pair=3	hash=9e9ebdb77c591021	log_lines=392	turns=16	winner=Ai2	ai_timeouts=0	ms=12593	error=-
+GAME	seed=211	run=0	pair=2	hash=4be9d0b61d55895f	log_lines=420	turns=17	winner=Ai2	ai_timeouts=0	ms=12869	error=-
+GAME	seed=207	run=0	pair=6	hash=c83fc699451844cf	log_lines=427	turns=16	winner=Ai1	ai_timeouts=0	ms=13252	error=-
+GAME	seed=213	run=0	pair=4	hash=07a522d3818ed812	log_lines=494	turns=21	winner=Ai2	ai_timeouts=0	ms=14560	error=-
+GAME	seed=214	run=0	pair=5	hash=6160aec247c4d740	log_lines=489	turns=20	winner=Ai1	ai_timeouts=0	ms=14844	error=-
+GAME	seed=215	run=0	pair=6	hash=f16ee3a71970642f	log_lines=575	turns=23	winner=Ai1	ai_timeouts=0	ms=15040	error=-
+GAME	seed=210	run=0	pair=1	hash=1ec8ac7c355c4a3e	log_lines=511	turns=21	winner=Ai1	ai_timeouts=0	ms=15782	error=-
+GAME	seed=208	run=0	pair=7	hash=ac7892dd7cccd61c	log_lines=591	turns=22	winner=Ai2	ai_timeouts=0	ms=18168	error=-
+GAME	seed=209	run=0	pair=0	hash=11795b69942cdf30	log_lines=570	turns=24	winner=Ai2	ai_timeouts=0	ms=18846	error=-
+GAME	seed=206	run=0	pair=5	hash=113656249f9ba858	log_lines=995	turns=42	winner=Ai1	ai_timeouts=0	ms=19685	error=-
+GAME	seed=216	run=0	pair=7	hash=b43c841879927c6d	log_lines=804	turns=26	winner=Ai2	ai_timeouts=0	ms=20023	error=-
+# v2-stock16
+MODE concurrent=false repeat=1 perGameRandom=false cpus=8
+GAME	seed=201	run=0	pair=0	hash=4f07e428cc18997f	log_lines=291	turns=13	winner=Ai1	ai_timeouts=0	ms=3711	error=-
+GAME	seed=202	run=0	pair=1	hash=81dfbdaae9c10b23	log_lines=387	turns=16	winner=Ai2	ai_timeouts=0	ms=2975	error=-
+GAME	seed=203	run=0	pair=2	hash=9c97af14b2920792	log_lines=287	turns=13	winner=Ai1	ai_timeouts=0	ms=1980	error=-
+GAME	seed=204	run=0	pair=3	hash=9e9ebdb77c591021	log_lines=392	turns=16	winner=Ai2	ai_timeouts=0	ms=3849	error=-
+GAME	seed=205	run=0	pair=4	hash=48d41653a393d1aa	log_lines=325	turns=14	winner=Ai1	ai_timeouts=0	ms=1394	error=-
+GAME	seed=206	run=0	pair=5	hash=113656249f9ba858	log_lines=995	turns=42	winner=Ai1	ai_timeouts=0	ms=7229	error=-
+GAME	seed=207	run=0	pair=6	hash=c83fc699451844cf	log_lines=427	turns=16	winner=Ai1	ai_timeouts=0	ms=2486	error=-
+GAME	seed=208	run=0	pair=7	hash=ac7892dd7cccd61c	log_lines=591	turns=22	winner=Ai2	ai_timeouts=0	ms=6485	error=-
+GAME	seed=209	run=0	pair=0	hash=11795b69942cdf30	log_lines=570	turns=24	winner=Ai2	ai_timeouts=0	ms=6925	error=-
+GAME	seed=210	run=0	pair=1	hash=1ec8ac7c355c4a3e	log_lines=511	turns=21	winner=Ai1	ai_timeouts=0	ms=2918	error=-
+GAME	seed=211	run=0	pair=2	hash=4be9d0b61d55895f	log_lines=420	turns=17	winner=Ai2	ai_timeouts=0	ms=2284	error=-
+GAME	seed=212	run=0	pair=3	hash=ce130935ed7b823a	log_lines=291	turns=13	winner=Ai2	ai_timeouts=0	ms=1598	error=-
+GAME	seed=213	run=0	pair=4	hash=07a522d3818ed812	log_lines=494	turns=21	winner=Ai2	ai_timeouts=0	ms=2995	error=-
+GAME	seed=214	run=0	pair=5	hash=6160aec247c4d740	log_lines=489	turns=20	winner=Ai1	ai_timeouts=0	ms=2579	error=-
+GAME	seed=215	run=0	pair=6	hash=f16ee3a71970642f	log_lines=575	turns=23	winner=Ai1	ai_timeouts=0	ms=1904	error=-
+GAME	seed=216	run=0	pair=7	hash=b43c841879927c6d	log_lines=804	turns=26	winner=Ai2	ai_timeouts=0	ms=6927	error=-
+# v2-stockconc16
+MODE concurrent=true repeat=1 perGameRandom=false cpus=8
+GAME	seed=204	run=0	pair=3	hash=acc0daa890986d44	log_lines=283	turns=13	winner=Ai1	ai_timeouts=0	ms=11407	error=-
+GAME	seed=210	run=0	pair=1	hash=f4b369637045db49	log_lines=318	turns=14	winner=Ai1	ai_timeouts=0	ms=13284	error=-
+GAME	seed=212	run=0	pair=3	hash=fcd688e182420932	log_lines=354	turns=15	winner=Ai1	ai_timeouts=0	ms=13960	error=-
+GAME	seed=215	run=0	pair=6	hash=0443e81d33a8aa96	log_lines=302	turns=13	winner=Ai1	ai_timeouts=0	ms=14482	error=-
+GAME	seed=202	run=0	pair=1	hash=21161a5792490fc4	log_lines=343	turns=15	winner=Ai1	ai_timeouts=0	ms=15285	error=-
+GAME	seed=208	run=0	pair=7	hash=65d220b3e91bb501	log_lines=374	turns=16	winner=Ai1	ai_timeouts=0	ms=15932	error=-
+GAME	seed=207	run=0	pair=6	hash=d2adb48101f47e9b	log_lines=373	turns=16	winner=Ai1	ai_timeouts=0	ms=16338	error=-
+GAME	seed=206	run=0	pair=5	hash=d78219dd7c8ed9cf	log_lines=368	turns=17	winner=Ai1	ai_timeouts=0	ms=17176	error=-
+GAME	seed=209	run=0	pair=0	hash=256acafcf2651ac8	log_lines=372	turns=16	winner=Ai1	ai_timeouts=0	ms=17648	error=-
+GAME	seed=213	run=0	pair=4	hash=5634c3fd9d7a33da	log_lines=415	turns=17	winner=Ai1	ai_timeouts=0	ms=18320	error=-
+GAME	seed=211	run=0	pair=2	hash=8b19d2254fcd6194	log_lines=442	turns=18	winner=Ai2	ai_timeouts=0	ms=18952	error=-
+GAME	seed=205	run=0	pair=4	hash=f186a7e98e3cad6e	log_lines=482	turns=17	winner=Ai1	ai_timeouts=0	ms=20101	error=-
+GAME	seed=203	run=0	pair=2	hash=0d5f34aaed4c9359	log_lines=483	turns=23	winner=Ai1	ai_timeouts=0	ms=20564	error=-
+GAME	seed=201	run=0	pair=0	hash=d736e7ded5dd9113	log_lines=478	turns=18	winner=Ai2	ai_timeouts=0	ms=20832	error=-
+GAME	seed=214	run=0	pair=5	hash=2b5c34e30a4b4eb1	log_lines=541	turns=23	winner=Ai1	ai_timeouts=0	ms=22004	error=-
+GAME	seed=216	run=0	pair=7	hash=4f7bbc592c689580	log_lines=466	turns=20	winner=Ai2	ai_timeouts=0	ms=22501	error=-
+# v2-conc8
+MODE concurrent=true repeat=1 perGameRandom=true cpus=8
+GAME	seed=107	run=0	pair=6	hash=6af15de56950d6c3	log_lines=331	turns=13	winner=Ai2	ai_timeouts=0	ms=9260	error=-
+GAME	seed=108	run=0	pair=7	hash=bdcfb201480330fb	log_lines=324	turns=13	winner=Ai2	ai_timeouts=0	ms=8968	error=-
+GAME	seed=103	run=0	pair=2	hash=7be6f53d882321fa	log_lines=293	turns=12	winner=Ai2	ai_timeouts=0	ms=10614	error=-
+GAME	seed=105	run=0	pair=4	hash=b8baa5704b244d47	log_lines=363	turns=16	winner=Ai2	ai_timeouts=0	ms=11948	error=-
+GAME	seed=102	run=0	pair=1	hash=207206deced11d85	log_lines=368	turns=16	winner=Ai2	ai_timeouts=0	ms=12982	error=-
+GAME	seed=104	run=0	pair=3	hash=26a9e49e624d42a7	log_lines=577	turns=26	winner=Ai2	ai_timeouts=0	ms=15068	error=-
+GAME	seed=101	run=0	pair=0	hash=4b2678150a868611	log_lines=498	turns=18	winner=Ai1	ai_timeouts=0	ms=17314	error=-
+GAME	seed=106	run=0	pair=5	hash=a05450e2ceab97c4	log_lines=641	turns=29	winner=Ai1	ai_timeouts=0	ms=17960	error=-
+# v2-solo32
+MODE concurrent=false repeat=1 perGameRandom=true cpus=8
+GAME	seed=301	run=0	pair=0	hash=262fc7a595792245	log_lines=685	turns=30	winner=Ai2	ai_timeouts=0	ms=9385	error=-
+GAME	seed=302	run=0	pair=1	hash=05123936485d6448	log_lines=311	turns=13	winner=Ai1	ai_timeouts=0	ms=2306	error=-
+GAME	seed=303	run=0	pair=2	hash=a53cd2be3be6f717	log_lines=789	turns=20	winner=Ai1	ai_timeouts=0	ms=8815	error=-
+GAME	seed=304	run=0	pair=3	hash=d446d5f7268b40e4	log_lines=286	turns=13	winner=Ai2	ai_timeouts=0	ms=1775	error=-
+GAME	seed=305	run=0	pair=4	hash=7ecdf51b1edeb819	log_lines=656	turns=31	winner=Ai1	ai_timeouts=0	ms=3742	error=-
+GAME	seed=306	run=0	pair=5	hash=2052144d9b4c4e8e	log_lines=346	turns=17	winner=Ai1	ai_timeouts=0	ms=1806	error=-
+GAME	seed=307	run=0	pair=6	hash=af712e8d7ea5c877	log_lines=260	turns=11	winner=Ai2	ai_timeouts=0	ms=1375	error=-
+GAME	seed=308	run=0	pair=7	hash=69fa09657c252793	log_lines=377	turns=15	winner=Ai1	ai_timeouts=0	ms=2759	error=-
+GAME	seed=309	run=0	pair=0	hash=6ff3b605878bece8	log_lines=644	turns=23	winner=Ai1	ai_timeouts=0	ms=5804	error=-
+GAME	seed=310	run=0	pair=1	hash=dbb5d23e7504d1e9	log_lines=353	turns=15	winner=Ai2	ai_timeouts=0	ms=2149	error=-
+GAME	seed=311	run=0	pair=2	hash=2ad73319c9992b05	log_lines=583	turns=21	winner=Ai2	ai_timeouts=0	ms=4291	error=-
+GAME	seed=312	run=0	pair=3	hash=d427aa41ae6ee54a	log_lines=546	turns=23	winner=Ai2	ai_timeouts=0	ms=3685	error=-
+GAME	seed=313	run=0	pair=4	hash=af529b569be18d80	log_lines=801	turns=38	winner=Ai2	ai_timeouts=0	ms=5330	error=-
+GAME	seed=314	run=0	pair=5	hash=b1b9b02826d419b4	log_lines=651	turns=28	winner=Ai2	ai_timeouts=0	ms=3129	error=-
+GAME	seed=315	run=0	pair=6	hash=355067913750f24b	log_lines=395	turns=16	winner=Ai2	ai_timeouts=0	ms=1511	error=-
+GAME	seed=316	run=0	pair=7	hash=faddba597c170454	log_lines=512	turns=20	winner=Ai1	ai_timeouts=0	ms=3106	error=-
+GAME	seed=317	run=0	pair=0	hash=70e03c0f70df95f5	log_lines=350	turns=13	winner=Ai1	ai_timeouts=0	ms=1646	error=-
+GAME	seed=318	run=0	pair=1	hash=c5839c8874adeb14	log_lines=307	turns=13	winner=Ai1	ai_timeouts=0	ms=1455	error=-
+GAME	seed=319	run=0	pair=2	hash=10f867b1c3bcdb62	log_lines=733	turns=26	winner=Ai2	ai_timeouts=0	ms=11919	error=-
+GAME	seed=320	run=0	pair=3	hash=b518f860e4c8c1ef	log_lines=332	turns=14	winner=Ai2	ai_timeouts=0	ms=1161	error=-
+GAME	seed=321	run=0	pair=4	hash=0e089d4b02d70fa9	log_lines=398	turns=15	winner=Ai1	ai_timeouts=0	ms=1379	error=-
+GAME	seed=322	run=0	pair=5	hash=2cafd133cf6d3479	log_lines=382	turns=17	winner=Ai1	ai_timeouts=0	ms=1201	error=-
+GAME	seed=323	run=0	pair=6	hash=458bd231fa4cc387	log_lines=543	turns=21	winner=Ai2	ai_timeouts=0	ms=3114	error=-
+GAME	seed=324	run=0	pair=7	hash=9254611bec91216f	log_lines=617	turns=28	winner=Ai1	ai_timeouts=0	ms=2971	error=-
+GAME	seed=325	run=0	pair=0	hash=3897e34de950cb60	log_lines=392	turns=15	winner=Ai2	ai_timeouts=0	ms=1618	error=-
+GAME	seed=326	run=0	pair=1	hash=c4876bf837152425	log_lines=202	turns=9	winner=Ai2	ai_timeouts=0	ms=587	error=-
+GAME	seed=327	run=0	pair=2	hash=6a1533c55d1d61b2	log_lines=294	turns=13	winner=Ai1	ai_timeouts=0	ms=674	error=-
+GAME	seed=328	run=0	pair=3	hash=af414b9a1a9c049e	log_lines=776	turns=32	winner=Ai1	ai_timeouts=0	ms=4335	error=-
+GAME	seed=329	run=0	pair=4	hash=3ba551a66d05e44c	log_lines=540	turns=25	winner=Ai1	ai_timeouts=0	ms=1904	error=-
+GAME	seed=330	run=0	pair=5	hash=7b5741108e55b684	log_lines=277	turns=12	winner=Ai2	ai_timeouts=0	ms=546	error=-
+GAME	seed=331	run=0	pair=6	hash=a94cc9b3b26982cc	log_lines=541	turns=21	winner=Ai2	ai_timeouts=0	ms=2136	error=-
+GAME	seed=332	run=0	pair=7	hash=edee9a2fe09dacfa	log_lines=333	turns=14	winner=Ai2	ai_timeouts=0	ms=1015	error=-
+# v2-conc32
+MODE concurrent=true repeat=1 perGameRandom=true cpus=8
+GAME	seed=326	run=0	pair=1	hash=c4876bf837152425	log_lines=202	turns=9	winner=Ai2	ai_timeouts=0	ms=9797	error=-
+GAME	seed=330	run=0	pair=5	hash=7b5741108e55b684	log_lines=277	turns=12	winner=Ai2	ai_timeouts=0	ms=13497	error=-
+GAME	seed=327	run=0	pair=2	hash=6a1533c55d1d61b2	log_lines=294	turns=13	winner=Ai1	ai_timeouts=0	ms=13886	error=-
+GAME	seed=307	run=0	pair=6	hash=af712e8d7ea5c877	log_lines=260	turns=11	winner=Ai2	ai_timeouts=0	ms=14375	error=-
+GAME	seed=304	run=0	pair=3	hash=d446d5f7268b40e4	log_lines=286	turns=13	winner=Ai2	ai_timeouts=0	ms=16445	error=-
+GAME	seed=318	run=0	pair=1	hash=c5839c8874adeb14	log_lines=307	turns=13	winner=Ai1	ai_timeouts=0	ms=16692	error=-
+GAME	seed=332	run=0	pair=7	hash=edee9a2fe09dacfa	log_lines=333	turns=14	winner=Ai2	ai_timeouts=0	ms=17234	error=-
+GAME	seed=317	run=0	pair=0	hash=70e03c0f70df95f5	log_lines=350	turns=13	winner=Ai1	ai_timeouts=0	ms=17489	error=-
+GAME	seed=302	run=0	pair=1	hash=05123936485d6448	log_lines=311	turns=13	winner=Ai1	ai_timeouts=0	ms=17937	error=-
+GAME	seed=320	run=0	pair=3	hash=b518f860e4c8c1ef	log_lines=332	turns=14	winner=Ai2	ai_timeouts=0	ms=18342	error=-
+GAME	seed=306	run=0	pair=5	hash=2052144d9b4c4e8e	log_lines=346	turns=17	winner=Ai1	ai_timeouts=0	ms=20094	error=-
+GAME	seed=310	run=0	pair=1	hash=dbb5d23e7504d1e9	log_lines=353	turns=15	winner=Ai2	ai_timeouts=0	ms=20418	error=-
+GAME	seed=308	run=0	pair=7	hash=69fa09657c252793	log_lines=377	turns=15	winner=Ai1	ai_timeouts=0	ms=20670	error=-
+GAME	seed=321	run=0	pair=4	hash=0e089d4b02d70fa9	log_lines=398	turns=15	winner=Ai1	ai_timeouts=0	ms=21198	error=-
+GAME	seed=322	run=0	pair=5	hash=2cafd133cf6d3479	log_lines=382	turns=17	winner=Ai1	ai_timeouts=0	ms=21875	error=-
+GAME	seed=315	run=0	pair=6	hash=355067913750f24b	log_lines=395	turns=16	winner=Ai2	ai_timeouts=0	ms=22490	error=-
+GAME	seed=325	run=0	pair=0	hash=3897e34de950cb60	log_lines=392	turns=15	winner=Ai2	ai_timeouts=0	ms=23995	error=-
+GAME	seed=316	run=0	pair=7	hash=faddba597c170454	log_lines=512	turns=20	winner=Ai1	ai_timeouts=0	ms=27367	error=-
+GAME	seed=331	run=0	pair=6	hash=a94cc9b3b26982cc	log_lines=541	turns=21	winner=Ai2	ai_timeouts=0	ms=27798	error=-
+GAME	seed=312	run=0	pair=3	hash=d427aa41ae6ee54a	log_lines=546	turns=23	winner=Ai2	ai_timeouts=0	ms=28934	error=-
+GAME	seed=329	run=0	pair=4	hash=3ba551a66d05e44c	log_lines=540	turns=25	winner=Ai1	ai_timeouts=0	ms=29166	error=-
+GAME	seed=311	run=0	pair=2	hash=2ad73319c9992b05	log_lines=583	turns=21	winner=Ai2	ai_timeouts=0	ms=29705	error=-
+GAME	seed=314	run=0	pair=5	hash=b1b9b02826d419b4	log_lines=651	turns=28	winner=Ai2	ai_timeouts=0	ms=30545	error=-
+GAME	seed=323	run=0	pair=6	hash=458bd231fa4cc387	log_lines=543	turns=21	winner=Ai2	ai_timeouts=0	ms=30830	error=-
+GAME	seed=305	run=0	pair=4	hash=7ecdf51b1edeb819	log_lines=656	turns=31	winner=Ai1	ai_timeouts=0	ms=31644	error=-
+GAME	seed=324	run=0	pair=7	hash=9254611bec91216f	log_lines=617	turns=28	winner=Ai1	ai_timeouts=0	ms=32194	error=-
+GAME	seed=309	run=0	pair=0	hash=6ff3b605878bece8	log_lines=644	turns=23	winner=Ai1	ai_timeouts=0	ms=32656	error=-
+GAME	seed=301	run=0	pair=0	hash=262fc7a595792245	log_lines=685	turns=30	winner=Ai2	ai_timeouts=0	ms=33342	error=-
+GAME	seed=313	run=0	pair=4	hash=af529b569be18d80	log_lines=801	turns=38	winner=Ai2	ai_timeouts=0	ms=34134	error=-
+GAME	seed=303	run=0	pair=2	hash=a53cd2be3be6f717	log_lines=789	turns=20	winner=Ai1	ai_timeouts=0	ms=34668	error=-
+GAME	seed=328	run=0	pair=3	hash=af414b9a1a9c049e	log_lines=776	turns=32	winner=Ai1	ai_timeouts=0	ms=35014	error=-
+GAME	seed=319	run=0	pair=2	hash=10f867b1c3bcdb62	log_lines=733	turns=26	winner=Ai2	ai_timeouts=0	ms=39915	error=-
