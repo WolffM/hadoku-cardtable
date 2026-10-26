@@ -194,11 +194,10 @@ describe.skipIf(!available.ok)(title, () => {
 
 			// Both games are live on Forge's own game threads at this moment.
 			const jcmd = join(dirname(config.java), 'jcmd');
-			if (existsSync(jcmd) && jvm.pid !== undefined) {
-				const dump = spawnSync(jcmd, [String(jvm.pid), 'Thread.print'], { encoding: 'utf8' }).stdout;
-				const gameThreads = new Set(dump.match(/^"Game-\d+"/gm) ?? []);
-				expect(gameThreads.size, dump.slice(0, 2000)).toBeGreaterThanOrEqual(2);
-			}
+			expect(existsSync(jcmd), `no jcmd beside ${config.java}`).toBe(true);
+			const dump = spawnSync(jcmd, [String(jvm.pid), 'Thread.print'], { encoding: 'utf8' }).stdout;
+			const gameThreads = new Set(dump.match(/^"Game-\d+"/gm) ?? []);
+			expect(gameThreads.size, dump.slice(0, 2000)).toBeGreaterThanOrEqual(2);
 
 			send({ t: 'reply', match: A, seat: 0, callId: probeAsk(A)?.callId, result: true });
 			send({ t: 'reply', match: B, seat: 0, callId: probeAsk(B)?.callId, result: false });
