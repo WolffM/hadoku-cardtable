@@ -3904,7 +3904,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
        * with the bar's OK gone this Done is the only place it can be pressed.
        */}
       {selectionPopup && match.selectables !== null && (
-        <QuestionHost data-testid="live-selection-host">
+        <QuestionHost data-testid="live-selection-host" data-on-board={selectionKind === 'on-board' || undefined}>
           <SelectionPrompt
             message={promptText(question)}
             context={lines.context}

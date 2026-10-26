@@ -564,8 +564,12 @@
  * horizontal limit, then start a new row"*). Its room is the moving question's; the sheet keeps the
  * column's own right edge and width at the least, so a short grid sits where every question does, and
  * its words wrap rather than choose the width.
+ *
+ * Not a selection whose cards are all on the battlefield (`data-on-board`): those are pressed where they
+ * lie, and a sheet grown over the board covers the very cards it offers (Nomads en-Kor's target, Kappa
+ * Cannoneer's Baubles), so it keeps the column every other question has.
  */
-.live__prompt:has(.prompt__cards) {
+.live__prompt:has(.prompt__cards):not([data-on-board]) {
   /* Its foot is every question's (72%, above this seat's hand); it takes the height up over the other
      seat's battlefield, where a hand of seven at 1280×720 is two rows whole. */
   top: 4%;
@@ -576,13 +580,13 @@
   align-items: flex-end;
 }
 
-.live__prompt:has(.prompt__cards) > .prompt {
+.live__prompt:has(.prompt__cards):not([data-on-board]) > .prompt {
   width: fit-content;
   min-width: min(100%, var(--live-col-w));
   max-width: 100%;
 }
 
-.live__prompt:has(.prompt__cards) :is(.prompt__title, .prompt__message, .prompt__hint) {
+.live__prompt:has(.prompt__cards):not([data-on-board]) :is(.prompt__title, .prompt__message, .prompt__hint) {
   contain: inline-size;
 }
 
