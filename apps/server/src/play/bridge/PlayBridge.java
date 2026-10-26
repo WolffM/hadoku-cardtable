@@ -170,16 +170,18 @@ import org.apache.commons.lang3.tuple.Pair;
  * {@code GameView.Mulligan} correctly and then makes exactly those two unsynced calls,
  * so the flag never reaches a {@code DeltaPacket} for the life of that input — read
  * from {@code forge/}'s real source in the deploy tree, and measured: see
- * {@code docs/planning/wave30-evidence/B-item1-mulligan-root-cause.md}. {@link #LOBBY}
- * (set once in {@link #startMatch}) is what lets {@link SeatGui} read the SERVER's live
+ * {@code docs/planning/wave30-evidence/B-item1-mulligan-root-cause.md}. {@link MatchContext#lobby}
+ * (set once in {@link #play}) is what lets {@link SeatGui} read the SERVER's live
  * {@code Game} directly for that one property instead of waiting on a wire that never
  * carries it; {@link SeatGui#syncMulliganFlag()} is where every read happens and why
  * each one is safe.
  *
- * <p><b>One match per JVM.</b> {@link FServerManager#getInstance()} is a process-wide
- * singleton holding one lobby, so this program hosts exactly one match. Whether a
- * long-lived JVM should host many is Wave 9 lane D's question; answering yes would mean
- * a second server per match, which this singleton does not allow.
+ * <p><b>Matches per JVM.</b> Each match has a Forge server of its own (our fork makes
+ * {@link FServerManager} an instance per server; {@code getInstance()} is only the default
+ * one), and everything per match lives in its {@link MatchContext}. A cold start or a spare
+ * hosts one match and exits with it, which is how {@code host.ts} runs every match today;
+ * {@code --host} ({@link #hostMode}) hosts any number, each addressed by its id. See
+ * {@code docs/spikes/multi-match-jvm.md}.
  *
  * <p><b>Protocol.</b> Stdout carries JSON lines and nothing else — {@code System.out} is
  * pointed at stderr before Forge is touched, so Forge's own logging cannot interleave.
@@ -215,61 +217,26 @@ public final class PlayBridge {
     private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
     /**
-     * The match this JVM hosts, stamped on every line out and required on every line in.
-     * One JVM hosts one match, so today it cannot disagree; it is on the wire because Wave
-     * 9 lane D asked for it ({@code docs/spikes/jvm-per-match.md} §6): a supervisor that
-     * later multiplexes several matches over one channel then changes nothing here.
+     * What a line about no match in particular carries as its {@code match}: a spare's or a
+     * host's own id until it hosts anything, and in a one-match JVM the match's id from then
+     * on — so a one-match JVM stamps every line with its match, as it always has.
      */
-    static String matchId = "";
+    static volatile String processId = "";
 
     /**
-     * Optional. Seeds the match's own random (shuffles, the coin toss) and the
-     * precon pick, so a test run can be repeated. A match is still not fully
-     * deterministic: the AI and thread timing are not seeded.
+     * {@code --host <hostId>}: this JVM hosts any number of matches at once, each begun by a
+     * {@code start} line and ended by its own {@code stop}, and runs until stdin closes or a
+     * {@code stop} names the host. Otherwise (a cold start or a spare) it hosts one match and
+     * exits with it. Test- and host-agent-only today: {@code host.ts} still runs one JVM per
+     * match. See {@code docs/spikes/multi-match-jvm.md}.
      */
-    static Long seed = null;
+    static volatile boolean hostMode = false;
 
-    /**
-     * Optional. Wave 33 §S — a TEST-only starting position: the text of a Forge puzzle
-     * file's {@code [state]} section ({@code humanlife=}, {@code humanhand=}, … — see
-     * {@code GameState.parseLine}), applied to the match once the mulligan step is over
-     * and before either seat is given priority. {@code null} for an ordinary match. The
-     * Node side only ever sets this behind {@code CARDTABLE_PLAY_PROBE=1}
-     * ({@code socket.ts}'s {@code parseStartBody}); the bridge itself does not gate it —
-     * a production server simply never sends it.
-     */
-    static String scenario = null;
+    /** Every match this JVM hosts, by id: one, unless {@link #hostMode}. */
+    static final Map<String, MatchContext> MATCHES = new ConcurrentHashMap<>();
 
-    /**
-     * Optional. A board-state room's match opens on {@link #scenario}'s board with no
-     * coin toss and no mulligan: the match runs under Forge's Puzzle game type, whose
-     * only effects in {@code GameAction.startGame} are exactly those two skips (seat 0
-     * goes first; the scenario's {@code activeplayer=} still decides whose turn it is)
-     * and no sideboarding between games. {@code false} keeps the ordinary opening.
-     */
-    static boolean skipOpening = false;
-
-    /**
-     * The room's hand smoothing setting: Forge's filtered hands
-     * ({@code StaticData.setFilteredHandsEnabled}), which keeps the opening hand closer
-     * to the deck's land ratio and weights each mulligan's redraw toward it
-     * ({@code forge.game.mulligan.HandSmoothing}). Absent is off, Forge's own default;
-     * a room always says which.
-     */
-    static boolean handSmoothing = false;
-
-    /**
-     * Wave 71 §E. Optional. Names the seat ({@code 0} or {@code 1}) the room wants
-     * asked play-or-draw. {@code null} (the room sent no {@code chooser}): the
-     * match's coin toss is untouched, byte-identical to before this wave.
-     * {@link #startMatch} applies it by rigging the match's random, since
-     * {@code forge/} always tosses a fresh coin for the first game of its own
-     * {@code Match} — see {@link RiggedCoinToss}'s doc for why that is enough.
-     */
-    static Integer chooser = null;
-
-    static synchronized void emit(final JsonObject line) {
-        line.addProperty("match", matchId);
+    static synchronized void emit(final String match, final JsonObject line) {
+        line.addProperty("match", match);
         protocol.println(GSON.toJson(line));
         protocol.flush();
     }
@@ -280,10 +247,11 @@ public final class PlayBridge {
         return o;
     }
 
-    static void fatal(final String message, final Throwable cause) {
+    /** The JVM cannot go on: say so for {@code match} and exit. */
+    static void fatal(final String match, final String message, final Throwable cause) {
         final JsonObject o = line("fatal");
         o.addProperty("message", message + (cause == null ? "" : ": " + cause));
-        emit(o);
+        emit(match, o);
         if (cause != null) {
             cause.printStackTrace(System.err);
         }
@@ -295,27 +263,223 @@ public final class PlayBridge {
     /** {@code {"matchId":..,"seed":long?,"seats":[{"name":..,"ai":bool,"deck":".dck text"|null}, ...]}} */
     record SeatConfig(String name, boolean ai, String deck) { }
 
-    static List<SeatConfig> readConfig(final Path file) throws IOException {
-        return configFrom(JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject());
+    static MatchContext readConfig(final Path file) throws IOException {
+        return new MatchContext(JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject());
     }
 
-    /** The config object itself — from the file (cold) or a spare's {@code start} command. Sets {@link #matchId}. */
-    static List<SeatConfig> configFrom(final JsonObject root) {
-        matchId = root.get("matchId").getAsString();
-        seed = root.has("seed") && !root.get("seed").isJsonNull() ? root.get("seed").getAsLong() : null;
-        scenario = root.has("scenario") && !root.get("scenario").isJsonNull() ? root.get("scenario").getAsString() : null;
-        handSmoothing = root.has("handSmoothing") && root.get("handSmoothing").getAsBoolean();
-        skipOpening = root.has("skipOpening") && root.get("skipOpening").getAsBoolean();
-        chooser = root.has("chooser") && !root.get("chooser").isJsonNull() ? root.get("chooser").getAsInt() : null;
-        final List<SeatConfig> seats = new ArrayList<>();
-        for (final JsonElement e : root.getAsJsonArray("seats")) {
-            final JsonObject s = e.getAsJsonObject();
-            seats.add(new SeatConfig(
-                    s.get("name").getAsString(),
-                    s.has("ai") && s.get("ai").getAsBoolean(),
-                    s.has("deck") && !s.get("deck").isJsonNull() ? s.get("deck").getAsString() : null));
+    /** A match ended by its own {@link MatchContext#fatal} in a {@link #hostMode} JVM; the others go on. */
+    static final class MatchFailed extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        MatchFailed(final String message) {
+            super(message);
         }
-        return seats;
+    }
+
+    /**
+     * One match and everything that is its own: its config, its Forge server and lobby, its
+     * seats, its journal of effects. Nothing per match is static, so one JVM can host several
+     * ({@link #hostMode}); what stays static is per JVM — Forge's model, the stdout protocol,
+     * {@link #CLIENT_THREADS} (each seat client has threads of its own).
+     */
+    static final class MatchContext {
+        /**
+         * The match a {@code hostMatch} call on this thread is for. Forge's lobby asks the
+         * process-wide GUI ({@link BridgeGui}) for a {@code HostedMatch} with no argument, on the
+         * thread that runs {@code lobby.startGame()}'s runnable — {@link PlayBridge#play}'s own.
+         */
+        static final ThreadLocal<MatchContext> STARTING = new ThreadLocal<>();
+
+        /** Stamped on every line out and required on every line in. */
+        final String matchId;
+
+        /**
+         * Optional. Seeds the match's own random (shuffles, the coin toss) and the
+         * precon pick, so a test run can be repeated. A match is still not fully
+         * deterministic: the AI and thread timing are not seeded.
+         */
+        final Long seed;
+
+        /**
+         * Optional. Wave 33 §S — a TEST-only starting position: the text of a Forge puzzle
+         * file's {@code [state]} section ({@code humanlife=}, {@code humanhand=}, … — see
+         * {@code GameState.parseLine}), applied to the match once the mulligan step is over
+         * and before either seat is given priority. {@code null} for an ordinary match. The
+         * Node side only ever sets this behind {@code CARDTABLE_PLAY_PROBE=1}
+         * ({@code socket.ts}'s {@code parseStartBody}); the bridge itself does not gate it —
+         * a production server simply never sends it.
+         */
+        final String scenario;
+
+        /**
+         * Optional. A board-state room's match opens on {@link #scenario}'s board with no
+         * coin toss and no mulligan: the match runs under Forge's Puzzle game type, whose
+         * only effects in {@code GameAction.startGame} are exactly those two skips (seat 0
+         * goes first; the scenario's {@code activeplayer=} still decides whose turn it is)
+         * and no sideboarding between games. {@code false} keeps the ordinary opening.
+         */
+        final boolean skipOpening;
+
+        /**
+         * The room's hand smoothing setting: Forge's filtered hands, a rule of this game
+         * ({@code GameRules.setFilteredHands}), which keeps the opening hand closer to the
+         * deck's land ratio and weights each mulligan's redraw toward it
+         * ({@code forge.game.mulligan.HandSmoothing}). Absent is off, Forge's own default;
+         * a room always says which.
+         */
+        final boolean handSmoothing;
+
+        /**
+         * Wave 71 §E. Optional. Names the seat ({@code 0} or {@code 1}) the room wants
+         * asked play-or-draw. {@code null} (the room sent no {@code chooser}): the
+         * match's coin toss is untouched, byte-identical to before this wave.
+         * {@link PlayBridge#play} applies it by rigging the match's random, since
+         * {@code forge/} always tosses a fresh coin for the first game of its own
+         * {@code Match} — see {@link RiggedCoinToss}'s doc for why that is enough.
+         */
+        final Integer chooser;
+
+        final List<SeatConfig> seats = new ArrayList<>();
+
+        /**
+         * The server's own lobby, set once in {@link PlayBridge#play} — the one live
+         * {@code Game} every {@link SeatGui} reads off directly for
+         * {@link SeatGui#liveMulliganFlag()}. See that method's doc for why a seat's
+         * client-side {@code IGuiGame} reads the SERVER's object at all.
+         */
+        volatile ServerGameLobby lobby;
+
+        /** This match's Forge server, set with {@link #lobby}: its own port, clients and event loops. */
+        volatile FServerManager server;
+
+        final Map<Integer, SeatGui> seatGuis = new ConcurrentHashMap<>();
+
+        /**
+         * Wave 33 §S item 4 — the concede race, ORDERED shut rather than merely
+         * narrowed. {@code false} until the {@code gameover} line is emitted,
+         * exactly once ({@link #gameOverEmitted}'s {@code compareAndSet} is the
+         * only writer).
+         *
+         * <p>The race: a browser learns the game is over from an ORDINARY
+         * wire-synced {@code GameView} property (the client's {@code
+         * view.gameOver}, `apps/ui/src/play/adapter.ts`'s {@code readBool(game,
+         * 'GameOver')}) — carried by whatever {@code setGameView}/{@code
+         * applyDelta} call happens to include it. {@code Match.status} only
+         * becomes {@code 'over'} once THIS bridge emits a {@code gameover} line;
+         * before wave 33 that line came only from {@link PlayBridge#watchForGameOver}, a
+         * thread polling {@code game.isGameOver()} on its own clock — so a client
+         * could see the end and a reconnect-and-second-concede could reach the
+         * server before the next poll tick, landing on {@code Match.status ===
+         * 'running'} and skipping the refusal entirely (measured: 3 of 10 runs of
+         * `e2e/w31.spec.ts`'s concede test; see {@code wave33-evidence/s4-concede.md}).
+         *
+         * <p>{@link #maybeEmitGameOverFirst()} closes this by ORDER rather than by
+         * a narrower window: called at the top of {@link SeatGui#setGameView} and
+         * {@link SeatGui#applyDelta} — the only two places a {@code GameOver}
+         * property can reach a seat's wire — it checks the SAME live {@code Game}
+         * {@link #lobby} already reads for {@link SeatGui#liveMulliganFlag()}, and
+         * if it is over, emits {@code gameover} BEFORE the frame that is about to
+         * carry {@code GameOver} to the client. Both lines go out on the same
+         * `stdout` stream, read by Node in that same order (`host.ts`'s line
+         * reader, one JSON object per line) and processed by {@code match.ts}'s
+         * `onLine` synchronously in arrival order — so {@code Match.status} is
+         * {@code 'over'} before the state frame that lets any client learn the
+         * same thing is even written, let alone acted on. {@link PlayBridge#watchForGameOver}
+         * stays as a backstop for the one case this does not cover — the match
+         * ending with no seat connected to notice via a frame at all (a bot vs
+         * bot match, out of scope for this bridge, but cheap to keep correct for).
+         */
+        final AtomicBoolean gameOverEmitted = new AtomicBoolean(false);
+
+        /** What this match's resolutions did that the view cannot say ({@link BridgeGui.EffectJournal}). */
+        final BridgeGui.EffectJournal effects = new BridgeGui.EffectJournal(this);
+
+        /** Per player id, the mode count a remembered choice could not answer ({@link BridgeGui.ModeCounts}). */
+        final Map<Integer, int[]> modesPending = new ConcurrentHashMap<>();
+
+        /** Counted down by this match's {@code stop}, or by stdin closing. */
+        final CountDownLatch stop = new CountDownLatch(1);
+
+        /** The config object itself — from the file (cold) or a {@code start} command. */
+        MatchContext(final JsonObject root) {
+            matchId = root.get("matchId").getAsString();
+            seed = root.has("seed") && !root.get("seed").isJsonNull() ? root.get("seed").getAsLong() : null;
+            scenario = root.has("scenario") && !root.get("scenario").isJsonNull() ? root.get("scenario").getAsString() : null;
+            handSmoothing = root.has("handSmoothing") && root.get("handSmoothing").getAsBoolean();
+            skipOpening = root.has("skipOpening") && root.get("skipOpening").getAsBoolean();
+            chooser = root.has("chooser") && !root.get("chooser").isJsonNull() ? root.get("chooser").getAsInt() : null;
+            for (final JsonElement e : root.getAsJsonArray("seats")) {
+                final JsonObject s = e.getAsJsonObject();
+                seats.add(new SeatConfig(
+                        s.get("name").getAsString(),
+                        s.has("ai") && s.get("ai").getAsBoolean(),
+                        s.has("deck") && !s.get("deck").isJsonNull() ? s.get("deck").getAsString() : null));
+            }
+        }
+
+        void emit(final JsonObject line) {
+            PlayBridge.emit(matchId, line);
+        }
+
+        /**
+         * This match cannot go on. A one-match JVM exits, as it always has; a {@link #hostMode}
+         * JVM ends this match alone ({@link MatchFailed}, caught by the match's own thread).
+         */
+        void fatal(final String message, final Throwable cause) {
+            if (!hostMode) {
+                PlayBridge.fatal(matchId, message, cause);
+            }
+            final JsonObject o = line("fatal");
+            o.addProperty("message", message + (cause == null ? "" : ": " + cause));
+            emit(o);
+            if (cause != null) {
+                cause.printStackTrace(System.err);
+            }
+            throw new MatchFailed(message);
+        }
+
+        /**
+         * The live {@code Game}, straight off {@link #lobby} — the same access
+         * {@link SeatGui#liveMulliganFlag()} uses, and for the same reason: this
+         * bridge's own synthetic/additive data has no other route to the engine's
+         * current truth.
+         */
+        Game liveGame() {
+            final ServerGameLobby l = lobby;
+            if (l == null) { return null; }
+            final HostedMatch hosted = l.getHostedMatch();
+            return hosted == null ? null : hosted.getGame();
+        }
+
+        /** See {@link #gameOverEmitted}'s doc. Idempotent; safe to call from any seat's thread. */
+        void maybeEmitGameOverFirst() {
+            final Game game = liveGame();
+            if (game == null || !game.isGameOver()) { return; }
+            if (!gameOverEmitted.compareAndSet(false, true)) { return; }
+            final JsonObject o = line("gameover");
+            final var outcome = game.getOutcome();
+            o.addProperty("winner", outcome == null || outcome.getWinningLobbyPlayer() == null
+                    ? null : outcome.getWinningLobbyPlayer().getName());
+            // Who lost, by the ids the views carry: the server tells every seat with this
+            // (`Match.finishSeat`), because neither `GameOver` nor `finishGame()` is sure to reach one.
+            final JsonArray losers = new JsonArray();
+            // Why each of them lost, in Forge's own terms (`PlayerOutcome.lossState`, `GameLossReason`), so a
+            // screen says what Forge decided instead of guessing it from the board.
+            final JsonArray lost = new JsonArray();
+            for (final forge.game.player.Player p : game.getRegisteredPlayers()) {
+                if (!p.hasLost()) { continue; }
+                losers.add(p.getId());
+                final forge.game.player.PlayerOutcome why = p.getOutcome();
+                final JsonObject l = new JsonObject();
+                l.addProperty("player", p.getId());
+                l.addProperty("reason", why.lossState.name());
+                if (why.loseConditionSpell != null) { l.addProperty("source", why.loseConditionSpell); }
+                lost.add(l);
+            }
+            o.add("losers", losers);
+            o.add("lost", lost);
+            emit(o);
+        }
     }
 
     /**
@@ -665,7 +829,7 @@ public final class PlayBridge {
         return outer;
     }
 
-    static JsonObject objectTable(final Map<Integer, Map<TrackableProperty, Object>> m) {
+    static JsonObject objectTable(final Game game, final Map<Integer, Map<TrackableProperty, Object>> m) {
         final JsonObject out = new JsonObject();
         for (final Map.Entry<Integer, Map<TrackableProperty, Object>> e : m.entrySet()) {
             final int deltaKey = e.getKey();
@@ -676,8 +840,8 @@ public final class PlayBridge {
             final boolean card = DeltaPacket.getTypeFromDeltaKey(deltaKey) == DeltaPacket.TYPE_CARD_VIEW;
             for (final Map.Entry<TrackableProperty, Object> pe : e.getValue().entrySet()) {
                 final Object v = stackItem && pe.getKey() == TrackableProperty.Description
-                        ? liveStackText(DeltaPacket.getIdFromDeltaKey(deltaKey), pe.getValue())
-                        : card && pe.getKey() == TrackableProperty.ChosenCards && spentChoice(DeltaPacket.getIdFromDeltaKey(deltaKey))
+                        ? liveStackText(game, DeltaPacket.getIdFromDeltaKey(deltaKey), pe.getValue())
+                        : card && pe.getKey() == TrackableProperty.ChosenCards && spentChoice(game, DeltaPacket.getIdFromDeltaKey(deltaKey))
                         ? List.of() : pe.getValue();
                 props.add(pe.getKey().name(), encode(v));
             }
@@ -701,8 +865,7 @@ public final class PlayBridge {
      * of it ({@link #objectTable}); one a lasting ability reads (Tyrannical Pitlord's, Koh's) is a
      * fact about the permanent and is sent. False when the card cannot be read.
      */
-    static boolean spentChoice(final int id) {
-        final Game game = liveGame();
+    static boolean spentChoice(final Game game, final int id) {
         final forge.game.card.Card c = game == null ? null : game.findById(id);
         if (c == null) { return false; }
         try {
@@ -762,8 +925,7 @@ public final class PlayBridge {
      * packet has it when the item is no longer on the live stack (it resolved before the packet was
      * read, and no seat draws it again).
      */
-    static Object liveStackText(final int id, final Object forge) {
-        final Game game = liveGame();
+    static Object liveStackText(final Game game, final int id, final Object forge) {
         if (game == null) { return forge; }
         for (final SpellAbilityStackInstance si : game.getStack()) {
             if (si.getId() == id) { return stackText(si); }
@@ -891,8 +1053,7 @@ public final class PlayBridge {
         }
     }
 
-    static void addStackFacts(final JsonObject payload) {
-        final Game game = liveGame();
+    static void addStackFacts(final Game game, final JsonObject payload) {
         // The stack is walked off the game thread, and what it targets is resolved through Forge's own
         // ability reads (`stackTargetOf`): a state frame never waits on them.
         final JsonArray stackTargets = orNull("stackTargetSpells", () -> stackTargetSpellsJson(game));
@@ -1848,19 +2009,19 @@ public final class PlayBridge {
      * delta would carry it before its first question (the order of the batch, its first target). An
      * empty packet, as {@code emitSyntheticMulliganDelta} sends.
      */
-    static void broadcastIfWaiting() {
-        final Game game = liveGame();
+    static void broadcastIfWaiting(final MatchContext match) {
+        final Game game = match.liveGame();
         try {
             if (game == null || pendingTriggers(game).isEmpty()) { return; }
         } catch (final ReflectiveOperationException | RuntimeException e) {
             System.err.println("[bridge] broadcastIfWaiting: could not read the waiting triggers (" + e + ")");
             return;
         }
-        for (final SeatGui g : SEATS.values()) {
+        for (final SeatGui g : match.seatGuis.values()) {
             final JsonObject f = SeatGui.notify("applyDelta");
             final JsonObject payload = new JsonObject();
-            payload.add("packet", packetJson(new DeltaPacket(-1L, null, null, 0, null)));
-            addStackFacts(payload);
+            payload.add("packet", packetJson(game, new DeltaPacket(-1L, null, null, 0, null)));
+            addStackFacts(game, payload);
             f.add("payload", payload);
             g.frame(f);
         }
@@ -1970,20 +2131,7 @@ public final class PlayBridge {
         return Math.max(0, total - answered - 1);
     }
 
-    /**
-     * The live {@code Game}, straight off {@link #LOBBY} — the same access
-     * {@link SeatGui#liveMulliganFlag()} uses, and for the same reason: this
-     * bridge's own synthetic/additive data has no other route to the engine's
-     * current truth.
-     */
-    static Game liveGame() {
-        final ServerGameLobby lobby = LOBBY;
-        if (lobby == null) { return null; }
-        final HostedMatch hosted = lobby.getHostedMatch();
-        return hosted == null ? null : hosted.getGame();
-    }
-
-    static JsonObject packetJson(final DeltaPacket p) {
+    static JsonObject packetJson(final Game game, final DeltaPacket p) {
         final JsonObject o = new JsonObject();
         o.addProperty("seq", p.getSequenceNumber());
         o.addProperty("checksum", p.getChecksum());
@@ -1992,93 +2140,14 @@ public final class PlayBridge {
             for (final int i : p.getChecksumProperties()) { cp.add(i); }
         }
         o.add("checksumProperties", cp);
-        o.add("newObjects", objectTable(p.getNewObjects()));
-        o.add("objectDeltas", objectTable(p.getObjectDeltas()));
+        o.add("newObjects", objectTable(game, p.getNewObjects()));
+        o.add("objectDeltas", objectTable(game, p.getObjectDeltas()));
         // Deliberately empty — see the class comment.
         o.add("events", new JsonArray());
         return o;
     }
 
     // ================================================================ the seats
-
-    /**
-     * The server's own lobby, set once in {@link #startMatch} — the one live
-     * {@code Game} every {@link SeatGui} reads off directly for
-     * {@link SeatGui#liveMulliganFlag()}. See that method's doc for why a seat's
-     * client-side {@code IGuiGame} reads the SERVER's object at all.
-     */
-    static volatile ServerGameLobby LOBBY;
-
-    static final Map<Integer, SeatGui> SEATS = new ConcurrentHashMap<>();
-
-    /**
-     * Wave 33 §S item 4 — the concede race, ORDERED shut rather than merely
-     * narrowed. {@code false} until the {@code gameover} line is emitted,
-     * exactly once ({@link #gameOverEmitted}'s {@code compareAndSet} is the
-     * only writer).
-     *
-     * <p>The race: a browser learns the game is over from an ORDINARY
-     * wire-synced {@code GameView} property (the client's {@code
-     * view.gameOver}, `apps/ui/src/play/adapter.ts`'s {@code readBool(game,
-     * 'GameOver')}) — carried by whatever {@code setGameView}/{@code
-     * applyDelta} call happens to include it. {@code Match.status} only
-     * becomes {@code 'over'} once THIS bridge emits a {@code gameover} line;
-     * before wave 33 that line came only from {@link #watchForGameOver}, a
-     * thread polling {@code game.isGameOver()} on its own clock — so a client
-     * could see the end and a reconnect-and-second-concede could reach the
-     * server before the next poll tick, landing on {@code Match.status ===
-     * 'running'} and skipping the refusal entirely (measured: 3 of 10 runs of
-     * `e2e/w31.spec.ts`'s concede test; see {@code wave33-evidence/s4-concede.md}).
-     *
-     * <p>{@link #maybeEmitGameOverFirst()} closes this by ORDER rather than by
-     * a narrower window: called at the top of {@link SeatGui#setGameView} and
-     * {@link SeatGui#applyDelta} — the only two places a {@code GameOver}
-     * property can reach a seat's wire — it checks the SAME live {@code Game}
-     * {@link #LOBBY} already reads for {@link SeatGui#liveMulliganFlag()}, and
-     * if it is over, emits {@code gameover} BEFORE the frame that is about to
-     * carry {@code GameOver} to the client. Both lines go out on the same
-     * `stdout` stream, read by Node in that same order (`host.ts`'s line
-     * reader, one JSON object per line) and processed by {@code match.ts}'s
-     * `onLine` synchronously in arrival order — so {@code Match.status} is
-     * {@code 'over'} before the state frame that lets any client learn the
-     * same thing is even written, let alone acted on. {@link #watchForGameOver}
-     * stays as a backstop for the one case this does not cover — the match
-     * ending with no seat connected to notice via a frame at all (a bot vs
-     * bot match, out of scope for this bridge, but cheap to keep correct for).
-     */
-    static final AtomicBoolean gameOverEmitted = new AtomicBoolean(false);
-
-    /** See {@link #gameOverEmitted}'s doc. Idempotent; safe to call from any seat's thread. */
-    static void maybeEmitGameOverFirst() {
-        final ServerGameLobby lobby = LOBBY;
-        if (lobby == null || lobby.getHostedMatch() == null) { return; }
-        final var game = lobby.getHostedMatch().getGame();
-        if (game == null || !game.isGameOver()) { return; }
-        if (!gameOverEmitted.compareAndSet(false, true)) { return; }
-        final JsonObject o = line("gameover");
-        final var outcome = game.getOutcome();
-        o.addProperty("winner", outcome == null || outcome.getWinningLobbyPlayer() == null
-                ? null : outcome.getWinningLobbyPlayer().getName());
-        // Who lost, by the ids the views carry: the server tells every seat with this
-        // (`Match.finishSeat`), because neither `GameOver` nor `finishGame()` is sure to reach one.
-        final JsonArray losers = new JsonArray();
-        // Why each of them lost, in Forge's own terms (`PlayerOutcome.lossState`, `GameLossReason`), so a
-        // screen says what Forge decided instead of guessing it from the board.
-        final JsonArray lost = new JsonArray();
-        for (final forge.game.player.Player p : game.getRegisteredPlayers()) {
-            if (!p.hasLost()) { continue; }
-            losers.add(p.getId());
-            final forge.game.player.PlayerOutcome why = p.getOutcome();
-            final JsonObject l = new JsonObject();
-            l.addProperty("player", p.getId());
-            l.addProperty("reason", why.lossState.name());
-            if (why.loseConditionSpell != null) { l.addProperty("source", why.loseConditionSpell); }
-            lost.add(l);
-        }
-        o.add("losers", losers);
-        o.add("lost", lost);
-        emit(o);
-    }
 
     /**
      * Each seat client's Netty thread, mapped to its seat. See {@link BridgeGui} for why
@@ -2190,6 +2259,7 @@ public final class PlayBridge {
      * {@code super}); every method a browser needs is re-emitted as a forge-wire frame.
      */
     static final class SeatGui extends NetworkGuiGame {
+        final MatchContext match;
         final int seat;
         private final AtomicInteger calls = new AtomicInteger();
         final Map<String, PendingAsk> pending = new ConcurrentHashMap<>();
@@ -2203,7 +2273,7 @@ public final class PlayBridge {
         volatile Boolean lastToldMulligan;
 
         /** The first {@link BridgeGui.EffectJournal} entry this seat has not been sent. */
-        private long effectsFrom = BridgeGui.EffectJournal.INSTANCE.head();
+        private long effectsFrom;
 
         /**
          * The damage and deaths since this seat's last state frame, added to {@code payload} as
@@ -2211,7 +2281,7 @@ public final class PlayBridge {
          * passes {@code false}: it skips past them, since what it draws is the board after.
          */
         void effectsSince(final JsonObject payload, final boolean send) {
-            final BridgeGui.EffectJournal journal = BridgeGui.EffectJournal.INSTANCE;
+            final BridgeGui.EffectJournal journal = match.effects;
             final long head = journal.head();
             if (send && head > effectsFrom) { journal.since(effectsFrom, payload); }
             effectsFrom = head;
@@ -2314,8 +2384,8 @@ public final class PlayBridge {
         synchronized void tellLifePaying() {
             if (lifePaying(null).toString().equals(lifeTold)) { return; }
             final JsonObject payload = new JsonObject();
-            payload.add("packet", packetJson(new DeltaPacket(-1L, null, null, 0, null)));
-            addStackFacts(payload);
+            payload.add("packet", packetJson(liveGame(), new DeltaPacket(-1L, null, null, 0, null)));
+            addStackFacts(liveGame(), payload);
             sendState(notify("applyDelta"), payload, null);
         }
 
@@ -2357,14 +2427,25 @@ public final class PlayBridge {
         final ExecutorService ui;
         volatile Thread uiThread;
 
-        SeatGui(final int seat) {
+        SeatGui(final MatchContext match, final int seat) {
+            this.match = match;
             this.seat = seat;
+            this.effectsFrom = match.effects.head();
             this.ui = Executors.newSingleThreadExecutor(r -> {
-                final Thread t = new Thread(r, "seat-" + seat + "-ui");
+                final Thread t = new Thread(r, "seat-" + seat + "-ui-" + match.matchId);
                 t.setDaemon(true);
                 uiThread = t;
                 return t;
             });
+        }
+
+        void emit(final JsonObject line) {
+            match.emit(line);
+        }
+
+        /** This seat's match's live {@code Game}: {@link MatchContext#liveGame()}. */
+        Game liveGame() {
+            return match.liveGame();
         }
 
         void frame(final JsonObject frame) {
@@ -2391,7 +2472,7 @@ public final class PlayBridge {
             final JsonObject source = orNull("askSource", this::askSource);
             if (source != null) { frame.add("source", source); }
             pending.put(callId, ask);
-            broadcastIfWaiting();
+            broadcastIfWaiting(match);
             return ask;
         }
 
@@ -2528,7 +2609,7 @@ public final class PlayBridge {
         @Override
         public void setGameView(final GameView gameView, final long sequenceNumber) {
             // Wave 33 §S item 4 — before anything else: see `maybeEmitGameOverFirst`'s doc.
-            guarded("gameover", PlayBridge::maybeEmitGameOverFirst);
+            guarded("gameover", match::maybeEmitGameOverFirst);
             super.setGameView(gameView, sequenceNumber);
             final GameView view = getGameView();
             if (view == null) { return; }
@@ -2544,9 +2625,9 @@ public final class PlayBridge {
             if (seeded != null) { lastToldMulligan = seeded; }
             final JsonObject f = notify("setGameView");
             final JsonObject payload = new JsonObject();
-            payload.add("gameView", objectTable(full.getNewObjects()));
+            payload.add("gameView", objectTable(liveGame(), full.getNewObjects()));
             payload.addProperty("sequenceNumber", sequenceNumber);
-            addStackFacts(payload);
+            addStackFacts(liveGame(), payload);
             effectsSince(payload, false);
             sendState(f, payload, full);
         }
@@ -2565,7 +2646,7 @@ public final class PlayBridge {
         @Override
         public void applyDelta(final DeltaPacket packet) {
             // Wave 33 §S item 4 — before anything else: see `maybeEmitGameOverFirst`'s doc.
-            guarded("gameover", PlayBridge::maybeEmitGameOverFirst);
+            guarded("gameover", match::maybeEmitGameOverFirst);
             // A REAL packet that happens to carry Mulligan (every normal input syncs
             // fine; only InputLondonMulligan's two no-sync calls do not, see
             // `syncMulliganFlag`) is what this seat was just told — record it so a
@@ -2579,8 +2660,8 @@ public final class PlayBridge {
             if (packet != null && (!packet.getNewObjects().isEmpty() || !packet.getObjectDeltas().isEmpty())) {
                 final JsonObject f = notify("applyDelta");
                 final JsonObject payload = new JsonObject();
-                payload.add("packet", packetJson(packet));
-                addStackFacts(payload);
+                payload.add("packet", packetJson(liveGame(), packet));
+                addStackFacts(liveGame(), payload);
                 effectsSince(payload, true);
                 sendState(f, payload, packet);
             }
@@ -2640,11 +2721,9 @@ public final class PlayBridge {
          * input re-invokes {@code showMessage()}).
          */
         private Boolean liveMulliganFlag() {
-            final ServerGameLobby lobby = LOBBY;
-            if (lobby == null) { return null; }
-            final HostedMatch hosted = lobby.getHostedMatch();
-            if (hosted == null || hosted.getGame() == null) { return null; }
-            final GameView live = hosted.getGame().getView();
+            final Game game = liveGame();
+            if (game == null) { return null; }
+            final GameView live = game.getView();
             return live == null ? null : live.isMulligan();
         }
 
@@ -2691,8 +2770,8 @@ public final class PlayBridge {
             final DeltaPacket synthetic = new DeltaPacket(-1L, objectDeltas, null, 0, null);
             final JsonObject f = notify("applyDelta");
             final JsonObject payload = new JsonObject();
-            payload.add("packet", packetJson(synthetic));
-            addStackFacts(payload);
+            payload.add("packet", packetJson(liveGame(), synthetic));
+            addStackFacts(liveGame(), payload);
             sendState(f, payload, synthetic);
             super.applyDelta(synthetic);
             lastToldMulligan = value;
@@ -2727,7 +2806,7 @@ public final class PlayBridge {
         @Override public void afterGameEnd() { frame(notify("afterGameEnd")); }
         @Override public void finishGame() {
             // The `gameover` line goes first, so the server has told every seat before this arrives.
-            guarded("gameover", PlayBridge::maybeEmitGameOverFirst);
+            guarded("gameover", match::maybeEmitGameOverFirst);
             frame(notify("finishGame"));
         }
         @Override public void clearSelectables() {
@@ -2771,10 +2850,10 @@ public final class PlayBridge {
                 if (Boolean.TRUE.equals(decoration("poolChoice", this::poolHasChoice))) { f.add("poolChoice", pays); }
             }
             frame(f);
-            broadcastIfWaiting();
+            broadcastIfWaiting(match);
             // A press of a payment's life button re-shows its prompt and changes nothing else, and
             // a cancelled payment may move nothing either: every seat hears it from here.
-            for (final SeatGui g : SEATS.values()) { g.tellLifePaying(); }
+            for (final SeatGui g : match.seatGuis.values()) { g.tellLifePaying(); }
         }
 
         /** One of {@link #showPromptMessage}'s reads of Forge, or null when it throws: the prompt goes without it. */
@@ -3879,7 +3958,7 @@ public final class PlayBridge {
         private <T> JsonObject modesOf(final List<T> choices) {
             if (choices == null || choices.isEmpty() || !(choices.get(0) instanceof SpellAbilityView sa)) { return null; }
             final PlayerView me = getCurrentPlayer();
-            final int[] count = me == null ? null : BridgeGui.ModeCounts.PENDING.remove(me.getId());
+            final int[] count = me == null ? null : match.modesPending.remove(me.getId());
             if (count == null || sa.getHostCard() == null) { return null; }
             final JsonObject o = new JsonObject();
             o.addProperty("min", count[0]);
@@ -4301,7 +4380,7 @@ public final class PlayBridge {
          * ability is found, Forge's own reading stands: it reverses exactly when it takes the cards to
          * go on top.
          */
-        private static boolean libraryEndIsTop(final StackTraceElement[] frames, final boolean reversed) {
+        private boolean libraryEndIsTop(final StackTraceElement[] frames, final boolean reversed) {
             Class<?> effect = null;
             boolean byOwners = false;
             for (final StackTraceElement frame : frames) {
@@ -5004,8 +5083,10 @@ public final class PlayBridge {
      */
     static final class BridgeGui extends GuiDesktop {
         static SeatGui seatUiOf(final Thread t) {
-            for (final SeatGui s : SEATS.values()) {
-                if (s.uiThread == t) { return s; }
+            for (final MatchContext m : MATCHES.values()) {
+                for (final SeatGui s : m.seatGuis.values()) {
+                    if (s.uiThread == t) { return s; }
+                }
             }
             return null;
         }
@@ -5049,7 +5130,7 @@ public final class PlayBridge {
          * {@code FControl}, which a headless process never creates (NPE at
          * {@code GuiDesktop.java:394}, observed on the first run of this bridge).
          *
-         * <p><b>Wave 33 §S — the scenario hook.</b> {@link #scenario}, when set, is
+         * <p><b>Wave 33 §S — the scenario hook.</b> {@link MatchContext#scenario}, when set, is
          * parsed once per match and applied from {@code HostedMatch}'s own
          * {@code startGameHook} — the identical seam Forge's own puzzle screens use
          * ({@code PuzzleScreen.java:63}: {@code hostedMatch.setStartGameHook(() ->
@@ -5099,6 +5180,10 @@ public final class PlayBridge {
          * {@link #resyncSeats} runs first for that; its doc is the cause.
          */
         @Override public HostedMatch hostMatch() {
+            final MatchContext m = MatchContext.STARTING.get();
+            if (m == null) {
+                throw new IllegalStateException("hostMatch outside a match's start: no match is starting on " + Thread.currentThread().getName());
+            }
             final HostedMatch hm = new HostedMatch() {
                 /**
                  * Every other {@code startMatch} overload lands here with the rules
@@ -5115,8 +5200,9 @@ public final class PlayBridge {
                 @Override public void startMatch(final GameRules rules, final Set<GameType> variants,
                         final List<RegisteredPlayer> players, final Map<RegisteredPlayer, IGuiGame> guis,
                         final MusicPlaylist playlist) {
-                    final GameRules played = skipOpening ? puzzleRules(rules) : rules;
+                    final GameRules played = m.skipOpening ? puzzleRules(rules) : rules;
                     played.setWarnAboutAICards(false);
+                    played.setFilteredHands(m.handSmoothing);
                     for (final RegisteredPlayer rp : players) {
                         if (rp.getPlayer() instanceof forge.player.LobbyPlayerHuman stock && !(stock instanceof SeatPlayer)) {
                             rp.setPlayer(new SeatPlayer(stock));
@@ -5125,7 +5211,7 @@ public final class PlayBridge {
                     super.startMatch(played, variants, players, guis, playlist);
                 }
 
-                /** {@code rules} under Forge's Puzzle game type ({@link #skipOpening}); a game type is fixed when its rules are built. */
+                /** {@code rules} under Forge's Puzzle game type ({@link MatchContext#skipOpening}); a game type is fixed when its rules are built. */
                 private GameRules puzzleRules(final GameRules rules) {
                     final GameRules puzzle = new GameRules(GameType.Puzzle);
                     puzzle.setManaBurn(rules.hasManaBurn());
@@ -5143,7 +5229,7 @@ public final class PlayBridge {
                     return puzzle;
                 }
             };
-            final String text = scenario;
+            final String text = m.scenario;
             final GameState state;
             if (text != null) {
                 state = new GameState();
@@ -5153,9 +5239,9 @@ public final class PlayBridge {
             }
             hm.setStartGameHook(() -> {
                 hm.getGame().subscribeToEvents(new CombatSync(hm.getGame()));
-                hm.getGame().subscribeToEvents(EffectJournal.INSTANCE.reset());
-                final GameLogForward log = GameLogForward.install(hm.getGame());
-                ModeCounts.install(hm.getGame());
+                hm.getGame().subscribeToEvents(m.effects.reset());
+                final GameLogForward log = GameLogForward.install(hm.getGame(), m);
+                ModeCounts.install(hm.getGame(), m.modesPending);
                 if (state == null) {
                     log.listen();
                     return;
@@ -5192,8 +5278,8 @@ public final class PlayBridge {
          * </ul>
          */
         static final class EffectJournal {
-            static final EffectJournal INSTANCE = new EffectJournal();
             static final int KEEP = 256;
+            private final MatchContext match;
             private record Entry(long seq, JsonArray damage, JsonArray death, JsonArray face) {}
             private final java.util.ArrayDeque<Entry> entries = new java.util.ArrayDeque<>();
             private long next = 1;
@@ -5203,6 +5289,14 @@ public final class PlayBridge {
              * instances it received this turn are journaled already: the ones after that are hits still to journal.
              */
             private final java.util.Map<forge.game.card.Card, Integer> watched = new java.util.IdentityHashMap<>();
+
+            EffectJournal(final MatchContext match) {
+                this.match = match;
+            }
+
+            private Game liveGame() {
+                return match.liveGame();
+            }
 
             /** A new game: nothing has happened yet. Returns itself, to subscribe. */
             synchronized EffectJournal reset() {
@@ -5439,14 +5533,17 @@ public final class PlayBridge {
             private final List<Pending> pending = new ArrayList<>();
             private final List<forge.game.GameLogEntry> payment = new ArrayList<>();
 
-            private GameLogForward(final Game game) {
+            private final MatchContext match;
+
+            private GameLogForward(final Game game, final MatchContext match) {
                 this.game = game;
+                this.match = match;
                 this.sent = game.getGameLog().getLogEntries(null).size();
             }
 
             /** Forwards Forge's log from now on; {@link #listen} adds the actions it does not log. */
-            static GameLogForward install(final Game game) {
-                final GameLogForward forward = new GameLogForward(game);
+            static GameLogForward install(final Game game, final MatchContext match) {
+                final GameLogForward forward = new GameLogForward(game, match);
                 game.getGameLog().addObserver(forward);
                 return forward;
             }
@@ -5730,7 +5827,7 @@ public final class PlayBridge {
                     players.add(worded(message, source, p.getView(), publicIds, revealOnly));
                 }
                 o.add("players", players);
-                emit(o);
+                match.emit(o);
             }
 
             /**
@@ -5835,23 +5932,23 @@ public final class PlayBridge {
          * {@link #refreshActionable} does; no Forge file changes.
          */
         static final class ModeCounts implements forge.interfaces.IMacroSystem {
-            static final Map<Integer, int[]> PENDING = new ConcurrentHashMap<>();
-
             private final forge.interfaces.IMacroSystem forge;
             private final int playerId;
+            private final Map<Integer, int[]> pending;
 
-            private ModeCounts(final forge.interfaces.IMacroSystem forge, final int playerId) {
+            private ModeCounts(final forge.interfaces.IMacroSystem forge, final int playerId, final Map<Integer, int[]> pending) {
                 this.forge = forge;
                 this.playerId = playerId;
+                this.pending = pending;
             }
 
-            static void install(final Game game) {
+            static void install(final Game game, final Map<Integer, int[]> pending) {
                 for (final var player : game.getPlayers()) {
                     if (!(player.getController() instanceof PlayerControllerHuman human) || human.macros() instanceof ModeCounts) { continue; }
                     try {
                         final java.lang.reflect.Field macros = PlayerControllerHuman.class.getDeclaredField("macros");
                         macros.setAccessible(true);
-                        macros.set(human, new ModeCounts(human.macros(), player.getId()));
+                        macros.set(human, new ModeCounts(human.macros(), player.getId(), pending));
                     } catch (final ReflectiveOperationException e) {
                         System.err.println("[bridge] ModeCounts: macros reflection failed (" + e + "); modes are asked one at a time");
                     }
@@ -5860,7 +5957,7 @@ public final class PlayBridge {
 
             @Override public List<String> consumeRememberedModeChoice(final List<String> choices, final int min, final int num, final boolean allowRepeat) {
                 final List<String> remembered = forge.consumeRememberedModeChoice(choices, min, num, allowRepeat);
-                if (remembered == null && num > 1 && !allowRepeat) { PENDING.put(playerId, new int[] { min, num }); }
+                if (remembered == null && num > 1 && !allowRepeat) { pending.put(playerId, new int[] { min, num }); }
                 return remembered;
             }
 
@@ -5916,7 +6013,7 @@ public final class PlayBridge {
          * ({@code GameClientHandler.java:116-126}: {@code updateObjLookup} plus
          * {@code refreshTrackerCardViews}). One channel, one netty thread, frames in
          * order: every frame after it resolves the scenario's cards. Scenario-only — the
-         * hook is set only when {@link #scenario} is non-null.
+         * hook is set only when {@link MatchContext#scenario} is non-null.
          */
         private static void resyncSeats(final Game game) {
             if (game == null) { return; }
@@ -6017,67 +6114,137 @@ public final class PlayBridge {
     static final BufferedReader IN = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
 
     /**
-     * Two ways in. {@code PlayBridge <config.json>} is a cold start: read the match, boot
+     * Three ways in. {@code PlayBridge <config.json>} is a cold start: read the match, boot
      * Forge, play. {@code PlayBridge --spare <spareId>} is the warm spare
      * ({@code host.ts}): boot Forge and its server with no match, say {@code warm}, then
      * block on stdin for ONE {@code start} line carrying the same config object the file
-     * would have held. Everything {@link #bootForge} does is independent of the match, so
-     * a spare and a cold start run the same code in a different order.
+     * would have held. Everything {@link #bootModel} and {@link #bootServer} do is independent
+     * of the match, so a spare and a cold start run the same code in a different order.
      *
      * <p>Until {@code start} the spare's lines carry {@code spareId} as their
      * {@code match}; from then on, the match's id. The {@code start} command itself is
      * addressed to {@code spareId} and names the match in its config.
+     *
+     * <p>{@code PlayBridge --host <hostId>} ({@link #hostMode}) boots Forge's model alone, says
+     * {@code warm}, and then takes any number of {@code start} lines addressed to {@code hostId},
+     * each starting one more match on a Forge server of its own. Every match's lines carry its
+     * own id, its commands are routed by it, and its {@code stop} ends it alone, answered by a
+     * {@code stopped} line. A {@code stop} addressed to {@code hostId}, or stdin closing, ends
+     * the JVM.
      */
     public static void main(final String[] args) throws Exception {
         protocol = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
         System.setOut(System.err);
-        final List<SeatConfig> seats;
+        if (args.length == 2 && "--host".equals(args[0])) {
+            hostMode = true;
+            processId = args[1];
+            final long bootStart = System.currentTimeMillis();
+            bootModel();
+            final JsonObject warm = line("warm");
+            warm.addProperty("bootMs", System.currentTimeMillis() - bootStart);
+            emit(processId, warm);
+            readCommands();
+            // Stdin closed: the Node side is gone, and matches nobody can reach are not worth a JVM.
+            Runtime.getRuntime().halt(0);
+            return;
+        }
+        final MatchContext match;
         final Booted booted;
         final long startAt;
         if (args.length == 2 && "--spare".equals(args[0])) {
-            matchId = args[1];
+            processId = args[1];
             final long bootStart = System.currentTimeMillis();
-            booted = bootForge();
+            bootModel();
+            booted = bootServerOrExit();
             final JsonObject warm = line("warm");
             warm.addProperty("bootMs", System.currentTimeMillis() - bootStart);
-            emit(warm);
+            emit(processId, warm);
             final String first = IN.readLine();
             if (first == null) {
                 // Node went away before this spare was needed. Nothing to clean up but Netty.
                 Runtime.getRuntime().halt(0);
             }
             final JsonObject cmd = JsonParser.parseString(first).getAsJsonObject();
-            if (!cmd.has("match") || !matchId.equals(cmd.get("match").getAsString())) {
-                fatal("the spare's first command is not addressed to spare " + matchId, null);
+            if (!cmd.has("match") || !processId.equals(cmd.get("match").getAsString())) {
+                fatal(processId, "the spare's first command is not addressed to spare " + processId, null);
             }
             final String t = cmd.get("t").getAsString();
             if ("stop".equals(t)) {
                 Runtime.getRuntime().halt(0);
             }
             if (!"start".equals(t)) {
-                fatal("a spare's first command is start or stop, got " + t, null);
+                fatal(processId, "a spare's first command is start or stop, got " + t, null);
             }
             startAt = System.currentTimeMillis();
-            seats = configFrom(cmd.getAsJsonObject("config"));
+            match = new MatchContext(cmd.getAsJsonObject("config"));
         } else if (args.length == 1) {
-            seats = readConfig(Path.of(args[0]));
+            match = readConfig(Path.of(args[0]));
+            processId = match.matchId;
             startAt = System.currentTimeMillis();
-            booted = bootForge();
+            bootModel();
+            booted = bootServerOrExit();
         } else {
-            fatal("usage: PlayBridge <config.json> | PlayBridge --spare <spareId>", null);
+            fatal(processId, "usage: PlayBridge <config.json> | PlayBridge --spare <spareId> | PlayBridge --host <hostId>", null);
             return;
         }
-        if (seats.size() != 2) {
-            fatal("a match has exactly two seats, got " + seats.size(), null);
+        processId = match.matchId;
+        if (match.seats.size() != 2) {
+            fatal(processId, "a match has exactly two seats, got " + match.seats.size(), null);
         }
-        startMatch(seats, booted, startAt);
+        MATCHES.put(match.matchId, match);
+        startMatch(match, booted, startAt);
+        // Netty's event loops are non-daemon in places; do not wait for them.
+        Runtime.getRuntime().halt(0);
     }
 
-    /** What {@link #bootForge} leaves running: Forge's server on its port, with an empty lobby. */
+    /**
+     * {@link #hostMode}'s {@code start}: one more match, on a thread and a Forge server of its own.
+     * The thread is not a {@code Game…} one ({@code ThreadUtil.isGameThread} goes by name), so
+     * Forge runs this match's game on its own {@code Game-N} pool, as for a one-match JVM.
+     */
+    static void startHosted(final JsonObject config) {
+        final MatchContext match = new MatchContext(config);
+        if (match.seats.size() != 2) {
+            throw new IllegalArgumentException("a match has exactly two seats, got " + match.seats.size());
+        }
+        if (MATCHES.putIfAbsent(match.matchId, match) != null) {
+            throw new IllegalArgumentException("match " + match.matchId + " is already hosted here");
+        }
+        final long startAt = System.currentTimeMillis();
+        final Thread t = new Thread(() -> {
+            try {
+                startMatch(match, bootServer(), startAt);
+            } catch (final MatchFailed e) {
+                System.err.println("[bridge] match " + match.matchId + " failed: " + e.getMessage());
+            } catch (final Exception e) {
+                final JsonObject o = line("fatal");
+                o.addProperty("message", "the match failed: " + e);
+                match.emit(o);
+                e.printStackTrace(System.err);
+            } finally {
+                MATCHES.remove(match.matchId);
+                match.emit(line("stopped"));
+            }
+        }, "bridge-match-" + match.matchId);
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** {@link #bootServer} for a one-match JVM, which cannot go on without it. */
+    static Booted bootServerOrExit() {
+        try {
+            return bootServer();
+        } catch (final IOException e) {
+            fatal(processId, e.getMessage(), null);
+            return null;
+        }
+    }
+
+    /** A match's Forge server on its port, with an empty lobby. */
     record Booted(int port, FServerManager server, ServerGameLobby lobby) { }
 
-    /** Everything that does not depend on the match: Forge's model, preferences, server, lobby. */
-    static Booted bootForge() throws IOException {
+    /** Everything that is the JVM's, not a match's: Forge's model and preferences, and the GUI hooks. */
+    static void bootModel() {
         GuiBase.setInterface(new BridgeGui());
         FModel.initialize(null, prefs -> {
             prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, false);
@@ -6095,7 +6262,7 @@ public final class PlayBridge {
             return null;
         });
         if (StaticData.instance() == null) {
-            fatal("Forge did not initialise (no StaticData) — is res/ in the working directory?", null);
+            fatal(processId, "Forge did not initialise (no StaticData) — is res/ in the working directory?", null);
         }
         FModel.getPreferences().setPref(FPref.ENFORCE_DECK_LEGALITY, false);
         // Belt and braces: FModel.initialize only runs its lambda on a FIRST init, and
@@ -6108,14 +6275,21 @@ public final class PlayBridge {
         // owns the timeout on every ask; see README.md.
         FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.NET_AFK_TIMEOUT, "0");
         RemoteClientGuiGame.useDeltaSync = true;
+    }
 
+    /**
+     * A Forge server of the match's own, on a free loopback port: not
+     * {@code FServerManager.getInstance()}, the one process-wide default, so a JVM can run one
+     * per match.
+     */
+    static Booted bootServer() throws IOException {
         final int port = freePort();
-        final FServerManager server = FServerManager.getInstance();
+        final FServerManager server = new FServerManager();
         server.startServer(port);
         if (!server.isHosting()) {
-            fatal("Forge's server did not start on 127.0.0.1:" + port, null);
+            throw new IOException("Forge's server did not start on 127.0.0.1:" + port);
         }
-        final ServerGameLobby lobby = new ServerGameLobby();
+        final ServerGameLobby lobby = new ServerGameLobby(server);
         server.setLobby(lobby);
         lobby.setListener(new IUpdateable() {
             @Override public void update(final boolean fullUpdate) { server.updateLobbyState(); }
@@ -6134,11 +6308,11 @@ public final class PlayBridge {
      * {@code goesFirst = Aggregates.random(game.getPlayers())}, then asks THAT
      * player's controller {@code chooseStartingPlayer}. {@code game.getPlayers()} is
      * a two-element {@code List<Player>} in seat order (seats connect in order in
-     * {@link #startMatch}, and {@code GameLobby.startGame}/{@code Game}'s constructor
+     * {@link #play}, and {@code GameLobby.startGame}/{@code Game}'s constructor
      * never reorder them), and {@code Aggregates.random(List)} is exactly
      * {@code list.get(MyRandom.getRandom().nextInt(list.size()))}
      * ({@code forge/forge-core/src/main/java/forge/util/Aggregates.java:131-140}). So
-     * forcing that one {@code nextInt(2)} call to return {@link #chooser} makes
+     * forcing that one {@code nextInt(2)} call to return {@link MatchContext#chooser} makes
      * {@code goesFirst} the named seat — exactly the seat asked play-or-draw, and so
      * the seat {@code match.ts}'s {@code noteCoinToss} records as {@code coinToss.winner}.
      *
@@ -6200,26 +6374,47 @@ public final class PlayBridge {
     }
 
     /**
-     * The match: decks, seats, clients, go. {@code startAt} is when the match was
-     * handed to this JVM (the config file read, or the spare's {@code start}); the
+     * The match: decks, seats, clients, go, and then park until it is stopped. {@code startAt}
+     * is when the match was handed to this JVM (the config file read, or the {@code start}); the
      * {@code ready} line's {@code startMs} is measured from it, and its {@code bootMs}
      * from the JVM's own start — which for a spare includes however long it sat idle.
      */
-    static void startMatch(final List<SeatConfig> seats, final Booted booted, final long startAt) throws Exception {
+    static void startMatch(final MatchContext match, final Booted booted, final long startAt) throws Exception {
+        final List<FGameClient> clients = new ArrayList<>();
+        try {
+            play(match, booted, startAt, clients);
+            match.stop.await();
+            if (hostMode) {
+                endGame(match);
+            }
+        } finally {
+            for (final FGameClient c : clients) {
+                try { c.close(); } catch (final RuntimeException e) { e.printStackTrace(System.err); }
+            }
+            try { booted.server().stopServer(); } catch (final RuntimeException e) { e.printStackTrace(System.err); }
+            // A one-match JVM exits next; a host goes on, without this match's threads.
+            if (hostMode) {
+                for (final SeatGui g : match.seatGuis.values()) {
+                    CLIENT_THREADS.values().removeIf(s -> s == g);
+                    g.ui.shutdownNow();
+                }
+            }
+        }
+    }
+
+    static void play(final MatchContext match, final Booted booted, final long startAt, final List<FGameClient> clients) throws Exception {
+        final List<SeatConfig> seats = match.seats;
         final int port = booted.port();
-        final FServerManager server = booted.server();
         final ServerGameLobby lobby = booted.lobby();
-        LOBBY = lobby;
-        final Random random = seed == null ? new Random() : new Random(seed);
+        match.server = booted.server();
+        match.lobby = lobby;
+        final Random random = match.seed == null ? new Random() : new Random(match.seed);
         // The match's own random (forge.util.MyRandom): bound to this thread while it builds the
         // lobby's players and starts the match, so HostedMatch's Match adopts it and every thread
         // that works for the game draws from it. No other match in the JVM can touch it.
-        final Random seeded = seed == null ? new SecureRandom() : new Random(seed);
-        final Random matchRandom = chooser == null ? seeded : new RiggedCoinToss(seeded, chooser);
+        final Random seeded = match.seed == null ? new SecureRandom() : new Random(match.seed);
+        final Random matchRandom = match.chooser == null ? seeded : new RiggedCoinToss(seeded, match.chooser);
         final forge.util.MyRandom.Scope matchRng = forge.util.MyRandom.bind(matchRandom);
-        // Read when the opening hands are dealt (GameAction.startGame) and on every
-        // mulligan, so it is set here, after FModel.initialize set it from preferences.
-        StaticData.instance().setFilteredHandsEnabled(handSmoothing);
         final List<Deck> decks = new ArrayList<>();
         for (final SeatConfig s : seats) {
             decks.add(s.deck() != null ? parseDeck(s.deck()) : randomPrecon(random));
@@ -6237,11 +6432,10 @@ public final class PlayBridge {
         // Connect the human seats IN SEAT ORDER: ServerGameLobby.connectPlayer hands each
         // arrival the first OPEN slot, so sequential connects are what makes seat i
         // land in slot i — asserted below rather than assumed.
-        final List<FGameClient> clients = new ArrayList<>();
         for (int i = 0; i < seats.size(); i++) {
             if (seats.get(i).ai()) { continue; }
-            final SeatGui gui = new SeatGui(i);
-            SEATS.put(i, gui);
+            final SeatGui gui = new SeatGui(match, i);
+            match.seatGuis.put(i, gui);
             final ClientGameLobby clientLobby = new ClientGameLobby();
             final CountDownLatch assigned = new CountDownLatch(1);
             final AtomicInteger mySlot = new AtomicInteger(-1);
@@ -6261,16 +6455,16 @@ public final class PlayBridge {
                 @Override public ClientGameLobby getLobby() { return clientLobby; }
             });
             client.connect();
+            clients.add(client);
             if (!assigned.await(30, TimeUnit.SECONDS)) {
-                fatal("seat " + i + " was never given a lobby slot", null);
+                match.fatal("seat " + i + " was never given a lobby slot", null);
             }
             if (mySlot.get() != i) {
-                fatal("seat " + i + " landed in lobby slot " + mySlot.get(), null);
+                match.fatal("seat " + i + " landed in lobby slot " + mySlot.get(), null);
             }
             final UpdateLobbyPlayerEvent ready = UpdateLobbyPlayerEvent.isReadyUpdate(true);
             clientLobby.applyToSlot(i, ready);
             client.send(ready);
-            clients.add(client);
         }
 
         final long readyDeadline = System.currentTimeMillis() + 30_000;
@@ -6278,13 +6472,13 @@ public final class PlayBridge {
             boolean all = true;
             for (int i = 0; i < seats.size(); i++) { all &= lobby.getSlot(i).isReady(); }
             if (all) { break; }
-            if (System.currentTimeMillis() > readyDeadline) { fatal("the seats never all became ready", null); }
+            if (System.currentTimeMillis() > readyDeadline) { match.fatal("the seats never all became ready", null); }
             Thread.sleep(50);
         }
 
         final Runnable start = lobby.startGame();
         if (start == null) {
-            fatal("Forge refused to start the match (lobby.startGame returned null)", null);
+            match.fatal("Forge refused to start the match (lobby.startGame returned null)", null);
         }
 
         final JsonObject ready = line("ready");
@@ -6309,35 +6503,54 @@ public final class PlayBridge {
             seatInfo.add(s);
         }
         ready.add("seats", seatInfo);
-        emit(ready);
+        match.emit(ready);
 
-        final Thread reader = new Thread(PlayBridge::readCommands, "bridge-stdin");
-        reader.setDaemon(true);
-        reader.start();
+        if (!hostMode) {
+            final Thread reader = new Thread(PlayBridge::readCommands, "bridge-stdin");
+            reader.setDaemon(true);
+            reader.start();
+        }
 
-        final Thread watcher = new Thread(() -> watchForGameOver(lobby), "bridge-gameover");
+        final Thread watcher = new Thread(() -> watchForGameOver(match), "bridge-gameover-" + match.matchId);
         watcher.setDaemon(true);
         watcher.start();
 
+        // BridgeGui.hostMatch, called from inside `start`, reads which match it is for off this thread.
+        MatchContext.STARTING.set(match);
         try {
             start.run();
         } catch (final RuntimeException e) {
-            fatal("Forge failed while starting the match", e);
+            match.fatal("Forge failed while starting the match", e);
         } finally {
+            MatchContext.STARTING.remove();
             matchRng.close();
         }
-
-        // Everything from here is Netty, the game thread and the EDT. Park until told to stop.
-        STOP.await();
-        for (final FGameClient c : clients) {
-            try { c.close(); } catch (final RuntimeException e) { e.printStackTrace(System.err); }
-        }
-        try { server.stopServer(); } catch (final RuntimeException e) { e.printStackTrace(System.err); }
-        // Netty's event loops are non-daemon in places; do not wait for them.
-        Runtime.getRuntime().halt(0);
     }
 
-    static final CountDownLatch STOP = new CountDownLatch(1);
+    /**
+     * {@link #hostMode}: a match stopped while its game runs is conceded by every human seat, and
+     * every ask a seat is parked on is answered as aborted until Forge's game is over, so its game
+     * thread finishes instead of waiting for good on a seat that is gone. A one-match JVM has no
+     * need: it exits.
+     */
+    static void endGame(final MatchContext match) throws InterruptedException {
+        final Game game = match.liveGame();
+        if (game == null || game.isGameOver()) { return; }
+        for (final SeatGui g : match.seatGuis.values()) {
+            final IGameController c = g.getGameController();
+            if (c != null) { c.concede(); }
+        }
+        final long deadline = System.currentTimeMillis() + 10_000;
+        while (!game.isGameOver() && System.currentTimeMillis() < deadline) {
+            for (final SeatGui g : match.seatGuis.values()) {
+                for (final PendingAsk ask : g.pending.values()) { ask.answer.complete(ABORTED); }
+            }
+            Thread.sleep(20);
+        }
+        if (!game.isGameOver()) {
+            System.err.println("[bridge] match " + match.matchId + ": the game was not over 10 s after every seat conceded");
+        }
+    }
 
     /**
      * Wave 33 §S item 4 — the concede race, now a BACKSTOP only. Until wave 33
@@ -6351,7 +6564,7 @@ public final class PlayBridge {
      * (measured: 3 of 10 runs of `e2e/w31.spec.ts`'s concede test; see
      * `wave33-evidence/s4-concede.md`).
      *
-     * <p>The real fix is {@link #maybeEmitGameOverFirst()}, called from
+     * <p>The real fix is {@link MatchContext#maybeEmitGameOverFirst()}, called from
      * {@link SeatGui#setGameView} and {@link SeatGui#applyDelta} — the only
      * two places a {@code GameOver} property can reach a seat's wire — which
      * closes the race by ORDER: the {@code gameover} line is always written
@@ -6359,18 +6572,17 @@ public final class PlayBridge {
      * on the same stream, read by Node in that order. This loop still exists
      * for the one case that reasoning does not cover — a match nobody is
      * connected to, so no seat's {@code setGameView}/{@code applyDelta} ever
-     * runs to trigger it — and shares {@link #gameOverEmitted} with it, so
-     * whichever notices first is the one that emits.
+     * runs to trigger it — and shares {@link MatchContext#gameOverEmitted} with it, so
+     * whichever notices first is the one that emits. It ends with its match.
      */
-    static void watchForGameOver(final ServerGameLobby lobby) {
+    static void watchForGameOver(final MatchContext match) {
         try {
-            while (true) {
-                final HostedMatch match = lobby.getHostedMatch();
-                if (match != null && match.getGame() != null && match.getGame().isGameOver()) {
-                    maybeEmitGameOverFirst();
+            while (!match.stop.await(20, TimeUnit.MILLISECONDS)) {
+                final Game game = match.liveGame();
+                if (game != null && game.isGameOver()) {
+                    match.maybeEmitGameOverFirst();
                     return;
                 }
-                Thread.sleep(20);
             }
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -6382,41 +6594,61 @@ public final class PlayBridge {
             String raw;
             while ((raw = IN.readLine()) != null) {
                 if (raw.isBlank()) { continue; }
+                JsonObject cmd = null;
                 try {
-                    handle(JsonParser.parseString(raw).getAsJsonObject());
+                    cmd = JsonParser.parseString(raw).getAsJsonObject();
+                    handle(cmd);
                 } catch (final RuntimeException e) {
                     final JsonObject o = line("rejected");
                     o.addProperty("message", e.toString());
                     o.addProperty("command", raw.length() > 200 ? raw.substring(0, 200) : raw);
-                    emit(o);
+                    final MatchContext about = cmd == null ? null : addressed(cmd);
+                    emit(about == null ? processId : about.matchId, o);
                 }
             }
         } catch (final IOException e) {
             e.printStackTrace(System.err);
         }
         // Stdin closed: the Node side is gone, and a match nobody can reach is not worth a JVM.
-        STOP.countDown();
+        for (final MatchContext m : MATCHES.values()) { m.stop.countDown(); }
     }
 
-    static SeatGui seat(final JsonObject cmd) {
+    /** The hosted match {@code cmd} names, or {@code null}. */
+    static MatchContext addressed(final JsonObject cmd) {
+        final JsonElement id = cmd.get("match");
+        return id == null || !id.isJsonPrimitive() ? null : MATCHES.get(id.getAsString());
+    }
+
+    static SeatGui seat(final MatchContext match, final JsonObject cmd) {
         final int s = cmd.get("seat").getAsInt();
-        final SeatGui gui = SEATS.get(s);
+        final SeatGui gui = match.seatGuis.get(s);
         if (gui == null) { throw new IllegalArgumentException("no human seat " + s); }
         return gui;
     }
 
     static void handle(final JsonObject cmd) {
-        if (!cmd.has("match") || !matchId.equals(cmd.get("match").getAsString())) {
-            throw new IllegalArgumentException("command is not for match " + matchId);
+        if (hostMode && cmd.has("match") && processId.equals(cmd.get("match").getAsString())) {
+            switch (cmd.get("t").getAsString()) {
+                case "start" -> startHosted(cmd.getAsJsonObject("config"));
+                case "stop" -> Runtime.getRuntime().halt(0);
+                default -> throw new IllegalArgumentException("a host takes start or stop, got " + cmd.get("t"));
+            }
+            return;
+        }
+        final MatchContext match = addressed(cmd);
+        if (match == null) {
+            throw new IllegalArgumentException(hostMode
+                    ? "no match " + cmd.get("match") + " is hosted here"
+                    : "command is not for match " + processId);
         }
         switch (cmd.get("t").getAsString()) {
-            case "reply" -> seat(cmd).resolve(cmd.get("callId").getAsString(), cmd.get("result"));
-            case "abort" -> seat(cmd).resolve(cmd.get("callId").getAsString(), ABORTED);
-            case "act" -> seat(cmd).act(cmd.getAsJsonObject("frame"));
-            case "cancel-payment" -> seat(cmd).cancelPayment();
-            case "resend-pending" -> seat(cmd).resendPending();
-            case "probe" -> probe(cmd);
-            case "stop" -> STOP.countDown();
+            case "reply" -> seat(match, cmd).resolve(cmd.get("callId").getAsString(), cmd.get("result"));
+            case "abort" -> seat(match, cmd).resolve(cmd.get("callId").getAsString(), ABORTED);
+            case "act" -> seat(match, cmd).act(cmd.getAsJsonObject("frame"));
+            case "cancel-payment" -> seat(match, cmd).cancelPayment();
+            case "resend-pending" -> seat(match, cmd).resendPending();
+            case "probe" -> probe(match, cmd);
+            case "stop" -> match.stop.countDown();
             default -> throw new IllegalArgumentException("unknown command " + cmd.get("t"));
         }
     }
@@ -6429,7 +6661,7 @@ public final class PlayBridge {
      * runs it inside a live match. Diagnostic — the Node side only exposes it behind
      * {@code CARDTABLE_PLAY_PROBE=1}.
      */
-    static void probe(final JsonObject cmd) {
+    static void probe(final MatchContext match, final JsonObject cmd) {
         final int s = cmd.get("seat").getAsInt();
         final String message = cmd.has("message") ? cmd.get("message").getAsString() : "Probe: answer me";
         final String probeId = cmd.get("probeId").getAsString();
@@ -6438,7 +6670,7 @@ public final class PlayBridge {
             o.addProperty("probeId", probeId);
             o.addProperty("seat", s);
             try {
-                final RemoteClient client = FServerManager.getInstance().findClientByIndex(s);
+                final RemoteClient client = match.server.findClientByIndex(s);
                 if (client == null || client.getGui() == null) {
                     throw new IllegalStateException("no remote client GUI at slot " + s);
                 }
@@ -6449,7 +6681,7 @@ public final class PlayBridge {
             } catch (final RuntimeException e) {
                 o.addProperty("error", e.toString());
             }
-            emit(o);
+            match.emit(o);
         }, "bridge-probe");
         t.setDaemon(true);
         t.start();

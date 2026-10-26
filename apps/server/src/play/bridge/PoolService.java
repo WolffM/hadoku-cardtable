@@ -148,7 +148,7 @@ public final class PoolService {
             return;
         }
         // UPnP ASK would open a modal dialog; this process never hosts a network server at all,
-        // but FModel.initialize touches net preferences regardless. See PlayBridge.bootForge.
+        // but FModel.initialize touches net preferences regardless. See PlayBridge.bootModel.
         FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.UPnP, "NEVER");
 
         quiet("boot", boot);
