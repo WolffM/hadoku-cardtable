@@ -75,4 +75,14 @@ describe('TablesClient — the table id every call takes', () => {
     const running: Fetch = async () => new Response(JSON.stringify({ matchId: 'm-live' }), { status: 200, headers: { 'content-type': 'application/json' } });
     expect(await tablesClient(running, '/api/').startVsBot('r-1')).toEqual({ ok: true, matchId: 'm-live' });
   });
+
+  it('a start the server could not make is refused in its words — a 503 with a JSON error, or a status for a page that is not JSON', async () => {
+    const words = 'the server could not start Forge: no space left on its disk';
+    const unavailable: Fetch = async () => new Response(JSON.stringify({ error: words }), { status: 503, headers: { 'content-type': 'application/json' } });
+    for (const start of [(c: ReturnType<typeof tablesClient>) => c.startRoom('r-1'), (c: ReturnType<typeof tablesClient>) => c.startVsBot('r-1')]) {
+      expect(await start(tablesClient(unavailable, '/api/'))).toEqual({ ok: false, error: words, seats: null });
+    }
+    const htmlPage: Fetch = async () => new Response('<!DOCTYPE html><pre>Error: ENOSPC</pre>', { status: 500, headers: { 'content-type': 'text/html' } });
+    expect(await tablesClient(htmlPage, '/api/').startRoom('r-1')).toEqual({ ok: false, error: 'the server answered 500 without a JSON body', seats: null });
+  });
 });
