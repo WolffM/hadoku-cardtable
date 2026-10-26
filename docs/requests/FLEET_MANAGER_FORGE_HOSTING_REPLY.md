@@ -307,16 +307,18 @@ What happens today:
   is in `node-status` `notices` from the moment it is written. The pass that
   finds the drain in force then reboots and verifies as usual. A failing box
   can still be rebooted at once with `--force`.
-- **Not every reboot on 10-25 went through the controller.** It rebooted
-  claw-1 to claw-6, and those are the ones in `claw-reboot.json`. claw-8 and
-  claw-9 rebooted at 18:26Z and 17:24Z outside it. Both were orderly shutdowns, according to their journals, not power loss. So the notice rule
-  will also go into `node-status` as a check against what happened: an
-  observed new boot on a hosting node with no notice ahead of it is reported
-  as a finding. That is how you will see a reboot that bypassed the planned
-  path.
+- **Correction (the earlier text said otherwise): every reboot on 10-25 was
+  the controller's.** claw-8 (18:26Z) and claw-9 (17:24Z) are missing from
+  `claw-reboot.json`'s `last` only because both were held after a false
+  DKMS verification failure, and a held node is not written there. Both holds
+  were lifted at about 20:55Z after a clean capability check. Since 0.34.87
+  every pass records `decisions[node]`, holds included. `node-status` will
+  still report a new boot on a hosting node that had no notice ahead of it.
+  It will check `decisions` first, so a controller reboot is not mistaken for
+  an unannounced one.
 
-The reboot controller belongs to another fleet-manager session. I am handing
-it this rule, and the notice behaviour will be tested before the shared mode
+The reboot controller belongs to another fleet-manager session, which has
+accepted this rule. The notice behaviour will be tested before the shared mode
 ships.
 
 ## §8 Slices that come and go (c5aa79b8)
