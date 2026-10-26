@@ -1536,9 +1536,12 @@ function ConcedeAsk({ onConcede, onCancel }: { onConcede: () => void; onCancel: 
 
 /**
  * The pop-up's OK while the seat declares attackers or blockers says what pressing it does —
- * Forge's own label there is a bare "OK", which read as unclear in play.
+ * Forge's own label there is a bare "OK", which read as unclear in play. Only the declaration
+ * itself: once it is made, the same step's priority stop is a pass (`passLabel`), not a
+ * declaration, though the phase has not moved.
  */
-function combatDoneLabel(match: LiveMatch): string | null {
+function combatDoneLabel(match: LiveMatch, route: BarRoute): string | null {
+  if (route !== 'decision') return null;
   if (declaringAttackers(match)) return 'Done Attacking';
   if (declaringBlockers(match)) return 'Done Blocking';
   return null;
@@ -2905,7 +2908,7 @@ export function LiveBoard({ match, roomId = null }: LiveBoardProps) {
   // would otherwise draw beside OK the same way it does for every other decision-area bar.
   const decisionCancel = !yielding && (route === 'decision' || route === 'resolve') && bar !== null && bar.enable2 && !offersEndTurn(bar) && offersSecondButton(match) && !mulliganPick;
   const decision = decisionOk || decisionCancel;
-  const combatDone = combatDoneLabel(match);
+  const combatDone = combatDoneLabel(match, route);
   /*
    * The operator, 2026-10-20 (m-b752a3424b43): Tinker's sacrifice "never popped up on my screen" until a
    * reload, and no repro failed to draw it (`e2e/tk-tinker.spec.ts`). What the board draws for a pick, and
