@@ -36,6 +36,11 @@ what a player feels, or what hosting costs. Whoever fixes a row moves it to
 - **T0: a real prod match's CPU and heap profile.** No prod match ran while the
   sampler did. Rerun `scripts/stress/t0-sample.sh` during an evening's play.
 - Firefox under CPU throttling; real phones; Safari.
+- **Per-match Netty event loops in a `--host` JVM.** Since lane-multimatch
+  (`docs/spikes/multi-match-jvm.md`) each match gets its own `FServerManager`
+  and so its own Netty loops and port. Two matches were proven; the thread and
+  memory cost at 50+ per JVM is assumed small, not measured. Measure it with
+  `scripts/stress/` before placement sizes a JVM by match count.
 
 ## Done
 
