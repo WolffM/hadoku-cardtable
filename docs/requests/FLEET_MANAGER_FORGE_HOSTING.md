@@ -1,8 +1,8 @@
 # Request to hadoku-fleet-manager: claws that host Forge matches
 
 From: hadoku-cardtable, 2026-10-24. Status: **OPEN** — §1–§6 answered in
-`FLEET_MANAGER_FORGE_HOSTING_REPLY.md`, §7 answered (948b6edf), §8 answered (2c8df02c); §9 (2026-10-25) is new
-and open.
+`FLEET_MANAGER_FORGE_HOSTING_REPLY.md`, §7 answered (948b6edf), §8 answered (2c8df02c); §9 answered; §10 (2026-10-25)
+is new and open.
 Plan this serves: `docs/planning/forge-hosting-plan.md` (cardtable repo).
 
 ## Context
@@ -252,6 +252,34 @@ coordinator signs off, so no CI-writable directory sits on its code path; and
 its TCP port (§5) authenticates the coordinator, so a CI job on the same box
 cannot connect and ask for a match's frames.
 
+### 10. CI runs as an unprivileged user (added 2026-10-25)
+
+Your §9 reply found that every CI job on a claw can become root (the CI user
+`hadoku` has NOPASSWD sudo, and on claw-8 the docker group), so §9's separate
+agent user only stops non-sudo access. The operator, asked about it:
+**"setting up a new CI user sounds annoying. but i guess it'd be fine to do as
+long as it's fully automated and can't drift. we can use hadoku to create the
+user and make sure it's tracked properly in fleet-manager."** This replaces
+the earlier "CI keeps root".
+
+What we ask, on every claw (not only hosting nodes, so a node can take the
+hosting role without changing how CI runs there):
+
+- **A dedicated CI user** with no sudo, no docker group and no group shared
+  with `cardtable-agent`, created and kept by fleet-manager's own converge
+  path (`hadoku` performs it; nobody sets it up by hand). Runners register and
+  run jobs as that user.
+- **Can't drift:** the user, its groups, its sudoers state (none) and the
+  runners' `User=` are observed on every check, and any difference is a
+  blocking finding in `node-status`, not a warning. If the converge path
+  repairs it, say so; if it only reports, say so.
+- **Tell us what breaks.** Some workflows may rely on sudo or docker today.
+  List the ones that do (any repo the claws serve), and what each needs
+  instead. That is the real cost of this change; we'd rather know it before
+  it lands than find it as reds.
+- Test A10 then runs **with** the CI user's full rights, sudo included, and
+  every read, signal and write must be refused.
+
 ## What we do NOT ask
 
 - Choosing hosts, balancing load, failover, retries, or alerts. Ours.
@@ -273,3 +301,6 @@ cannot connect and ask for a match's frames.
   states the time to a guaranteed slice and that no CI job is killed by one.
 - §9: from a CI unit on a hosting node, reading, signalling and writing the
   agent are each refused, and `--check --json` shows it.
+- §10: CI on every claw runs as an unprivileged user that fleet-manager creates
+  and checks; a drift is a blocking finding; the sudo/docker-dependent
+  workflows are listed with what replaced each.
