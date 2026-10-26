@@ -434,9 +434,9 @@ continue and **none is killed**. It then reverts by itself.
 - What it cannot shorten: a running job holding the memory. So the
   worst case is the same, and the usual case (fits at once) is unchanged.
 - It does not shorten the CPU side, which never waits.
-- Without `--force`, the 15 min notice rule doesn't apply to a declaration
-  anyway. Notice is owed to the tenant when a slice is taken away, not when
-  one is added.
+- A declaration never waits for the 15 min notice, with or without
+  `--force`. Notice is owed when a slice is taken away, not when one is
+  added.
 
 For a match that must move **now**, hokon's backstop (§6) is still the right
 first target, as you planned. A fresh slice is usually ready within seconds,
