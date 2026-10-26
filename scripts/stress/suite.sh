@@ -25,8 +25,10 @@
 # 3 GB slice like a planned hosting slice, N=${N:-16} paced matches each:
 #   b3       a baseline, then one slot's AI throwing a real StackOverflowError,
 #            then an engine exception, each beside the N-1 others
-#   b2       a hung AI beside N-1 others: one spinning on the CPU (no interrupt
-#            reaches it), one blocked (an interrupt does), one forge#3410 board
+#   b2       a hung AI beside N-1 others: one spinning on the CPU in code of its
+#            own (nothing reaches it), one spinning through Forge's attack search
+#            (its loop heads stop it once the game is over), one blocked (an
+#            interrupt does), one forge#3410 board. FAULTS picks the hangs
 #   b4       OOM: a heap too small with and without -XX:+ExitOnOutOfMemoryError,
 #            then a cgroup MemoryMax below the heap (the kernel kills it)
 #   b5       AI cutoffs on every scan (Game.AI_TIMEOUT=0): live eval threads
@@ -95,7 +97,7 @@ case $suite in
 		done
 		;;
 	b2)
-		for f in spin block; do
+		for f in ${FAULTS:-spin search block}; do
 			R "b2-$f-n$N" 4 3G 2200m "${PACED[@]}" -Dstress.matches=$N -Dstress.fault=$f -Dstress.faultSlots=1 -Dstress.faultRescueSec=30 -Dstress.durationSec=${DUR:-240} -Dstress.liveGcSec=60
 		done
 		R "b2-heavy-n$N" 4 3G 2200m "${PACED[@]}" -Dstress.matches=$N -Dstress.heavySlots=1 -Dstress.durationSec=${DUR:-240} -Dstress.liveGcSec=60

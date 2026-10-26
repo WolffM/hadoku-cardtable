@@ -1,4 +1,5 @@
 import forge.StaticData;
+import forge.ai.AiAttackController;
 import forge.ai.LobbyPlayerAi;
 import forge.ai.PlayerControllerAi;
 import forge.deck.CardPool;
@@ -104,7 +105,10 @@ public final class ForgeScale {
      * the heavy ones play a normal vs-AI match whose AI seat, at its {@code stress.faultAfter}-th
      * priority decision, does {@code stress.fault}: {@code soe} recurses until a real
      * StackOverflowError, {@code throw} throws an engine exception, {@code spin} loops on the CPU
-     * forever (a hung AI no interrupt reaches), {@code block} waits forever (a hung AI an
+     * forever in code of its own (a hung AI no interrupt reaches, and no loop head Forge controls),
+     * {@code search} loops on the CPU forever through Forge's attack search (an AI search that
+     * never settles, the shape of forge#3410: an interrupt does not reach it either, but every pass
+     * goes through the search's own loop heads), {@code block} waits forever (a hung AI an
      * interrupt does reach). {@code stress.faultRescueSec} after a hang, the harness tries what a
      * host could: end the game and interrupt its thread.
      */
@@ -604,6 +608,18 @@ public final class ForgeScale {
                     while (true) {
                         x += System.nanoTime() ^ x;
                         spinSink = x;
+                    }
+                }
+                case "search" -> {
+                    HUNG.put(this, System.nanoTime());
+                    try {
+                        while (true) {
+                            new AiAttackController(getPlayer()).declareAttackers(new Combat(getPlayer()));
+                        }
+                    } finally {
+                        if (HUNG.remove(this) != null && rescueTried) {
+                            RESCUED.incrementAndGet();
+                        }
                     }
                 }
                 case "block" -> {
