@@ -260,8 +260,6 @@ export function installDialogMover(root: HTMLElement): () => void {
       if (Math.hypot(dx, dy) < MOVE_SLOP_PX) return;
       press.moved = true;
       press.frame.setAttribute('data-moving', '');
-      // A move is not a text selection: what the press began selecting is let go (`live.css` holds it off from here).
-      window.getSelection()?.removeAllRanges();
       try {
         press.frame.setPointerCapture(event.pointerId);
       } catch {

@@ -615,7 +615,6 @@
 
 .live :is(.live__prompt[data-moving] > *, [data-testid='pile-view'][data-moving], #own-deck[data-moving]) {
   cursor: grabbing;
-  user-select: none;
 }
 
 /*
