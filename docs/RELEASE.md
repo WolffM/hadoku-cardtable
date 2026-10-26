@@ -74,7 +74,7 @@ Every notes file, and every pending file, follows this.
 ## Fixed
 - What was wrong is right now.
 
-## Under the hood
+## Fixes
 - Faster checks before an update ships.
 - Dependency updates.
 ```
@@ -90,8 +90,8 @@ Every notes file, and every pending file, follows this.
   exactly one bullet; related commits share one. Version bumps and notes commits are the only
   ones left out, and `collect.ts` leaves them out for you. A commit no player sees (CI, tests,
   tooling, docs, dependency updates, admin-only tools such as the testing rooms or the sound
-  builder) goes under **Under the hood**, grouped by kind, one plain sentence each.
-- **Players' words**, Under the hood too: no file names, commit ids, ticket numbers or internals.
+  builder) goes under **Fixes**, grouped by kind, one plain sentence each.
+- **Players' words**, Fixes too: no file names, commit ids, ticket numbers or internals.
 - **Blank lines are for the file.** Write a blank line around each heading as usual; the post
   drops them, since Discord already spaces a heading, and joins a wrapped line back up.
 - **Length.** It's posted as a Discord embed. A body over 4096 characters is split at its `##`

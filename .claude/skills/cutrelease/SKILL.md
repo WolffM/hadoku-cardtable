@@ -30,14 +30,14 @@ is the list: every commit since `$LAST` except version bumps and notes commits. 
 in exactly one bullet. When a subject does not say enough, read the commit (`git show --stat
 <sha>`, its body, the files it touched). A player-visible commit is covered by a pending file, or
 it is a **gap**: write its bullet yourself, from the commit and its ledger row's "check it by"
-column if it has one. A commit no player sees goes under **Under the hood**.
+column if it has one. A commit no player sees goes under **Fixes**.
 
 If "Commits to cover" is empty, say there is nothing to release and stop.
 
 ## 2. Combine
 
 Write `docs/releases/vX.Y.Z.md` in a worktree off `origin/main`, in the shape and wording rules
-of `docs/RELEASE.md` § "Notes style" (read it every time): New, Changed, Fixed, Under the hood;
+of `docs/RELEASE.md` § "Notes style" (read it every time): New, Changed, Fixed, Fixes;
 a plain lead sentence per bullet, bold only on a big feature's lead, which alone gets extra
 words; a fix is one short plain line.
 
@@ -46,7 +46,7 @@ words; a fix is one short plain line.
 - **Every pending bullet**, under its own heading, in the order the files sort (they are dated).
   Fold two bullets about the same thing into one, and cut a pending bullet down to the style's
   length when it is a small fix written long.
-- **Under the hood** groups the commits no player sees by kind ("Faster checks before an update
+- **Fixes** groups the commits no player sees by kind ("Faster checks before an update
   ships.", "Dependency updates."), one plain sentence each.
 
 ## 3. The operator edits
