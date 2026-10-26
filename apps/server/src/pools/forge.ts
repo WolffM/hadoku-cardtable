@@ -176,7 +176,9 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 					'"bridge-compile-failed" log line, or that no javac exists beside CARDTABLE_JAVA',
 			);
 		}
-		const c = spawn(poolConfig.java, ['-Djava.awt.headless=true', `-Djava.io.tmpdir=${join(run, 'tmp')}`, ...poolConfig.jvmOpts, ...bridge.args], {
+		// Out of heap, the JVM exits rather than limping on at ~94 % GC (hosting-test-plan H7): every
+		// waiter is then rejected by `onExit` and the next call spawns a fresh pool JVM.
+		const c = spawn(poolConfig.java, ['-Djava.awt.headless=true', '-XX:+ExitOnOutOfMemoryError', `-Djava.io.tmpdir=${join(run, 'tmp')}`, ...poolConfig.jvmOpts, ...bridge.args], {
 			cwd: run,
 			stdio: ['pipe', 'pipe', 'pipe'],
 		});
