@@ -1,7 +1,8 @@
 # Request to hadoku-fleet-manager: claws that host Forge matches
 
 From: hadoku-cardtable, 2026-10-24. Status: **OPEN** — §1–§6 answered in
-`FLEET_MANAGER_FORGE_HOSTING_REPLY.md`; §7 (2026-10-25) is new and open.
+`FLEET_MANAGER_FORGE_HOSTING_REPLY.md`, §7 answered (948b6edf); §8 (2026-10-25)
+is new and open.
 Plan this serves: `docs/planning/forge-hosting-plan.md` (cardtable repo).
 
 ## Context
@@ -159,6 +160,57 @@ still reboot at once (`--force`); we fail over and alert on that.
 is the reservation to plan for. We will run `fleet hosting` ourselves when it
 does, or ask you to.
 
+### 8. Slices that come and go with load (added 2026-10-25)
+
+The operator, answering your §7 costs: **"4/2/2 is fine. however, rather than
+permanent can we incrementally stand these up as load increases?"** So the
+slices are no longer standing reservations. Cardtable declares a slice when
+its own load calls for it and ends it when load falls; CI has the whole box
+the rest of the time. **When** is cardtable's decision (placement); you serve
+each declaration as §7 describes.
+
+**The slices, in the order cardtable adds them:**
+
+| step | claw | slice | CI keeps |
+| --- | --- | --- | --- |
+| base | claw-9 | 4 cores / 4G | 8 cores / ~23 GiB |
+| +1 | claw-8 | 2 cores / 3G | 6 cores / ~10.8 GiB |
+| +2 | claw-4 | 2 cores / 3G | 6 cores / ~10.8 GiB |
+
+The base slice stands whenever cardtable hosts anything; it costs CI least.
+At 3G, claw-8 and claw-4 leave CI enough for forge-e2e's 10 GB peak, which
+your §7 4G figure did not. claw-6 stays out (your §7: it cannot share).
+
+**What we need to make that safe:**
+
+- **Declare and end from a program**, not a person: a `fleet hosting` call
+  (or an mgmt-api endpoint) cardtable's coordinator can run unattended, with
+  `--json` output under your contract, and an exit status that means what it
+  says.
+- **How long a declaration takes to be real** — from the call until
+  `--check --json` reads the guarantee back from the kernel — and what it does
+  to CI jobs already running there. CPU we expect to bite at once (a running
+  job slows, nothing dies). Memory is the question: lowering
+  `runners.slice` `memory.max` under a running job's usage would kill it.
+  Either wait for those jobs to fit (and say the worst-case wait: one forge-e2e
+  is ~15–20 min) or refuse the declaration with that reason — **never kill a
+  CI job to make room**. Cardtable will declare early enough to cover the wait.
+- **No dispatch onto memory the slice is about to take**: from the moment a
+  declaration is accepted, the dispatcher admits CI against the new ceiling.
+- **Ending is the planned drain you already have** (`--end` ≥15 min ahead).
+  Cardtable stops placing on the slice first and ends it once its matches are
+  gone, so `--end` never cuts a live match.
+- **A failover target in a hurry.** If the base slice's claw fails, its
+  matches must move at once. Cardtable sends them to whatever slice is already
+  up; if none is, to hokon's backstop (`decideBackstop`, §6) while the next
+  slice comes up. Tell us whether `--force` on a declaration can shorten the
+  memory wait for this case (it may refuse a CI job new work, never kill one).
+
+**Hysteresis is ours.** Cardtable adds a slice when the live slices' matches
+reach about 70% of their quality cap and removes one only after a calm spell,
+so a slice does not flap on one match starting and ending. You will see a
+declaration at most every few minutes, typically a few a day.
+
 ## What we do NOT ask
 
 - Choosing hosts, balancing load, failover, retries, or alerts. Ours.
@@ -176,3 +228,5 @@ does, or ask you to.
   unreachable within its stated freshness.
 - §7: the shared mode, or the reason it cannot be; a hosting node's reboot shows
   in `notices` ≥15 min ahead.
+- §8: cardtable's coordinator declares and ends a slice unattended; the reply
+  states the time to a guaranteed slice and that no CI job is killed by one.

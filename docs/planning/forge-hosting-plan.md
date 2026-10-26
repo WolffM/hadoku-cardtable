@@ -238,11 +238,18 @@ Only what ruling 2 allows; it goes to them as a request in `docs/requests/`:
 - Status we can read: online, health findings, drains, declared resources.
   Notice of a drain *before* it happens, so we can move matches off first.
 - Resources served as declared: memory and cores reserved for the host role are
-  not given to CI. Since 2026-10-25 that is a **slice** of 4 cores and 4 GB on
-  claw-8, claw-9 and claw-4, with CI on the rest of the box (request §7): the
-  operator capped the target at 100 concurrent matches on at least 3 claws, and
-  any one slice carries all 100. CI on the claws runs only our own workflows,
-  so a run directory at `0700` is the secrecy line, not a CI-free box.
+  not given to CI. Since 2026-10-25 that is a **slice** with CI on the rest of
+  the box (request §7–§8): claw-9 4 cores / 4G, claw-8 and claw-4 2 cores / 3G
+  each. The operator capped the target at 100 concurrent matches on at least 3
+  claws, and asked that the slices be stood up as load rises rather than held:
+  claw-9's is the base, claw-8's and claw-4's are added by cardtable at ~70% of
+  the live slices' quality cap and removed after a calm spell (hysteresis as
+  in §4.3). Failover while only the base stands goes to hokon's backstop until
+  the next slice is up.
+- Secrecy: CI runs as the same user as the agent and `ptrace_scope` is 0
+  (fleet-manager's §7 reply), so `0700` stops nothing; the only barrier is that
+  CI runs only our own workflows. Running the agent as its own user is the fix
+  if the operator wants one (not decided).
 - No reboot of a host claw without a planned drain ≥15 min ahead.
 - A leased claw for the T0–T9 measurement window.
 
