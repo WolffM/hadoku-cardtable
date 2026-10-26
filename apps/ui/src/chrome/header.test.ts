@@ -42,7 +42,7 @@ vi.mock('@wolffm/prefs-client/react', () => ({
 }));
 
 import { App } from '../App.tsx';
-import { DISCORD_INVITE_URL } from './DiscordLink.tsx';
+import { DISCORD_INVITE_URL, GITHUB_REPO_URL } from './HeaderLinks.tsx';
 
 afterEach(() => {
   cleanup();
@@ -91,6 +91,18 @@ describe('the Discord link', () => {
     expect(link.getAttribute('rel')).toContain('noopener');
     const actions = link.closest('.app-header__actions');
     expect(actions?.firstElementChild).toBe(link);
+  });
+});
+
+describe('the GitHub link', () => {
+  it('sits right after the Discord link and opens the repo in a new tab', () => {
+    render(createElement(App));
+
+    const link = screen.getByRole('link', { name: 'GitHub' });
+    expect(link.getAttribute('href')).toBe(GITHUB_REPO_URL);
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+    expect(link.previousElementSibling).toBe(screen.getByRole('link', { name: 'Discord' }));
   });
 });
 
