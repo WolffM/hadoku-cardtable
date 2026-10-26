@@ -31,15 +31,15 @@ is OOM-killed).
 | # | test | pass |
 | --- | --- | --- |
 | A1 | declare a slice, time to `guaranteed` on `--check --json` | seconds, and every read-back field matches the kernel |
-| A2 | quality under contention: stress harness inside the slice, CI saturating the rest of the box, on claw-9, claw-8, claw-4 and claw-6 | the quality gates hold at the slice's planned load |
+| A2 | quality under contention: stress harness inside the slice, CI-shaped load (`fleet hosting <node> --ci-shaped -- <cmd>`) saturating the rest of the box under a `--kind lease` drain, on claw-9, claw-8, claw-4 and claw-6 | the quality gates hold at the slice's planned load |
 | A3 | CPU when idle: slice idle, CI saturating | CI gets the slice's cores (fleet-manager's aim: nothing wasted) |
 | A4 | memory hold-back: declare, then dispatch CI while the slice is empty, half full, full | no new CI job admitted into the declared share at any point, including before our JVMs start |
-| A5 | OOM order: a process in a CI unit grows into the slice's share | the kernel kills the CI process; the agent and every match live |
-| A6 | global OOM on the box | CI dies first, every time (`oom_score_adj` ordering) |
+| A5 | OOM order: a `--ci-shaped` process grows into the slice's share, under a lease drain | the kernel kills the CI process; the agent and every match live |
+| A6 | global OOM on the box, under a lease drain only (on live traffic it would kill real jobs) | CI dies first, every time (CI +500, agent −500; on claw-4 pm2 at 0 also outlives CI) |
 | A7 | end: `--end` under 15 min ahead, and at ≥ 15 min | the first refused; the second shown in `notices` from the moment it is scheduled |
 | A8 | reboot of a hosting node | only via a planned drain ≥ 15 min ahead in `notices`; an unannounced reboot is reported by `node-status` |
-| A9 | `node-status --json` when a node is unreachable, and when mgmt-api is down | `reachable: false`/blocking within one poll; "could not look" is a failure, never healthy |
-| A10 | agent as its own user (§9): from a CI unit, read `/proc/<agent>/mem` and `environ`, `kill -0` the agent, write into its home and its executable | each refused |
+| A9 | `node-status --json` when a node is unreachable (it ssh's from the CLI; mgmt-api is not on its path) | `reachable: false`/blocking within one poll; "could not look" is a failure, never healthy |
+| A10 | agent as its own user (§9): from a `--ci-shaped` unit WITHOUT sudo, read `/proc/<agent>/mem` and `environ`, `kill -0` the agent, write into `/var/lib/cardtable-agent` and `/opt/hosting/cardtable/run` | each refused (with sudo all succeed: accepted risk R1) |
 | A11 | remove: `--remove` after the end | no unit, user process, firewall rule or cgroup left |
 
 ## B. Many matches in one JVM (testable now, `scripts/stress/`)
@@ -85,6 +85,12 @@ Written now so the design is built to pass them.
 | D7 | scale up and down: load past 70 % of the live slices' cap, then calm | the next slice is declared and used; removed only after the calm spell, with `--end` notice, never cutting a live match |
 | D8 | a CI job on the same claw tries to connect to the agent's port | refused (the port authenticates the coordinator) |
 | D9 | a bad jar or `res` delivered to an agent | the sha256 check refuses it; the claw stays on its old artifacts |
+
+## Accepted risks
+
+| id | risk | accepted by | why |
+| --- | --- | --- | --- |
+| R1 | Every CI job on a claw can become root (the CI user has NOPASSWD sudo; on claw-8 also the docker group), so a CI job could read a live match's hidden cards or replace the agent despite §9's separate user. §9 stops plain, non-sudo access only. | the operator, 2026-10-25, per fleet-manager's §9 reply | CI on the claws runs only WolffM's own workflows; fork-PR runs need approval |
 
 ## Findings
 
